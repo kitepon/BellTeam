@@ -2,12 +2,11 @@
 // no `todo nudge`) -> ONE prompt per lane Bot that is not running and has an in-progress or a startable task. No other condition.
 const LIMIT = 4000
 const HEAD = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.\n'
-  // Owner K-YNBZE7 + correction (2026-11-13 19:3x JST): a wait on team work is a prerequisite; only a wait outside the team is a stop.
-  + 'If a task waits on something, what it waits on decides what to do. '
-  + 'A task already on the chart: connect it as the prerequisite (`lattice todo dependency connect --from-plan <P> --from-task <that task> --to-plan <P> --to-task <T> --reason <why>`). '
-  + 'A member\'s work not on the chart yet: add it in that member\'s lane before this task (`lattice todo add --plan <P> --task <id> --title <what you wait for> --phase <phase of T> --lane <member Bot id> --before <T> --design-memo <what and why> --reason <why>`). '
-  + 'In both cases return the task to unstarted if it is in progress (`lattice todo retract --plan <P> --task <T> --reason <why>`); a task waiting on prerequisites is not prompted. '
-  + 'A wait outside the team (an outside review such as Apple\'s, a vendor quota reset, anything no member does): set a stop whose reason names what it waits on (`lattice todo block --plan <P> --task <T> --reason <what it waits on>`); a stopped task is not prompted.'
+  // Owner K-YNBZE7 (2026-11-13): connect the predecessor first; a stop is only the last resort when none can be connected.
+  + 'If a task cannot start, connect what it waits on as its predecessor: an existing task (`lattice todo dependency connect --from-plan <P> --from-task <that task> --to-plan <P> --to-task <T> --reason <why>`), '
+  + 'or, when the predecessor work is not on the chart yet, add it as a task before this one (`lattice todo add --plan <P> --task <id> --title <what you wait for> --phase <phase of T> --lane <who does it> --before <T> --design-memo <what and why> --reason <why>`). '
+  + 'Then return the task to unstarted if it is in progress (`lattice todo retract --plan <P> --task <T> --reason <why>`); a task waiting on prerequisites is not prompted. '
+  + 'Only when no predecessor can be connected, set a stop as the last resort, naming what it waits on (`lattice todo block --plan <P> --task <T> --reason <what it waits on>`); a stopped task is not prompted.'
 
 const line = card => card.state === 'ready'
   ? `- ${card.plan}/${card.taskId} 「${card.title}」: can start -> \`lattice todo start --plan ${card.plan} --task ${card.taskId}\``
