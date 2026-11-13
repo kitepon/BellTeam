@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T23:47:59Z",
-  "expiresAt": "2026-11-19T23:47:59Z",
+  "publishedAt": "2026-11-13T00:19:59Z",
+  "expiresAt": "2026-11-20T00:19:59Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7",
-      "versionId": "cbf4dddadbb6e95cbfc6c8ea80001d889c7ab4bbebbaad8d6a3b375987f93560",
+      "sourceCommit": "e2f4479445244573113b88493408adbf79dd0ab4",
+      "versionId": "e721dd0711bcdfbc765e53dae3ab85e3c0e4d7fe31796674c548ae63f97acba1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-amd64.tar.gz",
-          "bytes": 15268065,
-          "sha256": "cbf4dddadbb6e95cbfc6c8ea80001d889c7ab4bbebbaad8d6a3b375987f93560"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T001847Z/lattice-e2f4479445244573113b88493408adbf79dd0ab4-linux-amd64.tar.gz",
+          "bytes": 15268078,
+          "sha256": "e721dd0711bcdfbc765e53dae3ab85e3c0e4d7fe31796674c548ae63f97acba1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10949,
-          "sha256": "3aaf02567daaf88464bd4866423fb3f2301fb14793c96dea941092c378b58de3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T001847Z/lattice-e2f4479445244573113b88493408adbf79dd0ab4-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "18723a719d8ea556bc74680743ef41bab5d6cf2af3f5e33e956c2b730e9314ab"
         },
-        "signerCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7"
+        "signerCommit": "e2f4479445244573113b88493408adbf79dd0ab4"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +787,13 @@
         }
       },
       "changes": [
-        "評価者様が工程の完了に答えた時、Bot がまず工程を始めた印を付けてから完了にするよう案内します。"
+        "Lattice を 0.98.0 にします。使われていなかった「催促」の命令をなくしました。タスクの扱いは変わりません。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7",
-      "versionId": "db8e859237250240f553702a97f373733ac02136158b395d492f61122c06cf79",
+      "sourceCommit": "e2f4479445244573113b88493408adbf79dd0ab4",
+      "versionId": "b7a361f9a7acd0373004841e95e62add3e8cacffdb652df29223c5ea18c72090",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-arm64.tar.gz",
-          "bytes": 15268083,
-          "sha256": "db8e859237250240f553702a97f373733ac02136158b395d492f61122c06cf79"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T001847Z/lattice-e2f4479445244573113b88493408adbf79dd0ab4-linux-arm64.tar.gz",
+          "bytes": 15268082,
+          "sha256": "b7a361f9a7acd0373004841e95e62add3e8cacffdb652df29223c5ea18c72090"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10914,
-          "sha256": "ee0c883958cf018e481cd8c3994ec96d270e26aa40d9e662905f3e58f25ed537"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T001847Z/lattice-e2f4479445244573113b88493408adbf79dd0ab4-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "4a0deefc031e9ade51bb85a214545302a918a12dbaa0e85bcf5b52873a0f9693"
         },
-        "signerCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7"
+        "signerCommit": "e2f4479445244573113b88493408adbf79dd0ab4"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +822,7 @@
         }
       },
       "changes": [
-        "評価者様が工程の完了に答えた時、Bot がまず工程を始めた印を付けてから完了にするよう案内します。"
+        "Lattice を 0.98.0 にします。使われていなかった「催促」の命令をなくしました。タスクの扱いは変わりません。"
       ]
     }
   ],
