@@ -3,7 +3,7 @@ import { readCurrentWork } from './current-work-contract.mjs'
 // Provider invalidations become one serialized root 'refresh'; batches go to the body's SSE subscribers.
 const unavailable = () => Object.assign(new Error('WORK_GRAPH_UNAVAILABLE'), { code: 'WORK_GRAPH_UNAVAILABLE', status: 503 })
 
-export function createWorkGraphFacade({ controller, bots, rooms, transport, coalesceMs = 100, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createWorkGraphFacade({ controller, bots, rooms, transport, commandWaits = null, coalesceMs = 100, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Set(), stops = []
   let chain = Promise.resolve(), session = 0, timer = null, nextTimer = null
 
@@ -28,7 +28,7 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, coal
 
   function start() {
     const mine = ++session
-    for (const [owner, name] of [[transport, 'watchCurrentTurn'], [transport, 'watchQueue'], [bots, 'watch'], [rooms, 'watch']]) {
+    for (const [owner, name] of [[transport, 'watchCurrentTurn'], [transport, 'watchQueue'], [bots, 'watch'], [rooms, 'watch'], [commandWaits, 'watch']]) {
       if (typeof owner?.[name] !== 'function') continue
       void Promise.resolve().then(() => owner[name](() => request())).then(stop => {
         if (typeof stop !== 'function') return
@@ -80,8 +80,11 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
       try {
         const rows = await Promise.all(params.botIds.map(async id => {
           // The edge label is the receiver's Japanese work summary (GET /api/bots currentWork), never a message body.
-          const work = readCurrentWork(transport, bots.get?.(id) ?? null)
-          return [id, { ...turn(await transport.currentTurn(id, { startedAt: true })), summary: work.summary, summaryStatus: work.summaryStatus }]
+          const work = readCurrentWork(transport, bots.get?.(id) ?? null), native = turn(await transport.currentTurn(id, { startedAt: true }))
+          // "Working" is execution's one judgement (currentWork, incl. a notify=result command wait; a54); native turn only when it is unknown.
+          const state = work.state === 'unknown' ? native.state : work.state
+          const startedAt = native.state === 'working' ? native.startedAt : state === 'working' ? time(work.reason?.since) : native.startedAt
+          return [id, { ...native, state, startedAt, summary: work.summary, summaryStatus: work.summaryStatus }]
         }))
         return { turns: Object.fromEntries(rows) }
       } catch (error) {

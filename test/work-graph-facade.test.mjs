@@ -14,7 +14,7 @@ function fixture({ refresh = () => ({ batch: null, nextRefreshMs: null }), fail 
   } }
   const watch = name => listener => { listeners.push([name, listener]); return () => stopped.push(name) }
   const timers = []
-  const facade = createWorkGraphFacade({ controller, bots: { watch: watch('bots') }, rooms: { watch: watch('rooms') },
+  const facade = createWorkGraphFacade({ controller, bots: { watch: watch('bots') }, rooms: { watch: watch('rooms') }, commandWaits: { watch: watch('wait') },
     transport: { watchCurrentTurn: watch('turn'), watchQueue: watch('queue') },
     setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick() }
@@ -30,7 +30,7 @@ test('snapshot runs refresh then snapshot on one chain; invalidations coalesce w
   assert.equal(snapshot.schema, 'bellteam.work-graph.v1')
   assert.deepEqual(f.calls, ['refresh', 'snapshot'])
   await tick()
-  assert.deepEqual(f.listeners.map(([name]) => name).sort(), ['bots', 'queue', 'rooms', 'turn'])
+  assert.deepEqual(f.listeners.map(([name]) => name).sort(), ['bots', 'queue', 'rooms', 'turn', 'wait'])
   batch = { epoch: 'e', version: 1, changes: [] }
   for (const [, listener] of f.listeners) listener()
   assert.equal(f.timers.length, 1)
@@ -38,7 +38,7 @@ test('snapshot runs refresh then snapshot on one chain; invalidations coalesce w
   assert.deepEqual(f.calls, ['refresh', 'snapshot', 'refresh'])
   assert.deepEqual(sent, [batch])
   unsubscribe()
-  assert.deepEqual(f.stopped.sort(), ['bots', 'queue', 'rooms', 'turn'])
+  assert.deepEqual(f.stopped.sort(), ['bots', 'queue', 'rooms', 'turn', 'wait'])
   for (const [, listener] of f.listeners) listener()
   assert.equal(f.timers.length, 0)
 })
@@ -80,5 +80,13 @@ test('effects return only the agreed fields from the public ports', async () => 
   const row = await unknown('turns.read', { botIds: ['z'] })
   assert.deepEqual(row, { turns: { z: { state: 'idle', turnId: null, startedAt: null, summary: null, summaryStatus: 'missing' } } })
   validateWorkGraphEffectResult('turns.read', row)
+  // a54: a member waiting on its notify=result command is idle natively but working in currentWork; the graph follows currentWork.
+  const waiting = createWorkGraphEffects({ bots: { get: id => ({ id }) }, messagePage: async () => null, transport: {
+    currentTurn: async () => ({ state: 'idle', turnId: 't-old', startedAt: null }),
+    currentWork: () => ({ state: 'working', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: '2026-11-13T06:00:00.000Z', source: null,
+      reason: { kind: 'schedule', detail: null, since: '2026-11-13T05:59:00.000Z' } }) } })
+  const wait = await waiting('turns.read', { botIds: ['w'] })
+  assert.deepEqual(wait, { turns: { w: { state: 'working', turnId: 't-old', startedAt: '2026-11-13T05:59:00.000Z', summary: null, summaryStatus: 'missing' } } })
+  validateWorkGraphEffectResult('turns.read', wait)
   await assert.rejects(invalid('other', {}), { code: 'WORK_GRAPH_EFFECT_INVALID' })
 })
