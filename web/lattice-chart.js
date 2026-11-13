@@ -501,11 +501,12 @@ export function createLatticeChart(dialog, {
         h('div', { class: 'ow', text: row.ownerText }),
         h('div', { class: 'mk', text: 'この工程が終わるのを待っています' }),
         h('div', { class: 'l2' }, glyph(row.info.glyph), h('b', { text: row.title })),
+        row.chart && h('div', { class: 'ow', text: row.chart }),
         h('div', { class: 'l3' }, h('span', { class: 'mk2', text: 'つくっている' }), avatar(row.producer, 18), h('b', { text: row.producer ? row.producer.name : UNASSIGNED }),
           h('span', { class: `stp tone-${row.info.tone}` }, glyph(row.info.glyph), row.state)),
         h('div', { class: 'l4' },
           row.canChat && h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: `${row.key}:chat` }, on: { click: () => openChat(row.producer.botId) } }, glyph('chat'), '会話を開く'),
-          h('button', { class: 'lattice-btn pri', type: 'button', dataset: { focusKey: `${row.key}:go` }, on: { click: () => goTo(row.forCard) } }, glyph('target'), '工程へ移動')))))
+          h('button', { class: 'lattice-btn pri', type: 'button', dataset: { focusKey: `${row.key}:go` }, on: { click: () => row.external ? openCard(row.external.projectId, row.external.cardId) : goTo(row.forCard) } }, glyph('target'), '工程へ移動')))))
         : h('p', { class: 'wp-none', text: 'いま待っている工程はありません。' })))
   }
 
@@ -528,8 +529,8 @@ export function createLatticeChart(dialog, {
     if (detailId && !detail) detailId = null
     ui.sheet.hidden = !detail
     if (!detail) { ui.sheet.replaceChildren(); return }
-    const link = item => h('button', { class: 'lattice-mini', type: 'button', dataset: { focusKey: `d:${item.id}` }, 'aria-label': `${item.title}、${stateInfo(item.state).badge}`, on: { click: () => goTo(item.id, true) } },
-      avatar(item.producer, 18), h('span', { class: 'ti', text: item.title }), h('span', { class: `st tone-${stateInfo(item.state).tone}` }, glyph(stateInfo(item.state).glyph), item.stateText))
+    const link = item => h('button', { class: 'lattice-mini', type: 'button', dataset: { focusKey: `d:${item.id}` }, 'aria-label': `${item.title}${item.chart ? `（${item.chart}）` : ''}、${item.external ? item.stateText : stateInfo(item.state).badge}`, on: { click: () => item.external ? openCard(item.external.projectId, item.external.cardId) : goTo(item.id, true) } },
+      avatar(item.producer, 18), h('span', { class: 'ti', text: item.title }), item.chart && h('span', { class: 'ch', style: { flex: 'none', fontSize: '11px', fontWeight: '500', opacity: '.7' }, text: item.chart }), h('span', { class: `st tone-${stateInfo(item.state).tone}` }, glyph(stateInfo(item.state).glyph), item.stateText))
     const parts = [detail.producer?.name, detail.stateText].filter(Boolean)
     if (!detail.producer && detail.stateText !== UNASSIGNED) parts.push(UNASSIGNED)
     keepFocus(ui.sheet, () => fill(ui.sheet,

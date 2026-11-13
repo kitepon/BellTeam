@@ -177,6 +177,35 @@ test('差分：増えた・消えた・状態が変わった・完了になっ�
   assert.deepEqual(diffSnapshots(fixture(), next), { first: false, addedCards: ['p1/t07'], removedCards: ['p1/t06'], changedCards: ['p1/t02'], completedCards: ['p1/t02'], addedEdges: ['p1/t03>p1/t07'], removedEdges: ['p1/t02>p1/t03', 'p1/t04>p1/t05'] })
 })
 
+test('別の工程表の前の工程：待ちの流れと詳細に題名・工程表の名前・開き先が出る。読めていない状態、題名なし、辺があっても配置と差分は壊れない', () => {
+  const ext = { id: 'lattice:l1/release', projectId: 'lattice', cardId: 'l1/release', chartName: 'Lattice', title: '0.99.0 を出す', state: 'in-progress', finished: false, producer: MOLLY }
+  const snap = fixture({
+    externals: [ext, { id: 'lattice:l1/none', projectId: 'lattice', cardId: 'l1/none', chartName: null, title: null, state: null, finished: false, producer: null }],
+    edges: [...fixture().edges, { from: ext.id, to: 'p1/t05', waiting: true, external: true }, { from: 'lattice:l1/none', to: 'p1/t05', waiting: true, external: true }],
+    waits: [
+      { waiter: null, waitingCard: 'p1/t05', forCard: ext.id, producer: MOLLY, producerState: 'in-progress', since: minutesAgo(5) },
+      { waiter: FLORA, waitingCard: 'p1/t05', forCard: 'lattice:l1/none', producer: null, producerState: null, since: minutesAgo(3) },
+      ...fixture().waits,
+    ],
+  })
+  const [a, b, c] = waitRows(snap, BASE)
+  assert.equal(a.title, '0.99.0 を出す'); assert.equal(a.chart, 'Latticeの工程表'); assert.deepEqual(a.external, { projectId: 'lattice', cardId: 'l1/release' })
+  assert.equal(a.state, '作業中'); assert.equal(a.producer.name, 'モリー'); assert.equal(a.canChat, true)
+  assert.equal(a.label, '「iPhone/Mac画面」（担当なし）は、「0.99.0 を出す」（Latticeの工程表）が終わるのを待っています。つくっているのはモリー、作業中')
+  assert.equal(b.title, 'ほかの工程表の工程'); assert.equal(b.chart, 'ほかの工程表の工程表'); assert.equal(b.state, '読めていません'); assert.equal(b.producer, null); assert.equal(b.canChat, false)
+  assert.equal(c.chart, null); assert.equal(c.external, null)
+  const previous = detailOf(snap, 'p1/t05', BASE).previous
+  assert.deepEqual(previous.map(item => item.id), ['p1/t04', ext.id, 'lattice:l1/none'])
+  assert.equal(previous[1].title, '0.99.0 を出す'); assert.equal(previous[1].chart, 'Latticeの工程表'); assert.equal(previous[1].producer.name, 'モリー'); assert.equal(previous[1].stateText, '作業中')
+  assert.deepEqual(previous[1].external, { projectId: 'lattice', cardId: 'l1/release' }); assert.equal(previous[0].external, undefined)
+  assert.equal(previous[2].title, 'ほかの工程表の工程'); assert.equal(previous[2].stateText, '読めていません'); assert.equal(previous[2].state, null)
+  assert.equal(detailOf(snap, ext.id, BASE), null)
+  assert.doesNotThrow(() => { layoutChart(snap); layoutTree(snap); highlightSets(snap, MOLLY) })
+  assert.equal(layoutTree(snap).arcs.some(arc => arc.from === ext.id), false)
+  assert.equal(chartCounts(snap).waiting, chartCounts(fixture()).waiting)
+  assert.deepEqual(diffSnapshots(fixture(), snap).addedEdges, [`${ext.id}>p1/t05`, 'lattice:l1/none>p1/t05'])
+})
+
 // ---- view ----
 class Text { constructor(text) { this.nodeType = 3; this.textContent = text } }
 class El {

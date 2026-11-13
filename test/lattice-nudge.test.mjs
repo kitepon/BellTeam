@@ -2,6 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { nudgeSweep, nudgeMessage } from '../src/lattice/nudge.mjs'
 import { laneResolver } from '../src/lattice/projection.mjs'
+import { existsSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createLatticeCli } from '../src/lattice/cli.mjs'
+import { createLatticeCore } from '../src/lattice/core.mjs'
 import { validateLatticeEffect, validateLatticeEffectResult, validateLatticeRequest, validateLatticeResult } from '../src/lattice-protocol.mjs'
 
 const members = ['bot-a', 'bot-b', 'bot-c', 'bot-del'].map(id => ({ id, name: id === 'bot-c' ? 'Cee' : id, color: 'sky', avatarVersion: 'v1', deleting: id === 'bot-del' }))
@@ -77,4 +83,34 @@ test('protocol: root nudge and effect turns.read', () => {
   for (const botIds of [[], ['a', 'a'], [''], 'bot-a']) assert.throws(() => validateLatticeEffect('turns.read', { botIds }), { code: 'LATTICE_INVALID' })
   validateLatticeEffectResult('turns.read', { turns: { 'bot-a': 'working', 'bot-b': 'unknown' } })
   assert.throws(() => validateLatticeEffectResult('turns.read', { turns: { 'bot-a': 'busy' } }), { code: 'LATTICE_IPC_INVALID' })
+})
+
+// Task a60 (Lattice 0.99.0): a task waiting on a task of another chart is prompted only after that task is done.
+const bin = new URL('../distribution/lattice/node_modules/@quolu/lattice/bin/lattice.mjs', import.meta.url).pathname
+test('real Lattice: a predecessor on another chart holds the prompt until it is done, and the snapshot names it', { skip: !existsSync(bin) && 'distribution/lattice not installed' }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'lattice-cross-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }), ceilingMs: 0, log: () => {} })
+  const sent = []
+  const effect = async (method, params) => method === 'members.list' ? { members: ['bot-a', 'bot-b'].map(id => ({ id, name: id, color: 'c', avatarVersion: 'v', deleting: false })) }
+    : method === 'turns.read' ? { turns: {} } : (sent.push(params), { delivery: 'queued', deliveryId: 'd' })
+  const run = (from, projectId, args, input = null) => core.run({ from, projectId, args, input }, effect)
+  const plan = (key, lane) => ({ schema: 'lattice.plan_create_input.v5', plan_key: key, phases: [{ phase_id: 'a', title: 'A' }],
+    tasks: [{ task_id: 't1', title: `${key} one`, phase_id: 'a', design_memo: 'm', lane }], hard_dependencies: [] })
+  assert.equal((await run('bot-a', 'alpha', ['plan', 'create', '--json'], plan('p1', 'bot-a'))).exitCode, 0)
+  assert.equal((await run('bot-b', 'beta', ['plan', 'create', '--json'], plan('p1', 'bot-b'))).exitCode, 0)
+  await run('bot-a', 'alpha', ['todo', 'start', '--plan', 'p1', '--task', 't1'])
+  const connect = await run('bot-b', 'beta', ['todo', 'dependency', 'connect', '--from-project', 'alpha', '--from-plan', 'p1', '--from-task', 't1', '--to-plan', 'p1', '--to-task', 't1', '--reason', 'waits on alpha'])
+  assert.equal(connect.exitCode, 0, connect.stderr)
+  await core.nudge({}, effect)
+  assert.deepEqual(sent.map(item => item.target), ['bot-a'], 'bot-b waits on alpha/p1/t1 and is not prompted')
+  const before = await core.chart({ projectId: 'beta' }, effect)
+  assert.equal(before.cards[0].state, 'pending')
+  assert.deepEqual(before.externals, [{ id: 'alpha:p1/t1', projectId: 'alpha', cardId: 'p1/t1', chartName: null, title: 'p1 one', state: 'in-progress', finished: false, producer: 'bot-a' }])
+  assert.deepEqual(before.waits.map(wait => [wait.waitingCard, wait.forCard, wait.waiter, wait.producer]), [['p1/t1', 'alpha:p1/t1', 'bot-b', 'bot-a']])
+  await run('bot-a', 'alpha', ['todo', 'done', '--plan', 'p1', '--task', 't1', '--message', 'ok'])
+  sent.length = 0
+  await core.nudge({}, effect)
+  assert.deepEqual(sent.map(item => item.target), ['bot-b'], 'prompted once the other chart\'s task is done')
+  assert.match(sent[0].message, /beta[\s\S]*p1\/t1 「p1 one」: can start/u)
 })

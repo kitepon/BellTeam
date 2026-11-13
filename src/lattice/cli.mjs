@@ -129,7 +129,8 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     async run({ id, args, env = {}, input = null }) {
       checkSeatArgs(args, input)
       if (!await realDir(id)) throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: 'ENOENT' })
-      const full = { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', GIT_CONFIG_NOSYSTEM: '1', ...env }
+      // LATTICE_CHARTS_ROOT (Lattice 0.99.0): a task may wait on a task of another chart under this root, read only (README L3).
+      const full = { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', LATTICE_CHARTS_ROOT: chartsRoot, GIT_CONFIG_NOSYSTEM: '1', ...env }
       if (input === null) return spawnRun(args, dir(id), full)
       const temp = await mkdtemp(join(tmpdir(), 'lattice-input-'))
       try {
