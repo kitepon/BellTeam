@@ -70,10 +70,10 @@ What an edge means: a Bot-to-Bot delivery that the receiver is processing right 
 - Edge identity: `id = groupId + ':' + target` (durable delivery id / room message id plus receiver). `requestId = groupId`.
 - Edge `state`: `running`, or `steered` once execution reports `steered: true` (accepted into the receiver's running turn).
 - Edge `label` is plain Japanese for the Owner: the queue row's `requestSummary`, execution's once-per-request summary of what is being asked (Owner ruling 2026-11-08), trimmed; null or empty gives `label: null` (no chip; Owner ruling 2026-11-09: no placeholder text such as 依頼を処理中). The raw message body never reaches the child. All edges of one request (room responders) share its summary. The summary arriving emits `edge-update`.
-- **Node**: a member whose `currentTurn` is `working` (`state: 'working'`, blinks), or an endpoint of a live edge while not working (`state: 'linked'`, drawn quieter, no blink). Nobody else appears.
-- `unknown` turn state holds the member's previous presence. It neither adds nor removes a node.
+- **Node**: a member whose `currentTurn` is `working` (`state: 'working'`, blinks), or an endpoint of a live edge while not working (`state: 'linked'`, drawn quieter, no blink). Nobody else appears, except a member in its leave grace (below).
+- `working` comes only from `currentTurn` reading `working`, the same execution judgement the member list shows (`/api/bots` `currentWork.state`; Owner 2026-11-13). Any other value, `unknown` included, is not working: such a member stays only as an edge endpoint (`linked`) or leaves through the leave grace.
 - `activeSince`: execution's `startedAt` when provided; otherwise the time this module first saw the member working. It is kept while the member stays on screen.
-- **Leave grace**: a member that stops being working and linked leaves only after 4 s. Back-to-back turns do not flash out and in. Returning within the grace emits nothing.
+- **Leave grace**: a member that stops being working and linked leaves only after 4 s. Back-to-back turns do not flash out and in. During the grace the node reads `linked` (quiet, no blink), never `working`, so the graph never shows working longer than the list. Returning to `working` within the grace emits one `member-update` with a new `activeSince`; staying `linked` emits nothing.
 
 ## Public contract
 
