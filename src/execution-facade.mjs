@@ -36,13 +36,21 @@ export function createExecutionFacade({ getController, client, membersAdmission,
     try { const value = current().project({ method: 'transport.ownWork', args: [botId] }); return typeof value?.kind === 'string' ? value : null }
     catch { return null }
   }
+  // current-work.md "reason" (a41 PR 3): why a working Bot counts as working, by the fixed order turn, schedule, own work.
+  const iso = at => typeof at === 'string' && Number.isFinite(Date.parse(at)) ? new Date(at).toISOString() : null
+  const turnSince = botId => {
+    try { return iso(current().project({ method: 'transport.currentTurn', args: [botId, { startedAt: true }] })?.startedAt) }
+    catch { return null }
+  }
   const work = result.transport.currentWork
   result.transport.currentWork = bot => {
     const value = work(bot)
-    if (!bot || value?.state === 'working') return value
+    if (!bot || !value) return value
+    if (value.state === 'working') return { ...value, reason: { kind: 'turn', detail: null, since: turnSince(bot.id) } }
     const waited = commandWait(bot.id)
-    if (waited) return { ...value, state: 'working', observedAt: value.observedAt ?? waited }
-    return value?.state === 'idle' && own(bot.id) ? { ...value, state: 'working' } : value
+    if (waited) return { ...value, state: 'working', observedAt: value.observedAt ?? waited, reason: { kind: 'schedule', detail: null, since: iso(waited) } }
+    const owned = value.state === 'idle' ? own(bot.id) : null
+    return owned ? { ...value, state: 'working', reason: { kind: owned.kind, detail: owned.detail ?? null, since: iso(owned.since) } } : value
   }
   result.transport.runningState = botId => {
     const state = current().project({ method: 'transport.currentTurn', args: [botId] })?.state
