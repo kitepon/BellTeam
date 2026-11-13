@@ -11,7 +11,7 @@ function fixture(info = { name: 'aiterm', version: profile.version }) {
   const client = new AitermClient(), calls = []
   let connects = 0, closes = 0
   const transport = { pid: 1234 }
-  const sdk = { transport, listTools: async () => ({ tools: [authTool()] }), getServerVersion: () => info, callTool: async input => { calls.push(input); return receipt } }
+  const sdk = { transport, request: async () => ({ tools: [authTool()] }), getServerVersion: () => info, callTool: async input => { calls.push(input); return receipt } }
   client.connect = async () => { connects++; client.client = sdk; client.transport = transport }
   client.close = async () => { closes++; client.client = null; client.transport = null }
   return { client, calls, sdk, get connects() { return connects }, get closes() { return closes } }

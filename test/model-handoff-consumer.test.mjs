@@ -43,7 +43,7 @@ async function fixture(t) {
   const sdkTransport = { pid: 123 }
   const sdk = { transport: sdkTransport, getServerVersion: () => ({ name: 'aiterm', version: CONFIGURATION_VERSION }),
     getServerCapabilities: () => ({ experimental: Object.fromEntries(['capture', 'control', 'full'].map(name => [`ai.aiterm/handoff.${name}.v1`, { version: 1 }])) }),
-    listTools: async () => ({ tools: [tool] }),
+    request: async () => ({ tools: [tool] }),
     callTool: async ({ name }) => { assert.equal(name, 'pty_list'); return { structuredContent: { schema: 'aiterm.pty-list-result.v1', sessions: [launch] } } },
     request: async (input, schema) => {
       calls.push(structuredClone(input))

@@ -60,10 +60,10 @@ test('cold startup resumes saved active conversations with resume-only launches,
 
   const client = new AitermClient()
   let nativeCalls = 0
-  client.client = { listTools: async () => ({ tools: [{ name: 'agent_launch', inputSchema: { properties: {} } }] }), callTool: async () => { nativeCalls++ } }
+  client.client = { request: async () => ({ tools: [{ name: 'agent_launch', inputSchema: { properties: {} } }] }), callTool: async () => { nativeCalls++ } }
   await assert.rejects(client.call('agent_launch', { session_name: 'active', require_existing_resume: true }), { code: 'RESUME_CAPABILITY_UNAVAILABLE' })
   assert.equal(nativeCalls, 0)
-  client.client.listTools = async () => ({ tools: [{ name: 'agent_launch', inputSchema: { properties: { require_existing_resume: { type: 'boolean' } } } }] })
+  client.client.request = async () => ({ tools: [{ name: 'agent_launch', inputSchema: { properties: { require_existing_resume: { type: 'boolean' } } } }] })
   client.client.callTool = async () => ({ isError: true, content: [], _meta: { 'aiterm/resume_unavailable': {
     schema: 'aiterm.agent-resume-unavailable.v1', code: 'AGENT_RESUME_UNAVAILABLE', session_id: 'active', outcome: 'unavailable', effect: 'not_started', input: 'not_sent' } } })
   await assert.rejects(client.call('agent_launch', { session_name: 'active', require_existing_resume: true }), error => error.resumeUnavailable?.input === 'not_sent' && error.code === 'AGENT_RESUME_UNAVAILABLE')

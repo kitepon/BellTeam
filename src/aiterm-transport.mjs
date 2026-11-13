@@ -1735,8 +1735,11 @@ export class AitermTransport {
       } catch (error) {
         check()
         // Wake-first (docs/architecture/delivery-details.md). Kept failures and their exits are listed there.
-        if (outcomeUnknown(error)) throw error
+        // A lost answer (RPC error) says nothing about the seat, so look: with no terminal behind the record no text was typed.
+        const lost = mcpRequestContext(error)?.outcome === 'unknown'
+        if (outcomeUnknown(error) && !lost) throw error
         const observed = await this.observeForDispatch(bot, check)
+        if (lost && observed?.pane_alive !== false) throw error
         const live = observed?.exists === true
         const turnRunning = live && (observed.state === 'busy' || observed.pending_child_deliveries > 0)
         let refusal = error
