@@ -158,8 +158,19 @@ export function createRunningExclusions({ path, decisions, now = () => new Date(
       return applied
     })
   }
+  // The Owner's own removal from a screen (a62): his action is the decision, so it writes at once.
+  function remove(id) {
+    return serial(async () => {
+      const state = await load()
+      if (!state.entries.some(entry => entry.id === id)) throw Object.assign(new Error('RUNNING_EXCLUSION_NOT_FOUND'), { code: 'RUNNING_EXCLUSION_NOT_FOUND', status: 404 })
+      state.entries = state.entries.filter(entry => entry.id !== id)
+      state.pending = state.pending.filter(item => !(item.action === 'remove' && item.id === id))
+      await save(state)
+      return { removed: id }
+    })
+  }
   return Object.freeze({
-    propose, poll,
+    propose, poll, remove,
     list: () => serial(async () => {
       const { entries, pending } = await load()
       return { entries, pending: pending.map(({ action, entry, id, decisionId, from, filedAt, approved }) => ({ action, ...(entry ? { entry } : { id }), decisionId, from, filedAt, ...(approved && { approved }) })) }

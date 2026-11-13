@@ -175,3 +175,33 @@ test('a pending item the poll or a re-filing would misuse makes the store unread
     assert.equal(await list.poll(), 1, 'a well-formed item still applies')
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
+
+// a62 (execution current-work.md "Owner read and remove"): the Owner reads over HTTP and removes from a screen at once.
+test('Owner HTTP: GET lists, DELETE removes at once and drops a pending removal; internal port refused', async () => {
+  const { createRunningExclusionsApi } = await import('../src/http-running-exclusions-api.mjs')
+  const dir = await mkdtemp(join(tmpdir(), 'rx-')), path = join(dir, 'state', 'x.json')
+  try {
+    const decisions = fakeDecisions(), list = createRunningExclusions({ path, decisions })
+    const call = (name, args) => callRunningExclusionTool({ name, args, from: 'b1', registry, runningExclusions: list })
+    await call('propose_running_exclusion', { kind: 'process', exe: 'node', args: ['dev'], reason: '開発用サーバー' })
+    decisions.answers.set('K-1', { status: 'answered', answer: { optionId: 'approve' } })
+    await list.poll()
+    const [entry] = await readRunningExclusions(path)
+    await call('propose_running_exclusion_removal', { id: entry.id, reason: '終わった' })
+    const http = async (api, method, pathname) => {
+      const response = { status: 0, body: '', writeHead(status) { this.status = status; return this }, setHeader() {}, end(body) { this.body = body } }
+      await api({ method }, response, new URL(pathname, 'http://x'))
+      return { status: response.status, body: JSON.parse(response.body) }
+    }
+    const owner = createRunningExclusionsApi({ runningExclusions: () => list, internal: false })
+    const read = await http(owner, 'GET', '/api/running-exclusions')
+    assert.equal(read.status, 200)
+    assert.deepEqual([read.body.entries.length, read.body.pending.map(item => item.action)], [1, ['remove']])
+    assert.deepEqual((await http(owner, 'DELETE', `/api/running-exclusions/${entry.id}`)).body, { removed: entry.id })
+    assert.deepEqual(await list.list(), { entries: [], pending: [] }, 'entry gone and its pending removal dropped')
+    await assert.rejects(list.remove(entry.id), { code: 'RUNNING_EXCLUSION_NOT_FOUND', status: 404 })
+    const seat = createRunningExclusionsApi({ runningExclusions: () => list, internal: true })
+    assert.deepEqual(await http(seat, 'GET', '/api/running-exclusions'), { status: 403, body: { error: 'RUNNING_EXCLUSIONS_OWNER_REQUIRED' } })
+    assert.equal(await owner({ method: 'GET' }, {}, new URL('http://x/api/bots')), false, 'other paths pass through')
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})

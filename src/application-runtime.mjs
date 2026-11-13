@@ -71,6 +71,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     administration,
     goals,
     terminals: () => services.terminals,
+    runningExclusions: () => services.runningExclusions,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
   const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
