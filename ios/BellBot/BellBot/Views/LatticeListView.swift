@@ -624,7 +624,8 @@ struct LatticeStopRowView: View {
                         .buttonStyle(.bordered).disabled(true)
                 } else if asking {
                     Text(LatticeText.stopsAsk).font(.system(size: 13, weight: .medium)).foregroundStyle(LatticePalette.ink)
-                    Button("外す", action: remove).buttonStyle(.bellPrimary)
+                    // .bellPrimary fills the width; the confirm sits beside やめる.
+                    Button("外す", action: remove).buttonStyle(.bellPrimary).fixedSize()
                         .accessibilityIdentifier("lattice-stop-confirm-\(row.stopId)")
                     Button("やめる") { model.confirming = nil }.buttonStyle(.bordered)
                 } else {
