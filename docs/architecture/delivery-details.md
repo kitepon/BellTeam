@@ -69,13 +69,13 @@ flowchart TD
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]
 ```
 
-送信が断られた後の`dispatch`は、席を起こせる限り起こしてから届ける（オーナー裁定 2026-11-07「起こしてから届ける」、2026-11-08「何かがまた無駄に止めてる」、共通規範 guards.give-up-is-a-guard / remove-unnamed）。2026-11-08の本体入れ替えでは、端末が消えたのにAitermが前の起動記録を残した。そのためClaude席への送信が`AGENT_RESUME_UNCONFIRMED: 作成したnative端末が置き換わっています。`で断られ、起こされないまま失敗した（PR #500で回復を二つの符号に絞っていたため、#540で修理）。いまの経路は次のとおり。端末があり、`agent_failed`でなく、`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`で断られた席には、同じ端末へ同じ文を送り直す（負荷で起動が遅いだけの席を閉じない）。それでも受けず、動いているターンも無ければ、閉じて起こす。端末が無い席、端末はあるが動いているターンが無い席、観測が読めない席は、起こして同じ文を送る。閉じるのは、Aitermが持っている物（端末、または端末が消えた起動記録）だけで、観測が読めない時は何も閉じない。観測が読めない時に生きた席があれば、`agent_launch`が打つ前に断る。
+送信が断られた後の`dispatch`は、席を起こせる限り起こしてから届ける（オーナー裁定 2026-11-07「起こしてから届ける」、2026-11-08「何かがまた無駄に止めてる」、共通規範 guards.give-up-is-a-guard / remove-unnamed）。2026-11-08の本体入れ替えでは、端末が消えたのにAitermが前の起動記録を残した。そのためClaude席への送信が`AGENT_RESUME_UNCONFIRMED: 作成したnative端末が置き換わっています。`で断られ、起こされないまま失敗した（PR #500で回復を二つの符号に絞っていたため、#540で修理）。いまの経路は次のとおり。端末があり、`agent_failed`でなく、`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`で断られた席には、同じ端末へ同じ文を送り直す（負荷で起動が遅いだけの席を閉じない）。それでも受けず、動いているターンも無ければ、閉じて起こす。端末が無い席、端末はあるが動いているターンが無い席、観測が読めない席は、起こして同じ文を送る。閉じるのは、Aitermが持っている物（端末、または端末が消えた起動記録）だけで、観測が読めない時は何も閉じない。休止中の席（観測の`state=hibernated`：Aitermが会話と再開情報を持っている）は閉じない。同じ席名の`agent_launch`（通常の`wake`）がその会話を再開するので、閉じずに起こして届ける。Aitermがその再開を断った時（返ってきた断りなら符号に依らない）だけ、記録を閉じて新しく起こす（下の2026-11-13 a49の段落）。観測が読めない時に生きた席があれば、`agent_launch`が打つ前に断る。
 
 失敗で終わる分岐、それぞれが守る物、そこからの出口：
 | 分岐 | 守る物 | 出口 |
 |---|---|---|
 | Aitermが結果不明と答えた（`BOT_SEND_OUTCOME_UNKNOWN`、「再送しないでください」） | 打った文を二度実行させない | 席には触れない。次の配送は通常どおり進む。この記録はunknownのまま残り、送り手が会話を見て新しく送る |
-| 答えが届かなかった（RPCの失敗）で、観測すると端末が生きている、または観測が読めない | 打った文を二度実行させない | 同上。端末が無い（`pane_alive=false`：記録だけ残った席、休止中の席）と観測できた時は失敗にせず、閉じて起こして届ける。端末が無ければ文は打たれていない |
+| 答えが届かなかった（RPCの失敗）で、観測すると端末が生きている、または観測が読めない | 打った文を二度実行させない | 同上。端末が無い（`pane_alive=false`：記録だけ残った席、休止中の席）と観測できた時は失敗にせず、起こして届ける（休止中の席は閉じずに同じ会話へ再開、記録だけ残った席は閉じてから）。端末が無ければ文は打たれていない |
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
@@ -83,11 +83,24 @@ flowchart TD
 
 2026-11-13（a46、同じ操作の4回目の失敗）。本体の入れ替えで端末が消えたClaude席へ送ると、Aiterm 0.70.41以降は記録を休止として引き取り、ログインが要るので再開を断る（`AGENT_RESUME_SECRETS_REQUIRED`、未送信）。MCP SDKのClientは`listTools()`を一度呼ぶと各道具の出力schemaで`structuredContent`を検証し、合わない返りを`callTool`の例外（-32602）に変える。この断りは`isError`の返りに型付きの`structuredContent`を載せていたので、例外になって答えごと失われ、「結果不明」として席に触れずに終わった。席は休止のまま残り、後の配送もすべて同じ形で失敗した（出口が無かった）。4回の失敗に共通する原因は、起こすかどうかを「見ないで送った文の断られ方」から読み取っていたことにある。読めない断り（新しい符号、一覧に無い符号、途中で失われた答え）が来るたびに配送が止まった。直しは二つ。答えが届かなかった時は席を観測し、端末が無ければ起こす（断りの中身に依らない）。`AitermClient`の機能確認は`tools/list`を直接読み、共有するClientに検証を入れない（型付きの断りを読める状態に保つ）。
 
+2026-11-13 (a49 live test, the fifth failure of the same operation). A hibernated Claude seat (`pty_close {hibernate:true}`, production bot-4366a50b, 06:08Z / 06:11Z / 06:22Z) woken by one delivery came back in a NEW conversation. Log each time: `BellTeam Aiterm agent registration unavailable, restarting` -> `pty_close` -> `agent_launch`. The send was refused as designed (`AGENT_RESUME_SECRETS_REQUIRED`: only the caller has the login), the observation said `exists=true, state=hibernated, pane_alive=false`, and the recovery closed the record before launching. Closing a hibernated record discards exactly what Aiterm keeps for the resume, so the launch was a fresh one (continuity only through Throughline). The a46 proof did not catch it: it judged "same conversation" from the answer text, which the fresh seat produced from its Throughline memory (transcripts 127c90e8 -> 80605254 are two conversations).
+
+Common root of all five: delivery had ONE recovery for every seat that is not running, "close it and start fresh", reached by reading how a blind send was refused. Failures 1-4 never reached the recovery (unreadable refusal); the fifth reached it and the recovery itself destroyed the conversation. The fix makes the recovery follow the observed state, not the refusal:
+
+| Observed after the refused send | Recovery |
+|---|---|
+| `state=hibernated` (Aiterm holds the conversation and the resume recipe) | No close. The ordinary `wake` (`agent_launch`, same session name, this launch's login and seat credential) resumes the same conversation; then the same words are sent |
+| That resume refused by Aiterm (any returned error: settings differ from the recipe `AGENT_RESUME_CONFLICT`, recipe unconfirmed, ...) | Close the record and start fresh, as before (Owner 2026-11-07: a delivery wakes the seat; it fails only when the wake fails). One stderr line `hibernated seat not resumed, starting fresh` |
+| The resume's outcome unknown (no answer from Aiterm), or a stop / admission change / closed members lease seen before or after the resume (also after a returned refusal) | Nothing closed; the delivery fails as a launch failure and the next delivery decides again from a new observation |
+| Any other record without a running turn (failed, vanished, live but refusing) | Close and start fresh (unchanged) |
+
+Known limit: a Bot whose model or effort was changed while its seat was hibernated gets `AGENT_RESUME_CONFLICT` and a fresh conversation on the new settings. Proof of "same conversation" is the vendor transcript (same session file grows), never the answer text.
+
 Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 
 `agent_launch`の`startup=ready`と`pty_send`の入力受付確認は、Aitermの中で別々の30秒予算である（どちらも入力欄が500ms間隔で11回続けて入力待ちと読めた時に通る。`pty_send`に公開のready_timeoutは無い）。起こした直後の席は入力欄を描いた後も起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷（2026-11-07 20:18–20:20、9席同時、load≈18）では二つ目の予算が尽きて`AGENT_INPUT_NOT_READY`（本文未送信、「少し後で再度pty_send」の案内付き）で断られる。元から生きていた席への送信は同時刻に全部通った。`dispatch`は、このdispatchで起こした席への最初の送信がその型付き未入力拒否（`BOT_INPUT_NOT_READY`、`agentResumeResult`なし）で断られた時だけ、同じ文を上限3回まで送り直す。各回の待ちはAitermの受付確認が持つので配送側は眠らない。起こしていない席の断りは上の段落の経路（閉じて起こす）へ行き、受付後の不明は送り直さない。上限まで断られた時はその失敗を返し、再起動を繰り返さない。
 
-型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`（Aiterm 0.70.43以降は`_meta["aiterm/resume_error"]`、それより前は`structuredContent`）を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。型付き復帰拒否は明示の未送信なので、動いているターンが無ければ閉じて起こす。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
+型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`（Aiterm 0.70.43以降は`_meta["aiterm/resume_error"]`、それより前は`structuredContent`）を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。型付き復帰拒否は明示の未送信なので、動いているターンが無ければ起こす（休止中の席は閉じずに再開、それ以外は閉じて起こす）。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
 
 通常構成は`createApplicationServices → createManagedTransport`で**executionBridge=null**、直接`pty_send/agent_stop`を使う。`ExecutionBridge`の実装が存在することを、通常運転で全配送が登録されている意味にしない。通常構成の`resumeDelivery/closeDeliveryLaunch`（2026-11-08、トロニー「失敗記録から出られない」の修理）では、`BotSessionState.reconcileLaunch`が席の一致だけを確かめ、通常経路の回復値`{ordinary:true, reservation:{request}, binding:{target:{launch:target}}}`を返す（親の`conversation-execution-effects`が照合する`binding.target.launch`を持つ。nullは親で読めず落ちる）。`submit`はこの値を`job.execution`にせず、通常のdispatchで届ける。保存済みの配送は同じdelivery_idのまま通常の`notify`で再配送され、席が無ければ起こしてから届ける。同じ席への順番は`dispatchInOrder`が保つ。`closeLaunch`は動いているターンが無い時に席を`pty_close`し、次の配送で起こす。残る拒否は二つ。席の不一致（`BOT_RECOVERY_TARGET_INVALID`）は別の席を閉じないため。出口は正しい席を指定し直すこと。動いているターンがある席のclose（`EXECUTION_BUSY`、未実行）はそのターンを壊さないため。出口はターンが終わった後のclose。再配送してよいか（結果不明の文を送り直すか）は、明示の回復を求めた送り手が判断する。
 

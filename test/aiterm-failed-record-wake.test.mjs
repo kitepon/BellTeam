@@ -102,7 +102,8 @@ test('起こした席でも上限まで断られたら、起こし直さずそ�
 })
 
 // pty_sendの返りを順に指定する偽Aiterm。文字列は断りの本文、nullは受理、'untracked'は追う手がかりの無い受理。
-function scripted({ sends, observed = observation('idle_timeout') }) {
+// launchesはagent_launchの返りを順に指定する（文字列は断り、Errorは答えが届かない、無ければ起動できた）。
+function scripted({ sends, observed = observation('idle_timeout'), launches = [] }) {
   const calls = []
   const classifier = new AitermClient()
   // Like AitermClient, run the admission check right before issuing pty_send.
@@ -118,7 +119,12 @@ function scripted({ sends, observed = observation('idle_timeout') }) {
     }
     if (name === 'pty_observe') return { structuredContent: observed }
     if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
-    if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
+    if (name === 'agent_launch') {
+      const next = launches.shift()
+      if (next instanceof Error) throw next
+      if (next) return { isError: true, content: [{ type: 'text', text: next }] }
+      return { structuredContent: { session_id: 'bot-a' } }
+    }
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '了解' } }
     throw new Error(`unexpected tool: ${name}`)
   } }
@@ -186,10 +192,33 @@ test('Aitermが再送しないよう言う断りは、観測も起動もせず�
 const lostAnswer = () => new Error("MCP error -32602: Structured content does not match the tool's output schema")
 const hibernated = { ...observation('idle_timeout', 'hibernated'), pane_alive: false }
 
-test('答えが届かなくても、観測で端末が無い席は、閉じて起こしてから届ける', async t => {
+test('答えが届かなくても、観測で休止中の席は、閉じずに同じ席名で起こしてから届ける', async t => {
   const run = await deliver(t, { sends: [lostAnswer(), null], observed: hibernated }, 'claude')
   await run.delivered
-  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.equal(run.calls[2][1].session_name, 'bot-a')
+})
+
+// 2026-11-13 a49：休止中の席を閉じてから起こしたので、新しい会話で戻った。閉じなければAitermが同じ会話を再開する。
+const secretsRequired = 'aiterm: AGENT_RESUME_SECRETS_REQUIRED: 休止席の再開にはこの起動の値が要ります。文字列は送信していません。'
+
+test('休止中の席は、断りの型によらず、閉じずに起こして同じ文を届ける', async t => {
+  const run = await deliver(t, { sends: [secretsRequired, null], observed: hibernated }, 'claude')
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'agent_launch', 'pty_send', 'pty_read'])
+})
+
+test('休止中の席の再開をAitermが断った時は、記録を閉じて新しく起こしてから届ける', async t => {
+  const run = await deliver(t, { sends: [secretsRequired, null], observed: hibernated,
+    launches: ['aiterm: AGENT_RESUME_CONFLICT: 同名の休止席は保存したharness・設定・project・明示envで再開します。'] }, 'claude')
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'agent_launch', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+})
+
+test('休止中の席の再開の答えが届かない時は、何も閉じずに失敗を返す', async t => {
+  const run = await deliver(t, { sends: [secretsRequired], observed: hibernated, launches: [new Error('MCP error -32001: Request timed out')] }, 'claude')
+  await assert.rejects(run.delivered, /-32001/u)
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'agent_launch'])
 })
 
 test('答えが届かず、端末が生きている席には触れずに元の失敗を返す', async t => {
@@ -224,10 +253,10 @@ test('通常構成の回復値は親の照合を通り、通常のdispatchで同
 })
 
 // A module swap that closes the conversation lease before any words reach the CLI (2026-11-08, Molly/N102 contract).
-async function swapDuring(t, { sends, closeAt }) {
+async function swapDuring(t, { sends, closeAt, observed = absent, launches = [] }) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = scripted({ sends, observed: absent })
+  const { client, calls } = scripted({ sends, observed, launches })
   let closed = false
   const original = client.call
   client.call = async (name, args, options) => {
@@ -256,4 +285,11 @@ test('打った可能性がある後に会話の世代が閉じたら、未開�
   // A refusal without a not-sent statement: the words may have reached the CLI before the lease closed.
   const run = await swapDuring(t, { sends: ['aiterm: PTY_BACKEND_FAILED'], closeAt: 'pty_send' })
   await assert.rejects(run.delivered, error => error.code === 'CONVERSATION_NOT_ACCEPTED' && error.executionError === undefined)
+})
+
+test('休止中の席の再開の途中で止まり、Aitermが再開を断っても、記録を閉じずに返す', async t => {
+  const run = await swapDuring(t, { sends: [secretsRequired], closeAt: 'agent_launch', observed: hibernated,
+    launches: ['aiterm: AGENT_RESUME_CONFLICT: 同名の休止席は保存したharness・設定・project・明示envで再開します。'] })
+  await assert.rejects(run.delivered, error => error.code === 'CONVERSATION_NOT_ACCEPTED')
+  assert.deepEqual(run.calls.map(([name]) => name), ['pty_send', 'pty_observe', 'agent_launch'])
 })
