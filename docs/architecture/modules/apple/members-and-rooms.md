@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-  Fetch["AppStore.refresh / refreshResourcesFromEvent<br/>bots・rooms・owner・queueと画像を取得"] --> Models["AppStore.bots / rooms / owner<br/>workingBotIDs"]
+  Fetch["AppStore.refresh / refreshResourcesFromEvent<br/>bots・rooms・owner と画像を取得"] --> Models["AppStore.bots / rooms / owner"]
   PhoneInput["HomeView.searchField<br/>@State search"] --> PhoneFilter["Bot.displayName / Room.name<br/>大文字小文字を区別しない包含検索"]
   WideInput["DesktopWorkspaceView.sidebar<br/>@State search・FocusState searching"] --> WideFilter["同じ2フィールドの包含検索"]
   Models --> PhoneFilter
@@ -29,7 +29,7 @@ flowchart TD
 | iPad/MacのRoom行 | rowへ`name`と`recent.preview ?? purpose`を渡す。purpose空時の固定文は無い |
 | RecentMessage.preview | messageの前後空白・改行を除き、空なら「画像」、本文の改行は半角空白へ置換。副題専用の追加HTTPなし |
 | 起動できない理由（`seatLaunch`） | `GET /api/bots`のBot項目`seatLaunch`（`null` \| `{code, action, terminalId, at}`。契約は[execution remote-seat](../execution/remote-seat.md)の「Launch notice」）。全項目を省略可で読み、型の違う項目は無いものとして扱い、`seatLaunch`自体が不正な値（文字列・数・配列など）でも名簿の読込は壊さず「無し」と同じ扱い。表示は赤い1行「端末で起動できません：<action>」で、`action`が空・空白だけ・無い時は`code`。両方空なら「端末で起動できません。」。`null`・欠落（旧本体）でも出さない。置き場所はiPhoneのBotRowとiPad/Macの`SidebarRowLabel`（副題の下。Roomには無い）と、Botの会話ヘッダー（ナビゲーションバー直下に同じ行を最大3行で折り返して出す。状態語は残す）。変更はSSE topic `bots`（既存の`requestRefreshFromEvent`）で読み直す。新しい取得・状態・保存は無い |
-| 稼働丸・ファスト表示 | BotPresenceDotは`workingBotIDs.contains(id)`なら赤点滅、onlineなら緑、それ以外は灰色。fastModeはBotFastModeBadge。BotRowの日時は`BellDate.short(recent.at)` |
+| 稼働丸・ファスト表示 | BotPresenceDotは`Bot.isWorking`（`currentWork.state == working`。Web・相関図と同じ判定で、配達の列からは作らない）なら赤点滅、onlineなら緑、それ以外は灰色。fastModeはBotFastModeBadge。BotRowの日時は`BellDate.short(recent.at)` |
 | 画像の項目 | 一覧の`avatar`（Bot・Room・Owner）は省略可で、無ければ空として読む。画像は`avatarVersion`付きの個別URLから取る。他の画像本体の項目（avatarLarge等）は一覧から読まない |
 | 一覧上部・下部 | オンライン人数は`store.bots.filter(online).count`、ルーム件数はstore.rooms.count。iPhoneはOwnerの名前・画像、iPad/MacはOwner名も表示 |
 

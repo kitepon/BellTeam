@@ -163,7 +163,7 @@ struct HomeView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(bots) { bot in
                         NavigationLink(value: ChatTarget.bot(bot.id)) {
-                            BotRow(bot: bot, working: store.workingBotIDs.contains(bot.id))
+                            BotRow(bot: bot, working: bot.isWorking)
                         }
                         .buttonStyle(.plain)
                     }

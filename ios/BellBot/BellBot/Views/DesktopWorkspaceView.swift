@@ -176,7 +176,7 @@ struct DesktopWorkspaceView: View {
                     ForEach(visibleBots) { bot in
                         row(target: .bot(bot.id), name: bot.displayName, subtitle: CurrentWork.label(bot.currentWork),
                             avatar: bot.avatar, color: BellTheme.accent(bot.color), online: bot.online,
-                            working: store.workingBotIDs.contains(bot.id), fastMode: bot.fastMode,
+                            working: bot.isWorking, fastMode: bot.fastMode,
                             seatLaunch: bot.seatLaunch?.line)
                     }
                     if visibleBots.isEmpty && visibleRooms.isEmpty { Text("見つかりませんでした").font(.footnote).padding() }

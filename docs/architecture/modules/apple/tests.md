@@ -1061,7 +1061,7 @@ flowchart TD
 
 | 引数・fixture | 変更する状態・観測上の範囲 |
 | --- | --- |
-| `-bellbot-preview`または同prefixのいずれか | DebugだけpreparePreviewへ。api.baseURLをnilにし、Bot3人・room2件・Owner・workingBotIDs・phase.readyを設定。通常bootstrapを省く。RootViewはpreview中sceneChangedを呼ばない |
+| `-bellbot-preview`または同prefixのいずれか | DebugだけpreparePreviewへ。api.baseURLをnilにし、Bot3人・room2件・Owner（bot-oneはcurrentWork working）・phase.readyを設定。通常bootstrapを省く。RootViewはpreview中sceneChangedを呼ばない |
 | `-bellbot-preview-server URL` | api.baseURLと診断先を指定。preparePreviewの名簿/readyは使い、会話はローカル履歴分岐を省きHTTPへ。AppStore.serverURLそのものをこの関数から変更しない |
 | `-bellbot.serverURL URL` | UserDefaultsの`bellbot.serverURL`としてAppStore初期化が読む。preview-serverと別の受渡し。通知UI試験は両者の差を使う |
 | `-bellbot-preview-events` | BellBotAppのpreview起動taskからSSE開始 |

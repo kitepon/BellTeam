@@ -87,6 +87,11 @@ struct CurrentWork: Decodable, Equatable {
     }
 }
 
+extension Bot {
+    /// 一覧の仕事中の印。Web・相関図と同じくcurrentWorkだけで決め、配達の列からは作らない。
+    var isWorking: Bool { currentWork?.state == "working" }
+}
+
 // 一覧は画像本体を省いてよい（画像は版付きの個別URLから取る）。`avatar`が無ければ空として読む。
 // 拡張に置き、メンバーごとの初期化子は残す。
 extension Bot {

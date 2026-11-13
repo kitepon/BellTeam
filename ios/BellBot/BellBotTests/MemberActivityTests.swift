@@ -87,7 +87,7 @@ final class MemberActivityTests: XCTestCase {
         XCTAssertEqual(messages.map(\.status), ["stopped", "stopped", "running"])
     }
 
-    func testRunningWorkUsesBotIdentityAndUpdatesWhenWorkEnds() async throws {
+    func testWorkingComesFromCurrentWorkNotFromQueue() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MemberActivityProtocol.self]
         let session = URLSession(configuration: configuration)
@@ -96,25 +96,30 @@ final class MemberActivityTests: XCTestCase {
         defer { BellNotifications.shared.onOpen = previousOpen }
         let api = BellAPI(baseURL: URL(string: "https://member-activity.test.invalid")!, session: session)
         let store = AppStore(api: api)
-        MemberActivityProtocol.queue = """
-        {"items":[
-          {"id":"work-1","botId":"bot-one","status":"running"},
-          {"id":"work-2","botId":"bot-one","status":"running"},
-          {"id":"work-3","botId":"bot-two","status":"queued"},
-          {"id":"legacy","status":"running"}
+        // A turn started by a schedule or after_turn has no running delivery but is working (a51).
+        MemberActivityProtocol.bots = """
+        {"bots":[
+          \(member("bot-one", work: #"{"state":"working","summary":null,"summaryStatus":"missing"}"#)),
+          \(member("bot-two", work: #"{"state":"idle","summary":null,"summaryStatus":"missing"}"#)),
+          \(member("bot-three", work: nil))
         ]}
         """
         try await store.refresh()
-        XCTAssertEqual(store.workingBotIDs, ["bot-one"])
+        XCTAssertEqual(store.bots.filter(\.isWorking).map(\.id), ["bot-one"])
 
-        MemberActivityProtocol.queue = "{\"items\":[]}"
+        MemberActivityProtocol.bots = "{\"bots\":[\(member("bot-one", work: #"{"state":"idle","summary":null,"summaryStatus":"missing"}"#))]}"
         try await store.refresh()
-        XCTAssertTrue(store.workingBotIDs.isEmpty)
+        XCTAssertFalse(store.bots.contains(where: \.isWorking))
+    }
+
+    private func member(_ id: String, work: String?) -> String {
+        #"{"id":"\#(id)","name":"\#(id)","displayName":"\#(id)","harness":"claude","model":"","reasoningEffort":"","fastMode":false,"color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"","online":true"#
+            + (work.map { #","currentWork":\#($0)"# } ?? "") + "}"
     }
 }
 
 private final class MemberActivityProtocol: URLProtocol {
-    static var queue = "{\"items\":[]}"
+    static var bots = "{\"bots\":[]}"
     override class func canInit(with request: URLRequest) -> Bool {
         request.url?.host == "member-activity.test.invalid"
     }
@@ -123,9 +128,8 @@ private final class MemberActivityProtocol: URLProtocol {
     override func startLoading() {
         let body: String
         switch request.url!.path {
-        case "/api/bots": body = "{\"bots\":[]}"
+        case "/api/bots": body = Self.bots
         case "/api/rooms": body = "{\"rooms\":[]}"
-        case "/api/queue": body = Self.queue
         case "/api/owner":
             body = "{\"owner\":{\"name\":\"試験\",\"profile\":\"\",\"avatar\":\"\",\"xUrl\":\"\",\"githubUrl\":\"\",\"links\":[]}}"
         default: fatalError("未定義の試験API: \(request.url!.path)")

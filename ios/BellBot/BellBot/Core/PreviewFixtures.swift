@@ -13,7 +13,7 @@ extension AppStore {
         let source = """
         {
           "bots": [
-            {"id":"bot-one","name":"ユキ","displayName":"ユキ","harness":"claude","model":"opus","reasoningEffort":"high","fastMode":true,"color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"相談と実務","avatar":"","online":true,"recent":{"id":"m1","kind":"message","direction":"incoming","at":"2026-09-26T00:12:00Z","message":"今朝の準備ができました。確認していただけますか？"}},
+            {"id":"bot-one","name":"ユキ","displayName":"ユキ","harness":"claude","model":"opus","reasoningEffort":"high","fastMode":true,"color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"相談と実務","avatar":"","online":true,"currentWork":{"state":"working","summary":null,"summaryStatus":"missing"},"recent":{"id":"m1","kind":"message","direction":"incoming","at":"2026-09-26T00:12:00Z","message":"今朝の準備ができました。確認していただけますか？"}},
             {"id":"bot-two","name":"ハル","displayName":"ハル","harness":"codex","model":"","reasoningEffort":"","fastMode":false,"color":"violet","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":true,"recent":{"id":"m2","kind":"message","direction":"incoming","at":"2026-09-25T23:54:00Z","message":"おかえりなさい。今日も一緒に進めましょう。"}},
             {"id":"bot-three","name":"ナギ","displayName":"ナギ","harness":"grok","model":"","reasoningEffort":"","fastMode":false,"color":"rose","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false,"recent":{"id":"m3","kind":"message","direction":"outgoing","at":"2026-09-24T08:30:00Z","message":"資料をお願い"}}
           ],
@@ -67,7 +67,6 @@ extension AppStore {
         }
         rooms = fixture.rooms
         owner = fixture.owner
-        workingBotIDs = ["bot-one"]
         phase = .ready
         if arguments.contains("-bellbot-preview-attachment") {
             let picture = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16)).image { context in
