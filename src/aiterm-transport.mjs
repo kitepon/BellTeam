@@ -100,7 +100,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = () => null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -141,6 +141,8 @@ export class AitermTransport {
     // Claude 1st/2nd accounts (harness-accounts.md). Null keeps every launch on the default root.
     this.accounts = accounts
     this.remoteSeats = remoteSeats
+    // t29 (remote-seat.md "Resume after the route came back"): SM10 last seat-MCP request (ms) and refusals per (session, route).
+    this.seatMcpSeen = seatMcpSeen; this.routeResumes = new Map()
     this.accountMoves = new Map()
     // Members whose account recovery is sending their continuation: the observer keeps their old watch until it is sent.
     this.accountRecoveries = new Set()
@@ -1298,12 +1300,45 @@ export class AitermTransport {
     } catch (error) { this.workState.endRead(read, null); throw error }
     const data = result?._meta?.['aiterm/seat_turns']
     this.workState.endRead(read, data)
+    if (Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
       throw new Error(`AITERM_SEAT_TURNS_INVALID: ${data.error ?? data.schema}`)
     // Codex rows keep the watch/wait contract; other rows carry their launch for the word-watch start check.
     return new Map(data.seats.filter(seat => seat?.session_id).map(seat => [seat.session_id, seat.harness === 'codex-cli' || !seat.turn
       ? seat.turn : { ...seat.turn, codex: false, launch_id: seat.launch_id }]))
+  }
+
+  // remote-seat.md "Resume after the route came back" (t29): the forward was rebuilt after this seat launched and its CLI has
+  // not reached the seat MCP since, so it may have given up on its tools. Resume the same conversation once it is idle.
+  resumeLostRoutes(bots, rows) {
+    for (const bot of bots) {
+      if (!isRemoteBot(bot) || !['claude-code', 'codex-cli'].includes(this.seatHarness(bot))) continue
+      const session = this.session(bot), row = rows.find(item => item?.session_id === session)
+      const route = Date.parse(row?.route_since), launched = Date.parse(this.runtimeLaunches?.[session]?.capturedAt)
+      if (!Number.isFinite(route) || !Number.isFinite(launched) || route <= launched) continue
+      const seen = this.seatMcpSeen(session)
+      if (Number.isFinite(seen) && seen >= route) continue
+      const key = `${session}@${row.route_since}`
+      if (this.routeResumes.has(key) || !this.isIdle(bot.id) || this.currentTurn(bot.id).state !== 'idle') continue
+      this.routeResumes.set(key, 'resuming')
+      void this.resumeRemoteSeat(bot).then(() => this.routeResumes.delete(key), error => {
+        // AGENT_BUSY: a turn or child started meanwhile; the next idle poll tries again. Anything else: once per route.
+        if ((error?.aitermErrorCode ?? error?.code) === 'AGENT_BUSY') { this.routeResumes.delete(key); return }
+        this.routeResumes.set(key, 'refused')
+        this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: bot.id, reason: error?.aitermErrorCode ?? error?.code ?? null })
+      })
+    }
+  }
+
+  // Hibernate keeps the conversation; the ordinary wake resumes it with a fresh seat credential (Aiterm 0.70.41 E8).
+  resumeRemoteSeat(bot) {
+    if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)
+    return this.memberOperation(bot, membersLease => this.activity.configurationChanges.track(bot.id, (async () => {
+      await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true })
+      await this.wake(bot, { membersLease })
+      return true
+    })()))
   }
 
   // BellTeamが始めていないターン（Aitermの子の結果で始まったターンなど）を見つけて追う。

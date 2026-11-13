@@ -105,7 +105,36 @@ Common root of the body-restart failures (11/10 forward port dead, 11/11 tools l
 
 Not this route: `BELLTEAM_SEAT_UNRESOLVED` is the listener's answer to a bearer it cannot verify. A seat that probes its own endpoint by hand sends the config file's literal `Bearer ${BELLTEAM_MCP_TOKEN}` and always gets it; it does not show a lost credential (Neon 2026-11-12: the row was intact, the CLI had dropped the server).
 
-Known limit, no guard added: `RemoteSeats.prepare` issues the credential before `agent_launch`, and a reissue replaces the session's token (RS02). A launch that Aiterm refuses for a live seat, or answers by resuming a hibernated seat from its saved environment, leaves the running CLI with a token the store no longer knows. Not observed in production; the exit today is the next fresh launch of that session (pty_close, then wake).
+Known limit, no guard added (closed for the route-resume path below, which hibernates before launching): `RemoteSeats.prepare` issues the credential before `agent_launch`, and a reissue replaces the session's token (RS02). A launch that Aiterm refuses for a live seat, or answers by resuming a hibernated seat from its saved environment, leaves the running CLI with a token the store no longer knows. Not observed in production; the exit today is the next fresh launch of that session (pty_close, then wake).
+
+## Resume after the route came back (t29, 2026-11-13; Owner go on K-3T7HF8; Aiterm 0.70.41 E8/E9)
+
+A remote seat whose CLI gave up on the BellTeam MCP while the entrance was away never asks again in that conversation (see
+above). It is brought back by resuming the same conversation, which connects MCP at startup. One rule covers a body swap and a
+route lost outside a swap, because both rebuild the terminal's forward.
+
+```mermaid
+flowchart LR
+  Poll["SeatTurns poll: seat_turns row of a terminal-bound seat"] -->|"route_since (E9: forward keeper ready_at, null while not ready)"| Rule{"route_since later than the seat's launch (D5 capturedAt)<br/>AND seat MCP not seen since route_since (SM10)<br/>AND harness claude-code / codex-cli"}
+  Rule -->|no| Keep[leave the seat]
+  Rule -->|"yes, AI turn running or BellTeam work in flight"| Wait[next poll after the turn ends]
+  Rule -->|"yes, idle"| Resume["transport.resumeRemoteSeat: memberOperation + configurationChanges.track<br/>pty_close {hibernate:true} -> wake (same session name)"]
+  Resume -->|"prepare issues a fresh seat credential; agent_launch + terminal + cwd + env_vars (E8: the launch's values)"| Seat[same conversation, MCP connects at startup]
+  Seat -->|"recordRuntimeLaunch: capturedAt = now > route_since"| Keep
+  Resume -->|"AGENT_BUSY"| Wait
+  Resume -->|"AGENT_RESUME_SECRET_MISSING / AGENT_RESUME_SECRETS_REQUIRED / AGENT_HIBERNATE_UNAVAILABLE / other refusal"| Once["remember (session, route_since); one REMOTE_SEAT_RESUME_REFUSED diagnostic"]
+```
+
+| Contact | Contract |
+| --- | --- |
+| Trigger | Every poll that reads a terminal-bound row with `route_since` (Aiterm >= 0.70.41 on body and terminal). Older Aiterm sends no `route_since`: nothing happens (today's behaviour). Local seats have none. |
+| Launch time | D5 `execution-runtime-launches.json` `capturedAt` of that session, written at every launch and resume, so it survives a body restart. No record = no resume (the seat was not launched by this execution). |
+| Seen | `ports.ingress.seatMcp.seen(sessionName)` (SM10, ms, memory; empty after a body restart). A seat whose CLI reached the seat MCP after `route_since` kept its tools: no resume. An older parent without the port = never seen. |
+| Idle | `isIdle` (no BellTeam job) AND `currentTurn` idle AND no configuration change in flight. A working seat waits for a later poll after its turn; nothing interrupts it. |
+| Resume | `pty_close {hibernate:true}` keeps the conversation; `wake` launches the same session name through the ordinary path (prepare -> fresh credential, so the running CLI never keeps a token the store forgot; Known limit above is closed for this path). Aiterm 0.70.41 resumes the hibernated seat with this launch's secret values and rewrites its caller MCP file to the current forward port. |
+| Refusals | Remembered per `(session, route_since)`, one `REMOTE_SEAT_RESUME_REFUSED` diagnostic with the code; no retry until the route changes again. The seat stays as it is; the next ordinary wake or explicit restart is its exit. |
+| Harness | grok / cursor / antigravity have no resume: untouched. |
+| Self-exit | No timer or guard: the resumed launch moves `capturedAt` past `route_since`, so the rule is false on the next poll. |
 
 ## Target revision (member terminal/folder change)
 
