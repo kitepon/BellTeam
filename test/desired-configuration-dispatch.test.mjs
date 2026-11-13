@@ -24,6 +24,11 @@ async function fixture(t, exists) {
     if (name === 'agent_configure') {
       await f.onConfigure?.(args)
       if (f.applyError) throw f.applyError
+      // Aiterm refuses a configure while a turn runs: terminal, never issued to the CLI (production 2026-11-13 06:33Z).
+      if (f.refuseConfigure && f.refuseConfigure-- > 0) return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
+        binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'not_applied',
+        later_effect: 'excluded', terminal_at: '2026-11-13T06:33:29.063Z', observed_at: '2026-11-13T06:33:29.109Z',
+        current: { availability: 'unsupported' }, result: null } }
       return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
         binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'applied',
         later_effect: 'unconfirmed', terminal_at: '2026-11-06T15:00:00.000Z', observed_at: '2026-11-06T15:00:00.000Z',
@@ -160,4 +165,32 @@ test('refusal recovery never replaces a seat on uncertain input, and never close
   }
   assert.equal(f.calls.some(c => c.name === 'pty_close'), false)
   assert.equal(f.calls.filter(c => c.name === 'agent_launch').length, 2)
+})
+
+// a53 (production 2026-11-13 06:33Z): the after_turn delivery started the next turn before BellTeam saw the captured turn end.
+// The apply then met a running turn, Aiterm refused it (not_applied, not issued), and nothing applied it later.
+test('settings refused because a new turn already runs are applied again when that turn ends', { timeout: 3000 }, async t => {
+  const f = await fixture(t, true)
+  const waits = [Promise.withResolvers(), Promise.withResolvers()]
+  let waitIndex = 0, sends = 0
+  f.onWait = () => waits[waitIndex++].promise
+  f.onSend = () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: ++sends, wait_process: { executable: 'fixture', args: [] } } })
+  const first = f.transport.turn(f.bot, 'first', { queue: { groupId: 'first' } })
+  await first.accepted
+  const old = { ...f.bot }
+  f.bot.model = 'opus'
+  const change = f.transport.reconfigure(old, f.bot)
+  // The CLI already ended 'first'; Aiterm takes the continuation as a new turn before BellTeam's completion wait returns.
+  const next = f.transport.turn(f.bot, 'continue', { queue: { groupId: 'next' } })
+  await next.accepted
+  f.refuseConfigure = 1
+  waits[0].resolve()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure').length, 1, 'refused while the new turn runs')
+  waits[1].resolve()
+  await change
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure').length, 2)
+  assert.equal(f.requests.view(f.bot.id).receipt.outcome, 'applied')
+  assert.equal(f.requests.view(f.bot.id).requested.model, 'opus')
+  await Promise.all([first, next])
 })
