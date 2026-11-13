@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T07:04:41Z",
-  "expiresAt": "2026-11-20T07:04:41Z",
+  "publishedAt": "2026-11-13T07:25:49Z",
+  "expiresAt": "2026-11-20T07:25:49Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9cbbf5c27e50497234f3035b6a339d5330cfc8da",
-      "versionId": "sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9",
+      "sourceCommit": "de1247150f369f1ccead35e76673ff63bca5f592",
+      "versionId": "sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,21 +732,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude の補助の仕組みが開いたままにしていた古い席も、閉じられるようになります。",
-        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります。"
+        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります（Lattice の声かけと同じ判断）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9cbbf5c27e50497234f3035b6a339d5330cfc8da",
-      "versionId": "sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9",
+      "sourceCommit": "de1247150f369f1ccead35e76673ff63bca5f592",
+      "versionId": "sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -755,8 +754,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude の補助の仕組みが開いたままにしていた古い席も、閉じられるようになります。",
-        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります。"
+        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります（Lattice の声かけと同じ判断）。"
       ]
     },
     {
