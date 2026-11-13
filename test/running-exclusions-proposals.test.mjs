@@ -38,7 +38,7 @@ test('add: one decision, deduped while pending, written only on approve; reject 
     assert.equal(await list.poll(), 1)
     const [entry] = await readRunningExclusions(path)
     assert.deepEqual({ ...entry, id: 'x' }, { kind: 'process', exe: 'node', args: ['vite.js', 'dev'], scope: ['b1'], id: 'x',
-      decisionId: 'K-1', approvedAt: '2026-11-13T03:00:00.000Z', reason: '開発用サーバー' })
+      decisionId: 'K-1', approvedAt: '2026-11-13T03:00:00.000Z', reason: '開発用サーバー', from: 'b1' })
     assert.equal((await call({ kind: 'process', exe: 'node', args: ['vite.js', 'dev'], reason: 'x' })).status, 'listed')
     // A reject (or free text) drops the proposal and writes nothing.
     assert.equal((await call({ kind: 'process', exe: 'python', args: [], allBots: true, reason: 'y' })).decisionId, 'K-2')

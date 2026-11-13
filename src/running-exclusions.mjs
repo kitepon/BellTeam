@@ -149,7 +149,7 @@ export function createRunningExclusions({ path, decisions, now = () => new Date(
         if (state.entries.some(entry => keyOf(entry) === keyOf(item.entry))) continue
         // Full: keep the approved addition until a removal makes room.
         if (state.entries.length >= MAX_ENTRIES) { if (!item.approved) { item.approved = true; changed = true } keep.push(item); continue }
-        state.entries.push({ ...item.entry, decisionId: item.decisionId, approvedAt: now(), reason: item.reason })
+        state.entries.push({ ...item.entry, decisionId: item.decisionId, approvedAt: now(), reason: item.reason, ...(item.from ? { from: item.from } : {}) })
         applied++
       }
       changed ||= keep.length !== state.pending.length
