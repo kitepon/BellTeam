@@ -581,6 +581,7 @@ internal sealed class LatticeChartPage : Grid
             awaitedGlyph.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(awaitedGlyph, Dock.Left); awaited.Children.Add(awaitedGlyph); awaited.Children.Add(Text(row.Title, 13.5, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
             var title = new Border { Child = awaited, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 8), Background = Brush(Muted, 0x12), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
             body.Children.Add(title);
+            if (row.Chart is { } chartName) { var chartLine = Text(chartName, 12, Muted); chartLine.Margin = new Thickness(0, -4, 0, 8); body.Children.Add(chartLine); }
             var producerLine = Row(Text("つくっている", 11.5, Muted), Spaced(new LatticeAvatar(row.Producer, 20, window.Avatar), 8), Spaced(Text(LatticeChart.NameOf(row.Producer), 13, row.Producer is { Known: true } ? Ink : Muted, FontWeights.SemiBold), 6));
             body.Children.Add(producerLine);
             var stateLine = Row(StateGlyph(row.Info.Tone switch { "working" => "in-progress", "blocked" => "blocked", "ready" => "ready", "done" => "done", "retired" => "retired", _ => "pending" }, 13, Violet), Spaced(Text(row.StateText, 12.5, row.Emphasized ? Red : Muted, row.Emphasized ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping.Wrap), 6));
@@ -588,7 +589,8 @@ internal sealed class LatticeChartPage : Grid
             var chat = Action("会話を開く", ""); chat.IsEnabled = row.CanChat; var producerId = row.Producer?.BotId;
             chat.Click += (_, _) => { if (producerId is not null) _ = window.OpenChatAsync(producerId); };
             if (!row.CanChat) chat.ToolTip = "名簿にないメンバーとは会話を開けません。";
-            var go = Action("工程へ移動", ""); var target = row.ForCard; go.Click += (_, _) => GoTo(target);
+            var go = Action("工程へ移動", ""); var target = row.ForCard; var external = row.External;
+            go.Click += (_, _) => { if (external is not null) window.OpenCard(external.ProjectId, external.CardId); else GoTo(target); };
             body.Children.Add(Row(chat, go));
             var card = new Border { Child = body, CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 12, 12, 12), Margin = new Thickness(0, 0, 0, 10),
                 Background = Brush(row.Emphasized ? Color.FromRgb(0xFF, 0xEC, 0xE8) : Colors.White, row.Emphasized ? (byte)0xF2 : (byte)0xCC), BorderBrush = Brush(row.Emphasized ? Red : Colors.White, row.Emphasized ? (byte)0x80 : (byte)0xFF), BorderThickness = new Thickness(row.Emphasized ? 1.4 : 1) };
@@ -682,10 +684,12 @@ internal sealed class LatticeChartPage : Grid
             var row = new DockPanel();
             var glyph = StateGlyph(link.State, 15, link.Producer is { Known: true } ? Accent(link.Producer.Color) : Violet); glyph.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(glyph, Dock.Left); row.Children.Add(glyph);
             var arrow = Icon("", 11, Muted); DockPanel.SetDock(arrow, Dock.Right); row.Children.Add(arrow);
-            row.Children.Add(new StackPanel { Children = { Text(link.Title, 13.5, Ink, FontWeights.SemiBold), Text($"{LatticeChart.NameOf(link.Producer)}・{link.StateText}", 11.5, Muted) } });
+            var lines = new StackPanel { Children = { Text(link.Title, 13.5, Ink, FontWeights.SemiBold) } };
+            if (link.Chart is { } chartName) lines.Children.Add(Text(chartName, 11.5, Muted));
+            lines.Children.Add(Text($"{LatticeChart.NameOf(link.Producer)}・{link.StateText}", 11.5, Muted)); row.Children.Add(lines);
             var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(Line), BorderThickness = new Thickness(1) };
-            var button = Plain(frame, $"{link.Title}、{LatticeChart.StateInfo(link.State).Badge}、つくっている {LatticeChart.NameOf(link.Producer)}");
-            var id = link.Id; button.Click += (_, _) => GoTo(id);
+            var button = Plain(frame, $"{link.Title}{(link.Chart is null ? "" : $"（{link.Chart}）")}、{(link.External is null ? LatticeChart.StateInfo(link.State).Badge : link.StateText)}、つくっている {LatticeChart.NameOf(link.Producer)}");
+            var id = link.Id; var external = link.External; button.Click += (_, _) => { if (external is not null) window.OpenCard(external.ProjectId, external.CardId); else GoTo(id); };
             body.Children.Add(button);
         }
     }
