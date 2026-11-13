@@ -54,4 +54,57 @@ final class RunningExclusionsTests: XCTestCase {
         XCTAssertEqual(RunningExclusionsRead.removalFailure(BellAPIError.httpStatus(503, "RUNNING_EXCLUSIONS_UNAVAILABLE")), "一覧を読めないため、外せませんでした。")
         XCTAssertEqual(RunningExclusionsRead.removalFailure(URLError(.timedOut)), "外せませんでした。もう一度お試しください。")
     }
+
+    // MARK: Read order (Epinel #1336)
+
+    private final class Gate {
+        var continuation: CheckedContinuation<RunningExclusions, Error>?
+    }
+
+    /// Starts a read whose answer the test releases later; returns once the read is waiting.
+    private func startRead(_ home: SettingsHomeState, _ gate: Gate) async -> Task<Void, Never> {
+        let task = Task { await home.loadExclusions { try await withCheckedThrowingContinuation { gate.continuation = $0 } } }
+        while gate.continuation == nil { await Task.yield() }
+        return task
+    }
+
+    private let listed = RunningExclusions(entries: [RunningExclusionEntry(id: "e1", kind: "process", exe: "node", args: [], scope: .all)], pending: [])
+    private let removed = RunningExclusions(entries: [], pending: [])
+
+    /// A read started before the removal finishes after the read that follows the DELETE: the removed entry stays gone.
+    func testPreRemovalReadFinishingLastDoesNotBringTheEntryBack() async {
+        let home = SettingsHomeState()
+        let pre = Gate(), post = Gate()
+        let preTask = await startRead(home, pre)
+        let postTask = await startRead(home, post)
+        post.continuation?.resume(returning: removed)
+        await postTask.value
+        XCTAssertEqual(home.exclusions, .listed(removed))
+        pre.continuation?.resume(returning: listed)
+        await preTask.value
+        XCTAssertEqual(home.exclusions, .listed(removed), "古い読取の答えは捨てる")
+    }
+
+    /// Errors follow the same order: an older failure does not replace a newer list, and a newer failure is not hidden by an older list.
+    func testOlderAnswersNeverOverwriteTheNewestIncludingErrors() async {
+        let home = SettingsHomeState()
+        var older = Gate(), newer = Gate()
+        var olderTask = await startRead(home, older)
+        var newerTask = await startRead(home, newer)
+        newer.continuation?.resume(returning: removed)
+        await newerTask.value
+        older.continuation?.resume(throwing: BellAPIError.httpStatus(503, "RUNNING_EXCLUSIONS_UNAVAILABLE"))
+        await olderTask.value
+        XCTAssertEqual(home.exclusions, .listed(removed))
+
+        older = Gate(); newer = Gate()
+        olderTask = await startRead(home, older)
+        newerTask = await startRead(home, newer)
+        newer.continuation?.resume(throwing: BellAPIError.httpStatus(503, "RUNNING_EXCLUSIONS_UNAVAILABLE"))
+        await newerTask.value
+        XCTAssertEqual(home.exclusions, .unreadable)
+        older.continuation?.resume(returning: listed)
+        await olderTask.value
+        XCTAssertEqual(home.exclusions, .unreadable, "新しい読取の失敗を古い一覧で隠さない")
+    }
 }
