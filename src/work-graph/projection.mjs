@@ -29,9 +29,9 @@ export function projectGraph({ members, turns = {}, queue, responders = {}, prev
   let nextAt = null
   for (const id of new Set([...known.keys(), ...before.keys()])) {
     const member = known.get(id), old = before.get(id), turn = turns[id]
-    const held = old?.state === 'working' && turn?.state !== 'working' && turn?.state !== 'idle'
-    if (member && (turn?.state === 'working' || held || linked.has(id))) {
-      const working = turn?.state === 'working' || held
+    // Working only while currentTurn reads working, the same judgement as the member list (Owner 2026-11-13).
+    if (member && (turn?.state === 'working' || linked.has(id))) {
+      const working = turn?.state === 'working'
       // A linked member that starts working begins a new active span.
       const keep = old && (old.state === 'working' || !working)
       nodes.push({ botId: id, name: member.name ?? id, color: member.color || 'violet', avatarVersion: member.avatarVersion || '',
@@ -40,7 +40,8 @@ export function projectGraph({ members, turns = {}, queue, responders = {}, prev
       const since = previous.absent?.[id] ?? now
       if (now - since >= leaveGraceMs) continue
       absent[id] = since
-      nodes.push(old)
+      // A node in its leave grace is never working: it shows as quiet `linked` until it leaves.
+      nodes.push(old.state === 'working' ? { ...old, state: 'linked' } : old)
       nextAt = Math.min(nextAt ?? Infinity, since + leaveGraceMs)
     }
   }

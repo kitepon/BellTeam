@@ -39,12 +39,16 @@ test('label: the once-per-request summary, else null (no chip); receiver work su
   assert.equal(label(undefined), null)
 })
 
-test('nodes: working beats linked, defaults, deleting excluded, unknown holds presence', () => {
+test('nodes: working beats linked, defaults, deleting excluded, unknown is not working', () => {
   const members = [member('a', { color: '', avatarVersion: undefined }), member('b', { deleting: true }), member('c')]
   const first = project({ members, turns: { ...working('a', 'b'), c: { state: 'idle' } } })
   assert.deepEqual(first.nodes, [{ botId: 'a', name: 'A', color: 'violet', avatarVersion: '', state: 'working', activeSince: '2026-11-08T10:00:00.000Z' }])
-  const held = project({ members, turns: { a: { state: 'unknown' } }, previous: first, now: T0 + 60000 })
-  assert.deepEqual(held.nodes, first.nodes)
+  const unknown = project({ members, turns: { a: { state: 'unknown' } }, previous: first, now: T0 + 60000 })
+  assert.deepEqual(unknown.nodes, [{ ...first.nodes[0], state: 'linked' }])
+  assert.equal(unknown.nextAt, T0 + 64000)
+  assert.deepEqual(project({ members, turns: { a: { state: 'unknown' } }, previous: unknown, now: T0 + 64000 }).nodes, [])
+  const edge = project({ members, turns: { a: { state: 'unknown' } }, queue: [job({ target: 'c' })], previous: first, now: T0 + 60000 })
+  assert.deepEqual(edge.nodes.map(node => [node.botId, node.state, node.activeSince]), [['a', 'linked', first.nodes[0].activeSince], ['c', 'linked', '2026-11-08T10:01:00.000Z']])
   assert.equal(project({ members, turns: { a: { state: 'unknown' } } }).nodes.length, 0)
 })
 
@@ -55,15 +59,16 @@ test('activeSince: startedAt when valid, else first seen, kept while on screen',
   assert.deepEqual(later.nodes.map(node => node.activeSince), given.nodes.map(node => node.activeSince))
 })
 
-test('leave grace: kept 4 s, silent on return, then member-leave', () => {
+test('leave grace: kept 4 s as linked (never working), new span on return, then member-leave', () => {
   const on = project({ turns: working('a') })
   const idle = { a: { state: 'idle' } }
   const gone = project({ turns: idle, previous: on, now: T0 + 1000 })
-  assert.equal(gone.nodes.length, 1)
+  assert.deepEqual(gone.nodes, [{ ...on.nodes[0], state: 'linked' }])
   assert.equal(gone.nextAt, T0 + 5000)
-  assert.deepEqual(diffGraph(on, gone), [])
+  assert.deepEqual(diffGraph(on, gone), [{ type: 'member-update', node: gone.nodes[0] }])
+  assert.deepEqual(diffGraph(gone, project({ turns: idle, previous: gone, now: T0 + 2000 })), [])
   const back = project({ turns: working('a'), previous: gone, now: T0 + 3000 })
-  assert.deepEqual(diffGraph(gone, back), [])
+  assert.deepEqual(diffGraph(gone, back), [{ type: 'member-update', node: { ...on.nodes[0], activeSince: '2026-11-08T10:00:03.000Z' } }])
   assert.equal(back.nextAt, null)
   const out = project({ turns: idle, previous: gone, now: T0 + 5000 })
   assert.deepEqual(diffGraph(gone, out), [{ type: 'member-leave', botId: 'a' }])
@@ -140,7 +145,8 @@ test('core: leave grace is reported as nextRefreshMs, then member-leave', async 
   await x.refresh()
   x.state.turns.a = { state: 'idle', turnId: null }
   x.state.time += 1000
-  assert.deepEqual(await x.refresh(), { batch: null, nextRefreshMs: 4000 })
+  const quiet = await x.refresh()
+  assert.deepEqual([quiet.batch.changes.map(change => [change.type, change.node.state]), quiet.nextRefreshMs], [[['member-update', 'linked']], 4000])
   x.state.time += 4000
   const { batch, nextRefreshMs } = await x.refresh()
   assert.deepEqual([batch.changes, nextRefreshMs], [[{ type: 'member-leave', botId: 'a' }], null])
