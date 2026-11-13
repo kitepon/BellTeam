@@ -8,7 +8,7 @@ const failure = code => Object.assign(new Error(code), { code, status: 503, effe
 // Input methods are refused while a body update hold exists, also for a selected engine without its own gate.
 const INPUT_METHODS = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.forkInquiry'])
 
-export function createExecutionFacade({ getController, client, membersAdmission, requestStop, watchQueue, hold = null, commandWait = () => null }) {
+export function createExecutionFacade({ getController, client, membersAdmission, requestStop, watchQueue, hold = null }) {
   if (typeof getController !== 'function' || !client || !membersAdmission
     || typeof requestStop !== 'function' || typeof watchQueue !== 'function') throw failure('EXECUTION_FACADE_OPTIONS_INVALID')
   const current = () => {
@@ -29,15 +29,14 @@ export function createExecutionFacade({ getController, client, membersAdmission,
       try { return current().dispatch({ method, args }) } catch (error) { return Promise.reject(error) }
     }
   }
-  // Script waits (current-work.md 2026-11-12): a Bot waiting on its notify=result command reads working; currentTurn stays native for after_turn.
+  // a71 (current-work.md): a schedule never makes a Bot read working; currentTurn stays native for after_turn.
   // a41: own work (a process its CLI started, a pending subagent result) also reads working. An older engine without
   // transport.ownWork refuses the method: that is "not supplied", never an error for the caller.
   const own = botId => {
     try { const value = current().project({ method: 'transport.ownWork', args: [botId] }); return typeof value?.kind === 'string' ? value : null }
     catch { return null }
   }
-  // current-work.md "reason" (a41 PR 3): why a working Bot counts as working, by the fixed order turn, schedule, own work.
-  // A schedule's since is null: commandWait is the scheduler's last observation (refreshed every 15 s), not the wait start.
+  // current-work.md "reason" (a41 PR 3): why a working Bot counts as working, by the fixed order turn, own work.
   const iso = at => typeof at === 'string' && Number.isFinite(Date.parse(at)) ? new Date(at).toISOString() : null
   const turnSince = botId => {
     try { return iso(current().project({ method: 'transport.currentTurn', args: [botId, { startedAt: true }] })?.startedAt) }
@@ -48,14 +47,12 @@ export function createExecutionFacade({ getController, client, membersAdmission,
     const value = work(bot)
     if (!bot || !value) return value
     if (value.state === 'working') return { ...value, reason: { kind: 'turn', detail: null, since: turnSince(bot.id) } }
-    const waited = commandWait(bot.id)
-    if (waited) return { ...value, state: 'working', observedAt: value.observedAt ?? waited, reason: { kind: 'schedule', detail: null, since: null } }
     const owned = value.state === 'idle' ? own(bot.id) : null
     return owned ? { ...value, state: 'working', reason: { kind: owned.kind, detail: owned.detail ?? null, since: iso(owned.since) } } : value
   }
   result.transport.runningState = botId => {
     const state = current().project({ method: 'transport.currentTurn', args: [botId] })?.state
-    return state !== 'working' && (commandWait(botId) || state === 'idle' && own(botId)) ? 'working' : state
+    return state === 'idle' && own(botId) ? 'working' : state
   }
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,

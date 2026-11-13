@@ -50,16 +50,13 @@ test('scheduler commandWait: enabled notify=result commands and running notify=r
   assert.equal(running.commandWait(bot.id), null)
 })
 
-test('facade: currentWork and runningState read working while waiting; currentTurn stays native', () => {
-  let waiting = null
+// a71 (current-work.md): a schedule never makes a Bot read working; a released body that still passes commandWait has it ignored.
+test('facade: a command wait changes neither currentWork nor runningState', () => {
   const idle = { state: 'idle', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: null, source: null }
   const controller = { dispatch() {}, close() {}, project: ({ method }) => method === 'transport.currentTurn' ? { state: 'idle', turnId: null } : idle }
   const { transport } = createExecutionFacade({ getController: () => controller, client: {}, membersAdmission: {}, requestStop() {},
-    watchQueue: () => () => {}, commandWait: () => waiting })
+    watchQueue: () => () => {}, commandWait: () => '2026-11-12T05:00:00.000Z' })
   assert.deepEqual(transport.currentWork(bot), idle)
   assert.equal(transport.runningState(bot.id), 'idle')
-  waiting = '2026-11-12T05:00:00.000Z'
-  assert.deepEqual(transport.currentWork(bot), { ...idle, state: 'working', observedAt: waiting, reason: { kind: 'schedule', detail: null, since: null } })
-  assert.equal(transport.runningState(bot.id), 'working')
   assert.deepEqual(transport.currentTurn(bot.id), { state: 'idle', turnId: null })
 })
