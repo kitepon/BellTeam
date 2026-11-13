@@ -100,23 +100,21 @@ test('own work keeps its own read clock: a turn completion does not extend an ol
 })
 
 // a41 PR 3: the card says why a Bot is working; every composed DTO passes the shared schema (integration #1274).
-test('facade: reason by the fixed order turn, schedule, own work, and the DTO validates', async () => {
+test('facade: reason by the fixed order turn, own work, and the DTO validates', async () => {
   const { readCurrentWork } = await import('../src/current-work-contract.mjs')
   const base = { summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: '2026-11-13T01:00:00.000Z', source: null }
-  let state = 'working', waited = null, own = null
+  let state = 'working', own = null
   const controller = { dispatch() {}, close() {}, project: ({ method }) => {
     if (method === 'transport.currentTurn') return { state: state === 'working' ? 'working' : 'idle', turnId: 't', startedAt: '2026-11-13T00:59:00Z' }
     if (method === 'transport.ownWork') return own
     return { ...base, state }
   } }
-  const { transport } = createExecutionFacade({ getController: () => controller, client: {}, membersAdmission: {}, requestStop() {}, watchQueue: () => () => {}, commandWait: () => waited })
+  const { transport } = createExecutionFacade({ getController: () => controller, client: {}, membersAdmission: {}, requestStop() {}, watchQueue: () => () => {} })
   const bot = { id: 'b1' }
   // The body reader turns any DTO its schema refuses into unknown; equal means accepted as is.
   const check = expected => { const value = transport.currentWork(bot); assert.deepEqual(value.reason, expected); assert.deepEqual(readCurrentWork(transport, bot), value); return value }
   check({ kind: 'turn', detail: null, since: '2026-11-13T00:59:00.000Z' })
-  state = 'idle'; waited = '2026-11-13T00:58:00.000Z'; own = { kind: 'background', detail: 'node vite.js', since: null }
-  check({ kind: 'schedule', detail: null, since: null })
-  waited = null
+  state = 'idle'; own = { kind: 'background', detail: 'node vite.js', since: null }
   check({ kind: 'background', detail: 'node vite.js', since: null })
   own = null
   const idle = transport.currentWork(bot)
