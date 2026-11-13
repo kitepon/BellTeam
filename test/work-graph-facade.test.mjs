@@ -48,6 +48,10 @@ test('nextRefreshMs arms one timer; an unavailable child rejects with WORK_GRAPH
   f.facade.subscribe(() => {})
   await f.facade.snapshot(); await tick()
   assert.equal(f.timers.at(-1).ms, 4000)
+  // a61: a direct snapshot with no SSE subscriber never arms the own-work re-check.
+  const lone = fixture({ refresh: () => ({ batch: null, nextRefreshMs: null }), ownWork: () => true })
+  await lone.facade.snapshot(); await tick()
+  assert.equal(lone.timers.length, 0)
   // a61: while a member works by own work, re-check every ownWorkMs (the earlier of it and nextRefreshMs).
   let owned = true
   const own = fixture({ refresh: () => ({ batch: null, nextRefreshMs: null }), ownWork: () => owned })

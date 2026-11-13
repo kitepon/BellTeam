@@ -18,7 +18,7 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, comm
     if (value?.batch) for (const send of subscribers) try { send(value.batch) } catch {}
     clearTimer(nextTimer); nextTimer = null
     // a61: no provider signals the end of a member's own work, so re-check while one reads working by it.
-    const wait = ownWork() ? Math.min(value?.nextRefreshMs ?? ownWorkMs, ownWorkMs) : value?.nextRefreshMs
+    const wait = subscribers.size && ownWork() ? Math.min(value?.nextRefreshMs ?? ownWorkMs, ownWorkMs) : value?.nextRefreshMs
     if (wait != null) nextTimer = setTimer(() => { nextTimer = null; request() }, Math.max(0, wait))
   }, () => {})
 
