@@ -40,6 +40,8 @@ const HARNESS = new Map([
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
+// remote-seat.md "Resume after the route came back": a failed resume is tried again after this, never given up.
+const RESUME_RETRY_MS = 60_000
 // pty_list current_command of a listed seat that is not running (Aiterm agent lifecycle/resume states and "vanished").
 // shortcut: a state name Aiterm adds later reads as a running seat (goal read failure shape), extend this set when one appears.
 const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'unknown', 'vanished'])
@@ -142,7 +144,7 @@ export class AitermTransport {
     this.accounts = accounts
     this.remoteSeats = remoteSeats
     // t29 (remote-seat.md "Resume after the route came back"): SM10 last seat-MCP request (ms) and refusals per (session, route).
-    this.seatMcpSeen = seatMcpSeen; this.routeResumes = new Map()
+    this.seatMcpSeen = seatMcpSeen; this.routeResumes = new Map(); this.routeWakes = new Map(); this.routeReported = new Set()
     this.accountMoves = new Map()
     // Members whose account recovery is sending their continuation: the observer keeps their old watch until it is sent.
     this.accountRecoveries = new Set()
@@ -1312,31 +1314,59 @@ export class AitermTransport {
   // remote-seat.md "Resume after the route came back" (t29): the forward was rebuilt after this seat launched and its CLI has
   // not reached the seat MCP since, so it may have given up on its tools. Resume the same conversation once it is idle.
   resumeLostRoutes(bots, rows) {
+    const now = Date.now()
     for (const bot of bots) {
       if (!isRemoteBot(bot) || !['claude-code', 'codex-cli'].includes(this.seatHarness(bot))) continue
-      const session = this.session(bot), row = rows.find(item => item?.session_id === session)
-      const route = Date.parse(row?.route_since), launched = Date.parse(this.runtimeLaunches?.[session]?.capturedAt)
+      const session = this.session(bot), launched = Date.parse(this.runtimeLaunches?.[session]?.capturedAt)
+      // Closed but not woken: hibernation may remove the row, so this record drives the retry. Exit: our wake succeeds,
+      // or any later launch (ordinary wake, restart) moves capturedAt past the close.
+      const waking = this.routeWakes.get(session)
+      if (waking) {
+        if (Number.isFinite(launched) && launched > waking.closedAt) { this.routeWakes.delete(session); continue }
+        if (waking.running || now < waking.retryAt || !this.isIdle(bot.id)) continue
+        waking.running = true
+        void this.resumeRemoteSeat(bot, { closed: true }).then(done => { done ? this.routeWakes.delete(session) : waking.running = false },
+          error => { Object.assign(waking, { running: false, retryAt: this.routeRetryAt(bot, `${session}@wake`, error) }) })
+        continue
+      }
+      const row = rows.find(item => item?.session_id === session), route = Date.parse(row?.route_since)
       if (!Number.isFinite(route) || !Number.isFinite(launched) || route <= launched) continue
       const seen = this.seatMcpSeen(session)
       if (Number.isFinite(seen) && seen >= route) continue
-      const key = `${session}@${row.route_since}`
-      if (this.routeResumes.has(key) || !this.isIdle(bot.id) || this.currentTurn(bot.id).state !== 'idle') continue
+      const key = `${session}@${row.route_since}`, retryAt = this.routeResumes.get(key)
+      if (retryAt === 'resuming' || now < (retryAt ?? 0) || !this.isIdle(bot.id) || this.currentTurn(bot.id).state !== 'idle') continue
       this.routeResumes.set(key, 'resuming')
       void this.resumeRemoteSeat(bot).then(() => this.routeResumes.delete(key), error => {
-        // AGENT_BUSY: a turn or child started meanwhile; the next idle poll tries again. Anything else: once per route.
-        if ((error?.aitermErrorCode ?? error?.code) === 'AGENT_BUSY') { this.routeResumes.delete(key); return }
-        this.routeResumes.set(key, 'refused')
-        this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: bot.id, reason: error?.aitermErrorCode ?? error?.code ?? null })
+        if (!Number.isFinite(error?.routeClosedAt)) { this.routeResumes.set(key, this.routeRetryAt(bot, key, error)); return }
+        this.routeResumes.delete(key)
+        this.routeWakes.set(session, { closedAt: error.routeClosedAt, running: false, retryAt: this.routeRetryAt(bot, `${session}@wake`, error) })
       })
     }
   }
 
+  // No give-up: AGENT_BUSY tries at the next idle poll, any other failure after RESUME_RETRY_MS (one diagnostic per route and stage).
+  routeRetryAt(bot, key, error) {
+    const code = error?.aitermErrorCode ?? error?.code ?? null
+    if (code === 'AGENT_BUSY') return 0
+    if (!this.routeReported.has(key)) {
+      this.routeReported.add(key)
+      this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: bot.id, reason: code })
+    }
+    return Date.now() + RESUME_RETRY_MS
+  }
+
   // Hibernate keeps the conversation; the ordinary wake resumes it with a fresh seat credential (Aiterm 0.70.41 E8).
-  resumeRemoteSeat(bot) {
+  // A wake failure after a successful close carries routeClosedAt, so the caller retries the wake alone.
+  resumeRemoteSeat(bot, { closed = false } = {}) {
     if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)
     return this.memberOperation(bot, membersLease => this.activity.configurationChanges.track(bot.id, (async () => {
-      await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true })
-      await this.wake(bot, { membersLease })
+      let closedAt = null
+      if (!closed) { await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true }); closedAt = Date.now() }
+      try { await this.wake(bot, { membersLease }) } catch (error) {
+        if (closedAt === null) throw error
+        throw Object.assign(new Error(error?.message ?? 'REMOTE_SEAT_WAKE_FAILED', { cause: error }),
+          { code: error?.code, aitermErrorCode: error?.aitermErrorCode, routeClosedAt: closedAt })
+      }
       return true
     })()))
   }

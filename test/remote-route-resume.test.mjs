@@ -7,10 +7,10 @@ import { AitermTransport } from '../src/aiterm-transport.mjs'
 const bot = { id: 'b1', terminalId: 'macbook', projectRoot: '/Users/kite/BellTeam/k', harness: 'claude' }
 function fake({ seen = null, idle = true, turn = 'idle', harness = 'claude-code', launched = '2026-11-13T02:00:00.000Z', resume = async () => true } = {}) {
   const calls = [], errors = []
-  return { calls, errors, routeResumes: new Map(), runtimeLaunches: { s1: { capturedAt: launched } },
+  return { calls, errors, routeResumes: new Map(), routeWakes: new Map(), routeReported: new Set(), routeRetryAt: AitermTransport.prototype.routeRetryAt, runtimeLaunches: { s1: { capturedAt: launched } },
     session: () => 's1', seatHarness: () => harness, seatMcpSeen: () => seen, isIdle: () => idle,
     currentTurn: () => ({ state: turn, turnId: null }), reportError: report => errors.push(report),
-    resumeRemoteSeat: target => { calls.push(target.id); return resume() } }
+    resumeRemoteSeat: (target, options) => { calls.push(options?.closed ? `${target.id}:wake` : target.id); return resume() } }
 }
 const run = (self, row) => AitermTransport.prototype.resumeLostRoutes.call(self, [bot], [{ session_id: 's1', ...row }])
 const later = '2026-11-13T02:05:00.000Z'
@@ -34,7 +34,7 @@ test('leaves the seat: no route_since (older Aiterm), route older than launch, s
   }
 })
 
-test('a working seat waits for its turn end; AGENT_BUSY retries; another refusal is reported once per route', async () => {
+test('a working seat waits for its turn end; AGENT_BUSY retries at the next poll; any other failure retries after a delay, reported once', async () => {
   const self = fake({ turn: 'working' })
   run(self, { route_since: later })
   assert.deepEqual(self.calls, [], 'mid-turn: not now')
@@ -42,11 +42,51 @@ test('a working seat waits for its turn end; AGENT_BUSY retries; another refusal
   run(busy, { route_since: later }); await setImmediate(); await setImmediate()
   run(busy, { route_since: later }); await setImmediate()
   assert.equal(busy.calls.length, 2, 'AGENT_BUSY tries again on a later poll')
-  const refused = fake({ resume: async () => { throw Object.assign(new Error('x'), { aitermErrorCode: 'AGENT_HIBERNATE_UNAVAILABLE' }) } })
+  let fail = true
+  const refused = fake({ resume: async () => { if (fail) throw Object.assign(new Error('x'), { aitermErrorCode: 'AGENT_HIBERNATE_UNAVAILABLE' }); return true } })
   run(refused, { route_since: later }); await setImmediate(); await setImmediate()
   run(refused, { route_since: later }); await setImmediate()
-  assert.equal(refused.calls.length, 1)
+  assert.equal(refused.calls.length, 1, 'not again before the retry delay')
+  const key = `s1@${later}`
+  assert.ok(refused.routeResumes.get(key) > Date.now() + 50_000)
+  refused.routeResumes.set(key, Date.now() - 1)
+  run(refused, { route_since: later }); await setImmediate(); await setImmediate()
+  assert.equal(refused.calls.length, 2, 'tried again after the delay')
+  refused.routeResumes.set(key, Date.now() - 1); fail = false
+  run(refused, { route_since: later }); await setImmediate(); await setImmediate()
+  assert.equal(refused.calls.length, 3); assert.equal(refused.routeResumes.has(key), false, 'recovered')
   assert.deepEqual(refused.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: 'b1', reason: 'AGENT_HIBERNATE_UNAVAILABLE' }])
+})
+
+test('close succeeded, wake failed: the wake alone is retried without the row; a later launch from elsewhere ends it', async () => {
+  let fail = true
+  const self = fake({ resume: async () => { if (fail) throw Object.assign(new Error('w'), { code: 'UNREACHABLE', routeClosedAt: Date.parse('2026-11-13T02:10:00.000Z') }); return true } })
+  run(self, { route_since: later }); await setImmediate(); await setImmediate()
+  assert.deepEqual(self.calls, ['b1'])
+  AitermTransport.prototype.resumeLostRoutes.call(self, [bot], []); await setImmediate()
+  assert.deepEqual(self.calls, ['b1'], 'not again before the retry delay, even with the row gone')
+  self.routeWakes.get('s1').retryAt = Date.now() - 1
+  AitermTransport.prototype.resumeLostRoutes.call(self, [bot], []); await setImmediate(); await setImmediate()
+  assert.deepEqual(self.calls, ['b1', 'b1:wake'], 'wake only, no second close')
+  self.routeWakes.get('s1').retryAt = Date.now() - 1; fail = false
+  AitermTransport.prototype.resumeLostRoutes.call(self, [bot], []); await setImmediate(); await setImmediate()
+  assert.deepEqual(self.calls, ['b1', 'b1:wake', 'b1:wake']); assert.equal(self.routeWakes.has('s1'), false, 'recovered')
+  assert.deepEqual(self.errors.map(error => error.reason), ['UNREACHABLE'], 'one diagnostic per stage')
+  // An ordinary wake or restart that launched after the close ends the record without our call.
+  self.routeWakes.set('s1', { closedAt: Date.parse('2026-11-13T02:10:00.000Z'), running: false, retryAt: 0 })
+  self.runtimeLaunches.s1.capturedAt = '2026-11-13T02:11:00.000Z'
+  AitermTransport.prototype.resumeLostRoutes.call(self, [bot], []); await setImmediate()
+  assert.equal(self.calls.length, 3); assert.equal(self.routeWakes.has('s1'), false)
+})
+
+test('resumeRemoteSeat: a wake failure after a successful close carries routeClosedAt; closed:true skips the close', async () => {
+  const ops = []
+  const self = { isIdle: () => true, activity: { configurationChanges: { has: () => false, track: (_, work) => work } },
+    memberOperation: (_, work) => work('lease'), session: () => 's1',
+    changeSession: async (_, tool) => { ops.push(tool) }, wake: async () => { ops.push('wake'); throw Object.assign(new Error('w'), { code: 'UNREACHABLE' }) } }
+  await assert.rejects(AitermTransport.prototype.resumeRemoteSeat.call(self, bot), error => Number.isFinite(error.routeClosedAt) && error.code === 'UNREACHABLE')
+  await assert.rejects(AitermTransport.prototype.resumeRemoteSeat.call(self, bot, { closed: true }), error => error.routeClosedAt === undefined)
+  assert.deepEqual(ops, ['pty_close', 'wake', 'wake'])
 })
 
 test('no SM10 port (older body): the transport has no seen reader, so #seatTurns never runs the route rule', () => {

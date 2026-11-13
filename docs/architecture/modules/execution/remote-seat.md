@@ -122,7 +122,11 @@ flowchart LR
   Resume -->|"prepare issues a fresh seat credential; agent_launch + terminal + cwd + env_vars (E8: the launch's values)"| Seat[same conversation, MCP connects at startup]
   Seat -->|"recordRuntimeLaunch: capturedAt = now > route_since"| Keep
   Resume -->|"AGENT_BUSY"| Wait
-  Resume -->|"AGENT_RESUME_SECRET_MISSING / AGENT_RESUME_SECRETS_REQUIRED / AGENT_HIBERNATE_UNAVAILABLE / other refusal"| Once["remember (session, route_since); one REMOTE_SEAT_RESUME_REFUSED diagnostic"]
+  Resume -->|"close failed (any code but AGENT_BUSY)"| Later["retry the resume after 60 s; one REMOTE_SEAT_RESUME_REFUSED diagnostic per route"]
+  Later --> Rule
+  Resume -->|"close ok, wake failed"| Woken["record per session {closedAt, retryAt}: drives the retry without the seat_turns row"]
+  Woken -->|"60 s later, Bot idle: wake only (no second close)"| Seat
+  Woken -->|"any launch after closedAt (ordinary wake, restart)"| Keep
 ```
 
 | Contact | Contract |
@@ -132,9 +136,9 @@ flowchart LR
 | Seen | `ports.ingress.seatMcp.seen(sessionName)` (SM10, ms, memory; empty after a body restart). A seat whose CLI reached the seat MCP after `route_since` kept its tools: no resume. An older parent without the port: the rule is off (no seen fact; resuming every seat would be wrong, Molly 11/13), so the body with SM10 and this execution may ship in either order. |
 | Idle | `isIdle` (no BellTeam job) AND `currentTurn` idle AND no configuration change in flight. A working seat waits for a later poll after its turn; nothing interrupts it. |
 | Resume | `pty_close {hibernate:true}` keeps the conversation; `wake` launches the same session name through the ordinary path (prepare -> fresh credential, so the running CLI never keeps a token the store forgot; Known limit above is closed for this path). Aiterm 0.70.41 resumes the hibernated seat with this launch's secret values and rewrites its caller MCP file to the current forward port. |
-| Refusals | Remembered per `(session, route_since)`, one `REMOTE_SEAT_RESUME_REFUSED` diagnostic with the code; no retry until the route changes again. The seat stays as it is; the next ordinary wake or explicit restart is its exit. |
+| Failures | No give-up. `AGENT_BUSY`: the next idle poll. Any other failure (refusal, transient, unclassified): retried after 60 s while the rule still holds, one `REMOTE_SEAT_RESUME_REFUSED` diagnostic per route and stage. If `pty_close` succeeded and `wake` failed, the seat is hibernated and its row may be gone, so a per-session record `{closedAt, retryAt}` (memory) drives a wake-only retry every 60 s while the Bot is idle. |
 | Harness | grok / cursor / antigravity have no resume: untouched. |
-| Self-exit | No timer or guard: the resumed launch moves `capturedAt` past `route_since`, so the rule is false on the next poll. |
+| Self-exit | No guard: the resumed launch moves `capturedAt` past `route_since`, so the rule is false on the next poll. The wake record ends when our wake succeeds or when any launch of that session (ordinary wake on a delivery, explicit restart) records a `capturedAt` after `closedAt`. A body restart empties both maps: a seat left hibernated then wakes by the ordinary wake of its next delivery; a seat with a row is judged by the rule again. |
 
 ## Target revision (member terminal/folder change)
 
