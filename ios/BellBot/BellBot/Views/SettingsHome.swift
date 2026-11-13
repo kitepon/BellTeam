@@ -12,6 +12,9 @@ final class SettingsHomeState: ObservableObject {
     @Published private(set) var harnessOptions: [String: HarnessAuthenticationOption] = [:]
     @Published private(set) var rulesText: String?
     @Published private(set) var rulesUnreadable = false
+    /// 稼働中に数えない処理 (a64): nil until the first answer. No SSE carries it; read on open, foreground, page open and after a removal.
+    @Published private(set) var exclusions: RunningExclusionsRead?
+    private var exclusionsReads = 0
     /// Model names for the 仕事の要約を書くAI line; empty until read (the line then shows the saved id).
     @Published private(set) var modelCatalog: [String: HarnessModels] = [:]
     private weak var store: AppStore?
@@ -52,9 +55,10 @@ final class SettingsHomeState: ObservableObject {
             async let updates: Void = store.updates.refresh()
             async let control: Void = store.refreshAIControl()
             async let rules: Void = loadRules()
+            async let exclusions: Void = loadExclusions()
             async let models: Void = loadModels()
             async let authorization: Void = BellNotifications.shared.refreshAuthorization()
-            _ = await (settings, updates, control, rules, models, authorization)
+            _ = await (settings, updates, control, rules, exclusions, models, authorization)
         }
         _ = await (ai, terminals)
     }
@@ -89,6 +93,31 @@ final class SettingsHomeState: ObservableObject {
         catch {
             rulesUnreadable = rulesText == nil
             store.api.diagnostics.report(error, path: "/api/user-rules", method: "GET", observation: .read(error, retainedData: rulesText != nil))
+        }
+    }
+
+    func loadExclusions() async {
+        guard let store else { return }
+        await loadExclusions { try await store.api.get("/api/running-exclusions") }
+    }
+
+    /// Reads run independently (settings open, foreground, page open, after a removal). Only the newest read's answer,
+    /// success or failure, is kept: an older read finishing late would bring back an entry the Owner just removed.
+    func loadExclusions(_ read: () async throws -> RunningExclusions) async {
+        exclusionsReads += 1
+        let token = exclusionsReads
+        let result: Result<RunningExclusions, Error>
+        do { result = .success(try await read()) } catch { result = .failure(error) }
+        guard token == exclusionsReads else { return }
+        switch result {
+        case .success(let list): exclusions = .listed(list)
+        case .failure(let error):
+            if error is CancellationError { return }
+            if BellAPIError.isAuthenticationError(error) { store?.requireLogin(for: error); return }
+            exclusions = RunningExclusionsRead.failure(error)
+            if exclusions == .unreadable {
+                store?.api.diagnostics.report(error, path: "/api/running-exclusions", method: "GET", observation: .read(error, retainedData: false))
+            }
         }
     }
 
@@ -175,6 +204,7 @@ final class SettingsHomeState: ObservableObject {
             return SettingsSummary.notifications(notificationState, failed: notifications.failure != nil)
         case .rules: return SettingsSummary.rules(rulesText, unreadable: rulesUnreadable)
         case .features: return SettingsSummary.features(store.featureSettings)
+        case .exclusions: return SettingsSummary.runningExclusions(exclusions)
         case .connection: return SettingsStatus(line: store.serverURL?.host ?? "未設定")
         case .billing: return SettingsSummary.billing(store.billing.presentation, developer: store.billing.isDeveloper)
         case .update:

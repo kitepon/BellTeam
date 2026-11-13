@@ -35,6 +35,7 @@ flowchart TD
   Home --> N["通知"]
   Home --> RU["チームの決まり"]
   Home --> FE["追加機能（通知の送信など、残りの機能設定）"]
+  Home --> EX["稼働中に数えない処理（a64）"]
   Home --> UP["アップデート"]
   Home --> B["利用と課金"]
   Home --> C["接続"]
@@ -52,6 +53,7 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | プロフィール | 名前・紹介・写真・リンクを直す | `store.owner`、SSE `owner` | `PATCH /api/owner` | サーバー（Owner） |
 | チームの決まり | 決まりを項目ごとに読み、全文を編集する | `GET /api/user-rules`（ホームとページが同じ値を共有） | `PUT /api/user-rules` | サーバー（規範） |
+| 稼働中に数えない処理（a64） | 承認済みの項目と答え待ちの提案を見る。Ownerが一覧から外す | `GET /api/running-exclusions`（ホームとページが同じ値を共有。設定を開いた時・前面に戻った時・ページを開いた時・外した後。SSEは無い）、名前は`store.bots` | `DELETE /api/running-exclusions/:id` | サーバー（execution [current work](../execution/current-work.md) "Owner read and remove (a62)"） |
 | 追加機能 | 通知の送信など、1Password以外の機能設定 | `GET /api/settings`の`settings` | `PATCH /api/settings/:id` | サーバー |
 | AIの認証 | AIごとの公式認証の状態を見て、認証し直す | `GET /api/harness-auth`、`GET /api/harness-auth/:h[?slot=2nd]`（各行・画面、進行中は3秒ごと）、`GET /api/accounts`（上限・使用中のメンバー・`signedOutAt`）、SSE `settings` | `POST /api/harness-auth/:h/{start,input,cancel}[?slot=2nd]` | サーバー（Aiterm・公式CLI） |
 | 仕事の要約を書くAI | 要約用のAI・モデル・エフォートを選ぶ | `GET /api/settings`の`backgroundAgent`、`GET /api/models` | `PATCH /api/settings/backgroundAgent` | サーバー |
@@ -85,7 +87,7 @@ flowchart TD
 - 状態を読めない時に「未設定」「未認証」と書かない。読めないことを言う。
 - 札は設定のどこでも`BellBadge(text:tone:symbol:)`（`Design/BellTheme.swift`、色は`SettingsTone`：灰・緑・紫・橙）一つで出す。状態の語を色付きの文字だけで出さない（未設定も他の札と同じ形の灰の札）。
 - 実装：行の一行と札は`SettingsSummary`（`Core/SettingsStatus.swift`）の純関数が決め、ホームの読み込みは`SettingsHomeState`（`Views/SettingsHome.swift`）が設定を開いた時・前面に戻った時・SSEで行う。AIの認証の札の語は行・画面と同じ`AuthenticationProgress`の語（ログインが必要・コード待ち等）を使う。
-- 一覧の順：[AIの認証・仕事の要約を書くAI・端末・1Password・通知・追加機能]、[チームの決まり]、[接続・表示]、[利用と課金・アップデート・このアプリについて]、[全体停止]。プロフィールは最上段。
+- 一覧の順：[AIの認証・仕事の要約を書くAI・端末・1Password・通知・追加機能・稼働中に数えない処理]、[チームの決まり]、[接続・表示]、[利用と課金・アップデート・このアプリについて]、[全体停止]。プロフィールは最上段。
 
 ## 4. 利用者の導線（状態遷移）
 
@@ -259,6 +261,30 @@ stateDiagram-v2
 - ⚠B17（直した）Mac/iPadのページの中の行は右のページの中で開く（原因：窓の詳細列は自前のNavigationStackを持ち、ページ内のNavigationLinkはその外側へ積まれて設定の列ごと置き換えていた。右ページが`SettingsPageNavigator`の自前の積み重ねを持ち、`SettingsNavLink`がそこへ積む。iPhoneは従来のNavigationLink）。ページの題は内容の先頭に出す。旧記述：ページの中の行（AIの行・端末の行・追加機能の行）を押すと、設定の項目の列ごと右側が新しい画面に置き換わる（撮影：mac-settings-ai-auth-*・mac-settings-terminal-*）。どの項目の中にいるかが見えず、戻り口は窓の上の小さな戻るだけ。→ 項目の列は残し、右のページの中で開く。ページの題（「Claude 1stアカウント」等）を内容の先頭に出す。
 - ⚠B16（直した）接続先は「接続」だけ。「このアプリについて」は版だけ。旧記述：「接続」と「このアプリについて」が同じ接続先を表示する。→ 接続先は「接続」だけ。「このアプリについて」は版だけ。
 - 利用と課金：開発者として利用中／有効／未購入の札と一行。購入・復元の失敗は理由と「もう一度」。今の札はホームにある。
+
+### 4.8b 稼働中に数えない処理（a64）
+
+Web（a63、[user-paths.md](../web/user-paths.md) 4.10）と同じ語・同じ札。Macが基準の見た目で、Windows（a65）が合わせる。
+
+```mermaid
+stateDiagram-v2
+  [*] --> Read: 設定を開く／前面に戻る／ページを開く
+  Read --> List: 200（承認済み・答え待ちのカード）
+  Read --> Empty: 200で両方が空「いまは何もありません。メンバーの処理は、すべて作業中に数えます。」
+  Read --> Old: 404/405 旧本体「本体を更新すると使えます」
+  Read --> Fail: 503・通信・読めない応答「一覧を読めませんでした」＋「読み直す」
+  List --> Confirm: 「一覧から外す」
+  Confirm --> Removing: 確認で「外す」（ボタンは「外しています…」、他の外すは止める）
+  Removing --> Read: 200／404「もう一覧にありませんでした」
+  Removing --> Read: 503「一覧を読めないため、外せませんでした」／他「外せませんでした。もう一度お試しください」
+  Fail --> Read: 読み直す
+```
+
+- ホームの一行：「N件」か「なし」、答え待ちがあれば「・答え待ちN件」。札は出さない（答え待ちはApproval Boxが知らせる）。読めない時は「確認できません」の橙の札で要対応の帯へ。旧本体は「本体を更新すると使えます」で札なし。
+- 承認済みのカード：アイコン（処理＝`terminal`、子の席＝`person.crop.circle`）、処理の語（処理は「<exe> <args>」、子の席は「<AI名> の子の席「<session>」」か「（どの席でも）」）、対象（「全員」か名前、知らないIDはそのまま）、承認（`approvedAt`）、理由、提案（`from`の名前）、「一覧から外す」（赤の枠線、確認つき）。
+- 答え待ちのカード：「追加の提案」／「外す提案」、同じ語（外す提案は一覧の`id`の項目、無ければ「（一覧にない処理）」）、追加なら対象、提案、出した日時（`filedAt`）、`approved`なら「承認済み。一覧に空きができたら載ります。」、それ以外は「Approval Boxで、あなたの答えを待っています。」。答えるボタンは置かない。
+- 読む順：設定を開いた時・前面・ページ・外した後の読取は別々に走る。読取ごとに番号を取り、答え（成功も失敗も）は、その時点で一番新しい読取のものだけを反映する。外す前に始めた遅い読取が外した後の読取より後に終わっても、外した項目は戻らない。
+- 実装：`Core/RunningExclusions.swift`（応答の型・語・ホームの一行・外す失敗の文。純関数）、`Views/RunningExclusionsPage.swift`（ページ）、読取は`SettingsHomeState.loadExclusions()`。
 
 ## 4.9 ボタンと、押した後に見えるもの
 
