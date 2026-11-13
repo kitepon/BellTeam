@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `Core/Models.swift`の値型 | Bot/Room/Owner/RecentMessage、TimelineMessage/QueueItem、予定、初回認証、追加機能、質問、秘密要求、API応答 | Decodableで応答を値にする。自分で通信・保存・再取得しない。preview、status、path等は入力値から算出 |
 | `Core/GoalModels.swift:3`の値型16個 | GoalSnapshot、capabilities・fieldCapabilities・binding、各harnessのgoalと履歴 | Decodableで応答を値にし、表示用の値を算出する。自分で通信・保存・再取得しない |
-| `AppStore`、MainActor | phase/serverURL/authMode、setup/featureSettings、bots/rooms/owner、workingBotIDs、AI全体停止、接続エラー、タブ/chatPath、削除待ちID | Publishedを画面が購読。宛先変更は`conversationChanges`、予定変更は`scheduleChanges`。全更新通知は`eventRevision` |
+| `AppStore`、MainActor | phase/serverURL/authMode、setup/featureSettings、bots/rooms/owner、AI全体停止、接続エラー、タブ/chatPath、削除待ちID | Publishedを画面が購読。宛先変更は`conversationChanges`、予定変更は`scheduleChanges`。全更新通知は`eventRevision` |
 | `AppStore`内の辞書 | 宛先別ConversationDraft、既存Bot編集draft、画像選択draft、会話の前回ページ | `draft(for:)`は同じ宛先に同じ参照を返す。文字入力はAppStoreのPublishedにしない。ページは世代が同じ応答だけ`remember` |
 | `BellAPI` | baseURL、専用URLSession、cookieStorage、JSONDecoder、diagnostics | HTTPを型付きの戻り値・Data・Errorでcallerへ返す。AppStoreや画面へ直接代入しない。SSEは`onEvent` callback |
 | 各画面 | 会話の履歴/pending送信/queue/カード、一覧の検索、編集フォーム、予定entries、`Core/GoalViewModel.swift:89`のGoalViewModel | HTTPの結果をローカル状態へ適用。共通一覧の更新はAppStoreへ返す。編集draftの例外は上の辞書 |
@@ -41,7 +41,7 @@ flowchart TD
 
 `BellDiagnostics.isSuspendedTimeout`：iPhone・iPadで、裏で始まった、または要求の途中に裏へ回った（`BellAppStateSnapshot.backgroundEntries`が開始と終了で違う）`URLError.timedOut`。OSがアプリを止めている間も60秒の計時は進み、戻った時にまとめて切れるため、通信の失敗とは扱わない。`refreshFromView`と`refreshResourcesFromEvent`は取消と同じく何も表示せず、`BellDiagnostics.report`も報告しない。Macは裏に回っても止められないので、今までどおり時間切れとして扱う。裏に回った後に届いたSSEの知らせ（`requestRefreshFromEvent`・`requestSideRefresh`）は読み取りを始めず、前面へ戻った時の再取得に任せる。
 
-`refresh`は4応答と必要な画像解決が揃うまで共通一覧を書き換えない。Bot cacheの保存は適用後。対象限定の`refreshResourcesFromEvent`は指定資源だけGETし、画像を解決してから適用する。`QueueItem.status == running`のbotId集合が`workingBotIDs`になる。queueの全項目をAppStoreで保持するわけではない。
+`refresh`は3応答（bots・rooms・owner）と必要な画像解決が揃うまで共通一覧を書き換えない。Bot cacheの保存は適用後。対象限定の`refreshResourcesFromEvent`は指定資源だけGETし、画像を解決してから適用する。一覧の「仕事中」は`Bot.isWorking`（`currentWork.state == working`）だけで決め、AppStoreは`/api/queue`を読まない。「処理中」の行は会話画面が対象の`/queue`から作る。
 
 `AppStore.applyFetchedBots`は前の一覧から消えたIDについてナビゲーション、会話draft、Bot編集draft、画像選択draftを消す。`applySavedRoom`は保存応答のroomを入れ替えるが、`recent`は前回一覧の値を保持してID順に並べる。両者とも画面状態への適用であり、本体の処理実行を担わない。
 
@@ -70,7 +70,7 @@ flowchart TD
 | `messages`の`.all`、その他イベント | eventRevision増加と共通一覧全取得 |
 | topic `timeline`・`queue`・`requests`・`questions` | botIds/roomIdsの全宛先へconversationChanges。timeline/requests/questionsは該当種別の名簿も再取得 |
 | topic `schedules` | IDからChatTarget集合を作りscheduleChangesへ。予定画面が対象分を取得 |
-| topic `bots`・`rooms`・`owner`・`queue` | 対応する共通資源を再取得。queueはworkingBotIDsへ。現在の仕事の変化はbotIds付きqueueで届くため、botIdsがあればbotsも再取得する |
+| topic `bots`・`rooms`・`owner`・`queue` | 対応する共通資源を再取得。現在の仕事の変化はbotIds付きqueueで届くため、queueはbotIdsがあればbotsを再取得する |
 | topic `settings`・`setup`・`ai-control`・`updates` | 上のイベント単体の分岐と同じく`requestSideRefresh`へ積む |
 | 対象指定messagesを受けた時にrefreshErrorが残っている | 対象更新に進まずeventRevision増加と全取得 |
 | type不正、allがfalseでない、未知/空topic、ID配列不正、宛先が必要なのに無い | BellEvent.scopeをallにする。型列挙はBellEventTopicの11値 |

@@ -6,7 +6,7 @@ import Combine
 import Darwin
 
 enum EventResource: Hashable {
-    case all, bots, rooms, owner, queue
+    case all, bots, rooms, owner
 }
 
 /// 一覧の再取得の赤字と、それを立てた経路。対象を絞った再取得の成功は、自分が立てた赤字だけを消す。
@@ -92,7 +92,6 @@ final class AppStore: ObservableObject {
     @Published var eventRevision = 0
     let conversationChanges = PassthroughSubject<ChatTarget, Never>()
     let scheduleChanges = PassthroughSubject<Set<ChatTarget>, Never>()
-    @Published var workingBotIDs: Set<String> = []
     @Published private(set) var aiControl: AIControl?
     @Published private(set) var aiControlLoading = false
     @Published private(set) var aiControlUpdating = false
@@ -235,7 +234,6 @@ final class AppStore: ObservableObject {
         bots = []
         pendingBotDeletionIDs.removeAll()
         rooms = []
-        workingBotIDs = []
         owner = nil
         setup = nil
         setupAuthNeedsRefresh = false
@@ -487,8 +485,7 @@ final class AppStore: ObservableObject {
         async let botResult: BotsResponse = api.get("/api/bots?avatar=omit", callerContext: call.log)
         async let roomResult: RoomsResponse = api.get("/api/rooms?avatar=omit")
         async let ownerResult: OwnerResponse = api.get("/api/owner?avatar=omit")
-        async let queueResult: QueueResponse = api.get("/api/queue")
-        let (bots, rooms, owner, queue) = try await (botResult, roomResult, ownerResult, queueResult)
+        let (bots, rooms, owner) = try await (botResult, roomResult, ownerResult)
         async let resolvedBots = withResolvedBotAvatars(bots.bots)
         async let resolvedRooms = withResolvedRoomAvatars(rooms.rooms)
         async let resolvedOwner = withResolvedOwnerAvatar(owner.owner)
@@ -497,7 +494,6 @@ final class AppStore: ObservableObject {
         applyFetchedBots(botList)
         if self.rooms != roomList { self.rooms = roomList }
         if self.owner != ownerValue { self.owner = ownerValue }
-        applyFetchedQueue(queue.items)
         await storeBotAvatarsIfChanged(botList)
     }
 
@@ -534,11 +530,6 @@ final class AppStore: ObservableObject {
             path: "/api/owner/avatar", botID: nil)
         owner.avatar = try await avatar(request)
         return owner
-    }
-
-    private func applyFetchedQueue(_ items: [QueueItem]) {
-        let runningBotIDs = Set(items.filter { $0.status == "running" }.compactMap(\.botId))
-        if workingBotIDs != runningBotIDs { workingBotIDs = runningBotIDs }
     }
 
     private func storeBotAvatarsIfChanged(_ bots: [Bot]) async {
@@ -694,8 +685,7 @@ final class AppStore: ObservableObject {
                                                          callerContext: call.log)
             async let rooms: RoomsResponse? = getForEvent(resources.contains(.rooms), path: "/api/rooms?avatar=omit")
             async let owner: OwnerResponse? = getForEvent(resources.contains(.owner), path: "/api/owner?avatar=omit")
-            async let queue: QueueResponse? = getForEvent(resources.contains(.queue), path: "/api/queue")
-            let (botResponse, roomResponse, ownerResponse, queueResponse) = try await (bots, rooms, owner, queue)
+            let (botResponse, roomResponse, ownerResponse) = try await (bots, rooms, owner)
             var botList: [Bot]?
             var roomList: [Room]?
             var ownerValue: Owner?
@@ -709,7 +699,6 @@ final class AppStore: ObservableObject {
             }
             if let roomList, self.rooms != roomList { self.rooms = roomList }
             if let ownerValue, self.owner != ownerValue { self.owner = ownerValue }
-            if let queueResponse { applyFetchedQueue(queueResponse.items) }
             refreshFailure.eventRefreshSucceeded(resources: resources)
             updateConnectionError()
         } catch is CancellationError { return }
@@ -857,11 +846,8 @@ final class AppStore: ObservableObject {
         if topics.contains(.bots) { resources.insert(.bots) }
         if topics.contains(.rooms) { resources.insert(.rooms) }
         if topics.contains(.owner) { resources.insert(.owner) }
-        if topics.contains(.queue) {
-            resources.insert(.queue)
-            // 現在の仕事の変化はqueueとして届き、一覧の行はbotsのcurrentWorkから描く。
-            if !botIDs.isEmpty { resources.insert(.bots) }
-        }
+        // 現在の仕事の変化はqueueとして届き、一覧の行と仕事中の印はbotsのcurrentWorkから描く。
+        if topics.contains(.queue), !botIDs.isEmpty { resources.insert(.bots) }
         if !resources.isEmpty { requestRefreshFromEvent(resources: resources) }
     }
 

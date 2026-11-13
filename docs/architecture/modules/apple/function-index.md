@@ -92,7 +92,6 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [withResolvedBotAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L429) | Bot名簿の画像解決要求を作る |
 | [withResolvedRoomAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L442) | Room名簿の画像解決要求を作る |
 | [withResolvedOwnerAvatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L455) | Ownerの画像解決 |
-| [applyFetchedQueue](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L464) | runningのBot ID集合を適用 |
 | [storeBotAvatarsIfChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L469) | 通知用共有cacheの差分保存 |
 | [resolveAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L488) | 画像要求を並列解決 |
 | [immediateAvatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L503) | inline・空version・前回値の利用 |
@@ -414,7 +413,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [EventStreamLiveTests.swift](../../../../ios/BellBot/BellBotTests/EventStreamLiveTests.swift) | 要求timeoutを超えるSSE接続 |
 | [ForegroundRefreshTests.swift](../../../../ios/BellBot/BellBotTests/ForegroundRefreshTests.swift) | 更新要求併合、background取消、古いGETとforeground |
 | [HarnessAuthenticationTests.swift](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift) | 開始確認、再認証非対応、初回開始、参照と変更の分離、poll/取消/明示更新 |
-| [MemberActivityTests.swift](../../../../ios/BellBot/BellBotTests/MemberActivityTests.swift) | queue表示重複、stopped、workingBotIDs |
+| [MemberActivityTests.swift](../../../../ios/BellBot/BellBotTests/MemberActivityTests.swift) | queue表示重複、stopped、currentWorkによる仕事中 |
 | [MemberDeletionTests.swift](../../../../ios/BellBot/BellBotTests/MemberDeletionTests.swift) | 削除受付と一覧消失、拒否・応答喪失時の保持 |
 | [MessageInputTests.swift](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift) | iPadのReturn/修飾改行、iPhone標準動作 |
 | [NetworkRecoveryTests.swift](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift) | GET一回再取得、POST非再送、Access、診断時計・route、goal取消、SSE復帰/対象更新、画像再利用 |

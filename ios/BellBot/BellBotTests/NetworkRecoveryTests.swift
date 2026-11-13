@@ -700,7 +700,7 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.count("/api/bots"), 1)
         XCTAssertEqual(scenario.count("/api/rooms"), 1)
         XCTAssertEqual(scenario.count("/api/owner"), 1)
-        XCTAssertEqual(scenario.count("/api/queue"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 0, "仕事中はbotsのcurrentWorkから描き、queueは読まない")
     }
 
     func testTargetedScheduleEventDoesNotFetchConversationOrLists() async {
@@ -730,13 +730,13 @@ final class NetworkRecoveryTests: XCTestCase {
         var changedTargets: [ChatTarget] = []
         let observation = store.conversationChanges.sink { changedTargets.append($0) }
         store.startEvents()
-        for _ in 0..<80 where scenario.count("/api/bots") + scenario.count("/api/rooms") + scenario.count("/api/queue") < 3 {
+        for _ in 0..<80 where scenario.count("/api/bots") + scenario.count("/api/rooms") < 2 {
             try? await Task.sleep(for: .milliseconds(50))
         }
         XCTAssertEqual(Set(changedTargets), [.bot("bot-network"), .room("room-a")])
         XCTAssertEqual(scenario.count("/api/bots"), 1)
         XCTAssertEqual(scenario.count("/api/rooms"), 1)
-        XCTAssertEqual(scenario.count("/api/queue"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 0)
         XCTAssertEqual(scenario.count("/api/owner"), 0)
         withExtendedLifetime(observation) {}
     }
@@ -756,7 +756,7 @@ final class NetworkRecoveryTests: XCTestCase {
         withExtendedLifetime(observation) {}
     }
 
-    func testQueueOnlyEventReadsQueueAndMemberWorkWithoutUnrelatedLists() async {
+    func testQueueOnlyEventReadsMemberWorkWithoutUnrelatedLists() async {
         let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"queue\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
         let scenario = NetworkScenario(failures: 0, holdEventsOpen: true, eventStream: stream)
         let store = AppStore(api: makeAPI(scenario))
@@ -767,10 +767,10 @@ final class NetworkRecoveryTests: XCTestCase {
         }
         store.startEvents()
         await fulfillment(of: [notified], timeout: 4)
-        for _ in 0..<80 where scenario.count("/api/queue") + scenario.count("/api/bots") < 2 {
+        for _ in 0..<80 where scenario.count("/api/bots") < 1 {
             try? await Task.sleep(for: .milliseconds(50))
         }
-        XCTAssertEqual(scenario.count("/api/queue"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 0)
         XCTAssertEqual(scenario.count("/api/bots"), 1, "現在の仕事はqueue通知で変わり、botsのcurrentWorkから描く")
         XCTAssertEqual(scenario.count("/api/rooms"), 0)
         XCTAssertEqual(scenario.count("/api/owner"), 0)
@@ -791,7 +791,7 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.count("/api/bots"), 1)
         XCTAssertEqual(scenario.count("/api/rooms"), 1)
         XCTAssertEqual(scenario.count("/api/owner"), 1)
-        XCTAssertEqual(scenario.count("/api/queue"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 0, "仕事中はbotsのcurrentWorkから描き、queueは読まない")
     }
 
     func testNotificationFailureHasOnlyItsStageReport() async {
@@ -960,10 +960,10 @@ private final class NetworkScenarioProtocol: URLProtocol {
 final class MemberListRefreshErrorTests: XCTestCase {
     func testTargetedSuccessClearsOnlyTheErrorItRaised() {
         var failure = MemberListRefreshError()
-        failure.eventRefreshFailed("BellTeam: MEMBERS_NOT_ACCEPTED", resources: [.bots, .queue])
-        failure.eventRefreshSucceeded(resources: [.queue])
+        failure.eventRefreshFailed("BellTeam: MEMBERS_NOT_ACCEPTED", resources: [.bots, .owner])
+        failure.eventRefreshSucceeded(resources: [.owner])
         XCTAssertEqual(failure.message, "BellTeam: MEMBERS_NOT_ACCEPTED", "失敗した資源を含まない成功では消さない")
-        failure.eventRefreshSucceeded(resources: [.bots, .queue, .rooms])
+        failure.eventRefreshSucceeded(resources: [.bots, .owner, .rooms])
         XCTAssertNil(failure.message)
         XCTAssertNil(failure.eventResources)
     }
@@ -982,7 +982,7 @@ final class MemberListRefreshErrorTests: XCTestCase {
     func testTargetedSuccessDoesNotClearAFullRefreshError() {
         var failure = MemberListRefreshError()
         failure.fullRefreshFailed("全件取得の失敗")
-        failure.eventRefreshSucceeded(resources: [.bots, .rooms, .owner, .queue])
+        failure.eventRefreshSucceeded(resources: [.bots, .rooms, .owner])
         XCTAssertEqual(failure.message, "全件取得の失敗")
         failure.eventRefreshFailed("対象の失敗", resources: [.bots])
         failure.eventRefreshSucceeded(resources: [.bots])
