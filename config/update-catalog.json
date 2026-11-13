@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T13:55:10Z",
-  "expiresAt": "2026-11-20T13:55:10Z",
+  "publishedAt": "2026-11-13T14:16:13Z",
+  "expiresAt": "2026-11-20T14:16:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f",
-      "versionId": "230b35430fddda55eaf6fd53df2e0dc6172319f881bf03e12f09e71e410881bf",
+      "sourceCommit": "4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7",
+      "versionId": "bd6ecb81e75b821585756bc2c8e1132aeb6c646dc61861248810a7f19802857f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121834Z/web-gateway-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-amd64.tar.gz",
-          "bytes": 5325905,
-          "sha256": "230b35430fddda55eaf6fd53df2e0dc6172319f881bf03e12f09e71e410881bf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T141553Z/web-gateway-4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7-linux-amd64.tar.gz",
+          "bytes": 5329255,
+          "sha256": "bd6ecb81e75b821585756bc2c8e1132aeb6c646dc61861248810a7f19802857f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121834Z/web-gateway-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11291,
-          "sha256": "dbe8ae3354bb5d4f1911964ff0fbcf71eb821ccb9b639dfd0b6cd0b6b641941b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T141553Z/web-gateway-4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "98b22d825eff78b11d13586724e2abf59488b29486557f1198c946d4d2978020"
         },
-        "signerCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f"
+        "signerCommit": "4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の画面に、ほかの工程表から待っている作業を表示します。"
+        "設定画面に「稼働中に数えない処理」が加わり、一覧を見たり、ひとつずつ消したりできます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f",
-      "versionId": "e726f9fb0e23caef2706100d542fbf863b3e882f8a8dcdecf2cc447abfb299a1",
+      "sourceCommit": "4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7",
+      "versionId": "ee14d4f138b20342a84fd896c7c55b27abc72beb397c8f0b8b58dcca9b03d284",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121834Z/web-gateway-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-arm64.tar.gz",
-          "bytes": 5325905,
-          "sha256": "e726f9fb0e23caef2706100d542fbf863b3e882f8a8dcdecf2cc447abfb299a1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T141553Z/web-gateway-4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7-linux-arm64.tar.gz",
+          "bytes": 5329255,
+          "sha256": "ee14d4f138b20342a84fd896c7c55b27abc72beb397c8f0b8b58dcca9b03d284"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121834Z/web-gateway-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10868,
-          "sha256": "22882b0eee8dbd57a0205c46321923399a68daf1d3bf2ce4e7ec6c0af65a77c6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T141553Z/web-gateway-4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "1706d13fcafdb573827c4e506c0493bf595f34e42223a9163d305f3e8b31ad49"
         },
-        "signerCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f"
+        "signerCommit": "4f318847cd2104b1d05ce9b3c6cdc8257b87dbe7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の画面に、ほかの工程表から待っている作業を表示します。"
+        "設定画面に「稼働中に数えない処理」が加わり、一覧を見たり、ひとつずつ消したりできます。"
       ]
     },
     {
