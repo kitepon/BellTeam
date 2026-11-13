@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T12:26:31Z",
-  "expiresAt": "2026-11-20T12:26:31Z",
+  "publishedAt": "2026-11-13T13:18:20Z",
+  "expiresAt": "2026-11-20T13:18:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f",
-      "versionId": "sha256:866430fa1e6ef8cd8c501b40097fb4b6c7089544920089d4606ae5c03e6e503e",
+      "sourceCommit": "36d41d8bf4bf4216fb6c114ea266ecdaff914528",
+      "versionId": "sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:866430fa1e6ef8cd8c501b40097fb4b6c7089544920089d4606ae5c03e6e503e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,21 +732,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ほかの工程表につながった工程を含む工程表を、本体が受け取れるようにします。",
-        "Antigravity のメンバーがバックグラウンドで動かすコマンドも「仕事中」として数えます。"
+        "メンバーの「仕事中」の理由に、実際に動かしているコマンドの名前が出ます。",
+        "Antigravity のメンバーが、バックグラウンドの処理が終わったあとに状態が分からなくなる時間がなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f",
-      "versionId": "sha256:866430fa1e6ef8cd8c501b40097fb4b6c7089544920089d4606ae5c03e6e503e",
+      "sourceCommit": "36d41d8bf4bf4216fb6c114ea266ecdaff914528",
+      "versionId": "sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:866430fa1e6ef8cd8c501b40097fb4b6c7089544920089d4606ae5c03e6e503e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -755,8 +755,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ほかの工程表につながった工程を含む工程表を、本体が受け取れるようにします。",
-        "Antigravity のメンバーがバックグラウンドで動かすコマンドも「仕事中」として数えます。"
+        "メンバーの「仕事中」の理由に、実際に動かしているコマンドの名前が出ます。",
+        "Antigravity のメンバーが、バックグラウンドの処理が終わったあとに状態が分からなくなる時間がなくなります。"
       ]
     },
     {
