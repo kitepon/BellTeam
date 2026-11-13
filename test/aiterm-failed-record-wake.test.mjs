@@ -293,3 +293,24 @@ test('休止中の席の再開の途中で止まり、Aitermが再開を断っ�
   await assert.rejects(run.delivered, error => error.code === 'CONVERSATION_NOT_ACCEPTED')
   assert.deepEqual(run.calls.map(([name]) => name), ['pty_send', 'pty_observe', 'agent_launch'])
 })
+
+// a67 (delivery-details.md): the final recovery wake carries the dispatch check, so an answered resume refusal seen
+// after the admission closed during agent_launch closes nothing more (no second pty_close, no second launch).
+test('a67: 回復の起こし直しで再開が断られても、起動の途中で会話の受付が閉じていたら記録を閉じない', async t => {
+  const run = await swapDuring(t, { sends: ["aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。"],
+    closeAt: 'agent_launch', launches: ['aiterm: AGENT_RESUME_CONFLICT: 同名の休止席は保存したharness・設定・project・明示envで再開します。'] })
+  await assert.rejects(run.delivered)
+  const names = run.calls.map(([name]) => name)
+  assert.equal(names.filter(name => name === 'agent_launch').length, 1)
+  assert.equal(names.lastIndexOf('pty_close') < names.indexOf('agent_launch'), true, 'no close after the refused launch')
+})
+
+test('a67: 受付が開いたままなら、回復の起こし直しで断られた再開は記録を閉じて一度だけ新しく起こす', async t => {
+  const run = await swapDuring(t, { sends: ["aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。", null],
+    closeAt: 'never', launches: ['aiterm: AGENT_RESUME_CONFLICT: 同名の休止席は保存したharness・設定・project・明示envで再開します。'] })
+  await run.delivered.catch(() => {})
+  const names = run.calls.map(([name]) => name)
+  const first = names.indexOf('agent_launch')
+  assert.equal(names.filter(name => name === 'agent_launch').length, 2)
+  assert.ok(names.indexOf('pty_close', first) > first && names.indexOf('pty_close', first) < names.lastIndexOf('agent_launch'))
+})

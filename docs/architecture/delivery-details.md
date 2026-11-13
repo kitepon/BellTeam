@@ -104,7 +104,7 @@ Known limit: a Bot whose model or effort was changed while its seat was hibernat
 | Refusal without an answer (outcome unknown), or a stop / admission change / closed lease before the close | Nothing closed (the conversation is kept); the launch failure is returned |
 | Any other launch error | Unchanged (R13 key reload, leftover close) |
 
-The dispatch path's hibernated resume (above) passes its admission check into the wake, so a stop during that resume still keeps the record. Known limit: the close reaches the terminal only while the body's Aiterm keeps the seat's terminal binding (a66); without it the close is local, the second launch meets the same refusal and the typed launch failure stays.
+Every dispatch wake (the hibernated resume, the target-move wake and the final recovery wake) passes the dispatch admission check into the wake, so an admission or input-permission change during `agent_launch` closes nothing. Known limit: the close reaches the terminal only while the body's Aiterm keeps the seat's terminal binding (a66); without it the close is local, the second launch meets the same refusal and the typed launch failure stays.
 
 Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 

@@ -1800,7 +1800,7 @@ export class AitermTransport {
               await this.removeRetainedImages(bot.id)
             }
             check()
-            return this.wake(bot, { setupTest, membersLease: lease })
+            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check })
           }, { membersLease })
           check()
         }
@@ -1849,7 +1849,7 @@ export class AitermTransport {
               await this.removeRetainedImages(bot.id)
             }
             check()
-            return this.wake(bot, { setupTest, membersLease: lease })
+            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check })
           }, { membersLease })
           check()
           if (executionJob) executionJob.nativeSession = session
