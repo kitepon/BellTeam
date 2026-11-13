@@ -74,6 +74,7 @@
     "src/current-work.mjs",
     "src/running-exclusions.mjs",
     "src/running-exclusions-mcp.mjs",
+    "src/http-running-exclusions-api.mjs",
     "src/members-admission.mjs",
     "src/configuration-request.mjs",
     "src/configuration-intents.mjs",
