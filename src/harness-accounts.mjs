@@ -415,8 +415,17 @@ export class HarnessAccounts {
   }
 
   // A turn in scope that ends done is an exit only for an entry whose reset time is unknown.
-  async turnSucceeded(harness, slot, model) {
+  async turnSucceeded(harness, slot, model, botId = null) {
     for (const entry of this.limitFor(harness, slot, model).filter(value => !value.resetAt)) await this.clear(entry).catch(() => {})
+    // harness-accounts.md "Signed-out self-exit by proof": a seat that ran this very token finished a turn after the mark.
+    const login = botId === null ? null : this.state.logins[botId] ?? null, at = this.now()
+    const proven = this.state.signedOut.filter(entry => entry.harness === harness && entry.slot === slot
+      && login !== null && entry.stamp === login && Date.parse(entry.since) < at)
+    if (!proven.length) return
+    await this.update(state => {
+      const signedOut = state.signedOut.filter(entry => !proven.some(value => value.stamp === entry.stamp && this.key(value) === this.key(entry)))
+      return signedOut.length === state.signedOut.length ? state : { ...state, signedOut }
+    }).then(() => { this.log(`BellTeam accounts: ${harness} ${slot} signed-out mark cleared: ${botId} finished a turn on the same token`); this.syncReread() }, () => {})
   }
 
   async list() {
