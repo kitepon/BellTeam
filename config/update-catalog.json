@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T07:25:49Z",
-  "expiresAt": "2026-11-20T07:25:49Z",
+  "publishedAt": "2026-11-13T08:03:56Z",
+  "expiresAt": "2026-11-20T08:03:56Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "de1247150f369f1ccead35e76673ff63bca5f592",
-      "versionId": "sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92",
+      "sourceCommit": "502e5e4204ee8a6faae8e3db9489d40e15475dd4",
+      "versionId": "sha256:4226dc9e6ae6eb405b25faf190d26dde03769a8ea4e60b191ba620d4d6647b10",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4226dc9e6ae6eb405b25faf190d26dde03769a8ea4e60b191ba620d4d6647b10"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,20 +732,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります（Lattice の声かけと同じ判断）。"
+        "メンバーの「仕事中」に、何をしていて仕事中なのか（ターン中、コマンドの結果待ちなど）の理由が付くようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "de1247150f369f1ccead35e76673ff63bca5f592",
-      "versionId": "sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92",
+      "sourceCommit": "502e5e4204ee8a6faae8e3db9489d40e15475dd4",
+      "versionId": "sha256:4226dc9e6ae6eb405b25faf190d26dde03769a8ea4e60b191ba620d4d6647b10",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:59f13075c2aec4aee5f670b1432ec38294f47d728b5c47f3d80e1544c81b6b92"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4226dc9e6ae6eb405b25faf190d26dde03769a8ea4e60b191ba620d4d6647b10"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -754,7 +754,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります（Lattice の声かけと同じ判断）。"
+        "メンバーの「仕事中」に、何をしていて仕事中なのか（ターン中、コマンドの結果待ちなど）の理由が付くようになります。"
       ]
     },
     {
