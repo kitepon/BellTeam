@@ -47,6 +47,13 @@ const RESUME_RETRY_MS = 60_000
 const SEAT_REFUSALS = new Set(['AGENT_BUSY', 'AGENT_HIBERNATE_UNAVAILABLE'])
 // pty_list current_command of a listed seat that is not running (Aiterm agent lifecycle/resume states and "vanished").
 // shortcut: a state name Aiterm adds later reads as a running seat (goal read failure shape), extend this set when one appears.
+// a67: the code of a resume refusal Aiterm answered for a hibernated record (settings differ, recipe unconfirmed), else null.
+const RESUME_REFUSALS = new Set(['AGENT_RESUME_CONFLICT', 'AGENT_RESUME_UNCONFIRMED'])
+const resumeRefusal = error => {
+  if (error?.aitermResponseReturned !== true) return null
+  const code = error.code ?? /^(?:aiterm: )?([A-Z][A-Z0-9_]+):/u.exec(String(error.message ?? ''))?.[1]
+  return RESUME_REFUSALS.has(code) ? code : null
+}
 const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'unknown', 'vanished'])
 // 起こした直後の席へ同じ文を送る回数の上限（sendToWokenSession）。
 const WOKEN_SEND_ATTEMPTS = 3
@@ -353,6 +360,7 @@ export class AitermTransport {
       // and the seat MCP config on the same agent_launch; the existing checkpoint reruns after that async preparation.
       // One login per slot (harness-accounts.md 2026-11-11): every slot passes its login; legacy 1st adds nothing in the launcher.
       let claudeLogin = account?.slot ?? null
+      const baseArgs = launchArgs
       if (isRemoteBot(bot)) {
         remote = await this.remoteSeats.prepare(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null, harness })
         launchArgs = remote.args
@@ -365,6 +373,28 @@ export class AitermTransport {
       const launchWith = args => this.changeSession(bot, 'agent_launch', args, { ...launchOptions,
         ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) })
       try { launch = await launchWith(launchArgs) } catch (error) {
+        // delivery-details.md (a67): a launch that met a hibernated record of the same name whose resume Aiterm refused
+        // (it answered) closes that record and starts fresh once; reached by every wake, also when the record was not observed.
+        if (!execution && resumeRefusal(error)) {
+          // A stop or admission change seen before the close keeps the hibernated record (its conversation) untouched.
+          this.membersAdmission.assertLease(membersLease)
+          this.requireStopVersion(bot.id, version)
+          admissionCheck?.()
+          process.stderr.write(`BellTeam Aiterm: hibernated seat not resumed, starting fresh: ${bot.id}: ${resumeRefusal(error)}\n`)
+          await this.changeSession(bot, 'pty_close', { session_id: launchArgs.session_name })
+          // Closing a held remote seat revokes the credential of that name, so the fresh launch gets its own.
+          if (remote) {
+            issuedLaunch = false
+            remote = await this.remoteSeats.prepare(bot, baseArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null, harness })
+            launchArgs = remote.args
+            claudeLogin = remote.claudeLogin
+          }
+          this.membersAdmission.assertLease(membersLease)
+          this.requireStopVersion(bot.id, version)
+          admissionCheck?.()
+          issuedLaunch = true
+          launch = await launchWith(launchArgs)
+        } else {
         // remote-seat.md R13: Aiterm's key agent was gone or older; load the key again and launch once more.
         if (!remote || !KEY_RELOAD.has(error?.code)) throw error
         // Aiterm refused before contacting the terminal: nothing was launched with this seat credential yet.
@@ -376,6 +406,7 @@ export class AitermTransport {
         admissionCheck?.()
         issuedLaunch = true
         launch = await launchWith({ ...launchArgs, terminal })
+        }
       }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
@@ -1769,7 +1800,7 @@ export class AitermTransport {
               await this.removeRetainedImages(bot.id)
             }
             check()
-            return this.wake(bot, { setupTest, membersLease: lease })
+            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check })
           }, { membersLease })
           check()
         }
@@ -1805,7 +1836,7 @@ export class AitermTransport {
             // delivery-details.md (a49): a hibernated record holds the conversation; the wake resumes it, a close discards it.
             // Only a resume Aiterm answered with a refusal goes on to close and start fresh.
             if (live && observed.state === 'hibernated') {
-              try { check(); return await this.wake(bot, { setupTest, membersLease: lease }) } catch (error) {
+              try { check(); return await this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check }) } catch (error) {
                 if (error?.aitermResponseReturned !== true) throw error
                 // A stop or admission change during the resume keeps the hibernated record (its conversation) untouched.
                 check()
@@ -1818,7 +1849,7 @@ export class AitermTransport {
               await this.removeRetainedImages(bot.id)
             }
             check()
-            return this.wake(bot, { setupTest, membersLease: lease })
+            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check })
           }, { membersLease })
           check()
           if (executionJob) executionJob.nativeSession = session

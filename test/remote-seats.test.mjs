@@ -476,3 +476,46 @@ test('Aiterm launch refusal before any seat: not started with the proof and Aite
   assert.equal(seats.waiting.size, 0)
   assert.deepEqual(queued, [])
 })
+
+// a67 (delivery-details.md): a wake whose agent_launch met a hibernated record and Aiterm refused its resume closes that
+// record and starts fresh once, with a new seat credential; any other refusal stays a launch failure.
+test('a67: AGENT_RESUME_CONFLICT on agent_launch closes the hibernated record and launches fresh once', async () => {
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    const k = keyFixture()
+    transport.remoteSeats = k.seats
+    let refuse = 1
+    const client = transport.client, original = client.call
+    client.call = async (name, args, options) => {
+      if (name === 'agent_launch' && refuse-- > 0) { calls.push({ name, args }); throw Object.assign(new Error('aiterm: AGENT_RESUME_CONFLICT: 同名の休止席は…'), { aitermResponseReturned: true }) }
+      return original(name, args, options)
+    }
+    assert.equal(await transport.wakeNow(member, { membersLease: 'L' }), 'bot-aaaa1111')
+    const names = calls.map(call => call.name).filter(name => ['agent_launch', 'pty_close'].includes(name))
+    assert.deepEqual(names, ['agent_launch', 'pty_close', 'agent_launch'])
+    assert.equal(calls.find(call => call.name === 'pty_close').args.session_id, 'bot-aaaa1111')
+    assert.equal(k.log.filter(entry => entry.op === 'issue').length, 2, 'the fresh launch gets its own seat credential')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('a67: a refusal with no answer, or a stop before the close, closes nothing', async () => {
+  for (const [error, admissionCheck, expected] of [
+    [Object.assign(new Error('aiterm: AGENT_RESUME_CONFLICT: x'), { aitermResponseReturned: false }), undefined, 'AGENT_RESUME_CONFLICT'],
+    [Object.assign(new Error('aiterm: AGENT_RESUME_CONFLICT: x'), { aitermResponseReturned: true }), 'stop', 'ADMISSION_CHANGED']]) {
+    const { root, calls, transport, member } = await transportFixture()
+    try {
+      transport.remoteSeats = keyFixture().seats
+      let launched = false
+      const client = transport.client, original = client.call
+      client.call = async (name, args, options) => {
+        if (name === 'agent_launch') { calls.push({ name, args }); launched = true; throw error }
+        return original(name, args, options)
+      }
+      await assert.rejects(transport.wakeNow(member, { membersLease: 'L',
+        ...(admissionCheck ? { admissionCheck: () => { if (launched) throw code('ADMISSION_CHANGED') } } : {}) }),
+        thrown => String(thrown.code ?? thrown.message).includes(expected))
+      assert.equal(calls.filter(call => call.name === 'pty_close').length, 0)
+      assert.equal(calls.filter(call => call.name === 'agent_launch').length, 1)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  }
+})
