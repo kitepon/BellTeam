@@ -80,3 +80,21 @@ test('facade: own work reads working in currentWork and runningState; an older e
   assert.deepEqual(transport.currentWork(bot), idle)
   assert.equal(transport.runningState('b1'), 'idle')
 })
+
+test('own work keeps its own read clock: a turn completion does not extend an old own observation', () => {
+  let clock = 0
+  const work = new CurrentWork({ monotonic: () => clock })
+  const turnId = 't1', running = { state: 'running', turn_id: turnId, started_at: '2026-11-13T01:00:00.000Z', event_cursor: null, interim_from: null, wait_process: null }
+  const r = work.beginRead([{ botId: 'b1', sessionId: 's1', harness: 'grok-cli', current: () => true }])
+  r.digest = 'd1'
+  work.endRead(r, { schema: 'aiterm.seat-turns.v1', seats: [{ ...row({ processes: 2, exclusions_digest: 'd1' }), turn: running }] })
+  assert.equal(work.own('b1'), null, 'working turn: own work is not the reason')
+  clock = 14_000
+  work.completedTurn({ schema: 'aiterm.agent-wait-result.v1', outcome: 'done', session_id: 's1', launch_id: launchId, turn_id: turnId })
+  assert.deepEqual(work.turn('b1'), { state: 'idle', turnId: null })
+  assert.notEqual(work.own('b1'), null, 'still within 15 s of its own read')
+  clock = 16_000
+  assert.equal(work.own('b1'), null, 'the completion refreshed the turn, not the 16 s old own observation')
+  read(work, { processes: 2, exclusions_digest: 'd1' })
+  assert.notEqual(work.own('b1'), null, 'a fresh read keeps background work that outlives the turn')
+})

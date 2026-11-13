@@ -113,7 +113,7 @@ export class CurrentWork {
     if (!this.records.has(botId)) this.records.set(botId, {
       botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
-      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null, listed: null, own: null,
+      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null, listed: null, own: null, ownMono: null,
     })
     return this.records.get(botId)
   }
@@ -130,7 +130,7 @@ export class CurrentWork {
   unknown(record, barrier = true) {
     if (barrier) record.barrier = ++this.seq
     const changed = record.state !== 'unknown' || record.launchId !== null || record.summaryStatus !== 'missing'
-    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null; record.absentMono = null; record.own = null
+    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null; record.absentMono = null; record.own = null; record.ownMono = null
     this.clearSummary(record)
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
@@ -182,7 +182,9 @@ export class CurrentWork {
   own(botId) {
     const record = this.records.get(botId)
     if (record) this.expire(record)
-    return record?.state === 'idle' ? record.own : null
+    if (record?.state !== 'idle' || !record.own) return null
+    const now = this.monotonic()
+    return now - record.ownMono < NATIVE_MS || this.holding(now) !== null ? record.own : null
   }
   beginRead(targets) {
     for (const target of targets) this.sync(target.botId, target.sessionId, target.current())
@@ -234,7 +236,9 @@ export class CurrentWork {
         this.clearSummary(record); Object.assign(record, next, { state, startedAt: started ? new Date(turn.started_at).toISOString() : null })
       }
       record.observedAt = this.now(); record.observedMono = this.monotonic()
+      // Own work keeps its own read clock: a turn completion (completedTurn) refreshes the native state, not this.
       const own = ownWork(row.own_work, read.digest)
+      record.ownMono = this.monotonic()
       if (JSON.stringify(own) !== JSON.stringify(record.own)) { record.own = own; if (!changed) try { this.notify(record.botId) } catch {} }
       const active = this.restartActivity.get(target.botId)
       if (running) {

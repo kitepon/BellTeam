@@ -233,6 +233,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/resume-policy.mjs',
     'src/resume-storage.mjs',
     'src/returned-mcp-error.mjs',
+    'src/running-exclusions.mjs',
     'src/runtime-home.mjs',
     'src/runtime-selection.mjs',
     'src/seat-activity.mjs',

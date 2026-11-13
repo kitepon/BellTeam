@@ -72,6 +72,7 @@
 "src/claude-limit-text.mjs",
     "src/remote-seats.mjs",
     "src/current-work.mjs",
+    "src/running-exclusions.mjs",
     "src/members-admission.mjs",
     "src/configuration-request.mjs",
     "src/configuration-intents.mjs",
