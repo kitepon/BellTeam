@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T05:43:46Z",
-  "expiresAt": "2026-11-20T05:43:46Z",
+  "publishedAt": "2026-11-13T07:04:41Z",
+  "expiresAt": "2026-11-20T07:04:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "92e980bda67eeb85933a4583fac7033cbf066a70",
-      "versionId": "dfe04deeb8d3c6546bc14b444e9f8c1ab621194814a11ba0ad70fad778909a8b",
+      "sourceCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e",
+      "versionId": "61d747d159ca0629ace4c5f2b0fe3973f5b31cc07498cbdadda7c14d66986638",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T054324Z/execution-92e980bda67eeb85933a4583fac7033cbf066a70-linux-amd64.tar.gz",
-          "bytes": 3970160,
-          "sha256": "dfe04deeb8d3c6546bc14b444e9f8c1ab621194814a11ba0ad70fad778909a8b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-amd64.tar.gz",
+          "bytes": 3970746,
+          "sha256": "61d747d159ca0629ace4c5f2b0fe3973f5b31cc07498cbdadda7c14d66986638"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T054324Z/execution-92e980bda67eeb85933a4583fac7033cbf066a70-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "76a7a8568154251340adbbb8d648a39566fbaf8615416b30ebecbf3a745f14aa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11224,
+          "sha256": "994420a5f9a42341cb89811f56599ba2277699e467367940011799c00a06d2ec"
         },
-        "signerCommit": "92e980bda67eeb85933a4583fac7033cbf066a70"
+        "signerCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,15 +521,16 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
+        "眠っている席に知らせが届いた時、同じ会話のまま起き直して答えるようになります。",
+        "仕事中に断られたモデルや考える深さの変更が、その仕事の終わりに改めて反映されるようになります。",
         "アカウントを移った後に残った古い席が、静かになった時に閉じられるようになります。",
-        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。",
-        "本体の入れ替えで端末が止まった Bot も、知らせが届くと起き直して答えるようになります。"
+        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "92e980bda67eeb85933a4583fac7033cbf066a70",
-      "versionId": "2f54160076db91c0a984ed19941ba1c360aa24938f52bb6118b73b2f67b0d3ae",
+      "sourceCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e",
+      "versionId": "5b6f77a47b34f1262ea8382d4e5634f3cce74845347db61aa42e706528345728",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -537,16 +538,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T054324Z/execution-92e980bda67eeb85933a4583fac7033cbf066a70-linux-arm64.tar.gz",
-          "bytes": 3970160,
-          "sha256": "2f54160076db91c0a984ed19941ba1c360aa24938f52bb6118b73b2f67b0d3ae"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-arm64.tar.gz",
+          "bytes": 3970746,
+          "sha256": "5b6f77a47b34f1262ea8382d4e5634f3cce74845347db61aa42e706528345728"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T054324Z/execution-92e980bda67eeb85933a4583fac7033cbf066a70-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11087,
-          "sha256": "cdf32f6a87f9257770afc34b2c36995097b2b265d3234fd717b39a5d306f986c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11271,
+          "sha256": "f493f87ad2fed856daa3de0cd43479c64dac1574d1a061c85171597be6331344"
         },
-        "signerCommit": "92e980bda67eeb85933a4583fac7033cbf066a70"
+        "signerCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -556,9 +557,10 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
+        "眠っている席に知らせが届いた時、同じ会話のまま起き直して答えるようになります。",
+        "仕事中に断られたモデルや考える深さの変更が、その仕事の終わりに改めて反映されるようになります。",
         "アカウントを移った後に残った古い席が、静かになった時に閉じられるようになります。",
-        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。",
-        "本体の入れ替えで端末が止まった Bot も、知らせが届くと起き直して答えるようになります。"
+        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。"
       ]
     },
     {
@@ -713,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "63d757e3877ec3576590feb5fef49c3d7253d68d",
-      "versionId": "sha256:7a210e163f0bbe36321d214d8572ee2481aae137e886f29bff2e1ef53cd02f7b",
+      "sourceCommit": "9cbbf5c27e50497234f3035b6a339d5330cfc8da",
+      "versionId": "sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7a210e163f0bbe36321d214d8572ee2481aae137e886f29bff2e1ef53cd02f7b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +732,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AI の席への知らせが、本体を入れ替えた直後でも届くようになります。"
+        "Claude の補助の仕組みが開いたままにしていた古い席も、閉じられるようになります。",
+        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "63d757e3877ec3576590feb5fef49c3d7253d68d",
-      "versionId": "sha256:7a210e163f0bbe36321d214d8572ee2481aae137e886f29bff2e1ef53cd02f7b",
+      "sourceCommit": "9cbbf5c27e50497234f3035b6a339d5330cfc8da",
+      "versionId": "sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7a210e163f0bbe36321d214d8572ee2481aae137e886f29bff2e1ef53cd02f7b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f2b79553ed2e9dcfe5091d5b085a901027e1f60bae6012d46599e8422be706d9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +755,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AI の席への知らせが、本体を入れ替えた直後でも届くようになります。"
+        "Claude の補助の仕組みが開いたままにしていた古い席も、閉じられるようになります。",
+        "コマンドの結果を待っている Bot も、相関図で仕事中と表示されるようになります。"
       ]
     },
     {
