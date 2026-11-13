@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T11:38:02Z",
-  "expiresAt": "2026-11-20T11:38:02Z",
+  "publishedAt": "2026-11-13T11:47:02Z",
+  "expiresAt": "2026-11-20T11:47:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b69f0284cd5849cdd2f19f74a6c6b0bc3b290b4c",
-      "versionId": "sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8",
+      "sourceCommit": "6f52d90ac0996ed842bca901885485bf1d74c1bf",
+      "versionId": "sha256:5e58558ea5d7653772c2bc2048c006a6fcae37d49d2c64f6dd8e4116720f31ab",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5e58558ea5d7653772c2bc2048c006a6fcae37d49d2c64f6dd8e4116720f31ab"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,21 +732,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Codex のメンバーがターンの終わりにバックグラウンドのコマンドを残したとき、そのコマンドが終わるまで「仕事中」のままになります。",
-        "予定で動いているメンバーの「仕事中」の理由に、動き続ける時刻が付かなくなります。"
+        "相関図の「仕事中」を、メンバー一覧と同じ判定で出します。メンバーが自分で始めた処理が終わったときも、相関図がすぐに追いつきます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b69f0284cd5849cdd2f19f74a6c6b0bc3b290b4c",
-      "versionId": "sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8",
+      "sourceCommit": "6f52d90ac0996ed842bca901885485bf1d74c1bf",
+      "versionId": "sha256:5e58558ea5d7653772c2bc2048c006a6fcae37d49d2c64f6dd8e4116720f31ab",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5e58558ea5d7653772c2bc2048c006a6fcae37d49d2c64f6dd8e4116720f31ab"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -755,8 +754,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Codex のメンバーがターンの終わりにバックグラウンドのコマンドを残したとき、そのコマンドが終わるまで「仕事中」のままになります。",
-        "予定で動いているメンバーの「仕事中」の理由に、動き続ける時刻が付かなくなります。"
+        "相関図の「仕事中」を、メンバー一覧と同じ判定で出します。メンバーが自分で始めた処理が終わったときも、相関図がすぐに追いつきます。"
       ]
     },
     {
