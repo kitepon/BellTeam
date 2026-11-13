@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T14:58:58Z",
-  "expiresAt": "2026-11-20T14:58:58Z",
+  "publishedAt": "2026-11-13T16:16:50Z",
+  "expiresAt": "2026-11-20T16:16:50Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2",
-      "versionId": "434ef034680a2a1747bf946d4e615356ad120dc2de494f5bad2fc6dcfa82f0f0",
+      "sourceCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f",
+      "versionId": "a1ac322dbdc66f743aa8612190d3c9a334779ae0a6a5a29165d18f41af4b5c9b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-amd64.tar.gz",
-          "bytes": 3971536,
-          "sha256": "434ef034680a2a1747bf946d4e615356ad120dc2de494f5bad2fc6dcfa82f0f0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-amd64.tar.gz",
+          "bytes": 3971762,
+          "sha256": "a1ac322dbdc66f743aa8612190d3c9a334779ae0a6a5a29165d18f41af4b5c9b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10926,
-          "sha256": "5d5700647bbc3fc8f687845d72d1e906e6b5a572a842d803f1f40081fc0345d8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11349,
+          "sha256": "5eb8a6268e943a44501a35c38a68489052b0bf2e68ced12c5edbe7a1b4ef551c"
         },
-        "signerCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2"
+        "signerCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,14 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "休んでいた席を起こせなかったときは、古い記録を閉じて新しく立ち上げ直します。",
-        "動いているのに「ログアウト」と出ていた Claude の枠が、同じトークンの席がターンを終えたときに元に戻ります。"
+        "メンバーがバックグラウンドで作業やエージェントを動かしているあいだは、「仕事中」として数えます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2",
-      "versionId": "a64ca6162f94eaee57c844d67fa22faf84ffa613c4109e08946a1289bb5e4e96",
+      "sourceCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f",
+      "versionId": "6a3d7824debb963983a39ea36d8b10b5d52c47e40b96f91bd6a6d2276b75c1a2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -536,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-arm64.tar.gz",
-          "bytes": 3971536,
-          "sha256": "a64ca6162f94eaee57c844d67fa22faf84ffa613c4109e08946a1289bb5e4e96"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-arm64.tar.gz",
+          "bytes": 3971762,
+          "sha256": "6a3d7824debb963983a39ea36d8b10b5d52c47e40b96f91bd6a6d2276b75c1a2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "c95c3955d7154612f3f4a63cb66eeb62718fc0e65b2aeacf6bc92a4af25dc79e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11349,
+          "sha256": "5cf5ed4839d2d7d4135e74ad761e9bfff47bf8ac78c6d4117fd8eb7acd9431dc"
         },
-        "signerCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2"
+        "signerCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -555,8 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "休んでいた席を起こせなかったときは、古い記録を閉じて新しく立ち上げ直します。",
-        "動いているのに「ログアウト」と出ていた Claude の枠が、同じトークンの席がターンを終えたときに元に戻ります。"
+        "メンバーがバックグラウンドで作業やエージェントを動かしているあいだは、「仕事中」として数えます。"
       ]
     },
     {
@@ -711,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
-      "versionId": "sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f",
+      "sourceCommit": "1d19eae372289fc7b384bcaccd2869a626b0feef",
+      "versionId": "sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,22 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ターンの終わりに状態が一瞬「分からない」になることがなくなります。",
-        "休んでいた端末の席が、端末とのつながりを失わずに起き直せます。",
-        "端末につながるかどうかの記録が、起動直後の失敗のまま残らなくなります。"
+        "Claude のメンバーがバックグラウンドで動かしている作業を見分けられるようになり、仕事中に催促されなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
-      "versionId": "sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f",
+      "sourceCommit": "1d19eae372289fc7b384bcaccd2869a626b0feef",
+      "versionId": "sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,9 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ターンの終わりに状態が一瞬「分からない」になることがなくなります。",
-        "休んでいた端末の席が、端末とのつながりを失わずに起き直せます。",
-        "端末につながるかどうかの記録が、起動直後の失敗のまま残らなくなります。"
+        "Claude のメンバーがバックグラウンドで動かしている作業を見分けられるようになり、仕事中に催促されなくなります。"
       ]
     },
     {
