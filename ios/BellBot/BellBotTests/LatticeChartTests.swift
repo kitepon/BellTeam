@@ -389,4 +389,50 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertTrue(empty.days.isEmpty)
         XCTAssertEqual(LatticeHistory.empty, "まだ終わった工程はありません。")
     }
+
+    func testStopRowsNewestFirstWithJSTTimeFacesAndSpokenLabel() throws {
+        LatticePerson.ownerName = nil
+        let json = """
+        {"schema":"bellteam.lattice-blockers.v1","at":"2026-11-11T12:00:00.000Z","unreadCharts":["peertable"],
+         "blockers":[
+          {"stopId":"000000000000000000000003","projectId":"lattice","chartName":null,"chartCreatedBy":"bot-flora","plan":"p1","taskId":"t03",
+           "cardId":"p1/t03","title":"古い止め","lane":null,"reason":"","blockedAt":"2026-11-08T00:07:00.000Z","blockedBy":null},
+          {"stopId":"000000000000000000000001","projectId":"bellteam","chartName":"BellTeam開発","chartCreatedBy":"bot-trony","plan":"p1","taskId":"t07",
+           "cardId":"p1/t07","title":"CIを直す","lane":"bot-flora","reason":"CI is red on main","blockedAt":"2026-11-11T11:30:00.000Z","blockedBy":"owner"},
+          {"stopId":"000000000000000000000002","projectId":"bellteam","chartName":"BellTeam開発","chartCreatedBy":"bot-trony","plan":"p1","taskId":"t08",
+           "cardId":"p1/t08","title":"画面","lane":"デザイン班","reason":"待ち","blockedAt":"2026-11-10T14:05:00Z","blockedBy":"bot-ghost"}]}
+        """
+        let list = try JSONDecoder().decode(LatticeBlockersList.self, from: Data(json.utf8))
+        XCTAssertEqual(list.schema, LatticeBlockersList.schema)
+        XCTAssertEqual(list.unreadCharts, ["peertable"])
+        let roster = ["bot-flora": (name: "フローラ", color: "violet")]
+        let rows = LatticeStopRow.rows(list.blockers, now: now, face: { LatticePerson.stopFace($0) { roster[$0] } },
+                                       chartName: { LatticeChartName.of(name: $0, createdBy: $1) { roster[$0]?.name } })
+        XCTAssertEqual(rows.map(\.stopId), ["000000000000000000000001", "000000000000000000000002", "000000000000000000000003"])
+        XCTAssertEqual(rows.map(\.time), ["今日 20:30", "昨日 23:05", "11月8日 09:07"])
+        XCTAssertEqual(rows.map(\.chart), ["BellTeam開発", "BellTeam開発", "フローラの工程表"])
+        XCTAssertEqual(rows[0].lane?.known, true)
+        XCTAssertEqual(rows[0].by?.isOwner, true)
+        XCTAssertEqual(rows[1].lane?.lane, true)
+        XCTAssertEqual(rows[1].lane?.name, "デザイン班")
+        XCTAssertEqual(rows[1].by?.name, LatticePerson.unknownName)
+        XCTAssertNil(rows[2].lane)
+        XCTAssertEqual(rows[2].cardId, "p1/t03")
+        XCTAssertEqual(rows[0].label, "止まり、CIを直す、BellTeam開発、担当 フローラ、理由 CI is red on main、指揮官が今日 20:30に止めました")
+        XCTAssertEqual(rows[2].label, "止まり、古い止め、フローラの工程表、担当なし、担当なしが11月8日 09:07に止めました")
+    }
+
+    func testUnblockAnswersDropRefuseOrLater() {
+        XCTAssertEqual(LatticeUnblockOutcome.of(LatticeUnblockResult(outcome: "removed")), .drop)
+        XCTAssertEqual(LatticeUnblockOutcome.of(LatticeUnblockResult(outcome: "already-gone")), .drop)
+        let refused = LatticeUnblockOutcome.of(BellAPIError.httpStatus(409, "Finish t06 first", nil))
+        XCTAssertEqual(refused, .refused("Finish t06 first"))
+        XCTAssertEqual(refused.note, "外せませんでした: Finish t06 first")
+        XCTAssertEqual(LatticeUnblockOutcome.of(BellAPIError.httpStatus(409, "LATTICE_UNBLOCK_REFUSED", nil)).note, "外せませんでした")
+        for error: Error in [BellAPIError.httpStatus(503, "LATTICE_UNAVAILABLE", nil), BellAPIError.httpStatus(400, "LATTICE_INVALID", nil), URLError(.timedOut)] {
+            XCTAssertEqual(LatticeUnblockOutcome.of(error), .later)
+        }
+        XCTAssertEqual(LatticeUnblockOutcome.later.note, LatticeText.stopsLater)
+        XCTAssertNil(LatticeUnblockOutcome.drop.note)
+    }
 }
