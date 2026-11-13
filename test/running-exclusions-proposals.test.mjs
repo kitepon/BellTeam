@@ -153,3 +153,25 @@ test('full list: pending duplicate first, approved add waits unapplied until a r
     }
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
+
+test('a pending item the poll or a re-filing would misuse makes the store unreadable (503) and is never rewritten', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rx-')), path = join(dir, 'x.json')
+  try {
+    const decisions = fakeDecisions(), list = createRunningExclusions({ path, decisions })
+    await ask(list)
+    const good = JSON.parse(await readFile(path, 'utf8'))
+    const [item] = good.pending
+    for (const bad of [{ approved: 'false' }, { approved: true, decisionId: null }, { key: 'add:other' }, { action: 'remove' },
+      { decisionId: '' }, { label: '' }, { decision: { title: item.decision.title, requester: 'キロ' } },
+      { decision: { title: item.decision.title, context: item.decision.context } }, { reason: undefined }]) {
+      const store = JSON.stringify({ ...good, pending: [{ ...item, ...bad }] })
+      await writeFile(path, store)
+      decisions.answers.set('K-1', approve)
+      await assert.rejects(list.poll(), { code: 'RUNNING_EXCLUSIONS_UNAVAILABLE' }, JSON.stringify(bad))
+      await assert.rejects(list.list(), { code: 'RUNNING_EXCLUSIONS_UNAVAILABLE' })
+      assert.equal(await readFile(path, 'utf8'), store, 'left as found')
+    }
+    await writeFile(path, JSON.stringify({ ...good, pending: [{ ...item, approved: false }] }))
+    assert.equal(await list.poll(), 1, 'a well-formed item still applies')
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})

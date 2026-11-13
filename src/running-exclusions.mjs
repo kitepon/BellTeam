@@ -68,10 +68,16 @@ function decisionText({ action, entry, requester, who, reason }) {
 
 const validStore = entries => Array.isArray(entries) && entries.length <= MAX_ENTRIES && entries.every(valid)
   && new Set(entries.map(entry => entry.id)).size === entries.length
-const validPending = item => item && typeof item === 'object' && typeof item.label === 'string' && typeof item.key === 'string'
-  && (item.decisionId === null || typeof item.decisionId === 'string') && typeof item.decision?.title === 'string'
-  && (item.action === 'add' ? valid(item.entry) : item.action === 'remove' && word(item.id))
 const actionKey = (action, entry, id) => action === 'add' ? `add:${keyOf(entry)}` : `remove:${id}`
+
+const text = value => typeof value === 'string' && value.length > 0
+// Everything poll/fileStored consume: an approved mark skips the Owner read, the key dedupes, the decision is re-filed as stored.
+const validPending = item => item && typeof item === 'object' && word(item.label) && item.label.startsWith('running-exclusions:')
+  && (item.action === 'add' ? valid(item.entry) : item.action === 'remove' && word(item.id))
+  && item.key === actionKey(item.action, item.entry, item.id)
+  && (item.decisionId === null || word(item.decisionId))
+  && (item.approved === undefined || item.approved === false || item.approved === true && item.decisionId !== null)
+  && text(item.decision?.title) && text(item.decision?.context) && text(item.decision?.requester) && text(item.reason)
 
 export function createRunningExclusions({ path, decisions, now = () => new Date().toISOString(), intervalMs = 60_000 }) {
   let queue = Promise.resolve(), timer = null
