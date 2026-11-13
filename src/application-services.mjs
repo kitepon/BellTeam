@@ -157,10 +157,6 @@ export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = nul
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
   let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   let scheduleTurns = null
-  // Script waits (execution current-work.md 2026-11-12): the scheduler's read, bound once it exists.
-  let commandWait = () => null
-  // a54: the graph learns of a command wait only here (noted after the turn-end refresh, or by a tick-started job).
-  const commandWaitWatchers = new Set(), commandWaits = { watch: listener => (commandWaitWatchers.add(listener), () => commandWaitWatchers.delete(listener)) }
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
   const modelHandoffGeneration = () => {
@@ -342,7 +338,6 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       currentVersionId: selected?.currentVersionId ?? null, previousVersionId: selected?.previousVersionId ?? null,
       requestStop: (sessions, options) => sendSessionStop(executionClient, sessions, options),
       watchQueue: listener => { queueListeners.add(listener); return () => queueListeners.delete(listener) },
-      commandWait: botId => commandWait(botId),
       onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   }
   const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient,
@@ -418,9 +413,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    onCommandWaitChange: botId => { notify?.({ type: 'bots' }); for (const listener of commandWaitWatchers) try { listener(botId) } catch {} },
   })
-  commandWait = botId => scheduler.commandWait(botId)
   aiControl.watch(control => { if (!control.paused && transport.currentTurn) scheduler.requestAfterTurn() })
   const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
     : new CharacterSheets({ projectPath: id => bots.projectPath(id) })
@@ -457,7 +450,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     const workGraphEffects = createWorkGraphEffects({ bots, transport, messagePage })
     workGraphModule = workGraphFactory({ root, exchangeMutex, prepareRelease: prepareWorkGraph, onEffect: workGraphEffects,
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, commandWaits, ownWork: workGraphEffects.ownWork })
+    workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, ownWork: workGraphEffects.ownWork })
     void workGraphModule.start().catch(() => {})
   }
   if (latticeFactory) {

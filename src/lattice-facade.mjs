@@ -108,7 +108,7 @@ export function createLatticeEffects({ bots, messenger, transport, decisions = n
     if (method === 'members.list') return { members: (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name),
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
     // Nudge (README L15): only 'working' means running; anything else, or no turn port, reads 'unknown'.
-    // runningState also counts a script/CI wait (execution current-work.md 2026-11-12); older bodies fall back to currentTurn.
+    // runningState = turn or own CLI work, never a schedule (Owner 2026-11-14, a72); older bodies fall back to currentTurn.
     if (method === 'turns.read') return { turns: Object.fromEntries(await Promise.all(params.botIds.map(async id => {
       const state = await Promise.resolve().then(() => transport?.runningState ? transport.runningState(id)
         : Promise.resolve(transport?.currentTurn?.(id)).then(turn => turn?.state)).then(state => state, () => null)
