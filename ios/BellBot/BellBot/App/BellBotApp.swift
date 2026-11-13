@@ -4,6 +4,9 @@ import SwiftUI
 struct BellBotApp: App {
     @UIApplicationDelegateAdaptor(BellNotificationAppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore()
+    /// The whole app's phase: background only when every window is. A window's own phase would stop the events
+    /// when one of several Mac windows closes, and the windows left open never report active again.
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         #if targetEnvironment(macCatalyst)
@@ -13,6 +16,7 @@ struct BellBotApp: App {
                 .background(SceneReader { MainWindow.sessionID = $0.session.persistentIdentifier })
         }
         .windowResizability(.contentMinSize)
+        .onChange(of: scenePhase) { _, next in sceneChanged(to: next) }
 
         WindowGroup("相関図", id: "work-graph") {
             WorkGraphView()
@@ -42,7 +46,15 @@ struct BellBotApp: App {
         .windowResizability(.contentMinSize)
         #else
         WindowGroup { mainContent }
+            .onChange(of: scenePhase) { _, next in sceneChanged(to: next) }
         #endif
+    }
+
+    private func sceneChanged(to next: ScenePhase) {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) { return }
+        #endif
+        store.sceneChanged(to: next)
     }
 
     private var mainContent: some View {
@@ -150,7 +162,6 @@ private struct MemberEditorWindowGeometry: UIViewRepresentable {
 
 private struct RootView: View {
     @EnvironmentObject private var store: AppStore
-    @Environment(\.scenePhase) private var scenePhase
 
     @ViewBuilder private var readyView: some View {
         #if targetEnvironment(macCatalyst)
@@ -207,12 +218,6 @@ private struct RootView: View {
             }
         }
         #endif
-        .onChange(of: scenePhase) { _, next in
-            #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) { return }
-            #endif
-            store.sceneChanged(to: next)
-        }
     }
 }
 

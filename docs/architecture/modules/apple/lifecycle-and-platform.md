@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-  Root["RootView.onChange scenePhase"] --> Scene["AppStore.sceneChanged<br/>sceneと診断状態を更新"]
+  Root["BellBotApp.onChange scenePhase<br/>アプリ全体の集約（全sceneがbackgroundの時だけbackground）"] --> Scene["AppStore.sceneChanged<br/>sceneと診断状態を更新"]
   Scene --> Active["activeかつready<br/>前のforegroundTaskをcancel"]
   Active --> Flush["BellAPI.resetConnections<br/>専用session.flush・cookie保持"]
   Flush --> Refresh["refreshFromView<br/>共通一覧→本体購読状態"]
@@ -19,7 +19,7 @@ flowchart TD
   Scene --> Inactive["inactive<br/>AppStoreでは停止分岐なし"]
 ```
 
-根拠：[AppStore.sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L650)。各待機後にTask.isCancelledを検査する。refreshFromViewは失敗をthrowせずエラー表示へ返すため、次の停止状態/本人権利照会は取消されていなければ進む。RootViewのDebug preview引数ではsceneChangedの呼出しを省く。各画面のtask取消は別にあり、会話は非activeでreader/過去取得を止める。
+根拠：[AppStore.sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L650)。各待機後にTask.isCancelledを検査する。refreshFromViewは失敗をthrowせずエラー表示へ返すため、次の停止状態/本人権利照会は取消されていなければ進む。sceneChangedはアプリ全体のscenePhaseだけから呼ぶ。窓ごとのscenePhaseで呼ぶと、Macで本体の窓を1枚閉じた時のbackgroundでSSEが止まり、残った窓はactiveのまま変わらないので再接続されない（2026-11-13、起動中のMacにアバターの変更が届かなかった実被弾）。Debug preview引数ではsceneChangedの呼出しを省く。各画面のtask取消は別にあり、会話は非activeでreader/過去取得を止める。
 
 ```mermaid
 flowchart TD
