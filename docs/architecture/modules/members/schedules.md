@@ -69,7 +69,7 @@ flowchart TD
 | SC7 | command/backup producer → 既私有incident / 元rc・error・詳細 | incidentはproducer所有のまま。schedulerに新daemon/queue/incident storeを増やさず、元commandも再送しない |
 
 | SC8 | scheduler → conversation.messages / 予定IDと終了コード0、既末尾5行を含む結果文 | `notify=result`のBot予定だけ。`from:scheduler,target:bot.id`で一回、Ownerへは送らない。受付/失敗はSC5と同じく元reportErrorへ。眠っている席を起こすのは既配送(execution)の所有 |
-| SC9 | runDue/runAfterTurn の既一覧 + 実行中job → scheduler.waits → `commandWait(botId)` → execution facade / 待ちを最後に見た時刻(ISO)又はnull | 待ち = enabled かつ command かつ `notify=result` の予定、又はそのBotの実行中 notify=result job（job objectに botId・notify）。一覧は after_turn/期限の絞り込み前に読み、読取順の連番で古い一覧の上書きを防ぐ。registry.watch はイベントの botIds（無い・all:true は全Bot）を requestAfterTurn へ渡す。watchCurrentTurn の無い親では毎tickだけ更新。停止中（paused）は最後の値を保つ。registryから消えたBotは落とす。待ちの有無が変わると `onCommandWaitChange` → 親が `notify({type:'bots'})`。jobは結果文の配送後に消すので、起こす前にidleを見せない。after_turn/currentTurnは変えない（[execution current-work.md](../execution/current-work.md#script-and-ci-waits-count-as-running-2026-11-12-owner-ruling-via-trony-contract-with-belota-and-flora)） |
+| SC9 | (なし) | 予定は稼働中の判定へ何も渡さない。有効な `notify=result` の予定も実行中のcommand jobも、Botを稼働中にしない（Owner 2026-11-14「予定機能に例外を作りたくない」。自分のscript/CIの待ちはCLIの中で数える）。registry.watch はイベントの botIds（無い・all:true は全Bot）を requestAfterTurn へ渡す。after_turn/currentTurnは変えない |
 
 配送が失敗した時は両宛先の試行を終えてから一つなら元例外、複数ならAggregateErrorを返す。元command結果は変更せず、別の成功結果へ置換しない。手動runも同じdispatch窓口を通る。予定schema/保存/claim/停止・runShellCommand/親assembly/通知内部に変更はない。
 

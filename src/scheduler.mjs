@@ -10,7 +10,7 @@ const MAINTENANCE_HOUR = 3
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'
 
 export class BotScheduler {
-  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null, moduleOperations = null, onCommandWaitChange = () => {} }) {
+  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null, moduleOperations = null }) {
     this.registry = registry
     this.messenger = messenger
     this.runCommand = runCommand
@@ -35,40 +35,13 @@ export class BotScheduler {
     this.afterTurnAll = false
     this.turnUnsubscribe = null
     this.scheduleUnsubscribe = null
-    // Script waits (execution current-work.md 2026-11-12): botId -> {ids, observedAt, seq}, fed by the lists runDue and
-    // runAfterTurn already read (per tick only on hosts without watchCurrentTurn); while paused the last value is kept.
-    this.waits = new Map()
-    this.waitSeq = 0
-    this.onCommandWaitChange = onCommandWaitChange
-  }
-
-  // Pure read: ISO time the Bot's notify=result command wait was last observed, or null.
-  commandWait(botId) {
-    const entry = this.waits.get(botId)
-    if (entry?.ids.length) return entry.observedAt
-    return [...this.commandJobs].some(job => job.botId === botId && job.notify === 'result') ? entry?.observedAt ?? new Date().toISOString() : null
-  }
-
-  noteWaits(botId, schedules, seq) {
-    const entry = this.waits.get(botId)
-    if (entry && entry.seq > seq) return
-    const before = this.commandWait(botId) !== null
-    this.waits.set(botId, { seq, observedAt: new Date().toISOString(),
-      ids: schedules.filter(item => item.enabled && item.command && item.notify === 'result').map(item => item.id) })
-    if ((this.commandWait(botId) !== null) !== before) this.onCommandWaitChange(botId)
-  }
-
-  dropWaits(botId) {
-    const before = this.commandWait(botId) !== null
-    this.waits.delete(botId)
-    if (before && this.commandWait(botId) === null) this.onCommandWaitChange(botId)
   }
 
   start() {
     if (this.timer) return
     if (this.transport?.watchCurrentTurn) {
       this.turnUnsubscribe = this.transport.watchCurrentTurn(({ botId }) => this.requestAfterTurn(botId))
-      // The changed Bots only (all when the event names none), so a new command wait shows before the turn ends.
+      // The changed Bots only (all when the event names none).
       this.scheduleUnsubscribe = this.registry.watch?.(change => change?.all !== true && change?.botIds?.length
         ? change.botIds.forEach(id => this.requestAfterTurn(id)) : this.requestAfterTurn())
       this.requestAfterTurn()
@@ -108,10 +81,7 @@ export class BotScheduler {
       await this.registry.refresh(options)
       const bots = botIds ? botIds.map(id => this.registry.get(id)).filter(Boolean) : [...this.registry.values()]
       for (const bot of bots) {
-        const seq = ++this.waitSeq
-        const schedules = await this.registry.listSchedules(bot.id, options)
-        this.noteWaits(bot.id, schedules, seq)
-        for (const schedule of schedules) {
+        for (const schedule of await this.registry.listSchedules(bot.id, options)) {
           if (schedule.kind !== 'after_turn' || !schedule.enabled) continue
           const observedTurn = this.transport.currentTurn(bot.id)
           if (observedTurn.state === 'unknown') continue
@@ -138,13 +108,10 @@ export class BotScheduler {
         await this.registry.refresh(options)
         const sources = [{ kind: 'bot', registry: this.registry }]
         if (this.rooms && this.roomMessenger) { await this.rooms.refresh(options); sources.push({ kind: 'room', registry: this.rooms }) }
-        const observed = new Set(), waited = new Set()
+        const observed = new Set()
         for (const { kind, registry } of sources) {
           for (const owner of [...registry.values()]) {
-            const seq = ++this.waitSeq
-            const schedules = await registry.listSchedules(owner.id, options)
-            if (kind === 'bot') { waited.add(owner.id); this.noteWaits(owner.id, schedules, seq) }
-            for (const schedule of schedules) {
+            for (const schedule of await registry.listSchedules(owner.id, options)) {
               const key = JSON.stringify([kind, owner.id, schedule.id])
               const tuple = JSON.stringify([scheduleRevision(schedule), schedule.nextRunAt])
               observed.add(key)
@@ -175,7 +142,6 @@ export class BotScheduler {
           }
         }
         for (const key of this.unconfirmedClaims.keys()) if (!observed.has(key)) this.unconfirmedClaims.delete(key)
-        for (const botId of [...this.waits.keys()]) if (!waited.has(botId)) this.dropWaits(botId)
       })
     } finally {
       this.running = false
@@ -225,18 +191,11 @@ export class BotScheduler {
 
   runCommandSchedule(bot, schedule) {
     this.assertWorkAllowed()
-    const waits = schedule.notify === 'result', before = waits && this.commandWait(bot.id) !== null
-    const job = { controller: new AbortController(), botId: bot.id, notify: schedule.notify }
+    const job = { controller: new AbortController() }
     this.commandJobs.add(job)
-    if (waits && !before) this.onCommandWaitChange(bot.id)
     const operation = this.performCommandSchedule(bot, schedule, job)
     job.completion = operation
-    // Deleted only after the result message is sent, so the Bot never reads idle before that wake.
-    const end = () => {
-      this.commandJobs.delete(job)
-      if (waits && this.commandWait(bot.id) === null) this.onCommandWaitChange(bot.id)
-    }
-    operation.then(end, end)
+    operation.then(() => this.commandJobs.delete(job), () => this.commandJobs.delete(job))
     return operation
   }
 
