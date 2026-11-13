@@ -34,20 +34,33 @@ test('leaves the seat: no route_since (older Aiterm), route older than launch, s
   }
 })
 
-test('a working seat waits for its turn end; AGENT_BUSY retries at the next poll; any other failure retries after a delay, reported once', async () => {
+test('a working seat waits for its turn end; seat refusals hold until the seat runs a turn; any other failure retries after a delay, reported once', async () => {
   const self = fake({ turn: 'working' })
   run(self, { route_since: later })
   assert.deepEqual(self.calls, [], 'mid-turn: not now')
-  const busy = fake({ resume: async () => { throw Object.assign(new Error('busy'), { aitermErrorCode: 'AGENT_BUSY' }) } })
-  run(busy, { route_since: later }); await setImmediate(); await setImmediate()
-  run(busy, { route_since: later }); await setImmediate()
-  assert.equal(busy.calls.length, 2, 'AGENT_BUSY tries again on a later poll')
+  const key = `s1@${later}`
+  for (const code of ['AGENT_BUSY', 'AGENT_HIBERNATE_UNAVAILABLE']) {
+    // Rapi 2026-11-13: an idle seat with MCP helpers got AGENT_BUSY background_work_or_unknown on every ~5 s poll.
+    const held = fake({ resume: async () => { throw Object.assign(new Error('no'), { aitermErrorCode: code }) } })
+    run(held, { route_since: later }); await setImmediate(); await setImmediate()
+    for (let i = 0; i < 3; i++) { run(held, { route_since: later }); await setImmediate() }
+    assert.equal(held.calls.length, 1, `${code}: not asked again while the seat stays idle`)
+    held.isIdle = () => false
+    run(held, { route_since: later }); await setImmediate()
+    assert.equal(held.calls.length, 1, `${code}: not while it works`)
+    held.isIdle = () => true
+    run(held, { route_since: later }); await setImmediate(); await setImmediate()
+    assert.equal(held.calls.length, 2, `${code}: asked again after the seat ran a turn`)
+    assert.equal(held.routeResumes.get(key), 'turn')
+    assert.deepEqual(held.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', diagnostic_log: `bot=b1 stage=close reason=${code} message=no` }])
+    run(held, { route_since: '2026-11-13T02:07:00.000Z' }); await setImmediate()
+    assert.equal(held.calls.length, 3, `${code}: a rebuilt forward is a new route`)
+  }
   let fail = true
-  const refused = fake({ resume: async () => { if (fail) throw Object.assign(new Error('x'), { aitermErrorCode: 'AGENT_HIBERNATE_UNAVAILABLE' }); return true } })
+  const refused = fake({ resume: async () => { if (fail) throw Object.assign(new Error('x'), { aitermErrorCode: 'AGENT_RESUME_FAILED' }); return true } })
   run(refused, { route_since: later }); await setImmediate(); await setImmediate()
   run(refused, { route_since: later }); await setImmediate()
   assert.equal(refused.calls.length, 1, 'not again before the retry delay')
-  const key = `s1@${later}`
   assert.ok(refused.routeResumes.get(key) > Date.now() + 50_000)
   refused.routeResumes.set(key, Date.now() - 1)
   run(refused, { route_since: later }); await setImmediate(); await setImmediate()
@@ -55,7 +68,7 @@ test('a working seat waits for its turn end; AGENT_BUSY retries at the next poll
   refused.routeResumes.set(key, Date.now() - 1); fail = false
   run(refused, { route_since: later }); await setImmediate(); await setImmediate()
   assert.equal(refused.calls.length, 3); assert.equal(refused.routeResumes.has(key), false, 'recovered')
-  assert.deepEqual(refused.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', diagnostic_log: 'bot=b1 stage=close reason=AGENT_HIBERNATE_UNAVAILABLE message=x' }])
+  assert.deepEqual(refused.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', diagnostic_log: 'bot=b1 stage=close reason=AGENT_RESUME_FAILED message=x' }])
 })
 
 test('close succeeded, wake failed: the wake alone is retried without the row; a later launch from elsewhere ends it', async () => {
