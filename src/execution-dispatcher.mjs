@@ -31,7 +31,7 @@ const asyncMethods = {
 }
 const syncMethods = {
   transport: ['session', 'currentWork', 'currentWorkBinding', 'shownInSelfTurn', 'consumeShownWords',
-    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'seatAccount', 'seatLaunch', 'forkSeat'],
+    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'ownWork', 'seatAccount', 'seatLaunch', 'forkSeat'],
   administration: ['view'],
 }
 export const EXECUTION_METHODS = Object.freeze({
@@ -128,6 +128,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
+    runningExclusionsPath: join(dirname(root), 'execution-running-exclusions.json'),
     trackCompletion: track, client: remoteSeats ? remoteSeats.route(native) : native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,

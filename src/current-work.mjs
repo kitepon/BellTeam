@@ -47,6 +47,19 @@ export function watchCurrentTurn(watchQueue, read, listener) {
   })
 }
 
+// a41: Aiterm 0.70.42 own_work. Processes count only when Aiterm echoes the exclusion-list digest this read sent;
+// child results come from Aiterm's fixed attribution (same release). Fixed order: subagent before background.
+export function ownWork(value, digest) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const count = n => Number.isSafeInteger(n) && n > 0
+  const since = at => typeof at === 'string' && Number.isFinite(Date.parse(at)) ? new Date(at).toISOString() : null
+  if (count(value.child_results)) return { kind: 'subagent', detail: null, since: null }
+  if (!text(digest) || value.exclusions_digest !== digest || !count(value.processes)) return null
+  const oldest = value.oldest, words = oldest && typeof oldest === 'object' && text(oldest.exe)
+    ? [oldest.exe, ...(Array.isArray(oldest.args) ? oldest.args.filter(text).slice(0, 2) : [])].join(' ').replace(/\s+/gu, ' ').trim() : ''
+  return { kind: 'background', detail: words || null, since: since(oldest?.since) }
+}
+
 // UI state stays observation-based; restart references also use actual accepted native input.
 export class CurrentWork {
   constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, observed = () => {}, activityPath = null, reportActivity = () => {} } = {}) {
@@ -100,7 +113,7 @@ export class CurrentWork {
     if (!this.records.has(botId)) this.records.set(botId, {
       botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
-      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null, listed: null,
+      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null, listed: null, own: null, ownMono: null,
     })
     return this.records.get(botId)
   }
@@ -117,7 +130,7 @@ export class CurrentWork {
   unknown(record, barrier = true) {
     if (barrier) record.barrier = ++this.seq
     const changed = record.state !== 'unknown' || record.launchId !== null || record.summaryStatus !== 'missing'
-    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null; record.absentMono = null
+    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null; record.absentMono = null; record.own = null; record.ownMono = null
     this.clearSummary(record)
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
@@ -164,6 +177,14 @@ export class CurrentWork {
       ? { state: 'working', turnId: createHash('sha256').update(point(record)).digest('hex') }
       : { state: record?.state === 'idle' || record?.state === 'unknown' && record.absent ? 'idle' : 'unknown', turnId: null }
     return startedAt ? { ...turn, startedAt: turn.state === 'working' ? record.startedAt : null } : turn
+  }
+  // a41 (current-work.md "Own work"): why an idle seat still works on its own (subagent / background), from the latest fresh read.
+  own(botId) {
+    const record = this.records.get(botId)
+    if (record) this.expire(record)
+    if (record?.state !== 'idle' || !record.own) return null
+    const now = this.monotonic()
+    return now - record.ownMono < NATIVE_MS || this.holding(now) !== null ? record.own : null
   }
   beginRead(targets) {
     for (const target of targets) this.sync(target.botId, target.sessionId, target.current())
@@ -215,6 +236,10 @@ export class CurrentWork {
         this.clearSummary(record); Object.assign(record, next, { state, startedAt: started ? new Date(turn.started_at).toISOString() : null })
       }
       record.observedAt = this.now(); record.observedMono = this.monotonic()
+      // Own work keeps its own read clock: a turn completion (completedTurn) refreshes the native state, not this.
+      const own = ownWork(row.own_work, read.digest)
+      record.ownMono = this.monotonic()
+      if (JSON.stringify(own) !== JSON.stringify(record.own)) { record.own = own; if (!changed) try { this.notify(record.botId) } catch {} }
       const active = this.restartActivity.get(target.botId)
       if (running) {
         if (active?.sessionId === target.sessionId && active.launchId === row.launch_id) {
