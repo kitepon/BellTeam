@@ -81,6 +81,15 @@ PR #18はトロニーが全差分を読み、Linuxコンテナでサーバー試
 
 本人操作と通知の再確認は、トロニーを通して調整する。今回の許可時間は終了しており、ベルは画面操作を再開しない。操作ツールが取得できなかったポップアップや、前回の標準ダイアログの操作は成功扱いにしない。
 
+## 0.5.3の導入（2026-11-13）
+
+一覧の「仕事中」を`/api/bots`の`currentWork.state`だけで決める直し（Lattice工程 bellteam-dev-added/a52、#1296）を入れた0.5.3を、アニスがFOXへ導入した。
+
+- 2026-11-13 15:41 JST、main `b9279de3`（#1296の採用）から`pwsh -NoProfile -File scripts/install-windows.ps1 -NoLaunch`で導入した。導入前にBellTeam.exeは起動していなかった。導入exeの版は`0.5.3+b9279de3464ee4683991caa98611399981daefa1`。
+- 導入exeの読み取りsmoke（`--smoke-test`、本番）は15:41:55 JSTに成功した。141メンバー・8ルーム・会話の読み取り・SSE接続を確認した。
+- 15:44〜15:47 JST、導入したBellTeam.dllを読む非表示の確認用コンソールで、本番の一覧の判定（`ConversationEntry.Working`・`PresenceLabel`）を、相関図の最初のsnapshot（`/api/work-graph/events`の`nodes[].state`）と配達の列（`/api/queue`）に並べて5回読んだ。一覧の「仕事中」は毎回`currentWork.state == "working"`のメンバーと一致した（6人→5人）。モリー（`bot-39be7047`）は処理中の配達が無いのに一覧で「仕事中」と出た。0.5.2までは「オンライン・待機中」と出ていた形。相関図で作業中のメンバーは、一覧でも全員「仕事中」だった。
+- 一致しなかったのはモリーだけで、相関図には節が無かった。相関図の本体側（`src/work-graph-facade.mjs`の`turns.read`）が`transport.currentTurn`を読み、コマンドの結果待ち（`currentWork`ではworking）を数えないため。Windowsの直しの外として、トロニーへ渡した。
+
 ## 0.5.2の導入（2026-11-13）
 
 工程表の止め一覧（Lattice工程 lattice-blockers-20261112/blockers-windows、#1259）を入れた0.5.2（#1267）を、アニスがFOXへ導入した。
