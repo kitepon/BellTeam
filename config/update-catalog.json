@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T16:16:50Z",
-  "expiresAt": "2026-11-20T16:16:50Z",
+  "publishedAt": "2026-11-13T17:25:48Z",
+  "expiresAt": "2026-11-20T17:25:48Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "1d19eae372289fc7b384bcaccd2869a626b0feef",
-      "versionId": "sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede",
+      "sourceCommit": "302180e6ee355cb9554cc9fa531d826b2ea87a2c",
+      "versionId": "sha256:a30ae804ba48337915d274955ebdce87f49dbc86f280e89c9e077c1c85ec9c88",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a30ae804ba48337915d274955ebdce87f49dbc86f280e89c9e077c1c85ec9c88"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude のメンバーがバックグラウンドで動かしている作業を見分けられるようになり、仕事中に催促されなくなります。"
+        "Grok と Codex のメンバーがバックグラウンドで動かしている作業も見分けて、仕事中に催促しなくなります。fox の席が一つ固まっても、ほかの席の表示は止まりません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "1d19eae372289fc7b384bcaccd2869a626b0feef",
-      "versionId": "sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede",
+      "sourceCommit": "302180e6ee355cb9554cc9fa531d826b2ea87a2c",
+      "versionId": "sha256:a30ae804ba48337915d274955ebdce87f49dbc86f280e89c9e077c1c85ec9c88",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:160eb6dd83a5e3e7b352231b50549239da5eaa8a805553a368079ef83b162ede"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a30ae804ba48337915d274955ebdce87f49dbc86f280e89c9e077c1c85ec9c88"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude のメンバーがバックグラウンドで動かしている作業を見分けられるようになり、仕事中に催促されなくなります。"
+        "Grok と Codex のメンバーがバックグラウンドで動かしている作業も見分けて、仕事中に催促しなくなります。fox の席が一つ固まっても、ほかの席の表示は止まりません。"
       ]
     },
     {
