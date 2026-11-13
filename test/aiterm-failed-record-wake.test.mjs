@@ -253,10 +253,10 @@ test('通常構成の回復値は親の照合を通り、通常のdispatchで同
 })
 
 // A module swap that closes the conversation lease before any words reach the CLI (2026-11-08, Molly/N102 contract).
-async function swapDuring(t, { sends, closeAt }) {
+async function swapDuring(t, { sends, closeAt, observed = absent, launches = [] }) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = scripted({ sends, observed: absent })
+  const { client, calls } = scripted({ sends, observed, launches })
   let closed = false
   const original = client.call
   client.call = async (name, args, options) => {
@@ -285,4 +285,11 @@ test('打った可能性がある後に会話の世代が閉じたら、未開�
   // A refusal without a not-sent statement: the words may have reached the CLI before the lease closed.
   const run = await swapDuring(t, { sends: ['aiterm: PTY_BACKEND_FAILED'], closeAt: 'pty_send' })
   await assert.rejects(run.delivered, error => error.code === 'CONVERSATION_NOT_ACCEPTED' && error.executionError === undefined)
+})
+
+test('休止中の席の再開の途中で止まり、Aitermが再開を断っても、記録を閉じずに返す', async t => {
+  const run = await swapDuring(t, { sends: [secretsRequired], closeAt: 'agent_launch', observed: hibernated,
+    launches: ['aiterm: AGENT_RESUME_CONFLICT: 同名の休止席は保存したharness・設定・project・明示envで再開します。'] })
+  await assert.rejects(run.delivered, error => error.code === 'CONVERSATION_NOT_ACCEPTED')
+  assert.deepEqual(run.calls.map(([name]) => name), ['pty_send', 'pty_observe', 'agent_launch'])
 })

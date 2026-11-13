@@ -91,7 +91,7 @@ Common root of all five: delivery had ONE recovery for every seat that is not ru
 |---|---|
 | `state=hibernated` (Aiterm holds the conversation and the resume recipe) | No close. The ordinary `wake` (`agent_launch`, same session name, this launch's login and seat credential) resumes the same conversation; then the same words are sent |
 | That resume refused by Aiterm (any returned error: settings differ from the recipe `AGENT_RESUME_CONFLICT`, recipe unconfirmed, ...) | Close the record and start fresh, as before (Owner 2026-11-07: a delivery wakes the seat; it fails only when the wake fails). One stderr line `hibernated seat not resumed, starting fresh` |
-| The resume's outcome unknown (no answer from Aiterm), a stop, or a closed members lease | Nothing closed; the delivery fails as a launch failure and the next delivery decides again from a new observation |
+| The resume's outcome unknown (no answer from Aiterm), or a stop / admission change / closed members lease seen before or after the resume (also after a returned refusal) | Nothing closed; the delivery fails as a launch failure and the next delivery decides again from a new observation |
 | Any other record without a running turn (failed, vanished, live but refusing) | Close and start fresh (unchanged) |
 
 Known limit: a Bot whose model or effort was changed while its seat was hibernated gets `AGENT_RESUME_CONFLICT` and a fresh conversation on the new settings. Proof of "same conversation" is the vendor transcript (same session file grows), never the answer text.

@@ -1793,6 +1793,8 @@ export class AitermTransport {
             if (live && observed.state === 'hibernated') {
               try { check(); return await this.wake(bot, { setupTest, membersLease: lease }) } catch (error) {
                 if (error?.aitermResponseReturned !== true) throw error
+                // A stop or admission change during the resume keeps the hibernated record (its conversation) untouched.
+                check()
                 process.stderr.write(`BellTeam Aiterm: hibernated seat not resumed, starting fresh: ${bot.id}: ${error.code ?? String(error.message).slice(0, 120)}\n`)
               }
             }
