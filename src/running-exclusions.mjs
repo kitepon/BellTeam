@@ -1,8 +1,11 @@
-import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdir, readFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { writeAtomic } from './json-file.mjs'
 
 // a41 (execution current-work.md "Own work"): the Owner-approved list of what never counts as a Bot's own work.
-// Execution state, written only by an Owner-approved proposal or the Owner's removal; this module only reads it.
+// Execution state: the engine only reads it (readRunningExclusions); the body writes it only for an Owner-approved
+// addition or removal (createRunningExclusions below).
 export const RUNNING_EXCLUSIONS_SCHEMA = 'bellteam.running-exclusions.v1'
 const MAX_ENTRIES = 256
 const word = value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\s\u0000-\u001f]/u.test(value)
@@ -40,4 +43,128 @@ export function exclusionsMeta(entries, targets) {
   })
   const digest = createHash('sha256').update(JSON.stringify(sent)).digest('hex')
   return { digest, entries: sent }
+}
+
+// ---- Body side (PR 2): proposals, Owner approval, the only writer of the file ----
+const unavailable = () => Object.assign(new Error('RUNNING_EXCLUSIONS_UNAVAILABLE'), { code: 'RUNNING_EXCLUSIONS_UNAVAILABLE', status: 503 })
+const invalid = message => Object.assign(new Error(`RUNNING_EXCLUSION_INVALID: ${message}`), { code: 'RUNNING_EXCLUSION_INVALID', status: 400 })
+const keyOf = entry => JSON.stringify(entry.kind === 'process' ? [entry.kind, entry.exe, entry.args, entry.scope] : [entry.kind, entry.harness, entry.session, entry.scope])
+const describe = entry => entry.kind === 'process' ? [entry.exe, ...entry.args].join(' ')
+  : `${entry.harness} の子の席${entry.session ? `「${entry.session}」` : '（どの席でも）'}`
+const OPTIONS = Object.freeze([{ id: 'approve', label: '承認' }, { id: 'reject', label: '却下' }])
+
+function decisionText({ action, entry, requester, who, reason }) {
+  const what = describe(entry)
+  if (action === 'remove') return {
+    title: `稼働中に数えない処理の一覧から「${what}」を外していいですか？`,
+    context: `${requester}からの申請です。\n理由: ${reason}\n承認すると: ${who}で、「${what}」をまた稼働中に数えます。\n却下すると: 一覧はこのままです。` }
+  const broad = entry.kind === 'process' && !entry.args.length ? `\nこの申請は「${entry.exe}」で動くすべての処理が対象です。` : ''
+  return {
+    title: `「${what}」を、${who}で稼働中に数えないようにしていいですか？`,
+    context: `${requester}からの申請です。\n理由: ${reason}\n承認すると: ${who}で、「${what}」と、その下で動く処理・それを包むシェルを稼働中に数えなくなります。`
+      + `${broad}\n気をつけること: 同じ形の処理が本当に何かを待っている時も、稼働中に数えなくなります。`
+      + '\n取り消す時: Bot に頼めば取り消しの申請が出ます。取り消しも指揮官の承認で決まります。\n却下すると: 何も変わりません。' }
+}
+
+const validStore = entries => Array.isArray(entries) && entries.length <= MAX_ENTRIES && entries.every(valid)
+  && new Set(entries.map(entry => entry.id)).size === entries.length
+const actionKey = (action, entry, id) => action === 'add' ? `add:${keyOf(entry)}` : `remove:${id}`
+
+const text = value => typeof value === 'string' && value.length > 0
+// Everything poll/fileStored consume: an approved mark skips the Owner read, the key dedupes, the decision is re-filed as stored.
+const validPending = item => item && typeof item === 'object' && word(item.label) && item.label.startsWith('running-exclusions:')
+  && (item.action === 'add' ? valid(item.entry) : item.action === 'remove' && word(item.id))
+  && item.key === actionKey(item.action, item.entry, item.id)
+  && (item.decisionId === null || word(item.decisionId))
+  && (item.approved === undefined || item.approved === false || item.approved === true && item.decisionId !== null)
+  && text(item.decision?.title) && text(item.decision?.context) && text(item.decision?.requester) && text(item.reason)
+
+export function createRunningExclusions({ path, decisions, now = () => new Date().toISOString(), intervalMs = 60_000 }) {
+  let queue = Promise.resolve(), timer = null
+  const serial = work => { const next = queue.then(work); queue = next.catch(() => {}); return next }
+  async function load() {
+    let value
+    try { value = JSON.parse(await readFile(path, 'utf8')) } catch (error) { if (error?.code === 'ENOENT') return { entries: [], pending: [] }; throw unavailable() }
+    // Never rewrite a file the engine reader refuses or whose pending this module cannot read: that would drop what the Owner approved or asked.
+    if (value?.schema !== RUNNING_EXCLUSIONS_SCHEMA || !validStore(value.entries)) throw unavailable()
+    if (value.pending !== undefined && !(Array.isArray(value.pending) && value.pending.every(validPending))) throw unavailable()
+    return { entries: value.entries, pending: value.pending ?? [] }
+  }
+  async function save(state) {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+    await writeAtomic(path, { schema: RUNNING_EXCLUSIONS_SCHEMA, entries: state.entries, pending: state.pending })
+  }
+  // The stored proposal is filed with its own label; an unknown outcome leaves decisionId null and the same label is filed again later.
+  async function fileStored(state, item) {
+    const filed = await decisions.file({ ...item.decision, options: OPTIONS, session_label: item.label })
+    item.decisionId = filed.decisionId
+    await save(state)
+    return { status: 'filed', decisionId: filed.decisionId }
+  }
+  // proposal: {action:'add', entry:{kind, exe, args | harness, session, scope}} or {action:'remove', id}; from/requester/who come from the tool layer.
+  async function propose({ action, entry, id, reason, from, requester, who }) {
+    if (typeof reason !== 'string' || !reason.trim() || reason.length > 1000) throw invalid('reason は1〜1000字で書く')
+    if (action === 'add' && !valid({ ...entry, id: 'new' })) throw invalid('処理は exe と最大2つの args、子の席は harness と session（null可）、対象は scope')
+    if (action !== 'add' && action !== 'remove') throw invalid('action')
+    return serial(async () => {
+      const state = await load()
+      const target = action === 'add' ? entry : state.entries.find(item => item.id === id)
+      if (!target) throw Object.assign(new Error('RUNNING_EXCLUSION_NOT_FOUND'), { code: 'RUNNING_EXCLUSION_NOT_FOUND', status: 404 })
+      const listed = action === 'add' && state.entries.find(item => keyOf(item) === keyOf(entry))
+      if (listed) return { status: 'listed', entry: listed }
+      // Dedupe only against what is pending now; an answered proposal is gone from pending, so a new one gets a new label and a new answer.
+      const key = actionKey(action, entry, id)
+      const open = state.pending.find(item => item.key === key)
+      if (open) return open.decisionId ? { status: 'pending', decisionId: open.decisionId } : fileStored(state, open)
+      // The engine reads at most MAX_ENTRIES; one more would make the whole list unreadable (Molly 11/13).
+      if (action === 'add' && state.entries.length >= MAX_ENTRIES) throw invalid(`一覧は${MAX_ENTRIES}件までです。先に要らない物を外す申請を出す`)
+      const item = { label: `running-exclusions:${randomUUID()}`, key, action, ...(action === 'add' ? { entry: { ...entry, id: randomUUID() } } : { id }),
+        decisionId: null, decision: { ...decisionText({ action, entry: target, requester, who, reason: reason.trim() }), requester },
+        from, reason: reason.trim(), filedAt: now() }
+      state.pending.push(item)
+      await save(state)
+      return fileStored(state, item)
+    })
+  }
+  // Only the Owner's "approve" for that decision writes; any other answer or a cancel drops the proposal.
+  function poll() {
+    return serial(async () => {
+      const state = await load()
+      if (!state.pending.length) return 0
+      let applied = 0, changed = false
+      const keep = []
+      // Removals first, so an approved addition waiting on a full list applies in the same tick a removal makes room.
+      const ordered = [...state.pending.filter(item => item.action === 'remove'), ...state.pending.filter(item => item.action !== 'remove')]
+      for (const [index, item] of ordered.entries()) {
+        if (!item.approved) {
+          let result
+          try {
+            if (!item.decisionId) { await fileStored(state, item); keep.push(item); continue }
+            result = await decisions.read({ decisionId: item.decisionId })
+          } catch { keep.push(...ordered.slice(index)); break }
+          if (result.status !== 'answered' && result.status !== 'cancelled') { keep.push(item); continue }
+          if (result.status !== 'answered' || result.answer?.optionId !== 'approve') continue
+        }
+        if (item.action === 'remove') { state.entries = state.entries.filter(entry => entry.id !== item.id); applied++; continue }
+        if (state.entries.some(entry => keyOf(entry) === keyOf(item.entry))) continue
+        // Full: keep the approved addition until a removal makes room.
+        if (state.entries.length >= MAX_ENTRIES) { if (!item.approved) { item.approved = true; changed = true } keep.push(item); continue }
+        state.entries.push({ ...item.entry, decisionId: item.decisionId, approvedAt: now(), reason: item.reason })
+        applied++
+      }
+      changed ||= keep.length !== state.pending.length
+      state.pending = keep
+      if (changed) await save(state)
+      return applied
+    })
+  }
+  return Object.freeze({
+    propose, poll,
+    list: () => serial(async () => {
+      const { entries, pending } = await load()
+      return { entries, pending: pending.map(({ action, entry, id, decisionId, from, filedAt, approved }) => ({ action, ...(entry ? { entry } : { id }), decisionId, from, filedAt, ...(approved && { approved }) })) }
+    }),
+    start() { if (!timer) { timer = setInterval(() => { poll().catch(() => {}) }, intervalMs); timer.unref?.() } },
+    stop() { clearInterval(timer); timer = null },
+  })
 }

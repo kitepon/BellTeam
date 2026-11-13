@@ -1,35 +1,40 @@
 // Body side of the Lattice effects decisions.file / decisions.read (lattice README L18-L19; Trony ruling 2026-11-13).
-// The body files Owner-lane tasks to the Approval Box with its OWN connector connection: the token is a Flora request_secret
+// The body files Owner-lane tasks to the Approval Box with its OWN connector connection (and running exclusions with another one, a41): the token is a Flora request_secret
 // (tool id below) held in BellTeam's secret store and read only inside withResolved (usage secret-credentials.md, Mika).
 export const LATTICE_APPROVAL_SCOPE = Object.freeze({ terminalId: 'lattice', purpose: 'approval-box.connector' })
 export const LATTICE_APPROVAL_SECRET = Object.freeze({ botId: 'bot-7e777fe5', toolId: 'lattice-approval-box' })
 const ORIGIN = 'https://approval-box.kitepon.dev/connector/v1'
-// UNAVAILABLE (no token, timeout, network, 5xx) ends the child's filing for this tick; REFUSED (4xx) skips one card (README L18, Molly review).
-const unavailable = () => Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 503 })
-const refused = () => Object.assign(new Error('LATTICE_DECISIONS_REFUSED'), { code: 'LATTICE_DECISIONS_REFUSED', status: 409 })
-const failedBy = status => status >= 400 && status < 500 ? refused() : unavailable()
 const idOf = value => value?.id ?? value?.decision_id
 
-export function createLatticeDecisions({ credentials, secretRequests, fetchImpl = fetch }) {
-  // The parent decides which request may enter this scope (Mika): Flora's own submitted request with the fixed tool id, newest first.
+export const createLatticeDecisions = options =>
+  createApprovalDecisions({ ...options, scope: LATTICE_APPROVAL_SCOPE, secret: LATTICE_APPROVAL_SECRET, code: 'LATTICE_DECISIONS' })
+
+// One connector connection per owner (Flora 2026-11-13: never shared; the session_label identity, revocation and outages stay
+// per purpose). Each caller passes its own credential scope and request_secret card {botId, toolId}.
+export function createApprovalDecisions({ credentials, secretRequests, fetchImpl = fetch, scope, secret, code }) {
+  // UNAVAILABLE (no token, timeout, network, 5xx) ends the caller's filing for this tick; REFUSED (4xx) skips one request (README L18, Molly review).
+  const unavailable = () => Object.assign(new Error(`${code}_UNAVAILABLE`), { code: `${code}_UNAVAILABLE`, status: 503 })
+  const refused = () => Object.assign(new Error(`${code}_REFUSED`), { code: `${code}_REFUSED`, status: 409 })
+  const failedBy = status => status >= 400 && status < 500 ? refused() : unavailable()
+  // The parent decides which request may enter this scope (Mika): the owner's own submitted request with the fixed tool id, newest first.
   async function handle() {
     if (!credentials || !secretRequests) throw unavailable()
-    const current = await credentials.current(LATTICE_APPROVAL_SCOPE)
+    const current = await credentials.current(scope)
     if (current) { if (!current.available) throw unavailable(); return current.handle }
-    const rows = secretRequests.timeline({ botId: LATTICE_APPROVAL_SECRET.botId }).map(row => row.secret_request)
-      .filter(card => card?.botId === LATTICE_APPROVAL_SECRET.botId && card.toolId === LATTICE_APPROVAL_SECRET.toolId && card.status === 'submitted')
+    const rows = secretRequests.timeline({ botId: secret.botId }).map(row => row.secret_request)
+      .filter(card => card?.botId === secret.botId && card.toolId === secret.toolId && card.status === 'submitted')
       .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     // shortcut: rotation happens when the current binding is gone (revoked/unbound); a newer submission alone does not replace a live one.
     if (!rows.length) throw unavailable()
-    const bound = await credentials.bind(rows[0].id, LATTICE_APPROVAL_SCOPE)
+    const bound = await credentials.bind(rows[0].id, scope)
     if (!bound?.available) throw unavailable()
     return bound.handle
   }
   async function call(method, path, body) {
     const id = await handle()
-    return credentials.withResolved(id, { ...LATTICE_APPROVAL_SCOPE, memberId: null }, async token => {
+    return credentials.withResolved(id, { ...scope, memberId: null }, async token => {
       if (typeof token !== 'string' || !token || /[\r\n]/u.test(token)) throw unavailable()
-      // 5 s: the child's root chain is shared with every seat's lattice call (Molly review).
+      // 5 s: the caller's chain is shared (Lattice: the child's root chain with every seat's lattice call, Molly review; running exclusions: the 60 s poll).
       const response = await fetchImpl(ORIGIN + path, { method, redirect: 'error', signal: AbortSignal.timeout(5000),
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
         .catch(() => { throw unavailable() })

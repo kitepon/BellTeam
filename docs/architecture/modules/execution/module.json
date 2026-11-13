@@ -73,6 +73,7 @@
     "src/remote-seats.mjs",
     "src/current-work.mjs",
     "src/running-exclusions.mjs",
+    "src/running-exclusions-mcp.mjs",
     "src/members-admission.mjs",
     "src/configuration-request.mjs",
     "src/configuration-intents.mjs",
