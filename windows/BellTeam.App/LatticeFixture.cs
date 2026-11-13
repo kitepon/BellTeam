@@ -15,6 +15,7 @@ namespace BellTeam.App;
 /// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not.
 /// 止め一覧 scenes (stops*): GET /api/lattice/blockers has five stops on four charts (a member, the Owner, an authored lane, an unknown Bot, no lane; today,
 /// yesterday, an older day); stops-unread names an unread chart, stops-empty none, stops-retry answers 503, stops-old 404; 外す removes, stops-refused answers 409.
+/// 「external」 / 「external-detail」 (task a60): t10 also waits on two tasks of other charts, one read (通話ブリッジの刷新, Kiro, in progress) and one Lattice could not read.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
@@ -53,7 +54,14 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         string? Producer(string id) => byId[id].GetProperty("producer").GetString();
         var waits = Edges.Where(edge => !Finished(edge[0]) && !Finished(edge[1]))
             .Select(edge => new { waiter = Producer(edge[1]), waitingCard = $"p1/{edge[1]}", forCard = $"p1/{edge[0]}", producer = Producer(edge[0]), producerState = byId[edge[0]].GetProperty("state").GetString(), since = Ago(Since.GetValueOrDefault(edge[0], 1)) })
-            .OrderBy(wait => wait.since, StringComparer.Ordinal).ToArray();
+            .ToList();
+        // Predecessors on another chart (externals[], edge external, wait forCard = the external id): drawn as text only.
+        var externals = scene.StartsWith("external", StringComparison.Ordinal)
+            ? new[] { new { id = "call-bridge:cb/release", projectId = "call-bridge", cardId = "cb/release", chartName = (string?)"通話ブリッジの刷新", title = (string?)"橋の新しい版を出す", state = (string?)"in-progress", finished = false, producer = (string?)"bot-kiro" },
+                      new { id = "guide:g/intro", projectId = "guide", cardId = "g/intro", chartName = (string?)null, title = (string?)null, state = (string?)null, finished = false, producer = (string?)null } }
+            : [];
+        foreach (var ext in externals) waits.Add(new { waiter = Producer("t10"), waitingCard = "p1/t10", forCard = ext.id, producer = ext.producer, producerState = ext.state, since = Ago(ext.producer is null ? 1 : 2) });
+        waits = waits.OrderBy(wait => wait.since, StringComparer.Ordinal).ToList();
         var referenced = byId.Values.Select(card => card.GetProperty("producer").GetString()).Concat(waits.Select(wait => wait.waiter)).ToHashSet();
         var name = Names.GetValueOrDefault(projectId);
         return new
@@ -61,7 +69,8 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             schema = "bellteam.lattice-chart.v1", epoch = "fixture", version = 1, at = Ago(0), projectId, name = name.Name, createdBy = name.CreatedBy, coordinator = projectId == "lattice",
             state = State, verifiedAt = Ago(State == "last_verified" ? 46 : 0), degraded = scene == "degraded" ? new[] { "lattice-read", "members" } : [],
             members = Members.Where(member => referenced.Contains(member.Id)).Select(member => new { botId = member.Id, name = member.Name, color = member.Color, avatarVersion = "" }),
-            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), waits
+            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]), external = false })
+                .Concat(externals.Select(ext => new { from = ext.id, to = "p1/t10", waiting = true, external = true })), waits, externals
         };
     }
     private static readonly Dictionary<string, (string? Name, string CreatedBy)> Names = new()

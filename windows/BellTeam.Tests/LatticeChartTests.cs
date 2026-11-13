@@ -138,6 +138,35 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
+    public void ATaskOfAnotherChartIsTextWithItsChartAndOpensThatChartNeverALine()
+    {
+        // Wire (lattice README snapshot, task a60): externals[] and edge external; a snapshot without them reads as none.
+        var snapshot = System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""
+            {"projectId":"proj","members":[{"botId":"bot-a","name":"アドミ"},{"botId":"bot-k","name":"キロ"}],
+             "cards":[{"id":"p1/t05","title":"組み込む","state":"pending","producer":"bot-a"},{"id":"p1/t06","title":"配る","state":"pending"}],
+             "edges":[{"from":"lattice:lattice-0990/release","to":"p1/t05","waiting":true,"external":true},{"from":"other:p/q","to":"p1/t06","waiting":true,"external":true}],
+             "externals":[{"id":"lattice:lattice-0990/release","projectId":"lattice","cardId":"lattice-0990/release","chartName":"Lattice","title":"0.99.0を出す","state":"in-progress","finished":false,"producer":"bot-k"},
+                          {"id":"other:p/q","projectId":"other","cardId":"p/q","chartName":null,"title":null,"state":null,"finished":false,"producer":null}],
+             "waits":[{"waiter":"bot-a","waitingCard":"p1/t05","forCard":"lattice:lattice-0990/release","producer":"bot-k","producerState":"in-progress","since":"2026-11-11T11:30:00Z"},
+                      {"waiter":null,"waitingCard":"p1/t06","forCard":"other:p/q","producer":null,"producerState":null,"since":"2026-11-11T11:50:00Z"}]}
+            """, BellApi.Json)!;
+        Assert.True(snapshot.Edges[0].External);
+        Assert.Empty(System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""{"projectId":"proj"}""", BellApi.Json)!.Externals);
+        var rows = LatticeChart.WaitRows(snapshot, Now);
+        Assert.Equal(("0.99.0を出す", "Latticeの工程表", "作業中"), (rows[0].Title, rows[0].Chart, rows[0].StateText));
+        Assert.Equal(new LatticeCardRef("lattice", "lattice-0990/release"), rows[0].External);
+        Assert.True(rows[0].CanChat);
+        Assert.Equal("「組み込む」（担当 アドミ）は、「0.99.0を出す」（Latticeの工程表）が終わるのを待っています。つくっているのはキロ、作業中", rows[0].Label);
+        Assert.Equal(("ほかの工程表の工程", "ほかの工程表の工程表", LatticeChart.ExternalUnread), (rows[1].Title, rows[1].Chart, rows[1].StateText));
+        Assert.Null(rows[1].Producer);
+        var previous = Assert.Single(LatticeChart.Detail(snapshot, "p1/t05", Now)!.Previous);
+        Assert.Equal(("0.99.0を出す", "Latticeの工程表", "キロ", new LatticeCardRef("lattice", "lattice-0990/release")), (previous.Title, previous.Chart, previous.Producer?.Name, previous.External));
+        Assert.Equal(LatticeChart.ExternalUnread, Assert.Single(LatticeChart.Detail(snapshot, "p1/t06", Now)!.Previous).StateText);
+        Assert.Empty(LatticeChart.Tree(snapshot, "工程表").Arcs);
+        Assert.False(LatticeChart.Layout(snapshot).Cards.ContainsKey("lattice:lattice-0990/release"));
+    }
+
+    [Fact]
     public void BannersAndPillsArePlainSentences()
     {
         Assert.Null(LatticeChart.Banner(Snapshot([])));
