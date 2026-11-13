@@ -136,3 +136,10 @@ test('module quiesce after the pending-decision await prevents an idle native cl
   allowed = false; finishDecision(0); await pending
   assert.deepEqual(closed, [])
 })
+
+// a69: the harness's own unfinished background tasks (in-process agents) keep the seat open; absent/null = not stated.
+test('a69: CLI自身が終わっていない裏の仕事を持つ席は「動いていない」とみなさない', () => {
+  assert.equal(quietSession(quiet({ activity: { cursor: 'c', output_changed: false, post_startup_process_count: 0, background_tasks: 1 } })), false)
+  assert.equal(quietSession(quiet({ activity: { cursor: 'c', output_changed: false, post_startup_process_count: 0, background_tasks: 0 } })), true)
+  assert.equal(quietSession(quiet({ activity: { cursor: 'c', output_changed: false, post_startup_process_count: 0, background_tasks: null } })), true)
+})

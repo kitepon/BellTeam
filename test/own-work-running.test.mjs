@@ -123,3 +123,18 @@ test('facade: reason by the fixed order turn, schedule, own work, and the DTO va
   assert.equal(Object.hasOwn(idle, 'reason'), false, 'an idle Bot carries no reason key')
   assert.deepEqual(readCurrentWork(transport, bot), idle)
 })
+
+// a69 (current-work.md "own work: harness tasks"): the harness's own unfinished background tasks count, with no process.
+test('ownWork: harness tasks (in-process agent) count without processes; agent -> subagent, other -> background', () => {
+  const since = '2026-11-13T14:37:21.000Z'
+  assert.deepEqual(ownWork({ processes: 0, exclusions_digest: 'd1', tasks: 1, task: { kind: 'agent', label: 'Implement  LiveTR', since } }, 'd1'),
+    { kind: 'subagent', detail: 'Implement LiveTR', since })
+  assert.deepEqual(ownWork({ processes: 0, exclusions_digest: 'other', tasks: 1, task: { kind: 'agent', label: 'x', since } }, 'd1'),
+    { kind: 'subagent', detail: 'x', since }, 'tasks are not subject to the exclusion list')
+  assert.deepEqual(ownWork({ processes: 0, exclusions_digest: 'd1', tasks: 1, task: { kind: 'shell', label: 'npm test', since } }, 'd1'),
+    { kind: 'background', detail: 'npm test', since })
+  assert.deepEqual(ownWork({ processes: 2, exclusions_digest: 'd1', oldest: { exe: 'sleep', args: ['60'], since }, tasks: 1, task: { kind: 'shell', label: 'sleep 60', since } }, 'd1'),
+    { kind: 'background', detail: 'sleep 60', since }, 'processes keep their descriptor')
+  assert.equal(ownWork({ processes: 0, exclusions_digest: 'd1', tasks: 0, task: null }, 'd1'), null)
+  assert.equal(ownWork({ processes: 0, exclusions_digest: 'd1', tasks: null }, 'd1'), null, 'null = the harness states nothing')
+})

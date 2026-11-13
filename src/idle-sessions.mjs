@@ -88,6 +88,8 @@ export function quietSession(observation) {
   return observation.state === 'idle' && observation.reason === 'composer_ready'
     && observation.activity?.post_startup_process_count === 0
     && observation.pending_child_deliveries === 0
+    // a69: the harness's own unfinished background tasks (in-process agents) keep the seat; absent/null = not stated.
+    && !(observation.activity?.background_tasks > 0)
 }
 
 // Approval Boxの答えを待っている席かどうか。Claude Codeは待つ間hookのプロセスがCLIの下に立つので、

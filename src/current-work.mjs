@@ -54,10 +54,16 @@ export function ownWork(value, digest) {
   const count = n => Number.isSafeInteger(n) && n > 0
   const since = at => typeof at === 'string' && Number.isFinite(Date.parse(at)) ? new Date(at).toISOString() : null
   if (count(value.child_results)) return { kind: 'subagent', detail: null, since: null }
-  if (!text(digest) || value.exclusions_digest !== digest || !count(value.processes)) return null
-  const oldest = value.oldest, words = oldest && typeof oldest === 'object' && text(oldest.exe)
-    ? [oldest.exe, ...(Array.isArray(oldest.args) ? oldest.args.filter(text).slice(0, 2) : [])].join(' ').replace(/\s+/gu, ' ').trim() : ''
-  return { kind: 'background', detail: words || null, since: since(oldest?.since) }
+  // a69: the harness's own unfinished background tasks (an in-process agent has no child process). Not excludable.
+  const task = count(value.tasks) && value.task && typeof value.task === 'object' ? value.task : null
+  const taskReason = kind => ({ kind, detail: text(task?.label) ? task.label.replace(/\s+/gu, ' ').trim().slice(0, 120) : null, since: since(task?.since) })
+  if (task?.kind === 'agent') return taskReason('subagent')
+  if (text(digest) && value.exclusions_digest === digest && count(value.processes)) {
+    const oldest = value.oldest, words = oldest && typeof oldest === 'object' && text(oldest.exe)
+      ? [oldest.exe, ...(Array.isArray(oldest.args) ? oldest.args.filter(text).slice(0, 2) : [])].join(' ').replace(/\s+/gu, ' ').trim() : ''
+    return { kind: 'background', detail: words || null, since: since(oldest?.since) }
+  }
+  return count(value.tasks) ? taskReason('background') : null
 }
 
 // UI state stays observation-based; restart references also use actual accepted native input.
