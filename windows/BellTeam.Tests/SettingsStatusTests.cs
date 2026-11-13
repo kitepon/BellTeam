@@ -207,8 +207,8 @@ public sealed class SettingsStatusTests
     [Fact]
     public void PagesKeepTheMacOrderAndWording()
     {
-        Assert.Equal(14, Enum.GetValues<SettingsPage>().Length);
-        Assert.Equal(["AIの認証", "仕事の要約を書くAI", "端末", "1Password", "通知", "追加機能"], SettingsPages.Groups[0].Select(SettingsPages.Title));
+        Assert.Equal(15, Enum.GetValues<SettingsPage>().Length);
+        Assert.Equal(["AIの認証", "仕事の要約を書くAI", "端末", "稼働中に数えない処理", "1Password", "通知", "追加機能"], SettingsPages.Groups[0].Select(SettingsPages.Title));
         Assert.Equal([SettingsPage.Rules], SettingsPages.Groups[1]);
         Assert.Equal([SettingsPage.Stop], SettingsPages.Groups[^1]);
         Assert.Equal("全員のAIの動作をまとめて止める", SettingsPage.Stop.Detail());

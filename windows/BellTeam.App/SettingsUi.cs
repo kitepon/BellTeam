@@ -17,13 +17,13 @@ public static class SettingsPageInfo
     // Segoe Fluent Icons code points standing in for the Mac SF Symbols.
     public static string Glyph(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "\uE77B", SettingsPage.Ai => "\u2726", SettingsPage.Summary => "\uE8FD", SettingsPage.Terminals => "\uE7F4", SettingsPage.OnePassword => "\uE8D7",
+        SettingsPage.Profile => "\uE77B", SettingsPage.Ai => "\u2726", SettingsPage.Summary => "\uE8FD", SettingsPage.Terminals => "\uE7F4", SettingsPage.Exclusions => "\uE769", SettingsPage.OnePassword => "\uE8D7",
         SettingsPage.Notifications => "\uEA8F", SettingsPage.Rules => "\uE8A4", SettingsPage.Features => "\uEA86", SettingsPage.Connection => "\uE774",
         SettingsPage.Display => "\uE81E", SettingsPage.Billing => "\uE8C7", SettingsPage.Update => "\uE896", SettingsPage.About => "\uE946", _ => ""
     };
     public static Color Tint(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => Color.FromRgb(0x61, 0x47, 0xD4), SettingsPage.Ai => Color.FromRgb(0xAF, 0x52, 0xDE), SettingsPage.Summary => Color.FromRgb(0xFF, 0x2D, 0x55), SettingsPage.Terminals => Color.FromRgb(0x32, 0xAD, 0xE6),
+        SettingsPage.Profile => Color.FromRgb(0x61, 0x47, 0xD4), SettingsPage.Ai => Color.FromRgb(0xAF, 0x52, 0xDE), SettingsPage.Summary => Color.FromRgb(0xFF, 0x2D, 0x55), SettingsPage.Terminals => Color.FromRgb(0x32, 0xAD, 0xE6), SettingsPage.Exclusions => Color.FromRgb(0x00, 0xC7, 0xBE),
         SettingsPage.OnePassword => Color.FromRgb(0x00, 0x7A, 0xFF), SettingsPage.Notifications => Color.FromRgb(0xFF, 0x3B, 0x30), SettingsPage.Rules => Color.FromRgb(0xA2, 0x84, 0x5E), SettingsPage.Features => Color.FromRgb(0xFF, 0x95, 0x00),
         SettingsPage.Connection => Color.FromRgb(0x00, 0x7A, 0xFF), SettingsPage.Display => Color.FromRgb(0x58, 0x56, 0xD6),
         SettingsPage.Billing => Color.FromRgb(0x34, 0xC7, 0x59), SettingsPage.Update => Color.FromRgb(0x30, 0xB0, 0xC7), SettingsPage.About => Color.FromRgb(0x8E, 0x8E, 0x93), _ => Color.FromRgb(0xFF, 0x3B, 0x30)

@@ -96,7 +96,7 @@ public sealed partial class SettingsWindow : EditorWindow
         {
             await (page switch
             {
-                SettingsPage.Profile => ProfilePageAsync(token), SettingsPage.Ai => AiPageAsync(token), SettingsPage.Summary => SummaryPageAsync(token), SettingsPage.Terminals => TerminalsPageAsync(token),
+                SettingsPage.Profile => ProfilePageAsync(token), SettingsPage.Ai => AiPageAsync(token), SettingsPage.Summary => SummaryPageAsync(token), SettingsPage.Terminals => TerminalsPageAsync(token), SettingsPage.Exclusions => ExclusionsPageAsync(token),
                 SettingsPage.OnePassword => OnePasswordPageAsync(token), SettingsPage.Notifications => NotificationsPage(), SettingsPage.Rules => RulesPageAsync(token), SettingsPage.Features => FeaturesPageAsync(token),
                 SettingsPage.Connection => ConnectionPage(), SettingsPage.Display => DisplayPage(), SettingsPage.Billing => BillingPage(), SettingsPage.Update => UpdatePageAsync(), SettingsPage.About => AboutPage(), _ => StopPageAsync(token)
             });
@@ -178,6 +178,7 @@ public sealed partial class SettingsWindow : EditorWindow
         SettingsPage.Ai => aiAnswered ? SettingsSummary.Ai(aiEntries) : new(SettingsPageInfo.Detail(page)),
         SettingsPage.Summary => SettingsSummary.SummaryAgent(backgroundAgent, modelCatalog),
         SettingsPage.Terminals => SettingsSummary.Terminals(workspace.Terminals.State, workspace.Terminals.Terminals),
+        SettingsPage.Exclusions => SettingsSummary.Exclusions(exclusions, exclusionsUnreadable),
         SettingsPage.OnePassword => SettingsSummary.OnePassword(features?.FirstOrDefault(item => item.Id == OnePasswordItem.Id)),
         SettingsPage.Notifications => notifications is null ? new(SettingsPageInfo.Detail(page)) : SettingsSummary.Notifications(notifications.Enabled ? NotificationState.Registered : NotificationState.Unregistered, failed: notifications.Error is not null),
         SettingsPage.Rules => SettingsSummary.Rules(rulesText, rulesUnreadable),
@@ -225,7 +226,7 @@ public sealed partial class SettingsWindow : EditorWindow
     }
 
     // Opening settings and coming back to the front read every item; a read that arrives while one runs is done once more afterwards.
-    private async Task ReloadHomeAsync()
+    internal async Task ReloadHomeAsync()
     {
         if (homeReading) { homePending = true; return; }
         homeReading = true;
@@ -234,7 +235,7 @@ public sealed partial class SettingsWindow : EditorWindow
             do
             {
                 homePending = false;
-                await Task.WhenAll(LoadAiAsync(), LoadSettingsAsync(), LoadModelsAsync(), LoadRulesAsync(), LoadControlAsync(), LoadUpdateAsync(), workspace.Terminals.RefreshAsync(Token));
+                await Task.WhenAll(LoadAiAsync(), LoadSettingsAsync(), LoadModelsAsync(), LoadRulesAsync(), LoadControlAsync(), LoadUpdateAsync(), LoadExclusionsAsync(), workspace.Terminals.RefreshAsync(Token));
                 RefreshRows();
             } while (homePending && !Token.IsCancellationRequested);
         }
