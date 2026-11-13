@@ -2,7 +2,7 @@
 // PC: 左に項目の列、右にページ。電話: 項目の列 → ページ（「戻る」で列へ）。
 export const SETTINGS_ITEMS = [
   ['profile', 'プロフィール', 'profile'], ['rules', 'チームの決まり', 'rules'], ['ai', 'AIの認証', 'key'],
-  ['summary', '仕事の要約を書くAI', 'summary'], ['stop', '全体停止', 'power'], ['terminals', '端末', 'terminal'],
+  ['summary', '仕事の要約を書くAI', 'summary'], ['stop', '全体停止', 'power'], ['exclusions', '稼働中に数えない処理', 'exclusions'], ['terminals', '端末', 'terminal'],
   ['onePassword', '1Password', 'vault'], ['notifications', '通知', 'bell'], ['features', '追加機能', 'puzzle'],
   ['updates', 'アップデート', 'update'], ['connection', '接続', 'link'], ['display', '表示', 'display'], ['billing', '利用と購読', 'card'],
 ]

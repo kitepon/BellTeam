@@ -1049,6 +1049,17 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 #owner-dialog [data-settings-icon="phone"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='6' y='2.5' width='12' height='19' rx='2.5'/%3E%3Cpath d='M11 18.5h2'/%3E%3C/svg%3E"); }
 #owner-dialog [data-settings-icon="card"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Cpath d='M3 10h18M7 15h4'/%3E%3C/svg%3E"); }
 #owner-dialog [data-settings-icon="terminal"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='11' rx='2'/%3E%3Cpath d='M2.5 19h19M8 9l2 1.5L8 12M12 12h3'/%3E%3C/svg%3E"); }
+#owner-dialog [data-settings-icon="exclusions"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M10 9v6M14 9v6'/%3E%3C/svg%3E"); }
+/* 稼働中に数えない処理 (user-paths.md 4.10): one card per entry / pending proposal. */
+#owner-dialog .exclusion-section { margin: 18px 0 10px; font-size: 14px; color: var(--s-muted); }
+#owner-dialog .exclusion-head { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; }
+#owner-dialog .exclusion-head .settings-item-icon { flex: none; }
+#owner-dialog .exclusion-what { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+#owner-dialog .exclusion-what.is-command { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#owner-dialog .exclusion-kind { margin: 0 0 6px; font-size: 12px; font-weight: 750; color: var(--s-accent); }
+#owner-dialog .exclusion-line { display: flex; gap: 10px; margin: 0 0 4px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+#owner-dialog .exclusion-label { flex: none; min-width: 5em; color: var(--s-muted); }
+#owner-dialog .exclusion-card > button { margin-top: 10px; }
 @media (max-width: 640px) {
   #owner-dialog .owner-profile-fields, #owner-dialog .feature-settings-section { padding: 18px; border-radius: 18px; }
   #owner-dialog .form-section-heading h3, #owner-dialog .feature-settings-section > h3 { font-size: 17px; }

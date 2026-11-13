@@ -222,6 +222,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const ownerEditor = createOwnerEditor(ownerDialog, { api,
     onOpenUpdates: button => updateCenter.open(button), updateSummary: () => updateCenter.summary(),
+    memberName: id => state.bots.find(bot => bot.id === id)?.name ?? null,
     onOwner: owner => { catalogueRead++; applyOwner(owner, ++ownerReads) },
     onSettings: (settings, authMode) => {
       state.settings = settings
