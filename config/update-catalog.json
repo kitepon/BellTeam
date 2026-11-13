@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T00:19:59Z",
-  "expiresAt": "2026-11-20T00:19:59Z",
+  "publishedAt": "2026-11-13T02:02:24Z",
+  "expiresAt": "2026-11-20T02:02:24Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d",
-      "versionId": "10bb544a43c63904c6e3fb18b3493c2ffbdf1f1596fed0b09619117357eeb370",
+      "sourceCommit": "7272b7462c4b9f3e487d07c6c896ab7feb8583eb",
+      "versionId": "779cfbd4a18c361157c0ca7b5280e7cbea9926593b1f5675f95654d89070c3ec",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-amd64.tar.gz",
-          "bytes": 5313435,
-          "sha256": "10bb544a43c63904c6e3fb18b3493c2ffbdf1f1596fed0b09619117357eeb370"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T020151Z/web-gateway-7272b7462c4b9f3e487d07c6c896ab7feb8583eb-linux-amd64.tar.gz",
+          "bytes": 5314067,
+          "sha256": "779cfbd4a18c361157c0ca7b5280e7cbea9926593b1f5675f95654d89070c3ec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "d3623b1d1e0e380db51c18feeefa91ee9992514d66f9be1f72cd510dcd46c701"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T020151Z/web-gateway-7272b7462c4b9f3e487d07c6c896ab7feb8583eb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11115,
+          "sha256": "304d92883ab6117b6a54d399de9f0abeea1625ecff34c144e7dd6b7733c29677"
         },
-        "signerCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d"
+        "signerCommit": "7272b7462c4b9f3e487d07c6c896ab7feb8583eb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,14 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。",
-        "Web の相関図が、動きのない時は描き直しを止めて、端末の負担を減らします。"
+        "Web 画面が、Bot の仕事の情報に今後加わる「理由」の欄を読めるようにします。見た目は変わりません。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d",
-      "versionId": "a1b8f487308938ec0193e381985ef3543a542ff58dfca901e856e51a435f955d",
+      "sourceCommit": "7272b7462c4b9f3e487d07c6c896ab7feb8583eb",
+      "versionId": "917a258e492f7ce8691200884dd77cc941e364f2251b5f537b7179f4845111a5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -471,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-arm64.tar.gz",
-          "bytes": 5313435,
-          "sha256": "a1b8f487308938ec0193e381985ef3543a542ff58dfca901e856e51a435f955d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T020151Z/web-gateway-7272b7462c4b9f3e487d07c6c896ab7feb8583eb-linux-arm64.tar.gz",
+          "bytes": 5314067,
+          "sha256": "917a258e492f7ce8691200884dd77cc941e364f2251b5f537b7179f4845111a5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11205,
-          "sha256": "c965f5bdb1e9e5a827d1af7d1401e75615dfb02919fdc2f7327950b4af387622"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T020151Z/web-gateway-7272b7462c4b9f3e487d07c6c896ab7feb8583eb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "fd82751ce9d12e359035f7d0bcd3c5665210ef3bdd442e7024efd189701f3001"
         },
-        "signerCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d"
+        "signerCommit": "7272b7462c4b9f3e487d07c6c896ab7feb8583eb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -489,8 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。",
-        "Web の相関図が、動きのない時は描き直しを止めて、端末の負担を減らします。"
+        "Web 画面が、Bot の仕事の情報に今後加わる「理由」の欄を読めるようにします。見た目は変わりません。"
       ]
     },
     {
