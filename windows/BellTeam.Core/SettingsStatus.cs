@@ -7,14 +7,14 @@ namespace BellTeam.Core;
 
 public enum SettingsTone { Gray, Green, Violet, Orange }
 
-public enum SettingsPage { Profile, Ai, Summary, Terminals, OnePassword, Notifications, Rules, Features, Connection, Display, Billing, Update, About, Stop }
+public enum SettingsPage { Profile, Ai, Summary, Terminals, Exclusions, OnePassword, Notifications, Rules, Features, Connection, Display, Billing, Update, About, Stop }
 
 public static class SettingsPages
 {
     // Category groups in list order; 全体停止 stays alone at the bottom.
     public static readonly IReadOnlyList<SettingsPage[]> Groups =
     [
-        [SettingsPage.Ai, SettingsPage.Summary, SettingsPage.Terminals, SettingsPage.OnePassword, SettingsPage.Notifications, SettingsPage.Features],
+        [SettingsPage.Ai, SettingsPage.Summary, SettingsPage.Terminals, SettingsPage.Exclusions, SettingsPage.OnePassword, SettingsPage.Notifications, SettingsPage.Features],
         [SettingsPage.Rules],
         [SettingsPage.Connection, SettingsPage.Display],
         [SettingsPage.Billing, SettingsPage.Update, SettingsPage.About],
@@ -22,7 +22,7 @@ public static class SettingsPages
     ];
     public static string Title(this SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの認証", SettingsPage.Summary => "仕事の要約を書くAI", SettingsPage.Terminals => "端末",
+        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの認証", SettingsPage.Summary => "仕事の要約を書くAI", SettingsPage.Terminals => "端末", SettingsPage.Exclusions => "稼働中に数えない処理",
         SettingsPage.OnePassword => "1Password", SettingsPage.Notifications => "通知", SettingsPage.Rules => "チームの決まり", SettingsPage.Features => "追加機能",
         SettingsPage.Connection => "接続", SettingsPage.Display => "表示", SettingsPage.Billing => "利用と課金", SettingsPage.Update => "アップデート",
         SettingsPage.About => "このアプリについて", _ => "全体停止"
@@ -34,6 +34,7 @@ public static class SettingsPages
         SettingsPage.Ai => "AIのアカウントを認証し直す",
         SettingsPage.Summary => "メンバー一覧の「今の仕事」を書くAI",
         SettingsPage.Terminals => "メンバーの席を動かすMac・Windows・Linuxと、その鍵",
+        SettingsPage.Exclusions => "席で動いていても仕事中に数えない処理",
         SettingsPage.OnePassword => "1Passwordの鍵をメンバーが使えるようにする",
         SettingsPage.Notifications => "メンバーからの連絡をこの端末に届ける",
         SettingsPage.Rules => "チームが守るあなたの決まり",
@@ -231,6 +232,15 @@ public static class SettingsSummary
         var missing = list.Count(SshKeyMissing);
         var count = $"{list.Count}台";
         return missing > 0 ? new(count + $"・鍵が未設定の端末が{missing}台", "未設定", SettingsTone.Gray) : new(count, "設定済み", SettingsTone.Green);
+    }
+
+    // 稼働中に数えない処理 (a65). list null: not read yet, or an older server (calm line); unreadable: the read failed.
+    public static SettingsStatus Exclusions(RunningExclusionList? list, bool unreadable)
+    {
+        if (list is null) return unreadable ? new("一覧を読めませんでした", "確認できません", SettingsTone.Orange) : new(SettingsPage.Exclusions.Detail());
+        var count = list.Entries.Length; var waiting = list.Pending.Count(item => !item.Approved);
+        if (waiting > 0) return new($"{count}件・承認を待っている提案が{waiting}件", "承認待ち", SettingsTone.Violet);
+        return count > 0 ? new($"{count}件", "設定済み", SettingsTone.Green) : new("ありません");
     }
 
     // 仕事の要約を書くAI. catalog is the model list (GET /api/models) so the line says the display name of the model; an id not in it is shown as is.
