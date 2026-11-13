@@ -938,13 +938,15 @@ flowchart LR
   Usage --> Changed[保存後backgroundAgent.changed / configuration]
   Changed --> Configure[同graphの共有backgroundSummary.configure]
   Changed --> SSE[成功又は反映不明後のsettings通知]
-  Projection[execution currentWork] --> Validate[共通6key validator / stateとsummaryStatusを別に検証]
+  Projection[execution currentWork] --> Validate[共通6key + 任意reason validator / stateとsummaryStatusを別に検証]
   Validate --> Lists[既Bot/Room一覧とSSE再取得]
 ```
 
 設定HTTP/厳密4key/Owner認可/sidecar保存はusage正本に従う。親effectsは同harnessの{id,efforts}配列だけを返し、保存済みrecordのconfigure実completionをawaitする。実worker未供給時はBACKGROUND_AGENT_UNAVAILABLEを返し、usageが保存済みAPPLY_FAILEDへ投影する。成功no-opを作らず、finallyで既settings/featureId backgroundAgent通知を出す。初期read/破損recordは背景機能の不足であり、主業務の起動失敗へ変換しない。
 
 currentWorkは既6keyを維持。source背景自動生成background_agentの時だけworking/idle/unknown×current/missing/staleの9組を許可する。旧self_reportedはworking current/staleだけを維持し、新状態へ昇格しない。currentは一行1文字以上（長さの上限なし。2026-11-09 Owner裁定: 長さで捨てない）と更新時刻、staleは本文null/元更新時刻/source、missingは本文/更新時刻/source全null。observedAtはunknownだけdate又はnull、working/idleはdate。native非対応や15秒失効のunknownからworkingを補わず、親入力有効性の失効と区別する。未認識sourceや不正DTOは既unknown投影へ閉じる。GET/描画からAIは起動しない。
+
+Optional 7th key `reason` (a41, 2026-11-13, contract with Kiro): why a working Bot counts as working. `reason: null | {kind: 'turn'|'schedule'|'background'|'subagent', detail: string|null, since: ISO|null}`. Absent or null = unknown reason (older engine or nothing to say); allowed only when `state:'working'`, otherwise absent or null. `detail` follows the summary line rule (non-empty, trimmed, one line, no length bound) and is a masked descriptor (`"<exe> <args>"` from Aiterm's own_work, or the same masking for a schedule command), never a raw command line. A malformed reason closes the whole DTO to unknown, like any other invalid key. The body schema and the Web reader accept the key before execution emits it (the body `readCurrentWork` turns any rejected DTO into unknown); Apple (`Decodable`) and Windows (System.Text.Json) ignore unknown keys and need no change to tolerate it. Showing the reason is each screen owner's later change.
 
 共通schemaはsrc/current-work-contract.mjs、settingsの業務公開契約は[usage正本](../usage/background-agent-settings.md)、worker/私有入力と実終端はexecution正本を使う。親は同graph一実体と同世代read/configure/shutdownを接続し、設定画面・models読取の成功を実要約生成へ補完しない。
 
