@@ -2,12 +2,12 @@ import SwiftUI
 
 /// One settings category: its own page, reached from the category list (iPhone) or the sidebar (iPad/Mac).
 enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
-    case profile, ai, summary, terminals, onepassword, notifications, rules, features, connection, display, billing, update, about, stop
+    case profile, ai, summary, terminals, onepassword, notifications, rules, features, exclusions, connection, display, billing, update, about, stop
 
     var id: String { rawValue }
 
     /// Category groups in list order; 全体停止 stays alone at the bottom.
-    static let groups: [[SettingsPage]] = [[.ai, .summary, .terminals, .onepassword, .notifications, .features], [.rules],
+    static let groups: [[SettingsPage]] = [[.ai, .summary, .terminals, .onepassword, .notifications, .features, .exclusions], [.rules],
                                            [.connection, .display], [.billing, .update, .about], [.stop]]
 
     var title: String {
@@ -20,6 +20,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         case .notifications: "通知"
         case .rules: "チームの決まり"
         case .features: "追加機能"
+        case .exclusions: "稼働中に数えない処理"
         case .connection: "接続"
         case .display: "表示"
         case .billing: "利用と課金"
@@ -40,6 +41,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         case .notifications: "メンバーからの連絡をこの端末に届ける"
         case .rules: "チームが守るあなたの決まり"
         case .features: "通知の送信などを使うための設定"
+        case .exclusions: "作業中に数えないメンバーの処理"
         case .connection: "つないでいるサーバーとログイン方法"
         case .display: "会話を開く時の動き"
         case .billing: "アプリでAIを使うための月額購読"
@@ -59,6 +61,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         case .notifications: "bell.badge.fill"
         case .rules: "list.bullet.rectangle.fill"
         case .features: "puzzlepiece.extension.fill"
+        case .exclusions: "moon.zzz.fill"
         case .connection: "network"
         case .display: "rectangle.stack.fill"
         case .billing: "creditcard.fill"
@@ -78,6 +81,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         case .notifications: .red
         case .rules: .brown
         case .features: .orange
+        case .exclusions: .mint
         case .connection: .blue
         case .display: .indigo
         case .billing: .green
@@ -446,6 +450,7 @@ struct SettingsPageView: View {
             case .notifications: NotificationSettingsPage()
             case .rules: UserRulesPage()
             case .features: SettingsCardPage(page: page) { FeatureSettingsList() }
+            case .exclusions: RunningExclusionsPage()
             case .connection: ConnectionSettingsPage()
             case .display: DisplaySettingsPage()
             case .billing: SettingsCardPage(page: page) { SubscriptionCard() }

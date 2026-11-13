@@ -247,6 +247,18 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [ProfileEditor.load](../../../../ios/BellBot/BellBot/Views/SettingsView.swift#L259) | Owner複製と規範GET |
 | [ProfileEditor.save](../../../../ios/BellBot/BellBot/Views/SettingsView.swift#L277) | Owner PATCH → 規範PUT → 一覧refresh |
 
+## 稼働中に数えない処理（a64）
+
+ファイル：[RunningExclusions.swift](../../../../ios/BellBot/BellBot/Core/RunningExclusions.swift)、[RunningExclusionsPage.swift](../../../../ios/BellBot/BellBot/Views/RunningExclusionsPage.swift)。[設定の導線 4.8b](settings-user-flow.md)。
+
+| 型・関数 | 機能 |
+| --- | --- |
+| `RunningExclusions` / `RunningExclusionEntry` / `RunningExclusionPending` | `GET /api/running-exclusions`の応答。項目が欠けた応答は読めない扱い。`words`・`scopeWords`はWebと同じ語 |
+| `RunningExclusionsRead` | 読めた／旧本体（404・405）／読めない。`removalFailure`は外す失敗の一文 |
+| `SettingsSummary.runningExclusions` | ホームの一行（N件・なし・答え待ちN件）。読めない時だけ橙の札で要対応 |
+| `SettingsHomeState.loadExclusions` | 一覧の読取（設定を開いた時・前面・ページ・外した後） |
+| `RunningExclusionsPage` | 承認済み・答え待ちのカード、「一覧から外す」→確認→`DELETE`→読み直し |
+
 ## Views/FeatureSettingsView.swift
 
 ファイル：[FeatureSettingsView.swift](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift)。[追加機能図](settings-and-profile.md#追加機能のdraft秘密値保存)。
