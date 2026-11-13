@@ -96,6 +96,16 @@ Common root of all five: delivery had ONE recovery for every seat that is not ru
 
 Known limit: a Bot whose model or effort was changed while its seat was hibernated gets `AGENT_RESUME_CONFLICT` and a fresh conversation on the new settings. Proof of "same conversation" is the vendor transcript (same session file grows), never the answer text.
 
+2026-11-13 23:0x JST (a67, Rapi's Mac seat, failure of the same operation after a49). The resume refusal also comes back on a wake that never observed the record as hibernated: the body's Aiterm had lost the terminal binding of the hibernated remote seat (Aiterm a66), so the observation read `exists=false`, delivery and `restart_session` went straight to `agent_launch`, and Aiterm on the terminal refused the resume (`AGENT_RESUME_CONFLICT`, a symlinked project folder compared unresolved, Aiterm a66). No path closed the record, so every delivery and restart failed. The rule therefore lives in `wakeNow`, the one launch every wake goes through (delivery, wake-first, restart, configuration):
+
+| `agent_launch` result in `wakeNow` (non-execution) | Then |
+|---|---|
+| Aiterm ANSWERED a resume refusal (`AGENT_RESUME_CONFLICT`, `AGENT_RESUME_UNCONFIRMED`) | Lease, stop version and admission checked; one stderr line `hibernated seat not resumed, starting fresh`; `pty_close` of that session name; a remote seat gets a new seat credential (`remoteSeats.prepare`; the close revoked the old one); checks again; ONE more `agent_launch`. Its failure is the launch failure (typed) |
+| Refusal without an answer (outcome unknown), or a stop / admission change / closed lease before the close | Nothing closed (the conversation is kept); the launch failure is returned |
+| Any other launch error | Unchanged (R13 key reload, leftover close) |
+
+The dispatch path's hibernated resume (above) passes its admission check into the wake, so a stop during that resume still keeps the record. Known limit: the close reaches the terminal only while the body's Aiterm keeps the seat's terminal binding (a66); without it the close is local, the second launch meets the same refusal and the typed launch failure stays.
+
 Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 
 `agent_launch`の`startup=ready`と`pty_send`の入力受付確認は、Aitermの中で別々の30秒予算である（どちらも入力欄が500ms間隔で11回続けて入力待ちと読めた時に通る。`pty_send`に公開のready_timeoutは無い）。起こした直後の席は入力欄を描いた後も起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷（2026-11-07 20:18–20:20、9席同時、load≈18）では二つ目の予算が尽きて`AGENT_INPUT_NOT_READY`（本文未送信、「少し後で再度pty_send」の案内付き）で断られる。元から生きていた席への送信は同時刻に全部通った。`dispatch`は、このdispatchで起こした席への最初の送信がその型付き未入力拒否（`BOT_INPUT_NOT_READY`、`agentResumeResult`なし）で断られた時だけ、同じ文を上限3回まで送り直す。各回の待ちはAitermの受付確認が持つので配送側は眠らない。起こしていない席の断りは上の段落の経路（閉じて起こす）へ行き、受付後の不明は送り直さない。上限まで断られた時はその失敗を返し、再起動を繰り返さない。
