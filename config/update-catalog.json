@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T02:38:06Z",
-  "expiresAt": "2026-11-20T02:38:06Z",
+  "publishedAt": "2026-11-13T03:17:45Z",
+  "expiresAt": "2026-11-20T03:17:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "512acffc8f440822406e3a3249190b0826d2f299",
-      "versionId": "322c54ed5eefb3b0b3d0e0252a303ae1446ab055e3c67b4cb1bd7fbd67861f44",
+      "sourceCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b",
+      "versionId": "c1f560033cc902457f91e982e003c41ff19c3bc519fb202b789b4cb1312cbd4e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-amd64.tar.gz",
-          "bytes": 3962675,
-          "sha256": "322c54ed5eefb3b0b3d0e0252a303ae1446ab055e3c67b4cb1bd7fbd67861f44"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-amd64.tar.gz",
+          "bytes": 3969027,
+          "sha256": "c1f560033cc902457f91e982e003c41ff19c3bc519fb202b789b4cb1312cbd4e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "f8450a0090232e3880d18d344e2fd6cd4f77f0b8f977de3a8e2f56c61abef820"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "7596a5a67a7c8122f1faee0edbdbd5fb8b939714ceda2f1caa14ab9b51e6dbd2"
         },
-        "signerCommit": "512acffc8f440822406e3a3249190b0826d2f299"
+        "signerCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席（Windows や Mac の席）が動いているかを正しく答えます。これまでは、端末の席は作業中でも「オフライン」と出ていました。"
+        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。",
+        "Bot の仕事の情報が、自分の作業を正しく読むようになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "512acffc8f440822406e3a3249190b0826d2f299",
-      "versionId": "5c0e81a172285eb17f14076a8b8b458f78ef985a0d6689692a5a4cef23a7942f",
+      "sourceCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b",
+      "versionId": "3f734afdb14bdefc6f8ed8d056e2f33b36838081162efd3be44222657b019ec0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +536,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-arm64.tar.gz",
-          "bytes": 3962676,
-          "sha256": "5c0e81a172285eb17f14076a8b8b458f78ef985a0d6689692a5a4cef23a7942f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-arm64.tar.gz",
+          "bytes": 3969027,
+          "sha256": "3f734afdb14bdefc6f8ed8d056e2f33b36838081162efd3be44222657b019ec0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "bbe7c15dc22c41d46865a4d9d161df351038071e580a4a6e3ec4a5d14f6d9204"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11067,
+          "sha256": "108144553a7826bb3b5bc339bc2fd724b1ddc1c1e9238fc5e426bfdf877fb567"
         },
-        "signerCommit": "512acffc8f440822406e3a3249190b0826d2f299"
+        "signerCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +555,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席（Windows や Mac の席）が動いているかを正しく答えます。これまでは、端末の席は作業中でも「オフライン」と出ていました。"
+        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。",
+        "Bot の仕事の情報が、自分の作業を正しく読むようになります。"
       ]
     },
     {
@@ -709,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "2d4008e9c43d4d00f19f989c2eb651fba4206f8b",
-      "versionId": "sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c",
+      "sourceCommit": "1aa39224785349a5a83bab4aacec570c3989cf46",
+      "versionId": "sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,21 +728,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravity で動く Bot が、また起動できるようになります。",
-        "端末で動く Bot への問い合わせが、接続をつないだままにして速くなります。"
+        "端末で動く Bot の会話が止まったまま残りにくくなります。",
+        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "2d4008e9c43d4d00f19f989c2eb651fba4206f8b",
-      "versionId": "sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c",
+      "sourceCommit": "1aa39224785349a5a83bab4aacec570c3989cf46",
+      "versionId": "sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,8 +751,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravity で動く Bot が、また起動できるようになります。",
-        "端末で動く Bot への問い合わせが、接続をつないだままにして速くなります。"
+        "端末で動く Bot の会話が止まったまま残りにくくなります。",
+        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。"
       ]
     },
     {
