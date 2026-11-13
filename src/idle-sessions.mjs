@@ -50,6 +50,13 @@ export class IdleSessions {
         this.report(`BellTeam idle sessions: ${bot.id} を観測できませんでした（${error.message}）`)
       }
     }
+    // harness-accounts.md "Old seat exit" (a48): seats an account move left, only where no Approval Box answer can be waiting unseen.
+    if (!this.allowClose() || !this.transport.closeOldSeats) return
+    const bots = []
+    for (const bot of this.bots.values()) if (await this.pendingDecisions(bot) === 0) bots.push(bot)
+    try {
+      for (const session of await this.transport.closeOldSeats(bots)) this.report(`BellTeam idle sessions: 古い席 ${session} を閉じました`)
+    } catch (error) { this.report(`BellTeam idle sessions: 古い席を調べられませんでした（${error.message}）`) }
   }
 
   async checkBot(bot) {
