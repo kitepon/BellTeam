@@ -218,6 +218,71 @@ test('core mounts registry put/enroll, watch and target-mismatch reporting', asy
   assert.equal((await noCredentials.registry.get('owner-macbook')).lastCheck.reachable, false, 'a started server checks each registered terminal once')
 })
 
+test('a failed lastCheck never stays shown: opens record it and the observer re-checks (Trony 11/13)', async t => {
+  // Production 2026-11-13: the start-up self-check failed (credential not ready); the terminal was used after, the list kept the failure.
+  const secrets = fakeSecrets({ unavailable: true })
+  const native = fakeNative()
+  let tick = Date.parse('2026-11-13T14:03:23Z')
+  const { connection } = setup(t, { native, secrets, probeDelays: { first: 60_000, max: 60_000 }, now: () => new Date(tick += 1000) })
+  assert.equal((await connection.check('owner-macbook')).reason, 'CREDENTIAL_UNAVAILABLE')
+  assert.equal(connection.lastCheck('owner-macbook').reachable, false)
+  const credentialReady = fakeSecrets()
+  secrets.withResolved = credentialReady.withResolved
+  await connection.target(request)
+  assert.equal(connection.lastCheck('owner-macbook').reachable, true, 'a launch upkeep open replaces the start-up failure')
+  assert.equal((await connection.folders({ terminalId: 'owner-macbook' })).reason, null)
+  assert.equal(connection.lastCheck('owner-macbook').reachable, true)
+
+  // A slow check that started before a successful open does not hide it.
+  const gate = deferred()
+  native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
+  const connect = native.connect
+  native.connect = async request => { await gate.promise; return connect(request) }
+  const slow = connection.check('owner-macbook')
+  await wait(1)
+  native.connect = connect
+  native.connectError = undefined
+  await connection.folder({ terminalId: 'owner-macbook', path: '/Users/kite' })
+  native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
+  gate.resolve()
+  assert.equal((await slow).reachable, false)
+  assert.equal(connection.lastCheck('owner-macbook').reachable, true, 'newest observation wins')
+})
+
+test('the observer re-checks a failed check until it reaches the terminal; registry-fixed failures are not probed', async t => {
+  const native = fakeNative({ connectError: Object.assign(new Error('x'), { code: 'UNREACHABLE' }) })
+  const { connection } = setup(t, { native })
+  const seen = []
+  connection.onAvailable(event => seen.push(event.terminalId))
+  await connection.check('owner-macbook')
+  assert.equal(connection.lastCheck('owner-macbook').reachable, false)
+  await wait(12)
+  assert.equal(connection.lastCheck('owner-macbook').reachable, false, 'still asleep: still shown as failed')
+  native.connectError = undefined
+  await wait(30)
+  assert.equal(connection.lastCheck('owner-macbook').reachable, true, 'the observer replaced the failure on its own')
+  assert.deepEqual(seen, ['owner-macbook'], 'one available edge, then the observer ends')
+  const opens = native.calls.filter(call => call.op === 'open').length
+  await wait(30)
+  assert.equal(native.calls.filter(call => call.op === 'open').length, opens, 'no probe after reaching the terminal')
+
+  native.connectError = Object.assign(new Error('x'), { code: 'HOST_KEY_MISMATCH' })
+  assert.equal((await connection.check('owner-macbook')).reachable, false)
+  await wait(30)
+  assert.equal(native.calls.filter(call => call.op === 'open').length, opens + 1, 'a trust mismatch waits for the registry change, not a probe')
+})
+
+test('a credential event for the waiting key re-checks so the list follows the key', async t => {
+  const secrets = fakeSecrets({ unavailable: true })
+  const { connection } = setup(t, { secrets, probeDelays: { first: 60_000, max: 60_000 } })
+  await connection.check('owner-macbook')
+  assert.equal(connection.lastCheck('owner-macbook').reason, 'CREDENTIAL_UNAVAILABLE')
+  secrets.withResolved = fakeSecrets().withResolved
+  await connection.onCredentialEvent({ handle: sshKeyRef, available: true })
+  await wait(5)
+  assert.equal(connection.lastCheck('owner-macbook').reachable, true)
+})
+
 test('a target read across a registry change is never handed out; dispose awaits in-flight runs', async t => {
   const native = fakeNative()
   const targetGate = deferred()

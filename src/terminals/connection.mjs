@@ -43,6 +43,8 @@ const FOLDER_ACTIONS = {
 const APP_ATTESTS = new Set(['macos', 'windows'])
 const trustAction = (target, reason) => APP_ATTESTS.has(target.os) && reason === 'HOST_TRUST_MISSING' ? `${target.host} の${label(target.os)}を確かめてください。その${label(target.os)}でBellTeamアプリを開くと、自動で確かめます`
   : `${target.host} の${label(target.os)}を確かめてください。Webの「端末」でこの端末の指紋を確かめて「この指紋を信用する」を押すと使えます`
+// resolveBinding's own reasons: the Owner sets the key, a registry change.
+const REGISTRY_REASONS = new Set(['SSH_KEY_UNSET', 'BINDING_UNSET'])
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 
@@ -82,6 +84,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   const operations = new Set() // in-flight target/check runs, awaited by dispose
   const lastChecks = new Map() // terminalId -> last current-revision check {reachable, reason, action?, checkedAt}; in memory
   let disposed = false
+
+  // Newest observation wins: a slow check that started earlier never hides a later open (launch, folder, check).
+  function note(terminalId, entry) {
+    const last = lastChecks.get(terminalId)
+    if (!last || last.checkedAt <= entry.checkedAt) lastChecks.set(terminalId, entry)
+  }
 
   function emitAvailable(terminalId) {
     clearTimeout(wanted.get(terminalId)?.timer)
@@ -180,6 +188,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         session = await open()
       }
+      // Any open of the current record is a check: a terminal in use never shows an older failure (Trony 11/13).
+      if (current()) note(target.terminalId, { reachable: true, reason: null, checkedAt: now().toISOString() })
     } catch (error) {
       if (error?.code === 'HOST_TRUST_STALE') await rebindTrust(target, binding.ref)
       throw classify(error, target)
@@ -277,9 +287,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       result = { ...observation, reachable: true }
     } catch (error) {
       result = { ...observation, reason: error.reason ?? error.code, ...(error.action ? { action: error.action } : {}) }
+      // A failure the Owner fixes in the registry exits by that change (and its self-check); any other is re-checked by
+      // the non-AI observer until it reaches the terminal, so a start-up or sleep failure never stays shown (Trony 11/13).
+      if (current() && error.code !== 'TARGET_MISMATCH' && !REGISTRY_REASONS.has(error.reason)) want(terminalId)
     }
     // A check that crossed a registry change describes the old record; only a current one becomes lastCheck.
-    if (current()) lastChecks.set(terminalId, { reachable: result.reachable, reason: result.reason, ...(result.action ? { action: result.action } : {}), checkedAt: result.observedAt })
+    if (current()) note(terminalId, { reachable: result.reachable, reason: result.reason, ...(result.action ? { action: result.action } : {}), checkedAt: result.observedAt })
     return result
   }
 
@@ -384,7 +397,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (!available) return
     for (const terminalId of [...wanted.keys()]) {
       const record = await registry.target(terminalId).catch(() => null)
-      if (record?.sshKeyRef === handle) emitAvailable(terminalId)
+      // The probe ends with the event, so the key's arrival is checked once to replace the failure on the list.
+      if (record?.sshKeyRef === handle) { emitAvailable(terminalId); void check(terminalId) }
     }
   }
 

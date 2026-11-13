@@ -260,7 +260,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   }
 
   // Server's own check (Trony 11/11 settings redesign): once per terminal at start and after each registry change,
-  // so lastCheck shows state without a press. No timer: later changes come from checks that run anyway (press, launch observer).
+  // so lastCheck shows state without a press. A failed one hands over to connection's non-AI observer (Trony 11/13).
   const rechecks = new Map() // terminalId -> true when another change arrived while its self-check ran
   function recheck(terminalId) {
     if (closing) return
