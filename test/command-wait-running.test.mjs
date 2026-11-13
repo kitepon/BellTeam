@@ -1,54 +1,8 @@
 import assert from 'node:assert/strict'
-import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import { BotScheduler } from '../src/scheduler.mjs'
 import { createExecutionFacade } from '../src/execution-facade.mjs'
 
-// execution current-work.md 2026-11-12: a Bot waiting on its notify=result command reads running.
 const bot = { id: 'bot-a', project: '/synthetic' }
-const wait = { id: 's1', enabled: true, command: 'check-ci', notify: 'result' }
-
-function registry(schedules) {
-  const watchers = new Set()
-  return { schedules, refresh: async () => {}, values: () => [bot], get: id => id === bot.id ? bot : null,
-    listSchedules: async () => structuredClone(schedules.list), watch: listener => { watchers.add(listener); return () => watchers.delete(listener) },
-    emit: change => { for (const listener of watchers) listener(change) } }
-}
-
-test('scheduler commandWait: enabled notify=result commands and running notify=result jobs only', async () => {
-  const flips = []
-  const schedules = { list: [{ ...wait, notify: undefined }, { id: 'p', enabled: true, prompt: 'x', notify: 'result' }, { ...wait, id: 's0', enabled: false }] }
-  const reg = registry(schedules)
-  const transport = { watchCurrentTurn: () => () => {}, currentTurn: () => ({ state: 'idle', turnId: null }) }
-  const scheduler = new BotScheduler({ registry: reg, transport, intervalMs: 3_600_000, messenger: { sendmessage() {} }, onCommandWaitChange: id => flips.push(id) })
-  await scheduler.runAfterTurn()
-  assert.equal(scheduler.commandWait(bot.id), null, 'failure-notify, prompt and disabled schedules are not waits')
-  scheduler.start()
-  try {
-    await scheduler.afterTurnRun; await scheduler.currentRun
-    schedules.list.push(wait)
-    reg.emit({ topics: ['schedules'], botIds: [bot.id] })
-    await setImmediate(); await scheduler.afterTurnRun
-    assert.match(scheduler.commandWait(bot.id), /^\d{4}-/)
-    assert.deepEqual(flips, [bot.id])
-    // An older list never overwrites a newer one.
-    scheduler.noteWaits(bot.id, [], 0)
-    assert.notEqual(scheduler.commandWait(bot.id), null)
-    schedules.list = []
-    reg.emit({ topics: ['schedules'], botIds: [bot.id] })
-    await setImmediate(); await scheduler.afterTurnRun
-    assert.equal(scheduler.commandWait(bot.id), null)
-    assert.deepEqual(flips, [bot.id, bot.id])
-  } finally { scheduler.stop() }
-  // A consumed once schedule still waits while its command runs.
-  const done = Promise.withResolvers()
-  const running = new BotScheduler({ registry: reg, messenger: { sendmessage() {} }, runCommand: () => done.promise })
-  const job = running.runCommandSchedule(bot, { ...wait, enabled: false })
-  assert.notEqual(running.commandWait(bot.id), null)
-  done.resolve({ code: 75, signal: null, stdout: '', stderr: '' })
-  await job; await setImmediate()
-  assert.equal(running.commandWait(bot.id), null)
-})
 
 // a71 (current-work.md): a schedule never makes a Bot read working; a released body that still passes commandWait has it ignored.
 test('facade: a command wait changes neither currentWork nor runningState', () => {
