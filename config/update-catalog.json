@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T08:21:45Z",
-  "expiresAt": "2026-11-20T08:21:45Z",
+  "publishedAt": "2026-11-13T10:05:11Z",
+  "expiresAt": "2026-11-20T10:05:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "445b607c71dd39ec9d6d56dc020e15f4bb0da329",
-      "versionId": "sha256:6c35be1f5d42c248377018d56ced0c0034bcb63ae81a4130be8fe95fb25ca922",
+      "sourceCommit": "b69f0284cd5849cdd2f19f74a6c6b0bc3b290b4c",
+      "versionId": "sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6c35be1f5d42c248377018d56ced0c0034bcb63ae81a4130be8fe95fb25ca922"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,21 +732,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メンバーの「仕事中」に、何をしていて仕事中なのか（ターン中、コマンドの結果待ちなど）の理由が付くようになります。",
-        "モデルや考える深さを変えた後も、ターンの終わりが正しく分かり、ターン後の予定が動くようになります。"
+        "Codex のメンバーがターンの終わりにバックグラウンドのコマンドを残したとき、そのコマンドが終わるまで「仕事中」のままになります。",
+        "予定で動いているメンバーの「仕事中」の理由に、動き続ける時刻が付かなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "445b607c71dd39ec9d6d56dc020e15f4bb0da329",
-      "versionId": "sha256:6c35be1f5d42c248377018d56ced0c0034bcb63ae81a4130be8fe95fb25ca922",
+      "sourceCommit": "b69f0284cd5849cdd2f19f74a6c6b0bc3b290b4c",
+      "versionId": "sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6c35be1f5d42c248377018d56ced0c0034bcb63ae81a4130be8fe95fb25ca922"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a4b2befd7891f9c30de261329683fe3476ceb8cb214a51894efc9cc880ef2be8"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -755,8 +755,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メンバーの「仕事中」に、何をしていて仕事中なのか（ターン中、コマンドの結果待ちなど）の理由が付くようになります。",
-        "モデルや考える深さを変えた後も、ターンの終わりが正しく分かり、ターン後の予定が動くようになります。"
+        "Codex のメンバーがターンの終わりにバックグラウンドのコマンドを残したとき、そのコマンドが終わるまで「仕事中」のままになります。",
+        "予定で動いているメンバーの「仕事中」の理由に、動き続ける時刻が付かなくなります。"
       ]
     },
     {
