@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T05:31:54Z",
-  "expiresAt": "2026-11-20T05:31:54Z",
+  "publishedAt": "2026-11-13T05:40:19Z",
+  "expiresAt": "2026-11-20T05:40:19Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "8fc51e9f5a3963767d492e354c57d6b720b06482",
-      "versionId": "a1904bbad782e867daeded5c525055bc2b884a305b501553249197420f8305ae",
+      "sourceCommit": "1a042ab0f83838594c128e02782d683a097a7a52",
+      "versionId": "e436e8c4a4209f788e9e942cf248b28457f36f370b12089d11654623824de0bd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T044711Z/execution-8fc51e9f5a3963767d492e354c57d6b720b06482-linux-amd64.tar.gz",
-          "bytes": 3969445,
-          "sha256": "a1904bbad782e867daeded5c525055bc2b884a305b501553249197420f8305ae"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T053758Z/execution-1a042ab0f83838594c128e02782d683a097a7a52-linux-amd64.tar.gz",
+          "bytes": 3969640,
+          "sha256": "e436e8c4a4209f788e9e942cf248b28457f36f370b12089d11654623824de0bd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T044711Z/execution-8fc51e9f5a3963767d492e354c57d6b720b06482-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11318,
-          "sha256": "beafa27eff05be5f6071de21f364f850893d73c0ac42ad40090251f69d15de40"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T053758Z/execution-1a042ab0f83838594c128e02782d683a097a7a52-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10973,
+          "sha256": "a6f170bcf1f43794064bf6f518aec6fa688830adc092bed293a8226785cb190f"
         },
-        "signerCommit": "8fc51e9f5a3963767d492e354c57d6b720b06482"
+        "signerCommit": "1a042ab0f83838594c128e02782d683a097a7a52"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,14 +521,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末で動く Bot がつなぎ直しを断られた時、その理由が診断に残るようになります。",
+        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。",
         "本体の入れ替えで端末が止まった Bot も、知らせが届くと起き直して答えるようになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "8fc51e9f5a3963767d492e354c57d6b720b06482",
-      "versionId": "6103f018746200690d549c333a9a02bf40f9cb664157a66f7ab7438b7a3f8554",
+      "sourceCommit": "1a042ab0f83838594c128e02782d683a097a7a52",
+      "versionId": "d5bc82aa6198713a755e896b87bfedcb623c4e07a137549568a82e406ee8b551",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -536,16 +536,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T044711Z/execution-8fc51e9f5a3963767d492e354c57d6b720b06482-linux-arm64.tar.gz",
-          "bytes": 3969444,
-          "sha256": "6103f018746200690d549c333a9a02bf40f9cb664157a66f7ab7438b7a3f8554"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T053758Z/execution-1a042ab0f83838594c128e02782d683a097a7a52-linux-arm64.tar.gz",
+          "bytes": 3969639,
+          "sha256": "d5bc82aa6198713a755e896b87bfedcb623c4e07a137549568a82e406ee8b551"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T044711Z/execution-8fc51e9f5a3963767d492e354c57d6b720b06482-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11369,
-          "sha256": "29398f12c58db6c96e88813b9b7f8834b46d981a259399794a3588b028e920e3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T053758Z/execution-1a042ab0f83838594c128e02782d683a097a7a52-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10993,
+          "sha256": "10a2d4d1f41cb1c38aa8a0f0561d14c66f95936d0ced9e66bda5d8e61fdf2ad5"
         },
-        "signerCommit": "8fc51e9f5a3963767d492e354c57d6b720b06482"
+        "signerCommit": "1a042ab0f83838594c128e02782d683a097a7a52"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -555,7 +555,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末で動く Bot がつなぎ直しを断られた時、その理由が診断に残るようになります。",
+        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。",
         "本体の入れ替えで端末が止まった Bot も、知らせが届くと起き直して答えるようになります。"
       ]
     },
