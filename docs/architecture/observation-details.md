@@ -24,8 +24,11 @@ flowchart TD
   Approval -->|"不明 / 1件以上"| Keep
   Approval -->|"0件と確認"| Close["closeIdleで処理と設定待ちを再確認"]
   Close --> End["pty_close・保持画像削除<br/>計測を除く"]
+  Poll --> Old["承認待ち0と分かるBot（Claude）の古い席<br/>transport.closeOldSeats（a48）"]
+  Old -->|"quietSessionを満たす"| OldClose["pty_close（Botの席ではないので配送・停止世代は触らない）"]
+  Old -->|"作業中・裏の作業・不明"| Keep
 ```
 
-`IdleSessions.checkBot/quietSession`が観測のcursorとsinceを所有する。count未提供や未知を0にしない。既定の`pendingDecisionsByHarness`はClaudeだけ0、他はnullなので閉じない。`transport.closeIdle`はcloseのPromiseをconfigurationChangesへ登録し、その間の新送信を待たせる。これは本体側の既存idle整理であり、Aiterm自身のidle clockへ新しい設定を渡す機能ではない。
+`IdleSessions.checkBot/quietSession`が観測のcursorとsinceを所有する。count未提供や未知を0にしない。既定の`pendingDecisionsByHarness`はClaudeだけ0、他はnullなので閉じない。`transport.closeIdle`はcloseのPromiseをconfigurationChangesへ登録し、その間の新送信を待たせる。これは本体側の既存idle整理であり、Aiterm自身のidle clockへ新しい設定を渡す機能ではない。同じtickで、アカウント移動が残した古い席を`closeOldSeats`が同じ`quietSession`で閉じる（30分の計測なし。契約はexecution harness-accounts.md「Old seat exit」）。
 
 実装：[self-turns.mjs](../../src/self-turns.mjs)、[seat-turns.mjs](../../src/seat-turns.mjs)、[seat-activity.mjs](../../src/seat-activity.mjs)、[turn-reports.mjs](../../src/turn-reports.mjs)、[idle-sessions.mjs](../../src/idle-sessions.mjs)。確認先はself-turns、seat-turns、turn-reports、idle-sessions。自然30分の実席観測や旧ターンの再送は行っていない。

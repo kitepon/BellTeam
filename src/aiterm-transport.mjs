@@ -20,6 +20,7 @@ import { executionFailureReport, reportExecutionFailure } from './execution-fail
 import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuation.mjs'
 import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
+import { quietSession } from './idle-sessions.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
@@ -648,6 +649,29 @@ export class AitermTransport {
       if (allSessions) await this.closeMemberSessions(bot, current)
       return result
     }, { membersLease, expected })
+  }
+
+  // harness-accounts.md "Old seat exit" (a48): a seat an account move left closes once Aiterm sees it quiet (the closeIdle rule);
+  // its turn, background work or a waited child keeps it until a later tick. Not the Bot's seat, so no changeSession.
+  async closeOldSeats(bots) {
+    const launches = await this.readRuntimeLaunches(), rows = (await this.client.call('pty_list')).structuredContent?.sessions ?? []
+    const dormant = new Set(rows.filter(row => dormantSeats.has(row?.current_command)).map(row => row.session_id)), closed = []
+    for (const bot of bots) {
+      const current = this.session(bot)
+      const old = id => typeof id === 'string' && id !== current && !dormant.has(id) && !/-fork-[0-9a-f]{12}$/u.test(id)
+        && (id === bot.id || id.startsWith(`${bot.id}-`))
+      const sessions = new Set([...Object.entries(launches).filter(([, seat]) => seat?.botId === bot.id).map(([id]) => id),
+        ...rows.map(row => row?.session_id)].filter(old))
+      for (const session_id of sessions) {
+        try {
+          const observation = (await this.client.call('pty_observe', { session_id })).structuredContent
+          if (observation?.exists !== true || !quietSession(observation)) continue
+          await this.client.call('pty_close', { session_id })
+          closed.push(session_id)
+        } catch (error) { process.stderr.write(`BellTeam old seat: ${bot.id} ${session_id}: ${error?.code ?? error?.message}\n`) }
+      }
+    }
+    return closed
   }
 
   // harness-accounts.md "Member DELETE": a deleted member leaves no seat on any terminal, also the one an account move left.
@@ -1913,7 +1937,7 @@ export class AitermTransport {
   }
 
   // harness-accounts.md: a new seat on the selected slot; the old seat is left as it is (Owner 2026-11-09, "1stは放置").
-  // It cannot use its limited slot anyway, and its background processes keep running until Aiterm's idle clock ends it.
+  // It cannot use its limited slot anyway; its background processes keep running until closeOldSeats sees it quiet (a48).
   switchAccount(bot, { admissionCheck } = {}) {
     const run = () => this.memberOperation(bot, async membersLease => {
       admissionCheck?.()
