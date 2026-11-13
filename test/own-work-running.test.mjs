@@ -73,7 +73,7 @@ test('facade: own work reads working in currentWork and runningState; an older e
   assert.deepEqual(transport.currentWork(bot), idle)
   assert.equal(transport.runningState('b1'), 'idle')
   own = { kind: 'background', detail: 'sleep 180', since: null }
-  assert.deepEqual(transport.currentWork(bot), { ...idle, state: 'working' })
+  assert.deepEqual(transport.currentWork(bot), { ...idle, state: 'working', reason: own })
   assert.equal(transport.runningState('b1'), 'working')
   assert.deepEqual(transport.currentTurn('b1'), { state: 'idle', turnId: null })
   older = true
@@ -97,4 +97,29 @@ test('own work keeps its own read clock: a turn completion does not extend an ol
   assert.equal(work.own('b1'), null, 'the completion refreshed the turn, not the 16 s old own observation')
   read(work, { processes: 2, exclusions_digest: 'd1' })
   assert.notEqual(work.own('b1'), null, 'a fresh read keeps background work that outlives the turn')
+})
+
+// a41 PR 3: the card says why a Bot is working; every composed DTO passes the shared schema (integration #1274).
+test('facade: reason by the fixed order turn, schedule, own work, and the DTO validates', async () => {
+  const { readCurrentWork } = await import('../src/current-work-contract.mjs')
+  const base = { summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: '2026-11-13T01:00:00.000Z', source: null }
+  let state = 'working', waited = null, own = null
+  const controller = { dispatch() {}, close() {}, project: ({ method }) => {
+    if (method === 'transport.currentTurn') return { state: state === 'working' ? 'working' : 'idle', turnId: 't', startedAt: '2026-11-13T00:59:00Z' }
+    if (method === 'transport.ownWork') return own
+    return { ...base, state }
+  } }
+  const { transport } = createExecutionFacade({ getController: () => controller, client: {}, membersAdmission: {}, requestStop() {}, watchQueue: () => () => {}, commandWait: () => waited })
+  const bot = { id: 'b1' }
+  // The body reader turns any DTO its schema refuses into unknown; equal means accepted as is.
+  const check = expected => { const value = transport.currentWork(bot); assert.deepEqual(value.reason, expected); assert.deepEqual(readCurrentWork(transport, bot), value); return value }
+  check({ kind: 'turn', detail: null, since: '2026-11-13T00:59:00.000Z' })
+  state = 'idle'; waited = '2026-11-13T00:58:00.000Z'; own = { kind: 'background', detail: 'node vite.js', since: null }
+  check({ kind: 'schedule', detail: null, since: waited })
+  waited = null
+  check({ kind: 'background', detail: 'node vite.js', since: null })
+  own = null
+  const idle = transport.currentWork(bot)
+  assert.equal(Object.hasOwn(idle, 'reason'), false, 'an idle Bot carries no reason key')
+  assert.deepEqual(readCurrentWork(transport, bot), idle)
 })

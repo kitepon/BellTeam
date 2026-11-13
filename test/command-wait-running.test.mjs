@@ -59,7 +59,7 @@ test('facade: currentWork and runningState read working while waiting; currentTu
   assert.deepEqual(transport.currentWork(bot), idle)
   assert.equal(transport.runningState(bot.id), 'idle')
   waiting = '2026-11-12T05:00:00.000Z'
-  assert.deepEqual(transport.currentWork(bot), { ...idle, state: 'working', observedAt: waiting })
+  assert.deepEqual(transport.currentWork(bot), { ...idle, state: 'working', observedAt: waiting, reason: { kind: 'schedule', detail: null, since: waiting } })
   assert.equal(transport.runningState(bot.id), 'working')
   assert.deepEqual(transport.currentTurn(bot.id), { state: 'idle', turnId: null })
 })
