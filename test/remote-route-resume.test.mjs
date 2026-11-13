@@ -55,7 +55,7 @@ test('a working seat waits for its turn end; AGENT_BUSY retries at the next poll
   refused.routeResumes.set(key, Date.now() - 1); fail = false
   run(refused, { route_since: later }); await setImmediate(); await setImmediate()
   assert.equal(refused.calls.length, 3); assert.equal(refused.routeResumes.has(key), false, 'recovered')
-  assert.deepEqual(refused.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: 'b1', reason: 'AGENT_HIBERNATE_UNAVAILABLE' }])
+  assert.deepEqual(refused.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', diagnostic_log: 'bot=b1 stage=close reason=AGENT_HIBERNATE_UNAVAILABLE message=x' }])
 })
 
 test('close succeeded, wake failed: the wake alone is retried without the row; a later launch from elsewhere ends it', async () => {
@@ -71,7 +71,7 @@ test('close succeeded, wake failed: the wake alone is retried without the row; a
   self.routeWakes.get('s1').retryAt = Date.now() - 1; fail = false
   AitermTransport.prototype.resumeLostRoutes.call(self, [bot], []); await setImmediate(); await setImmediate()
   assert.deepEqual(self.calls, ['b1', 'b1:wake', 'b1:wake']); assert.equal(self.routeWakes.has('s1'), false, 'recovered')
-  assert.deepEqual(self.errors.map(error => error.reason), ['UNREACHABLE'], 'one diagnostic per stage')
+  assert.deepEqual(self.errors.map(error => error.diagnostic_log), ['bot=b1 stage=wake reason=UNREACHABLE message=w'], 'one diagnostic per stage')
   // An ordinary wake or restart that launched after the close ends the record without our call.
   self.routeWakes.set('s1', { closedAt: Date.parse('2026-11-13T02:10:00.000Z'), running: false, retryAt: 0 })
   self.runtimeLaunches.s1.capturedAt = '2026-11-13T02:11:00.000Z'

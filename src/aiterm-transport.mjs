@@ -1350,7 +1350,10 @@ export class AitermTransport {
     if (code === 'AGENT_BUSY') return 0
     if (!this.routeReported.has(key)) {
       this.routeReported.add(key)
-      this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: bot.id, reason: code })
+      // diagnostics accepts the detail only as diagnostic_log text (src/diagnostics.mjs).
+      const message = String(error?.message ?? '').replace(/\s+/gu, ' ').slice(0, 300)
+      this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution',
+        diagnostic_log: `bot=${bot.id} stage=${key.endsWith('@wake') ? 'wake' : 'close'} reason=${code ?? 'none'} message=${message || 'none'}` })
     }
     return Date.now() + RESUME_RETRY_MS
   }
