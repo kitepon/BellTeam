@@ -231,7 +231,10 @@ SECTION completion
     DO: set the continuation with set_schedule kind=after_turn.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
-    DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
+    WHEN: waiting for the result of your own script, build, test or CI
+    DO: wait inside your CLI; never on a schedule.
+    WHEN: you watch for a condition yourself and must act when it holds
+    DO: a repeating command schedule with notify=result whose script checks once.
   RULE completion.fail-fast
     WHEN: a test, build, release or helper runs without you (background, CI, schedule) and you wait for its result
     DO: make it end and wake you at the first failure of any step it waits on, not only on success or a timeout.
