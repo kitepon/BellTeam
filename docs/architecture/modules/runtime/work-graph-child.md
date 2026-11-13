@@ -9,7 +9,7 @@ flowchart LR
   subgraph Parent["Body parent"]
     Route["src/work-graph/http-api.mjs (Black, body-resident thin handler)<br/>auth / internal 403 / 405 / SSE framing + heartbeat"]
     Facade["src/work-graph-facade.mjs (Molly)<br/>snapshot() / subscribe(send); one serialized call chain"]
-    Signals["invalidation fan-in (Molly)<br/>watchCurrentTurn / watchQueue / bots.watch / rooms.watch<br/>only while >=1 subscriber, coalesced 100 ms"]
+    Signals["invalidation fan-in (Molly)<br/>watchCurrentTurn / watchQueue / bots.watch / rooms.watch /<br/>commandWaits.watch (a54)<br/>only while >=1 subscriber, coalesced 100 ms"]
     Proc["src/work-graph-process.mjs (Molly)<br/>common createModuleProcess"]
     Ports["onEffect handlers (Molly)<br/>closed effect set over public ports"]
     Update["catalog / installer / updater / adapters (Molly)<br/>componentId work-graph"]

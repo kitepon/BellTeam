@@ -3,7 +3,7 @@ import { readCurrentWork } from './current-work-contract.mjs'
 // Provider invalidations become one serialized root 'refresh'; batches go to the body's SSE subscribers.
 const unavailable = () => Object.assign(new Error('WORK_GRAPH_UNAVAILABLE'), { code: 'WORK_GRAPH_UNAVAILABLE', status: 503 })
 
-export function createWorkGraphFacade({ controller, bots, rooms, transport, coalesceMs = 100, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createWorkGraphFacade({ controller, bots, rooms, transport, commandWaits = null, coalesceMs = 100, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Set(), stops = []
   let chain = Promise.resolve(), session = 0, timer = null, nextTimer = null
 
@@ -28,7 +28,7 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, coal
 
   function start() {
     const mine = ++session
-    for (const [owner, name] of [[transport, 'watchCurrentTurn'], [transport, 'watchQueue'], [bots, 'watch'], [rooms, 'watch']]) {
+    for (const [owner, name] of [[transport, 'watchCurrentTurn'], [transport, 'watchQueue'], [bots, 'watch'], [rooms, 'watch'], [commandWaits, 'watch']]) {
       if (typeof owner?.[name] !== 'function') continue
       void Promise.resolve().then(() => owner[name](() => request())).then(stop => {
         if (typeof stop !== 'function') return

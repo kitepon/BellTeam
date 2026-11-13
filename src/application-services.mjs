@@ -159,6 +159,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   let scheduleTurns = null
   // Script waits (execution current-work.md 2026-11-12): the scheduler's read, bound once it exists.
   let commandWait = () => null
+  // a54: the graph learns of a command wait only here (noted after the turn-end refresh, or by a tick-started job).
+  const commandWaitWatchers = new Set(), commandWaits = { watch: listener => (commandWaitWatchers.add(listener), () => commandWaitWatchers.delete(listener)) }
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
   const modelHandoffGeneration = () => {
@@ -416,7 +418,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    onCommandWaitChange: () => notify?.({ type: 'bots' }),
+    onCommandWaitChange: botId => { notify?.({ type: 'bots' }); for (const listener of commandWaitWatchers) try { listener(botId) } catch {} },
   })
   commandWait = botId => scheduler.commandWait(botId)
   aiControl.watch(control => { if (!control.paused && transport.currentTurn) scheduler.requestAfterTurn() })
@@ -454,7 +456,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     const { messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
     workGraphModule = workGraphFactory({ root, exchangeMutex, prepareRelease: prepareWorkGraph, onEffect: createWorkGraphEffects({ bots, transport, messagePage }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport })
+    workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, commandWaits })
     void workGraphModule.start().catch(() => {})
   }
   if (latticeFactory) {
