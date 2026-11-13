@@ -24,6 +24,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
+import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
 import { isRemoteBot, seatTarget, KEY_RELOAD, remoteSeatNotStarted } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
@@ -99,7 +100,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -127,6 +128,7 @@ export class AitermTransport {
     this.assertInputAllowed = assertInputAllowed
     this.captureRuntime = captureRuntime
     this.runtimeLaunchesPath = runtimeLaunchesPath
+    this.runningExclusionsPath = runningExclusionsPath
     this.runtimeLaunches = null
     this.runtimeLaunchQueue = Promise.resolve()
     this.activeId = activeId
@@ -1253,6 +1255,8 @@ export class AitermTransport {
   currentWorkBinding() { return null }
 
   currentTurn(botId, options) { return this.workState.turn(botId, options) }
+  // a41: why an idle seat still works on its own ({kind, detail, since}) or null; the facade composes it into working.
+  ownWork(botId) { return this.workState.own(botId) }
 
   // The same after_turn stream for the managed (no execution factory) path; the facade wraps the engine instead.
   watchCurrentTurn(listener) { return watchCurrentTurn(listener => this.watchQueue(listener), botId => this.currentTurn(botId, { startedAt: true }), listener) }
@@ -1281,8 +1285,16 @@ export class AitermTransport {
       return { botId: bot.id, sessionId: session, harness, current: () => this.session(bot) === session
         && this.seatHarness(bot) === harness && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
     }))
+    // a41: the Owner-approved exclusion list travels with the read; own_work counts processes only when Aiterm echoes its digest.
+    const exclusions = await readRunningExclusions(this.runningExclusionsPath)
+    if ((exclusions === null) !== Boolean(this.exclusionsBroken)) {
+      this.exclusionsBroken = exclusions === null
+      if (this.exclusionsBroken) this.reportError({ code: 'RUNNING_EXCLUSIONS_UNAVAILABLE', module: 'execution' })
+    }
+    const sent = exclusions && exclusionsMeta(exclusions, read.targets)
+    read.digest = sent?.digest ?? null
     let result
-    try { result = await client.call('pty_list', {}, { meta: CALLER_META })
+    try { result = await client.call('pty_list', {}, { meta: sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : CALLER_META })
     } catch (error) { this.workState.endRead(read, null); throw error }
     const data = result?._meta?.['aiterm/seat_turns']
     this.workState.endRead(read, data)

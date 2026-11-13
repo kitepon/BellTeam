@@ -30,14 +30,23 @@ export function createExecutionFacade({ getController, client, membersAdmission,
     }
   }
   // Script waits (current-work.md 2026-11-12): a Bot waiting on its notify=result command reads working; currentTurn stays native for after_turn.
+  // a41: own work (a process its CLI started, a pending subagent result) also reads working. An older engine without
+  // transport.ownWork refuses the method: that is "not supplied", never an error for the caller.
+  const own = botId => {
+    try { const value = current().project({ method: 'transport.ownWork', args: [botId] }); return typeof value?.kind === 'string' ? value : null }
+    catch { return null }
+  }
   const work = result.transport.currentWork
   result.transport.currentWork = bot => {
-    const value = work(bot), waited = value?.state !== 'working' && bot ? commandWait(bot.id) : null
-    return waited ? { ...value, state: 'working', observedAt: value.observedAt ?? waited } : value
+    const value = work(bot)
+    if (!bot || value?.state === 'working') return value
+    const waited = commandWait(bot.id)
+    if (waited) return { ...value, state: 'working', observedAt: value.observedAt ?? waited }
+    return value?.state === 'idle' && own(bot.id) ? { ...value, state: 'working' } : value
   }
   result.transport.runningState = botId => {
     const state = current().project({ method: 'transport.currentTurn', args: [botId] })?.state
-    return state !== 'working' && commandWait(botId) ? 'working' : state
+    return state !== 'working' && (commandWait(botId) || state === 'idle' && own(botId)) ? 'working' : state
   }
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,

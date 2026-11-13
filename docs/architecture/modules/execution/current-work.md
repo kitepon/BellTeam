@@ -157,9 +157,50 @@ flowchart LR
 
 | Contact | Contract |
 | --- | --- |
-| Wait | An enabled Bot schedule with `command` and `notify:'result'`, or a still-running notify=result command job of that Bot (a once schedule is consumed while its command runs). notify=failure commands and prompt schedules never count. A recurring wait left in place after its result keeps counting; it keeps waking the Bot anyway. Waits outside BellTeam (a CLI's own background shell) are not visible and are not guessed. |
+| Wait | An enabled Bot schedule with `command` and `notify:'result'`, or a still-running notify=result command job of that Bot (a once schedule is consumed while its command runs). notify=failure commands and prompt schedules never count. A recurring wait left in place after its result keeps counting; it keeps waking the Bot anyway. Waits outside BellTeam (a CLI's own background shell) were not visible here; since a41 (section below) they count through Aiterm's `own_work`. |
 | `scheduler.commandWait(botId)` | Sync pure read: ISO time the wait was last observed, or null. Fed by the lists runDue (each tick) and runAfterTurn (the Bots a `registry.watch` event names) already read, before their filters; a per-read sequence keeps an older list from overwriting a newer one; Bots gone from the registry are dropped. Without watchCurrentTurn it updates per tick only; while AI is paused the last value is kept. Owner of the read: Belota (members schedules.md SC9). |
 | `transport.currentWork(bot)` | Native DTO; when native state is not `working` and commandWait is set, `state:'working'` and `observedAt` = native observedAt ?? the wait time. All six keys and their schema stay as they are (additive meaning only). |
 | `transport.runningState(botId)` | New facade read: `'working'|'idle'|'unknown'` = native `currentTurn(botId).state`, `'working'` while commandWait is set. Lattice turns.read uses it and falls back to currentTurn when it is missing (older body). |
 | Not changed | `currentTurn`, `watchCurrentTurn`, after_turn, the engine. The managed path without an execution factory gets no waits (not used in production). |
 | Self-exit | No guard is added. The wait ends when the schedule is removed, disabled or its once command finishes; the next list or the job end flips it and notifies. |
+
+## Own work counts as running, with an Owner-approved exclusion list (a41, 2026-11-13, Owner GO via Trony; contracts with Elegg and Flora)
+
+Owner: a Bot waiting on something it started itself is running, whatever the command and however it was started; a
+never-ending process must not keep it running: 「稼働中判定除外リストを作るべき。安易にリストに追加せず必ず俺が承認する形で。」
+A subagent started through Aiterm counts the same. Design record: Kiro docs/running-definition-design-20261113.md (sections 3, 6, 10).
+
+```mermaid
+flowchart LR
+  List["running exclusions (execution state, Kiro)<br/>entries {id, kind, exe, args, scope, decisionId, approvedAt, reason}"] --> Req
+  Req["SeatTurns.poll: one pty_list(seat_turns), request _meta aiterm/own_work_exclusions {digest, entries per session}"] --> Aiterm
+  subgraph Aiterm["Aiterm on the body and on each terminal (Elegg)"]
+    Proc["process table, one read per call"] --> Own["own_work per seat:<br/>processes = post-startup, not plumbing, not excluded<br/>excluded, child_results, exclusions_digest, oldest {exe,args,since}"]
+  end
+  Own --> Row["seat row {turn, own_work}"]
+  Row --> End["CurrentWork.endRead: keeps turn (unchanged) + own work"]
+  End --> Facade["facade: working = turn running OR commandWait OR own work"]
+  Facade --> Work["transport.currentWork (card, rooms, get_self) + reason"]
+  Facade --> Running["transport.runningState (Lattice L15)"]
+  End --> CT["transport.currentTurn -> after_turn (turn only, unchanged)"]
+  Card["card shows 'background: exe args since HH:MM'"] --> Prop["propose_running_exclusion (Bot or Owner)"]
+  Prop --> File["body Approval Box connector (Flora's decisions client): one decision, stored entry"]
+  File --> Ans["Owner answer -> decisions.read: 承認 for that id"]
+  Ans --> List
+```
+
+| Contact | Contract |
+| --- | --- |
+| own work | Turn idle AND (`own_work.processes > 0` with the current list applied, OR `own_work.child_results > 0`). `processes` is applied only when the row echoes `exclusions_digest` equal to the digest sent; otherwise it is ignored for that seat (older Aiterm or terminal: today's behaviour, turn + schedule). `null` = cannot count = 0. `child_results` is used only after Elegg's attribution/expiry fix (until then ignored). |
+| transport (agreed with Elegg 11/13, Aiterm 0.70.42) | The list travels in the pty_list request `_meta` as `aiterm/own_work_exclusions` (pty_list's public schema unchanged; the terminal relay forwards `_meta` as is). At most 256 entries, digest at most 128 characters. A malformed list is not applied: `exclusions_digest:null`, `excluded:0`, and execution ignores `processes`. Row `own_work.oldest.since` = ISO start of that process. |
+| descriptor | Computed by Aiterm where the process runs, from the same process-table read; raw argv never leaves that machine. `exe` = basename of argv[0] (both `/` and `\\` are separators, quotes stripped) without .exe/.cmd, lower-case on Windows; `args` = first 2 arguments not starting with `-`, as basenames; a token > 40 characters or containing `=`, `://` or `@` is masked as `…`. Linux reads exact argv (/proc cmdline), Windows splits CommandLine by CommandLineToArgvW rules; macOS has only the joined command line and splits on whitespace, so an argument with a space splits wrongly there (documented limit). |
+| entry match | `kind:"process"`: `exe` equal and entry `args` a prefix of the descriptor's `args` (exact tokens). Not counted: the matched process, its descendants and its post-startup ancestors (the CLIs' `bash -c` wrappers). `kind:"child"`: an Aiterm child seat by `{harness, session}`. `scope` = all Bots or listed Bot IDs; execution expands it to session ids. |
+| store | `execution-running-exclusions.json` beside the other execution state files, schema `bellteam.running-exclusions.v1`, `{entries:[...]}` (at most 256). Read each poll by `src/running-exclusions.mjs`: absent = empty list; unreadable or invalid = no list sent (processes not counted, one `RUNNING_EXCLUSIONS_UNAVAILABLE` diagnostic per transition). Engine read `transport.ownWork(botId)` = `{kind, detail, since}` or null for a fresh idle seat; the facade treats a refused method (older engine) or any other shape as not supplied. |
+| delivery order | PR 1 (read, compose, list sent; this section's top half) ships first with the empty list. PR 2 adds the proposal tool, the Approval Box writer and the Owner's removal, before the first proposal can exist. PR 3 emits `reason` after integration #1274 is live. |
+| list writes | Exactly two: an Owner-approved proposal adds the entry stored when the decision was filed; the Owner removes one from the settings screen. No Bot tool, code path or migration adds. Code never proposes on its own. Protection named: no Bot can make itself or another look idle by its own decision (Owner rule). It is a write restriction; nothing stops. |
+| proposal | `propose_running_exclusion {botId, exe, args, scope, reason}` (execution tool). Same exe+args+scope pending or listed -> the existing one is returned. Filed as one Approval Box decision through the body's connector client; read back with decisions.read; only 承認 for that id writes. |
+| reason | The engine keeps why a Bot is working; one reason by the fixed order `turn`, `schedule`, `subagent`, `background` (with `oldest` as detail "<exe> <args>"). Public DTO key `reason: null \| {kind, detail, since}` agreed with Molly (integration, PR #1274): only when state is working; detail follows the summary line rule (non-empty, trimmed, one line); a schedule's detail uses the same masked descriptor form, never the raw command. Execution emits it only after #1274 is live in the body schema and the Web reader (an earlier emit would turn every card unknown). Showing it on the cards is each screen owner's later change (Web Admi, Apple Rapi, Windows Anis). |
+| at start | The list is empty. Each long-lived process found in the go-live census of terminal seats is filed as its own proposal. |
+| Owner-answer waits | No special handling (Owner 11/13: 「稼働中判定が本番に入るまでこのまま」). After go-live Kiro reports how such a seat reads. |
+| idle close / nightly restart | Read the same facade fact in a later step (they read their own sources today). |
+| Self-exit | No guard is added: the process exits or the result arrives and the next tick (5-30 s) reads 0. |
