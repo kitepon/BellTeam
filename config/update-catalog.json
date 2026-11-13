@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T03:17:45Z",
-  "expiresAt": "2026-11-20T03:17:45Z",
+  "publishedAt": "2026-11-13T04:03:48Z",
+  "expiresAt": "2026-11-20T04:03:48Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b",
-      "versionId": "c1f560033cc902457f91e982e003c41ff19c3bc519fb202b789b4cb1312cbd4e",
+      "sourceCommit": "57552d946484ffd99081d5bbe609e44dee251c86",
+      "versionId": "113ad4f612f5d3cdbd4640440b976c317f7c7053e01cfcf74019a3860c65a12d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-amd64.tar.gz",
-          "bytes": 3969027,
-          "sha256": "c1f560033cc902457f91e982e003c41ff19c3bc519fb202b789b4cb1312cbd4e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T035329Z/execution-57552d946484ffd99081d5bbe609e44dee251c86-linux-amd64.tar.gz",
+          "bytes": 3969122,
+          "sha256": "113ad4f612f5d3cdbd4640440b976c317f7c7053e01cfcf74019a3860c65a12d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "7596a5a67a7c8122f1faee0edbdbd5fb8b939714ceda2f1caa14ab9b51e6dbd2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T035329Z/execution-57552d946484ffd99081d5bbe609e44dee251c86-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11271,
+          "sha256": "7d80e44c976a9180ee2132e910f758e4b6eb23848faf609be2d811886119579e"
         },
-        "signerCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b"
+        "signerCommit": "57552d946484ffd99081d5bbe609e44dee251c86"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,14 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。",
-        "Bot の仕事の情報が、自分の作業を正しく読むようになります。"
+        "端末で動く Bot がつなぎ直しを断られた時、その理由が診断に残るようになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b",
-      "versionId": "3f734afdb14bdefc6f8ed8d056e2f33b36838081162efd3be44222657b019ec0",
+      "sourceCommit": "57552d946484ffd99081d5bbe609e44dee251c86",
+      "versionId": "cb17c907c81023b7c6bc4acd964b70d39fe38ba9f94a793c15f6d547470f0104",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -536,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-arm64.tar.gz",
-          "bytes": 3969027,
-          "sha256": "3f734afdb14bdefc6f8ed8d056e2f33b36838081162efd3be44222657b019ec0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T035329Z/execution-57552d946484ffd99081d5bbe609e44dee251c86-linux-arm64.tar.gz",
+          "bytes": 3969121,
+          "sha256": "cb17c907c81023b7c6bc4acd964b70d39fe38ba9f94a793c15f6d547470f0104"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T031521Z/execution-aae6eaf986eecaa4e06faba7e8e7b22e04abad9b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11067,
-          "sha256": "108144553a7826bb3b5bc339bc2fd724b1ddc1c1e9238fc5e426bfdf877fb567"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T035329Z/execution-57552d946484ffd99081d5bbe609e44dee251c86-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11318,
+          "sha256": "e74dd86ddd0f0846906b68f8c58da303117c2cbd807e7d245fd3901ba86d8947"
         },
-        "signerCommit": "aae6eaf986eecaa4e06faba7e8e7b22e04abad9b"
+        "signerCommit": "57552d946484ffd99081d5bbe609e44dee251c86"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -555,8 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。",
-        "Bot の仕事の情報が、自分の作業を正しく読むようになります。"
+        "端末で動く Bot がつなぎ直しを断られた時、その理由が診断に残るようになります。"
       ]
     },
     {
@@ -711,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "1aa39224785349a5a83bab4aacec570c3989cf46",
-      "versionId": "sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23",
+      "sourceCommit": "9dd2d853c7b0dd37c91adc8c14ec543d5fd7d1fa",
+      "versionId": "sha256:b27b21ece4a8e667b22baf1a91ba03e6ae82cdd5f317eb2428349a69175c0f96",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b27b21ece4a8e667b22baf1a91ba03e6ae82cdd5f317eb2428349a69175c0f96"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,21 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末で動く Bot の会話が止まったまま残りにくくなります。",
-        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。"
+        "AI実行の部品が出す新しい失敗4つが、診断に載るようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "1aa39224785349a5a83bab4aacec570c3989cf46",
-      "versionId": "sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23",
+      "sourceCommit": "9dd2d853c7b0dd37c91adc8c14ec543d5fd7d1fa",
+      "versionId": "sha256:b27b21ece4a8e667b22baf1a91ba03e6ae82cdd5f317eb2428349a69175c0f96",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43977bdb4dd6f12a26394703fb955001d941f30fe339698545ee719c2f7b5a23"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b27b21ece4a8e667b22baf1a91ba03e6ae82cdd5f317eb2428349a69175c0f96"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,8 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末で動く Bot の会話が止まったまま残りにくくなります。",
-        "端末で動く Bot が、本体の入れ替えのあと同じ会話のまま道具を取り戻せるようになります。"
+        "AI実行の部品が出す新しい失敗4つが、診断に載るようになります。"
       ]
     },
     {
