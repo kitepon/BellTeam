@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T18:11:54Z",
-  "expiresAt": "2026-11-20T18:11:54Z",
+  "publishedAt": "2026-11-13T21:07:43Z",
+  "expiresAt": "2026-11-20T21:07:43Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "1d7cbe1b202f9b951c9572a0d01d2bd7072259c0",
-      "versionId": "sha256:b85b19d5beef3927320b6833587a5c3f3b90bde26e03926f6f8f5d9bd58074c3",
+      "sourceCommit": "72970ba876eba8984eba09a64d3510b9472ae065",
+      "versionId": "sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b85b19d5beef3927320b6833587a5c3f3b90bde26e03926f6f8f5d9bd58074c3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravity のメンバーがバックグラウンドで動かしている作業も見分けて、仕事中に催促しなくなります。"
+        "Antigravity のメンバーがバックグラウンドで作業しているとき、理由を「バックグラウンドの作業」と正しく表示します。",
+        "Antigravity にログインした直後の最初の起動が止められなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "1d7cbe1b202f9b951c9572a0d01d2bd7072259c0",
-      "versionId": "sha256:b85b19d5beef3927320b6833587a5c3f3b90bde26e03926f6f8f5d9bd58074c3",
+      "sourceCommit": "72970ba876eba8984eba09a64d3510b9472ae065",
+      "versionId": "sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b85b19d5beef3927320b6833587a5c3f3b90bde26e03926f6f8f5d9bd58074c3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +749,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravity のメンバーがバックグラウンドで動かしている作業も見分けて、仕事中に催促しなくなります。"
+        "Antigravity のメンバーがバックグラウンドで作業しているとき、理由を「バックグラウンドの作業」と正しく表示します。",
+        "Antigravity にログインした直後の最初の起動が止められなくなります。"
       ]
     },
     {
