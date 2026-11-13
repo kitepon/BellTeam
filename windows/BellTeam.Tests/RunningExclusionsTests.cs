@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using System.Windows.Threading;
+using BellTeam.App;
 using BellTeam.Core;
 
 namespace BellTeam.Tests;
@@ -49,5 +51,41 @@ public sealed class RunningExclusionsTests
         Assert.Equal(RunningExclusionsRead.Failed, RunningExclusions.Failure(new HttpRequestException("down")));
         Assert.Equal("この処理はもう一覧にありませんでした。", RunningExclusions.RemoveFailure(new BellApiException("x", HttpStatusCode.NotFound)));
         Assert.Contains(SettingsPage.Exclusions, SettingsPages.Groups[0]);
+        Assert.Equal(new SettingsStatus("最新の一覧を読めませんでした（前に読んだ時は2件）", "確認できません", SettingsTone.Orange), SettingsSummary.Exclusions(list, true));
+    }
+
+    // Epinel's return on #1326: a refresh that fails after a good read must not leave the cached counts looking current.
+    [Fact]
+    public void TheHomeRowSaysAFailedRefreshEvenWithAnEarlierListAndRecovers()
+    {
+        RunSta(() =>
+        {
+            var status = HttpStatusCode.OK;
+            using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath switch
+            {
+                RunningExclusions.Path => status == HttpStatusCode.OK ? StubHandler.Json(Wire) : StubHandler.Json("""{"error":"RUNNING_EXCLUSIONS_UNAVAILABLE"}""", status),
+                "/api/session" => StubHandler.Json("""{"authenticated":true,"authMode":"local"}"""), "/api/bots" => StubHandler.Json(ApiTests.Bots), "/api/queue" => StubHandler.Json(ApiTests.EmptyQueue),
+                "/api/rooms" => StubHandler.Json(ApiTests.Rooms), "/api/owner" => StubHandler.Json(ApiTests.Owner), _ => StubHandler.Json("""{"error":"NOT_FOUND"}""", HttpStatusCode.NotFound)
+            }))));
+            Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var window = new SettingsWindow(workspace); Await(window.InitializeAsync(SettingsPage.About)); Pump();
+            Assert.Equal(("2件・承認を待っている提案が2件", "承認待ち"), (window.ItemStatus(SettingsPage.Exclusions).Line, window.ItemStatus(SettingsPage.Exclusions).Badge));
+            status = HttpStatusCode.ServiceUnavailable; Await(window.ReloadHomeAsync()); Pump();
+            Assert.Equal(new SettingsStatus("最新の一覧を読めませんでした（前に読んだ時は2件）", "確認できません", SettingsTone.Orange), window.ItemStatus(SettingsPage.Exclusions));
+            Assert.NotNull(window.Exclusions); // the earlier list is kept for the page
+            status = HttpStatusCode.OK; Await(window.ReloadHomeAsync()); Pump();
+            Assert.Equal(("2件・承認を待っている提案が2件", "承認待ち"), (window.ItemStatus(SettingsPage.Exclusions).Line, window.ItemStatus(SettingsPage.Exclusions).Badge));
+            status = HttpStatusCode.NotFound; Await(window.ReloadHomeAsync()); Pump();
+            Assert.NotEqual("確認できません", window.ItemStatus(SettingsPage.Exclusions).Badge); // an older server is not a failure
+            window.Close();
+        });
+    }
+
+    private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
+    private static void Await(Task task) { var end = DateTime.UtcNow.AddSeconds(5); while (!task.IsCompleted) { if (DateTime.UtcNow > end) throw new TimeoutException(); Pump(); Thread.Sleep(1); } task.GetAwaiter().GetResult(); }
+    private static void RunSta(Action action)
+    {
+        Exception? failure = null; var thread = new Thread(() => { try { SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher)); action(); } catch (Exception error) { failure = error; } finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); } });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }

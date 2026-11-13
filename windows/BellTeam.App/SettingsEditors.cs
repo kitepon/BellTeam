@@ -226,7 +226,7 @@ public sealed partial class SettingsWindow : EditorWindow
     }
 
     // Opening settings and coming back to the front read every item; a read that arrives while one runs is done once more afterwards.
-    private async Task ReloadHomeAsync()
+    internal async Task ReloadHomeAsync()
     {
         if (homeReading) { homePending = true; return; }
         homeReading = true;

@@ -234,10 +234,11 @@ public static class SettingsSummary
         return missing > 0 ? new(count + $"・鍵が未設定の端末が{missing}台", "未設定", SettingsTone.Gray) : new(count, "設定済み", SettingsTone.Green);
     }
 
-    // 稼働中に数えない処理 (a65). list null: not read yet, or an older server (calm line); unreadable: the read failed.
+    // 稼働中に数えない処理 (a65). list null: not read yet, or an older server (calm line); unreadable: the last read failed, even with an earlier list kept.
     public static SettingsStatus Exclusions(RunningExclusionList? list, bool unreadable)
     {
-        if (list is null) return unreadable ? new("一覧を読めませんでした", "確認できません", SettingsTone.Orange) : new(SettingsPage.Exclusions.Detail());
+        if (unreadable) return new(list is null ? "一覧を読めませんでした" : $"最新の一覧を読めませんでした（前に読んだ時は{list.Entries.Length}件）", "確認できません", SettingsTone.Orange);
+        if (list is null) return new(SettingsPage.Exclusions.Detail());
         var count = list.Entries.Length; var waiting = list.Pending.Count(item => !item.Approved);
         if (waiting > 0) return new($"{count}件・承認を待っている提案が{waiting}件", "承認待ち", SettingsTone.Violet);
         return count > 0 ? new($"{count}件", "設定済み", SettingsTone.Green) : new("ありません");

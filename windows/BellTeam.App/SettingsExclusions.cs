@@ -18,7 +18,8 @@ public sealed partial class SettingsWindow
     {
         try { exclusions = await workspace.Management.Api.ListAsync(Token); exclusionsUnreadable = false; }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
-        catch (Exception error) { exclusionsUnreadable = RunningExclusions.Failure(error) != RunningExclusionsRead.OldServer && exclusions is null; }
+        // A failed refresh is shown as unreadable even when an earlier list is kept (the page still shows that list with the failure line).
+        catch (Exception error) { exclusionsUnreadable = RunningExclusions.Failure(error) != RunningExclusionsRead.OldServer; }
     }
     private string? MemberName(string botId) => workspace.Bots.FirstOrDefault(bot => bot.Id == botId) is { } bot ? bot.DisplayName is { Length: > 0 } shown ? shown : bot.Name : null;
 
@@ -62,7 +63,7 @@ public sealed partial class SettingsWindow
                 catch (Exception error)
                 {
                     failure = RunningExclusions.Failure(error);
-                    readError = failure == RunningExclusionsRead.OldServer ? null : error.Message; exclusionsUnreadable = readError is not null && exclusions is null;
+                    readError = failure == RunningExclusionsRead.OldServer ? null : error.Message; exclusionsUnreadable = readError is not null;
                 }
                 reading = false; RefreshRows(); Render();
             } while (again);
