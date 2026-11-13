@@ -34,7 +34,7 @@ export function createApprovalDecisions({ credentials, secretRequests, fetchImpl
     const id = await handle()
     return credentials.withResolved(id, { ...scope, memberId: null }, async token => {
       if (typeof token !== 'string' || !token || /[\r\n]/u.test(token)) throw unavailable()
-      // 5 s: the child's root chain is shared with every seat's lattice call (Molly review).
+      // 5 s: the caller's chain is shared (Lattice: the child's root chain with every seat's lattice call, Molly review; running exclusions: the 60 s poll).
       const response = await fetchImpl(ORIGIN + path, { method, redirect: 'error', signal: AbortSignal.timeout(5000),
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
         .catch(() => { throw unavailable() })
