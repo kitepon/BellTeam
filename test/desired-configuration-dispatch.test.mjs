@@ -25,10 +25,14 @@ async function fixture(t, exists) {
       await f.onConfigure?.(args)
       if (f.applyError) throw f.applyError
       // Aiterm refuses a configure while a turn runs: terminal, never issued to the CLI (production 2026-11-13 06:33Z).
-      if (f.refuseConfigure && f.refuseConfigure-- > 0) return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
+      // A terminal request stays terminal: its ID never turns into an applied receipt.
+      if (f.refused?.has(args.request.id) || f.refuseConfigure && f.refuseConfigure-- > 0) {
+        f.refused ??= new Set(); f.refused.add(args.request.id)
+        return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
         binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'not_applied',
         later_effect: 'excluded', terminal_at: '2026-11-13T06:33:29.063Z', observed_at: '2026-11-13T06:33:29.109Z',
         current: { availability: 'unsupported' }, result: null } }
+      }
       return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
         binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'applied',
         later_effect: 'unconfirmed', terminal_at: '2026-11-06T15:00:00.000Z', observed_at: '2026-11-06T15:00:00.000Z',
@@ -179,7 +183,8 @@ test('settings refused because a new turn already runs are applied again when th
   await first.accepted
   const old = { ...f.bot }
   f.bot.model = 'opus'
-  const change = f.transport.reconfigure(old, f.bot)
+  const requestId = '6f1c2d3e-4a5b-4c6d-8e7f-0123456789ab'
+  const change = f.transport.reconfigure(old, f.bot, { requestId })
   // The CLI already ended 'first'; Aiterm takes the continuation as a new turn before BellTeam's completion wait returns.
   const next = f.transport.turn(f.bot, 'continue', { queue: { groupId: 'next' } })
   await next.accepted
@@ -188,8 +193,13 @@ test('settings refused because a new turn already runs are applied again when th
   await new Promise(resolve => setTimeout(resolve, 20))
   assert.equal(f.calls.filter(c => c.name === 'agent_configure').length, 1, 'refused while the new turn runs')
   waits[1].resolve()
-  await change
-  assert.equal(f.calls.filter(c => c.name === 'agent_configure').length, 2)
+  await change.catch(() => {})
+  const ids = f.calls.filter(c => c.name === 'agent_configure').map(c => c.args.request.id)
+  assert.equal(ids.length, 2)
+  assert.equal(ids[0], requestId)
+  assert.notEqual(ids[1], requestId, 'the retry is a new request; the refused ID stays terminal')
+  const result = await change
+  assert.equal(result.configurationRequest.binding.id, ids[1])
   assert.equal(f.requests.view(f.bot.id).receipt.outcome, 'applied')
   assert.equal(f.requests.view(f.bot.id).requested.model, 'opus')
   await Promise.all([first, next])

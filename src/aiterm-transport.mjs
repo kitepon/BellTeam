@@ -562,10 +562,10 @@ export class AitermTransport {
       return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
     const version = this.captureStopVersion(current)
     let turns = this.activity.of(current.id)
-    let applying
+    let applying, applyOptions = options
     const apply = () => applying ??= Promise.resolve().then(() => {
       this.requireStopVersion(current.id, version)
-      return this.reconfigureNow(current, next, options, false)
+      return this.reconfigureNow(current, next, applyOptions, false)
     })
     const pending = (async () => {
       for (;;) {
@@ -581,6 +581,9 @@ export class AitermTransport {
           process.stderr.write(`BellTeam configuration: not applied while a turn runs, again at its end: ${current.id}\n`)
           turns = running
           applying = undefined
+          // The refused request stays terminal under its ID (configuration-requests.md); the next apply is a new request.
+          const { requestId: _refused, ...rest } = options
+          applyOptions = rest
           pending.boundaryReady = false
         }
       }

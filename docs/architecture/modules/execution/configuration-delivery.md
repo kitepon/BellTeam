@@ -10,14 +10,14 @@ Saved model/effort/fast → explicit configuration operation → captured curren
 
 New launch still receives saved settings. Present-session delivery no longer invents a fresh configuration request because an audit record is absent. Failed/unknown historical configuration audit remains a fact, not a lock on input. Explicit configuration/restart failures retain their original receipt and visible failure. A native autonomous successor (goal/queued steer/child return) is outside BellTeam's delivery order; a strict before-every-native-successor guarantee requires Aiterm's boundary contract, not a caller-side claim.
 
-A delivery can reach the CLI as a new turn before BellTeam's wait for the captured turn returns (production 2026-11-13 06:33Z: an `after_turn` continuation arrived at the boundary; Aiterm refused the apply, which was never applied again, and the seat kept running on the old model). So a deferred apply refused with `CONFIGURATION_NOT_APPLIED` / `not_started` while a turn of that Bot runs captures the running turns again and applies at their end. Stderr: `BellTeam configuration: not applied while a turn runs, again at its end`.
+A delivery can reach the CLI as a new turn before BellTeam's wait for the captured turn returns (production 2026-11-13 06:33Z: an `after_turn` continuation arrived at the boundary; Aiterm refused the apply, which was never applied again, and the seat kept running on the old model). So a deferred apply refused with `CONFIGURATION_NOT_APPLIED` / `not_started` while a turn of that Bot runs captures the running turns again and applies at their end, as a NEW configuration request (fresh ID): the refused request keeps its terminal `not_applied` receipt under its own ID ([configuration-requests](configuration-requests.md)), and the caller's application takes the ID of the final receipt. Stderr: `BellTeam configuration: not applied while a turn runs, again at its end`.
 
 ```mermaid
 flowchart LR
   Req[saved settings] --> Wait[wait captured turns' native completion]
   Wait --> Apply[apply in dispatch order]
   Apply -->|applied| Done[receipt saved]
-  Apply -->|not_applied, not issued, a turn runs| Recapture[capture running turns] --> Wait
+  Apply -->|not_applied, not issued, a turn runs| Recapture[capture running turns; next apply gets a new request ID] --> Wait
   Apply -->|other failure / stop / no running turn| Fail[visible failure, saved for next launch]
 ```
 
