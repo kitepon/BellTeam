@@ -115,7 +115,7 @@ test('facade: reason by the fixed order turn, schedule, own work, and the DTO va
   const check = expected => { const value = transport.currentWork(bot); assert.deepEqual(value.reason, expected); assert.deepEqual(readCurrentWork(transport, bot), value); return value }
   check({ kind: 'turn', detail: null, since: '2026-11-13T00:59:00.000Z' })
   state = 'idle'; waited = '2026-11-13T00:58:00.000Z'; own = { kind: 'background', detail: 'node vite.js', since: null }
-  check({ kind: 'schedule', detail: null, since: waited })
+  check({ kind: 'schedule', detail: null, since: null })
   waited = null
   check({ kind: 'background', detail: 'node vite.js', since: null })
   own = null

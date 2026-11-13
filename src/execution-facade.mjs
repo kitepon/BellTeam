@@ -37,6 +37,7 @@ export function createExecutionFacade({ getController, client, membersAdmission,
     catch { return null }
   }
   // current-work.md "reason" (a41 PR 3): why a working Bot counts as working, by the fixed order turn, schedule, own work.
+  // A schedule's since is null: commandWait is the scheduler's last observation (refreshed every 15 s), not the wait start.
   const iso = at => typeof at === 'string' && Number.isFinite(Date.parse(at)) ? new Date(at).toISOString() : null
   const turnSince = botId => {
     try { return iso(current().project({ method: 'transport.currentTurn', args: [botId, { startedAt: true }] })?.startedAt) }
@@ -48,7 +49,7 @@ export function createExecutionFacade({ getController, client, membersAdmission,
     if (!bot || !value) return value
     if (value.state === 'working') return { ...value, reason: { kind: 'turn', detail: null, since: turnSince(bot.id) } }
     const waited = commandWait(bot.id)
-    if (waited) return { ...value, state: 'working', observedAt: value.observedAt ?? waited, reason: { kind: 'schedule', detail: null, since: iso(waited) } }
+    if (waited) return { ...value, state: 'working', observedAt: value.observedAt ?? waited, reason: { kind: 'schedule', detail: null, since: null } }
     const owned = value.state === 'idle' ? own(bot.id) : null
     return owned ? { ...value, state: 'working', reason: { kind: owned.kind, detail: owned.detail ?? null, since: iso(owned.since) } } : value
   }
