@@ -51,6 +51,14 @@ for (const code of ['AGENT_RESUME_UNCONFIRMED', 'AGENT_RESUME_FAILED']) {
   })
 }
 
+test('Aiterm 0.70.43以降の_metaに載った型付き復帰拒否も同じに分類する', async () => {
+  const client = new AitermClient()
+  client.client = { async callTool() { return { isError: true, _meta: { 'aiterm/resume_error': refusal('AGENT_RESUME_FAILED') },
+    content: [{ type: 'text', text: 'synthetic resume failure without matching wording' }] } } }
+  await assert.rejects(client.call('pty_send', { session_id: 'bot-a' }), error =>
+    error.status === 409 && error.code === 'BOT_INPUT_NOT_READY' && error.agentResumeResult?.code === 'AGENT_RESUME_FAILED')
+})
+
 test('復帰拒否の分類は完全な同sessionの型だけを受け、欠測や文言から未送信を補わない', async () => {
   const client = new AitermClient()
   let result = errorResult(refusal('AGENT_RESUME_FAILED'))

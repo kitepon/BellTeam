@@ -282,7 +282,8 @@ export class AitermClient {
       }
       const executionError = returnedExecutionError(result._meta?.[ERROR_META])
       if (executionError) error.executionError = executionError
-      const resume = result.structuredContent
+      // Aiterm >= 0.70.43 carries pty_send's typed refusals in _meta; earlier releases in structuredContent.
+      const resume = result._meta?.['aiterm/resume_error'] ?? result.structuredContent
       if (name === 'pty_send' && !executionError && resume?.schema === 'aiterm.agent-resume-error.v1'
         && Object.keys(resume).sort().join(',') === 'code,input,launch_id,recovery,schema,session_id'
         && ['AGENT_RESUME_UNCONFIRMED', 'AGENT_RESUME_FAILED'].includes(resume.code)
