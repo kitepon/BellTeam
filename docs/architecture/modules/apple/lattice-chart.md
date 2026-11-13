@@ -55,7 +55,7 @@ flowchart LR
 
 - 行（`LatticeStopRow.rows`、純粋）：`blockedAt`の新しい順。止まりの赤の八角形・題（2行）・工程表の名前（`LatticeChartName`、`projectId`は出さない）・担当と止めた人（`LatticePerson.stopFace`：名簿のBot→顔と名前、`owner`→指揮官のプロフィール、`bot-…`で名簿に無い→名簿にないメンバー、ほかの文字→その文字と頭文字、無し→担当なし）・理由（3行、読み上げは全文）・止めた時刻（`LatticeTime.stopTime`：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm、JST）。
 - 行を押す（外す以外）：`.card(projectId, cardId)`を積み、その工程表をその札の詳細を開いた状態で出す（`LatticeChartScreen(initialCard:)`）。戻ると止め一覧。
-- 外す：行の中で「この止めを外しますか？」・外す（`.bellPrimary`）・やめる。やめる・Esc・行の外を押すと戻る。送信中は外すが回る印になり、行は残る。答え（`LatticeUnblockOutcome`）：外れた・もう無い→行を0.2秒で消す（動きを減らす設定では消すだけ）、409→行の下に「外せませんでした: <reason>」、それ以外→「いまは外せませんでした。…」。どの答えでもすぐ読み直す。409の`reason`は`BellAPI`の失敗の本文（`message`→`reason`→`error`の順）から取る。
+- 外す：行の中で「この止めを外しますか？」・外す（`.bellPrimary`）・やめる。やめる・Esc・行の外を押すと戻る。確認に入ると読み上げの焦点は確認の外すへ移り、やめるで行の外すへ戻る（`@AccessibilityFocusState`）。送信中は外すが回る印になり、行は残る。答え（`LatticeUnblockOutcome`）：外れた・もう無い→行を0.2秒で消す（動きを減らす設定では消すだけ）、409→行の下に「外せませんでした: <reason>」、それ以外→「いまは外せませんでした。…」。どの答えでもすぐ読み直す。409の`reason`は`BellAPI`の失敗の本文（`message`→`reason`→`error`の順）から取る。
 - 読み直しはタイマーで行わない（読める間）。読めない間だけ1, 2, 4 … 30秒（±20%）。読み直しは`readRequest`を変えて画面の読み取りtaskを入れ替えるので、同時に2本は走らない。
 - 表示：初回は「止めを読んでいます…」、空は「止まっている工程はありません。」、`unreadCharts`があれば琥珀の1行「一部の工程表を読めませんでした。…」、retryは行を薄くして「止め一覧を読み直しています…」と読み直すボタン、404は「このサーバーではまだ止め一覧を使えません。」。識別子は`lattice-open-stops`・`lattice-stops`・`lattice-stop-<stopId>`・`lattice-stop-remove-<stopId>`・`lattice-stop-confirm-<stopId>`。
 

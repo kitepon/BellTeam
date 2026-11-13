@@ -586,6 +586,8 @@ struct LatticeStopRowView: View {
     @ObservedObject var model: LatticeStopsModel
     let open: () -> Void
     let remove: () -> Void
+    private enum Focus { case remove, confirm }
+    @AccessibilityFocusState private var focus: Focus?
 
     var body: some View {
         let busy = model.removing.contains(row.stopId)
@@ -626,14 +628,18 @@ struct LatticeStopRowView: View {
                     Text(LatticeText.stopsAsk).font(.system(size: 13, weight: .medium)).foregroundStyle(LatticePalette.ink)
                     // .bellPrimary fills the width; the confirm sits beside やめる.
                     Button("外す", action: remove).buttonStyle(.bellPrimary).fixedSize()
+                        .accessibilityFocused($focus, equals: .confirm)
                         .accessibilityIdentifier("lattice-stop-confirm-\(row.stopId)")
-                    Button("やめる") { model.confirming = nil }.buttonStyle(.bordered)
+                    Button("やめる") { model.confirming = nil; focus = .remove }.buttonStyle(.bordered)
                 } else {
                     Button("外す") { model.confirming = row.stopId }.buttonStyle(.bordered)
+                        .accessibilityFocused($focus, equals: .remove)
                         .accessibilityLabel("外す、\(row.title)")
                         .accessibilityIdentifier("lattice-stop-remove-\(row.stopId)")
                 }
             }
+            // screen-spec: the confirm step moves focus to its 外す; やめる returns it to the row's 外す.
+            .onChange(of: asking) { _, now in if now { focus = .confirm } }
             if let note = model.notes[row.stopId] {
                 Text(note).font(.system(size: 12.5)).foregroundStyle(LatticePalette.red).fixedSize(horizontal: false, vertical: true)
             }
