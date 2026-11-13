@@ -561,18 +561,32 @@ export class AitermTransport {
     if (configurationNeedsRestart(current, next, options.reapply))
       return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
     const version = this.captureStopVersion(current)
-    const turns = this.activity.of(current.id)
-    let applying
+    let turns = this.activity.of(current.id)
+    let applying, applyOptions = options
     const apply = () => applying ??= Promise.resolve().then(() => {
       this.requireStopVersion(current.id, version)
-      return this.reconfigureNow(current, next, options, false)
+      return this.reconfigureNow(current, next, applyOptions, false)
     })
     const pending = (async () => {
-      await Promise.all(turns.map(turn => (turn.nativeCompletion ?? turn.completion).catch(() => {})))
-      pending.boundaryReady = true
-      const ordered = (this.activity.dispatches.get(current.id) ?? Promise.resolve()).then(apply)
-      this.activity.dispatches.track(current.id, ordered.then(() => {}, () => {}))
-      return ordered
+      for (;;) {
+        await Promise.all(turns.map(turn => (turn.nativeCompletion ?? turn.completion).catch(() => {})))
+        pending.boundaryReady = true
+        const ordered = (this.activity.dispatches.get(current.id) ?? Promise.resolve()).then(apply)
+        this.activity.dispatches.track(current.id, ordered.then(() => {}, () => {}))
+        try { return await ordered } catch (error) {
+          // configuration-delivery.md (a53): a delivery that reached the CLI before this boundary was seen started a new turn,
+          // and Aiterm refused the apply without issuing it. Apply again when the turns running now end; any other failure ends here.
+          const running = this.activity.of(current.id).filter(turn => !turn.nativeTerminal)
+          if (error?.code !== 'CONFIGURATION_NOT_APPLIED' || error.effect !== 'not_started' || !running.length) throw error
+          process.stderr.write(`BellTeam configuration: not applied while a turn runs, again at its end: ${current.id}\n`)
+          turns = running
+          applying = undefined
+          // The refused request stays terminal under its ID (configuration-requests.md); the next apply is a new request.
+          const { requestId: _refused, ...rest } = options
+          applyOptions = rest
+          pending.boundaryReady = false
+        }
+      }
     })()
     pending.deferredSettings = true
     pending.atBoundary = () => pending.boundaryReady || turns.every(turn => turn.nativeTerminal)
