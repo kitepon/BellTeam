@@ -5,7 +5,7 @@ import { validateWorkGraphEffectResult } from '../src/work-graph-protocol.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
-function fixture({ refresh = () => ({ batch: null, nextRefreshMs: null }), fail = false } = {}) {
+function fixture({ refresh = () => ({ batch: null, nextRefreshMs: null }), fail = false, ownWork } = {}) {
   const calls = [], listeners = [], stopped = []
   const controller = { request: async (method, params) => {
     calls.push(method)
@@ -14,7 +14,7 @@ function fixture({ refresh = () => ({ batch: null, nextRefreshMs: null }), fail 
   } }
   const watch = name => listener => { listeners.push([name, listener]); return () => stopped.push(name) }
   const timers = []
-  const facade = createWorkGraphFacade({ controller, bots: { watch: watch('bots') }, rooms: { watch: watch('rooms') }, commandWaits: { watch: watch('wait') },
+  const facade = createWorkGraphFacade({ controller, ownWork, bots: { watch: watch('bots') }, rooms: { watch: watch('rooms') }, commandWaits: { watch: watch('wait') },
     transport: { watchCurrentTurn: watch('turn'), watchQueue: watch('queue') },
     setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick() }
@@ -48,6 +48,22 @@ test('nextRefreshMs arms one timer; an unavailable child rejects with WORK_GRAPH
   f.facade.subscribe(() => {})
   await f.facade.snapshot(); await tick()
   assert.equal(f.timers.at(-1).ms, 4000)
+  // a61: a direct snapshot with no SSE subscriber never arms the own-work re-check.
+  const lone = fixture({ refresh: () => ({ batch: null, nextRefreshMs: null }), ownWork: () => true })
+  await lone.facade.snapshot(); await tick()
+  assert.equal(lone.timers.length, 0)
+  // a61: while a member works by own work, re-check every ownWorkMs (the earlier of it and nextRefreshMs).
+  let owned = true
+  const own = fixture({ refresh: () => ({ batch: null, nextRefreshMs: null }), ownWork: () => owned })
+  own.facade.subscribe(() => {})
+  await own.facade.snapshot(); await tick()
+  assert.equal(own.timers.at(-1).ms, 5000)
+  await own.fire(); await own.fire()
+  assert.deepEqual(own.calls, ['refresh', 'snapshot', 'refresh'])
+  owned = false
+  await own.fire(); await own.fire()
+  assert.deepEqual(own.calls, ['refresh', 'snapshot', 'refresh', 'refresh'])
+  assert.equal(own.timers.length, 0)
   const down = fixture({ fail: true })
   await assert.rejects(down.facade.snapshot(), { code: 'WORK_GRAPH_UNAVAILABLE', status: 503 })
 })
@@ -76,15 +92,23 @@ test('effects return only the agreed fields from the public ports', async () => 
   const invalid = createWorkGraphEffects({ bots: {}, messagePage: async () => null,
     transport: { currentTurn: async () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_INVALID' }) } } })
   assert.deepEqual(await invalid('turns.read', { botIds: ['a'] }), { unsupported: true })
+  // a61: state is GET /api/bots currentWork.state; a member that cannot be read is unknown, even if its turn reads idle.
   const unknown = createWorkGraphEffects({ bots: {}, messagePage: async () => null, transport: { currentTurn: async () => ({ state: 'idle', turnId: null }) } })
   const row = await unknown('turns.read', { botIds: ['z'] })
-  assert.deepEqual(row, { turns: { z: { state: 'idle', turnId: null, startedAt: null, summary: null, summaryStatus: 'missing' } } })
+  assert.deepEqual(row, { turns: { z: { state: 'unknown', turnId: null, startedAt: null, summary: null, summaryStatus: 'missing' } } })
   validateWorkGraphEffectResult('turns.read', row)
-  // a54: natively idle while waiting on its notify=result command; runningState (lattice's judgement) says working.
-  const waiting = createWorkGraphEffects({ bots: {}, messagePage: async () => null,
-    transport: { currentTurn: async () => ({ state: 'idle', turnId: 't-old', startedAt: null }), runningState: () => 'working' } })
-  const wait = await waiting('turns.read', { botIds: ['w'] })
+  // Natively idle but working by own work (a41 reason background): the row says working and the facade re-check is on.
+  const work = state => ({ state, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: '2026-11-13T12:00:00.000Z', source: null,
+    reason: state === 'working' ? { kind: 'background', detail: 'sleep 90', since: null } : null })
+  let current = work('working')
+  const owning = createWorkGraphEffects({ bots: { get: id => ({ id }) }, messagePage: async () => null,
+    transport: { currentTurn: async () => ({ state: 'idle', turnId: 't-old', startedAt: null }), currentWork: () => current, runningState: () => 'idle' } })
+  const wait = await owning('turns.read', { botIds: ['w'] })
   assert.deepEqual(wait, { turns: { w: { state: 'working', turnId: 't-old', startedAt: null, summary: null, summaryStatus: 'missing' } } })
   validateWorkGraphEffectResult('turns.read', wait)
+  assert.equal(owning.ownWork(), true)
+  current = work('idle')
+  assert.equal((await owning('turns.read', { botIds: ['w'] })).turns.w.state, 'idle')
+  assert.equal(owning.ownWork(), false)
   await assert.rejects(invalid('other', {}), { code: 'WORK_GRAPH_EFFECT_INVALID' })
 })
