@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T14:16:13Z",
-  "expiresAt": "2026-11-20T14:16:13Z",
+  "publishedAt": "2026-11-13T14:58:58Z",
+  "expiresAt": "2026-11-20T14:58:58Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e",
-      "versionId": "61d747d159ca0629ace4c5f2b0fe3973f5b31cc07498cbdadda7c14d66986638",
+      "sourceCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2",
+      "versionId": "434ef034680a2a1747bf946d4e615356ad120dc2de494f5bad2fc6dcfa82f0f0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-amd64.tar.gz",
-          "bytes": 3970746,
-          "sha256": "61d747d159ca0629ace4c5f2b0fe3973f5b31cc07498cbdadda7c14d66986638"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-amd64.tar.gz",
+          "bytes": 3971536,
+          "sha256": "434ef034680a2a1747bf946d4e615356ad120dc2de494f5bad2fc6dcfa82f0f0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11224,
-          "sha256": "994420a5f9a42341cb89811f56599ba2277699e467367940011799c00a06d2ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10926,
+          "sha256": "5d5700647bbc3fc8f687845d72d1e906e6b5a572a842d803f1f40081fc0345d8"
         },
-        "signerCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e"
+        "signerCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,16 +521,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "眠っている席に知らせが届いた時、同じ会話のまま起き直して答えるようになります。",
-        "仕事中に断られたモデルや考える深さの変更が、その仕事の終わりに改めて反映されるようになります。",
-        "アカウントを移った後に残った古い席が、静かになった時に閉じられるようになります。",
-        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。"
+        "休んでいた席を起こせなかったときは、古い記録を閉じて新しく立ち上げ直します。",
+        "動いているのに「ログアウト」と出ていた Claude の枠が、同じトークンの席がターンを終えたときに元に戻ります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e",
-      "versionId": "5b6f77a47b34f1262ea8382d4e5634f3cce74845347db61aa42e706528345728",
+      "sourceCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2",
+      "versionId": "a64ca6162f94eaee57c844d67fa22faf84ffa613c4109e08946a1289bb5e4e96",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -538,16 +536,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-arm64.tar.gz",
-          "bytes": 3970746,
-          "sha256": "5b6f77a47b34f1262ea8382d4e5634f3cce74845347db61aa42e706528345728"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-arm64.tar.gz",
+          "bytes": 3971536,
+          "sha256": "a64ca6162f94eaee57c844d67fa22faf84ffa613c4109e08946a1289bb5e4e96"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T065556Z/execution-5f7c4047aaee4170a459f223d3834c526cf2ad6e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11271,
-          "sha256": "f493f87ad2fed856daa3de0cd43479c64dac1574d1a061c85171597be6331344"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T143521Z/execution-ac36e930fd425903e3295ca94d42048f3450a3d2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "c95c3955d7154612f3f4a63cb66eeb62718fc0e65b2aeacf6bc92a4af25dc79e"
         },
-        "signerCommit": "5f7c4047aaee4170a459f223d3834c526cf2ad6e"
+        "signerCommit": "ac36e930fd425903e3295ca94d42048f3450a3d2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -557,10 +555,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "眠っている席に知らせが届いた時、同じ会話のまま起き直して答えるようになります。",
-        "仕事中に断られたモデルや考える深さの変更が、その仕事の終わりに改めて反映されるようになります。",
-        "アカウントを移った後に残った古い席が、静かになった時に閉じられるようになります。",
-        "端末で動く Bot を閉じようとして断られた時、同じ操作を繰り返し続けなくなります。"
+        "休んでいた席を起こせなかったときは、古い記録を閉じて新しく立ち上げ直します。",
+        "動いているのに「ログアウト」と出ていた Claude の枠が、同じトークンの席がターンを終えたときに元に戻ります。"
       ]
     },
     {
@@ -715,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9852bde2040b4ca266c41e8a9ec7fa62ac29ea3b",
-      "versionId": "sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9",
+      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
+      "versionId": "sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,20 +728,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "「仕事中」から外すものの一覧を画面から読めるようになり、ひとつずつ消せるようになります。"
+        "ターンの終わりに状態が一瞬「分からない」になることがなくなります。",
+        "休んでいた端末の席が、端末とのつながりを失わずに起き直せます。",
+        "端末につながるかどうかの記録が、起動直後の失敗のまま残らなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9852bde2040b4ca266c41e8a9ec7fa62ac29ea3b",
-      "versionId": "sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9",
+      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
+      "versionId": "sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed0b96f0ba4c681cda48446206ed1dd7f8bcef02f21b4e6aed7132b1701c3a8f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -754,13 +752,15 @@
         "containerUpdate": 1
       },
       "changes": [
-        "「仕事中」から外すものの一覧を画面から読めるようになり、ひとつずつ消せるようになります。"
+        "ターンの終わりに状態が一瞬「分からない」になることがなくなります。",
+        "休んでいた端末の席が、端末とのつながりを失わずに起き直せます。",
+        "端末につながるかどうかの記録が、起動直後の失敗のまま残らなくなります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f",
-      "versionId": "8deb066607fa9476d58977360486b6bff2cb17b08241bea4d95923b141695d35",
+      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
+      "versionId": "c105e44effa19207c3de4c48b3cebbe97b1d35e9950fb18953966f5b7a783322",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -768,16 +768,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121811Z/lattice-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-amd64.tar.gz",
-          "bytes": 15270839,
-          "sha256": "8deb066607fa9476d58977360486b6bff2cb17b08241bea4d95923b141695d35"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-amd64.tar.gz",
+          "bytes": 15271230,
+          "sha256": "c105e44effa19207c3de4c48b3cebbe97b1d35e9950fb18953966f5b7a783322"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121811Z/lattice-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "c901c1ec53321e2c4b03e890fb5d5df4f0dc23376bc3ef6807bd874cc9acc9dc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11188,
+          "sha256": "68c00ce9fecdff0596d8a7e886a3510cb4411054d3235df08eae8bed144764ab"
         },
-        "signerCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f"
+        "signerCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -789,13 +789,13 @@
         }
       },
       "changes": [
-        "Lattice を 0.99.0 にします。ほかの工程表の作業を、前の工程としてつなげられます。"
+        "工程表で作業を取り下げたり済みにしたりすると、評価者様への申請が自動で取り消されます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f",
-      "versionId": "c0a54ce456de338f053f4d6793332aaea3ef3abc34ef7797520ee9069100052d",
+      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
+      "versionId": "3eeda6f911a822c51b03529d001dc17ab401eed77d472a5e3aac1fba19de98d6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -803,16 +803,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121811Z/lattice-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-arm64.tar.gz",
-          "bytes": 15270847,
-          "sha256": "c0a54ce456de338f053f4d6793332aaea3ef3abc34ef7797520ee9069100052d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-arm64.tar.gz",
+          "bytes": 15271245,
+          "sha256": "3eeda6f911a822c51b03529d001dc17ab401eed77d472a5e3aac1fba19de98d6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T121811Z/lattice-5ce654f562e8f979a8ed814b854ff7d497a83a8f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "548f70d4dba81c1160cef1b1949365b6b65376541a5fc8685163fb36304acb3a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11145,
+          "sha256": "644638c67b6efc1178a89ccabf30d49e4b3b82dcc20c9e84294676e457abbef1"
         },
-        "signerCommit": "5ce654f562e8f979a8ed814b854ff7d497a83a8f"
+        "signerCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -824,7 +824,7 @@
         }
       },
       "changes": [
-        "Lattice を 0.99.0 にします。ほかの工程表の作業を、前の工程としてつなげられます。"
+        "工程表で作業を取り下げたり済みにしたりすると、評価者様への申請が自動で取り消されます。"
       ]
     }
   ],
