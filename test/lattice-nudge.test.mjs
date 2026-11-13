@@ -33,7 +33,8 @@ test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is no
   assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['scheduler', 'bot-a'], ['scheduler', 'bot-c']], 'a working Bot is not prompted')
   const text = x.sent[0].message
   assert.ok(text.startsWith('Lattice: you are not running') && text.includes('Start at least one now.'))
-  assert.ok(text.includes('lattice todo dependency connect') && text.includes('lattice todo retract') && text.includes('lattice todo block'))
+  assert.ok(text.includes('lattice todo dependency connect') && text.includes('lattice todo add') && text.includes('--before <T>') && text.includes('lattice todo retract'))
+  assert.ok(!text.includes('todo block') && !/\bstop\b/i.test(text), 'a wait is a prerequisite, never a stop (Owner K-YNBZE7)')
   assert.ok(text.endsWith('\nChart alpha (lattice tool, project alpha):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`\n- p1/t2 「T2」: in progress'
     + '\nChart beta (lattice tool, project beta):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`'))
   assert.ok(!text.includes('t5') && !text.includes('t6') && !text.includes('t7') && !text.includes('t8'), 'stopped, waiting on prerequisites and finished cards are not prompted')

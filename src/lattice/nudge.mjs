@@ -2,8 +2,12 @@
 // no `todo nudge`) -> ONE prompt per lane Bot that is not running and has an in-progress or a startable task. No other condition.
 const LIMIT = 4000
 const HEAD = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.\n'
-  + 'If a task can only start after another task is done, connect that task as its prerequisite (`lattice todo dependency connect --from-plan <P> --from-task <that task> --to-plan <P> --to-task <T> --reason <why>`) and return this task to unstarted (`lattice todo retract --plan <P> --task <T> --reason <why>`).\n'
-  + 'If it cannot start for any other reason, set a stop (`lattice todo block --plan <P> --task <T> --reason <why>`); a stopped task is not prompted.'
+  // Owner K-YNBZE7 (2026-11-13): a wait is a prerequisite, never a stop; the text must not lead members back to `todo block`.
+  + 'If a task waits on something (another task, another member\'s PR, an outside review, the Owner), make what it waits on its prerequisite. '
+  + 'Already a task: connect it (`lattice todo dependency connect --from-plan <P> --from-task <that task> --to-plan <P> --to-task <T> --reason <why>`). '
+  + 'Not a task yet: add it before this one, in the lane of whoever finishes it (a member\'s Bot id, owner, or an outside name such as apple) '
+  + '(`lattice todo add --plan <P> --task <id> --title <what you wait for> --phase <phase of T> --lane <lane> --before <T> --design-memo <what and why> --reason <why>`); mark an outside wait done yourself when it arrives. '
+  + 'Then return the task to unstarted if it is in progress (`lattice todo retract --plan <P> --task <T> --reason <why>`). A task waiting on prerequisites is not prompted.'
 
 const line = card => card.state === 'ready'
   ? `- ${card.plan}/${card.taskId} 「${card.title}」: can start -> \`lattice todo start --plan ${card.plan} --task ${card.taskId}\``
