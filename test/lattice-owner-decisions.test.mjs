@@ -12,7 +12,7 @@ const members = [{ id: 'bot-c', name: 'Cee', deleting: false }, { id: 'bot-a', n
 const card = (taskId, state, lane = 'owner') => ({ plan: 'p1', taskId, title: `Task ${taskId}`, state, lane, doneCondition: 'approved', designMemo: 'why' })
 
 const fail = code => Object.assign(new Error('x'), { code })
-function rig({ charts, decisions = {}, fileFails = false, readFails = null, sendDelivery = 'running', record = {} }) {
+function rig({ charts, decisions = {}, fileFails = false, readFails = null, cancelFails = null, sendDelivery = 'running', record = {} }) {
   const calls = [], logs = [], writes = []
   let stored = structuredClone(record), next = 1
   const effect = async (method, params) => {
@@ -25,6 +25,8 @@ function rig({ charts, decisions = {}, fileFails = false, readFails = null, send
     if (method === 'decisions.read' && readFails) throw fail(readFails)
     if (method === 'decisions.read') return decisions[params.decisionId] ?? { status: 'pending' }
     if (method === 'messages.send') return { delivery: sendDelivery, deliveryId: 'd' }
+    if (method === 'decisions.cancel' && cancelFails) throw fail(cancelFails)
+    if (method === 'decisions.cancel') return { status: 'cancelled' }
     throw new Error(method)
   }
   const records = { read: async () => structuredClone(stored), write: async value => { stored = structuredClone(value); writes.push(stored) } }
@@ -118,4 +120,29 @@ test('owner filing: unavailable ends the tick at the first failure; a refusal sk
     record: { 'alpha/p1/t9': { projectId: 'alpha', plan: 'p1', taskId: 't9', title: 'x', decisionId: 'K-AAAA09', status: 'open', filedAt: 't' } } })
   assert.deepEqual(await unread.go(), { filed: 0, routed: 0 })
   assert.deepEqual(unread.calls.map(([method]) => method), ['decisions.read'], 'no filing after an unavailable read')
+})
+
+test('owner filing: an Owner task retired or done on its chart cancels its still-open request; unseen cards and answers are left alone (Chime 2026-11-13)', async () => {
+  const open = (taskId, id) => ({ projectId: 'alpha', plan: 'p1', taskId, title: `Task ${taskId}`, decisionId: id, status: 'open', filedAt: 'x' })
+  const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'retired'), card('t2', 'done'), card('t3', 'ready'), card('t4', 'retired')] }]
+  const record = { 'alpha/p1/t1': open('t1', 'K-AAAA01'), 'alpha/p1/t2': open('t2', 'K-AAAA02'), 'alpha/p1/t3': open('t3', 'K-AAAA03'),
+    'alpha/p1/t4': open('t4', 'K-AAAA04'), 'alpha/p1/t9': open('t9', 'K-AAAA09') }
+  const x = rig({ charts, record, decisions: { 'K-AAAA02': { status: 'held' }, 'K-AAAA04': { status: 'answered', answer: { optionId: 'done' } } } })
+  assert.deepEqual(await x.go(), { filed: 0, routed: 1 })
+  const cancels = x.calls.filter(([method]) => method === 'decisions.cancel').map(([, params]) => params)
+  assert.deepEqual(cancels.map(params => params.decisionId), ['K-AAAA01', 'K-AAAA02'])
+  assert.ok(cancels[0].reason.includes('取り下げられた') && cancels[1].reason.includes('済になった'))
+  for (const params of cancels) validateLatticeEffect('decisions.cancel', params)
+  validateLatticeEffectResult('decisions.cancel', { status: 'cancelled' })
+  assert.deepEqual(Object.fromEntries(Object.entries(x.stored()).map(([key, item]) => [key, item.status])),
+    { 'alpha/p1/t1': 'closed', 'alpha/p1/t2': 'closed', 'alpha/p1/t3': 'open', 'alpha/p1/t4': 'routed', 'alpha/p1/t9': 'open' }, 'ready stays, an answer still routes, an unseen card is not an end')
+
+  // A refused cancel (or an older body) skips that record only; unavailable ends the tick.
+  const refused = rig({ charts, record: { 'alpha/p1/t1': open('t1', 'K-AAAA01'), 'alpha/p1/t2': open('t2', 'K-AAAA02') }, cancelFails: 'LATTICE_EFFECT_FAILED' })
+  await refused.go()
+  assert.deepEqual(refused.calls.filter(([method]) => method === 'decisions.cancel').length, 2)
+  assert.deepEqual([refused.stored()['alpha/p1/t1'].status, refused.stored()['alpha/p1/t2'].status], ['open', 'open'], 'filing goes on after a refused cancel')
+  const down = rig({ charts, record: { 'alpha/p1/t1': open('t1', 'K-AAAA01'), 'alpha/p1/t2': open('t2', 'K-AAAA02') }, cancelFails: 'LATTICE_DECISIONS_UNAVAILABLE' })
+  await down.go()
+  assert.deepEqual(down.calls.map(([method]) => method), ['decisions.read', 'decisions.cancel'])
 })

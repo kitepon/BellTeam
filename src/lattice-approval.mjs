@@ -78,5 +78,12 @@ export function createApprovalDecisions({ credentials, secretRequests, fetchImpl
       if (json.status === 'answered') await call('POST', `/decisions/${encodeURIComponent(decisionId)}/fetched`).catch(() => null)
       return { status: json.status, ...(answer && { answer }) }
     },
+    // Withdraws a still-open request (README L19: its Owner-lane task ended on the chart). An answered or cancelled one answers 4xx -> REFUSED.
+    async cancel({ decisionId, reason }) {
+      const { ok, status, json } = await call('POST', `/decisions/${encodeURIComponent(decisionId)}/cancel`, { reason })
+      if (!ok) throw failedBy(status)
+      if (idOf(json) !== decisionId || json.status !== 'cancelled') throw unavailable()
+      return { status: 'cancelled' }
+    },
   }
 }

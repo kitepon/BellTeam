@@ -114,9 +114,9 @@ export function createLatticeEffects({ bots, messenger, transport, decisions = n
         : Promise.resolve(transport?.currentTurn?.(id)).then(turn => turn?.state)).then(state => state, () => null)
       return [id, ['working', 'idle'].includes(state) ? state : 'unknown']
     }))) }
-    if (method === 'decisions.file' || method === 'decisions.read') {
+    if (method === 'decisions.file' || method === 'decisions.read' || method === 'decisions.cancel') {
       if (!decisions) throw Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 503 })
-      return method === 'decisions.file' ? decisions.file(params) : decisions.read(params)
+      return decisions[method.slice('decisions.'.length)](params)
     }
     throw Object.assign(new Error('LATTICE_EFFECT_INVALID'), { code: 'LATTICE_EFFECT_INVALID', status: 400 })
   }

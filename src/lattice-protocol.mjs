@@ -1,7 +1,7 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
 export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock'])
-export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'decisions.file', 'decisions.read'])
+export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'decisions.file', 'decisions.read', 'decisions.cancel'])
 // An Approval Box decision id (README L18-L19).
 export const LATTICE_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
 export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
@@ -53,6 +53,8 @@ export function validateLatticeEffect(method, params) {
       || !Array.isArray(params.options) || params.options.length < 2 || params.options.length > 6
       || !params.options.every(option => latticeObject(option, ['id', 'label']) && sendText(option.id, 40) && sendText(option.label, 60))
     : method === 'decisions.read' ? !latticeObject(params, ['decisionId']) || !str(params.decisionId) || !LATTICE_DECISION_ID.test(params.decisionId)
+    : method === 'decisions.cancel' ? !latticeObject(params, ['decisionId', 'reason']) || !str(params.decisionId) || !LATTICE_DECISION_ID.test(params.decisionId)
+      || !sendText(params.reason, 500)
     : method === 'turns.read' ? !latticeObject(params, ['botIds']) || !Array.isArray(params.botIds) || params.botIds.length < 1 || params.botIds.length > 200
       || new Set(params.botIds).size !== params.botIds.length || !params.botIds.every(id => sendText(id, 128))
     : !latticeObject(params, ['from', 'target', 'message']) || !sendText(params.from, 128) || !sendText(params.target, 128) || !sendText(params.message, 4000))
@@ -73,6 +75,7 @@ export function validateLatticeEffectResult(method, value) {
   else if (method === 'decisions.read') need(latticeObject(value, ['status'], ['answer']) && ['pending', 'held', 'answered', 'cancelled'].includes(value.status)
     && (value.answer === undefined || latticeObject(value.answer, [], ['optionId', 'text']) && (value.answer.optionId === undefined || str(value.answer.optionId))
       && (value.answer.text === undefined || str(value.answer.text))))
+  else if (method === 'decisions.cancel') need(latticeObject(value, ['status']) && value.status === 'cancelled')
   else invalid()
 }
 

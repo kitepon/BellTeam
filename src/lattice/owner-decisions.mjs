@@ -2,6 +2,8 @@
 // an Owner-lane task that is in progress or can start goes to the Approval Box once, by this script; the answer goes to the chart's creator Bot.
 const SENT = ['running', 'steered', 'queued', 'delivered', 'answered']
 export const OPTIONS = Object.freeze([{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ（理由を書く）' }])
+// The cancel reason the Owner reads, per card state that ends the task (README L19).
+const ENDED = { retired: 'この工程は工程表で取り下げられたため、申請を取り下げました。', done: 'この工程は工程表で済になったため、申請を取り下げました。' }
 
 const keyOf = (projectId, card) => `${projectId}/${card.plan}/${card.taskId}`
 // Only a refusal of one request lets the tick go on; anything else (unavailable, an old body) ends this tick's filing (README L18, Molly review).
@@ -33,6 +35,7 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
   const out = { filed: 0, routed: 0 }
   const record = await records.read()
   const byId = new Map(charts.map(chart => [chart.projectId, chart]))
+  const cards = new Map(charts.flatMap(chart => chart.cards.map(card => [keyOf(chart.projectId, card), card])))
   for (const [key, item] of Object.entries(record)) {
     if (item.status !== 'open') continue
     const chart = byId.get(item.projectId)
@@ -43,6 +46,19 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
       return out
     }
     if (value.status === 'cancelled') { record[key] = { ...item, status: 'closed' }; await records.write(record); continue }
+    // An Owner task that ended on its chart takes its open request with it (Chime 2026-11-13); an unseen card is never taken as ended.
+    const ended = ENDED[cards.get(key)?.state]
+    if (ended && (value.status === 'pending' || value.status === 'held')) {
+      try { await effect('decisions.cancel', { decisionId: item.decisionId, reason: ended }) } catch (error) {
+        log(`lattice-owner-cancel ${key} ${error?.code ?? 'FAILED'}`)
+        if (error?.code === 'LATTICE_DECISIONS_UNAVAILABLE') return out
+        continue
+      }
+      record[key] = { ...item, status: 'closed' }
+      await records.write(record)
+      log(`lattice-owner-cancelled ${key}`)
+      continue
+    }
     if (value.status !== 'answered') continue
     const creator = chart?.createdBy
     if (!creator || !bots.has(creator)) { log(`lattice-owner-route ${item.projectId} no-creator`); continue }

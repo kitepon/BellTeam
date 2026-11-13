@@ -157,3 +157,13 @@ test('identity is the stable ids: same-named charts by one creator stay distinct
   assert.deepEqual(await y.tick(), { filed: 0, routed: 1 })
   assert.equal(y.sends.length, 1)
 })
+
+test('decisions.cancel: posts the reason to /cancel; an answered request (4xx) is refused; effects route it (README L19)', async () => {
+  const live = { handle: 'h', revision: 1, available: true, requestId: 's' }
+  const x = rig({ current: live, responses: [[200, { id: 'K-ABC123', status: 'cancelled' }]] })
+  assert.deepEqual(await x.decisions.cancel({ decisionId: 'K-ABC123', reason: 'r' }), { status: 'cancelled' })
+  assert.deepEqual(x.fetches.map(item => item.slice(0, 3)), [['POST', '/decisions/K-ABC123/cancel', { reason: 'r' }]])
+  await assert.rejects(rig({ current: live, responses: [[409, { error: { code: 'not_open' } }]] }).decisions.cancel({ decisionId: 'K-ABC123', reason: 'r' }), { code: 'LATTICE_DECISIONS_REFUSED' })
+  const effect = createLatticeEffects({ bots: null, messenger: null, transport: null, decisions: { cancel: async input => ({ status: 'cancelled', seen: input.decisionId }) } })
+  assert.deepEqual(await effect('decisions.cancel', { decisionId: 'K-X1Y2', reason: 'r' }), { status: 'cancelled', seen: 'K-X1Y2' })
+})
