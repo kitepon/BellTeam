@@ -67,3 +67,11 @@ test('ago words',()=>{
  assert.equal(ago('2026-11-11T21:00:00Z',now),'3時間前')
  assert.equal(ago('2026-11-09T00:00:00Z',now),'3日前')
 })
+test('the optional reason key (a41) is tolerated on a working Bot and malformed reasons stay unknown',()=>{
+ const working={...examples.currentWork.workingCurrent,reason:{kind:'background',detail:'node vite.js dev',since:'2026-11-13T00:00:00.000Z'}}
+ assert.deepEqual(currentWork(working),working)
+ assert.equal(currentWork({...working,reason:null}).state,'working')
+ for(const reason of [{kind:'other',detail:null,since:null},{kind:'turn',detail:'a\nb',since:null},{kind:'turn',detail:null}])assert.equal(currentWork({...working,reason}).state,'unknown')
+ const idle=Object.values(examples.currentWork).find(value=>value.state==='idle')
+ assert.equal(currentWork({...idle,reason:{kind:'turn',detail:null,since:null}}).state,'unknown')
+})

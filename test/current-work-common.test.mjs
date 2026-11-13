@@ -87,3 +87,13 @@ test('the currentWork DTO has no length bound (Owner 2026-11-09) but stays non-e
   for (const summary of ['猫'.repeat(500), 'a'.repeat(5000)]) assert.equal(validateCurrentWork({ ...work(), summary }).valid, true)
   for (const summary of ['', ' 先頭空白', '改行\nあり', '制御\u0007']) assert.equal(validateCurrentWork({ ...work(), summary }).valid, false)
 })
+
+test('the optional reason key (a41) is accepted only on a working Bot and absent stays valid', () => {
+  const since = '2026-11-13T00:00:00.000Z'
+  for (const reason of [null, { kind: 'turn', detail: null, since: null }, { kind: 'background', detail: 'node vite.js dev', since }])
+    assert.equal(validateCurrentWork({ ...work(), reason }).valid, true)
+  assert.equal(validateCurrentWork({ ...work(), state: 'idle', source: 'background_agent', reason: null }).valid, true)
+  for (const value of [{ ...work(), state: 'idle', source: 'background_agent', reason: { kind: 'turn', detail: null, since: null } }, { ...work(), reason: { kind: 'other', detail: null, since: null } },
+    { ...work(), reason: { kind: 'background', detail: 'a\nb', since: null } }, { ...work(), reason: { kind: 'turn', detail: null } }, { ...work(), reason: { kind: 'turn', detail: null, since: null, x: 1 } }])
+    assert.equal(validateCurrentWork(value).valid, false)
+})

@@ -3,14 +3,18 @@ import { escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 const unknown = { state:'unknown', summary:null, summaryStatus:'missing', summaryUpdatedAt:null, observedAt:null, source:null }
 const keys = Object.keys(unknown)
 const timestamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/u.test(value) && Number.isFinite(Date.parse(value))
+const line = value => typeof value === 'string' && value.length > 0 && value === value.trim() && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)
+// Optional reason (a41): absent/null, or {kind, detail, since} on a working Bot only.
+const validReason = (reason, state) => reason == null || state === 'working' && typeof reason === 'object' && Object.keys(reason).length === 3
+  && ['turn','schedule','background','subagent'].includes(reason.kind) && (reason.detail === null || line(reason.detail)) && (reason.since === null || timestamp(reason.since))
 export function currentWork(value) {
-  if (!value || typeof value !== 'object' || Object.keys(value).length !== keys.length || !keys.every(key => Object.hasOwn(value,key))) return unknown
+  if (!value || typeof value !== 'object' || Object.keys(value).length !== keys.length + Object.hasOwn(value,'reason') || !keys.every(key => Object.hasOwn(value,key))) return unknown
   const {state,summary,summaryStatus,summaryUpdatedAt,observedAt,source} = value
+  if (!validReason(value.reason, state)) return unknown
   if (state === 'unknown' ? observedAt !== null && !timestamp(observedAt) : !timestamp(observedAt)) return unknown
   const summarized = source === 'background_agent' && ['working','idle','unknown'].includes(state) || source === 'self_reported' && state === 'working'
   if (summarized && summaryStatus === 'current') {
-    return typeof summary === 'string' && summary.length > 0 && summary === summary.trim()
-      && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(summary) && timestamp(summaryUpdatedAt) ? value : unknown
+    return line(summary) && timestamp(summaryUpdatedAt) ? value : unknown
   }
   if (summarized && summaryStatus === 'stale') return summary === null && timestamp(summaryUpdatedAt) ? value : unknown
   return ['working','idle','unknown'].includes(state) && summaryStatus === 'missing' && summary === null && summaryUpdatedAt === null && source === null ? value : unknown
