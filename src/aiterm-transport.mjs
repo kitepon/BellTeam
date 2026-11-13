@@ -1788,6 +1788,14 @@ export class AitermTransport {
           const close = live || (observed && refusal.code !== 'AGENT_SESSION_REQUIRED')
           if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
           session = await this.memberOperation(bot, async lease => {
+            // delivery-details.md (a49): a hibernated record holds the conversation; the wake resumes it, a close discards it.
+            // Only a resume Aiterm answered with a refusal goes on to close and start fresh.
+            if (live && observed.state === 'hibernated') {
+              try { check(); return await this.wake(bot, { setupTest, membersLease: lease }) } catch (error) {
+                if (error?.aitermResponseReturned !== true) throw error
+                process.stderr.write(`BellTeam Aiterm: hibernated seat not resumed, starting fresh: ${bot.id}: ${error.code ?? String(error.message).slice(0, 120)}\n`)
+              }
+            }
             if (close) {
               process.stderr.write(`BellTeam Aiterm agent registration unavailable, restarting: ${bot.id}\n`)
               await this.changeSession(bot, 'pty_close', { session_id: session })
