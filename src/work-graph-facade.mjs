@@ -3,7 +3,7 @@ import { readCurrentWork } from './current-work-contract.mjs'
 // Provider invalidations become one serialized root 'refresh'; batches go to the body's SSE subscribers.
 const unavailable = () => Object.assign(new Error('WORK_GRAPH_UNAVAILABLE'), { code: 'WORK_GRAPH_UNAVAILABLE', status: 503 })
 
-export function createWorkGraphFacade({ controller, bots, rooms, transport, commandWaits = null, coalesceMs = 100, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createWorkGraphFacade({ controller, bots, rooms, transport, commandWaits = null, ownWork = () => false, ownWorkMs = 5000, coalesceMs = 100, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Set(), stops = []
   let chain = Promise.resolve(), session = 0, timer = null, nextTimer = null
 
@@ -17,7 +17,9 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, comm
     if (mine !== session) return
     if (value?.batch) for (const send of subscribers) try { send(value.batch) } catch {}
     clearTimer(nextTimer); nextTimer = null
-    if (value?.nextRefreshMs != null) nextTimer = setTimer(() => { nextTimer = null; request() }, Math.max(0, value.nextRefreshMs))
+    // a61: no provider signals the end of a member's own work, so re-check while one reads working by it.
+    const wait = ownWork() ? Math.min(value?.nextRefreshMs ?? ownWorkMs, ownWorkMs) : value?.nextRefreshMs
+    if (wait != null) nextTimer = setTimer(() => { nextTimer = null; request() }, Math.max(0, wait))
   }, () => {})
 
   function request() {
@@ -60,8 +62,9 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
   const text = value => value == null ? '' : String(value)
   const textOrNull = value => value == null ? null : String(value)
   const time = value => typeof value === 'number' ? new Date(value).toISOString() : textOrNull(value)
-  const turn = value => ({ state: ['working', 'idle'].includes(value?.state) ? value.state : 'unknown', turnId: textOrNull(value?.turnId), startedAt: time(value?.startedAt) })
-  return async (method, params) => {
+  const turn = value => ({ turnId: textOrNull(value?.turnId), startedAt: time(value?.startedAt) })
+  let own = false
+  const effect = async (method, params) => {
     if (method === 'members.list') return { members: (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name),
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
     if (method === 'queue.read') return { items: (await transport.queueItems({})).map(item => ({ status: text(item.status), context: text(item.context),
@@ -80,13 +83,13 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
       try {
         const rows = await Promise.all(params.botIds.map(async id => {
           // The edge label is the receiver's Japanese work summary (GET /api/bots currentWork), never a message body.
+          // a61 (Owner 2026-11-13 15:5x): state is the one execution judgement, exactly what GET /api/bots shows.
           const work = readCurrentWork(transport, bots.get?.(id) ?? null)
           const native = turn(await transport.currentTurn(id, { startedAt: true }))
-          // a54 (Owner 2026-11-13): "working" is lattice's nudge judgement, runningState (counts a notify=result command wait).
-          const running = typeof transport.runningState === 'function' ? await transport.runningState(id) : null
-          return [id, { ...native, state: ['working', 'idle'].includes(running) ? running : native.state, summary: work.summary, summaryStatus: work.summaryStatus }]
+          return [id, { state: work.state, ...native, summary: work.summary, summaryStatus: work.summaryStatus, own: ['background', 'subagent'].includes(work.reason?.kind) }]
         }))
-        return { turns: Object.fromEntries(rows) }
+        own = rows.some(([, row]) => row.own)
+        return { turns: Object.fromEntries(rows.map(([id, { own: _, ...row }]) => [id, row])) }
       } catch (error) {
         if (error?.code === 'EXECUTION_REQUEST_INVALID' || /EXECUTION_REQUEST_INVALID/u.test(error?.message ?? '')) return { unsupported: true }
         throw error
@@ -94,4 +97,7 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
     }
     throw Object.assign(new Error('WORK_GRAPH_EFFECT_INVALID'), { code: 'WORK_GRAPH_EFFECT_INVALID', status: 400 })
   }
+  // The facade's own-work re-check (a61) reads whether the last turns.read saw a member working by own work.
+  effect.ownWork = () => own
+  return effect
 }

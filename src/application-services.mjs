@@ -454,9 +454,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (workGraphFactory) {
     // Optional module: the body never waits for it; the route answers 503 until the child is available.
     const { messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
-    workGraphModule = workGraphFactory({ root, exchangeMutex, prepareRelease: prepareWorkGraph, onEffect: createWorkGraphEffects({ bots, transport, messagePage }),
+    const workGraphEffects = createWorkGraphEffects({ bots, transport, messagePage })
+    workGraphModule = workGraphFactory({ root, exchangeMutex, prepareRelease: prepareWorkGraph, onEffect: workGraphEffects,
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, commandWaits })
+    workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, commandWaits, ownWork: workGraphEffects.ownWork })
     void workGraphModule.start().catch(() => {})
   }
   if (latticeFactory) {
