@@ -113,20 +113,25 @@ const card = value => latticeObject(value, ['id', 'plan', 'taskId', 'title', 'do
   && (value.archived === undefined || typeof value.archived === 'boolean')
   && ['doneCondition', 'designMemo', 'lane', 'producer', 'startedAt', 'changedAt', 'blockedReason'].every(key => strOrNull(value[key]))
   && CARD_STATES.includes(value.state) && count(value.depth)
-const edge = value => latticeObject(value, ['from', 'to', 'waiting']) && str(value.from) && str(value.to) && typeof value.waiting === 'boolean'
+const edge = value => latticeObject(value, ['from', 'to', 'waiting'], ['external']) && str(value.from) && str(value.to) && typeof value.waiting === 'boolean'
+  && (value.external === undefined || value.external === true)
 const wait = value => latticeObject(value, ['waiter', 'waitingCard', 'forCard', 'producer', 'producerState', 'since'])
   && strOrNull(value.waiter) && str(value.waitingCard) && str(value.forCard) && strOrNull(value.producer)
-  && CARD_STATES.includes(value.producerState) && strOrNull(value.since)
+  && (CARD_STATES.includes(value.producerState) || value.producerState === null) && strOrNull(value.since)
+// A predecessor on another chart (task a60); state null = Lattice could not read it.
+const external = value => latticeObject(value, ['id', 'projectId', 'cardId', 'chartName', 'title', 'state', 'finished', 'producer'])
+  && str(value.id) && validId(value.projectId) && str(value.cardId) && ['chartName', 'title', 'producer'].every(key => strOrNull(value[key]))
+  && (CARD_STATES.includes(value.state) || value.state === null) && typeof value.finished === 'boolean'
 const phase = value => latticeObject(value, ['id', 'title']) && str(value.id) && strOrNull(value.title)
 const member = value => latticeObject(value, ['botId', 'name', 'color', 'avatarVersion']) && Object.values(value).every(str)
 const counts = value => latticeObject(value, ['total', 'done', 'working', 'waiting', 'blocked']) && Object.values(value).every(count)
 const snapshot = value => latticeObject(value, ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded',
-  'members', 'cards', 'edges', 'waits'], ['phases']) && value.schema === 'bellteam.lattice-chart.v1' && str(value.epoch) && value.epoch.length > 0
+  'members', 'cards', 'edges', 'waits'], ['phases', 'externals']) && value.schema === 'bellteam.lattice-chart.v1' && str(value.epoch) && value.epoch.length > 0
   && Number.isInteger(value.version) && value.version >= 1 && str(value.at) && validId(value.projectId) && strOrNull(value.name) && strOrNull(value.createdBy)
   && typeof value.coordinator === 'boolean'
   && DISPLAY_STATES.includes(value.state) && strOrNull(value.verifiedAt) && list(value.degraded, item => ['lattice-read', 'members'].includes(item))
   && list(value.members, member) && list(value.cards, card) && list(value.edges, edge) && list(value.waits, wait)
-  && (value.phases === undefined || list(value.phases, phase))
+  && (value.phases === undefined || list(value.phases, phase)) && (value.externals === undefined || list(value.externals, external))
 const stop = value => latticeObject(value, ['stopId', 'projectId', 'chartName', 'chartCreatedBy', 'plan', 'taskId', 'cardId', 'title', 'lane', 'reason', 'blockedAt', 'blockedBy'])
   && str(value.stopId) && LATTICE_STOP_ID.test(value.stopId) && validId(value.projectId) && ['plan', 'taskId', 'cardId'].every(key => str(value[key]))
   && ['chartName', 'chartCreatedBy', 'title', 'lane', 'reason', 'blockedAt', 'blockedBy'].every(key => strOrNull(value[key]))

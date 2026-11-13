@@ -240,19 +240,27 @@ export function cardNote(card, member) {
   return ''
 }
 
+// 別の工程表の前の工程（externals[]）：題名と工程表の名前の穴埋め、読めていない状態は「読めていません」。
+const NO_READ = '読めていません'
+const externalsOf = snapshot => new Map((snapshot.externals ?? []).map(ext => [ext.id, ext]))
+const externalTitle = ext => ext.title ?? 'ほかの工程表の工程', externalChart = ext => `${ext.chartName ?? 'ほかの工程表'}の工程表`
+// 別の工程表の工程は着手時刻を持たないので、作業中は分を付けない。
+const externalState = (ext, producer, now) => ext.state === null ? NO_READ : ext.state === 'in-progress' ? stateInfo(ext.state).badge : producerStateText({ state: ext.state }, producer, now)
+
 export function waitRows(snapshot, now) {
-  const lookup = memberLookup(snapshot), ownerOf = ownerLookup(snapshot), titles = new Map((snapshot.cards ?? []).map(card => [card.id, card]))
+  const lookup = memberLookup(snapshot), ownerOf = ownerLookup(snapshot), titles = new Map((snapshot.cards ?? []).map(card => [card.id, card])), externals = externalsOf(snapshot)
   return (snapshot.waits ?? []).map(wait => {
-    const awaited = titles.get(wait.forCard), waiting = titles.get(wait.waitingCard)
-    const waiter = wait.waiter ? lookup(wait.waiter) : ownerOf(waiting), producer = wait.producer ? lookup(wait.producer) : ownerOf(awaited)
-    const title = awaited?.title ?? '', state = producerStateText({ ...awaited, state: wait.producerState ?? awaited?.state }, producer, now)
+    const ext = externals.get(wait.forCard), awaited = ext ? { state: ext.state } : titles.get(wait.forCard), waiting = titles.get(wait.waitingCard)
+    const waiter = wait.waiter ? lookup(wait.waiter) : ownerOf(waiting), producer = wait.producer ? lookup(wait.producer) : ext ? null : ownerOf(awaited)
+    const title = ext ? externalTitle(ext) : awaited?.title ?? '', chart = ext ? externalChart(ext) : null
+    const state = ext ? externalState(ext, producer, now) : producerStateText({ ...awaited, state: wait.producerState ?? awaited?.state }, producer, now)
     return {
-      key: `${wait.waitingCard}>${wait.forCard}`, waiter, producer, title, state, forCard: wait.forCard, waitingCard: wait.waitingCard,
+      key: `${wait.waitingCard}>${wait.forCard}`, waiter, producer, title, chart, external: ext ? { projectId: ext.projectId, cardId: ext.cardId } : null, state, forCard: wait.forCard, waitingCard: wait.waitingCard,
       headline: waiting?.title ?? '', ownerText: waiter ? `担当 ${waiter.name}` : UNASSIGNED,
       length: sinceText(wait.since, now),
       emphasized: wait.producerState === 'blocked', info: stateInfo(wait.producerState ?? awaited?.state),
       canChat: Boolean(producer?.known && !producer.owner),
-      label: `「${waiting?.title ?? ''}」（${waiter ? `担当 ${waiter.name}` : UNASSIGNED}）は、「${title}」が終わるのを待っています。つくっているのは${nameOf(producer)}、${state}`,
+      label: `「${waiting?.title ?? ''}」（${waiter ? `担当 ${waiter.name}` : UNASSIGNED}）は、「${title}」${chart ? `（${chart}）` : ''}が終わるのを待っています。つくっているのは${nameOf(producer)}、${state}`,
       waitingTitle: waiting?.title ?? '',
     }
   })
@@ -288,7 +296,12 @@ export function highlightSets(snapshot, botId) {
 export function detailOf(snapshot, cardId, now) {
   const cards = new Map((snapshot.cards ?? []).map(card => [card.id, card])), card = cards.get(cardId)
   if (!card) return null
-  const ownerOf = ownerLookup(snapshot), link = id => { const other = cards.get(id); return other && { id, title: other.title, state: other.state, producer: ownerOf(other), stateText: producerStateText(other, ownerOf(other), now) } }
+  const ownerOf = ownerLookup(snapshot), externals = externalsOf(snapshot)
+  const link = id => {
+    const ext = externals.get(id), producer = ext?.producer ? memberLookup(snapshot)(ext.producer) : null
+    if (ext) return { id, title: externalTitle(ext), state: ext.state, producer, stateText: externalState(ext, producer, now), chart: externalChart(ext), external: { projectId: ext.projectId, cardId: ext.cardId } }
+    const other = cards.get(id); return other && { id, title: other.title, state: other.state, producer: ownerOf(other), stateText: producerStateText(other, ownerOf(other), now) }
+  }
   const edges = snapshot.edges ?? []
   return {
     id: cardId, card, producer: ownerOf(card), info: stateInfo(card.state),

@@ -56,7 +56,12 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return memo
     }
     const rosterBad = await members()
-    const projection = projectChart({ read, members: roster, previous: memo.projection })
+    // shortcut: the other chart's title/producer come from its memo as last read (none until the child reads it once); its state is Lattice's own, read now.
+    const elsewhere = (projectId, cardId) => {
+      const other = memos.get(projectId)?.content, card = other?.cards?.find(item => item.id === cardId)
+      return other && { chartName: other.name, title: card?.title ?? null, producer: card?.producer ?? null }
+    }
+    const projection = projectChart({ read, members: roster, previous: memo.projection, elsewhere })
     const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
     Object.assign(memo, { token: current, readAt: now(), dirty: false, logged: null, projection })
     const createdBy = meta.createdBy ?? projection.createdBy
@@ -64,7 +69,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       degraded: rosterBad ? ['members'] : [],
       members: projection.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color,
         avatarVersion: known.get(botId).avatarVersion })),
-      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases })
+      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases, externals: projection.externals })
     return memo
   }
 

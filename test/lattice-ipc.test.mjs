@@ -66,6 +66,13 @@ test('protocol: root results are exact', () => {
   validateLatticeResult('chart', { ...snapshot, degraded: ['lattice-read', 'members'], state: 'last_verified', verifiedAt: 'x' })
   validateLatticeResult('charts', { schema: 'bellteam.lattice-charts.v1', at: 'x', charts: [summary] })
   validateLatticeResult('chart', { ...snapshot, phases: [{ id: 'p1/ph1', title: null }], cards: [{ ...card, phase: 'p1/ph1', parent: null, doneAt: null, archived: false }] }) // tree and archive keys are optional
+  // Predecessors on another chart (task a60): optional externals, edge flag, unread state null.
+  const ext = { id: 'other:p1/t1', projectId: 'other', cardId: 'p1/t1', chartName: null, title: null, state: null, finished: false, producer: null }
+  validateLatticeResult('chart', { ...snapshot, externals: [ext, { ...ext, state: 'in-progress', title: 'T', chartName: 'O', producer: 'bot-a' }],
+    edges: [{ from: 'other:p1/t1', to: 'p1/t1', waiting: true, external: true }],
+    waits: [{ waiter: null, waitingCard: 'p1/t1', forCard: 'other:p1/t1', producer: null, producerState: null, since: null }] })
+  for (const patch of [{ externals: [{ ...ext, projectId: 'Bad' }] }, { externals: [{ ...ext, state: 'weird' }] }, { externals: [{ ...ext, finished: null }] }, { externals: [{ ...ext, extra: 1 }] },
+    { edges: [{ from: 'a', to: 'b', waiting: true, external: false }] }]) bad(() => validateLatticeResult('chart', { ...snapshot, ...patch }))
   validateLatticeResult('refresh', { snapshots: [snapshot], nextRefreshMs: 2000 })
   validateLatticeResult('refresh', { snapshots: [], nextRefreshMs: 0 })
   for (const result of [{ exitCode: 0, result: { a: 1 }, stdout: null, stderr: '' }, { exitCode: null, result: null, stdout: 'text', stderr: 'LATTICE_CLI_TIMEOUT' },

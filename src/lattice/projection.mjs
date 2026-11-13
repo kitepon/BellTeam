@@ -17,11 +17,14 @@ export function laneResolver(members) {
 }
 
 // Malformed fields drop only the task or edge they belong to. An unverified read has no journal, so producers fall back to the lane.
-export function projectChart({ read, members = [], previous = null }) {
+// elsewhere(projectId, cardId) -> {chartName, title, producer} | null: the other chart's memo, if the child holds one (core.mjs).
+export function projectChart({ read, members = [], previous = null, elsewhere = () => null }) {
   const state = DISPLAY.includes(read?.state) ? read.state : 'unavailable'
   const raw = state === 'unverified'
   const assigned = laneResolver(members)
   const cards = new Map(), deps = [], cross = [], removed = new Set(), phases = [], parents = new Map()
+  // Predecessors on another chart (Lattice 0.99.0, task a60): facts from external_tasks, keyed `<project>:<plan>/<task>`.
+  const outside = new Map(list(read?.external_tasks).filter(item => text(item?.project_id) && ref(item)).map(item => [`${item.project_id}:${ref(item)}`, item]))
   let first = null, updatedAt = null
   for (const member of list(read?.store?.members)) {
     const plan = member?.plan, key = text(plan?.plan_key)
@@ -57,7 +60,10 @@ export function projectChart({ read, members = [], previous = null }) {
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
     for (const join of list(plan.joins)) for (const after of list(join?.after)) deps.push([ref(after), ref(join?.before)])
     for (const event of list(member.plan_scoped?.events)) {
-      if (event?.kind === 'cross_plan_dependency') cross.push({ digest: event.event_digest, edge: [ref(event.payload?.from), ref(event.payload?.to)] })
+      const from = event?.payload?.from, to = event?.payload?.to
+      const other = text(from?.project_id) && text(to?.project_id) && from.project_id !== to.project_id ? `${from.project_id}:` : ''
+      if (other && !/^[a-z0-9][a-z0-9-]{0,62}:$/u.test(other)) continue // a malformed project id drops only this edge
+      if (event?.kind === 'cross_plan_dependency') cross.push({ digest: event.event_digest, edge: [ref(from) && other + ref(from), ref(to)] })
       else if (event?.kind === 'cross_plan_dependency_removed' && text(event.payload?.target_event_digest)) removed.add(event.payload.target_event_digest)
     }
   }
@@ -69,21 +75,32 @@ export function projectChart({ read, members = [], previous = null }) {
   }
   deps.push(...cross.filter(item => !removed.has(item.digest)).map(item => item.edge))
 
-  const next = new Map(), before = new Map(), edges = []
+  const externals = new Map(), next = new Map(), before = new Map(), edges = []
   const reaches = (from, to, seen = new Set()) => from === to || !seen.has(from) && seen.add(from) && (next.get(from) ?? []).some(id => reaches(id, to, seen))
   for (const [from, to] of deps) {
+    if (from?.includes(':')) {
+      // The other chart is not walked, so an external edge never closes a local cycle.
+      if (!cards.has(to) || edges.some(edge => edge.from === from && edge.to === to)) continue
+      const item = outside.get(from), [projectId] = from.split(':', 1)
+      const cardId = from.slice(projectId.length + 1), known = elsewhere(projectId, cardId)
+      if (!externals.has(from)) externals.set(from, { id: from, projectId, cardId, chartName: known?.chartName ?? null, title: known?.title ?? null,
+        state: STATUS.includes(String(item?.status).replace('_', '-')) && !text(item?.reason) ? String(item.status).replace('_', '-') : null, finished: item?.finished === true, producer: known?.producer ?? null })
+      before.set(to, [...before.get(to) ?? [], from])
+      edges.push({ from, to, waiting: !externals.get(from).finished && !finished(cards.get(to)), external: true })
+      continue
+    }
     if (!cards.has(from) || !cards.has(to) || from === to || next.get(from)?.includes(to) || reaches(to, from)) continue
     next.set(from, [...next.get(from) ?? [], to]); before.set(to, [...before.get(to) ?? [], from])
     edges.push({ from, to, waiting: !finished(cards.get(from)) && !finished(cards.get(to)) })
   }
   for (const card of cards.values()) {
-    if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => finished(cards.get(id)))) card.state = 'ready'
+    if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => externals.get(id)?.finished ?? finished(cards.get(id)))) card.state = 'ready'
   }
   // Archived = finished and no next card is still unstarted (Owner 2026-11-12); the screens leave it to 過去ログ.
   for (const card of cards.values()) {
     card.archived = finished(card) && (next.get(card.id) ?? []).every(id => !['pending', 'ready'].includes(cards.get(id).state))
   }
-  const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).length]))
+  const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).filter(from => cards.has(from)).length]))
   for (const queue = [...open].filter(([, n]) => n === 0).map(([id]) => id); queue.length;) {
     const id = queue.shift()
     for (const to of next.get(id) ?? []) {
@@ -93,13 +110,13 @@ export function projectChart({ read, members = [], previous = null }) {
     }
   }
   const waits = edges.filter(edge => edge.waiting).map(edge => {
-    const waiter = cards.get(edge.to), maker = cards.get(edge.from)
+    const waiter = cards.get(edge.to), maker = cards.get(edge.from) ?? { ...externals.get(edge.from), changedAt: null }
     return { waiter: waiter.producer, waitingCard: waiter.id, forCard: maker.id, producer: maker.producer, producerState: maker.state,
       since: later(maker.changedAt, waiter.changedAt) }
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
   const all = [...cards.values()], count = state => all.filter(card => card.state === state).length
-  return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases,
-    memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter)].filter(id => id && id !== 'owner'))].sort(),
+  return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases, externals: [...externals.values()],
+    memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer)].filter(id => id && id !== 'owner'))].sort(),
     counts: { total: all.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
       waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size },
     createdBy: first?.agent ?? previous?.createdBy ?? null, updatedAt: updatedAt ?? previous?.updatedAt ?? null }

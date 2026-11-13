@@ -124,6 +124,35 @@ test('projection: cross-plan edges minus tombstones', () => {
   assert.equal(byId(result)['p2/t1'].depth, 1)
 })
 
+test('projection: a predecessor on another chart (task a60) keeps the card pending until Lattice reads it finished', () => {
+  const xref = (project_id, plan, task) => ({ project_id, plan_key: plan, task_id: task })
+  // The other chart's plan key equals a local one (p1): the external edge must not land on local p1/t1.
+  const p1 = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2', lane: 'bot-b' }, { task_id: 't3' }], states: [['t1', 'pending'], ['t2', 'pending'], ['t3', 'pending']], scoped: [
+    { kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: xref('other', 'p1', 't1'), to: xref('here', 'p1', 't2') } },
+    { kind: 'cross_plan_dependency', event_digest: 'e2', payload: { from: xref('gone', 'q', 'x'), to: xref('here', 'p1', 't3') } },
+    { kind: 'cross_plan_dependency', event_digest: 'e3', payload: { from: xref('other', 'p1', 't9'), to: xref('here', 'p1', 't3') } },
+    { kind: 'cross_plan_dependency_removed', event_digest: 'e4', payload: { target_event_digest: 'e3' } }] })
+  const external = (status, finished, reason = null) => [{ project_id: 'other', plan_key: 'p1', task_id: 't1', status, finished, reason, trigger: null },
+    { project_id: 'gone', plan_key: 'q', task_id: 'x', status: null, finished: false, reason: 'chart_unreadable', trigger: null }]
+  const elsewhere = (projectId, cardId) => projectId === 'other' && cardId === 'p1/t1' ? { chartName: 'Other', title: 'Release', producer: 'bot-c' } : null
+  const open = projectChart({ read: readOf([p1], { external_tasks: external('in_progress', false) }), members: roster(['bot-b', 'bot-c']), elsewhere })
+  const cards = byId(open)
+  assert.deepEqual([cards['p1/t1'].state, cards['p1/t2'].state, cards['p1/t3'].state], ['ready', 'pending', 'pending'], 'unfinished and unread predecessors keep it pending')
+  assert.deepEqual(open.edges, [{ from: 'other:p1/t1', to: 'p1/t2', waiting: true, external: true }, { from: 'gone:q/x', to: 'p1/t3', waiting: true, external: true }])
+  assert.deepEqual(open.externals, [
+    { id: 'other:p1/t1', projectId: 'other', cardId: 'p1/t1', chartName: 'Other', title: 'Release', state: 'in-progress', finished: false, producer: 'bot-c' },
+    { id: 'gone:q/x', projectId: 'gone', cardId: 'q/x', chartName: null, title: null, state: null, finished: false, producer: null }])
+  assert.deepEqual(open.waits.map(wait => [wait.waitingCard, wait.forCard, wait.waiter, wait.producer, wait.producerState]),
+    [['p1/t2', 'other:p1/t1', 'bot-b', 'bot-c', 'in-progress'], ['p1/t3', 'gone:q/x', null, null, null]])
+  assert.ok(open.memberIds.includes('bot-c'), 'the other chart\'s producer is named')
+  assert.equal(open.counts.waiting, 2)
+  assert.equal(cards['p1/t2'].depth, 0, 'the other chart is not walked')
+  const done = byId(projectChart({ read: readOf([p1], { external_tasks: external('done', true) }), members: [] }))
+  assert.deepEqual([done['p1/t2'].state, done['p1/t3'].state], ['ready', 'pending'])
+  // No external_tasks (an older read) = not finished: the card waits.
+  assert.equal(byId(projectChart({ read: readOf([p1]), members: [] }))['p1/t2'].state, 'pending')
+})
+
 test('projection: self, unknown-end, duplicate and cycle edges are dropped', () => {
   const plan = planMember({ tasks: [{ task_id: 'a' }, { task_id: 'b' }, { task_id: 'c' }], states: [['a', 'pending'], ['b', 'pending'], ['c', 'pending']],
     deps: [{ from: ref('p1', 'a'), to: ref('p1', 'b') }, { from: ref('p1', 'b'), to: ref('p1', 'c') }, { from: ref('p1', 'c'), to: ref('p1', 'a') },
@@ -202,7 +231,7 @@ test('core: snapshot shape, members only for producers and waiters, coordinator 
   const x = rig()
   x.world.members = roster(['bot-a', 'bot-b', 'bot-z'])
   const snapshot = await x.chart()
-  assert.deepEqual(Object.keys(snapshot), ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded', 'members', 'cards', 'edges', 'waits', 'phases'])
+  assert.deepEqual(Object.keys(snapshot), ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded', 'members', 'cards', 'edges', 'waits', 'phases', 'externals'])
   assert.deepEqual([snapshot.schema, snapshot.epoch, snapshot.version, snapshot.coordinator, snapshot.degraded], ['bellteam.lattice-chart.v1', x.core.epoch, 1, true, []])
   assert.deepEqual(snapshot.members, [{ botId: 'bot-a', name: 'BOT-A', color: 'sky', avatarVersion: 'v1' }])
   assert.equal(snapshot.waits[0].waiter, null)
@@ -408,7 +437,7 @@ test('cli: real process runs in the chart dir with exactly the agreed env, then 
   const plain = await cli.run({ id: 'alpha', args: ['todo', 'start'], env: { LATTICE_SEAT_ID: 'bot-a' } })
   const out = JSON.parse(plain.stdout)
   assert.deepEqual([plain.exitCode, plain.stderr, out.argv, out.cwd.endsWith('/charts/alpha')], [0, '', ['todo', 'start'], true])
-  assert.deepEqual(out.env, { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', GIT_CONFIG_NOSYSTEM: '1', LATTICE_SEAT_ID: 'bot-a' })
+  assert.deepEqual(out.env, { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', LATTICE_CHARTS_ROOT: chartsRoot, GIT_CONFIG_NOSYSTEM: '1', LATTICE_SEAT_ID: 'bot-a' })
   const withInput = JSON.parse((await cli.run({ id: 'alpha', args: ['plan', 'create'], input: { title: '日本語' } })).stdout)
   assert.deepEqual([withInput.argv[0], withInput.argv[1], withInput.argv[2], withInput.input, withInput.mode], ['plan', 'create', '--input', { title: '日本語' }, 0o600])
   assert.equal(existsSync(withInput.argv[3]), false)
