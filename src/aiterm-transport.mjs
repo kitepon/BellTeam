@@ -42,6 +42,8 @@ const HARNESS = new Map([
 const INTERIM_INTERVAL_MS = 3000
 // remote-seat.md "Resume after the route came back": a failed resume is tried again after this, never given up.
 const RESUME_RETRY_MS = 60_000
+// pty_close {hibernate:true} answers about the seat itself (background work, no resume recipe): asking again before it works is futile.
+const SEAT_REFUSALS = new Set(['AGENT_BUSY', 'AGENT_HIBERNATE_UNAVAILABLE'])
 // pty_list current_command of a listed seat that is not running (Aiterm agent lifecycle/resume states and "vanished").
 // shortcut: a state name Aiterm adds later reads as a running seat (goal read failure shape), extend this set when one appears.
 const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'unknown', 'vanished'])
@@ -1334,10 +1336,16 @@ export class AitermTransport {
       const seen = this.seatMcpSeen(session)
       if (Number.isFinite(seen) && seen >= route) continue
       const key = `${session}@${row.route_since}`, retryAt = this.routeResumes.get(key)
+      // remote-seat.md: Aiterm's answer about the seat itself holds until the seat runs a turn; seeing it work re-arms the close.
+      if (retryAt === 'turn') { if (!this.isIdle(bot.id) || this.currentTurn(bot.id).state !== 'idle') this.routeResumes.set(key, 0); continue }
       if (retryAt === 'resuming' || now < (retryAt ?? 0) || !this.isIdle(bot.id) || this.currentTurn(bot.id).state !== 'idle') continue
       this.routeResumes.set(key, 'resuming')
       void this.resumeRemoteSeat(bot).then(() => this.routeResumes.delete(key), error => {
-        if (!Number.isFinite(error?.routeClosedAt)) { this.routeResumes.set(key, this.routeRetryAt(bot, key, error)); return }
+        if (!Number.isFinite(error?.routeClosedAt)) {
+          const retryAt = this.routeRetryAt(bot, key, error)
+          this.routeResumes.set(key, SEAT_REFUSALS.has(error?.aitermErrorCode ?? error?.code) ? 'turn' : retryAt)
+          return
+        }
         this.routeResumes.delete(key)
         this.routeWakes.set(session, { closedAt: error.routeClosedAt, running: false, retryAt: this.routeRetryAt(bot, `${session}@wake`, error) })
       })
@@ -1345,9 +1353,9 @@ export class AitermTransport {
   }
 
   // No give-up: AGENT_BUSY tries at the next idle poll, any other failure after RESUME_RETRY_MS (one diagnostic per route and stage).
+  // The close stage holds SEAT_REFUSALS until the seat's next turn instead (resumeLostRoutes).
   routeRetryAt(bot, key, error) {
     const code = error?.aitermErrorCode ?? error?.code ?? null
-    if (code === 'AGENT_BUSY') return 0
     if (!this.routeReported.has(key)) {
       this.routeReported.add(key)
       // diagnostics accepts the detail only as diagnostic_log text (src/diagnostics.mjs).
@@ -1355,7 +1363,7 @@ export class AitermTransport {
       this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution',
         diagnostic_log: `bot=${bot.id} stage=${key.endsWith('@wake') ? 'wake' : 'close'} reason=${code ?? 'none'} message=${message || 'none'}` })
     }
-    return Date.now() + RESUME_RETRY_MS
+    return code === 'AGENT_BUSY' ? 0 : Date.now() + RESUME_RETRY_MS
   }
 
   // Hibernate keeps the conversation; the ordinary wake resumes it with a fresh seat credential (Aiterm 0.70.41 E8).
