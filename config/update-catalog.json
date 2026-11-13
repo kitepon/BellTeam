@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T13:18:20Z",
-  "expiresAt": "2026-11-20T13:18:20Z",
+  "publishedAt": "2026-11-13T13:55:10Z",
+  "expiresAt": "2026-11-20T13:55:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "36d41d8bf4bf4216fb6c114ea266ecdaff914528",
-      "versionId": "sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f",
+      "sourceCommit": "9852bde2040b4ca266c41e8a9ec7fa62ac29ea3b",
+      "versionId": "sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,21 +732,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メンバーの「仕事中」の理由に、実際に動かしているコマンドの名前が出ます。",
-        "Antigravity のメンバーが、バックグラウンドの処理が終わったあとに状態が分からなくなる時間がなくなります。"
+        "「仕事中」から外すものの一覧を画面から読めるようになり、ひとつずつ消せるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "36d41d8bf4bf4216fb6c114ea266ecdaff914528",
-      "versionId": "sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f",
+      "sourceCommit": "9852bde2040b4ca266c41e8a9ec7fa62ac29ea3b",
+      "versionId": "sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c0a0c186a59913cff57725e8ca982c66545c4d819dbe7502f0ce2aaf135d901f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7a481d23fa97169ccd62a16deed27418a3a03d35853fe845d36ac7421f125a9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -755,8 +754,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メンバーの「仕事中」の理由に、実際に動かしているコマンドの名前が出ます。",
-        "Antigravity のメンバーが、バックグラウンドの処理が終わったあとに状態が分からなくなる時間がなくなります。"
+        "「仕事中」から外すものの一覧を画面から読めるようになり、ひとつずつ消せるようになります。"
       ]
     },
     {
