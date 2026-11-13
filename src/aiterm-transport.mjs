@@ -1985,7 +1985,7 @@ export class AitermTransport {
 
   accountTurnDone(bot) {
     if (!this.claudeAccountBot(bot)) return
-    void this.accounts.turnSucceeded('claude', this.accounts.seatSlot(bot.id) ?? '1st', bot.model).catch(() => {})
+    void this.accounts.turnSucceeded('claude', this.accounts.seatSlot(bot.id) ?? '1st', bot.model, bot.id).catch(() => {})
   }
 
   // remote-seat.md "Launch notice": the latest not-started remote launch of this member, or null.

@@ -16,7 +16,7 @@ One login per slot (Trony request 2026-11-11, Owner: 「何度も何度もログ
 | MCP registration in each slot's `.claude.json` | execution, reusing `mergeMcpConfig` of harness-config | same writer, one more target path per prepared slot |
 | Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})`. Every slot (1st and 2nd): Aiterm `agent_auth` with `login: "oauth_token"` + `token_file` = `accounts.prepare(...).tokenFile` = `$BELLTEAM_HOME/.bellteam-accounts/claude/<slot>/oauth-token` (Aiterm ≥ 0.70.20 runs `claude setup-token` and writes that file as the seat user, 0600; #1030; it accepts only this path form). The launch side only reads that file (Login per slot row below) |
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
-| Signed-out detection and renewal | execution | wait result `failure.category:'authentication'` (E6) → slot signed out until its token file changes |
+| Signed-out detection and renewal | execution | wait result `failure.category:'authentication'` (E6) → slot signed out until its token file changes, or until a seat that launched with that same token (same mtime) finishes a turn after the mark (the token works: the mark was that one seat's failure, 2026-11-13) |
 | Slot selection at launch / model change | execution | launch option `claudeLogin` (the slot, every slot, every launch incl. resume and fork); the seat-side launcher puts that slot's token into the CLI env |
 | Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
 | Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
@@ -42,6 +42,8 @@ flowchart TD
   SignedOut --> Registry
   SignedOut --> Failover
   Token -->|new mtime: a new login, seen by list / 10-min re-read| Renew[clear signed-out entry; its seats get a new seat at next idle boundary]
+  Seat -->|turn done after the mark, launched on the same slot with the same token mtime| Proven[clear signed-out entry: the token works]
+  Proven --> Registry
   Seat --> Wait[wait result rate_limited / failure.category rate_limited, incl. E5 rate_limit API-error records + the seat's limit text]
   Wait --> Parse[parse scope and reset time from the limit text]
   Parse --> Mark[mark slot × scope limited until resetAt]
@@ -231,6 +233,7 @@ The link-based `prepare` (execution and usage modules, both ship `src/harness-ac
 
 - `accounts.list()` → `{ harnesses:[{ harness:'claude', slots:[{ slot:'1st'|'2nd', loggedIn:boolean|null, label:string|null, history:'shared'|'separate', limits:[{scope, since, resetAt|null, resetSource}], seats:[botId] }], allLimited:[{scope, earliestResetAt|null}] }], rules: [] }`. `rules` is always empty (shortcut: kept for clients that still read it; dropped once Web, Apple and Windows remove the switch). An empty `limits` means available for every model. `label` is the e-mail the CLI itself recorded for that root's login (`oauthAccount.emailAddress` in its `.claude.json`); it is display text, not a credential. `seats` lists the Bots whose last launch used that slot (`seats` in the registry, written after each Claude launch).
 - `accounts.prepare(harness, slot)` → `{ configurationRoot, history, tokenFile }`. It is called by HarnessAuth before a login, and returns the root used for E3 and the slot's token file for `agent_auth` `token_file` (an absolute path; HarnessAuth never builds it).
+- Signed-out self-exit by proof (2026-11-13, Trony: the Owner's screens asked to log in to both slots at 18:50/18:51 JST while container seats on both slots kept working). An E6 mark comes from ONE seat's authentication failure; it can be that seat's own failure (here Rapi's Mac seat relaunching at 18:50) while the token is fine. `accountTurnDone(bot)` -> `HarnessAccounts.turnSucceeded(harness, slot, model, botId)` also clears the slot's signed-out entry when that seat's recorded login stamp equals the entry's stamp (it ran the same token) and the turn ended after the entry's `since`. A seat on an older token (`stale`) or one that never recorded a login proves nothing. Protection kept: a real sign-out still shows until a seat on that token succeeds or a new login is written.
 - `accounts.list()` slot rows also carry `signedOutAt: string|null` (the time the slot's token failed; clients may show 「ログインし直してください」; absent on older engines). `loggedIn` is false while signed out.
 - `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`; `preferredSlot` is always `'1st'` (same shortcut as `rules`).
 - `accounts.watch(listener)` → unsubscribe; called after every saved registry change (Molly maps it to the SSE type `settings`). Seats that move also appear on the existing `watchQueue` stream.

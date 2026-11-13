@@ -254,3 +254,25 @@ test('one login per slot: a signed-out slot is not usable until its token change
   await again.load(); again.close()
   assert.deepEqual([again.state.signedOut.length, again.state.renew.sort()], [1, ['b2', 'b3']])
 })
+
+// harness-accounts.md "Signed-out self-exit by proof" (2026-11-13): a seat that ran the same token finishing a turn after
+// the mark clears it; a seat on an older token, or with no recorded login, proves nothing.
+test('signed out by one seat, cleared when another seat on the same token finishes a turn', async t => {
+  const { home } = await setup(t)
+  let now = Date.parse('2026-11-13T09:50:00Z')
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'proof-state.json'), now: () => now, log: () => {} })
+  const token = join(home, '.bellteam-accounts/claude/1st/oauth-token')
+  await mkdir(join(home, '.bellteam-accounts/claude/1st'), { recursive: true }); await writeFile(token, 't')
+  const stamp = (await accounts.selection('claude', 'opus')).stamp
+  await accounts.setSeat('mac', '1st', stamp); await accounts.setSeat('box', '1st', stamp); await accounts.setSeat('old', '1st', stamp - 1)
+  assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '1st', botId: 'mac', text: 'Please run /login' }), 'signed_out')
+  assert.equal(await accounts.loggedIn('claude', '1st'), false)
+  now += 60_000
+  await accounts.turnSucceeded('claude', '1st', 'opus', 'old')
+  await accounts.turnSucceeded('claude', '1st', 'opus', 'nobody')
+  await accounts.turnSucceeded('claude', '1st', 'opus')
+  assert.equal(await accounts.loggedIn('claude', '1st'), false, 'an older token or no recorded login proves nothing')
+  await accounts.turnSucceeded('claude', '1st', 'opus', 'box')
+  assert.equal(await accounts.loggedIn('claude', '1st'), true)
+  assert.equal((await accounts.list()).harnesses[0].slots[0].signedOutAt, null)
+})
