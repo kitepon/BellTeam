@@ -64,3 +64,14 @@ test('connector down keeps every pending proposal; an unreadable file is never r
     await assert.rejects(list.propose({ action: 'add', entry: { kind: 'process', exe: 'a b', args: [], scope: 'all' }, reason: 'r' }), { code: 'RUNNING_EXCLUSION_INVALID' })
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
+
+test('the writer never exceeds the 256 entries the engine reads', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rx-')), path = join(dir, 'x.json')
+  try {
+    const entries = Array.from({ length: 256 }, (_, i) => ({ id: `e${i}`, kind: 'process', exe: `p${i}`, args: [], scope: 'all' }))
+    await writeFile(path, JSON.stringify({ schema: 'bellteam.running-exclusions.v1', entries }))
+    const list = createRunningExclusions({ path, decisions: fakeDecisions() })
+    await assert.rejects(list.propose({ action: 'add', entry: { kind: 'process', exe: 'q', args: [], scope: 'all' }, reason: 'r' }), { code: 'RUNNING_EXCLUSION_INVALID' })
+    assert.equal((await readRunningExclusions(path)).length, 256)
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})

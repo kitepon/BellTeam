@@ -91,6 +91,8 @@ export function createRunningExclusions({ path, decisions, now = () => new Date(
       if (!target) throw Object.assign(new Error('RUNNING_EXCLUSION_NOT_FOUND'), { code: 'RUNNING_EXCLUSION_NOT_FOUND', status: 404 })
       const listed = action === 'add' && state.entries.find(item => keyOf(item) === keyOf(entry))
       if (listed) return { status: 'listed', entry: listed }
+      // The engine reads at most MAX_ENTRIES; one more would make the whole list unreadable (Molly 11/13).
+      if (action === 'add' && state.entries.length >= MAX_ENTRIES) throw invalid(`一覧は${MAX_ENTRIES}件までです。先に要らない物を外す申請を出す`)
       const label = `running-exclusions:${createHash('sha256').update(action === 'add' ? `add:${keyOf(entry)}` : `remove:${id}`).digest('hex').slice(0, 32)}`
       const open = state.pending.find(item => item.label === label)
       if (open) return { status: 'pending', decisionId: open.decisionId }
@@ -115,7 +117,7 @@ export function createRunningExclusions({ path, decisions, now = () => new Date(
         if (result.status !== 'answered' || result.answer?.optionId !== 'approve') continue
         applied++
         if (item.action === 'remove') state.entries = state.entries.filter(entry => entry.id !== item.id)
-        else if (!state.entries.some(entry => keyOf(entry) === keyOf(item.entry)))
+        else if (state.entries.length < MAX_ENTRIES && !state.entries.some(entry => keyOf(entry) === keyOf(item.entry)))
           state.entries.push({ ...item.entry, decisionId: item.decisionId, approvedAt: now(), reason: item.reason })
       }
       const changed = keep.length !== state.pending.length
