@@ -316,9 +316,10 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             token.ThrowIfCancellationRequested();
             Owner = owner.Owner; OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             if (AccountsBanner != accountsBanner) { AccountsBanner = accountsBanner; Changed(nameof(AccountsBanner)); }
-            queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
+            queue = activity.Items;
             var previous = all.ToDictionary(entry => entry.Target);
-            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWork.Label(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
+            // Working is currentWork.state only, the same source as the work graph: turns started by a schedule or the member's own continuation have no running delivery.
+            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWork.Label(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, bot.CurrentWork?.State == "working"))
                 .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
             if (notify)
                 foreach (var entry in all)

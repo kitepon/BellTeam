@@ -42,9 +42,24 @@ public sealed class QualityTests
             "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms,
             "/api/owner" => ApiTests.Owner, "/api/queue" => active ? "{\"items\":[{\"id\":\"a\",\"botId\":\"bot-bell\",\"botName\":\"ベル\",\"status\":\"running\",\"context\":\"room\",\"contextId\":\"room-work\"},{\"id\":\"b\",\"botId\":\"bot-bell\",\"botName\":\"ベル\",\"status\":\"running\",\"context\":\"room\",\"contextId\":\"room-work\"}]}" : ApiTests.EmptyQueue, _ => ApiTests.Page
         })))));
-        await workspace.ConnectAsync("http://localhost", listen: false); Assert.True(workspace.Entries.Single(entry => !entry.Target.IsRoom).Working);
+        await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(entry => entry.Target.IsRoom)); Assert.True(workspace.HasActivity); Assert.Equal("ベル · 処理中", workspace.ActivityText);
-        active = false; await workspace.RefreshManagementAsync(); Assert.False(workspace.HasActivity); Assert.False(workspace.Entries.Single(entry => !entry.Target.IsRoom).Working);
+        active = false; await workspace.RefreshManagementAsync(); Assert.False(workspace.HasActivity);
+    }
+    // The sidebar's 仕事中 follows currentWork.state only (like the work graph), not the delivery queue: a scheduled or self-continued turn has no running delivery.
+    [Fact]
+    public async Task SidebarWorkingStateFollowsCurrentWorkNotTheQueue()
+    {
+        var state = "working"; var running = false;
+        using var workspace = new App.Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
+        {
+            "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner,
+            "/api/bots" => $$$"""{"bots":[{"id":"bot-bell","name":"ベル","displayName":"ベル","online":true,"currentWork":{"state":"{{{state}}}","summary":null,"summaryStatus":"missing"}}]}""",
+            "/api/queue" => running ? "{\"items\":[{\"id\":\"a\",\"botId\":\"bot-bell\",\"botName\":\"ベル\",\"status\":\"running\",\"context\":\"room\",\"contextId\":\"room-work\"}]}" : ApiTests.EmptyQueue, _ => ApiTests.Page
+        })))));
+        ConversationEntry Bell() => workspace.Entries.Single(entry => !entry.Target.IsRoom);
+        await workspace.ConnectAsync("http://localhost", listen: false); Assert.True(Bell().Working); Assert.Equal("仕事中", Bell().PresenceLabel);
+        state = "idle"; running = true; await workspace.RefreshManagementAsync(); Assert.False(Bell().Working); Assert.Equal("オンライン・待機中", Bell().PresenceLabel);
     }
     [Fact]
     public void SameNamedMembersStillSwitchTheInspectorToTheSelectedId()
