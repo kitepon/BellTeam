@@ -109,6 +109,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null
     },
   })
+  services.bindSeatMcpSeen?.(seatMcp.seen)
   const internalServer = createBellTeamServer({ ...serverOptions, internal: true, seatMcp, authorize: async () => true })
   const listen = (server, ...args) => new Promise((resolve, reject) => {
     const failed = error => reject(error)

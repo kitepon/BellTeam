@@ -100,6 +100,7 @@ stateDiagram-v2
 | SM07 | 6時間要求の無いセッションは、次の`initialize`の時に閉じる。CLIは次の要求の404から初期化し直す。`handle.close()`は中継（応答が流れている途中のPOST）と全セッションを閉じる。 |
 | SM08 | セッションが初期化時に持つのは、能力の広告（`ai.aiterm/handoff.v1`）だけ。道具の呼出しは、要求ごとに`toolsForSource`を呼び直し、その時の実行世代を選ぶ（[model-handoff](model-handoff.md) 要求ごとのMCP closure）。実行の世代が変わっても、同じセッションの次の`update_self`は新しい世代で受け付ける。 |
 | SM09 | 席の入口は、要求と結び付かない流れ（GETのSSE）を出さない。`/mcp`と`/mcp/call-bridge`のGETは、idの有無によらず405（`Allow: POST, DELETE`）で、通話ブリッジへも流さない。応答はPOSTの返りだけで届く。理由と実測は下の「本体の再起動をまたぐ席」。 |
+| SM10 | 席の名札が決まった要求（`from`の解決を通った後。初期化・セッションのPOST・SM04のPOST・DELETE・通話ブリッジへの中継・SM03の404になるPOSTも含む）ごとに、名札の生の値（execution の知る session 名）→ `now()` ms を覚える。解決前（名札なし・展開前・台帳に無い、400/503）とGET（405、SM09）は覚えない。記憶だけで、本体の再起動で空になる（再起動の後に来た席だけが残る）。`createSeatMcp` の返す handle が `seen(sessionName) -> ms \| null`（同期、ほかの値なし）を持ち、親がそれを execution へ `ports.ingress.seatMcp.seen` として渡す（factory が `supportsSeatMcpSeen === true` の時だけ。古いengineは知らない port を拒む）。execution の使い道は [remote-seat](../execution/remote-seat.md)「経路が戻った後の再開」。 |
 
 ### 本体の再起動をまたぐ席（SM09、2026-11-13）
 

@@ -70,7 +70,8 @@ export function createExecutionFactoryLoader({ prepareRelease = prepareExecution
       supportsModelHandoff: Array.isArray(namespace.EXECUTION_METHODS?.dispatch)
         && namespace.EXECUTION_METHODS.dispatch.includes('administration.configureFromMcp'),
       supportsUpdateHold: namespace.EXECUTION_UPDATE_HOLD_GATE === true,
-      supportsRemoteSeats: namespace.EXECUTION_REMOTE_SEATS === true })
+      supportsRemoteSeats: namespace.EXECUTION_REMOTE_SEATS === true,
+      supportsSeatMcpSeen: namespace.EXECUTION_SEAT_MCP_SEEN === true })
   }
 }
 

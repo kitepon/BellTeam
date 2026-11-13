@@ -43,6 +43,7 @@ flowchart LR
   Forward --> Ingress
   Ingress -->|verify| Cred
   Ingress -->|seat headers from binding| SeatMcp
+  SeatMcp -->|seatMcp.seen sessionName: last resolved request ms, SM10| Exec
   Owner --> Core
   Tools --> Core
   Core -->|availability events| Exec
@@ -134,7 +135,7 @@ Protection (guards.named-protection): a fork must not overwrite existing state i
 - Terminals runs as an injectable in-parent core, no child process and no new service. Crust's PR adds `export { createTerminalsCore } from './terminals/core.mjs'` to `src/bootstrap.mjs`; `createApplicationServices` receives it and calls `createTerminalsCore({ stateRoot: <root>/state, credentials, report })` once. Without it, the endpoints return `503 TERMINALS_UNAVAILABLE` and execution gets no `terminals` port.
 - `stateRoot` is `<BELLTEAM_ROOT>/state` (`/srv/bellteam/state`), written by the parent UID 1001. Use `writeAtomic` from `src/json-file.mjs`; one writer per file.
 - `credentials` is `usageAssembly.credentials`, usage's credential facade (Mika, C5) with system authority captured inside usage-assembly (null: opens return CREDENTIAL_UNAVAILABLE); `report` is `diagnostics.record`.
-- Execution gets `ports.terminals` (the core's `connection` and `watch`, as-is) and `ports.ingress = {seatCredential: {issue, revoke}}` only when its factory declares `supportsRemoteSeats === true` (older engines reject unknown port keys).
+- Execution gets `ports.terminals` (the core's `connection` and `watch`, as-is) and `ports.ingress = {seatCredential: {issue, revoke}}` only when its factory declares `supportsRemoteSeats === true` (older engines reject unknown port keys). `ports.ingress.seatMcp = {seen}` (integration README SM10) is added only when the factory also declares `supportsSeatMcpSeen === true`; the runtime binds the seat MCP's `seen` into the services after it creates the seat MCP (`bindSeatMcpSeen`), and reads before that answer null.
 - Child packaging (work-graph precedent) waits until terminals needs exchange without a body swap.
 
 ### Old engine never launches a terminal-bound member locally (2026-11-10, Crust/Trony F-SEAT-HOST)

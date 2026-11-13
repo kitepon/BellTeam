@@ -18,6 +18,8 @@ export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
 export const EXECUTION_UPDATE_HOLD_GATE = true
 // This engine accepts ports.terminals and ports.ingress (remote-seat.md); a parent passes them only when this is true.
 export const EXECUTION_REMOTE_SEATS = true
+// remote-seat.md "Resume after the route came back": this engine accepts ports.ingress.seatMcp (SM10).
+export const EXECUTION_SEAT_MCP_SEEN = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
@@ -55,7 +57,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
-    terminals: ['connection', 'watch'], ingress: ['seatCredential'],
+    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp'],
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')
@@ -129,6 +131,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     activityPath: join(dirname(root), 'execution-activity.json'),
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
     runningExclusionsPath: join(dirname(root), 'execution-running-exclusions.json'),
+    // No SM10 port (older body): no seen fact, so the route rule stays off instead of resuming every seat (Molly 11/13).
+    seatMcpSeen: typeof ports.ingress?.seatMcp?.seen === 'function' ? name => { try { return ports.ingress.seatMcp.seen(name) ?? null } catch { return null } } : null,
     trackCompletion: track, client: remoteSeats ? remoteSeats.route(native) : native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,

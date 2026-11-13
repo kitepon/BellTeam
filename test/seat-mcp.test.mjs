@@ -255,3 +255,34 @@ test('6時間要求の無いセッションは、次の初期化で閉じる', a
   const response = await fetch(`${base}/mcp`, { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }), headers: { ...headers, 'mcp-session-id': sessionId } })
   assert.equal(response.status, 404)
 })
+
+// integration README SM10: execution reads whether a remote seat's CLI reached the seat MCP since its route came back.
+test('席の名札が決まった要求だけを、その席が入口に来た時刻として覚える', async t => {
+  const bots = registry()
+  let clock = 1000
+  const seatMcp = createSeatMcp({ bots, tools: { registry: bots }, now: () => clock })
+  const base = await internalServer(t, seatMcp)
+  const post = (path, seat, id) => fetch(`${base}${path}`, { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/list' }),
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', ...(seat ? { [SEAT_HEADER]: seat } : {}), ...(id ? { 'mcp-session-id': id } : {}) } })
+  assert.equal(seatMcp.seen('bot-a'), null)
+  // Unresolved tags and GET (SM09) prove nothing.
+  assert.equal((await post('/mcp', 't1')).status, 400)
+  assert.equal((await post('/mcp', '${AITERM_SESSION_ID}')).status, 400)
+  assert.equal((await fetch(`${base}/mcp`, { headers: { [SEAT_HEADER]: 'bot-a' } })).status, 405)
+  assert.equal(seatMcp.seen('t1'), null)
+  assert.equal(seatMcp.seen('bot-a'), null)
+  // initialize, then a session POST.
+  const client = await connect(t, `${base}/mcp`, 'bot-a')
+  assert.equal(seatMcp.seen('bot-a'), 1000)
+  clock = 2000
+  await client.listTools()
+  assert.equal(seatMcp.seen('bot-a'), 2000)
+  // An SM03 404 counts: that CLI is alive and initializes again by itself. So does the call-bridge path.
+  clock = 3000
+  assert.equal((await post('/mcp', 'bot-b', 'not-a-session')).status, 404)
+  assert.equal(seatMcp.seen('bot-b'), 3000)
+  clock = 4000
+  await post('/mcp/call-bridge', 'bot-b')
+  assert.equal(seatMcp.seen('bot-b'), 4000)
+  assert.equal(seatMcp.seen('bot-a'), 2000)
+})

@@ -270,6 +270,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
   // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.
   const remoteSeatListener = createRemoteSeatListener()
+  // SM10: the seat MCP is created after the services; the runtime binds its seen read here.
+  let seatMcpSeen = () => null
+  const bindSeatMcpSeen = read => { seatMcpSeen = read }
   const seatCredential = Object.freeze({
     async issue({ botId, sessionName, terminalId, kind = 'main' }) {
       // SK03: a fork's name is <mainSession>-fork-<12hex>; its main part must speak for botId.
@@ -323,7 +326,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
         ? { terminals: { connection: terminals.connection, watch: listener => {
           const off = [terminals.watch(listener), remoteSeatListener.watch(listener)]
           return () => { for (const stop of off) stop?.() }
-        } }, ingress: { seatCredential } } : {}
+        } }, ingress: { seatCredential,
+          ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
         input = { ...input, ports: { ...input.ports, ...remote } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
@@ -511,7 +515,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, remoteSeatListener, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
