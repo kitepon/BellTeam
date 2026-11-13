@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T10:57:26Z",
-  "expiresAt": "2026-11-20T10:57:26Z",
+  "publishedAt": "2026-11-13T11:38:02Z",
+  "expiresAt": "2026-11-20T11:38:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -645,8 +645,8 @@
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
-      "versionId": "ff7554fb9850f8f8dfd370beeedc1403fb504992b709d336aa829f992e5120ec",
+      "sourceCommit": "983299da0500c5a2aeb46fd9ba11ca9fb211ef77",
+      "versionId": "8cf6b7021f25181b69c879404f714023bb36e4af3dda78540867eb5074fecae8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -654,16 +654,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-amd64.tar.gz",
-          "bytes": 3820955,
-          "sha256": "ff7554fb9850f8f8dfd370beeedc1403fb504992b709d336aa829f992e5120ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T113741Z/work-graph-983299da0500c5a2aeb46fd9ba11ca9fb211ef77-linux-amd64.tar.gz",
+          "bytes": 3821046,
+          "sha256": "8cf6b7021f25181b69c879404f714023bb36e4af3dda78540867eb5074fecae8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T113741Z/work-graph-983299da0500c5a2aeb46fd9ba11ca9fb211ef77-linux-amd64.tar.gz.sigstore.json",
           "bytes": 10907,
-          "sha256": "fb65c2542995b62f5cf3f083344b4c378c903e4fedd7824e4f7e9e26cdc3a997"
+          "sha256": "f7053943fe95e823b973fa16f185b7da11d6a3dda59fad770aa758e11d520e8c"
         },
-        "signerCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461"
+        "signerCommit": "983299da0500c5a2aeb46fd9ba11ca9fb211ef77"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -675,13 +675,13 @@
         }
       },
       "changes": [
-        "相関図で、分身が答えている依頼を点線で表示できるようにします。"
+        "相関図で、状態が分からないメンバーを「仕事中」として残さないようにします。仕事が終わった直後の短い残りも、点滅しない表示にします。"
       ]
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
-      "versionId": "fe49b859ef47255267c0a13bb74015780cc621ac6d672d0388ad48e7251519ec",
+      "sourceCommit": "983299da0500c5a2aeb46fd9ba11ca9fb211ef77",
+      "versionId": "870baa683c584fbe185c07cf06f6657a37ad82696587ff4d7a3a652807caa373",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -689,16 +689,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-arm64.tar.gz",
-          "bytes": 3820955,
-          "sha256": "fe49b859ef47255267c0a13bb74015780cc621ac6d672d0388ad48e7251519ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T113741Z/work-graph-983299da0500c5a2aeb46fd9ba11ca9fb211ef77-linux-arm64.tar.gz",
+          "bytes": 3821043,
+          "sha256": "870baa683c584fbe185c07cf06f6657a37ad82696587ff4d7a3a652807caa373"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11005,
-          "sha256": "b0d6c64aa15491ce488cb676ddf8b984772a5b71ffcae33f2d8107169601311f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T113741Z/work-graph-983299da0500c5a2aeb46fd9ba11ca9fb211ef77-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11048,
+          "sha256": "66d52eb51734bc4f531acd85029f6a83e8178002e1d349eba2793ddf7b7c8391"
         },
-        "signerCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461"
+        "signerCommit": "983299da0500c5a2aeb46fd9ba11ca9fb211ef77"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -710,7 +710,7 @@
         }
       },
       "changes": [
-        "相関図で、分身が答えている依頼を点線で表示できるようにします。"
+        "相関図で、状態が分からないメンバーを「仕事中」として残さないようにします。仕事が終わった直後の短い残りも、点滅しない表示にします。"
       ]
     },
     {
