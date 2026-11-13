@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T02:02:24Z",
-  "expiresAt": "2026-11-20T02:02:24Z",
+  "publishedAt": "2026-11-13T02:38:06Z",
+  "expiresAt": "2026-11-20T02:38:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "811ee1daecafc74c58bbebb69d952414974aa09e",
-      "versionId": "sha256:73523d22e38a231f446d65ef4ab2078ad5c7072e1a3254e2e9475c78c8a9f415",
+      "sourceCommit": "2d4008e9c43d4d00f19f989c2eb651fba4206f8b",
+      "versionId": "sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:73523d22e38a231f446d65ef4ab2078ad5c7072e1a3254e2e9475c78c8a9f415"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,21 +726,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末で動く Bot が、本体の入れ替えのあとも BellTeam の道具を使い続けられるようにします。",
-        "Bot の目標の読み取りが席ごとに順番待ちしなくなり、画面が重くなりにくくなります。"
+        "Antigravity で動く Bot が、また起動できるようになります。",
+        "端末で動く Bot への問い合わせが、接続をつないだままにして速くなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "811ee1daecafc74c58bbebb69d952414974aa09e",
-      "versionId": "sha256:73523d22e38a231f446d65ef4ab2078ad5c7072e1a3254e2e9475c78c8a9f415",
+      "sourceCommit": "2d4008e9c43d4d00f19f989c2eb651fba4206f8b",
+      "versionId": "sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:73523d22e38a231f446d65ef4ab2078ad5c7072e1a3254e2e9475c78c8a9f415"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:64b84d64d3e31e8823c37b73c91ef1c83e2e23b18e4a3ed8998783109443bf5c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,8 +749,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末で動く Bot が、本体の入れ替えのあとも BellTeam の道具を使い続けられるようにします。",
-        "Bot の目標の読み取りが席ごとに順番待ちしなくなり、画面が重くなりにくくなります。"
+        "Antigravity で動く Bot が、また起動できるようになります。",
+        "端末で動く Bot への問い合わせが、接続をつないだままにして速くなります。"
       ]
     },
     {
