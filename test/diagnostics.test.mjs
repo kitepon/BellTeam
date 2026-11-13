@@ -9,6 +9,26 @@ import { createBellTeamServer } from '../src/http-server.mjs'
 const root = await mkdtemp(join(tmpdir(), 'bellteam-diagnostics-'))
 after(() => rm(root, { recursive: true, force: true }))
 
+test('execution diagnostic registry persists and restores all four reports', async () => {
+  const file = join(root, 'execution-registry.json')
+  const diagnostics = new Diagnostics(file)
+  await diagnostics.initialize()
+  const codes = ['REMOTE_SEAT_RESUME_REFUSED', 'RUNNING_EXCLUSIONS_UNAVAILABLE', 'RESTART_ACTIVITY_UNAVAILABLE', 'RUNTIME_LAUNCH_RECORD_UNAVAILABLE']
+  const rows = []
+  for (const code of codes) {
+    const row = await diagnostics.record({ code, module: 'execution', diagnostic_log: `reason=${code}` })
+    assert.equal(row.severity, 'warn')
+    assert.equal(row.module, 'execution')
+    assert.equal(row.category, code)
+    assert.equal(row.diagnostic_log, `reason=${code}`)
+    rows.push(row)
+  }
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), rows)
+  const restored = new Diagnostics(file)
+  await restored.initialize({ mode: 'restore' })
+  assert.deepEqual(restored.list().sort((a, b) => a.category.localeCompare(b.category)), rows.sort((a, b) => a.category.localeCompare(b.category)))
+})
+
 test('診断を署名で集計し、解決後の再発を開き直す', async () => {
   const file = join(root, 'diagnostics.json')
   const diagnostics = new Diagnostics(file)
