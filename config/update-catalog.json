@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T04:03:48Z",
-  "expiresAt": "2026-11-20T04:03:48Z",
+  "publishedAt": "2026-11-13T04:16:21Z",
+  "expiresAt": "2026-11-20T04:16:21Z",
   "releases": [
     {
       "componentId": "usage",
@@ -357,8 +357,8 @@
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "3d928b384af1f93c6b2ea21e4ee9315e551a8bd7",
-      "versionId": "cb19ecc127e4e05f298d1c899d6db3004670821b52f539760b5c3e15ac93ae0b",
+      "sourceCommit": "63aa2e409a9df2cab52f53e31880d5756be12415",
+      "versionId": "4905527acb75b975ee5040912208134408aea23f28946bb3bd1add3e63762e3a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -366,16 +366,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T220358Z/diagnostics-3d928b384af1f93c6b2ea21e4ee9315e551a8bd7-linux-amd64.tar.gz",
-          "bytes": 3828044,
-          "sha256": "cb19ecc127e4e05f298d1c899d6db3004670821b52f539760b5c3e15ac93ae0b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-amd64.tar.gz",
+          "bytes": 3828240,
+          "sha256": "4905527acb75b975ee5040912208134408aea23f28946bb3bd1add3e63762e3a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T220358Z/diagnostics-3d928b384af1f93c6b2ea21e4ee9315e551a8bd7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11068,
-          "sha256": "f7c6de3159a60fc20133486e5fc25ad5f1388e5f45a52a8c2f872de5256237ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11452,
+          "sha256": "67eb3d1a6e3cfc362ead16b8aee1f4e7445b0ca92de9a9b0fcd34a1c961742e3"
         },
-        "signerCommit": "3d928b384af1f93c6b2ea21e4ee9315e551a8bd7"
+        "signerCommit": "63aa2e409a9df2cab52f53e31880d5756be12415"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -388,13 +388,13 @@
         }
       },
       "changes": [
-        "会話の様子が読めなかった時の記録と、その理由を診断に残すようになりました。"
+        "AI実行の部品が出す新しい失敗4つが、診断に載るようになります。"
       ]
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "3d928b384af1f93c6b2ea21e4ee9315e551a8bd7",
-      "versionId": "82e77164c7e51d1b3e109327138ed51af5b6651dd6761d83dee2434d64756e35",
+      "sourceCommit": "63aa2e409a9df2cab52f53e31880d5756be12415",
+      "versionId": "801928cc34674b03b374b227e932d77ddeed22dbd6fad8e87e4d877828c926e4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -402,16 +402,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T220358Z/diagnostics-3d928b384af1f93c6b2ea21e4ee9315e551a8bd7-linux-arm64.tar.gz",
-          "bytes": 3828049,
-          "sha256": "82e77164c7e51d1b3e109327138ed51af5b6651dd6761d83dee2434d64756e35"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-arm64.tar.gz",
+          "bytes": 3828241,
+          "sha256": "801928cc34674b03b374b227e932d77ddeed22dbd6fad8e87e4d877828c926e4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T220358Z/diagnostics-3d928b384af1f93c6b2ea21e4ee9315e551a8bd7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11123,
-          "sha256": "eea7fff7bb1ee2f66e3e4dda0606aa7e06f3ca0f8118e5741db64881fe4cd7d3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11252,
+          "sha256": "2be94d45b878918aa96f1bdb8b7c052f25ab51eb6a47da71a9808882faaaf528"
         },
-        "signerCommit": "3d928b384af1f93c6b2ea21e4ee9315e551a8bd7"
+        "signerCommit": "63aa2e409a9df2cab52f53e31880d5756be12415"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -424,7 +424,7 @@
         }
       },
       "changes": [
-        "会話の様子が読めなかった時の記録と、その理由を診断に残すようになりました。"
+        "AI実行の部品が出す新しい失敗4つが、診断に載るようになります。"
       ]
     },
     {
