@@ -153,7 +153,7 @@ for (const boundary of ['input', 'run', 'close']) test(`SDK deadline: usage ${bo
   let caller
   f.options.makeAuth = options => {
     const client = new AitermClient({ command: 'must-not-spawn', env: {} }), transport = { pid: 123 }
-    const sdk = { transport, listTools: async () => ({ tools: [authTool()] }), getServerVersion: () => ({ name: 'aiterm', version: f.document.target.version }), callTool: async ({ arguments: args }) => {
+    const sdk = { transport, request: async () => ({ tools: [authTool()] }), getServerVersion: () => ({ name: 'aiterm', version: f.document.target.version }), callTool: async ({ arguments: args }) => {
       issued.push({ action: args.action, at: Date.now() })
       return args.action === 'cancel' ? { structuredContent: { schema: 'aiterm.agent-auth-result.v1', harness: 'claude-code', session_id: null, status: 'blocked' } } : result(args.action === 'respond')
     } }

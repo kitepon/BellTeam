@@ -50,7 +50,10 @@ flowchart TD
 flowchart TD
   Send["Direct pty_send with require_agent"] --> Reply{"Native result"}
   Reply -->|accepted| Accepted["Follow original receipt"]
-  Reply -->|"outcome unknown / Aiterm says do not resend"| Fail["Return original error; never replay"]
+  Reply -->|"Aiterm says do not resend"| Fail["Return original error; never replay"]
+  Reply -->|"answer lost (RPC error)"| Lost["Matching pty_observe"]
+  Lost -->|"pane_alive=false (no terminal behind the record)"| Launch
+  Lost -->|"terminal alive / unreadable"| Fail
   Reply -->|"any other refusal"| Observe["Matching pty_observe after refusal"]
   Observe -->|"live, not agent_failed, not-ready or busy-taking-input"| Again["Resend the same words to the same terminal (at most 3)"]
   Again -->|accepted| Accepted
@@ -71,11 +74,14 @@ flowchart TD
 失敗で終わる分岐、それぞれが守る物、そこからの出口：
 | 分岐 | 守る物 | 出口 |
 |---|---|---|
-| 結果不明（`BOT_SEND_OUTCOME_UNKNOWN`、RPC不明、Aitermの「再送しないでください」） | 打った文を二度実行させない | 席には触れない。次の配送は通常どおり進む。この記録はunknownのまま残り、送り手が会話を見て新しく送る |
+| Aitermが結果不明と答えた（`BOT_SEND_OUTCOME_UNKNOWN`、「再送しないでください」） | 打った文を二度実行させない | 席には触れない。次の配送は通常どおり進む。この記録はunknownのまま残り、送り手が会話を見て新しく送る |
+| 答えが届かなかった（RPCの失敗）で、観測すると端末が生きている、または観測が読めない | 打った文を二度実行させない | 同上。端末が無い（`pane_alive=false`：記録だけ残った席、休止中の席）と観測できた時は失敗にせず、閉じて起こして届ける。端末が無ければ文は打たれていない |
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
 モジュールの入れ替えで、会話のleaseか実行の世代が閉じた配送（`CONVERSATION_NOT_ACCEPTED` / `EXECUTION_GENERATION_RETIRED`）を考える。文がまだCLIに届き得ない時は、型付きの未開始`{schema:'aiterm.execution-error.v1', code:'EXECUTION_STALE_GENERATION', effect:'not_started', follow_up:'none'}`を`error.executionError`に付ける。失敗の状態（`onStatus('failed')`）は、どの呼び手にも従来どおり書く。出口は呼び手ごとに次のとおり（エピネル指摘 2026-11-08）。直接配送（messenger）と部屋（room-messenger）の行は`failed`になり、明示の回復（#549）で同じIDのまま届け直せる。保存配送（durable receipts、N102）は、この印を見て同じIDを`queued`へ戻し、入れ替えの後に届ける。「届き得ない」とは、このjobの`pty_send`が一度も発行されていないか、発行した全てが明示の未送信（`AGENT_SESSION_REQUIRED`/`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`、または「送信していません」）で断られたこと（`job.inputMayHaveStarted`）。それ以外は印を付けない。
+
+2026-11-13（a46、同じ操作の4回目の失敗）。本体の入れ替えで端末が消えたClaude席へ送ると、Aiterm 0.70.41以降は記録を休止として引き取り、ログインが要るので再開を断る（`AGENT_RESUME_SECRETS_REQUIRED`、未送信）。MCP SDKのClientは`listTools()`を一度呼ぶと各道具の出力schemaで`structuredContent`を検証し、合わない返りを`callTool`の例外（-32602）に変える。この断りは`isError`の返りに型付きの`structuredContent`を載せていたので、例外になって答えごと失われ、「結果不明」として席に触れずに終わった。席は休止のまま残り、後の配送もすべて同じ形で失敗した（出口が無かった）。4回の失敗に共通する原因は、起こすかどうかを「見ないで送った文の断られ方」から読み取っていたことにある。読めない断り（新しい符号、一覧に無い符号、途中で失われた答え）が来るたびに配送が止まった。直しは二つ。答えが届かなかった時は席を観測し、端末が無ければ起こす（断りの中身に依らない）。`AitermClient`の機能確認は`tools/list`を直接読み、共有するClientに検証を入れない（型付きの断りを読める状態に保つ）。
 
 Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 

@@ -9,7 +9,7 @@ const version = 'synthetic-version'
 async function fixture() {
   const client = new AitermClient({ command: 'must-not-spawn', env: {} })
   const transport = { pid: 123 }, result = { content: [], structuredContent: { status: 'waiting' } }, calls = []
-  const sdk = { transport, listTools: async () => ({ tools: [authTool()] }), getServerVersion: () => ({ name: 'aiterm', version }),
+  const sdk = { transport, request: async () => ({ tools: [authTool()] }), getServerVersion: () => ({ name: 'aiterm', version }),
     async callTool(request) { assert.equal(this, sdk); calls.push(request); return result } }
   const counts = { connect: 0 }
   client.client = sdk
@@ -133,7 +133,7 @@ test('auth capability accepts compatible releases and refuses incompatible or re
     let connects = 0, lists = 0
     const transport = { pid: 123 }, result = { content: [], structuredContent: { status: 'waiting' } }
     const sdk = { transport, getServerVersion: () => ({ name: 'aiterm', version }),
-      listTools: async () => { lists++; return { tools: tool ? [tool] : [] } },
+      request: async () => { lists++; return { tools: tool ? [tool] : [] } },
       callTool: async request => { calls.push(request); return result } }
     client.connect = async () => { connects++; client.client = sdk; client.transport = transport }
     client.close = async () => { client.client = null; client.transport = null }
@@ -180,7 +180,7 @@ test('auth capability accepts compatible releases and refuses incompatible or re
     assert.equal(f.connects, 1); assert.equal(f.calls.length, 0)
   }
   const interrupted = make('0.63.11')
-  interrupted.sdk.listTools = async () => { interrupted.transport.pid++; return { tools: [authTool()] } }
+  interrupted.sdk.request = async () => { interrupted.transport.pid++; return { tools: [authTool()] } }
   await assert.rejects(interrupted.auth.prepare(), e => e.code === 'AITERM_AUTH_CONNECTION_UNCONFIRMED')
   assert.equal(interrupted.calls.length, 0)
   const failed = make('0.63.11'), failure = new Error('synthetic SDK output validation rejection')

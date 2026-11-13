@@ -111,6 +111,7 @@ function scripted({ sends, observed = observation('idle_timeout') }) {
     calls.push([name, args])
     if (name === 'pty_send') {
       const next = sends.length ? sends.shift() : null
+      if (next instanceof Error) throw next
       if (typeof next === 'string' && next !== 'untracked') return { isError: true, content: [{ type: 'text', text: next }] }
       return { structuredContent: next === 'untracked' ? { mode: 'agent_dispatch' }
         : { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } }
@@ -179,6 +180,22 @@ test('Aitermが再送しないよう言う断りは、観測も起動もせず�
   const run = await deliver(t, { sends: ["aiterm: agent session 'bot-a' の Codex への入力完了を確認できません。本文を再送しないでください。"] })
   await assert.rejects(run.delivered)
   assert.deepEqual(run.names(), ['pty_send'])
+})
+
+// 2026-11-13 a46：SDKが返りを例外に変え、Aitermの断りが失われた。席は休止として残り、端末は無い。
+const lostAnswer = () => new Error("MCP error -32602: Structured content does not match the tool's output schema")
+const hibernated = { ...observation('idle_timeout', 'hibernated'), pane_alive: false }
+
+test('答えが届かなくても、観測で端末が無い席は、閉じて起こしてから届ける', async t => {
+  const run = await deliver(t, { sends: [lostAnswer(), null], observed: hibernated }, 'claude')
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+})
+
+test('答えが届かず、端末が生きている席には触れずに元の失敗を返す', async t => {
+  const run = await deliver(t, { sends: [lostAnswer()], observed: { ...observation('composer_ready'), pane_alive: true } })
+  await assert.rejects(run.delivered, /-32602/u)
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe'])
 })
 
 test('受理されたが追う手がかりの無い返りは、失敗にせず受理として終える', async t => {

@@ -11,7 +11,7 @@ Claudeの一覧は、席と同じログインで取る（Trony a04、2026-11-12�
 - members（Belorta）：`LiveModelCatalog.forHarness('claude')`は有効なClaude枠（新しい席が起きる枠）を`claudeLogin`として渡す。
 - execution（Kiro）：`AitermClient.call('agent_models', args, {claudeLogin})`は、1st/2ndの時だけ引数`claude_login`を足す。tokenは渡さない。
 - Aiterm（Elegg）：`agent_models`の`claude_login`で、その枠の`oauth-token`（`AITERM_CLAUDE_CONFIG_ROOTS`）を使って一覧を取る。`agent_configure`の照合用一覧も、席の起動ログインで取る。`claude_login`が無い時は従来どおり。
-- 順序は問わない：AitermClientは`agent_models`の入力に`claude_login`があるかを`listTools`で確かめ、無いAitermには付けない（従来の既定ログインの一覧）。
+- 順序は問わない：AitermClientは`agent_models`の入力に`claude_login`があるかを`tools/list`で確かめ、無いAitermには付けない（従来の既定ログインの一覧）。（SDKの`Client.listTools()`は使わない。出力の検証が共有のClientに入り、Aitermの型付きの断りが例外になって失われる。配送の正本 delivery-details.md 2026-11-13）
 - ログインの無い枠（新規導入・未ログイン）：枠のtokenを見られるのは席ユーザーで動くAitermだけなので、確かめはAitermに任せる。Aitermが`CLAUDE_LOGIN_UNAVAILABLE`（一覧は読んでいない）を返した時だけ、AitermClientは`claude_login`を外して一度だけ読み直す（a04前の既定ログインの一覧）。初回設定はログイン前に候補を見せる契約で、空やerrorにしない。他のerrorは読み直さない（Trony B、2026-11-12、Molly image smoke）。
 
 検証はBotRegistryの作成/設定変更とWebの編集候補から使う。空配列を成功した候補一覧の代わりにせず、errorを同じCLIの結果へ載せる。モデル候補は永続化も自動再試行もしない。model/effortの変換と取得元はAitermが所有する。

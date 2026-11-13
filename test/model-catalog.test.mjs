@@ -92,7 +92,7 @@ test('agent_models carries claude_login only for a slot and only to an Aiterm th
     const client = new AitermClient()
     client.connect = async () => {}
     client.client = {
-      listTools: async () => ({ tools: [{ name: 'agent_models', inputSchema: { properties: { harness: { type: 'string' }, ...(declared ? { claude_login: { type: 'string' } } : {}) } } }] }),
+      request: async () => ({ tools: [{ name: 'agent_models', inputSchema: { properties: { harness: { type: 'string' }, ...(declared ? { claude_login: { type: 'string' } } : {}) } } }] }),
       callTool: async ({ name, arguments: args }) => { sent.push([name, args]); return { structuredContent: {} } },
     }
     await client.call('agent_models', { harness: 'claude-code', cwd: '/x' }, login ? { claudeLogin: login } : {})
@@ -109,7 +109,7 @@ test('agent_models retries once without claude_login only on CLAUDE_LOGIN_UNAVAI
     const client = new AitermClient()
     client.connect = async () => {}
     client.client = {
-      listTools: async () => ({ tools: [{ name: 'agent_models', inputSchema: { properties: { claude_login: { type: 'string' } } } }] }),
+      request: async () => ({ tools: [{ name: 'agent_models', inputSchema: { properties: { claude_login: { type: 'string' } } } }] }),
       callTool: async ({ arguments: args }) => {
         sent.push(args)
         return Object.hasOwn(args, 'claude_login') || !ok ? { isError: true, content: [{ type: 'text', text: refusal }] } : { structuredContent: { models: ['opus'] } }

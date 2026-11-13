@@ -8,6 +8,7 @@ import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
@@ -15,6 +16,10 @@ import { ERROR_CODE_META, errorCode, LAUNCH_ERROR_META, authenticationPreflightF
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
+
+// Client.listTools() makes the SDK validate every later callTool result against the tool's output schema; Aiterm's typed
+// refusals (structuredContent on isError) then throw -32602 and the answer is lost (delivery-details.md 2026-11-13).
+const listTools = (sdk, params) => sdk.request({ method: 'tools/list', ...(params ? { params } : {}) }, ListToolsResultSchema)
 
 // The seat-command path does not carry this.env; the parent's Aiterm needs the account roots here too (harness-accounts.md E1).
 // harness-accounts.md (one login per slot): a Claude seat gets only its slot's login, CLAUDE_CODE_OAUTH_TOKEN, read as the seat
@@ -202,7 +207,7 @@ export class AitermClient {
     if (accountInput) {
       let supported = false
       try {
-        const tools = await callClient.listTools()
+        const tools = await listTools(callClient)
         supported = tools.tools.some(tool => tool.name === accountInput[0] && tool.inputSchema?.properties?.[accountInput[1]]?.type === accountInput[2])
       } catch { /* Nothing was issued by the capability read. */ }
       if (!supported && accountInput[1] === 'fork_from')
@@ -212,7 +217,7 @@ export class AitermClient {
     if (name === 'agent_models' && Object.hasOwn(args, 'claude_login')) {
       let supported = false
       try {
-        supported = (await callClient.listTools()).tools.some(tool => tool.name === 'agent_models' && tool.inputSchema?.properties?.claude_login?.type === 'string')
+        supported = (await listTools(callClient)).tools.some(tool => tool.name === 'agent_models' && tool.inputSchema?.properties?.claude_login?.type === 'string')
       } catch { /* Nothing was issued by the capability read. */ }
       // shortcut: an Aiterm without claude_login reads the list with its own login (the behaviour before a04); require it once every body carries it.
       if (!supported) { const { claude_login: _login, ...rest } = args; args = rest }
@@ -220,7 +225,7 @@ export class AitermClient {
     if (name === 'agent_launch' && args.require_existing_resume === true) {
       let supported = false
       try {
-        const tools = await callClient.listTools()
+        const tools = await listTools(callClient)
         supported = tools.tools.some(tool => tool.name === 'agent_launch' && tool.inputSchema?.properties?.require_existing_resume?.type === 'boolean')
       } catch { /* No launch was issued by the capability read. */ }
       if (!supported) throw Object.assign(new Error('RESUME_CAPABILITY_UNAVAILABLE'), { code: 'RESUME_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
@@ -415,7 +420,7 @@ async function authCapability(client) {
   const cursors = new Set()
   for (let page = 0; page < 16; page++) {
     let result
-    try { result = await sdk.listTools(cursor ? { cursor } : {}) } catch { throw unavailable() }
+    try { result = await listTools(sdk, cursor ? { cursor } : null) } catch { throw unavailable() }
     sameConnection(client, sdk, transport, pid)
     if (!Array.isArray(result?.tools)) throw unavailable()
     for (const tool of result.tools) if (tool?.name === 'agent_auth') {
