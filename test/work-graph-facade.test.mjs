@@ -80,13 +80,11 @@ test('effects return only the agreed fields from the public ports', async () => 
   const row = await unknown('turns.read', { botIds: ['z'] })
   assert.deepEqual(row, { turns: { z: { state: 'idle', turnId: null, startedAt: null, summary: null, summaryStatus: 'missing' } } })
   validateWorkGraphEffectResult('turns.read', row)
-  // a54: a member waiting on its notify=result command is idle natively but working in currentWork; the graph follows currentWork.
-  const waiting = createWorkGraphEffects({ bots: { get: id => ({ id }) }, messagePage: async () => null, transport: {
-    currentTurn: async () => ({ state: 'idle', turnId: 't-old', startedAt: null }),
-    currentWork: () => ({ state: 'working', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: '2026-11-13T06:00:00.000Z', source: null,
-      reason: { kind: 'schedule', detail: null, since: '2026-11-13T05:59:00.000Z' } }) } })
+  // a54: natively idle while waiting on its notify=result command; runningState (lattice's judgement) says working.
+  const waiting = createWorkGraphEffects({ bots: {}, messagePage: async () => null,
+    transport: { currentTurn: async () => ({ state: 'idle', turnId: 't-old', startedAt: null }), runningState: () => 'working' } })
   const wait = await waiting('turns.read', { botIds: ['w'] })
-  assert.deepEqual(wait, { turns: { w: { state: 'working', turnId: 't-old', startedAt: '2026-11-13T05:59:00.000Z', summary: null, summaryStatus: 'missing' } } })
+  assert.deepEqual(wait, { turns: { w: { state: 'working', turnId: 't-old', startedAt: null, summary: null, summaryStatus: 'missing' } } })
   validateWorkGraphEffectResult('turns.read', wait)
   await assert.rejects(invalid('other', {}), { code: 'WORK_GRAPH_EFFECT_INVALID' })
 })

@@ -80,11 +80,11 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
       try {
         const rows = await Promise.all(params.botIds.map(async id => {
           // The edge label is the receiver's Japanese work summary (GET /api/bots currentWork), never a message body.
-          const work = readCurrentWork(transport, bots.get?.(id) ?? null), native = turn(await transport.currentTurn(id, { startedAt: true }))
-          // "Working" is execution's one judgement (currentWork, incl. a notify=result command wait; a54); native turn only when it is unknown.
-          const state = work.state === 'unknown' ? native.state : work.state
-          const startedAt = native.state === 'working' ? native.startedAt : state === 'working' ? time(work.reason?.since) : native.startedAt
-          return [id, { ...native, state, startedAt, summary: work.summary, summaryStatus: work.summaryStatus }]
+          const work = readCurrentWork(transport, bots.get?.(id) ?? null)
+          const native = turn(await transport.currentTurn(id, { startedAt: true }))
+          // a54 (Owner 2026-11-13): "working" is lattice's nudge judgement, runningState (counts a notify=result command wait).
+          const running = typeof transport.runningState === 'function' ? await transport.runningState(id) : null
+          return [id, { ...native, state: ['working', 'idle'].includes(running) ? running : native.state, summary: work.summary, summaryStatus: work.summaryStatus }]
         }))
         return { turns: Object.fromEntries(rows) }
       } catch (error) {

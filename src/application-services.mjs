@@ -159,7 +159,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   let scheduleTurns = null
   // Script waits (execution current-work.md 2026-11-12): the scheduler's read, bound once it exists.
   let commandWait = () => null
-  // a54: the work graph re-reads currentWork when a notify=result command wait starts or ends.
+  // a54: the graph learns of a command wait only here (noted after the turn-end refresh, or by a tick-started job).
   const commandWaitWatchers = new Set(), commandWaits = { watch: listener => (commandWaitWatchers.add(listener), () => commandWaitWatchers.delete(listener)) }
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
