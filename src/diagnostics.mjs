@@ -29,6 +29,10 @@ const reports = {
   SERVER_TURN_TRACKING_FAILED: ['high', 'AIの処理終了を追跡できなかった'],
   SERVER_MODULE_CHILD_EXITED: ['high', 'BellTeamの部品が予期せず終了した'],
   GOAL_OPERATION_UNCONFIRMED: ['warn', 'ゴール操作の結果を確認できなかった'],
+  REMOTE_SEAT_RESUME_REFUSED: ['warn', '外の席の会話を再開できなかった（理由はdiagnostic_log）'],
+  RUNNING_EXCLUSIONS_UNAVAILABLE: ['warn', '稼働中の除外設定を読み取れず、プロセスを稼働中に数えられなかった'],
+  RESTART_ACTIVITY_UNAVAILABLE: ['warn', '本体の再起動後の再開に使う作業記録を読み書きできなかった'],
+  RUNTIME_LAUNCH_RECORD_UNAVAILABLE: ['warn', '席を起動した時の実行環境の記録を保存できなかった'],
   // 送信の失敗と設定の反映の失敗を分ける前の記録。保存済みの行のために残し、新しくは記録しない。
   SERVER_PUSH_FAILED: ['high', '端末への通知送信に失敗した'],
   SERVER_PUSH_SEND_FAILED: ['warn', '端末へ通知を届けられなかった（その通知だけ。原因は未確定）'],
@@ -39,7 +43,7 @@ const reports = {
 }
 const assessments = { info: '適切に処理した参考記録', warn: '影響あり', high: '影響あり', fatal: '影響あり' }
 const referenceGrounds = [/^user_impact=none$/mu, /^app_handling=\S/mu]
-const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications', 'goals'])
+const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications', 'goals', 'execution'])
 
 const exitComponents = ['conversation', 'usage', 'diagnostics', 'members', 'notifications', 'web-gateway']
 const exitSignals = ['SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGHUP', 'SIGILL', 'SIGINT', 'SIGKILL', 'SIGPIPE', 'SIGQUIT', 'SIGSEGV', 'SIGTERM']

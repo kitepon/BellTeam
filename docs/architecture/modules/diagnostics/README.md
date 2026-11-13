@@ -29,6 +29,10 @@ Signalが内部図・source・直接検証を同差分で供給、Signalが固�
 
 内部factory・閉操作・状態/close-drain/restoreは[単体更新の正本](module-update.md)。
 
+## Execution reports
+
+Execution reports pass through the existing parent facade to the diagnostics validator, fixed-code registry and sole writer; persisted rows are restored and returned by the existing list. The `execution` module accepts four fixed `warn` codes: `REMOTE_SEAT_RESUME_REFUSED`, `RUNNING_EXCLUSIONS_UNAVAILABLE`, `RESTART_ACTIVITY_UNAVAILABLE`, and `RUNTIME_LAUNCH_RECORD_UNAVAILABLE`. Reports use the existing optional `diagnostic_log` string and existing aggregation and storage contract; they add no fields. `RESTART_ACTIVITY_UNAVAILABLE` covers both reading and writing the activity record used to resume after a body restart.
+
 ## Restart-limit problems
 
 The additive `recordModuleRestartLimit(problem)` intake stores and serves the runtime's `module_restart_limit` observation and explicit recovery using the existing diagnostics writer and GET. Exact DTO, per-module aggregation, state transitions and ownership are canonical in [restart-limit problems](module-restart-limit.md). Restart counting and healthy-window timing remain runtime-owned; restarts continue.
