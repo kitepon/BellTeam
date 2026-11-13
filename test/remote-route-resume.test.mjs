@@ -48,3 +48,7 @@ test('a working seat waits for its turn end; AGENT_BUSY retries; another refusal
   assert.equal(refused.calls.length, 1)
   assert.deepEqual(refused.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', botId: 'b1', reason: 'AGENT_HIBERNATE_UNAVAILABLE' }])
 })
+
+test('no SM10 port (older body): the transport has no seen reader, so #seatTurns never runs the route rule', () => {
+  assert.equal(new AitermTransport({ client: { call: async () => ({}) } }).seatMcpSeen, null)
+})

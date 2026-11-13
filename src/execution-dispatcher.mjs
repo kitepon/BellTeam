@@ -131,7 +131,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     activityPath: join(dirname(root), 'execution-activity.json'),
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
     runningExclusionsPath: join(dirname(root), 'execution-running-exclusions.json'),
-    seatMcpSeen: name => { try { return ports.ingress?.seatMcp?.seen?.(name) ?? null } catch { return null } },
+    // No SM10 port (older body): no seen fact, so the route rule stays off instead of resuming every seat (Molly 11/13).
+    seatMcpSeen: typeof ports.ingress?.seatMcp?.seen === 'function' ? name => { try { return ports.ingress.seatMcp.seen(name) ?? null } catch { return null } } : null,
     trackCompletion: track, client: remoteSeats ? remoteSeats.route(native) : native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,

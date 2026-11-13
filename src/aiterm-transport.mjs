@@ -100,7 +100,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = () => null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -1300,7 +1300,7 @@ export class AitermTransport {
     } catch (error) { this.workState.endRead(read, null); throw error }
     const data = result?._meta?.['aiterm/seat_turns']
     this.workState.endRead(read, data)
-    if (Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
+    if (this.seatMcpSeen && Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
       throw new Error(`AITERM_SEAT_TURNS_INVALID: ${data.error ?? data.schema}`)
