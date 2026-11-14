@@ -84,6 +84,27 @@ flowchart TD
 
 `configureRtk → setGroupHook/addCursorHook/ownedCommands`は、自分のdirect/gated commandだけを同じ位置で置換する。二重の自分の登録はどちらかを勝手に削除せずエラー。`writeGrokHook/grokHookConfig`は既存Grok専用入口、`trustCodexHook`はhooks/listのsourcePath/key/currentHashに一致したhandlerだけをconfig/batchWriteし読戻す。`codexAppServer`は設定用stdio接続をfinallyで終了し、thread/turnを作らない。
 
+## Testgate PreToolUse registration (bd13)
+
+BellTeam's registration follows the [testgate registration contract v1, release 0.3.32](https://github.com/kitepon/testgate/blob/v0.3.32/docs/registration-contract.md). Testgate owns hook behavior and its release lifecycle; Epinel owns the BellTeam container registration. Terminal registration belongs to Drilly and uses the terminal's own installation root. This section documents only the BellTeam side of the boundary.
+
+```mermaid
+flowchart TD
+  Contract["testgate registration contract v1<br/>release 0.3.32"] --> Select
+  Path["/srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs<br/>readable?"] --> Select["configureRtk / ownedCommands<br/>select one PreToolUse item for H"]
+  Select -->|readable| Gate["node .../testgate.mjs hook H"]
+  Select -->|unreadable| Fallback["rtk hook H"]
+  Gate --> Same["replace the existing RTK item<br/>at the same position"]
+  Fallback --> Same
+  Same --> Harnesses["Claude / Codex / Cursor / Grok"]
+```
+
+| From → to | Data and rule | Owner |
+| --- | --- | --- |
+| Testgate contract → BellTeam registration | For `H` in `claude`, `codex`, `cursor`, `grok`, use `node /srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook H` when that fixed path is readable; otherwise keep `rtk hook H` directly. | Testgate owns the v1 entry contract; Epinel owns the container registration. |
+| `configureRtk` → harness hook file | Replace the single existing PreToolUse RTK item in place. Never add a second item. The stable v1 path, argv, stdin/stdout behavior, and passthrough on internal failure remain unchanged; testgate never exits 2. | BellTeam owns its item and position. |
+| Testgate release → next hook invocation | A release updates the `current` link only; it needs no hook re-registration or Codex re-trust. A v2 change is announced to Epinel and Drilly with a v1 compatibility period. | Testgate owns release/distribution; BellTeam consumes the stable entry. |
+
 `aitermExecutionRegistration`はAitermの`localParentWorkerRuntime.scope`からstate root/socketを受け、BellTeam側で規則を複製しない。`configureAitermHooks`はnative登録ならその公開setup/argument parser、旧登録ならmergeClaudeParentHooks/mergeCursorParentHooks/ensureCodexParentSteerへ渡す。旧Codex登録の確認が一時的なCLI起動を含むことと、通常のBot起動を区別する。ここではいずれも実行していない。
 
 実装：[application-runtime.mjs](../../../../src/application-runtime.mjs)、[bootstrap.mjs](../../../../src/bootstrap.mjs)、[seat-runtime.mjs](../../../../src/seat-runtime.mjs)、[harness-config.mjs](../../../../src/harness-config.mjs)、[rtk-hooks.mjs](../../../../src/rtk-hooks.mjs)、[aiterm-hooks.mjs](../../../../src/aiterm-hooks.mjs)。参照する確認先はapplication-runtime、seat-command/process/stream/stdio/memory、character-sheets、harness-config、bot-environment、runtime-home、rtk-hooks、aiterm-hooks。native長命実行は[配送詳細](../../delivery-details.md)、通常installer/backupは[供給詳細](../../distribution-details.md)へ接続する。
