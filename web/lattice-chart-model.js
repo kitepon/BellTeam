@@ -345,9 +345,12 @@ export function diffSnapshots(prev, next) {
 // 工程表の名前：付いた名前、無ければ「作った人の工程表」。IDは画面に出さない。
 export const chartName = (chart, getMember = () => null) => chart?.name ?? (chart?.createdBy && getMember(chart.createdBy)?.name ? `${getMember(chart.createdBy).name}の工程表` : '名前のない工程表')
 
+// 一覧に出す工程表：分母（counts.total）が 0 のものは開いても何もないので出さない（Owner 2026-11-14, a107）。
+export const shownCharts = list => (list?.charts ?? []).filter(chart => (chart.counts?.total ?? 0) > 0)
+
 // 一覧：統括の工程表が先頭（サーバーの並びのまま）。active は名簿から引けた分だけ顔にし、引けない子は「?」。
 export function listItems(list, getMember = () => null) {
-  return (list.charts ?? []).map(chart => {
+  return shownCharts(list).map(chart => {
     const members = (chart.activeMembers ?? []).slice(0, 4).map(botId => getMember(botId) ?? { botId, name: UNKNOWN_MEMBER, color: 'unknown', avatar: '', known: false })
     const { done = 0, total = 0, waiting = 0 } = chart.counts ?? {}
     const name = chartName(chart, getMember)
