@@ -56,3 +56,13 @@ test('先行する共有設定更新の失敗を呼出元へ返し、後続更�
   assert.equal(await second, null)
   assert.deepEqual(actions, ['write-harness-config', 'configure-harnesses'])
 })
+
+test('the seat child report lines reach the body log; stdout stays the JSON answer', async t => {
+  const written = []
+  t.mock.method(process.stderr, 'write', chunk => { written.push(String(chunk)); return true })
+  const runtime = new SeatRuntime({ root: '/synthetic', home: '/synthetic/home',
+    run: async () => ({ stdout: '{"result":7}', stderr: 'BellTeam MCP xarticle: report\n' }) })
+  assert.equal(await runtime.call('configure-harnesses', {}), 7)
+  t.mock.restoreAll()
+  assert.deepEqual(written, ['BellTeam MCP xarticle: report\n'])
+})

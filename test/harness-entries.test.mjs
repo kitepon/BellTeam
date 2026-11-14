@@ -112,7 +112,7 @@ test('an invalid or missing E1 writes nothing for that product while the other p
   assert.deepEqual(writes(f.calls).map(call => call[3]), ['typesafe', 'typesafe'])
   assert.equal(f.reports.length, 2)
   assert.match(f.reports[0], /xarticle/u)
-  assert.match(f.reports[1], /broken/u)
+  assert.match(f.reports[1], /broken.*がありません/u)
   const applied = JSON.parse(await readFile(join(f.home, '.bellteam-cli-registration/applied.json'), 'utf8'))
   assert.deepEqual(Object.keys(applied), ['typesafe'])
 })

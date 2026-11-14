@@ -52,7 +52,9 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
   if (!Array.isArray(products)) throw new Error(`E2 ${registry} がありません`)
   for (const { product, file } of products) {
     try {
-      const { servers, version } = parseEntries(product, await readJson(file))
+      const value = await readJson(file)
+      if (value === null) throw new Error(`${file} がありません`)
+      const { servers, version } = parseEntries(product, value)
       applied[product] = { version, entries: [] }
       items.push(...servers.map(item => ({ ...item, product })))
     } catch (error) {
