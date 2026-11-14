@@ -144,10 +144,9 @@ export function layoutTree(snapshot, name = '') {
     return node
   }
   place('root', TREE.LEFT)
-  // 完了数は消えた工程も数える（上の「◯/◯ 完了」と合わせる）。
-  const all = snapshot.cards ?? []
+  // 完了数もツリーに出す工程（archived でない）だけを数える（Owner 2026-11-14、a96。上の「◯/◯ 完了」と同じ）。
   for (const node of nodes.values()) if (node.kind !== 'card') {
-    const inside = node.kind === 'root' ? all : all.filter(card => card.phase === node.id)
+    const inside = node.kind === 'root' ? cards : cards.filter(card => card.phase === node.id)
     Object.assign(node, { done: inside.filter(card => finished(card.state)).length, total: inside.length, tone: phaseTone(inside) })
   }
   const mid = node => node.y + node.h / 2
@@ -209,7 +208,8 @@ export function flowPositions(now) {
 export const particleOpacity = t => Math.min(1, t / 0.07, (1 - t) / 0.23)
 
 export function chartCounts(snapshot) {
-  const cards = snapshot.cards ?? [], waiting = new Set((snapshot.edges ?? []).filter(edge => edge.waiting).map(edge => edge.to))
+  // 分数はツリーに出す工程だけ（archived を除く、a96）。archived は終わった工程なので、作業中・止まり・待ちは変わらない。
+  const cards = (snapshot.cards ?? []).filter(card => !card.archived), waiting = new Set((snapshot.edges ?? []).filter(edge => edge.waiting).map(edge => edge.to))
   return {
     total: cards.length,
     done: cards.filter(card => finished(card.state)).length,

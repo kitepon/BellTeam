@@ -52,7 +52,8 @@ test('projection: cards, ready, producer (start beats lane), edges, waits, depth
     { waiter: 'bot-c', waitingCard: 'p1/t4', forCard: 'p1/t3', producer: 'bot-b', producerState: 'in-progress', since: at(12) },
     { waiter: null, waitingCard: 'p1/t7', forCard: 'p1/t4', producer: 'bot-c', producerState: 'pending', since: at(12) },
     { waiter: null, waitingCard: 'p1/t7', forCard: 'p1/t2', producer: null, producerState: 'ready', since: null }])
-  assert.deepEqual(result.counts, { total: 7, done: 2, working: 1, blocked: 1, waiting: 2 })
+  // t6 (retired, no next card) is archived: it is in no number (task a96); t1 (done, next t2 unstarted) still counts.
+  assert.deepEqual(result.counts, { total: 6, done: 1, working: 1, blocked: 1, waiting: 2 })
   assert.deepEqual(result.memberIds, ['bot-a', 'bot-b', 'bot-c'])
   assert.deepEqual([result.createdBy, result.updatedAt], ['bot-a', at(12)])
 })
