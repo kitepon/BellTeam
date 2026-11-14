@@ -168,8 +168,8 @@ test('core: seat runs on one chart run one at a time, with the code chart mainta
     run: async ({ args }) => { order.push(`start ${args[0]}`); if (args[0] === 'plan') await gate; order.push(`end ${args[0]}`); return { exitCode: 0, stdout: '{}', stderr: '' } } }
   const codeCharts = { maintain: async id => { order.push(`maintain ${id}`) } }
   const core = createLatticeCore({ cli, codeCharts, log: () => {} })
-  const first = core.run({ from: 'bot-a', projectId: 'bellteam', args: ['plan', 'show'], input: null })
-  const second = core.run({ from: 'bot-b', projectId: 'bellteam', args: ['todo', 'status'], input: null })
+  const first = core.run({ from: 'bot-a', projectId: 'bellteam', args: ['plan', 'create'], input: { a: 1 } })
+  const second = core.run({ from: 'bot-b', projectId: 'bellteam', args: ['todo', 'start'], input: null })
   await new Promise(resolve => setImmediate(resolve)); release(); await Promise.all([first, second])
   assert.deepEqual(order, ['maintain bellteam', 'start plan', 'end plan', 'maintain bellteam', 'start todo', 'end todo'])
 })
