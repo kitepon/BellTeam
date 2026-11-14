@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T13:41:24Z",
-  "expiresAt": "2026-11-21T13:41:24Z",
+  "publishedAt": "2026-11-14T14:11:20Z",
+  "expiresAt": "2026-11-21T14:11:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -755,8 +755,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be",
-      "versionId": "0e109de70ae7e1f0509130ebb053e26fbcd5a75e15a12de31f53a7f42b1cd15f",
+      "sourceCommit": "a0ef8daf9ed6428f315252cd7493d283852ca533",
+      "versionId": "a5bd744563a28e482255b20351af27a4059cee1f164783262dd6fcaf0219682c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-amd64.tar.gz",
-          "bytes": 15292888,
-          "sha256": "0e109de70ae7e1f0509130ebb053e26fbcd5a75e15a12de31f53a7f42b1cd15f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T141054Z/lattice-a0ef8daf9ed6428f315252cd7493d283852ca533-linux-amd64.tar.gz",
+          "bytes": 15292894,
+          "sha256": "a5bd744563a28e482255b20351af27a4059cee1f164783262dd6fcaf0219682c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "d98e2dd23204ed0e8d24199eeeaffccb7e5a80967c0671b0518f5509c9979fa4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T141054Z/lattice-a0ef8daf9ed6428f315252cd7493d283852ca533-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11192,
+          "sha256": "14a0594ca7704d8e5c4958049f65be2c5ac1efb67282b04ad2eb2e058123bad3"
         },
-        "signerCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be"
+        "signerCommit": "a0ef8daf9ed6428f315252cd7493d283852ca533"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "工程表の一覧を、工程表ごとにまとめて並べて読むようにして、表示を速くしました。"
+        "工程表で、次の工程が無い終わった工程は、すぐ片付けて表示しないようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be",
-      "versionId": "e884b391f416440aed0d1ef4d1959ac6ba40d4ea5b708d1c92f26f198ee32ca2",
+      "sourceCommit": "a0ef8daf9ed6428f315252cd7493d283852ca533",
+      "versionId": "be1aba47d3df03e66b5af9b6f9f387ba71c92cdba5122083fbc44a710f4eeb0a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-arm64.tar.gz",
-          "bytes": 15292887,
-          "sha256": "e884b391f416440aed0d1ef4d1959ac6ba40d4ea5b708d1c92f26f198ee32ca2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T141054Z/lattice-a0ef8daf9ed6428f315252cd7493d283852ca533-linux-arm64.tar.gz",
+          "bytes": 15292894,
+          "sha256": "be1aba47d3df03e66b5af9b6f9f387ba71c92cdba5122083fbc44a710f4eeb0a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "7b5f511ae22fce0dce46917557a76c7d9f05d581db9593c71c1eba03a4873052"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T141054Z/lattice-a0ef8daf9ed6428f315252cd7493d283852ca533-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11102,
+          "sha256": "6ef2be14aa8f76ada970d3784dcacd669331d207c31744078592e86bec017099"
         },
-        "signerCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be"
+        "signerCommit": "a0ef8daf9ed6428f315252cd7493d283852ca533"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "工程表の一覧を、工程表ごとにまとめて並べて読むようにして、表示を速くしました。"
+        "工程表で、次の工程が無い終わった工程は、すぐ片付けて表示しないようにしました。"
       ]
     }
   ],
