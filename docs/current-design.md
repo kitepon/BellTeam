@@ -230,7 +230,7 @@ Web・iPhone・iPad・Macでユーザーが選択、ドロップ、または貼�
 
 MCPの`image`はコンテナ内の画像ファイルパスを受け取る。Botがユーザーまたはルームへ提示した画像は、実体を`/srv/bellteam/bots/<bot-id>/messages/assets/`へ複製し、会話ログには公開元の一時パスを残さず資産IDだけを保存する。Web APIは認証後にその画像を配信し、Web UIは会話内へ実画像として表示する。オーナーが直接会話やルームへ送った画像は、全部を`/srv/bellteam/owner/messages/assets/<送信ID>-<番号>.<拡張子>`へ残し、ログの`image_assets`に並べる（Botへ渡す一時ファイルはターン後に消えるため）。APIは発言ごとに全画像の`image_urls`と、1枚しか読まない古いアプリ向けに1枚目の`image_url`を返す。Web・Mac・iPhone・iPadの吹き出しは、2枚以上の画像を本文の吹き出しの外へ置き、先頭1枚と、横と下へ傾けてずらした奥の最大2枚で扇状のカード束にし、下へ「画像N枚」と表示する。押すと黒い全画面で画像を大きく表示し、下のサムネイル、左右スワイプ、左右ボタンで切り替え、上の枚数表示と閉じるボタンを使う。1枚は単独表示から同じ全画面を開き、サムネイルを出さない。Mac・iPhone・iPadは共通の画面で`image_urls`を読み、全画像を認証付きで取得する。その項目が無い発言は従来の`image_url`を使う。保存されていない過去の画像は有無と枚数の表示を保つ。PNG、JPEG、WebP、GIFを受け付け、画像でないファイル、symlink、25 MiBを超えるファイルは明示エラーにする。
 
-相対パスは最初にBotプロジェクトから解決する。Grokが`images/<name>`を返し、Botプロジェクトに実体がない場合は、そのBotプロジェクトに対応する最新のGrok session保存先からBellTeamが解決する。CLI固有の保存場所をBotへ推測させない。
+相対パスは最初にBotプロジェクトから解決する。Grokが`images/<name>`を返し、Botプロジェクトに実体がない場合は、そのBotプロジェクトに対応する最新のGrok session保存先からBellTeamが解決する。CLI固有の保存場所をBotへ推測させない。このGrok session保存先（`~/.grok/sessions/`）の読取りは、契約した窓口を持てない第三者製品への非公式な依存である（オーナー裁定 2026-11-14）。BellTeam内では`src/bot-image-path.mjs`の1か所だけに閉じ込め、[会話・履歴の機能図とDFD](architecture/modules/conversation/flow.md#第三者grok-cliへの非公式な依存)に描く。Grokの画像ツールは保存した絶対パスも返すため、MCPの`image`説明は絶対パスをそのまま渡すよう勧め、この依存を通る場面を減らす。
 
 ## Botとプロジェクト
 
