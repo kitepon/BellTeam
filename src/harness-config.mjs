@@ -38,7 +38,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
     }
   }
   try {
-    await productEntries(home, { run, report, ...(vars ? { vars } : {}) })
+    await productEntries(home, { run, report, relay: await relay(), ...(vars ? { vars } : {}) })
   } catch (error) {
     report(`BellTeam products: 製品のMCP・hook登録を適用できませんでした（${safeMessage(error)}）`)
   }
