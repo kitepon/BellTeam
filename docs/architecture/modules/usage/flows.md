@@ -101,6 +101,8 @@ flowchart TD
 
 コードは[onboarding.mjs](../../../../src/onboarding.mjs)、[harness-auth.mjs](../../../../src/harness-auth.mjs)、[auth-ui.mjs](../../../../src/auth-ui.mjs)、[Web認証部品](../../../../web/auth-flow.js)。GETの状態取得でも、認証完了した旧認証端末を閉じる副作用がある。単なるDB読取りとして扱わない。
 
+CLIのログインは、この認証カード（各CLIが公開するログイン方法）だけで行う。ホストの`~/.codex/auth.json`・`~/.grok/auth.json`・`agent_id`をコンテナへ写す経路は持たない（`scripts/seed-auth.sh`は2026-11-14 bd17で削除。製品の境界の決まり、洗い出し53行目）。
+
 ## 任意機能：設定を保存したことと適用できたことを分ける
 
 ```mermaid
