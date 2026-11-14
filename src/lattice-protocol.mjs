@@ -117,9 +117,9 @@ export function validateLatticeReady(value) {
 const DISPLAY_STATES = ['verified', 'unverified', 'last_verified', 'unavailable']
 const CARD_STATES = ['pending', 'ready', 'in-progress', 'blocked', 'done', 'retired']
 const card = value => latticeObject(value, ['id', 'plan', 'taskId', 'title', 'doneCondition', 'designMemo', 'state', 'lane', 'producer',
-  'startedAt', 'changedAt', 'blockedReason', 'depth'], ['phase', 'parent', 'doneAt', 'archived']) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
+  'startedAt', 'changedAt', 'blockedReason', 'depth'], ['phase', 'parent', 'doneAt', 'archived', 'counted']) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
   && [value.phase, value.parent, value.doneAt].every(item => item === undefined || strOrNull(item))
-  && (value.archived === undefined || typeof value.archived === 'boolean')
+  && [value.archived, value.counted].every(item => item === undefined || typeof item === 'boolean')
   && ['doneCondition', 'designMemo', 'lane', 'producer', 'startedAt', 'changedAt', 'blockedReason'].every(key => strOrNull(value[key]))
   && CARD_STATES.includes(value.state) && count(value.depth)
 const edge = value => latticeObject(value, ['from', 'to', 'waiting'], ['external']) && str(value.from) && str(value.to) && typeof value.waiting === 'boolean'

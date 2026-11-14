@@ -42,7 +42,7 @@ test('projection: cards, ready, producer (start beats lane), edges, waits, depth
   assert.deepEqual(Object.keys(cards), ['p1/t1', 'p1/t2', 'p1/t3', 'p1/t4', 'p1/t5', 'p1/t6', 'p1/t7'])
   assert.deepEqual(Object.values(cards).map(card => card.state), ['done', 'ready', 'in-progress', 'pending', 'blocked', 'retired', 'pending'])
   assert.deepEqual(cards['p1/t3'], { id: 'p1/t3', plan: 'p1', taskId: 't3', title: 'C', doneCondition: 'done when', designMemo: 'memo', state: 'in-progress',
-    lane: null, producer: 'bot-b', startedAt: at(10), changedAt: at(10), blockedReason: null, depth: 0, phase: null, parent: null, doneAt: null, archived: false })
+    lane: null, producer: 'bot-b', startedAt: at(10), changedAt: at(10), blockedReason: null, depth: 0, phase: null, parent: null, doneAt: null, archived: false, counted: true })
   assert.deepEqual([cards['p1/t4'].producer, cards['p1/t4'].startedAt, cards['p1/t4'].changedAt], ['bot-c', null, at(12)])
   assert.deepEqual([cards['p1/t5'].producer, cards['p1/t5'].blockedReason, cards['p1/t1'].title, cards['p1/t2'].title], [null, 'x', 'A', 't2'])
   assert.deepEqual(result.edges, [{ from: 'p1/t1', to: 'p1/t2', waiting: false }, { from: 'p1/t3', to: 'p1/t4', waiting: true },
@@ -52,8 +52,15 @@ test('projection: cards, ready, producer (start beats lane), edges, waits, depth
     { waiter: 'bot-c', waitingCard: 'p1/t4', forCard: 'p1/t3', producer: 'bot-b', producerState: 'in-progress', since: at(12) },
     { waiter: null, waitingCard: 'p1/t7', forCard: 'p1/t4', producer: 'bot-c', producerState: 'pending', since: at(12) },
     { waiter: null, waitingCard: 'p1/t7', forCard: 'p1/t2', producer: null, producerState: 'ready', since: null }])
-  // t6 (retired, no next card) is archived: it is in no number (task a96); t1 (done, next t2 unstarted) still counts.
-  assert.deepEqual(result.counts, { total: 6, done: 1, working: 1, blocked: 1, waiting: 2 })
+  // No `trees` (an older Lattice): each card is a tree of one. t6 (retired, alone) is archived and uncounted;
+  // t1 (done, next t2 unfinished) stays, but alone it is a finished tree, so it is not counted.
+  assert.deepEqual(result.counts, { total: 5, done: 0, working: 1, blocked: 1, waiting: 2 })
+  // With Lattice's trees (0.100.0): t1-t4,t7 one tree (1 of 5 finished), t5 alone, t6 alone and finished.
+  const tree = (id, tasks, finished) => ({ tree_id: `p1/${id}`, tasks: tasks.map(task => ({ plan_key: 'p1', task_id: task })), total: tasks.length, finished })
+  const withTrees = projectChart({ read: readOf([mainPlan()], { trees: [tree('t1', ['t1', 't2', 't3', 't4', 't7'], 1), tree('t5', ['t5'], 0), tree('t6', ['t6'], 1)] }), members: roster(ids) })
+  assert.deepEqual(withTrees.counts, { total: 6, done: 1, working: 1, blocked: 1, waiting: 2 }, 'every task of an open tree counts; the finished tree t6 counts nowhere')
+  assert.deepEqual(withTrees.cards.map(card => [card.taskId, card.archived, card.counted]),
+    [['t1', false, true], ['t2', false, true], ['t3', false, true], ['t4', false, true], ['t5', false, true], ['t6', true, false], ['t7', false, true]])
   assert.deepEqual(result.memberIds, ['bot-a', 'bot-b', 'bot-c'])
   assert.deepEqual([result.createdBy, result.updatedAt], ['bot-a', at(12)])
 })
@@ -101,7 +108,7 @@ test('projection: tree = phases in plan order, card phase, parent (existing, not
     [['a', 'p1/ph1', null], ['b', 'p1/ph1', 'p1/a'], ['c', null, null], ['d', null, 'p1/e'], ['e', null, null], ['f', null, null]])
 })
 
-test('projection: doneAt, and a finished card is archived once no next card is unstarted (Owner 2026-11-12)', () => {
+test('projection: doneAt; archived = all next cards finished, or (no next card) its Lattice tree finished (Owner 2026-11-14)', () => {
   const plan = planMember({ tasks: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(task_id => ({ task_id })),
     states: [['a', 'done'], ['b', 'done'], ['c', 'pending'], ['d', 'in-progress'], ['e', 'retired'], ['f', 'done'], ['g', 'done']],
     deps: [{ from: ref('p1', 'a'), to: ref('p1', 'c') }, { from: ref('p1', 'b'), to: ref('p1', 'd') }, { from: ref('p1', 'f'), to: ref('p1', 'g') }],
@@ -109,7 +116,17 @@ test('projection: doneAt, and a finished card is archived once no next card is u
   plan.tasks.find(task => task.task_id === 'a').done_at = at(3)
   const cards = byId(projectChart({ read: readOf([plan]), members: [] }))
   assert.deepEqual(Object.values(cards).map(card => [card.taskId, card.archived]),
-    [['a', false], ['b', true], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a waits for c to start; b and f have started/finished next cards; e and g have none')
+    [['a', false], ['b', false], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a and b have unfinished next cards; f has its next card finished; e and g are finished trees')
+  // A finished leaf stays while its tree is open; the whole tree leaves when the last card finishes.
+  const leaf = planMember({ tasks: ['x', 'y', 'z'].map(task_id => ({ task_id })), states: [['x', 'done'], ['y', 'done'], ['z', 'in-progress']],
+    deps: [{ from: ref('p1', 'x'), to: ref('p1', 'y') }] })
+  const treeOf = (finished, tasks) => ({ tree_id: 'p1/x', tasks: tasks.map(task_id => ({ plan_key: 'p1', task_id })), total: tasks.length, finished })
+  const open = byId(projectChart({ read: readOf([leaf], { trees: [{ ...treeOf(2, ['x', 'y', 'z']) }] }), members: [] }))
+  assert.deepEqual(['x', 'y', 'z'].map(id => [open[`p1/${id}`].archived, open[`p1/${id}`].counted]), [[true, true], [false, true], [false, true]],
+    'x: its next card y finished; y: no next card, tree still open (z); all counted')
+  leaf.tasks.find(task => task.task_id === 'z').status = 'done'
+  const closed = byId(projectChart({ read: readOf([leaf], { trees: [treeOf(3, ['x', 'y', 'z'])] }), members: [] }))
+  assert.deepEqual(['x', 'y', 'z'].map(id => [closed[`p1/${id}`].archived, closed[`p1/${id}`].counted]), [[true, false], [true, false], [true, false]])
   assert.deepEqual([cards['p1/a'].doneAt, cards['p1/b'].doneAt, cards['p1/e'].doneAt, cards['p1/g'].doneAt, cards['p1/d'].doneAt], [at(3), null, at(7), at(9), null])
 })
 
