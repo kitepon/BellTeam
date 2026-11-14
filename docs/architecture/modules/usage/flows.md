@@ -143,7 +143,7 @@ flowchart TD
 | 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境・旧APNs設定から作る。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridge.tokenは橋の公開export取込みだけが入れる |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
-| 通話 | `configureCalls` → `listenCallBridge/writeHarnessConfig` → `stopForConfiguration` | header/socket/登録変更後の席反映は背景処理。設定HTTP200だけで全席の再読込完了としない |
+| 通話 | `configureCalls` → `listenCallBridge/writeHarnessConfig` → `runningBots(全メンバー)`を1回 → 動いている席ごとに`stopForConfiguration` | header/socket/登録変更後の席反映は背景処理。設定HTTP200だけで全席の再読込完了としない。席を閉じられなかった失敗は診断SERVER_CALL_CONFIGURATION_FAILEDのみで、設定errorにしない（席は次のcloseIdle/再起動で新しい登録を読む） |
 | 自動振分け | 保存成功でroutingEpochを更新し、組立てが注入する`conversationUsageChanged`の同epoch ACKを待つ。資格は許可された`usage.routing.read`だけ | 適用失敗でも保存値/epochは戻さない。readyで資格を取得しない。従来の同process組立ては未注入互換を保持 |
 | 通知 | `PushNotifications.configure` | 旧providerを外す→inflight待ち→close→新provider。失敗時はproviderなし・診断ありになり得る |
 

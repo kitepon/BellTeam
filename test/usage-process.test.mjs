@@ -285,7 +285,7 @@ test('the real settings apply caller does not wait for members\' turn ends and r
   settings = facade.settings
   const failures = []
   const features = createApplicationFeatures({ services: { bots: f.bots, settings, messenger: {}, diagnostics: { record: async row => failures.push(row) },
-    notifications: { initialStatus: async () => ({}) }, transport: { isRunning: async () => true, stopForConfiguration: async () => { entered.resolve(); await done.promise } } },
+    notifications: { initialStatus: async () => ({}) }, transport: { runningBots: async members => new Set(members.map(bot => bot.id)), stopForConfiguration: async () => { entered.resolve(); await done.promise } } },
     home: '/unused', environment: {}, notify: () => {}, configureHarnessConfig: async () => {}, usageContext: method => authority.capture(method, system) })
   await features.initialize()
   const result = await f.service.request('settings.update', { id: 'callBridge', input: { enabled: false } }, owner)
@@ -293,8 +293,8 @@ test('the real settings apply caller does not wait for members\' turn ends and r
   assert.ok(!result.error)
   done.reject(error('SYNTHETIC_CONFIGURATION_FAILED'))
   while (!failures.length) await new Promise(resolve => setImmediate(resolve))
-  assert.equal((await f.service.request('settings.list', {}, owner)).find(item => item.id === 'callBridge').error.code, 'SYNTHETIC_CONFIGURATION_FAILED')
-  assert.ok(failures.some(row => row.code === 'SERVER_CALL_CONFIGURATION_FAILED'))
+  assert.ok(failures.some(row => row.code === 'SERVER_CALL_CONFIGURATION_FAILED' && row.diagnostic_log === 'SYNTHETIC_CONFIGURATION_FAILED'))
+  assert.equal((await f.service.request('settings.list', {}, owner)).find(item => item.id === 'callBridge').error, undefined)
   assert.equal(f.effects.find(row => row.method === 'settings.changed').params.epoch, 1)
   await features.close()
 })

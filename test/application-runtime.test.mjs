@@ -196,7 +196,7 @@ test('追加機能は設定反映と通信資源を所有し、無効化後も�
   const features = createApplicationFeatures({ home, callBridgeHeaders: join(root, 'auth/headers'),
     environment: { BELLTEAM_CALL_BRIDGE_SOCKET: socketPath }, aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] },
     services: { bots: new Map(), messenger: {}, settings, diagnostics: { async record(value) { errors.push(value) } },
-      notifications: { async configure(value) { configurations.push(value) } }, transport: {} },
+      notifications: { async configure(value) { configurations.push(value) } }, transport: { runningBots: async () => new Set() } },
     notify: value => changes.push(value),
   })
   t.after(async () => { await features.close(); await rm(root, { recursive: true, force: true }) })
@@ -229,17 +229,19 @@ test('任意機能の起動失敗を残して他を起動し、設定保存は�
   const settings = new FeatureSettings({ root, environment: {} })
   await settings.initialize()
   const bot = { id: 'bot-synthetic', project: join(root, 'bot') }
-  const records = [], notifications = [], stopped = []
+  const idle = { id: 'bot-idle', project: join(root, 'idle') }
+  const records = [], notifications = [], stopped = [], listed = []
   let rejectStop
   const pendingStop = new Promise((_, reject) => { rejectStop = reject })
   let configuring = 0
   const features = createApplicationFeatures({ home: join(root, 'home'),
     callBridgeHeaders: join(root, 'auth/headers'), environment: {},
     aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] },
-    services: { bots: new Map([[bot.id, bot]]), messenger: {}, settings,
+    services: { bots: new Map([[bot.id, bot], [idle.id, idle]]), messenger: {}, settings,
       diagnostics: { async record(value) { records.push(value) } },
       notifications: { async configure() { if (configuring++ === 0) throw Object.assign(new Error('synthetic provider failure'), { code: 'SYNTHETIC_PROVIDER_FAILURE' }) } },
-      transport: { async isRunning() { return true }, stopForConfiguration(value) { stopped.push(value.id); return pendingStop } },
+      // One pty_list for all members (the per-member read cost ~50 s on production, 2026-11-14).
+      transport: { async runningBots(members) { listed.push(members.map(value => value.id)); return new Set([bot.id]) }, stopForConfiguration(value) { stopped.push(value.id); return pendingStop } },
     }, notify: value => notifications.push(value),
   })
   t.after(async () => { await features.close(); await rm(root, { recursive: true, force: true }) })
@@ -249,6 +251,7 @@ test('任意機能の起動失敗を残して他を起動し、設定保存は�
   await settings.update('notifications', { enabled: false })
   const saved = await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-token' } }, { allowSecretValues: true })
   assert.equal(saved.enabled, true)
+  assert.deepEqual(listed, [[bot.id, idle.id]])
   assert.deepEqual(stopped, [bot.id])
   assert.equal(records.length, 1)
   rejectStop(Object.assign(new Error('synthetic interruption failure'), { code: 'SYNTHETIC_INTERRUPTION' }))
@@ -256,7 +259,9 @@ test('任意機能の起動失敗を残して他を起動し、設定保存は�
   assert.equal(records.at(-1).code, 'SERVER_CALL_CONFIGURATION_FAILED')
   assert.equal(records.at(-1).diagnostic_log, 'SYNTHETIC_INTERRUPTION')
   assert.equal(settings.configuration('callBridge').enabled, true)
-  assert.deepEqual(notifications.map(value => value.featureId), ['notifications', 'callBridge', 'callBridge'])
+  // A member seat that could not be closed is that seat's state, never a settings error (production 2026-11-14: AITERM_TURN_NOT_TAKEN -> FEATURE_APPLY_FAILED).
+  assert.equal(settings.list().find(item => item.id === 'callBridge').error, undefined)
+  assert.deepEqual(notifications.map(value => value.featureId), ['notifications', 'callBridge'])
 })
 
 test('Z-c起動/停止の接点: listen後・dispatch前に一度、失敗/期限でもdispatch、起動中signalはdrain主張なしで同じclose', { timeout: 10000 }, async t => {

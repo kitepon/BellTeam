@@ -41,11 +41,10 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
   }
   const facade = createUsageFacade({ request, projection, toolsDirectory: join(root, 'state/secret-values') })
   const nativeCredentials = new NativeSecretCredentials({ root })
-  const systemContext = (method, parentContext, { detached = false } = {}) => {
+  const systemContext = (method, parentContext) => {
     const capturedAuthorization = authority.capture(method, { kind: 'system', botId: null })
     if (parentContext) capturedContexts.set(capturedAuthorization, parentContext)
-    // detached: work that outlives its effect would otherwise inherit an ended effect from async context.
-    const context = detached ? undefined : scope.getStore()
+    const context = scope.getStore()
     return context?.usageEffect ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
   }
   const credentials = {

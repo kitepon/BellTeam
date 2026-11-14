@@ -23,6 +23,7 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
   await mkdir(join(root, 'state'))
   const stopped = deferred(), stopStarted = deferred()
   let stopPending = false
+  const stopFailures = []
   const parents = [], bots = new Map([['bot-a', { id: 'bot-a', name: 'A', harness: 'codex' }]])
   t.after(async () => {
     for (const parent of parents) await parent.controller.close().catch(() => {})
@@ -65,10 +66,10 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
     const parent = { controller, facade, token, async start() {
       const starting = await controller.start(); assert.equal(starting.available, false); assert.equal(starting.phase, 'initializing')
       assert.equal(facade.settings.list().length, 7)
-      features = createApplicationFeatures({ services: { bots, settings: facade.settings, messenger: {}, diagnostics: { record: async () => {} },
-        notifications: { initialStatus: async () => null }, transport: { isRunning: async () => stopPending, stopForConfiguration: async () => { stopStarted.resolve(); return stopped.promise } } }, home: '/unused', environment: {},
-        configureHarnessConfig: async () => {}, notify: () => {}, usageContext: (method, { detached = false } = {}) => {
-          const capturedAuthorization = token(method, 'system'), context = detached ? undefined : effectScope.getStore()
+      features = createApplicationFeatures({ services: { bots, settings: facade.settings, messenger: {}, diagnostics: { record: async row => { stopFailures.push(row) } },
+        notifications: { initialStatus: async () => null }, transport: { runningBots: async members => new Set(stopPending ? members.map(bot => bot.id) : []), stopForConfiguration: async () => { stopStarted.resolve(); return stopped.promise } } }, home: '/unused', environment: {},
+        configureHarnessConfig: async () => {}, notify: () => {}, usageContext: method => {
+          const capturedAuthorization = token(method, 'system'), context = effectScope.getStore()
           return context ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
         } })
       await assert.rejects(controller.request('settings.list', {}), /NOT_ACCEPTING/)
@@ -97,13 +98,14 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
   stopPending = true
   const updating = hot.facade.settings.update('callBridge', { enabled: false }, { usageContext: hot.token('settings.update') })
   await stopStarted.promise
-  // The save returns without waiting for members' turn ends; the late stop failure lands with the captured epoch.
+  // The save returns without waiting for members' turn ends; the late stop failure is a diagnostic, never a settings error.
   assert.ok(!(await updating).error)
   stopped.reject(Object.assign(new Error('synthetic stop failure'), { code: 'SYNTHETIC_CONFIGURATION_STOP', status: 503 }))
-  for (let i = 0; i < 200 && !hot.facade.settings.list().find(item => item.id === 'callBridge').error; i++) await new Promise(resolve => setTimeout(resolve, 10))
+  for (let i = 0; i < 200 && !stopFailures.length; i++) await new Promise(resolve => setTimeout(resolve, 10))
   await hot.controller.replace('a'.repeat(64))
   stopPending = false
-  assert.equal(hot.facade.settings.list().find(item => item.id === 'callBridge').error.code, 'SYNTHETIC_CONFIGURATION_STOP')
+  assert.equal(stopFailures.at(-1)?.diagnostic_log, 'SYNTHETIC_CONFIGURATION_STOP')
+  assert.equal(hot.facade.settings.list().find(item => item.id === 'callBridge').error, undefined)
   assert.equal(hot.facade, stable); assert.equal(hot.facade.settings.routingState().epoch, epoch)
   assert.equal(hot.facade.secretRequests.get(item.id).notification, 'sent')
   await hot.facade.harnessAuth.status('codex', hot.token('auth.status'))
