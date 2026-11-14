@@ -11,6 +11,16 @@ export async function readJson(request, maxBytes = 16 * 1024 * 1024) {
   catch { throw new Error('INVALID_JSON') }
 }
 
+// a115 (CSRF): another site's page can make the Owner's browser send a write (its cookies attached). Browsers mark it with
+// Sec-Fetch-Site; older ones only with Origin, and only a simple content type skips the CORS preflight. Apps and seats send neither header.
+// shortcut: a bodyless cross-site POST from a browser without Sec-Fetch-Site (Safari < 16.4) still passes; add an Origin/host match if such clients matter.
+const SIMPLE_TYPES = ['text/plain', 'multipart/form-data', 'application/x-www-form-urlencoded']
+export function crossSiteWrite({ method, headers }) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false
+  const site = headers['sec-fetch-site'], type = headers['content-type']?.split(';')[0].trim().toLowerCase()
+  return site !== undefined && site !== 'same-origin' && site !== 'none' || headers.origin !== undefined && SIMPLE_TYPES.includes(type)
+}
+
 export function json(response, status, value) {
   const body = JSON.stringify(value)
   response.writeHead(status, {
