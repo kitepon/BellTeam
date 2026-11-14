@@ -169,7 +169,9 @@ export class BotScheduler {
     })
   }
 
-  withOperationContext(operation, context) {
+  async withOperationContext(operation, context) {
+    // A fresh run waits through a members module exchange (as HTTP reads do) instead of being refused and lost.
+    if (!context) await this.membersAdmission?.whenOpen?.()
     if (this.moduleOperations) return this.moduleOperations.withContext(operation, context)
     if (!this.membersAdmission) return operation(context ?? {})
     return this.membersAdmission.withLease(lease => operation({ membersLease: lease }), { lease: context?.membersLease })

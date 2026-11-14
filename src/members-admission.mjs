@@ -118,6 +118,9 @@ export class MembersAdmission {
     })
   }
 
+  // A fresh caller that enters through another gate (the shared module operation context) waits here first.
+  whenOpen() { return this.#ticket ? this.#afterExchange(() => undefined) : Promise.resolve() }
+
   withReadPin(method, operation, { pin, expected, correlation } = {}) {
     if (!pin && expected === undefined && this.#ticket) return this.#afterExchange(() => this.withReadPin(method, operation, { correlation }))
     const owned = !pin
