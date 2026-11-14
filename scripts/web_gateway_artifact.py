@@ -63,6 +63,7 @@ src/room-messenger.mjs
 src/room-registry.mjs
 src/room-routing.mjs
 src/runtime-home.mjs
+src/runtime-selection.mjs
 src/schedule-definition.mjs
 src/schedule-mutations.mjs
 src/seat-command.mjs

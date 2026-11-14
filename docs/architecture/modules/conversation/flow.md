@@ -137,6 +137,8 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | readChildResultPreface({capture}) | 今選ばれたruntimeの`runtime-aiterm-mcp`（`captureRuntime()`） | 頭の文字列。入口が無い・読めない時は`AITERM_CHILD_RESULT_UNAVAILABLE` | `<package根>/package.json`の`exports['./child-result']`（`./`で始まる文字列）→`<package根>/<値>`をimport→`CHILD_RESULT_PREFACE` | 会話・履歴（`src/self-turns.mjs`） |
 
+選んだ版の根は実行担当（runtime）の`src/runtime-selection.mjs`の`captureRuntime()`から得る。self-turnsがこれを静的にimportするので、会話の子の固定ファイル（`scripts/web_gateway_artifact.py`の`CONVERSATION_FILES`）に`src/runtime-selection.mjs`を含める（依存はnode標準だけ）。運ぶのは会話の子と、該当する時はBODYの組込/旧source。どちらも、Aiterm 0.70.58以上のruntimeが選ばれた後か同時に配る。
+
 1巡（poll）で`prompt`のターンに初めて当たった時に1回だけ読む。読めない巡は子の結果で始まったターンを見分けず（配送したターンと同じく既読にして出さない）、理由を1回だけ報告する。次の巡でまた読むので、入口のある版のAiterm（0.70.58以上）が選ばれれば自分で戻る。selfのターンの表示は止めない。
 
 ```mermaid
