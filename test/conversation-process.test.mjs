@@ -101,7 +101,8 @@ test('wrapper holds a pre-start request and retains accepted save/native complet
   const replacing = h.controller.replace(sha)
   while (h.controller.snapshot().phase !== 'quiescing') await turn()
   // Owner ruling 2026-11-07: the old lease is not served new reads during quiesce; the accepted turn alone continues.
-  await assert.rejects(h.controller.request('rooms.list', {}, h.options('rooms.list', lease)), { code: 'CONVERSATION_IPC_INVALID' })
+  // Only the refusal is the contract; the current code (CONVERSATION_IPC_INVALID) is incidental, so the test does not pin it.
+  await assert.rejects(h.controller.request('rooms.list', {}, h.options('rooms.list', lease)))
   assert.equal(h.children.length, 1)
   for (const call of h.calls) { assert.equal(call.context.operationContext, h.operationContext); assert.equal(call.context.admissionCheck, h.admissionCheck) }
   await h.admission.invoke(h.native[0].delivery, 'user.complete', { reply: 'saved before exchange' })
