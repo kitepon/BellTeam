@@ -536,6 +536,12 @@ test('cli: the filing record lives in BellTeam state; the one-time move takes na
   assert.deepEqual([existsSync(join(chartsRoot, 'alpha', '.bellteam-chart.json')), existsSync(join(chartsRoot, '.bellteam-owner-decisions.json'))], [false, false])
   assert.deepEqual(await cli.readOwnerRecord(), { 'alpha / p/t': { decisionId: 'K-ABCD', status: 'open' } })
   assert.deepEqual(await cli.migrateLegacy([{ id: 'alpha', name: '工程表', createdBy: 'bot-a' }]), { names: 0, record: false }, 'a second run moves nothing')
+  // An unnamed chart whose old sidecar holds only the creator: the creator moves, no name is made up.
+  await mkdir(join(chartsRoot, 'gamma')); await writeFile(join(chartsRoot, 'gamma', '.bellteam-chart.json'), JSON.stringify({ createdBy: 'bot-g' }))
+  assert.deepEqual(await cli.migrateLegacy([{ id: 'gamma', name: null, createdBy: null }]), { names: 1, record: false })
+  const creatorOnly = spawned.calls.at(-1)
+  assert.deepEqual([creatorOnly.args.slice(1), creatorOnly.options.env.LATTICE_PROJECT_ID], [['chart', 'set', '--created-by', 'bot-g', '--json'], 'gamma'])
+  assert.equal(existsSync(join(chartsRoot, 'gamma', '.bellteam-chart.json')), false)
   await cli.writeOwnerRecord({ x: 1 }); assert.deepEqual(JSON.parse(readFileSync(join(stateDir, 'owner-decisions.json'), 'utf8')), { x: 1 })
 })
 test('cli: allowlist and input conflict', async t => {

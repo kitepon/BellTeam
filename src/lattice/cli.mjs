@@ -115,13 +115,14 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
         if (!link || link.isSymbolicLink()) continue
         let value = null
         try { value = JSON.parse(await readFile(sidecar, 'utf8')) } catch {}
-        const name = validLatticeName(value?.name) ? value.name : row.name
-        const createdBy = typeof value?.createdBy === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(value.createdBy) ? value.createdBy : null
-        if (name && (name !== row.name || (createdBy && !row.createdBy))) {
-          await host(row.id, ['chart', 'set', '--name', name, ...(createdBy && !row.createdBy ? ['--created-by', createdBy] : []), '--json'], { LATTICE_SEAT_ID: createdBy ?? 'scheduler' })
+        const name = validLatticeName(value?.name) && value.name !== row.name ? value.name : null
+        const createdBy = typeof value?.createdBy === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(value.createdBy) && !row.createdBy ? value.createdBy : null
+        // Name and creator move independently: an unnamed chart keeps its creator without a made-up name (K4 --created-by alone).
+        if (name || createdBy) {
+          await host(row.id, ['chart', 'set', ...(name ? ['--name', name] : []), ...(createdBy ? ['--created-by', createdBy] : []), '--json'], { LATTICE_SEAT_ID: createdBy ?? 'scheduler' })
           moved.names++
         }
-        if (name || !value) await rm(sidecar, { force: true })
+        await rm(sidecar, { force: true })
       }
       const old = join(chartsRoot, '.bellteam-owner-decisions.json')
       if (await lstat(old).catch(() => null) && !await lstat(recordFile).catch(() => null)) {
