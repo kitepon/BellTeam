@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T03:09:54Z",
-  "expiresAt": "2026-11-21T03:09:54Z",
+  "publishedAt": "2026-11-14T04:01:16Z",
+  "expiresAt": "2026-11-21T04:01:16Z",
   "releases": [
     {
       "componentId": "usage",
@@ -559,8 +559,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "d59f0fe2f9c482e9c7d258c3de438c8117de7f8b",
-      "versionId": "11c4139c6a7f9c91671747f01e08274a17c15dd799326764fd1ee49e04837405",
+      "sourceCommit": "609e594252922db0e16b6e5c27d15700af3d29e6",
+      "versionId": "9cadac8c3b92edd26d267368c6936ab887e75832e480a66ac6fd27f4ac4ab829",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T162104Z/members-d59f0fe2f9c482e9c7d258c3de438c8117de7f8b-linux-amd64.tar.gz",
-          "bytes": 4496045,
-          "sha256": "11c4139c6a7f9c91671747f01e08274a17c15dd799326764fd1ee49e04837405"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T040058Z/members-609e594252922db0e16b6e5c27d15700af3d29e6-linux-amd64.tar.gz",
+          "bytes": 4517047,
+          "sha256": "9cadac8c3b92edd26d267368c6936ab887e75832e480a66ac6fd27f4ac4ab829"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T162104Z/members-d59f0fe2f9c482e9c7d258c3de438c8117de7f8b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10949,
-          "sha256": "e67cb36941e2c78c2ec9fbb9b7f5dd6941ad1368257d0aef628f5e4ce2083bc1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T040058Z/members-609e594252922db0e16b6e5c27d15700af3d29e6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "970bbf6abbb8ed3c84cdff71bc254a4c21e83764f997dca10867c37bfb9030e4"
         },
-        "signerCommit": "d59f0fe2f9c482e9c7d258c3de438c8117de7f8b"
+        "signerCommit": "609e594252922db0e16b6e5c27d15700af3d29e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,13 +594,13 @@
         }
       },
       "changes": [
-        "部品の入れ替えのあと、共通の決まりごとを各 AI の指示へ確実に書き直します。入れ替え直後に普段の読み取りが先に届くと、書き直しが抜けることがありました。"
+        "各 Bot の起動時の共通規範を最新にしました（自分の試験や CI の結果は予定でなく CLI の中で待つ、簡単な返事以外の仕事は工程表に載せてから始める）。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "d59f0fe2f9c482e9c7d258c3de438c8117de7f8b",
-      "versionId": "8822629d2727ba2f3fa025a39d645d59cd70e9ecf7427f24677c68954a97e4c8",
+      "sourceCommit": "609e594252922db0e16b6e5c27d15700af3d29e6",
+      "versionId": "8cc49eb9c5963ed85e60dbf30fb34f6183ecc27ebf9df6bf40375fe0c1ed6fe1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -608,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T162104Z/members-d59f0fe2f9c482e9c7d258c3de438c8117de7f8b-linux-arm64.tar.gz",
-          "bytes": 4496051,
-          "sha256": "8822629d2727ba2f3fa025a39d645d59cd70e9ecf7427f24677c68954a97e4c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T040058Z/members-609e594252922db0e16b6e5c27d15700af3d29e6-linux-arm64.tar.gz",
+          "bytes": 4517049,
+          "sha256": "8cc49eb9c5963ed85e60dbf30fb34f6183ecc27ebf9df6bf40375fe0c1ed6fe1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T162104Z/members-d59f0fe2f9c482e9c7d258c3de438c8117de7f8b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "b70c47c7b56b3d20d282072efcf94c702765ab395c44a9e5dd20c30f1f8f9e93"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T040058Z/members-609e594252922db0e16b6e5c27d15700af3d29e6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11278,
+          "sha256": "171a34ac0c74788c0561a439507e15cba02c8bd19bfccb19760e82460735c59f"
         },
-        "signerCommit": "d59f0fe2f9c482e9c7d258c3de438c8117de7f8b"
+        "signerCommit": "609e594252922db0e16b6e5c27d15700af3d29e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -634,7 +634,7 @@
         }
       },
       "changes": [
-        "部品の入れ替えのあと、共通の決まりごとを各 AI の指示へ確実に書き直します。入れ替え直後に普段の読み取りが先に届くと、書き直しが抜けることがありました。"
+        "各 Bot の起動時の共通規範を最新にしました（自分の試験や CI の結果は予定でなく CLI の中で待つ、簡単な返事以外の仕事は工程表に載せてから始める）。"
       ]
     },
     {
