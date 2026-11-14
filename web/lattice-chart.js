@@ -129,6 +129,7 @@ export function createLatticeChart(dialog, {
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
   let stops = null, pendingDetail = null // 止め一覧の画面、止め一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
+  let waitsOpen = false // 広い画面の待ちの流れ。畳んだ取っ手から始め、ページが生きている間だけ覚える（Owner 2026-11-14）。
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
   const lookup = () => memberLookup(snapshot)
   // 会話を開くと工程表のダイアログは閉じる。戻って開き直したら、その工程表から続ける。
@@ -304,13 +305,14 @@ export function createLatticeChart(dialog, {
     const live = h('span', { class: 'lattice-live', hidden: true }, h('i', { class: 'ldot' }), 'ライブ')
     const summary = h('div', { class: 'lattice-sum' }), counters = h('div', { class: 'lattice-cnt' })
     const banner = h('div', { class: 'lattice-banner-slot' }), rail = h('nav', { class: 'lattice-rail', 'aria-label': 'メンバー' }), waits = h('aside', { class: 'lattice-waits', 'aria-label': '待ちの流れ' })
-    const main = h('div', { class: 'lattice-main' }, rail, canvas, waits)
+    const fold = h('button', { class: 'lattice-wfold', type: 'button', 'aria-expanded': 'false', on: { click: () => setWaitsOpen(true) } })
+    const main = h('div', { class: `lattice-main${waitsOpen ? '' : ' is-folded'}` }, rail, canvas, waits, fold)
     const empty = h('div', { class: 'lattice-empty-slot', hidden: true })
     const loadingEl = loading()
     const root = h('div', { class: 'lattice-chart', hidden: true }, h('div', { class: 'lattice-toolbar' }, switcher, live, modes, h('span', { class: 'lattice-spacer' }), summary, counters), banner, main, empty, sheet)
     body.replaceChildren(loadingEl, root)
     view = 'chart'
-    ui = { root, switcher, live, modes, history, tree, treeSvg, treeLinks, treeArcs, treeBoxes, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, main, empty, sheet, loading: loadingEl }
+    ui = { root, switcher, live, modes, history, tree, treeSvg, treeLinks, treeArcs, treeBoxes, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, fold, main, empty, sheet, loading: loadingEl }
   }
 
   function paintChart(diff) {
@@ -492,10 +494,21 @@ export function createLatticeChart(dialog, {
   }
 
   // ---- 待ちの流れ
+  function setWaitsOpen(open) {
+    waitsOpen = open
+    if (!ui) return
+    ui.main.classList.toggle('is-folded', !open)
+    ;(open ? [...walk(ui.waits)].find(item => item.dataset?.focusKey === 'waits:close') : ui.fold)?.focus?.()
+  }
   function paintWaits() {
     const rows = waitRows(snapshot, now())
+    ui.fold.classList.toggle('is-red', rows.some(row => row.emphasized))
+    ui.fold.setAttribute('aria-label', `待ちの流れを開く、待ち ${rows.length}`)
+    fill(ui.fold, glyph('hour'), h('span', { text: String(rows.length) }))
     keepFocus(ui.waits, () => fill(ui.waits, 
-      h('div', { class: 'wp-h' }, h('h3', {}, glyph('hour'), '待ちの流れ', h('span', { class: 'n', text: String(rows.length) })), h('p', { text: '誰が何を待っていて、誰がつくっているか' })),
+      h('div', { class: 'wp-h' }, h('h3', {}, glyph('hour'), '待ちの流れ', h('span', { class: 'n', text: String(rows.length) })),
+        h('button', { class: 'wp-x', type: 'button', 'aria-label': '待ちの流れを閉じる', dataset: { focusKey: 'waits:close' }, on: { click: () => setWaitsOpen(false) } }, glyph('xmark')),
+        h('p', { text: '誰が何を待っていて、誰がつくっているか' })),
       rows.length ? h('ul', { class: 'wp-l' }, ...rows.map(row => h('li', { class: `wr${row.emphasized ? ' em' : ''}`, role: 'group', 'aria-label': row.label, dataset: { wait: row.key } },
         h('div', { class: 'l1' }, avatar(row.waiter, 20), h('span', { text: row.headline }), h('span', { class: 'w', text: `待ち ${row.length}` })),
         h('div', { class: 'ow', text: row.ownerText }),

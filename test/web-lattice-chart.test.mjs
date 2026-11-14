@@ -336,6 +336,23 @@ test('工程表が一つだけなら、そのまま工程表へ。会話を開�
   ui.view.close()
 })
 
+test('待ちの流れ（広い画面）：畳んだ取っ手（数、止まりがあれば赤）から始まり、取っ手で開き×で畳む。開き直しても覚えている', async t => {
+  const feed = sse(), feed2 = sse(), net = router({ streams: [feed, feed2] })
+  const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage })
+  ui.view.open(); await flush(); feed.snapshot(fixture()); await flush()
+  const main = () => byClass(ui.body, 'lattice-main')[0], fold = () => byClass(ui.body, 'lattice-wfold')[0]
+  assert.equal(main().classList.contains('is-folded'), true)
+  assert.equal(textOf(fold()), '2'); assert.equal(fold().classList.contains('is-red'), true); assert.equal(fold().getAttribute('aria-label'), '待ちの流れを開く、待ち 2')
+  fold().click()
+  assert.equal(main().classList.contains('is-folded'), false); assert.equal(document.activeElement.getAttribute('aria-label'), '待ちの流れを閉じる')
+  ui.dialog.close(); ui.view.open(); await flush(); feed2.snapshot(fixture({ waits: fixture().waits.slice(0, 1) })); await flush()
+  assert.equal(main().classList.contains('is-folded'), false, 'ページが生きている間は開いたまま')
+  assert.equal(fold().classList.contains('is-red'), false)
+  byClass(ui.body, 'wp-x')[0].click()
+  assert.equal(main().classList.contains('is-folded'), true); assert.equal(document.activeElement, fold())
+  ui.view.close()
+})
+
 test('古いサーバー（一覧が404）は閉じるだけの案内。一覧が空の案内。どちらも自動で直る', async t => {
   let mode = 'old'
   const ui = setup(t, { api: async () => { if (mode === 'old') throw Object.assign(new Error('x'), { status: 404 }); return mode === 'empty' ? { charts: [] } : chartsList('a', 'b') }, fetchImage: router().fetchImage })
