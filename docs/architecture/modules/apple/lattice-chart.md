@@ -110,8 +110,8 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 - 配置：`LatticeStructure`（`Core/LatticeChart.swift`、純粋）。入力はsnapshotだけ。出ている札（`archived`でない＝担当のレーンと同じ札）を、辺でつながった塊ごとに上から（塊の最初の札のsnapshotの順。辺の無い札は最後）、列＝depth（担当と同じ）、行＝前の工程の行の平均（丸め）とその列の次の空き行の大きい方。出力は札のid → 列・行と、描く辺（両端が出ている札の`edges`）。広い面とiPhoneは同じ結果を、大きさだけ変えて描く。
 - 広い面（Mac・iPad）：`LatticeTreeBoard`が、担当のレーンと同じ`LatticeCardView`・`LatticeEdgesLayer`（線・待ちの粒・札の文字）を、レーンの帯と名札なしで置く。根・まとまり・親子の箱と肘の線は描かない。押すと詳細、強調は担当と同じ。
 - iPhone（と幅が760未満の時）：`LatticeIconMap`が、同じ位置に担当の小さな顔（`LatticeAvatar`、レールの顔と同じく作業中は回る弧、止まりは赤い点。担当なしは点線の丸）を置き、作業中の札は顔の下に題（2行まで）。辺は同じ線で、札の文字は出さない。顔を押すと、その札を広い面と同じ`LatticeCardView`で顔の上に出す（`LatticeChartScreen`の`@State`）。その札を押すと詳細のsheet、ほかを押すと閉じ、別の顔を押すとそちらへ移る。
-- 出す札：`archived`でない札（サーバーが付ける。一つの木＝依存か親子でつながった札が全部終わった時だけarchived。Owner 2026-11-14「木（一つの改良計画）ごとに消そう。」）。アプリは印をそのまま使い、自分で決めない。
-- 数：分数は出ている札だけを数える（a96）。
+- 出す札：`archived`でない札（サーバーが付ける。決まりは[README Projection rules](../lattice/README.md#projection-rules-projectionmjs)が正本。最後の決まり（Owner 2026-11-14）：終わった札は次の札が全部終わったら消え、次の札が無い札は木が全部終わった時に木ごと消える。終わっていない札は必ず出る。木はLatticeが返す＝a100）。分数はサーバーの数（まだ終わりきっていない木の全部の工程、消えた札も含む）をそのまま使う。アプリは印をそのまま使い、自分で決めない。
+- 数（a100が出るまでの間だけ）：分数は出ている札だけを数える（a96）。a100の後は上の「出す札」の最後の決まり（サーバーの数）に替わる。
 - 置き換えで消える物：`LatticeTree`・`LatticeTreeLink`・`LatticeTreeArc`・`LatticeTreeCardBox`、識別子`lattice-tree-phase-*`・`lattice-tree-root`。残す識別子：`lattice-view-tree`・`lattice-center-picker`。札は`lattice-tree-box-<札のid>`（広い面）・`lattice-tree-icon-<札のid>`（iPhone）。
 - 試験（a99で書く）：`LatticeStructure`の列・塊の順・行（一本道はまっすぐ、合流は間、辺の無い札は最後）・描く辺、iPhoneの顔を押す→札→詳細の流れ。
 

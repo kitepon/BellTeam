@@ -101,7 +101,7 @@ test('projection: tree = phases in plan order, card phase, parent (existing, not
     [['a', 'p1/ph1', null], ['b', 'p1/ph1', 'p1/a'], ['c', null, null], ['d', null, 'p1/e'], ['e', null, null], ['f', null, null]])
 })
 
-test('projection: doneAt, and a card is archived only when its whole tree is finished (Owner 2026-11-14, a98)', () => {
+test('projection: doneAt, and a finished card is archived once no next card is unstarted (Owner 2026-11-12)', () => {
   const plan = planMember({ tasks: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(task_id => ({ task_id })),
     states: [['a', 'done'], ['b', 'done'], ['c', 'pending'], ['d', 'in-progress'], ['e', 'retired'], ['f', 'done'], ['g', 'done']],
     deps: [{ from: ref('p1', 'a'), to: ref('p1', 'c') }, { from: ref('p1', 'b'), to: ref('p1', 'd') }, { from: ref('p1', 'f'), to: ref('p1', 'g') }],
@@ -109,12 +109,7 @@ test('projection: doneAt, and a card is archived only when its whole tree is fin
   plan.tasks.find(task => task.task_id === 'a').done_at = at(3)
   const cards = byId(projectChart({ read: readOf([plan]), members: [] }))
   assert.deepEqual(Object.values(cards).map(card => [card.taskId, card.archived]),
-    [['a', false], ['b', false], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a->c and b->d still have open cards; e alone and f->g are all finished')
-  // A parent link joins a tree too: a finished child stays while its parent is open, and both leave once both are finished.
-  const nested = planMember({ tasks: [{ task_id: 'p' }, { task_id: 'k', parent_task_id: 'p' }, { task_id: 'q' }, { task_id: 'r', parent_task_id: 'q' }],
-    states: [['p', 'in-progress'], ['k', 'done'], ['q', 'done'], ['r', 'retired']] })
-  assert.deepEqual(Object.values(byId(projectChart({ read: readOf([nested]), members: [] }))).map(card => [card.taskId, card.archived]),
-    [['p', false], ['k', false], ['q', true], ['r', true]])
+    [['a', false], ['b', true], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a waits for c to start; b and f have started/finished next cards; e and g have none')
   assert.deepEqual([cards['p1/a'].doneAt, cards['p1/b'].doneAt, cards['p1/e'].doneAt, cards['p1/g'].doneAt, cards['p1/d'].doneAt], [at(3), null, at(7), at(9), null])
 })
 
