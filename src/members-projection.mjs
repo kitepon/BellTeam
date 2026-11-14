@@ -19,7 +19,8 @@ export function createMembersProjection({ onChange = () => {} } = {}) {
         if (context.leaseId === null && context.continuation !== false) throw invalid()
         if (context.generation !== targetGeneration) throw invalid()
         if (record.type === 'snapshot-start') {
-          if (pending || generation === targetGeneration && revision !== null && record.revision <= revision) throw invalid()
+          // The child runs one snapshot at a time: a newer start supersedes one the child abandoned unfinished.
+          if (pending && record.revision <= pending.revision || generation === targetGeneration && revision !== null && record.revision <= revision) throw invalid()
           pending = { revision: record.revision, profiles: new Map() }
           return
         }
