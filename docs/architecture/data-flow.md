@@ -136,7 +136,7 @@ flowchart LR
   F -->|LT9 tool result; JSON; SSE snapshot on version change| P1
 ```
 
-LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
+Target (task a102, Owner 2026-11-14): LT7 becomes the Lattice product's contracted CLI only ([K1-K8](modules/lattice/README.md#bellteam---lattice-connection-target-task-a102)); D11 is Lattice's own store, which BellTeam never reads or writes directly; the chart name and creator live in Lattice (K4) and the Owner-lane filing record in BellTeam's own state. LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
 
 ## Startup, restart/resume and child loss
 
