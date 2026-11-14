@@ -137,7 +137,7 @@ test('202 deletion retains one parent lease through stop, cleanup and final call
 })
 
 for (const remaining of ['both', 'record', 'directory']) {
-  test(`正規MCP→HTTP DELETEは既pending(${remaining})をnative停止なしで再開し、完全不存在を拒む`, async t => {
+  test(`Ownerの公開DELETEは既pending(${remaining})をnative停止なしで再開し、他BotのMCP削除と完全不存在を拒む`, async t => {
     const f = await fixture(t), native = [], logs = []
     const removeProject = f.bots.projectFiles.remove.bind(f.bots.projectFiles)
     f.bots.projectFiles.remove = async () => { throw new Error('CLEANUP_FAILED') }
@@ -162,18 +162,48 @@ for (const remaining of ['both', 'record', 'directory']) {
     }
     const call = () => callBellTeamTool({ name: 'delete_bot', arguments: { botId: 'bot-b' },
       from: 'bot-a', registry: f.bots, remove: api.remove })
-    assert.deepEqual(await call(), { deleting: 'bot-b' })
+    await assert.rejects(call(), { code: 'BOT_DELETE_SELF_ONLY' })
+    assert.equal(await f.bots.hasPendingRemoval('bot-b'), true)
+    const resumed = await fetch(`http://127.0.0.1:${port}/api/bots/bot-b`, { method: 'DELETE' })
+    assert.equal(resumed.status, 202)
+    assert.deepEqual(await resumed.json(), { deleting: 'bot-b' })
     await synced.promise; await tick()
     await f.absent()
     assert.deepEqual(native, [])
     assert.equal(logs.some(line => line.includes('delete error')), false)
-    await assert.rejects(call(), /BOT_NOT_FOUND/u)
+    await assert.rejects(callBellTeamTool({ name: 'delete_bot', from: 'bot-b', registry: f.bots, remove: api.remove }), /BOT_NOT_FOUND/u)
     const missing = await fetch(`http://127.0.0.1:${port}/api/bots/bot-b`, { method: 'DELETE' })
     assert.equal(missing.status, 404)
     assert.equal((await missing.json()).error, 'BOT_NOT_FOUND')
     assert.deepEqual(native, [])
   })
 }
+
+test('内部入口のDELETEは席の自分だけを受け、他Bot・席なし・分身を403で拒む', async t => {
+  const f = await fixture(t), native = [], synced = gate()
+  f.bots.onChange = async () => { synced.release() }
+  const server = createBellTeamServer({ bots: f.bots, authorize: () => true, internal: true,
+    rooms: { async removeBot(id) { native.push(['rooms', id]) } },
+    messenger: {}, store: { async timeline() { return [] } },
+    transport: { async stop(bot) { native.push(['stop', bot.id]) }, async runningBots() { return new Set() },
+      forkSeat: name => name === 'bot-b-fork-0123456789ab' ? { botId: 'bot-b', forkId: '0123456789ab' } : null },
+    writeLog: () => {},
+  })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => server.close())
+  const port = server.address().port
+  for (const seat of [null, 'bot-a', 'bot-b-fork-0123456789ab']) {
+    const response = await fetch(`http://127.0.0.1:${port}/api/bots/bot-b`, { method: 'DELETE', headers: seat ? { 'X-Bellteam-Seat': seat } : {} })
+    assert.equal(response.status, 403, `seat=${seat}`)
+    assert.equal((await response.json()).error, 'BOT_DELETE_SELF_ONLY')
+  }
+  assert.deepEqual(native, [])
+  assert.equal(f.bots.has('bot-b'), true)
+  const api = internalApi(port, fetch, { executionSource: { sourceSession: 'bot-b' } })
+  assert.deepEqual(await callBellTeamTool({ name: 'delete_bot', from: 'bot-b', registry: f.bots, remove: api.remove }), { deleting: 'bot-b' })
+  await synced.promise; await tick()
+  await f.absent()
+  assert.deepEqual(native, [['stop', 'bot-b'], ['rooms', 'bot-b']])
+})
 
 for (const cleanupFails of [false, true]) {
   test(`背景削除のcleanup失敗=${cleanupFails}とCLI同期失敗を別に記録する`, async t => {
