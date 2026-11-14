@@ -60,7 +60,7 @@ flowchart TD
   Again -->|"still refused, turn running"| Keep["Return refusal; the turn ends and the next delivery is taken"]
   Again -->|"still refused, no running turn"| Launch
   Observe -->|"live with a running turn, not resendable"| Keep
-  Observe -->|"absent / live without a running turn / unreadable"| Launch["pty_close what Aiterm holds (nothing when unreadable); launch without prompt"]
+  Observe -->|"absent / live without a running turn / unreadable"| Launch["live idle seat: pty_close hibernate (plain close only when Aiterm answers a hibernate refusal); a record without a terminal: pty_close; unreadable: nothing; then launch without prompt (resumes a hibernated record)"]
   Launch -->|success| Once["Send original input; retry just-woken not-ready at most 3 times"]
   Launch -->|failure| Cleanup["Clean failed launch; return error"]
   Explicit["保存済み失敗の明示復旧API"] --> Eligible["画像・通話を含む保存済みfailed配送と<br/>元request/targetを確認"]
@@ -103,6 +103,16 @@ Known limit: a Bot whose model or effort was changed while its seat was hibernat
 | Aiterm ANSWERED a resume refusal (`AGENT_RESUME_CONFLICT`, `AGENT_RESUME_UNCONFIRMED`) | Lease, stop version and admission checked; one stderr line `hibernated seat not resumed, starting fresh`; `pty_close` of that session name; a remote seat gets a new seat credential (`remoteSeats.prepare`; the close revoked the old one); checks again; ONE more `agent_launch`. Its failure is the launch failure (typed) |
 | Refusal without an answer (outcome unknown), or a stop / admission change / closed lease before the close | Nothing closed (the conversation is kept); the launch failure is returned |
 | Any other launch error | Unchanged (R13 key reload, leftover close) |
+
+2026-11-14 (kiro-launch-fail-rapi, Rapi's Mac seat, 18:16 and 19:47 JST). A send refused on a LIVE idle remote seat went to the recovery, which closed the seat (`pty_close`, the conversation discarded) and then launched fresh; the fresh launch failed (`AGENT_LAUNCH_UNCONFIRMED`, `native_reason=native_condition_refused`, Aiterm's identity check under a tmux stall, fixed in Aiterm 0.70.59). The delivery failed AND the conversation was gone, and the status kept only `BOT_LAUNCH_FAILED`. The recovery of a live seat therefore keeps the conversation until a launch has answered:
+
+| Recovery close of a live seat with no running turn (`exists=true`, not `hibernated`) | Then |
+|---|---|
+| `pty_close {hibernate:true}` succeeds | The ordinary `wake` resumes the same conversation (same session name). A resume Aiterm refuses closes and starts fresh in `wakeNow` (a67 table). A failed launch leaves the record hibernated: the next delivery observes `state=hibernated` and resumes it |
+| Aiterm ANSWERED a hibernate refusal (`AGENT_HIBERNATE_UNAVAILABLE`: no resume recipe, `AGENT_BUSY`: background work, any other returned code), or the Aiterm has no `hibernate` input (`ACCOUNT_CAPABILITY_UNAVAILABLE`, nothing issued) | Plain `pty_close` and fresh launch, as before (the seat cannot be kept; Owner 2026-11-07 wake-first) |
+| Hibernate close with no answer (outcome unknown) | Its error is the delivery failure (`BOT_LAUNCH_FAILED`); nothing else is closed, the next delivery decides from a new observation |
+
+A record without a terminal (`pane_alive=false`, not hibernated) is closed as before: there is no running CLI to hibernate. The failure of an unacknowledged delivery records Aiterm's symbolic code in the queue diagnostic (`SERVER_TURN_TRACKING_FAILED`, `diagnostic_log` JSON `{stage, botId, deliveryId, code, cause, native_reason}`; `cause` = Aiterm's leading error code such as `AGENT_LAUNCH_UNCONFIRMED`, `native_reason` = the `native_reason=` token; each null when absent). Only these two closed tokens are read from the refusal text (agent_launch text may hold private values, so the text itself is never kept). The stored delivery status keeps its closed `delivery_error:{code}` (conversation contract unchanged).
 
 Every dispatch wake (the hibernated resume, the target-move wake and the final recovery wake) passes the dispatch admission check into the wake, so an admission or input-permission change during `agent_launch` closes nothing. Known limit: the close reaches the terminal only while the body's Aiterm keeps the seat's terminal binding (a66); without it the close is local, the second launch meets the same refusal and the typed launch failure stays.
 

@@ -60,3 +60,11 @@ export function resumeUnavailable(value, sessionId) {
     && value.session_id === sessionId && value.outcome === 'unavailable' && value.effect === 'not_started' && value.input === 'not_sent'
     ? { ...value } : null
 }
+
+// delivery-details.md (kiro-launch-fail-rapi): only Aiterm's closed tokens leave a refusal; its text may hold private values.
+export function aitermFailureCause(error) {
+  const text = String(error?.message ?? '')
+  const cause = error?.aitermErrorCode ?? (error?.aitermResponseReturned === true
+    ? /^(?:aiterm: )?([A-Z][A-Z0-9_]{2,63}):/u.exec(text)?.[1] : null) ?? null
+  return { cause, native_reason: /\bnative_reason=([a-z][a-z0-9_]{0,63})\b/u.exec(text)?.[1] ?? null }
+}

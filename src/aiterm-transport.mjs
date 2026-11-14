@@ -22,7 +22,7 @@ import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
-import { launchFailureDetails } from './agent-launch-error.mjs'
+import { aitermFailureCause, launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
@@ -1157,7 +1157,7 @@ export class AitermTransport {
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
           failureStatusSaved = true
-          if (!acknowledged && !job.stopped) await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage)
+          if (!acknowledged && !job.stopped) await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
         } catch (callbackError) { if (!conversationDelivery) throw callbackError }
         finally { if (!acknowledged) rejectAcceptance(error) }
         throw error
@@ -1753,10 +1753,10 @@ export class AitermTransport {
     return delivery
   }
 
-  async recordDeliveryFailure(botId, deliveryId, code) {
+  async recordDeliveryFailure(botId, deliveryId, code, cause = {}) {
     try {
       await this.reportError({ code: 'SERVER_TURN_TRACKING_FAILED', module: 'queue',
-        diagnostic_log: JSON.stringify({ stage: 'delivery', botId, deliveryId, code }) })
+        diagnostic_log: JSON.stringify({ stage: 'delivery', botId, deliveryId, code, ...cause }) })
     } catch { /* Diagnostic failure never changes admission. */ }
   }
 
@@ -1846,7 +1846,17 @@ export class AitermTransport {
             }
             if (close) {
               process.stderr.write(`BellTeam Aiterm agent registration unavailable, restarting: ${bot.id}\n`)
-              await this.changeSession(bot, 'pty_close', { session_id: session })
+              // delivery-details.md (kiro-launch-fail-rapi): a live CLI is hibernated so a failed launch never costs its conversation.
+              let hibernated = false
+              if (live && observed.pane_alive !== false) {
+                try { await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true }); hibernated = true }
+                catch (error) {
+                  if (error?.aitermResponseReturned !== true && error?.effect !== 'not_started') throw error
+                  check()
+                  process.stderr.write(`BellTeam Aiterm: seat not hibernated, closing: ${bot.id}: ${aitermFailureCause(error).cause ?? 'unknown'}\n`)
+                }
+              }
+              if (!hibernated) await this.changeSession(bot, 'pty_close', { session_id: session })
               await this.removeRetainedImages(bot.id)
             }
             check()
