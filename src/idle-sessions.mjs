@@ -9,7 +9,7 @@ export const IDLE_CLOSE_MS = 30 * 60_000
 const INTERVAL_MS = 5 * 60_000
 
 export class IdleSessions {
-  constructor({ bots, transport, pendingDecisions = pendingDecisionsByHarness, allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
+  constructor({ bots, transport, pendingDecisions = approvalBoxWakeDecisions(), allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
     this.bots = bots
     this.transport = transport
     // その席が出したApproval Boxの未決・保留の申請のうち、Aitermの観測では分からないものの数。分からない時はnull。
@@ -41,6 +41,8 @@ export class IdleSessions {
   }
 
   async check() {
+    // bd03: the Approval Box capability is read once per check and shared by every Bot in it; the next check reads it again.
+    this.pendingDecisions.begin?.()
     for (const bot of [...this.bots.values()]) {
       if (!this.allowClose()) break
       try {
@@ -92,8 +94,28 @@ export function quietSession(observation) {
     && !(observation.activity?.background_tasks > 0)
 }
 
-// Approval Boxの答えを待っている席かどうか。Claude Codeは待つ間hookのプロセスがCLIの下に立つので、
-// 上の数で分かる。ほかのハーネスは待ち受けが立たないことがあり、席ごとに確かめる口も無いので「分からない」。
-export function pendingDecisionsByHarness(bot) {
-  return bot.harness === 'claude' ? 0 : null
+// Approval Boxの答えを待つ申請がある席を閉じてよいか（bd03、ナユタの製品契約）。Approval Box 0.1.34以降は、受け手を失った
+// BellTeam発の申請について申請者を公開sendmessageで一度起こしresume_decisionを促す。だから席ごとの件数もプロセス木も見ず、
+// 入っている同梱物がその約束を持つかだけで決める：持てば0（閉じても失わない）、無い・読めない時はnull（閉じない）。
+// 読むのは1回のcheck（tick）につき1回（同じcheckの全Botで同じ答え）。check()がbegin()で前の答えを捨てる。
+export function approvalBoxWakeDecisions({ run = readApprovalBoxVersion } = {}) {
+  let answer = null
+  const decisions = async () => (await (answer ??= run().then(approvalBoxWakes, () => false))) ? 0 : null
+  decisions.begin = () => { answer = null }
+  return decisions
+}
+
+export function approvalBoxWakes(stdout) {
+  try {
+    const value = JSON.parse(stdout)
+    return value?.schema === 'approval-box.version.v1' && Array.isArray(value.capabilities) && value.capabilities.includes('bellteam-requester-wake')
+  } catch { return false }
+}
+
+async function readApprovalBoxVersion() {
+  const { execFile } = await import('node:child_process')
+  const { join } = await import('node:path')
+  const { runtimeHome } = await import('./runtime-home.mjs')
+  return new Promise((resolve, reject) => execFile(join(runtimeHome(), '.approval-box/bin/approval-box'), ['version', '--json'],
+    { timeout: 10_000, maxBuffer: 64 * 1024 }, (error, stdout) => error ? reject(error) : resolve(stdout)))
 }

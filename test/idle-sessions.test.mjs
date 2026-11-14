@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { IdleSessions, pendingDecisionsByHarness, quietSession } from '../src/idle-sessions.mjs'
+import { IdleSessions, approvalBoxWakeDecisions, approvalBoxWakes, quietSession } from '../src/idle-sessions.mjs'
 
 const MINUTE = 60_000
 const quiet = (extra = {}) => ({
@@ -116,9 +116,28 @@ test('観測に失敗した席は数え直し、ほかの席の観測を止め�
   assert.match(reports[0], /bot-a を観測できませんでした（AITERM_DOWN）/u)
 })
 
-test('Approval Boxの答え待ちは、Claude Codeの席だけAitermの観測に任せ、ほかは分からないとして閉じない', () => {
-  assert.equal(pendingDecisionsByHarness({ harness: 'claude' }), 0)
-  for (const harness of ['codex', 'grok', 'cursor']) assert.equal(pendingDecisionsByHarness({ harness }), null)
+// bd03: closing is safe only while the installed Approval Box states its requester-wake contract; harness and process tree do not matter.
+test('Approval Box: the requester-wake capability allows closing for every harness; absent or unreadable keeps seats', async () => {
+  const yes = '{"schema":"approval-box.version.v1","version":"0.1.36","capabilities":["bellteam-requester-wake"]}'
+  assert.equal(approvalBoxWakes(yes), true)
+  for (const no of ['0.1.36', '{"schema":"approval-box.version.v1","version":"0.1.35","capabilities":[]}',
+    '{"schema":"other","capabilities":["bellteam-requester-wake"]}', '']) assert.equal(approvalBoxWakes(no), false)
+  let reads = 0, answer = async () => yes
+  const decisions = approvalBoxWakeDecisions({ run: () => { reads++; return answer() } })
+  // Through IdleSessions.check: one read per check, shared by every Bot; the next check reads again (also after a failure).
+  const bots = new Map(['claude', 'codex', 'grok', 'cursor', 'antigravity'].map(harness => [harness, { id: harness, harness }]))
+  const offered = []
+  const idle = new IdleSessions({ bots, pendingDecisions: decisions, report: () => {},
+    transport: { observeChain: async () => ({ observation: { exists: false } }), closeOldSeats: async list => { offered.push(list.length); return [] } } })
+  await idle.check()
+  assert.equal(reads, 1, 'read once per check, the same answer for every Bot')
+  assert.deepEqual(offered, [5], 'every harness may close')
+  answer = async () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) }
+  await idle.check()
+  assert.equal(reads, 2); assert.deepEqual(offered, [5, 0], 'unreadable: no seat closes')
+  answer = async () => yes
+  await idle.check()
+  assert.equal(reads, 3); assert.deepEqual(offered, [5, 0, 5], 'a failed read is not kept to the next check')
 })
 
 
