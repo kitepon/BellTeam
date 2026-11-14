@@ -225,9 +225,7 @@ export function createLatticeChart(dialog, {
     }
     if (!isOpen || token !== listToken || !listWanted()) return
     listAttempt = 0; status = 'live'; listNote = null; list = data
-    const resume = view === 'loading' && data.charts?.find(chart => chart.projectId === resumeId)
-    resumeId = null
-    if (view === 'loading' && (resume || data.charts?.length === 1)) { paintPills(); return openChart((resume || data.charts[0]).projectId) }
+    if (view === 'loading' && data.charts?.length === 1) { paintPills(); return openChart(data.charts[0].projectId) }
     view = 'list'; paintList(); paintPills()
     listTimer = later(loadList, LIST_POLL_MS)
   }
@@ -623,12 +621,16 @@ export function createLatticeChart(dialog, {
   return {
     open(projectId = null) {
       if (isOpen) return
-      if (projectId) resumeId = projectId // a member's chart button: the first list read opens it, like the resume after 会話を開く
       isOpen = true; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
       document.addEventListener('visibilitychange', visibility)
       if (!dialog.open) dialog.showModal()
-      void loadList()
+      // A known chart (a member's chart button, the resume after 会話を開く) opens at once; the list read takes seconds on a big server (a90).
+      const target = projectId ?? resumeId
+      resumeId = null
+      if (!target) return void loadList()
+      openChart(target)
+      void api('/api/lattice/charts').then(data => { if (!isOpen || list) return; list = data; if (view === 'chart' && snapshot) paintChart({ ...diffSnapshots(snapshot, snapshot), first: true }) }).catch(() => {})
     },
     close() {
       if (!isOpen) return

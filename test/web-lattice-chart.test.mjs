@@ -336,21 +336,26 @@ test('工程表が一つだけなら、そのまま工程表へ。会話を開�
   ui.view.close()
 })
 
-test('メンバーの工程表ボタン：open(projectId) は一覧を飛ばしてその工程表へ。左上の「すべての工程表」で一覧、戻ると同じ工程表（a90 a94）', async t => {
-  const feed = sse(), feed2 = sse(), net = router({ streams: [feed, feed2] })
-  const ui = setup(t, { api: async () => chartsList('bellteam', 'other'), fetchImage: net.fetchImage })
+test('メンバーの工程表ボタン：open(projectId) は一覧の読み取りを待たずにその工程表へ。左上の「すべての工程表」で一覧、戻ると同じ工程表。無い工程表は案内（a90 a94）', async t => {
+  const feed = sse(), feed2 = sse(), net = router({ streams: [feed, feed2, { ok: false, status: 404, json: async () => ({ error: 'LATTICE_CHART_NOT_FOUND' }) }] })
+  let answer, reads = 0
+  const ui = setup(t, { api: () => { reads++; return new Promise(resolve => { answer = () => resolve(chartsList('bellteam', 'other')) }) }, fetchImage: net.fetchImage })
   ui.view.open('other'); await flush()
-  assert.deepEqual(net.calls.filter(u => u.includes('/events')), ['/api/lattice/charts/other/events'], '工程表が二つでも指定の工程表を直接開く')
+  assert.deepEqual(net.calls.filter(u => u.includes('/events')), ['/api/lattice/charts/other/events'], '一覧の答えを待たずに開く')
   feed.snapshot(fixture()); await flush()
+  assert.equal(byClass(ui.body, 'lattice-card').length + byClass(ui.body, 'lattice-tbox').length > 0, true, '一覧がまだでも工程表を描く')
+  answer(); await flush()
+  assert.equal(reads, 1, '一覧は横で一度だけ読む')
   const toolbar = byClass(ui.body, 'lattice-toolbar')[0], all = toolbar.children[0]
   assert.ok(all.className.includes('lattice-all')); assert.equal(textOf(all), 'すべての工程表', '帯の一番左')
   all.click(); await flush()
-  assert.equal(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').length, 2)
+  assert.equal(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').length, 2, '読んである一覧をすぐ出す')
   byClass(ui.body, 'lattice-back')[0].click(); await flush()
   assert.deepEqual(net.calls.filter(u => u.includes('/events')), ['/api/lattice/charts/other/events', '/api/lattice/charts/other/events'])
   ui.dialog.close()
   ui.view.open('gone'); await flush()
-  assert.equal(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').length, 2, '一覧に無い工程表なら一覧')
+  assert.match(textOf(ui.body), /この工程表は見つかりません。/u, '無い工程表は案内して一覧へ戻れる')
+  assert.ok(buttonByText(ui.body, '一覧へ戻る'))
   ui.view.close()
 })
 
