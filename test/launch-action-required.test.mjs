@@ -10,6 +10,7 @@ import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
 import { ERROR_META } from '../src/execution-bridge.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
+import { conversationCallbackFailureFields } from '../src/conversation/callbacks.mjs'
 import { RoomMessenger } from '../src/room-messenger.mjs'
 
 const args = () => ({ harness: 'antigravity-cli', session_name: 'bot-a', trust_project: true })
@@ -94,8 +95,10 @@ test('Owner send closes blocked launch once and returns409 without relaunch/body
   const calls = [], client = new AitermClient()
   client.client = { async callTool({ name, arguments: input }) {
     calls.push({ name, args: input })
-    if (name === 'pty_send') return { isError: true, content: [{ type: 'text', text: 'SESSION_NOT_FOUND' }] }
-    if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+    // Aiterm's real answer for a seat it does not manage (no record): nothing was typed, so nothing to close before the launch.
+    if (name === 'pty_send') return { isError: true, content: [{ type: 'text', text: `aiterm: AGENT_SESSION_REQUIRED: session '${input.session_id}' のagent登録がありません。文字列は送信していません。` }] }
+    // Wake-first recovery observes the seat (delivery-details.md); no terminal and no launch record here.
+    if (name === 'pty_observe') return { structuredContent: { schema: 'aiterm.pty-observe-result.v1', session_id: input.session_id, exists: false, launch_id: null } }
     if (name === 'agent_launch') return rejected(launch())
     if (name === 'pty_close') return { structuredContent: { outcome: 'closed' } }
     throw new Error(`unexpected tool ${name}`)
@@ -104,7 +107,8 @@ test('Owner send closes blocked launch once and returns409 without relaunch/body
   const transport = new AitermTransport({ client: { call: (name, input) => client.call(name, input) }, handoffContext: async () => '' })
   const bot = { id: 'bot-a', name: 'fixture', session: 'bot-a', harness: 'antigravity', project: root }
   const bots = new Map([[bot.id, bot]])
-  const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
+  // The production direct writer (conversation/dispatcher.mjs) stores the transport's projected failure status.
+  const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl'), failureFields: conversationCallbackFailureFields })
   const reports = []
   const server = createBellTeamServer({ bots, transport, messenger, store: messenger.store, authorize: () => true,
     diagnostics: { async record(value) { reports.push(value) } }, writeLog() {} })
@@ -115,7 +119,7 @@ test('Owner send closes blocked launch once and returns409 without relaunch/body
   assert.equal(response.status, 409)
   const body = await response.json()
   assert.equal(body.error, 'BOT_INPUT_NOT_READY'); assert.match(body.message, /送信されませんでした。AIの認証・初期設定/u)
-  assert.deepEqual(calls.map(call => call.name), ['pty_send', 'pty_list', 'agent_launch', 'pty_close'])
+  assert.deepEqual(calls.map(call => call.name), ['pty_send', 'pty_observe', 'agent_launch', 'pty_close'])
   assert.equal(calls[2].args.prompt, undefined)
   assert.deepEqual(calls[3].args, { session_id: 'bot-a' })
   assert.deepEqual(reports, [])
