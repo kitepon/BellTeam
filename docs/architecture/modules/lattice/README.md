@@ -23,6 +23,40 @@ Same shape as [work-graph](../work-graph/README.md): the module runs as its **ow
 | Lattice facade (subscribers, refresh timer, one call chain), effect handler `members.list`, module process/start binary/locks, HTTP mount and auth, MCP registration in `mcp-tools.mjs`, packaging/catalog/updater, `publish-lattice.yml` | Molly |
 | Lattice CLI behaviour, schemas, store format | Snow White |
 
+## BellTeam <-> Lattice connection (target, task a102)
+
+Owner 2026-11-14: 「プロダクト間の繋ぎはしっかりと図で定義」「直接参照は…サイレントに破壊されるから危険。契約されてる口でやり取り」. Lattice (the `@quolu/lattice` product, Snow White's team) and this module (Flora) meet only at Lattice's contracted interface, agreed in chart task a101. **This section is the target; the rows below it (Function map, Data flow) still describe today's code until a102 lands.** Until then, today's direct accesses are listed under "Removed by a102".
+
+```mermaid
+flowchart LR
+  subgraph BellTeam["BellTeam lattice module (Flora)"]
+    Core["core.mjs: memo per chart,<br/>projection, nudge, notices,<br/>Owner-lane filing"]
+    Runner["cli.mjs: spawns the bundled<br/>lattice bin; nothing else"]
+    Rec["BellTeam state: /srv/bellteam/state/lattice-module/<br/>owner-decisions.json (BellTeam's own record)"]
+  end
+  subgraph Lattice["Lattice product (Snow White team)"]
+    CLI["lattice CLI = the contract<br/>(commands + JSON schemas, versioned)"]
+    Store["charts under LATTICE_CHARTS_ROOT<br/>(layout, files, git: Lattice's own)"]
+  end
+  Core --> Runner -->|"K1-K8 (table)"| CLI --> Store
+  Core -->|"read / write"| Rec
+```
+
+| Id | BellTeam -> Lattice (contract) | What BellTeam gets | Replaces today's |
+| --- | --- | --- | --- |
+| K1 | chart list: one call for every chart under the root | per chart: project id, name, creator, change token | `readdir` of the root + `.lattice` checks; `.bellteam-chart.json` reads; one `display source` per chart (in-process import of `src/todo-store.mjs` since #1366) |
+| K2 | change tokens of chosen charts: one call | per chart: change token | per-chart `display source` (refresh tick, SSE first snapshot, nudge) |
+| K3 | chart read (`todo display read`, with `trees`, a100) | the display envelope | unchanged command; addressed by project id (K8) |
+| K4 | name a chart; creator recorded by Lattice from the writing seat (`LATTICE_SEAT_ID`) | - | `.bellteam-chart.json` writes (name, createdBy) |
+| K5 | seat commands (`plan`, `todo`, `status`, ... the seat surface) | the command's JSON | unchanged; the chart dir is created by Lattice, not by BellTeam `mkdir` / `git init` / prune |
+| K6 | stops (`todo blockers`, `todo unblock` as owner) and notices (`todo notice list/ack`) | as today | unchanged commands; addressed by project id |
+| K7 | code charts: bind a chart to a repo (url, branch) and keep it current (fetch, fast-forward, sensor) | sync status | `code-chart.mjs` git commands and `.git/info/exclude` writes inside the chart dir |
+| K8 | addressing: every command takes the project id; Lattice resolves it under `LATTICE_CHARTS_ROOT` | - | BellTeam passing `cwd = <root>/<projectId>` (knowing the layout) |
+
+Rules: BellTeam never imports Lattice source files, never reads or writes inside `LATTICE_CHARTS_ROOT`, and keeps its own data (the Owner-lane filing record) in its own state directory. Speed (a95) is measured and fixed on K1/K2 (one process per call, not per chart). The hide/count rule (a96) rides on K3's `trees` (a100). Each row's exact command and schema is the a101 agreement with Snow White; this table changes only with it.
+
+Removed by a102 (today's direct accesses): `cli.list` / `cli.exists` (root scan), `cli.source` (in-process `readTodoStoreDisplaySource`), `cli.meta` / `cli.setMeta` (`.bellteam-chart.json`), `cli.ensure` / `cli.prune` (chart dir, `git init`), `cli.readOwnerRecord` / `cli.writeOwnerRecord` (`.bellteam-owner-decisions.json` in Lattice's root; moves to BellTeam state), `cli.git` / `cli.exclude` / `cli.sensor` (code charts). One-time move at release: existing names and creators go to Lattice through K4; the filing record moves to BellTeam state.
+
 ## Function map
 
 ```mermaid

@@ -115,6 +115,7 @@ flowchart LR
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
   m_lattice["Lattice工程表 / フローラ"]
+  m_lattice_product["Lattice（製品 @quolu/lattice）/ スノーホワイト"]
   m_linux["Linuxアプリ / ネオン"]
   m_mcp_lazy["mcp-lazy / レオナ"]
   m_memory["記憶・知識 / ビスケット"]
@@ -134,6 +135,7 @@ flowchart LR
   m_execution -->|"context"| m_throughline
   m_integration -->|"public"| m_approval_box
   m_lattice -->|"public"| m_approval_box
+  m_lattice -->|"contract: lattice CLI only (K1-K8, a102)"| m_lattice_product
   m_linux -->|"HTTP/SSE"| m_integration
   m_memory -->|"context"| m_throughline
   m_runtime -->|"native"| m_aiterm
