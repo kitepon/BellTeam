@@ -27,11 +27,13 @@ export class SeatRuntime {
   }
 
   async call(action, input, options = {}) {
-    const { stdout } = await this.run(process.execPath,
+    const { stdout, stderr } = await this.run(process.execPath,
       [fileURLToPath(new URL('./run-seat-runtime.mjs', import.meta.url))], {
         input: JSON.stringify({ action, root: this.root, home: this.home, ...input }),
         ...options,
       })
+    // The child's report lines (configureHarnesses etc.) go to the body log; stdout carries only the JSON answer (Z8 lab (4)).
+    if (stderr) process.stderr.write(stderr)
     const response = JSON.parse(stdout)
     if (response.error) throw Object.assign(new Error(response.error.message), response.error)
     return response.result

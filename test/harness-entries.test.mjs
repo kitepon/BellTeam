@@ -40,7 +40,8 @@ async function fixture({ products = { xarticle: e1('xarticle', xarticle), typesa
   const calls = [], requests = [], reports = []
   const run = async (command, args) => {
     calls.push([command, ...args])
-    if (failAdd && failAdd(command, args)) throw new Error('synthetic add failure')
+    const failure = failAdd && failAdd(command, args)
+    if (failure) throw failure instanceof Error ? failure : new Error('synthetic add failure')
     return { stdout: JSON.stringify(grok) }
   }
   const appServer = async (_env, use) => use(async (method, params) => {
@@ -112,7 +113,7 @@ test('an invalid or missing E1 writes nothing for that product while the other p
   assert.deepEqual(writes(f.calls).map(call => call[3]), ['typesafe', 'typesafe'])
   assert.equal(f.reports.length, 2)
   assert.match(f.reports[0], /xarticle/u)
-  assert.match(f.reports[1], /broken/u)
+  assert.match(f.reports[1], /broken.*がありません/u)
   const applied = JSON.parse(await readFile(join(f.home, '.bellteam-cli-registration/applied.json'), 'utf8'))
   assert.deepEqual(Object.keys(applied), ['typesafe'])
 })
@@ -154,4 +155,45 @@ test('remove succeeded, new add failed: the previous entry is added back (claude
 test('a missing E2 registry is an error (reported by configureHarnesses), not a silent no-op', async () => {
   const f = await fixture()
   await assert.rejects(configureHarnessEntries(f.home, { registry: join(f.dir, 'absent.json'), run: async () => ({ stdout: '[]' }), report: () => {} }), /E2 .*absent\.json/u)
+})
+
+test('a failed CLI call carrying a credential reports only product, harness, program and exit code', async () => {
+  const secret = 'SYNTHETIC-SECRET-1436'
+  const changed = { ...typesafe, claude: { type: 'http', url: 'https://new.invalid/mcp', headers: { Authorization: `Bearer ${secret}` } } }
+  // execFile's Error: message and cmd carry the whole argv, stderr may echo it.
+  const failAdd = (command, args) => command === 'claude' && args[1] === 'add-json' && JSON.stringify(args).includes(secret)
+    && Object.assign(new Error(`Command failed: claude ${args.join(' ')}\n${secret}`), { cmd: `claude ${args.join(' ')}`, code: 1, stderr: secret })
+  const f = await fixture({ products: { typesafe: e1('typesafe', changed) }, failAdd })
+  await f.apply()
+  assert.equal(f.reports.length, 1)
+  assert.doesNotMatch(f.reports[0], new RegExp(secret, 'u'))
+  assert.match(f.reports[0], /typesafe: claude の typesafe を適用できませんでした（claude が終了コード 1 で失敗しました）/u)
+})
+
+test('Codex app-server failures carrying a credential (remote error, stderr on exit) report only codes', async () => {
+  const secret = 'SYNTHETIC-SECRET-1436-CODEX'
+  const changed = { ...typesafe, codex: { url: 'https://new.invalid/mcp', http_headers: { Authorization: `Bearer ${secret}` } } }
+  for (const [mode, expected] of [['error', /codex の typesafe を適用できませんでした（CODEX_APP_SERVER_ERROR: -32000）/u], ['exit', /Codexのapp-serverを使えませんでした（CODEX_APP_SERVER_EXITED: 3）/u]]) {
+    // A fake `codex` on PATH driven through the real codexAppServer: batchWrite answers an error object echoing the secret
+    // (per-entry report), or the server prints it on stderr and exits (outer report).
+    const bin = await mkdtemp(join(tmpdir(), 'bellteam-fake-codex-'))
+    await writeFile(join(bin, 'codex'), `#!/usr/bin/env node
+const rl = require('node:readline').createInterface({ input: process.stdin })
+rl.on('line', line => { const m = JSON.parse(line); if (m.id === undefined) return
+  if (m.method === 'initialize') return console.log(JSON.stringify({ id: m.id, result: {} }))
+  if (${JSON.stringify(mode)} === 'exit') { process.stderr.write('config ${secret}\\n'); process.exit(3) }
+  if (m.method === 'config/read') return console.log(JSON.stringify({ id: m.id, result: { config: { mcp_servers: {} } } }))
+  console.log(JSON.stringify({ id: m.id, error: { code: -32000, message: 'bad ${secret}', data: { value: '${secret}' } } })) })
+`, { mode: 0o755 })
+    const path = process.env.PATH
+    process.env.PATH = `${bin}:${path}`
+    try {
+      const f = await fixture({ products: { typesafe: e1('typesafe', changed) } })
+      await configureHarnessEntries(f.home, { registry: join(f.dir, 'registry.json'), run: async () => ({ stdout: '[]' }), report: message => f.reports.push(message) })
+      const codexReports = f.reports.filter(line => /codex|Codex/u.test(line))
+      assert.ok(codexReports.length >= 1, f.reports.join('\n'))
+      assert.doesNotMatch(f.reports.join('\n'), new RegExp(secret, 'u'))
+      assert.match(codexReports.join('\n'), expected)
+    } finally { process.env.PATH = path }
+  }
 })
