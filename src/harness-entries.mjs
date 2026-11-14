@@ -47,7 +47,10 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
   const recordPath = join(home, '.bellteam-cli-registration/applied.json')
   const applied = (await readJson(recordPath).catch(() => null)) ?? {}
   const items = []
-  for (const { product, file } of await readJson(registry) ?? []) {
+  // A missing E2 is a packaging fault (Z4 lab 2026-11-14): fail loudly; configureHarnesses reports it and writes nothing.
+  const products = await readJson(registry)
+  if (!Array.isArray(products)) throw new Error(`E2 ${registry} がありません`)
+  for (const { product, file } of products) {
     try {
       const { servers, version } = parseEntries(product, await readJson(file))
       applied[product] = { version, entries: [] }
