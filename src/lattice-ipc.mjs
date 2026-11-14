@@ -10,6 +10,7 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no }); promise.catch(() => {})
   return { promise, resolve, reject }
 }
+const READS = new Set(['charts', 'chart', 'refresh', 'blockers'])
 const passed = new Map([['LATTICE_DECISIONS_REFUSED', 409], ['LATTICE_DECISIONS_UNAVAILABLE', 503]])
 const acknowledged = value => latticeObject(value, ['acknowledged']) && value.acknowledged === true
 
@@ -117,8 +118,11 @@ export function createLatticeChildChannel({ dispatcher, event = process, version
       if (!accepting || active.size >= 8) throw failure('LATTICE_NOT_ACCEPTED', 'not_accepted')
       dispatcher.validateRequest(message.method, message.params, message.context)
       quiesced = false
-      const done = deferred(), before = chain; chain = done.promise; active.add(done.promise)
-      // Root calls run one at a time; each may call the parent's providers only through this bound effect.
+      // Writes run one at a time in arrival order; reads never wait behind a write (README L3; incident 2026-11-14:
+      // a ~40 s `todo add` on a large plan held every list and chart read). Each call reaches the parent only through its bound effect.
+      const write = !READS.has(message.method), done = deferred(), before = write ? chain : null
+      if (write) chain = done.promise
+      active.add(done.promise)
       const effect = async (method, params) => {
         const value = await channel.call('effect', method, params, { operation: message.id }, { timeout: 30000 })
         validateLatticeEffectResult(method, value)
@@ -126,7 +130,7 @@ export function createLatticeChildChannel({ dispatcher, event = process, version
       }
       const run = async () => {
         try {
-          await before
+          if (before) await before
           return await dispatcher.dispatch(message.method, message.params, message.context, effect)
         } catch (error) { throw Object.assign(new Error('LATTICE_OPERATION_FAILED'), latticeWireError(error, 'unknown')) }
       }

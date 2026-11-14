@@ -186,7 +186,8 @@ const read = { state: 'verified', verified_at: '2026-11-11T10:00:00.000Z', store
   tasks: [{ task_id: 't1', status: 'in-progress' }], journal: { events: [{ kind: 'start', task_id: 't1', actor: { agent: 'a' }, recorded_at: '2026-11-11T10:00:00.000Z' }] }, plan_scoped: { events: [] } }] } }
 const ok = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
 const cli = { list: async () => ['alpha'], source: async () => ({ n: 1 }), exists: async id => id === 'alpha', ensure: async () => ({ created: false }), meta: async () => ({ name: 'Lattice組込', createdBy: null }), setMeta: async () => {}, prune: async () => {},
-  run: async ({ args, env }) => args.join(' ') === 'todo display source --json' ? ok({ n: 1 }) : args.join(' ') === 'todo display read --json' ? ok(read) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
+  run: async ({ args, env }) => args.join(' ') === 'todo display source --json' ? ok({ n: 1 }) : args.join(' ') === 'todo display read --json' ? ok(read)
+    : args[0] === 'todo' && args[1] === 'slow' ? new Promise(resolve => setTimeout(() => resolve(ok({ slow: true })), 800)) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
 createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
 `
 
@@ -217,6 +218,14 @@ test('actual IPC: initialize, ready, resume, charts, chart, refresh, run, errors
   assert.deepEqual(await channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }),
     { exitCode: 0, result: { args: ['status'], seat: 'bot-a' }, stdout: null, stderr: '' })
   await assert.rejects(channel.request('chart', { projectId: 'nope' }), { code: 'LATTICE_CHART_NOT_FOUND', status: 404 })
+  // Reads never wait behind a write (README L3, incident 2026-11-14); writes keep their order.
+  const order = []
+  const slow = channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['todo', 'slow'], input: null }).then(() => order.push('slow run'))
+  const next = channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }).then(() => order.push('next run'))
+  await channel.request('chart', { projectId: 'alpha' }).then(() => order.push('chart'))
+  await channel.request('charts', {}).then(() => order.push('charts'))
+  await Promise.all([slow, next])
+  assert.deepEqual(order, ['chart', 'charts', 'slow run', 'next run'])
   await assert.rejects(channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['setup'], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE', status: 400 })
   assert.equal(effects.length >= 1, true)
   assert.equal(channel.snapshot().root, 0)
