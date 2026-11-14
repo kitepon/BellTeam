@@ -66,6 +66,18 @@ export async function seatFiles(op, ...args) {
   }
   // The token file's mtime only (one login per slot); never its content.
   if (op === 'stamp') { const entry = await present(args[0]); return entry?.isFile() ? entry.mtimeMs : null }
+  // The slot's active login (harness-accounts.md Login per slot, a77): its store when the CLI's own login there has a refresh
+  // token and is not older than the legacy setup-token file; else that file; else none. Reads only presence and that field.
+  if (op === 'login') {
+    const [home, harness, slot] = args
+    const store = slot === '1st' ? join(home, `.${harness}`) : join(home, '.bellteam-accounts', harness, slot)
+    const tokenFile = join(home, '.bellteam-accounts', harness, slot, 'oauth-token')
+    const credentials = await present(join(store, '.credentials.json')), token = await present(tokenFile)
+    let refreshable = false
+    if (credentials?.isFile()) try { refreshable = !!(await readJson(join(store, '.credentials.json')))?.claudeAiOauth?.refreshToken } catch {}
+    if (refreshable && (!token?.isFile() || credentials.mtimeMs >= token.mtimeMs)) return { kind: 'store', store, stamp: credentials.mtimeMs }
+    return token?.isFile() ? { kind: 'token', tokenFile, stamp: token.mtimeMs } : null
+  }
   if (op === 'usage') {
     // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
     let token
@@ -196,12 +208,10 @@ export class HarnessAccounts {
     catch { return null }
   }
 
-  // The slot's token file mtime, or null without one. An installed home is 0700 (install.sh umask 077): the engine cannot
-  // traverse it, so the seat user answers instead. A check that fails both ways is null (lab 2026-11-11).
+  // The mtime of the slot's active login (seatFiles 'login'), or null without one. The engine is another user and cannot read
+  // the 0600 store, so the seat user answers. A check that fails is null (lab 2026-11-11).
   async stamp(harness, slot) {
-    const path = this.tokenFile(harness, slot)
-    try { const entry = await present(path); return entry?.isFile() ? entry.mtimeMs : null }
-    catch { return this.seat('stamp', path).then(value => Number.isFinite(value) ? value : null, () => null) }
+    return this.seat('login', this.home, harness, slot).then(value => Number.isFinite(value?.stamp) ? value.stamp : null, () => null)
   }
 
   signedOutEntry(harness, slot, stamp) { return this.state.signedOut.find(entry => entry.harness === harness && entry.slot === slot && entry.stamp === stamp) ?? null }

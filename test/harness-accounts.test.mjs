@@ -199,9 +199,9 @@ test('an installed 0700 home: loggedIn asks the seat user, and selection never r
   await mkdir(join(home, '.bellteam-accounts/claude/2nd'), { recursive: true })
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'x')
   // The stringified helper knows the op (it runs as the seat user, who can traverse the home).
-  assert.equal(typeof await seatFilesOver(waitProcess)('stamp', join(home, '.bellteam-accounts/claude/2nd/oauth-token')), 'number')
+  assert.equal((await seatFilesOver(waitProcess)('login', home, 'claude', '2nd')).kind, 'token')
   // The engine cannot traverse: the seat user answers; a failing seat user means not logged in, never a thrown launch.
-  let seatAnswer = async () => 1
+  let seatAnswer = async () => ({ kind: 'token', stamp: 1 })
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), seat: (...args) => seatAnswer(...args) })
   await chmod(join(home, '.bellteam-accounts'), 0o000)
   try {

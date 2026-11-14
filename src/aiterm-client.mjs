@@ -6,6 +6,7 @@ import { captureRuntime } from './runtime-selection.mjs'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
+import { seatFiles } from './harness-accounts.mjs'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -17,14 +18,19 @@ import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
 
 // The seat-command path does not carry this.env; the parent's Aiterm needs the account roots here too (harness-accounts.md E1).
-// harness-accounts.md (one login per slot): a Claude seat gets only its slot's login, CLAUDE_CODE_OAUTH_TOKEN, read as the seat
-// user from <BELLTEAM_HOME>/.bellteam-accounts/claude/<slot>/oauth-token (0600). Missing or malformed: the launch fails, except
-// a legacy 1st without its file, which adds nothing (the root's or the host's own login, until the Owner's first 1st login).
+// harness-accounts.md (one login per slot): a Claude seat gets only its slot's active login, read as the seat user. A container
+// seat on the slot's full CLI login gets its store dir (CLAUDE_SECURESTORAGE_CONFIG_DIR) and an empty CLAUDE_CODE_OAUTH_TOKEN, so an
+// inherited token cannot win and the claude.ai connectors load (a77). A terminal or a slot still on its legacy setup-token gets
+// CLAUDE_CODE_OAUTH_TOKEN from <BELLTEAM_HOME>/.bellteam-accounts/claude/<slot>/oauth-token. Missing or malformed: the launch
+// fails, except a 1st without any login, which adds nothing (the root's or the host's own login).
 export const ACCOUNT_LOGINS = ['1st', '2nd']
-export async function accountLoginEnvironment(slot, environment = process.env) {
+export async function accountLoginEnvironment(slot, environment = process.env, { terminal = false } = {}) {
   if (!ACCOUNT_LOGINS.includes(slot)) throw Object.assign(new Error('ACCOUNT_LOGIN_UNAVAILABLE'), { code: 'ACCOUNT_LOGIN_UNAVAILABLE' })
+  const home = runtimeHome(environment)
+  const login = await seatFiles('login', home, 'claude', slot).catch(() => null)
+  if (login?.kind === 'store' && !terminal) return { CLAUDE_SECURESTORAGE_CONFIG_DIR: login.store, CLAUDE_CODE_OAUTH_TOKEN: '' }
   let token
-  try { token = (await readFile(join(runtimeHome(environment), '.bellteam-accounts', 'claude', slot, 'oauth-token'), 'utf8')).trim() }
+  try { token = (await readFile(join(home, '.bellteam-accounts', 'claude', slot, 'oauth-token'), 'utf8')).trim() }
   catch (error) { if (slot === '1st' && error?.code === 'ENOENT') return {}; token = '' }
   if (!/^sk-ant-oat01-[A-Za-z0-9_-]{20,}$/u.test(token)) throw Object.assign(new Error('ACCOUNT_LOGIN_UNAVAILABLE'), { code: 'ACCOUNT_LOGIN_UNAVAILABLE', effect: 'not_started' })
   return { CLAUDE_CODE_OAUTH_TOKEN: token }
@@ -171,7 +177,7 @@ export class AitermClient {
       // Do not silently serialize a server-evaluated environment across this boundary.
       if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const login = name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? await accountLoginEnvironment(claudeLogin, env) : {}
+      const login = name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? await accountLoginEnvironment(claudeLogin, env, { terminal: !!privateEnv }) : {}
       const secret = privateEnv ? await privateEnv.resolve() : {}
       const launcher = new AitermClient({ command: this.command, args: this.args, env: { ...env, ...login, ...secret }, claudeConfigRoots: this.claudeConfigRoots, ...(runtime ? { runtimeCapture: runtime } : {}) })
       try {

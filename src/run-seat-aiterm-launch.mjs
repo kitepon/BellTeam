@@ -30,7 +30,7 @@ try {
   if (request.runtime) Object.assign(process.env, runtimeLaunchEnv(request.runtime, process.env.PATH))
   // harness-accounts.md: a 2nd seat differs only in its login; read here as the seat user, given only to this CLI's env.
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
-  if (request.claudeLogin !== undefined) Object.assign(process.env, await accountLoginEnvironment(request.claudeLogin, process.env))
+  if (request.claudeLogin !== undefined) Object.assign(process.env, await accountLoginEnvironment(request.claudeLogin, process.env, { terminal }))
   // A legacy 1st (no token file yet) adds no login: the terminal keeps its own, so the name is not forwarded.
   if (terminal && process.env.CLAUDE_CODE_OAUTH_TOKEN === undefined) names = names.filter(key => key !== 'CLAUDE_CODE_OAUTH_TOKEN')
   // stdin only: never argv, disk or log. The login token still comes only from claudeLogin.
