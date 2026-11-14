@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T22:45:13Z",
-  "expiresAt": "2026-11-21T22:45:13Z",
+  "publishedAt": "2026-11-14T23:13:12Z",
+  "expiresAt": "2026-11-21T23:13:12Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5",
-      "versionId": "1aa4a9980bddb18e0e5fa8e28f073682806acb08e2533fc6f495f4d39abedffd",
+      "sourceCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb",
+      "versionId": "416a4a5f50bdd9e72006b80d1d64d055f9eb881d77654957b06ad1c3132eafa1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-amd64.tar.gz",
-          "bytes": 3974905,
-          "sha256": "1aa4a9980bddb18e0e5fa8e28f073682806acb08e2533fc6f495f4d39abedffd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-amd64.tar.gz",
+          "bytes": 3976137,
+          "sha256": "416a4a5f50bdd9e72006b80d1d64d055f9eb881d77654957b06ad1c3132eafa1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11275,
-          "sha256": "7477ec38b7ec89a6fe43f9c2f524bac2e1c34063aba7c0c5fee05838c1f91acf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10899,
+          "sha256": "022e3e4b95c900ce5a663912c615ec5e3da603f245190ea809cca94f4c3f7db3"
         },
-        "signerCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5"
+        "signerCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "返事を届け直すときに、止まって見える席をいったん休ませてから同じ会話のまま起こし直すようにしました。"
+        "AIの実行部品で、停止・再起動と設定の失敗を正しく見分けて記録するようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5",
-      "versionId": "b8ef7001c2998ff1c729beae480dc5154efd8075483c95b8043b5e5912d60f8a",
+      "sourceCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb",
+      "versionId": "f2005b88be881336101e4efda95d98caf5ea4b098caf73bef5a9bb22b7054999",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-arm64.tar.gz",
-          "bytes": 3974905,
-          "sha256": "b8ef7001c2998ff1c729beae480dc5154efd8075483c95b8043b5e5912d60f8a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-arm64.tar.gz",
+          "bytes": 3976137,
+          "sha256": "f2005b88be881336101e4efda95d98caf5ea4b098caf73bef5a9bb22b7054999"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11114,
-          "sha256": "9e12b560d4fffc59b3ed034aeae008ef76b7a7b2f2cb5f050340af68b5494fa5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "ca3726bb55ae6668877b9f1f2370e5a1a005569d2d4caec4020eebd74f0557fd"
         },
-        "signerCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5"
+        "signerCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "返事を届け直すときに、止まって見える席をいったん休ませてから同じ会話のまま起こし直すようにしました。"
+        "AIの実行部品で、停止・再起動と設定の失敗を正しく見分けて記録するようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
-      "versionId": "sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1",
+      "sourceCommit": "9fbc42872207f1572cbbfe4ccaec0b7847865505",
+      "versionId": "sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "他のサイトから、ブラウザを使って勝手に書き込ませる操作を断るようにしました。",
-        "Botが自分以外のBotを削除できないようにしました。",
-        "メンバー一覧の読み込みが混み合ったときに、古い途中の結果より新しい読み込みを優先するようにしました。"
+        "Botが評価者になりすましてメッセージを送れないようにしました。",
+        "Botの停止を、追跡の失敗として記録しないようにしました。",
+        "Bot一覧が一時的に読めなくなる問題（Aiterm 0.70.61）を直しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
-      "versionId": "sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1",
+      "sourceCommit": "9fbc42872207f1572cbbfe4ccaec0b7847865505",
+      "versionId": "sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "他のサイトから、ブラウザを使って勝手に書き込ませる操作を断るようにしました。",
-        "Botが自分以外のBotを削除できないようにしました。",
-        "メンバー一覧の読み込みが混み合ったときに、古い途中の結果より新しい読み込みを優先するようにしました。"
+        "Botが評価者になりすましてメッセージを送れないようにしました。",
+        "Botの停止を、追跡の失敗として記録しないようにしました。",
+        "Bot一覧が一時的に読めなくなる問題（Aiterm 0.70.61）を直しました。"
       ]
     },
     {
