@@ -1,6 +1,7 @@
 import { open } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { BellTeamMessenger } from './messenger.mjs'
+import { ConversationStore } from './conversation-store.mjs'
 import { memberIdentity } from './member-identity.mjs'
 import { returnedExecutionError } from './execution-error.mjs'
 import { readImageBytes } from './message-assets.mjs'
@@ -19,8 +20,10 @@ export function remoteSeatNotStarted(error, deliveryId, botId) {
 }
 
 export class DurableMessageReceipts extends BellTeamMessenger {
-  constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), ...options }) {
-    super({ ...options, logPath: options.logPath ?? join(root, 'logs/direct-messages.jsonl'),
+  constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), onLogCorruption = null, ...options }) {
+    const logPath = options.logPath ?? join(root, 'logs/direct-messages.jsonl')
+    // log-append.md: the parent's reads report an isolated bad line to diagnostics, not only stderr.
+    super({ ...options, logPath, ...(onLogCorruption && !options.store ? { store: new ConversationStore({ logPath, onCorruption: onLogCorruption }) } : {}),
       onMessage: record => { if (!this.childRecords.has(record)) this.report(() => options.onMessage?.(record)) } })
     if (typeof dispatch !== 'function') fail('SAVED_DISPATCH_REQUIRED')
     this.dispatch = dispatch

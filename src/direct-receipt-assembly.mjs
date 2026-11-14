@@ -34,7 +34,7 @@ export function directFailureReport(error, context) {
 
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
-  exchangeMutex, executionReady = () => true, onMessage, onTurnEnd, onError = error => console.error(error) }) {
+  exchangeMutex, executionReady = () => true, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
   let started = false, closed = false, requested = false, draining = null, unwatchQueue = null
   const completions = new Set(), drains = new Set()
   const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
@@ -124,7 +124,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     }
   }
   const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, onMessage, onTurnEnd,
-    onPending: requestDrain, onError: report })
+    onPending: requestDrain, onError: report, onLogCorruption })
   const capture = (method, input) => conversation?.captureReceipt(method, input)
   const messenger = Object.assign(Object.create(legacy), {
     sendmessage(input, options) {
