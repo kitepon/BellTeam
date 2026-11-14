@@ -7,6 +7,7 @@ import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
+import { configureHarnessEntries } from './harness-entries.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
@@ -15,9 +16,15 @@ import { fixedResumeBase } from './resume-policy.mjs'
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
 
-export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
+export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, productEntries = configureHarnessEntries, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const registration = await aiterm().catch(() => null)
   await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration, relay })
+  // bd14: BellTeam is the one writer of the MCP entries of the products in config/harness-products.json. A failure keeps the seat running.
+  try {
+    await productEntries(home, { run, report })
+  } catch (error) {
+    report(`BellTeam MCP products: 製品のMCP登録を適用できませんでした（${error.message}）`)
+  }
   await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
   // Cursor CLIは ~/.cursor/AGENTS.md を読まないので、起動時指示はsessionStartのhookで渡す。
   try {
