@@ -17,6 +17,8 @@ public interface IInspectorHost
     // Mac: the member editor is a window of its own, the room editor a sheet.
     void EditMember(string id);
     void EditRoom(string id);
+    // 「AIと操作」's chart buttons: the 工程表 window on that chart.
+    void OpenLatticeChart(string projectId);
     // The crop sheet over whatever is open; null when it is cancelled or the sheet it belongs to goes away.
     Task<AvatarCropOutcome?> CropAsync(BitmapSource image, AvatarVariant variant, AvatarCropRect? initialCrop, bool wantsSelection);
 }

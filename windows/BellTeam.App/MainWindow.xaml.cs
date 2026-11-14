@@ -298,6 +298,7 @@ public partial class MainWindow : Window, IInspectorHost
         window.Show(); window.Activate();
         return window;
     }
+    public void OpenLatticeChart(string projectId) => ShowLattice()?.OpenChart(projectId);
     public async Task OpenFromLatticeAsync(string botId)
     {
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }

@@ -169,6 +169,8 @@ public sealed class LatticeWindow : Window
         }
         page.Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.VerticalOnly };
     }
+    // Render seam (list-many): the list page scrolled to its last chart.
+    internal void ScrollListToEnd() { if (page.Content is ScrollViewer list) { list.UpdateLayout(); list.ScrollToEnd(); list.UpdateLayout(); } }
     private static TextBlock Section(string title) { var text = Text(title, 13, Muted, FontWeights.SemiBold); text.Margin = new Thickness(4, 6, 0, 10); return text; }
     private WrapPanel Cards(IReadOnlyList<LatticeListItem> items, bool wide)
     {
@@ -439,6 +441,11 @@ internal sealed class LatticeChartPage : Grid
     private void RenderToolbar(LatticeSnapshot? snapshot)
     {
         toolbar.Children.Clear();
+        // The same すべての工程表 button as Apple, at the far left (Owner 2026-11-14, a85/a87).
+        var all = Plain(Glass(new Border { Child = Icon("", 15, Ink), Width = 22, Height = 24 }, 14, new Thickness(9, 8, 9, 8), 0xB3), "すべての工程表");
+        all.ToolTip = "すべての工程表"; all.Margin = new Thickness(0, 0, 10, 0); all.Click += (_, _) => window.ShowList(fromChart: true);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(all, "lattice-all-charts");
+        toolbar.Children.Add(all);
         var switcherContent = new StackPanel { Orientation = Orientation.Horizontal };
         switcherContent.Children.Add(Icon("", 13, Muted));
         switcherContent.Children.Add(Spaced(Text(ChartName, 20, Ink, FontWeights.Bold), 10));

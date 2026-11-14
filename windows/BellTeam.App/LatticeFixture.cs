@@ -83,6 +83,8 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         Summary("call-bridge", false, 8, 3, 1, 2, 0, ["bot-kiro", "bot-molly", "bot-trony", "bot-rapi"], 34),
         Summary("web-polish", false, 11, 9, 1, 0, 0, ["bot-admi", "bot-flora"], 63),
         Summary("guide", false, 9, 4, 1, 2, 0, ["bot-flora", "bot-ghost", "bot-trony"], 14 * 60),
+        // list-many (a87, as the Apple fixture's many=1): 30 more charts after the five, so 一覧 runs past the window's bottom.
+        .. scene == "list-many" ? Enumerable.Range(1, 30).Select(index => (object)new { projectId = $"extra-{index:00}", name = $"追加の工程表 {index:00}", coordinator = false, createdBy = "bot-rapi", counts = new { total = 6, done = index % 6, working = 1, waiting = 0, blocked = 0 }, activeMembers = new[] { "bot-rapi" }, updatedAt = Ago(20 * (index + 1)), state = "verified" }) : [],
     ];
     private object Summary(string id, bool coordinator, int total, int done, int working, int waiting, int blocked, string[] active, double updated)
         => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
