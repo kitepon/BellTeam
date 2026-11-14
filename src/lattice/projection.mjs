@@ -110,7 +110,8 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
   for (const queue = [...open].filter(([, n]) => n === 0).map(([id]) => id); queue.length;) {
     const id = queue.shift()
     for (const to of next.get(id) ?? []) {
-      cards.get(to).depth = Math.max(cards.get(to).depth, cards.get(id).depth + 1)
+      // An archived card adds no column: the leftmost shown card is column 0 (Owner 2026-11-14, a108).
+      cards.get(to).depth = Math.max(cards.get(to).depth, cards.get(id).archived ? 0 : cards.get(id).depth + 1)
       open.set(to, open.get(to) - 1)
       if (open.get(to) === 0) queue.push(to)
     }

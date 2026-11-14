@@ -130,6 +130,14 @@ test('projection: doneAt; archived = all next cards finished, or (no next card) 
   assert.deepEqual([cards['p1/a'].doneAt, cards['p1/b'].doneAt, cards['p1/e'].doneAt, cards['p1/g'].doneAt, cards['p1/d'].doneAt], [at(3), null, at(7), at(9), null])
 })
 
+test('projection: depth counts shown cards only, so the leftmost shown card is column 0 (Owner 2026-11-14, a108)', () => {
+  const chain = planMember({ tasks: ['a', 'b', 'c', 'd'].map(task_id => ({ task_id })), states: [['a', 'done'], ['b', 'done'], ['c', 'pending'], ['d', 'pending']],
+    deps: [{ from: ref('p1', 'a'), to: ref('p1', 'b') }, { from: ref('p1', 'b'), to: ref('p1', 'c') }, { from: ref('p1', 'c'), to: ref('p1', 'd') }] })
+  const cards = byId(projectChart({ read: readOf([chain], { trees: [{ tree_id: 'p1/a', tasks: ['a', 'b', 'c', 'd'].map(task_id => ({ plan_key: 'p1', task_id })), total: 4, finished: 2 }] }), members: [] }))
+  assert.deepEqual(['a', 'b', 'c', 'd'].map(id => [cards[`p1/${id}`].archived, cards[`p1/${id}`].depth]), [[true, 0], [false, 0], [false, 1], [false, 2]],
+    'a left the chart (its next card b is finished), so b is the first column')
+})
+
 test('projection: cross-plan edges minus tombstones', () => {
   const p1 = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', 'in-progress'], ['t2', 'pending']] })
   const p2 = planMember({ plan: 'p2', tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], scoped: [

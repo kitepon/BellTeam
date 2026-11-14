@@ -21,7 +21,7 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. Use
 Pure function of the snapshot (Apple `LatticeStructure`), the same for Mac / iPad cards and iPhone icons; only the sizes differ.
 
 1. Nodes: the shown cards. Links: `edges` whose two ends are shown cards (an edge touching an archived card or another chart is not drawn, as in 担当).
-2. Column: the card's `depth`, as in 担当.
+2. Column: the card's `depth`, as in 担当 (counted over shown cards only, so the leftmost shown card is the first column; README Projection rules, task a108).
 3. Groups: cards joined by links form a group. Groups go top to bottom in the order of their first card in the snapshot `cards`; groups of one card (no link) go after all linked groups, in the same order.
 4. Rows inside a group, column by column from the left: a card's wanted row = the rounded mean row of its predecessors in the group (a card with none: the next free row of its column, in snapshot order). Cards of one column are sorted by wanted row (ties: snapshot order) and each takes the larger of its wanted row and the next free row of that column. So a chain runs straight, siblings stack under each other, and a join sits between its predecessors.
 5. Sizes: Mac / iPad = the 担当 card and column pitch, a row as tall as its tallest card plus the 担当 stack gap. iPhone = icon 32 pt, column pitch 96 pt, row pitch 52 pt; a row holding an in-progress card is 32 pt taller for its title (11 pt, up to 2 lines, 88 pt wide, centred under the icon).
