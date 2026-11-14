@@ -1,24 +1,37 @@
 // Parent side of the lattice child (docs/architecture/modules/runtime/lattice-child.md).
-// Every root call runs on one serialized chain; while any chart has subscribers, one timer drives a root 'refresh'.
+// One root call at a time (the child runs them one at a time too): seat calls first, background after (doc: Call queue).
+// While any chart has subscribers, one timer drives a root 'refresh'.
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
 const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID'])
 const SLICE = 50
 // Owner 2026-11-12: 「では、1分で。」 (README L13).
 export const NUDGE_MS = 60_000
+const BACKGROUND = new Set(['refresh', 'nudge', 'deliver'])
+// Under the seat MCP caller's 60 s: a call queued longer is never sent, so no write lands after the caller gave up.
+export const QUEUE_WAIT_MS = 50_000
 
-export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
-  let chain = Promise.resolve(), session = 0, timer = null
+  const queues = { seat: [], background: [] }
+  let busy = false, session = 0, timer = null
 
-  const call = (method, params) => {
-    const result = chain.then(() => controller.request(method, params)).catch(error => {
-      if (PASS.has(error?.code)) throw Object.assign(new Error(error.code), { code: error.code, status: error.status ?? 400 })
-      throw unavailable()
-    })
-    chain = result.catch(() => {})
-    return result
+  const pump = () => {
+    while (!busy) {
+      const job = queues.seat.shift() ?? queues.background.shift()
+      if (!job) return
+      if (now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
+      busy = true
+      Promise.resolve().then(() => controller.request(job.method, job.params)).then(job.resolve, error => {
+        job.reject(PASS.has(error?.code) ? Object.assign(new Error(error.code), { code: error.code, status: error.status ?? 400 }) : unavailable())
+      }).finally(() => { busy = false; pump() })
+    }
   }
+
+  const call = (method, params) => new Promise((resolve, reject) => {
+    queues[BACKGROUND.has(method) ? 'background' : 'seat'].push({ method, params, resolve, reject, queuedAt: now() })
+    pump()
+  })
 
   const publish = snapshots => {
     for (const snapshot of snapshots ?? []) for (const send of subscribers.get(snapshot.projectId) ?? []) try { send(snapshot) } catch {}
