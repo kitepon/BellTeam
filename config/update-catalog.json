@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T01:05:44Z",
-  "expiresAt": "2026-11-21T01:05:44Z",
+  "publishedAt": "2026-11-14T03:09:54Z",
+  "expiresAt": "2026-11-21T03:09:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f",
-      "versionId": "a1ac322dbdc66f743aa8612190d3c9a334779ae0a6a5a29165d18f41af4b5c9b",
+      "sourceCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0",
+      "versionId": "50726aaa97a88af687127d9881565dba76cedfd3228e2c15111030b8f2a1201c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-amd64.tar.gz",
-          "bytes": 3971762,
-          "sha256": "a1ac322dbdc66f743aa8612190d3c9a334779ae0a6a5a29165d18f41af4b5c9b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-amd64.tar.gz",
+          "bytes": 3972401,
+          "sha256": "50726aaa97a88af687127d9881565dba76cedfd3228e2c15111030b8f2a1201c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11349,
-          "sha256": "5eb8a6268e943a44501a35c38a68489052b0bf2e68ced12c5edbe7a1b4ef551c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11271,
+          "sha256": "7ec8a94a0a792cd6cf6483d5154a76114b67a5d24d380d4f5dce337cbd4ceb3e"
         },
-        "signerCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f"
+        "signerCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "メンバーがバックグラウンドで作業やエージェントを動かしているあいだは、「仕事中」として数えます。"
+        "Claude のアカウントが『ログアウト』になるのは、API がそのトークンを本当に拒んだときだけにしました。10分ごとの見直しでトークンが使えると分かれば、席がなくても自動で戻ります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f",
-      "versionId": "6a3d7824debb963983a39ea36d8b10b5d52c47e40b96f91bd6a6d2276b75c1a2",
+      "sourceCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0",
+      "versionId": "5307369cb971df9e65f44ba8aa3bb5df6d4b12ec82ba21a5676f4d4f9e46b162",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-arm64.tar.gz",
-          "bytes": 3971762,
-          "sha256": "6a3d7824debb963983a39ea36d8b10b5d52c47e40b96f91bd6a6d2276b75c1a2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-arm64.tar.gz",
+          "bytes": 3972402,
+          "sha256": "5307369cb971df9e65f44ba8aa3bb5df6d4b12ec82ba21a5676f4d4f9e46b162"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T152154Z/execution-3dd556795f2e00cdd98c61c9a477ac6a2510fe9f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11349,
-          "sha256": "5cf5ed4839d2d7d4135e74ad761e9bfff47bf8ac78c6d4117fd8eb7acd9431dc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11067,
+          "sha256": "61f03e5cba4d8ba7d8702e78e6d8d532268d2bb694451c6eca7a4e7b300fcdf1"
         },
-        "signerCommit": "3dd556795f2e00cdd98c61c9a477ac6a2510fe9f"
+        "signerCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "メンバーがバックグラウンドで作業やエージェントを動かしているあいだは、「仕事中」として数えます。"
+        "Claude のアカウントが『ログアウト』になるのは、API がそのトークンを本当に拒んだときだけにしました。10分ごとの見直しでトークンが使えると分かれば、席がなくても自動で戻ります。"
       ]
     },
     {
