@@ -12,7 +12,7 @@ const members = [{ id: 'bot-c', name: 'Cee', deleting: false }, { id: 'bot-a', n
 const card = (taskId, state, lane = 'owner') => ({ plan: 'p1', taskId, title: `Task ${taskId}`, state, lane, doneCondition: 'approved', designMemo: 'why' })
 
 const fail = code => Object.assign(new Error('x'), { code })
-function rig({ charts, decisions = {}, fileFails = false, readFails = null, cancelFails = null, sendDelivery = 'running', record = {} }) {
+function rig({ charts, decisions = {}, fileFails = false, readFails = null, cancelFails = null, sendDelivery = 'running', record = {}, failWrite = () => false }) {
   const calls = [], logs = [], writes = []
   let stored = structuredClone(record), next = 1
   const effect = async (method, params) => {
@@ -29,7 +29,7 @@ function rig({ charts, decisions = {}, fileFails = false, readFails = null, canc
     if (method === 'decisions.cancel') return { status: 'cancelled' }
     throw new Error(method)
   }
-  const records = { read: async () => structuredClone(stored), write: async value => { stored = structuredClone(value); writes.push(stored) } }
+  const records = { read: async () => structuredClone(stored), write: async value => { if (failWrite(value)) throw fail('EIO'); stored = structuredClone(value); writes.push(stored) } }
   return { calls, logs, writes, stored: () => stored,
     go: () => ownerDecisions(charts, { laneOf: laneResolver(members), names: new Map(members.map(m => [m.id, m.name])), bots: new Set(members.map(m => m.id)), records, effect, log: line => logs.push(line) }) }
 }
@@ -75,7 +75,36 @@ test('owner hand-over: an already pending Lattice-filed card is withdrawn with a
   const down = rig({ charts, record: { 'alpha/p1/t1': open('alpha', 't1', 'K-AAAA01') }, cancelFails: 'LATTICE_DECISIONS_UNAVAILABLE' })
   await down.go()
   assert.deepEqual(down.calls.map(([method]) => method), ['decisions.read', 'decisions.cancel'], 'unavailable ends the tick')
-  assert.equal(down.stored()['alpha/p1/t1'].status, 'open', 'not handed over while its old card is still up')
+  assert.equal(down.stored()['alpha/p1/t1'].status, 'reask', 'not handed over while its old card may still be up')
+})
+
+test('owner hand-over: a re-ask survives a cancel that took effect but lost its reply, or a lost write after it; the creator is handed the task once (Epinel #1430)', async () => {
+  const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'ready')] }]
+  const legacy = { 'alpha/p1/t1': { projectId: 'alpha', plan: 'p1', taskId: 't1', title: 'Task t1', decisionId: 'K-AAAA01', status: 'open', filedAt: 'x' } }
+  const status = record => Object.fromEntries(Object.entries(record).map(([key, item]) => [key, item.status]))
+  const handed = x => x.calls.filter(([method]) => method === 'messages.send').length
+  // Tick 1: the cancel reaches Approval Box but its reply is lost.
+  const decisions = {}
+  const lost = rig({ charts, record: legacy, decisions, cancelFails: 'LATTICE_DECISIONS_UNAVAILABLE' })
+  assert.deepEqual(await lost.go(), { filed: 0, routed: 0 })
+  assert.deepEqual([status(lost.stored()), handed(lost)], [{ 'alpha/p1/t1': 'reask' }, 0], 'the intent is durable before the cancel')
+  decisions['K-AAAA01'] = { status: 'cancelled' }
+  // Tick 2: reads cancelled -> handed over once, not closed forever.
+  const next = rig({ charts, record: lost.stored(), decisions })
+  assert.deepEqual(await next.go(), { filed: 1, routed: 0 })
+  assert.deepEqual([status(next.stored()), handed(next)], [{ 'alpha/p1/t1': 'asked' }, 1])
+  const after = rig({ charts, record: next.stored(), decisions })
+  await after.go()
+  assert.deepEqual(after.calls, [], 'once')
+  // A cancel that succeeds but whose delete write fails resumes the same way; a re-ask still pending retries the cancel.
+  const unwritten = rig({ charts, record: legacy, decisions: {}, failWrite: value => !('alpha/p1/t1' in value) })
+  await assert.rejects(unwritten.go(), { code: 'EIO' })
+  assert.deepEqual([status(unwritten.stored()), unwritten.calls.map(([method]) => method)], [{ 'alpha/p1/t1': 'reask' }, ['decisions.read', 'decisions.cancel']])
+  const resumed = rig({ charts, record: unwritten.stored(), decisions })
+  assert.deepEqual(await resumed.go(), { filed: 1, routed: 0 })
+  const retried = rig({ charts, record: unwritten.stored() })
+  await retried.go()
+  assert.deepEqual(retried.calls.map(([method]) => method), ['decisions.read', 'decisions.cancel', 'messages.send'], 'still pending: the cancel is retried, then handed over')
 })
 
 test('owner filing: the answer goes to the chart creator once; cancelled closes; no creator waits; a refused send retries', async () => {

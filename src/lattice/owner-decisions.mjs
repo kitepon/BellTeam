@@ -39,7 +39,7 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
   const byId = new Map(charts.map(chart => [chart.projectId, chart]))
   const cards = new Map(charts.flatMap(chart => chart.cards.map(card => [keyOf(chart.projectId, card), card])))
   for (const [key, item] of Object.entries(record)) {
-    if (item.status !== 'open') continue
+    if (item.status !== 'open' && item.status !== 'reask') continue
     const chart = byId.get(item.projectId)
     let value
     try { value = await effect('decisions.read', { decisionId: item.decisionId }) } catch (error) {
@@ -47,7 +47,8 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
       if (goesOn(error)) continue
       return out
     }
-    if (value.status === 'cancelled') { record[key] = { ...item, status: 'closed' }; await records.write(record); continue }
+    // A seen cancel of a re-ask (its reply or the delete was lost) still hands the task over (Epinel #1430).
+    if (value.status === 'cancelled') { if (item.status === 'reask') delete record[key]; else record[key] = { ...item, status: 'closed' }; await records.write(record); continue }
     // An Owner task that ended on its chart takes its open request with it (Chime 2026-11-13); an unseen card is never taken as ended.
     const ended = ENDED[cards.get(key)?.state]
     if (ended && (value.status === 'pending' || value.status === 'held')) {
@@ -63,8 +64,10 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     }
     // A legacy Lattice-filed card the Owner cannot read is withdrawn and handed to the creator below, in this tick (L19).
     const creator = chart?.createdBy
-    if ((value.status === 'pending' || value.status === 'held') && OPEN.has(cards.get(key)?.state) && bots.has(creator)) {
-      try { await effect('decisions.cancel', { decisionId: item.decisionId, reason: REASK(names.get(creator) ?? creator) }) } catch (error) {
+    if ((value.status === 'pending' || value.status === 'held') && (item.status === 'reask' || (OPEN.has(cards.get(key)?.state) && bots.has(creator)))) {
+      // The intent is durable before the cancel, so an ambiguous cancel or a failed write resumes next tick.
+      if (item.status !== 'reask') { record[key] = { ...item, status: 'reask' }; await records.write(record) }
+      try { await effect('decisions.cancel', { decisionId: item.decisionId, reason: REASK(names.get(creator) ?? creator ?? '担当のBot') }) } catch (error) {
         log(`lattice-owner-cancel ${key} ${error?.code ?? 'FAILED'}`)
         if (error?.code === 'LATTICE_DECISIONS_UNAVAILABLE') return out
         continue
