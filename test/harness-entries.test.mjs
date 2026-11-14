@@ -77,13 +77,13 @@ test('one changed claude entry gives exactly one remove and add-json for that se
   assert.deepEqual(f.requests.map(([method]) => method), ['config/read'])
 })
 
-test('a changed codex entry is replaced through config/batchWrite for that key only', async () => {
+test('a changed codex entry is upserted through config/batchWrite for that key only (undeclared keys stay)', async () => {
   const changed = { ...typesafe, codex: { url: 'https://new.invalid/mcp' } }
   const f = await fixture({ products: { typesafe: e1('typesafe', changed) } })
   await f.apply()
   const batch = f.requests.filter(([method]) => method === 'config/batchWrite')
   assert.equal(batch.length, 1)
-  assert.deepEqual(batch[0][1].edits, [{ keyPath: 'mcp_servers.typesafe', value: changed.codex, mergeStrategy: 'replace' }])
+  assert.deepEqual(batch[0][1].edits, [{ keyPath: 'mcp_servers.typesafe', value: changed.codex, mergeStrategy: 'upsert' }])
   assert.deepEqual(f.reports, [])
 })
 
@@ -122,4 +122,13 @@ test('a product that also has hooks is skipped and reported', async () => {
   assert.deepEqual(writes(f.calls), [])
   assert.match(f.reports[0], /xarticle.*hooks/u)
   assert.equal(JSON.parse(await readFile(join(f.home, '.claude.json'), 'utf8')).mcpServers.xarticle.url, xarticle.claude.url)
+})
+
+test('merge rule: declared keys win, undeclared keys and env keys stay, env:{} clears nothing', async () => {
+  const { mergeEntry } = await import('../src/harness-entries.mjs')
+  const current = { command: '/old', args: ['x'], env: { A: '1', B: '2' }, startup_timeout_sec: 90, custom: true }
+  assert.deepEqual(mergeEntry(current, { command: '/new', args: [], env: { B: '3' } }),
+    { command: '/new', args: [], env: { A: '1', B: '3' }, startup_timeout_sec: 90, custom: true })
+  assert.deepEqual(mergeEntry(current, { command: '/old', args: ['x'], env: {} }).env, { A: '1', B: '2' })
+  assert.deepEqual(mergeEntry(undefined, { url: 'u' }), { url: 'u' })
 })

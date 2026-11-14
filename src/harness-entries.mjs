@@ -13,6 +13,10 @@ const HARNESSES = ['claude', 'codex', 'grok', 'cursor', 'gemini']
 const REGISTRY = fileURLToPath(new URL('../config/harness-products.json', import.meta.url))
 const execFileAsync = promisify(execFile)
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+// E1 merge rule (contract v1.1): the product's declared keys win; existing keys it does not declare stay; env merges by key (E1 wins), so env:{} clears nothing.
+export const mergeEntry = (current, entry) => isObject(current)
+  ? { ...current, ...entry, ...(isObject(current.env) || isObject(entry.env) ? { env: { ...current.env, ...entry.env } } : {}) }
+  : entry
 
 async function readJson(path) {
   try { return JSON.parse(await readFile(path, 'utf8')) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
@@ -57,17 +61,20 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
   const sync = {
     async claude({ name, entry }) {
       const current = (await readJson(join(home, '.claude.json')))?.mcpServers?.[name]
-      if (isDeepStrictEqual(current, entry)) return
+      const wanted = mergeEntry(current, entry)
+      if (isDeepStrictEqual(current, wanted)) return
       if (current !== undefined) await run('claude', ['mcp', 'remove', name, '--scope', 'user'], { env })
-      await run('claude', ['mcp', 'add-json', name, JSON.stringify(entry), '--scope', 'user'], { env })
+      await run('claude', ['mcp', 'add-json', name, JSON.stringify(wanted), '--scope', 'user'], { env })
     },
     // `grok mcp add` has no flag for startup_timeout_sec and the like: such a differing entry is reported, never hand-edited into the TOML.
     async grok({ name, entry }) {
       grokList ??= run('grok', ['mcp', 'list', '--json'], { env, cwd: home }).then(({ stdout }) => JSON.parse(stdout))
       const current = (await grokList).find(server => server.name === name && server.scope === 'user')
-      const { enabled, url, command, args, headers, env: serverEnv, ...rest } = entry
-      const wanted = { enabled: true, ...entry, ...(command !== undefined && args === undefined ? { args: [] } : {}) }
-      if (current) { const { name: _name, scope: _scope, ...native } = current; if (isDeepStrictEqual(native, wanted)) return }
+      const { name: _name, scope: _scope, ...native } = current ?? {}
+      const merged = mergeEntry(current ? native : undefined, entry)
+      const wanted = { enabled: true, ...merged, ...(merged.command !== undefined && merged.args === undefined ? { args: [] } : {}) }
+      if (current && isDeepStrictEqual(native, wanted)) return
+      const { enabled, url, command, args, headers, env: serverEnv, ...rest } = wanted
       const missing = [...Object.keys(rest), ...(enabled !== undefined && enabled !== true ? ['enabled'] : [])]
       if (missing.length || (url === undefined) === (command === undefined)) throw new Error(`grok mcp addでは ${missing.join(', ') || 'url/command'} を書けません`)
       if (current) await run('grok', ['mcp', 'remove', name, '--scope', 'user'], { env, cwd: home })
@@ -95,7 +102,7 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
           try {
             if (!codexMatches(current[item.name], item.entry)) {
               const keyPath = /^[\w-]+$/u.test(item.name) ? `mcp_servers.${item.name}` : `mcp_servers.${JSON.stringify(item.name)}`
-              await request('config/batchWrite', { edits: [{ keyPath, value: item.entry, mergeStrategy: 'replace' }], filePath: join(home, '.codex/config.toml') })
+              await request('config/batchWrite', { edits: [{ keyPath, value: item.entry, mergeStrategy: 'upsert' }], filePath: join(home, '.codex/config.toml') })
               if (!codexMatches((await read())[item.name], item.entry)) throw new Error('書いた後の読み戻しが一致しません')
             }
             done(item)
@@ -116,16 +123,16 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
 
 async function mergeJson(path, { name, entry }) {
   const current = await readJson(path) ?? {}
-  if (isDeepStrictEqual(current.mcpServers?.[name], entry)) return
+  const wanted = mergeEntry(current.mcpServers?.[name], entry)
+  if (isDeepStrictEqual(current.mcpServers?.[name], wanted)) return
   await mkdir(dirname(path), { recursive: true })
-  await writeAtomic(path, { ...current, mcpServers: { ...current.mcpServers, [name]: entry } })
+  await writeAtomic(path, { ...current, mcpServers: { ...current.mcpServers, [name]: wanted } })
 }
 
-// config/read returns the entry with the app-server's defaults added (environment_id, enabled, null timeouts).
-// shortcut: a non-default key the E1 entry does not name is not noticed, upgrade when a product needs it removed.
+// Merge rule: only the keys E1 declares must match (env: only E1's env keys); keys E1 does not declare are the seat's and stay (upsert).
 function codexMatches(current, entry) {
   if (!isObject(current)) return false
-  const defaults = { environment_id: 'local', enabled: true }
-  return Object.entries(entry).every(([key, value]) => isDeepStrictEqual(current[key], value))
-    && Object.entries(current).every(([key, value]) => key in entry || value === null || isDeepStrictEqual(defaults[key], value))
+  return Object.entries(entry).every(([key, value]) => key === 'env' && isObject(value)
+    ? Object.entries(value).every(([name, item]) => isDeepStrictEqual(current.env?.[name], item))
+    : isDeepStrictEqual(current[key], value))
 }

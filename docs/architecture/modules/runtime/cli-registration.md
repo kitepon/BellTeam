@@ -142,8 +142,9 @@ First slice (MCP-only products, 2026-11-14): E2 is [config/harness-products.json
 | Function | Role |
 | --- | --- |
 | `parseEntries(product, value)` | E1 v1.1 check: schema, product name, `mcpServers` shape, five harness keys. A product with non-empty hooks/permissions/settings throws (out of scope for this slice) and is reported and skipped. |
+| `mergeEntry(current, entry)` | The E1 merge rule: E1's declared keys win, existing undeclared keys stay, `env` merges by key (E1 wins), `env:{}` clears nothing. claude/grok/cursor/gemini write the merged whole entry. |
 | `configureHarnessEntries(home, deps)` | Per product (E2 order) and per (server, harness): read the seat's current entry, write only when it differs, then record `harness:server` in `applied.json`. An invalid or missing E1 leaves that product's state and record untouched. A failed entry is reported and not recorded; the rest continue. |
 | claude | read `~/.claude.json` `mcpServers[name]`; write `claude mcp remove <name> --scope user` (only if present) then `claude mcp add-json <name> <json> --scope user`. |
-| codex | `codexAppServer` (exported from rtk-hooks.mjs): `config/read` compares each E1 key (the app-server adds `environment_id`, `enabled`, null timeouts, which are ignored); write `config/batchWrite` `mcp_servers.<name>`, `replace`, then read back. |
+| codex | `codexAppServer` (exported from rtk-hooks.mjs): `config/read` compares only the keys E1 declares (env: only E1's env keys); write `config/batchWrite` `mcp_servers.<name>`, `upsert` (undeclared keys stay), then read back. |
 | grok | read `grok mcp list --json` (scope `user`); write `grok mcp remove` then `grok mcp add --scope user` for `command`/`args`/`url`/`env`/`headers`/`enabled: true`. `grok mcp add` has no flag for `startup_timeout_sec` (or any other key): a differing entry with such a key is reported, never hand-edited into the TOML. An identical entry (today's xarticle, `startup_timeout_sec: 60`) is verified and written nothing. |
 | cursor, gemini | `~/.cursor/mcp.json` and `~/.gemini/config/mcp_config.json`: `mcpServers[name]` merged through `writeAtomic`, every other key kept. |
