@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T09:40:54Z",
-  "expiresAt": "2026-11-21T09:40:54Z",
+  "publishedAt": "2026-11-14T10:03:06Z",
+  "expiresAt": "2026-11-21T10:03:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
-      "versionId": "sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07",
+      "sourceCommit": "56b03cdd1273063db1c3938547e7ccd5bcdb2eba",
+      "versionId": "sha256:9380e1b9a0517e50af67b4040d7f2783f4184a3ad532ec04e92dc167efe6fc5c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9380e1b9a0517e50af67b4040d7f2783f4184a3ad532ec04e92dc167efe6fc5c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -725,20 +725,21 @@
       },
       "changes": [
         "工程表の数で数える工程を受け付けるようにしました。製品の MCP 登録の一覧が本体に入り、xarticle と typesafe の登録が実際に書かれるようになりました。",
-        "通話ブリッジの設定の取り込みが、取り込んだ Bot の番を待たずに終わるようにしました。"
+        "通話ブリッジの設定の取り込みが、取り込んだ Bot の番を待たずに終わるようにしました。",
+        "Bot が自分で出した合鍵を、自分の席のコマンドへ安全に渡せるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
-      "versionId": "sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07",
+      "sourceCommit": "56b03cdd1273063db1c3938547e7ccd5bcdb2eba",
+      "versionId": "sha256:9380e1b9a0517e50af67b4040d7f2783f4184a3ad532ec04e92dc167efe6fc5c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9380e1b9a0517e50af67b4040d7f2783f4184a3ad532ec04e92dc167efe6fc5c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +749,8 @@
       },
       "changes": [
         "工程表の数で数える工程を受け付けるようにしました。製品の MCP 登録の一覧が本体に入り、xarticle と typesafe の登録が実際に書かれるようになりました。",
-        "通話ブリッジの設定の取り込みが、取り込んだ Bot の番を待たずに終わるようにしました。"
+        "通話ブリッジの設定の取り込みが、取り込んだ Bot の番を待たずに終わるようにしました。",
+        "Bot が自分で出した合鍵を、自分の席のコマンドへ安全に渡せるようにしました。"
       ]
     },
     {
