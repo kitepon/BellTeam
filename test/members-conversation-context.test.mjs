@@ -43,7 +43,9 @@ test('accepted deletion retains the same Room context and delays drain until bac
     async remove(id, options) { check('remove', options); assert.equal(id, bot.id); return { id } },
   }
   const result = await startMemberRemoval(bot.id, { bots,
-    transport: { membersAdmission: admission, async stop(value, version, options) { assert.equal(value, bot); assert.equal(version, undefined); check('stop', options) } },
+    transport: { membersAdmission: admission, async stop(value, version, { allSessions, ...options }) {
+      // Deletion closes every session of the member; the rest of the options is the same lease context.
+      assert.equal(value, bot); assert.equal(version, undefined); assert.equal(allSessions, true); assert.deepEqual(options, context); check('stop', context) } },
     rooms: { async removeBot(id, options) { check('rooms.remove', options); roomEntered.resolve(); await release.promise } },
     onRemoved: id => { assert.equal(id, bot.id); calls.push('removed') }, writeLog: line => assert.fail(line),
   })

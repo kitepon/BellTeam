@@ -15,11 +15,14 @@ function gates() {
   const members = new MembersAdmission('members')
   // Kiro's conversation lifetime gate and real IPC are later integration boundaries.
   const conversation = new MembersAdmission('conversation')
+  // The shared context checks the conversation lease is current (ConversationLifetimes); this stand-in has one epoch per lease.
+  conversation.assertCurrentLease = lease => conversation.assertLease(lease)
   return { members, conversation, operations: createModuleOperationContext({ membersAdmission: members, conversationAdmission: conversation }) }
 }
 
 test('real common reservation rejects either closed peer before scheduler or removal effects', async () => {
   for (const peer of ['members', 'conversation']) for (const operation of ['schedule', 'remove']) {
+    if (peer === 'members' && operation === 'schedule') continue // held until resume, below
     const f = gates(), closed = f[peer].close()
     const unexpected = () => assert.fail('effect before both admissions')
     const bots = { refresh: unexpected, get: unexpected }, transport = { membersAdmission: f.members, stop: unexpected }
@@ -31,6 +34,18 @@ test('real common reservation rejects either closed peer before scheduler or rem
     await other.drain(other.close())
     await f[peer].drain(closed)
   }
+})
+
+test('a scheduler run during a members exchange is held until resume, then reserves both leases (a123)', async () => {
+  const f = gates(), closed = f.members.close()
+  let reached = false
+  const bots = { async refresh(context) { reached = true; f.operations.assert(context) }, values: () => [] }
+  const running = new BotScheduler({ registry: bots, transport: { membersAdmission: f.members }, moduleOperations: f.operations }).runDue(now)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(reached, false)
+  await f.members.drain(closed); f.members.resume(closed)
+  await running
+  assert.equal(reached, true)
 })
 
 test('real reservation and Room CAS keep consumed latest targets and both leases through publication', async t => {
@@ -75,7 +90,8 @@ test('real combined admission holds both drains beyond deletion 202 until remova
     async remove(id, value) { assert.equal(value, context); f.operations.assert(value); entered.resolve(); await release.promise; return { id } } }
   const admin = new BotAdministration({ bots, moduleOperations: f.operations, writeLog: line => assert.fail(line),
     rooms: { async removeBot(id, value) { assert.equal(value, context); f.operations.assert(value); tickets = [f.members.close(), f.conversation.close()] } },
-    transport: { membersAdmission: f.members, async stop(bot, version, value) { assert.equal(value, context); f.operations.assert(value) } } })
+    transport: { membersAdmission: f.members, async stop(bot, version, { allSessions, ...value }) {
+      assert.equal(allSessions, true); assert.deepEqual(value, context); f.operations.assert(context) } } })
   const finish = f.operations.finish
   f.operations.finish = value => { finish(value); completed.resolve() }
   assert.deepEqual(await admin.remove('bot-a'), { deleting: 'bot-a' })

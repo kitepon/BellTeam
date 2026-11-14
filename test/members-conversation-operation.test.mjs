@@ -94,7 +94,8 @@ for (const pending of [false, true]) {
       async remove(id, context) { check(context); calls.push('remove'); entered.resolve(); await release.promise; return { id } } }
     const admin = new BotAdministration({ bots, moduleOperations: ops,
       transport: { membersAdmission: { enter: () => assert.fail('members-only admission') },
-        async stop(bot, version, context) { check(context); assert.equal(version, undefined); calls.push('stop') } },
+        async stop(bot, version, { allSessions, ...context }) {
+          assert.equal(allSessions, true); assert.deepEqual(context, ops.contexts[0]); check(ops.contexts[0]); assert.equal(version, undefined); calls.push('stop') } },
       rooms: { async removeBot(id, context) { check(context); calls.push('rooms.remove'); ops.closed = true } },
       writeLog: line => assert.fail(line) })
     assert.deepEqual(await admin.remove('bot-a'), { deleting: 'bot-a' })
