@@ -294,7 +294,12 @@ internal sealed class LatticeChartPage : Grid
     private readonly Dictionary<string, Border> historyFrames = [];
     private readonly ScrollViewer scroller;
     private readonly Grid stage = new();
-    private readonly StackPanel toolbar = new() { Orientation = Orientation.Horizontal };
+    // Wraps: when one line does not fit, the progress ring and counters go to a second row (never cut off at the window's edge).
+    private readonly WrapPanel toolbar = new();
+    // 待ちの流れ open or folded to the right-edge handle: folded by default, remembered while the app is open (screen-spec "工程表", Owner 2026-11-14).
+    internal static bool WaitsOpen { get; set; }
+    private readonly ContentControl waitHandle = new() { VerticalAlignment = VerticalAlignment.Stretch, Margin = new Thickness(6, 4, 16, 16) };
+    private readonly TextBlock waitCount = Text("", 12, Violet, FontWeights.SemiBold);
     private readonly Border bannerHost = new();
     private readonly StackPanel rail = new() { Margin = new Thickness(0, 6, 0, 0) };
     private readonly StackPanel waits = new();
@@ -336,10 +341,17 @@ internal sealed class LatticeChartPage : Grid
         stage.Children.Add(railGlass);
         SetColumn(board, 1); board.Margin = new Thickness(4, 4, 6, 16); stage.Children.Add(board);
         var waitScroll = waitScroller = new ScrollViewer { Content = waits, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var waitBody = new DockPanel(); var heading = Row(Shape(HourglassGeometry, 13, Violet), Spaced(Text("待ちの流れ", 16, Ink, FontWeights.Bold), 8)); heading.Margin = new Thickness(4, 0, 0, 12); DockPanel.SetDock(heading, Dock.Top);
+        var close = Plain(new Border { Child = Chevrons(left: false), Width = 30, Height = 30 }, "待ちの流れを閉じる"); close.ToolTip = "待ちの流れを閉じる"; close.Click += (_, _) => ToggleWaits();
+        System.Windows.Automation.AutomationProperties.SetAutomationId(close, "lattice-waits-close");
+        var countPill = Pill(waitCount, Violet, 0x1F, new Thickness(9, 3, 9, 3)); countPill.Margin = new Thickness(0, 0, 4, 0);
+        var heading = new DockPanel { Margin = new Thickness(4, 0, 0, 12) }; DockPanel.SetDock(close, Dock.Right); DockPanel.SetDock(countPill, Dock.Right);
+        heading.Children.Add(close); heading.Children.Add(countPill); heading.Children.Add(Row(Shape(HourglassGeometry, 13, Violet), Spaced(Text("待ちの流れ", 16, Ink, FontWeights.Bold), 8)));
+        var waitBody = new DockPanel(); DockPanel.SetDock(heading, Dock.Top);
         waitBody.Children.Add(heading); waitBody.Children.Add(waitScroll);
         waitPanel = Glass(waitBody, 22, new Thickness(14, 16, 14, 12), 0xC7); waitPanel.Margin = new Thickness(6, 4, 16, 16);
         SetColumn(waitPanel, 2); stage.Children.Add(waitPanel);
+        SetColumn(waitHandle, 2); stage.Children.Add(waitHandle);
+        ApplyWaits();
         overlay.Children.Add(stage); overlay.Children.Add(pills);
         SetColumnSpan(detailHost, 1); board.Children.Add(detailHost);
         SetRow(overlay, 2); Children.Add(overlay);
@@ -444,11 +456,12 @@ internal sealed class LatticeChartPage : Grid
         if (snapshot is null or { State: "unavailable" }) return;
         toolbar.Children.Add(ViewSwitch(LatticeChart.History(snapshot, window.Now()).Count));
         var counts = LatticeChart.Counts(snapshot);
-        var ring = new LatticeRing(counts.Done, counts.Total, 40) { Margin = new Thickness(26, 0, 0, 0) }; toolbar.Children.Add(ring);
-        toolbar.Children.Add(Spaced(new StackPanel { Children = { Text("完了", 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8));
-        toolbar.Children.Add(Counter(Arc(14, Violet, 1.8), "作業中", counts.Working, Violet, 22));
-        toolbar.Children.Add(Counter(Shape(HourglassGeometry, 11, Violet), "待ち", counts.Waiting, Violet, 8));
-        toolbar.Children.Add(Counter(Shape(OctagonGeometry, 13, Red), "止まり", counts.Blocked, Red, 8));
+        var progress = Row(new LatticeRing(counts.Done, counts.Total, 40),
+            Spaced(new StackPanel { Children = { Text("完了", 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8),
+            Counter(Arc(14, Violet, 1.8), "作業中", counts.Working, Violet, 22),
+            Counter(Shape(HourglassGeometry, 11, Violet), "待ち", counts.Waiting, Violet, 8),
+            Counter(Shape(OctagonGeometry, 13, Red), "止まり", counts.Blocked, Red, 8));
+        progress.Margin = new Thickness(26, 2, 0, 2); toolbar.Children.Add(progress);
     }
     /// <summary>The segmented control ツリー / 担当 / 過去ログ N.</summary>
     private Border ViewSwitch(int finished)
@@ -560,10 +573,39 @@ internal sealed class LatticeChartPage : Grid
     }
     internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); Tree.Highlight(botId); ApplyHistory(); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
 
+    internal void ToggleWaits() { WaitsOpen = !WaitsOpen; ApplyWaits(); }
+    private void ApplyWaits()
+    {
+        stage.ColumnDefinitions[2].Width = WaitsOpen ? new GridLength(360) : GridLength.Auto;
+        waitPanel.Visibility = WaitsOpen ? Visibility.Visible : Visibility.Collapsed;
+        waitHandle.Visibility = WaitsOpen ? Visibility.Collapsed : Visibility.Visible;
+    }
+    /// <summary>The folded 待ちの流れ: a slim handle on the right edge (hourglass + count; the count is red when a row waits on a blocked producer). Pressing it opens the panel.</summary>
+    private void RenderWaitHandle(int count, bool emphasized)
+    {
+        waitCount.Text = $"{count}件";
+        var tone = emphasized ? Red : Violet;
+        var number = Pill(Text($"{count}", 13, tone, FontWeights.Bold), tone, 0x1F, new Thickness(7, 2, 7, 2)); number.HorizontalAlignment = HorizontalAlignment.Center;
+        var face = new StackPanel { Children = { Chevrons(left: true), Shape(HourglassGeometry, 15, Ink), number }, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
+        foreach (FrameworkElement part in face.Children) { part.HorizontalAlignment = HorizontalAlignment.Center; part.Margin = new Thickness(0, 0, 0, 10); }
+        var glass = Glass(face, 22, new Thickness(0, 18, 0, 18), 0xC7); glass.Width = 44;
+        var handle = Plain(glass, $"待ちの流れを開く、{count}件"); handle.ToolTip = "待ちの流れを開く"; handle.VerticalContentAlignment = VerticalAlignment.Stretch; handle.Click += (_, _) => ToggleWaits();
+        System.Windows.Automation.AutomationProperties.SetAutomationId(handle, "lattice-waits-open");
+        waitHandle.Content = handle;
+    }
+    // Two chevrons: ‹‹ opens the folded panel, ›› folds it.
+    private static System.Windows.Shapes.Path Chevrons(bool left) => new()
+    {
+        Data = Geometry.Parse(left ? "M4,0 L0,4 L4,8 M9,0 L5,4 L9,8" : "M0,0 L4,4 L0,8 M5,0 L9,4 L5,8"), Stroke = Brush(Muted), StrokeThickness = 1.7,
+        StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Width = 10, Height = 9, Stretch = Stretch.Uniform,
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+    };
+
     private void RenderWaits(LatticeSnapshot snapshot, DateTimeOffset now)
     {
         waits.Children.Clear();
         var rows = LatticeChart.WaitRows(snapshot, now);
+        RenderWaitHandle(rows.Count, rows.Any(row => row.Emphasized));
         var on = HighlightedMember is { } member ? LatticeChart.Highlight(snapshot, member).Waits : null;
         if (rows.Count == 0) { var none = Text("いま待っている工程はありません。", 13, Muted, null, TextWrapping.Wrap); none.Margin = new Thickness(4); waits.Children.Add(none); return; }
         foreach (var row in rows)

@@ -254,6 +254,35 @@ public sealed class LatticeChartTests
         chart.Stop(); window.Close();
     });
 
+    // Owner 2026-11-14 (a74): 待ちの流れ starts folded as the right-edge handle with the wait count; the handle opens it, its close button folds it.
+    [Fact]
+    public void TheWaitFlowStartsFoldedAndTheHandleOpensAndFoldsIt() => RunSta(() =>
+    {
+        LatticeChartPage.WaitsOpen = false;
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("chart")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        window.Sync(); Until(() => window.ListSettled);
+        window.OpenChart("lattice"); var chart = window.Chart!;
+        Until(() => chart.Feed.Snapshot is not null);
+        Button Find(string id) => LogicalTree.Find<Button>(window.Content).Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == id);
+        Visibility Shown(Button button) => ((FrameworkElement)LogicalTreeHelper.GetParent(button) is ContentControl host ? host : FindPanel(button)).Visibility;
+        FrameworkElement FindPanel(DependencyObject element) { var at = element; while (at is not null && !(at is Border { Child: DockPanel })) at = LogicalTreeHelper.GetParent(at); return (FrameworkElement)at!; }
+        var rows = LatticeChart.WaitRows(chart.Feed.Snapshot!, window.Now()).Count;
+        Assert.True(rows > 0);
+        Assert.Equal($"待ちの流れを開く、{rows}件", System.Windows.Automation.AutomationProperties.GetName(Find("lattice-waits-open")));
+        Assert.Equal(Visibility.Visible, Shown(Find("lattice-waits-open")));
+        Assert.Equal(Visibility.Collapsed, Shown(Find("lattice-waits-close")));
+        Find("lattice-waits-open").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(LatticeChartPage.WaitsOpen);
+        Assert.Equal(Visibility.Collapsed, Shown(Find("lattice-waits-open")));
+        Assert.Equal(Visibility.Visible, Shown(Find("lattice-waits-close")));
+        Find("lattice-waits-close").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.False(LatticeChartPage.WaitsOpen);
+        Assert.Equal(Visibility.Visible, Shown(Find("lattice-waits-open")));
+        chart.Stop(); window.Close();
+    });
+
     [Fact]
     public void AnOlderServerListSaysWhatHappensNext() => RunSta(() =>
     {

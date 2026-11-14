@@ -332,6 +332,8 @@ public partial class App : Application
                 if (model.ConnectionError is { } latticeFailure) throw new BellApiException(latticeFailure);
                 var lattice = new LatticeWindow(model, _ => Task.CompletedTask) { Rendering = true, Clock = () => 2300 };
                 LatticeChartPage.View = latticeScene switch { "tree" or "tree-detail" or "owner" or "stops-open" => "tree", "history" => "history", _ => "lanes" };
+                // 待ちの流れ is folded by default; "waits" draws the lanes with it open, the scenes that show a wait row's content keep it open too.
+                LatticeChartPage.WaitsOpen = latticeScene is "waits" or "external";
                 const int latticeWidth = 1360, latticeHeight = 860;
                 var latticeRoot = (FrameworkElement)lattice.Content;
                 async Task Until(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }

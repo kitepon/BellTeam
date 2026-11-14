@@ -144,7 +144,10 @@ internal sealed class LatticeRing : FrameworkElement
             context.DrawGeometry(null, new Pen(new LinearGradientBrush(Color.FromRgb(0x8B, 0x6C, 0xF0), LatticeLook.Violet, 90), thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, new PathGeometry([figure]));
         }
         if (label.Length == 0) return;
-        var text = new FormattedText(label, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(new FontFamily("Yu Gothic UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), Math.Max(9, size * .27), LatticeLook.Brush(LatticeLook.Ink), VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        FormattedText Label(double em) => new(label, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(new FontFamily("Yu Gothic UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), em, LatticeLook.Brush(LatticeLook.Ink), VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        // As the Mac's minimumScaleFactor(0.6): a long count shrinks to fit inside the ring instead of spilling over it.
+        var em = Math.Max(9, size * .27); var text = Label(em); var inside = 2 * radius - thickness - 2;
+        if (text.Width > inside) text = Label(em * Math.Max(.6, inside / text.Width));
         context.DrawText(text, new Point(center.X - text.Width / 2, center.Y - text.Height / 2));
     }
 }
