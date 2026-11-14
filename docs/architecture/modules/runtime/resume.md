@@ -56,7 +56,7 @@ supervisorは既起動lockを保持したままrestoreをawaitする。H1中のs
 
 ## sourceと直接確認
 
-正式供給後の実物境界は `scripts/verify-resume-runtime.py IMAGE OUTPUT` で検査する。配布担当の既native両arch CIが、build済みimmutable imageを渡す。固有prefixの合成HOME・旧新state・private volumeだけを作り、実helper/1001受取/1000 CLI/本体C入口とsupervisorを通す。bootstrapの先頭だけを読取専用の停止標識へ差し替え、復元・採用より後のimport到達を観測する。実vendorや資格を使わず、製品runtimeは差し替えない。終了時は今回のcontainer/volumeだけを除去し、safe結果を保存する。既fixture成功数や本番受入へ加算しない。
+正式供給後の実物境界は `scripts/verify-resume-runtime.py IMAGE OUTPUT` で検査する。配布担当の既native両arch CIが、build済みimmutable imageを渡す。固有prefixの合成HOME・旧新state・private volumeだけを作り、実helper/1001受取/本体C入口とsupervisorを通す。Aiterm側は公開resume-state CLI契約だけで確認する：imageのpackage `exports`が示す`resume-state-cli`の実ファイル（`resumeStateEntry`としてreportに記録、dist pathは固定しない）を、固定1対象（session `offline`）の契約stub（`test/helpers/resume-state-contract-stub.mjs`）で読取専用に差し替え、checkpoint helper・boot containerの両方でBellTeamのcapture→private保存→restore→採用→再投入なしを通す。stubは契約どおりのstdout bytes/stderr receipt、`$HOME/h1-restored-checkpoint`への復元、不一致は`aiterm: RESUME_STATE_UNCONFIRMED`でexit 2。差し替え無しの実CLIは存在しないlaunchのcheckpointを1回だけ呼び、exit 2と同一1行のstderrを確認する（`real-cli-refusal`）。Aiterm内部のstate記録は書かず読まず、往復のbyte一致はAiterm自身のCIの事実とする。bootstrapの先頭だけを読取専用の停止標識へ差し替え、復元・採用より後のimport到達を観測する。実vendorや資格を使わず、製品runtimeは差し替えない。終了時は今回のcontainer/volumeだけを除去し、safe結果を保存する。既fixture成功数や本番受入へ加算しない。
 
 検査の`network none`実行には固有hostnameと127.0.0.1のhosts対応を渡す。外部通信を許可せずsudoの自己hostname解決を満たし、席UID検査でstderr空を確認する。初回41529449686のrestore失敗は未受入のまま保持する。診断41530989746は両archでsudoのhostname解決警告を再現し、`/run` tmpfs有無による差は無かった。byte protocolのstderr拒否は変更しない。これは既検査構成の修理で、機能・公開窓口・データ所有・全体図の接続は変わらない。
 

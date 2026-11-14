@@ -81,7 +81,7 @@ if(e.TEST_PREPARE){
   m.services['aiterm-checkpoint'].volumes[1].source=e.BELLTEAM_AITERM_CHECKPOINT_HOME;
   console.log(JSON.stringify(m));process.exit(0);
  }
- if(a.includes('-e')&&a[a.indexOf('-e')+1].includes('resume-state-cli.js')){
+ if(a.includes('-e')&&a[a.indexOf('-e')+1].includes('aiterm-resume-state')){
   const old=a.includes('sha256:'+'d'.repeat(64));process.exit(e.TEST_CLI_MISSING===(old?'old':'new')?1:0);
  }
  if(a.includes('-e')&&a[a.indexOf('-e')+1].includes('fs.chownSync')){

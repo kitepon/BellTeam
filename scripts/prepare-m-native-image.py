@@ -111,20 +111,17 @@ def install(inputs):
     link.unlink()
     link.symlink_to(prefix / 'bin/codex')
     with tempfile.TemporaryDirectory(prefix='bellteam-m-npm-') as cache:
+        # bd04/bd06 (Elegg 0.70.58): the package is handled whole by its digest-checked tarball and version; its dependencies come from its own install, never npm ci inside it.
         subprocess.run(['npm', 'install', '--global', '--prefix', '/usr/local', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', cache, str(inputs / 'aiterm.tgz')], check=True)
-        subprocess.run(['npm', 'ci', '--prefix', '/usr/local/lib/node_modules/aiterm-mcp', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', cache], check=True)
-    installed = Path('/usr/local/lib/node_modules/aiterm-mcp')
     with tarfile.open(inputs / 'aiterm.tgz') as archive:
-        selected = [m for m in archive.getmembers() if m.isfile() and m.name.startswith('package/dist/') and m.name.endswith('.js')]
-        require(len(selected) == 147, 'M_AITERM_CODE_INVENTORY')
-        for member in [*selected, archive.getmember('package/npm-shrinkwrap.json')]:
-            require((installed / member.name.removeprefix('package/')).read_bytes() == archive.extractfile(member).read(), 'M_AITERM_INSTALLED_CODE_LOCK')
-    subprocess.run(['node', '-e', 'const p="/usr/local/lib/node_modules/aiterm-mcp"; if(require(p+"/node_modules/@modelcontextprotocol/sdk/package.json").version!=="1.32.2") process.exit(1)'], check=True)
+        supplied = json.load(archive.extractfile('package/package.json'))
+    installed = json.loads(Path('/usr/local/lib/node_modules/aiterm-mcp/package.json').read_text())
+    require(installed['name'] == supplied['name'] == 'aiterm-mcp' and installed['version'] == supplied['version'], 'M_AITERM_INSTALLED_VERSION')
     version = subprocess.check_output([str(link), '--version'], text=True).strip()
     require(version == 'codex-cli ' + value['cliVersion'], 'M_CLI_VERSION')
     for command in [['app-server', '--help'], ['resume', '--help']]:
         subprocess.run([str(link), *command], stdout=subprocess.DEVNULL, check=True)
-    print(json.dumps({'nativeSource': CLI_SOURCE, 'cliVersion': value['cliVersion'], 'sdk': '1.32.2', 'normalCli': str(prefix / 'bin/codex'), 'actualRootSequence': False}))
+    print(json.dumps({'nativeSource': CLI_SOURCE, 'cliVersion': value['cliVersion'], 'aiterm': installed['version'], 'normalCli': str(prefix / 'bin/codex'), 'actualRootSequence': False}))
 
 
 if __name__ == '__main__':

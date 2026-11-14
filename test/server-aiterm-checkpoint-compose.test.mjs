@@ -11,7 +11,7 @@ test('offline checkpointは席UIDとreadonlyの旧state/HOMEだけを受け取�
   assert.equal(service.network_mode, 'none')
   assert.deepEqual(service.cap_drop, ['ALL'])
   assert.deepEqual(service.security_opt, ['no-new-privileges:true'])
-  assert.deepEqual(service.entrypoint, ['/usr/local/bin/node', '/usr/local/lib/node_modules/aiterm-mcp/dist/resume-state-cli.js'])
+  assert.deepEqual(service.entrypoint, ['/usr/local/bin/aiterm-resume-state'])
   assert.deepEqual(service.command, [])
   assert.deepEqual(service.environment, {
     HOME: '/home/bell', CODEX_HOME: '/home/bell/.codex', AITERM_STATE_BASE: '/srv/bellteam-aiterm',

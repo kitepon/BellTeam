@@ -31,11 +31,14 @@ def main():
     staging = work / 'staging'; staging.mkdir()
     guest = Path(__file__).resolve().parents[1] / 'test/helpers/resume-container-boundary.mjs'
     shutil.copyfile(guest, work / 'guest.mjs')
+    stub = work / 'resume-state-stub.mjs'
+    shutil.copyfile(guest.with_name('resume-state-contract-stub.mjs'), stub); stub.chmod(0o755)
+    stub_mount = []  # filled once the image's exported resume-state-cli path is known
     (work / 'bootstrap.mjs').write_text("throw Error('H1_FIXTURE_BOOTSTRAP_REACHED')\n")
     volumes = [prefix + '-' + suffix for suffix in ['old', 'new', 'private']]
     report = {'image': args.image, 'prefix': prefix, 'checks': [], 'accepted': False,
               'scope': 'restore-only' if args.restore_only else 'full-runtime',
-              'fixtureBoundary': 'real image runtime; bootstrap import replaced by stop sentinel; no native vendor launch'}
+              'fixtureBoundary': 'real image runtime; bootstrap import replaced by stop sentinel; no native vendor launch; exported resume-state-cli replaced by a contract stub except one real refusal contact'}
     (args.output / 'allocation.json').write_text(json.dumps({'prefix': prefix, 'volumes': volumes,
         'containerLabel': 'bellteam.h1-fixture=' + prefix, 'composeProject': prefix}) + '\n')
     stage = 'start'
@@ -93,7 +96,7 @@ def main():
                         '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m', '--tmpfs', '/run/bellteam-server:uid=1001,gid=1001,mode=0700',
                         '-e', 'AITERM_STATE_BASE=/srv/bellteam-aiterm', '-e', 'BELLTEAM_RESUME_GENERATION=fixture',
                         '-e', 'BELLTEAM_AITERM_STATE_VOLUME=' + volumes[1], *mounts(volumes[1]),
-                        '--mount', f'type=bind,source={work / "bootstrap.mjs"},target=/app/src/bootstrap.mjs,readonly',
+                        '--mount', f'type=bind,source={work / "bootstrap.mjs"},target=/app/src/bootstrap.mjs,readonly', *stub_mount,
                         args.image, check=False, timeout=30)
         (args.output / (name.removeprefix(prefix + '-') + '.log')).write_bytes(result.stderr)
         return b'H1_FIXTURE_BOOTSTRAP_REACHED' in result.stderr
@@ -112,8 +115,15 @@ def main():
                    '--mount', f'type=volume,source={volumes[2]},target=/private,volume-nocopy',
                    '--mount', f'type=volume,source={state},target=/srv/bellteam-aiterm,volume-nocopy',
                    '--entrypoint', '/usr/local/bin/node', args.image, '/fixture.mjs', 'initialize')
-        stage = 'seed'
-        guest_run('seed', '1000:1000', volumes[0])
+        stage = 'resume-state-entry'
+        # The file aiterm-mcp's package exports name for resume-state-cli, resolved the way runtime-resume does (aitermEntry); never a dist path.
+        package_root = '/usr/local/lib/node_modules/aiterm-mcp'
+        entry = docker('run', '--rm', '--network', 'none', '--read-only', '--entrypoint', '/usr/local/bin/node', args.image, '-e',
+            'const r=process.argv[1],t=require(r+"/package.json").exports?.["./resume-state-cli"];if(typeof t!=="string"||!t.startsWith("./"))process.exit(1);console.log(require("path").join(r,t))',
+            package_root).stdout.decode().strip()
+        assert entry.startswith(package_root + '/'), entry
+        report['resumeStateEntry'] = entry
+        stub_mount += ['--mount', f'type=bind,source={stub},target={entry},readonly']
         source = prefix + '-source'
         source_id = docker('create', '--name', source, '--restart', 'no', *mounts(volumes[0]),
                            '--entrypoint', '/usr/local/bin/node', args.image, '-e', 'setInterval(()=>{},1000)').stdout.decode().strip()
@@ -131,6 +141,11 @@ def main():
             config = subprocess.run(['docker', 'compose', '-f', str(work / source_file), 'config', '--format', 'json'],
                 cwd=work, env=env, capture_output=True, check=True, timeout=30)
             (saved / destination).write_bytes(config.stdout)
+        # The stub replaces the exported CLI file, so both the bin symlink and the node-<file> path see it.
+        checkpoint = json.loads((saved / 'checkpoint.json').read_text())
+        checkpoint['services']['aiterm-checkpoint']['volumes'].append(
+            {'type': 'bind', 'source': str(stub), 'target': entry, 'read_only': True, 'bind': {'create_host_path': False}})
+        (saved / 'checkpoint.json').write_text(json.dumps(checkpoint))
         stage = 'helper-readonly-mounts'
         probe = '''const a=require('node:assert/strict'),f=require('node:fs');
 for(const path of ['/srv/bellteam-aiterm','/home/bell']){
@@ -143,6 +158,13 @@ a.equal(process.getuid(),1000);console.log(JSON.stringify({readonlyState:true,re
                              '--rm', '--no-deps', '-T', '--entrypoint', '/usr/local/bin/node',
                              'aiterm-checkpoint', '-e', probe)
             report['checks'].append({'stage': stage, 'result': json.loads(readonly.stdout)})
+        if not args.restore_only:
+            stage = 'real-cli-refusal'
+            refusal = docker('run', '--rm', '--network', 'none', '--read-only', '--user', '1000:1000', '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m',
+                '-e', 'HOME=/home/bell', '-e', 'AITERM_STATE_BASE=/srv/bellteam-aiterm', *mounts(volumes[0], private=False, readonly=True),
+                '--entrypoint', '/usr/local/bin/aiterm-resume-state', args.image, 'checkpoint', '--session', 'offline', '--launch', 'b' * 32, check=False)
+            assert refusal.returncode == 2 and not refusal.stdout and refusal.stderr == b'aiterm: RESUME_STATE_UNCONFIRMED\n', (refusal.returncode, refusal.stdout, refusal.stderr)
+            report['checks'].append({'stage': stage, 'result': {'exit': 2, 'stderr': 'aiterm: RESUME_STATE_UNCONFIRMED'}})
         target = {'session_id': 'offline', 'launch_id': 'a' * 32}
         plan = dict(schema='bellteam.resume-generation.v1', generation='fixture', source_container=source_id,
                     source_image=image['Id'], state_volume=volumes[1], source_volume=volumes[0], home=str(runtime / 'home'), targets=[target])
@@ -165,7 +187,7 @@ resume_capture
         run(['sh', '-c', shell, 'h1-fixture', args.image, str(saved), str(staging), prefix], timeout=90)
         if not args.restore_only:
             guest_run('private-check')
-            stage = 'readonly-source-unchanged'; guest_run('verify', '1000:1000', volumes[0])
+            stage = 'readonly-source-unchanged'; guest_run('source-empty', '1000:1000', volumes[0])
             stage = 'uid-private-signal'; guest_run('identity-signal')
         stage = 'prebootstrap'
         assert boot(prefix + '-boot'), 'real supervisor did not reach bootstrap sentinel'

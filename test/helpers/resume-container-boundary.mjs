@@ -5,12 +5,12 @@ import { spawn } from 'node:child_process'
 import { seatCommandSpec } from '/app/src/seat-command.mjs'
 import { runResumePipe } from '/app/src/resume-pipe.mjs'
 
-const base = '/srv/bellteam-aiterm', home = '/home/bell', codex = `${home}/.codex`
-const dist = '/usr/local/lib/node_modules/aiterm-mcp/dist'
+const base = '/srv/bellteam-aiterm', home = '/home/bell', restored = `${home}/h1-restored-checkpoint`
+// Same literal as STUB_CHECKPOINT in resume-state-contract-stub.mjs (the guest runs without the repo).
+const stubBytes = 'h1 synthetic checkpoint\n'
 const target = { session_id: 'offline', launch_id: 'a'.repeat(32) }
 const digest = bytes => createHash('sha256').update(bytes).digest('hex')
 const json = async path => JSON.parse(await fs.readFile(path, 'utf8'))
-const write = (path, value) => fs.writeFile(path, JSON.stringify(value) + '\n', { mode: 0o600 })
 const mode = process.argv[2]
 if (mode === 'initialize') {
   assert.equal(process.getuid(), 0)
@@ -21,40 +21,6 @@ if (mode === 'initialize') {
   }
   await fs.chown('/private', 0, 1001); await fs.chmod('/private', 0o750)
   await fs.chown(base, 1000, 1000); await fs.chmod(base, 0o700)
-} else if (mode === 'seed') {
-  assert.equal(process.getuid(), 1000)
-  const agents = `${base}/aiterm-mcp-1000/agents`, id = target.launch_id
-  for (const path of [codex, `${codex}/sessions`, agents]) await fs.mkdir(path, { recursive: true, mode: 0o700 })
-  const file = `${codex}/sessions/root.jsonl`, retained = Buffer.from('synthetic offline rollout\n')
-  await fs.writeFile(file, retained, { mode: 0o600 })
-  const st = await fs.stat(file), socket = '/tmp/claude-tmux-sockets/claude.sock'
-  const vendor = '11111111-2222-4333-8444-555555555555'
-  const recipe = { schema: 'aiterm.agent-resume.v1', launch_id: id, kind: 'codex', vendor_session_id: vendor,
-    executable: '/synthetic/codex-never-run', cwd: home, configuration_root: codex, model: 'sol', reasoning_effort: 'high', fast: false, environment: {} }
-  const proof = { schema: 'aiterm.codex-resume-proof.v1', launch_id: id, session_id: vendor, file,
-    device: String(st.dev), inode: String(st.ino), cursor: st.size, prefix_bytes: st.size,
-    prefix_sha256: digest(retained), last_turn_id: 'synthetic' }
-  const meta = { kind: 'codex', aiterm_session: target.session_id, launch_id: id,
-    event_file: `${agents}/offline.${id}.events.jsonl`, created_at: '2026-11-02T15:00:00.000Z', cwd: home,
-    vendor_session_id: vendor, initial_prompt: 'none', agent_executable: recipe.executable,
-    hook_route: 'shared_codex_home', completion_route: 'codex_transcript', agent_role: 'subagent',
-    parent_session_id: 'host-root', delegation_depth: 1, lineage: 'host-root>codex:offline',
-    delegation_allowed: true, node_platform: 'linux', codex_home: codex, fast: false, model: 'sol' }
-  const life = { schema: 'aiterm.agent-lifecycle.v1', launch_id: id, state: 'hibernated', socket,
-    at: meta.created_at, anchor: 'synthetic', native_id: '$1',
-    pane: { pid: 10, process_group_id: 10, started_identity: 'linux:1', argv_digest: '2'.repeat(64) },
-    recipe_digest: digest(Buffer.from(JSON.stringify(recipe))), resume_proof_digest: digest(Buffer.from(JSON.stringify(proof))) }
-  const { resumeCheckpointRecord, resumeCheckpointRecordPath } = await import(`${dist}/resume-checkpoint.js`)
-  const scope = { ...target, uid: 1000, node_platform: 'linux', state_base: base, socket,
-    configuration_root: codex, vendor_session_id: vendor }
-  const files = []
-  for (const [kind, value] of Object.entries({ generation: { schema: 'aiterm.agent-generation.v1', launch_id: id, previous_launch_id: null }, metadata: meta, recipe, proof, lifecycle: life })) {
-    const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n')
-    const path = resumeCheckpointRecordPath(scope, resumeCheckpointRecord(id, kind, bytes))
-    await fs.writeFile(path, bytes, { mode: 0o600 }); files.push({ path, sha256: digest(bytes) })
-  }
-  await write(`${home}/fixture-manifest.json`, files)
-  console.log(JSON.stringify({ seeded: true, uid: process.getuid(), rolloutDevice: String(st.dev), rolloutInode: String(st.ino) }))
 } else if (mode === 'identity-signal') {
   assert.equal(process.getuid(), 1001)
   const code = `const a=require('node:assert/strict'),f=require('node:fs');
@@ -98,15 +64,20 @@ if (mode === 'initialize') {
   }
   console.log(JSON.stringify({ uidBoundary: true, privateDenied: true, signalGroupReaped: true }))
 } else if (mode === 'verify') {
-  const files = await json(`${home}/fixture-manifest.json`)
-  for (const item of files) assert.equal(digest(await fs.readFile(item.path)), item.sha256)
-  console.log(JSON.stringify({ restoredFiles: files.length, exactBytes: true }))
+  const st = await fs.stat(restored)
+  assert.equal(st.uid, 1000); assert.equal(st.mode & 0o777, 0o600)
+  assert.equal(digest(await fs.readFile(restored)), digest(stubBytes))
+  console.log(JSON.stringify({ restoredFile: true, exactBytes: true }))
+} else if (mode === 'source-empty') {
+  assert.equal(process.getuid(), 1000)
+  assert.deepEqual(await fs.readdir(base), [])
+  console.log(JSON.stringify({ sourceStateUntouched: true }))
 } else if (mode === 'private-check') {
   assert.equal(process.getuid(), 1001)
   const root = '/srv/bellteam/state/resume-checkpoints/fixture'
   const plan = await json(`${root}/generation.json`)
   const item = plan.targets[0], bytes = await fs.readFile(`${root}/${item.file}`)
-  assert.equal(digest(bytes), item.checkpoint_sha256)
+  assert.equal(digest(bytes), item.checkpoint_sha256); assert.equal(bytes.toString(), stubBytes)
   for (const path of [root, `${root}/${item.file}`, `${root}/generation.json`]) {
     const st = await fs.stat(path); assert.equal(st.uid, 1001)
     assert.equal(st.mode & 0o777, st.isDirectory() ? 0o700 : 0o600)
@@ -128,11 +99,9 @@ if (mode === 'initialize') {
   assert.ok((await fs.stat(`${root}/started.json`)).isFile())
   console.log(JSON.stringify({ failedRestoreAdopted: false }))
 } else if (mode === 'mark') {
-  const files = await json(`${home}/fixture-manifest.json`)
-  await fs.writeFile(files[0].path, 'changed after bootstrap boundary\n')
+  await fs.writeFile(restored, 'changed after bootstrap boundary\n')
 } else if (mode === 'check-mark') {
-  const files = await json(`${home}/fixture-manifest.json`)
-  assert.equal(await fs.readFile(files[0].path, 'utf8'), 'changed after bootstrap boundary\n')
+  assert.equal(await fs.readFile(restored, 'utf8'), 'changed after bootstrap boundary\n')
   console.log(JSON.stringify({ replayed: false }))
 } else if (mode === 'cleanup') {
   for (const name of await fs.readdir('/fixture-runtime')) await fs.rm(`/fixture-runtime/${name}`, { recursive: true, force: true })
