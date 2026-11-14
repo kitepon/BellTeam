@@ -1,0 +1,12 @@
+{
+  "title": "Lattice（製品 @quolu/lattice）",
+  "owner": "スノーホワイト",
+  "botId": "bot-fc291ae4",
+  "scope": "Lattice本体（Plan・Store・Runtime）と、BellTeamへ約束する公開CLI窓口（a101: K1-K8）",
+  "external": true,
+  "provides": [
+    "contract: lattice CLI only (K1-K8, a102): charts list/source, chart set/repo, todo"
+  ],
+  "uses": [],
+  "source": []
+}

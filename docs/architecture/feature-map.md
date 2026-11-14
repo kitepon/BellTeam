@@ -115,7 +115,7 @@ flowchart LR
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
   m_lattice["Lattice工程表 / フローラ"]
-  m_lattice_product["Lattice（製品 @quolu/lattice）/ スノーホワイト"]
+  m_lattice_product["Lattice（製品 @quolu/lattice） / スノーホワイト"]
   m_linux["Linuxアプリ / ネオン"]
   m_mcp_lazy["mcp-lazy / レオナ"]
   m_memory["記憶・知識 / ビスケット"]
@@ -127,24 +127,39 @@ flowchart LR
   m_usage["利用設定・通知 / ミカ"]
   m_windows["Windowsアプリ / アニス"]
   m_apple -->|"HTTP/SSE"| m_integration
-  m_approval_box -->|"native"| m_aiterm
-  m_bridge -->|"messages"| m_conversation
+  m_approval_box -->|"Steer delivery (aiterm-steer-delivery)"| m_aiterm
+  m_approval_box -->|"HTTP/MCP"| m_integration
+  m_bridge -->|"call-bridge delivery (/v0/directory, /v0/deliver)"| m_conversation
   m_bughub -->|"diagnostics"| m_integration
-  m_conversation -->|"context"| m_throughline
-  m_execution -->|"native"| m_aiterm
-  m_execution -->|"context"| m_throughline
-  m_integration -->|"public"| m_approval_box
-  m_lattice -->|"public"| m_approval_box
-  m_lattice -->|"contract: lattice CLI only (K1-K8, a102)"| m_lattice_product
+  m_conversation -->|"context CLI"| m_throughline
+  m_conversation -->|"exports: child-result"| m_aiterm
+  m_execution -->|"MCP tools (stdio)"| m_aiterm
+  m_execution -->|"bin: aiterm-wait, aiterm-transcript-read"| m_aiterm
+  m_execution -->|"version --json (capabilities)"| m_approval_box
+  m_execution -->|"connector /v1 (HTTP)"| m_approval_box
+  m_execution -->|"context CLI"| m_throughline
+  m_integration -->|"connector /v1 (HTTP)"| m_approval_box
+  m_integration -->|"MCP /mcp"| m_bridge
+  m_lattice -->|"connector /v1 (HTTP)"| m_approval_box
+  m_lattice -->|"contract: lattice CLI only (K1-K8, a102): charts list/source, chart set/repo, todo"| m_lattice_product
   m_linux -->|"HTTP/SSE"| m_integration
-  m_memory -->|"context"| m_throughline
-  m_runtime -->|"native"| m_aiterm
-  m_runtime -->|"context"| m_throughline
+  m_memory -->|"context CLI"| m_throughline
   m_runtime -->|"relay"| m_mcp_lazy
   m_runtime -->|"hook"| m_rtk
-  m_runtime -->|"hook"| m_testgate
-  m_terminals -->|"native"| m_aiterm
-  m_usage -->|"native"| m_aiterm
+  m_runtime -->|"exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server"| m_aiterm
+  m_runtime -->|"exports: state-compat.json, resume-state-cli"| m_aiterm
+  m_runtime -->|"harness-entries (aiterm-setup)"| m_aiterm
+  m_runtime -->|"context CLI"| m_throughline
+  m_runtime -->|"storage: THROUGHLINE_HOME, locate, export"| m_throughline
+  m_runtime -->|"harness-entries (approval-box)"| m_approval_box
+  m_runtime -->|"connection export (call-bridge.connection.v1)"| m_bridge
+  m_runtime -->|"MCP /mcp"| m_bridge
+  m_runtime -->|"registration v1 (item in RTK harness-entries.json)"| m_testgate
+  m_runtime -->|"harness-entries.json"| m_rtk
+  m_terminals -->|"bin: aiterm-remote-terminal"| m_aiterm
+  m_usage -->|"MCP tools (stdio)"| m_aiterm
+  m_usage -->|"connection export (approval-box connection export --json)"| m_approval_box
+  m_usage -->|"connection export (call-bridge.connection.v1)"| m_bridge
   m_windows -->|"HTTP/SSE"| m_integration
 ```
 
@@ -152,27 +167,28 @@ flowchart LR
 
 | 機能の正本 | 担当 | 公開窓口 |
 | --- | --- | --- |
-| [Aiterm/Steer](modules/aiterm/README.md) | エレグ | native |
+| [Aiterm/Steer](modules/aiterm/README.md) | エレグ | MCP tools (stdio) / bin: aiterm-wait, aiterm-transcript-read / bin: aiterm-remote-terminal / exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server / exports: state-compat.json, resume-state-cli / exports: child-result / harness-entries (aiterm-setup) / Steer delivery (aiterm-steer-delivery) |
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
-| [Approval Box](modules/approval-box/README.md) | ナユタ | public |
-| [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | public |
+| [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) |
+| [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | connection export (call-bridge.connection.v1) / MCP /mcp |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
-| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages / fork-inquiry |
+| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages / fork-inquiry / call-bridge delivery (/v0/directory, /v0/deliver) |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
 | [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact / lattice-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics / remote-seat-port |
 | [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat |
+| [Lattice（製品 @quolu/lattice）](modules/lattice-product/README.md) | スノーホワイト | contract: lattice CLI only (K1-K8, a102): charts list/source, chart set/repo, todo |
 | [Linuxアプリ](modules/linux/README.md) | ネオン | public |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions / docs |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
-| [RTK](modules/rtk/README.md) | ドリリー | hook |
+| [RTK](modules/rtk/README.md) | ドリリー | hook / harness-entries.json |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
 | [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / trust / folder / privilege / maintenance |
-| [testgate](modules/testgate/README.md) | シラツル | hook |
-| [Throughline](modules/throughline/README.md) | リヴァリン | context |
+| [testgate](modules/testgate/README.md) | シラツル | registration v1 (item in RTK harness-entries.json) |
+| [Throughline](modules/throughline/README.md) | リヴァリン | context CLI / storage: THROUGHLINE_HOME, locate, export |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | アニス | public |

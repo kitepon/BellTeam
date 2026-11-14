@@ -10,7 +10,8 @@
     "membership-cleanup",
     "room-access",
     "durable-messages",
-    "fork-inquiry"
+    "fork-inquiry",
+    "call-bridge delivery (/v0/directory, /v0/deliver)"
   ],
   "uses": [
     {
@@ -24,10 +25,6 @@
     {
       "module": "usage",
       "port": "notify"
-    },
-    {
-      "module": "throughline",
-      "port": "context"
     },
     {
       "module": "members",
@@ -52,6 +49,14 @@
     {
       "module": "execution",
       "port": "fork"
+    },
+    {
+      "module": "throughline",
+      "port": "context CLI"
+    },
+    {
+      "module": "aiterm",
+      "port": "exports: child-result"
     }
   ],
   "source": [

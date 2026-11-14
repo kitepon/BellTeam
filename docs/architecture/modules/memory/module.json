@@ -14,7 +14,7 @@
     },
     {
       "module": "throughline",
-      "port": "context"
+      "port": "context CLI"
     }
   ],
   "source": [

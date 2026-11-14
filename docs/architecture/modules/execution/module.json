@@ -31,14 +31,6 @@
       "port": "update"
     },
     {
-      "module": "aiterm",
-      "port": "native"
-    },
-    {
-      "module": "throughline",
-      "port": "context"
-    },
-    {
       "module": "conversation",
       "port": "history"
     },
@@ -57,6 +49,26 @@
     {
       "module": "integration",
       "port": "HTTP/MCP"
+    },
+    {
+      "module": "aiterm",
+      "port": "MCP tools (stdio)"
+    },
+    {
+      "module": "aiterm",
+      "port": "bin: aiterm-wait, aiterm-transcript-read"
+    },
+    {
+      "module": "approval-box",
+      "port": "version --json (capabilities)"
+    },
+    {
+      "module": "approval-box",
+      "port": "connector /v1 (HTTP)"
+    },
+    {
+      "module": "throughline",
+      "port": "context CLI"
     }
   ],
   "source": [
@@ -69,7 +81,7 @@
     "src/execution-bridge.mjs",
     "src/capacity-continuation.mjs",
     "src/harness-accounts.mjs",
-"src/claude-limit-text.mjs",
+    "src/claude-limit-text.mjs",
     "src/remote-seats.mjs",
     "src/current-work.mjs",
     "src/running-exclusions.mjs",

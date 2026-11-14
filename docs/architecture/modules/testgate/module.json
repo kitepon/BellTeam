@@ -5,7 +5,7 @@
   "scope": "試験選択とhook公開仕様",
   "external": true,
   "provides": [
-    "hook"
+    "registration v1 (item in RTK harness-entries.json)"
   ],
   "uses": [],
   "source": []

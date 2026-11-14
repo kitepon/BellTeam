@@ -24,10 +24,6 @@
       "port": "cli-registration"
     },
     {
-      "module": "aiterm",
-      "port": "native"
-    },
-    {
       "module": "integration",
       "port": "diagnostics"
     },
@@ -50,6 +46,18 @@
     {
       "module": "execution",
       "port": "accounts"
+    },
+    {
+      "module": "aiterm",
+      "port": "MCP tools (stdio)"
+    },
+    {
+      "module": "approval-box",
+      "port": "connection export (approval-box connection export --json)"
+    },
+    {
+      "module": "bridge",
+      "port": "connection export (call-bridge.connection.v1)"
     }
   ],
   "source": [

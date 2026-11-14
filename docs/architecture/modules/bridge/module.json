@@ -5,12 +5,13 @@
   "scope": "通話製品と公開接続",
   "external": true,
   "provides": [
-    "public"
+    "connection export (call-bridge.connection.v1)",
+    "MCP /mcp"
   ],
   "uses": [
     {
       "module": "conversation",
-      "port": "messages"
+      "port": "call-bridge delivery (/v0/directory, /v0/deliver)"
     }
   ],
   "source": []

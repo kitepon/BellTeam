@@ -5,7 +5,14 @@
   "scope": "native起動・設定・実行・観測・認証",
   "external": true,
   "provides": [
-    "native"
+    "MCP tools (stdio)",
+    "bin: aiterm-wait, aiterm-transcript-read",
+    "bin: aiterm-remote-terminal",
+    "exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server",
+    "exports: state-compat.json, resume-state-cli",
+    "exports: child-result",
+    "harness-entries (aiterm-setup)",
+    "Steer delivery (aiterm-steer-delivery)"
   ],
   "uses": [],
   "source": []
