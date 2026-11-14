@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T22:22:21Z",
-  "expiresAt": "2026-11-21T22:22:21Z",
+  "publishedAt": "2026-11-14T22:45:13Z",
+  "expiresAt": "2026-11-21T22:45:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
-      "versionId": "d318a82499a987edd7f862ff2502e69f2247a9af2c8fcc7a9dca0016b0737f91",
+      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
+      "versionId": "fa17629461cc95709cf644d8e0e22bc2e75d39dd1e09e54a5771422363283c6e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-amd64.tar.gz",
-          "bytes": 5346105,
-          "sha256": "d318a82499a987edd7f862ff2502e69f2247a9af2c8fcc7a9dca0016b0737f91"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz",
+          "bytes": 5347257,
+          "sha256": "fa17629461cc95709cf644d8e0e22bc2e75d39dd1e09e54a5771422363283c6e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11197,
-          "sha256": "08aabb54ce97a8afc148e832532b137d67c23673a9968ac06cb07455b6df41d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11299,
+          "sha256": "322e1b6561c697ff75351b6e390c876c9afbf734a6fbf69674f3fb6d437e6393"
         },
-        "signerCommit": "fec9a462301c69befee0021b47b20c368250cd5c"
+        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web受付が、つないできた相手の住所と、コンテナ内なら利用者番号を本体へ伝えるようにしました。"
+        "BellTeamの画面を、他のサイトの枠の中に表示させないようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
-      "versionId": "611a8c736cafa946374c495855aab2672d4e4b2aa94fbb8578e3b8ea4ceedf58",
+      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
+      "versionId": "5b5b3791d9a2689e2c9202a453bfd182b4af164b5c82c4958863a6b08e093b70",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-arm64.tar.gz",
-          "bytes": 5346105,
-          "sha256": "611a8c736cafa946374c495855aab2672d4e4b2aa94fbb8578e3b8ea4ceedf58"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz",
+          "bytes": 5347257,
+          "sha256": "5b5b3791d9a2689e2c9202a453bfd182b4af164b5c82c4958863a6b08e093b70"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "90a0ae030e9e293e231706c11a5a4358d1e3db5aca7cd53dc4276f062a790604"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11115,
+          "sha256": "65d65635dec09e038e132dcb0523a5aa8929663706d46d7faf8c5027b7be7906"
         },
-        "signerCommit": "fec9a462301c69befee0021b47b20c368250cd5c"
+        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web受付が、つないできた相手の住所と、コンテナ内なら利用者番号を本体へ伝えるようにしました。"
+        "BellTeamの画面を、他のサイトの枠の中に表示させないようにしました。"
       ]
     },
     {
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "6f1e055907b2e204613c4413273e6ddd4034fc77",
-      "versionId": "d599a50052fd0d09908f37f22a3ec9f6e688d7ddb4411addb197a1d178eec9a1",
+      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
+      "versionId": "0d0367fc1f18c7057bdd53a1bcd3a83b266360a112327f39ef7606db2d139806",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T083930Z/members-6f1e055907b2e204613c4413273e6ddd4034fc77-linux-amd64.tar.gz",
-          "bytes": 4524331,
-          "sha256": "d599a50052fd0d09908f37f22a3ec9f6e688d7ddb4411addb197a1d178eec9a1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz",
+          "bytes": 4531553,
+          "sha256": "0d0367fc1f18c7057bdd53a1bcd3a83b266360a112327f39ef7606db2d139806"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T083930Z/members-6f1e055907b2e204613c4413273e6ddd4034fc77-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "4b1df92c62e8cd17e4049068177a82092f9375ce8f9afb7ee2c15527ce683a9c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "ebc1168ee5c8c2ec74035ebee9b18124dbf69ab851c9ec9a0dd4276906591bbe"
         },
-        "signerCommit": "6f1e055907b2e204613c4413273e6ddd4034fc77"
+        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "各 Bot の起動時の共通規範に、自分の分身（フォーク）を使うときの決まりを加えました。"
+        "同時に来たメンバー一覧の読み込みを一つにまとめ、混み合って応答できなくなる問題を直しました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "6f1e055907b2e204613c4413273e6ddd4034fc77",
-      "versionId": "52563bea7f5ae2a5fa0f2bd32dc1fdaea8a7d38c6b44b04edd7674cff58b75d5",
+      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
+      "versionId": "9bbf90a014bcbfbb10d3705d8322dfcfcb6b221b8a080c4485760dace24f8981",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T083930Z/members-6f1e055907b2e204613c4413273e6ddd4034fc77-linux-arm64.tar.gz",
-          "bytes": 4524330,
-          "sha256": "52563bea7f5ae2a5fa0f2bd32dc1fdaea8a7d38c6b44b04edd7674cff58b75d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz",
+          "bytes": 4531553,
+          "sha256": "9bbf90a014bcbfbb10d3705d8322dfcfcb6b221b8a080c4485760dace24f8981"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T083930Z/members-6f1e055907b2e204613c4413273e6ddd4034fc77-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "5549c52de5597ba750cb70b935e228e8a247e28fc6333f5aea6355d5012b557f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11000,
+          "sha256": "3f262b41433817b87b78b4842d173af94590d174565b82060d7c1b3ee1f5e759"
         },
-        "signerCommit": "6f1e055907b2e204613c4413273e6ddd4034fc77"
+        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "各 Bot の起動時の共通規範に、自分の分身（フォーク）を使うときの決まりを加えました。"
+        "同時に来たメンバー一覧の読み込みを一つにまとめ、混み合って応答できなくなる問題を直しました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
-      "versionId": "sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15",
+      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
+      "versionId": "sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "コンテナ内のボットの席から、宛先名を偽ってオーナーとして操作できないようにしました。"
+        "他のサイトから、ブラウザを使って勝手に書き込ませる操作を断るようにしました。",
+        "Botが自分以外のBotを削除できないようにしました。",
+        "メンバー一覧の読み込みが混み合ったときに、古い途中の結果より新しい読み込みを優先するようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
-      "versionId": "sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15",
+      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
+      "versionId": "sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8fe14fcb4d59e2950120124d2a641a8ce7544a21fb379d9aef2589c5caa69bc1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "コンテナ内のボットの席から、宛先名を偽ってオーナーとして操作できないようにしました。"
+        "他のサイトから、ブラウザを使って勝手に書き込ませる操作を断るようにしました。",
+        "Botが自分以外のBotを削除できないようにしました。",
+        "メンバー一覧の読み込みが混み合ったときに、古い途中の結果より新しい読み込みを優先するようにしました。"
       ]
     },
     {
