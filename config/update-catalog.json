@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T12:47:53Z",
-  "expiresAt": "2026-11-21T12:47:53Z",
+  "publishedAt": "2026-11-14T13:41:24Z",
+  "expiresAt": "2026-11-21T13:41:24Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "2c948242b81b74b89194e062ecc097fcc0723028",
-      "versionId": "sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d",
+      "sourceCommit": "9f5587c855131a8c576c42738e3abf0f5710855e",
+      "versionId": "sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm の hook も、Aiterm が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
-        "席を起こすときに、混んでいる環境で起動を誤って断ることがある問題を直した Aiterm を入れました。"
+        "Codex と Cursor の席から、子の AI を起こせるようにしました。",
+        "ルームと予定の一覧が、ときどき減って見える問題を直しました。",
+        "Approval Box と Throughline の設定も、本体がまとめて書くようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "2c948242b81b74b89194e062ecc097fcc0723028",
-      "versionId": "sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d",
+      "sourceCommit": "9f5587c855131a8c576c42738e3abf0f5710855e",
+      "versionId": "sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm の hook も、Aiterm が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
-        "席を起こすときに、混んでいる環境で起動を誤って断ることがある問題を直した Aiterm を入れました。"
+        "Codex と Cursor の席から、子の AI を起こせるようにしました。",
+        "ルームと予定の一覧が、ときどき減って見える問題を直しました。",
+        "Approval Box と Throughline の設定も、本体がまとめて書くようにしました。"
       ]
     },
     {
