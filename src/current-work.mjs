@@ -82,6 +82,8 @@ export class CurrentWork {
       const path = this.activityPath
       if (!path) return
       await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+      // A handover during the await moved ownership; a write already in writeAtomic is ordered by the successor's queue.
+      if (this.activityPath !== path) return
       await writeAtomic(path, { schema: 'bellteam.execution-activity.v1', targets })
     })
     this.activityQueue = saving.catch(() => { this.reportActivity() }).finally(() => { this.activityPending-- })

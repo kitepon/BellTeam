@@ -289,7 +289,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       await Promise.allSettled(completions)
       while (pending.size) await Promise.allSettled([...pending])
     })()
-    return Object.assign(result, { activity: transport.activity, released })
+    // The successor queues its activity saves after this engine's in-flight one, so a stale write never lands last.
+    return Object.assign(result, { activity: transport.activity, released, activityQueue: transport.workState.activityQueue })
   }
   if (handoff) {
     const m = handoff.metadata
@@ -306,6 +307,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     modelHandoff.records = administration.automaticConfigurationOperations
     transport.workState.records = m.work.records; transport.workState.seq = m.work.seq
     transport.workState.restartActivity = m.work.restartActivity ?? new Map()
+    if (handoff.activityQueue?.then) transport.workState.activityQueue = handoff.activityQueue.catch(() => {})
     transport.retainedImages = m.retainedImages
     if (!handoff.activity) {
       for (const entry of m.followedTurns) transport.followedTurns.set(...entry)

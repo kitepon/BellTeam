@@ -143,3 +143,17 @@ test('a save queued before a handover runs after it as a no-op, not RESTART_ACTI
   await activity.activityQueue
   assert.equal(reports, 0)
 })
+
+test('a handover during the save directory setup leaves the file to the successor (BugHub af20e350, Epinel #1485)', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'restart-handover-mid-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  let reports = 0
+  const path = join(root, 'state', 'execution-activity.json')
+  const activity = new CurrentWork({ activityPath: path, reportActivity: () => { reports++ } })
+  const saving = activity.saveActivity()
+  await null; await null // the queued save has captured the path and is awaiting mkdir (I/O not yet run)
+  activity.activityPath = null // exportState({handover})
+  await saving
+  await assert.rejects(readFile(path), { code: 'ENOENT' })
+  assert.equal(reports, 0)
+})
