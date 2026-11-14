@@ -10,7 +10,7 @@ async function fixture(t, { ids = ['web-gateway', 'notifications'], container = 
   const root = await mkdtemp(join(tmpdir(), 'job-admission-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const jobs = new Map(), calls = [], changes = [], applied = [], current = new Map()
-  let admitGate = null, failSecond = false, failReady = 0
+  let admitGate = null, failSecond = false, failReady = 0, jobsDown = false
   const host = {
     async admitJob(input) {
       calls.push(input)
@@ -23,7 +23,7 @@ async function fixture(t, { ids = ['web-gateway', 'notifications'], container = 
       jobs.set(input.jobId, record)
       return structuredClone(record)
     },
-    async job(id) { return structuredClone(jobs.get(id)) },
+    async job(id) { if (jobsDown) throw Object.assign(new Error('UNREADABLE'), { code: 'UNREADABLE', status: 503, path: '/run/bellteam-updater/update.sock', reason: 'ECONNREFUSED' }); return structuredClone(jobs.get(id)) },
     async updateJob({ jobId, state, reason }) {
       if (state === 'ready' && failReady) { failReady--; throw Object.assign(new Error('UNREADABLE'), { code: 'UNREADABLE', status: 503 }) }
       const record = jobs.get(jobId)
@@ -55,7 +55,7 @@ async function fixture(t, { ids = ['web-gateway', 'notifications'], container = 
   const plan = await executor.plan({ scope: 'all' }, container ? { components: [{ id: 'container',
     publication: { catalog: { sha256: 'c'.repeat(64) } }, comparison: { state: 'update_available' }, capability: { supported: true } }] } : null)
   const input = { planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: container, idempotencyKey: 'one-operation' }
-  return { root, executor, jobs, calls, changes, applied, input, containerStarts: () => containerStarts, failReady: (times = Infinity) => { failReady = times }, allowReady: () => { failReady = 0 }, gate: value => { admitGate = value }, fail: value => { failSecond = value } }
+  return { root, executor, jobs, calls, changes, applied, input, containerStarts: () => containerStarts, failReady: (times = Infinity) => { failReady = times }, allowReady: () => { failReady = 0 }, gate: value => { admitGate = value }, fail: value => { failSecond = value }, jobsDown: value => { jobsDown = value } }
 }
 
 test('all durable step receipts precede acceptance; same key/new request UUID reuses jobs and actual ready transitions', async t => {
@@ -127,4 +127,17 @@ test('an earlier failed module closes its preadmitted unclaimed container job wi
   assert.deepEqual(result.jobs.map(job => job.state), ['failed', 'failed'])
   assert.equal(result.jobs[1].reason.code, 'READY_PROBE_FAILED')
   assert.equal(f.containerStarts(), 0)
+})
+
+test('an unreachable Host hides only the job rows: the inventory still answers with an attention notice (t20 f6c057c6)', async t => {
+  const f = await fixture(t, { ids: ['web-gateway'] })
+  await f.executor.start(f.input); await f.executor.close()
+  const inventory = () => ({ components: [], notice: { state: 'ready', code: null, message: '' } })
+  f.jobsDown(true)
+  const down = await f.executor.snapshot(inventory())
+  assert.equal(down.operation.requestId, f.input.requestId); assert.equal(down.operation.jobs, undefined)
+  assert.equal(down.notice.code, 'UPDATE_RESULT_UNAVAILABLE')
+  f.jobsDown(false)
+  const up = await f.executor.snapshot(inventory())
+  assert.equal(up.operation.jobs[0].state, 'ready'); assert.notEqual(up.notice.code, 'UPDATE_RESULT_UNAVAILABLE')
 })

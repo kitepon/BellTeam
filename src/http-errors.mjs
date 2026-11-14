@@ -20,8 +20,7 @@ const httpStages = new Set(['url', 'authorize', 'members_authorization', 'seat_m
 const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings', '/api/schedules'])
 
 export async function respondHttpError(request, response, error, diagnostics, context = {}) {
-  if (error.code === 'UNREADABLE' && error.status === 503)
-    return json(response, 503, { error: error.code, message: error.reason, path: error.path, reason: error.reason })
+  const unreadable = error.code === 'UNREADABLE' && error.status === 503
   if (typeof error.code === 'string' && Number.isInteger(error.status)) {
     if (error.status === 503 && diagnostics) {
       const path = typeof request.url === 'string' ? request.url.split(/[?#]/u, 1)[0] : ''
@@ -36,9 +35,13 @@ export async function respondHttpError(request, response, error, diagnostics, co
           response_selected_at: new Date().toISOString(),
           http_stage: httpStages.has(context.stage) ? context.stage : 'unknown',
           members_denial_reason: 'unknown', members_live_roots: null, members_failure_phase: 'unknown',
+          // Which state file (or updater socket) could not be read and why; fixed server paths and error codes only (t20 f6c057c6).
+          ...(unreadable ? { unreadable_path: /^\/[A-Za-z0-9/._-]{1,256}$/u.test(error.path ?? '') ? error.path : 'unknown',
+            unreadable_reason: /^[A-Za-z0-9_]{1,64}$/u.test(error.reason ?? '') ? error.reason : 'unknown' } : {}),
         }) })
       } catch { process.stderr.write('BellTeam: HTTP503の診断を保存できませんでした\n') }
     }
+    if (unreadable) return json(response, 503, { error: error.code, message: error.reason, path: error.path, reason: error.reason })
     return json(response, error.status, { error: error.code, message: error.publicMessage ?? (Object.hasOwn(PUBLIC_MESSAGES, error.code) ? PUBLIC_MESSAGES[error.code] : error.message), ...(['AUTH_RESPONSE_NOT_ISSUED', 'AUTH_RESPONSE_UNCONFIRMED', 'HARNESS_AUTH_RESPONSE_UNCONFIRMED', 'SETUP_AUTH_RESPONSE_UNCONFIRMED'].includes(error.code) ? { effect: error.effect ?? 'unknown' } : {}) })
   }
   if (error instanceof SubscriptionAccessError) return json(response, error.status, { error: error.code, message: error.message })
