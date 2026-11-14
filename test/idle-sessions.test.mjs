@@ -122,13 +122,22 @@ test('Approval Box: the requester-wake capability allows closing for every harne
   assert.equal(approvalBoxWakes(yes), true)
   for (const no of ['0.1.36', '{"schema":"approval-box.version.v1","version":"0.1.35","capabilities":[]}',
     '{"schema":"other","capabilities":["bellteam-requester-wake"]}', '']) assert.equal(approvalBoxWakes(no), false)
-  let reads = 0, clock = 0, answer = async () => yes
-  const decisions = approvalBoxWakeDecisions({ run: () => { reads++; return answer() }, now: () => clock })
-  for (const harness of ['claude', 'codex', 'grok', 'cursor', 'antigravity']) assert.equal(await decisions({ harness }), 0)
-  assert.equal(reads, 1, 'read once per tick, the same answer for every Bot')
-  clock = 60_000; answer = async () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) }
-  assert.equal(await decisions({ harness: 'claude' }), null)
-  assert.equal(reads, 2)
+  let reads = 0, answer = async () => yes
+  const decisions = approvalBoxWakeDecisions({ run: () => { reads++; return answer() } })
+  // Through IdleSessions.check: one read per check, shared by every Bot; the next check reads again (also after a failure).
+  const bots = new Map(['claude', 'codex', 'grok', 'cursor', 'antigravity'].map(harness => [harness, { id: harness, harness }]))
+  const offered = []
+  const idle = new IdleSessions({ bots, pendingDecisions: decisions, report: () => {},
+    transport: { observeChain: async () => ({ observation: { exists: false } }), closeOldSeats: async list => { offered.push(list.length); return [] } } })
+  await idle.check()
+  assert.equal(reads, 1, 'read once per check, the same answer for every Bot')
+  assert.deepEqual(offered, [5], 'every harness may close')
+  answer = async () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) }
+  await idle.check()
+  assert.equal(reads, 2); assert.deepEqual(offered, [5, 0], 'unreadable: no seat closes')
+  answer = async () => yes
+  await idle.check()
+  assert.equal(reads, 3); assert.deepEqual(offered, [5, 0, 5], 'a failed read is not kept to the next check')
 })
 
 

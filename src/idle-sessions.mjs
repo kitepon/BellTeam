@@ -41,6 +41,8 @@ export class IdleSessions {
   }
 
   async check() {
+    // bd03: the Approval Box capability is read once per check and shared by every Bot in it; the next check reads it again.
+    this.pendingDecisions.begin?.()
     for (const bot of [...this.bots.values()]) {
       if (!this.allowClose()) break
       try {
@@ -95,13 +97,12 @@ export function quietSession(observation) {
 // Approval Boxの答えを待つ申請がある席を閉じてよいか（bd03、ナユタの製品契約）。Approval Box 0.1.34以降は、受け手を失った
 // BellTeam発の申請について申請者を公開sendmessageで一度起こしresume_decisionを促す。だから席ごとの件数もプロセス木も見ず、
 // 入っている同梱物がその約束を持つかだけで決める：持てば0（閉じても失わない）、無い・読めない時はnull（閉じない）。
-// 読むのはtickの間に1回まで（同じtickの全Botで同じ答え）。
-export function approvalBoxWakeDecisions({ run = readApprovalBoxVersion, now = () => Date.now(), ttlMs = 60_000 } = {}) {
-  let cached = null
-  return async () => {
-    if (!cached || now() - cached.at >= ttlMs) cached = { at: now(), value: run().then(approvalBoxWakes, () => false) }
-    return await cached.value ? 0 : null
-  }
+// 読むのは1回のcheck（tick）につき1回（同じcheckの全Botで同じ答え）。check()がbegin()で前の答えを捨てる。
+export function approvalBoxWakeDecisions({ run = readApprovalBoxVersion } = {}) {
+  let answer = null
+  const decisions = async () => (await (answer ??= run().then(approvalBoxWakes, () => false))) ? 0 : null
+  decisions.begin = () => { answer = null }
+  return decisions
 }
 
 export function approvalBoxWakes(stdout) {
