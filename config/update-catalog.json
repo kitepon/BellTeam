@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T17:13:21Z",
-  "expiresAt": "2026-11-21T17:13:21Z",
+  "publishedAt": "2026-11-14T18:37:21Z",
+  "expiresAt": "2026-11-21T18:37:21Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
-      "versionId": "c7cf818af8124a7a9a0239ad72089438c0d531d6669f3e999118bc7aca8d27ea",
+      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
+      "versionId": "713249e3d949cf7b8e1c9f45b03d8caecf1fa36dadd5ce01352a841c8a673806",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-amd64.tar.gz",
-          "bytes": 80176,
-          "sha256": "c7cf818af8124a7a9a0239ad72089438c0d531d6669f3e999118bc7aca8d27ea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-amd64.tar.gz",
+          "bytes": 80537,
+          "sha256": "713249e3d949cf7b8e1c9f45b03d8caecf1fa36dadd5ce01352a841c8a673806"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11058,
-          "sha256": "4366547777674fd71af94d47d8eb36f7a08313046e62a4604cdeab22bd4d9183"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10823,
+          "sha256": "8be44226fda8192d0b850075889e52ce1a63c2a7ed79186baad0e31af2dab07f"
         },
-        "signerCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe"
+        "signerCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "通話ブリッジの設定を取り込む時、取り込んだ Bot 自身の番を待たずに終わるようにしました。後から止める処理が失敗した時も記録に残ります。"
+        "送った秘密の入力依頼を取り下げると、保存していた値と出どころの記録が消えるようにしました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
-      "versionId": "0c40fac75107289c6443141d21e9a5967c1ce8cb05e01ab0c4b04423068607ef",
+      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
+      "versionId": "f32cfa0555e93cc344a3304957af40b8643ce3df910a678331204eb765580b7f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-arm64.tar.gz",
-          "bytes": 80175,
-          "sha256": "0c40fac75107289c6443141d21e9a5967c1ce8cb05e01ab0c4b04423068607ef"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-arm64.tar.gz",
+          "bytes": 80536,
+          "sha256": "f32cfa0555e93cc344a3304957af40b8643ce3df910a678331204eb765580b7f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10968,
-          "sha256": "18db80a5ccd8b6e6ba3b9a4c8d2d71d24c6412320bfdb3ed29ea108def37115e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10874,
+          "sha256": "0da7da97db9433c4ba26a7b11a0da58be8dfd04c20178163d44ca24de195a89b"
         },
-        "signerCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe"
+        "signerCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "通話ブリッジの設定を取り込む時、取り込んだ Bot 自身の番を待たずに終わるようにしました。後から止める処理が失敗した時も記録に残ります。"
+        "送った秘密の入力依頼を取り下げると、保存していた値と出どころの記録が消えるようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5ecc7f9cfd79e751ab455911fb423a5b02f8b4af",
-      "versionId": "sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535",
+      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
+      "versionId": "sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の会話が終わった時や、使っていない会話を閉じた時の記録が、本体のログに残るようにしました。"
+        "送った秘密の入力依頼を、ボットや評価者が取り下げられるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5ecc7f9cfd79e751ab455911fb423a5b02f8b4af",
-      "versionId": "sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535",
+      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
+      "versionId": "sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の会話が終わった時や、使っていない会話を閉じた時の記録が、本体のログに残るようにしました。"
+        "送った秘密の入力依頼を、ボットや評価者が取り下げられるようにしました。"
       ]
     },
     {
