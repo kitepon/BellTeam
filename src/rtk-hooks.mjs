@@ -152,7 +152,7 @@ function arrayField(value, name, harness) {
 }
 
 // 公式App Server（`codex app-server`）へstdioでつなぎ、threadもturnも作らずに設定だけを扱う。
-async function codexAppServer(env, use) {
+export async function codexAppServer(env, use) {
   const child = spawn('codex', ['app-server', '--listen', 'stdio://'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   let buffer = ''
   let stderr = ''

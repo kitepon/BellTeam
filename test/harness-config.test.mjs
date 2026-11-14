@@ -20,6 +20,7 @@ test('五つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こ�
     '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
   let hookRegistration
   await configureHarnesses(new Map(), home, {
+    productEntries: async () => {},
     aiterm: async () => registration,
     relay: async () => null,
     run: async () => {}, rtk: async () => {}, cursorInstructions: async () => {},
@@ -132,6 +133,7 @@ test('BellTeam設定の後に公式Throughline installを実行する', async ()
   const home = await mkdtemp(join(tmpdir(), 'bellteam-throughline-config-'))
   const calls = []
   await configureHarnesses(new Map(), home, {
+    productEntries: async () => {},
     run: async (command, args, options) => { calls.push([command, args, options.env.HOME]) },
     rtk: async value => { calls.push(['rtk', value]) },
     aitermHooks: async value => { calls.push(['aiterm', value]) },
@@ -144,6 +146,7 @@ test('RTKのhookを登録できなくても設定の反映は止めず、理由�
   const home = await mkdtemp(join(tmpdir(), 'bellteam-rtk-failure-'))
   const reported = []
   await configureHarnesses(new Map(), home, {
+    productEntries: async () => {},
     run: async () => {},
     rtk: async () => { throw new Error('RTK_CODEX_HOOK_NOT_TRUSTED') },
     aitermHooks: async () => {},
@@ -399,6 +402,7 @@ test('Cursorの起動時指示のhookを登録できなくても設定の反映�
   const home = await mkdtemp(join(tmpdir(), 'bellteam-cursor-instructions-failure-'))
   const reported = []
   await configureHarnesses(new Map(), home, {
+    productEntries: async () => {},
     run: async () => {},
     rtk: async () => {},
     aitermHooks: async () => {},
@@ -412,6 +416,7 @@ test('Aitermの親配送hookを登録できなくても設定の反映は止め�
   const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-hooks-failure-'))
   const reported = []
   await configureHarnesses(new Map(), home, {
+    productEntries: async () => {},
     run: async () => {},
     rtk: async () => {},
     aitermHooks: async () => { throw new Error('ERR_MODULE_NOT_FOUND') },
@@ -424,6 +429,7 @@ test('Codexの親配送hookが ready 以外で返った時は、設定の反映�
   const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-codex-hooks-status-'))
   const reported = []
   const configure = codex => configureHarnesses(new Map(), home, {
+    productEntries: async () => {},
     run: async () => {},
     rtk: async () => {},
     aitermHooks: async () => ({ codex }),
