@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T11:48:26Z",
-  "expiresAt": "2026-11-21T11:48:26Z",
+  "publishedAt": "2026-11-14T12:01:09Z",
+  "expiresAt": "2026-11-21T12:01:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "6f7551d9220ef9d0c9fdca40b194e0e91c99a7d7",
-      "versionId": "sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae",
+      "sourceCommit": "cb74b6ecf9554ad3863ccecaa93a0fb746a13efe",
+      "versionId": "sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。"
+        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
+        "会話の一覧で、子の AI の答えが出ないことがある不具合を直しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "6f7551d9220ef9d0c9fdca40b194e0e91c99a7d7",
-      "versionId": "sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae",
+      "sourceCommit": "cb74b6ecf9554ad3863ccecaa93a0fb746a13efe",
+      "versionId": "sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。"
+        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
+        "会話の一覧で、子の AI の答えが出ないことがある不具合を直しました。"
       ]
     },
     {
