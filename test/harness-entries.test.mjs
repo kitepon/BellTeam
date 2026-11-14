@@ -21,7 +21,7 @@ const typesafe = {
 const e1 = (product, server, extra = {}) => ({ schema: 'bellteam.harness-entries.v1', product, version: '1', mcpServers: { [product]: server }, ...extra })
 
 // A seat home whose files already hold today's entries, plus fakes for the CLI and the Codex app-server.
-async function fixture({ products = { xarticle: e1('xarticle', xarticle), typesafe: e1('typesafe', typesafe) } } = {}) {
+async function fixture({ products = { xarticle: e1('xarticle', xarticle), typesafe: e1('typesafe', typesafe) }, failAdd = null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'bellteam-harness-entries-'))
   const home = join(dir, 'home')
   await mkdir(join(home, '.cursor'), { recursive: true })
@@ -40,6 +40,7 @@ async function fixture({ products = { xarticle: e1('xarticle', xarticle), typesa
   const calls = [], requests = [], reports = []
   const run = async (command, args) => {
     calls.push([command, ...args])
+    if (failAdd && failAdd(command, args)) throw new Error('synthetic add failure')
     return { stdout: JSON.stringify(grok) }
   }
   const appServer = async (_env, use) => use(async (method, params) => {
@@ -131,4 +132,21 @@ test('merge rule: declared keys win, undeclared keys and env keys stay, env:{} c
     { command: '/new', args: [], env: { A: '1', B: '3' }, startup_timeout_sec: 90, custom: true })
   assert.deepEqual(mergeEntry(current, { command: '/old', args: ['x'], env: {} }).env, { A: '1', B: '2' })
   assert.deepEqual(mergeEntry(undefined, { url: 'u' }), { url: 'u' })
+})
+
+test('remove succeeded, new add failed: the previous entry is added back (claude and grok)', async () => {
+  const changed = { ...typesafe, claude: { type: 'http', url: 'https://new.invalid/mcp' }, grok: { url: 'https://new.invalid/mcp', enabled: true } }
+  const failAdd = (command, args) => args[0] === 'mcp' && (args[1] === 'add-json' || args[1] === 'add') && JSON.stringify(args).includes('new.invalid')
+  const f = await fixture({ products: { typesafe: e1('typesafe', changed) }, failAdd })
+  await f.apply()
+  assert.deepEqual(writes(f.calls), [
+    ['claude', 'mcp', 'remove', 'typesafe', '--scope', 'user'],
+    ['claude', 'mcp', 'add-json', 'typesafe', JSON.stringify(changed.claude), '--scope', 'user'],
+    ['claude', 'mcp', 'add-json', 'typesafe', JSON.stringify(typesafe.claude), '--scope', 'user'],
+    ['grok', 'mcp', 'remove', 'typesafe', '--scope', 'user'],
+    ['grok', 'mcp', 'add', 'typesafe', '--scope', 'user', '--transport', 'http', 'https://new.invalid/mcp'],
+    ['grok', 'mcp', 'add', 'typesafe', '--scope', 'user', '--transport', 'http', typesafe.grok.url],
+  ])
+  assert.equal(f.reports.length, 2)
+  assert.match(f.reports.join('\n'), /synthetic add failure/u)
 })

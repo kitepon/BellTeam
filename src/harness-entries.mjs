@@ -63,8 +63,9 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
       const current = (await readJson(join(home, '.claude.json')))?.mcpServers?.[name]
       const wanted = mergeEntry(current, entry)
       if (isDeepStrictEqual(current, wanted)) return
+      const add = value => run('claude', ['mcp', 'add-json', name, JSON.stringify(value), '--scope', 'user'], { env })
       if (current !== undefined) await run('claude', ['mcp', 'remove', name, '--scope', 'user'], { env })
-      await run('claude', ['mcp', 'add-json', name, JSON.stringify(wanted), '--scope', 'user'], { env })
+      await replaceOrRestore(() => add(wanted), current === undefined ? null : () => add(current))
     },
     // `grok mcp add` has no flag for startup_timeout_sec and the like: such a differing entry is reported, never hand-edited into the TOML.
     async grok({ name, entry }) {
@@ -77,9 +78,11 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
       const { enabled, url, command, args, headers, env: serverEnv, ...rest } = wanted
       const missing = [...Object.keys(rest), ...(enabled !== undefined && enabled !== true ? ['enabled'] : [])]
       if (missing.length || (url === undefined) === (command === undefined)) throw new Error(`grok mcp addでは ${missing.join(', ') || 'url/command'} を書けません`)
+      const add = ({ url, command, args, headers, env: serverEnv }) => run('grok', ['mcp', 'add', name, '--scope', 'user',
+        ...Object.entries(serverEnv ?? {}).flatMap(([key, value]) => ['-e', `${key}=${value}`]), ...Object.entries(headers ?? {}).flatMap(([key, value]) => ['-H', `${key}: ${value}`]),
+        ...(url !== undefined ? ['--transport', 'http', url] : ['--', command, ...(args ?? [])])], { env, cwd: home })
       if (current) await run('grok', ['mcp', 'remove', name, '--scope', 'user'], { env, cwd: home })
-      const flags = [...Object.entries(serverEnv ?? {}).flatMap(([key, value]) => ['-e', `${key}=${value}`]), ...Object.entries(headers ?? {}).flatMap(([key, value]) => ['-H', `${key}: ${value}`])]
-      await run('grok', ['mcp', 'add', name, '--scope', 'user', ...flags, ...(url !== undefined ? ['--transport', 'http', url] : ['--', command, ...(args ?? [])])], { env, cwd: home })
+      await replaceOrRestore(() => add({ url, command, args, headers, env: serverEnv }), current ? () => add(native) : null)
     },
     cursor: item => mergeJson(join(home, '.cursor/mcp.json'), item),
     gemini: item => mergeJson(join(home, '.gemini/config/mcp_config.json'), item),
@@ -118,6 +121,15 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
   if (before !== `${JSON.stringify(applied, null, 2)}\n`) {
     await mkdir(dirname(recordPath), { recursive: true })
     await writeAtomic(recordPath, applied)
+  }
+}
+
+// The CLIs have no in-place replace: remove then add. If the add fails, the previous entry is added back through the same CLI,
+// so the seat never loses the server (named protection: no data loss); the original error is still reported.
+async function replaceOrRestore(add, restore) {
+  try { await add() } catch (error) {
+    if (restore) await restore().catch(cause => { error.message += `; 元の登録も戻せませんでした（${cause.message}）` })
+    throw error
   }
 }
 
