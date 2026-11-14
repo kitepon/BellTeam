@@ -2,7 +2,8 @@ import { execFile, spawn } from 'node:child_process'
 import { lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { LATTICE_PROJECT_ID, latticeError, validLatticeName } from '../lattice-protocol.mjs'
 
@@ -28,6 +29,10 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     try { return resolved ??= createRequire(import.meta.url).resolve('@quolu/lattice/bin/lattice.mjs') }
     catch { throw latticeError('LATTICE_UNAVAILABLE', 503) }
   }
+  // Display source in-process (L4, task a95): the same function `todo display source --json` prints; fs reads only, no git or env.
+  let store
+  const sourceReader = async () => (await (store ??= import(pathToFileURL(join(dirname(binPath()), '..', 'src', 'todo-store.mjs')).href)
+    .catch(error => { store = null; throw error }))).readTodoStoreDisplaySource
   // Only a missing path means "no chart"; any other I/O error is LATTICE_UNAVAILABLE and nothing is cached, so the next call recovers.
   // The charts root itself must be a directory: a file there (ENOTDIR) is unavailable, not "no charts".
   const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
@@ -79,6 +84,11 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       return (await Promise.all(ids.map(async id => await isDir(join(dir(id), '.lattice')) ? id : null))).filter(Boolean).sort()
     },
     exists: async id => LATTICE_PROJECT_ID.test(id) && await isDir(join(dir(id), '.lattice')),
+    // The chart's change token; throws on a failed probe (the caller treats that as 'read again').
+    async source(id) {
+      if (!await realDir(id)) throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: 'ENOENT' })
+      return (await sourceReader())({ repoRoot: dir(id) })
+    },
     // Owner-lane filing record (README L18): one JSON object beside the charts. Missing = {}.
     // A symlink or malformed file is moved aside (`.invalid-<ms>`) and starts empty; the body adopts a request already filed for the task by its session_label (L18), so nothing is filed twice.
     async readOwnerRecord() {

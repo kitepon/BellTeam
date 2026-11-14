@@ -12,8 +12,8 @@ const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
 
-// Chart state of one child generation: a memo per chart, refreshed only when Lattice's source token moves (or after a run, or at the ceiling).
-export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', ceilingMs = 30000, refreshMs = 2000,
+// Chart state of one child generation: a memo per chart, re-read only when its token moves or it is dirty (README State it owns, task a95).
+export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000,
   log = line => process.stderr.write(line + '\n'), codeCharts = createCodeCharts({ cli, now, log }) }) {
   const epoch = randomUUID(), memos = new Map(), locks = new Map()
   // Seat runs on one chart run one at a time, so a code chart's fast-forward and sensor sync never overlap a write.
@@ -33,7 +33,15 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (value === undefined) throw Object.assign(new Error('read'), { code: 'LATTICE_CLI_BAD_JSON' })
     return value
   }
-  const token = id => lattice(id, ['todo', 'display', 'source', '--json']).then(JSON.stringify, () => null)
+  const source = id => cli.source(id).then(JSON.stringify, () => null)
+  // Own source + each external predecessor chart's source and memo version (README L4): no time ceiling.
+  async function token(id, memo) {
+    const own = await source(id)
+    const others = [...new Set((memo.projection?.externals ?? []).map(item => item.projectId))].sort()
+    if (own === null || !others.length) return own
+    const sources = await Promise.all(others.map(source))
+    return sources.includes(null) ? null : JSON.stringify([own, ...others.map((other, i) => [other, sources[i], memos.get(other)?.version ?? null])])
+  }
 
   const snapshotOf = (id, memo) => ({ schema: 'bellteam.lattice-chart.v1', epoch, version: memo.version, at: iso(now()), projectId: id, ...memo.content })
   function commit(id, memo, content) {
@@ -44,9 +52,13 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
 
   async function sync(id, members) {
     let memo = memos.get(id)
-    if (!memo) memos.set(id, memo = { token: null, readAt: 0, version: 0, key: null, content: null, projection: null, dirty: true, logged: null })
-    const current = await token(id)
-    if (memo.content && !memo.dirty && current !== null && current === memo.token && now() - memo.readAt < ceilingMs) return memo
+    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, meta: null, roster: null, dirty: true, logged: null })
+    const current = await token(id, memo)
+    const rosterBad = await members(), rosterKey = JSON.stringify([rosterBad, roster])
+    const same = memo.content && !memo.dirty && current !== null && current === memo.token
+    if (same && rosterKey === memo.roster) return memo
+    // A roster change alone re-projects the kept read; no CLI.
+    if (same) return project(id, memo, memo.read, memo.meta, rosterBad, rosterKey)
     let read, meta
     try { [read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), cli.meta(id)]) } catch (error) {
       memo.dirty = true
@@ -55,7 +67,10 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       commit(id, memo, { ...base, degraded: [...new Set([...base.degraded ?? [], 'lattice-read'])].sort() })
       return memo
     }
-    const rosterBad = await members()
+    Object.assign(memo, { token: current, dirty: false, logged: null, read, meta })
+    return project(id, memo, read, meta, rosterBad, rosterKey)
+  }
+  function project(id, memo, read, meta, rosterBad, rosterKey) {
     // shortcut: the other chart's title/producer come from its memo as last read (none until the child reads it once); its state is Lattice's own, read now.
     const elsewhere = (projectId, cardId) => {
       const other = memos.get(projectId)?.content, card = other?.cards?.find(item => item.id === cardId)
@@ -63,7 +78,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     }
     const projection = projectChart({ read, members: roster, previous: memo.projection, elsewhere })
     const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
-    Object.assign(memo, { token: current, readAt: now(), dirty: false, logged: null, projection })
+    Object.assign(memo, { projection, roster: rosterKey })
     const createdBy = meta.createdBy ?? projection.createdBy
     commit(id, memo, { name: meta.name, createdBy, coordinator: createdBy === coordinatorId, state: projection.state, verifiedAt: projection.verifiedAt,
       degraded: rosterBad ? ['members'] : [],
