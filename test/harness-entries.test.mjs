@@ -392,3 +392,84 @@ test('a failed or unreadable E1 command keeps the seat as it was and reports onl
     assert.deepEqual(f.requests.filter(([method]) => method === 'config/batchWrite'), [])
   }
 })
+
+// bd14 fourth switch: Aiterm's E1 is printed by `aiterm-setup harness-entries` (0.70.58); command parts take {name} values from `vars`.
+// The fixture freezes the E1 and the bytes the old path (configureNativeExecutionHooks, real Aiterm 0.70.58 + real Codex app-server on temp homes) left from three starting states.
+const AT = JSON.parse(await readFile(new URL('./fixtures/aiterm-switch.json', import.meta.url), 'utf8'))
+const AT_PATHS = ['.claude/settings.json', '.codex/hooks.json', '.cursor/hooks.json']
+const E2_AITERM = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8')).find(item => item.product === 'aiterm')
+const atFile = (text, home) => text === null ? null : text.replaceAll('@HOME@', home)
+
+async function aitermSeat(before = {}, { vars = AT.vars, command = E2_AITERM.command } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-entries-'))
+  const home = join(dir, 'home')
+  for (const [file, text] of Object.entries(before)) if (text !== null) {
+    await mkdir(join(home, file, '..'), { recursive: true })
+    await writeFile(join(home, file), atFile(text, home))
+  }
+  await writeFile(join(dir, 'registry.json'), JSON.stringify([{ product: 'aiterm', command }]))
+  const requests = [], reports = [], commands = []
+  const run = async (program, args) => { commands.push([program, args]); return { stdout: atFile(JSON.stringify(AT.e1), home) } }
+  const appServer = async (_env, use) => use(async (method, params) => {
+    requests.push([method, params])
+    const source = await realpath(join(home, '.codex/hooks.json'))
+    const hooks = []
+    for (const [event, groups] of Object.entries(JSON.parse(await readFile(source, 'utf8')).hooks ?? {}))
+      groups.forEach((group, gi) => group.hooks.forEach((hook, hi) => hooks.push({ key: `${source}:${event}:${gi}:${hi}`, command: hook.command, sourcePath: source, enabled: true, trustStatus: 'trusted', currentHash: 'h' })))
+    return { data: [{ hooks }] }
+  })
+  const apply = () => configureHarnessEntries(home, { vars, registry: join(dir, 'registry.json'), run, appServer, report: message => reports.push(message) })
+  const read = file => readFile(join(home, file), 'utf8').catch(() => null)
+  return { home, requests, reports, commands, apply, read, bytes: () => Promise.all(AT_PATHS.map(read)) }
+}
+
+// claude and cursor: the same bytes. codex: Aiterm's own writer printed compact JSON, BellTeam writes every hook file as 2-space JSON like the RTK and Throughline passes: same content, so the expectation is the old content in BellTeam's format.
+const oldBytes = (name, home) => AT_PATHS.map(file => {
+  const text = atFile(AT.cases[name].after[file], home)
+  return file === '.codex/hooks.json' ? `${JSON.stringify(JSON.parse(text), null, 2)}\n` : text
+})
+
+for (const name of ['empty', 'seat', 'noaiterm']) {
+  test(`Aiterm hooks from E1 give the old configureNativeExecutionHooks content (${name})`, async () => {
+    const f = await aitermSeat(AT.cases[name].before)
+    await f.apply()
+    assert.deepEqual(f.reports, [])
+    assert.deepEqual(await f.bytes(), oldBytes(name, f.home))
+    assert.deepEqual(f.commands, [['aiterm-setup', ['harness-entries', '--json', '--home', f.home, '--state-root', AT.vars.stateRoot, '--socket', AT.vars.socket,
+      '--steer-provider', AT.vars.steerProvider, '--codex-binary', AT.vars.codexBinary, '--clients', 'claude,cursor,codex']]])
+    const applied = JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))
+    assert.deepEqual(applied.aiterm.entries, ['claude:hooks:PreToolUse', 'claude:hooks:PostToolUse', 'claude:hooks:SessionEnd', 'cursor:hooks:afterMCPExecution', 'cursor:hooks:postToolUse', 'codex:hooks:PostToolUse', 'codex:hooks:Stop'])
+  })
+}
+
+test('the old writer left a seat byte-for-byte as it was; the new pass writes nothing on it (same inode, trust only read)', async () => {
+  for (const file of AT_PATHS) assert.equal(AT.cases.seat.after[file], AT.cases.seat.before[file])
+  const f = await aitermSeat(AT.cases.seat.before)
+  const inodes = async () => (await Promise.all(AT_PATHS.map(file => stat(join(f.home, file))))).map(info => info.ino)
+  const before = await inodes()
+  await f.apply()
+  await f.apply()
+  assert.deepEqual(await f.bytes(), AT_PATHS.map(file => atFile(AT.cases.seat.before[file], f.home)))
+  assert.deepEqual(await inodes(), before)
+  assert.deepEqual([...new Set(f.requests.map(([method]) => method))], ['hooks/list'])
+  assert.deepEqual(f.reports, [])
+})
+
+test('an E2 command part takes {name} from vars (and {home} from the seat) and nothing else is changed in the part', async () => {
+  const f = await aitermSeat({}, { command: ['p', '--a={stateRoot}/{socket}', '--h', '{home}', 'plain', '{home}{home}'], vars: { stateRoot: '/s', socket: 'k', home: '/not-the-seat' } })
+  await f.apply()
+  assert.deepEqual(f.commands, [['p', [`--a=/s/k`, '--h', f.home, 'plain', `${f.home}${f.home}`]]])
+})
+
+test('a {name} without a value makes that product E1 unusable: reported, the program is not run, the seat files stay', async () => {
+  for (const vars of [{}, { ...AT.vars, steerProvider: undefined }, { ...AT.vars, socket: '' }, { ...AT.vars, codexBinary: null }]) {
+    const f = await aitermSeat(AT.cases.seat.before, { vars })
+    await f.apply()
+    assert.deepEqual(f.commands, [])
+    assert.equal(f.reports.length, 1)
+    assert.match(f.reports[0], /aiterm.*E1を使えない.*\{(stateRoot|socket|steerProvider|codexBinary)\} の値がありません/u)
+    assert.deepEqual(await f.bytes(), AT_PATHS.map(file => atFile(AT.cases.seat.before[file], f.home)))
+    assert.deepEqual(f.requests, [])
+    assert.equal(JSON.parse(await f.read('.bellteam-cli-registration/applied.json')).aiterm, undefined)
+  }
+})

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { aitermEntry, aitermExecutionRegistration, aitermRegistration, aitermRelay, configureAitermHooks } from '../src/aiterm-hooks.mjs'
+import { aitermEntry, aitermEntryVars, aitermExecutionRegistration, aitermRegistration, aitermRelay, configureAitermHooks } from '../src/aiterm-hooks.mjs'
 
 // A package root whose exports table maps each public entry name to a file that is NOT <name>.js, so a hard-coded path cannot pass.
 const ENTRIES = ['setup-node', 'setup-integrations', 'execution-parent-worker', 'execution-native-setup', 'execution-native-server', 'child-result', 'resume-state-cli']
@@ -41,24 +41,20 @@ test('停止用登録はAiterm自身が選ぶscopeと同じ配布物のprovider�
   })
 })
 
-test('native hookは登録済みMCPと同じ入口をAitermのnative setupへ渡し旧hookを作らない', async () => {
+test('E2のaitermへ渡す値は、登録済みMCPと同じscopeとproviderと、選んだCodexから作る', async () => {
   const root = await aitermRoot()
-  const registration = { command: process.execPath, args: [at(root, 'execution-native-server'), '--execution-interrupt'] }
-  const expectedScope = { state_root: '/isolated/state', multiplexer: { kind: 'socket', key: '/isolated/tmux.sock' } }
-  const providerFile = '/candidate/steer/index.js'
-  const calls = []
-  const result = await configureAitermHooks('/isolated/home', {
-    registration, root, codex: '/candidate/codex',
-    load: async path => {
-      if (path === at(root, 'execution-native-server')) return { parseNativeExecutionArguments: args => {
-        assert.deepEqual(args, ['--execution-interrupt']); return { expectedScope, providerFile }
-      } }
-      assert.equal(path, at(root, 'execution-native-setup'))
-      return { configureNativeExecutionHooks: async (...args) => { calls.push(args); return { results: { codex: { status: 'ready' } } } } }
-    },
-  })
-  assert.deepEqual(calls, [['/isolated/home', { registration, expectedScope, providerFile, codexBinary: '/candidate/codex' }]])
-  assert.equal(result.codex.status, 'ready')
+  const registration = { command: process.execPath, args: [at(root, 'execution-native-server'), '--execution-interrupt',
+    '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
+  const load = async path => {
+    assert.equal(path, at(root, 'execution-native-server'))
+    return { parseNativeExecutionArguments: args => {
+      assert.deepEqual(args, registration.args.slice(1))
+      return { expectedScope: { state_root: '/isolated/state', multiplexer: { kind: 'socket', key: '/isolated/tmux.sock' } }, providerFile: '/candidate/steer/index.js' }
+    } }
+  }
+  assert.deepEqual(await aitermEntryVars(registration, { root, load, runtimeCapture: { components: { 'runtime-codex': { bin: { codex: '/selected/codex' } } } } }),
+    { stateRoot: '/isolated/state', socket: '/isolated/tmux.sock', steerProvider: '/candidate/steer/index.js', codexBinary: '/selected/codex' })
+  await assert.rejects(aitermEntryVars(registration, { root, load: async () => ({ parseNativeExecutionArguments: () => { throw new Error('EXECUTION_INVALID') } }), runtimeCapture: {} }), /EXECUTION_INVALID/u)
 })
 
 test('Aitermの登録はsetup-nodeのmcpRegistration()が返す形そのままにする', async () => {

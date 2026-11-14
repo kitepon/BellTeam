@@ -18,15 +18,18 @@ test('五つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こ�
   const home = await mkdtemp(join(tmpdir(), 'bellteam-native-registration-'))
   const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js',
     '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
-  let hookRegistration
+  const vars = { stateRoot: '/isolated/state', socket: '/isolated/tmux.sock', steerProvider: '/candidate/steer/index.js', codexBinary: '/candidate/codex' }
+  const calls = []
   await configureHarnesses(new Map(), home, {
-    productEntries: async () => {},
+    productEntries: async (_, options) => { calls.push(['products', options.vars]) },
     aiterm: async () => registration,
+    entryVars: async value => { calls.push(['vars', value]); return vars },
     relay: async () => null,
     run: async () => {}, cursorInstructions: async () => {},
-    aitermHooks: async (_, options) => { hookRegistration = options.registration },
+    aitermHooks: async () => { calls.push(['legacy hooks']) },
   })
-  assert.deepEqual(hookRegistration, registration)
+  // The Aiterm hooks come from the E2 `aiterm` item with the registration's own scope: the legacy function is not called for a native registration.
+  assert.deepEqual(calls, [['vars', registration], ['products', vars]])
   assert.deepEqual(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, registration)
   assert.deepEqual(JSON.parse(await readFile(join(home, '.gemini/config/mcp_config.json'), 'utf8')).mcpServers.aiterm, registration)
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
@@ -139,6 +142,38 @@ test('BellTeam設定の後に公式Throughline installを実行する', async ()
   })
   assert.deepEqual(calls, [['throughline', ['install'], home], ['products', home], ['aiterm', home]])
   assert.match(await readFile(join(home, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
+})
+
+test('native登録の値を用意できない時は、報告してvarsなしで製品を適用し、旧hook関数は呼ばない', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-native-vars-failure-'))
+  const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js', '--execution-interrupt'] }
+  const reported = [], calls = []
+  await configureHarnesses(new Map(), home, {
+    productEntries: async (_, options) => { calls.push(Object.keys(options)) },
+    aiterm: async () => registration,
+    entryVars: async () => { throw new Error('EXECUTION_INVALID') },
+    relay: async () => null,
+    run: async () => {}, cursorInstructions: async () => {},
+    aitermHooks: async () => { calls.push('legacy hooks') },
+    report: message => reported.push(message),
+  })
+  assert.deepEqual(reported, ['BellTeam Aiterm: hookの登録に使う値を用意できませんでした（EXECUTION_INVALID）'])
+  assert.deepEqual(calls, [['run', 'report']])
+})
+
+test('旧登録（native以外）の席は、旧hook関数で登録し、varsは渡さない', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-legacy-registration-'))
+  const registration = { command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] }
+  const calls = []
+  await configureHarnesses(new Map(), home, {
+    productEntries: async (_, options) => { calls.push(['products', Object.keys(options)]) },
+    aiterm: async () => registration,
+    entryVars: async () => { throw new Error('must not be called') },
+    relay: async () => null,
+    run: async () => {}, cursorInstructions: async () => {},
+    aitermHooks: async (_, options) => { calls.push(['legacy hooks', options]) },
+  })
+  assert.deepEqual(calls, [['products', ['run', 'report']], ['legacy hooks', { registration }]])
 })
 
 test('製品のMCP・hookを登録できなくても設定の反映は止めず、理由を記録する', async () => {

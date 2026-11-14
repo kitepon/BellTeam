@@ -57,19 +57,18 @@ export function aitermConnectionRegistration(registration, runtime, resolveProvi
   return { ...registration, args }
 }
 
-// The native registration comes from aitermExecutionRegistration of the same image root.
+// The values the E2 `aiterm` command needs (cli-registration.md "Fourth switch"), from the native registration of the same image root.
+export async function aitermEntryVars(registration, { runtimeCapture, root = AITERM_ROOT, load = loadModule } = {}) {
+  const { parseNativeExecutionArguments } = await load(aitermEntry(root, 'execution-native-server'))
+  const { expectedScope, providerFile } = parseNativeExecutionArguments(registration.args.slice(1))
+  return { stateRoot: expectedScope.state_root, socket: expectedScope.multiplexer.key, steerProvider: providerFile,
+    codexBinary: (runtimeCapture ?? await captureRuntime()).components['runtime-codex'].bin.codex }
+}
+
+// Old (non-native) registration only: with a native one the hooks come from the E2 `aiterm` item (harness-entries.mjs).
 export async function configureAitermHooks(home, { runtimeCapture, root = AITERM_ROOT, load = loadModule, codex, registration } = {}) {
   codex ??= (runtimeCapture ?? await captureRuntime()).components['runtime-codex'].bin.codex
   registration ??= await aitermRegistration({ root, load })
-  if (registration.args.includes('--execution-interrupt')) {
-    const [{ configureNativeExecutionHooks }, { parseNativeExecutionArguments }] = await Promise.all([
-      load(aitermEntry(root, 'execution-native-setup')), load(aitermEntry(root, 'execution-native-server')),
-    ])
-    const { expectedScope, providerFile } = parseNativeExecutionArguments(registration.args.slice(1))
-    const { results } = await configureNativeExecutionHooks(home,
-      { registration, expectedScope, providerFile, codexBinary: codex })
-    return results
-  }
   const { mergeClaudeParentHooks, mergeCursorParentHooks, ensureCodexParentSteer } = await load(aitermEntry(root, 'setup-integrations'))
   mergeClaudeParentHooks(join(home, '.claude/settings.json'), registration)
   mergeCursorParentHooks(join(home, '.cursor/hooks.json'), registration)
