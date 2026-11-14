@@ -607,3 +607,100 @@ test('an E2 wrap value other than mcp-lazy makes that product E1 unusable', asyn
   assert.match(f.reports[0], /approval-box.*E1を使えない.*wrap "other" は未対応です/u)
   assert.deepEqual(await f.bytes(), before)
 })
+
+// bd14 sixth switch: Caveat's E1 (0.21.20, run from shared/tools/caveat/current) and the production seat's codex hooks.json before and after one real pass
+// (real Caveat, grok and Codex app-server on a temp copy of the seat) are frozen in the fixture. The three old Caveat hooks sit at post_tool_use:2:0, user_prompt_submit:1:0 and stop:2:0.
+const CV = JSON.parse(await readFile(new URL('./fixtures/caveat-switch.json', import.meta.url), 'utf8'))
+const E2_CV = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8')).find(item => item.product === 'caveat')
+const snake = event => event.replace(/(?<=.)[A-Z]/gu, letter => `_${letter.toLowerCase()}`).toLowerCase()
+
+async function caveatSeat() {
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-caveat-entries-'))
+  const home = join(dir, 'home')
+  await mkdir(join(home, '.codex'), { recursive: true })
+  const text = `${JSON.stringify(CV.codexHooksBefore, null, 2)}\n`
+  await writeFile(join(home, '.codex/hooks.json'), text)
+  await writeFile(join(dir, 'registry.json'), JSON.stringify([E2_CV]))
+  const calls = [], requests = [], reports = []
+  let grok = { ...CV.before.grok }
+  let codex = { ...CV.before.codex, environment_id: 'local', enabled: true, tool_timeout_sec: null }
+  const trusted = new Map()
+  const listed = async () => {
+    const source = await realpath(join(home, '.codex/hooks.json'))
+    const hooks = []
+    for (const [event, groups] of Object.entries(JSON.parse(await readFile(source, 'utf8')).hooks ?? {}))
+      groups.forEach((group, gi) => group.hooks.forEach((hook, hi) => hooks.push({ key: `${source}:${snake(event)}:${gi}:${hi}`, command: hook.command, sourcePath: source, currentHash: `h:${hook.command}` })))
+    return hooks
+  }
+  for (const hook of await listed()) trusted.set(hook.key, hook.currentHash)
+  const run = async (program, args) => {
+    calls.push([program, ...args])
+    if (program === E2_CV.command[0]) return { stdout: JSON.stringify(CV.e1) }
+    if (program === 'grok' && args[1] === 'list') return { stdout: JSON.stringify([{ ...grok, name: 'caveat', scope: 'user' }]) }
+    if (program === 'grok' && args[1] === 'add') { const at = args.indexOf('--'); grok = { command: args[at + 1], args: args.slice(at + 2), enabled: true } }
+    return { stdout: '' }
+  }
+  const appServer = async (_env, use) => use(async (method, params) => {
+    requests.push([method, params])
+    if (method === 'config/read') return { config: { mcp_servers: { caveat: codex }, features: { hooks: true } } }
+    if (method === 'hooks/list') return { data: [{ hooks: (await listed()).map(hook => ({ ...hook, enabled: trusted.get(hook.key) === hook.currentHash, trustStatus: trusted.get(hook.key) === hook.currentHash ? 'trusted' : 'untrusted' })) }] }
+    if (method === 'config/batchWrite') for (const { keyPath, value } of params.edits) {
+      if (keyPath === 'mcp_servers.caveat') codex = { ...codex, ...value }
+      else if (keyPath.endsWith('.trusted_hash')) trusted.set(JSON.parse(keyPath.slice('hooks.state.'.length, -'.trusted_hash'.length)), value)
+    }
+  })
+  const apply = () => configureHarnessEntries(home, { registry: join(dir, 'registry.json'), run, appServer, report: message => reports.push(message) })
+  const read = file => readFile(join(home, file), 'utf8').catch(() => null)
+  return { home, calls, requests, reports, apply, read, text, trusted, grok: () => grok, codex: () => codex }
+}
+
+test('Caveat: E2 item sits after rtk and before approval-box and names the current link with codex and grok only', async () => {
+  const products = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8')).map(item => item.product)
+  assert.deepEqual(products.slice(products.indexOf('rtk'), products.indexOf('approval-box') + 1), ['rtk', 'caveat', 'approval-box'])
+  assert.deepEqual(E2_CV.command, ['node', '/srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js', 'harness-entries', '--json', '--harness', 'codex', '--harness', 'grok'])
+})
+
+test('Caveat: the production seat moves the codex/grok MCP to current and replaces the three old hooks in place with the E1 items, trust re-issued for exactly those positions', async () => {
+  const f = await caveatSeat()
+  await f.apply()
+  assert.deepEqual(f.reports, [])
+  // hooks.json: same bytes as the real pass; only the three Caveat items differ from before, each at its old group/item index and equal to the E1 item
+  const after = await f.read('.codex/hooks.json')
+  assert.equal(after, `${JSON.stringify(CV.codexHooksAfter, null, 2)}\n`)
+  const hooks = JSON.parse(after).hooks
+  const index = { UserPromptSubmit: 1, PostToolUse: 2, Stop: 2 }
+  for (const [event, groups] of Object.entries(CV.codexHooksBefore.hooks)) groups.forEach((group, at) => {
+    if (index[event] === at) assert.deepEqual(hooks[event][at], CV.e1.hooks.codex[event][0])
+    else assert.deepEqual(hooks[event][at], group)
+    assert.equal(hooks[event].length, groups.length)
+  })
+  assert.deepEqual(Object.keys(hooks), Object.keys(CV.codexHooksBefore.hooks))
+  // Codex: one MCP write, then a trust write of the three changed positions only (hash and enabled), nothing else
+  const writesOf = f.requests.filter(([method]) => method === 'config/batchWrite').map(([, params]) => params.edits)
+  const source = await realpath(join(f.home, '.codex/hooks.json'))
+  assert.deepEqual(writesOf[0], [{ keyPath: 'mcp_servers.caveat', value: CV.e1.mcpServers.caveat.codex, mergeStrategy: 'upsert' }])
+  const keys = Object.keys(CV.trust.newHash).map(position => `${source}:${position}`)
+  assert.deepEqual(writesOf.slice(1).flat().map(edit => edit.keyPath).sort(), keys.flatMap(key => [`hooks.state.${JSON.stringify(key)}.enabled`, `hooks.state.${JSON.stringify(key)}.trusted_hash`]).sort())
+  assert.deepEqual(f.codex().args, CV.e1.mcpServers.caveat.codex.args)
+  // grok: remove then add with the E1 command
+  assert.deepEqual(f.calls.filter(call => call[0] === 'grok' && call[2] !== undefined && call[1] === 'mcp' && call[2] !== 'list'), [
+    ['grok', 'mcp', 'remove', 'caveat', '--scope', 'user'],
+    ['grok', 'mcp', 'add', 'caveat', '--scope', 'user', '--', 'node', ...CV.e1.mcpServers.caveat.grok.args],
+  ])
+  const applied = JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))
+  assert.deepEqual(applied.caveat, { version: '0.21.20', entries: ['grok:caveat', 'codex:caveat', 'codex:settings:features.hooks', 'codex:hooks:UserPromptSubmit', 'codex:hooks:PostToolUse', 'codex:hooks:Stop'] })
+})
+
+test('Caveat: a second pass writes nothing (no CLI write, no batchWrite, hooks.json untouched)', async () => {
+  const f = await caveatSeat()
+  await f.apply()
+  const hooks = await f.read('.codex/hooks.json')
+  const inode = (await stat(join(f.home, '.codex/hooks.json'))).ino
+  const calls = f.calls.length, requests = f.requests.length
+  await f.apply()
+  assert.deepEqual(f.calls.slice(calls).filter(call => call[0] === 'grok' && call[2] !== 'list' && call[1] === 'mcp'), [])
+  assert.deepEqual(f.requests.slice(requests).filter(([method]) => method === 'config/batchWrite'), [])
+  assert.equal(await f.read('.codex/hooks.json'), hooks)
+  assert.equal((await stat(join(f.home, '.codex/hooks.json'))).ino, inode)
+  assert.deepEqual(f.reports, [])
+})
