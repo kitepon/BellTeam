@@ -1273,7 +1273,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 .lattice-wfold .lattice-g { font-size: 18px; }
 .lattice-wfold.is-red { color: var(--l-red); }
 .lattice-wfold:focus-visible, .lattice-waits .wp-x:focus-visible { outline: 2px solid var(--l-violet); outline-offset: -3px; }
-.lattice-waits .wp-x { display: grid; place-items: center; width: 28px; height: 28px; margin-right: -6px; padding: 0; border: 0; border-radius: 14px; background: none; color: var(--l-muted); }
+.lattice-waits .wp-x { position: absolute; top: 13px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 14px; background: none; color: var(--l-muted); }
 .lattice-waits .wp-x .lattice-g { font-size: 15px; color: var(--l-muted); }
 .lattice-rail { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 22px 0; overflow-y: auto; background: linear-gradient(180deg, rgba(244,241,254,.9), rgba(248,247,253,.9)); border-right: 1px solid rgba(33,41,61,.07); }
 .lattice-ri { position: relative; display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: none; }
@@ -1406,7 +1406,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 
 /* 待ちの流れ */
 .lattice-waits { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; border-left: 1px solid rgba(33,41,61,.08); background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(247,245,254,.9)); }
-.lattice-waits .wp-h { padding: 16px 16px 10px; }
+.lattice-waits .wp-h { position: relative; padding: 16px 46px 10px 16px; }
 .lattice-waits h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 16px; font-weight: 750; }
 .lattice-waits h3 .lattice-g { color: var(--l-violet); font-size: 17px; }
 .lattice-waits h3 .n { margin-left: auto; padding: 2px 9px; border-radius: 10px; background: var(--l-violet-soft); color: var(--l-violet); font-size: 11px; font-weight: 700; }
@@ -1545,6 +1545,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
   .lattice-canvas { background: radial-gradient(circle, var(--l-dot) 1px, transparent 1.3px) 0 0 / 22px 22px, linear-gradient(180deg, #17161D, #131218); }
   .lattice-rail { background: rgba(30,28,40,.7); border-right-color: rgba(255,255,255,.07); }
   .lattice-waits { background: linear-gradient(180deg, rgba(31,30,38,.92), rgba(24,23,30,.94)); border-left-color: rgba(255,255,255,.08); }
+  .lattice-wfold { background: linear-gradient(180deg, rgba(31,30,38,.92), rgba(24,23,30,.94)); border-left-color: rgba(255,255,255,.08); }
   .lattice-switcher { box-shadow: 0 0 0 .5px rgba(255,255,255,.14); }
   .lattice-ring .tr { stroke: rgba(180,165,255,.2); }
   .lattice-ri .rdot { box-shadow: 0 0 0 2.5px #1E1C28; color: #1F1E26; }

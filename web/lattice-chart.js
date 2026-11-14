@@ -506,8 +506,8 @@ export function createLatticeChart(dialog, {
     ui.fold.setAttribute('aria-label', `待ちの流れを開く、待ち ${rows.length}`)
     fill(ui.fold, glyph('hour'), h('span', { text: String(rows.length) }))
     keepFocus(ui.waits, () => fill(ui.waits, 
-      h('div', { class: 'wp-h' }, h('h3', {}, glyph('hour'), '待ちの流れ', h('span', { class: 'n', text: String(rows.length) }),
-        h('button', { class: 'wp-x', type: 'button', 'aria-label': '待ちの流れを閉じる', dataset: { focusKey: 'waits:close' }, on: { click: () => setWaitsOpen(false) } }, glyph('xmark'))),
+      h('div', { class: 'wp-h' }, h('h3', {}, glyph('hour'), '待ちの流れ', h('span', { class: 'n', text: String(rows.length) })),
+        h('button', { class: 'wp-x', type: 'button', 'aria-label': '待ちの流れを閉じる', dataset: { focusKey: 'waits:close' }, on: { click: () => setWaitsOpen(false) } }, glyph('xmark')),
         h('p', { text: '誰が何を待っていて、誰がつくっているか' })),
       rows.length ? h('ul', { class: 'wp-l' }, ...rows.map(row => h('li', { class: `wr${row.emphasized ? ' em' : ''}`, role: 'group', 'aria-label': row.label, dataset: { wait: row.key } },
         h('div', { class: 'l1' }, avatar(row.waiter, 20), h('span', { text: row.headline }), h('span', { class: 'w', text: `待ち ${row.length}` })),
