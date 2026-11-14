@@ -44,11 +44,13 @@ test('a seat run that writes nothing goes at once beside a write in flight; a wr
   await tick()
   const reads = [f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['--version'] }), f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['status'] })]
   const queued = f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['todo', 'note', '--plan', 'p', '--task', 't', '--message', 'm'] })
+  // A named run renames the chart: a write even when its args read (Epinel #1393).
+  const named = f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['status'], name: '工程表' })
   await tick()
   assert.deepEqual(f.calls.map(([, params]) => params.args[0] + (params.args[1] ? ' ' + params.args[1] : '')), ['todo add', '--version', 'status'])
   release()
-  await Promise.all([write, ...reads, queued])
-  assert.equal(f.calls.at(-1)[1].args[1], 'note')
+  await Promise.all([write, ...reads, queued, named])
+  assert.deepEqual(f.calls.slice(-2).map(([, params]) => params.args[1] ?? params.name), ['note', '工程表'])
 })
 
 test('seat writes go before queued background writes; the write in flight finishes first', async () => {

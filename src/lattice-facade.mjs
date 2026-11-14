@@ -34,7 +34,7 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
   }
 
   // A seat run that writes nothing (Flora's classifier, shared with the child) is a read too.
-  const call = (method, params) => READS.has(method) || method === 'run' && latticeRunReads(params.args, params.input) ? send(method, params) : new Promise((resolve, reject) => {
+  const call = (method, params) => READS.has(method) || method === 'run' && latticeRunReads(params) ? send(method, params) : new Promise((resolve, reject) => {
     queues[BACKGROUND.has(method) ? 'background' : 'seat'].push({ method, params, resolve, reject, queuedAt: now() })
     pump()
   })
