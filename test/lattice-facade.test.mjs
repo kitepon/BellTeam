@@ -22,45 +22,48 @@ function fixture({ respond = () => null, now } = {}) {
   return { facade, calls, timers, nudges, fire, hold: () => { let open; gate = new Promise(resolve => { open = resolve }); return () => { gate = null; open() } } }
 }
 
-test('seat calls run one at a time in call order', async () => {
+test('writes run one at a time in call order; reads go at once beside a write in flight', async () => {
   const f = fixture()
   const release = f.hold()
-  const results = [f.facade.charts(), f.facade.chart('alpha'), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
+  const writes = [f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
   await tick()
-  assert.deepEqual(f.calls.map(([method]) => method), ['charts'])
+  const reads = [f.facade.charts(), f.facade.chart('alpha'), f.facade.blockers()]
+  await tick()
+  // The first write is in flight; the reads were sent beside it, the second write waits.
+  assert.deepEqual(f.calls.map(([method]) => method), ['run', 'charts', 'chart', 'blockers'])
   release()
-  assert.deepEqual((await Promise.all(results)).map(value => value.method), ['charts', 'chart', 'run', 'run'])
-  assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['charts', {}], ['chart', { projectId: 'alpha' }],
-    ['run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }], ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
+  assert.deepEqual((await Promise.all([...writes, ...reads])).map(value => value.method), ['run', 'run', 'charts', 'chart', 'blockers'])
+  assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }],
+    ['charts', {}], ['chart', { projectId: 'alpha' }], ['blockers', {}], ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
 })
 
-test('seat calls go before queued background calls; the call in flight finishes first', async () => {
+test('seat writes go before queued background writes; the write in flight finishes first', async () => {
   const f = fixture()
   const release = f.hold()
   const nudge = f.facade.nudge()
   await tick()
-  const later = [f.facade.deliver(), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.charts()]
+  const later = [f.facade.deliver(), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.unblock({ projectId: 'alpha', stopId: 'a'.repeat(24) })]
   await tick()
   assert.deepEqual(f.calls.map(([method]) => method), ['nudge'])
   release()
   await Promise.all([nudge, ...later])
-  assert.deepEqual(f.calls.map(([method]) => method), ['nudge', 'run', 'charts', 'deliver'])
+  assert.deepEqual(f.calls.map(([method]) => method), ['nudge', 'run', 'unblock', 'deliver'])
 })
 
-test('a call queued past the wait bound is never sent; the next call is sent at once', async () => {
+test('a write queued past the wait bound is never sent; the next write is sent at once', async () => {
   let clock = 0
   const f = fixture({ now: () => clock })
   const release = f.hold()
-  const first = f.facade.charts()
+  const first = f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'note'] })
   await tick()
   const stale = f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] })
   clock = QUEUE_WAIT_MS + 1
-  const fresh = f.facade.chart('alpha')
+  const fresh = f.facade.unblock({ projectId: 'alpha', stopId: 'b'.repeat(24) })
   release()
   await first
   await assert.rejects(stale, { code: 'LATTICE_UNAVAILABLE', status: 503 })
-  assert.equal((await fresh).method, 'chart')
-  assert.deepEqual(f.calls.map(([method]) => method), ['charts', 'chart'], 'the stale run never reached the child')
+  assert.equal((await fresh).method, 'unblock')
+  assert.deepEqual(f.calls.map(([method, params]) => [method, params.args?.[1] ?? null]), [['run', 'note'], ['unblock', null]], 'the stale run never reached the child')
 })
 
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {

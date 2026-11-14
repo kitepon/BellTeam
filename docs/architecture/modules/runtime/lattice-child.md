@@ -9,7 +9,7 @@ flowchart LR
   subgraph Parent["Body parent"]
     Route["src/lattice/http-api.mjs (Flora, body-resident thin handler)<br/>auth / internal 403 / 405 / 404 / SSE framing + heartbeat<br/>GET blockers, POST unblock (Owner, JSON only)"]
     Tool["src/lattice/mcp.mjs (Flora)<br/>tool lattice; registered in mcp-tools.mjs (Molly)<br/>from = authenticated calling seat"]
-    Facade["src/lattice-facade.mjs (Molly)<br/>charts() / chart(id) / run(...) / subscribe(id, send)<br/>one call at a time: seat calls first, background after;<br/>a call queued over 50 s is dropped, never sent"]
+    Facade["src/lattice-facade.mjs (Molly)<br/>charts() / chart(id) / run(...) / subscribe(id, send)<br/>reads sent at once; writes one at a time:<br/>seat writes first, background after;<br/>a write queued over 50 s is dropped, never sent"]
     Loop["refresh loop (Molly)<br/>only while >=1 subscriber; one timer from nextRefreshMs"]
     Nudge["nudge timer (Flora, in the facade)<br/>every 60 s, always; root nudge"]
     Proc["src/lattice-process.mjs (Molly)<br/>common createModuleProcess"]
@@ -38,8 +38,8 @@ flowchart LR
 | 1 | Owner client → http-api | `GET /api/lattice/charts`, `GET /api/lattice/charts/:id`, `GET /api/lattice/charts/:id/events` (common authorizer; internal server 403 `LATTICE_OWNER_REQUIRED`; non-GET 405) | none |
 | 2 | http-api → facade.charts() / facade.chart(id) → child root `charts {}` / `chart {projectId}` | `bellteam.lattice-charts.v1` / `bellteam.lattice-chart.v1`, JSON body as is | child memory, chart stores |
 | 3 | http-api → facade.subscribe(id, send) | per-chart subscriber set. The first subscriber of any chart starts the loop with one root `refresh` at once; the last unsubscribe of all charts clears the timer | facade memory |
-| 4 | loop → facade → child root `refresh {projectIds}` | every subscribed chart id, sorted, in slices of 50, one at a time in the background queue. Result `{snapshots, nextRefreshMs}`; each snapshot goes whole to that chart's subscribers; one timer from `nextRefreshMs` (a failed refresh re-arms with 2000 ms) | child memory |
-| 5 | seat → bellteam MCP → facade.run({from, projectId, args, input, name?}) → child root `run` | `from` = the calling seat's Bot id resolved by `seat-mcp` (a fork resolves to its parent Bot), never a tool argument. `name` is forwarded only when the seat gave it (the child validates it: `LATTICE_NAME_INVALID`). Result `{exitCode, result, stdout, stderr}`. When the chart has subscribers, one root `refresh {projectIds:[projectId]}` follows at once in the background queue | chart stores (Lattice CLI in the child) |
+| 4 | loop → facade → child root `refresh {projectIds}` | every subscribed chart id, sorted, in slices of 50, one slice after another; a read, sent at once. Result `{snapshots, nextRefreshMs}`; each snapshot goes whole to that chart's subscribers; one timer from `nextRefreshMs` (a failed refresh re-arms with 2000 ms) | child memory |
+| 5 | seat → bellteam MCP → facade.run({from, projectId, args, input, name?}) → child root `run` | `from` = the calling seat's Bot id resolved by `seat-mcp` (a fork resolves to its parent Bot), never a tool argument. `name` is forwarded only when the seat gave it (the child validates it: `LATTICE_NAME_INVALID`). Result `{exitCode, result, stdout, stderr}`. When the chart has subscribers, one root `refresh {projectIds:[projectId]}` follows at once (a read) | chart stores (Lattice CLI in the child) |
 | 6 | child → parent effect (only inside a root call) | `members.list {}` → `{members:[{id,name,color,avatarVersion,deleting}]}` (bots.listForClient, the same normalization as work-graph) | members (read only) |
 | 7 | child → parent effect (only inside root `run` / `deliver`) | `messages.send {from, target, message}` (three non-empty strings, `message` <= 4000) → `{delivery, deliveryId, code?}`: `messenger.sendmessage({from, target, message})` run under the conversation actor scope that `from` names (`scheduler` → `{kind:'scheduler'}`, a Bot id → `{kind:'bot', botId}`, as direct receipts derive it), because `deliver` and the nudge timer run outside any request scope; `delivery_id` mapped to `deliveryId`; `from` or `target` equal to `user` (the messenger would make an Owner turn or Owner-screen post) → `{delivery:'refused', deliveryId:null, code:'LATTICE_SEND_USER_NOT_ALLOWED'}` without calling it; `SENDER_NOT_FOUND` / `BOT_NOT_FOUND` / `MESSAGE_REQUIRED` → `{delivery:'refused', deliveryId:null, code}`; any other error is thrown (the child keeps the notice unacked) | direct messages (messenger) |
 | 8 | module-process onGeneration → facade.deliver() → child root `deliver {}` | once per generation, held until ready; result `{delivered, failed}`; a refusal (old child) is swallowed | chart stores (notice acks, Lattice) |
@@ -78,16 +78,16 @@ The builtin child (`/app`) carries the same pin: the image runs `npm ci --omit=d
 
 ## Call queue (facade)
 
-The child runs root calls one at a time (`src/lattice-ipc.mjs`), so the facade sends one call at a time too, from two queues:
+The child runs writes one at a time and reads beside them (Flora #1382: Lattice reads take no store lock; seat runs per chart stay serialized by core's lock). The facade matches:
 
-- Seat queue: `run`, `chart`, `charts`, `blockers`, `unblock` (a seat or the Owner waits on the answer).
-- Background queue: `refresh`, `nudge`, `deliver` (timers and follow-ups; nobody waits on them).
+- Reads: `charts`, `chart`, `refresh`, `blockers`. Sent at once, even while a write is in flight. A Lattice write can take ~40 s on a large plan (production 2026-11-14), and a read waiting behind it took 36-83 s.
+- Writes, one at a time from two queues. Seat writes: `run`, `unblock` (a seat or the Owner waits on the answer). Background writes: `nudge`, `deliver` (timers; nobody waits). When the write in flight ends, the next write is the oldest seat write; a background write goes only when no seat write waits. A write in flight is never interrupted. Its IPC timeout (60 s, `run` 70 s) starts when it is sent.
 
-When the call in flight ends, the next call is the oldest seat call; the oldest background call goes only when no seat call waits. A call in flight is never interrupted. Its IPC timeout (60 s, `run` 70 s) starts when it is sent.
+A write that waited more than 50 s in a queue is not sent: it fails with 503 `LATTICE_UNAVAILABLE`. A seat's MCP caller gives up at 60 s, so a write sent later would change the chart (todo start, note) after the caller already read a failure, and its retry would write twice. Named protection: no late write after the caller gave up. Self-exit: the drop runs no work, so the next queued write is sent at once. A background drop needs nothing more: the nudge timer re-arms after 60 s, and deliver runs again on the next generation. Reads are never queued, so they are never dropped.
 
-A call that waited more than 50 s in a queue is not sent: it fails with 503 `LATTICE_UNAVAILABLE`. A seat's MCP caller gives up at 60 s, so a call sent later would write the chart (todo start, note) after the caller already read a failure, and its retry would write twice. Named protection: no late write after the caller gave up. Self-exit: the drop runs no work, so the next queued call is sent at once. A background drop needs nothing more: refresh re-arms with 2000 ms, the nudge timer re-arms after 60 s, and deliver runs again on the next generation.
+An old child (before #1382) still runs every root call one at a time. With it, reads wait inside the child as before, and nothing breaks.
 
-Limit: a seat call sent after a 49 s wait can still run past its caller's 60 s, because the child's `run` has its own 60 s CLI budget. The 50 s wait bound only ensures that nothing starts after the caller is gone.
+Limit: a seat write sent after a 49 s wait can still run past its caller's 60 s, because the child's `run` has its own 60 s CLI budget. The 50 s wait bound only ensures that nothing starts after the caller is gone.
 
 ## Failure handling
 
@@ -97,7 +97,7 @@ Limit: a seat call sent after a 49 s wait can still run past its caller's 60 s, 
 | Refresh fails while subscribers exist | Nothing is sent; the loop re-arms with 2000 ms | Next refresh after the child is back; a new epoch is pushed whole |
 | Parent `members.list` fails | Effect returns the error; the child keeps the last roster, `degraded:['members']` | Next read |
 | Nudge tick fails (child unavailable, old child) | Swallowed; nothing is sent this tick | Next tick 60 s later |
-| A call waited over 50 s in the facade queue (the child is behind) | 503 `LATTICE_UNAVAILABLE`; the call is never sent | The next queued call is sent at once; see Call queue |
+| A write waited over 50 s in the facade queue (the child is behind) | 503 `LATTICE_UNAVAILABLE`; the write is never sent | The next queued write is sent at once; see Call queue |
 | Incompatible adopted release | Common prepareRelease refusal, same as the other modules; a state-format mismatch falls back to builtin | Common adoption path |
 
 One guard: the 50 s queue wait bound (Call queue: named protection and self-exit). Beyond it, the route and the tool wait only on the child request itself.
