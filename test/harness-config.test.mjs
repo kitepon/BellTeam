@@ -141,7 +141,7 @@ test('BellTeam設定の後に公式Throughline installを実行する', async ()
     run: async (command, args, options) => { calls.push([command, args, options.env.HOME]) },
     aitermHooks: async value => { calls.push(['aiterm', value]) },
   })
-  assert.deepEqual(calls, [['throughline', ['install'], home], ['products', home, '/relay/mcp-lazy'], ['aiterm', home]])
+  assert.deepEqual(calls, [['throughline', ['install', '--own-files'], home], ['products', home, '/relay/mcp-lazy'], ['aiterm', home]])
   assert.match(await readFile(join(home, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
 })
 
