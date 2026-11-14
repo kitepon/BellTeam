@@ -8,7 +8,8 @@ import { nudgeSweep } from './nudge.mjs'
 import { ownerDecisions } from './owner-decisions.mjs'
 import { stopsOf, unblockOutcome } from './blockers.mjs'
 
-const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
+// shortcut: one CLI process per chart, 16 at a time (README L4); a102 moves the list to one `charts list` process (K1).
+const CHART_PARALLEL = 16, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
 
