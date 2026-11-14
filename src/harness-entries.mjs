@@ -18,6 +18,11 @@ export const mergeEntry = (current, entry) => isObject(current)
   ? { ...current, ...entry, ...(isObject(current.env) || isObject(entry.env) ? { env: { ...current.env, ...entry.env } } : {}) }
   : entry
 
+// Reports reach the body log (docker logs): a failed CLI call carries its whole argv (entries with tokens/headers/env) and a JSON
+// parse error quotes the file text, so only our own messages pass through as written.
+export const safeMessage = error => error?.cmd !== undefined ? `${String(error.cmd).split(' ')[0]} が終了コード ${error.code ?? error.signal ?? '不明'} で失敗しました`
+  : error instanceof SyntaxError ? 'JSON として読めません' : String(error?.message ?? error)
+
 async function readJson(path) {
   try { return JSON.parse(await readFile(path, 'utf8')) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
@@ -58,7 +63,7 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
       applied[product] = { version, entries: [] }
       items.push(...servers.map(item => ({ ...item, product })))
     } catch (error) {
-      report(`BellTeam MCP ${product}: E1を使えないので現在の状態のままにします（${error.message}）`)
+      report(`BellTeam MCP ${product}: E1を使えないので現在の状態のままにします（${safeMessage(error)}）`)
     }
   }
 
@@ -93,7 +98,7 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
     gemini: item => mergeJson(join(home, '.gemini/config/mcp_config.json'), item),
   }
   const done = item => applied[item.product].entries.push(`${item.harness}:${item.name}`)
-  const failed = (item, error) => report(`BellTeam MCP ${item.product}: ${item.harness} の ${item.name} を適用できませんでした（${error.message}）`)
+  const failed = (item, error) => report(`BellTeam MCP ${item.product}: ${item.harness} の ${item.name} を適用できませんでした（${safeMessage(error)}${error?.restoreFailure ?? ''}）`)
 
   for (const harness of ['claude', 'grok', 'cursor', 'gemini']) {
     for (const item of items.filter(entry => entry.harness === harness)) {
@@ -133,7 +138,7 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
 // so the seat never loses the server (named protection: no data loss); the original error is still reported.
 async function replaceOrRestore(add, restore) {
   try { await add() } catch (error) {
-    if (restore) await restore().catch(cause => { error.message += `; 元の登録も戻せませんでした（${cause.message}）` })
+    if (restore) await restore().catch(cause => { error.restoreFailure = `; 元の登録も戻せませんでした（${safeMessage(cause)}）` })
     throw error
   }
 }

@@ -7,7 +7,7 @@ import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
-import { configureHarnessEntries } from './harness-entries.mjs'
+import { configureHarnessEntries, safeMessage } from './harness-entries.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
@@ -23,7 +23,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   try {
     await productEntries(home, { run, report })
   } catch (error) {
-    report(`BellTeam MCP products: 製品のMCP登録を適用できませんでした（${error.message}）`)
+    report(`BellTeam MCP products: 製品のMCP登録を適用できませんでした（${safeMessage(error)}）`)
   }
   await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
   // Cursor CLIは ~/.cursor/AGENTS.md を読まないので、起動時指示はsessionStartのhookで渡す。

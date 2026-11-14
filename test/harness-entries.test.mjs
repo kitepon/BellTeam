@@ -40,7 +40,8 @@ async function fixture({ products = { xarticle: e1('xarticle', xarticle), typesa
   const calls = [], requests = [], reports = []
   const run = async (command, args) => {
     calls.push([command, ...args])
-    if (failAdd && failAdd(command, args)) throw new Error('synthetic add failure')
+    const failure = failAdd && failAdd(command, args)
+    if (failure) throw failure instanceof Error ? failure : new Error('synthetic add failure')
     return { stdout: JSON.stringify(grok) }
   }
   const appServer = async (_env, use) => use(async (method, params) => {
@@ -154,4 +155,17 @@ test('remove succeeded, new add failed: the previous entry is added back (claude
 test('a missing E2 registry is an error (reported by configureHarnesses), not a silent no-op', async () => {
   const f = await fixture()
   await assert.rejects(configureHarnessEntries(f.home, { registry: join(f.dir, 'absent.json'), run: async () => ({ stdout: '[]' }), report: () => {} }), /E2 .*absent\.json/u)
+})
+
+test('a failed CLI call carrying a credential reports only product, harness, program and exit code', async () => {
+  const secret = 'SYNTHETIC-SECRET-1436'
+  const changed = { ...typesafe, claude: { type: 'http', url: 'https://new.invalid/mcp', headers: { Authorization: `Bearer ${secret}` } } }
+  // execFile's Error: message and cmd carry the whole argv, stderr may echo it.
+  const failAdd = (command, args) => command === 'claude' && args[1] === 'add-json' && JSON.stringify(args).includes(secret)
+    && Object.assign(new Error(`Command failed: claude ${args.join(' ')}\n${secret}`), { cmd: `claude ${args.join(' ')}`, code: 1, stderr: secret })
+  const f = await fixture({ products: { typesafe: e1('typesafe', changed) }, failAdd })
+  await f.apply()
+  assert.equal(f.reports.length, 1)
+  assert.doesNotMatch(f.reports[0], new RegExp(secret, 'u'))
+  assert.match(f.reports[0], /typesafe: claude の typesafe を適用できませんでした（claude が終了コード 1 で失敗しました）/u)
 })
