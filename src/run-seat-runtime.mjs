@@ -4,7 +4,6 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { ProjectFiles } from './project-files.mjs'
 import { SEAT_PROJECT_METHODS } from './seat-runtime.mjs'
 import { configureHarnesses, writeHarnessConfig } from './harness-config.mjs'
-import { writeGlobalInstructions } from './global-instructions.mjs'
 import { removeSeatClaudeCopies } from './bot-environment.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { aitermExecutionRegistration } from './aiterm-hooks.mjs'
@@ -36,8 +35,6 @@ async function operate(request) {
       return configureHarnesses(bots, request.home, { aiterm: async () => request.aiterm, callBridge: request.callBridge })
     case 'write-harness-config':
       return writeHarnessConfig(bots, request.home, { aiterm: async () => request.aiterm, callBridge: request.callBridge })
-    case 'global-instructions':
-      return writeGlobalInstructions(request.home, request.instructions)
     case 'throughline-storage':
       return migrateThroughlineStorage(process.env)
     case 'remove-claude-copies':

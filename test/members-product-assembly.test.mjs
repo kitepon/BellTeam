@@ -59,7 +59,7 @@ test('product services replace bootstrap writers, preserve the shared gate/asset
   }
   services = await createApplicationServices({ root, bots, ownerProfile, userRules, settings, seatRuntime,
     aiterm: { command: 'synthetic', args: [] }, client: { async close() {} },
-    createMembersProcess, createNotificationsProcess: createSyntheticNotificationsProcess, refreshGlobalInstructions: async () => { throw new Error('OLD_GLOBAL_WRITER_USED') }, olrwManagement: null,
+    createMembersProcess, createNotificationsProcess: createSyntheticNotificationsProcess, olrwManagement: null,
   })
   assert.notEqual(services.bots, bots); assert.notEqual(services.userRules, userRules)
   assert.equal(services.scheduler.membersAdmission, services.transport.membersAdmission)
@@ -68,7 +68,7 @@ test('product services replace bootstrap writers, preserve the shared gate/asset
   const request = { method: 'PUT' }, context = services.membersAuthorization.captureHttp(request, '/api/user-rules')
   assert.equal(await services.userRules.update('new synthetic rule', context), 'new synthetic rule\n')
   services.membersAuthorization.releaseHttp(request)
-  await services.refreshGlobalInstructions(); assert.equal(globalWrites, 1)
+  assert.equal(globalWrites, 1)
   await assert.rejects(services.userRules.update('forged', { capturedAuthorization: {} }), { code: 'MEMBERS_INPUT_INVALID' })
   assert.equal(await new UserRules({ root }).get(), 'new synthetic rule\n')
   assert.equal(typeof originalRulesUpdate, 'function'); assert.equal(closed, 0)

@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url'
 
 import { BotRegistry } from './bot-registry.mjs'
 import { restoreBotEnvironmentsInBackground } from './bot-environment.mjs'
-import { createGlobalInstructionsRefresher } from './global-instructions.mjs'
 import { OwnerProfile } from './owner-profile.mjs'
 import { UserRules } from './user-rules.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -81,7 +80,3 @@ await seatRuntime.removeClaudeCopies(bots)
 export const botEnvironments = restoreBotEnvironmentsInBackground(bots, { seatCommands: true })
 await configure(bots)
 
-export const refreshGlobalInstructions = createGlobalInstructionsRefresher({ ownerProfile, userRules, home,
-  write: (home, instructions) => seatRuntime.writeInstructions(home, instructions) })
-
-await refreshGlobalInstructions()

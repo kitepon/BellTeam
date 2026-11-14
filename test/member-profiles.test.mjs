@@ -89,26 +89,24 @@ test('HTTP profile/avatar and MCP self use fresh full profiles rather than image
   await assert.rejects(api({ method: 'GET' }, response(), new URL('http://synthetic/api/bots/bot-a')), error => error === unavailable)
 })
 
-test('Owner HTTP/MCPは保存後の指示生成失敗を返し、保存や専用MCPの境界を変えない', async () => {
-  const calls = [], failure = new Error('SYNTHETIC_INSTRUCTIONS_FAILED')
+test('Owner HTTP/MCPは保存だけを行い、専用MCPの境界を変えない（指示の作り直しはmembers、bd14 E4）', async () => {
+  const calls = []
   let profile = { name: 'before' }, text = 'before'
   const userRules = { async update(value) { text = value; calls.push('rules-saved'); return text } }
-  const refreshGlobalInstructions = async () => { calls.push('refresh'); throw failure }
   const ownerProfile = { async update(value) { profile = value; calls.push('profile-saved'); return profile } }
-  const api = createOwnerApi({ ownerProfile, userRules, refreshGlobalInstructions })
+  const api = createOwnerApi({ ownerProfile, userRules })
   for (const [method, path, body] of [
     ['PATCH', '/api/owner', { name: 'saved' }], ['PUT', '/api/user-rules', { text: 'saved' }],
   ]) {
     const request = Readable.from([Buffer.from(JSON.stringify(body))]); request.method = method
     const output = response()
-    await assert.rejects(api(request, output, new URL(path, 'http://synthetic')), error => error === failure)
-    assert.equal(output.status, null)
+    await api(request, output, new URL(path, 'http://synthetic'))
+    assert.equal(output.status, 200)
   }
   assert.deepEqual(profile, { name: 'saved' }); assert.equal(text, 'saved')
-  assert.deepEqual(calls, ['profile-saved', 'refresh', 'rules-saved', 'refresh'])
-  await assert.rejects(callOwnerTool({ name: 'update_user_rules', arguments: { text: 'mcp-saved' }, userRules, refreshGlobalInstructions }), error => error === failure)
-  assert.equal(text, 'mcp-saved')
+  assert.deepEqual(calls, ['profile-saved', 'rules-saved'])
+  assert.deepEqual(await callOwnerTool({ name: 'update_user_rules', arguments: { text: 'mcp-saved' }, userRules }), { text: 'mcp-saved' })
   const count = calls.length
-  await assert.rejects(callOwnerTool({ name: 'update_user_rules', arguments: { text: 'ignored', extra: true }, userRules, refreshGlobalInstructions }), /TOOL_ARGUMENT_INVALID/u)
+  await assert.rejects(callOwnerTool({ name: 'update_user_rules', arguments: { text: 'ignored', extra: true }, userRules }), /TOOL_ARGUMENT_INVALID/u)
   assert.equal(calls.length, count)
 })

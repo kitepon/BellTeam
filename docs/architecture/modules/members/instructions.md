@@ -25,7 +25,7 @@ flowchart TD
   Generation["新members世代の初回owner.read<br/>候補の準備確認、利用可能の公開前"] --> Refresh
   Common["integration所有<br/>common-agents.md"] --> Refresh
   Data --> Refresh
-  Refresh --> Write["Owner情報→個別規範→製品規範<br/>runtime公開writerへ"]
+  Refresh --> Write["Owner情報→個別規範→製品規範<br/>members global.writeInstructions（唯一のwriter、bd14 E4）"]
   Write --> Globals["home下5CLIのAGENTS<br/>次の通常指示読込から"]
   Refresh -->|"失敗"| Failure["生成失敗を返す<br/>既保存は残る"]
   Refresh -->|"世代起動時の失敗"| Diagnostic["初回だけdiagnostic MEMBERS_GLOBAL_INSTRUCTIONS_FAILED<br/>owner.readは成功、次のowner.readで再試行"]
@@ -57,7 +57,7 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 ### 全文共通指示の有効template
 
-共通規範の正本は`config/common-agents.md`一か所。全文を`renderGlobalInstructions`が各CLIのglobal指示へ組み立て、`writeGlobalInstructions`が既存5つの指示ファイルへ保存する。`SECTION models`を含む全文はそのまま保持し、通常dispatch/steer本文へ同じ節を再付記しない。通常配送は元の入力本文を維持する。別段落やUserRulesに規範を複製しない。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。既API/handler/DTO/TTLはこの差分では変えない。
+共通規範の正本は`config/common-agents.md`一か所。全文を`renderGlobalInstructions`が各CLIのglobal指示へ組み立て、membersの`global.writeInstructions`（`members-project-files.mjs`）だけが既存5つの指示ファイルへ保存する。本体の旧writer（`global-instructions.mjs`のrefresher、bootstrap起動時の書込み、席の`global-instructions`操作）は2026-11-14 bd14 E4で削除した（Belota合意）。`SECTION models`を含む全文はそのまま保持し、通常dispatch/steer本文へ同じ節を再付記しない。通常配送は元の入力本文を維持する。別段落やUserRulesに規範を複製しない。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。既API/handler/DTO/TTLはこの差分では変えない。
 
 供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configを従来どおり同じSHAへ揃える。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、execution artifactは既署名版との互換性のためassetを保持するが、新しいdispatchでは読み込まない。stateのUserRules更新だけではこのtemplateは変わらない。module導入で配置のtemplateが変わった時は、新世代の初回owner.readでglobal指示へ反映する。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
 
@@ -87,7 +87,7 @@ Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一�
 
 ## 公開handlerと境界
 
-`members/owner-http.mjs:createOwnerApi({ownerProfile,userRules,refreshGlobalInstructions})`はGET/PATCH /api/owner、GET /api/owner/avatar、GET/PUT /api/user-rules、GET /api/user-rules/historyを所有する。createApplicationApiはこの窓口と既conversation assetsを接続する。全経路/status/返却と画像整形を維持する。
+`members/owner-http.mjs:createOwnerApi({ownerProfile,userRules})`（保存後の指示の作り直しはmembers側の保存が行う）はGET/PATCH /api/owner、GET /api/owner/avatar、GET/PUT /api/user-rules、GET /api/user-rules/historyを所有する。createApplicationApiはこの窓口と既conversation assetsを接続する。全経路/status/返却と画像整形を維持する。
 
 通常MCPはprofiles-mcpのget_owner_profile/get_user_rulesの読取と、ユーザーの明示指示がある時だけの`update_user_rules`（Owner 2026-11-10、Trony経由）。専用`mcp-owner-tools.mjs`のownerTools/callOwnerToolは従来どおり残す。本文の型/長さ/余分key検証を保持し、権限を役職の文字列へ置換しない。
 

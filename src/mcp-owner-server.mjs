@@ -9,7 +9,6 @@ import { createMembersOwnerProxy } from './members-owner-proxy.mjs'
 
 const proxy = createMembersOwnerProxy({ port: Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181) })
 const userRules = { update: text => proxy.updateUserRules(text) }
-const refreshGlobalInstructions = async () => {}
 
 const server = new Server(
   { name: 'bellteam-owner', version: '0.1.0' },
@@ -20,7 +19,7 @@ const server = new Server(
 )
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: ownerTools }))
 server.setRequestHandler(CallToolRequestSchema, async request => {
-  const result = await callOwnerTool({ name: request.params.name, arguments: request.params.arguments, userRules, refreshGlobalInstructions })
+  const result = await callOwnerTool({ name: request.params.name, arguments: request.params.arguments, userRules })
   return { content: [{ type: 'text', text: JSON.stringify(result) }] }
 })
 await server.connect(new StdioServerTransport())
