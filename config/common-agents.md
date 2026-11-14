@@ -218,6 +218,11 @@ SECTION diagrams-and-code
     DO: one canonical place per role for its diagram and public contract; the overall diagram references and composes connections; every role is traceable from overall to own to connections.
   RULE diagrams.separation
     DO: connect through public interfaces so each role updates alone; agree cross-cutting contracts with the roles involved.
+  RULE diagrams.product-boundary
+    DO: a function is built by the product that owns its facts and served through a contracted interface (CLI, API, MCP).
+    DO: draw every product-to-product connection in both products' function and data-flow diagrams.
+    NEVER: read or write another product's internal modules, files or storage directly.
+    WHY: a direct reference breaks silently when the other product changes.
 
 SECTION completion
   RULE completion.root-cause
