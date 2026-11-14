@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
-import { configureRtk } from './rtk-hooks.mjs'
 import { configureHarnessEntries, safeMessage } from './harness-entries.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
@@ -16,15 +15,9 @@ import { fixedResumeBase } from './resume-policy.mjs'
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
 
-export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, productEntries = configureHarnessEntries, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
+export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, productEntries = configureHarnessEntries, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const registration = await aiterm().catch(() => null)
   await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration, relay })
-  // bd14: BellTeam is the one writer of the MCP entries of the products in config/harness-products.json. A failure keeps the seat running.
-  try {
-    await productEntries(home, { run, report })
-  } catch (error) {
-    report(`BellTeam MCP products: 製品のMCP登録を適用できませんでした（${safeMessage(error)}）`)
-  }
   await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
   // Cursor CLIは ~/.cursor/AGENTS.md を読まないので、起動時指示はsessionStartのhookで渡す。
   try {
@@ -32,11 +25,12 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   } catch (error) {
     report(`BellTeam Cursor: 起動時指示のhookを登録できませんでした（${safeMessage(error)}）`)
   }
-  // RTKはオーナーの指示で標準搭載する（インフラ整備の部屋 2026-09-27）。登録できなくてもBotは動かし、理由を記録する。
+  // bd14: BellTeam is the one writer of the MCP entries and hooks of the products in config/harness-products.json (RTK included, standard since 2026-09-27).
+  // It runs where the RTK writer ran (after Throughline and the Cursor instructions, before Aiterm), so each hook event keeps today's key and array order. A failure keeps the seat running.
   try {
-    await rtk(home)
+    await productEntries(home, { run, report })
   } catch (error) {
-    report(`BellTeam RTK: hookを登録できませんでした（${safeMessage(error)}）`)
+    report(`BellTeam products: 製品のMCP・hook登録を適用できませんでした（${safeMessage(error)}）`)
   }
   // AitermのMCPはBellTeamが登録するので、親配送のhookも同じ場所で登録する。登録できなくてもBotは動かし、理由を記録する。
   try {

@@ -27,10 +27,6 @@
       "port": "relay"
     },
     {
-      "module": "rtk",
-      "port": "hook"
-    },
-    {
       "module": "execution",
       "port": "members-admission"
     },

@@ -1,4 +1,5 @@
 [
   { "product": "xarticle", "file": "/srv/bellteam/shared/tools/xarticle/harness-entries.json" },
-  { "product": "typesafe", "file": "/srv/bellteam/shared/tools/typesafe/harness-entries.json" }
+  { "product": "typesafe", "file": "/srv/bellteam/shared/tools/typesafe/harness-entries.json" },
+  { "product": "rtk", "file": "/srv/bellteam/shared/tools/rtk/harness-entries.json" }
 ]
