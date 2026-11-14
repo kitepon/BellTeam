@@ -29,6 +29,8 @@ struct LatticeChartScreen: View {
     @State private var page: String?
     @State private var detent: PresentationDetent = .medium
     @State private var switching = false
+    /// iPhone tree: the card shown over its icon (a98 Peek); tapping it opens 詳細.
+    @State private var peek: String?
     /// The chart rows' own height in the switcher; the list shows at most `switchListMaximum` of it and scrolls the rest.
     @State private var switchRowsHeight: CGFloat = 0
     static let switchListMaximum: CGFloat = 440
@@ -301,7 +303,8 @@ struct LatticeChartScreen: View {
                             banner(snapshot).padding([.horizontal, .top], 14)
                             Group {
                                 if center == .tree {
-                                    treeBoard(snapshot, axes: [.horizontal, .vertical], namespace: namespace).transition(.opacity)
+                                    board(snapshot, LatticeLayout(LatticeStructure(snapshot), snapshot: snapshot, size: .cards), now: now, tree: true)
+                                        .transition(.opacity)
                                 } else if center == .history {
                                     historyBoard(snapshot, now: now).transition(.opacity)
                                 } else {
@@ -381,16 +384,10 @@ struct LatticeChartScreen: View {
     }
 
     /// ツリー。選択・強調・送り先は担当のレーンと同じ（切り替えても引き継ぐ）。
-    private func treeBoard(_ snapshot: LatticeChartSnapshot, axes: Axis.Set, namespace: Namespace.ID?) -> some View {
-        LatticeTreeBoard(snapshot: snapshot, tree: LatticeTree(snapshot, rootTitle: title), lookup: LatticePerson.lookup(snapshot),
-                         focus: focus, selected: selected, completedAt: model.completedAt, reduceMotion: reduceMotion,
-                         namespace: namespace, axes: axes, scrollTarget: $scrollTarget,
-                         select: { select($0) }, clear: { focus = nil; select(nil) })
-    }
-
     /// レーンと札と線。左の名前の列は横に送っても残る（note 04）：横に送る盤の上に、不透明な名前の列を重ねる。
     /// 盤の札は名前の列の下へ潜り、列の縁で字の途中から切れて見えない。右端は送りのつまみに掛からない余白を取る。
-    private func board(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout, now: Date) -> some View {
+    /// `tree`: the ツリー of the wide layout (a98): the same cards, edges and chips at `LatticeStructure` places, no lanes.
+    private func board(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout, now: Date, tree: Bool = false) -> some View {
         let lookup = LatticePerson.lookup(snapshot)
         let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let highlighted: Set<String>? = focus.map { focus in Set(snapshot.cardList.filter { $0.owner == focus }.map(\.id)) }
@@ -420,7 +417,8 @@ struct LatticeChartScreen: View {
                                 .allowsHitTesting(false)
                             ForEach(snapshot.cardList) { card in
                                 if let frame = layout.frames[card.id] {
-                                    cardButton(card, producer: lookup(card.owner), frame: frame, highlighted: highlighted, now: now)
+                                    cardButton(card, producer: lookup(card.owner), frame: frame, highlighted: highlighted, now: now,
+                                               identifier: tree ? "lattice-tree-box-\(card.id)" : "lattice-card-\(card.id)")
                                 }
                             }
                             ForEach(chips, id: \.id) { chip in
@@ -440,8 +438,8 @@ struct LatticeChartScreen: View {
                         Color.black
                         LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .leading, endPoint: .trailing).frame(width: 36)
                     })
-                    // 名前の列：画面の地の色で塗りつぶしてからレーンの色を重ねる（下を通る札を隠す）。
-                    ZStack(alignment: .topLeading) {
+                    // 名前の列：画面の地の色で塗りつぶしてからレーンの色を重ねる（下を通る札を隠す）。ツリーにはレーンが無い。
+                    if !tree { ZStack(alignment: .topLeading) {
                         LatticePalette.canvas
                         ForEach(layout.lanes) { lane in
                             LatticeLaneLabel(person: lane.person, coordinator: lane.person?.botId == coordinatorId)
@@ -452,7 +450,7 @@ struct LatticeChartScreen: View {
                         }
                     }
                     .frame(width: LatticeLayout.labelWidth + 8, height: height, alignment: .topLeading)
-                    .shadow(color: .black.opacity(0.06), radius: 6, x: 3)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 3) }
                 }
                 .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.82), value: snapshot)
             }
@@ -465,6 +463,7 @@ struct LatticeChartScreen: View {
                 if let selected { reveal(selected, layout: layout, proxy: proxy, animated: false) }
             }
         }
+        .modifier(LatticeTreeContainer(tree: tree))
     }
 
     private static let columnAnchorID = "lattice-column-anchor"
@@ -472,7 +471,7 @@ struct LatticeChartScreen: View {
     /// 札の一つ前の段を名前の列のすぐ右に置き（札は詳細の面より左に来る）、札の高さを縦の中央へ。
     private func reveal(_ id: String, layout: LatticeLayout, proxy: ScrollViewProxy, animated: Bool) {
         guard let frame = layout.frames[id] else { return }
-        let depth = Int(((frame.minX - LatticeLayout.labelWidth - 16) / LatticeLayout.column).rounded())
+        let depth = Int(((frame.minX - layout.left) / LatticeLayout.column).rounded())
         columnAnchor = CGPoint(x: CGFloat(max(0, depth - 1)) * LatticeLayout.column, y: frame.midY)
         DispatchQueue.main.async {
             withAnimation(animated ? .spring(response: 0.5, dampingFraction: 0.85) : nil) {
@@ -485,7 +484,8 @@ struct LatticeChartScreen: View {
         LatticePalette.lane.opacity(focus != nil && lane.person?.botId == focus ? 1 : 0.65)
     }
 
-    private func cardButton(_ card: LatticeCard, producer: LatticePerson?, frame: CGRect, highlighted: Set<String>?, now: Date) -> some View {
+    private func cardButton(_ card: LatticeCard, producer: LatticePerson?, frame: CGRect, highlighted: Set<String>?, now: Date,
+                            identifier: String) -> some View {
         LatticeCardView(card: card, producer: producer, selected: selected == card.id, now: now,
                         completedAt: model.completedAt[card.id], reduceMotion: reduceMotion)
             .frame(width: frame.width, height: frame.height)
@@ -502,7 +502,7 @@ struct LatticeChartScreen: View {
             .accessibilityLabel(LatticeText.cardLabel(card, producer: producer))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { select(card.id) }
-            .accessibilityIdentifier("lattice-card-\(card.id)")
+            .accessibilityIdentifier(identifier)
             .id(card.id)
             .position(x: frame.midX, y: frame.midY)
             .transition(.scale(scale: 0.92).combined(with: .opacity))
@@ -523,7 +523,7 @@ struct LatticeChartScreen: View {
                                 cards: [String: LatticeCard]) -> [ChipPlacement] {
         var boxes = Array(layout.frames.values)
         var placed: [ChipPlacement] = []
-        let bounds = CGRect(x: LatticeLayout.labelWidth + 12, y: LatticeLayout.top, width: layout.size.width, height: layout.size.height)
+        let bounds = CGRect(x: layout.left - 4, y: LatticeLayout.top, width: layout.size.width, height: layout.size.height)
         let waiting = Dictionary(grouping: snapshot.edgeList.filter(\.waiting), by: \.to)
         for to in layout.order {
             guard let edges = waiting[to], let target = layout.frames[to] else { continue }
@@ -682,9 +682,11 @@ struct LatticeChartScreen: View {
                 historyView(snapshot, now: now, namespace: nil)
             }
             if center == .tree {
-                // 縦は画面全体が送るので、木は横だけ送る。
-                treeBoard(snapshot, axes: .horizontal, namespace: nil)
-                    .frame(height: LatticeTree(snapshot).size.height)
+                // 縦は画面全体が送るので、木は横だけ送る（a98：担当の顔の地図。顔を押すと札、札を押すと詳細）。
+                LatticeIconMap(snapshot: snapshot, layout: LatticeLayout(LatticeStructure(snapshot), snapshot: snapshot, size: .icons),
+                               lookup: lookup, focus: focus, peek: $peek, now: now, completedAt: model.completedAt,
+                               reduceMotion: reduceMotion, animate: !reduceMotion && model.connection == .live,
+                               open: { select($0) })
             }
             ForEach(center == .lanes ? groups : [], id: \.title) { group in
                 VStack(alignment: .leading, spacing: 8) {
