@@ -71,7 +71,7 @@ Verification scope: local HTTP/2 APNs success/rejection/timeout metadata, update
 
 既provider ON/OFF、OS/browser通知許可、端末/購読登録と解除をそのまま使う。自動permission要求・自動登録・購読資格の変更はない。同候補には同digestを使い、既APNs collapse-id/relay idとWeb tagでまとめる。これは配送済みの永続保証ではない。共通側はcomponent別最新idの有限map（最大9）を保持し、起動時現在候補を各1回、新digestだけ通知する。候補無し/一時取得失敗で既idを消して再通知しない。再起動後の同候補通知は起こり得る。新しい永続queue・AI監視・通知再試行は作らない。
 
-交換中の未送信だけ既256件/1MiBへ入り、一回試行したidはACK不明でも再送しない。通知利用不能/overflow/配送失敗は既固定診断へ、既APNs失効/Web404・410だけ対象登録を失効する。更新の状態/会話保存を通知成功へ連動させない。2xxはprovider受付であり端末表示の証明ではない。
+交換中の未送信だけ既256件/1MiBへ入り、一回試行したidはACK不明でも再送しない。通知利用不能/overflow/配送失敗は既固定診断へ、既APNs失効（410・400 DeviceTokenNotForTopic）/Web404・410だけ対象登録を失効する。更新の状態/会話保存を通知成功へ連動させない。2xxはprovider受付であり端末表示の証明ではない。
 
 ## 実装・供給と有限検証
 

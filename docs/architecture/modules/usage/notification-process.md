@@ -61,7 +61,7 @@ flowchart TD
   Push --> Devices[devices Map / saving: push-devices.json]
   Push --> Sending[provider / directProvider / inflight / error]
   Sending --> Provider[APNs直送 / 外部relay]
-  Provider --> Expired[APNS_UNREGISTEREDだけ登録を除く]
+  Provider --> Expired[APNS_UNREGISTERED・DEVICETOKENNOTFORTOPICだけ登録を除く<br/>後者は診断にも1回残す]
   Expired --> Devices
   Sending --> Diagnostics[integration Diagnostics.record: 唯一の診断writer]
   Shutdown[application-runtime全体close] --> Close[送信待ち→現在provider.close]

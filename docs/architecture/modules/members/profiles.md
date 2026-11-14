@@ -19,7 +19,7 @@ flowchart TD
   Create --> Memory["memory.ensureScope<br/>保存後の部分失敗を保持"]
   Profile --> Sheet["CharacterSheets<br/>runtimeの画像stream"]
   Listing --> Snapshot["listForClient default / profiles.read ACK stream<br/>metadata + four avatar versions"]
-  Snapshot --> Registry
+  Snapshot -->|"callers before the queued snapshot starts share it<br/>at most one running + one queued"| Registry
   Profile --> Listing["active/pending一覧<br/>履歴・稼働観測・適用表示"]
   Listing --> Wire["GET /api/bots, with any query<br/>four avatar fields present as empty strings<br/>four versions kept, bodies never sent"]
   Profile -->|"single-Bot GET / image routes"| Detail["readMember / full single profile<br/>authenticated image bytes + ETag"]
@@ -65,5 +65,7 @@ members/errors.mjsのnormalizeMembersErrorは既固定semantic prefix/コード�
 The parent uses the ACK-completed snapshot of the same generation/revision by default, avoiding one `profile.read` per Bot. `listForClient({omitAvatars:false})` remains an internal legacy fallback, with no HTTP opt-in. The handler emits all four avatar keys as empty strings alongside the version fields, taking existing versions before computing missing legacy versions. Required-string Apple decoders retain their list contract without transferring image bodies. Fresh single-profile reads, membership/pending rechecks, authorization and failure semantics remain unchanged.
 
 Deployment: both `src/members-facade.mjs` and the imported `src/members/profiles-http.mjs` execute in the body in the current assembly ([residency inventory M08](../../parent-residency.md)). Republishing or replacing only the members child cannot activate this caller change. Body activation belongs to Trony's existing approval boundary; this patch does not migrate handlers or restart the body.
+
+Coalescing (BugHub MEMBERS_IPC_CAPACITY, t20): every `profiles.read` and every projection-changing root used to queue its own full snapshot behind the running one, so N concurrent callers made N sequential snapshots of one ACK round trip per Bot each. Their root calls held parent IPC slots (64) for the whole backlog, and the next HTTP/MCP read was refused with 503 `MEMBERS_IPC_CAPACITY`. Now a caller that arrives while a snapshot is queued but not started joins it and gets its revision; the queued snapshot refreshes the registry when it starts, so it already includes every joiner's prior write. A caller that arrives while a snapshot is running still waits for the next one. At most one snapshot runs and one waits; the projection stream, its context (the first queued caller, still live because it awaits the same snapshot), revisions and failure semantics are unchanged. A failed shared snapshot fails all its joiners, as each would have failed alone. The parent projection accepts a newer `snapshot-start` while an older one is unfinished and drops the older one: the child sends one snapshot at a time, so it was abandoned (for example after an IPC timeout). Before, that start was refused with `MEMBERS_PROJECTION_INVALID` and failed one more read. An equal or older revision is still refused, and an unfinished snapshot is still never adopted.
 
 単一配列をIPCへ追加せず、既streamの一件ごとの16MiB上限とactual completion寿命を維持する。600名metadataが合計16MiB超でも一snapshotで扱う。全体図の既registry接続内の修理なので、全体のport追加はない。

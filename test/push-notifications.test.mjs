@@ -104,6 +104,19 @@ test('失効端末は削除し、通信障害は再試行せず秘密を含め�
   assert.equal(service.devices.size, 0)
 })
 
+test('別アプリのトークン（DeviceTokenNotForTopic）は登録を除き、診断は1回だけ', async t => {
+  const { service, provider, reports } = await fixture(t)
+  let count = 0
+  provider.send = async () => { count++; throw Object.assign(new Error('topic'), { code: 'APNS_HTTP_400_DEVICETOKENNOTFORTOPIC' }) }
+  service.secret({ id: 'request-a', botId: 'bot-a' })
+  await service.close()
+  service.secret({ id: 'request-b', botId: 'bot-a' })
+  await service.close()
+  assert.equal(service.devices.size, 0)
+  assert.equal(count, 1)
+  assert.deepEqual(reports.map(row => row.diagnostic_log ?? row.code), [reports[0].diagnostic_log ?? reports[0].code])
+})
+
 test('通知APIは認証が必要で、設定取得にトークンを返さない', async t => {
   const { service, bots } = await fixture(t)
   const server = createBellTeamServer({ bots, notifications: service, authorize: req => req.headers.authorization === 'Bearer test' })

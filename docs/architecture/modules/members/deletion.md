@@ -4,7 +4,10 @@
 
 ```mermaid
 flowchart TD
-  Input["DELETE /api/bots/:id<br/>MCP delete_bot"] --> Target{"active / 既pending / 不在"}
+  Owner["Owner: 公開入口 DELETE /api/bots/:id<br/>（Web・アプリ）"] --> Target{"active / 既pending / 不在"}
+  Bot["Bot: MCP delete_bot<br/>内部入口 DELETE /api/bots/:id"] --> Self{"対象 = 呼んだ席のBot<br/>（分身でない）"}
+  Self -->|"違う・席なし・分身"| Refused["403 / BOT_DELETE_SELF_ONLY<br/>副作用なし"]
+  Self -->|"自分"| Target
   Target -->|"不在"| Missing["404 / BOT_NOT_FOUND<br/>副作用なし"]
   Target -->|"active"| Accepted["202 / deleting:id<br/>受付のみ・背景で実行"]
   Target -->|"既pending"| Resume["202 / deleting:id<br/>同じ削除意図の再開"]
@@ -26,8 +29,8 @@ flowchart TD
 
 | 窓口 | 契約 |
 | --- | --- |
-| HTTP `createMemberDeletionApi({administration})` | DELETEだけを受け、`administration.remove(id)`の受付を202/{deleting:id}で返す。GET/PATCHの既pendingは従来どおり404 |
-| MCP `deleteBotTool/runDeleteBotTool` | schemaと説明もmembersが所有。botId省略時はfrom。callerはactiveな席として従来の共通認証を通る。既pendingは実行Map不在でも同じinternalApi.remove→HTTP入口へ送れる |
+| HTTP `createMemberDeletionApi({administration, resolveSeat})` | DELETEだけを受け、`administration.remove(id)`の受付を202/{deleting:id}で返す。GET/PATCHの既pendingは従来どおり404。公開入口（Owner、`resolveSeat=null`）は任意のBotを削除・既pendingを再開できる。内部入口は`resolveInternalSeat`の席が対象と同じBotで分身でない時だけ受け、他Bot・席なし・分身は作用前に403/`BOT_DELETE_SELF_ONLY`（監査M3、a117） |
+| MCP `deleteBotTool/runDeleteBotTool` | schemaと説明もmembersが所有。botId省略時はfrom。botIdがfromと違えば作用前に403/`BOT_DELETE_SELF_ONLY`。callerはactiveな席として従来の共通認証を通り、席名付きのinternalApi.remove→内部HTTP入口でも同じ自己限定を受ける。他Botの削除と既pendingの再開はOwnerの公開入口だけ |
 | `startMemberRemoval` | activeはstop(`allSessions:true`)→rooms.removeBot→bots.remove。stopは現在の席に加え、口座移動で残した旧席など同メンバーの全sessionを閉じる（Trony裁定2026-11-11：削除したメンバーのAIをOwnerの端末に残さない）。stop/部屋整理の失敗では後続を進めずwriteLog。pendingは既存削除意図だけを再開し、別のnative sessionを起動/停止しない |
 | `BotRegistry.hasPendingRemoval(id)` | IDを検証し、split stateの既pending directory又はreceiptの有無を返す。active/不在の分類のためだけに実行Mapへ再採用しない |
 | `BotRegistry.remove(id)` | 通常`{id}`。cleanup完了・CLI同期失敗時は`{id,configurationSync:{state:'failed',name,message,code?,status?}}`。同期はcleanup試行後に一回。共有writerの既onChange(bots) Promise/reject契約は変えない |
@@ -45,7 +48,7 @@ membersは`state/bots/<id>`、`.deleting/<id>`と`<id>.json`、専用`bots/<id>`
 
 直接callerはHTTPの登録、MCPの登録と席API中継、BotAdministrationの委譲、BotRegistryのremove/初期化resume、一覧投影。既export/設定/fixtureは保ち、共通入口の初回差分だけを統合担当へ渡す。機能図はpendingの正規受付と同期失敗の独立を反映し、全体には既存callbackのruntime.cli-registration接続を登録した。
 
-`test/member-deletion.test.mjs`で同期失敗時のcleanup、cleanup失敗との同時報告、receiptだけ/dirだけ/両方のpendingを正規MCP→HTTPで再開、GET/PATCH/完全不存在の拒否、native呼出0、無関係Bot保持、並行cleanupを確認する。既Bot state/registry/Administration/HTTP/MCP/席API試験を直接境界として併走する。
+`test/member-deletion.test.mjs`で同期失敗時のcleanup、cleanup失敗との同時報告、receiptだけ/dirだけ/両方のpendingをOwnerの公開DELETEで再開し他BotのMCP削除を拒否、内部入口の他Bot・席なし・分身の403と自分の削除、GET/PATCH/完全不存在の拒否、native呼出0、無関係Bot保持、並行cleanupを確認する。既Bot state/registry/Administration/HTTP/MCP/席API試験を直接境界として併走する。
 
 これはsourceと隔離fixtureの修理。実対象Andersonへの再DELETE、手動rm、状態手変更、実席の停止/再起動、本番反映は行っていない。共有JSON競合の修理はruntime担当、外部CLI writerの競合解消までをこの差分の保証に含めない。
 

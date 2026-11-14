@@ -2,7 +2,7 @@ import { json } from '../http-response.mjs'
 
 export const deleteBotTool = {
   name: 'delete_bot',
-  description: 'BotのAIセッションを終了し、プロジェクトフォルダと登録を削除する。削除途中のBot IDを指定すると同じ削除を再開する。botId省略時は自分。返却は受付であり、一覧から消えるまで削除は未完。',
+  description: '自分のAIセッションを終了し、プロジェクトフォルダと登録を削除する。消せるのは自分だけで、botIdは省略するか自分のIDにする。他のBotの削除はオーナーがWebかアプリで行う。返却は受付であり、一覧から消えるまで削除は未完。',
   inputSchema: { type: 'object', properties: { botId: { type: 'string', minLength: 1 } }, required: [], additionalProperties: false },
 }
 
@@ -13,16 +13,26 @@ export async function requireRemovalTarget(bots, botId, options = {}) {
   return bot
 }
 
+const SELF_ONLY_MESSAGE = 'Botが消せるのは自分だけ。他のBotの削除はオーナーがWebかアプリで行う。'
+const selfOnly = () => Object.assign(new Error(`BOT_DELETE_SELF_ONLY: ${SELF_ONLY_MESSAGE}`), { code: 'BOT_DELETE_SELF_ONLY', status: 403 })
+
+// Audit M3: a Bot deletes only itself; another Bot's deletion is the Owner's, on the public listener.
 export async function runDeleteBotTool({ registry, from, arguments: args = {}, remove }) {
   const botId = args.botId ?? from
+  if (botId !== from) throw selfOnly()
   await requireRemovalTarget(registry, botId)
   return remove(botId)
 }
 
-export function createMemberDeletionApi({ administration }) {
+// resolveSeat is given only on the internal listener, whose callers are Bot seats, never the Owner.
+export function createMemberDeletionApi({ administration, resolveSeat = null }) {
   return async (request, response, url) => {
     const match = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)$/u)
     if (request.method !== 'DELETE' || !match) return false
+    if (resolveSeat) {
+      const seat = await resolveSeat(request)
+      if (seat.fork || seat.botId !== match[1]) return json(response, 403, { error: 'BOT_DELETE_SELF_ONLY', message: SELF_ONLY_MESSAGE })
+    }
     return json(response, 202, await administration.remove(match[1]))
   }
 }

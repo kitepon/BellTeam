@@ -1694,7 +1694,8 @@ export class AitermTransport {
     } catch (error) {
       // Aiterm returns its fork_from refusals only as text "aiterm: FORK_*: ..." (no _meta code); they come before any seat.
       const refusal = !error?.code && /^aiterm: (FORK_[A-Z_]+):/u.exec(error?.message ?? '')?.[1]
-      if (refusal) Object.assign(error, { code: refusal, effect: 'not_started', status: refusal === 'FORK_INVALID' ? 400 : 503 })
+      // 409, not 503: the target has nothing to fork (fork.md); a 503 would be recorded as a server outage.
+      if (refusal) Object.assign(error, { code: refusal, effect: 'not_started', status: refusal === 'FORK_INVALID' ? 400 : 409 })
       // A receipt means a seat exists, whatever the error: it is closed.
       if (!receipt && (error?.effect === 'not_started' || error?.effect === 'not_issued')) issued = false
       await close()

@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T18:37:21Z",
-  "expiresAt": "2026-11-21T18:37:21Z",
+  "publishedAt": "2026-11-14T22:22:21Z",
+  "expiresAt": "2026-11-21T22:22:21Z",
   "releases": [
     {
       "componentId": "usage",
@@ -291,8 +291,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
-      "versionId": "a111880d47c8f13ddbe5e8692c6b0daf2ddc29e4d543813521a89b37d1477198",
+      "sourceCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e",
+      "versionId": "cc9feaef1d51ee1e428e522542c450b92a20f10eb98f2afe0d16878a1ba026db",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-amd64.tar.gz",
-          "bytes": 4442272,
-          "sha256": "a111880d47c8f13ddbe5e8692c6b0daf2ddc29e4d543813521a89b37d1477198"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-amd64.tar.gz",
+          "bytes": 4521370,
+          "sha256": "cc9feaef1d51ee1e428e522542c450b92a20f10eb98f2afe0d16878a1ba026db"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11272,
-          "sha256": "c81af911a713c62ad4e165dd7d1ce207e3391416f9e6d51af7770f638e79e9f2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11084,
+          "sha256": "407f9fe6906a837c40cfe560a00ad1f3e25d99009fa09fd6d69040fff34e0719"
         },
-        "signerCommit": "608a7bae86a141225a5e19fc5b0347992905923c"
+        "signerCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -318,13 +318,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の鍵（APNs）を、鍵ごとに.p8ファイルか1Passwordの参照から読めるようになりました。読めないときは通知が未設定と表示され、通知以外は止まりません。"
+        "別のアプリ用に登録された端末へ通知を送れなかったときは、その登録を外し、失敗を一度だけ記録するようにしました。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
-      "versionId": "ae3fc4bb7123df4c4e2a6358861e89b6e0ab2a52b3b99b25a4cdab33bc590d84",
+      "sourceCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e",
+      "versionId": "ef1c39044ed3053355f5eba368e2a3853629567bc84971c4363b3676ab31d65d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-arm64.tar.gz",
-          "bytes": 4442268,
-          "sha256": "ae3fc4bb7123df4c4e2a6358861e89b6e0ab2a52b3b99b25a4cdab33bc590d84"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-arm64.tar.gz",
+          "bytes": 4521365,
+          "sha256": "ef1c39044ed3053355f5eba368e2a3853629567bc84971c4363b3676ab31d65d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11272,
-          "sha256": "ac8c629e7f1b2411d0719c5f100cb138f841c8886cc6ba105f3a0804f199e71a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11119,
+          "sha256": "7165c52140d821c0df480decd9b5e705d54b91d0a8aecea376e746028b2ca331"
         },
-        "signerCommit": "608a7bae86a141225a5e19fc5b0347992905923c"
+        "signerCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -350,7 +350,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の鍵（APNs）を、鍵ごとに.p8ファイルか1Passwordの参照から読めるようになりました。読めないときは通知が未設定と表示され、通知以外は止まりません。"
+        "別のアプリ用に登録された端末へ通知を送れなかったときは、その登録を外し、失敗を一度だけ記録するようにしました。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894",
-      "versionId": "6b4c7d969906f465899035aa6147719bfa29cb1f1615856d717be57c9d76289f",
+      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
+      "versionId": "d318a82499a987edd7f862ff2502e69f2247a9af2c8fcc7a9dca0016b0737f91",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085945Z/web-gateway-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-amd64.tar.gz",
-          "bytes": 5339243,
-          "sha256": "6b4c7d969906f465899035aa6147719bfa29cb1f1615856d717be57c9d76289f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-amd64.tar.gz",
+          "bytes": 5346105,
+          "sha256": "d318a82499a987edd7f862ff2502e69f2247a9af2c8fcc7a9dca0016b0737f91"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085945Z/web-gateway-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11299,
-          "sha256": "1616af18372e1553787cc4d4398a2276d648dcb295bf62edd71a8480db98e995"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11197,
+          "sha256": "08aabb54ce97a8afc148e832532b137d67c23673a9968ac06cb07455b6df41d7"
         },
-        "signerCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894"
+        "signerCommit": "fec9a462301c69befee0021b47b20c368250cd5c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の画面で、数で数える工程の進み具合（何件中何件）を表示するようにしました。"
+        "Web受付が、つないできた相手の住所と、コンテナ内なら利用者番号を本体へ伝えるようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894",
-      "versionId": "b56cd88cff3e9cceded14fd1f70d0af0003e1db254df2a33c451e62b266f3246",
+      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
+      "versionId": "611a8c736cafa946374c495855aab2672d4e4b2aa94fbb8578e3b8ea4ceedf58",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085945Z/web-gateway-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-arm64.tar.gz",
-          "bytes": 5339243,
-          "sha256": "b56cd88cff3e9cceded14fd1f70d0af0003e1db254df2a33c451e62b266f3246"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-arm64.tar.gz",
+          "bytes": 5346105,
+          "sha256": "611a8c736cafa946374c495855aab2672d4e4b2aa94fbb8578e3b8ea4ceedf58"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085945Z/web-gateway-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11209,
-          "sha256": "b210d5e0255ef50c1cebf14c392f9ca9bc42913acf196c6c23e27c505c5f7802"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T215722Z/web-gateway-fec9a462301c69befee0021b47b20c368250cd5c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "90a0ae030e9e293e231706c11a5a4358d1e3db5aca7cd53dc4276f062a790604"
         },
-        "signerCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894"
+        "signerCommit": "fec9a462301c69befee0021b47b20c368250cd5c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の画面で、数で数える工程の進み具合（何件中何件）を表示するようにしました。"
+        "Web受付が、つないできた相手の住所と、コンテナ内なら利用者番号を本体へ伝えるようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
-      "versionId": "sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996",
+      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
+      "versionId": "sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "送った秘密の入力依頼を、ボットや評価者が取り下げられるようにしました。"
+        "コンテナ内のボットの席から、宛先名を偽ってオーナーとして操作できないようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
-      "versionId": "sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996",
+      "sourceCommit": "fec9a462301c69befee0021b47b20c368250cd5c",
+      "versionId": "sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d37591ddcb77ae5d88f3c07ab1644ccb830d946798409b43382f0a3fce30a996"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d766147abab39e0a152692347861f5e57dc5580aba5d3a3df3f662fc08048e15"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "送った秘密の入力依頼を、ボットや評価者が取り下げられるようにしました。"
+        "コンテナ内のボットの席から、宛先名を偽ってオーナーとして操作できないようにしました。"
       ]
     },
     {

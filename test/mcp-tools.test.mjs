@@ -333,7 +333,8 @@ test('MCPから全Botの管理、画像設定、会話取得、ユーザー送�
   await callBellTeamTool({ ...context, name: 'list_schedules', arguments: { botId: 'bot-b' } })
   await callBellTeamTool({ ...context, name: 'remove_schedule', arguments: { botId: 'bot-b', id: 's-1' } })
   assert.equal((await callBellTeamTool({ ...context, name: 'list_messages', arguments: { botId: 'bot-b' } })).items[0].message, 'こんにちは')
-  assert.deepEqual(await callBellTeamTool({ ...context, name: 'delete_bot', arguments: { botId: 'bot-b' } }), { deleting: 'bot-b' })
+  await assert.rejects(callBellTeamTool({ ...context, name: 'delete_bot', arguments: { botId: 'bot-b' } }), { code: 'BOT_DELETE_SELF_ONLY' })
+  assert.deepEqual(await callBellTeamTool({ ...context, name: 'delete_bot' }), { deleting: 'bot-a' })
 
   assert.deepEqual(calls[0], ['update', 'bot-b', { role: '設計' }])
   assert.ok(calls.some(call => call[0] === 'update' && call[2].avatar === 'data:image/png;base64,iVBORw0KGgo='))

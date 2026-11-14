@@ -2,6 +2,7 @@ import { constants } from 'node:os'
 import { returnedExecutionError } from './execution-error.mjs'
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
+import { returnedMcpError } from './returned-mcp-error.mjs'
 import { configurationBinding, configurationRequestFailure } from './configuration-request.mjs'
 
 const processCodes = new Set(['ABORT_ERR', 'SEAT_PROCESS_FAILED', 'SEAT_PROCESS_START_FAILED',
@@ -13,6 +14,8 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   if (!['configuration', 'delivery_wait', 'seat_watch', 'delivery_completion'].includes(phase)) return null
   if (phase === 'delivery_completion') return completionFailureReport(botId, error, context)
   if (phase !== 'configuration' && (error?.turnCompleted === true || ['timeout', 'running'].includes(error?.waitOutcome))) return null
+  // A confirmed stop (Owner stop, explicit restart, member delete) aborted this wait on purpose: not a tracking failure.
+  if (phase === 'delivery_wait' && context?.stopped === true) return null
   const detail = { schema: 'bellteam.execution-failure.v1',
     botId: typeof botId === 'string' && /^bot-[a-z0-9-]{1,100}$/u.test(botId) ? botId : null, phase }
   const code = returnedExecutionError(error?.executionError)?.code ?? error?.code
@@ -35,6 +38,8 @@ export function executionFailureReport(botId, phase, error, context = {}) {
     const token = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value)
     if (configurationCodes.has(error?.code) || token(error?.code)) detail.failure.error_code = error.code
     if (configurationCodes.has(error?.cause?.code) || token(error?.cause?.code)) detail.failure.cause_code = error.cause.code
+    // a78 picker refusal: Aiterm's code token names why it refused (configuration-requests.md); absent = running-turn refusal.
+    if (token(error?.refusal?.code)) detail.failure.refusal = { code: error.refusal.code, relaunch: error.refusal.relaunch === true }
     const configuration = configurationRequestFailure(error)
     if (configuration) {
       try { detail.configuration_request = configurationBinding(configuration.binding) } catch { /* Invalid supplemental data is not diagnostic evidence. */ }
@@ -83,4 +88,11 @@ export async function reportExecutionFailure(reportError, botId, phase, error, c
     const report = executionFailureReport(botId, phase, error, context)
     if (report) await reportError(report)
   } catch { /* Diagnostic failures must not change the operation or trigger retries. */ }
+}
+
+// Goal failures (BugHub 56db0203): code tokens and the sanitized Aiterm tool error (captureMcpError drops inputs), never the raw message.
+export function goalFailureCause(error) {
+  const token = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value) ? value : null
+  return { code: token(error?.code), aiterm_error_code: token(error?.aitermErrorCode),
+    mcp_error: returnedMcpError(error), mcp_request: mcpRequestContext(error) }
 }

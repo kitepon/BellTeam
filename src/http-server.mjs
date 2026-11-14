@@ -16,7 +16,7 @@ import { createTerminalsApi } from './http-terminals-api.mjs'
 import { createRunningExclusionsApi } from './http-running-exclusions-api.mjs'
 import { createServer } from 'node:http'
 import { LiveModelCatalog } from './model-catalog.mjs'
-import { json } from './http-response.mjs'
+import { crossSiteWrite, json } from './http-response.mjs'
 import { logWriteRequest, logReadRequest } from './http-request-log.mjs'
 import { staticFile } from './http-assets.mjs'
 import { respondHttpError } from './http-errors.mjs'
@@ -55,7 +55,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     reportError: report => diagnostics?.record(report) })
   const featureApis = [
     createApplicationApi({ ownerProfile, userRules, events, assets }),
-    createMemberDeletionApi({ administration }),
+    createMemberDeletionApi({ administration, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : null }),
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
       administration }),
     createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }),
@@ -84,6 +84,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
+      if (!internal && crossSiteWrite(request)) return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
       if (url.pathname === '/api/diagnostics/conversation-admission') {
         if (internal) return json(response, 403, { error: 'DIAGNOSTIC_OWNER_REQUIRED' })
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })

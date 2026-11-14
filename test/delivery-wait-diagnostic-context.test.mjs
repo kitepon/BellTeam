@@ -20,6 +20,8 @@ for (const stopped of [false, true]) test(`wait abort snapshot with local stoppe
   }, reportError(report) { reports.push(report); throw Error('private-canary') } })
   await assert.rejects(transport.waitForTurnCompletion(job, { receipt }), error => error === original)
   assert.equal(job.waitFailure, original)
+  // A confirmed local stop aborted the wait on purpose: no tracking diagnostic (BugHub 7681ba25).
+  if (stopped) return assert.deepEqual(reports, [])
   assert.equal(reports.length, 1)
   assert.equal(reports[0].code, 'SERVER_TURN_TRACKING_FAILED')
   assert.deepEqual(JSON.parse(reports[0].diagnostic_log), {
@@ -68,7 +70,7 @@ for (const outcome of ['done', 'error', 'rate_limited']) test(`native outcome ${
   assert.deepEqual(reports, [])
 })
 
-test('accepted fake delivery cancelled locally remains stopped with one diagnostic and one send', async () => {
+test('accepted fake delivery cancelled locally remains stopped with no tracking diagnostic and one send', async () => {
   const reports = [], statuses = [], calls = [], original = abortError()
   const transport = new AitermTransport({ activeId: () => jobId,
     client: { async call(name) { calls.push(name); assert.equal(name, 'pty_send'); return { structuredContent: receipt } } },
@@ -82,8 +84,7 @@ test('accepted fake delivery cancelled locally remains stopped with one diagnost
   assert.deepEqual(statuses.map(([status]) => status), ['running', 'stopped'])
   assert.equal(statuses[1][2], undefined)
   assert.deepEqual(calls, ['pty_send'])
-  assert.equal(reports.length, 1)
-  assert.deepEqual([JSON.parse(reports[0].diagnostic_log).stopped, JSON.parse(reports[0].diagnostic_log).waitAborted], [true, true])
+  assert.deepEqual(reports, [])
 })
 
 test('accepted delivery failing before its end names its step and a code token only', () => {
