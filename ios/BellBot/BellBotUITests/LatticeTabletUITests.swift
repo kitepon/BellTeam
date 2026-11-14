@@ -23,6 +23,80 @@ final class LatticeTabletUITests: XCTestCase {
         try sidebarAnswers(orientation: .landscapeLeft, tag: "landscape")
     }
 
+    /// a85: the top-left button opens 一覧 and back returns to the chart. a84: with 35 charts the switcher list scrolls
+    /// and the last chart can be chosen (Owner iPad 2026-11-14).
+    func testTopLeftOpensTheListAndTheSwitcherScrolls() async throws {
+        _ = try await fixtureCall(server: server, path: "/test/mode?many=1")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server, "-bellbot-preview-lattice"]
+            + fixtureLaunchArguments(server: server)
+        app.launch()
+        allowLocalNetworkAlertIfShown()
+        openChart(app)
+        settle()
+        let switcher = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '工程表を切り替える'")).firstMatch
+        let all = app.buttons["すべての工程表"].firstMatch
+        XCTAssertTrue(all.waitForExistence(timeout: 5), "工程表の左上に一覧のボタンがある")
+        XCTAssertLessThan(all.frame.maxX, switcher.frame.minX, "一覧のボタンは帯の一番左")
+        shot(app, "landscape-40-top-left-button")
+        all.tap()
+        XCTAssertTrue(element(app, "lattice-chart-extra-01").waitForExistence(timeout: 5), "左上のボタンで一覧が開く")
+        settle()
+        shot(app, "landscape-41-list-from-top-left")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["ツリー"].waitForExistence(timeout: 5), "戻ると同じ工程表")
+
+        switcher.tap()
+        let list = app.popovers.firstMatch.scrollViews.firstMatch
+        XCTAssertTrue(list.waitForExistence(timeout: 5), "切り替えの一覧が開く")
+        let last = app.buttons.matching(NSPredicate(format: "label CONTAINS '追加の工程表 30'")).firstMatch
+        XCTAssertTrue(last.exists)
+        // Rows clipped by the list still report hittable, so "on screen" is the row inside the list's frame.
+        let inside = { last.frame.minY >= list.frame.minY && last.frame.maxY <= list.frame.maxY }
+        XCTAssertFalse(inside(), "35枚では最後の工程表が一覧の外にある")
+        settle()
+        shot(app, "landscape-42-switcher-top")
+        // XCUITest finds no visible frame for the popover's scroll view in landscape, so drag by screen points inside its frame.
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        for _ in 0..<8 where !inside() {
+            origin.withOffset(CGVector(dx: list.frame.midX, dy: list.frame.maxY - 30))
+                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: list.frame.midX, dy: list.frame.minY + 30)))
+        }
+        XCTAssertTrue(inside(), "一覧を送ると最後の工程表まで届く")
+        settle()
+        shot(app, "landscape-43-switcher-scrolled")
+        last.tap()
+        let switched = app.buttons.matching(NSPredicate(format: "label == '工程表を切り替える、いまは追加の工程表 30'")).firstMatch
+        XCTAssertTrue(switched.waitForExistence(timeout: 10), "最後の工程表を選べる")
+        settle()
+        shot(app, "landscape-44-switched-to-last")
+    }
+
+    /// a91 (Owner 2026-11-14): a member's 「AIと操作」 has a button for each chart that member made; a tap opens it.
+    func testMemberPanelOpensTheChartsThatMemberMade() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server, "-bellbot-preview-lattice"]
+            + fixtureLaunchArguments(server: server)
+        app.launch()
+        allowLocalNetworkAlertIfShown()
+        let member = app.buttons["conversation-bot-trony"]
+        XCTAssertTrue(member.waitForExistence(timeout: 10), "サイドバーにトロニーがいる")
+        member.tap()
+        // Container identifiers override the buttons' own, so the button is found by its words.
+        let chart = app.buttons["工程表「Lattice組込」を開く"]
+        XCTAssertTrue(chart.waitForExistence(timeout: 10), "トロニーが作った工程表のボタンが「AIと操作」にある")
+        XCTAssertFalse(app.buttons["工程表「夜間の整備」を開く"].exists, "ほかのメンバーが作った工程表は出さない")
+        settle()
+        shot(app, "landscape-50-member-panel-charts")
+        chart.tap()
+        let opened = app.buttons.matching(NSPredicate(format: "label == '工程表を切り替える、いまはLattice組込'")).firstMatch
+        XCTAssertTrue(opened.waitForExistence(timeout: 10), "押すとその工程表が開く")
+        settle()
+        shot(app, "landscape-51-chart-from-member")
+    }
+
     private func sidebarAnswers(orientation: UIDeviceOrientation, tag: String) throws {
         XCUIDevice.shared.orientation = orientation
         let app = XCUIApplication()

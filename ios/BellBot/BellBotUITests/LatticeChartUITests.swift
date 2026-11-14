@@ -86,6 +86,20 @@ final class LatticeChartUITests: XCTestCase {
         shot(app, "light-06-tree-detail")
     }
 
+    /// a97 (Owner iPhone 2026-11-14): 「過去ログ 35」 showed as 「過去ログ 1…」 in the 工程 header's switch.
+    func testPastLogCountFitsOnTheSwitch() async throws {
+        _ = try await call("/test/mode?history=1")
+        let app = launch([])
+        defer { app.terminate() }
+        element(app, "lattice-chart-lattice").tap()
+        XCTAssertTrue(element(app, "lattice-wait-row-0").waitForExistence(timeout: 10))
+        let picker = app.segmentedControls["lattice-center-picker"]
+        XCTAssertTrue(scrollTo(picker, in: app), "ツリー / 担当 / 過去ログの切り替え")
+        XCTAssertTrue(picker.buttons["過去ログ 35"].exists, "過去ログの数は35")
+        settle()
+        shot(app, "light-07-pastlog-count")
+    }
+
     func testFailureViewsKeepTheChartAndSayWhatHappens() async throws {
         let app = launch([])
         defer { app.terminate() }

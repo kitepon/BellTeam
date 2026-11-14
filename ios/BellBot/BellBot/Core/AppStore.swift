@@ -108,6 +108,8 @@ final class AppStore: ObservableObject {
         }
     }
     private var chatReturnTab: Int?
+    /// A chart to open from a member's 「AIと操作」 (iPad/Mac); `LatticeHomeView` takes it and clears it.
+    @Published var latticeOpenRequest: String?
     private var drafts: [ChatTarget: ConversationDraft] = [:]
     // 編集値は再認証をまたいで保持する。文字入力でアプリ全体へ更新通知を出さない。
     var botEditorDrafts: [String: BotEditorDraft] = [:]
@@ -936,6 +938,20 @@ final class AppStore: ObservableObject {
         chatPath = [target]
         chatReturnTab = tab
         eventRevision += 1
+    }
+
+    /// 会話の右の「AIと操作」から工程表を開く。iPadは工程表の画面へ移る。Macは呼ぶ側が工程表の窓を開く（窓のLatticeHomeViewが受ける）。
+    func openLatticeChart(_ id: String) {
+        latticeOpenRequest = id
+        #if !targetEnvironment(macCatalyst)
+        selectedTab = 5
+        #endif
+    }
+
+    /// The charts that member made (`createdBy`), read once from the chart list for the 「AIと操作」 buttons.
+    func latticeCharts(createdBy botId: String) async throws -> [LatticeChartSummary] {
+        let list: LatticeChartsList = try await api.get(LatticeChartsModel.path)
+        return list.charts.filter { $0.createdBy == botId }
     }
 
     /// 相関図から開いた会話を戻る操作で閉じた時、その帰り先のタブへ移る。帰り先が無ければfalse。

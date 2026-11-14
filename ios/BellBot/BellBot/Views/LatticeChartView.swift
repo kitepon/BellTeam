@@ -29,6 +29,9 @@ struct LatticeChartScreen: View {
     @State private var page: String?
     @State private var detent: PresentationDetent = .medium
     @State private var switching = false
+    /// The chart rows' own height in the switcher; the list shows at most `switchListMaximum` of it and scrolls the rest.
+    @State private var switchRowsHeight: CGFloat = 0
+    static let switchListMaximum: CGFloat = 440
     /// 広い面で札へ送る時の目印。段の境目を名前の列の縁にそろえ、札が列の下で字の途中から切れて見えないようにする。
     @State private var columnAnchor = CGPoint.zero
     @Namespace private var namespace
@@ -159,13 +162,24 @@ struct LatticeChartScreen: View {
         .buttonStyle(LatticePressStyle())
         .popover(isPresented: $switching) {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(list.charts) { chart in
-                    switchRow(store.latticeChartName(chart), symbol: chart.isCoordinator ? "crown.fill" : "square.stack.3d.up",
-                              detail: "\(chart.done)/\(chart.total)", current: chart.projectId == model.projectId) {
-                        switching = false
-                        if chart.projectId != model.projectId { switchTo(chart.projectId) }
+                // Many charts run past the screen edge (Owner iPad 2026-11-14, ~25 charts): the rows scroll, すべての工程表 stays below.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(list.charts) { chart in
+                            switchRow(store.latticeChartName(chart), symbol: chart.isCoordinator ? "crown.fill" : "square.stack.3d.up",
+                                      detail: "\(chart.done)/\(chart.total)", current: chart.projectId == model.projectId) {
+                                switching = false
+                                if chart.projectId != model.projectId { switchTo(chart.projectId) }
+                            }
+                        }
                     }
+                    .background(GeometryReader { proxy in
+                        Color.clear.onChange(of: proxy.size.height, initial: true) { _, value in switchRowsHeight = value }
+                    })
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: min(switchRowsHeight, Self.switchListMaximum))
+                .accessibilityIdentifier("lattice-switcher-list")
                 Divider().padding(.vertical, 4)
                 switchRow("すべての工程表", symbol: "square.grid.2x2", detail: "", current: false) { switching = false; switchTo(nil) }
             }
@@ -175,6 +189,18 @@ struct LatticeChartScreen: View {
         }
         .accessibilityIdentifier("lattice-switcher")
         .accessibilityLabel("工程表を切り替える、いまは\(title)")
+    }
+
+    /// 工程表の一覧を開く1つのボタン。iPhoneは見出しの右、広い面は上の帯の一番左（Owner 2026-11-14）。
+    private var allChartsButton: some View {
+        Button { switchTo(nil) } label: {
+            Image(systemName: "square.stack.3d.up").font(.system(size: 15, weight: .semibold))
+                .frame(width: 38, height: 38)
+                .background(LatticePalette.surface.opacity(0.85), in: Circle())
+                .overlay(Circle().stroke(LatticePalette.line.opacity(0.7), lineWidth: 0.5))
+        }
+        .accessibilityLabel("すべての工程表")
+        .accessibilityIdentifier("lattice-back-to-list")
     }
 
     private func switchRow(_ title: String, symbol: String, detail: String, current: Bool, action: @escaping () -> Void) -> some View {
@@ -209,8 +235,8 @@ struct LatticeChartScreen: View {
             ForEach(LatticeCenter.allCases, id: \.self) { Text($0 == .history ? "\($0.rawValue) \(LatticeHistory.count(model.snapshot))" : $0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
-        // Wide: each segment fits its own words (「過去ログ N」 overflowed 240 pt, Owner 2026-11-14); iPhone keeps 240.
-        .modifier(LatticeWidth(width: wide ? nil : 240))
+        // Each segment fits its own words everywhere: a fixed 240 pt split 「過去ログ 35」 to 「過去ログ 1…」 (Owner iPad and iPhone 2026-11-14).
+        .fixedSize()
         .accessibilityIdentifier("lattice-center-picker")
     }
 
@@ -254,9 +280,9 @@ struct LatticeChartScreen: View {
         return VStack(spacing: 0) {
             // One row when it fits, else the progress goes to a second row: the bar never grows wider than the chart.
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { switcher; livePill; centerPicker; notices(snapshot); Spacer(minLength: 12); progress }
+                HStack(spacing: 12) { allChartsButton; switcher; livePill; centerPicker; notices(snapshot); Spacer(minLength: 12); progress }
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) { switcher; livePill; centerPicker; Spacer(minLength: 0) }
+                    HStack(spacing: 12) { allChartsButton; switcher; livePill; centerPicker; Spacer(minLength: 0) }
                     HStack(spacing: 12) { notices(snapshot); Spacer(minLength: 12); progress }
                 }
             }
@@ -526,14 +552,7 @@ struct LatticeChartScreen: View {
                     HStack(spacing: 10) {
                         switcher
                         Spacer(minLength: 0)
-                        Button { switchTo(nil) } label: {
-                            Image(systemName: "square.stack.3d.up").font(.system(size: 15, weight: .semibold))
-                                .frame(width: 38, height: 38)
-                                .background(LatticePalette.surface.opacity(0.85), in: Circle())
-                                .overlay(Circle().stroke(LatticePalette.line.opacity(0.7), lineWidth: 0.5))
-                        }
-                        .accessibilityLabel("すべての工程表")
-                        .accessibilityIdentifier("lattice-back-to-list")
+                        allChartsButton
                     }
                     notices(snapshot)
                     banner(snapshot)
@@ -638,10 +657,17 @@ struct LatticeChartScreen: View {
     private func compactTasks(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout, lookup: @escaping (String?) -> LatticePerson?, now: Date) -> some View {
         let groups = grouping.groups(snapshot, layout: layout, lookup: lookup)
         return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("工程").font(.system(size: 19, weight: .bold)).foregroundStyle(LatticePalette.ink)
-                Spacer()
-                centerPicker
+            // The switch goes under the heading when both do not fit on one row (a narrow iPhone, a larger count).
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Text("工程").font(.system(size: 19, weight: .bold)).foregroundStyle(LatticePalette.ink)
+                    Spacer(minLength: 12)
+                    centerPicker
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("工程").font(.system(size: 19, weight: .bold)).foregroundStyle(LatticePalette.ink)
+                    centerPicker
+                }
             }
             if center == .lanes {
                 Picker("並べ方", selection: $grouping) {
@@ -1209,14 +1235,6 @@ struct LatticeLegend: View {
 
     private var particles: some View {
         Text("線の粒 = 待ちの向き").font(.system(size: 11)).foregroundStyle(LatticePalette.muted).fixedSize()
-    }
-}
-
-/// A fixed width, or the view's own size when nil.
-private struct LatticeWidth: ViewModifier {
-    let width: CGFloat?
-    func body(content: Content) -> some View {
-        if let width { content.frame(width: width) } else { content.fixedSize() }
     }
 }
 

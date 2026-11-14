@@ -528,6 +528,9 @@ struct BotProfileAISection: View {
     let onScreen: () -> Void
     /// Returns true when the restart succeeded. The server answers only after the new seat is up, so this can take a while.
     let onRestart: () async -> Bool
+    /// The charts this member made (id, name). Only the iPad/Mac right panel passes them; the iPhone 詳細 shows none.
+    var charts: [(id: String, name: String)] = []
+    var openChart: (String) -> Void = { _ in }
     @State private var restarting = false
     @State private var note: String?
 
@@ -558,6 +561,13 @@ struct BotProfileAISection: View {
                 Label("Botの画面を見る", systemImage: "terminal").frame(maxWidth: .infinity)
             }
             .buttonStyle(.bellPrimary)
+            ForEach(charts, id: \.id) { chart in
+                Button { openChart(chart.id) } label: {
+                    Label("工程表「\(chart.name)」を開く", systemImage: "square.stack.3d.up").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("bot-lattice-chart-\(chart.id)")
+            }
             Button(restarting ? "再起動しています…" : "会話セッションを再起動", systemImage: "arrow.counterclockwise") {
                 Task {
                     restarting = true

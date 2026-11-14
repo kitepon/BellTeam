@@ -6,6 +6,8 @@
 //   &stream=ok|drop (drop answers 503 to every stream) &unknown=1 (a producer that is not in the roster) &degraded=lattice-read,members
 //   &owner=1 (t07 is owned by the Owner: the reserved producer "owner")
 //   &lanes=1 (production today: some unstarted cards carry only an authored lane text such as root / kiro, no producer)
+//   &history=1 (32 more finished, archived cards: 過去ログ 35, a two-digit count on the iPhone switch)
+//   &many=1 (30 more charts after the five: the switcher list runs past the screen edge, Owner iPad 2026-11-14)
 // /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
 import { createServer } from 'node:http'
 
@@ -21,7 +23,7 @@ const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString()
 
 let state, subscribers = new Set()
 function reset() {
-  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, degraded: [] }, version: 1, done: new Set() }
+  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, many: false, history: false, degraded: [] }, version: 1, done: new Set() }
 }
 reset()
 
@@ -46,6 +48,7 @@ function cards() {
     card('t09', 'iPhone/Mac画面', 'pending', state.mode.unknown ? 'bot-ghost' : 'bot-rapi', 3, { doneCondition: '実画面で承認される' }),
     card('t10', 'Web画面', 'pending', 'bot-flora', 3, { doneCondition: 'Webで工程表が開く' }),
     card('t11', '受け取り確認', 'pending', null, 4, { doneCondition: '3画面を実画面で承認' }),
+    ...(state.mode.history ? Array.from({ length: 32 }, (_, index) => card(`h${String(index + 1).padStart(2, '0')}`, `終わった工程 ${index + 1}`, 'done', 'bot-rapi', 0, { doneAt: ago(60 * (index + 2)), archived: true })) : []),
   ]
 }
 const EDGES = [['t01', 't07'], ['t02', 't04'], ['t04', 't08'], ['t05', 't08'], ['t07', 't08'], ['t08', 't09'], ['t06', 't10'], ['t09', 't11'], ['t10', 't11']]
@@ -74,6 +77,8 @@ const NAMES = {
   'web-polish': { name: null, createdBy: 'bot-admi' },
   guide: { name: null, createdBy: 'bot-ghost' },
 }
+const MANY = Array.from({ length: 30 }, (_, index) => `extra-${String(index + 1).padStart(2, '0')}`)
+for (const [index, id] of MANY.entries()) NAMES[id] = { name: `追加の工程表 ${String(index + 1).padStart(2, '0')}`, createdBy: 'bot-rapi' }
 
 function charts() {
   if (state.mode.list === 'empty') return []
@@ -84,6 +89,7 @@ function charts() {
     { projectId: 'call-bridge', ...NAMES['call-bridge'], coordinator: false, counts: { total: 8, done: 3, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-kiro', 'bot-molly', 'bot-trony', 'bot-rapi'], updatedAt: ago(34), state: 'verified' },
     { projectId: 'web-polish', ...NAMES['web-polish'], coordinator: false, counts: { total: 11, done: 9, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
     { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
+    ...(state.mode.many ? MANY.map((projectId, index) => ({ projectId, ...NAMES[projectId], coordinator: false, counts: { total: 6, done: index % 6, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-rapi'], updatedAt: ago(20 * (index + 1)), state: 'verified' })) : []),
   ]
 }
 
@@ -98,6 +104,8 @@ const server = createServer((request, response) => {
     if (url.searchParams.has('unknown')) state.mode.unknown = url.searchParams.get('unknown') === '1'
     if (url.searchParams.has('lanes')) state.mode.lanes = url.searchParams.get('lanes') === '1'
     if (url.searchParams.has('owner')) state.mode.owner = url.searchParams.get('owner') === '1'
+    if (url.searchParams.has('many')) state.mode.many = url.searchParams.get('many') === '1'
+    if (url.searchParams.has('history')) state.mode.history = url.searchParams.get('history') === '1'
     if (url.searchParams.has('degraded')) state.mode.degraded = url.searchParams.get('degraded').split(',').filter(Boolean)
     if (state.mode.stream === 'drop') { for (const [subscriber] of subscribers) subscriber.end(); subscribers.clear() } else push()
     return send(200, state.mode)
