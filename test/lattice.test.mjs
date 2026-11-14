@@ -344,10 +344,37 @@ test('core: a chart waiting on another chart re-reads when that chart changes, n
   assert.equal(alphaReads(), 2, 'stable while neither chart moves')
   x.cli.tokens.other = 2; await x.chart()
   assert.equal(alphaReads(), 3, "the other chart's source moved")
-  x.cli.reads.other = chartRead({ status: 'done' }); await x.chart('other'); await x.chart()
-  assert.equal(alphaReads(), 4, "the other chart's memo version moved (its cards changed)")
+  x.cli.metas.other = { name: 'Other' }; x.cli.tokens.other = 3; await x.chart('other')
+  const reprojected = await x.chart()
+  assert.deepEqual([alphaReads(), reprojected.externals[0].chartName], [4, 'Other'], "the other chart's source moved; its new memo name rides along")
+  x.cli.reads.other = chartRead({ status: 'done' }); x.clock.now += 1; await x.core.run({ from: 'bot-a', projectId: 'other', args: ['todo', 'start'], input: null }); await x.chart('other')
+  await x.chart()
+  assert.equal(alphaReads(), 4, "the other chart's memo version alone re-projects, no read (production 2026-11-14)")
   await x.chart('other'); await x.chart()
   assert.equal(alphaReads(), 4)
+})
+
+test('core: list syncs up to 16 charts at once as a pool, not batches (production 2026-11-14)', async () => {
+  const x = rig()
+  x.cli.charts = Array.from({ length: 40 }, (_, i) => `c${i}`)
+  for (const id of x.cli.charts) { x.cli.reads[id] = chartRead(); x.cli.tokens[id] = 1 }
+  const run = x.cli.run, gates = new Map()
+  let active = 0, peak = 0
+  x.cli.run = async call => {
+    active++; peak = Math.max(peak, active)
+    // c0 is slow: with batches the other 15 of its batch and every later batch wait for it.
+    if (call.id === 'c0') await new Promise(resolve => gates.set('c0', resolve))
+    else await new Promise(resolve => setImmediate(resolve))
+    active--
+    return run(call)
+  }
+  const listing = x.core.charts({}, x.effect)
+  const reads = () => x.cli.calls.filter(call => call.startsWith(READ)).length
+  for (let i = 0; i < 1000 && reads() < 39; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual([reads(), peak], [39, 16], 'every other chart read while c0 is still in flight')
+  gates.get('c0')()
+  const { charts } = await listing
+  assert.deepEqual([charts.length, new Set(charts.map(chart => chart.projectId)).size], [40, 40])
 })
 
 test('core: version moves only when the projected content changes; refresh returns each change once', async () => {
