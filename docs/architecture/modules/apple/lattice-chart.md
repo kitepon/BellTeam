@@ -33,10 +33,10 @@ flowchart LR
   Stream -->|"35秒無通信・切断・503"| Retry["reconnecting：最後の図を薄くして残し<br/>1, 2, 4 … 30秒（±20%）で開いている間ずっと"]
   Stream -->|"404"| Probe["GET /api/lattice/charts/:id で見分ける<br/>LATTICE_CHART_NOT_FOUND → notFound（止める）<br/>それ以外 → unsupported（60秒ごとに確かめ直す）"]
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
-  Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（archivedの札は除く。LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeTree（まとまり→工程の入れ子の配置。archivedの札は描かない）・LatticeHistory（終わった工程のJSTの日ごと）・LatticeTreeLink（肘）・LatticeTreeArc（依存の弧）<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
+  Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（archivedの札は除く。LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeStructure（a98：ツリーの配置＝出ている札をつながりの塊ごと・列ごとに、前の工程の行の平均へ置く。旧LatticeTree・LatticeTreeLink・LatticeTreeArcを置き換える）・LatticeHistory（終わった工程のJSTの日ごと）<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
   ListModel -->|"統括のBot（createdBy）"| Model
-  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：一番左に「すべての工程表」のボタン（一覧を積む。iPhoneは見出しの右の同じボタン。Owner 2026-11-14）・切り替え（popover。工程表の行は最大440ptで、それより多いと行だけ縦に送る。「すべての工程表」は送りの外の下に残る）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）。この帯の輪は中に文字を持たず、横に done/total を書く。輪（`LatticeRing`）の中の文字はどこでも1行で、入らなければ縮める<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定）：Views/LatticeTreeView.swift LatticeTreeBoard＝縦横に送る盤（線と弧のCanvasの上に根・まとまり・札の箱）<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeWaitPanel（既定は閉じて右端のつまみ LatticeWaitHandle＝砂時計と件数。押すと開き、パネルの閉じるで畳む）"]
-  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは待ちの流れを既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数・待ちの流れ（横に送る札）・工程（見出し「工程」の右にツリー/担当/過去ログ N。各札は自分の文字の幅で、同じ行に入らなければ見出しの下の行へ。Nの桁が増えても切らない。Owner 2026-11-14）（ツリー＝横に送る盤 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
+  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：一番左に「すべての工程表」のボタン（一覧を積む。iPhoneは見出しの右の同じボタン。Owner 2026-11-14）・切り替え（popover。工程表の行は最大440ptで、それより多いと行だけ縦に送る。「すべての工程表」は送りの外の下に残る）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）。この帯の輪は中に文字を持たず、横に done/total を書く。輪（`LatticeRing`）の中の文字はどこでも1行で、入らなければ縮める<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定。a98）：Views/LatticeTreeView.swift LatticeTreeBoard＝縦横に送る盤。担当のレーンと同じ札（LatticeCardView）と辺（LatticeEdgesLayer）を、レーン無しでLatticeStructureの位置へ置く<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeWaitPanel（既定は閉じて右端のつまみ LatticeWaitHandle＝砂時計と件数。押すと開き、パネルの閉じるで畳む）"]
+  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは待ちの流れを既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数・待ちの流れ（横に送る札）・工程（見出し「工程」の右にツリー/担当/過去ログ N。各札は自分の文字の幅で、同じ行に入らなければ見出しの下の行へ。Nの桁が増えても切らない。Owner 2026-11-14）（ツリー＝a98：LatticeIconMap＝LatticeStructureの位置に担当の小さな顔（レールの顔と同じ描き方）、作業中は顔の下に題、辺は札の文字なし。顔を押すとその札（広い面と同じLatticeCardView）を顔の上に出し、札を押すと詳細 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
   Wide -->|"札を押す"| Detail["LatticeDetailPanel<br/>Mac・iPad：盤の上のガラスの面（札からmatchedGeometryEffectで育つ）<br/>iPhone：sheet（160pt・中・大、背後も操作可）"]
   Compact -->|"札を押す"| Detail
   Detail -->|"前の工程・次の工程"| Detail
@@ -70,7 +70,7 @@ flowchart LR
 | --- | --- | --- |
 | 一覧・統括のBot・一覧の接続 | `LatticeChartsModel`（`LatticeHomeView`の`@StateObject`） | 入口の画面がある間。背景へ回ると止め、戻ると読み直す |
 | 1枚の図（最後に読めたsnapshot）・配置・接続・新しい完了の時刻 | `LatticeChartModel`（`LatticeChartScreen`の`@StateObject`） | その工程表を開いている間。背景へ回ると接続を閉じ、戻ると最新の一枚から描く |
-| 選んだ札・強調した担当・送り先・iPhoneの並べ方と詳細の高さ | `LatticeChartScreen`の`@State`（ツリーと担当で同じものを使う＝切り替えても引き継ぐ） | 画面の間 |
+| 選んだ札・強調した担当・送り先・iPhoneの並べ方と詳細の高さ・iPhoneのツリーで顔の上に出している札（a98） | `LatticeChartScreen`の`@State`（ツリーと担当で同じものを使う＝切り替えても引き継ぐ） | 画面の間 |
 | ツリー / 担当 / 過去ログ | `LatticeChartScreen`の`@SceneStorage("lattice-center")`（既定はツリー） | アプリ（シーン）を開いている間 |
 | 待ちの流れを開いているか（Mac・iPad） | `LatticeChartScreen`の`@SceneStorage("lattice-waits-open")`（既定は閉じる。Owner 2026-11-14） | アプリ（シーン）を開いている間 |
 | 一覧を工程表の上へ積んだか・止め一覧と、そこから開いた工程表（`.stops`・`.card`） | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
@@ -105,13 +105,15 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## ツリー
 
-`LatticeTree`（`Core/LatticeChart.swift`、純粋）が配置する：チャート（根）→ まとまり（`phases`の順）→ 工程（`parent`の下へ1段ずつ右へ入れ子）。まとまりの無い工程（`phase`が無い・知らないまとまり）は、まとまりの後ろに根からぶら下げる。親が無い・別のまとまりにある・自分自身の工程は、そのまとまりの先頭の段の工程として扱い、親の循環は、循環の中で図の並びが最初の工程で切る（どの工程も1回だけ出る）。兄弟は図の並び（snapshotの`cards`の順）のまま。`phases`・`phase`・`parent`が無い図（古い子）は、根の下に平らに並ぶ。
+**a98（Owner 2026-11-14 OK「よし進めろ。」、a99で作る）。** 正本は[screen-spec「ツリー」「Structure layout」](../lattice/screen-spec.md)。ここではApple側の部品だけを書く。
 
-- まとまりの状態の記号：止まり（1枚でも止まり）> 作業中（1枚でも作業中）> 完了（全部が完了か取り下げ。札が0枚なら未着手）> 未着手。名前が無いまとまりは「名前のないまとまり」。`done/total`は上の輪と同じ数え方（完了 / 取り下げを除く札）。
-- 線：親の右端から子の左端へやわらかいS字（`LatticeCurve`）。工程の下の工程は、親の左寄りから下へ下ろして丸い角で子へ入る（`LatticeTreeLink`）。依存（`edges`）は札の右側の弧（`LatticeTreeArc`）：待ち＝強調色（作り手が止まりなら赤）で待つ側へ矢じり、満たされた＝淡い線。線と弧は1枚の`Canvas`、強調中は札・弧を薄くする（担当のレーンと同じ）。
-- 札（`LatticeTreeCardBox`）：状態の記号・題1行（続きは…）・担当の顔（`LatticeCard.owner`＋`LatticePerson.lookup`＋`LatticeAvatar`）。押すと詳細（担当のレーンと同じ`select`。広い面は札から育つ面、iPhoneはsheet）。識別子は`lattice-view-tree`・`lattice-tree-box-<札のid>`・`lattice-tree-phase-<まとまりの鍵>`・`lattice-tree-root`・`lattice-center-picker`。
-- 終わった仕事は図から消える：`archived == true`の札（契約の決まりは[README](../lattice/README.md)）はツリーにも担当にも描かない。札が全部archivedのまとまりも描かない。archivedな親の子は、そのまとまりの先頭の段にぶら下がる。輪・数・根とまとまりの`done/total`は全部の札（archived込み）を数える。archivedな札に触れる辺・弧・待ちの流れの行は出さない（担当のレーンも同じ。全札がarchivedな担当のレーンは出ない）。
-- iPhoneは縦を画面全体が送り、木は横に送る。初めはまとまりの列の左端に合わせる。送り先（工程へ移動）は盤の横位置と画面の縦位置の両方を動かす。
+- 配置：`LatticeStructure`（`Core/LatticeChart.swift`、純粋）。入力はsnapshotだけ。出ている札（`archived`でない＝担当のレーンと同じ札）を、辺でつながった塊ごとに上から（塊の最初の札のsnapshotの順。辺の無い札は最後）、列＝depth（担当と同じ）、行＝前の工程の行の平均（丸め）とその列の次の空き行の大きい方。出力は札のid → 列・行と、描く辺（両端が出ている札の`edges`）。広い面とiPhoneは同じ結果を、大きさだけ変えて描く。
+- 広い面（Mac・iPad）：`LatticeTreeBoard`が、担当のレーンと同じ`LatticeCardView`・`LatticeEdgesLayer`（線・待ちの粒・札の文字）を、レーンの帯と名札なしで置く。根・まとまり・親子の箱と肘の線は描かない。押すと詳細、強調は担当と同じ。
+- iPhone（と幅が760未満の時）：`LatticeIconMap`が、同じ位置に担当の小さな顔（`LatticeAvatar`、レールの顔と同じく作業中は回る弧、止まりは赤い点。担当なしは点線の丸）を置き、作業中の札は顔の下に題（2行まで）。辺は同じ線で、札の文字は出さない。顔を押すと、その札を広い面と同じ`LatticeCardView`で顔の上に出す（`LatticeChartScreen`の`@State`）。その札を押すと詳細のsheet、ほかを押すと閉じ、別の顔を押すとそちらへ移る。
+- 出す札：`archived`でない札（サーバーが付ける。一つの木＝依存か親子でつながった札が全部終わった時だけarchived。Owner 2026-11-14「木（一つの改良計画）ごとに消そう。」）。アプリは印をそのまま使い、自分で決めない。
+- 数：分数は出ている札だけを数える（a96）。
+- 置き換えで消える物：`LatticeTree`・`LatticeTreeLink`・`LatticeTreeArc`・`LatticeTreeCardBox`、識別子`lattice-tree-phase-*`・`lattice-tree-root`。残す識別子：`lattice-view-tree`・`lattice-center-picker`。札は`lattice-tree-box-<札のid>`（広い面）・`lattice-tree-icon-<札のid>`（iPhone）。
+- 試験（a99で書く）：`LatticeStructure`の列・塊の順・行（一本道はまっすぐ、合流は間、辺の無い札は最後）・描く辺、iPhoneの顔を押す→札→詳細の流れ。
 
 ## 札の中身
 
@@ -127,7 +129,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## 試験
 
-- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（まとまりの状態の記号・done/total・入れ子の順・まとまりの無い工程・phases/parentが無い図・循環）・archived（描かないが数える）・過去ログの日ごとの並び・数（取り下げを母数から除く）・レーンの順・列・待ちの文・詳細・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え。
+- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かないが数える）・過去ログの日ごとの並び・数（取り下げを母数から除く）・レーンの順・列・待ちの文・詳細・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え。
 - `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・待ちの流れ・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
 - `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、待ちの流れが既定で畳まれ、開いて畳めること。
 - Macの写真は使い捨ての自己描画のコピーで撮る（repoに入れない）。

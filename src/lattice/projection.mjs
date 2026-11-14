@@ -96,10 +96,14 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
   for (const card of cards.values()) {
     if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => externals.get(id)?.finished ?? finished(cards.get(id)))) card.state = 'ready'
   }
-  // Archived = finished and no next card is still unstarted (Owner 2026-11-12); the screens leave it to 過去ログ.
-  for (const card of cards.values()) {
-    card.archived = finished(card) && (next.get(card.id) ?? []).every(id => !['pending', 'ready'].includes(cards.get(id).state))
-  }
+  // Archived = every card of its tree is finished; a tree = cards joined by local edges or parent links (Owner 2026-11-14, a98:
+  // 「木（一つの改良計画）ごとに消そう。」). The screens leave it to 過去ログ.
+  const root = new Map([...cards.keys()].map(id => [id, id])), find = id => root.get(id) === id ? id : find(root.get(id))
+  const join = (a, b) => root.set(find(a), find(b))
+  for (const [from, list] of next) for (const to of list) join(from, to)
+  for (const card of cards.values()) if (card.parent) join(card.id, card.parent)
+  const live = new Set([...cards.values()].filter(card => !finished(card)).map(card => find(card.id)))
+  for (const card of cards.values()) card.archived = !live.has(find(card.id))
   const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).filter(from => cards.has(from)).length]))
   for (const queue = [...open].filter(([, n]) => n === 0).map(([id]) => id); queue.length;) {
     const id = queue.shift()
