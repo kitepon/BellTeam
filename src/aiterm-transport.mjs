@@ -608,7 +608,8 @@ export class AitermTransport {
           // configuration-delivery.md (a53): a delivery that reached the CLI before this boundary was seen started a new turn,
           // and Aiterm refused the apply without issuing it. Apply again when the turns running now end; any other failure ends here.
           const running = this.activity.of(current.id).filter(turn => !turn.nativeTerminal)
-          if (error?.code !== 'CONFIGURATION_NOT_APPLIED' || error.effect !== 'not_started' || !running.length) throw error
+          // a78: a picker refusal (Aiterm's configure_error) is not a running-turn refusal; it ends here, visible with its reason.
+          if (error?.code !== 'CONFIGURATION_NOT_APPLIED' || error.effect !== 'not_started' || error.refusal || !running.length) throw error
           process.stderr.write(`BellTeam configuration: not applied while a turn runs, again at its end: ${current.id}\n`)
           turns = running
           applying = undefined

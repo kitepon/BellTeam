@@ -28,10 +28,15 @@ async function fixture(t, exists) {
       // A terminal request stays terminal: its ID never turns into an applied receipt.
       if (f.refused?.has(args.request.id) || f.refuseConfigure && f.refuseConfigure-- > 0) {
         f.refused ??= new Set(); f.refused.add(args.request.id)
-        return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
+        const refused = { schema: 'aiterm.agent-configure-request-result.v1',
         binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'not_applied',
         later_effect: 'excluded', terminal_at: '2026-11-13T06:33:29.063Z', observed_at: '2026-11-13T06:33:29.109Z',
-        current: { availability: 'unsupported' }, result: null } }
+        current: { availability: 'unsupported' }, result: null }
+        // a78: Aiterm's picker refusal is an isError reply with its code in _meta (AitermClient: configureRefusal); a
+        // running-turn refusal has none.
+        if (f.pickerRefusal && args.action === 'apply') throw Object.assign(new Error('aiterm: CLAUDE_MODEL_NOT_IN_PICKER vendor=claude session=x\nClaude Codeの /model の選ぶ画面に fable がありません。'),
+          { aitermResponseReturned: true, configureRefusal: { code: 'CLAUDE_MODEL_NOT_IN_PICKER', relaunch: true } })
+        return { structuredContent: refused }
       }
       return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
         binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'applied',
@@ -202,5 +207,31 @@ test('settings refused because a new turn already runs are applied again when th
   assert.equal(result.configurationRequest.binding.id, ids[1])
   assert.equal(f.requests.view(f.bot.id).receipt.outcome, 'applied')
   assert.equal(f.requests.view(f.bot.id).requested.model, 'opus')
+  await Promise.all([first, next])
+})
+
+// a78 (2026-11-14): Aiterm refused in the model picker while the continuation turn ran. That refusal names its code; it is not a
+// running-turn refusal, so it ends at once as a visible not_applied with its reason and is never retried behind the next turn.
+test('a picker refusal at the boundary is not retried as a running-turn refusal', { timeout: 3000 }, async t => {
+  const f = await fixture(t, true)
+  const waits = [Promise.withResolvers(), Promise.withResolvers()]
+  let waitIndex = 0, sends = 0
+  f.onWait = () => waits[waitIndex++].promise
+  f.onSend = () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: ++sends, wait_process: { executable: 'fixture', args: [] } } })
+  const first = f.transport.turn(f.bot, 'first', { queue: { groupId: 'first' } })
+  await first.accepted
+  const old = { ...f.bot }
+  f.bot.model = 'fable'
+  const change = f.transport.reconfigure(old, f.bot, { requestId: '7a1c2d3e-4a5b-4c6d-8e7f-0123456789ab' })
+  const next = f.transport.turn(f.bot, 'continue', { queue: { groupId: 'next' } })
+  await next.accepted
+  f.refuseConfigure = 1; f.pickerRefusal = true
+  waits[0].resolve()
+  const error = await change.then(() => assert.fail('a picker refusal must reject'), value => value)
+  assert.equal(error.code, 'CONFIGURATION_NOT_APPLIED')
+  assert.deepEqual(error.refusal, { code: 'CLAUDE_MODEL_NOT_IN_PICKER', relaunch: true })
+  assert.match(error.reason, /fable がありません/u)
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure' && c.args.action === 'apply').length, 1, 'never retried')
+  waits[1].resolve()
   await Promise.all([first, next])
 })

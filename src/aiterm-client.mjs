@@ -257,6 +257,10 @@ export class AitermClient {
       error.aitermResponseReturned = true
       const reason = errorCode(result._meta?.[ERROR_CODE_META])
       if (reason) error.aitermErrorCode = reason
+      // configuration-requests.md (a78): Aiterm's picker refusal; a running-turn refusal has none.
+      const configure = result._meta?.['aiterm/configure_error']
+      if (name === 'agent_configure' && typeof configure?.code === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(configure.code))
+        error.configureRefusal = { code: configure.code, relaunch: configure.relaunch === true }
       if (name === 'agent_configure' && result.structuredContent?.schema === 'aiterm.agent-configure-error.v1') {
         const failure = result.structuredContent
         const valid = Object.keys(failure).sort().join(',') === 'effect,outcome,schema,session_id'
