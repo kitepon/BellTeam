@@ -31,7 +31,7 @@ test('通常launchとaliasは型付き認証拒否だけを保存し一回で失
 test('HTTP失敗の診断に起動前拒否の観測を残し、旧unknownと三分類を分ける', async t => {
   const rows = []
   let current = fixture(detail(codes[0]))
-  const server = createBellTeamServer({ bots: new Map(), rooms: new Map(), store: {}, transport: {},
+  const server = createBellTeamServer({ internal: true, bots: new Map(), rooms: new Map(), store: {}, transport: {},
     messenger: { async sendmessage() { await current.client.call('agent_launch') } },
     diagnostics: { async record(row) { rows.push(row) } }, authorize: async () => true, writeLog() {} })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')

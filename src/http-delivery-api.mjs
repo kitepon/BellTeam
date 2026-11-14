@@ -1,7 +1,9 @@
 import { json, readJson } from './http-response.mjs'
 
-export function createDeliveryApi({ messenger, roomMessenger, transport }) {
+// Sends are seat-only: the sender is the internal seat (conversation authority), never the Owner listener's body (audit H2).
+export function createDeliveryApi({ messenger, roomMessenger, transport, internal = false }) {
   return async (request, response, url) => {
+    if (!internal && request.method === 'POST' && ['/api/deliveries/direct', '/api/deliveries/fork', '/api/deliveries/room'].includes(url.pathname)) return false
     if (request.method === 'POST' && url.pathname === '/api/deliveries/direct') {
       return json(response, 200, await messenger.sendmessage(await readJson(request)))
     }

@@ -25,7 +25,7 @@ test('返却済みMCP拒否をHTTP診断と同じ配送の失敗へ残す', asyn
   const diagnostics = new Diagnostics(join(root, 'diagnostics.json'))
   await diagnostics.initialize()
   const old = await diagnostics.record({ code: 'SERVER_HTTP_500', module: 'server', diagnostic_log: 'legacy row' })
-  const server = createBellTeamServer({ bots, transport, messenger, diagnostics, authorize: () => true })
+  const server = createBellTeamServer({ internal: true, bots, transport, messenger, diagnostics, authorize: () => true })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve) }))
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/deliveries/direct`, {

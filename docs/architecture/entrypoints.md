@@ -57,7 +57,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | GET/POST `/rooms`、GET/PATCH/DELETE `/rooms/:room` | `RoomRegistry` | 部屋定義・参加者・削除。room DELETEは完了後204 |
 | GET `/rooms/:room/avatar` | `sendAvatar` | 部屋画像 |
 | GET/POST `/rooms/:room/messages`、GET `/rooms/:room/queue` | `messagePage/RoomMessenger/transport` | 部屋の投稿・参加者別配送と表示 |
-| POST `/deliveries/{direct,room}` | `Messenger/RoomMessenger` | Bot/scheduler等の配送入口。Owner会話POSTとは異なる |
+| POST `/deliveries/{direct,fork,room}` | `Messenger/RoomMessenger` | 内部入口（席MCP）だけ。Owner入口では404。送り主は解決した席のactorで、bodyの`from`はactorと一致しなければ403（監査H2） |
 | POST `/deliveries/direct/:id/{resume,close-launch}` | `Messenger` | 保存済み配送を検証する明示操作。自動再送ではない |
 | GET `/queue` | `transport.queueItems` | 全進行中配送の投影 |
 | GET `/schedules`、GET/POST `/{bots,rooms}/:id/schedules`、PUT/DELETE `/:schedule` | `members/schedules-http` → 各Registry | [予定正本](modules/members/schedules.md)の一覧・変更・削除。既http-schedule-api exportを保持 |
@@ -73,7 +73,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | --- | --- | --- |
 | `list_models/get_settings/update_settings/complete_setup` | `internalApi` → control API | 設定/初期完了にはfromをbotIdとして確定 |
 | `request_secret/get_secret_request/cancel_secret_request/use_secret/ask_owner` | `internalApi` → 専用service | 依頼の所有を保持。取得時・使用時も元依頼Botを確認。`use_secret`は値を依頼Bot自身の席コマンドの標準入力へだけ渡す。使用者はinternal HTTPが確定した席で、本文のbotIdではない。分身はMCPとHTTPの両方で拒否（Bot projectへ書かない） |
-| `sendmessage/send_user_message/sendroommessage` | 宛先名解決・画像path解決→`deliverMessage/deliverRoomMessage` | `send_user_message`はuser由来。実行sourceはHTTP ingressで付与。登録名を新IDへ置換しない |
+| `sendmessage/sendroommessage` | 宛先名解決・画像path解決→`deliverMessage/deliverRoomMessage` | 実行sourceはHTTP ingressで付与。登録名を新IDへ置換しない |
 | `respond_to_room` | queue/保存投稿から元発言特定→参加/返信資格→room配送 | silentは配送を作らない。assignedがsilentすること、非assignedのreplyを拒否 |
 | `list_bots/get_bot/get_self` | `members.callMemberTool` → registry / botView | MCP共通整形はアバター本体を除く |
 | `create_bot/update_bot/update_self/set_avatar` | `members.callMemberTool` → registry/configure | model/harness/effortは既configure、プロフィールだけはregistry直通。set_avatarは既画像pathを検証して更新 |

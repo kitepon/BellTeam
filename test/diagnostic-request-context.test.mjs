@@ -95,7 +95,7 @@ test('Bot間とroom配送のHTTP失敗を具体化し、旧unknown集約と秘�
     throw new Error('synthetic-private-error')
   }
   const bots = new Map(); bots.refresh = async () => {}
-  const server = createBellTeamServer({ authorize: () => true, bots, diagnostics,
+  const server = createBellTeamServer({ internal: true, authorize: () => true, bots, diagnostics,
     messenger: { sendmessage: fail }, roomMessenger: { sendroommessage: fail } })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => new Promise(resolve => server.close(resolve)))

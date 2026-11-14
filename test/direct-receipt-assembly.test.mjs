@@ -80,6 +80,8 @@ test('native unknown is retained without replay; later independent peer input st
 test('parent authorization rejects spoofed sender/target; save failure cannot acknowledge or invoke native', async t => {
   const f = await fixture(t)
   assert.throws(() => f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-quincy', target: 'user', message: 'spoof' })), { code: 'CONVERSATION_SENDER_FORBIDDEN' })
+  // Audit H2: a Bot never opens an Owner turn.
+  assert.throws(() => f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'user', target: 'bot-quincy', message: 'spoof' })), { code: 'CONVERSATION_METHOD_FORBIDDEN' })
   assert.throws(() => f.conversation.run({ kind: 'usage', botId: 'bot-peer', source: 'question' }, () => f.direct.messenger.enqueueUserTurn({ target: 'bot-quincy', message: 'wrong target' })), { code: 'CONVERSATION_TARGET_FORBIDDEN' })
   await mkdir(join(f.root, 'logs/direct-messages.jsonl'), { recursive: true })
   await assert.rejects(f.conversation.run({ kind: 'owner' }, () => f.direct.messenger.enqueueUserTurn({ target: 'bot-quincy', message: 'cannot save' })), { code: 'EISDIR' })

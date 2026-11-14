@@ -162,7 +162,7 @@ async function runBellTeamTool(context) {
   assertKeys(args, Object.keys(tool.inputSchema.properties))
   await registry.refresh()
   if (!registry.get(from)) throw new Error(`BOT_NOT_FOUND: ${from}`)
-  if (!['sendmessage', 'send_user_message'].includes(name)) await rooms?.refresh?.()
+  if (name !== 'sendmessage') await rooms?.refresh?.()
 
   if (name.startsWith('bughub_')) {
     if (!bugHubSecurity) throw new Error('BUGHUB_SECURITY_NOT_CONFIGURED')

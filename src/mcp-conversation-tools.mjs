@@ -21,14 +21,6 @@ export const conversationTools = Object.freeze([
     }, ['target', 'message']),
   },
   {
-    name: 'send_user_message',
-    description: 'ユーザーとして指定したBellTeam Botへメッセージを送り、ユーザーとの会話へ記録する。',
-    inputSchema: objectSchema({
-      target: { type: 'string', minLength: 1, description: '宛先Bot ID' },
-      message: { type: 'string', minLength: 1, description: '送るメッセージ' },
-    }, ['target', 'message']),
-  },
-  {
     name: 'list_messages',
     annotations: { readOnlyHint: true },
     description: '指定したBotのユーザー会話とBot間連絡の履歴を取得する。',
@@ -136,9 +128,6 @@ export async function callConversationTool({ name, args, from, registry, messeng
     if (args.target === 'user') throw new Error('FORK_TARGET_USER')
     return (deliverForkInquiry ?? (value => messenger.askReadonly(value)))({ from, message: args.message, target: resolveBotTarget(registry, args.target) })
   }
-  if (name === 'send_user_message') return (deliverMessage ?? (value => messenger.sendmessage(value)))({
-    from: 'user', ...args, target: resolveBotTarget(registry, args.target),
-  })
   if (name === 'list_messages') {
     requireBot(registry, args.botId)
     return { items: await store.timeline(args.botId) }

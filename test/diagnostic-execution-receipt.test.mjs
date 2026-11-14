@@ -11,7 +11,7 @@ test('typed execution receipt survives the HTTP500 diagnostic without changing r
   const rows = []
   let error, calls = 0
   const bots = new Map(); bots.refresh = async () => {}
-  const server = createBellTeamServer({ authorize: () => true, bots,
+  const server = createBellTeamServer({ internal: true, authorize: () => true, bots,
     diagnostics: { async record(row) { rows.push(row) } },
     messenger: { async sendmessage() { calls++; throw error } } })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))

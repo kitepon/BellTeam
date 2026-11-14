@@ -61,9 +61,10 @@ test('制御APIの早期返却と機能APIの台帳refresh・共有サービス�
   assert.equal((await get('/api/rooms/room-a/schedules/a%20b/run', { method: 'POST' })).status, 202)
   assert.deepEqual(calls, ['authorize', 'bots.refresh', ['schedule.run', 'room-a', 'a b']])
   calls.length = 0
-  const response = await get('/api/deliveries/direct', { method: 'POST', body: JSON.stringify({ target: 'bot-a', message: 'synthetic' }) })
-  assert.deepEqual(await response.json(), { delivery: 'unknown' })
-  assert.deepEqual(calls, ['authorize', 'bots.refresh', ['deliver', { target: 'bot-a', message: 'synthetic' }]])
+  // Audit H2: the Owner listener never takes a sender from the body; sends are seat-only (internal listener).
+  const response = await get('/api/deliveries/direct', { method: 'POST', body: JSON.stringify({ from: 'user', target: 'bot-a', message: 'synthetic' }) })
+  assert.equal(response.status, 404)
+  assert.ok(!calls.some(call => call[0] === 'deliver'))
 })
 
 test('未一致routeと既存method拒否・欠損Botを区別し、後続機能へ作用を漏らさない', async t => {
