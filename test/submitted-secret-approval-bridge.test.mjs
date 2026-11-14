@@ -28,3 +28,15 @@ test('denial, unknown, extra output or stderr cannot become a grant or expose ra
     await assert.rejects(check(), error => error.message === 'SUBMITTED_SECRET_APPROVAL_UNAVAILABLE')
   }
 })
+test('connection comes only from the Approval Box public export, closed schema, buffer wiped', async () => {
+  const { exportApprovalBoxConnection, APPROVAL_BOX_CLI } = await import('../src/submitted-secret-approval-owner.mjs')
+  let seen
+  const ok = Buffer.from(JSON.stringify({ schema: 'approval-box.connection.v1', server: 'https://approval-box.kitepon.dev', token: 'synthetic' }) + '\n')
+  const value = await exportApprovalBoxConnection({ run(command, args, options, done) { seen = { command, args, options }; done(null, ok, Buffer.alloc(0)) } })
+  assert.equal(seen.command, APPROVAL_BOX_CLI); assert.deepEqual(seen.args, ['connection', 'export', '--json']); assert.equal(seen.options.encoding, 'buffer')
+  assert.equal(value.token, 'synthetic'); assert.ok(ok.every(byte => byte === 0))
+  for (const [error, stdout] of [[new Error('exit 1'), Buffer.alloc(0)], [null, Buffer.from('{"schema":"approval-box.connection.v2","server":"s","token":"t"}')],
+    [null, Buffer.from('{"schema":"approval-box.connection.v1","server":"s","token":"t","extra":1}')], [null, Buffer.from('not json')]]) {
+    await assert.rejects(exportApprovalBoxConnection({ run: (c, a, o, done) => done(error, stdout, Buffer.alloc(0)) }), /UNAVAILABLE/)
+  }
+})
