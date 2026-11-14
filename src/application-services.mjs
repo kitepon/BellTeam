@@ -311,7 +311,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       storage: storagePorts, seat: seatPorts,
       diagnostics: { record: report => diagnostics.record(report), goalError },
       observer: { appendInterimWords: (...args) => conversationAssembly ? conversationAssembly.run({ kind: 'observer' }, () => messenger.appendInterimWords(...args)) : messenger.appendInterimWords(...args),
-        emitQueue: async change => { await Promise.all([...queueListeners].map(listener => listener(change))) } },
+        emitQueue: async change => { await Promise.all([...queueListeners].map(listener => listener(change))) },
+        // host-factory.md observer port: seat-turn and idle-close reports (closes, EACCES) go to the body log.
+        report: message => process.stderr.write(`${message}\n`) },
       continuation: { models, harnessAuth: { status: harness => harnessAuth.status(harness, usageAssembly?.systemContext('auth.status')) },
         messenger: { sendmessage: (...args) => messenger.sendmessage(...args) } },
     }, loadFactory: async (...args) => {
