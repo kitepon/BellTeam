@@ -16,7 +16,7 @@ export function createConversationObserverParentEffects({ snapshot, current, che
       if (polls.has(context)) invalid()
       const bots = await snapshot(context)
       observerCheckRequests(bots.map(bot => ({ id: bot.id, projectPath: bot.project, after: null })))
-      const captures = new Map(bots.map(bot => [bot.id, { bot, project: bot.project, scope: observerProjectScope(bot.project) }]))
+      const captures = new Map(bots.map(bot => [bot.id, { project: bot.project, scope: observerProjectScope(bot.project) }]))
       polls.set(context, captures)
       const result = { projects: [...captures].map(([botId, entry]) => ({ botId, scope: entry.scope, projectBytes: Buffer.byteLength(JSON.stringify(entry.project), 'utf8') })) }
       validateConversationEffectResult(method, result, params)
@@ -25,8 +25,9 @@ export function createConversationObserverParentEffects({ snapshot, current, che
     const captures = polls.get(context)
     if (!captures) invalid()
     const bound = async (id, scope) => {
-      const entry = captures.get(id)
-      if (!entry || entry.scope !== scope || await current(id, context) !== entry.bot || entry.bot.project !== entry.project) invalid()
+      // Members projection returns a fresh clone per read, so bind by id + project value, never object identity.
+      const entry = captures.get(id), bot = entry && entry.scope === scope ? await current(id, context) : null
+      if (!bot || bot.id !== id || bot.project !== entry.project) invalid()
       return entry
     }
     if (method === 'runtime.observer.check') {
