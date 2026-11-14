@@ -193,7 +193,8 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | 型・関数・算出値 | 機能 |
 | --- | --- |
 | [selection / visibleBots / visibleRooms](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L15) | 選択と名前検索・recent文字列順 |
-| [body](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L25) | iPad/Macの列・詳細・sheet・エラー帯 |
+| [body](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L25) | iPad/Macの列・詳細・sheet・エラー帯。詳細の列の画面はどれも自分のNavigationStackを持つ（予定・ゴール・設定・工程表は自前、相関図と会話・はじめの画面は`stacklessDetail`をここで包む）。持たない画面へ移ると、工程表のstackに積んだ工程表が列に残り、サイドバーが効かないように見えた（Owner 2026-11-14） |
+| stacklessDetail | 相関図（iPad）・会話と詳細パネル・はじめの画面。`.toolbar`の詳細パネルの切り替え（会話だけ） |
 | [sidebar](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L114) | 検索focus、行素材、予定/goal/設定への移動 |
 | [sectionTitle](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L191) | 種別と件数 |
 | [row](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L196) | 選択操作・subtitle表示・稼働丸・`seatLaunch`の行（`SidebarRowLabel`の副題の下） |

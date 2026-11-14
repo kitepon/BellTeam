@@ -7,7 +7,7 @@
 | 端末 | 入口 | 会話を開いた後の戻り先 |
 | --- | --- | --- |
 | iPhone | 「相関図」タブの上の切り替え「相関図 / 工程表」（`App/BellBotApp.swift` `TeamBoardTab`。タブを6つにしない） | タブ4（切り替えの状態は`@SceneStorage`で残る） |
-| iPad | サイドバー下の「工程表」（⌘5）→ `selectedTab = 5`（`Views/DesktopWorkspaceView.swift`） | タブ5 |
+| iPad | サイドバー下の「工程表」（⌘5）→ `selectedTab = 5`（`Views/DesktopWorkspaceView.swift`）。工程表のstackは詳細の列のstackになるので、ほかの画面もそれぞれ自分のstackで列を置き換える（相関図・会話は`stacklessDetail`を包む） | タブ5 |
 | Mac | サイドバー下の「工程表」（⌘5）→ `openWindow(id: "lattice")`。窓は1360×860で開く | 工程表の窓を残し、本体の窓を前へ（`MainWindow.bringToFront`） |
 
 ## 部品と流れ
@@ -34,8 +34,8 @@ flowchart LR
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
   Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（archivedの札は除く。LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeTree（まとまり→工程の入れ子の配置。archivedの札は描かない）・LatticeHistory（終わった工程のJSTの日ごと）・LatticeTreeLink（肘）・LatticeTreeArc（依存の弧）<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
   ListModel -->|"統括のBot（createdBy）"| Model
-  Calc --> Wide["広い面（Mac・iPad）<br/>上の帯：切り替え（popover）・ライブ・ツリー/担当/過去ログ N・読み直し中・進み具合・数<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定）：Views/LatticeTreeView.swift LatticeTreeBoard＝縦横に送る盤（線と弧のCanvasの上に根・まとまり・札の箱）<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>右：LatticeWaitPanel"]
-  Calc --> Compact["iPhone<br/>切り替え・数・待ちの流れ（横に送る札）・工程（ツリー＝横に送る盤 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
+  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：切り替え（popover）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定）：Views/LatticeTreeView.swift LatticeTreeBoard＝縦横に送る盤（線と弧のCanvasの上に根・まとまり・札の箱）<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeWaitPanel（既定は閉じて右端のつまみ LatticeWaitHandle＝砂時計と件数。押すと開き、パネルの閉じるで畳む）"]
+  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは待ちの流れを既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数・待ちの流れ（横に送る札）・工程（ツリー＝横に送る盤 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
   Wide -->|"札を押す"| Detail["LatticeDetailPanel<br/>Mac・iPad：盤の上のガラスの面（札からmatchedGeometryEffectで育つ）<br/>iPhone：sheet（160pt・中・大、背後も操作可）"]
   Compact -->|"札を押す"| Detail
   Detail -->|"前の工程・次の工程"| Detail
@@ -44,6 +44,10 @@ flowchart LR
   Wide -->|"工程へ移動"| Go["その札へ送り（ScrollViewReader）、詳細を開く"]
   Compact -->|"工程へ移動"| Go
 ```
+
+## 広い面と縦の流れの選び方
+
+`LatticeChartScreen`は`GeometryReader`で、列から渡された幅（工程表自身の幅ではない）を測り、760未満なら縦の流れにする。工程表はその幅に左寄せで置くので、それでも広い時は右の端（画面の端）へはみ出し、サイドバーの側へは出ない。広い面がその列より広いと、SwiftUIははみ出した工程表を中央に置き、iPadでは左のレールと上の帯がサイドバーの下へ入り込んで、サイドバー（メンバー・予定・相関図・工程表）へのタッチを受け取っていた（Owner 2026-11-14。凡例が1文字ずつ折れたのも、中央の列が潰れた同じ原因）。
 
 ## 工程表の名前
 
@@ -67,6 +71,7 @@ flowchart LR
 | 1枚の図（最後に読めたsnapshot）・配置・接続・新しい完了の時刻 | `LatticeChartModel`（`LatticeChartScreen`の`@StateObject`） | その工程表を開いている間。背景へ回ると接続を閉じ、戻ると最新の一枚から描く |
 | 選んだ札・強調した担当・送り先・iPhoneの並べ方と詳細の高さ | `LatticeChartScreen`の`@State`（ツリーと担当で同じものを使う＝切り替えても引き継ぐ） | 画面の間 |
 | ツリー / 担当 / 過去ログ | `LatticeChartScreen`の`@SceneStorage("lattice-center")`（既定はツリー） | アプリ（シーン）を開いている間 |
+| 待ちの流れを開いているか（Mac・iPad） | `LatticeChartScreen`の`@SceneStorage("lattice-waits-open")`（既定は閉じる。Owner 2026-11-14） | アプリ（シーン）を開いている間 |
 | 一覧を工程表の上へ積んだか・止め一覧と、そこから開いた工程表（`.stops`・`.card`） | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
 | 止め一覧の止め・読み取りの状態・確認中の行・送信中の行・行の下の知らせ | `LatticeStopsModel`（`LatticeStopsView`の`@StateObject`） | 止め一覧を開いている間。背景へ回ると止め、戻ると読み直す |
 | 担当の顔 | `AppStore.bots`の画像（`LatticeAvatar`）。名簿にないBotは「?」、担当なしは「–」 | アプリの名簿に従う |
@@ -122,6 +127,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 - `BellBotTests/LatticeChartTests.swift`：ツリーの配置（まとまりの状態の記号・done/total・入れ子の順・まとまりの無い工程・phases/parentが無い図・循環）・archived（描かないが数える）・過去ログの日ごとの並び・数（取り下げを母数から除く）・レーンの順・列・待ちの文・詳細・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え。
 - `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・待ちの流れ・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
+- `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、待ちの流れが既定で畳まれ、開いて畳めること。
 - Macの写真は使い捨ての自己描画のコピーで撮る（repoに入れない）。
 
 ## 未対応（契約にデータが無いもの）

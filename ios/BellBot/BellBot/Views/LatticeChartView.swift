@@ -24,6 +24,8 @@ struct LatticeChartScreen: View {
     @State private var grouping = LatticeGrouping.depth
     /// ツリー / 担当：アプリを開いている間は残す。詳細・強調・送り先（上の@State）は切り替えても引き継ぐ。
     @SceneStorage("lattice-center") private var center = LatticeCenter.tree
+    /// 広い面の待ちの流れ：既定は閉じて右端のつまみ（Owner 2026-11-14）。開いたかはアプリを開いている間だけ残す。
+    @SceneStorage("lattice-waits-open") private var waitsOpen = false
     @State private var page: String?
     @State private var detent: PresentationDetent = .medium
     @State private var switching = false
@@ -45,7 +47,12 @@ struct LatticeChartScreen: View {
         #endif
     }
 
-    private var wide: Bool { sizeClass == .regular }
+    /// The chart's own width. A wide body wider than its column is centred over its edges: on the iPad its rail then lay
+    /// under the sidebar and took the sidebar's touches (Owner 2026-11-14). Below `wideMinimum` the chart uses the iPhone flow.
+    @State private var width = CGFloat.greatestFiniteMagnitude
+    /// Rail 78 + a usable center + the open 待ちの流れ 350, and the two-row top bar.
+    static let wideMinimum: CGFloat = 760
+    private var wide: Bool { sizeClass == .regular && width >= Self.wideMinimum }
     private var summary: LatticeChartSummary? { list.charts.first { $0.projectId == model.projectId } }
     private var coordinatorId: String? { list.coordinatorBotId }
     /// いま開いている工程表の名前。読めたsnapshotがあればその名前、無ければ一覧の名前。
@@ -62,9 +69,15 @@ struct LatticeChartScreen: View {
     }
 
     var body: some View {
-        ZStack {
-            LatticePalette.canvas.ignoresSafeArea()
-            content
+        // The width the column offers (GeometryReader takes exactly that), not the chart's own: an over-wide chart would measure itself.
+        GeometryReader { proxy in
+            ZStack {
+                LatticePalette.canvas.ignoresSafeArea()
+                content
+            }
+            // Leading: anything still wider than the column runs off the trailing edge, never under the sidebar.
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            .onChange(of: proxy.size.width, initial: true) { _, value in width = value }
         }
         .accessibilityIdentifier("lattice-chart")
         .overlay(alignment: .top) {
@@ -196,7 +209,8 @@ struct LatticeChartScreen: View {
             ForEach(LatticeCenter.allCases, id: \.self) { Text($0 == .history ? "\($0.rawValue) \(LatticeHistory.count(model.snapshot))" : $0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
-        .frame(width: 240)
+        // Wide: each segment fits its own words (「過去ログ N」 overflowed 240 pt, Owner 2026-11-14); iPhone keeps 240.
+        .modifier(LatticeWidth(width: wide ? nil : 240))
         .accessibilityIdentifier("lattice-center-picker")
     }
 
@@ -231,17 +245,20 @@ struct LatticeChartScreen: View {
     private func wideBody(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout, now: Date) -> some View {
         let counts = LatticeCounts(snapshot)
         let rows = LatticeWaitRow.rows(snapshot, now: now)
+        let progress = HStack(spacing: 12) {
+            LatticeRing(done: counts.progressDone, total: counts.progressTotal, size: 34, line: 3.5)
+            Text("\(counts.progressDone)/\(counts.progressTotal)").font(.system(size: 15, weight: .bold)).monospacedDigit()
+                + Text(" 完了").font(.system(size: 13)).foregroundColor(LatticePalette.muted)
+            LatticeCounters(counts: counts, compact: false)
+        }.fixedSize()
         return VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                switcher
-                livePill
-                centerPicker
-                notices(snapshot)
-                Spacer(minLength: 12)
-                LatticeRing(done: counts.progressDone, total: counts.progressTotal, size: 34, line: 3.5)
-                Text("\(counts.progressDone)/\(counts.progressTotal)").font(.system(size: 15, weight: .bold)).monospacedDigit()
-                    + Text(" 完了").font(.system(size: 13)).foregroundColor(LatticePalette.muted)
-                LatticeCounters(counts: counts, compact: false)
+            // One row when it fits, else the progress goes to a second row: the bar never grows wider than the chart.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { switcher; livePill; centerPicker; notices(snapshot); Spacer(minLength: 12); progress }
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) { switcher; livePill; centerPicker; Spacer(minLength: 0) }
+                    HStack(spacing: 12) { notices(snapshot); Spacer(minLength: 12); progress }
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(.bar)
@@ -267,8 +284,10 @@ struct LatticeChartScreen: View {
                             }
                             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.82), value: center)
                             .opacity(dims(snapshot) ? 0.55 : 1).saturation(dims(snapshot) ? 0.55 : 1)
+                            // 盤に重ねない下の帯（重ねると最後の行・札を隠した。Owner 2026-11-14）。
+                            LatticeLegend().padding(.horizontal, 14).padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .overlay(alignment: .bottomLeading) { LatticeLegend().padding(14) }
                         if let id = selected, let detail = LatticeDetail(snapshot, cardId: id, now: now) {
                             LatticeDetailPanel(detail: detail, compact: false, close: { select(nil) },
                                                open: { select($0, scroll: true) }, chat: { chat($0) })
@@ -284,12 +303,23 @@ struct LatticeChartScreen: View {
                         }
                     }
                     Divider()
-                    LatticeWaitPanel(rows: rows, chat: { chat($0) }, go: { select($0, scroll: true) })
-                        .frame(width: 350)
+                    if waitsOpen {
+                        LatticeWaitPanel(rows: rows, chat: { chat($0) }, go: { select($0, scroll: true) },
+                                         close: { toggleWaits() })
+                            .frame(width: 350)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    } else {
+                        LatticeWaitHandle(count: rows.count, emphasized: rows.contains(where: \.emphasized), open: { toggleWaits() })
+                            .transition(.opacity)
+                    }
                 }
             }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.82), value: snapshot.state)
+    }
+
+    private func toggleWaits() {
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.82)) { waitsOpen.toggle() }
     }
 
     private func railItems(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout) -> [LatticeRail.Item] {
@@ -552,12 +582,17 @@ struct LatticeChartScreen: View {
 
     private func compactWaits(_ rows: [LatticeWaitRow], proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("待ちの流れ", systemImage: "hourglass").font(.system(size: 19, weight: .bold)).foregroundStyle(LatticePalette.ink)
-                Spacer()
-                Text("\(rows.count)件 · 長い順").font(.system(size: 12)).foregroundStyle(LatticePalette.muted)
+            if sizeClass == .regular {
+                // iPad in the iPhone flow: folded by default like the wide panel (Owner 2026-11-14); iPhone keeps it open.
+                Button { toggleWaits() } label: { compactWaitsHeader(rows).contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(waitsOpen ? "待ちの流れを閉じる、\(rows.count)件" : "待ちの流れを開く、\(rows.count)件")
+            } else {
+                compactWaitsHeader(rows)
             }
-            if rows.isEmpty {
+            if sizeClass == .regular && !waitsOpen {
+                EmptyView()
+            } else if rows.isEmpty {
                 Text("いま待っている工程はありません。").font(.system(size: 13)).foregroundStyle(LatticePalette.muted)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(14)
                     .background(LatticePalette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -584,6 +619,18 @@ struct LatticeChartScreen: View {
                 .frame(maxWidth: .infinity)
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: page)
                 .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func compactWaitsHeader(_ rows: [LatticeWaitRow]) -> some View {
+        HStack {
+            Label("待ちの流れ", systemImage: "hourglass").font(.system(size: 19, weight: .bold)).foregroundStyle(LatticePalette.ink)
+            Spacer()
+            Text("\(rows.count)件 · 長い順").font(.system(size: 12)).foregroundStyle(LatticePalette.muted)
+            if sizeClass == .regular {
+                Image(systemName: waitsOpen ? "chevron.up" : "chevron.down").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(LatticePalette.muted)
             }
         }
     }
@@ -1134,18 +1181,42 @@ struct LatticeCounters: View {
 
 struct LatticeLegend: View {
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(LatticeTaskState.allCases, id: \.self) { status in
-                Label(status.badge, systemImage: status.symbol).font(.system(size: 11.5)).foregroundStyle(LatticePalette.ink.opacity(0.8))
+        // Words never wrap inside (squeezed, each label broke one character per line, Owner 2026-11-14): one line, else two.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { states; Rectangle().fill(LatticePalette.line).frame(width: 1, height: 12); particles }
+            VStack(alignment: .leading, spacing: 6) { HStack(spacing: 12) { states }; particles }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 12) { states(LatticeTaskState.allCases.prefix(3)) }
+                HStack(spacing: 12) { states(LatticeTaskState.allCases.dropFirst(3)) }
+                particles
             }
-            Rectangle().fill(LatticePalette.line).frame(width: 1, height: 12)
-            Text("線の粒 = 待ちの向き").font(.system(size: 11)).foregroundStyle(LatticePalette.muted)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(LatticePalette.line.opacity(0.6), lineWidth: 0.5))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(LatticePalette.line.opacity(0.6), lineWidth: 0.5))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("状態のことば：未着手、着手可、作業中、止まり、完了、取り下げ。線の粒は待ちの向き。")
+    }
+
+    private var states: some View { states(LatticeTaskState.allCases[...]) }
+
+    private func states(_ list: ArraySlice<LatticeTaskState>) -> some View {
+        ForEach(Array(list), id: \.self) { status in
+            Label(status.badge, systemImage: status.symbol).font(.system(size: 11.5)).foregroundStyle(LatticePalette.ink.opacity(0.8))
+                .fixedSize()
+        }
+    }
+
+    private var particles: some View {
+        Text("線の粒 = 待ちの向き").font(.system(size: 11)).foregroundStyle(LatticePalette.muted).fixedSize()
+    }
+}
+
+/// A fixed width, or the view's own size when nil.
+private struct LatticeWidth: ViewModifier {
+    let width: CGFloat?
+    func body(content: Content) -> some View {
+        if let width { content.frame(width: width) } else { content.fixedSize() }
     }
 }
 
@@ -1179,6 +1250,7 @@ struct LatticeWaitPanel: View {
     let rows: [LatticeWaitRow]
     let chat: (String) -> Void
     let go: (String) -> Void
+    let close: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1187,6 +1259,14 @@ struct LatticeWaitPanel: View {
                 Spacer()
                 Text("\(rows.count)件").font(.system(size: 12, weight: .semibold)).foregroundStyle(BellTheme.violet)
                     .padding(.horizontal, 9).padding(.vertical, 3).background(BellTheme.violet.opacity(0.12), in: Capsule())
+                Button(action: close) {
+                    Image(systemName: "chevron.right.2").font(.system(size: 13, weight: .semibold)).foregroundStyle(LatticePalette.muted)
+                        .frame(width: 30, height: 30).contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("待ちの流れを閉じる")
+                .accessibilityLabel("待ちの流れを閉じる")
+                .accessibilityIdentifier("lattice-waits-close")
             }
             Text("誰が何を待ち、誰がつくっているか。待ちの長い順です。").font(.system(size: 12)).foregroundStyle(LatticePalette.muted)
                 .padding(.bottom, 8)
@@ -1205,6 +1285,36 @@ struct LatticeWaitPanel: View {
         }
         .padding(.horizontal, 16).padding(.top, 16)
         .background(LatticePalette.canvas)
+    }
+}
+
+/// 閉じた待ちの流れ：右端の細いつまみ（砂時計と件数）。押すと開く。止まりの作り手を待つ行があれば件数を赤くする。
+struct LatticeWaitHandle: View {
+    let count: Int
+    let emphasized: Bool
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            VStack(spacing: 10) {
+                Image(systemName: "chevron.left.2").font(.system(size: 12, weight: .semibold)).foregroundStyle(LatticePalette.muted)
+                Image(systemName: "hourglass").font(.system(size: 16, weight: .semibold)).foregroundStyle(LatticePalette.ink)
+                Text("\(count)").font(.system(size: 13, weight: .bold)).monospacedDigit()
+                    .foregroundStyle(emphasized ? LatticePalette.red : BellTheme.violet)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background((emphasized ? LatticePalette.red : BellTheme.violet).opacity(0.12), in: Capsule())
+                Spacer()
+            }
+            .padding(.top, 18)
+            .frame(width: 44)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(LatticePalette.canvas)
+        .help("待ちの流れを開く")
+        .accessibilityLabel("待ちの流れを開く、\(count)件")
+        .accessibilityIdentifier("lattice-waits-open")
     }
 }
 
