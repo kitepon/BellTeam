@@ -6,6 +6,9 @@ import { isSupportedServerURL } from './server-address.mjs'
 import { UpdatePushAttempts, apnsReceipt, jstNow, updatePushReason } from './update-push-attempts.mjs'
 import { createOnePasswordSource, validateOnePasswordReference } from './usage/onepassword-source.mjs'
 
+// A token another app (bundle id) registered can never receive this topic, like 410; dropped, but reported once since a wrong topic setting also looks like this.
+const APNS_NOT_FOR_TOPIC = 'APNS_HTTP_400_DEVICETOKENNOTFORTOPIC'
+
 export const APNS_IDLE_TIMEOUT_MS = 5 * 60 * 1000
 const keyErrors = {
   APNS_KEY_REFERENCE_INVALID: 'APNsの鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
@@ -174,6 +177,7 @@ export class PushNotifications {
           return
         }
         failed = true
+        if (error.code === APNS_NOT_FOR_TOPIC) await this.unregister(device)
         await this.recordFailure(error)
       }
     })).then(() => { if (!failed) this.error = null })
@@ -205,7 +209,10 @@ export class PushNotifications {
           : ['PUSH_ENVIRONMENT_UNAVAILABLE', 'SUBSCRIPTION_REQUIRED', 'PUSH_NOT_CONFIGURED'].includes(error.code) ? 'not_sent' : 'unknown'
         try {
           if (error.code === 'APNS_UNREGISTERED') await this.unregister(device)
-          else await this.recordFailure(error)
+          else {
+            if (error.code === APNS_NOT_FOR_TOPIC) await this.unregister(device)
+            await this.recordFailure(error)
+          }
         } catch { process.stderr.write('BellTeam: 更新通知の診断または登録を保存できませんでした (PUSH_STATE_FAILED)\n') }
       }
       if (result.sentAt && (!attempt.sentAt || result.sentAt < attempt.sentAt)) attempt.sentAt = result.sentAt
