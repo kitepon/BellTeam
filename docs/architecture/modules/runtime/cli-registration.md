@@ -129,7 +129,7 @@ flowchart TD
 
 | Step | From → to | Data | Owner |
 | --- | --- | --- | --- |
-| E1 | product → BellTeam | `bellteam.harness-entries.v1` (v1.1 below), printed by the product's own CLI (`<product> harness-entries --json`, read-only: no init, no network, no file write; may take `--home <seat home>` and the product's own scope flags) or placed by a shared tool as `/srv/bellteam/shared/tools/<id>/harness-entries.json` (atomic, its own file). | the product |
+| E1 | product → BellTeam | `bellteam.harness-entries.v1` (v1.1 below), printed by the product's own CLI (`<product> harness-entries --json`, read-only: no init, no network, no file write (one narrow exception: Aiterm's `aiterm-setup harness-entries` writes only Aiterm's own `~/.config/aiterm-mcp/codex-parent-hooks/config.json`, which its Codex hook reads; every CLI file stays BellTeam's); may take `--home <seat home>` and the product's own scope flags) or placed by a shared tool as `/srv/bellteam/shared/tools/<id>/harness-entries.json` (atomic, its own file). | the product |
 | E2 | `config/harness-products.json` | the ordered list of products BellTeam reads and how (command or file). The order fixes hook positions, so Codex trust stays valid. | BellTeam |
 | E3 | CLI registration → CLI files | MCP entries go through the CLI's public command or API (P1). Hooks and the MCP files no CLI writes go through BellTeam's single atomic writer (P2), merged by product tag; entries from a product absent from E2 are not touched. `settings` keys only from a fixed allowlist. | BellTeam |
 | E4 | members → CLI homes | AGENTS.md / CLAUDE.md: one implementation (members-project-files.mjs); the body's global-instructions.mjs second writer retires. | members (Belota) |
