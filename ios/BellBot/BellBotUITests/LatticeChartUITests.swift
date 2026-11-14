@@ -32,7 +32,7 @@ final class LatticeChartUITests: XCTestCase {
             chart.tap()
             let firstWait = element(app, "lattice-wait-row-0")
             XCTAssertTrue(firstWait.waitForExistence(timeout: 10))
-            XCTAssertTrue(firstWait.label.contains("「部品の実装」（担当 フローラ）は、「Web画面の組込口」が終わるのを待っています"), firstWait.label)
+            XCTAssertTrue(firstWait.label.contains("「Web画面」（担当 フローラ）は、「Web画面の組込口」が終わるのを待っています"), firstWait.label)
             settle()
             shot(app, "\(scheme)-02-chart")
 
