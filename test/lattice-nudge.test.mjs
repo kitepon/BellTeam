@@ -90,7 +90,7 @@ const bin = new URL('../distribution/lattice/node_modules/@quolu/lattice/bin/lat
 test('real Lattice: a predecessor on another chart holds the prompt until it is done, and the snapshot names it', { skip: !existsSync(bin) && 'distribution/lattice not installed' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'lattice-cross-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }), ceilingMs: 0, log: () => {} })
+  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }), log: () => {} })
   const sent = []
   const effect = async (method, params) => method === 'members.list' ? { members: ['bot-a', 'bot-b'].map(id => ({ id, name: id, color: 'c', avatarVersion: 'v', deleting: false })) }
     : method === 'turns.read' ? { turns: {} } : (sent.push(params), { delivery: 'queued', deliveryId: 'd' })
@@ -98,6 +98,10 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   const plan = (key, lane) => ({ schema: 'lattice.plan_create_input.v5', plan_key: key, phases: [{ phase_id: 'a', title: 'A' }],
     tasks: [{ task_id: 't1', title: `${key} one`, phase_id: 'a', design_memo: 'm', lane }], hard_dependencies: [] })
   assert.equal((await run('bot-a', 'alpha', ['plan', 'create', '--json'], plan('p1', 'bot-a'))).exitCode, 0)
+  // Task a95: the in-process token is exactly what `todo display source --json` prints.
+  const cli = createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') })
+  assert.deepEqual(await cli.source('alpha'), JSON.parse((await cli.run({ id: 'alpha', args: ['todo', 'display', 'source', '--json'] })).stdout))
+  await assert.rejects(cli.source('nochart'), { code: 'LATTICE_UNAVAILABLE' })
   assert.equal((await run('bot-b', 'beta', ['plan', 'create', '--json'], plan('p1', 'bot-b'))).exitCode, 0)
   await run('bot-a', 'alpha', ['todo', 'start', '--plan', 'p1', '--task', 't1'])
   const connect = await run('bot-b', 'beta', ['todo', 'dependency', 'connect', '--from-project', 'alpha', '--from-plan', 'p1', '--from-task', 't1', '--to-plan', 'p1', '--to-task', 't1', '--reason', 'waits on alpha'])

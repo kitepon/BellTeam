@@ -198,17 +198,18 @@ test('projection: waits are oldest first, unknown time last', () => {
 function rig(extra = {}) {
   const clock = { now: Date.parse('2026-11-11T10:00:00.000Z') }
   const reply = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
-  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, source: { alpha: 1 }, fail: new Set(), calls: [], runs: [], ensured: [], out: reply({ ok: true }),
+  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, sources: { alpha: 1 }, fail: new Set(), calls: [], runs: [], ensured: [], out: reply({ ok: true }),
     list: async () => [...cli.charts], exists: async id => cli.charts.includes(id), metas: {}, pruned: [], noStore: false,
     meta: async id => { if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' }); return { name: null, createdBy: null, ...cli.metas[id] } },
     setMeta: async (id, patch) => { cli.metas[id] = { ...cli.metas[id], ...patch } },
     prune: async id => { cli.pruned.push(id); cli.dirs.delete(id); delete cli.metas[id] },
     dirs: new Set(['alpha']),
     ensure: async id => { cli.ensured.push(id); const created = !cli.dirs.has(id); cli.dirs.add(id); return { created } },
+    // In-process display source (README L4): throws on a failed probe.
+    async source(id) { cli.calls.push(SOURCE + ' ' + id); if (cli.fail.has('source')) throw new Error('probe'); return { n: cli.sources[id] } },
     async run({ id, args, env, input }) {
       const key = args.join(' ')
-      cli.calls.push(key)
-      if (key === 'todo display source --json') return cli.fail.has('source') ? { exitCode: 1, stdout: '', stderr: '' } : reply(cli.source[id])
+      cli.calls.push(key === READ ? `${key} ${id}` : key)
       if (key === 'todo display read --json') return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
       cli.runs.push({ id, args, env, input })
       if (!cli.noStore && !cli.charts.includes(id)) cli.charts.push(id) // a write command makes the store
@@ -218,14 +219,14 @@ function rig(extra = {}) {
   const effect = async method => { world.effects++; assert.equal(method, 'members.list'); if (world.failMembers) throw new Error('members down'); return { members: world.members } }
   const logs = []
   const core = createLatticeCore({ cli, now: () => clock.now, log: line => logs.push(line), ...extra })
-  return { core, cli, world, clock, logs, effect, count: key => cli.calls.filter(call => call === key).length,
+  return { core, cli, world, clock, logs, effect, count: key => cli.calls.filter(call => call === key || call.startsWith(key + ' ')).length,
     chart: (projectId = 'alpha') => core.chart({ projectId }, effect) }
 }
 function chartRead({ agent = 'bot-7b140b27', minute = 1, status = 'in-progress' } = {}) {
   return readOf([planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', status], ['t2', 'pending']],
     deps: [{ from: ref('p1', 't1'), to: ref('p1', 't2') }], events: [ev('plan', 't1', agent, minute), ev('start', 't1', 'bot-a', minute + 1)] })])
 }
-const READ = 'todo display read --json', SOURCE = 'todo display source --json'
+const READ = 'todo display read --json', SOURCE = 'source'
 
 test('core: snapshot shape, members only for producers and waiters, coordinator flag', async () => {
   const x = rig()
@@ -249,10 +250,10 @@ test('core: a chart name is set by a seat, read beside the store, and a failed n
   await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'alpha', args: [], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE' })
   await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'nochart', args: [], input: null, name: '名前' }), { code: 'LATTICE_CHART_NOT_FOUND', status: 404 })
   assert.deepEqual([x.cli.ensured.includes('nochart'), 'nochart' in x.cli.metas], [false, false], 'a rename of a missing chart writes nothing')
-  x.cli.fail.add('name'); x.clock.now += 31000
+  x.cli.fail.add('name'); x.cli.sources.alpha = 2
   const failed = await x.chart()
   assert.deepEqual([failed.name, failed.degraded], ['Lattice組込', ['lattice-read']])
-  x.cli.fail.delete('name'); x.clock.now += 31000
+  x.cli.fail.delete('name')
   assert.deepEqual((await x.chart()).degraded, [])
 })
 
@@ -261,7 +262,7 @@ test('core: the creator is recorded once and never follows a later plan (Trony f
   x.cli.charts = []
   await x.core.run({ from: 'bot-7b140b27', projectId: 'bellteam', args: ['plan', 'create'], input: { a: 1 }, name: 'BellTeam開発' })
   assert.deepEqual(x.cli.metas.bellteam, { name: 'BellTeam開発', createdBy: 'bot-7b140b27' }, 'the store-making run records its seat')
-  x.cli.reads.bellteam = chartRead({ agent: 'bot-7e777fe5' }); x.cli.source.bellteam = 1 // another member's plan now has the earliest event
+  x.cli.reads.bellteam = chartRead({ agent: 'bot-7e777fe5' }); x.cli.sources.bellteam = 1 // another member's plan now has the earliest event
   await x.core.run({ from: 'bot-7e777fe5', projectId: 'bellteam', args: ['plan', 'create'], input: { a: 2 } })
   await x.core.run({ from: 'bot-7e777fe5', projectId: 'bellteam', args: [], input: null, name: '別の名前' })
   const chart = await x.chart('bellteam')
@@ -285,26 +286,51 @@ test('core: a run that leaves no Lattice store removes the dir it made; an exist
   assert.deepEqual(x.cli.pruned, ['scratch', 'boom'], 'pruned even when the run throws')
 })
 
-test('core: memo follows the source token, the ceiling and runs', async () => {
+test('core: memo follows the token, runs and the roster; no time ceiling (task a95)', async () => {
   const x = rig()
   assert.equal((await x.chart()).version, 1)
   await x.chart()
-  assert.deepEqual([x.count(READ), x.count(SOURCE), x.world.effects], [1, 2, 1])
-  x.cli.source.alpha = 2
+  assert.deepEqual([x.count(READ), x.count(SOURCE), x.world.effects], [1, 2, 2])
+  x.cli.sources.alpha = 2
   assert.equal((await x.chart()).version, 1)
   assert.equal(x.count(READ), 2)
-  x.clock.now += 29999; await x.chart()
-  assert.equal(x.count(READ), 2)
-  x.clock.now += 1; await x.chart()
-  assert.equal(x.count(READ), 3)
+  x.clock.now += 3_600_000; await x.chart()
+  assert.equal(x.count(READ), 2, 'an unchanged token is never re-read for age')
   await x.core.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'], input: null })
   await x.chart()
-  assert.equal(x.count(READ), 4)
+  assert.equal(x.count(READ), 3)
   x.cli.fail.add('source'); await x.chart()
-  assert.equal(x.count(READ), 5)
+  assert.equal(x.count(READ), 4)
   x.cli.fail.clear(); await x.chart()
   await x.chart()
-  assert.equal(x.count(READ), 6)
+  assert.equal(x.count(READ), 5)
+  // A roster change alone re-projects the kept read: new member name, no CLI read.
+  x.world.members = x.world.members.map(member => ({ ...member, name: member.id === 'bot-a' ? 'Renamed' : member.name }))
+  const renamed = await x.chart()
+  assert.deepEqual([renamed.members[0].name, renamed.version, x.count(READ)], ['Renamed', 2, 5])
+  x.world.failMembers = true
+  assert.deepEqual([(await x.chart()).degraded, x.count(READ)], [['members'], 5])
+})
+
+test('core: a chart waiting on another chart re-reads when that chart changes, not on a timer (task a95)', async () => {
+  const x = rig()
+  x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
+    scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'other', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
+    { external_tasks: [{ project_id: 'other', plan_key: 'q', task_id: 'x', status: 'in_progress', finished: false, reason: null, trigger: null }] })
+  x.cli.charts.push('other'); x.cli.sources.other = 1; x.cli.reads.other = chartRead()
+  const alphaReads = () => x.cli.calls.filter(call => call === READ + ' alpha').length
+  await x.chart('other')
+  assert.deepEqual((await x.chart()).externals.map(item => [item.projectId, item.title]), [['other', null]])
+  assert.equal((await x.chart()).externals[0].chartName, null, 'no other memo title in the projection yet')
+  assert.equal(alphaReads(), 2, 'the first token had no externals yet, so the second sync reads once more')
+  await x.chart(); x.clock.now += 3_600_000; await x.chart()
+  assert.equal(alphaReads(), 2, 'stable while neither chart moves')
+  x.cli.sources.other = 2; await x.chart()
+  assert.equal(alphaReads(), 3, "the other chart's source moved")
+  x.cli.reads.other = chartRead({ status: 'done' }); await x.chart('other'); await x.chart()
+  assert.equal(alphaReads(), 4, "the other chart's memo version moved (its cards changed)")
+  await x.chart('other'); await x.chart()
+  assert.equal(alphaReads(), 4)
 })
 
 test('core: version moves only when the projected content changes; refresh returns each change once', async () => {
@@ -313,13 +339,13 @@ test('core: version moves only when the projected content changes; refresh retur
   const first = await refresh()
   assert.deepEqual([first.snapshots.map(s => [s.projectId, s.version]), first.nextRefreshMs], [[['alpha', 1]], 2000])
   assert.deepEqual((await refresh()).snapshots, [])
-  x.cli.source.alpha = 2
+  x.cli.sources.alpha = 2
   assert.deepEqual((await refresh()).snapshots, [])
-  x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.source.alpha = 3
+  x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.sources.alpha = 3
   const changed = await refresh()
   assert.deepEqual(changed.snapshots.map(s => [s.version, s.cards[0].state]), [[2, 'done']])
   await x.chart()
-  x.cli.reads.alpha = chartRead({ status: 'blocked' }); x.cli.source.alpha = 4
+  x.cli.reads.alpha = chartRead({ status: 'blocked' }); x.cli.sources.alpha = 4
   await x.chart()
   assert.equal((await refresh()).snapshots[0].version, 3)
 })
@@ -327,7 +353,7 @@ test('core: version moves only when the projected content changes; refresh retur
 test('core: a failed read keeps the snapshot, shows lattice-read, logs one code line, and recovers', async () => {
   const x = rig()
   const good = await x.chart()
-  x.cli.fail.add('read'); x.cli.source.alpha = 2
+  x.cli.fail.add('read'); x.cli.sources.alpha = 2
   const kept = await x.chart()
   assert.deepEqual([kept.degraded, kept.cards, kept.version], [['lattice-read'], good.cards, 2])
   await x.chart(); await x.chart()
@@ -336,7 +362,7 @@ test('core: a failed read keeps the snapshot, shows lattice-read, logs one code 
   x.cli.fail.clear()
   const back = await x.chart()
   assert.deepEqual([back.degraded, back.version, back.cards], [[], 3, good.cards])
-  x.cli.fail.add('json'); x.cli.source.alpha = 5
+  x.cli.fail.add('json'); x.cli.sources.alpha = 5
   await x.chart()
   assert.deepEqual(x.logs.at(-1), 'lattice-read alpha LATTICE_CLI_BAD_JSON')
 })
@@ -355,10 +381,10 @@ test('core: a chart that was never readable is unavailable, empty and degraded',
 test('core: a failed roster read keeps the last roster and reports members', async () => {
   const x = rig()
   assert.equal((await x.chart()).members.length, 1)
-  x.world.failMembers = true; x.cli.source.alpha = 2
+  x.world.failMembers = true; x.cli.sources.alpha = 2
   const kept = await x.chart()
   assert.deepEqual([kept.degraded, kept.members.length], [['members'], 1])
-  x.world.failMembers = false; x.cli.source.alpha = 3
+  x.world.failMembers = false; x.cli.sources.alpha = 3
   assert.deepEqual((await x.chart()).degraded, [])
   const none = rig(); none.world.failMembers = true
   assert.deepEqual([(await none.chart()).members, none.world.effects], [[], 1])
@@ -374,7 +400,7 @@ test('core: charts lists every chart, coordinator first then newest update', asy
   const x = rig()
   x.cli.charts = ['gamma', 'beta', 'alpha', 'empty']
   Object.assign(x.cli.reads, { alpha: chartRead({ minute: 1 }), beta: chartRead({ agent: 'bot-b', minute: 20 }), gamma: chartRead({ agent: 'bot-b', minute: 10 }), empty: readOf([]) })
-  Object.assign(x.cli.source, { beta: 1, gamma: 1, empty: 1 })
+  Object.assign(x.cli.sources, { beta: 1, gamma: 1, empty: 1 })
   const list = await x.core.charts({}, x.effect)
   assert.deepEqual([list.schema, list.charts.map(chart => chart.projectId)], ['bellteam.lattice-charts.v1', ['alpha', 'beta', 'gamma', 'empty']])
   assert.deepEqual(list.charts[0], { projectId: 'alpha', name: null, coordinator: true, createdBy: 'bot-7b140b27', counts: { total: 2, done: 0, working: 1, waiting: 1, blocked: 0 },

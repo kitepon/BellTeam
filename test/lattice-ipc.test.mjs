@@ -185,7 +185,7 @@ import { createLatticeChildChannel } from '${base}/src/lattice-ipc.mjs'
 const read = { state: 'verified', verified_at: '2026-11-11T10:00:00.000Z', store: { members: [{ plan: { plan_key: 'p1', tasks: [{ task_id: 't1', title: 'A' }] },
   tasks: [{ task_id: 't1', status: 'in-progress' }], journal: { events: [{ kind: 'start', task_id: 't1', actor: { agent: 'a' }, recorded_at: '2026-11-11T10:00:00.000Z' }] }, plan_scoped: { events: [] } }] } }
 const ok = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
-const cli = { list: async () => ['alpha'], exists: async id => id === 'alpha', ensure: async () => ({ created: false }), meta: async () => ({ name: 'Lattice組込', createdBy: null }), setMeta: async () => {}, prune: async () => {},
+const cli = { list: async () => ['alpha'], source: async () => ({ n: 1 }), exists: async id => id === 'alpha', ensure: async () => ({ created: false }), meta: async () => ({ name: 'Lattice組込', createdBy: null }), setMeta: async () => {}, prune: async () => {},
   run: async ({ args, env }) => args.join(' ') === 'todo display source --json' ? ok({ n: 1 }) : args.join(' ') === 'todo display read --json' ? ok(read) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
 createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
 `
