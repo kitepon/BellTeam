@@ -105,8 +105,6 @@ flowchart TD
 | `configureRtk` → harness hook file | Replace the single existing PreToolUse RTK item in place. Never add a second item. The stable v1 path, argv, stdin/stdout behavior, and passthrough on internal failure remain unchanged; testgate never exits 2. | BellTeam owns its item and position. |
 | Testgate release → next hook invocation | A release updates the `current` link only; it needs no hook re-registration or Codex re-trust. A v2 change is announced to Epinel and Drilly with a v1 compatibility period. | Testgate owns release/distribution; BellTeam consumes the stable entry. |
 
-
-
 `aitermExecutionRegistration`はAitermの`localParentWorkerRuntime.scope`からstate root/socketを受け、BellTeam側で規則を複製しない。`configureAitermHooks`はnative登録ならその公開setup/argument parser、旧登録ならmergeClaudeParentHooks/mergeCursorParentHooks/ensureCodexParentSteerへ渡す。旧Codex登録の確認が一時的なCLI起動を含むことと、通常のBot起動を区別する。ここではいずれも実行していない。
 
 実装：[application-runtime.mjs](../../../../src/application-runtime.mjs)、[bootstrap.mjs](../../../../src/bootstrap.mjs)、[seat-runtime.mjs](../../../../src/seat-runtime.mjs)、[harness-config.mjs](../../../../src/harness-config.mjs)、[rtk-hooks.mjs](../../../../src/rtk-hooks.mjs)、[aiterm-hooks.mjs](../../../../src/aiterm-hooks.mjs)。参照する確認先はapplication-runtime、seat-command/process/stream/stdio/memory、character-sheets、harness-config、bot-environment、runtime-home、rtk-hooks、aiterm-hooks。native長命実行は[配送詳細](../../delivery-details.md)、通常installer/backupは[供給詳細](../../distribution-details.md)へ接続する。
