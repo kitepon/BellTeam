@@ -115,6 +115,8 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [requireLogin()](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L787) | 通信停止・状態整理・認証画面へ |
 | [requireLogin(for:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L799) | Cloudflare判定と自動ログイン表示 |
 | [signOut](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L805) | draft/ページ/cookie/購読/通知の後始末 |
+| openLatticeChart | 会話の右の「AIと操作」の工程表ボタンから、その工程表を開く要求（`latticeOpenRequest`）を置く。iPadは`selectedTab = 5`、Macは呼ぶ側が工程表の窓を開く（[工程表](lattice-chart.md#入口)） |
+| latticeCharts(createdBy:) | `GET /api/lattice/charts`を1回読み、`createdBy`がそのBotの工程表だけを返す。「AIと操作」の工程表ボタン用 |
 | [openConversation](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L942) | 会話を開く経路（会話タブ・chatPath・eventRevision）。呼出元は通知のタップ、相関図のメンバーのタップ、工程表の「会話を開く」（[工程表](lattice-chart.md)）。returningToを渡すと戻った時にそのタブへ帰る |
 | [returnFromConversation](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L952) | 相関図から開いた会話を戻った時に帰り先のタブへ移る。呼出元はchatPathが空になった時（iPhone）と、縮んだiPadで一覧の列へ戻った時（DesktopWorkspaceView） |
 | [openPendingNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L959) | server照合・openConversationで会話移動・秘密要求読取 |
@@ -300,7 +302,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [loadSettings](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L389) | Bot画像情報GET・schema/lifetime検査 |
 | [adjust](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L426) | 元画像または保持中選択から再調整 |
 | [adjustmentImage](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L444) | variantのrender/source/cropを選ぶ |
-| [BotProfileAISection.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L461) | AI設定表示・画面/再起動callback。再起動は`onRestart: () async -> Bool`を待つ間「再起動しています…」で無効、成功は「会話を再起動しました。」の一行 |
+| [BotProfileAISection.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L461) | AI設定表示・画面/再起動callback。`charts`（そのメンバーが作った工程表の id と名前）があれば「Botの画面を見る」の下に工程表ごとのボタンを出し、押すと`openChart(id)`（iPad・Macの`DesktopInspector`だけが渡す）。再起動は`onRestart: () async -> Bool`を待つ間「再起動しています…」で無効、成功は「会話を再起動しました。」の一行 |
 | [BotProfileDetails.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L484) | 役職・背景・性格・口調・仕事 |
 | [BotProfileDetails.detail](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L495) | 共通本文表示・空値は未設定 |
 

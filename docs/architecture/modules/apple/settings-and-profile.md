@@ -174,7 +174,7 @@ flowchart TD
 | saveBotAvatarSelection / confirmBotAvatarSelection（`Core/BellAPI+BotSettings.swift:4,24`） | PATCH成功はsaved。networkConnectionLost/timedOutだけGET照合へ。確認は対象3項目だけ。GET認証以外の失敗はunconfirmed |
 | saveImage / confirmImageSave | 選択の一致をfinishで検査。saved/confirmedなら選択を除去し名簿refresh。不一致・不明は選択を保持して結果確認/破棄を表示。確認操作自体はPATCHしない |
 | discardImageSelection | 対象variantだけdraftとerrorを消す。サーバー変更はしない |
-| BotProfileAISection / BotProfileDetails | 共通のAI表示・操作callbackとプロフィール本文。再起動callbackは各画面が持ち、利用権限確認とPOSTはAppStore.restartConversationへ渡す |
+| BotProfileAISection / BotProfileDetails | 共通のAI表示・操作callbackとプロフィール本文。「AIと操作」には、渡された工程表（そのメンバーが作ったもの）のボタンも並ぶ。通信は持たず、一覧の読み取りと開く操作は`DesktopInspector`が`AppStore`へ渡す（[工程表の入口](lattice-chart.md#入口)）。再起動callbackは各画面が持ち、利用権限確認とPOSTはAppStore.restartConversationへ渡す |
 
 `saveImage`は成功結果を受けてpending選択を除去した後に一覧をrefreshする。refreshだけ失敗した場合は「画像を保存しましたが、表示を更新できませんでした」と別表示する。認証失敗では選択を保持してrequireLogin。`confirmImageSave`も確認成功と表示更新を別段階で扱う。
 

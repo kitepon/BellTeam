@@ -282,6 +282,8 @@ private struct DesktopInspector: View {
     #endif
     @State private var editing = false
     @State private var errorText: String?
+    /// The charts the shown member made, read once per member for the 「AIと操作」 buttons.
+    @State private var ownedCharts: [LatticeChartSummary] = []
     @StateObject private var images = BotProfileImageState()
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -362,6 +364,11 @@ private struct DesktopInspector: View {
                             store.api.diagnostics.report(error, path: target.path + "/restart", method: "POST", observation: .write)
                             return false
                         }
+                    }, charts: ownedCharts.map { ($0.projectId, store.latticeChartName($0)) }, openChart: { id in
+                        store.openLatticeChart(id)
+                        #if targetEnvironment(macCatalyst)
+                        openWindow(id: "lattice")
+                        #endif
                     })
                     heading("プロフィール")
                     BotProfileDetails(bot: bot)
@@ -382,6 +389,14 @@ private struct DesktopInspector: View {
         .font(BellTheme.controlsFont)
         .foregroundStyle(BellTheme.ink).background(.white.opacity(0.6))
         .accessibilityIdentifier("workspace-inspector")
+        .task(id: target.isRoom ? nil : target.id) {
+            ownedCharts = []
+            guard !target.isRoom else { return }
+            do { ownedCharts = try await store.latticeCharts(createdBy: target.id) }
+            catch is CancellationError {}
+            // No chart buttons when the list cannot be read (an older server answers 404); the failure goes to diagnostics.
+            catch { store.api.diagnostics.report(error, path: LatticeChartsModel.path, method: "GET", observation: .read(error, retainedData: false)) }
+        }
         .sheet(isPresented: $editing) {
             Group {
                 if let room { RoomEditor(initial: room).environmentObject(store) }

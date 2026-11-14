@@ -9,6 +9,7 @@
 | iPhone | 「相関図」タブの上の切り替え「相関図 / 工程表」（`App/BellBotApp.swift` `TeamBoardTab`。タブを6つにしない） | タブ4（切り替えの状態は`@SceneStorage`で残る） |
 | iPad | サイドバー下の「工程表」（⌘5）→ `selectedTab = 5`（`Views/DesktopWorkspaceView.swift`）。工程表のstackは詳細の列のstackになるので、ほかの画面もそれぞれ自分のstackで列を置き換える（相関図・会話は`stacklessDetail`を包む） | タブ5 |
 | Mac | サイドバー下の「工程表」（⌘5）→ `openWindow(id: "lattice")`。窓は1360×860で開く | 工程表の窓を残し、本体の窓を前へ（`MainWindow.bringToFront`） |
+| iPad・Mac：会話の右の「AIと操作」 | そのメンバーが作った工程表（一覧の`createdBy`がそのBot）ごとのボタン（Owner 2026-11-14）。押すと`AppStore.openLatticeChart(id)`が`latticeOpenRequest`に置き、iPadは`selectedTab = 5`、Macは`openWindow(id: "lattice")`。`LatticeHomeView`が`latticeOpenRequest`を受けて`path = [.chart(id)]`にし、要求を消す。一覧の読み取りは`DesktopInspector`が開いたメンバーごとに1回（`AppStore.latticeCharts(createdBy:)`）。読めない時はボタンを出さず診断へ送る。iPhoneの詳細には出さない | 上と同じ |
 
 ## 部品と流れ
 
@@ -34,8 +35,8 @@ flowchart LR
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
   Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（archivedの札は除く。LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeTree（まとまり→工程の入れ子の配置。archivedの札は描かない）・LatticeHistory（終わった工程のJSTの日ごと）・LatticeTreeLink（肘）・LatticeTreeArc（依存の弧）<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
   ListModel -->|"統括のBot（createdBy）"| Model
-  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：切り替え（popover）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）。この帯の輪は中に文字を持たず、横に done/total を書く。輪（`LatticeRing`）の中の文字はどこでも1行で、入らなければ縮める<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定）：Views/LatticeTreeView.swift LatticeTreeBoard＝縦横に送る盤（線と弧のCanvasの上に根・まとまり・札の箱）<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeWaitPanel（既定は閉じて右端のつまみ LatticeWaitHandle＝砂時計と件数。押すと開き、パネルの閉じるで畳む）"]
-  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは待ちの流れを既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数・待ちの流れ（横に送る札）・工程（ツリー＝横に送る盤 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
+  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：一番左に「すべての工程表」のボタン（一覧を積む。iPhoneは見出しの右の同じボタン。Owner 2026-11-14）・切り替え（popover。工程表の行は最大440ptで、それより多いと行だけ縦に送る。「すべての工程表」は送りの外の下に残る）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）。この帯の輪は中に文字を持たず、横に done/total を書く。輪（`LatticeRing`）の中の文字はどこでも1行で、入らなければ縮める<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定）：Views/LatticeTreeView.swift LatticeTreeBoard＝縦横に送る盤（線と弧のCanvasの上に根・まとまり・札の箱）<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeWaitPanel（既定は閉じて右端のつまみ LatticeWaitHandle＝砂時計と件数。押すと開き、パネルの閉じるで畳む）"]
+  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは待ちの流れを既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数・待ちの流れ（横に送る札）・工程（見出し「工程」の右にツリー/担当/過去ログ N。各札は自分の文字の幅で、同じ行に入らなければ見出しの下の行へ。Nの桁が増えても切らない。Owner 2026-11-14）（ツリー＝横に送る盤 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
   Wide -->|"札を押す"| Detail["LatticeDetailPanel<br/>Mac・iPad：盤の上のガラスの面（札からmatchedGeometryEffectで育つ）<br/>iPhone：sheet（160pt・中・大、背後も操作可）"]
   Compact -->|"札を押す"| Detail
   Detail -->|"前の工程・次の工程"| Detail
@@ -73,6 +74,7 @@ flowchart LR
 | ツリー / 担当 / 過去ログ | `LatticeChartScreen`の`@SceneStorage("lattice-center")`（既定はツリー） | アプリ（シーン）を開いている間 |
 | 待ちの流れを開いているか（Mac・iPad） | `LatticeChartScreen`の`@SceneStorage("lattice-waits-open")`（既定は閉じる。Owner 2026-11-14） | アプリ（シーン）を開いている間 |
 | 一覧を工程表の上へ積んだか・止め一覧と、そこから開いた工程表（`.stops`・`.card`） | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
+| 会話の右から開く工程表（まだ開いていない要求） | `AppStore.latticeOpenRequest`（`String?`）。`openLatticeChart`が置き、`LatticeHomeView`が受けて消す | 受け取られるまで |
 | 止め一覧の止め・読み取りの状態・確認中の行・送信中の行・行の下の知らせ | `LatticeStopsModel`（`LatticeStopsView`の`@StateObject`） | 止め一覧を開いている間。背景へ回ると止め、戻ると読み直す |
 | 担当の顔 | `AppStore.bots`の画像（`LatticeAvatar`）。名簿にないBotは「?」、担当なしは「–」 | アプリの名簿に従う |
 

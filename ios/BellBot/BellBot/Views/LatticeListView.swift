@@ -266,6 +266,12 @@ struct LatticeHomeView: View {
             guard scenePhase == .active else { return }
             await list.run(api: store.api)
         }
+        .onChange(of: store.latticeOpenRequest, initial: true) { _, id in
+            guard let id else { return }
+            store.latticeOpenRequest = nil
+            openedSingle = true
+            path = [.chart(id)]
+        }
         .onChange(of: list.charts) { _, charts in
             guard !openedSingle, path.isEmpty, charts.count == 1, let only = charts.first else { return }
             openedSingle = true
