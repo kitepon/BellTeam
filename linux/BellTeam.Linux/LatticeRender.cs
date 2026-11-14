@@ -6,7 +6,7 @@ namespace BellTeam.Linux;
 // The render modes of the two separate windows (windows/BellTeam.App/App.xaml.cs --render-lattice and --render-workgraph): the real reads and drawing in a headless window.
 internal static class LatticeRender
 {
-    public static readonly string[] Scenes = ["list", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "waits-open"];
+    public static readonly string[] Scenes = ["list", "list-many", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "waits-open"];
 
     private static async Task Until(Func<bool> done, string what)
     {
@@ -29,6 +29,7 @@ internal static class LatticeRender
         lattice.Show();
         lattice.Sync();
         if (scene is "list" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+        else if (scene == "list-many") { await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。"); Dispatcher.UIThread.RunJobs(); lattice.UpdateLayout(); lattice.ScrollListToEnd(); }
         else if (scene == "list-back")
         {
             // 一覧 opened from a chart through the switcher: the back button names that chart.
