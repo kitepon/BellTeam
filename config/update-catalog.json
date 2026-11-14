@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T11:17:19Z",
-  "expiresAt": "2026-11-21T11:17:19Z",
+  "publishedAt": "2026-11-14T11:18:27Z",
+  "expiresAt": "2026-11-21T11:18:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -231,7 +231,9 @@
           "selfTurnsSchema": "bellteam.self-turns.v1"
         }
       },
-      "changes": "bd05c (#1434) child-result prefix via Aiterm's exported entry + bd05 (#1435) runtime-selection root"
+      "changes": [
+        "子の AI の結果を、Aiterm が約束した読み口で読むようにしました。"
+      ]
     },
     {
       "componentId": "conversation",
@@ -283,7 +285,9 @@
           "selfTurnsSchema": "bellteam.self-turns.v1"
         }
       },
-      "changes": "bd05c (#1434) child-result prefix via Aiterm's exported entry + bd05 (#1435) runtime-selection root"
+      "changes": [
+        "子の AI の結果を、Aiterm が約束した読み口で読むようにしました。"
+      ]
     },
     {
       "componentId": "notifications",
@@ -514,7 +518,9 @@
         "containerUpdate": null,
         "stateCompatibility": "bellteam.execution-state.v1"
       },
-      "changes": "bd05 (#1435): execution reaches Aiterm only through its package exports; runtime-selection root"
+      "changes": [
+        "AI の実行で、Aiterm を公開されている入口からだけ読むようにしました。"
+      ]
     },
     {
       "componentId": "execution",
@@ -545,7 +551,9 @@
         "containerUpdate": null,
         "stateCompatibility": "bellteam.execution-state.v1"
       },
-      "changes": "bd05 (#1435): execution reaches Aiterm only through its package exports; runtime-selection root"
+      "changes": [
+        "AI の実行で、Aiterm を公開されている入口からだけ読むようにしました。"
+      ]
     },
     {
       "componentId": "members",
@@ -715,7 +723,11 @@
         "stateSchema": null,
         "containerUpdate": 1
       },
-      "changes": "#1434 + #1435 (Aiterm through its contract only) + #1436 (secret-safe seat report lines in the body log) + #1439 (image prep and H1 through Aiterm's contract) + #1441 (usage: members read once, seat-stop failure kept out of settings), aiterm-mcp 0.70.58"
+      "changes": [
+        "AI の CLI と Aiterm のつながりを、Aiterm が公開している入口だけで扱うようにしました。",
+        "席の設定の報告が本体の記録に出るようにし、合鍵などの値は出さないようにしました。",
+        "利用状況の画面で、席の一覧の読み直しを減らし、席を止める失敗が設定のエラーとして残らないようにしました。"
+      ]
     },
     {
       "componentId": "container",
@@ -735,7 +747,11 @@
         "stateSchema": null,
         "containerUpdate": 1
       },
-      "changes": "#1434 + #1435 (Aiterm through its contract only) + #1436 (secret-safe seat report lines in the body log) + #1439 (image prep and H1 through Aiterm's contract) + #1441 (usage: members read once, seat-stop failure kept out of settings), aiterm-mcp 0.70.58"
+      "changes": [
+        "AI の CLI と Aiterm のつながりを、Aiterm が公開している入口だけで扱うようにしました。",
+        "席の設定の報告が本体の記録に出るようにし、合鍵などの値は出さないようにしました。",
+        "利用状況の画面で、席の一覧の読み直しを減らし、席を止める失敗が設定のエラーとして残らないようにしました。"
+      ]
     },
     {
       "componentId": "lattice",
@@ -768,7 +784,10 @@
           "state": "none"
         }
       },
-      "changes": "a102 (#1425): Lattice module uses only Lattice's contract (K1-K8), @quolu/lattice 0.101.1; first deliver migrates chart names/creators via chart set and moves owner records to /srv/bellteam/state/lattice-module/owner-decisions.json (#1406 #1419 #1430 kept)"
+      "changes": [
+        "工程表の名前と作成者を、工程表の公式の設定へ移しました。",
+        "オーナー担当の工程の記録を、新しい置き場所へ移しました。"
+      ]
     },
     {
       "componentId": "lattice",
@@ -801,7 +820,10 @@
           "state": "none"
         }
       },
-      "changes": "a102 (#1425): Lattice module uses only Lattice's contract (K1-K8), @quolu/lattice 0.101.1; first deliver migrates chart names/creators via chart set and moves owner records to /srv/bellteam/state/lattice-module/owner-decisions.json (#1406 #1419 #1430 kept)"
+      "changes": [
+        "工程表の名前と作成者を、工程表の公式の設定へ移しました。",
+        "オーナー担当の工程の記録を、新しい置き場所へ移しました。"
+      ]
     }
   ],
   "revokedCatalogs": []
