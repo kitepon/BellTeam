@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T06:18:54Z",
-  "expiresAt": "2026-11-21T06:18:54Z",
+  "publishedAt": "2026-11-14T06:47:29Z",
+  "expiresAt": "2026-11-21T06:47:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -559,8 +559,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1",
-      "versionId": "e8e088da03f1cfb49c4220f82bb67c6bc934428728ea20911338b29ce63768a1",
+      "sourceCommit": "46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05",
+      "versionId": "b5ccd2e0932a02fafb27b296cfd64287cf5faa8fcbb71ada11a73b91df12c4ce",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T051058Z/members-684e04168b35cd69f07f18830b4af5c6dc6683c1-linux-amd64.tar.gz",
-          "bytes": 4518082,
-          "sha256": "e8e088da03f1cfb49c4220f82bb67c6bc934428728ea20911338b29ce63768a1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T064714Z/members-46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05-linux-amd64.tar.gz",
+          "bytes": 4518746,
+          "sha256": "b5ccd2e0932a02fafb27b296cfd64287cf5faa8fcbb71ada11a73b91df12c4ce"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T051058Z/members-684e04168b35cd69f07f18830b4af5c6dc6683c1-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11325,
-          "sha256": "8a6394e1c9e44777b3043be112942cce667c224d8825f96995427fb1c78591fb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T064714Z/members-46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "1ca243126ac969d624ab1fb6d51b121ebf1f143e7cf987c5d0bebc7539d1bcb3"
         },
-        "signerCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1"
+        "signerCommit": "46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,13 +594,13 @@
         }
       },
       "changes": [
-        "各 Bot の起動時の共通規範に、製品どうしは決めた接点でだけつなぐ決まりを加えました。"
+        "各 Bot の起動時の共通規範に、フォーク（分身の席）についての決まりを加えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1",
-      "versionId": "514b26b70f4d834fe05c0924b84c6d1d3c79dec71d06433df198d463f3a4493e",
+      "sourceCommit": "46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05",
+      "versionId": "2058ca75d2d40e548a5959b38014721d751baec9fe8ab0b403c25114576adf60",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -608,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T051058Z/members-684e04168b35cd69f07f18830b4af5c6dc6683c1-linux-arm64.tar.gz",
-          "bytes": 4518080,
-          "sha256": "514b26b70f4d834fe05c0924b84c6d1d3c79dec71d06433df198d463f3a4493e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T064714Z/members-46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05-linux-arm64.tar.gz",
+          "bytes": 4518747,
+          "sha256": "2058ca75d2d40e548a5959b38014721d751baec9fe8ab0b403c25114576adf60"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T051058Z/members-684e04168b35cd69f07f18830b4af5c6dc6683c1-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11282,
-          "sha256": "33c917e6eb40bc2d11c6cd6b0bda882958acf668c5849b0451796a70eb144d4e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T064714Z/members-46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "ab1651ea9612de8695f2d652d3adfa3ad16504bd8260ea24c9e410e5bddd6015"
         },
-        "signerCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1"
+        "signerCommit": "46eafa69d1e4e1aeb8b5ab55456dd1a3f267ae05"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -634,7 +634,7 @@
         }
       },
       "changes": [
-        "各 Bot の起動時の共通規範に、製品どうしは決めた接点でだけつなぐ決まりを加えました。"
+        "各 Bot の起動時の共通規範に、フォーク（分身の席）についての決まりを加えました。"
       ]
     },
     {
