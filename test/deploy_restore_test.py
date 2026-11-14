@@ -67,7 +67,9 @@ class Checks(unittest.TestCase):
   with self.assertRaises(RuntimeError):m.mount_guard(self.p/'link')
  def test_same_cid_full_cursor_volume_can_restore_symlink_and_mode(self):
   volume=self.p/'volume';(volume/'bin').mkdir(parents=True);(volume/'releases').mkdir();(volume/'state').mkdir();cli=volume/'releases'/'cli';cli.write_text('old-cli');cli.chmod(0o755);(volume/'bin'/'cursor-agent').symlink_to('../releases/cli');(volume/'state'/'keep.json').write_text('{"latest":true}')
-  script=pathlib.Path(__file__).resolve().parents[1]/'scripts/archive-live-volume.py';tar=self.p/'cursor.tar';m.archive(tar,[sys.executable,str(script),'create',str(volume)],rate=0)
+  script=pathlib.Path(__file__).resolve().parents[1]/'scripts/archive-live-volume.py';tar=self.p/'cursor.tar'
+  # No Throughline on PATH: nothing to exclude or export (its contract is covered by archive-live-volume.test.py).
+  with unittest.mock.patch.dict(os.environ,{'PATH':str(self.p/'no-tools')}):m.archive(tar,[sys.executable,str(script),'create',str(volume)],rate=0)
   restore=self.p/'restored';m.subprocess.run([sys.executable,str(script),'restore',str(tar),str(restore)],check=True,capture_output=True)
   self.assertEqual((restore/'releases'/'cli').read_text(),'old-cli');self.assertEqual((restore/'releases'/'cli').stat().st_mode&0o777,0o755);self.assertEqual(os.readlink(restore/'bin'/'cursor-agent'),'../releases/cli');self.assertEqual((restore/'state'/'keep.json').read_text(),'{"latest":true}')
  def test_retention_keeps_two_points_and_one_shared_image_blob(self):

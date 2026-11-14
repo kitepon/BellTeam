@@ -80,6 +80,10 @@ export class SeatRuntime {
     return pending
   }
 
+  migrateThroughlineStorage() {
+    return this.call('throughline-storage', {})
+  }
+
   removeClaudeCopies(bots) {
     return this.call('remove-claude-copies', { profiles: projects(bots) })
   }

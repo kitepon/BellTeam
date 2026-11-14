@@ -45,10 +45,10 @@ int main(int argc, char **argv) {
         return fail("IDENTITY");
 
     const char *names[] = {"HOME", "USER", "LOGNAME", "SHELL", "PATH", "TERM",
-                           "BELLTEAM_HOME", "BELLTEAM_ROOT", "DISABLE_AUTOUPDATER", NULL};
+                           "BELLTEAM_HOME", "BELLTEAM_ROOT", "DISABLE_AUTOUPDATER", "THROUGHLINE_HOME", NULL};
     const char *values[] = {"/home/bell", "bell", "bell", "/bin/bash",
                             "/home/bell/.local/bin:/usr/local/bin:/usr/bin:/bin", "xterm-256color",
-                            "/home/bell", "/srv/bellteam", "1"};
+                            "/home/bell", "/srv/bellteam", "1", "/srv/bellteam/shared/throughline"};
     for (size_t i = 0; names[i] != NULL; i++)
         if (setenv(names[i], values[i], 1) != 0) return fail("ENVIRONMENT");
     execvp(argv[2], &argv[2]);

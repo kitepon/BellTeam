@@ -20,7 +20,7 @@ R4 NEVER inserts runtime rows into catalog.json. Its input is an explicit array 
 
 ## Current product conditions
 
-- Throughline: discover latest afresh, accept only0.16.56 for initial supply under Rivarin's compatibility decision; record exact integrity/closure. A future version needs product-owner concurrent compatibility acceptance, not an automatic Owner approval request.
+- Throughline: discover latest afresh and accept any version >= 0.19.0 (storage contract, ADR 0073; Owner: always latest, no pin, 2026-11-14); record exact integrity/closure. The probe runs with `THROUGHLINE_HOME=<probe>/tl` and checks through `storage locate --json` that observer-check created none of the reported roots ([runtime contract](../runtime/execution.md#throughline-storage-through-its-contract-throughline_home-molly-2026-11-14)).
 - Aiterm: updates only with the body image; no runtime archive or catalog row is published.
 - Codex/Claude Code: no extra product condition. All runtime targets apply to future launches only.
 

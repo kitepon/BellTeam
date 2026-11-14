@@ -31,6 +31,9 @@ const configPath = process.env.BELLTEAM_BOTS_CONFIG ?? join(appRoot, 'config/bot
 // 登録の読取失敗を通常入口へのfallbackで隠さず、起動時に返す。
 export const moduleChildExitReporter = createModuleChildExitReporter()
 export const seatRuntime = new SeatRuntime({ root, home, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit })
+// Before anything runs Throughline. A failure keeps the old files, boots on, and retries next boot.
+for (const result of await seatRuntime.migrateThroughlineStorage().catch(error => [{ status: 'failed', code: error.code ?? error.message }]))
+  if (result.status !== 'nothing' && result.status !== 'kept') console.error('THROUGHLINE_STORAGE_MIGRATION', JSON.stringify(result))
 // Scope resolution belongs to the seat too: resolving under UID1001 would
 // select a different native state root/socket from the UID1000 CLI hooks.
 export const aiterm = await seatRuntime.aitermRegistration()

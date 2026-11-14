@@ -15,7 +15,7 @@ print(json.dumps({'oom':open('/proc/self/oom_score_adj').read().strip(),'uid':os
   self.assertEqual(d['oom'],'1000');self.assertEqual(d['uid'],[1000]*3);self.assertEqual(d['gid'],[1000]*3);self.assertEqual(d['groups'],[])
   self.assertEqual(d['input'],'synthetic input\n');self.assertNotIn('BELLTEAM_SYNTHETIC_SERVER_SECRET',d['env']);self.assertNotIn('NODE_OPTIONS',d['env'])
   self.assertTrue(all(int(x.split()[1],16)==0 for x in d['caps']))
-  self.assertEqual(d['env']['HOME'],'/home/bell');self.assertEqual(d['env']['DISABLE_AUTOUPDATER'],'1')
+  self.assertEqual(d['env']['HOME'],'/home/bell');self.assertEqual(d['env']['DISABLE_AUTOUPDATER'],'1');self.assertEqual(d['env']['THROUGHLINE_HOME'],'/srv/bellteam/shared/throughline')
  def test_exit_and_fixed_errors(self):
   self.assertEqual(self.invoke('--','/bin/sh','-c','exit 37').returncode,37)
   r=self.invoke('--','/does/not/exist/secret-placeholder');self.assertEqual(r.returncode,126);self.assertEqual(r.stderr,'BELLTEAM_SEAT_EXEC_EXEC\n');self.assertEqual(r.stdout,'')

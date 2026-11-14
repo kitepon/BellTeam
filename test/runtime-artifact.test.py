@@ -34,21 +34,25 @@ class RuntimeArtifact(unittest.TestCase):
             binary = root / 'prefix/bin/throughline'
             calls = []
 
+            tl = root / 'throughline-probe/tl'
+            located = {'schema': 'throughline.storage_locations.v1', 'source': 'THROUGHLINE_HOME', 'database': str(tl / 'throughline.db'),
+                       'roots': {'data': str(tl), 'appState': str(tl / 'app-state'), 'appConfig': str(tl / 'app-config')}}
+
             def fake_run(args, *, env, cwd, input=None, timeout=120):
                 calls.append({'args': args, 'env': dict(env), 'cwd': Path(cwd), 'input': input, 'timeout': timeout})
-                output = '0.16.56\n' if len(calls) == 1 else json.dumps(first if len(calls) == 2 else second)
+                output = '0.19.0\n' if len(calls) == 1 else json.dumps([first, second, located][len(calls) - 2])
                 return SimpleNamespace(stdout=output, stderr='')
 
             with patch.object(packer, 'run', side_effect=fake_run):
                 result = packer.probe_throughline(binary, root, {'PATH': '/usr/bin'})
             project = root / 'throughline-probe/project'
-            self.assertEqual(result, {'version': '0.16.56', 'firstStatus': 'changed',
+            self.assertEqual(result, {'version': '0.19.0', 'firstStatus': 'changed',
                                       'secondStatus': 'unchanged', 'databaseCreated': False})
             self.assertEqual(calls[0]['args'], [str(binary), '--version'])
             self.assertEqual(calls[0]['cwd'], project)
             self.assertEqual([call['args'] for call in calls[1:]],
-                             [[str(binary), 'observer-check', '--json']] * 2)
-            requests = [json.loads(call['input']) for call in calls[1:]]
+                             [[str(binary), 'observer-check', '--json']] * 2 + [[str(binary), 'storage', 'locate', '--json']])
+            requests = [json.loads(call['input']) for call in calls[1:3]]
             self.assertEqual([request['schema'] for request in requests],
                              ['throughline.observer_check_request.v1'] * 2)
             self.assertEqual([request['projects'][0] for request in requests],
@@ -61,13 +65,26 @@ class RuntimeArtifact(unittest.TestCase):
                 self.assertEqual(call['env']['CODEX_HOME'], str(root / 'throughline-probe/codex'))
                 self.assertEqual(call['env']['XDG_STATE_HOME'], str(root / 'throughline-probe/state'))
                 self.assertEqual(call['env']['LOCALAPPDATA'], str(root / 'throughline-probe/state'))
+                self.assertEqual(call['env']['THROUGHLINE_HOME'], str(tl))
             bad_second = {**first, 'results': [{**first['results'][0], 'status': 'changed'}]}
         with tempfile.TemporaryDirectory() as scratch:
             root = Path(scratch)
-            outputs = iter(['0.16.56\n', json.dumps(first), json.dumps(bad_second)])
+            outputs = iter(['0.19.0\n', json.dumps(first), json.dumps(bad_second)])
             with patch.object(packer, 'run', side_effect=lambda *a, **k: SimpleNamespace(stdout=next(outputs), stderr='')):
                 with self.assertRaisesRegex(ValueError, 'second observer-check was not unchanged'):
                     packer.probe_throughline(root / 'prefix/bin/throughline', root, {'PATH': '/usr/bin'})
+        for version, created in (('0.18.9\n', False), ('0.20.1\n', True)):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as scratch:
+                root = Path(scratch)
+                tl = root / 'throughline-probe/tl'
+                if created:
+                    (tl / 'app-state').mkdir(parents=True)
+                located = {'schema': 'throughline.storage_locations.v1', 'source': 'THROUGHLINE_HOME',
+                           'roots': {'data': str(tl), 'appState': str(tl / 'app-state'), 'appConfig': str(tl / 'app-config')}}
+                outputs = iter([version, json.dumps(first), json.dumps(second), json.dumps(located)])
+                with patch.object(packer, 'run', side_effect=lambda *a, **k: SimpleNamespace(stdout=next(outputs), stderr='')):
+                    with self.assertRaisesRegex(ValueError, 'created a database/state path' if created else '0.19.0 or newer'):
+                        packer.probe_throughline(root / 'prefix/bin/throughline', root, {'PATH': '/usr/bin'})
 
     def test_manifest_first_modes_symlink_and_real_extract_contract(self):
         with tempfile.TemporaryDirectory() as scratch:

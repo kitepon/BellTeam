@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { runtimeHome, runtimeEnvironment } from '../src/runtime-home.mjs'
+import { migrateThroughlineStorage, runtimeHome, runtimeEnvironment } from '../src/runtime-home.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from '../src/aiterm-transport.mjs'
 
 const root = new URL('../', import.meta.url)
@@ -12,13 +12,14 @@ const root = new URL('../', import.meta.url)
 test('未指定の実行ホームは製品内で完結し、相対指定を拒否する', () => {
   assert.equal(runtimeHome({ HOME: '/host-home' }), new URL('../runtime/home', import.meta.url).pathname)
   assert.throws(() => runtimeHome({ BELLTEAM_HOME: 'relative' }), /BELLTEAM_HOME_ABSOLUTE_REQUIRED/u)
-  const env = runtimeEnvironment({ HOME: '/host', BELLTEAM_HOME: '/runtime', CLAUDE_CONFIG_DIR: '/host-claude', CODEX_HOME: '/host-codex', GROK_HOME: '/host-grok', MARKER: 'kept' })
+  const env = runtimeEnvironment({ HOME: '/host', BELLTEAM_HOME: '/runtime', CLAUDE_CONFIG_DIR: '/host-claude', CODEX_HOME: '/host-codex', GROK_HOME: '/host-grok', THROUGHLINE_HOME: '/shared/throughline', MARKER: 'kept' })
   assert.equal(env.HOME, '/runtime')
   assert.equal(env.CODEX_HOME, '/runtime/.codex')
   assert.equal(env.GROK_HOME, '/runtime/.grok')
   assert.equal(env.CLAUDE_CONFIG_DIR, undefined)
   assert.equal(env.XDG_CONFIG_HOME, '/runtime/.config')
   assert.equal(env.XDG_STATE_HOME, '/runtime/.local/state')
+  assert.equal(env.THROUGHLINE_HOME, '/shared/throughline')
   assert.equal(env.MARKER, 'kept')
 })
 
@@ -66,4 +67,46 @@ test('起動ユーザーのHOMEにあるsymlinkを触らず専用homeへ規範�
   assert.match(await readFile(join(runtime, '.codex/AGENTS.md'), 'utf8'), /BellTeam/u)
   assert.equal(await readFile(join(runtime, '.claude/CLAUDE.md'), 'utf8'), '@AGENTS.md\n')
   assert.match(await readFile(join(runtime, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
+})
+
+test('Throughlineの旧既定rootをTHROUGHLINE_HOMEへ一度だけ移し、既存の移動先を上書きしない', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'bellteam-throughline-migrate-'))
+  const env = { HOME: join(base, 'home'), XDG_STATE_HOME: join(base, 'home/.local/state'), XDG_CONFIG_HOME: join(base, 'home/.config'), THROUGHLINE_HOME: join(base, 'shared/throughline') }
+  try {
+    await mkdir(join(env.THROUGHLINE_HOME), { recursive: true })
+    await writeFile(join(env.THROUGHLINE_HOME, 'throughline.db'), 'db')
+    await mkdir(join(env.HOME, '.throughline'), { recursive: true })
+    await writeFile(join(env.HOME, '.throughline/stale'), 'stale')
+    await mkdir(join(env.XDG_STATE_HOME, 'throughline/completed-turn-receipts'), { recursive: true })
+    await writeFile(join(env.XDG_STATE_HOME, 'throughline/runtime-errors.json'), '{"v":1}')
+    await writeFile(join(env.XDG_STATE_HOME, 'throughline/completed-turn-receipts/a.json'), '{}')
+    await mkdir(join(env.XDG_CONFIG_HOME, 'throughline'), { recursive: true })
+    await writeFile(join(env.XDG_CONFIG_HOME, 'throughline/settings.json'), '{"c":1}')
+    // Different filesystem: the first rename of each source answers EXDEV, the staging rename succeeds.
+    const { rename } = await import('node:fs/promises')
+    const move = async (from, to) => { if (!from.includes('.migrating-')) throw Object.assign(new Error('cross'), { code: 'EXDEV' }); return rename(from, to) }
+    const results = await migrateThroughlineStorage(env, { move })
+    assert.deepEqual(results.map(row => row.status), ['kept', 'copied', 'copied'])
+    assert.equal(await readFile(join(env.THROUGHLINE_HOME, 'throughline.db'), 'utf8'), 'db')
+    assert.equal(await readFile(join(env.HOME, '.throughline/stale'), 'utf8'), 'stale')
+    assert.equal(await readFile(join(env.THROUGHLINE_HOME, 'app-state/runtime-errors.json'), 'utf8'), '{"v":1}')
+    assert.equal(await readFile(join(env.THROUGHLINE_HOME, 'app-state/completed-turn-receipts/a.json'), 'utf8'), '{}')
+    assert.equal(await readFile(join(env.THROUGHLINE_HOME, 'app-config/settings.json'), 'utf8'), '{"c":1}')
+    await assert.rejects(readFile(join(env.XDG_STATE_HOME, 'throughline/runtime-errors.json')), { code: 'ENOENT' })
+    // Idempotent: nothing left to move; a new source never overwrites the existing destination.
+    await mkdir(join(env.XDG_STATE_HOME, 'throughline'), { recursive: true })
+    await writeFile(join(env.XDG_STATE_HOME, 'throughline/runtime-errors.json'), '{"v":2}')
+    assert.deepEqual((await migrateThroughlineStorage(env)).map(row => row.status), ['kept', 'kept', 'nothing'])
+    assert.equal(await readFile(join(env.THROUGHLINE_HOME, 'app-state/runtime-errors.json'), 'utf8'), '{"v":1}')
+    // A failure leaves the source and no partial destination, so the next boot retries.
+    await rm(join(env.THROUGHLINE_HOME, 'app-state'), { recursive: true })
+    const failed = await migrateThroughlineStorage(env, { move: async () => { throw Object.assign(new Error('cross'), { code: 'EXDEV' }) } })
+    assert.equal(failed[1].status, 'failed')
+    assert.equal(await readFile(join(env.XDG_STATE_HOME, 'throughline/runtime-errors.json'), 'utf8'), '{"v":2}')
+    await assert.rejects(readFile(join(env.THROUGHLINE_HOME, 'app-state/runtime-errors.json')), { code: 'ENOENT' })
+    assert.deepEqual((await migrateThroughlineStorage(env)).map(row => row.status), ['kept', 'moved', 'nothing'])
+    assert.deepEqual(await migrateThroughlineStorage({ ...env, THROUGHLINE_HOME: undefined }), [])
+  } finally {
+    await rm(base, { recursive: true, force: true })
+  }
 })
