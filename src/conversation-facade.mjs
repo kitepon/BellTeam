@@ -10,8 +10,9 @@ const inherit = (promise, original) => {
 const pick = (value, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]))
 
 // Synchronous Room reads are display projections; refresh/read perform the authenticated fresh RPC.
-export function createConversationFacade({ getController, context }) {
+export function createConversationFacade({ getController, context, memberScoped = () => false }) {
   let projection = new Map()
+  const freeze = room => Object.freeze({ ...room, memberIds: Object.freeze([...room.memberIds]) })
   const invoke = (method, params, options, map, callback = false, chunks = null) => {
     let attempt
     try {
@@ -25,7 +26,7 @@ export function createConversationFacade({ getController, context }) {
     return map ? inherit(attempt.then(map), attempt) : attempt
   }
   const remember = room => {
-    const copy = Object.freeze({ ...room, memberIds: Object.freeze([...room.memberIds]) })
+    const copy = freeze(room)
     projection.set(copy.id, copy)
     return copy
   }
@@ -40,10 +41,14 @@ export function createConversationFacade({ getController, context }) {
   const rooms = {
     get: id => projection.get(id), has: id => projection.has(id), values: () => projection.values(),
     keys: () => projection.keys(), entries: () => projection.entries(), [Symbol.iterator]: () => projection.entries(),
-    refresh: options => invoke('rooms.list', {}, options, value => {
-      projection = new Map(value.rooms.map(room => [room.id, Object.freeze({ ...room, memberIds: Object.freeze([...room.memberIds]) })]))
-      return rooms
-    }),
+    refresh: options => {
+      // A Bot actor's rooms.list holds only its member rooms: it upserts them and never shrinks the shared Owner-wide projection.
+      const scoped = memberScoped()
+      return invoke('rooms.list', {}, options, value => {
+        projection = new Map([...(scoped ? projection : []), ...value.rooms.map(room => [room.id, freeze(room)])])
+        return rooms
+      })
+    },
     read: (roomId, options) => readRoom('room.read', { roomId }, options),
     require: id => { const room = projection.get(id); if (!room) throw new Error(`ROOM_NOT_FOUND: ${id}`); return room },
     create: (input, options) => readRoom('room.create', pick(input, ['name', 'purpose', 'memberIds', 'representativeId', 'avatar']), options),

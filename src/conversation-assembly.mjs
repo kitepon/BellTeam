@@ -100,7 +100,8 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     } catch (error) { authority.release(state.capturedAuthority); throw error }
     finally { if (state.own) moduleOperations.finish(state.operationContext); owned.delete(options) }
   }
-  const facade = createFacade({ getController: () => ({ ...controller, request: invoke, callback: (method, params, options) => invoke(method, params, options, true) }), context })
+  const facade = createFacade({ getController: () => ({ ...controller, request: invoke, callback: (method, params, options) => invoke(method, params, options, true) }), context,
+    memberScoped: () => scope.getStore()?.actor?.kind === 'bot' })
   return { controller, admission, moduleOperations, facade, directAssets,
     captureReceipt(method, input) {
       const current = scope.getStore()
