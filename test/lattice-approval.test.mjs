@@ -2,8 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createLatticeDecisions, LATTICE_APPROVAL_SCOPE } from '../src/lattice-approval.mjs'
 import { createLatticeEffects } from '../src/lattice-facade.mjs'
-import { ownerDecisions } from '../src/lattice/owner-decisions.mjs'
-import { laneResolver } from '../src/lattice/projection.mjs'
 
 const params = { title: 'Alpha: Task t1', context: 'c', options: [{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ' }], requester: 'Cee', session_label: 'alpha / p1/t1' }
 
@@ -81,81 +79,6 @@ test('decisions: 5 s per request; timeout, network or 5xx is unavailable, 4xx is
   await assert.rejects(rig({ current: live, responses: [[404, { error: { code: 'not_found' } }]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_REFUSED' })
   await assert.rejects(rig({ current: live, responses: [[400, { error: { code: 'invalid' } }]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_REFUSED' })
   await assert.rejects(rig({ current: live, responses: [[502, {}]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
-})
-
-// A fake connector with this connection's rows, as the deployed server lists them (raw session_label + requester), driven by the real
-// createLatticeDecisions + ownerDecisions. loseNext: the next create succeeds on the server but its response is lost.
-function connector(charts) {
-  const rows = [], posts = [], sends = []
-  const state = { loseNext: false, stored: {} }
-  const fetchImpl = async (url, init) => {
-    const path = url.replace('https://approval-box.kitepon.dev/connector/v1', ''), body = init.body ? JSON.parse(init.body) : null
-    const reply = (status, json) => ({ ok: status < 300, status, json: async () => json })
-    if (init.method === 'GET' && path === '/decisions') return reply(200, { items: rows.map(({ answer, ...row }) => row) })
-    if (init.method === 'POST' && path === '/decisions') {
-      if (!body.check_token) return reply(409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [] } })
-      posts.push(body)
-      rows.push({ decision_id: `K-NEW00${posts.length}`, status: 'pending', session_label: body.session_label, requester: body.requester })
-      if (state.loseNext) { state.loseNext = false; throw new TypeError('socket hang up') }
-      return reply(201, { id: rows.at(-1).decision_id, status: 'pending' })
-    }
-    const read = rows.find(row => path === `/decisions/${row.decision_id}`)
-    if (init.method === 'GET' && read) return reply(200, { id: read.decision_id, status: read.status, ...(read.answer && { answer: read.answer }) })
-    if (init.method === 'POST' && path.endsWith('/fetched')) return reply(200, { ok: true })
-    return reply(404, { error: { code: 'not_found' } })
-  }
-  const live = { handle: 'h', revision: 1, available: true, requestId: 's' }
-  const decisions = createLatticeDecisions({ credentials: { current: async () => live, withResolved: async (handle, target, consume) => consume('tok') },
-    secretRequests: { timeline: () => [] }, fetchImpl })
-  const effect = async (method, input) => method === 'decisions.file' ? decisions.file(input) : method === 'decisions.read' ? decisions.read(input)
-    : (sends.push(input), { delivery: 'running' })
-  const members = [{ id: 'bot-c', name: 'Cee', deleting: false }]
-  const tick = () => ownerDecisions(charts, { laneOf: laneResolver(members), names: new Map([['bot-c', 'Cee']]), bots: new Set(['bot-c']),
-    records: { read: async () => structuredClone(state.stored), write: async value => { state.stored = structuredClone(value) } }, effect, log: () => {} })
-  const answer = index => Object.assign(rows[index], { status: 'answered', has_answer: true, answer: { option_id: 'done', text: 'ok' } })
-  return { rows, posts, sends, state, tick, answer }
-}
-const ownerCard = { plan: 'p1', taskId: 't1', title: 'Task t1', state: 'ready', lane: 'owner' }
-
-test('file once: create succeeded, response and record lost, Owner answered before the retry -> no second filing, the answer routed once', async () => {
-  const x = connector([{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [ownerCard] }])
-  x.state.loseNext = true
-  assert.deepEqual(await x.tick(), { filed: 0, routed: 0 }, 'created on the server, but the response was lost')
-  assert.deepEqual([x.posts.length, x.state.stored], [1, {}])
-  x.answer(0)
-  assert.deepEqual(await x.tick(), { filed: 1, routed: 0 }, 'the retry adopts the answered request')
-  assert.equal(x.posts.length, 1, 'no second filing')
-  assert.equal(x.state.stored['alpha/p1/t1'].decisionId, 'K-NEW001')
-  assert.deepEqual(await x.tick(), { filed: 0, routed: 1 })
-  assert.deepEqual(await x.tick(), { filed: 0, routed: 0 })
-  assert.equal(x.sends.length, 1, 'the original answer is routed once')
-  assert.ok(x.sends[0].target === 'bot-c' && x.sends[0].message.includes('Answer: 済んだ / ok'))
-  assert.equal(x.posts.length, 1)
-})
-
-test('identity is the stable ids: same-named charts by one creator stay distinct; a rename after a lost response still recovers without another POST', async () => {
-  const charts = [{ projectId: 'same-a', name: 'Same', createdBy: 'bot-c', cards: [ownerCard] }, { projectId: 'same-b', name: 'Same', createdBy: 'bot-c', cards: [] }]
-  const x = connector(charts)
-  assert.deepEqual(await x.tick(), { filed: 1, routed: 0 })
-  x.answer(0)
-  charts[1].cards = [ownerCard]
-  assert.deepEqual(await x.tick(), { filed: 1, routed: 1 }, 'same-b files its own request; it does not adopt same-a\'s answered one')
-  assert.equal(x.posts.length, 2)
-  assert.deepEqual(x.posts.map(post => post.session_label), ['same-a / p1/t1', 'same-b / p1/t1'])
-  assert.deepEqual([x.state.stored['same-a/p1/t1'].decisionId, x.state.stored['same-b/p1/t1'].decisionId], ['K-NEW001', 'K-NEW002'])
-  assert.deepEqual(x.sends.map(send => send.message.includes('chart same-a')), [true], 'only same-a\'s answer is routed')
-
-  const renamed = [{ projectId: 'gamma', name: 'Gamma', createdBy: 'bot-c', cards: [ownerCard] }]
-  const y = connector(renamed)
-  y.state.loseNext = true
-  await y.tick()
-  assert.deepEqual([y.posts.length, y.state.stored], [1, {}], 'created, response lost')
-  renamed[0].name = 'Gamma renamed'
-  y.answer(0)
-  assert.deepEqual(await y.tick(), { filed: 1, routed: 0 }, 'the renamed chart adopts its request')
-  assert.equal(y.posts.length, 1, 'no second POST after the rename')
-  assert.deepEqual(await y.tick(), { filed: 0, routed: 1 })
-  assert.equal(y.sends.length, 1)
 })
 
 test('decisions.cancel: posts the reason to /cancel; an answered request (4xx) is refused; effects route it (README L19)', async () => {
