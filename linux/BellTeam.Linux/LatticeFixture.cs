@@ -72,9 +72,12 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         Summary("call-bridge", false, 8, 3, 1, 2, 0, ["bot-kiro", "bot-molly", "bot-trony", "bot-rapi"], 34),
         Summary("web-polish", false, 11, 9, 1, 0, 0, ["bot-admi", "bot-flora"], 63),
         Summary("guide", false, 9, 4, 1, 2, 0, ["bot-flora", "bot-ghost", "bot-trony"], 14 * 60),
+        // A chart whose cards are all finished (0/0): the list and the one-chart shortcut skip it (a107).
+        EmptyChart(),
         // 「list-many」: 37 charts as on the real server (a88), so the list scrolls.
         .. Enumerable.Range(1, scene == "list-many" ? 32 : 0).Select(index => Summary($"extra-{index:00}", false, 6, index % 6, 1, index % 3, 0, ["bot-kiro"], 20 * 60 + index)),
     ];
+    private object EmptyChart() => Summary("empty-draft", false, 0, 0, 0, 0, 0, [], 30);
     private object Summary(string id, bool coordinator, int total, int done, int working, int waiting, int blocked, string[] active, double updated)
         => new { projectId = id, name = Names.TryGetValue(id, out var known) ? known.Name : $"追加の工程表 {id[^2..]}", coordinator, createdBy = Names.TryGetValue(id, out var maker) ? maker.CreatedBy : "bot-kiro", counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
 
@@ -90,7 +93,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             "/api/bots" => Json(new { bots = Members.Select(member => new { id = member.Id, name = member.Name, displayName = member.Name, color = member.Color }) }),
             "/api/rooms" => Json(new { rooms = Array.Empty<object>() }), "/api/queue" => Json(new { items = Array.Empty<object>() }),
             "/api/owner" => Json(new { owner = new { name = "利用者" } }), "/api/settings" => Json(new { settings = Array.Empty<object>() }),
-            "/api/lattice/charts" => Json(new { schema = "bellteam.lattice-charts.v1", at = Ago(0), charts = scene == "single" ? Charts().Take(1) : Charts() }),
+            "/api/lattice/charts" => Json(new { schema = "bellteam.lattice-charts.v1", at = Ago(0), charts = scene == "single" ? [Charts()[0], EmptyChart()] : Charts() }),
             _ when path.EndsWith("/messages", StringComparison.Ordinal) => Json(new { items = Array.Empty<object>(), hasMore = false }),
             _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/events", StringComparison.Ordinal) => Events(Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/events".Length]), Json),
             _ => Json(new { error = "NOT_FOUND" }, HttpStatusCode.NotFound)
