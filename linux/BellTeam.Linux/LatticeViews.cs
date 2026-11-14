@@ -183,7 +183,11 @@ internal sealed class LatticeRing : Control
             context.DrawGeometry(null, new Pen(gradient, thickness, null, PenLineCap.Round), figure);
         }
         if (label.Length == 0) return;
-        var text = new FormattedText(label, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(BellTheme.Font, FontStyle.Normal, FontWeight.SemiBold), Math.Max(9, size * .27), LatticeLook.Brush(LatticeLook.Ink));
+        FormattedText Label(double em) => new(label, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(BellTheme.Font, FontStyle.Normal, FontWeight.SemiBold), em, LatticeLook.Brush(LatticeLook.Ink));
+        var em = Math.Max(9, size * .27); var text = Label(em);
+        // Three-digit counts (141/151) shrink to stay inside the ring instead of running over it.
+        var inside = 2 * radius - thickness - 4;
+        if (text.Width > inside) text = Label(em * inside / text.Width);
         context.DrawText(text, new Point(center.X - text.Width / 2, center.Y - text.Height / 2));
     }
 }

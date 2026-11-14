@@ -48,6 +48,29 @@ public sealed class LatticeWindowTests
         window.Close();
     });
 
+    // 待ちの流れ starts folded to the right-edge handle (count red: a row waits on a blocked producer); the handle opens it, its close folds it, and the choice outlives the chart.
+    [Fact]
+    public Task TheWaitPanelStartsFoldedAndRemembersItsState() => Ui.Run(async () =>
+    {
+        using var workspace = new LinuxWorkspace(origin => new BellApi(origin, new LatticeFixture("chart")));
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        LatticeChartPage.WaitsOpen = false;
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask);
+        window.Show(); window.OpenChart("lattice");
+        for (var wait = 0; wait < 100 && window.Chart!.Feed.Snapshot is null; wait++) await Task.Delay(20);
+        Avalonia.Controls.Button? Find(string id) { window.UpdateLayout(); return Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<Avalonia.Controls.Button>().FirstOrDefault(button => Avalonia.Automation.AutomationProperties.GetAutomationId(button) == id); }
+        var handle = Find("lattice-waits-open");
+        Assert.NotNull(handle); Assert.Null(Find("lattice-waits-close"));
+        Assert.Equal("待ちの流れを開く、7件", Avalonia.Automation.AutomationProperties.GetName(handle!));
+        handle!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        Assert.True(LatticeChartPage.WaitsOpen); Assert.NotNull(Find("lattice-waits-close")); Assert.Null(Find("lattice-waits-open"));
+        window.ShowList(); window.OpenChart("lattice");
+        for (var wait = 0; wait < 100 && window.Chart!.Feed.Snapshot is null; wait++) await Task.Delay(20);
+        Find("lattice-waits-close")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        Assert.False(LatticeChartPage.WaitsOpen); Assert.NotNull(Find("lattice-waits-open"));
+        window.Close();
+    });
+
     // The 相関図 window has the same single-instance and minimum-size contract (480x360 of graph).
     [Fact]
     public Task TheWorkGraphWindowIsSingleWithAMinimumSize() => Ui.Run(async () =>

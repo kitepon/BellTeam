@@ -6,7 +6,7 @@ namespace BellTeam.Linux;
 // The render modes of the two separate windows (windows/BellTeam.App/App.xaml.cs --render-lattice and --render-workgraph): the real reads and drawing in a headless window.
 internal static class LatticeRender
 {
-    public static readonly string[] Scenes = ["list", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found"];
+    public static readonly string[] Scenes = ["list", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "waits-open"];
 
     private static async Task Until(Func<bool> done, string what)
     {
@@ -23,6 +23,9 @@ internal static class LatticeRender
         if (model.ConnectionError is { } failure) throw new BellApiException(failure);
         var lattice = new LatticeWindow(model, _ => Task.CompletedTask) { Clock = () => 2300 };
         LatticeChartPage.View = scene switch { "tree" or "tree-detail" or "owner" => "tree", "history" => "history", _ => "lanes" };
+        // 待ちの流れ starts closed; the scenes that read its rows open it. 「narrow」 is the window at its minimum width.
+        LatticeChartPage.WaitsOpen = scene is "unknown" or "owner-lanes" or "waits-open";
+        if (scene == "narrow") lattice.Width = lattice.MinWidth;
         lattice.Show();
         lattice.Sync();
         if (scene is "list" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
