@@ -28,12 +28,15 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
     /// The phase id (`LatticePhase.id`) and the parent card id; both optional on the wire (missing = no phase / no parent).
     var phase: String?
     var parent: String?
-    /// When the card finished (done / retired), and whether the screens leave it out of the chart (it stays in 過去ログ and the counts).
+    /// When the card finished (done / retired), and whether the screens leave it out of the chart (it stays in 過去ログ).
     var doneAt: String?
     var archived: Bool?
+    /// Whether the progress fractions count the card (server, a96); an older server without it: not archived.
+    var counted: Bool?
 
     var status: LatticeTaskState { LatticeTaskState(state) }
     var isArchived: Bool { archived == true }
+    var isCounted: Bool { counted ?? !isArchived }
     /// Owner key (README "Owner on screen"): the producer's Bot id, else "lane:<text>", else nil (担当なし).
     var owner: String? {
         if let producer, !producer.isEmpty { return producer }
@@ -416,22 +419,19 @@ struct LatticeBanner: Equatable {
 
 struct LatticeCounts: Equatable {
     var total = 0, done = 0, working = 0, blocked = 0, waiting = 0
-
-    /// 進み具合の母数から取り下げを除く（screen spec note 11）。
-    var progressTotal = 0, progressDone = 0
-    var fraction: Double { progressTotal == 0 ? 0 : min(1, Double(progressDone) / Double(progressTotal)) }
+    var fraction: Double { total == 0 ? 0 : min(1, Double(done) / Double(total)) }
 
     init() {}
+    /// Fractions count only the `counted` cards (every task of a tree not fully finished, hidden ones included; the server
+    /// decides, Owner 2026-11-14, a96); done = done + retired, as Web / Windows / Linux and the server's list counts.
     init(_ snapshot: LatticeChartSnapshot) {
-        let cards = snapshot.cardList
+        let cards = snapshot.cardList.filter(\.isCounted)
         let waitingCards = Set(snapshot.edgeList.filter(\.waiting).map(\.to))
         total = cards.count
         done = cards.filter { $0.status.finished }.count
         working = cards.filter { $0.status == .inProgress }.count
         blocked = cards.filter { $0.status == .blocked }.count
         waiting = cards.filter { waitingCards.contains($0.id) }.count
-        progressTotal = cards.filter { $0.status != .retired }.count
-        progressDone = cards.filter { $0.status == .done }.count
     }
 }
 

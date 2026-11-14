@@ -41,13 +41,11 @@ final class LatticeChartTests: XCTestCase {
         return try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
     }
 
-    func testCountsExcludeRetiredFromProgressAndUnknownStateIsPending() throws {
+    func testCountsAndUnknownStateIsPending() throws {
         let chart = try snapshot()
         let counts = LatticeCounts(chart)
         XCTAssertEqual(counts.total, 9)
-        XCTAssertEqual(counts.done, 2, "done + retired")
-        XCTAssertEqual(counts.progressDone, 1)
-        XCTAssertEqual(counts.progressTotal, 8, "取り下げは母数に入れない")
+        XCTAssertEqual(counts.done, 2, "done + retired, as Web and the server (a96)")
         XCTAssertEqual(counts.working, 1)
         XCTAssertEqual(counts.blocked, 1)
         XCTAssertEqual(counts.waiting, 3, "待っている辺が入る札の数")
@@ -297,6 +295,24 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(icons.frames["a"]!.midX - size.titleWidth / 2, 0, "a title under the first column stays on the board")
     }
 
+    func testFractionsCountTheServersCountedCards() throws {
+        // a96: a hidden card of an unfinished tree counts; a visible card of a finished tree does not. The app follows the flag.
+        let json = """
+        {"schema":"bellteam.lattice-chart.v1","epoch":"e1","version":1,"projectId":"t","state":"verified","members":[],
+         "cards":[
+          {"id":"a1","title":"A1","state":"done","archived":true,"counted":true},
+          {"id":"a2","title":"A2","state":"retired","archived":true,"counted":true},
+          {"id":"a3","title":"A3","state":"in-progress","counted":true},
+          {"id":"a4","title":"A4","state":"pending","counted":true},
+          {"id":"z1","title":"Z1","state":"done","archived":true,"counted":false}],
+         "edges":[],"waits":[]}
+        """
+        let counts = LatticeCounts(try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8)))
+        XCTAssertEqual(counts.total, 4)
+        XCTAssertEqual(counts.done, 2, "done + retired")
+        XCTAssertEqual(counts.working, 1)
+    }
+
     // MARK: Archived and history
 
     private func archivedSnapshot() throws -> LatticeChartSnapshot {
@@ -319,14 +335,14 @@ final class LatticeChartTests: XCTestCase {
         return try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
     }
 
-    func testArchivedCardsAreNotDrawnButStillCounted() throws {
+    func testArchivedCardsAreNotDrawn() throws {
         let snapshot = try archivedSnapshot()
         let structure = LatticeStructure(snapshot)
         XCTAssertEqual(Set(structure.places.keys), ["b2", "b3", "b4", "b5"], "the tree shows the 担当 cards: archived ones are left out")
         XCTAssertEqual(structure.edges.map(\.id), ["b2>b5"], "an edge from an archived card is not drawn")
         let counts = LatticeCounts(snapshot)
-        XCTAssertEqual(counts.total, 7)
-        XCTAssertEqual(counts.progressDone, 4)
+        XCTAssertEqual(counts.total, 4, "no `counted` (older server): the cards not archived")
+        XCTAssertEqual(counts.done, 2)
         // Lanes leave archived cards out too; waits that touch one are not on screen.
         let layout = LatticeLayout(snapshot)
         XCTAssertEqual(Set(layout.frames.keys), ["b2", "b3", "b4", "b5"])
