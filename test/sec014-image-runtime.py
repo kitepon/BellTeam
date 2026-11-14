@@ -227,12 +227,13 @@ def main():
         if protected:
             parent = folder.stat()
             assert (parent.st_uid, parent.st_gid, stat.S_IMODE(parent.st_mode)) == (1001, 1001, 0o711)
-            assert stat.S_IMODE(entry.st_mode) == 0o666
+            assert stat.S_IMODE(entry.st_mode) == 0o600
         program = r"""import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {request} from 'node:http';
 const wanted=JSON.parse(process.argv[1]),protectedPeer=process.argv[2]==='true',socket='/peer/bellteam.sock';
-assert.equal(process.getuid(),1000);assert.equal(process.getgid(),1000);
+// Audit M4: the protected socket is 0600 (server uid); the Bridge peer is the trusted root connector, a legacy peer owns its socket.
+assert.equal(process.getuid(),protectedPeer?0:1000);assert.equal(process.getgid(),protectedPeer?0:1000);
 const mount=fs.readFileSync('/proc/self/mountinfo','utf8').split('\n').find(line=>line.split(' ')[4]==='/peer');
 assert.ok(mount&&mount.split(' ')[5].split(',').includes('ro'));
 const same=()=>{const s=fs.statSync(socket);assert.equal(s.dev,wanted.dev);assert.equal(s.ino,wanted.ino);assert.ok(s.isSocket())};
@@ -249,20 +250,19 @@ assert.equal(reply.status,200);assert.equal(reply.body.schema,'bellteam.call-dir
 assert.deepEqual(reply.body.members.map(member=>member.id).sort(),['bot-a','bot-b']);
 assert.throws(()=>fs.writeFileSync('/peer/forbidden','x',{flag:'wx'}),error=>['EACCES','EROFS'].includes(error.code));
 assert.throws(()=>fs.unlinkSync(socket),error=>['EACCES','EROFS'].includes(error.code));
-if(protectedPeer)assert.throws(()=>fs.readdirSync('/peer'),{code:'EACCES'});
 same();
-console.log(JSON.stringify({phonebookRead:true,readOnlyMount:true,socketSameInode:true,writeDenied:true,unlinkDenied:true,parentListDenied:protectedPeer}));
+console.log(JSON.stringify({phonebookRead:true,readOnlyMount:true,socketSameInode:true,writeDenied:true,unlinkDenied:true,rootPeer:protectedPeer}));
 """
         peer_mount = ('type=volume,source=' + state_volume + ',target=/peer,volume-subpath=state/call-bridge-socket,readonly'
                       if protected else 'type=bind,source=' + str(folder) + ',target=/peer,readonly')
         value = json.loads(docker('run', '--pull', 'never', '--rm', '--network', 'none',
-            '--read-only', '--user', '1000:1000', '--cap-drop', 'ALL',
+            '--read-only', '--user', '0:0' if protected else '1000:1000', '--cap-drop', 'ALL', *(['--cap-add', 'DAC_OVERRIDE'] if protected else []),
             '--security-opt', 'no-new-privileges:true', '--mount',
             peer_mount,
             '--entrypoint', '/usr/local/bin/node', image_id, '--input-type=module', '-e', program,
             json.dumps(dict(dev=entry.st_dev, ino=entry.st_ino)), str(protected).lower()).stdout)
         assert value == dict(phonebookRead=True, readOnlyMount=True, socketSameInode=True,
-                             writeDenied=True, unlinkDenied=True, parentListDenied=protected)
+                             writeDenied=True, unlinkDenied=True, rootPeer=protected)
         after = (folder / 'bellteam.sock').stat()
         assert (after.st_dev, after.st_ino) == (entry.st_dev, entry.st_ino)
         return value
@@ -857,7 +857,7 @@ console.log(JSON.stringify({newPathRead:true,oldPathIgnored:true,hotload:true,ac
             health(current(root, normal_env))
             bridge_result['staleSocketRestart'] = read_call_directory(private / 'state/call-bridge-socket', 1001, protected=True)
             document(variant + '-call-bridge-peer.json', bridge_result)
-            checks.append('enabled call-bridge real listener uses private UID1001 socket; UID1000 RO peer reads directory without listing/unlink/write; legacy recovery and stale socket restart work')
+            checks.append('enabled call-bridge real listener uses private UID1001 0600 socket; root RO Bridge peer reads directory without unlink/write; legacy recovery and stale socket restart work')
             remove_project(root, normal_env)
             variant_results.append(dict(storage=variant, checks=checks[check_start:]))
         document('result.json', dict(source=source, image=image_id, legacyImage=legacy_id,
