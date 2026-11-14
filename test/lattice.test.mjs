@@ -108,7 +108,7 @@ test('projection: tree = phases in plan order, card phase, parent (existing, not
     [['a', 'p1/ph1', null], ['b', 'p1/ph1', 'p1/a'], ['c', null, null], ['d', null, 'p1/e'], ['e', null, null], ['f', null, null]])
 })
 
-test('projection: doneAt; archived = all next cards finished, or (no next card) its Lattice tree finished (Owner 2026-11-14)', () => {
+test('projection: doneAt; archived = all next cards finished, a finished card with no next card at once (Owner 2026-11-14, a109)', () => {
   const plan = planMember({ tasks: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(task_id => ({ task_id })),
     states: [['a', 'done'], ['b', 'done'], ['c', 'pending'], ['d', 'in-progress'], ['e', 'retired'], ['f', 'done'], ['g', 'done']],
     deps: [{ from: ref('p1', 'a'), to: ref('p1', 'c') }, { from: ref('p1', 'b'), to: ref('p1', 'd') }, { from: ref('p1', 'f'), to: ref('p1', 'g') }],
@@ -116,14 +116,14 @@ test('projection: doneAt; archived = all next cards finished, or (no next card) 
   plan.tasks.find(task => task.task_id === 'a').done_at = at(3)
   const cards = byId(projectChart({ read: readOf([plan]), members: [] }))
   assert.deepEqual(Object.values(cards).map(card => [card.taskId, card.archived]),
-    [['a', false], ['b', false], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a and b have unfinished next cards; f has its next card finished; e and g are finished trees')
-  // A finished leaf stays while its tree is open; the whole tree leaves when the last card finishes.
+    [['a', false], ['b', false], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a and b have unfinished next cards; f has its next card finished; e and g have no next card')
+  // A finished leaf leaves at once even while its tree is open (a109); counted still follows the tree.
   const leaf = planMember({ tasks: ['x', 'y', 'z'].map(task_id => ({ task_id })), states: [['x', 'done'], ['y', 'done'], ['z', 'in-progress']],
     deps: [{ from: ref('p1', 'x'), to: ref('p1', 'y') }] })
   const treeOf = (finished, tasks) => ({ tree_id: 'p1/x', tasks: tasks.map(task_id => ({ plan_key: 'p1', task_id })), total: tasks.length, finished })
   const open = byId(projectChart({ read: readOf([leaf], { trees: [{ ...treeOf(2, ['x', 'y', 'z']) }] }), members: [] }))
-  assert.deepEqual(['x', 'y', 'z'].map(id => [open[`p1/${id}`].archived, open[`p1/${id}`].counted]), [[true, true], [false, true], [false, true]],
-    'x: its next card y finished; y: no next card, tree still open (z); all counted')
+  assert.deepEqual(['x', 'y', 'z'].map(id => [open[`p1/${id}`].archived, open[`p1/${id}`].counted]), [[true, true], [true, true], [false, true]],
+    'x: its next card y finished; y: no next card, gone though z keeps the tree open; all counted')
   leaf.tasks.find(task => task.task_id === 'z').status = 'done'
   const closed = byId(projectChart({ read: readOf([leaf], { trees: [treeOf(3, ['x', 'y', 'z'])] }), members: [] }))
   assert.deepEqual(['x', 'y', 'z'].map(id => [closed[`p1/${id}`].archived, closed[`p1/${id}`].counted]), [[true, false], [true, false], [true, false]])

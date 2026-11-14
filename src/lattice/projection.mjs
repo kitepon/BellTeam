@@ -99,11 +99,11 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
   // Trees come from Lattice (display read `trees`, 0.100.0; Owner: BellTeam computes no trees). A card in no tree is a tree of one.
   const treeOf = new Map((read?.store ? read.trees ?? [] : []).flatMap(tree => (tree?.tasks ?? []).map(task => [`${task?.plan_key}/${task?.task_id}`, tree])))
   const treeDone = card => { const tree = treeOf.get(card.id); return tree ? Number(tree.finished) >= Number(tree.total) : finished(card) }
-  // Owner 2026-11-14 (README Projection rules): a finished card leaves once all its next cards are finished; one with no next card leaves
-  // with its finished tree. Every task of a tree not fully finished is counted, hidden ones included.
+  // Owner 2026-11-14 (README Projection rules): a finished card leaves once all its next cards are finished; one with no next card
+  // (single or last) leaves at once (a109). Every task of a tree not fully finished is counted, hidden ones included.
   for (const card of cards.values()) {
     const after = next.get(card.id) ?? []
-    card.archived = finished(card) && (after.length ? after.every(id => finished(cards.get(id))) : treeDone(card))
+    card.archived = finished(card) && after.every(id => finished(cards.get(id)))
     card.counted = !treeDone(card)
   }
   const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).filter(from => cards.has(from)).length]))
