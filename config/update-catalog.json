@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T11:18:27Z",
-  "expiresAt": "2026-11-21T11:18:27Z",
+  "publishedAt": "2026-11-14T11:48:26Z",
+  "expiresAt": "2026-11-21T11:48:26Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "20060b73a5f075ca0bd7f10f4d4e4fd709b31fec",
-      "versionId": "sha256:a720fc8deaa74ae0472e3bcfe948949933aa36e5adea5a55aebc4b73386ff8e5",
+      "sourceCommit": "6f7551d9220ef9d0c9fdca40b194e0e91c99a7d7",
+      "versionId": "sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a720fc8deaa74ae0472e3bcfe948949933aa36e5adea5a55aebc4b73386ff8e5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AI の CLI と Aiterm のつながりを、Aiterm が公開している入口だけで扱うようにしました。",
-        "席の設定の報告が本体の記録に出るようにし、合鍵などの値は出さないようにしました。",
-        "利用状況の画面で、席の一覧の読み直しを減らし、席を止める失敗が設定のエラーとして残らないようにしました。"
+        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "20060b73a5f075ca0bd7f10f4d4e4fd709b31fec",
-      "versionId": "sha256:a720fc8deaa74ae0472e3bcfe948949933aa36e5adea5a55aebc4b73386ff8e5",
+      "sourceCommit": "6f7551d9220ef9d0c9fdca40b194e0e91c99a7d7",
+      "versionId": "sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a720fc8deaa74ae0472e3bcfe948949933aa36e5adea5a55aebc4b73386ff8e5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AI の CLI と Aiterm のつながりを、Aiterm が公開している入口だけで扱うようにしました。",
-        "席の設定の報告が本体の記録に出るようにし、合鍵などの値は出さないようにしました。",
-        "利用状況の画面で、席の一覧の読み直しを減らし、席を止める失敗が設定のエラーとして残らないようにしました。"
+        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。"
       ]
     },
     {
