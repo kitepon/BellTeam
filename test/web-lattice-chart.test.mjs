@@ -378,6 +378,19 @@ test('閉じて開き直す前の一覧の答えは、次に開いた工程表�
   ui.view.close()
 })
 
+test('0/0 の工程表（分母0）は一覧に出さず、一枚だけ開く決まりも出す工程表で数える（a107）', async t => {
+  const empty = list => ({ ...list, charts: [...list.charts, { ...list.charts[0], projectId: 'zero', name: '空の工程表', coordinator: false, counts: { total: 0, done: 0, working: 0, waiting: 0, blocked: 0 } }] })
+  assert.deepEqual(listItems(empty(chartsList('bellteam', 'other'))).map(item => item.projectId), ['bellteam', 'other'])
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api: async () => empty(chartsList('bellteam')), fetchImage: net.fetchImage })
+  ui.view.open(); await flush()
+  assert.deepEqual(net.calls.filter(u => u.includes('/events')), ['/api/lattice/charts/bellteam/events'], '出す工程表が一つならそのまま開く')
+  feed.snapshot(fixture()); await flush()
+  byClass(ui.body, 'lattice-all')[0].click(); await flush()
+  assert.deepEqual(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').map(el => el.dataset.focusKey), ['bellteam'], '0/0 は一覧に無い')
+  ui.view.close()
+})
+
 test('待ちの流れ（広い画面）：畳んだ取っ手（数、止まりがあれば赤）から始まり、取っ手で開き×で畳む。開き直しても覚えている', async t => {
   const feed = sse(), feed2 = sse(), net = router({ streams: [feed, feed2] })
   const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage })

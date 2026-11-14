@@ -3,7 +3,7 @@ import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
   MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
+  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, shownCharts, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
 
@@ -226,7 +226,8 @@ export function createLatticeChart(dialog, {
     }
     if (!isOpen || token !== listToken || !listWanted()) return
     listAttempt = 0; status = 'live'; listNote = null; list = data
-    if (view === 'loading' && data.charts?.length === 1) { paintPills(); return openChart(data.charts[0].projectId) }
+    const shown = shownCharts(data)
+    if (view === 'loading' && shown.length === 1) { paintPills(); return openChart(shown[0].projectId) }
     view = 'list'; paintList(); paintPills()
     listTimer = later(loadList, LIST_POLL_MS)
   }
