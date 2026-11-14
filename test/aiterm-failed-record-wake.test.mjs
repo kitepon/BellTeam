@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
+import { aitermFailureCause } from '../src/agent-launch-error.mjs'
 
 // Aiterm 0.63.xは復帰に失敗した席を一覧と観測に残す（exists=true, state=unknown, reason=agent_failed）。
 const observation = (reason, state = reason === 'agent_failed' ? 'unknown' : 'idle') => ({ schema: 'aiterm.pty-observe-result.v1',
@@ -103,13 +104,17 @@ test('起こした席でも上限まで断られたら、起こし直さずそ�
 
 // pty_sendの返りを順に指定する偽Aiterm。文字列は断りの本文、nullは受理、'untracked'は追う手がかりの無い受理。
 // launchesはagent_launchの返りを順に指定する（文字列は断り、Errorは答えが届かない、無ければ起動できた）。
-function scripted({ sends, observed = observation('idle_timeout'), launches = [] }) {
+function scripted({ sends, observed = observation('idle_timeout'), launches = [], hibernate = null }) {
   const calls = []
   const classifier = new AitermClient()
   // Like AitermClient, run the admission check right before issuing pty_send.
   const client = { call: async (name, args, options) => { if (name === 'pty_send') options?.admissionCheck?.(); return classifier.call(name, args) } }
-  classifier.client = { async callTool({ name, arguments: args }) {
+  classifier.client = {
+  // hibernate: null = an Aiterm without pty_close.hibernate; 'ok' = hibernates; other string = its refusal text.
+  async request() { return { tools: hibernate ? [{ name: 'pty_close', inputSchema: { type: 'object', properties: { hibernate: { type: 'boolean' } } } }] : [] } },
+  async callTool({ name, arguments: args }) {
     calls.push([name, args])
+    if (name === 'pty_close' && args.hibernate === true && hibernate !== 'ok') return { isError: true, content: [{ type: 'text', text: hibernate }] }
     if (name === 'pty_send') {
       const next = sends.length ? sends.shift() : null
       if (next instanceof Error) throw next
@@ -131,11 +136,11 @@ function scripted({ sends, observed = observation('idle_timeout'), launches = []
   return { client, calls }
 }
 
-async function deliver(t, script, harness = 'codex') {
+async function deliver(t, script, harness = 'codex', reportError = undefined) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const { client, calls } = scripted(script)
-  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }), ...(reportError ? { reportError } : {}) })
   t.mock.method(process.stderr, 'write', () => true)
   const delivered = transport.turn({ id: 'bot-a', session: 'bot-a', harness, project: root }, '再現用の本文')
   return { delivered, calls, names: () => calls.map(([name]) => name) }
@@ -167,6 +172,33 @@ test('端末があり型の無い断りでも、動いているターンが無�
   const run = await deliver(t, { sends: [replacedNative, null] })
   await run.delivered
   assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+})
+
+// kiro-launch-fail-rapi (2026-11-14 19:47): the close discarded Rapi's conversation, then the fresh launch failed.
+const unconfirmed = 'aiterm: AGENT_LAUNCH_UNCONFIRMED: 新規起動の結果を確認できません。native端末の本人性を確認できません。native_reason=native_condition_refused'
+
+test('生きている席の回復は休止で閉じ、同じ席名で起こし直して届ける（会話を捨てない）', async t => {
+  const run = await deliver(t, { sends: [replacedNative, null], hibernate: 'ok' })
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(run.calls[2][1], { session_id: 'bot-a', hibernate: true })
+})
+
+test('休止をAitermが断った席だけ、従来どおり閉じて新しく起こす', async t => {
+  const run = await deliver(t, { sends: [replacedNative, null], hibernate: 'aiterm: AGENT_HIBERNATE_UNAVAILABLE: 再開情報がありません。' })
+  await run.delivered
+  assert.deepEqual(run.calls.filter(([name]) => name === 'pty_close').map(([, args]) => args),
+    [{ session_id: 'bot-a', hibernate: true }, { session_id: 'bot-a' }])
+})
+
+test('休止の後の起動が失敗しても記録は休止のまま残り、失敗の符号と理由を診断に残す', async t => {
+  const reports = []
+  const run = await deliver(t, { sends: [replacedNative], hibernate: 'ok', launches: [unconfirmed] }, 'codex', async report => { reports.push(report) })
+  await assert.rejects(run.delivered)
+  assert.deepEqual(run.calls.filter(([name]) => name === 'pty_close').map(([, args]) => args), [{ session_id: 'bot-a', hibernate: true }])
+  const logged = reports.filter(report => report.code === 'SERVER_TURN_TRACKING_FAILED').map(report => JSON.parse(report.diagnostic_log))
+  assert.deepEqual(logged.map(({ code, cause, native_reason }) => ({ code, cause, native_reason })),
+    [{ code: 'BOT_LAUNCH_FAILED', cause: 'AGENT_LAUNCH_UNCONFIRMED', native_reason: 'native_condition_refused' }])
 })
 
 test('観測できない時は何も閉じずに起こしてから届ける', async t => {
@@ -313,4 +345,10 @@ test('a67: 受付が開いたままなら、回復の起こし直しで断られ
   const first = names.indexOf('agent_launch')
   assert.equal(names.filter(name => name === 'agent_launch').length, 2)
   assert.ok(names.indexOf('pty_close', first) > first && names.indexOf('pty_close', first) < names.lastIndexOf('agent_launch'))
+})
+
+test('診断へ残す理由は、Aitermが返した断りの既知の記号だけで、他の文からは読まない', () => {
+  assert.deepEqual(aitermFailureCause(new Error('native_reason=privatevalue123')), { cause: null, native_reason: null })
+  assert.deepEqual(aitermFailureCause(Object.assign(new Error('aiterm: AGENT_LAUNCH_UNCONFIRMED: x native_reason=privatevalue123'), { aitermResponseReturned: true })),
+    { cause: 'AGENT_LAUNCH_UNCONFIRMED', native_reason: null })
 })
