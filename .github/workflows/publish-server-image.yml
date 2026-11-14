@@ -94,7 +94,8 @@ on:
 
 concurrency:
   group: public-server-image-${{ github.ref }}
-  cancel-in-progress: true
+  # A running build finishes; only the newest push waits (adoptions in a row starved every train, 2026-11-14).
+  cancel-in-progress: false
 
 permissions:
   contents: read

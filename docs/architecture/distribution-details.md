@@ -21,7 +21,7 @@ flowchart TD
 | 段階 | 実装/caller | 所有と限界 |
 | --- | --- | --- |
 | context作成 | `scripts/package-server.mjs` | HEADの明示pathだけgit archive。未commit・個人台帳・.envを含めず、public profileと空台帳へ置換。`distribution/server/updater`と`distribution/lattice`の2 manifest（builtin latticeのCLI pin）だけはdistribution整理後も同じpathへ戻す。sourceCommitをdistribution.jsonへ記録 |
-| 候補 | `publish-server-image.yml` | 対象pathのmain push/手動で両arch build。各arch検証後push→index job。latestを書き換える工程ではない |
+| 候補 | `publish-server-image.yml` | 対象pathのmain push/手動で両arch build。各arch検証後push→index job。latestを書き換える工程ではない。同じrefの実行は一本ずつ：走っている実行は最後まで終え、待つのは最新のpush一本だけ（`cancel-in-progress: false`。2026-11-14、採用が続く間にbuild済みの実行が4回続けて取り消され、本体の列車が組めなかった） |
 | 実物照合 | `verifyCandidate` | 匿名registryのindex/manifest/config hash、両arch/source labelを検証。受入記録文字列を要求するが、人の採否をscript自体が代行するわけではない |
 | H1実runtime | `verify-h1-runtime-image.yml` → runtime所有 `scripts/verify-resume-runtime.py` | build無し。同digest/sourceを検証しnative amd64/arm64の固有fixtureだけ実行。alwaysでallocationの自己label/project/3volumeを清掃・原本保存。通常アプリ全体/vendor起動・本番・promotionは含まない |
 | promotion | `promoteCandidate` | 再buildせず同digestを二つのtagへ。raw tagのhashを再確認。sourceはorigin/mainの祖先確認 |
