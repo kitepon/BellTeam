@@ -132,11 +132,11 @@ stateDiagram-v2
   [*] --> checking: 行・画面を開く（GET）
   checking --> unknown: GET失敗 / auth無し
   checking --> done: status=authenticated かつ signedOutAt無し
-  checking --> needsLogin: status=blocked、または signedOutAt あり
+  checking --> needsLogin: status=blocked で公式認証が開いていない（session_id・auth_ui.binding とも無し）、または signedOutAt あり
   checking --> failed: status=failed、または stage=failed
-  checking --> waitingSite: status=waiting、stage=open_url / device_code / select
-  checking --> waitingCode: status=waiting、stage=paste_code
-  checking --> confirming: status=waiting、上以外のstage（waiting・complete・unavailable）
+  checking --> waitingSite: status=waiting（または開いているblocked）、stage=open_url / device_code / select
+  checking --> waitingCode: status=waiting（または開いているblocked）、stage=paste_code
+  checking --> confirming: status=waiting（または開いているblocked）、上以外のstage（waiting・complete・unavailable）
   needsLogin --> waitingCode: 「認証する」POST start
   done --> waitingCode: 「認証し直す」POST start
   failed --> waitingCode: 「認証し直す」POST start
@@ -151,6 +151,8 @@ stateDiagram-v2
   waitingSite --> checking: 「やめる」POST cancel → GET
   waitingCode --> checking: 「やめる」POST cancel → GET
 ```
+
+未ログインのslot（Claudeの2つ目など）では、公式認証が進行中でもサーバーは`status=blocked`のまま`auth_ui`を返す。Web（`web/auth-flow.js`）と同じく、`session_id`か`auth_ui.binding`があるblockedは進行中として`auth_ui.stage`で段階を決める。
 
 | 段階 | 行の札 | 行のボタン | 画面の状態文（`detail`） |
 | --- | --- | --- | --- |
