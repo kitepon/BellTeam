@@ -18,7 +18,7 @@ test('opaque project planning retains actual UTF8 JSON path and token chunk boun
   assert.throws(() => observerScopedRequests([{ id: 'bot-a', scope: 'forged', projectBytes: 10, after: null }]))
 })
 
-test('parent public observer binds a poll to the actual Bot/project and rejects foreign scope and changed identity', async () => {
+test('parent public observer binds a poll to the actual Bot/project and rejects foreign scope and changed project', async () => {
   const bots = new Map([['bot-a', { id: 'bot-a', project: '/private/project-a' }]])
   const context = { generation: 'generation-a', operationId: 'op-a', actor: { kind: 'observer' }, continuation: false, rootMethod: 'observation.poll' }
   const requests = []
@@ -37,8 +37,12 @@ test('parent public observer binds a poll to the actual Bot/project and rejects 
   await assert.rejects(parent('runtime.observer.read', { botId: 'bot-a', scope: observerProjectScope('/other') }, context))
   await assert.rejects(parent('runtime.observer.read', { botId: 'bot-a', scope, project: '/other' }, context))
   bots.set('bot-a', { ...bots.get('bot-a') })
+  await parent('runtime.observer.read', { botId: 'bot-a', scope }, context)
+  bots.set('bot-a', { id: 'bot-a', project: '/private/project-b' })
   await assert.rejects(parent('runtime.observer.read', { botId: 'bot-a', scope }, context))
-  assert.equal(requests.length, 2)
+  bots.delete('bot-a')
+  await assert.rejects(parent('runtime.observer.read', { botId: 'bot-a', scope }, context))
+  assert.equal(requests.length, 3)
 })
 
 test('module observer preserves legacy cursor/token, commits earlier bot, and excludes pending bot from the next check', async t => {
