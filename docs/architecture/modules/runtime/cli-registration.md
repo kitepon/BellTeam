@@ -122,7 +122,7 @@ flowchart TD
   PE -->|"bellteam.harness-entries.v1"| Collect["CLI registration: collect + validate<br/>(seat runtime chain, one pass)"]
   Own["BellTeam's own entries<br/>(bellteam, call-bridge, aiterm, cursor instructions)"] --> Collect
   Collect --> CLIcmd["CLI-rewritten files: only the CLI's public command/API<br/>claude mcp add-json/remove --scope user (~/.claude.json)<br/>codex app-server config/batchWrite (~/.codex/config.toml)<br/>grok mcp add/remove --scope user (~/.grok/config.toml MCP)"]
-  Collect --> Files["Files no CLI writes: ONE writer (BellTeam), atomic, ordered by registry<br/>~/.claude/settings.json hooks, ~/.codex/hooks.json, ~/.cursor/hooks.json,<br/>~/.cursor/mcp.json, ~/.gemini/config/mcp_config.json"]
+  Collect --> Files["Files no CLI writes: ONE writer (BellTeam), atomic, ordered by registry<br/>~/.claude/settings.json hooks, ~/.codex/hooks.json, ~/.cursor/hooks.json,<br/>~/.cursor/mcp.json, ~/.cursor/cli-config.json permissions.allow, ~/.gemini/config/mcp_config.json"]
   Files --> Trust["Codex: hooks.state trust re-issued for every moved position, same pass"]
   Members["members module (Belota)"] --> Rules["AGENTS.md / CLAUDE.md in CLI homes: ONE writer"]
 ```
