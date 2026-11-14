@@ -1,6 +1,6 @@
 // 席のCLIがHTTPでつなぐMCPの入口。supervisorの内部入口（loopback）だけで開く。
 // 席ごとにnodeを起こさないよう、bellteamの道具と通話ブリッジへの中継をここで受ける。
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createServer, request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
@@ -20,6 +20,9 @@ export const SEAT_VARIABLE = 'AITERM_SESSION_ID'
 export const LAUNCH_HEADER = 'X-Bellteam-Launch-Id'
 export const LAUNCH_VARIABLE = 'AITERM_AGENT_LAUNCH_ID'
 export const BELLTEAM_MCP_PATH = '/mcp'
+// a124: known only to this server process (seats run as another UID), so a re-call from the seat MCP is told apart from a seat's raw HTTP.
+export const INTERNAL_CALL_HEADER = 'X-Bellteam-Internal-Call'
+const INTERNAL_CALL_KEY = randomBytes(32).toString('hex')
 export const CALL_BRIDGE_MCP_PATH = '/mcp/call-bridge'
 export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
 export const REMOTE_SEAT_MCP_PATH = '/api/seat-mcp'
@@ -57,9 +60,12 @@ export async function resolveSeatBotId(request, bots) {
 
 // SK07: the internal HTTP API's seat. A running fork (execution's forkSeat registry) speaks for its Bot on every
 // method; its project-folder writes are refused per tool at the seat MCP (SK04), not here.
-export async function resolveInternalSeat(request, bots, forkSeat) {
+export async function resolveInternalSeat(request, bots, forkSeat, checkLaunch = null) {
   const botId = await resolveSeatBotId(request, bots)
   const name = request.headers[SEAT_HEADER.toLowerCase()]
+  // a124: a seat name speaks only with that session's current Aiterm launch id; a mismatch stays unresolved (403).
+  if (botId && checkLaunch && request.headers[INTERNAL_CALL_HEADER.toLowerCase()] !== INTERNAL_CALL_KEY
+    && !(await checkLaunch(botId, name, request.headers[LAUNCH_HEADER.toLowerCase()]))) return { botId: null, fork: null }
   if (botId || typeof forkSeat !== 'function' || typeof name !== 'string' || !name.includes('-fork-')) return { botId, fork: null }
   let fork
   try { fork = await forkSeat(name) ?? null }
@@ -67,6 +73,24 @@ export async function resolveInternalSeat(request, bots, forkSeat) {
   if (!fork) return { botId: null, fork: null }
   const id = await memberId(fork.botId, bots)
   return id ? { botId: id, fork } : { botId: null, fork: null }
+}
+
+// a124: the internal listener's check that the X-Bellteam-Seat name is backed by the launch id Aiterm reports for that session
+// (pty_observe through execution's public observe; it never wakes a seat). Verified pairs are cached until a newer launch appears.
+// Limit: every local seat runs as UID 1000 with container sudo, so a seat that reads another seat's AITERM_AGENT_LAUNCH_ID
+// (/proc/<pid>/environ or sudo) can still claim it. This stops plain or injected header forgery only; remote seats keep their Bearer binding.
+export function createSeatLaunchCheck(transport, bots) {
+  const verified = new Map()
+  return async (botId, name, launch) => {
+    if (typeof launch !== 'string' || !/^[0-9a-f]{32}$/u.test(launch)) return false
+    if (verified.get(name) === launch) return true
+    let observed
+    try { observed = await transport.observe(bots.get?.(botId) ?? { id: botId }) }
+    catch { throw Object.assign(new Error('EXECUTION_UNAVAILABLE'), { code: 'EXECUTION_UNAVAILABLE', status: 503 }) }
+    const valid = observed?.session_id === name && observed.exists === true && observed.launch_id === launch
+    if (valid) verified.set(name, launch)
+    return valid
+  }
 }
 
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
@@ -119,7 +143,9 @@ export function internalApi(port, request = fetch, { executionSource } = {}) {
   const call = async (path, body, method = 'POST') => {
     const response = await request(`http://127.0.0.1:${port}${path}`, {
       method,
-      headers: { ...(executionSource?.sourceSession ? { [SEAT_HEADER]: executionSource.sourceSession } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { ...(executionSource?.sourceSession ? { [SEAT_HEADER]: executionSource.sourceSession } : {}),
+        // a124: the seat MCP already checked this seat (launch id locally, Bearer binding remotely); say so to the internal listener.
+        [INTERNAL_CALL_HEADER]: INTERNAL_CALL_KEY, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
     const result = await response.json()
