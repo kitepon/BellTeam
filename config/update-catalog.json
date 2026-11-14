@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T12:43:31Z",
-  "expiresAt": "2026-11-21T12:43:31Z",
+  "publishedAt": "2026-11-14T12:47:53Z",
+  "expiresAt": "2026-11-21T12:47:53Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "c685e7191a44f4db1b4eac5af8e1a8c1308d15d2",
-      "versionId": "5fedb7172be1c72752406738093b1e2013c578a76422d4b79d4c84bfe3b4fecb",
+      "sourceCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5",
+      "versionId": "1aa4a9980bddb18e0e5fa8e28f073682806acb08e2533fc6f495f4d39abedffd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T105855Z/execution-c685e7191a44f4db1b4eac5af8e1a8c1308d15d2-linux-amd64.tar.gz",
-          "bytes": 3974209,
-          "sha256": "5fedb7172be1c72752406738093b1e2013c578a76422d4b79d4c84bfe3b4fecb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-amd64.tar.gz",
+          "bytes": 3974905,
+          "sha256": "1aa4a9980bddb18e0e5fa8e28f073682806acb08e2533fc6f495f4d39abedffd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T105855Z/execution-c685e7191a44f4db1b4eac5af8e1a8c1308d15d2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11208,
-          "sha256": "d6e562a40259697d0dad6a1b8680dae0617ec148226c7f6655c4a105152176d0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11275,
+          "sha256": "7477ec38b7ec89a6fe43f9c2f524bac2e1c34063aba7c0c5fee05838c1f91acf"
         },
-        "signerCommit": "c685e7191a44f4db1b4eac5af8e1a8c1308d15d2"
+        "signerCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "AI の実行で、Aiterm を公開されている入口からだけ読むようにしました。"
+        "返事を届け直すときに、止まって見える席をいったん休ませてから同じ会話のまま起こし直すようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "c685e7191a44f4db1b4eac5af8e1a8c1308d15d2",
-      "versionId": "6fc100045c27cfc3b1be412547f197ad23fde9ea8364126e9f47bdc79afbcb91",
+      "sourceCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5",
+      "versionId": "b8ef7001c2998ff1c729beae480dc5154efd8075483c95b8043b5e5912d60f8a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T105855Z/execution-c685e7191a44f4db1b4eac5af8e1a8c1308d15d2-linux-arm64.tar.gz",
-          "bytes": 3974209,
-          "sha256": "6fc100045c27cfc3b1be412547f197ad23fde9ea8364126e9f47bdc79afbcb91"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-arm64.tar.gz",
+          "bytes": 3974905,
+          "sha256": "b8ef7001c2998ff1c729beae480dc5154efd8075483c95b8043b5e5912d60f8a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T105855Z/execution-c685e7191a44f4db1b4eac5af8e1a8c1308d15d2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11224,
-          "sha256": "c3a07c60a8427223f304dee60093f88dcab09549d7519505fa1ae863368f4cb7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T124716Z/execution-6b465afd19d9ceed691c40ed16b1626891f195f5-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "9e12b560d4fffc59b3ed034aeae008ef76b7a7b2f2cb5f050340af68b5494fa5"
         },
-        "signerCommit": "c685e7191a44f4db1b4eac5af8e1a8c1308d15d2"
+        "signerCommit": "6b465afd19d9ceed691c40ed16b1626891f195f5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "AI の実行で、Aiterm を公開されている入口からだけ読むようにしました。"
+        "返事を届け直すときに、止まって見える席をいったん休ませてから同じ会話のまま起こし直すようにしました。"
       ]
     },
     {
