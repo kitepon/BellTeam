@@ -247,6 +247,19 @@ test('a failed status the transport followed to its end (turnCompleted) files no
   assert.equal(f.errors[0].turnCompleted, undefined)
 })
 
+test('a confirmed stop (BOT_STOPPED) at acceptance files no tracking-failure report; other rejections still do', async t => {
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+    async notify(_bot, envelope) {
+      throw envelope.includes('restart') ? Object.assign(new Error('BOT_STOPPED'), { code: 'BOT_STOPPED' }) : Object.assign(new Error('BOT_SEND_FAILED'), { code: 'BOT_SEND_FAILED' })
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const receive = message => f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message }))
+  await receive('restart'); await tick(); await tick()
+  assert.deepEqual(f.errors, [])
+  await receive('lost'); await settled(() => f.errors.length === 1)
+  assert.equal(f.errors[0].code, 'BOT_SEND_FAILED')
+})
+
 test('a target whose acceptance is pending does not delay a later saved input for another target', async t => {
   const holds = new Map(), notified = []
   const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},

@@ -71,6 +71,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       reported = true
       // The harness ended a turn the transport followed to its end (wait-contract "Turn-end failure"): not a tracking failure.
       if (error?.turnCompleted === true) return
+      // A confirmed stop (explicit restart/stop, BOT_STOPPED) is recorded by the 'stopped' status, not a tracking failure (BugHub 95f155b7).
+      if (error?.code === 'BOT_STOPPED') return
       report(error, { delivery_id: record.delivery_id, target: record.target, stage })
     }
     try {
