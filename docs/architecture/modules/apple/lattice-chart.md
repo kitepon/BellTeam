@@ -15,11 +15,11 @@
 
 ```mermaid
 flowchart LR
-  Entry["入口（上の表）"] --> Home["Views/LatticeListView.swift<br/>LatticeHomeView：NavigationStack(path: [LatticeRoute]）<br/>一覧 → 工程表（.chart）。工程表から一覧へは .list を工程表の上へ積む（戻る＝その工程表の名前の矢印と端のスワイプ。タブ・相関図/工程表の切り替えは見えたまま）<br/>工程表が1枚だけなら一覧を飛ばして開く"]
-  Home --> ListModel["Core/LatticeChartModel.swift<br/>LatticeChartsModel（一覧・統括のBot）"]
+  Entry["入口（上の表）"] --> Home["Views/LatticeListView.swift<br/>LatticeHomeView：NavigationStack(path: [LatticeRoute]）<br/>一覧 → 工程表（.chart）。工程表から一覧へは .list を工程表の上へ積む（戻る＝その工程表の名前の矢印と端のスワイプ。タブ・相関図/工程表の切り替えは見えたまま）<br/>出す工程表（listed）が1枚だけなら一覧を飛ばして開く"]
+  Home --> ListModel["Core/LatticeChartModel.swift<br/>LatticeChartsModel（一覧・統括のBot）<br/>listed＝counts.total が0より大きい工程表（a107。サーバーの一覧はそのまま、統括のBot・工程表の名前探しは全件）"]
   ListModel -->|"開いている間10秒ごと"| ListAPI["GET /api/lattice/charts<br/>bellteam.lattice-charts.v1"]
   ListAPI -->|"404（旧本体）→ unsupported / 認証 → failed / 503・切断 → reconnecting（一覧は残す）"| ListModel
-  Home --> List["LatticeListView<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（表示名）<br/>右上に「止め一覧」"]
+  Home --> List["LatticeListView（listedだけ）<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（表示名）<br/>右上に「止め一覧」"]
   List -->|"止め一覧（.stops を積む）"| Stops["LatticeStopsView＋LatticeStopsModel（画面の@StateObject）<br/>行＝LatticeStopRow（新しい止めが上）・行の中で2段の外す"]
   Stops -->|"開いた時・引っぱって読み直す（Macは読み直すボタン）・外すの答えの後・前面へ戻った時"| StopsAPI["GET /api/lattice/blockers<br/>bellteam.lattice-blockers.v1"]
   StopsAPI -->|"404 → old / 認証 → failed / 503・切断・形が違う → retry（1, 2, 4 … 30秒、開いている間ずっと）"| Stops
@@ -27,7 +27,7 @@ flowchart LR
   Unblock -->|"どの答えでも"| StopsAPI
   Stops -->|"行を押す（.card を積む）"| Screen
   List -->|"札を押す"| Screen["Views/LatticeChartView.swift<br/>LatticeChartScreen(projectId)<br/>ツリー / 担当 / 過去ログ N の切り替え（@SceneStorage）"]
-  Screen -->|"切り替え・すべての工程表"| Over["一覧を工程表の上へ積む<br/>戻る → 同じ工程表（送りの位置も同じ）"]
+  Screen -->|"切り替え（選択肢はlistedだけ）・すべての工程表"| Over["一覧を工程表の上へ積む<br/>戻る → 同じ工程表（送りの位置も同じ）"]
   Screen --> Model["LatticeChartModel（参照型・projectId鍵）<br/>snapshot・layout・connection・completedAt"]
   Model -->|"SSE"| Stream["BellAPI.eventStream(path:)<br/>GET /api/lattice/charts/:id/events<br/>event: snapshot → 図を丸ごと置き換え（差分は動きで見せる）"]
   Stream -->|"35秒無通信・切断・503"| Retry["reconnecting：最後の図を薄くして残し<br/>1, 2, 4 … 30秒（±20%）で開いている間ずっと"]

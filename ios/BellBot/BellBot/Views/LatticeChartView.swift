@@ -167,7 +167,7 @@ struct LatticeChartScreen: View {
                 // Many charts run past the screen edge (Owner iPad 2026-11-14, ~25 charts): the rows scroll, すべての工程表 stays below.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(list.charts) { chart in
+                        ForEach(list.listed) { chart in
                             switchRow(store.latticeChartName(chart), symbol: chart.isCoordinator ? "crown.fill" : "square.stack.3d.up",
                                       detail: "\(chart.done)/\(chart.total)", current: chart.projectId == model.projectId) {
                                 switching = false

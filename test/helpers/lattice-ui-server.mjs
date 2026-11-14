@@ -8,6 +8,7 @@
 //   &lanes=1 (production today: some unstarted cards carry only an authored lane text such as root / kiro, no producer)
 //   &history=1 (32 more finished, archived cards: 過去ログ 35, a two-digit count on the iPhone switch)
 //   &many=1 (30 more charts after the five: the switcher list runs past the screen edge, Owner iPad 2026-11-14)
+//   &zero=1 (one more chart counting 0/0: the apps leave it out of 一覧 and the switcher, task a107)
 // /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
 import { createServer } from 'node:http'
 
@@ -23,7 +24,7 @@ const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString()
 
 let state, subscribers = new Set()
 function reset() {
-  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, many: false, history: false, degraded: [] }, version: 1, done: new Set() }
+  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, many: false, zero: false, history: false, degraded: [] }, version: 1, done: new Set() }
 }
 reset()
 
@@ -90,6 +91,7 @@ function charts() {
     { projectId: 'web-polish', ...NAMES['web-polish'], coordinator: false, counts: { total: 11, done: 9, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
     { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
     ...(state.mode.many ? MANY.map((projectId, index) => ({ projectId, ...NAMES[projectId], coordinator: false, counts: { total: 6, done: index % 6, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-rapi'], updatedAt: ago(20 * (index + 1)), state: 'verified' })) : []),
+    ...(state.mode.zero ? [{ projectId: 'empty', name: '空の工程表', createdBy: 'bot-rapi', coordinator: false, counts: { total: 0, done: 0, working: 0, waiting: 0, blocked: 0 }, activeMembers: [], updatedAt: ago(2), state: 'verified' }] : []),
   ]
 }
 
@@ -105,6 +107,7 @@ const server = createServer((request, response) => {
     if (url.searchParams.has('lanes')) state.mode.lanes = url.searchParams.get('lanes') === '1'
     if (url.searchParams.has('owner')) state.mode.owner = url.searchParams.get('owner') === '1'
     if (url.searchParams.has('many')) state.mode.many = url.searchParams.get('many') === '1'
+    if (url.searchParams.has('zero')) state.mode.zero = url.searchParams.get('zero') === '1'
     if (url.searchParams.has('history')) state.mode.history = url.searchParams.get('history') === '1'
     if (url.searchParams.has('degraded')) state.mode.degraded = url.searchParams.get('degraded').split(',').filter(Boolean)
     if (state.mode.stream === 'drop') { for (const [subscriber] of subscribers) subscriber.end(); subscribers.clear() } else push()
