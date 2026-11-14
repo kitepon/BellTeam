@@ -51,6 +51,7 @@ export class ConfigurationRequests {
       // Aiterm's reply is "aiterm: <CODE> vendor=… session=…" then its own explanation for people.
       const reason = String(refusal?.publicMessage ?? refusal?.message ?? '').split('\n').slice(1).join('\n').trim()
       if (reason) error.reason = reason
+      if (refusal?.configureRefusal) error.refusal = refusal.configureRefusal
       throw error
     }
     if (refusal) throw refusal

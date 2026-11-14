@@ -34,7 +34,8 @@ test('a returned refusal is read back by the same ID and reported as not applied
     client.client = { async callTool({ arguments: args }) {
       calls.push(args.action)
       const stored = receipt({ ...args.request, session_id: args.session_id }, { later_effect })
-      return args.action === 'apply' ? { isError: true, content: [{ type: 'text', text }], structuredContent: stored } : { structuredContent: stored }
+      return args.action === 'apply' ? { isError: true, content: [{ type: 'text', text }], structuredContent: stored,
+        _meta: { 'aiterm/configure_error': { code: 'CLAUDE_MODEL_NOT_IN_PICKER', relaunch: true } } } : { structuredContent: stored }
     } }
     const requests = new ConfigurationRequests({ client, intents: new ConfigurationIntents(join(root, later_effect), { ownerUid: process.getuid() }) })
     const error = await requests.apply('bot-a', 'bot-a', '1'.repeat(32), { model: 'fable', reasoning_effort: 'high' })
@@ -44,6 +45,8 @@ test('a returned refusal is read back by the same ID and reported as not applied
     assert.equal(error.effect, later_effect === 'excluded' ? 'not_started' : 'possible')
     assert.equal(error.reason, 'Claude Codeの /model の選ぶ画面に fable がありません。modelとreasoning_effortは変えていません。')
     assert.equal(requests.view('bot-a').receipt.outcome, 'not_applied')
+    // a78: Aiterm's picker refusal code travels with the error, so the boundary retry can tell it from a running-turn refusal.
+    assert.deepEqual(error.refusal, { code: 'CLAUDE_MODEL_NOT_IN_PICKER', relaunch: true })
 
     const bots = new Map([['bot-a', { id: 'bot-a', harness: 'claude', model: 'opus', reasoningEffort: 'high', fastMode: false }]])
     bots.refresh = async () => {}
