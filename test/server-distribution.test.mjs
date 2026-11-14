@@ -35,7 +35,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
-    'scripts/install-sce-headers.py',
+    'scripts/install-sce-headers.py', 'scripts/import-call-bridge.mjs',
     'distribution/server/install-resume-state.sh',
     'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
     'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/execution-verification.json',
@@ -79,6 +79,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
   for (const path of ['scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(pathsInArchive.includes('scripts/install-sce-headers.py'))
+  assert.ok(pathsInArchive.includes('scripts/import-call-bridge.mjs'))
   for (const path of ['config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',

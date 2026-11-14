@@ -29,7 +29,7 @@ try {
     'scripts/module-start.c', 'scripts/conversation-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/work-graph-start.c', 'scripts/lattice-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c', 'scripts/notifications-start.c', 'scripts/members-start.c',
     'scripts/assert-state-writers-stopped.sh',
-    'scripts/install-sce-headers.py',
+    'scripts/install-sce-headers.py', 'scripts/import-call-bridge.mjs',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
     'scripts/verify-notifications.py', 'scripts/verify-members.py', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-execution.py', 'scripts/verify-conversation.py', 'scripts/module_artifact_verifier.py',
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py', 'scripts/install-members-release.py', 'scripts/install-memory-release.py', 'scripts/install-usage-release.py', 'scripts/install-diagnostics-release.py', 'scripts/install-work-graph-release.py', 'scripts/install-lattice-release.py', 'scripts/install-execution-release.py', 'scripts/install-conversation-release.py',
