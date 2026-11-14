@@ -63,7 +63,13 @@ export function parseEntries(product, value) {
   return { servers, hooks, settings, owns, version: value.version }
 }
 
-export async function configureHarnessEntries(home, { registry = REGISTRY, run = execFileAsync, appServer = codexAppServer, report = message => process.stderr.write(`${message}\n`) } = {}) {
+// An unresolved placeholder is an error, never a literal `{name}` handed to the product's command (the value is kept out of the message: it can be a path).
+const fill = (part, values) => part.replace(/\{(\w+)\}/gu, (_, name) => {
+  if (!values[name]) throw new Error(`{${name}} の値がありません`)
+  return values[name]
+})
+
+export async function configureHarnessEntries(home, { vars = {}, registry = REGISTRY, run = execFileAsync, appServer = codexAppServer, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const env = runtimeEnvironment(process.env, home)
   const recordPath = join(home, '.bellteam-cli-registration/applied.json')
   const applied = (await readJson(recordPath).catch(() => null)) ?? {}
@@ -71,10 +77,10 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
   // A missing E2 is a packaging fault (Z4 lab 2026-11-14): fail loudly; configureHarnesses reports it and writes nothing.
   const products = await readJson(registry)
   if (!Array.isArray(products)) throw new Error(`E2 ${registry} がありません`)
-  // An E2 item is a shared-tool file or a command (`{home}` becomes the seat home) that prints the E1; a failed command or unreadable output is the same "E1 unusable" as a bad file.
+  // An E2 item is a shared-tool file or a command (`{home}` becomes the seat home, `{name}` becomes `vars[name]`) that prints the E1; a failed command, an unresolved `{name}` or unreadable output is the same "E1 unusable" as a bad file.
   for (const { product, file, command } of products) {
     try {
-      const value = command ? JSON.parse((await run(command[0], command.slice(1).map(part => part.replaceAll('{home}', home)), { env })).stdout) : await readJson(file)
+      const value = command ? JSON.parse((await run(command[0], command.slice(1).map(part => fill(part, { ...vars, home })), { env })).stdout) : await readJson(file)
       if (value === null) throw new Error(`${file ?? command[0]} がありません`)
       const { servers, hooks, settings, owns, version } = parseEntries(product, value)
       applied[product] = { version, entries: [] }

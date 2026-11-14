@@ -85,6 +85,7 @@
     "src/seat-process.mjs",
     "src/seat-command.mjs",
     "src/harness-config.mjs",
+    "src/harness-entries.mjs",
     "src/run-seat-aiterm-launch.mjs",
     "src/rtk-hooks.mjs",
     "src/aiterm-hooks.mjs",

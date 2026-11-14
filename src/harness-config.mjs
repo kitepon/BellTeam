@@ -7,7 +7,7 @@ import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureHarnessEntries, safeMessage } from './harness-entries.mjs'
-import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
+import { aitermEntryVars, aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { fixedResumeBase } from './resume-policy.mjs'
@@ -15,7 +15,7 @@ import { fixedResumeBase } from './resume-policy.mjs'
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
 
-export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, productEntries = configureHarnessEntries, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
+export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, aitermHooks = configureAitermHooks, entryVars = aitermEntryVars, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, productEntries = configureHarnessEntries, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const registration = await aiterm().catch(() => null)
   await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration, relay })
   await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
@@ -25,15 +25,25 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   } catch (error) {
     report(`BellTeam Cursor: 起動時指示のhookを登録できませんでした（${safeMessage(error)}）`)
   }
-  // bd14: BellTeam is the one writer of the MCP entries and hooks of the products in config/harness-products.json (RTK included, standard since 2026-09-27).
-  // It runs where the RTK writer ran (after Throughline and the Cursor instructions, before Aiterm), so each hook event keeps today's key and array order. A failure keeps the seat running.
+  // bd14: BellTeam is the one writer of the MCP entries and hooks of the products in config/harness-products.json (RTK and Aiterm included).
+  // It runs where the RTK writer ran (after Throughline and the Cursor instructions); `aiterm` is the last E2 item, so each hook event keeps today's key and array order. A failure keeps the seat running.
+  // With a native registration the Aiterm item gets its scope, provider and Codex binary as `vars`; without them (or without a native registration) that item is reported unusable and the seat keeps its hooks.
+  const native = registration?.args.includes('--execution-interrupt')
+  let vars
+  if (native) {
+    try {
+      vars = await entryVars(registration)
+    } catch (error) {
+      report(`BellTeam Aiterm: hookの登録に使う値を用意できませんでした（${safeMessage(error)}）`)
+    }
+  }
   try {
-    await productEntries(home, { run, report })
+    await productEntries(home, { run, report, ...(vars ? { vars } : {}) })
   } catch (error) {
     report(`BellTeam products: 製品のMCP・hook登録を適用できませんでした（${safeMessage(error)}）`)
   }
-  // AitermのMCPはBellTeamが登録するので、親配送のhookも同じ場所で登録する。登録できなくてもBotは動かし、理由を記録する。
-  try {
+  // 旧登録（native以外）の席だけ、Aitermの公開登録関数で親配送hookを登録する。登録できなくてもBotは動かし、理由を記録する。
+  if (!native) try {
     const { codex } = await aitermHooks(home, registration ? { registration } : {}) ?? {}
     // 席が動いている間に初めて登録した時は restart_required になる（その席は起き直すまで、番の途中の配送を受けない）。
     if (codex && codex.status !== 'ready')
