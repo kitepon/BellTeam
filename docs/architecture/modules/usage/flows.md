@@ -120,7 +120,7 @@ flowchart TD
   Input["Owner設定 / Bot update_settings"] --> Validate
   Export["橋の公開export（bd09）<br/>ホストで kite が export_connection.py --json"] --> Entry["本体の取込み口（bd10）<br/>docker exec -i bellteam node /app/scripts/import-call-bridge.mjs<br/>stdinは64 KiBまで、表示しない"]
   Entry --> Import["callBridgeSettingsInput<br/>閉schemaを検証"]
-  Import -->|"loopback PATCH /api/settings/callBridge<br/>Host 127.0.0.1 = local = Owner"| Validate
+  Import -->|"loopback PATCH /api/settings/callBridge<br/>本体UIDのdocker exec = local = Owner"| Validate
   Validate["項目・型・値・入力元を検証"]
   Secret["提出済みbellteam-settings依頼"] --> Read["依頼Bot・提出状態を確認<br/>秘密入力の解決窓口から値を受け取る"]
   Read --> Validate
@@ -143,10 +143,11 @@ flowchart TD
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
 | 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlと、旧APNs設定がある間のnotifications.relayUrlだけfalse。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
 | 必須項目の親検証 | 親`usage/projection.mjs:usageSettingValid` | 親の閉検証は`required`を任意booleanとして受ける（旧子のkey無しも通す）。旧親は新子の行を拒否するため、親の変更を含む本体releaseを新usage moduleより先に入れる。module単独更新では配らない |
-| 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly：`scripts/import-call-bridge.mjs`。stdinを64 KiBまで読み、値を表示せず、loopbackの`PATCH /api/settings/callBridge`で動いている本体へ渡す。Hostが127.0.0.1なので`authMode`はlocal、Owner扱い）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url,token}}, {allowSecretValues:true})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`だけを受ける。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。header/socket/CLI登録は既onChange（`state/call-bridge/headers`はBellTeamが設定から書く自分のfileで、seat MCPはこれだけを読む）。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
+| 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly：`scripts/import-call-bridge.mjs`。stdinを64 KiBまで読み、値を表示せず、loopbackの`PATCH /api/settings/callBridge`で動いている本体へ渡す。`docker exec`の既定UIDは本体と同じbellteam-serverなので`authMode`はlocal、Owner扱い（SEC-049）。席のUIDでは同じ呼び出しが401）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url,token}}, {allowSecretValues:true})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`だけを受ける。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。header/socket/CLI登録は既onChange（`state/call-bridge/headers`はBellTeamが設定から書く自分のfileで、seat MCPはこれだけを読む）。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
 | 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境・旧APNs設定から作る。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridge.tokenは橋の公開export取込みだけが入れる |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
+| Owner判定（SEC-049、2026-11-15） | `authMode`が受付の`x-bellteam-peer`/`x-bellteam-peer-uid`（[integration契約](../integration/README.md#公開web受付の二プロセス化初回差分)）を読む | Hostは利用者が選ぶので単独では決めない。①相手がコンテナ内（uidあり）で本体のUIDでない→Ownerでない（Cloudflare無効でも。Bot席はUID1000）。②Cloudflare無効→local。③Hostが内側の名前でない→cloudflare。④外からの相手（uidなし）はaddressが同じネット（private/link-local）の時だけlocal。⑤相手名なし＝非公開socketの直接呼び出し（本体UIDだけ）か旧受付→従来のHost判定。残り：ホスト経由（host.docker.internal:18891）で戻る席の接続は、同じマシンのOwnerと区別できない |
 | 通話 | `configureCalls` → `listenCallBridge/writeHarnessConfig` → `runningBots(全メンバー)`を1回 → 動いている席ごとに`stopForConfiguration` | header/socket/登録変更後の席反映は背景処理。設定HTTP200だけで全席の再読込完了としない。席を閉じられなかった失敗は診断SERVER_CALL_CONFIGURATION_FAILEDのみで、設定errorにしない（席は次のcloseIdle/再起動で新しい登録を読む） |
 | 自動振分け | 保存成功でroutingEpochを更新し、組立てが注入する`conversationUsageChanged`の同epoch ACKを待つ。資格は許可された`usage.routing.read`だけ | 適用失敗でも保存値/epochは戻さない。readyで資格を取得しない。従来の同process組立ては未注入互換を保持 |
 | 通知 | `PushNotifications.configure` | 旧providerを外す→inflight待ち→close→新provider。失敗時はproviderなし・診断ありになり得る |

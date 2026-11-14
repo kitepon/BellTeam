@@ -1,4 +1,5 @@
 import { createServer, request as httpRequest } from 'node:http'
+import { readFile } from 'node:fs/promises'
 import { staticFile } from './http-assets.mjs'
 import { json, readJson } from './http-response.mjs'
 import { KEEP_ALIVE_TIMEOUT_MS } from './http-server.mjs'
@@ -10,9 +11,22 @@ function endToEndHeaders(headers) {
   return Object.fromEntries(Object.entries(headers).filter(([name]) => !omitted.has(name)))
 }
 
+// SEC-049: name the TCP peer to the business process, which decides the Owner. A socket of this container (listed in this
+// network namespace's /proc/net/tcp; the listener is IPv4 only) also names its user. Client-sent copies of both headers are dropped.
+const PEER_HEADERS = ['x-bellteam-peer', 'x-bellteam-peer-uid']
+const procEntry = (address, port) => `${address.split('.').reverse().map(part => Number(part).toString(16).padStart(2, '0')).join('')}:${port.toString(16).padStart(4, '0')}`.toUpperCase()
+export async function socketPeer(socket, readTable = () => readFile('/proc/net/tcp', 'utf8')) {
+  const peer = { 'x-bellteam-peer': socket.remoteAddress ?? '' }
+  let table
+  try { table = await readTable() } catch { return { ...peer, 'x-bellteam-peer-uid': 'unknown' } }
+  const local = procEntry(socket.remoteAddress ?? '', socket.remotePort ?? 0), remote = procEntry(socket.localAddress ?? '', socket.localPort ?? 0)
+  const uids = new Set(table.split('\n').map(line => line.trim().split(/\s+/u)).filter(field => field[1] === local && field[2] === remote).map(field => field[7]))
+  return uids.size === 0 ? peer : { ...peer, 'x-bellteam-peer-uid': uids.size === 1 ? [...uids][0] : 'unknown' }
+}
+
 // Only the business process authenticates requests and owns accepted work.
 export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.now().toString(36), assetVersions = new Map() }) {
-  const streams = new Set()
+  const streams = new Set(), peers = new WeakMap()
   let closing = null, stopping = false
   const server = createServer(async (request, response) => {
     let connected = false
@@ -26,11 +40,14 @@ export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.
     catch (error) { return respondHttpError(request, response, error) }
     const { pathname } = url
     const staticRequest = pathname !== '/healthz' && !pathname.startsWith('/api/')
+    let peer = peers.get(request.socket)
+    if (!peer) peers.set(request.socket, peer = socketPeer(request.socket))
+    const peerHeaders = await peer
+    if (response.destroyed) return
     const upstream = httpRequest({ socketPath, method: staticRequest ? 'GET' : request.method,
       path: staticRequest ? '/api/session' : request.url,
-      headers: endToEndHeaders(staticRequest
-        ? Object.fromEntries(Object.entries(request.headers).filter(([name]) => !['content-length', 'content-type'].includes(name)))
-        : request.headers),
+      headers: { ...endToEndHeaders(Object.fromEntries(Object.entries(request.headers)
+        .filter(([name]) => !PEER_HEADERS.includes(name) && !(staticRequest && ['content-length', 'content-type'].includes(name))))), ...peerHeaders },
     }, async incoming => {
       incoming.on('error', unavailable)
       if (staticRequest) {

@@ -21,10 +21,18 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
     cloudflareAuthorize = config.enabled ? cloudflareAccessAuthorizer(config) : null
   }
   configureCloudflare(settings.configuration('cloudflare'))
+  // SEC-049: the Host header is the client's choice. The web gateway names the TCP peer (x-bellteam-peer), and for a socket of this
+  // container its user (x-bellteam-peer-uid). Inside the container only the server's own user (docker exec) is the Owner; Bot seats are not.
+  // No peer header: a direct caller of the private socket (server user only) or a gateway older than this contract, judged as before.
+  const ownUid = String(process.getuid?.())
   const authMode = request => {
+    const peer = request.headers['x-bellteam-peer'], peerUid = request.headers['x-bellteam-peer-uid']
+    if (typeof peer === 'string' && peerUid !== undefined && peerUid !== ownUid) return 'cloudflare'
     if (!cloudflareAuthorize) return 'local'
     const host = new URL(`http://${request.headers.host}`).hostname
-    return isLocalHostname(host) ? 'local' : 'cloudflare'
+    if (!isLocalHostname(host)) return 'cloudflare'
+    // From outside the container, only a same-network peer may use the direct connection.
+    return typeof peer === 'string' && peerUid === undefined && !isLocalHostname(peer) ? 'cloudflare' : 'local'
   }
   let adminServer = null
   const callBridgeSocket = environment.BELLTEAM_CALL_BRIDGE_SOCKET
@@ -104,5 +112,5 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
     if (adminServer) await closeServer(adminServer)
     await closeCallBridge?.()
   }
-  return { authMode, authorize: request => authMode(request) === 'local' ? true : cloudflareAuthorize(request), initialize, close }
+  return { authMode, authorize: request => authMode(request) === 'local' || (cloudflareAuthorize?.(request) ?? false), initialize, close }
 }
