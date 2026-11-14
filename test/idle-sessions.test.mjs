@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { IdleSessions, approvalBoxWakeDecisions, approvalBoxWakes, quietSession } from '../src/idle-sessions.mjs'
+import { IdleSessions, approvalBoxWakeDecisions, approvalBoxWakes, approvalBoxVersionAsSeat, quietSession } from '../src/idle-sessions.mjs'
 
 const MINUTE = 60_000
 const quiet = (extra = {}) => ({
@@ -161,4 +161,15 @@ test('a69: CLI自身が終わっていない裏の仕事を持つ席は「動い
   assert.equal(quietSession(quiet({ activity: { cursor: 'c', output_changed: false, post_startup_process_count: 0, background_tasks: 1 } })), false)
   assert.equal(quietSession(quiet({ activity: { cursor: 'c', output_changed: false, post_startup_process_count: 0, background_tasks: 0 } })), true)
   assert.equal(quietSession(quiet({ activity: { cursor: 'c', output_changed: false, post_startup_process_count: 0, background_tasks: null } })), true)
+})
+
+// Z4 lab 2026-11-14: the engine (uid 1001) cannot enter the seat user's 0700 home; the capability is read through the seat runner.
+test('Approval Box capability is read as the seat user through the seat runner, its parsed object accepted', async () => {
+  const calls = []
+  const waitProcess = async (process, signal) => { calls.push({ process, signal }); return { schema: 'approval-box.version.v1', version: '0.1.37', capabilities: ['bellteam-requester-wake'] } }
+  const decisions = approvalBoxWakeDecisions({ run: approvalBoxVersionAsSeat(waitProcess, '/home/bell') })
+  assert.equal(await decisions({ harness: 'codex' }), 0)
+  assert.deepEqual(calls, [{ process: { executable: '/home/bell/.approval-box/bin/approval-box', args: ['version', '--json'] }, signal: null }])
+  const refused = approvalBoxWakeDecisions({ run: approvalBoxVersionAsSeat(async () => { throw Object.assign(new Error('AITERM_WAIT_INVALID'), { code: 'AITERM_WAIT_INVALID' }) }, '/home/bell') })
+  assert.equal(await refused({ harness: 'codex' }), null)
 })

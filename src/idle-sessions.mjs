@@ -105,13 +105,20 @@ export function approvalBoxWakeDecisions({ run = readApprovalBoxVersion } = {}) 
   return decisions
 }
 
+// stdout text (own execFile) or the object the parent's seat runner already parsed.
 export function approvalBoxWakes(stdout) {
   try {
-    const value = JSON.parse(stdout)
+    const value = typeof stdout === 'string' ? JSON.parse(stdout) : stdout
     return value?.schema === 'approval-box.version.v1' && Array.isArray(value.capabilities) && value.capabilities.includes('bellteam-requester-wake')
   } catch { return false }
 }
 
+// The stable entry lives in the seat user's home (0700): the execution engine (uid 1001) reads it through the parent's seat runner.
+export function approvalBoxVersionAsSeat(waitProcess, home) {
+  return () => waitProcess({ executable: `${home}/.approval-box/bin/approval-box`, args: ['version', '--json'] }, null)
+}
+
+// Body fallback without an execution module: the body process reads it itself.
 async function readApprovalBoxVersion() {
   const { execFile } = await import('node:child_process')
   const { join } = await import('node:path')
