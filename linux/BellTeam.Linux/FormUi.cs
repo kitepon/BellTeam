@@ -28,6 +28,8 @@ internal static class InspectorIcons
     public const string Right = "M9,5 L16,12 L9,19";
     public const string Up = "M5,15 L12,8 L19,15";
     public const string Down = "M5,9 L12,16 L19,9";
+    // square.stack.3d.up: three stacked layers (a chart).
+    public const string Stack = "M12,3 L21,8 L12,13 L3,8 Z M3,12 L12,17 L21,12 M3,16 L12,21 L21,16";
     // sidebar.right: a window with its right pane marked.
     public const string Panel = "M3.5,5 H20.5 V19 H3.5 Z M14.5,5 V19";
     // hand.raised.fill: four fingers over a palm, drawn filled.

@@ -134,6 +134,7 @@ public sealed partial class MainWindow
         window.Show(this); _ = window.InitializeAsync();
     }
     public void EditRoom(string id) => ShowRoomSheet(id);
+    public void OpenChart(string projectId) => ShowLattice()?.OpenChart(projectId);
     private void CloseMemberWindows() { foreach (var window in memberWindows.Values.ToArray()) window.Close(); }
     // Render seam: the member editor window, built but never shown.
     public MemberEditorWindow CreateMemberWindowForRender(string id) => new(model, id, ShowTerminalSettings);

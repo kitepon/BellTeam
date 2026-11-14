@@ -72,9 +72,11 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         Summary("call-bridge", false, 8, 3, 1, 2, 0, ["bot-kiro", "bot-molly", "bot-trony", "bot-rapi"], 34),
         Summary("web-polish", false, 11, 9, 1, 0, 0, ["bot-admi", "bot-flora"], 63),
         Summary("guide", false, 9, 4, 1, 2, 0, ["bot-flora", "bot-ghost", "bot-trony"], 14 * 60),
+        // 「list-many」: 37 charts as on the real server (a88), so the list scrolls.
+        .. Enumerable.Range(1, scene == "list-many" ? 32 : 0).Select(index => Summary($"extra-{index:00}", false, 6, index % 6, 1, index % 3, 0, ["bot-kiro"], 20 * 60 + index)),
     ];
     private object Summary(string id, bool coordinator, int total, int done, int working, int waiting, int blocked, string[] active, double updated)
-        => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
+        => new { projectId = id, name = Names.TryGetValue(id, out var known) ? known.Name : $"追加の工程表 {id[^2..]}", coordinator, createdBy = Names.TryGetValue(id, out var maker) ? maker.CreatedBy : "bot-kiro", counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {

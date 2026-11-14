@@ -85,6 +85,36 @@ public sealed class InspectorTests
         window.Close(); workspace.Dispose();
     });
 
+    // a93 (Mac a91): a member's 「AIと操作」 has one button per chart that member made (createdBy); a tap asks the host to open that chart.
+    [Fact]
+    public Task AMembersChartButtonOpensThatChart() => Ui.Run(async () =>
+    {
+        using var workspace = new LinuxWorkspace(origin => new BellApi(origin, new LatticeFixture("list")));
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        var host = new ChartHost();
+        var profile = new ProfileView(workspace) { Host = host };
+        var window = new Window { Content = new ScrollViewer { Content = profile } }; window.Show();
+        await workspace.SelectAsync(workspace.Entries.Single(entry => entry.Bot?.Id == "bot-trony"));
+        Dispatcher.UIThread.RunJobs(); await profile.ChartsTask; Dispatcher.UIThread.RunJobs();
+        var buttons = profile.GetVisualDescendants().OfType<Button>().Where(button => Avalonia.Automation.AutomationProperties.GetAutomationId(button)?.StartsWith("bot-lattice-chart-") == true).ToArray();
+        var only = Assert.Single(buttons);
+        Assert.Equal("工程表「Lattice組込」を開く", AutomationName(only));
+        only.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("lattice", host.Opened);
+        window.Close();
+    });
+    private sealed class ChartHost : IInspectorHost
+    {
+        public string? Opened;
+        public void OpenSheet(string title, Control content) { }
+        public void CloseSheet() { }
+        public Window? OwnerWindow => null;
+        public void EditMember(string id) { }
+        public void EditRoom(string id) { }
+        public void OpenChart(string projectId) => Opened = projectId;
+        public Task<AvatarCropOutcome?> CropAsync(Bitmap image, AvatarVariant variant, AvatarCropRect? initialCrop, bool wantsSelection) => Task.FromResult<AvatarCropOutcome?>(null);
+    }
+
     private static string? AutomationName(Control control) => Avalonia.Automation.AutomationProperties.GetName(control);
     private static Bitmap Swatch(int width, int height)
     {

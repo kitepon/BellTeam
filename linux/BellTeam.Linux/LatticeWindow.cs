@@ -160,6 +160,8 @@ public sealed class LatticeWindow : Window
         }
         page.Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     }
+    // Render seam: the 一覧 scrolled to its last chart.
+    internal void ScrollListToEnd() { if (page.Content is ScrollViewer list) { list.UpdateLayout(); list.ScrollToEnd(); } }
     private static TextBlock Section(string title) { var text = Text(title, 13, Muted, FontWeight.SemiBold); text.Margin = new Thickness(4, 6, 0, 10); return text; }
     private WrapPanel Cards(IReadOnlyList<LatticeListItem> items, bool wide)
     {

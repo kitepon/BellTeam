@@ -101,6 +101,7 @@ public sealed class ProfileView : StackPanel
     {
         var entry = workspace.Selected;
         var key = entry is null ? "" : Key(workspace, entry);
+        if (entry?.Bot?.Id != chartsFor) { chartsFor = entry?.Bot?.Id; chartsEpoch++; ownedCharts = []; chartsProblem = null; if (chartsFor is { } member) ChartsTask = LoadChartsAsync(member, chartsEpoch); }
         if (rendered == key) return;
         rendered = key; Children.Clear(); status = null; epoch++; largeError = false; LoadTask = Task.CompletedTask;
         if (session is not null) session.Changed -= SessionChanged;
@@ -237,12 +238,55 @@ public sealed class ProfileView : StackPanel
             AutomationProperties.SetName(row, label + "　" + value); card.Children.Add(row);
         }
         var screen = InspectorUi.Bordered("Botの画面を見る", InspectorIcons.Terminal); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
+        chartButtons = new StackPanel(); card.Children.Add(chartButtons); RenderCharts();
         restartButton = InspectorUi.Bordered("会話セッションを再起動"); restartButton.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartButton);
         restartNote = InspectorUi.Note("", BellTheme.Muted); restartNote.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartNote);
         restartError = InspectorUi.Note("", BellTheme.Red); restartError.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartError);
         var id = entry.Target.Id; restartButton.Click += async (_, _) => await RestartAsync(id);
         RenderRestart(id);
         var frame = FormUi.Card(card); frame.Padding = new Thickness(16); return frame;
+    }
+
+    // Mac DesktopInspector a91: one button per chart this member made (createdBy), read once per shown member; a tap opens it in the 工程表 window.
+    // An older server (404) or sign-in shows none; any other failure says so and retries with the shared backoff until it reads or another member is shown.
+    private string? chartsFor;
+    private int chartsEpoch;
+    private LatticeChartSummary[] ownedCharts = [];
+    private string? chartsProblem;
+    private StackPanel? chartButtons;
+    public Task ChartsTask { get; private set; } = Task.CompletedTask;
+    private async Task LoadChartsAsync(string botId, int generation)
+    {
+        for (var attempt = 0; generation == chartsEpoch; attempt++)
+        {
+            var token = workspace.ConnectionToken;
+            try
+            {
+                await Task.Delay(ReconnectBackoff.Ms(attempt), token);
+                var list = await workspace.Management.Api.ChartsAsync(token);
+                if (generation != chartsEpoch) return;
+                ownedCharts = list.Charts.Where(chart => chart.CreatedBy == botId).ToArray(); chartsProblem = null; RenderCharts();
+                return;
+            }
+            // A dropped connection or sign-in: the next showing of this member reads again.
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { if (generation == chartsEpoch) chartsFor = null; return; }
+            catch (BellApiException error) when (error.RequiresLogin) { if (generation == chartsEpoch) chartsFor = null; return; }
+            catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { return; }
+            catch (Exception) { if (generation != chartsEpoch) return; chartsProblem = "工程表の一覧を読めませんでした。再試行しています…"; RenderCharts(); }
+        }
+    }
+    private void RenderCharts()
+    {
+        if (chartButtons is null) return;
+        chartButtons.Children.Clear();
+        foreach (var chart in ownedCharts)
+        {
+            var name = LatticeChart.ChartName(chart.Name, chart.CreatedBy, id => workspace.Bots.FirstOrDefault(bot => bot.Id == id)?.DisplayName);
+            var button = InspectorUi.Bordered($"工程表「{name}」を開く", InspectorIcons.Stack); button.Margin = new Thickness(0, 12, 0, 0);
+            var id = chart.ProjectId; button.Click += (_, _) => Host?.OpenChart(id);
+            AutomationProperties.SetAutomationId(button, "bot-lattice-chart-" + id); chartButtons.Children.Add(button);
+        }
+        if (chartsProblem is { } problem) { var note = InspectorUi.Note(problem, BellTheme.Muted); note.Margin = new Thickness(0, 12, 0, 0); chartButtons.Children.Add(note); }
     }
 
     // Mac BotProfileAISection.onRestart: one POST that the server answers after the new seat is up (180 s). Meanwhile the button reads 「再起動しています…」 and is off;

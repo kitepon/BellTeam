@@ -28,6 +28,8 @@ internal static partial class Launcher
     {
         var (model, window) = await OpenForRenderAsync(address, id);
         using var _ = model;
+        // 「charts」: the member's chart buttons in 「AIと操作」 once the chart list has been read (a93).
+        if (scene == "charts") await window.ProfilePanel.ChartsTask;
         if (scene is "restart-busy" or "restart-success") window.ProfilePanel.SetRestartForRender(id, scene == "restart-busy");
         if (scene.StartsWith("pending", StringComparison.Ordinal))
         {
