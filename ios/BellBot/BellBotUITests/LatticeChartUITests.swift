@@ -108,6 +108,26 @@ final class LatticeChartUITests: XCTestCase {
         shot(app, "light-07-pastlog-count")
     }
 
+    /// a107 (Owner 2026-11-14): a chart counting 0/0 shows nothing when opened, so 一覧 and the switcher leave it out.
+    func testZeroChartIsNotListedNorInTheSwitcher() async throws {
+        _ = try await call("/test/mode?zero=1")
+        let app = launch([])
+        defer { app.terminate() }
+        XCTAssertTrue(element(app, "lattice-chart-lattice").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "lattice-chart-guide").exists)
+        XCTAssertFalse(element(app, "lattice-chart-empty").exists, "0/0の工程表は一覧に出ない")
+        settle()
+        shot(app, "light-09-list-without-zero")
+        element(app, "lattice-chart-lattice").tap()
+        let switcher = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '工程表を切り替える'")).firstMatch
+        XCTAssertTrue(switcher.waitForExistence(timeout: 10))
+        switcher.tap()
+        XCTAssertTrue(app.staticTexts["夜間の整備"].waitForExistence(timeout: 5), "切り替えの選択肢が開く")
+        XCTAssertFalse(app.staticTexts["空の工程表"].exists, "0/0の工程表は切り替えに出ない")
+        settle()
+        shot(app, "light-10-switcher-without-zero")
+    }
+
     func testFailureViewsKeepTheChartAndSayWhatHappens() async throws {
         let app = launch([])
         defer { app.terminate() }

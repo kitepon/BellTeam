@@ -272,7 +272,7 @@ struct LatticeHomeView: View {
             openedSingle = true
             path = [.chart(id)]
         }
-        .onChange(of: list.charts) { _, charts in
+        .onChange(of: list.listed) { _, charts in
             guard !openedSingle, path.isEmpty, charts.count == 1, let only = charts.first else { return }
             openedSingle = true
             path = [.chart(only.projectId)]
@@ -316,7 +316,7 @@ struct LatticeListView: View {
     @State private var search = ""
 
     private var visible: [LatticeChartSummary] {
-        list.charts.filter { chart in
+        list.listed.filter { chart in
             (filter == .all || chart.waiting > 0) && (search.isEmpty || store.latticeChartName(chart).localizedCaseInsensitiveContains(search))
         }
     }
@@ -365,7 +365,7 @@ struct LatticeListView: View {
             VStack(alignment: .leading, spacing: 14) {
                 let pinned = visible.filter(\.isCoordinator)
                 let rest = visible.filter { !$0.isCoordinator }
-                if list.charts.isEmpty {
+                if list.listed.isEmpty {
                     Text(LatticeText.listEmpty)
                         .font(.system(size: 14)).foregroundStyle(LatticePalette.muted)
                         .frame(maxWidth: .infinity).padding(.vertical, 40)
@@ -378,7 +378,7 @@ struct LatticeListView: View {
                             .accessibilityIdentifier("lattice-chart-\(chart.projectId)")
                     }
                 }
-                if !rest.isEmpty || !list.charts.isEmpty {
+                if !rest.isEmpty || !list.listed.isEmpty {
                     sectionTitle("すべての工程表", symbol: "square.stack.3d.up").padding(.top, pinned.isEmpty ? 0 : 6)
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 400), spacing: 14)], spacing: 14) {
@@ -387,7 +387,7 @@ struct LatticeListView: View {
                             .buttonStyle(LatticePressStyle())
                             .accessibilityIdentifier("lattice-chart-\(chart.projectId)")
                     }
-                    if !list.charts.isEmpty { newChartCard }
+                    if !list.listed.isEmpty { newChartCard }
                 }
             }
             .padding(20)

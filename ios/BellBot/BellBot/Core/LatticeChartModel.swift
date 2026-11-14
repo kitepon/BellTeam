@@ -11,6 +11,9 @@ final class LatticeChartsModel: ObservableObject {
     static let path = "/api/lattice/charts"
     var interval: Duration = .seconds(10)
 
+    /// 一覧と切り替えに出す工程表：分母が0の工程表は開いても何も無いので出さない（screen-spec「一覧」, a107）。
+    var listed: [LatticeChartSummary] { charts.filter { $0.total > 0 } }
+
     /// 統括の工程表の作り手（統括のBot）。工程表のレーンの先頭に使う。
     var coordinatorBotId: String? { charts.first { $0.isCoordinator && $0.createdBy != nil }?.createdBy }
 
