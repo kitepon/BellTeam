@@ -130,3 +130,20 @@ test('control段階の型付き503は他moduleの定数codeも保存しroute型�
   assert.equal(log.request_route, '/api/other')
   assert.doesNotMatch(records[0].diagnostic_log, /private-/u)
 })
+
+test('UNREADABLE 503 keeps its body and also records which state path could not be read and why (t20 f6c057c6)', async () => {
+  const { respondHttpError } = await import('../src/http-errors.mjs')
+  const rows = [], sent = {}
+  const response = { writeHead(status, headers) { sent.status = status }, end(body) { sent.body = JSON.parse(body) } }
+  const error = Object.assign(new Error('UNREADABLE'), { code: 'UNREADABLE', status: 503, path: '/run/bellteam-updater/update.sock', reason: 'ECONNREFUSED' })
+  await respondHttpError({ method: 'GET', url: '/api/updates?x' }, response, error, { record: async row => rows.push(row) }, { stage: 'feature' })
+  assert.equal(sent.status, 503)
+  assert.deepEqual(sent.body, { error: 'UNREADABLE', message: 'ECONNREFUSED', path: '/run/bellteam-updater/update.sock', reason: 'ECONNREFUSED' })
+  const log = JSON.parse(rows[0].diagnostic_log)
+  assert.equal(rows[0].code, 'SERVER_HTTP_503'); assert.equal(log.error_code, 'UNREADABLE'); assert.equal(log.request_route, '/api/other')
+  assert.equal(log.unreadable_path, '/run/bellteam-updater/update.sock'); assert.equal(log.unreadable_reason, 'ECONNREFUSED')
+  rows.length = 0
+  await respondHttpError({ method: 'GET', url: '/api/updates' }, response, { ...error, path: '/x y', reason: 'bad reason!' }, { record: async row => rows.push(row) })
+  const unsafe = JSON.parse(rows[0].diagnostic_log)
+  assert.equal(unsafe.unreadable_path, 'unknown'); assert.equal(unsafe.unreadable_reason, 'unknown')
+})

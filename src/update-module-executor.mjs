@@ -571,8 +571,12 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         const visible = plan => runtimeShown || plan.targets.every(target => jobKind(target.componentId) !== 'runtime')
         const recent = state.operations.filter(entry => visible(entry.operation.plan)).slice(-2).reverse()
         const blockedHost = Boolean(pendingHost)
-        if (recent[0]) inventory.operation = await publicJobs(recent[0])
-        if (recent[1]) inventory.previousOperation = await publicJobs(recent[1])
+        // A Host that cannot answer for a moment (its updater container is replaced with every body swap) hides only the job rows;
+        // the inventory still answers and the saved report stays for the next read (t20 f6c057c6: 436 app 503s).
+        let jobsUnreadable = false
+        const read = entry => publicJobs(entry).catch(() => { jobsUnreadable = true; return publicOperation(entry) })
+        if (recent[0]) inventory.operation = await read(recent[0])
+        if (recent[1]) inventory.previousOperation = await read(recent[1])
         inventory.plans = state.plans.filter(entry => visible(entry.plan) && Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
         for (const component of inventory.components) {
           const current = component.comparison.state === 'up_to_date' && component.publication?.check.status === 'verified'
@@ -596,6 +600,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         else if (!closed && !active && !blockedHost && inventory.notice.code === 'UPDATE_PROVIDERS_UNAVAILABLE'
           && inventory.components.some(component => adapters[component.id] && component.capability.reason === 'UPDATE_ALREADY_CURRENT'))
           inventory.notice = { state: 'ready', code: null, message: '確認できた機能の稼働版は、正式公開版と一致しています。' }
+        if (jobsUnreadable && inventory.notice.state !== 'attention')
+          inventory.notice = { state: 'attention', code: 'UPDATE_RESULT_UNAVAILABLE', message: '更新結果を確認できません。少し待ってから、もう一度開いてください。' }
         return inventory
       }, true)
     },
