@@ -165,6 +165,11 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertEqual(AuthenticationProgress(auth(.authenticated)), .done)
         XCTAssertEqual(AuthenticationProgress(auth(.authenticated), signedOut: true), .needsLogin, "失効したslotを認証済みと見せない")
         XCTAssertEqual(AuthenticationProgress(auth(.blocked)), .needsLogin)
+        // 11-14 12:01 JST：未ログインの2つ目のslotはstart後もblocked+paste_code。カードが「ログインが必要」で止まった。
+        let openBlocked = try decoder.decode(HarnessAuthenticationResponse.self, from: Data(response("blocked", input: true).utf8)).auth
+        XCTAssertEqual(AuthenticationProgress(openBlocked), .waitingCode)
+        var startedBlocked = auth(.blocked); startedBlocked.sessionId = "session"
+        XCTAssertEqual(AuthenticationProgress(startedBlocked), .confirming)
         XCTAssertEqual(AuthenticationProgress(nil, loaded: false), .checking)
         XCTAssertEqual(AuthenticationProgress(nil), .unknown)
         let failed = SetupAuthentication(status: .failed, url: nil, userCode: nil, inputRequired: false, message: "通信できません。", authUi: nil)

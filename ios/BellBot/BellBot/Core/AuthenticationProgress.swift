@@ -10,11 +10,13 @@ enum AuthenticationProgress: Equatable {
     init(_ auth: SetupAuthentication?, loaded: Bool = true, signedOut: Bool = false, sending: Bool = false) {
         if sending { self = .sendingCode; return }
         guard let auth else { self = loaded ? .unknown : .checking; return }
+        // 未ログインのslotでは、公式認証が開いていてもstatusはblockedのまま（web/auth-flow.jsと同じ判定）。
+        let open = auth.sessionId != nil || auth.authUi?.binding != nil
         switch auth.status {
         case .authenticated: self = signedOut ? .needsLogin : .done
-        case .blocked: self = .needsLogin
+        case .blocked where !open: self = .needsLogin
         case .failed: self = .failed(auth.message)
-        case .waiting:
+        case .waiting, .blocked:
             switch auth.authUi?.stage {
             case .pasteCode: self = .waitingCode
             case .openUrl, .deviceCode, .select: self = .waitingSite
