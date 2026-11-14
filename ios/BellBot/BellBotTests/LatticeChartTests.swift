@@ -231,102 +231,70 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(LatticeText.chipText(waiter: nil), "次の工程が待っています")
     }
 
-    // MARK: Tree
+    // MARK: Tree (a98 Structure layout)
 
-    private func treeSnapshot(phases: Bool = true) throws -> LatticeChartSnapshot {
+    private func structureSnapshot() throws -> LatticeChartSnapshot {
         let json = """
         {"schema":"bellteam.lattice-chart.v1","epoch":"e1","version":1,"projectId":"t","state":"verified",
-         \(phases ? "\"phases\":[{\"id\":\"ph1\",\"title\":\"調べる\"},{\"id\":\"ph2\",\"title\":null},{\"id\":\"ph3\",\"title\":\"空\"}]," : "")
          "cards":[
-          {"id":"a1","title":"A1","state":"done","phase":"ph1"},
-          {"id":"a2","title":"A2","state":"retired","phase":"ph1"},
-          {"id":"b1","title":"B1","state":"pending","phase":"ph2"},
-          {"id":"b2","title":"B2","state":"in-progress","phase":"ph2","parent":"b1"},
-          {"id":"b3","title":"B3","state":"blocked","phase":"ph2","parent":"b2"},
-          {"id":"b4","title":"B4","state":"pending","phase":"ph2","parent":"ghost"},
-          {"id":"b5","title":"B5","state":"pending","phase":"ph2","parent":"a1"},
-          {"id":"d3","title":"D3","state":"pending","phase":"ph2","parent":"d3"},
-          {"id":"d1","title":"D1","state":"pending","phase":"ph2","parent":"d2"},
-          {"id":"d2","title":"D2","state":"pending","phase":"ph2","parent":"d1"},
-          {"id":"c1","title":"C1","state":"pending"},
-          {"id":"c2","title":"C2","state":"ready","phase":"nope","parent":"c1"}],
-         "edges":[{"from":"b1","to":"c1","waiting":true},{"from":"a1","to":"b1","waiting":false}]}
+          {"id":"a","title":"A","state":"done","depth":0},
+          {"id":"b","title":"B","state":"in-progress","depth":1},
+          {"id":"c","title":"C","state":"pending","depth":2},
+          {"id":"b2","title":"B2","state":"ready","depth":1},
+          {"id":"x","title":"X","state":"pending","depth":0},
+          {"id":"y","title":"Y","state":"blocked","depth":0},
+          {"id":"w","title":"W","state":"pending","depth":0},
+          {"id":"z","title":"Z","state":"pending","depth":1},
+          {"id":"s1","title":"S1","state":"pending","depth":0},
+          {"id":"s2","title":"S2","state":"pending","depth":1},
+          {"id":"h","title":"H","state":"done","depth":0,"archived":true}],
+         "edges":[{"from":"a","to":"b","waiting":false},{"from":"b","to":"c","waiting":true},{"from":"a","to":"b2","waiting":false},
+                  {"from":"x","to":"z","waiting":true},{"from":"y","to":"z","waiting":true},{"from":"w","to":"z","waiting":true},
+                  {"from":"h","to":"s1","waiting":false},{"from":"c","to":"c","waiting":false}]}
         """
         return try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
     }
 
-    func testTreeOrdersPhasesThenCardsParentFirstThenPhaselessCards() throws {
-        let snapshot = try treeSnapshot()
-        let tree = LatticeTree(snapshot, rootTitle: "工程")
-        XCTAssertEqual(tree.nodes.map(\.id), [LatticeTree.rootId, LatticeTree.phaseId("ph1"), "a1", "a2", LatticeTree.phaseId("ph2"),
-                                              "b1", "b2", "b3", "b4", "b5", "d3", "d1", "d2", LatticeTree.phaseId("ph3"), "c1", "c2"],
-                       "parent first, cycle members once, an unknown phase and no phase hang from the chart after the phases")
-        XCTAssertEqual(tree.nodes[0].title, "工程")
-        let frames = tree.frames
-        func x(_ id: String) -> CGFloat { frames[id]!.minX }
-        XCTAssertEqual(x("b2") - x("b1"), LatticeTree.indent)
-        XCTAssertEqual(x("b3") - x("b1"), 2 * LatticeTree.indent)
-        XCTAssertEqual(x("b4"), x("b1"), "a missing parent makes a top-level card")
-        XCTAssertEqual(x("b5"), x("b1"), "a parent in another phase makes a top-level card")
-        XCTAssertEqual(x("d3"), x("b1"), "a card that is its own parent is top-level")
-        XCTAssertEqual(x("d2") - x("d1"), LatticeTree.indent, "the cycle is broken at its first card")
-        XCTAssertEqual(x("c1"), tree.phaseX, "phase-less cards sit in the phase column")
-        XCTAssertEqual(x("c2") - x("c1"), LatticeTree.indent)
-        XCTAssertGreaterThan(frames["c1"]!.minY, frames[LatticeTree.phaseId("ph3")]!.maxY, "after the phases")
-        // Rows never overlap, and a phase sits between its first and last top-level card.
-        let boxes = Array(frames.values)
+    /// screen-spec "Structure layout": column = depth, groups top to bottom, a chain runs straight, siblings stack,
+    /// a join sits between its predecessors, cards with no link go last, archived cards and their edges are left out.
+    func testStructureRowsFollowTheDependencies() throws {
+        let structure = LatticeStructure(try structureSnapshot())
+        func at(_ id: String) -> [Int] { structure.places[id].map { [$0.column, $0.row] } ?? [] }
+        XCTAssertEqual(at("a"), [0, 0])
+        XCTAssertEqual(at("b"), [1, 0], "a chain runs straight")
+        XCTAssertEqual(at("c"), [2, 0])
+        XCTAssertEqual(at("b2"), [1, 1], "a sibling stacks under its brother")
+        XCTAssertEqual([at("x"), at("y"), at("w")], [[0, 2], [0, 3], [0, 4]], "the second group starts under the first")
+        XCTAssertEqual(at("z"), [1, 3], "a join sits at the mean row of its predecessors")
+        XCTAssertEqual(at("s1"), [0, 5], "a card whose only link is to an archived card has no link: after the linked groups")
+        XCTAssertEqual(at("s2"), [1, 6], "each card with no link is its own group")
+        XCTAssertNil(structure.places["h"], "archived cards are not shown")
+        XCTAssertEqual(structure.edges.map(\.id), ["a>b", "b>c", "a>b2", "x>z", "y>z", "w>z"], "no edge to a hidden card, no self-loop")
+        XCTAssertEqual([structure.columns, structure.rows], [3, 7])
+        XCTAssertEqual(structure.order, ["a", "b", "c", "b2", "x", "y", "z", "w", "s1", "s2"], "row by row, left to right")
+        XCTAssertEqual(LatticeStructure(try snapshot()).places.count, LatticeLayout(try snapshot()).frames.count, "the same cards as 担当")
+    }
+
+    func testStructureLayoutDrawsCardsWithoutLanesAndIconsWithRoomForTitles() throws {
+        let snapshot = try structureSnapshot()
+        let structure = LatticeStructure(snapshot)
+        let cards = LatticeLayout(structure, snapshot: snapshot, size: .cards)
+        XCTAssertTrue(cards.lanes.isEmpty)
+        XCTAssertEqual(cards.frames["b"]!.minX - cards.frames["a"]!.minX, LatticeLayout.column, "the 担当 column pitch")
+        XCTAssertEqual(cards.frames["a"]!.minX, cards.left)
+        XCTAssertEqual(cards.frames["a"]!.minY, cards.frames["c"]!.minY, "a chain is on one row")
+        XCTAssertEqual(cards.frames["b"]!.size, CGSize(width: LatticeLayout.cardWidth, height: LatticeLayout.cardHeight))
+        XCTAssertEqual(cards.frames["a"]!.height, LatticeLayout.doneHeight, "a finished card keeps its short 担当 height")
+        let boxes = Array(cards.frames.values)
         for (i, a) in boxes.enumerated() { for b in boxes[(i + 1)...] { XCTAssertFalse(a.intersects(b)) } }
-        let ph1 = frames[LatticeTree.phaseId("ph1")]!
-        XCTAssertEqual(ph1.midY, (frames["a1"]!.midY + frames["a2"]!.midY) / 2)
-        XCTAssertEqual(frames[LatticeTree.rootId]!.midX, LatticeTree.margin + LatticeTree.rootWidth / 2)
-    }
 
-    func testTreePhaseStateGlyphRuleAndProgress() throws {
-        let tree = LatticeTree(try treeSnapshot())
-        func node(_ id: String) -> LatticeTree.Node { tree.nodes.first { $0.id == id }! }
-        let ph1 = node(LatticeTree.phaseId("ph1")), ph2 = node(LatticeTree.phaseId("ph2")), ph3 = node(LatticeTree.phaseId("ph3"))
-        XCTAssertEqual(ph1.status, .done, "all finished (done + retired)")
-        XCTAssertEqual([ph1.done, ph1.total], [1, 1], "retired is not in the denominator")
-        XCTAssertEqual(ph2.status, .blocked, "any blocked wins over working")
-        XCTAssertEqual(ph2.title, LatticeTree.untitledPhase, "a null title reads 名前のないまとまり")
-        XCTAssertEqual([ph2.done, ph2.total], [0, 8])
-        XCTAssertEqual(ph3.status, .pending, "a phase without cards is not done")
-        XCTAssertEqual([ph3.done, ph3.total], [0, 0])
-        XCTAssertEqual(LatticeTree.rollup([LatticeCard(id: "x", title: "x", state: "in-progress"), LatticeCard(id: "y", title: "y", state: "done")]), .inProgress)
-        XCTAssertEqual(LatticeTree.rollup([LatticeCard(id: "x", title: "x", state: "done"), LatticeCard(id: "y", title: "y", state: "pending")]), .pending)
-        let root = node(LatticeTree.rootId)
-        XCTAssertEqual([root.done, root.total], [1, 11], "the chart's ring: done over non-retired cards")
-    }
-
-    func testTreeLinksFollowParentsAndMissingDataIsFlatUnderTheRoot() throws {
-        let tree = LatticeTree(try treeSnapshot())
-        func link(_ child: String) -> LatticeTree.Link { tree.links.first { $0.child == child }! }
-        XCTAssertEqual(link("b2"), LatticeTree.Link(parent: "b1", child: "b2", nested: true))
-        XCTAssertEqual(link("b4"), LatticeTree.Link(parent: LatticeTree.phaseId("ph2"), child: "b4", nested: false))
-        XCTAssertEqual(link("c1"), LatticeTree.Link(parent: LatticeTree.rootId, child: "c1", nested: false))
-        XCTAssertEqual(link(LatticeTree.phaseId("ph2")).parent, LatticeTree.rootId)
-        XCTAssertEqual(tree.links.count, tree.nodes.count - 1, "every box but the root has one parent")
-
-        let flat = LatticeTree(try treeSnapshot(phases: false))
-        XCTAssertTrue(try treeSnapshot(phases: false).phaseList.isEmpty)
-        XCTAssertEqual(flat.nodes.filter { $0.kind == .phase }.count, 0)
-        XCTAssertEqual(flat.nodes.count, 13, "the root and every card, whatever `phase` says")
-        XCTAssertEqual(flat.nodes[1...].map(\.id), ["a1", "b5", "a2", "b1", "b2", "b3", "b4", "d3", "c1", "c2", "d1", "d2"],
-                       "without `phases` every card is phase-less; `parent` still nests (b5 now finds its parent a1)")
-        XCTAssertEqual(flat.links.first { $0.child == "a1" }?.parent, LatticeTree.rootId)
-        XCTAssertEqual(flat.links.first { $0.child == "b5" }, LatticeTree.Link(parent: "a1", child: "b5", nested: true))
-        let bare = LatticeTree(try snapshot())
-        XCTAssertEqual(bare.nodes.count, 10, "a snapshot from before phases/parent: flat under the root")
-        XCTAssertTrue(bare.links.allSatisfy { $0.parent == LatticeTree.rootId && !$0.nested })
-    }
-
-    func testTreeArcsLeaveAndEnterOnTheRightSideTowardTheWaiter() {
-        let from = CGRect(x: 100, y: 10, width: 260, height: 34), to = CGRect(x: 124, y: 250, width: 260, height: 34)
-        let arc = LatticeTreeArc(from: from, to: to)
-        XCTAssertEqual(arc.p0, CGPoint(x: from.maxX, y: from.midY))
-        XCTAssertEqual(arc.p3, CGPoint(x: to.maxX, y: to.midY), "the arrowhead points into the waiting card")
-        XCTAssertGreaterThan(arc.p1.x, to.maxX, "the arc bulges right of both boxes")
-        XCTAssertLessThanOrEqual(arc.p1.x - to.maxX, LatticeTree.arcRoom + 40)
+        let icons = LatticeLayout(structure, snapshot: snapshot, size: .icons)
+        let size = LatticeLayout.StructureSize.self
+        XCTAssertEqual(icons.frames["a"]!.size, CGSize(width: size.iconSize, height: size.iconSize))
+        XCTAssertEqual(icons.frames["b"]!.minX - icons.frames["a"]!.minX, size.iconColumn)
+        XCTAssertEqual(icons.rowBands[0].height, size.iconRow + size.titleRoom, "row 0 holds the working card b: room for its title")
+        XCTAssertEqual(icons.rowBands[1].height, size.iconRow)
+        XCTAssertGreaterThanOrEqual(icons.frames["a"]!.midX - size.titleWidth / 2, 0, "a title under the first column stays on the board")
     }
 
     // MARK: Archived and history
@@ -353,16 +321,9 @@ final class LatticeChartTests: XCTestCase {
 
     func testArchivedCardsAreNotDrawnButStillCounted() throws {
         let snapshot = try archivedSnapshot()
-        let tree = LatticeTree(snapshot)
-        XCTAssertEqual(tree.nodes.map(\.id), [LatticeTree.rootId, LatticeTree.phaseId("ph2"), "b2", "b3", "b4", "b5"],
-                       "ph1 has only archived cards, so it is not drawn; b2 (child of archived b1) hangs from its phase")
-        XCTAssertNil(tree.frames["a1"])
-        XCTAssertEqual(tree.frames["b2"]!.minX, tree.frames["b3"]!.minX, "no indent under an archived parent")
-        XCTAssertEqual(tree.links.first { $0.child == "b2" }, LatticeTree.Link(parent: LatticeTree.phaseId("ph2"), child: "b2", nested: false))
-        let ph2 = tree.nodes.first { $0.id == LatticeTree.phaseId("ph2") }!
-        XCTAssertEqual([ph2.done, ph2.total], [3, 4], "the phase still counts its archived card")
-        let root = tree.nodes[0]
-        XCTAssertEqual([root.done, root.total], [4, 6], "the ring counts every card: 4 done of 6 not retired")
+        let structure = LatticeStructure(snapshot)
+        XCTAssertEqual(Set(structure.places.keys), ["b2", "b3", "b4", "b5"], "the tree shows the 担当 cards: archived ones are left out")
+        XCTAssertEqual(structure.edges.map(\.id), ["b2>b5"], "an edge from an archived card is not drawn")
         let counts = LatticeCounts(snapshot)
         XCTAssertEqual(counts.total, 7)
         XCTAssertEqual(counts.progressDone, 4)
@@ -385,7 +346,7 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(LatticeHistory.count(snapshot), 5)
         XCTAssertEqual(LatticeTime.clockText("2026-11-12T00:35:00Z"), "09:35")
         XCTAssertEqual(LatticeTime.clockText(nil), "")
-        let empty = LatticeHistory(try treeSnapshot().withoutFinished(), now: noon)
+        let empty = LatticeHistory(try structureSnapshot().withoutFinished(), now: noon)
         XCTAssertTrue(empty.days.isEmpty)
         XCTAssertEqual(LatticeHistory.empty, "まだ終わった工程はありません。")
     }

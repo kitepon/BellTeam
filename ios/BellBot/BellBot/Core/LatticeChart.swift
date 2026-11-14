@@ -547,6 +547,64 @@ struct LatticeLayout: Equatable {
     let order: [String]
     let columns: Int
     let size: CGSize
+    /// Where column 0 starts: right of the name column for lanes, at the margin for the tree (no lanes).
+    let left: CGFloat
+    /// The tree's row bands (top, height); empty for lanes. The iPhone tree writes a working card's title in its band.
+    let rowBands: [(top: CGFloat, height: CGFloat)]
+
+    static func == (a: LatticeLayout, b: LatticeLayout) -> Bool {
+        a.lanes == b.lanes && a.frames == b.frames && a.order == b.order && a.columns == b.columns && a.size == b.size && a.left == b.left
+            && a.rowBands.map(\.top) == b.rowBands.map(\.top) && a.rowBands.map(\.height) == b.rowBands.map(\.height)
+    }
+
+    /// Sizes of the tree drawing (screen-spec "Structure layout" 5). Cards: the 担当 card and column pitch. Icons: iPhone.
+    enum StructureSize {
+        case cards, icons
+        static let iconSize: CGFloat = 32
+        static let iconColumn: CGFloat = 96
+        static let iconRow: CGFloat = 52
+        /// A row holding a working card is taller by this, for its title under the icon.
+        static let titleRoom: CGFloat = 32
+        static let titleWidth: CGFloat = 88
+    }
+
+    /// The tree view: the structure's places as frames, no lanes. Cards keep their 担当 sizes; a row is as tall as its
+    /// tallest card plus the stack gap. Icons sit in a 96 pt column pitch and 52 pt rows (+32 pt when a card works).
+    init(_ structure: LatticeStructure, snapshot: LatticeChartSnapshot, size kind: StructureSize) {
+        let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var heights = Array(repeating: CGFloat(0), count: structure.rows)
+        for (id, place) in structure.places {
+            guard let card = cards[id] else { continue }
+            let h: CGFloat
+            switch kind {
+            case .cards: h = Self.height(card) + Self.stackGap
+            case .icons: h = StructureSize.iconRow + (card.status == .inProgress ? StructureSize.titleRoom : 0)
+            }
+            heights[place.row] = max(heights[place.row], h)
+        }
+        let top = kind == .cards ? Self.top : 8
+        var bands: [(top: CGFloat, height: CGFloat)] = [], y = top
+        for h in heights { bands.append((y, h)); y += h }
+        let left: CGFloat = kind == .cards ? 16 : (StructureSize.titleWidth - StructureSize.iconSize) / 2 + 8
+        let pitch = kind == .cards ? Self.column : StructureSize.iconColumn
+        var frames: [String: CGRect] = [:]
+        for (id, place) in structure.places {
+            guard let card = cards[id] else { continue }
+            let x = left + CGFloat(place.column) * pitch
+            switch kind {
+            case .cards: frames[id] = CGRect(x: x, y: bands[place.row].top, width: Self.cardWidth, height: Self.height(card))
+            case .icons: frames[id] = CGRect(x: x, y: bands[place.row].top + 10, width: StructureSize.iconSize, height: StructureSize.iconSize)
+            }
+        }
+        lanes = []
+        self.frames = frames
+        order = structure.order
+        columns = structure.columns
+        self.left = left
+        rowBands = bands
+        let width = kind == .cards ? Self.cardWidth : StructureSize.iconSize + (StructureSize.titleWidth - StructureSize.iconSize) / 2 + 8
+        size = CGSize(width: left + CGFloat(max(0, columns - 1)) * pitch + width + 24, height: y + 12)
+    }
 
     static func height(_ card: LatticeCard) -> CGFloat { card.status.finished ? doneHeight : cardHeight }
 
@@ -608,232 +666,82 @@ struct LatticeLayout: Equatable {
         }
         columns = cards.isEmpty ? 0 : maxDepth + 1
         size = CGSize(width: Self.labelWidth + 16 + CGFloat(max(1, columns)) * Self.column + 24, height: y + 12)
+        left = Self.labelWidth + 16
+        rowBands = []
     }
 
-    func columnCenter(_ depth: Int) -> CGFloat { Self.labelWidth + 16 + CGFloat(depth) * Self.column + Self.cardWidth / 2 }
+    func columnCenter(_ depth: Int) -> CGFloat { left + CGFloat(depth) * Self.column + Self.cardWidth / 2 }
 }
 
-// MARK: Tree
+// MARK: Structure (ツリー, task a98)
 
-/// The process tree (screen-spec "ツリー"): the chart -> its phases (plan order) -> cards nested under their `parent`;
-/// cards without a (known) phase hang from the chart after the phases. Left to right, one row per box. Coordinates in pt.
-struct LatticeTree: Equatable {
-    enum Kind: Equatable { case root, phase, card }
+/// The tree view's placement (screen-spec "Structure layout"): the shown cards (not archived, the 担当 view's cards) at
+/// column = depth, grouped by the edges that join them; rows follow the dependencies so a chain runs straight, siblings
+/// stack and a join sits between its predecessors. Pure; Mac/iPad cards and iPhone icons draw the same result.
+struct LatticeStructure: Equatable {
+    struct Place: Equatable { let column: Int; let row: Int }
 
-    struct Node: Identifiable, Equatable {
-        /// A card's id is its card id; the root and phases use `LatticeTree.rootId` / `phaseId(_:)` so no id can collide.
-        let id: String
-        let kind: Kind
-        let title: String
-        /// A card: its own state. The root and a phase: the roll-up (止まり > 作業中 > 完了 > 未着手).
-        let status: LatticeTaskState
-        /// Progress like the toolbar ring: done cards over the cards that are not retired.
-        let done: Int
-        let total: Int
-        var frame: CGRect
-    }
+    /// Card id -> column and row.
+    let places: [String: Place]
+    /// The edges drawn: both ends shown, not a self-loop.
+    let edges: [LatticeEdge]
+    /// Reading order: row by row, left to right.
+    let order: [String]
+    let columns: Int
+    let rows: Int
 
-    struct Link: Equatable {
-        let parent: String
-        let child: String
-        /// A card nested under a card: drawn as a trunk down from the parent (see `LatticeTreeLink`).
-        let nested: Bool
-    }
-
-    static let rootId = "tree:root"
-    static func phaseId(_ id: String) -> String { "tree:phase:\(id)" }
-    static let untitledPhase = "名前のないまとまり"
-
-    static let margin: CGFloat = 16
-    static let rowHeight: CGFloat = 40
-    static let boxHeight: CGFloat = 34
-    static let groupGap: CGFloat = 8
-    static let rootWidth: CGFloat = 172
-    static let phaseWidth: CGFloat = 196
-    static let cardWidth: CGFloat = 260
-    static let columnGap: CGFloat = 44
-    static let indent: CGFloat = 24
-    /// Room right of the boxes for the dependency arcs.
-    static let arcRoom: CGFloat = 88
-
-    /// Reading order: the root, each phase followed by its cards (parent first), then the phase-less cards.
-    let nodes: [Node]
-    let links: [Link]
-    let frames: [String: CGRect]
-    /// Where the phase column starts (the phone's first view scrolls here, hiding only the root's left part).
-    let phaseX: CGFloat
-    let size: CGSize
-
-    static func rollup(_ cards: [LatticeCard]) -> LatticeTaskState {
-        if cards.contains(where: { $0.status == .blocked }) { return .blocked }
-        if cards.contains(where: { $0.status == .inProgress }) { return .inProgress }
-        if !cards.isEmpty && cards.allSatisfy({ $0.status.finished }) { return .done }
-        return .pending
-    }
-
-    /// Cards in parent-first depth-first order with their nesting level. A parent that is missing, outside the group
-    /// (another phase) or the card itself makes the card a top-level card; members of a parent cycle are never
-    /// reached from a top-level card, so the first of them in snapshot order becomes top-level (each card appears once).
-    static func order(_ group: [LatticeCard]) -> [(card: LatticeCard, level: Int)] {
-        let ids = Set(group.map(\.id))
-        var children: [String: [LatticeCard]] = [:]
-        var tops: [LatticeCard] = []
-        for card in group {
-            if let parent = card.parent, parent != card.id, ids.contains(parent) { children[parent, default: []].append(card) } else { tops.append(card) }
+    init(_ snapshot: LatticeChartSnapshot) {
+        let cards = snapshot.cardList.filter { !$0.isArchived }
+        let index = Dictionary(cards.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let edges = snapshot.edgeList.filter { $0.from != $0.to && index[$0.from] != nil && index[$0.to] != nil }
+        var neighbours: [String: [String]] = [:], predecessors: [String: [String]] = [:]
+        for edge in edges {
+            neighbours[edge.from, default: []].append(edge.to)
+            neighbours[edge.to, default: []].append(edge.from)
+            predecessors[edge.to, default: []].append(edge.from)
         }
-        var seen = Set<String>()
-        var out: [(card: LatticeCard, level: Int)] = []
-        func visit(_ card: LatticeCard, _ level: Int) {
-            guard seen.insert(card.id).inserted else { return }
-            out.append((card, level))
-            for child in children[card.id] ?? [] { visit(child, level + 1) }
-        }
-        for card in tops { visit(card, 0) }
-        for card in group { visit(card, 0) }
-        return out
-    }
-
-    init(_ snapshot: LatticeChartSnapshot, rootTitle: String = "") {
-        let known = Set(snapshot.phaseList.map(\.id))
-        // Counts and states use every card; only the drawing leaves archived cards out (a child of an archived card hangs from its phase).
-        var byPhase: [String: [LatticeCard]] = [:], visibleByPhase: [String: [LatticeCard]] = [:], loose: [LatticeCard] = []
-        for card in snapshot.cardList {
-            if let phase = card.phase, known.contains(phase) {
-                byPhase[phase, default: []].append(card)
-                if !card.isArchived { visibleByPhase[phase, default: []].append(card) }
-            } else if !card.isArchived {
-                loose.append(card)
+        // Groups: connected cards, in the order of their first card; cards with no link after all linked groups.
+        var seen = Set<String>(), linked: [[LatticeCard]] = [], single: [[LatticeCard]] = []
+        for card in cards where !seen.contains(card.id) {
+            var group: [String] = [], stack = [card.id]
+            seen.insert(card.id)
+            while let id = stack.popLast() {
+                group.append(id)
+                for next in neighbours[id] ?? [] where seen.insert(next).inserted { stack.append(next) }
             }
+            let members = group.sorted { index[$0]! < index[$1]! }.map { cards[index[$0]!] }
+            if members.count == 1 && neighbours[card.id] == nil { single.append(members) } else { linked.append(members) }
         }
-        func progress(_ cards: [LatticeCard]) -> (done: Int, total: Int) {
-            (cards.filter { $0.status == .done }.count, cards.filter { $0.status != .retired }.count)
-        }
-        let phaseX = Self.margin + Self.rootWidth + Self.columnGap
-        let cardX = phaseX + Self.phaseWidth + Self.columnGap
-        var nodes: [Node] = [], links: [Link] = [], frames: [String: CGRect] = [:]
-        var rowTop = Self.margin
-        func box(x: CGFloat, centerY: CGFloat, width: CGFloat) -> CGRect {
-            CGRect(x: x, y: centerY - Self.boxHeight / 2, width: width, height: Self.boxHeight)
-        }
-        /// Lays the ordered cards in consecutive rows; returns the centres of the top-level rows (the parent's children).
-        func place(_ ordered: [(card: LatticeCard, level: Int)], x: CGFloat, parentId: String) -> [CGFloat] {
-            var parents: [Int: String] = [:], topCenters: [CGFloat] = []
-            for (card, level) in ordered {
-                let centerY = rowTop + Self.rowHeight / 2
-                rowTop += Self.rowHeight
-                let frame = box(x: x + CGFloat(level) * Self.indent, centerY: centerY, width: Self.cardWidth)
-                nodes.append(Node(id: card.id, kind: .card, title: card.title, status: card.status, done: card.status == .done ? 1 : 0,
-                                  total: card.status == .retired ? 0 : 1, frame: frame))
-                frames[card.id] = frame
-                links.append(Link(parent: level == 0 ? parentId : parents[level - 1] ?? parentId, child: card.id, nested: level > 0))
-                parents[level] = card.id
-                if level == 0 { topCenters.append(centerY) }
+        func column(_ card: LatticeCard) -> Int { max(0, card.depth ?? 0) }
+        var places: [String: Place] = [:]
+        var base = 0
+        for group in linked + single {
+            var nextFree: [Int: Int] = [:], bottom = base
+            for col in Set(group.map(column)).sorted() {
+                let here = group.filter { column($0) == col }
+                func wanted(_ card: LatticeCard) -> Int {
+                    let rows = (predecessors[card.id] ?? []).compactMap { places[$0]?.row }
+                    guard !rows.isEmpty else { return nextFree[col] ?? base }
+                    return Int((Double(rows.reduce(0, +)) / Double(rows.count)).rounded())
+                }
+                let wants = Dictionary(here.map { ($0.id, wanted($0)) }, uniquingKeysWith: { first, _ in first })
+                for card in here.sorted(by: { wants[$0.id]! != wants[$1.id]! ? wants[$0.id]! < wants[$1.id]! : index[$0.id]! < index[$1.id]! }) {
+                    let row = max(wants[card.id]!, nextFree[col] ?? base)
+                    places[card.id] = Place(column: col, row: row)
+                    nextFree[col] = row + 1
+                    bottom = max(bottom, row + 1)
+                }
             }
-            return topCenters
+            base = bottom
         }
-        func middle(_ centers: [CGFloat]) -> CGFloat? { centers.min().flatMap { low in centers.max().map { (low + $0) / 2 } } }
-
-        let all = progress(snapshot.cardList)
-        nodes.append(Node(id: Self.rootId, kind: .root, title: rootTitle, status: Self.rollup(snapshot.cardList), done: all.done, total: all.total, frame: .zero))
-        var rootChildren: [CGFloat] = []
-        for phase in snapshot.phaseList {
-            let cards = byPhase[phase.id] ?? []
-            if !cards.isEmpty && visibleByPhase[phase.id] == nil { continue }  // every card archived: the phase is not drawn
-            let id = Self.phaseId(phase.id)
-            let title = phase.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let counts = progress(cards)
-            nodes.append(Node(id: id, kind: .phase, title: title?.isEmpty == false ? phase.title! : Self.untitledPhase,
-                              status: Self.rollup(cards), done: counts.done, total: counts.total, frame: .zero))
-            let phaseIndex = nodes.count - 1
-            let start = rowTop
-            let centers = place(Self.order(visibleByPhase[phase.id] ?? []), x: cardX, parentId: id)
-            if centers.isEmpty { rowTop += Self.rowHeight }  // a phase without cards still takes a row
-            let centerY = middle(centers) ?? start + Self.rowHeight / 2
-            nodes[phaseIndex].frame = box(x: phaseX, centerY: centerY, width: Self.phaseWidth)
-            frames[id] = nodes[phaseIndex].frame
-            links.append(Link(parent: Self.rootId, child: id, nested: false))
-            rootChildren.append(centerY)
-            rowTop += Self.groupGap
+        self.places = places
+        self.edges = edges
+        order = places.keys.sorted { a, b in
+            let p = places[a]!, q = places[b]!
+            return p.row != q.row ? p.row < q.row : p.column != q.column ? p.column < q.column : index[a]! < index[b]!
         }
-        rootChildren += place(Self.order(loose), x: phaseX, parentId: Self.rootId)
-        nodes[0].frame = box(x: Self.margin, centerY: middle(rootChildren) ?? Self.margin + Self.rowHeight / 2, width: Self.rootWidth)
-        frames[Self.rootId] = nodes[0].frame
-
-        self.nodes = nodes
-        self.links = links
-        self.frames = frames
-        self.phaseX = phaseX
-        let right = frames.values.map(\.maxX).max() ?? 0
-        let bottom = frames.values.map(\.maxY).max() ?? 0
-        size = CGSize(width: right + Self.arcRoom + Self.margin, height: max(rowTop, bottom) + Self.margin)
-    }
-}
-
-/// A parent -> child link: a soft S-curve from the parent's right edge to the child's left edge, or, for a card nested
-/// under a card (it sits one indent right, one row group below), a trunk down from the parent's left side that turns
-/// into the child with a rounded corner.
-struct LatticeTreeLink: Equatable {
-    static let trunkInset: CGFloat = 14
-    static let corner: CGFloat = 10
-
-    let start: CGPoint
-    let end: CGPoint
-    private let curve: LatticeCurve?
-
-    init(parent: CGRect, child: CGRect, nested: Bool) {
-        if nested {
-            curve = nil
-            start = CGPoint(x: parent.minX + Self.trunkInset, y: parent.maxY)
-            end = CGPoint(x: child.minX, y: child.midY)
-        } else {
-            let curve = LatticeCurve(from: parent, to: child)
-            self.curve = curve
-            start = curve.p0
-            end = curve.p3
-        }
-    }
-
-    var path: Path {
-        if let curve { return curve.path }
-        let r = min(Self.corner, end.x - start.x, end.y - start.y)
-        var path = Path()
-        path.move(to: start)
-        path.addLine(to: CGPoint(x: start.x, y: end.y - r))
-        path.addQuadCurve(to: CGPoint(x: start.x + r, y: end.y), control: CGPoint(x: start.x, y: end.y))
-        path.addLine(to: end)
-        return path
-    }
-}
-
-/// A dependency (`edge`) drawn as an arc on the right of the boxes: from the awaited card's right edge, bulging right,
-/// into the waiting card's right edge. `p3` is where the arrowhead points (leftwards).
-struct LatticeTreeArc: Equatable {
-    let p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint
-
-    init(from: CGRect, to: CGRect) {
-        p0 = CGPoint(x: from.maxX, y: from.midY)
-        p3 = CGPoint(x: to.maxX, y: to.midY)
-        // A cubic with both controls at x reaches 3/4 of the way there, so scale to the wanted reach.
-        let reach = min(64, 16 + abs(p3.y - p0.y) * 0.06)
-        let x = max(p0.x, p3.x) + reach / 0.75
-        p1 = CGPoint(x: x, y: p0.y)
-        p2 = CGPoint(x: x, y: p3.y)
-    }
-
-    var path: Path {
-        var path = Path()
-        path.move(to: p0)
-        path.addCurve(to: p3, control1: p1, control2: p2)
-        return path
-    }
-
-    var head: Path {
-        var head = Path()
-        head.move(to: p3)
-        head.addLine(to: CGPoint(x: p3.x + 8, y: p3.y - 4.5))
-        head.addLine(to: CGPoint(x: p3.x + 8, y: p3.y + 4.5))
-        head.closeSubpath()
-        return head
+        columns = (places.values.map(\.column).max() ?? -1) + 1
+        rows = base
     }
 }
 

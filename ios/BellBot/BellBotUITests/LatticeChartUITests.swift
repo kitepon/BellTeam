@@ -72,18 +72,26 @@ final class LatticeChartUITests: XCTestCase {
         XCTAssertTrue(element(app, "lattice-wait-row-0").waitForExistence(timeout: 5), "同じ工程表に戻る")
 
         // 過去ログ：終わった工程（図から消えたものも）が日ごとに並ぶ。
-        XCTAssertFalse(element(app, "lattice-tree-box-p1/t01").exists, "archivedな札はツリーに描かない")
+        XCTAssertFalse(element(app, "lattice-tree-icon-p1/t01").exists, "archivedな札はツリーに描かない")
         selectCenter("過去ログ", in: app)
         XCTAssertTrue(element(app, "lattice-history-row-p1/t01").waitForExistence(timeout: 5))
         settle()
         shot(app, "light-05-history")
+        // a98: iPhone ツリー = faces at the structure places; a face shows its card, the card opens 詳細.
         selectCenter("ツリー", in: app)
-        let box = element(app, "lattice-tree-box-p1/t04")
-        XCTAssertTrue(scrollTo(box, in: app))
-        box.tap()
-        XCTAssertTrue(element(app, "lattice-detail").waitForExistence(timeout: 5))
+        let face = element(app, "lattice-tree-icon-p1/t04")
+        XCTAssertTrue(scrollTo(face, in: app))
         settle()
-        shot(app, "light-06-tree-detail")
+        shot(app, "light-06-tree-icons")
+        face.tap()
+        let peek = element(app, "lattice-tree-peek")
+        XCTAssertTrue(peek.waitForExistence(timeout: 5), "顔を押すとその札が出る")
+        settle()
+        shot(app, "light-07-tree-peek")
+        peek.tap()
+        XCTAssertTrue(element(app, "lattice-detail").waitForExistence(timeout: 5), "札を押すと詳細")
+        settle()
+        shot(app, "light-08-tree-detail")
     }
 
     /// a97 (Owner iPhone 2026-11-14): 「過去ログ 35」 showed as 「過去ログ 1…」 in the 工程 header's switch.
