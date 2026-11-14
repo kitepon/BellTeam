@@ -132,14 +132,14 @@ test('owner filing: the answer goes to the chart creator once; cancelled closes;
 
 test('owner record file: missing reads {}, written 0600 by rename, a malformed file is moved aside', async () => {
   const root = await mkdtemp(join(tmpdir(), 'lattice-owner-'))
-  const cli = createLatticeCli({ bin: '/nonexistent', chartsRoot: root })
+  const cli = createLatticeCli({ bin: '/nonexistent', chartsRoot: join(root, 'charts'), stateDir: root })
   assert.deepEqual(await cli.readOwnerRecord(), {})
   await cli.writeOwnerRecord({ 'a/p/t': { status: 'open' } })
   assert.deepEqual(await cli.readOwnerRecord(), { 'a/p/t': { status: 'open' } })
-  assert.deepEqual(await readdir(root), ['.bellteam-owner-decisions.json'])
-  await writeFile(join(root, '.bellteam-owner-decisions.json'), '[broken')
+  assert.deepEqual(await readdir(root), ['owner-decisions.json'], 'BellTeam state dir, never the charts root (a102)')
+  await writeFile(join(root, 'owner-decisions.json'), '[broken')
   assert.deepEqual(await cli.readOwnerRecord(), {})
-  const aside = (await readdir(root)).find(name => name.startsWith('.bellteam-owner-decisions.json.invalid-'))
+  const aside = (await readdir(root)).find(name => name.startsWith('owner-decisions.json.invalid-'))
   assert.equal(await readFile(join(root, aside), 'utf8'), '[broken', 'kept aside, not deleted')
 })
 

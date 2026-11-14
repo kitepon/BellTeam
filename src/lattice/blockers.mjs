@@ -6,7 +6,7 @@ const text = value => typeof value === 'string' ? value : null
 export const stopIdOf = (projectId, entry) => createHash('sha256')
   .update(JSON.stringify([projectId, entry.plan_key, entry.task_id, entry.blocked_at ?? null])).digest('hex').slice(0, 24)
 
-// lattice.todo_blockers_result.v1 (Lattice 0.96.0) -> rows of bellteam.lattice-blockers.v1. meta = the chart's sidecar {name?, createdBy?}.
+// lattice.todo_blockers_result.v1 (Lattice 0.96.0) -> rows of bellteam.lattice-blockers.v1. meta = the chart's K1 row {name, createdBy}.
 export function stopsOf(projectId, value, meta = {}) {
   return (Array.isArray(value?.blockers) ? value.blockers : []).filter(entry => text(entry?.plan_key) && text(entry?.task_id)).map(entry => ({
     stopId: stopIdOf(projectId, entry), projectId, chartName: text(meta.name), chartCreatedBy: text(meta.createdBy),

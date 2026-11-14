@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { createRequire, syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -224,21 +224,24 @@ test('projection: waits are oldest first, unknown time last', () => {
 function rig(extra = {}) {
   const clock = { now: Date.parse('2026-11-11T10:00:00.000Z') }
   const reply = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
-  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, sources: { alpha: 1 }, fail: new Set(), calls: [], runs: [], ensured: [], out: reply({ ok: true }),
-    list: async () => [...cli.charts], exists: async id => cli.charts.includes(id), metas: {}, pruned: [], noStore: false,
-    meta: async id => { if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' }); return { name: null, createdBy: null, ...cli.metas[id] } },
-    setMeta: async (id, patch) => { cli.metas[id] = { ...cli.metas[id], ...patch } },
-    prune: async id => { cli.pruned.push(id); cli.dirs.delete(id); delete cli.metas[id] },
-    dirs: new Set(['alpha']),
-    ensure: async id => { cli.ensured.push(id); const created = !cli.dirs.has(id); cli.dirs.add(id); return { created } },
-    // In-process display source (README L4): throws on a failed probe.
-    async source(id) { cli.calls.push(SOURCE + ' ' + id); if (cli.fail.has('source')) throw new Error('probe'); return { n: cli.sources[id] } },
+  // The Lattice contract (README K1-K8): charts list / source, chart set, seat runs addressed by id.
+  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, tokens: { alpha: 1 }, fail: new Set(), calls: [], runs: [], named: [], out: reply({ ok: true }), metas: {}, noStore: false,
+    async list() {
+      cli.calls.push('list')
+      if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' })
+      return cli.charts.map(id => ({ id, name: cli.metas[id]?.name ?? null, createdBy: cli.metas[id]?.createdBy ?? null, source: String(cli.tokens[id]) }))
+    },
+    async sources(ids) { cli.calls.push(`${SOURCE} ${ids.join(',')}`); if (cli.fail.has('source')) throw new Error('probe'); return new Map(ids.map(id => [id, cli.charts.includes(id) ? String(cli.tokens[id]) : null])) },
+    exists: async id => cli.charts.includes(id),
+    async setName(id, name, from) { cli.named.push([id, name, from]); cli.metas[id] = { ...cli.metas[id], name } },
+    async migrateLegacy() { return { names: 0, record: false } },
     async run({ id, args, env, input }) {
       const key = args.join(' ')
       cli.calls.push(key === READ ? `${key} ${id}` : key)
       if (key === 'todo display read --json') return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
       cli.runs.push({ id, args, env, input })
-      if (!cli.noStore && !cli.charts.includes(id)) cli.charts.push(id) // a write command makes the store
+      // A store-creating command makes the chart, and Lattice records the creator from LATTICE_SEAT_ID (K5).
+      if (!cli.noStore && !cli.charts.includes(id)) { cli.charts.push(id); cli.metas[id] = { ...cli.metas[id], createdBy: env.LATTICE_SEAT_ID } }
       return cli.out
     } }
   const world = { members: roster(['bot-a', 'bot-b']), failMembers: false, effects: 0 }
@@ -252,7 +255,7 @@ function chartRead({ agent = 'bot-7b140b27', minute = 1, status = 'in-progress' 
   return readOf([planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', status], ['t2', 'pending']],
     deps: [{ from: ref('p1', 't1'), to: ref('p1', 't2') }], events: [ev('plan', 't1', agent, minute), ev('start', 't1', 'bot-a', minute + 1)] })])
 }
-const READ = 'todo display read --json', SOURCE = 'source'
+const READ = 'todo display read --json', SOURCE = 'charts source'
 
 test('core: snapshot shape, members only for producers and waiters, coordinator flag', async () => {
   const x = rig()
@@ -275,8 +278,8 @@ test('core: a chart name is set by a seat, read beside the store, and a failed n
   assert.deepEqual([named.name, named.version, (await x.core.charts({}, x.effect)).charts[0].name], ['Lattice組込', 2, 'Lattice組込'])
   await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'alpha', args: [], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE' })
   await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'nochart', args: [], input: null, name: '名前' }), { code: 'LATTICE_CHART_NOT_FOUND', status: 404 })
-  assert.deepEqual([x.cli.ensured.includes('nochart'), 'nochart' in x.cli.metas], [false, false], 'a rename of a missing chart writes nothing')
-  x.cli.fail.add('name'); x.cli.sources.alpha = 2
+  assert.deepEqual([x.cli.named.some(([id]) => id === 'nochart'), 'nochart' in x.cli.metas], [false, false], 'a rename of a missing chart writes nothing')
+  x.cli.fail.add('name'); x.cli.tokens.alpha = 2
   const failed = await x.chart()
   assert.deepEqual([failed.name, failed.degraded], ['Lattice組込', ['lattice-read']])
   x.cli.fail.delete('name')
@@ -288,28 +291,16 @@ test('core: the creator is recorded once and never follows a later plan (Trony f
   x.cli.charts = []
   await x.core.run({ from: 'bot-7b140b27', projectId: 'bellteam', args: ['plan', 'create'], input: { a: 1 }, name: 'BellTeam開発' })
   assert.deepEqual(x.cli.metas.bellteam, { name: 'BellTeam開発', createdBy: 'bot-7b140b27' }, 'the store-making run records its seat')
-  x.cli.reads.bellteam = chartRead({ agent: 'bot-7e777fe5' }); x.cli.sources.bellteam = 1 // another member's plan now has the earliest event
+  x.cli.reads.bellteam = chartRead({ agent: 'bot-7e777fe5' }); x.cli.tokens.bellteam = 1 // another member's plan now has the earliest event
   await x.core.run({ from: 'bot-7e777fe5', projectId: 'bellteam', args: ['plan', 'create'], input: { a: 2 } })
   await x.core.run({ from: 'bot-7e777fe5', projectId: 'bellteam', args: [], input: null, name: '別の名前' })
   const chart = await x.chart('bellteam')
   assert.deepEqual([chart.createdBy, chart.coordinator, chart.name], ['bot-7b140b27', true, '別の名前'], 'renaming a claimed chart keeps its creator')
-  // A chart made before the record: the earliest event until someone names it, then the namer.
+  // A chart Lattice has no creator for: the earliest event; naming never claims it (the creator is Lattice's, K4; old ones came by the a102 migration).
   const old = rig(); old.cli.reads.alpha = chartRead({ agent: 'bot-7e777fe5' })
   assert.equal((await old.chart()).createdBy, 'bot-7e777fe5')
-  await old.core.run({ from: 'bot-7b140b27', projectId: 'alpha', args: [], input: null, name: 'BellTeam開発' }); old.clock.now += 31000
-  assert.deepEqual([(await old.chart()).createdBy, (await old.chart()).coordinator], ['bot-7b140b27', true])
-})
-
-test('core: a run that leaves no Lattice store removes the dir it made; an existing chart is never pruned', async () => {
-  const x = rig()
-  x.cli.noStore = true
-  await x.core.run({ from: 'bot-a', projectId: 'scratch', args: ['help'], input: null })
-  assert.deepEqual([x.cli.pruned, x.cli.charts.includes('scratch'), 'scratch' in x.cli.metas], [['scratch'], false, false])
-  await x.core.run({ from: 'bot-a', projectId: 'alpha', args: ['help'], input: null })
-  assert.deepEqual(x.cli.pruned, ['scratch'])
-  x.cli.out = null; x.cli.run = async () => { throw new Error('spawn') }
-  await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'boom', args: ['help'], input: null }))
-  assert.deepEqual(x.cli.pruned, ['scratch', 'boom'], 'pruned even when the run throws')
+  await old.core.run({ from: 'bot-7b140b27', projectId: 'alpha', args: [], input: null, name: 'BellTeam開発' }); old.cli.tokens.alpha = 2
+  assert.deepEqual([(await old.chart()).createdBy, (await old.chart()).coordinator, (await old.chart()).name], ['bot-7e777fe5', false, 'BellTeam開発'])
 })
 
 test('core: memo follows the token, runs and the roster; no time ceiling (task a95)', async () => {
@@ -317,7 +308,7 @@ test('core: memo follows the token, runs and the roster; no time ceiling (task a
   assert.equal((await x.chart()).version, 1)
   await x.chart()
   assert.deepEqual([x.count(READ), x.count(SOURCE), x.world.effects], [1, 2, 2])
-  x.cli.sources.alpha = 2
+  x.cli.tokens.alpha = 2
   assert.equal((await x.chart()).version, 1)
   assert.equal(x.count(READ), 2)
   x.clock.now += 3_600_000; await x.chart()
@@ -343,7 +334,7 @@ test('core: a chart waiting on another chart re-reads when that chart changes, n
   x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
     scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'other', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
     { external_tasks: [{ project_id: 'other', plan_key: 'q', task_id: 'x', status: 'in_progress', finished: false, reason: null, trigger: null }] })
-  x.cli.charts.push('other'); x.cli.sources.other = 1; x.cli.reads.other = chartRead()
+  x.cli.charts.push('other'); x.cli.tokens.other = 1; x.cli.reads.other = chartRead()
   const alphaReads = () => x.cli.calls.filter(call => call === READ + ' alpha').length
   await x.chart('other')
   assert.deepEqual((await x.chart()).externals.map(item => [item.projectId, item.title]), [['other', null]])
@@ -351,7 +342,7 @@ test('core: a chart waiting on another chart re-reads when that chart changes, n
   assert.equal(alphaReads(), 2, 'the first token had no externals yet, so the second sync reads once more')
   await x.chart(); x.clock.now += 3_600_000; await x.chart()
   assert.equal(alphaReads(), 2, 'stable while neither chart moves')
-  x.cli.sources.other = 2; await x.chart()
+  x.cli.tokens.other = 2; await x.chart()
   assert.equal(alphaReads(), 3, "the other chart's source moved")
   x.cli.reads.other = chartRead({ status: 'done' }); await x.chart('other'); await x.chart()
   assert.equal(alphaReads(), 4, "the other chart's memo version moved (its cards changed)")
@@ -365,13 +356,13 @@ test('core: version moves only when the projected content changes; refresh retur
   const first = await refresh()
   assert.deepEqual([first.snapshots.map(s => [s.projectId, s.version]), first.nextRefreshMs], [[['alpha', 1]], 2000])
   assert.deepEqual((await refresh()).snapshots, [])
-  x.cli.sources.alpha = 2
+  x.cli.tokens.alpha = 2
   assert.deepEqual((await refresh()).snapshots, [])
-  x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.sources.alpha = 3
+  x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.tokens.alpha = 3
   const changed = await refresh()
   assert.deepEqual(changed.snapshots.map(s => [s.version, s.cards[0].state]), [[2, 'done']])
   await x.chart()
-  x.cli.reads.alpha = chartRead({ status: 'blocked' }); x.cli.sources.alpha = 4
+  x.cli.reads.alpha = chartRead({ status: 'blocked' }); x.cli.tokens.alpha = 4
   await x.chart()
   assert.equal((await refresh()).snapshots[0].version, 3)
 })
@@ -379,7 +370,7 @@ test('core: version moves only when the projected content changes; refresh retur
 test('core: a failed read keeps the snapshot, shows lattice-read, logs one code line, and recovers', async () => {
   const x = rig()
   const good = await x.chart()
-  x.cli.fail.add('read'); x.cli.sources.alpha = 2
+  x.cli.fail.add('read'); x.cli.tokens.alpha = 2
   const kept = await x.chart()
   assert.deepEqual([kept.degraded, kept.cards, kept.version], [['lattice-read'], good.cards, 2])
   await x.chart(); await x.chart()
@@ -388,7 +379,7 @@ test('core: a failed read keeps the snapshot, shows lattice-read, logs one code 
   x.cli.fail.clear()
   const back = await x.chart()
   assert.deepEqual([back.degraded, back.version, back.cards], [[], 3, good.cards])
-  x.cli.fail.add('json'); x.cli.sources.alpha = 5
+  x.cli.fail.add('json'); x.cli.tokens.alpha = 5
   await x.chart()
   assert.deepEqual(x.logs.at(-1), 'lattice-read alpha LATTICE_CLI_BAD_JSON')
 })
@@ -407,10 +398,10 @@ test('core: a chart that was never readable is unavailable, empty and degraded',
 test('core: a failed roster read keeps the last roster and reports members', async () => {
   const x = rig()
   assert.equal((await x.chart()).members.length, 1)
-  x.world.failMembers = true; x.cli.sources.alpha = 2
+  x.world.failMembers = true; x.cli.tokens.alpha = 2
   const kept = await x.chart()
   assert.deepEqual([kept.degraded, kept.members.length], [['members'], 1])
-  x.world.failMembers = false; x.cli.sources.alpha = 3
+  x.world.failMembers = false; x.cli.tokens.alpha = 3
   assert.deepEqual((await x.chart()).degraded, [])
   const none = rig(); none.world.failMembers = true
   assert.deepEqual([(await none.chart()).members, none.world.effects], [[], 1])
@@ -426,7 +417,7 @@ test('core: charts lists every chart, coordinator first then newest update', asy
   const x = rig()
   x.cli.charts = ['gamma', 'beta', 'alpha', 'empty']
   Object.assign(x.cli.reads, { alpha: chartRead({ minute: 1 }), beta: chartRead({ agent: 'bot-b', minute: 20 }), gamma: chartRead({ agent: 'bot-b', minute: 10 }), empty: readOf([]) })
-  Object.assign(x.cli.sources, { beta: 1, gamma: 1, empty: 1 })
+  Object.assign(x.cli.tokens, { beta: 1, gamma: 1, empty: 1 })
   const list = await x.core.charts({}, x.effect)
   assert.deepEqual([list.schema, list.charts.map(chart => chart.projectId)], ['bellteam.lattice-charts.v1', ['alpha', 'beta', 'gamma', 'empty']])
   assert.deepEqual(list.charts[0], { projectId: 'alpha', name: null, coordinator: true, createdBy: 'bot-7b140b27', counts: { total: 2, done: 0, working: 1, waiting: 1, blocked: 0 },
@@ -447,16 +438,16 @@ test('core: a read-only seat run on an existing chart skips the chart lock; on a
   await x.core.run({ from: 'bot-b', projectId: 'alpha', args: ['status'], input: null }).then(() => order.push('read'))
   release(); await write
   assert.deepEqual(order, ['read', 'write'])
-  assert.deepEqual(x.cli.ensured, ['alpha'], 'the read did not ensure (no mkdir / git init)')
+  // A read on a missing chart takes the locked path (Lattice answers it; nothing is made by BellTeam).
   await x.core.run({ from: 'bot-b', projectId: 'fresh', args: ['status'], input: null })
-  assert.deepEqual(x.cli.ensured, ['alpha', 'fresh'], 'a read on a missing chart takes the old path')
+  assert.deepEqual(x.cli.runs.at(-1).id, 'fresh')
 })
 
 test('core: run passes the seat id, parses JSON, falls back to stdout, and refuses before creating anything', async () => {
   const x = rig()
   const run = (args, input = null, projectId = 'fresh') => x.core.run({ from: 'bot-a', projectId, args, input })
   assert.deepEqual(await run(['session-context']), { exitCode: 0, result: { ok: true }, stdout: null, stderr: '' })
-  assert.deepEqual([x.cli.ensured, x.cli.runs[0].env, x.cli.runs[0].id], [['fresh'], { LATTICE_SEAT_ID: 'bot-a' }, 'fresh'])
+  assert.deepEqual([x.cli.runs[0].env, x.cli.runs[0].id], [{ LATTICE_SEAT_ID: 'bot-a' }, 'fresh'])
   x.cli.out = { exitCode: 2, stdout: 'x'.repeat(100000), stderr: 'bad' }
   const text = await run(['help'])
   assert.deepEqual([text.exitCode, text.result, text.stdout.length, text.stderr], [2, null, 65536, 'bad'])
@@ -471,10 +462,10 @@ test('core: run passes the seat id, parses JSON, falls back to stdout, and refus
   assert.deepEqual([(await run(['status'])).result, (await run(['status'])).stdout], [null, null], 'JSON null on stdout wins over stderr')
   x.cli.out = { exitCode: 1, stdout: '', stderr: 'plain text' }
   assert.deepEqual(await run(['status']), { exitCode: 1, result: null, stdout: '', stderr: 'plain text' }, 'non-JSON stderr is not a result')
-  const before = x.cli.ensured.length
+  const before = x.cli.runs.length
   await assert.rejects(run(['setup'], null, 'other'), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE', status: 400 })
   await assert.rejects(run(['plan', 'create', '--input', 'f'], { a: 1 }, 'other'), { code: 'LATTICE_INPUT_CONFLICT' })
-  assert.equal(x.cli.ensured.length, before)
+  assert.deepEqual([x.cli.runs.length, x.cli.charts.includes('other')], [before, false], 'refused before anything reached Lattice')
   await run(['plan', 'create'], { a: 1 })
   assert.deepEqual(x.cli.runs.at(-1).input, { a: 1 })
 })
@@ -491,108 +482,65 @@ if (argv[0] === 'help') console.error('e'.repeat(70000))`)
   return { root, bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }
 }
 
-test('cli: real process runs in the chart dir with exactly the agreed env, then removes the input file', async t => {
+test('cli: a seat run goes to Lattice by project id (K8) with exactly the agreed env, then removes the input file', async t => {
   const { bin, chartsRoot, home } = await scratch(t)
   const cli = createLatticeCli({ bin, chartsRoot, home })
-  await mkdir(join(chartsRoot, 'Upper', '.lattice'), { recursive: true }); await mkdir(join(chartsRoot, 'b-two', '.lattice'), { recursive: true })
-  await mkdir(join(chartsRoot, 'help-only'), { recursive: true }); await writeFile(join(chartsRoot, 'file'), '')
-  await cli.ensure('alpha'); await cli.ensure('alpha')
-  assert.deepEqual(await cli.list(), ['b-two'], 'a dir without a Lattice store is not a chart')
-  await mkdir(join(chartsRoot, 'alpha', '.lattice'))
-  assert.deepEqual(await cli.list(), ['alpha', 'b-two'])
-  assert.deepEqual([await cli.exists('alpha'), await cli.exists('nope'), await cli.exists('Upper'), await cli.exists('../x')], [true, false, false, false])
-  assert.equal(existsSync(join(chartsRoot, 'alpha', '.git')), true)
   const plain = await cli.run({ id: 'alpha', args: ['todo', 'start'], env: { LATTICE_SEAT_ID: 'bot-a' } })
   const out = JSON.parse(plain.stdout)
-  assert.deepEqual([plain.exitCode, plain.stderr, out.argv, out.cwd.endsWith('/charts/alpha')], [0, '', ['todo', 'start'], true])
-  assert.deepEqual(out.env, { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', LATTICE_CHARTS_ROOT: chartsRoot, GIT_CONFIG_NOSYSTEM: '1', LATTICE_SEAT_ID: 'bot-a' })
+  assert.deepEqual([plain.exitCode, plain.stderr, out.argv, out.cwd], [0, '', ['todo', 'start'], home], 'cwd is Lattice HOME, never a chart path')
+  assert.deepEqual(out.env, { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', LATTICE_CHARTS_ROOT: chartsRoot, GIT_CONFIG_NOSYSTEM: '1', LATTICE_PROJECT_ID: 'alpha', LATTICE_SEAT_ID: 'bot-a' })
   const withInput = JSON.parse((await cli.run({ id: 'alpha', args: ['plan', 'create'], input: { title: '日本語' } })).stdout)
   assert.deepEqual([withInput.argv[0], withInput.argv[1], withInput.argv[2], withInput.input, withInput.mode], ['plan', 'create', '--input', { title: '日本語' }, 0o600])
   assert.equal(existsSync(withInput.argv[3]), false)
-  const loud = await cli.run({ id: 'alpha', args: ['help'] })
-  assert.equal(loud.stderr.length, 64 * 1024)
-  assert.deepEqual(await cli.meta('alpha'), { name: null, createdBy: null })
-  await cli.setMeta('alpha', { name: '工程表' }); await cli.setMeta('alpha', { createdBy: 'bot-a' })
-  assert.deepEqual(await cli.meta('alpha'), { name: '工程表', createdBy: 'bot-a' }, 'fields merge')
-  await writeFile(join(chartsRoot, 'alpha', '.bellteam-chart.json'), '{"name":"\\u0007","createdBy":"../x"}'); assert.deepEqual(await cli.meta('alpha'), { name: null, createdBy: null }, 'malformed fields are absent')
-  await cli.prune('alpha'); assert.equal(existsSync(join(chartsRoot, 'alpha')), true, 'a dir with a store is kept')
-  await cli.ensure('gone'); await cli.prune('gone'); assert.equal(existsSync(join(chartsRoot, 'gone')), false, 'a dir without a store is removed')
+  assert.equal((await cli.run({ id: 'alpha', args: ['help'] })).stderr.length, 64 * 1024)
+  await assert.rejects(cli.run({ id: '../x', args: ['status'] }), { code: 'LATTICE_PROJECT_INVALID' })
+  assert.equal(existsSync(chartsRoot), false, 'BellTeam makes nothing under the charts root')
 })
 
-test('storage: only a dir this run created is pruned; an existing store-less dir and a symlinked chart are never written or deleted (Epinel 2026-11-12)', async t => {
-  const { bin, root, chartsRoot, home } = await scratch(t)
-  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot, home }), log: () => {} })
-  const run = (projectId, args = ['help'], name) => core.run({ from: 'bot-a', projectId, args, input: null, ...(name && { name }) })
-  // 1. pre-existing dir without a store keeps everything
-  await mkdir(join(chartsRoot, 'kept'), { recursive: true }); await writeFile(join(chartsRoot, 'kept', 'notes.txt'), 'mine')
-  await run('kept')
-  assert.equal(await readFile(join(chartsRoot, 'kept', 'notes.txt'), 'utf8'), 'mine', 'an existing dir is not pruned')
-  // 2. a dir this run made and left without a store is removed, sidecar included
-  await run('fresh', ['help'], '名前')
-  assert.equal(existsSync(join(chartsRoot, 'fresh')), false, 'the owned empty dir is cleaned up')
-  // 3. a symlinked chart dir: refused before any write or run, target untouched
-  const outside = join(root, 'outside'); await mkdir(outside); await writeFile(join(outside, 'keep.txt'), 'x')
-  await symlink(outside, join(chartsRoot, 'linked'))
-  await assert.rejects(run('linked'), { code: 'LATTICE_UNAVAILABLE', detail: 'ELINK' })
-  await assert.rejects(run('linked', ['plan', 'create'], '名前'), { code: 'LATTICE_UNAVAILABLE', detail: 'ELINK' })
-  assert.deepEqual((await readdir(outside)).sort(), ['keep.txt'], 'no .git, sidecar or deletion through the link')
-  assert.equal((await lstat(join(chartsRoot, 'linked'))).isSymbolicLink(), true, 'the link itself is kept')
-  // 4. a symlinked sidecar is read as absent and replaced, never written through
-  await mkdir(join(chartsRoot, 'side', '.lattice'), { recursive: true }); await writeFile(join(outside, 'meta.json'), '{"name":"外"}')
-  await symlink(join(outside, 'meta.json'), join(chartsRoot, 'side', '.bellteam-chart.json'))
-  const cli = createLatticeCli({ bin, chartsRoot, home })
-  assert.deepEqual(await cli.meta('side'), { name: null, createdBy: null })
-  await cli.setMeta('side', { name: '中' })
-  assert.deepEqual([await readFile(join(outside, 'meta.json'), 'utf8'), (await cli.meta('side')).name], ['{"name":"外"}', '中'])
+test('cli: host calls go through the contract only (K1 list, K2 sources, K4 chart set, K7 repo)', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'lattice-home-')); t.after(() => rm(home, { recursive: true, force: true }))
+  const answers = {
+    'charts list --json': { schema: 'lattice.charts_list_result.v1', charts: [{ project_id: 'alpha', name: '工程表', created_by: 'bot-a', created_at: 'x', source: 's1' },
+      { project_id: 'beta', name: '\u0007', created_by: null, source: null }, { project_id: '../bad', name: 'x', source: 's' }], findings: [] },
+    'charts source --project alpha --project nope --json': { charts: { alpha: 's1', nope: null } },
+    'charts source --project alpha --json': { charts: { alpha: 's1' } },
+    'chart set --name 新しい名前 --json': { project_id: 'alpha', name: '新しい名前', created_by: 'bot-a' },
+    'chart repo bind --url u --branch main --json': { status: 'bound' }, 'chart repo sync --json': { status: 'synced', tip: 't' } }
+  const spawned = fakeSpawn(child => {
+    const key = spawned.calls.at(-1).args.slice(1).join(' ')
+    if (answers[key]) child.stdout.emit('data', Buffer.from(JSON.stringify(answers[key]))); else child.stderr.emit('data', Buffer.from('nope'))
+    child.emit('close', answers[key] ? 0 : 1)
+  })
+  const cli = createLatticeCli({ bin: '/x/lattice.mjs', chartsRoot: '/charts', home, spawnImpl: spawned.impl })
+  assert.deepEqual(await cli.list(), [{ id: 'alpha', name: '工程表', createdBy: 'bot-a', source: 's1' }, { id: 'beta', name: null, createdBy: null, source: null }])
+  assert.deepEqual([...await cli.sources(['alpha', 'nope', '../x'])], [['alpha', 's1'], ['nope', null]])
+  assert.deepEqual([await cli.exists('alpha'), await cli.exists('../x')], [true, false])
+  await cli.setName('alpha', '新しい名前', 'bot-b')
+  const named = spawned.calls.find(call => call.args.includes('set'))
+  assert.deepEqual([named.options.env.LATTICE_PROJECT_ID, named.options.env.LATTICE_SEAT_ID, named.options.cwd], ['alpha', 'bot-b', home])
+  assert.deepEqual([(await cli.repoBind('bellteam', 'u', 'main')).status, (await cli.repoSync('bellteam')).status], ['bound', 'synced'])
+  await assert.rejects(cli.repoSync('nochart').then(() => cli.setName('alpha', 'x', 'y')), { code: 'LATTICE_UNAVAILABLE' })
+  assert.equal(spawned.calls.every(call => call.options.env.LATTICE_CHARTS_ROOT === '/charts' && !('cwd' in call.options && call.options.cwd.startsWith('/charts'))), true)
 })
 
-test('storage: a failed sidecar save removes only its own temp, so the next save succeeds once the fault is repaired (Epinel 2026-11-12)', async t => {
-  const { bin, chartsRoot, home } = await scratch(t)
-  const cli = createLatticeCli({ bin, chartsRoot, home })
-  const sidecar = join(chartsRoot, 'alpha', '.bellteam-chart.json'), temp = `${sidecar}.${process.pid}.tmp`
-  await mkdir(join(chartsRoot, 'alpha', '.lattice'), { recursive: true })
-  // 1. rename fails (filesystem fault, e.g. EIO): the error surfaces and our temp is gone
-  const fsp = createRequire(import.meta.url)('node:fs/promises')
-  const fault = t.mock.method(fsp, 'rename', async () => { throw Object.assign(new Error('EIO'), { code: 'EIO' }) }); syncBuiltinESMExports()
-  await assert.rejects(cli.setMeta('alpha', { name: '工程表' }), { code: 'EIO' })
-  assert.equal(existsSync(temp), false, 'the temp this call created is removed')
-  // 2. fault repaired: the next save in the same process succeeds
-  fault.mock.restore(); syncBuiltinESMExports()
-  await cli.setMeta('alpha', { name: '工程表' })
-  assert.deepEqual(await cli.meta('alpha'), { name: '工程表', createdBy: null })
-  // 3. a temp someone else left at the same path is refused (wx) and kept as it was
-  await writeFile(temp, 'theirs')
-  await assert.rejects(cli.setMeta('alpha', { createdBy: 'bot-a' }), { code: 'EEXIST' })
-  assert.equal(await readFile(temp, 'utf8'), 'theirs', 'a pre-existing temp is never removed')
+test('cli: the filing record lives in BellTeam state; the one-time move takes names and the old record out of Lattice\'s root (a102)', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'lattice-migrate-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const chartsRoot = join(root, 'charts'), stateDir = join(root, 'state'), home = join(root, 'home')
+  await mkdir(join(chartsRoot, 'alpha'), { recursive: true }); await mkdir(join(chartsRoot, 'beta'), { recursive: true })
+  await writeFile(join(chartsRoot, 'alpha', '.bellteam-chart.json'), JSON.stringify({ name: '工程表', createdBy: 'bot-a' }))
+  await writeFile(join(chartsRoot, '.bellteam-owner-decisions.json'), JSON.stringify({ 'alpha / p/t': { decisionId: 'K-ABCD', status: 'open' } }))
+  const spawned = fakeSpawn(child => { child.stdout.emit('data', Buffer.from('{"ok":true}')); child.emit('close', 0) })
+  const cli = createLatticeCli({ bin: '/x', chartsRoot, stateDir, home, spawnImpl: spawned.impl })
+  assert.deepEqual(await cli.migrateLegacy([{ id: 'alpha', name: null, createdBy: null }, { id: 'beta', name: 'B', createdBy: 'bot-c' }]), { names: 1, record: true })
+  assert.deepEqual(spawned.calls[0].args.slice(1), ['chart', 'set', '--name', '工程表', '--created-by', 'bot-a', '--json'])
+  assert.deepEqual([existsSync(join(chartsRoot, 'alpha', '.bellteam-chart.json')), existsSync(join(chartsRoot, '.bellteam-owner-decisions.json'))], [false, false])
+  assert.deepEqual(await cli.readOwnerRecord(), { 'alpha / p/t': { decisionId: 'K-ABCD', status: 'open' } })
+  assert.deepEqual(await cli.migrateLegacy([{ id: 'alpha', name: '工程表', createdBy: 'bot-a' }]), { names: 0, record: false }, 'a second run moves nothing')
+  await cli.writeOwnerRecord({ x: 1 }); assert.deepEqual(JSON.parse(readFileSync(join(stateDir, 'owner-decisions.json'), 'utf8')), { x: 1 })
 })
-
-test('cli: a missing charts root is no charts; a permission error is LATTICE_UNAVAILABLE, not "no charts", and recovers', async t => {
-  const { bin, chartsRoot, home } = await scratch(t)
-  const cli = createLatticeCli({ bin, chartsRoot, home })
-  assert.deepEqual([await cli.list(), await cli.exists('alpha')], [[], false])
-  await mkdir(join(chartsRoot, 'alpha', '.lattice'), { recursive: true })
-  await chmod(chartsRoot, 0o000)
-  try {
-    await assert.rejects(cli.list(), { code: 'LATTICE_UNAVAILABLE', status: 503, detail: 'EACCES' })
-    await assert.rejects(cli.exists('alpha'), { code: 'LATTICE_UNAVAILABLE', detail: 'EACCES' })
-    await assert.rejects(cli.meta('alpha'), { code: 'LATTICE_UNAVAILABLE' })
-  } finally { await chmod(chartsRoot, 0o700) }
-  assert.deepEqual([await cli.list(), await cli.exists('alpha')], [['alpha'], true])
-})
-
-test('cli: a file where the charts root should be is LATTICE_UNAVAILABLE, not "no charts", and recovers', async t => {
-  const { bin, chartsRoot, home } = await scratch(t)
-  const cli = createLatticeCli({ bin, chartsRoot, home })
-  await writeFile(chartsRoot, '')
-  await assert.rejects(cli.list(), { code: 'LATTICE_UNAVAILABLE', status: 503, detail: 'ENOTDIR' })
-  await rm(chartsRoot); await mkdir(join(chartsRoot, 'alpha', '.lattice'), { recursive: true })
-  assert.deepEqual(await cli.list(), ['alpha'])
-})
-
 test('cli: allowlist and input conflict', async t => {
   const { bin, chartsRoot, home } = await scratch(t)
   const cli = createLatticeCli({ bin, chartsRoot, home })
-  await cli.ensure('alpha')
   for (const command of ['plan', 'todo', 'status', 'session-context', 'help', '--help', '--version']) assert.equal((await cli.run({ id: 'alpha', args: [command] })).exitCode, 0)
   for (const args of [['setup'], ['hooks', 'install'], ['dashboard'], ['run'], ['sensor'], ['bridge'], [], ['PLAN'], ['--input', 'x']]) {
     await assert.rejects(cli.run({ id: 'alpha', args }), error => error.code === 'LATTICE_COMMAND_NOT_SEAT_SURFACE' && error.status === 400 && /plan, todo, status/u.test(error.detail))
@@ -618,9 +566,10 @@ const chartsWithAlpha = async t => { const root = await mkdtemp(join(tmpdir(), '
 test('cli: a hung process is killed at the timeout and the next call runs', async t => {
   const chartsRoot = await chartsWithAlpha(t)
   const hung = fakeSpawn(child => child.stdout.emit('data', Buffer.from('partial')))
-  const cli = createLatticeCli({ bin: '/x/lattice.mjs', chartsRoot, home: '/h', spawnImpl: hung.impl, timeoutMs: 20 })
+  const home = await mkdtemp(join(tmpdir(), 'lattice-home-')); t.after(() => rm(home, { recursive: true, force: true }))
+  const cli = createLatticeCli({ bin: '/x/lattice.mjs', chartsRoot, home, spawnImpl: hung.impl, timeoutMs: 20 })
   assert.deepEqual(await cli.run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: 'partial', stderr: 'LATTICE_CLI_TIMEOUT' })
-  assert.deepEqual([hung.calls[0].child.killed, hung.calls[0].command, hung.calls[0].args, hung.calls[0].options.cwd], [['SIGKILL'], process.execPath, ['/x/lattice.mjs', 'status'], join(chartsRoot, 'alpha')])
+  assert.deepEqual([hung.calls[0].child.killed, hung.calls[0].command, hung.calls[0].args, hung.calls[0].options.cwd], [['SIGKILL'], process.execPath, ['/x/lattice.mjs', 'status'], home])
   const fine = fakeSpawn(child => child.emit('close', 3))
   assert.deepEqual((await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
 })
