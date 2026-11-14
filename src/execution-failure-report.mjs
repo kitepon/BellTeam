@@ -2,6 +2,7 @@ import { constants } from 'node:os'
 import { returnedExecutionError } from './execution-error.mjs'
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
+import { returnedMcpError } from './returned-mcp-error.mjs'
 import { configurationBinding, configurationRequestFailure } from './configuration-request.mjs'
 
 const processCodes = new Set(['ABORT_ERR', 'SEAT_PROCESS_FAILED', 'SEAT_PROCESS_START_FAILED',
@@ -83,4 +84,11 @@ export async function reportExecutionFailure(reportError, botId, phase, error, c
     const report = executionFailureReport(botId, phase, error, context)
     if (report) await reportError(report)
   } catch { /* Diagnostic failures must not change the operation or trigger retries. */ }
+}
+
+// Goal failures (BugHub 56db0203): code tokens and the sanitized Aiterm tool error (captureMcpError drops inputs), never the raw message.
+export function goalFailureCause(error) {
+  const token = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value) ? value : null
+  return { code: token(error?.code), aiterm_error_code: token(error?.aitermErrorCode),
+    mcp_error: returnedMcpError(error), mcp_request: mcpRequestContext(error) }
 }
