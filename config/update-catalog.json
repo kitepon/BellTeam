@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T09:14:20Z",
-  "expiresAt": "2026-11-21T09:14:20Z",
+  "publishedAt": "2026-11-14T09:40:54Z",
+  "expiresAt": "2026-11-21T09:40:54Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "5eafd378fb58351ce043dbb663545f2af9a49e77",
-      "versionId": "b0a67cee9431fb33112ae843c40b8180f374d92fb956765baa80c964f724b3ec",
+      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
+      "versionId": "c7cf818af8124a7a9a0239ad72089438c0d531d6669f3e999118bc7aca8d27ea",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T073251Z/usage-5eafd378fb58351ce043dbb663545f2af9a49e77-linux-amd64.tar.gz",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-amd64.tar.gz",
           "bytes": 80176,
-          "sha256": "b0a67cee9431fb33112ae843c40b8180f374d92fb956765baa80c964f724b3ec"
+          "sha256": "c7cf818af8124a7a9a0239ad72089438c0d531d6669f3e999118bc7aca8d27ea"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T073251Z/usage-5eafd378fb58351ce043dbb663545f2af9a49e77-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10905,
-          "sha256": "900dc859af57c3b4e23a422d63c303602ea4b8056300fdcef65e8decc071fc9c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11058,
+          "sha256": "4366547777674fd71af94d47d8eb36f7a08313046e62a4604cdeab22bd4d9183"
         },
-        "signerCommit": "5eafd378fb58351ce043dbb663545f2af9a49e77"
+        "signerCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "通話ブリッジの接続先と合鍵を、ブリッジの公開の書き出しから設定に取り込めるようにしました。"
+        "通話ブリッジの設定を取り込む時、取り込んだ Bot 自身の番を待たずに終わるようにしました。後から止める処理が失敗した時も記録に残ります。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "5eafd378fb58351ce043dbb663545f2af9a49e77",
-      "versionId": "838c7d4114a580ba9a179a1a8382603e715676f2ab06d50492e1e9b1865a63d9",
+      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
+      "versionId": "0c40fac75107289c6443141d21e9a5967c1ce8cb05e01ab0c4b04423068607ef",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T073251Z/usage-5eafd378fb58351ce043dbb663545f2af9a49e77-linux-arm64.tar.gz",
-          "bytes": 80174,
-          "sha256": "838c7d4114a580ba9a179a1a8382603e715676f2ab06d50492e1e9b1865a63d9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-arm64.tar.gz",
+          "bytes": 80175,
+          "sha256": "0c40fac75107289c6443141d21e9a5967c1ce8cb05e01ab0c4b04423068607ef"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T073251Z/usage-5eafd378fb58351ce043dbb663545f2af9a49e77-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10964,
-          "sha256": "6c78d6cdbc796bb234e423e93129fce54222a45be150e3ad1e6cb056cc4c7fef"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T094016Z/usage-b3a58704fe5cbf549c46742b97e5076e6131f5fe-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10968,
+          "sha256": "18db80a5ccd8b6e6ba3b9a4c8d2d71d24c6412320bfdb3ed29ea108def37115e"
         },
-        "signerCommit": "5eafd378fb58351ce043dbb663545f2af9a49e77"
+        "signerCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "通話ブリッジの接続先と合鍵を、ブリッジの公開の書き出しから設定に取り込めるようにしました。"
+        "通話ブリッジの設定を取り込む時、取り込んだ Bot 自身の番を待たずに終わるようにしました。後から止める処理が失敗した時も記録に残ります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c5cd2e5e9d133caabe52a13717edd8a64c36abab",
-      "versionId": "sha256:fdf15b2094c005883163e17b3ccc5eb2a29aedf9f5683d93a33e225e1e0cbe55",
+      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
+      "versionId": "sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fdf15b2094c005883163e17b3ccc5eb2a29aedf9f5683d93a33e225e1e0cbe55"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表の数で数える工程を受け付けるようにしました。製品の MCP 登録の一覧が本体に入り、xarticle と typesafe の登録が実際に書かれるようになりました。"
+        "工程表の数で数える工程を受け付けるようにしました。製品の MCP 登録の一覧が本体に入り、xarticle と typesafe の登録が実際に書かれるようになりました。",
+        "通話ブリッジの設定の取り込みが、取り込んだ Bot の番を待たずに終わるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c5cd2e5e9d133caabe52a13717edd8a64c36abab",
-      "versionId": "sha256:fdf15b2094c005883163e17b3ccc5eb2a29aedf9f5683d93a33e225e1e0cbe55",
+      "sourceCommit": "b3a58704fe5cbf549c46742b97e5076e6131f5fe",
+      "versionId": "sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fdf15b2094c005883163e17b3ccc5eb2a29aedf9f5683d93a33e225e1e0cbe55"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:047f4c9b10a868ae0a0c0dc8f645e10fb40246fd325e01bbd45c593bf0de3f07"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表の数で数える工程を受け付けるようにしました。製品の MCP 登録の一覧が本体に入り、xarticle と typesafe の登録が実際に書かれるようになりました。"
+        "工程表の数で数える工程を受け付けるようにしました。製品の MCP 登録の一覧が本体に入り、xarticle と typesafe の登録が実際に書かれるようになりました。",
+        "通話ブリッジの設定の取り込みが、取り込んだ Bot の番を待たずに終わるようにしました。"
       ]
     },
     {
