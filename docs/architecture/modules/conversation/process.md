@@ -274,14 +274,14 @@ flowchart LR
   Context --> Controller[毎回getController / 実request-callback]
   Controller --> Child[子dispatcher / 唯一writer]
   Child --> Fresh[rooms.list/readの実ACK]
-  Fresh --> Projection[親readonly Room投影 / get-has-valuesは同期]
+  Fresh --> Projection[親readonly Room投影 / get-has-valuesは同期 / Owner全体はbot答で縮めない]
   Child --> History[同snapshot全件history stream]
   History --> Index[親一回読取 / 既TimelineIndex / usage cardsは親合成]
   Native[親実observer / captured system口] --> Display[専用callback lane display.words]
   Display --> Child
 ```
 
-Roomのget/has/values/keys/entries/require/sizeは同期の表示投影だけ。refresh/readの成功後に更新し、部屋定義とmemberIds配列はreadonlyとする。新規認可には使わず、HTTP/MCP/予定は同親contextでfreshを待ち、子も既資格を検査する。削除成功後は当該投影を除き、members removeBot後は全投影を失効させ次freshへ。履歴list2をonChunkで一回集成し既JSON reader/TimelineIndexへ渡し、件数/本文の新上限や二回目のJSON生成を足さない。複数BotのtimelineViewsは各既rootのsnapshotで、全Bot同一瞬間の新transaction保証を作らない。
+Roomのget/has/values/keys/entries/require/sizeは同期の表示投影だけ。refresh/readの成功後に更新し、部屋定義とmemberIds配列はreadonlyとする。投影は全actor共有のOwner全体一覧で、bot以外（Owner/予定など）の`rooms.list`答だけが置き換える。子はbot actorの`rooms.list`を参加部屋へ絞るので、その答は返った部屋を上書き・追加するだけで、他の部屋を消さない（11/14 部屋一覧が8件・1件・0件と揺れた原因）。bot側callerは自分の参加部屋へ自分で絞る。新規認可には使わず、HTTP/MCP/予定は同親contextでfreshを待ち、子も既資格を検査する。削除成功後は当該投影を除き、members removeBot後は全投影を失効させ次freshへ。履歴list2をonChunkで一回集成し既JSON reader/TimelineIndexへ渡し、件数/本文の新上限や二回目のJSON生成を足さない。複数BotのtimelineViewsは各既rootのsnapshotで、全Bot同一瞬間の新transaction保証を作らない。
 
 | 固定口 | 親の捕捉・入力・終端 |
 | --- | --- |

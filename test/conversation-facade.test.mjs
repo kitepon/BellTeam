@@ -73,3 +73,14 @@ test('only captured onboarding can omit the user record and display callback rej
   assert.throws(() => validateConversationRequest('display.words', { ...words, deliveryId: 'fake' }, context({ kind: 'observer' })))
   assert.throws(() => validateConversationRequest('display.words', { ...words, words: [{ text: 42 }] }, context({ kind: 'observer' })))
 })
+
+test('a Bot-scoped rooms.list answer upserts but never shrinks the Owner-wide Room projection', async () => {
+  const other = { ...room, id: 'room-b', memberIds: ['bot-b'], representativeId: 'bot-b' }
+  let answer, scoped = false
+  const f = createConversationFacade({ getController: () => ({ request: () => task(answer) }), context: () => ({}), memberScoped: () => scoped })
+  answer = { rooms: [room, other] }; await f.rooms.refresh()
+  scoped = true; answer = { rooms: [{ ...room, name: 'renamed' }] }; await f.rooms.refresh()
+  assert.deepEqual([...f.rooms.keys()], ['room-a', 'room-b']); assert.equal(f.rooms.get('room-a').name, 'renamed')
+  answer = { rooms: [] }; await f.rooms.refresh(); assert.equal(f.rooms.size, 2)
+  scoped = false; answer = { rooms: [other] }; await f.rooms.refresh(); assert.deepEqual([...f.rooms.keys()], ['room-b'])
+})

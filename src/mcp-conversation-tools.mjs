@@ -192,7 +192,7 @@ export async function callConversationTool({ name, args, from, registry, messeng
     let active = roomMessages.find(item => !args.messageId || item.groupId === args.messageId)
     if (!active && args.messageId) {
       await rooms.refresh?.()
-      for (const room of rooms.values()) {
+      for (const room of [...rooms.values()].filter(value => value.memberIds.includes(from))) {
         const message = (await rooms.messages(room.id)).find(item => item.id === args.messageId
           && item.deliveries?.some(delivery => delivery.target === from))
         if (message) {
