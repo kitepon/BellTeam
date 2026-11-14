@@ -429,8 +429,13 @@ test('parent display callback saves through the child writer without a delivery 
   const parent = createConversationParentChannel(endpoints[0], { generation: 'generation-display', admission,
     authorizeActor: (method, value) => method === 'display.words' && value === capturedAuthority ? actor
       : method === 'rooms.list' && value === rootAuthority ? { kind: 'owner' } : false,
-    onEffect: method => { assert.equal(method, 'members.profiles.read'); return { bots: h.fixture.bots } },
+    // The parent is the direct writer since the durable receipt move: the child appends display words through direct.log.append.
+    onEffect: async (method, params) => {
+      if (method === 'direct.log.append') { await logWriter.append(params.record); return { applied: true } }
+      assert.equal(method, 'members.profiles.read'); return { bots: h.fixture.bots }
+    },
     onEvent: async () => { saved.resolve(); await releaseEvent.promise } })
+  const logWriter = new ConversationWriter({ logPath: join(h.root, 'logs/direct-messages.jsonl'), onMessage: () => {} })
   dispatch = createConversationDispatcher({ root: h.root, effect: (...args) => child.effect(...args), event: (...args) => child.event(...args), trackBackground: (...args) => child.trackBackground(...args) })
   child = createConversationChildChannel({ dispatcher: { ...dispatch, dispatch: (method, ...args) => method === 'rooms.list'
     ? rootsDone.promise.then(() => dispatch.dispatch(method, ...args)) : dispatch.dispatch(method, ...args) }, endpoint: endpoints[1], versionId: null })

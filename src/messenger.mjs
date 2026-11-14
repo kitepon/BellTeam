@@ -47,7 +47,9 @@ export class BellTeamMessenger extends ConversationWriter {
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
   // askerSeat は seat MCP が解決した分身の席だけが付ける（道具の引数からは来ない）。
-  async sendmessage({ executionSource, askerSeat, ...input }, options = {}) {
+  async sendmessage({ executionSource, askerSeat, ...input }, callerOptions = {}) {
+    // The lease is the one passed at call time; a later change to the caller's object must not reach notify.
+    const options = { ...callerOptions }
     const fromSeat = forkSeatLabel(askerSeat)
     const prepared = await this.prepareDirect(input, options, fromSeat ? { from_seat: fromSeat } : null)
     if (prepared.userTurn) return this.enqueueUserTurn(prepared.userTurn)

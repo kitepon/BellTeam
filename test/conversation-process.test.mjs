@@ -38,6 +38,13 @@ async function fixture(t) {
       }
       throw new Error('unexpected parent effect')
     },
+    // Every start probes the candidate with one ordinary read, the same as conversation-assembly (module-ready-probe, 7971c7a5).
+    probeCandidate: channel => {
+      const lease = admission.enter(), done = () => admission.finish(lease)
+      const result = channel.request('rooms.list', {}, options('rooms.list', lease))
+      Promise.resolve(result.completion ?? result).then(done, done)
+      return result
+    },
     prepareRelease: async versionId => { prepared.push(versionId); return { versionId, appRoot: `/run/bellteam-maintenance/conversation/releases/${versionId}/payload` } },
     spawnProcess: (entry, args, options) => {
       assert.equal(entry, '/usr/local/libexec/bellteam-conversation-start')

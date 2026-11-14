@@ -40,7 +40,8 @@ test('user and notification callbacks persist only the accepted unknown tuple an
   assert.deepEqual(statuses.map(x => x.delivery_tracking), [tracking, tracking])
   const views = createMessageViews({ store: f.store })
   const page = await views.messagePage('bots', 'bot-a', new URL('http://fixture/?limit=20'))
-  assert.deepEqual(page, wire.direct)
+  // D1 contract (2026-11-06): a generic failed status also carries the fixed delivery_error code.
+  assert.deepEqual(page, { ...wire.direct, items: wire.direct.items.map(item => ({ ...item, delivery_error: { code: 'BOT_DELIVERY_FAILED' } })) })
   assert.equal(page.items.length, 2)
   for (const item of page.items) { assert.equal(item.delivery, 'failed'); assert.deepEqual(item.deliveryTracking, tracking); assert.equal('delivery_tracking' in item, false) }
   const result = await callConversationTool({ name: 'list_messages', args: { botId: 'bot-a' }, from: 'bot-a', registry: f.bots, store: f.store })

@@ -9,7 +9,7 @@ import { createModuleProcess } from '../src/module-process.mjs'
 import { createConversationParentChannel, waitConversationChildClose } from '../src/conversation-ipc.mjs'
 import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 
-test('real child exit releases issued callback after its effect and recovers while native remains held', { timeout: 6000 }, async t => {
+test('real child exit settles the issued callback as unknown at once and recovers while native remains held', { timeout: 6000 }, async t => {
   t.mock.method(console, 'error', () => {})
   const root = await mkdtemp(join(tmpdir(), 'callback-exit-'))
   await mkdir(join(root, 'state'))
@@ -19,6 +19,13 @@ test('real child exit releases issued callback after its effect and recovers whi
   native.promise.then(() => { nativeEnded = true })
   const controller = createModuleProcess({ component: 'conversation', root, admission: gate,
     prepareRelease: () => assert.fail('builtin needs no preparation'), validateReady() {},
+    // Every start (and recovery) probes the candidate with one ordinary read (module-ready-probe, 7971c7a5).
+    probeCandidate: channel => {
+      const probeLease = gate.enter(), done = () => gate.finish(probeLease)
+      const result = channel.request('rooms.list', {}, { conversationLease: probeLease })
+      Promise.resolve(result.completion ?? result).then(done, done)
+      return result
+    },
     initializeParams: ({ generation, mode }) => ({ generation, mode, bots: [] }),
     onState: state => { if (initialGeneration && state.available && state.generation !== initialGeneration) restored.resolve(state) },
     spawnProcess: (_path, _args, options) => {
@@ -57,7 +64,8 @@ test('real child exit releases issued callback after its effect and recovers whi
   children[0].kill('SIGUSR2'); await closes[0]; await setImmediate()
   assert.equal(children[0].exitCode, 0); assert.equal(children[0].signalCode, null)
   assert.equal(children[0].connected, false); assert(children[0].stdout.closed && children[0].stderr.closed)
-  assert.equal(callbackEnded, false); assert.equal(children.length, 1)
+  // Owner ruling 2026-11-07 (conversation/flow.md "Current conversation lifecycle"): a dead child's pending callers get their unknown outcome at once.
+  assert.equal(callbackEnded, true); assert.equal(children.length, 1)
   effect.resolve()
   await assert.rejects(callback, { code: 'CONVERSATION_CHILD_EXITED', outcome: 'unknown' })
   await assert.rejects(request.completion)
