@@ -10,6 +10,7 @@ export async function resolveBotImagePath(bot, input, { home = runtimeHome() } =
   const projectPath = resolve(bot.project, relative)
   if (await regularFile(projectPath)) return projectPath
   if (bot.harness !== 'grok') return projectPath
+  // Third-party, unofficial dependency (Owner ruling 2026-11-14): Grok CLI has no contracted interface for its session files; this is BellTeam's only read of ~/.grok/sessions.
 
   const sessionRoot = join(home, '.grok', 'sessions', encodeURIComponent(bot.project))
   let sessions

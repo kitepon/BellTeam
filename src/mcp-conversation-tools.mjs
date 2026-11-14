@@ -9,7 +9,7 @@ export const conversationTools = Object.freeze([
     inputSchema: objectSchema({
       target: { type: 'string', minLength: 1, description: '宛先Botの名前、Bot ID、またはuser' },
       message: { type: 'string', minLength: 1, description: '送るメッセージ' },
-      image: { type: 'string', minLength: 1, description: '任意の画像ファイルパス' },
+      image: { type: 'string', minLength: 1, description: '任意の画像ファイルパス。絶対パスか、自分のprojectからの相対パス。画像生成ツールが返した絶対パスはそのまま渡す' },
     }, ['target', 'message']),
   },
   {
@@ -94,7 +94,7 @@ export const conversationTools = Object.freeze([
       action: { type: 'string', enum: ['reply', 'silent'] },
       messageId: { type: 'string', minLength: 1, description: '同時に複数受信した場合の返信対象メッセージID' },
       message: { type: 'string', minLength: 1, description: 'action=replyの場合の返答全文' },
-      image: { type: 'string', minLength: 1, description: 'action=replyの場合の任意の画像ファイルパス' },
+      image: { type: 'string', minLength: 1, description: 'action=replyの場合の任意の画像ファイルパス。絶対パスか、自分のprojectからの相対パス' },
       targets: { type: 'array', items: { type: 'string', minLength: 1 }, description: 'この返信に対して返答するBotを指定する。指定した全員が返答する。省略または空配列では、TypeSafeを設定して有効にした時だけJevが返信の要否と返信者を決める。未設定・無効の時も返信は全メンバーへ届くが、返信者は選ばれず全員へsilentを指示する。返答が必要なメンバーはtargetsで指定する' },
     }, ['action']),
   },
@@ -104,7 +104,7 @@ export const conversationTools = Object.freeze([
     inputSchema: objectSchema({
       room: { type: 'string', minLength: 1 },
       message: { type: 'string', minLength: 1 },
-      image: { type: 'string', minLength: 1, description: '任意の画像ファイルパス' },
+      image: { type: 'string', minLength: 1, description: '任意の画像ファイルパス。絶対パスか、自分のprojectからの相対パス。画像生成ツールが返した絶対パスはそのまま渡す' },
       targets: { type: 'array', items: { type: 'string', minLength: 1 } },
     }, ['room', 'message']),
   },

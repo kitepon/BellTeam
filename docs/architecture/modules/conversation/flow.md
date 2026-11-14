@@ -109,6 +109,26 @@ SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDを�
 
 限定反例は`conversation-store.test.mjs`の`corruption:`群。147NULと同一行のJSONを捨てても前後行/元bytesを保持すること、byte位置/物理行、schema拒否、増分/置換、preview、診断callback故障を確認する。
 
+## 第三者Grok CLIへの非公式な依存
+
+オーナー裁定（2026-11-14）：第三者製品からデータを取る時は契約した窓口を作れない。機能は残し、読取りをBellTeam内の1か所に閉じ込め、第三者・非公式の依存として描く。要らなくなった時だけ消す。
+
+| 機能 | 入力 | 出力 | 第三者の読取り | 所有 |
+| --- | --- | --- | --- | --- |
+| resolveBotImagePath(bot,input,{home}) | Botの`image`/`path`引数 | 読む画像の絶対パス | Grok Botの相対パスがBot projectに無い時だけ、`~/.grok/sessions/<encodeURIComponent(project)>/*/<相対パス>`の最新mtimeのfile。Grok CLIの非公開の保存形式で、版が変わると見つからなくなり得る（その時はproject側のパスを返し、画像読取りが通常の「見つからない」誤りになる） | 会話・履歴（`src/bot-image-path.mjs`だけ） |
+
+呼出元：`mcp-conversation-tools.mjs`（sendmessage / sendroommessage / respond_to_room の`image`）、`members/profiles-mcp.mjs`（set_avatar の`path`、membersは関数を呼ぶだけ）。ほかのBellTeamのコードは`~/.grok/sessions/`を読まない。
+
+```mermaid
+flowchart LR
+  Bot["Grok Bot: image='images/1.jpg'"] --> Resolve["resolveBotImagePath"]
+  Resolve -->|"絶対パス"| Out["画像の絶対パス"]
+  Resolve -->|"projectに実体あり"| Out
+  Resolve -.->|"第三者・非公式: Grok Botでprojectに無い時だけ"| Grok[("Grok CLI ~/.grok/sessions/(project)/*/")]
+  Grok -.->|"最新mtimeのfile、無ければprojectのパス"| Out
+  Out --> Read["MessageAssets / avatar の画像読取り"]
+```
+
 ## 関数と確認先
 
 | 段階 | 主な実装 | 変更時に確認する試験 |
