@@ -412,4 +412,16 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(LatticeUnblockOutcome.later.note, LatticeText.stopsLater)
         XCTAssertNil(LatticeUnblockOutcome.drop.note)
     }
+
+    /// a110: a next-step chip with a long title must stay inside the row it is given, not widen the detail panel.
+    func testFlowLayoutKeepsLongChipsInsideTheProposedWidth() {
+        let long = String(repeating: "Detail panel content outside its panel ", count: 6)
+        let flow = LatticeFlowLayout(spacing: 6) {
+            Text("short").lineLimit(1)
+            Text(long).lineLimit(1)
+        }
+        let size = UIHostingController(rootView: flow).sizeThatFits(in: CGSize(width: 300, height: 1000))
+        XCTAssertLessThanOrEqual(size.width, 300)
+        XCTAssertGreaterThan(size.height, 0)
+    }
 }
