@@ -25,7 +25,7 @@ function fixture({ respond = () => null, now } = {}) {
 test('writes run one at a time in call order; reads go at once beside a write in flight', async () => {
   const f = fixture()
   const release = f.hold()
-  const writes = [f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
+  const writes = [f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
   await tick()
   const reads = [f.facade.charts(), f.facade.chart('alpha'), f.facade.blockers()]
   await tick()
@@ -33,8 +33,22 @@ test('writes run one at a time in call order; reads go at once beside a write in
   assert.deepEqual(f.calls.map(([method]) => method), ['run', 'charts', 'chart', 'blockers'])
   release()
   assert.deepEqual((await Promise.all([...writes, ...reads])).map(value => value.method), ['run', 'run', 'charts', 'chart', 'blockers'])
-  assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }],
+  assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['run', { from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'], input: null }],
     ['charts', {}], ['chart', { projectId: 'alpha' }], ['blockers', {}], ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
+})
+
+test('a seat run that writes nothing goes at once beside a write in flight; a write-looking run still queues', async () => {
+  const f = fixture()
+  const release = f.hold()
+  const write = f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'add', '--plan', 'p', '--task', 't'] })
+  await tick()
+  const reads = [f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['--version'] }), f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['status'] })]
+  const queued = f.facade.run({ from: 'bot-b', projectId: 'alpha', args: ['todo', 'note', '--plan', 'p', '--task', 't', '--message', 'm'] })
+  await tick()
+  assert.deepEqual(f.calls.map(([, params]) => params.args[0] + (params.args[1] ? ' ' + params.args[1] : '')), ['todo add', '--version', 'status'])
+  release()
+  await Promise.all([write, ...reads, queued])
+  assert.equal(f.calls.at(-1)[1].args[1], 'note')
 })
 
 test('seat writes go before queued background writes; the write in flight finishes first', async () => {
@@ -42,7 +56,7 @@ test('seat writes go before queued background writes; the write in flight finish
   const release = f.hold()
   const nudge = f.facade.nudge()
   await tick()
-  const later = [f.facade.deliver(), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.unblock({ projectId: 'alpha', stopId: 'a'.repeat(24) })]
+  const later = [f.facade.deliver(), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] }), f.facade.unblock({ projectId: 'alpha', stopId: 'a'.repeat(24) })]
   await tick()
   assert.deepEqual(f.calls.map(([method]) => method), ['nudge'])
   release()
