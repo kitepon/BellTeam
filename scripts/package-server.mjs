@@ -19,7 +19,7 @@ const archive = join(temporary, 'source.tar')
 try {
   await exec('git', ['archive', '--format=tar', '-o', archive, sourceCommit,
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src', 'web', 'integrations',
-    'config/common-agents.md', 'config/setup-guide.json', 'config/ponytail-LICENSE',
+    'config/common-agents.md', 'config/harness-products.json', 'config/setup-guide.json', 'config/ponytail-LICENSE',
     'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
     'config/notifications-verification.json', 'config/members-verification.json', 'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/execution-verification.json', 'config/conversation-verification.json', 'config/update-catalog-verification.json',
     'docs/bot-environment.md', 'docs/onboarding.md',

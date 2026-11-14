@@ -150,3 +150,8 @@ test('remove succeeded, new add failed: the previous entry is added back (claude
   assert.equal(f.reports.length, 2)
   assert.match(f.reports.join('\n'), /synthetic add failure/u)
 })
+
+test('a missing E2 registry is an error (reported by configureHarnesses), not a silent no-op', async () => {
+  const f = await fixture()
+  await assert.rejects(configureHarnessEntries(f.home, { registry: join(f.dir, 'absent.json'), run: async () => ({ stdout: '[]' }), report: () => {} }), /E2 .*absent\.json/u)
+})
