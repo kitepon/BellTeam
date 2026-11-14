@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T11:48:26Z",
-  "expiresAt": "2026-11-21T11:48:26Z",
+  "publishedAt": "2026-11-14T12:03:57Z",
+  "expiresAt": "2026-11-21T12:03:57Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "6f7551d9220ef9d0c9fdca40b194e0e91c99a7d7",
-      "versionId": "sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae",
+      "sourceCommit": "cb74b6ecf9554ad3863ccecaa93a0fb746a13efe",
+      "versionId": "sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。"
+        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
+        "会話の一覧で、子の AI の答えが出ないことがある不具合を直しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "6f7551d9220ef9d0c9fdca40b194e0e91c99a7d7",
-      "versionId": "sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae",
+      "sourceCommit": "cb74b6ecf9554ad3863ccecaa93a0fb746a13efe",
+      "versionId": "sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:653c2fe5e9b72afbb0d233b2064ec572dc95338cd3ebbb5c77341e6e64a51dae"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,13 +747,14 @@
         "containerUpdate": 1
       },
       "changes": [
-        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。"
+        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
+        "会話の一覧で、子の AI の答えが出ないことがある不具合を直しました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "6995a0d01a8e3ced973e88be8913bde2d2b85a33",
-      "versionId": "20bef34e1c553f2deb303c76f4099717491ab2b7e4e42b05fcbbeae3f5e4d2fc",
+      "sourceCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be",
+      "versionId": "0e109de70ae7e1f0509130ebb053e26fbcd5a75e15a12de31f53a7f42b1cd15f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T110824Z/lattice-6995a0d01a8e3ced973e88be8913bde2d2b85a33-linux-amd64.tar.gz",
-          "bytes": 15292740,
-          "sha256": "20bef34e1c553f2deb303c76f4099717491ab2b7e4e42b05fcbbeae3f5e4d2fc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-amd64.tar.gz",
+          "bytes": 15292888,
+          "sha256": "0e109de70ae7e1f0509130ebb053e26fbcd5a75e15a12de31f53a7f42b1cd15f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T110824Z/lattice-6995a0d01a8e3ced973e88be8913bde2d2b85a33-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "693df760dc932432e36c6aa96310c0ebf6f2db692ccaca65624ffaadcb95a224"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11141,
+          "sha256": "d98e2dd23204ed0e8d24199eeeaffccb7e5a80967c0671b0518f5509c9979fa4"
         },
-        "signerCommit": "6995a0d01a8e3ced973e88be8913bde2d2b85a33"
+        "signerCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,14 +783,13 @@
         }
       },
       "changes": [
-        "工程表の名前と作成者を、工程表の公式の設定へ移しました。",
-        "オーナー担当の工程の記録を、新しい置き場所へ移しました。"
+        "工程表の一覧を、工程表ごとにまとめて並べて読むようにして、表示を速くしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "6995a0d01a8e3ced973e88be8913bde2d2b85a33",
-      "versionId": "45c7f9199daf6fd4a834636b0564e24bbe53004dedd161e909be430ccb13d4d6",
+      "sourceCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be",
+      "versionId": "e884b391f416440aed0d1ef4d1959ac6ba40d4ea5b708d1c92f26f198ee32ca2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -796,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T110824Z/lattice-6995a0d01a8e3ced973e88be8913bde2d2b85a33-linux-arm64.tar.gz",
-          "bytes": 15292734,
-          "sha256": "45c7f9199daf6fd4a834636b0564e24bbe53004dedd161e909be430ccb13d4d6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-arm64.tar.gz",
+          "bytes": 15292887,
+          "sha256": "e884b391f416440aed0d1ef4d1959ac6ba40d4ea5b708d1c92f26f198ee32ca2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T110824Z/lattice-6995a0d01a8e3ced973e88be8913bde2d2b85a33-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "ccfb2eb6e8014cd12de770933603950885462ace7ab2566f1374bf482ea27506"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T120336Z/lattice-bb698c06473f2685991e4d4faa3a726cf93e36be-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11141,
+          "sha256": "7b5f511ae22fce0dce46917557a76c7d9f05d581db9593c71c1eba03a4873052"
         },
-        "signerCommit": "6995a0d01a8e3ced973e88be8913bde2d2b85a33"
+        "signerCommit": "bb698c06473f2685991e4d4faa3a726cf93e36be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -817,8 +818,7 @@
         }
       },
       "changes": [
-        "工程表の名前と作成者を、工程表の公式の設定へ移しました。",
-        "オーナー担当の工程の記録を、新しい置き場所へ移しました。"
+        "工程表の一覧を、工程表ごとにまとめて並べて読むようにして、表示を速くしました。"
       ]
     }
   ],
