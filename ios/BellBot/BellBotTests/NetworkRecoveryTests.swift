@@ -140,6 +140,9 @@ final class NetworkRecoveryTests: XCTestCase {
         store.phase = .ready
         await store.refreshFromView(origin: .homePull, refreshSubscription: false)
         XCTAssertEqual(scenario.count("/api/bots"), 1)
+        #if !targetEnvironment(macCatalyst)
+        XCTAssertEqual(scenario.reports.count, 0, "iPhone・iPadは裏で始まった時間切れを報告しない（isSuspendedTimeout）")
+        #else
         XCTAssertEqual(scenario.reports.count, 1)
         let log = try XCTUnwrap(scenario.reports.first?.log)
         XCTAssertTrue(log.contains("operation=member_list_read"))
@@ -161,6 +164,7 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertLessThanOrEqual(changed, called)
         XCTAssertLessThanOrEqual(called, started)
         XCTAssertFalse(log.contains("network.test.invalid"))
+        #endif
     }
 
     func testGoalListFailureDirectReportIncludesCallerContext() async {
@@ -206,6 +210,9 @@ final class NetworkRecoveryTests: XCTestCase {
                                    diagnosticContext: context.log)
         }
         XCTAssertEqual(scenario.count("/api/bots/bot-network/goal"), 1)
+        #if !targetEnvironment(macCatalyst)
+        XCTAssertEqual(scenario.reports.count, 0, "iPhone・iPadは裏で始まった時間切れを報告しない（isSuspendedTimeout）")
+        #else
         let log = scenario.reports.first?.log ?? ""
         XCTAssertTrue(log.contains("goal_load_trigger=chat_foreground"))
         XCTAssertTrue(log.contains("goal_view_phase_at_call=active"))
@@ -231,6 +238,7 @@ final class NetworkRecoveryTests: XCTestCase {
         attachment.name = "人工Goal個別timeoutのcall→状態変更→試行の原文"
         attachment.lifetime = .keepAlways
         add(attachment)
+        #endif
     }
 
     func testForegroundGoalReadCancelsStaleGETAndWaitsBeforeNewActiveGET() async {
@@ -838,13 +846,15 @@ final class NetworkRecoveryTests: XCTestCase {
     }
 
     private func makeAPI(_ scenario: NetworkScenario) -> BellAPI {
-        NetworkScenarioProtocol.scenario = scenario
+        NetworkScenarioProtocol.register(scenario)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [NetworkScenarioProtocol.self]
         // A simulated timedOut runs out this short timer; an early one (dead shared connection) fails at once.
         if scenario.failureCode == .timedOut, !scenario.earlyTimeout { configuration.timeoutIntervalForRequest = 0.2 }
+        configuration.httpAdditionalHeaders = [NetworkScenarioProtocol.header: scenario.id]
+        // Not invalidated at teardown: a cancelled AppStore task may still create a request, and on an invalidated
+        // session that raises an ObjC exception that kills the test host. Its requests stay with its own scenario.
         let session = URLSession(configuration: configuration)
-        addTeardownBlock { session.invalidateAndCancel() }
         let diagnostics = BellDiagnostics { code, _, _, log in scenario.record(code: code, log: log) }
         return BellAPI(baseURL: URL(string: "https://network.test.invalid")!, session: session, diagnostics: diagnostics)
     }
@@ -860,6 +870,7 @@ private struct SyntheticPushDevice: Encodable {
 private struct SyntheticPushRegistration: Decodable { let registered: Bool }
 
 private final class NetworkScenario {
+    let id = UUID().uuidString
     private let lock = NSLock()
     private var counts: [String: Int] = [:]
     private var storedReports: [(code: String, log: String)] = []
@@ -948,24 +959,32 @@ private final class NetworkScenario {
 }
 
 private final class NetworkScenarioProtocol: URLProtocol {
-    static var scenario: NetworkScenario!
+    static let header = "X-Network-Scenario"
+    private static let lock = NSLock()
+    private static var scenarios: [String: NetworkScenario] = [:]
+    static func register(_ scenario: NetworkScenario) { lock.lock(); scenarios[scenario.id] = scenario; lock.unlock() }
+    private var scenario: NetworkScenario {
+        Self.lock.lock(); defer { Self.lock.unlock() }
+        return Self.scenarios[request.value(forHTTPHeaderField: Self.header)!]!
+    }
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "network.test.invalid" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
     override func startLoading() {
-        if let hold = Self.scenario.holdPath, request.url!.path == hold { _ = try? Self.scenario.response(request); return }
+        let scenario = self.scenario
+        if let hold = scenario.holdPath, request.url!.path == hold { _ = try? scenario.response(request); return }
         do {
-            let (data, mime) = try Self.scenario.response(request)
-            let url = Self.scenario.accessExpired ? URL(string: "https://test.cloudflareaccess.com/cdn-cgi/access/login")! : request.url!
-            let status = Self.scenario.events502ThenReady && request.url!.path == "/api/events"
-                && Self.scenario.count("/api/events") == 1 ? Self.scenario.eventsFirstStatus : Self.scenario.httpStatus
+            let (data, mime) = try scenario.response(request)
+            let url = scenario.accessExpired ? URL(string: "https://test.cloudflareaccess.com/cdn-cgi/access/login")! : request.url!
+            let status = scenario.events502ThenReady && request.url!.path == "/api/events"
+                && scenario.count("/api/events") == 1 ? scenario.eventsFirstStatus : scenario.httpStatus
             let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": mime])!
             client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client!.urlProtocol(self, didLoad: data)
-            if !(Self.scenario.holdEventsOpen && request.url!.path == "/api/events" && status == 200) {
+            if !(scenario.holdEventsOpen && request.url!.path == "/api/events" && status == 200) {
                 client!.urlProtocolDidFinishLoading(self)
             }
-        } catch let error as URLError where error.code == .timedOut && !Self.scenario.earlyTimeout {
+        } catch let error as URLError where error.code == .timedOut && !scenario.earlyTimeout {
             // Stay silent: URLSession's own short timer (makeAPI) ends the request with a real timedOut.
         } catch { client!.urlProtocol(self, didFailWithError: error) }
     }

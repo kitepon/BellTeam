@@ -362,9 +362,9 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testLostGETIsRetriedOnceWithoutReportingRecoveredFailure](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L80) | GET接続喪失1回だけ再取得、回復は報告無し |
 | [testEarlyTimedOutGETIsRetriedOnceLikeALostConnection](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L88) | 計時より早いGET timeout（死んだ共有接続）は接続喪失と同じく1回だけ再取得、回復は報告無し。計時を使い切るtimeoutは試験の短い計時（0.2秒）で再現 |
 | [testRepeatedLostGETReportsOnceAndIncludesAnonymousContext](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L88) | 連続GET喪失は2試行・診断1件、既存値保持と匿名化した各試行記録 |
-| [testBackgroundMemberListTimeoutRecordsItsCaller](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L127) | 背景の名簿timeoutに呼出元/時計/状態revisionを保持 |
+| [testBackgroundMemberListTimeoutRecordsItsCaller](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L127) | 背景の名簿timeout：iPhone・iPadは報告しない（isSuspendedTimeout）、Macは呼出元/時計/状態revisionを保持 |
 | [testGoalListFailureDirectReportIncludesCallerContext](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L158) | 合成goal一覧2試行の直接診断にcallerを含めquery秘密を隠す（UI未再現） |
-| [testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L185) | goal呼出→scene変化→試行の連続時計順序と状態revisionを記録 |
+| [testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L185) | 背景で始まったgoal timeout：iPhone・iPadは報告しない、Macはgoal呼出→scene変化→試行の連続時計順序と状態revisionを記録 |
 | [testForegroundGoalReadCancelsStaleGETAndWaitsBeforeNewActiveGET](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L228) | 前景goalは旧処理終了待ち、新activeのGETだけ開始 |
 | [testGoalViewTaskCancellationDoesNotCancelItsReplacement](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L260) | view task取消を自分の子へ伝え、置換後の読取は取消さない |
 | [testInactiveGoalViewTaskDoesNotStartOrCancelCurrentRead](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L314) | 非activeのview taskはload未開始、既存読取も取消さない |
