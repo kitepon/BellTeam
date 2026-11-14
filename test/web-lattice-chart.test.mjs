@@ -79,6 +79,9 @@ test('消えた工程（archived）はツリーにも担当にも描かず、過
   assert.equal(tree.links.find(l => l.to === 'p1/t03').from, 'phase:p1/b', '消えた親の子は自分のまとまりへ')
   assert.equal(layoutChart(snap).cards.has('p1/t01'), false)
   assert.deepEqual([chartCounts(snap).total, chartCounts(snap).done], [5, 1], '分数は消えた工程を数えない（a96）')
+  // サーバーの counted（a96、木ごと）：消えた札でも木がまだ終わっていなければ数え、終わった木の札は数えない。
+  const trees = { ...snap, cards: snap.cards.map(c => ({ ...c, counted: c.id !== 'p1/t06' })) }
+  assert.deepEqual([chartCounts(trees).total, layoutTree(trees, 'x').nodes[0].total], [5, 5], 'archived p1/t01 counts while its tree is open; p1/t06 does not')
   assert.deepEqual([tree.nodes[0].done, tree.nodes[0].total, tree.nodes.find(n => n.key === 'phase:p1/b').total], [1, 5, 5], 'ツリーの根も上の分数と同じ数')
   const past = historyRows(snap, BASE)
   assert.equal(past.count, 2)

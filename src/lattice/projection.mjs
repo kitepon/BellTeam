@@ -54,7 +54,7 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
         producer: (status === 'done' || status === 'retired') && lane ? assigned(lane) : start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
         blockedReason: status === 'blocked' ? text(entry.blocked_reason) : null, depth: 0,
         phase: phaseIds.has(task.phase_id) ? `${key}/${task.phase_id}` : null, parent: null,
-        doneAt: status === 'done' ? stamp(entry?.done_at) ?? changed.get(taskId) ?? null : status === 'retired' ? changed.get(taskId) ?? null : null, archived: false })
+        doneAt: status === 'done' ? stamp(entry?.done_at) ?? changed.get(taskId) ?? null : status === 'retired' ? changed.get(taskId) ?? null : null, archived: false, counted: true })
       if (text(task.parent_task_id)) parents.set(`${key}/${taskId}`, `${key}/${task.parent_task_id}`)
     }
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
@@ -96,9 +96,15 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
   for (const card of cards.values()) {
     if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => externals.get(id)?.finished ?? finished(cards.get(id)))) card.state = 'ready'
   }
-  // Archived = finished and no next card is still unstarted (Owner 2026-11-12); the screens leave it to 過去ログ.
+  // Trees come from Lattice (display read `trees`, 0.100.0; Owner: BellTeam computes no trees). A card in no tree is a tree of one.
+  const treeOf = new Map((read?.store ? read.trees ?? [] : []).flatMap(tree => (tree?.tasks ?? []).map(task => [`${task?.plan_key}/${task?.task_id}`, tree])))
+  const treeDone = card => { const tree = treeOf.get(card.id); return tree ? Number(tree.finished) >= Number(tree.total) : finished(card) }
+  // Owner 2026-11-14 (README Projection rules): a finished card leaves once all its next cards are finished; one with no next card leaves
+  // with its finished tree. Every task of a tree not fully finished is counted, hidden ones included.
   for (const card of cards.values()) {
-    card.archived = finished(card) && (next.get(card.id) ?? []).every(id => !['pending', 'ready'].includes(cards.get(id).state))
+    const after = next.get(card.id) ?? []
+    card.archived = finished(card) && (after.length ? after.every(id => finished(cards.get(id))) : treeDone(card))
+    card.counted = !treeDone(card)
   }
   const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).filter(from => cards.has(from)).length]))
   for (const queue = [...open].filter(([, n]) => n === 0).map(([id]) => id); queue.length;) {
@@ -115,10 +121,10 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
       since: later(maker.changedAt, waiter.changedAt) }
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
   // Fractions count only what the tree shows: the archived flag above, no second rule (Owner 2026-11-14, task a96).
-  const all = [...cards.values()], shown = all.filter(card => !card.archived), count = state => shown.filter(card => card.state === state).length
+  const all = [...cards.values()], counted = all.filter(card => card.counted), count = state => counted.filter(card => card.state === state).length
   return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases, externals: [...externals.values()],
     memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer)].filter(id => id && id !== 'owner'))].sort(),
-    counts: { total: shown.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
+    counts: { total: counted.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
       waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size },
     createdBy: first?.agent ?? previous?.createdBy ?? null, updatedAt: updatedAt ?? previous?.updatedAt ?? null }
 }
