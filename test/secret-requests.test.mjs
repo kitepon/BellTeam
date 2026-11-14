@@ -202,7 +202,7 @@ test('HTTP認証・HTTPS・専用入力経路・SSE・一覧・診断に秘密�
   const body = JSON.stringify({ value })
   assert.equal((await fetch(`${base}${path}`, { method: 'POST', body })).status, 401)
   assert.equal((await fetch(`${base}${path}`, { method: 'POST', headers: { ...headers, 'x-forwarded-proto': 'http' }, body })).status, 426)
-  assert.equal((await fetch(`${base}${path}`, { method: 'POST', headers: { ...headers, 'sec-fetch-site': 'cross-site' }, body })).status, 400)
+  assert.equal((await fetch(`${base}${path}`, { method: 'POST', headers: { ...headers, 'sec-fetch-site': 'cross-site' }, body })).status, 403)
   assert.equal((await fetch(`${internal}${path}`, { method: 'POST', headers, body })).status, 405)
   const registered = await fetch(`${base}${path}`, { method: 'POST', headers, body })
   assert.equal(registered.status, 200)
