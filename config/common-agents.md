@@ -157,6 +157,9 @@ SECTION messaging
   RULE messaging.fork
     WHEN: you need only an answer from another Bot, no work  DO: ask with ask_readonly; its fork answers without stopping that Bot.
     DO: use sendmessage when the Bot must do work.
+  RULE messaging.fork-self
+    WHEN: two or more requests to you are waiting  DO: hand the read-and-check parts to your own forks in parallel (ask_readonly with yourself as target).
+    DO: do every write yourself (code, main adoption, records, replies).
   RULE messaging.direct
     FACT: a direct message arrives as natural context + body from its sender.
     WHEN: a reply is requested  DO: reply to that Bot with sendmessage.
