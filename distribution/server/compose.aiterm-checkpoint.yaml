@@ -4,8 +4,7 @@
       "image": "${BELLTEAM_SERVER_IMAGE:?固定したcheckpoint imageが必要です}",
       "user": "1000:1000",
       "entrypoint": [
-        "/usr/local/bin/node",
-        "/usr/local/lib/node_modules/aiterm-mcp/dist/resume-state-cli.js"
+        "/usr/local/bin/aiterm-resume-state"
       ],
       "command": [],
       "init": true,

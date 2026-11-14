@@ -108,7 +108,7 @@ else if(a[0]==='run'){
    const source=a[a.indexOf('--mount')+1].match(/^type=bind,source=(.*),target=\/runtime$/)[1];
    fs.mkdirSync(source+'/server-only',{recursive:true});process.exit(0);
   }
-  if(e.TEST_H1&&j>=0&&a[j+1].includes('resume-state-cli.js'))process.exit(0);
+  if(e.TEST_H1&&j>=0&&a[j+1].includes('aiterm-resume-state'))process.exit(0);
   if(e.TEST_H1&&j>=0&&a[j+1].includes('r="/usr/local/lib/node_modules/aiterm-mcp"')){
    const code=a[j+1].replace('r="/usr/local/lib/node_modules/aiterm-mcp"','r='+JSON.stringify(root+'/reader/'+a[j-1].slice(7)+'/aiterm-mcp'));
    const r=spawnSync(process.execPath,['-e',code],{stdio:'inherit'});process.exit(r.status??98);

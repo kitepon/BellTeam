@@ -13,7 +13,7 @@ resume_prepare() {
   fi
   [ -n "$resume_preserve" ] || resume_plan || return 1
   docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$image" -e '
-const fs=require("fs"),p="/usr/local/lib/node_modules/aiterm-mcp/";if(require(p+"package.json").bin?.["aiterm-resume-state"]!=="dist/resume-state-cli.js"||!fs.statSync(p+"dist/resume-state-cli.js").isFile())process.exit(1)'
+if(typeof require("/usr/local/lib/node_modules/aiterm-mcp/package.json").bin?.["aiterm-resume-state"]!=="string"||!require("fs").statSync("/usr/local/bin/aiterm-resume-state").isFile())process.exit(1)'
   if [ -z "$resume_preserve" ] && ! docker volume inspect "$resume_volume" >/dev/null 2>&1; then
     docker volume create --driver local --label "com.docker.compose.project=$project" --label bellteam.role=aiterm-state "$resume_volume" >/dev/null
   fi
@@ -30,7 +30,7 @@ const fs=require("fs"),p="/usr/local/lib/node_modules/aiterm-mcp/";if(require(p+
       --entrypoint /usr/local/bin/node "$image" -e 'console.log(JSON.parse(require("fs").readFileSync(0)).source_image)')
     for candidate in "$source_image";do
       docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$candidate" \
-        -e 'if(!require("fs").statSync("/usr/local/lib/node_modules/aiterm-mcp/dist/resume-state-cli.js").isFile())process.exit(1)'
+        -e 'if(!require("fs").statSync("/usr/local/bin/aiterm-resume-state").isFile())process.exit(1)'
     done
   fi
 }
