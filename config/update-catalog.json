@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T05:36:06Z",
-  "expiresAt": "2026-11-21T05:36:06Z",
+  "publishedAt": "2026-11-14T05:47:13Z",
+  "expiresAt": "2026-11-21T05:47:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1",
-      "versionId": "sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c",
+      "sourceCommit": "a1ca75656c7c4584be8aab933540a6d5c33ba934",
+      "versionId": "sha256:6a3b8a8e5f7e5103d4eadbf7d0642a8c75ea87137340a2240688c6a9b93bdca6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6a3b8a8e5f7e5103d4eadbf7d0642a8c75ea87137340a2240688c6a9b93bdca6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude のモデルの別名で、版の付いた選ぶ画面でも一番新しい行を選ぶようにしました。選ぶ画面で断られたときは、理由がすぐ伝わります。"
+        "工程表への呼び出しで、Bot が待っている操作を先に送り、読み取りは書き込みを待たずに送るようにしました。50 秒以上待った書き込みは送らず、あとから二重に書かれることがなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1",
-      "versionId": "sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c",
+      "sourceCommit": "a1ca75656c7c4584be8aab933540a6d5c33ba934",
+      "versionId": "sha256:6a3b8a8e5f7e5103d4eadbf7d0642a8c75ea87137340a2240688c6a9b93bdca6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6a3b8a8e5f7e5103d4eadbf7d0642a8c75ea87137340a2240688c6a9b93bdca6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,13 +748,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude のモデルの別名で、版の付いた選ぶ画面でも一番新しい行を選ぶようにしました。選ぶ画面で断られたときは、理由がすぐ伝わります。"
+        "工程表への呼び出しで、Bot が待っている操作を先に送り、読み取りは書き込みを待たずに送るようにしました。50 秒以上待った書き込みは送らず、あとから二重に書かれることがなくなります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
-      "versionId": "c105e44effa19207c3de4c48b3cebbe97b1d35e9950fb18953966f5b7a783322",
+      "sourceCommit": "a1ca75656c7c4584be8aab933540a6d5c33ba934",
+      "versionId": "7649829757fe0c9be3c36b621704626226811cd559ba667a6d709991a60cac9a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-amd64.tar.gz",
-          "bytes": 15271230,
-          "sha256": "c105e44effa19207c3de4c48b3cebbe97b1d35e9950fb18953966f5b7a783322"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T054432Z/lattice-a1ca75656c7c4584be8aab933540a6d5c33ba934-linux-amd64.tar.gz",
+          "bytes": 15271910,
+          "sha256": "7649829757fe0c9be3c36b621704626226811cd559ba667a6d709991a60cac9a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11188,
-          "sha256": "68c00ce9fecdff0596d8a7e886a3510cb4411054d3235df08eae8bed144764ab"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T054432Z/lattice-a1ca75656c7c4584be8aab933540a6d5c33ba934-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11290,
+          "sha256": "35ae1666dbb14fbebbc6160f9af14a44701f8f2cfb187127b10fa4af9d2a9527"
         },
-        "signerCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed"
+        "signerCommit": "a1ca75656c7c4584be8aab933540a6d5c33ba934"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表で作業を取り下げたり済みにしたりすると、評価者様への申請が自動で取り消されます。"
+        "工程表の読み取りは、書き込みの途中でも待たずに返すようにしました。工程表の一覧と表示がすぐ出ます。進み具合の分数は、まだ残っている工程だけを数えます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed",
-      "versionId": "3eeda6f911a822c51b03529d001dc17ab401eed77d472a5e3aac1fba19de98d6",
+      "sourceCommit": "a1ca75656c7c4584be8aab933540a6d5c33ba934",
+      "versionId": "45c9bfad52ebe5044bc3405e5f9cd08bdd94a388e1c55e3c5f210bfce695b30d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-arm64.tar.gz",
-          "bytes": 15271245,
-          "sha256": "3eeda6f911a822c51b03529d001dc17ab401eed77d472a5e3aac1fba19de98d6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T054432Z/lattice-a1ca75656c7c4584be8aab933540a6d5c33ba934-linux-arm64.tar.gz",
+          "bytes": 15271904,
+          "sha256": "45c9bfad52ebe5044bc3405e5f9cd08bdd94a388e1c55e3c5f210bfce695b30d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T144135Z/lattice-fc236518afb16a51db7cd8e195f6230e419fb6ed-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11145,
-          "sha256": "644638c67b6efc1178a89ccabf30d49e4b3b82dcc20c9e84294676e457abbef1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T054432Z/lattice-a1ca75656c7c4584be8aab933540a6d5c33ba934-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11231,
+          "sha256": "3dba551714bb772c9bd8105b7758dd11e0713af6d567609b4b41c23a8b369b67"
         },
-        "signerCommit": "fc236518afb16a51db7cd8e195f6230e419fb6ed"
+        "signerCommit": "a1ca75656c7c4584be8aab933540a6d5c33ba934"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表で作業を取り下げたり済みにしたりすると、評価者様への申請が自動で取り消されます。"
+        "工程表の読み取りは、書き込みの途中でも待たずに返すようにしました。工程表の一覧と表示がすぐ出ます。進み具合の分数は、まだ残っている工程だけを数えます。"
       ]
     }
   ],
