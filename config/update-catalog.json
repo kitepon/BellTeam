@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T10:03:06Z",
-  "expiresAt": "2026-11-21T10:03:06Z",
+  "publishedAt": "2026-11-14T10:08:03Z",
+  "expiresAt": "2026-11-21T10:08:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -755,8 +755,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894",
-      "versionId": "7ae222563ee8a5599294a40fa3f08fe34ea02f891efa28f4bdbff4a62617cedd",
+      "sourceCommit": "f5923af4f8903b77e02b68e1bafc9722b70c0cc8",
+      "versionId": "78785f8aa3e719e2045dee60b2997b10db6def2081a95009bb5b890a0e6ea026",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085936Z/lattice-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-amd64.tar.gz",
-          "bytes": 15280265,
-          "sha256": "7ae222563ee8a5599294a40fa3f08fe34ea02f891efa28f4bdbff4a62617cedd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T100734Z/lattice-f5923af4f8903b77e02b68e1bafc9722b70c0cc8-linux-amd64.tar.gz",
+          "bytes": 15280679,
+          "sha256": "78785f8aa3e719e2045dee60b2997b10db6def2081a95009bb5b890a0e6ea026"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085936Z/lattice-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "b4bd433beac4259ac4c982091b97d84fb4c88cba7a56ca4212862fd67f3fed72"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T100734Z/lattice-f5923af4f8903b77e02b68e1bafc9722b70c0cc8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "4472b02d95476043cd5d79c8a662d46239097f5a95909b675735bde38276a60b"
         },
-        "signerCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894"
+        "signerCommit": "f5923af4f8903b77e02b68e1bafc9722b70c0cc8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,14 @@
         }
       },
       "changes": [
-        "工程表で、数で数える工程（何件中何件）の進み具合を扱えるようにしました。"
+        "工程表で、数で数える工程（何件中何件）の進み具合を扱えるようにしました。",
+        "オーナー担当の工程は、Approval Box に直接出さず、工程表を作った Bot に分かりやすい言葉で頼み直してもらうようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894",
-      "versionId": "004523a66713aa9ecdab6fee17d8a116bd37c1a03d6d55a3012492f20df7fce4",
+      "sourceCommit": "f5923af4f8903b77e02b68e1bafc9722b70c0cc8",
+      "versionId": "3b7dfd221a5dbc8ff715456e9c41ef9ae66cd18076359b9f4ee3d59f68eacbe1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +800,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085936Z/lattice-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-arm64.tar.gz",
-          "bytes": 15280269,
-          "sha256": "004523a66713aa9ecdab6fee17d8a116bd37c1a03d6d55a3012492f20df7fce4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T100734Z/lattice-f5923af4f8903b77e02b68e1bafc9722b70c0cc8-linux-arm64.tar.gz",
+          "bytes": 15280678,
+          "sha256": "3b7dfd221a5dbc8ff715456e9c41ef9ae66cd18076359b9f4ee3d59f68eacbe1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T085936Z/lattice-7ea6dd10520271d6c8b7d1a0305b8da041514894-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "ee7922d8200effe86e36e869799b300c2e81ed1ab5a2ef69789319e1063ae6af"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T100734Z/lattice-f5923af4f8903b77e02b68e1bafc9722b70c0cc8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "9d05e8b6aadd9c8c910cece6ffb402e5b1643fa4b5d00ee97aeece25bbde6d34"
         },
-        "signerCommit": "7ea6dd10520271d6c8b7d1a0305b8da041514894"
+        "signerCommit": "f5923af4f8903b77e02b68e1bafc9722b70c0cc8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +821,8 @@
         }
       },
       "changes": [
-        "工程表で、数で数える工程（何件中何件）の進み具合を扱えるようにしました。"
+        "工程表で、数で数える工程（何件中何件）の進み具合を扱えるようにしました。",
+        "オーナー担当の工程は、Approval Box に直接出さず、工程表を作った Bot に分かりやすい言葉で頼み直してもらうようにしました。"
       ]
     }
   ],
