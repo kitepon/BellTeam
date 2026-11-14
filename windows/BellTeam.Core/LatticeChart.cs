@@ -59,8 +59,11 @@ public sealed record LatticeCard
     public string? Phase { get; init; }
     public string? Parent { get; init; }
     public DateTimeOffset? DoneAt { get; init; }
-    /// <summary>Finished and none of its next cards is still unstarted: left out of the tree and lanes, kept for 詳細, links, 過去ログ and counts.</summary>
+    /// <summary>Left out of the tree and lanes by the server's rule, kept for 詳細, links and 過去ログ.</summary>
     public bool Archived { get; init; }
+    /// <summary>In the progress fractions: its tree is not fully finished (hidden cards included; a96). Null from an older child = not archived.</summary>
+    public bool? Counted { get; init; }
+    public bool IsCounted => Counted ?? !Archived;
 }
 public sealed record LatticePhase(string Id, string? Title);
 public sealed record LatticeEdge(string From, string To, bool Waiting, bool External = false);
@@ -198,6 +201,7 @@ public static class LatticeChart
         // Archived cards are not drawn; a phase whose cards are all archived is not drawn; an archived parent's children hang from their phase.
         var all = snapshot.Cards.GroupBy(card => card.Id).Select(group => group.First()).ToList();
         var byId = all.Where(card => !card.Archived).ToDictionary(card => card.Id);
+        var counted = all.Where(card => card.IsCounted).ToList();
         var drafts = new Dictionary<string, Draft> { ["root"] = new("root", "root", name, null, TreeRootWidth) };
         foreach (var phase in snapshot.Phases.Where(phase => !all.Any(card => card.Phase == phase.Id) || byId.Values.Any(card => card.Phase == phase.Id))) drafts.TryAdd("phase:" + phase.Id, new("phase:" + phase.Id, "phase", phase.Title is { Length: > 0 } title ? title : UnnamedPhase, null, TreePhaseWidth));
         foreach (var card in byId.Values) drafts.TryAdd(card.Id, new(card.Id, "card", Title(card), card, TreeCardWidth));
@@ -216,8 +220,8 @@ public static class LatticeChart
         Place("root", TreeLeft);
         var nodes = drafts.Values.Where(draft => seen.Contains(draft.Key)).Select(draft =>
         {
-            // done/total count every card, archived included, like the ring: the chart all of them, a phase the cards of that phase.
-            var inside = draft.Kind switch { "card" => [], "root" => all, _ => all.Where(card => "phase:" + card.Phase == draft.Key).ToList() };
+            // done/total count the counted cards (a96), like the ring: the chart all of them, a phase the cards of that phase.
+            var inside = draft.Kind switch { "card" => [], "root" => counted, _ => counted.Where(card => "phase:" + card.Phase == draft.Key).ToList() };
             return new LatticeTreeNode(draft.Key, draft.Kind, draft.Label, draft.Card, draft.X, draft.Y, draft.Width, TreeBoxHeight, inside.Count(card => Finished(card.State)), inside.Count, PhaseTone(inside));
         }).ToList();
         var placed = nodes.ToDictionary(node => node.Key);
@@ -273,9 +277,11 @@ public static class LatticeChart
 
     public static LatticeCounts Counts(LatticeSnapshot snapshot)
     {
+        // Only counted cards (a96); an uncounted card is in a finished tree, so working / waiting / blocked are unchanged.
         var waiting = snapshot.Edges.Where(edge => edge.Waiting).Select(edge => edge.To).ToHashSet();
-        return new(snapshot.Cards.Length, snapshot.Cards.Count(card => Finished(card.State)), snapshot.Cards.Count(card => card.State == "in-progress"),
-            snapshot.Cards.Count(card => waiting.Contains(card.Id)), snapshot.Cards.Count(card => card.State == "blocked"));
+        var cards = snapshot.Cards.Where(card => card.IsCounted).ToList();
+        return new(cards.Count, cards.Count(card => Finished(card.State)), cards.Count(card => card.State == "in-progress"),
+            cards.Count(card => waiting.Contains(card.Id)), cards.Count(card => card.State == "blocked"));
     }
 
     /// <summary>作業中 N分 / 止まり: 理由 / 未着手: 担当 ◯◯ / 担当なし.</summary>
