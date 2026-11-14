@@ -359,6 +359,22 @@ test('メンバーの工程表ボタン：open(projectId) は一覧の読み取�
   ui.view.close()
 })
 
+test('閉じて開き直す前の一覧の答えは、次に開いた工程表の一覧にしない（a90）', async t => {
+  const feedA = sse(), feedB = sse(), net = router({ streams: [feedA, feedB] })
+  const answers = []
+  const ui = setup(t, { api: () => new Promise(resolve => answers.push(resolve)), fetchImage: net.fetchImage })
+  ui.view.open('bellteam'); await flush()
+  ui.dialog.close()
+  ui.view.open('other'); await flush()
+  feedB.snapshot({ ...fixture(), coordinator: false }); await flush()
+  answers[0](chartsList('stale')); await flush()
+  answers[1](chartsList('bellteam', 'other')); await flush()
+  byClass(ui.body, 'lattice-all')[0].click(); await flush()
+  const names = byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').map(el => el.dataset.focusKey)
+  assert.deepEqual(names, ['bellteam', 'other'], '古い答え（stale）を捨て、今開いている回の答えを使う')
+  ui.view.close()
+})
+
 test('待ちの流れ（広い画面）：畳んだ取っ手（数、止まりがあれば赤）から始まり、取っ手で開き×で畳む。開き直しても覚えている', async t => {
   const feed = sse(), feed2 = sse(), net = router({ streams: [feed, feed2] })
   const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage })

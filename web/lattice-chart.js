@@ -130,6 +130,7 @@ export function createLatticeChart(dialog, {
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
   let stops = null, pendingDetail = null // 止め一覧の画面、止め一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
+  let opens = 0 // 開いた回数。閉じて開き直す前の一覧の答えを捨てる。
   let waitsOpen = false // 広い画面の待ちの流れ。畳んだ取っ手から始め、ページが生きている間だけ覚える（Owner 2026-11-14）。
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
   const lookup = () => memberLookup(snapshot)
@@ -621,7 +622,7 @@ export function createLatticeChart(dialog, {
   return {
     open(projectId = null) {
       if (isOpen) return
-      isOpen = true; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
+      isOpen = true; opens++; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
       document.addEventListener('visibilitychange', visibility)
       if (!dialog.open) dialog.showModal()
@@ -630,7 +631,8 @@ export function createLatticeChart(dialog, {
       resumeId = null
       if (!target) return void loadList()
       openChart(target)
-      void api('/api/lattice/charts').then(data => { if (!isOpen || list) return; list = data; if (view === 'chart' && snapshot) paintChart({ ...diffSnapshots(snapshot, snapshot), first: true }) }).catch(() => {})
+      const opened = opens
+      void api('/api/lattice/charts').then(data => { if (!isOpen || opened !== opens || list) return; list = data; if (view === 'chart' && snapshot) paintChart({ ...diffSnapshots(snapshot, snapshot), first: true }) }).catch(() => {})
     },
     close() {
       if (!isOpen) return
