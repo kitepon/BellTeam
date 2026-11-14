@@ -72,7 +72,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | tool群 | 実際の処理先 | HTTPとの違い / actor |
 | --- | --- | --- |
 | `list_models/get_settings/update_settings/complete_setup` | `internalApi` → control API | 設定/初期完了にはfromをbotIdとして確定 |
-| `request_secret/get_secret_request/cancel_secret_request/ask_owner` | `internalApi` → 専用service | 依頼の所有を保持。取得時も元依頼Botを確認 |
+| `request_secret/get_secret_request/cancel_secret_request/use_secret/ask_owner` | `internalApi` → 専用service | 依頼の所有を保持。取得時・使用時も元依頼Botを確認。`use_secret`は値を依頼Bot自身の席コマンドの標準入力へだけ渡す |
 | `sendmessage/send_user_message/sendroommessage` | 宛先名解決・画像path解決→`deliverMessage/deliverRoomMessage` | `send_user_message`はuser由来。実行sourceはHTTP ingressで付与。登録名を新IDへ置換しない |
 | `respond_to_room` | queue/保存投稿から元発言特定→参加/返信資格→room配送 | silentは配送を作らない。assignedがsilentすること、非assignedのreplyを拒否 |
 | `list_bots/get_bot/get_self` | `members.callMemberTool` → registry / botView | MCP共通整形はアバター本体を除く |

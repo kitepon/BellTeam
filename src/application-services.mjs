@@ -22,6 +22,7 @@ import { createConversationServices } from './conversation-services.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
+import { createSecretUse } from './secret-use.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient } from './aiterm-client.mjs'
 import { AitermGenerationClient } from './aiterm-generation-client.mjs'
@@ -429,6 +430,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: secretCompletionMessage(item) }),
   })
   if (!usageAssembly) await secretRequests.initialize()
+  if (seatRuntime) secretRequests.useValue = createSecretUse({ projectPath: id => bots.projectPath(id),
+    read: id => usageAssembly ? secretRequests.read(id, usageAssembly.systemContext('secrets.get')) : secretRequests.get(id),
+    resolveValue: id => secretRequests.resolveValue(id) })
   if (submittedSecretManagement === undefined && seatRuntime) submittedSecretManagement = {
     assertOwnerAuthorized: createSubmittedSecretApprovalBridge({ project: root }),
     createConsumer: createSubmittedSecretConsumer, consume: createSubmittedSecretRabbitClient({ project: root }),

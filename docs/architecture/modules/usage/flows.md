@@ -18,6 +18,9 @@ flowchart TD
   Notify --> Result["notification sent / failedを保存"]
   Result --> Reply["公開状態をHTTPへ返す"]
   Pending -->|"依頼Botの取下げ"| Withdraw["所有を確認してcancelled保存<br/>notification not_needed"]
+  State -->|"依頼Botのuse_secret"| Use["所有・submittedを確認<br/>resolveValueで値を取り出す"]
+  Use --> SeatRun["依頼Bot自身のprojectで席UIDのコマンドを起動<br/>値は標準入力へ渡してEOF"]
+  SeatRun --> UseReply["終了コードと出力を返す<br/>出力中の値は伏せる"]
 ```
 
 | 処理 | caller → 実関数 | 読むもの / 変更するもの | 失敗時・返却 |
@@ -27,6 +30,7 @@ flowchart TD
 | 値の提出 | Web `openSecretInput.finish` / Apple → public HTTP → `submit` → `finish` | `busy`で同じ依頼の同時処理を抑え、`state/secret-values/<toolId>/secrets/<id>`を0600/`wx`で新規作成。`oneTime`の依頼はファイルを作らずchildのメモリだけに置き、`resolveValue`の1回目で取り出して消す | 値・NUL・byte長を検証。既存ファイルを上書きしない。`oneTime`は1Password参照を拒否 |
 | Owner取消 | public HTTP → `cancel` → `finish` | 状態だけを変更し、依頼Botへ通知 | 値ファイルは作らない |
 | Bot取下げ | MCP `cancel_secret_request` → internal HTTP → `withdraw` → `finish` | `botId`一致・pendingを確認。取消と`not_needed`を保存 | 自分への新しい配送を起こさない |
+| Botが値を使う | MCP `use_secret` → `internalApi.useSecret` → internal HTTP `/use` → 組立ての`secretRequests.useValue`（[secret-use.mjs](../../../../src/secret-use.mjs)）→ `resolveValue` → `createSeatProcessRunner(依頼Botのproject)` | `botId`一致・submittedを確認。値は本体プロセスのメモリから席UID（seat-exec）の子の標準入力へだけ渡す。`oneTime`はこの1回で消える。保存値は何度でも使える | 値をMCP引数・HTTP応答・診断へ出さない。応答の出力中の値（前後の空白を除いた形）を`[secret]`へ置換。出力上限1MiB・10分で停止。席runtimeの無い設置は503 `SECRET_USE_UNAVAILABLE` |
 | 結果を知らせる | `finish` → 組立ての`notify` → `secretCompletionMessage` → `messenger.enqueueUserTurn` | `path`と結果を通常会話へ保存。秘密値は渡さない | ここでの`sent`は会話の受付まで。通知例外は`failed`として保存して返す |
 | HTTPの失敗 | `respondHttpError`のsecret専用分岐 | 既知エラーは404/409/400。不明エラーは固定文だけをDiagnosticsへ | 例外本文/stackを診断へ渡さない。500 `SECRET_OPERATION_FAILED`。この分岐は一般500用の相関3headerを付けない |
 
