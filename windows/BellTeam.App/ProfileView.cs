@@ -260,12 +260,48 @@ public sealed class ProfileView : StackPanel
         if (bot.FastMode) AddBadge("ファスト", SettingsTone.Orange, "\uE945");
         if (badges.Children.Count != 0) card.Children.Add(badges);
         var screen = InspectorUi.Prominent("Botの画面を見る", "\uE756"); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
+        chartButtons = new StackPanel(); card.Children.Add(chartButtons); RenderCharts(workspace, bot.Id);
+        if (ownedCharts?.Id != bot.Id) ChartsTask = LoadChartsAsync(workspace, bot.Id);
         restartButton = InspectorUi.Bordered("会話セッションを再起動", "\uE72C"); restartButton.Background = Brushes.Transparent; restartButton.HorizontalAlignment = HorizontalAlignment.Left; restartButton.Margin = new Thickness(0, 8, 0, 0); card.Children.Add(restartButton);
         restartNote = InspectorUi.Note("", SettingsUi.Green); restartNote.Margin = new Thickness(0, 8, 0, 0); card.Children.Add(restartNote);
         restartError = InspectorUi.Note("", InspectorUi.Red); restartError.Margin = new Thickness(0, 8, 0, 0); card.Children.Add(restartError);
         var id = entry.Target.Id; restartButton.Click += async (_, _) => await RestartAsync(workspace, id);
         RenderRestart(id);
         var frame = SettingsUi.Card(card); frame.Padding = new Thickness(16); return frame;
+    }
+
+    // Apple DesktopInspector ownedCharts (a91/a92, Owner 2026-11-14): one button per chart this member made (createdBy), read once per member shown.
+    // A list that cannot be read (an older server answers 404) shows no buttons; the failure goes to the trace like Apple's diagnostics.
+    private (string Id, LatticeChartSummary[] Charts)? ownedCharts;
+    private StackPanel? chartButtons;
+    public Task ChartsTask { get; private set; } = Task.CompletedTask;
+    private async Task LoadChartsAsync(Workspace workspace, string botId)
+    {
+        ownedCharts = (botId, []); var token = workspace.ConnectionToken;
+        try
+        {
+            var list = await workspace.Management.Api.ChartsAsync(token);
+            // A slower read for a member no longer shown must not replace the shown member's.
+            if (ownedCharts?.Id != botId) return;
+            ownedCharts = (botId, list.Charts.Where(chart => chart.CreatedBy == botId).ToArray());
+            RenderCharts(workspace, botId);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception failure) { System.Diagnostics.Trace.TraceWarning($"GET /api/lattice/charts for the member's chart buttons: {failure.Message}"); }
+    }
+    private void RenderCharts(Workspace workspace, string botId)
+    {
+        if (chartButtons is null || workspace.Selected?.Bot?.Id != botId) return;
+        chartButtons.Children.Clear();
+        if (ownedCharts is not { } owned || owned.Id != botId) return;
+        foreach (var chart in owned.Charts)
+        {
+            var name = LatticeChart.ChartName(chart.Name, chart.CreatedBy, id => workspace.Bots.FirstOrDefault(bot => bot.Id == id)?.Name);
+            var button = InspectorUi.Bordered($"工程表「{name}」を開く", "", wide: true); button.Margin = new Thickness(0, 8, 0, 0);
+            var id = chart.ProjectId; button.Click += (_, _) => Host?.OpenLatticeChart(id);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(button, "bot-lattice-chart-" + id);
+            chartButtons.Children.Add(button);
+        }
     }
 
     // Mac BotProfileAISection look: icon and tint per AI; an unknown harness gets a chip icon in violet.
