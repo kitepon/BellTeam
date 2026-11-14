@@ -14,7 +14,7 @@ Startable notices (a18, Lattice 0.90.0; waiting marks 0.92.0): the module wakes 
 
 ## Process placement
 
-Same shape as [work-graph](../work-graph/README.md): the module runs as its **own module child**, so every change ships as a module-only exchange without stopping the body. The Lattice package (`@quolu/lattice`, pinned in the module payload lock) is bundled in the signed module, so a Lattice version bump is a module-only exchange too.
+Same shape as [work-graph](../work-graph/README.md): the module runs as its **own module child**, so every change ships as a module-only exchange without stopping the body. The Lattice package (`@quolu/lattice`, the version recorded in the module payload lock) is bundled in the signed module, so a Lattice version bump is a module-only exchange too.
 
 | Part | Owner |
 | --- | --- |
@@ -354,6 +354,6 @@ Self-exit of the dirty state: the next sync reads again. No time ceiling: the to
 ## How it updates
 
 - Module code and the bundled Lattice version ship together as a module-only exchange (`publish-lattice.yml` attestation; Epinel adopts catalog rows; Molly exchanges). The body does not stop.
-- New Lattice release: Snow White announces it -> Flora bumps the pin in the module lock -> module-only exchange. If a release ever changes the chart repo format incompatibly, `LATTICE_STATE_COMPATIBILITY` changes with it so the updater does not swap it as compatible.
+- New Lattice release: Snow White announces it -> Flora refreshes the module lock to the latest release (Owner 2026-11-14: always the latest, no exact pin; `distribution/lattice/package.json` asks `>=` the minimum the module needs, today 0.100.0, and the lock records the resolved version) -> module-only exchange. 0.100.0: `trees` in display read (a100), incoming edges kept across a revision, revisions fast on large plans (production copy of bellteam: `todo add` 32.55 s on 0.99.0 -> 2.20 s). If a release ever changes the chart repo format incompatibly, `LATTICE_STATE_COMPATIBILITY` changes with it so the updater does not swap it as compatible.
 - The MCP tool schema and the HTTP mount live in the body, so changing them rides a body train (Molly).
 - Web page ships through the Web gateway (Admi reviews the registration lines; Molly exchanges web-gateway). Apple and Windows pages ship with their apps; Flora accepts them on real screenshots.
