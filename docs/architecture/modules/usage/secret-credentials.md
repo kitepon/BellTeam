@@ -34,6 +34,10 @@ flowchart LR
   Credentials -->|resolved value only| Consume[trusted consumer callback]
   OP -->|availability transition| Credentials
   Credentials -->|handle/revision/available/reason| Terminal
+  Withdraw[requesting Bot withdraw / Owner cancel of a submitted bot request] --> Requests
+  Requests -->|eraseRequest| Credentials
+  Credentials -->|revoke bound handles, delete| Sources
+  Credentials -->|delete| Stored
 ```
 
 Public request JSON and private source records are separate. Existing stored files retain UTF-8 exclusive 0600 semantics. 1Password sources persist only reference/provider metadata in `state/secret-sources`; resolved values remain in memory. Handles/bindings/revisions live in `state/secret-credentials`. Public metadata, projections, conversation, notifications, diagnostics and events contain neither values nor source identity; source records remain private. Private file reads retain owner/mode/link checks and a bounded size.
@@ -46,6 +50,7 @@ Public request JSON and private source records are separate. Existing stored fil
 | available -> unavailable | Provider/read failure emits availability=false and a fixed error. No alternative credential is chosen automatically: wrong-account/target protection. Stored input remains an explicit Owner choice. |
 | unavailable -> available | Provider recovery helper or trusted refresh emits available=true for the same handle/revision, allowing consumer-owned pending work to retry. A failed read never permanently disables its handle. |
 | revision n -> n+1 | Trusted replacement binds another submitted request to the same target, persists first, then emits revision event. Consumer decides reconnect; secret input does not replay an operation. |
+| submitted -> cancelled (erased) | Bot requests only (`botId` set). The requesting Bot (`withdraw`, MCP `cancel_secret_request`) or the Owner (`cancel`) closes a submitted request: handles bound to that request are revoked (`unbound` event), then the stored value file, the private source record and any one-shot memory value are deleted (missing files are fine, so a retry after a partial failure finishes the erase), then the request is saved `cancelled` without `path`. Later `use_secret` / `resolveRequest` / `bind` get `SECRET_REQUEST_CLOSED`. Protection: secret exposure. Terminal-key requests (`botId` null) and other requests are unchanged. Self-exit: the Bot files a new `request_secret`. |
 | wrong target / malformed reference | Reject before secret read to prevent wrong-target use and secret exposure. Correct authorized context or corrected Owner submission can proceed immediately; no persistent lock. |
 
 ## Change and validation scope

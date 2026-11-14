@@ -75,6 +75,24 @@ async function submitted(service, source = { source: 'onepassword', reference })
   return service.submit(item.id, source)
 }
 
+test('Owner cancel of a submitted bot request revokes its handle and erases the private source record', async t => {
+  const { root, source, service, visible } = await fixture(t)
+  const item = await submitted(service)
+  const dto = await service.bindCredential(item.id, scope)
+  const events = []; service.watchCredentials(event => events.push(event))
+  const terminal = await service.requestTerminalKey({ ...scope, terminalId: 'other-mac', label: 'key' })
+  const cancelled = await service.cancel(item.id)
+  assert.equal(cancelled.status, 'cancelled')
+  assert.equal(visible.at(-1).status, 'cancelled')
+  assert.deepEqual(events.map(event => [event.handle, event.reason]), [[dto.handle, 'unbound']])
+  await assert.rejects(stat(join(root, 'state/secret-sources', item.id + '.json')), { code: 'ENOENT' })
+  await assert.rejects(service.withResolved(dto.handle, context, () => {}), /SECRET_CREDENTIAL/u)
+  await assert.rejects(service.resolveValue(item.id), /SECRET_REQUEST_CLOSED/u)
+  assert.equal(source.reads.length, 0)
+  // Terminal-key requests keep their own rules: a submitted one is never erased by cancel.
+  assert.equal(service.get(terminal.secretRequest.id).status, 'pending')
+})
+
 test('reference submissions are private, input options reach direct/room history, and resolution never stores op values', async t => {
   const { root, source, service, visible } = await fixture(t)
   const item = await submitted(service)

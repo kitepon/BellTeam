@@ -41,7 +41,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'cancel_secret_request',
-      description: '自分が依頼した、まだ入力されていない秘密情報入力を取り下げる。要らなくなった依頼のカードを、オーナーの手を借りずに片付ける時に使う。画面のカードは「取消」になる。入力済み・取消済みの依頼と、ほかのBotの依頼は取り下げられない。値は扱わない。',
+      description: '自分が依頼した秘密情報入力を取り下げる。要らなくなった依頼のカードを、オーナーの手を借りずに片付ける時に使う。入力済みの依頼なら、保存した値（1Password参照の記録も）をその場で消し、以後のuse_secretは断られる。画面のカードは「取消」になる。取消済みの依頼と、ほかのBotの依頼は取り下げられない。値は扱わない。',
       inputSchema: objectSchema({ requestId: { type: 'string' } }, ['requestId']),
     },
     {
