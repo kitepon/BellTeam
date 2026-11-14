@@ -45,6 +45,23 @@ public sealed class LatticeWindowTests
         window.Close();
     });
 
+    // Fractions count only the counted cards off the wire (a96): t03 is a finished tree and leaves the ring, the tree root and its phase; t02 is hidden but counts.
+    [Fact]
+    public Task FractionsCountOnlyCountedCards() => Ui.Run(async () =>
+    {
+        using var workspace = new LinuxWorkspace(origin => new BellApi(origin, new LatticeFixture("chart")));
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask);
+        window.Show(); window.OpenChart("lattice");
+        for (var wait = 0; wait < 100 && window.Chart!.Feed.Snapshot is null; wait++) await Task.Delay(20);
+        var snapshot = window.Chart!.Feed.Snapshot!;
+        Assert.Equal((10, 2), (LatticeChart.Counts(snapshot).Total, LatticeChart.Counts(snapshot).Done));
+        var node = LatticeChart.Tree(snapshot, "工程表").Nodes.ToDictionary(item => item.Key);
+        Assert.Equal((2, 10), (node["root"].Done, node["root"].Total));
+        Assert.Equal((2, 2), (node["phase:p1/ph1"].Done, node["phase:p1/ph1"].Total));
+        window.Close();
+    });
+
     // The card entrance, the change settle, the completion bloom and the card-to-detail morph start their animations on real controls (a wrong target type throws when the animation is applied).
     [Fact]
     public Task TheCardAnimationsStartOnTheirControls() => Ui.Run(async () =>

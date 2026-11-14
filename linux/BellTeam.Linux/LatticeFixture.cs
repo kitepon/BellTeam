@@ -13,6 +13,7 @@ namespace BellTeam.Linux;
 /// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
 /// 「owner」: t11 belongs to the Owner (producer = the reserved value owner, as the server resolves a lane 指揮官 / owner).
 /// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not.
+/// counted per the server rule (a96): t03 alone is a finished tree and is not counted; t02 is hidden but its tree (t04 on) is open, so it counts.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
@@ -26,12 +27,12 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 
     private object[] Cards()
     {
-        object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived };
+        object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false, bool counted = true)
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted };
         return [
             Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする", finished: 95),
             Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる", finished: 60 * 27, archived: true),
-            Card("t03", "旧・組込案の比較", "retired", "bot-admi", 0, archived: true),
+            Card("t03", "旧・組込案の比較", "retired", "bot-admi", 0, archived: true, counted: false),
             Card("t04", "部品の配置と保存場所", "in-progress", "bot-molly", 1, "配置先と保存先を決定", "部品の置き場と、工程表の保存先を決める。保存先は夜間の控えに入る場所にする。", 12),
             Card("t05", "席へのCLI配布", "in-progress", "bot-kiro", 1, "全席でCLIが使える", started: 4),
             Card("t06", "Web画面の組込口", "blocked", "bot-admi", 1, "Webから工程表を開ける", reason: "組込の登録点が未定"),
@@ -67,7 +68,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         ["lattice"] = ("Lattice組込", "bot-trony"), ["nightly-care"] = ("夜間の整備", "bot-molly"), ["call-bridge"] = ("通話ブリッジの刷新", "bot-kiro"), ["web-polish"] = (null, "bot-admi"), ["guide"] = (null, "bot-ghost"),
     };
     private object[] Charts() => scene == "list-empty" ? [] : [
-        Summary("lattice", true, 11, 3, 2, 4, 1, ["bot-trony", "bot-molly", "bot-kiro", "bot-admi", "bot-rapi", "bot-flora"], 1),
+        Summary("lattice", true, 10, 2, 2, 4, 1, ["bot-trony", "bot-molly", "bot-kiro", "bot-admi", "bot-rapi", "bot-flora"], 1),
         Summary("nightly-care", false, 12, 7, 2, 1, 0, ["bot-molly", "bot-kiro", "bot-admi"], 12),
         Summary("call-bridge", false, 8, 3, 1, 2, 0, ["bot-kiro", "bot-molly", "bot-trony", "bot-rapi"], 34),
         Summary("web-polish", false, 11, 9, 1, 0, 0, ["bot-admi", "bot-flora"], 63),
