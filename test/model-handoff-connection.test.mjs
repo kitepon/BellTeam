@@ -2,20 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { AitermClient } from '../src/aiterm-client.mjs'
 
-test('handoff pins the authenticated SDK before awaits and rejects connection replacement without reconnecting', async () => {
-  const client = new AitermClient(), transport = {}, sdk = { transport }
-  let reconnects = 0
-  client.connect = async () => { reconnects++ }
-  assert.equal(client.captureHandoffConnection(), null)
-  client.client = sdk; client.transport = transport
-  const binding = client.captureHandoffConnection()
-  assert.equal(binding.expected.sdk, sdk)
-  assert.equal(binding.expected.transport, transport)
-  assert.deepEqual(binding.currentConnection(), { sdk, transport })
-  await Promise.resolve()
-  client.client = { transport }; assert.equal(binding.currentConnection(), null)
-  client.client = sdk; client.connecting = Promise.resolve(); assert.equal(binding.currentConnection(), null)
-  client.connecting = null; client.transport = {}; assert.equal(binding.currentConnection(), null)
-  client.transport = transport; sdk.transport = {}; assert.equal(client.captureHandoffConnection(), null)
-  assert.equal(reconnects, 0)
+// bd05: Aiterm never released model-handoff-*; without a capture connection ModelHandoff.prepare returns null (dormant).
+test('the Aiterm client offers no handoff capture, so BellTeam loads no unreleased Aiterm file', () => {
+  const client = new AitermClient()
+  client.client = { transport: {} }; client.transport = client.client.transport
+  assert.equal(client.captureHandoffConnection, undefined)
 })

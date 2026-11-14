@@ -9,7 +9,7 @@ import { runtimeLaunchEnv } from '../src/aiterm-client.mjs'
 import { captureRuntime } from '../src/runtime-selection.mjs'
 
 const runtime = generation => Object.freeze({ generation, components: {
-  'runtime-aiterm-mcp': { origin: 'release', bin: { 'aiterm-mcp': '/rt/a/bin/aiterm-mcp' }, dist: '/rt/a/lib/node_modules/aiterm-mcp/dist' },
+  'runtime-aiterm-mcp': { origin: 'release', bin: { 'aiterm-mcp': '/rt/a/bin/aiterm-mcp' }, root: '/rt/a/lib/node_modules/aiterm-mcp' },
   'runtime-codex': { origin: 'release', bin: { codex: '/rt/c/bin/codex' } },
   'runtime-claude-code': { origin: 'release', bin: { claude: '/rt/k/bin/claude' } },
   'runtime-throughline': { origin: 'release', bin: { throughline: '/rt/t/bin/throughline' } },

@@ -8,15 +8,15 @@ const run = (args, generation) => spawnSync(process.execPath, [script, ...args],
   env: { PATH: process.env.PATH, ...(generation === undefined ? {} : { BELLTEAM_RUNTIME_GENERATION: generation }) } })
 
 test('--resolve prints the inherited generation path; failures are nonzero with a fixed code', () => {
-  const builtin = run(['--resolve', 'runtime-aiterm-mcp', 'dist'], '')
-  assert.deepEqual([builtin.status, builtin.stdout], [0, '/usr/local/lib/node_modules/aiterm-mcp/dist\n'])
+  const builtin = run(['--resolve', 'runtime-aiterm-mcp', 'aiterm-mcp'], '')
+  assert.deepEqual([builtin.status, builtin.stdout], [0, '/usr/local/bin/aiterm-mcp\n'])
   assert.equal(run(['--resolve', 'runtime-codex', 'codex'], '').stdout, '/usr/local/bin/codex\n')
   for (const [args, generation, code] of [
-    [['--resolve', 'runtime-aiterm-mcp', 'dist'], 'f'.repeat(64), 'RUNTIME_BINDING_UNAVAILABLE'],
+    [['--resolve', 'runtime-aiterm-mcp', 'aiterm-mcp'], 'f'.repeat(64), 'RUNTIME_BINDING_UNAVAILABLE'],
     [['--resolve', 'runtime-npm', 'x'], '', 'RUNTIME_COMPONENT_INVALID'],
     [['--resolve', 'runtime-codex', '../../etc/passwd'], '', 'RUNTIME_ENTRY_INVALID'],
     [['--resolve', 'runtime-codex', 'dist'], '', 'RUNTIME_ENTRY_INVALID'],
-    [['runtime-aiterm-mcp', 'dist'], '', 'RUNTIME_ENTRY_INVALID'],
+    [['--resolve', 'runtime-aiterm-mcp', 'root'], '', 'RUNTIME_ENTRY_INVALID'],
   ]) {
     const result = run(args, generation)
     assert.deepEqual([result.status, result.stdout, result.stderr], [1, '', `${code}\n`])

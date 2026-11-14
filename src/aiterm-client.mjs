@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { aitermConnectionRegistration } from './aiterm-hooks.mjs'
 import { captureRuntime } from './runtime-selection.mjs'
 import { loadBotEnvironment } from './bot-environment.mjs'
@@ -61,29 +61,6 @@ export class AitermClient {
   runtime() {
     const inherited = this.env?.BELLTEAM_RUNTIME_GENERATION ?? process.env.BELLTEAM_RUNTIME_GENERATION
     return this.runtimeCapture ??= captureRuntime({ generation: inherited === undefined ? undefined : inherited || null })
-  }
-
-  captureHandoffConnection() {
-    if (!this.client || !this.transport || this.connecting || this.client.transport !== this.transport) return null
-    const expected = Object.freeze({ sdk: this.client, transport: this.transport })
-    const runtime = this.runtime()
-    const load = async file => import(pathToFileURL(join((await runtime).components['runtime-aiterm-mcp'].dist, file)).href)
-    const binding = { expected, currentConnection: () => {
-      if (this.connecting || this.client !== expected.sdk || this.transport !== expected.transport) return null
-      return { sdk: this.client, transport: this.transport }
-    } }
-    return Object.freeze({ ...binding,
-      capture: async (input, signal) => {
-        const capabilities = expected.sdk.getServerCapabilities()?.experimental
-        if (!['control', 'full'].every(name => {
-          const value = capabilities?.[`ai.aiterm/handoff.${name}.v1`]
-          return value?.version === 1 && Object.keys(value).length === 1
-        })) return { schema: 'aiterm.model-handoff.capture-error.v1', status: 'unavailable',
-          error_code: 'HANDOFF_CAPTURE_UNAVAILABLE', effect: 'not_started' }
-        return (await load('model-handoff-transport.js')).captureModelHandoffOverMcp(input, binding, signal)
-      },
-      control: async (input, signal) => (await load('model-handoff-control-transport.js')).modelHandoffOverMcp(input, binding, signal),
-    })
   }
 
   async connect() {

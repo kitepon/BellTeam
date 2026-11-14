@@ -33,7 +33,7 @@ test('original parent MCP keeps per-call context/meta and anchor actor/actual co
   const client = new AitermClient({ command: 'synthetic-not-launched', args: [] })
   t.mock.method(client, 'call', async () => ({ content: [{ type: 'text', text: '' }] }))
   t.mock.method(client, 'close', async () => {})
-  assert.equal(typeof client.captureHandoffConnection, 'function')
+  assert.equal(client.captureHandoffConnection, undefined)
   let readAnchor, conversation, firstReady, releaseFirst
   const firstStarted = new Promise(resolve => { firstReady = resolve })
   const firstWait = new Promise(resolve => { releaseFirst = resolve })

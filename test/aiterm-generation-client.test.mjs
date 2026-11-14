@@ -11,13 +11,11 @@ const deferred = () => {
 function fake(id) {
   const capture = { generation: id, components: {} }
   const sdk = { id: `${id}-sdk` }, transport = { id: `${id}-transport` }, connecting = { id: `${id}-connecting` }
-  const handoff = { id: `${id}-handoff`, expected: { sdk, transport } }
   const auth = { id: `${id}-auth` }, options = { id: `${id}-options` }
   const calls = [], connected = { id: `${id}-connected` }
   const client = {
     client: sdk, transport, connecting,
     runtime: () => capture,
-    captureHandoffConnection: () => handoff,
     prepareAuthConnection: () => auth,
     authOptions: () => options,
     launchOptions: async () => ({ id: `${id}-launch` }),
@@ -26,7 +24,7 @@ function fake(id) {
     close: () => { client.closed = true },
     calls,
   }
-  return { client, capture, runtimeCapture: capture, sdk, transport, connecting, handoff, auth, options, connected }
+  return { client, capture, runtimeCapture: capture, sdk, transport, connecting, auth, options, connected }
 }
 
 test('pins retain original client identities and helpers while new work follows publication', async () => {
@@ -41,7 +39,6 @@ test('pins retain original client identities and helpers while new work follows 
   assert.equal(pin.transport, old.transport)
   assert.equal(pin.connecting, old.connecting)
   assert.equal(pin.runtime(), old.capture)
-  assert.equal(pin.captureHandoffConnection(), old.handoff)
   assert.equal(pin.prepareAuthConnection(), old.auth)
   assert.equal(pin.authOptions(), old.options)
   assert.deepEqual(await pin.launchOptions(), { id: 'old-launch' })

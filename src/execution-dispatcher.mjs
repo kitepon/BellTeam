@@ -113,7 +113,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   native.close = async () => {} // The host owns the shared SDK and native PTYs.
   const { root, ...storageOptions } = ports.configurationStorage
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root,
-    { ...storageOptions, runtimeCapture: () => ports.native.runtime() }) })
+    storageOptions) })
   // The engine is not the seat user; seat-owned files go through the parent's seat runner (harness-accounts.md "Identity").
   const accounts = new HarnessAccounts({ home: runtimeHome(), statePath: join(dirname(root), 'harness-accounts.json'),
     ...(typeof ports.seat?.waitProcess === 'function' ? { seat: seatFilesOver(ports.seat.waitProcess) } : {}) })

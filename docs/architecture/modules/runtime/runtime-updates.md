@@ -10,7 +10,7 @@ Four fixed component IDs remain in the resolver/generation schema. **Current con
 
 | componentId | Package (closed map) | Entries resolved by P6 | Hot update (current) |
 | --- | --- | --- | --- |
-| `runtime-aiterm-mcp` | `aiterm-mcp` | `bin/aiterm-mcp`, `dist` = `lib/node_modules/aiterm-mcp/dist` | No; body image (`RUNTIME_COHABITATION_UNSUPPORTED`) |
+| `runtime-aiterm-mcp` | `aiterm-mcp` | `bin/aiterm-mcp`, `root` = `lib/node_modules/aiterm-mcp` (package root; files are reached only through its `exports`, see [Aiterm public entries](#aiterm-public-entries-bd05)) | No; body image (`RUNTIME_COHABITATION_UNSUPPORTED`) |
 | `runtime-codex` | `@openai/codex` | `bin/codex` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
 | `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
 | `runtime-throughline` | `throughline` | `bin/throughline` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
@@ -58,20 +58,36 @@ These bindings keep Aiterm helpers and imports consistent while CLI/Throughline 
 | Function | Input → output | Lifetime / owner |
 | --- | --- | --- |
 | AitermClient.runtime/connect | supplied runtimeCapture or inherited-generation capture → selected MCP entry and helper imports | Elegg; one capture per client/connection, including concurrent connect callers; reconnect retains that capture |
-| captureHandoffConnection | exact SDK/transport + captured dist → capture/control imports | Elegg; immutable absolute module paths captured with that SDK, no query suffix or latest lookup |
-| ConfigurationIntents.handoffTerminal | stored snapshot + owning client's runtime() → captured snapshot schema | Elegg; assembly injects the same native client capture; standalone store captures once |
-| adoptRuntimeResume | startup runtime capture → resume-state-cli.js restore command | Elegg; one capture for the complete pre-bootstrap adoption operation |
-| aitermRegistration / aitermExecutionRegistration | image Aiterm public setup helpers → original direct MCP descriptor | Elegg; ordinary MCP is `node /usr/local/lib/node_modules/aiterm-mcp/dist/index.js`; native MCP uses the image's execution-native-server.js and provider |
-| configureAitermHooks | image setup module + original direct descriptor → image sibling hook registrations | Elegg; existing SeatRuntime remains the sole serial HOME writer; Codex binary comes from the selected CLI capture |
+| captureHandoffConnection | removed (bd05): Aiterm never published `model-handoff-*`; see [model-handoff.md](../execution/model-handoff.md) dormant note | — |
+| ConfigurationIntents.handoffTerminal | stored snapshot → shape checks only; no Aiterm import (bd05) | Kiro; dormant with the handoff consumer |
+| adoptRuntimeResume | startup runtime capture → `exports["./resume-state-cli"]` restore command | Elegg; one capture for the complete pre-bootstrap adoption operation |
+| aitermRegistration / aitermExecutionRegistration | image Aiterm entries `setup-node` (`mcpRegistration()`), `execution-parent-worker`, `execution-native-server` → MCP descriptor | Elegg; ordinary MCP is exactly what `mcpRegistration()` returns; native MCP uses the image's `execution-native-server` entry and its provider |
+| configureAitermHooks | image entries `setup-integrations` / `execution-native-setup` + `execution-native-server` + descriptor → hook registrations | Elegg; existing SeatRuntime remains the sole serial HOME writer; Codex binary comes from the selected CLI capture |
 
-Persistent registrations keep the image's existing direct Aiterm entry paths; no `/app/scripts/runtime-aiterm` adapter or runtime-exec descriptor is written to shared HOME. AitermClient's in-process connection binding still uses its captured native entry/provider/generation. Scope arguments remain owned by Aiterm/SeatRuntime. The native public setup API keeps its required execution-native-server.js basename and derives hooks from that image dist. No helper implementation is copied from Aiterm.
+Persistent registrations keep the image's existing direct Aiterm entry paths; no `/app/scripts/runtime-aiterm` adapter or runtime-exec descriptor is written to shared HOME. AitermClient's in-process connection binding still uses its captured native entry/provider/generation. Scope arguments remain owned by Aiterm/SeatRuntime. The native public setup API receives the `execution-native-server` entry of the same image root. No helper implementation is copied from Aiterm.
+
+### Aiterm public entries (bd05)
+
+Aiterm promises only the `exports` table of its `package.json` (aiterm-mcp `docs/architecture/bellteam-boundary.md` 公開の入口, 0.70.58+). `aitermEntry(root, name)` (src/aiterm-hooks.mjs) reads `<root>/package.json`, takes `exports["./<name>"]` (a `./` string) and returns `<root>/<value>`; a missing table or entry fails `AITERM_ENTRY_UNAVAILABLE`. `root` is the image root (`/usr/local/lib/node_modules/aiterm-mcp`) or a capture's `components['runtime-aiterm-mcp'].root`. A bare `import('aiterm-mcp/...')` is not used: it would resolve BellTeam's own node_modules copy, not the selected one.
+
+| Entry | BellTeam caller |
+| --- | --- |
+| `setup-node` | aiterm-hooks `aitermRegistration` (`mcpRegistration()`), `aitermExecutionRegistration` (`setupNodeExecutable()`) |
+| `setup-integrations` | aiterm-hooks `configureAitermHooks` |
+| `execution-parent-worker` | aiterm-hooks `aitermExecutionRegistration` |
+| `execution-native-setup` | aiterm-hooks `configureAitermHooks` |
+| `execution-native-server` | aiterm-hooks registration, `aitermConnectionRegistration`, `configureAitermHooks` |
+| `child-result` | self-turns (`CHILD_RESULT_PREFACE`); conversation module, N102's bd05c |
+| `resume-state-cli` | runtime-resume `adoptRuntimeResume` (run with node, never imported) |
+
+Never read: `model-handoff-*` (unreleased; consumer dormant). Moved by Molly's bd06, not here: state-compat/state volume, `npm ci` in the package, `compose.aiterm-checkpoint.yaml` / `install-resume-state.sh` paths. Every body and every selected generation therefore needs aiterm-mcp 0.70.58 or later.
 
 | Flow / store | Data and ownership |
 | --- | --- |
 | P6 → AitermClient → stdio MCP | release bin or builtin `aiterm-mcp` through the unchanged PATH; captured native entry/provider and generation; seat spec installs generation after UID/env setup; custom test transports retain their supplied command |
-| AitermClient → handoff/schema loader | immutable captured dist; configuration assemblies pass runtime() of that exact client, never a global current import base |
-| SeatRuntime → HOME → delayed hook | original image node/dist paths and scope/config args; Aiterm stays on the body-image channel while inherited generation/vendor environment binds the CLI |
-| startup capture → restore child | real immutable resume-state-cli path; checkpoint payload/state ownership unchanged |
+| AitermClient → handoff/schema loader | removed (bd05); configuration assemblies no longer pass a runtime capture |
+| SeatRuntime → HOME → delayed hook | image node + entry paths read from the image root's `exports`, and scope/config args; Aiterm stays on the body-image channel while inherited generation/vendor environment binds the CLI |
+| startup capture → restore child | `resume-state-cli` entry of the captured root; checkpoint payload/state ownership unchanged |
 | code store retention → readers | D5 launch retention remains Kiro's and over-retains at close. Long-lived MCP/helper references have no separate persisted record yet; no collection is enabled or introduced here |
 
 Mixed Aiterm closure sharing is unsupported for the shared state/tmux scope. The body's permanent MCP reference makes a release-at-close exclusive check unsuitable for hot replacement. The adopted channel exclusion above replaces the earlier proposed `stateCompatibility` declaration/exclusive check; no such signed-row field is added by this slice. Staging executes no package code; aiterm-mcp has no inert --version handler.

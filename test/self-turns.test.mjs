@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { SelfTurns, readChildResultPreface, readObserverTurns } from '../src/self-turns.mjs'
+import { captureRuntime } from '../src/runtime-selection.mjs'
 
 const bots = new Map([['bot-r', { id: 'bot-r', project: '/srv/bellteam/bots/bot-r' }]])
 const turn = (key, start, assistant, completed) => ({ source_sha256: key, turn_start: start, assistant, completed_at: completed, host: 'claude', truncated: false })
@@ -95,13 +96,23 @@ test('Aitermの子の結果で始まったターンの回答も出す。配送�
 test('子の結果の頭はAitermの約束した入口 exports[./child-result] からだけ読み、入口の無い版では理由で断る', async () => {
   const root = await mkdtemp(join(tmpdir(), 'aiterm-pkg-'))
   await mkdir(join(root, 'dist'))
-  const capture = async () => ({ components: { 'runtime-aiterm-mcp': { dist: join(root, 'dist') } } })
+  const capture = async () => ({ components: { 'runtime-aiterm-mcp': { root } } })
   await writeFile(join(root, 'package.json'), JSON.stringify({ exports: {} }))
   await assert.rejects(readChildResultPreface({ capture }), { code: 'AITERM_CHILD_RESULT_UNAVAILABLE' })
   await writeFile(join(root, 'dist/record.js'), "export const CHILD_RESULT_PREFACE = '子の頭。'")
   await writeFile(join(root, 'package.json'), JSON.stringify({ exports: { './child-result': './dist/record.js' } }))
   assert.equal(await readChildResultPreface({ capture }), '子の頭。')
   await rm(root, { recursive: true, force: true })
+})
+
+test('子の結果の頭は、本物のruntime-selectionが返すAitermの根（root）から読める（bd05）', async () => {
+  const prefix = await mkdtemp(join(tmpdir(), 'aiterm-prefix-')), root = join(prefix, 'lib/node_modules/aiterm-mcp')
+  await mkdir(join(root, 'build'), { recursive: true })
+  await writeFile(join(root, 'build/child.js'), "export const CHILD_RESULT_PREFACE = '本物の形の頭。'")
+  await writeFile(join(root, 'package.json'), JSON.stringify({ exports: { './child-result': './build/child.js' } }))
+  const capture = () => captureRuntime({ root: join(prefix, 'no-selection'), builtin: prefix })
+  assert.equal(await readChildResultPreface({ capture }), '本物の形の頭。')
+  await rm(prefix, { recursive: true, force: true })
 })
 
 test('入口が読めない巡も自分から始まったターンは出し、子の結果は見分けず、理由は1回だけ知らせる', async () => {

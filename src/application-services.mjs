@@ -341,7 +341,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient,
     configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'),
-      { trustedAnchor, runtimeCapture: () => executionClient.runtime() }) }),
+      { trustedAnchor }) }),
     reportError: report => diagnostics.record(report), ...seatPorts, ...storagePorts,
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
   scheduleTurns = transport

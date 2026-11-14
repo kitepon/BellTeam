@@ -2,6 +2,8 @@
 
 所有キロ。元handler/fullExtra/_meta/assemblyはMolly、native内部はElegg、原delivery一件read/継続はN102。
 
+**休止中（bd05、2026-11-14）**：Aitermは `model-handoff-*` と `ai.aiterm/handoff.{control,full}.v1` を一度も公開していない（0.65.0〜0.70.58、Elegg確認）。BellTeamはその3つのファイルを読まない。`AitermClient` は `captureHandoffConnection` を持たないので、`ModelHandoff.prepare` は常に `null` を返し、`update_self` は通常の設定経路だけを通る。`ConfigurationIntents.handoffTerminal` はAitermのschemaを読まず、保存前に `accept()` が確かめた値をそのまま形だけ確かめる。再開はAitermが新しい公開の入口と能力を先に約束してから（Owner未廃止）。
+
 Aiterm世代: 捕捉するconnectionは渡すjobのpin（`job.native`）から取る。prepareは捕捉中、beginは`operation.completion`までjobのpinをholdする（[aiterm-generation-pin.md](aiterm-generation-pin.md)）。
 
 ```mermaid
