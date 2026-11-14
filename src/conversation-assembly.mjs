@@ -72,10 +72,11 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     onEvent: async change => { await Promise.all([...listeners].map(listener => listener(change))) },
     onDiagnostic, onState, ...(prepareRelease ? { prepareRelease } : {}), ...(spawnProcess ? { spawnProcess } : {}),
   })
+  const inheritedContext = (input, current) => input.operationContext ?? (input.membersLease && input.conversationLease ? input : current?.parent?.operationContext)
   const context = (method, input = {}) => {
     const current = scope.getStore()
     if (!current?.actor) throw denied()
-    const inherited = input.operationContext ?? (input.membersLease && input.conversationLease ? input : current.parent?.operationContext)
+    const inherited = inheritedContext(input, current)
     const operationContext = inherited ? moduleOperations.assert(inherited) : moduleOperations.reserve()
     let capturedAuthority
     try { capturedAuthority = authority.capture(method, current.actor) }
@@ -100,7 +101,20 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     } catch (error) { authority.release(state.capturedAuthority); throw error }
     finally { if (state.own) moduleOperations.finish(state.operationContext); owned.delete(options) }
   }
-  const facade = createFacade({ getController: () => ({ ...controller, request: invoke, callback: (method, params, options) => invoke(method, params, options, true) }), context,
+  // members-admission.md (a127): a fresh call reserves (synchronous members enter) right after a members exchange,
+  // in the caller's scope, instead of being refused during it; same whenOpen and 60 s exit as the AT7 scheduler.
+  const admit = (method, input = {}, start) => {
+    const current = scope.getStore()
+    if (inheritedContext(input, current) || !membersAdmission.exchanging) return start()
+    let started
+    const opened = membersAdmission.whenOpen(() => { started = scope.run(current, start) })
+    const result = opened.then(() => started)
+    result.completion = opened.then(() => started?.completion ?? started)
+    if (method === 'user.turn') result.accepted = opened.then(() => started?.accepted ?? started)
+    for (const promise of [result, result.completion, result.accepted]) promise?.catch(() => {})
+    return result
+  }
+  const facade = createFacade({ getController: () => ({ ...controller, request: invoke, callback: (method, params, options) => invoke(method, params, options, true) }), context, admit,
     memberScoped: () => scope.getStore()?.actor?.kind === 'bot' })
   return { controller, admission, moduleOperations, facade, directAssets,
     captureReceipt(method, input) {
