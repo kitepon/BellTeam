@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { writeHarnessConfig } from '../src/harness-config.mjs'
 
-const names = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'BELLTEAM_RUNTIME_GENERATION', 'CODEX_BIN', 'CLAUDE_BIN', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']
+const names = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_AGENT_ROLE', 'AITERM_AGENT_DEPTH', 'AITERM_AGENT_LINEAGE', 'AITERM_AGENT_DELEGATION_ALLOWED', 'AITERM_STATE_BASE', 'BELLTEAM_RUNTIME_GENERATION', 'CODEX_BIN', 'CLAUDE_BIN', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']
 const fixture = `
 let body = ''
 for await (const chunk of process.stdin) body += chunk

@@ -344,7 +344,7 @@ test('CodexのAiterm登録にだけ、席の環境から渡す変数名を挙げ
 
   const codex = await readFile(join(home, '.codex/config.toml'), 'utf8')
   const names = JSON.parse(codex.match(/\[mcp_servers\.aiterm\]\n(?:[^\[\n][^\n]*\n)*?env_vars = (\[[^\n]+\])\n/u)[1])
-  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'THROUGHLINE_HOME', 'npm_config_prefix', 'AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
+  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'THROUGHLINE_HOME', 'npm_config_prefix', 'AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_AGENT_ROLE', 'AITERM_AGENT_DEPTH', 'AITERM_AGENT_LINEAGE', 'AITERM_AGENT_DELEGATION_ALLOWED', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
     assert.ok(names.includes(name), name)
   assert.deepEqual(names.filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
   assert.doesNotMatch(await readFile(join(home, '.grok/config.toml'), 'utf8'), /env_vars/u)
@@ -361,7 +361,7 @@ test('CursorのAiterm登録は、席の環境にある変数だけを名前で�
   assert.equal(env.GH_CONFIG_DIR, '${env:GH_CONFIG_DIR}')
   assert.equal(env.RTK_TELEMETRY_DISABLED, '${env:RTK_TELEMETRY_DISABLED}')
   // 本体に無くてもCLI起動時の値を動的に読む。未展開値は入口で除く。
-  for (const name of ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
+  for (const name of ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_AGENT_ROLE', 'AITERM_AGENT_DEPTH', 'AITERM_AGENT_LINEAGE', 'AITERM_AGENT_DELEGATION_ALLOWED', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
     assert.equal(env[name], `\${env:${name}}`, name)
   // 本体の環境に無い変数を挙げると、Cursorは「${env:…}」という文字列をそのまま値にしてしまう。
   for (const name of ['PLAYWRIGHT_BROWSERS_PATH', 'LC_CTYPE', 'BELLTEAM_ROOT', 'BELLTEAM_BUGHUB_KEY']) assert.equal(Object.hasOwn(env, name), false, name)
