@@ -6,7 +6,7 @@ import { ConfigurationIntents } from './configuration-intents.mjs'
 import { ConfigurationRequests } from './configuration-requests.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
-import { IdleSessions } from './idle-sessions.mjs'
+import { IdleSessions, approvalBoxWakeDecisions, approvalBoxVersionAsSeat } from './idle-sessions.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 import { HarnessAccounts, seatFilesOver } from './harness-accounts.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -168,7 +168,10 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     appendInterimWords: (...args) => { alive(); return track(ports.observer?.appendInterimWords?.(...args)) },
     report: message => { alive(); ports.observer?.report?.(message) },
   })
+  // bd03: the Approval Box capability is in the seat user's home; read it as the seat user (lab Z4: uid 1001 got EACCES).
   const idle = new IdleSessions({ bots: ports.bots, transport, allowClose: () => phase === 'running',
+    ...(typeof ports.seat?.waitProcess === 'function'
+      ? { pendingDecisions: approvalBoxWakeDecisions({ run: approvalBoxVersionAsSeat(ports.seat.waitProcess, runtimeHome()) }) } : {}),
     report: message => { alive(); ports.observer?.report?.(message) },
   })
   const poll = observer.poll.bind(observer)
