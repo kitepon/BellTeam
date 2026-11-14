@@ -98,10 +98,11 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   const plan = (key, lane) => ({ schema: 'lattice.plan_create_input.v5', plan_key: key, phases: [{ phase_id: 'a', title: 'A' }],
     tasks: [{ task_id: 't1', title: `${key} one`, phase_id: 'a', design_memo: 'm', lane }], hard_dependencies: [] })
   assert.equal((await run('bot-a', 'alpha', ['plan', 'create', '--json'], plan('p1', 'bot-a'))).exitCode, 0)
-  // Task a95: the in-process token is exactly what `todo display source --json` prints.
+  // a102: K1/K2 on the real Lattice: the chart, its creator (the seat whose run made the store) and its token.
   const cli = createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') })
-  assert.deepEqual(await cli.source('alpha'), JSON.parse((await cli.run({ id: 'alpha', args: ['todo', 'display', 'source', '--json'] })).stdout))
-  await assert.rejects(cli.source('nochart'), { code: 'LATTICE_UNAVAILABLE' })
+  const [row] = await cli.list()
+  assert.deepEqual([row.id, row.createdBy, typeof row.source], ['alpha', 'bot-a', 'string'])
+  assert.deepEqual([...await cli.sources(['alpha', 'nochart'])], [['alpha', row.source], ['nochart', null]])
   assert.equal((await run('bot-b', 'beta', ['plan', 'create', '--json'], plan('p1', 'bot-b'))).exitCode, 0)
   await run('bot-a', 'alpha', ['todo', 'start', '--plan', 'p1', '--task', 't1'])
   const connect = await run('bot-b', 'beta', ['todo', 'dependency', 'connect', '--from-project', 'alpha', '--from-plan', 'p1', '--from-task', 't1', '--to-plan', 'p1', '--to-task', 't1', '--reason', 'waits on alpha'])

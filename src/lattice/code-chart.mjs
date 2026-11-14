@@ -1,56 +1,12 @@
-// Code charts: a chart dir that is also a checkout of its product repo, so Lattice's conflict check and code graph
-// read real source (docs/architecture/modules/lattice/README.md, Code charts, L8/L9). Child only; no I/O of its own.
+// Code charts: a chart bound to its product repo, so Lattice's conflict check and code graph read real source
+// (docs/architecture/modules/lattice/README.md, Code charts, K7). The repo checkout, its git and the sensor are Lattice's (a102).
 export const CODE_CHARTS = Object.freeze({ bellteam: Object.freeze({ url: 'https://github.com/kitepon/BellTeam.git', branch: 'main' }) })
-export const CODE_CHART_EXCLUDE = Object.freeze(['.lattice/', '.bellteam-chart.json', '.bellteam-chart.json.*.tmp'])
 const DUE_MS = 120000
 
-// Named protection: fetch and move main forward only from the last fetched tip; never reset, clean, force or repoint origin
-// (the store and others' state stay; local commits on main make it 'diverged').
-// Self-exit: any failed step logs one line and the next run 120 s later tries again.
-// Lattice 0.86.1 prints its typed cli_error JSON on stderr (one line); stdout is checked too in case that moves.
-const notInitialized = ({ stdout, stderr }) => `${stdout}\n${stderr}`.split('\n').some(line => {
-  try { return JSON.parse(line).code === 'LATTICE_SENSOR_NOT_INITIALIZED' } catch { return false }
-})
-
+// Lattice fast-forwards only from the last accepted tip, never resets or forces (K7). Self-exit: a failed sync logs one line
+// and the next seat run 120 s later asks again.
 export function createCodeCharts({ cli, charts = CODE_CHARTS, now = () => Date.now(), log = () => {}, dueMs = DUE_MS }) {
-  const last = new Map(), indexed = new Map() // indexed: id -> HEAD of this child's last successful sensor run
-  async function step(id) {
-    const { url, branch } = charts[id]
-    await cli.exclude(id, CODE_CHART_EXCLUDE)
-    const origin = await cli.git(id, ['remote', 'get-url', 'origin']).catch(() => null)
-    if (origin === null) await cli.git(id, ['remote', 'add', 'origin', url])
-    else if (origin !== url) return 'origin-elsewhere'
-    // Someone's tracked edits: touch nothing (no fetch, merge or index of half-edited source).
-    if (await cli.git(id, ['status', '--porcelain', '--untracked-files=no'])) return 'dirty'
-    // Lattice walks `rev-list --objects --all` on every read; in a blob-less clone git fetches each missing blob one by one
-    // (production 2026-11-12: the chart never opened). Drop the promisor first, so nothing is ever fetched lazily again.
-    for (const key of ['remote.origin.promisor', 'remote.origin.partialclonefilter', 'extensions.partialclone']) {
-      await cli.git(id, ['config', '--unset-all', key]).catch(() => null)
-    }
-    // origin/<branch> = the last tip main was moved to (the accepted baseline); only a successful move advances it.
-    const baseline = `refs/remotes/origin/${branch}`
-    const accepted = await cli.git(id, ['rev-parse', '--verify', '--quiet', baseline]).catch(() => null)
-    // Depth 1 grafts the tip, so every reachable object is present and the walk is one tree. Empty --refmap: FETCH_HEAD only.
-    await cli.git(id, ['fetch', '--quiet', '--depth=1', '--no-tags', '--refmap=', 'origin', branch])
-    const target = await cli.git(id, ['rev-parse', 'FETCH_HEAD'])
-    const head = await cli.git(id, ['rev-parse', '--verify', '--quiet', 'HEAD']).catch(() => null)
-    // Unborn branch (a chart made before it was a code chart): .lattice/ and the sidecar are excluded, so checkout leaves them.
-    // A grafted tip has no parent, so --ff-only cannot see the link: main moves only when it holds nothing but the baseline.
-    if (head === null) await cli.git(id, ['checkout', '--quiet', '-B', branch, target])
-    else if (head !== target) {
-      if (head !== accepted) return 'diverged'
-      await cli.git(id, ['checkout', '--quiet', '-B', branch, target])
-    }
-    if (accepted !== target) await cli.git(id, ['update-ref', baseline, target])
-    if (head === target && indexed.get(id) === head) return 'current'
-    indexed.delete(id)
-    let sensor = await cli.sensor(id, 'sync')
-    // Lattice's typed answer, not a directory check: an interrupted init leaves .lattice/sensor without an index.
-    if (sensor.exitCode !== 0 && notInitialized(sensor)) sensor = await cli.sensor(id, 'init')
-    if (sensor.exitCode !== 0) return 'sensor-failed'
-    indexed.set(id, target)
-    return 'synced'
-  }
+  const last = new Map(), bound = new Set()
   return {
     isCode: id => Object.hasOwn(charts, id),
     // Before a seat run on a code chart; at most once per dueMs. Never throws: the seat command runs on the checkout as it is.
@@ -58,10 +14,12 @@ export function createCodeCharts({ cli, charts = CODE_CHARTS, now = () => Date.n
       if (!Object.hasOwn(charts, id) || now() - (last.get(id) ?? -Infinity) < dueMs) return null
       last.set(id, now())
       try {
-        const status = await step(id)
-        if (!['current', 'synced'].includes(status)) log(`lattice-code ${id} ${status}`)
+        if (!bound.has(id)) { await cli.repoBind(id, charts[id].url, charts[id].branch); bound.add(id) }
+        const result = await cli.repoSync(id)
+        const status = typeof result?.status === 'string' ? result.status : 'failed'
+        if (!['current', 'synced'].includes(status)) log(`lattice-code ${id} ${status}${result?.failure?.step ? ` ${result.failure.step}` : ''}`)
         return status
-      } catch (error) { log(`lattice-code ${id} ${error.code ?? error.signal ?? 'LATTICE_CODE_FAILED'}`); return 'failed' }
+      } catch (error) { log(`lattice-code ${id} ${error.code ?? 'LATTICE_CODE_FAILED'}`); return 'failed' }
     },
   }
 }

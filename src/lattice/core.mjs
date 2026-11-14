@@ -8,7 +8,7 @@ import { nudgeSweep } from './nudge.mjs'
 import { ownerDecisions } from './owner-decisions.mjs'
 import { stopsOf, unblockOutcome } from './blockers.mjs'
 
-// shortcut: one CLI process per chart, 16 at a time (README L4); a102 moves the list to one `charts list` process (K1).
+// Display reads of changed charts, 16 at a time (README L4); tokens, names and creators come in one `charts list` / `charts source` process (K1/K2).
 const CHART_PARALLEL = 16, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
@@ -34,14 +34,21 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (value === undefined) throw Object.assign(new Error('read'), { code: 'LATTICE_CLI_BAD_JSON' })
     return value
   }
-  const source = id => cli.source(id).then(JSON.stringify, () => null)
-  // Own source + each external predecessor chart's source and memo version (README L4): no time ceiling.
-  async function token(id, memo) {
-    const own = await source(id)
+  // K2 tokens; a failed probe or no chart is null (the caller reads again).
+  const sourcesOf = ids => cli.sources(ids).catch(() => new Map())
+  // Own source (from K1 when the caller has it) + each external predecessor chart's source and memo version (README L4): no time ceiling.
+  async function token(id, memo, known) {
+    const own = known !== undefined ? known : (await sourcesOf([id])).get(id) ?? null
     const others = [...new Set((memo.projection?.externals ?? []).map(item => item.projectId))].sort()
     if (own === null || !others.length) return own
-    const sources = await Promise.all(others.map(source))
-    return sources.includes(null) ? null : JSON.stringify([own, ...others.map((other, i) => [other, sources[i], memos.get(other)?.version ?? null])])
+    const sources = await sourcesOf(others)
+    return others.some(other => (sources.get(other) ?? null) === null) ? null : JSON.stringify([own, ...others.map(other => [other, sources.get(other), memos.get(other)?.version ?? null])])
+  }
+  // A chart's name and creator are Lattice's (K1/K4); a caller that already listed passes its row.
+  const metaOf = async (id, row) => {
+    const found = row && 'name' in row ? row : (await cli.list()).find(item => item.id === id)
+    if (!found) throw Object.assign(new Error('meta'), { code: 'LATTICE_CHART_GONE' })
+    return { name: found.name, createdBy: found.createdBy }
   }
 
   const snapshotOf = (id, memo) => ({ schema: 'bellteam.lattice-chart.v1', epoch, version: memo.version, at: iso(now()), projectId: id, ...memo.content })
@@ -51,17 +58,17 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (key !== memo.key) { memo.key = key; memo.version++ }
   }
 
-  async function sync(id, members) {
+  async function sync(id, members, row) {
     let memo = memos.get(id)
     if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, meta: null, roster: null, dirty: true, logged: null })
-    const current = await token(id, memo)
+    const current = await token(id, memo, row ? row.source : undefined)
     const rosterBad = await members(), rosterKey = JSON.stringify([rosterBad, roster])
     const same = memo.content && !memo.dirty && current !== null && current === memo.token
     if (same && rosterKey === memo.roster) return memo
     // A roster change alone re-projects the kept read; no CLI.
     if (same) return project(id, memo, memo.read, memo.meta, rosterBad, rosterKey)
     let read, meta
-    try { [read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), cli.meta(id)]) } catch (error) {
+    try { [read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), metaOf(id, row)]) } catch (error) {
       memo.dirty = true
       if (memo.logged !== error.code) { memo.logged = error.code; log(`lattice-read ${id} ${error.code ?? 'LATTICE_CLI_FAILED'}`) }
       const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [], phases: [] }
@@ -94,19 +101,20 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     let pending
     return () => pending ??= effect('members.list', {}).then(value => { roster = value.members; return false }, () => true)
   }
-  async function syncAll(ids, effect) {
+  async function syncAll(ids, effect, rows = new Map()) {
     const members = rosterReader(effect), out = []
-    for (let i = 0; i < ids.length; i += CHART_PARALLEL) out.push(...await Promise.all(ids.slice(i, i + CHART_PARALLEL).map(id => sync(id, members))))
+    for (let i = 0; i < ids.length; i += CHART_PARALLEL) out.push(...await Promise.all(ids.slice(i, i + CHART_PARALLEL).map(id => sync(id, members, rows.get(id)))))
     return out
   }
+  const listed = async () => { const rows = await cli.list(); return { ids: rows.map(row => row.id), rows: new Map(rows.map(row => [row.id, row])) } }
   const mustExist = async id => { if (!await cli.exists(id)) throw latticeError('LATTICE_CHART_NOT_FOUND', 404) }
 
   return {
     epoch,
     async charts(params, effect) {
-      const ids = await cli.list()
+      const { ids, rows } = await listed()
       for (const id of memos.keys()) if (!ids.includes(id)) memos.delete(id)
-      const charts = (await syncAll(ids, effect)).map((memo, i) => ({ projectId: ids[i], name: memo.content.name, coordinator: memo.content.coordinator,
+      const charts = (await syncAll(ids, effect, rows)).map((memo, i) => ({ projectId: ids[i], name: memo.content.name, coordinator: memo.content.coordinator,
         createdBy: memo.content.createdBy,
         counts: memo.projection?.counts ?? { total: 0, done: 0, working: 0, waiting: 0, blocked: 0 },
         activeMembers: [...new Set(memo.content.cards.filter(card => card.state === 'in-progress' && card.producer).map(card => card.producer))].sort(),
@@ -122,11 +130,11 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     },
     // Returns each chart whose version moved since it was last returned here, so a read by another caller is never lost to subscribers.
     async refresh({ projectIds }, effect) {
-      const ids = []
-      // An exists() I/O error keeps the chart in the round, where its read reports degraded:['lattice-read'] instead of dropping it.
-      for (const id of projectIds) if (await cli.exists(id).catch(() => true)) ids.push(id)
+      // One K2 call for the round; a failed probe keeps every chart in it, where its read reports degraded:['lattice-read'].
+      const sources = await cli.sources(projectIds).catch(() => null)
+      const ids = projectIds.filter(id => !sources || sources.get(id) !== null)
       const snapshots = []
-      ;(await syncAll(ids, effect)).forEach((memo, i) => {
+      ;(await syncAll(ids, effect, new Map(sources ? ids.map(id => [id, { id, source: sources.get(id) }]) : []))).forEach((memo, i) => {
         if (memo.version !== memo.pushed) { memo.pushed = memo.version; snapshots.push(snapshotOf(ids[i], memo)) }
       })
       return { snapshots, nextRefreshMs: refreshMs }
@@ -137,14 +145,16 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       ? runOnce(params, effect, true) : locked(params.projectId, () => runOnce(params, effect)),
     // Each new child generation (parent onGeneration): unacked notices of every chart, at most NOTICE_SLICE sends.
     async deliver(params, effect) {
-      const ids = await cli.list()
+      const { ids, rows } = await listed()
+      // Once per child generation: what BellTeam kept inside Lattice's root before a102 moves out (names to Lattice, the record to BellTeam's state).
+      try { const moved = await cli.migrateLegacy([...rows.values()]); if (moved.names || moved.record) log(`lattice-migrated names=${moved.names} record=${moved.record}`) } catch (error) { log(`lattice-migrate ${error?.code ?? 'FAILED'}`) }
       await rosterReader(effect)()
       return notices.deliverAll(ids, { roster, effect, lock: locked })
     },
     // Every minute (facade timer, README L13-L15): every chart's cards from the memo -> ONE prompt per lane Bot not running.
     async nudge(params, effect) {
-      const ids = await cli.list()
-      const memos = await syncAll(ids, effect)
+      const { ids, rows } = await listed()
+      const memos = await syncAll(ids, effect, rows)
       const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))
       const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)
       const out = await nudgeSweep(charts, { laneOf, log, effect })
@@ -158,11 +168,11 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     },
     // Owner stop list (L16): a read, so no chart lock; a chart that fails is named in unreadCharts.
     async blockers() {
-      const ids = await cli.list(), rows = [], unreadCharts = []
+      const { ids, rows: listedRows } = await listed(), rows = [], unreadCharts = []
       for (let i = 0; i < ids.length; i += CHART_PARALLEL) await Promise.all(ids.slice(i, i + CHART_PARALLEL).map(async id => {
         try {
-          const [value, meta] = await Promise.all([lattice(id, ['todo', 'blockers', '--json']), cli.meta(id)])
-          rows.push(...stopsOf(id, value, meta))
+          const value = await lattice(id, ['todo', 'blockers', '--json'])
+          rows.push(...stopsOf(id, value, { name: listedRows.get(id).name, createdBy: listedRows.get(id).createdBy }))
         } catch (error) { unreadCharts.push(id); log(`lattice-blockers ${id} ${error?.code ?? 'LATTICE_CLI_FAILED'}`) }
       }))
       const order = row => [row.projectId, row.plan, row.taskId]
@@ -190,21 +200,16 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     const naming = name !== undefined
     const renameOnly = naming && args.length === 0 && input === null
     if (!renameOnly) checkSeatArgs(args, input)
-    // Renaming needs a chart; only a Lattice command (plan create) makes one.
+    // Renaming needs a chart; only a Lattice store-creating command makes one (K5).
     else await mustExist(projectId)
-    const existed = await cli.exists(projectId)
-    const { created } = read ? { created: false } : await cli.ensure(projectId)
-    // The creator is recorded once: by the run that makes the store, or by naming a chart that has none recorded.
-    if (naming) await cli.setMeta(projectId, { name, ...(existed && !(await cli.meta(projectId)).createdBy && { createdBy: from }) })
+    // Lattice makes the chart on its first store-creating command and records the creator from LATTICE_SEAT_ID (K5); BellTeam makes no dirs.
     const memo = memos.get(projectId)
     if (memo && !read) memo.dirty = true
-    if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
+    if (args.length === 0) { await cli.setName(projectId, name, from); return { exitCode: 0, result: { name }, stdout: null, stderr: '' } }
     if (!read) await codeCharts.maintain(projectId)
-    let result
-    try { result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input }) } finally {
-      // Only a dir this run created is removed; a pre-existing dir without a store is left as it was.
-      if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else if (created) await cli.prune(projectId) }
-    }
+    const result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input })
+    // A name given with a command is set once the chart exists, so a refused command never leaves a named empty chart (K4).
+    if (naming && result.exitCode === 0 && await cli.exists(projectId)) await cli.setName(projectId, name, from)
     // Lattice prints refusals (lattice.cli_error.v2: code, detail.pointer, detail.next_action) on stderr; they reach the seat as result.
     // undefined = not JSON; a valid JSON null on stdout stays the result.
     const out = parse(result.stdout)

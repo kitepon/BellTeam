@@ -225,12 +225,12 @@ flowchart LR
   Apps -->|LT13 GET blockers; POST charts/:id/unblock stopId (Owner only)| P1
   F -->|LT14 root blockers / unblock| C
   F -->|LT6 bots.listForClient| P4
-  C <-->|LT7 Lattice CLI seat commands, display read/source; name file| D11
+  C <-->|LT7 Lattice CLI only: seat commands, charts list/source, display read, chart set, chart repo (K1-K8)| D11
   C -->|LT8 run result, chart list, snapshot with name/createdBy/degraded| F
   F -->|LT9 tool result; JSON; SSE snapshot on version change| P1
 ```
 
-Target (task a102, Owner 2026-11-14): LT7 becomes the Lattice product's contracted CLI only ([K1-K8](modules/lattice/README.md#bellteam---lattice-connection-target-task-a102)); D11 is Lattice's own store, which BellTeam never reads or writes directly; the chart name and creator live in Lattice (K4) and the Owner-lane filing record in BellTeam's own state. LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
+Since a102 (Owner 2026-11-14): LT7 is the Lattice product's contracted CLI only ([K1-K8](modules/lattice/README.md#bellteam---lattice-connection-task-a102)); D11 is Lattice's own store, which BellTeam never reads or writes directly; the chart name and creator live in Lattice (K4) and the Owner-lane filing record in BellTeam's own state. LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
 
 ## Startup, restart/resume and child loss
 
@@ -302,7 +302,7 @@ State IDs below identify existing stores; they introduce no new persistence. Rel
 | D7c runtime jobs and install receipts/fences | Updater companion's own atomic storage/installer writer | Existing body clients -> common projection; saved companion source/binding and actual disk error remain visible, separate from parent code version |
 | D8 diagnostics and restart-limit problem records | Diagnostics/Signal serialized writer | Closed diagnostic/problem projection; historical missing fields are not reconstructed |
 | D9 active-only restart references | Execution writer, `state/execution-activity.json` | Cold resume selection and hot handoff; consumed references are not a new queued-input store |
-| D11 Lattice chart stores and chart names | P11 lattice child: Lattice CLI writes `/srv/bellteam/state/lattice/<projectId>/.lattice/**`; the child writes `.bellteam-chart.json` `{name}` beside it; Lattice HOME `/srv/bellteam/state/lattice-home/` | P11 `todo display read/source` -> projection -> P1 chart list/snapshot (display name, never the project id, on screens). Not copied into another store |
+| D11 Lattice chart stores, names and creators (Lattice's own, under `LATTICE_CHARTS_ROOT=/srv/bellteam/state/lattice`; Lattice HOME `/srv/bellteam/state/lattice-home/`) and BellTeam's Owner-lane filing record (`/srv/bellteam/state/lattice-module/owner-decisions.json`) | P11 lattice child: Lattice writes its store only through its CLI (K1-K8, a102); the child writes only its own record | P11 `charts list` / `charts source` / `todo display read` -> projection -> P1 chart list/snapshot (display name, never the project id, on screens). Not copied into another store |
 
 ## 親execution境界の詳細対応
 
