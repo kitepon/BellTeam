@@ -1,0 +1,355 @@
+{
+  "note": "E1 = `node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js harness-entries --json --harness codex --harness grok` (caveat-cli 0.21.20). codexHooksBefore/After = the production seat copy (2026-11-14) ~/.codex/hooks.json before and after one real pass of configureHarnessEntries with only this E2 item (real Caveat, real grok, real Codex app-server on a temp home). before = the seat MCP entries (codex config.toml, grok mcp list). trust = the codex hooks.state entries of the three Caveat positions before and after that pass.",
+  "e1": {
+    "schema": "bellteam.harness-entries.v1",
+    "product": "caveat",
+    "version": "0.21.20",
+    "mcpServers": {
+      "caveat": {
+        "codex": {
+          "command": "node",
+          "args": [
+            "--disable-warning=ExperimentalWarning",
+            "/srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js",
+            "mcp-server"
+          ]
+        },
+        "grok": {
+          "command": "node",
+          "args": [
+            "--disable-warning=ExperimentalWarning",
+            "/srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js",
+            "mcp-server"
+          ]
+        }
+      }
+    },
+    "hooks": {
+      "codex": {
+        "UserPromptSubmit": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js codex-hook user-prompt-submit",
+                "timeout": 5,
+                "async": false,
+                "statusMessage": null
+              }
+            ]
+          }
+        ],
+        "PostToolUse": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js codex-hook post-tool-use",
+                "timeout": 5,
+                "async": false,
+                "statusMessage": null
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js codex-hook stop",
+                "timeout": 5,
+                "async": false,
+                "statusMessage": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "settings": {
+      "codex": {
+        "features.hooks": true
+      }
+    },
+    "owns": {
+      "commandIncludes": [
+        "caveat.js",
+        "caveat.mjs"
+      ]
+    }
+  },
+  "codexHooksBefore": {
+    "hooks": {
+      "UserPromptSubmit": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook user-prompt-submit",
+              "timeout": 30,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /srv/bellteam/bots/bot-2094dc6d/work/caveat-github-user-0.21.4-20261026/registry-fresh/node_modules/caveat-cli/dist/caveat.js codex-hook user-prompt-submit",
+              "timeout": 5,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        }
+      ],
+      "PostToolUse": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook post-tool-use",
+              "timeout": 30,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        },
+        {
+          "matcher": ".*",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "'/usr/local/bin/node' '/usr/local/lib/node_modules/aiterm-mcp/dist/codex-parent-hook.js' '/home/bell/.config/aiterm-mcp/codex-parent-hooks'",
+              "timeout": 20,
+              "additionalContextLimit": 0
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /srv/bellteam/bots/bot-2094dc6d/work/caveat-github-user-0.21.4-20261026/registry-fresh/node_modules/caveat-cli/dist/caveat.js codex-hook post-tool-use",
+              "timeout": 5,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        }
+      ],
+      "Stop": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook stop",
+              "timeout": 300,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "'/usr/local/bin/node' '/usr/local/lib/node_modules/aiterm-mcp/dist/codex-parent-hook.js' '/home/bell/.config/aiterm-mcp/codex-parent-hooks'",
+              "timeout": 20
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /srv/bellteam/bots/bot-2094dc6d/work/caveat-github-user-0.21.4-20261026/registry-fresh/node_modules/caveat-cli/dist/caveat.js codex-hook stop",
+              "timeout": 5,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        }
+      ],
+      "PreToolUse": [
+        {
+          "matcher": "Bash",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node /srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook codex"
+            }
+          ]
+        }
+      ],
+      "PreCompact": [
+        {
+          "matcher": "auto",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook pre-compact",
+              "timeout": 30,
+              "async": false,
+              "statusMessage": "Throughline: 自動継続を準備"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "codexHooksAfter": {
+    "hooks": {
+      "UserPromptSubmit": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook user-prompt-submit",
+              "timeout": 30,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js codex-hook user-prompt-submit",
+              "timeout": 5,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        }
+      ],
+      "PostToolUse": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook post-tool-use",
+              "timeout": 30,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        },
+        {
+          "matcher": ".*",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "'/usr/local/bin/node' '/usr/local/lib/node_modules/aiterm-mcp/dist/codex-parent-hook.js' '/home/bell/.config/aiterm-mcp/codex-parent-hooks'",
+              "timeout": 20,
+              "additionalContextLimit": 0
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js codex-hook post-tool-use",
+              "timeout": 5,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        }
+      ],
+      "Stop": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook stop",
+              "timeout": 300,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "'/usr/local/bin/node' '/usr/local/lib/node_modules/aiterm-mcp/dist/codex-parent-hook.js' '/home/bell/.config/aiterm-mcp/codex-parent-hooks'",
+              "timeout": 20
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node /srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js codex-hook stop",
+              "timeout": 5,
+              "async": false,
+              "statusMessage": null
+            }
+          ]
+        }
+      ],
+      "PreToolUse": [
+        {
+          "matcher": "Bash",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node /srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook codex"
+            }
+          ]
+        }
+      ],
+      "PreCompact": [
+        {
+          "matcher": "auto",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/usr/local/bin/node /usr/local/lib/node_modules/throughline/bin/throughline.mjs codex-hook pre-compact",
+              "timeout": 30,
+              "async": false,
+              "statusMessage": "Throughline: 自動継続を準備"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "before": {
+    "codex": {
+      "command": "/usr/local/bin/node",
+      "args": [
+        "--disable-warning=ExperimentalWarning",
+        "/srv/bellteam/shared/tools/caveat/0.21.18/node_modules/caveat-cli/dist/caveat.js",
+        "mcp-server"
+      ]
+    },
+    "grok": {
+      "command": "/usr/local/bin/node",
+      "args": [
+        "--disable-warning=ExperimentalWarning",
+        "/srv/bellteam/shared/tools/caveat/0.21.18/node_modules/caveat-cli/dist/caveat.js",
+        "mcp-server"
+      ],
+      "enabled": true
+    }
+  },
+  "trust": {
+    "oldHash": {
+      "post_tool_use:2:0": "sha256:1bb60d88c088d0afa4c6c5ddfc09d89440dfa5f6e4bd9d336817f4d21a861d92",
+      "user_prompt_submit:1:0": "sha256:d2e1dbc523660afa4c68d0db40acc2f5393ce7b80432e9f2872a1b6c0a1cd759",
+      "stop:2:0": "sha256:fa93d69a51186fd47bc3ecefab31be31d6fca76d821dfa6b8e8a223d34a103d1"
+    },
+    "newHash": {
+      "post_tool_use:2:0": "sha256:831baba5c2b53c3aba21fa3204e952610a706539e5165f3b4b087299016e16a9",
+      "user_prompt_submit:1:0": "sha256:606c7a44054e306b91caf990d1ef01ec52d1b6d31c46c43aaa0652d5af99dbd4",
+      "stop:2:0": "sha256:411e11fb909c5afb4c980f58aa27a07156b761efbe2e70fb84e183790cf41fc3"
+    }
+  }
+}
