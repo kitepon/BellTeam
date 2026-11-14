@@ -322,7 +322,8 @@ struct LatticeChartScreen: View {
                                                open: { select($0, scroll: true) }, chat: { chat($0) })
                                 .frame(width: 350)
                                 .background {
-                                    RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.ultraThinMaterial)
+                                    // Opaque: cards behind must not show through the detail (Owner a110).
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous).fill(LatticePalette.surface)
                                         .shadow(color: .black.opacity(0.16), radius: 24, y: 10)
                                         .matchedGeometryEffect(id: id, in: namespace)
                                 }
@@ -1544,22 +1545,26 @@ struct LatticeFlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        for (index, point) in arrange(proposal: proposal, subviews: subviews).points.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        let arranged = arrange(proposal: proposal, subviews: subviews)
+        for (index, point) in arranged.points.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: ProposedViewSize(arranged.sizes[index]))
         }
     }
 
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, points: [CGPoint]) {
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, points: [CGPoint], sizes: [CGSize]) {
         let width = proposal.width ?? .infinity
-        var points: [CGPoint] = [], x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0, widest: CGFloat = 0
+        var points: [CGPoint] = [], sizes: [CGSize] = [], x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0, widest: CGFloat = 0
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            let natural = subview.sizeThatFits(.unspecified)
+            // A chip wider than the row is narrowed to it (its title truncates); unclamped it widened the detail past its panel (a110).
+            let size = natural.width > width ? subview.sizeThatFits(ProposedViewSize(width: width, height: nil)) : natural
             if x > 0 && x + size.width > width { x = 0; y += row + spacing; row = 0 }
             points.append(CGPoint(x: x, y: y))
+            sizes.append(size)
             x += size.width + spacing
             row = max(row, size.height)
             widest = max(widest, x - spacing)
         }
-        return (CGSize(width: widest, height: y + row), points)
+        return (CGSize(width: widest, height: y + row), points, sizes)
     }
 }
