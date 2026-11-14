@@ -14,7 +14,7 @@ import { validateMembersRequest, validateMembersEffect, validateMembersEffectRes
 const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false })
 const initial = Object.freeze({ ...context, leaseId: null })
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
-async function fixture(t, effect = async method => method === 'project.readPreviousSession' ? '' : undefined) {
+async function fixture(t, effect = async method => method === 'project.readPreviousSession' ? '' : undefined, onProjection = async () => {}) {
   const root = await mkdtemp(join(tmpdir(), 'members-dispatcher-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const seedPath = join(root, 'seed.json')
@@ -23,7 +23,7 @@ async function fixture(t, effect = async method => method === 'project.readPrevi
   await new BotRegistry({ seedPath, botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots') }).initialize()
   await new OwnerProfile({ root }).initialize(); await new UserRules({ root }).initialize()
   const records = []
-  const dispatcher = createMembersDispatcher({ root, effect, projection: async (record, context) => { records.push({ record, context }) } })
+  const dispatcher = createMembersDispatcher({ root, effect, projection: async (record, context) => { records.push({ record, context }); await onProjection(record) } })
   await dispatcher.control('initialize', { generation: 'test' }, initial)
   await dispatcher.control('resume', {})
   const request = (method, params, ctx = context) => { dispatcher.validateRequest(method, params, ctx); return dispatcher.dispatch(method, params, ctx) }
@@ -330,4 +330,25 @@ test('a refused read-pinned owner.read in flight does not satisfy the leased pro
   assert.deepEqual(writes, ['lease'])
   await f.request('owner.read', {}, pinned); await f.request('owner.read', {})
   assert.deepEqual(writes, ['lease'])
+})
+
+test('concurrent reads share the queued snapshot instead of queueing one full snapshot each', async t => {
+  let hold = null
+  const f = await fixture(t, undefined, async record => { if (hold && record.type === 'snapshot-start') await hold.promise })
+  const starts = () => f.records.filter(item => item.record.type === 'snapshot-start').length
+  const before = starts()
+  hold = deferred()
+  const running = f.request('profiles.read', {})
+  while (starts() === before) await new Promise(resolve => setImmediate(resolve))
+  // Readers arriving during the running snapshot wait for one later snapshot, shared by all of them.
+  const readers = Array.from({ length: 20 }, () => f.request('profiles.read', {}))
+  const gate = hold; hold = null; gate.resolve()
+  const first = await running, rest = await Promise.all(readers)
+  assert.equal(starts() - before, 2)
+  assert.ok(rest.every(value => value.revision === first.revision + 1))
+  // A write finished before the next snapshot starts is in that snapshot.
+  const { bot } = await f.request('profile.update', { botId: 'bot-a', changes: { name: 'Joined' } })
+  const after = await f.request('profiles.read', {})
+  assert.equal(bot.name, 'Joined')
+  assert.equal(f.records.filter(item => item.record.type === 'profile' && item.record.revision === after.revision).at(-1).record.bot.name, 'Joined')
 })

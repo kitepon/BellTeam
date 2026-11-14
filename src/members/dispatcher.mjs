@@ -24,7 +24,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   const contexts = new AsyncLocalStorage()
   let generation, initialized = false, initializationStarted = false, accepting = false, quiesced = false, exiting = false, epoch = 0, revision = 0
   const active = new Set()
-  let projecting = Promise.resolve()
+  let projecting = Promise.resolve(), queuedSnapshot = null
   const call = async (method, params) => {
     const context = contexts.getStore()
     validateMembersEffect(method, params, context)
@@ -120,7 +120,10 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     return task
   }
   const snapshot = context => {
+    // A snapshot not yet started refreshes after every caller that joins it, so they share it.
+    if (queuedSnapshot) return queuedSnapshot
     const next = projecting.catch(() => {}).then(async () => {
+      queuedSnapshot = null
       await bots.refresh()
       const current = ++revision
       const send = async record => { validateMembersProjection(record, context); await projection(record, context) }
@@ -129,7 +132,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       await send({ type: 'snapshot-end', revision: current })
       return current
     })
-    projecting = next
+    projecting = queuedSnapshot = next
     return next
   }
   const assertContext = context => {

@@ -66,3 +66,13 @@ test('fresh snapshot revision alone never generates a read-to-SSE feedback loop'
   view.unavailable(); publish(view, 'a', 4, ['same']); assert.equal(events, 2)
   publish(view, 'a', 5, ['changed']); assert.equal(events, 3)
 })
+
+test('a newer snapshot-start supersedes one the child abandoned; an equal or older one is still refused', () => {
+  const view = createMembersProjection(); view.begin('a'); publish(view, 'a', 1, ['old'])
+  view.accept({ type: 'snapshot-start', revision: 2 }, context('a'))
+  view.accept({ type: 'profile', revision: 2, bot: bot('abandoned') }, context('a'))
+  publish(view, 'a', 3, ['new'])
+  assert.deepEqual([...view.keys()], ['new']); assert.equal(view.snapshot().available, true)
+  view.accept({ type: 'snapshot-start', revision: 4 }, context('a'))
+  assert.throws(() => view.accept({ type: 'snapshot-start', revision: 4 }, context('a')))
+})
