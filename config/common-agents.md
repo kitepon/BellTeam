@@ -108,6 +108,8 @@ SECTION lattice
   # Work is tracked on Lattice charts (bellteam MCP `lattice`); the coordinator's chart is BellTeam開発 (project bellteam).
   RULE lattice.task
     WHEN: a turn starts  DO: run session-context.
+    WHEN: you take on any work other than a simple reply
+    DO: put it on a chart as a task before you start (the coordinator's chart when it belongs there, otherwise your own); found bugs included.
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read; todo block when stuck.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
