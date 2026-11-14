@@ -23,7 +23,8 @@ async function fixture(t) {
   const children = [], closed = [], prepared = [], tokens = new WeakMap(), calls = [], native = []
   const admission = new ConversationLifetimes('initial'), operationContext = {}, admissionCheck = () => {}
   let snapshotReads = 0
-  const ports = { root, admission, readBots: () => { snapshotReads++; return fixture.bots },
+  // The wrapper requires a ready probe (module-process); the module-process wrapper tests use the same no-op.
+  const ports = { root, admission, probeCandidate: async () => {}, readBots: () => { snapshotReads++; return fixture.bots },
     authorizeActor: (method, token) => tokens.get(token)?.method === method ? tokens.get(token).actor : false,
     onEffect: async (method, params, context) => {
       calls.push({ method, params, context })
@@ -84,19 +85,23 @@ test('conversation wrapper performs real Node builtin/release/builtin restore an
   assert.deepEqual(await readFile(join(h.root, 'logs/direct-messages.jsonl')), before)
 })
 
-test('wrapper retains accepted save/native completion and permits only the old live lease during exchange', { timeout: 10000 }, async t => {
+test('wrapper holds a pre-start request and retains accepted save/native completion through exchange', { timeout: 10000 }, async t => {
   const h = await fixture(t)
-  const refused = h.controller.request('user.turn', {})
-  assert.equal(refused.accepted, refused); assert.equal(refused.completion, refused)
-  await assert.rejects(refused.accepted, { code: 'CONVERSATION_NOT_ACCEPTING' })
+  // Owner ruling 2026-11-08 (module-process hold contract): a request before the first child waits for it instead of being refused.
+  let early = 'pending'
+  const held = h.controller.request('user.turn', {})
+  held.then(() => { early = 'resolved' }, error => { early = error.code })
+  await turn(); await turn()
+  assert.equal(early, 'pending'); assert.equal(h.children.length, 0)
   await h.controller.start()
+  await assert.rejects(held, { code: 'CONVERSATION_NOT_ACCEPTED' }) // retried once after start; it carries no current lease
   const lease = h.admission.enter(), input = { target: h.fixture.bots[0].id, message: 'question', images: [] }
   const options = h.options('user.turn', lease), request = h.controller.request('user.turn', input, options)
   await request.accepted
   const replacing = h.controller.replace(sha)
   while (h.controller.snapshot().phase !== 'quiescing') await turn()
-  assert.throws(() => h.admission.enter())
-  assert.equal((await h.controller.request('rooms.list', {}, h.options('rooms.list', lease))).rooms.length, 1)
+  // Owner ruling 2026-11-07: the old lease is not served new reads during quiesce; the accepted turn alone continues.
+  await assert.rejects(h.controller.request('rooms.list', {}, h.options('rooms.list', lease)), { code: 'CONVERSATION_IPC_INVALID' })
   assert.equal(h.children.length, 1)
   for (const call of h.calls) { assert.equal(call.context.operationContext, h.operationContext); assert.equal(call.context.admissionCheck, h.admissionCheck) }
   await h.admission.invoke(h.native[0].delivery, 'user.complete', { reply: 'saved before exchange' })
