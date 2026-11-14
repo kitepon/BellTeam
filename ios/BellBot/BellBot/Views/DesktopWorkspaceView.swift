@@ -36,59 +36,15 @@ struct DesktopWorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 320, ideal: 340, max: 420)
                 #endif
         } detail: {
-            Group {
-                switch store.selectedTab {
-                case 1: SchedulesView()
-                case 2: SettingsView()
-                case 3: GoalsView()
-                case 4: WorkGraphView()
-                case 5: LatticeHomeView(returnTab: 5)
-                default:
-                    if let selection {
-                        #if targetEnvironment(macCatalyst)
-                        if inspectorVisible && !selection.isRoom {
-                            GeometryReader { area in
-                                HStack(spacing: 0) {
-                                    ConversationView(target: selection)
-                                        .frame(width: (area.size.width - 1) / 2)
-                                    Divider()
-                                    DesktopInspector(target: selection, showingScreen: $inspectorScreenVisible)
-                                        .id(selection)
-                                        .frame(width: (area.size.width - 1) / 2)
-                                }
-                            }
-                        } else {
-                            HStack(spacing: 0) {
-                                ConversationView(target: selection)
-                                    .frame(minWidth: 410, maxWidth: .infinity)
-                                if inspectorVisible {
-                                    Divider()
-                                    DesktopInspector(target: selection, showingScreen: $inspectorScreenVisible)
-                                        .id(selection)
-                                        .frame(width: 280)
-                                }
-                            }
-                        }
-                        #else
-                        ConversationView(target: selection)
-                            .inspector(isPresented: $inspectorVisible) {
-                                DesktopInspector(target: selection, showingScreen: $inspectorScreenVisible)
-                                    .id(selection)
-                                    .inspectorColumnWidth(min: 260, ideal: 300, max: 360)
-                            }
-                        #endif
-                    } else { welcome }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if store.selectedTab == 0 {
-                        Button { inspectorVisible.toggle() } label: { Image(systemName: "sidebar.right") }
-                            .accessibilityLabel("詳細パネル")
-                            .help("詳細パネルを表示・非表示（⌘⇧I）")
-                            .keyboardShortcut("i", modifiers: [.command, .shift])
-                    }
-                }
+            switch store.selectedTab {
+            case 1: SchedulesView()
+            case 2: SettingsView()
+            case 3: GoalsView()
+            case 5: LatticeHomeView(returnTab: 5)
+            default:
+                // Every screen here owns a NavigationStack, as 予定・ゴール・設定 do: a chart pushed on the 工程表 stack stayed
+                // in the detail column when the next screen had none (会話, 相関図), so the sidebar seemed dead (Owner 2026-11-14).
+                NavigationStack { stacklessDetail }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -126,6 +82,60 @@ struct DesktopWorkspaceView: View {
             if let error = store.connectionError {
                 Text(error).font(.caption).foregroundStyle(.red)
                     .frame(maxWidth: .infinity).padding(8).background(.regularMaterial)
+            }
+        }
+    }
+
+    /// 相関図 (iPad) and the conversation or welcome: the screens without a NavigationStack of their own.
+    @ViewBuilder private var stacklessDetail: some View {
+        Group {
+            if store.selectedTab == 4 {
+                WorkGraphView()
+            } else {
+                if let selection {
+                    #if targetEnvironment(macCatalyst)
+                    if inspectorVisible && !selection.isRoom {
+                        GeometryReader { area in
+                            HStack(spacing: 0) {
+                                ConversationView(target: selection)
+                                    .frame(width: (area.size.width - 1) / 2)
+                                Divider()
+                                DesktopInspector(target: selection, showingScreen: $inspectorScreenVisible)
+                                    .id(selection)
+                                    .frame(width: (area.size.width - 1) / 2)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 0) {
+                            ConversationView(target: selection)
+                                .frame(minWidth: 410, maxWidth: .infinity)
+                            if inspectorVisible {
+                                Divider()
+                                DesktopInspector(target: selection, showingScreen: $inspectorScreenVisible)
+                                    .id(selection)
+                                    .frame(width: 280)
+                            }
+                        }
+                    }
+                    #else
+                    ConversationView(target: selection)
+                        .inspector(isPresented: $inspectorVisible) {
+                            DesktopInspector(target: selection, showingScreen: $inspectorScreenVisible)
+                                .id(selection)
+                                .inspectorColumnWidth(min: 260, ideal: 300, max: 360)
+                        }
+                    #endif
+                } else { welcome }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if store.selectedTab == 0 {
+                    Button { inspectorVisible.toggle() } label: { Image(systemName: "sidebar.right") }
+                        .accessibilityLabel("詳細パネル")
+                        .help("詳細パネルを表示・非表示（⌘⇧I）")
+                        .keyboardShortcut("i", modifiers: [.command, .shift])
+                }
             }
         }
     }
