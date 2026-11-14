@@ -97,7 +97,9 @@ struct LatticeRing: View {
                     .font(.system(size: size * 0.27, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(LatticePalette.ink)
-                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)  // without it the label wrapped inside the ring (「136/1」「46」, Trony 2026-11-14)
+                    .minimumScaleFactor(0.5)
+                    .padding(line + 2)
             }
         }
         .frame(width: size, height: size)
