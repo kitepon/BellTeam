@@ -124,4 +124,9 @@ test('a fresh run during a members module exchange waits for resume instead of b
   gate.resume(ticket)
   await running
   assert.deepEqual(sent, ['bot-a'])
+  // Open at the call, closed right after: the reservation happens inside the open check, never after a yield.
+  const reserved = scheduler.withOperationContext(async options => { assert.ok(options.membersLease); return 'reserved' })
+  const closed = gate.close()
+  assert.equal(await reserved, 'reserved')
+  gate.resume(closed)
 })

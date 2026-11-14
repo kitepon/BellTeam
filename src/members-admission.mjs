@@ -118,8 +118,12 @@ export class MembersAdmission {
     })
   }
 
-  // A fresh caller that enters through another gate (the shared module operation context) waits here first.
-  whenOpen() { return this.#ticket ? this.#afterExchange(() => undefined) : Promise.resolve() }
+  // A fresh caller entering through another gate (the shared module operation context) passes its entry here:
+  // it runs synchronously while admission is open, now or right after resume, so no close can fall in between.
+  whenOpen(operation) {
+    if (this.#ticket) return this.#afterExchange(() => this.whenOpen(operation))
+    try { return Promise.resolve(operation()) } catch (error) { return Promise.reject(error) }
+  }
 
   withReadPin(method, operation, { pin, expected, correlation } = {}) {
     if (!pin && expected === undefined && this.#ticket) return this.#afterExchange(() => this.withReadPin(method, operation, { correlation }))
