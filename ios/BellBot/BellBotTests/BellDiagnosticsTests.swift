@@ -27,6 +27,14 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertEqual(background.state, "background")
     }
 
+    func testCrashFieldsKeepTheWatchdogReasonOnOneLine() {
+        XCTAssertEqual(BellDiagnostics.crashFields(terminationReason: "FRONTBOARD 0x8BADF00D\nscene-create watchdog",
+                                                   exceptionType: 10, exceptionCode: 0, signal: 9),
+                       "termination_reason=FRONTBOARD 0x8BADF00D scene-create watchdog\nexception_type=10\nexception_code=0\nsignal=9")
+        XCTAssertEqual(BellDiagnostics.crashFields(terminationReason: nil, exceptionType: nil, exceptionCode: nil, signal: nil),
+                       "termination_reason=none\nexception_type=none\nexception_code=none\nsignal=none")
+    }
+
     func testTimeoutThatSpannedASuspensionIsNotReported() {
         var reports = 0
         let diagnostics = BellDiagnostics { _, _, _, _ in reports += 1 }
@@ -51,11 +59,15 @@ final class BellDiagnosticsTests: XCTestCase {
         diagnostics.updateAppState("background")
         let backgrounded = diagnostics.requestAppStateSnapshot()
         let startedInBackground = timeout(start: backgrounded, end: backgrounded)
+        let lostInBackground = URLError(.networkConnectionLost, userInfo: startedInBackground.userInfo)
+        let lostWhileActive = URLError(.networkConnectionLost, userInfo: stayedActive.userInfo)
+        XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(lostWhileActive))
         #if targetEnvironment(macCatalyst)
         XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(suspended), "Macは裏に回っても止められないので通常どおり報告")
         #else
         XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(suspended))
         XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(startedInBackground), "裏で始まった要求の時間切れも同じ（8343d1f5）")
+        XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(lostInBackground), "裏で止められた間の接続切断も同じ（2f6b9dae）")
         diagnostics.report(suspended, path: "/api/rooms", method: "GET", observation: .read(suspended, retainedData: true))
         XCTAssertEqual(reports, 0, "裏に回って止められた間の時間切れは報告しない")
         #endif

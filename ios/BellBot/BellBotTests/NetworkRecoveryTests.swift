@@ -85,6 +85,14 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.reports.count, 0)
     }
 
+    func testEarlyTimedOutGETIsRetriedOnceLikeALostConnection() async throws {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut, earlyTimeout: true)
+        let api = makeAPI(scenario)
+        let _: [String: String] = try await api.get("/api/session")
+        XCTAssertEqual(scenario.count("/api/session"), 2, "計時より早い時間切れは死んだ接続なので1回取り直す")
+        XCTAssertEqual(scenario.reports.count, 0)
+    }
+
     func testRepeatedLostGETReportsOnceAndIncludesAnonymousContext() async throws {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)
@@ -447,7 +455,7 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.reports.first?.code, "IOS_NETWORK_TIMEOUT")
         XCTAssertTrue(log.contains("request_attempts=1"))
         XCTAssertTrue(log.contains("request_timeout_interval_ms=60000"))
-        XCTAssertTrue(log.contains("session_timeout_interval_for_request_ms=60000"))
+        XCTAssertTrue(log.contains("session_timeout_interval_for_request_ms=200"), "試験の短い計時（makeAPI）を使い切った時間切れ")
         XCTAssertTrue(log.contains("task_metrics_available=true"))
         XCTAssertTrue(log.contains("attempt_1_error_code=-1001"))
         XCTAssertTrue(log.contains("attempt_1_elapsed_monotonic_ms="))
@@ -833,6 +841,8 @@ final class NetworkRecoveryTests: XCTestCase {
         NetworkScenarioProtocol.scenario = scenario
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [NetworkScenarioProtocol.self]
+        // A simulated timedOut runs out this short timer; an early one (dead shared connection) fails at once.
+        if scenario.failureCode == .timedOut, !scenario.earlyTimeout { configuration.timeoutIntervalForRequest = 0.2 }
         let session = URLSession(configuration: configuration)
         addTeardownBlock { session.invalidateAndCancel() }
         let diagnostics = BellDiagnostics { code, _, _, log in scenario.record(code: code, log: log) }
@@ -857,6 +867,7 @@ private final class NetworkScenario {
     let failures: Int
     let failureCode: URLError.Code
     let failurePath: String?
+    let earlyTimeout: Bool
     let avatars: Bool
     let accessExpired: Bool
     let httpStatus: Int
@@ -873,7 +884,7 @@ private final class NetworkScenario {
 
     @MainActor
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
-         failurePath: String? = nil,
+         failurePath: String? = nil, earlyTimeout: Bool = false,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
          events502ThenReady: Bool = false, eventsFirstStatus: Int = 502, holdEventsOpen: Bool = false,
          skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false,
@@ -882,6 +893,7 @@ private final class NetworkScenario {
         self.failures = failures
         self.failureCode = failureCode
         self.failurePath = failurePath
+        self.earlyTimeout = earlyTimeout
         self.avatars = avatars
         self.accessExpired = accessExpired
         self.httpStatus = httpStatus
@@ -953,6 +965,8 @@ private final class NetworkScenarioProtocol: URLProtocol {
             if !(Self.scenario.holdEventsOpen && request.url!.path == "/api/events" && status == 200) {
                 client!.urlProtocolDidFinishLoading(self)
             }
+        } catch let error as URLError where error.code == .timedOut && !Self.scenario.earlyTimeout {
+            // Stay silent: URLSession's own short timer (makeAPI) ends the request with a real timedOut.
         } catch { client!.urlProtocol(self, didFailWithError: error) }
     }
 }

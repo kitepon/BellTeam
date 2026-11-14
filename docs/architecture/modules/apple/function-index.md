@@ -431,7 +431,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [MemberActivityTests.swift](../../../../ios/BellBot/BellBotTests/MemberActivityTests.swift) | queue表示重複、stopped、currentWorkによる仕事中 |
 | [MemberDeletionTests.swift](../../../../ios/BellBot/BellBotTests/MemberDeletionTests.swift) | 削除受付と一覧消失、拒否・応答喪失時の保持 |
 | [MessageInputTests.swift](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift) | iPadのReturn/修飾改行、iPhone標準動作 |
-| [NetworkRecoveryTests.swift](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift) | GET一回再取得、POST非再送、Access、診断時計・route、goal取消、SSE復帰/対象更新、画像再利用 |
+| [NetworkRecoveryTests.swift](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift) | GET一回再取得（接続喪失と計時前timeout）、POST非再送、Access、診断時計・route、goal取消、SSE復帰/対象更新、画像再利用 |
 | [NotificationTests.swift](../../../../ios/BellBot/BellBotTests/NotificationTests.swift) | 通知から会話置換、秘密/質問/roomのroute、未知通知 |
 | [OnboardingTests.swift](../../../../ios/BellBot/BellBotTests/OnboardingTests.swift) | origin、初回認証decode、binding/digest、session、保護通信、反映エラー |
 | [RoomDeletionTests.swift](../../../../ios/BellBot/BellBotTests/RoomDeletionTests.swift) | 削除対象の選択/draftだけ整理、失敗時保持 |

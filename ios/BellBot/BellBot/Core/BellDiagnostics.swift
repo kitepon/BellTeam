@@ -395,14 +395,15 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         [.cancelled, .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff, .callIsActive].contains(error.code)
     }
 
-    /// iPhone・iPadで、裏で始まったか要求の途中に裏へ回り、OSに止められている間に時間切れになった要求。
-    /// 60秒の計時は止まっている間も進み、戻った時にまとめて切れる。通信や利用者への影響ではないので報告しない。
+    /// iPhone・iPadで、裏で始まったか要求の途中に裏へ回り、OSに止められている間に時間切れか接続切断になった要求。
+    /// 60秒の計時は止まっている間も進み、戻った時にまとめて切れる。止めている間にOSが接続を閉じれば接続切断になる。
+    /// 通信や利用者への影響ではないので報告しない。
     /// 前面へ戻った時の再取得（`AppStore.sceneChanged`）が読み直す。Macは裏に回っても止められないので対象外。
     static func isSuspendedTimeout(_ error: Error) -> Bool {
         #if targetEnvironment(macCatalyst)
         return false
         #else
-        guard (error as? URLError)?.code == .timedOut,
+        guard let code = (error as? URLError)?.code, code == .timedOut || code == .networkConnectionLost,
               let attempt = BellRequestTrace.from(error)?.attemptDetails.last else { return false }
         return attempt.appStateAtStart.state == "background"
             || attempt.appStateAtEnd.backgroundEntries > attempt.appStateAtStart.backgroundEntries
@@ -418,11 +419,11 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             for diagnostic in payload.hangDiagnostics ?? [] {
                 let duration = diagnostic.hangDuration.converted(to: .seconds).value
                 send(code: "IOS_HANG", module: "app", version: diagnostic.applicationVersion,
-                     log: "hang_duration_seconds=\(duration)\n\(Self.stackLog(diagnostic.callStackTree))")
+                     log: "hang_duration_seconds=\(duration)\n\(Self.metaLog(diagnostic.metaData))\n\(Self.stackLog(diagnostic.callStackTree))")
             }
             for diagnostic in payload.crashDiagnostics ?? [] {
                 send(code: "IOS_CRASH", module: "app", version: diagnostic.applicationVersion,
-                     log: Self.stackLog(diagnostic.callStackTree))
+                     log: Self.crashLog(diagnostic) + "\n" + Self.stackLog(diagnostic.callStackTree))
             }
         }
     }
@@ -536,6 +537,26 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             + "\nexpected_result=\(expected)\nactual_result=\(actual)"
             + "\nexpectation_basis=code_contract\nresult_basis=\(resultBasis)"
             + "\nhandling_basis=code_classification\nscreen_observation=not_observed"
+    }
+
+    /// Kind and origin of a crash go before the stack so the server's cut of a long stack never drops them
+    /// (a watchdog kill, a real crash and a test-host crash look alike from the stack alone).
+    static func crashLog(_ diagnostic: MXCrashDiagnostic) -> String {
+        crashFields(terminationReason: diagnostic.terminationReason, exceptionType: diagnostic.exceptionType,
+                    exceptionCode: diagnostic.exceptionCode, signal: diagnostic.signal)
+            + "\n" + metaLog(diagnostic.metaData)
+    }
+
+    static func crashFields(terminationReason: String?, exceptionType: NSNumber?, exceptionCode: NSNumber?,
+                            signal: NSNumber?) -> String {
+        let reason = terminationReason.map { String($0.replacingOccurrences(of: "\n", with: " ").prefix(600)) }
+        return "termination_reason=\(reason ?? "none")\nexception_type=\(exceptionType.map { "\($0)" } ?? "none")"
+            + "\nexception_code=\(exceptionCode.map { "\($0)" } ?? "none")\nsignal=\(signal.map { "\($0)" } ?? "none")"
+    }
+
+    static func metaLog(_ meta: MXMetaData) -> String {
+        "app_build=\(meta.applicationBuildVersion)\ntestflight=\(meta.isTestFlightApp)"
+            + "\nos_version=\(meta.osVersion)\ndevice_type=\(meta.deviceType)"
     }
 
     private static func stackLog(_ tree: MXCallStackTree) -> String {

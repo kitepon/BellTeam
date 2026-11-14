@@ -39,7 +39,7 @@ flowchart TD
   Refresh -->|"iPhone・iPadで裏に回った間の時間切れ"| Suspended["エラー表示も診断もしない<br/>前面へ戻った時のsceneForeground再取得が読み直す"]
 ```
 
-`BellDiagnostics.isSuspendedTimeout`：iPhone・iPadで、裏で始まった、または要求の途中に裏へ回った（`BellAppStateSnapshot.backgroundEntries`が開始と終了で違う）`URLError.timedOut`。OSがアプリを止めている間も60秒の計時は進み、戻った時にまとめて切れるため、通信の失敗とは扱わない。`refreshFromView`と`refreshResourcesFromEvent`は取消と同じく何も表示せず、`BellDiagnostics.report`も報告しない。Macは裏に回っても止められないので、今までどおり時間切れとして扱う。裏に回った後に届いたSSEの知らせ（`requestRefreshFromEvent`・`requestSideRefresh`）は読み取りを始めず、前面へ戻った時の再取得に任せる。
+`BellDiagnostics.isSuspendedTimeout`：iPhone・iPadで、裏で始まった、または要求の途中に裏へ回った（`BellAppStateSnapshot.backgroundEntries`が開始と終了で違う）`URLError.timedOut`と`URLError.networkConnectionLost`。OSがアプリを止めている間も60秒の計時は進み、戻った時にまとめて切れる。止めている間にOSが接続を閉じれば接続切断になる。どちらも通信の失敗とは扱わない。`refreshFromView`と`refreshResourcesFromEvent`は取消と同じく何も表示せず、`BellDiagnostics.report`も報告しない。Macは裏に回っても止められないので、今までどおり時間切れとして扱う。裏に回った後に届いたSSEの知らせ（`requestRefreshFromEvent`・`requestSideRefresh`）は読み取りを始めず、前面へ戻った時の再取得に任せる。
 
 `refresh`は3応答（bots・rooms・owner）と必要な画像解決が揃うまで共通一覧を書き換えない。Bot cacheの保存は適用後。対象限定の`refreshResourcesFromEvent`は指定資源だけGETし、画像を解決してから適用する。一覧の「仕事中」は`Bot.isWorking`（`currentWork.state == working`）だけで決め、AppStoreは`/api/queue`を読まない。「処理中」の行は会話画面が対象の`/queue`から作る。
 
@@ -123,7 +123,7 @@ flowchart TD
 | SSE終了・通信失敗・HTTP429/5xx | 画面へ再接続中と表示。1秒から倍増し最大30秒。30秒超の接続後は遅延・連続失敗数をリセット。URLError連続5回目に診断 |
 | SSE認証失敗 | requireLoginへ渡して再接続loopを終了 |
 | SSEのその他の応答（404など）/復号等の異常 | 理由を表示し、同じ間隔（1秒から倍増・最大30秒）で再接続を続ける。診断は失敗の連続の初回だけ。止めるのは取消と認証拒否だけ |
-| 通常HTTPのGETでnetworkConnectionLost | BellAPI.loadが一度だけGETを取り直す。他のGET失敗やPOST/PATCH/PUT/DELETEをここでは再送しない |
+| 通常HTTPのGETでnetworkConnectionLost、または要求の計時（`timeoutInterval`）より早いtimedOut | BellAPI.loadが一度だけGETを取り直す。早いtimedOutは共有の接続が死んだ時に出る（同じ接続の要求が同じ瞬間にそろって切れる）ので、接続切断と同じ扱い。計時を使い切ったtimedOut、他のGET失敗、POST/PATCH/PUT/DELETEはここでは再送しない |
 | JSON/画像/HTTP検証の失敗 | throwしてcallerが表示・診断を決める。認証用保護sessionはredirectを拒否し、deferでinvalidateAndCancel |
 | 会話ページを消した後の初回読取応答 | conversationGeneration不一致なら成功/失敗を適用しない。rememberも世代を検査 |
 | requireLogin | foreground/SSEを停止、AI停止状態と接続エラーを消す。下書き辞書は保持。CloudflareはsignIn、local拒否はfailure |

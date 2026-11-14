@@ -150,7 +150,9 @@ private final class DelayedForegroundProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         if request.url!.path == "/api/subscription" || request.url!.path == "/api/ai-control" { finish() }
-        else { Self.fixture!.begin(self) }
+        // A request that outlives its test finds no fixture; trapping here killed the host, and MetricKit sent it as a production crash (05541b84).
+        else if let fixture = Self.fixture { fixture.begin(self) }
+        else { client?.urlProtocol(self, didFailWithError: URLError(.cancelled)) }
     }
     override func stopLoading() {
         lock.lock()
