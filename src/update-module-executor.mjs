@@ -559,7 +559,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           // A failed readback must not hide the already durable unknown result.
           try { await refreshInstalls(entry) } catch {}
         }
-        return publicJobs(entry)
+        // Same as the inventory (t20 f6c057c6): a Host that is briefly gone during a swap hides only the job rows of this read;
+        // the saved report stays for the next read. Lab Z20 saw this route answer one 503 per exchange before.
+        return publicJobs(entry).catch(() => publicOperation(entry))
       }, true)
     },
     async snapshot(inventory) {
