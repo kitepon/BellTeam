@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T14:48:10Z",
-  "expiresAt": "2026-11-21T14:48:10Z",
+  "publishedAt": "2026-11-14T17:13:21Z",
+  "expiresAt": "2026-11-21T17:13:21Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "36cd0c5d02bd708dfa48fc903ab5392768866494",
-      "versionId": "sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2",
+      "sourceCommit": "5ecc7f9cfd79e751ab455911fb423a5b02f8b4af",
+      "versionId": "sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Caveat の設定も本体がまとめて書くようにし、Caveat を 0.21.20 に上げました。"
+        "席の会話が終わった時や、使っていない会話を閉じた時の記録が、本体のログに残るようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "36cd0c5d02bd708dfa48fc903ab5392768866494",
-      "versionId": "sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2",
+      "sourceCommit": "5ecc7f9cfd79e751ab455911fb423a5b02f8b4af",
+      "versionId": "sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a6a442b8b974c12fb8fa88be1d4fd6a4b65de6802acf1bd40b57e5280d543535"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Caveat の設定も本体がまとめて書くようにし、Caveat を 0.21.20 に上げました。"
+        "席の会話が終わった時や、使っていない会話を閉じた時の記録が、本体のログに残るようにしました。"
       ]
     },
     {
