@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T14:11:20Z",
-  "expiresAt": "2026-11-21T14:11:20Z",
+  "publishedAt": "2026-11-14T14:48:10Z",
+  "expiresAt": "2026-11-21T14:48:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9f5587c855131a8c576c42738e3abf0f5710855e",
-      "versionId": "sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197",
+      "sourceCommit": "36cd0c5d02bd708dfa48fc903ab5392768866494",
+      "versionId": "sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Codex と Cursor の席から、子の AI を起こせるようにしました。",
-        "ルームと予定の一覧が、ときどき減って見える問題を直しました。",
-        "Approval Box と Throughline の設定も、本体がまとめて書くようにしました。"
+        "Caveat の設定も本体がまとめて書くようにし、Caveat を 0.21.20 に上げました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9f5587c855131a8c576c42738e3abf0f5710855e",
-      "versionId": "sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197",
+      "sourceCommit": "36cd0c5d02bd708dfa48fc903ab5392768866494",
+      "versionId": "sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e541d9237931183a587539743de5a324fba19d6b82bcfeb6fe6a1c25f1807197"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:73feb487b70216409d9a47cd428259a83a091d2eecbe9758ad12e4aedf6c54f2"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Codex と Cursor の席から、子の AI を起こせるようにしました。",
-        "ルームと予定の一覧が、ときどき減って見える問題を直しました。",
-        "Approval Box と Throughline の設定も、本体がまとめて書くようにしました。"
+        "Caveat の設定も本体がまとめて書くようにし、Caveat を 0.21.20 に上げました。"
       ]
     },
     {
