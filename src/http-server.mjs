@@ -55,7 +55,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     reportError: report => diagnostics?.record(report) })
   const featureApis = [
     createApplicationApi({ ownerProfile, userRules, events, assets }),
-    createMemberDeletionApi({ administration }),
+    createMemberDeletionApi({ administration, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : null }),
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
       administration }),
     createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }),
