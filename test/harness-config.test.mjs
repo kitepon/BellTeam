@@ -136,11 +136,12 @@ test('BellTeam設定の後に公式Throughline installを実行する', async ()
   const home = await mkdtemp(join(tmpdir(), 'bellteam-throughline-config-'))
   const calls = []
   await configureHarnesses(new Map(), home, {
-    productEntries: async value => { calls.push(['products', value]) },
+    productEntries: async (value, options) => { calls.push(['products', value, options.relay]) },
+    relay: async () => '/relay/mcp-lazy',
     run: async (command, args, options) => { calls.push([command, args, options.env.HOME]) },
     aitermHooks: async value => { calls.push(['aiterm', value]) },
   })
-  assert.deepEqual(calls, [['throughline', ['install'], home], ['products', home], ['aiterm', home]])
+  assert.deepEqual(calls, [['throughline', ['install'], home], ['products', home, '/relay/mcp-lazy'], ['aiterm', home]])
   assert.match(await readFile(join(home, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
 })
 
@@ -158,7 +159,7 @@ test('native登録の値を用意できない時は、報告してvarsなしで�
     report: message => reported.push(message),
   })
   assert.deepEqual(reported, ['BellTeam Aiterm: hookの登録に使う値を用意できませんでした（EXECUTION_INVALID）'])
-  assert.deepEqual(calls, [['run', 'report']])
+  assert.deepEqual(calls, [['run', 'report', 'relay']])
 })
 
 test('旧登録（native以外）の席は、旧hook関数で登録し、varsは渡さない', async () => {
@@ -173,7 +174,7 @@ test('旧登録（native以外）の席は、旧hook関数で登録し、varsは
     run: async () => {}, cursorInstructions: async () => {},
     aitermHooks: async (_, options) => { calls.push(['legacy hooks', options]) },
   })
-  assert.deepEqual(calls, [['products', ['run', 'report']], ['legacy hooks', { registration }]])
+  assert.deepEqual(calls, [['products', ['run', 'report', 'relay']], ['legacy hooks', { registration }]])
 })
 
 test('製品のMCP・hookを登録できなくても設定の反映は止めず、理由を記録する', async () => {

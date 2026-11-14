@@ -3,5 +3,6 @@
   { "product": "typesafe", "file": "/srv/bellteam/shared/tools/typesafe/harness-entries.json" },
   { "product": "throughline", "command": ["throughline", "harness-entries", "--json", "--home", "{home}"] },
   { "product": "rtk", "file": "/srv/bellteam/shared/tools/rtk/harness-entries.json" },
+  { "product": "approval-box", "command": ["{home}/.approval-box/bin/approval-box", "harness-entries", "--json"], "wrap": "mcp-lazy" },
   { "product": "aiterm", "command": ["aiterm-setup", "harness-entries", "--json", "--home", "{home}", "--state-root", "{stateRoot}", "--socket", "{socket}", "--steer-provider", "{steerProvider}", "--codex-binary", "{codexBinary}", "--clients", "claude,cursor,codex"] }
 ]

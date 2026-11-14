@@ -118,12 +118,13 @@ test('an invalid or missing E1 writes nothing for that product while the other p
   assert.deepEqual(Object.keys(applied), ['typesafe'])
 })
 
-test('a product that also has permissions is skipped and reported', async () => {
-  const f = await fixture({ products: { xarticle: e1('xarticle', { ...xarticle, claude: { type: 'http', url: 'http://new.invalid' } }, { permissions: { cursor: { allow: ['Mcp(x:y)'] } } }) } })
+test('permissions for a harness or key BellTeam does not apply are reported and skipped while the rest of the product applies', async () => {
+  const changed = { ...xarticle, claude: { type: 'http', url: 'http://new.invalid' } }
+  const f = await fixture({ products: { xarticle: e1('xarticle', changed, { permissions: { gemini: { allow: ['x'] }, cursor: { allow: ['Mcp(x:y)'], deny: ['z'] } } }) } })
   await f.apply()
-  assert.deepEqual(writes(f.calls), [])
-  assert.match(f.reports[0], /xarticle.*permissions/u)
-  assert.equal(JSON.parse(await readFile(join(f.home, '.claude.json'), 'utf8')).mcpServers.xarticle.url, xarticle.claude.url)
+  assert.deepEqual(f.reports, ['BellTeam 権限 xarticle: permissions.gemini は適用しません', 'BellTeam 権限 xarticle: permissions.cursor.deny は適用しません'])
+  assert.ok(writes(f.calls).some(call => call[2] === 'add-json' && call[4].includes('new.invalid')))
+  assert.equal(JSON.parse(await readFile(join(f.home, '.cursor/cli-config.json'), 'utf8')).permissions.allow.at(-1), 'Mcp(x:y)')
 })
 
 test('merge rule: declared keys win, undeclared keys and env keys stay, env:{} clears nothing', async () => {
@@ -472,4 +473,137 @@ test('a {name} without a value makes that product E1 unusable: reported, the pro
     assert.deepEqual(f.requests, [])
     assert.equal(JSON.parse(await f.read('.bellteam-cli-registration/applied.json')).aiterm, undefined)
   }
+})
+
+// bd14 fifth switch: Approval Box's E1 (0.1.37) and what the real `mcp-lazy wrap-entry` (0.4.0) printed for each raw entry are frozen in the fixture.
+const AB = JSON.parse(await readFile(new URL('./fixtures/approval-box-switch.json', import.meta.url), 'utf8'))
+const E2_AB = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8')).find(item => item.product === 'approval-box')
+const RAW = AB.e1.mcpServers['approval-box']
+const ALLOW = AB.e1.permissions.cursor.allow
+const at = (value, home) => JSON.parse(JSON.stringify(value).replaceAll('@HOME@', home))
+const json = value => `${JSON.stringify(value, null, 2)}\n`
+const AB_FILES = ['.claude/settings.json', '.cursor/hooks.json', '.cursor/cli-config.json', '.cursor/mcp.json']
+
+// A seat as production holds it on 2026-11-14: codex, cursor and grok wrapped, claude raw, the hooks and the Cursor allow items in place.
+async function abSeat({ relay = AB.relay, claude = RAW.claude, cursorConfig = { permissions: { allow: ['Shell(ls)', ...ALLOW], deny: [] }, version: 1 }, wrap = null, e1: product = AB.e1 } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-ab-entries-'))
+  const home = join(dir, 'home')
+  const wrapped = at(AB.wrapped, home)
+  await mkdir(join(home, '.claude'), { recursive: true })
+  await mkdir(join(home, '.cursor'), { recursive: true })
+  await writeFile(join(home, '.claude.json'), json({ mcpServers: { 'approval-box': claude === 'wrapped' ? wrapped.claude : claude, other: { url: 'keep' } }, numStartups: 3 }))
+  await writeFile(join(home, '.claude/settings.json'), json({ hooks: AB.e1.hooks.claude, model: 'opus' }))
+  await writeFile(join(home, '.cursor/hooks.json'), json({ version: 1, hooks: AB.e1.hooks.cursor }))
+  await writeFile(join(home, '.cursor/mcp.json'), json({ mcpServers: { 'approval-box': wrapped.cursor } }))
+  if (cursorConfig) await writeFile(join(home, '.cursor/cli-config.json'), json(cursorConfig))
+  await writeFile(join(dir, 'registry.json'), JSON.stringify([E2_AB]))
+  const calls = [], requests = [], reports = [], inputs = []
+  const run = async (program, args, options) => {
+    calls.push([program, ...args])
+    if (program === join(home, '.approval-box/bin/approval-box')) return { stdout: JSON.stringify(product) }
+    if (program === AB.relay) {
+      const harness = args.find(arg => arg.startsWith('MCP_LAZY_CACHE_DIR=')).split('-').at(-1)
+      inputs.push([harness, options.input])
+      if (wrap === harness) throw Object.assign(new Error(`Command failed: ${program} ${args.join(' ')}`), { cmd: `${program} ${args.join(' ')}`, code: 1 })
+      return { stdout: JSON.stringify(wrapped[harness]) }
+    }
+    if (program === 'grok' && args[1] === 'list') return { stdout: JSON.stringify([{ ...wrapped.grok, enabled: true, name: 'approval-box', scope: 'user' }]) }
+    return { stdout: '' }
+  }
+  let codex = { ...wrapped.codex, environment_id: 'local', enabled: true, tool_timeout_sec: null }
+  const appServer = async (_env, use) => use(async (method, params) => {
+    requests.push([method, params])
+    if (method === 'config/read') return { config: { mcp_servers: { 'approval-box': codex } } }
+    if (method === 'config/batchWrite') codex = { ...codex, ...params.edits[0].value }
+  })
+  const apply = () => configureHarnessEntries(home, { relay, registry: join(dir, 'registry.json'), run, appServer, report: message => reports.push(message) })
+  const read = file => readFile(join(home, file), 'utf8').catch(() => null)
+  return { home, calls, requests, reports, inputs, apply, read, wrapped, bytes: () => Promise.all(AB_FILES.map(read)) }
+}
+const abWrites = calls => calls.filter(call => ['claude', 'grok'].includes(call[0]) && !(call[0] === 'grok' && call[2] === 'list'))
+
+test('Approval Box: a production seat changes only the claude entry (raw to wrapped); hooks, cursor mcp.json, cli-config, codex and grok are not touched', async () => {
+  const f = await abSeat()
+  const before = await f.bytes()
+  const inodes = async () => (await Promise.all(AB_FILES.map(file => stat(join(f.home, file))))).map(info => info.ino)
+  const ino = await inodes()
+  await f.apply()
+  assert.deepEqual(f.reports, [])
+  assert.deepEqual(await f.bytes(), before)
+  assert.deepEqual(await inodes(), ino)
+  assert.deepEqual(f.requests.map(([method]) => method), ['config/read'])
+  assert.deepEqual(f.calls.filter(call => call[0] === join(f.home, '.approval-box/bin/approval-box')), [[join(f.home, '.approval-box/bin/approval-box'), 'harness-entries', '--json']])
+  // each raw entry goes to the relay on stdin; argv names the relay and the per-client cache dir only
+  assert.deepEqual(f.inputs.map(([harness, input]) => [harness, JSON.parse(input)]), ['claude', 'codex', 'cursor', 'grok'].map(harness => [harness, RAW[harness]]))
+  assert.deepEqual(f.calls.find(call => call[0] === AB.relay), [AB.relay, 'wrap-entry', '--json', '--relay', AB.relay, '--env', `MCP_LAZY_CACHE_DIR=${f.home}/.cache/mcp-lazy/approval-box-claude`, '--env', 'MCP_LAZY_IDLE_STOP=0'])
+  assert.deepEqual(abWrites(f.calls), [
+    ['claude', 'mcp', 'remove', 'approval-box', '--scope', 'user'],
+    ['claude', 'mcp', 'add-json', 'approval-box', JSON.stringify({ type: 'stdio', command: AB.relay, args: ['/usr/local/bin/node', '/home/bell/.approval-box/runtime/0.1.37/cli.mjs', 'mcp'], env: { MCP_LAZY_CACHE_DIR: `${f.home}/.cache/mcp-lazy/approval-box-claude`, MCP_LAZY_IDLE_STOP: '0' } }), '--scope', 'user'],
+  ])
+  const applied = JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))
+  assert.deepEqual(applied['approval-box'].entries, ['claude:approval-box', 'grok:approval-box', 'cursor:approval-box', 'codex:approval-box', 'claude:hooks:PreToolUse', 'claude:hooks:PostToolUse', 'claude:hooks:Stop', 'claude:hooks:SessionStart', 'claude:hooks:SessionEnd', 'cursor:hooks:afterMCPExecution', 'cursor:hooks:postToolUse', 'cursor:permissions'])
+})
+
+test('Approval Box: a seat that already holds the wrapped claude entry is not written at all (second pass)', async () => {
+  const f = await abSeat({ claude: 'wrapped' })
+  await f.apply()
+  assert.deepEqual(abWrites(f.calls), [])
+  assert.deepEqual(f.requests.map(([method]) => method), ['config/read'])
+  assert.deepEqual(f.reports, [])
+})
+
+test('Approval Box: an empty seat gets the four entries, the hooks and the Cursor allow items; cli-config.json is created with allow and deny', async () => {
+  const f = await abSeat({ cursorConfig: null })
+  await f.apply()
+  assert.equal(await f.read('.cursor/cli-config.json'), json({ permissions: { allow: ALLOW, deny: [] } }))
+  assert.deepEqual(f.reports, [])
+})
+
+test('Cursor permissions.allow appends only the missing E1 items in E1 order and keeps every other item, deny and key', async () => {
+  const user = ['Shell(ls)', ALLOW[3], 'Read(~/x)', ALLOW[0]]
+  const f = await abSeat({ cursorConfig: { version: 1, permissions: { allow: user, deny: ['Shell(rm)'], extra: 1 }, editor: { vimMode: false } } })
+  await f.apply()
+  assert.equal(await f.read('.cursor/cli-config.json'), json({ version: 1, permissions: { allow: [...user, ...ALLOW.filter(rule => !user.includes(rule))], deny: ['Shell(rm)'], extra: 1 }, editor: { vimMode: false } }))
+  const once = await f.read('.cursor/cli-config.json')
+  await f.apply()
+  assert.equal(await f.read('.cursor/cli-config.json'), once)
+})
+
+test('Approval Box: permissions for another harness or key are reported and skipped, the product still applies', async () => {
+  const f = await abSeat({ cursorConfig: { permissions: { allow: [], deny: [] } }, e1: { ...AB.e1, permissions: { ...AB.e1.permissions, gemini: { allow: ['x'] }, cursor: { ...AB.e1.permissions.cursor, deny: ['y'] } } } })
+  await f.apply()
+  assert.deepEqual(f.reports, ['BellTeam 権限 approval-box: permissions.cursor.deny は適用しません', 'BellTeam 権限 approval-box: permissions.gemini は適用しません'])
+  assert.deepEqual(JSON.parse(await f.read('.cursor/cli-config.json')).permissions, { allow: ALLOW, deny: [] })
+  assert.equal(abWrites(f.calls).length, 2)
+})
+
+test('Approval Box: a failed transform is reported without the entry and that entry stays as the seat holds it; the others still apply', async () => {
+  const f = await abSeat({ wrap: 'claude', cursorConfig: { permissions: { allow: [], deny: [] } } })
+  await f.apply()
+  assert.equal(f.reports.length, 1)
+  assert.match(f.reports[0], /approval-box: claude の approval-box をmcp-lazyで包めなかった.*\/usr\/local\/bin\/mcp-lazy が終了コード 1 で失敗しました/u)
+  assert.doesNotMatch(f.reports[0], /cli\.mjs|wrap-entry/u)
+  assert.deepEqual(abWrites(f.calls), [])
+  assert.deepEqual(JSON.parse(await f.read('.claude.json')).mcpServers['approval-box'], RAW.claude)
+  assert.deepEqual(JSON.parse(await f.read('.cursor/cli-config.json')).permissions.allow, ALLOW)
+  assert.ok(!JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))['approval-box'].entries.includes('claude:approval-box'))
+})
+
+test('Approval Box: without an executable relay the raw E1 entry is written, no transform runs', async () => {
+  const f = await abSeat({ relay: null })
+  await f.apply()
+  assert.deepEqual(f.calls.filter(call => call[0] === AB.relay), [])
+  assert.deepEqual(f.reports, [])
+  // claude already holds the raw entry: nothing to write for it; the wrapped cursor entry takes E1's raw command (E1 wins, the seat's extra env stays)
+  assert.deepEqual(abWrites(f.calls).map(call => call.slice(0, 3)), [['grok', 'mcp', 'remove'], ['grok', 'mcp', 'add']])
+  assert.equal(JSON.parse(await f.read('.cursor/mcp.json')).mcpServers['approval-box'].command, RAW.cursor.command)
+})
+
+test('an E2 wrap value other than mcp-lazy makes that product E1 unusable', async () => {
+  const f = await abSeat()
+  await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...E2_AB, wrap: 'other' }]))
+  const before = await f.bytes()
+  await f.apply()
+  assert.match(f.reports[0], /approval-box.*E1を使えない.*wrap "other" は未対応です/u)
+  assert.deepEqual(await f.bytes(), before)
 })

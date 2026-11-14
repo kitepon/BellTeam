@@ -1,0 +1,198 @@
+{
+  "note": "E1 = /home/bell/.approval-box/bin/approval-box harness-entries --json (Approval Box 0.1.37); wrapped = the real mcp-lazy 0.4.0 `wrap-entry --json --relay /usr/local/bin/mcp-lazy --env MCP_LAZY_CACHE_DIR=@HOME@/.cache/mcp-lazy/approval-box-<harness> --env MCP_LAZY_IDLE_STOP=0` output for each raw E1 entry (stdin = the raw entry). @HOME@ is the seat home. The wrapped entries are what the production seat (2026-11-14) holds for codex, cursor and grok; claude holds the raw entry today.",
+  "relay": "/usr/local/bin/mcp-lazy",
+  "e1": {
+    "schema": "bellteam.harness-entries.v1",
+    "product": "approval-box",
+    "version": "0.1.37",
+    "mcpServers": {
+      "approval-box": {
+        "claude": {
+          "type": "stdio",
+          "command": "/usr/local/bin/node",
+          "args": [
+            "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+            "mcp"
+          ]
+        },
+        "codex": {
+          "command": "/usr/local/bin/node",
+          "args": [
+            "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+            "mcp"
+          ],
+          "env_vars": [
+            "CODEX_HOME"
+          ]
+        },
+        "cursor": {
+          "command": "/usr/local/bin/node",
+          "args": [
+            "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+            "mcp"
+          ]
+        },
+        "grok": {
+          "command": "/usr/local/bin/node",
+          "args": [
+            "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+            "mcp"
+          ]
+        }
+      }
+    },
+    "hooks": {
+      "claude": {
+        "PreToolUse": [
+          {
+            "matcher": "^mcp__approval-box__(request_decision|setup_test|amend_decision|resume_decision)$",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "exec '/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-claude-hook.mjs'",
+                "timeout": 15
+              }
+            ]
+          }
+        ],
+        "PostToolUse": [
+          {
+            "matcher": "^mcp__approval-box__(request_decision|setup_test|amend_decision|resume_decision)$",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "exec '/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-claude-hook.mjs'",
+                "asyncRewake": true,
+                "timeout": 86400
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "exec '/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-claude-hook.mjs'",
+                "asyncRewake": true,
+                "timeout": 86400
+              }
+            ]
+          }
+        ],
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "exec '/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-claude-hook.mjs'",
+                "asyncRewake": true,
+                "timeout": 86400
+              }
+            ]
+          }
+        ],
+        "SessionEnd": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "exec '/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-claude-hook.mjs'",
+                "timeout": 15
+              }
+            ]
+          }
+        ]
+      },
+      "cursor": {
+        "afterMCPExecution": [
+          {
+            "command": "'/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-cursor-hook.mjs'",
+            "timeout": 15
+          }
+        ],
+        "postToolUse": [
+          {
+            "command": "'/usr/local/bin/node' '/home/bell/.approval-box/runtime/0.1.37/approval-box-cursor-hook.mjs'",
+            "timeout": 15
+          }
+        ]
+      }
+    },
+    "permissions": {
+      "cursor": {
+        "allow": [
+          "Mcp(approval-box:list_my_decisions)",
+          "Mcp(approval-box:request_decision)",
+          "Mcp(approval-box:amend_decision)",
+          "Mcp(approval-box:resume_decision)",
+          "Mcp(approval-box:cancel_decision)",
+          "Mcp(approval-box:get_decision)",
+          "Mcp(approval-box:get_attachment)",
+          "Mcp(approval-box:setup_test)",
+          "Mcp(approval-box:confirm_setup_test)"
+        ]
+      }
+    },
+    "owns": {
+      "commandIncludes": [
+        "approval-box-claude-hook.mjs",
+        "approval-box-cursor-hook.mjs"
+      ]
+    }
+  },
+  "wrapped": {
+    "claude": {
+      "args": [
+        "/usr/local/bin/node",
+        "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+        "mcp"
+      ],
+      "command": "/usr/local/bin/mcp-lazy",
+      "env": {
+        "MCP_LAZY_CACHE_DIR": "@HOME@/.cache/mcp-lazy/approval-box-claude",
+        "MCP_LAZY_IDLE_STOP": "0"
+      },
+      "type": "stdio"
+    },
+    "codex": {
+      "args": [
+        "/usr/local/bin/node",
+        "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+        "mcp"
+      ],
+      "command": "/usr/local/bin/mcp-lazy",
+      "env": {
+        "MCP_LAZY_CACHE_DIR": "@HOME@/.cache/mcp-lazy/approval-box-codex",
+        "MCP_LAZY_IDLE_STOP": "0"
+      },
+      "env_vars": [
+        "CODEX_HOME"
+      ]
+    },
+    "cursor": {
+      "args": [
+        "/usr/local/bin/node",
+        "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+        "mcp"
+      ],
+      "command": "/usr/local/bin/mcp-lazy",
+      "env": {
+        "MCP_LAZY_CACHE_DIR": "@HOME@/.cache/mcp-lazy/approval-box-cursor",
+        "MCP_LAZY_IDLE_STOP": "0"
+      }
+    },
+    "grok": {
+      "args": [
+        "/usr/local/bin/node",
+        "/home/bell/.approval-box/runtime/0.1.37/cli.mjs",
+        "mcp"
+      ],
+      "command": "/usr/local/bin/mcp-lazy",
+      "env": {
+        "MCP_LAZY_CACHE_DIR": "@HOME@/.cache/mcp-lazy/approval-box-grok",
+        "MCP_LAZY_IDLE_STOP": "0"
+      }
+    }
+  }
+}

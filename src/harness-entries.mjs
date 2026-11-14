@@ -13,6 +13,7 @@ const HARNESSES = ['claude', 'codex', 'grok', 'cursor', 'gemini']
 const HOOK_HARNESSES = ['claude', 'codex', 'cursor', 'grok']
 // Hook files no CLI writes. claude/codex hold native groups {matcher?, hooks:[item]} per event, cursor holds native items; grok is one whole file per product.
 const HOOK_FILES = { claude: '.claude/settings.json', codex: '.codex/hooks.json', cursor: '.cursor/hooks.json' }
+const CURSOR_CLI_CONFIG = '.cursor/cli-config.json'
 const REGISTRY = fileURLToPath(new URL('../config/harness-products.json', import.meta.url))
 const execFileAsync = promisify(execFile)
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -30,11 +31,22 @@ async function readJson(path) {
   try { return JSON.parse((await readFile(path, 'utf8')).replace(/^\uFEFF/u, '')) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
 
-// E1 v1.1 check. Returns { servers: [{ name, harness, entry }], hooks: { <harness>: native }, settings, owns, version }. Permissions are a later slice.
+// E1 v1.1 check. Returns { servers: [{ name, harness, entry }], hooks: { <harness>: native }, settings, owns, version, cursorAllow, skipped }.
+// `skipped` lists the permissions parts BellTeam does not apply (only permissions.cursor.allow is): the caller reports them and the rest of the product still applies.
 export function parseEntries(product, value) {
   if (!isObject(value) || value.schema !== 'bellteam.harness-entries.v1') throw new Error('schema is not bellteam.harness-entries.v1')
   if (value.product !== product) throw new Error(`product is ${JSON.stringify(value.product)}, not ${product}`)
-  if (isObject(value.permissions) && Object.keys(value.permissions).length) throw new Error('has permissions, out of scope for the MCP, hooks and settings slice')
+  const permissions = value.permissions ?? {}
+  if (!isObject(permissions)) throw new Error('permissions is not an object')
+  let cursorAllow = []
+  const skipped = []
+  for (const [harness, keys] of Object.entries(permissions)) {
+    if (harness !== 'cursor' || !isObject(keys)) { skipped.push(`permissions.${harness}`); continue }
+    for (const [key, list] of Object.entries(keys)) {
+      if (key === 'allow' && Array.isArray(list) && list.every(rule => typeof rule === 'string' && rule)) cursorAllow = [...new Set(list)]
+      else skipped.push(`permissions.cursor.${key}`)
+    }
+  }
   const settings = value.settings ?? {}
   if (!isObject(settings) || !Object.values(settings).every(isObject)) throw new Error('settings is not an object of objects')
   const hooks = value.hooks ?? {}
@@ -60,7 +72,7 @@ export function parseEntries(product, value) {
       servers.push({ name, harness, entry })
     }
   }
-  return { servers, hooks, settings, owns, version: value.version }
+  return { servers, hooks, settings, owns, version: value.version, cursorAllow, skipped }
 }
 
 // An unresolved placeholder is an error, never a literal `{name}` handed to the product's command (the value is kept out of the message: it can be a path).
@@ -69,22 +81,43 @@ const fill = (part, values) => part.replace(/\{(\w+)\}/gu, (_, name) => {
   return values[name]
 })
 
-export async function configureHarnessEntries(home, { vars = {}, registry = REGISTRY, run = execFileAsync, appServer = codexAppServer, report = message => process.stderr.write(`${message}\n`) } = {}) {
+// Leona's transform: a pure stdin-to-stdout step (`mcp-lazy wrap-entry`), argv only. execFile has no stdin option, so the input goes through the child's stdin
+// (promisified execFile carries `.child`) and also as `options.input` for an injected `run`; the entry itself never appears in argv or in an error message.
+async function wrapEntry(run, relay, env, home, product, harness, entry) {
+  const input = JSON.stringify(entry)
+  const args = ['wrap-entry', '--json', '--relay', relay, '--env', `MCP_LAZY_CACHE_DIR=${home}/.cache/mcp-lazy/${product}-${harness}`, '--env', 'MCP_LAZY_IDLE_STOP=0']
+  const running = run(relay, args, { env, input })
+  running.child?.stdin?.on('error', () => {})
+  running.child?.stdin?.end(input)
+  const wrapped = JSON.parse((await running).stdout)
+  if (!isObject(wrapped)) throw new Error('mcp-lazy が返した入口がobjectではありません')
+  return wrapped
+}
+
+export async function configureHarnessEntries(home, { vars = {}, relay = null, registry = REGISTRY, run = execFileAsync, appServer = codexAppServer, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const env = runtimeEnvironment(process.env, home)
   const recordPath = join(home, '.bellteam-cli-registration/applied.json')
   const applied = (await readJson(recordPath).catch(() => null)) ?? {}
-  const items = [], hookProducts = [], settingItems = []
+  const items = [], hookProducts = [], settingItems = [], permissionProducts = []
   // A missing E2 is a packaging fault (Z4 lab 2026-11-14): fail loudly; configureHarnesses reports it and writes nothing.
   const products = await readJson(registry)
   if (!Array.isArray(products)) throw new Error(`E2 ${registry} がありません`)
-  // An E2 item is a shared-tool file or a command (`{home}` becomes the seat home, `{name}` becomes `vars[name]`) that prints the E1; a failed command, an unresolved `{name}` or unreadable output is the same "E1 unusable" as a bad file.
-  for (const { product, file, command } of products) {
+  // An E2 item is a shared-tool file or a command (`{home}` becomes the seat home in the program and its arguments, `{name}` becomes `vars[name]` in the arguments) that prints the E1; a failed command, an unresolved `{name}` or unreadable output is the same "E1 unusable" as a bad file.
+  for (const { product, file, command, wrap } of products) {
     try {
-      const value = command ? JSON.parse((await run(command[0], command.slice(1).map(part => fill(part, { ...vars, home })), { env })).stdout) : await readJson(file)
+      const value = command ? JSON.parse((await run(fill(command[0], { home }), command.slice(1).map(part => fill(part, { ...vars, home })), { env })).stdout) : await readJson(file)
       if (value === null) throw new Error(`${file ?? command[0]} がありません`)
-      const { servers, hooks, settings, owns, version } = parseEntries(product, value)
+      if (wrap !== undefined && wrap !== 'mcp-lazy') throw new Error(`wrap ${JSON.stringify(wrap)} は未対応です`)
+      const { servers, hooks, settings, owns, version, cursorAllow, skipped } = parseEntries(product, value)
       applied[product] = { version, entries: [] }
-      items.push(...servers.map(item => ({ ...item, product })))
+      for (const part of skipped) report(`BellTeam 権限 ${product}: ${part} は適用しません`)
+      for (const item of servers) {
+        // wrap: 'mcp-lazy' transforms each entry when BellTeam's relay is executable (no relay: the raw entry). A failed transform skips that entry only (the seat keeps its current one).
+        try { items.push({ ...item, product, entry: wrap && relay ? await wrapEntry(run, relay, env, home, product, item.harness, item.entry) : item.entry }) } catch (error) {
+          report(`BellTeam MCP ${product}: ${item.harness} の ${item.name} をmcp-lazyで包めなかったので現在の状態のままにします（${safeMessage(error)}）`)
+        }
+      }
+      if (cursorAllow.length) permissionProducts.push({ product, allow: cursorAllow })
       // Settings allowlist: only codex features.hooks: true; any other key is reported and skipped, the rest of the product still applies.
       for (const [harness, keys] of Object.entries(settings)) for (const [key, setting] of Object.entries(keys)) {
         if (harness === 'codex' && key === 'features.hooks' && setting === true) settingItems.push({ product, harness, key })
@@ -182,6 +215,16 @@ export async function configureHarnessEntries(home, { vars = {}, registry = REGI
     }
   }
 
+  // Cursor permissions: append the E1 items the seat lacks (E1 order); the file is written only when something is added.
+  for (const { product, allow } of permissionProducts) {
+    try {
+      await appendCursorAllow(join(home, CURSOR_CLI_CONFIG), allow)
+      applied[product].entries.push('cursor:permissions')
+    } catch (error) {
+      report(`BellTeam 権限 ${product}: cursor の permissions.allow を適用できませんでした（${safeMessage(error)}）`)
+    }
+  }
+
   const before = await readFile(recordPath, 'utf8').catch(() => null)
   if (before !== `${JSON.stringify(applied, null, 2)}\n`) {
     await mkdir(dirname(recordPath), { recursive: true })
@@ -225,6 +268,18 @@ async function patchHookFile(path, harness, native, owns) {
   if (isDeepStrictEqual(hooks, section)) return
   await mkdir(dirname(path), { recursive: true })
   await writeAtomic(path, harness === 'cursor' ? { version: 1, ...current, hooks } : { ...current, hooks })
+}
+
+// Same shape Approval Box's own setup wrote: `deny` is added as [] when absent; other items, `deny` and every other key keep their value and order.
+async function appendCursorAllow(path, allow) {
+  const current = await readJson(path) ?? {}
+  const permissions = current.permissions ?? {}
+  if (!isObject(current) || !isObject(permissions) || (permissions.allow !== undefined && !Array.isArray(permissions.allow))) throw new Error(`${path} のpermissions.allowが配列ではありません`)
+  const have = permissions.allow ?? []
+  const missing = allow.filter(rule => !have.includes(rule))
+  if (!missing.length) return
+  await mkdir(dirname(path), { recursive: true })
+  await writeAtomic(path, { ...current, permissions: { ...permissions, allow: [...have, ...missing], deny: permissions.deny ?? [] } })
 }
 
 async function writeGrokHooks(path, native) {
