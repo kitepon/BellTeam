@@ -80,5 +80,6 @@ export const usageToolHandlers = Object.freeze({
     return result
   },
   cancel_secret_request: ({ args, from, cancelSecretRequest }) => cancelSecretRequest(args.requestId, from),
-  use_secret: ({ args, from, useSecret }) => useSecret(args.requestId, { botId: from, command: args.command, args: args.args ?? [] }),
+  // The internal HTTP binds the user to the resolved seat; no botId travels in the body.
+  use_secret: ({ args, useSecret }) => useSecret(args.requestId, { command: args.command, args: args.args ?? [] }),
 })

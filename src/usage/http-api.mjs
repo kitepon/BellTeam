@@ -6,7 +6,7 @@ import { authCodeChallenge } from '../auth-ui.mjs'
 import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 
-export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext }) {
+export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
   const webOrigin = request => {
     if (!assertWebPushOrigin) throw webPushError('WEB_PUSH_ORIGIN_UNAVAILABLE', 503)
     return validateWebPushOrigin(assertWebPushOrigin(request))
@@ -167,8 +167,13 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (request.method === 'GET' && !action) return json(response, 200, { request: secretRequests.read ? await secretRequests.read(id, await context('secrets.get')) : secretRequests.get(id) })
       // 席（内側）から出来るのは、依頼したBotが自分の未入力の依頼を取り下げる事と、入力済みの値を自分の席のコマンドへ渡す事だけ。値の登録は、オーナーの画面の専用経路だけが受ける。
       if (internal && request.method === 'POST' && action === 'use') {
-        if (!secretRequests.useValue) return json(response, 503, { error: 'SECRET_USE_UNAVAILABLE' })
-        return json(response, 200, { result: await secretRequests.useValue(id, await readJson(request, 65536)) })
+        if (!secretRequests.useValue || !resolveSeat) return json(response, 503, { error: 'SECRET_USE_UNAVAILABLE' })
+        // The user is the seat resolved at ingress, never body.botId. A fork never runs a command (Owner 2026-11-10: no project writes).
+        const seat = await resolveSeat(request)
+        if (!seat?.botId) return json(response, 403, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
+        if (seat.fork) return json(response, 403, { error: 'FORK_PROJECT_WRITE_REFUSED' })
+        const body = await readJson(request, 65536)
+        return json(response, 200, { result: await secretRequests.useValue(id, { command: body?.command, args: body?.args, botId: seat.botId }) })
       }
       if (internal && request.method === 'POST' && action === 'cancel') {
         const body = await readJson(request, 8192)

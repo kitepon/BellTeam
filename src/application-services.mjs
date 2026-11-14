@@ -431,8 +431,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   })
   if (!usageAssembly) await secretRequests.initialize()
   if (seatRuntime) secretRequests.useValue = createSecretUse({ projectPath: id => bots.projectPath(id),
-    read: id => usageAssembly ? secretRequests.read(id, usageAssembly.systemContext('secrets.get')) : secretRequests.get(id),
-    resolveValue: id => secretRequests.resolveValue(id) })
+    secretRequests: usage?.secretRequests ?? secretRequests, systemContext: usageAssembly?.systemContext ?? null })
   if (submittedSecretManagement === undefined && seatRuntime) submittedSecretManagement = {
     assertOwnerAuthorized: createSubmittedSecretApprovalBridge({ project: root }),
     createConsumer: createSubmittedSecretConsumer, consume: createSubmittedSecretRabbitClient({ project: root }),

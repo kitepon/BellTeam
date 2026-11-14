@@ -6,7 +6,11 @@ const TIMEOUT_MS = 10 * 60 * 1000
 
 // A Bot uses a value it requested: the value goes from this process's memory only to the stdin of a
 // command in that Bot's own seat (seat UID, own project). It never enters MCP arguments or the reply.
-export function createSecretUse({ read, resolveValue, projectPath, runner = createSeatProcessRunner }) {
+// botId is the seat the HTTP ingress resolved, never a body field. With the usage facade, reading the
+// request and resolving the value each take a fresh method-limited system capability.
+export function createSecretUse({ secretRequests, systemContext = null, projectPath, runner = createSeatProcessRunner }) {
+  const read = id => systemContext ? secretRequests.read(id, systemContext('secrets.get')) : secretRequests.get(id)
+  const resolveValue = id => secretRequests.resolveValue(id, systemContext?.('secrets.resolveRequest'))
   return async (id, { botId, command, args = [] } = {}) => {
     if (typeof command !== 'string' || !command || command.includes('\0') || !Array.isArray(args) || args.length > 256
       || !args.every(value => typeof value === 'string' && !value.includes('\0'))) throw failure('SECRET_USE_COMMAND_INVALID', 400)
