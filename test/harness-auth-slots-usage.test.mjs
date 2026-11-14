@@ -163,8 +163,7 @@ test('usage handoff retains second-slot sessions and native label without replay
   await service.initializeSettings(); await service.initialize()
   await service.request('auth.start', { harness: 'claude', slot: '2nd' }, owner)
   assert.equal(calls.at(-1).params.configuration_root, '/synthetic/2nd')
-  assert.equal(calls.at(-1).params.login, 'oauth_token')
-  assert.equal(calls.at(-1).params.token_file, '/synthetic/2nd/oauth-token')
+  assert.ok(!('login' in calls.at(-1).params) && !('token_file' in calls.at(-1).params))
   await service.quiesce(); const handoff = service.exportState(); service.close()
   assert.deepEqual(handoff.sessions, [['claude:2nd', 'second-session']])
   assert.equal(handoff.receipts[0][1].slot, '2nd')
@@ -222,7 +221,7 @@ test('tokenFile crosses the private effect only when the child asks, and an olde
     await service.initializeSettings(); await service.initialize()
     await service.request('auth.status', { harness: 'claude' }, owner)
     const native = calls.findLast(item => item.method === 'auth.call').params
-    assert.equal(native.token_file, old ? undefined : '/s/1st-token')
+    assert.ok(!('login' in native) && !('token_file' in native))
     assert.equal(calls.filter(item => item.method === 'auth.prepareAccount').length, old ? 2 : 1)
     await service.quiesce(); service.close(); await rm(root, { recursive: true, force: true })
   }
