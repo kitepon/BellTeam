@@ -89,20 +89,22 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
-    public void ArchivedCardsLeaveTheTreeAndLanesButStayCountedAndInTheHistory()
+    public void ArchivedCardsLeaveTheTreeAndLanesStayInTheHistoryAndOnlyCountedCardsCount()
     {
-        var snapshot = Snapshot([Card("1", "done", "bot-a") with { Phase = "old", Archived = true, DoneAt = Now.AddHours(-1) }, Card("2", "pending", "bot-k") with { Phase = "new", Parent = "3" },
-            Card("3", "retired", "bot-k") with { Phase = "new", Archived = true, DoneAt = Now.AddHours(-30) }, Card("4", "done", "bot-a") with { Phase = "new", DoneAt = Now.AddDays(-3) }, Card("5", "done", null)])
+        // 1: a finished tree (counted false); 3: hidden but its tree is open (counted true); 4 and 5 carry no counted (an older child): not archived, so counted.
+        var snapshot = Snapshot([Card("1", "done", "bot-a") with { Phase = "old", Archived = true, Counted = false, DoneAt = Now.AddHours(-1) }, Card("2", "pending", "bot-k") with { Phase = "new", Parent = "3" },
+            Card("3", "retired", "bot-k") with { Phase = "new", Archived = true, Counted = true, DoneAt = Now.AddHours(-30) }, Card("4", "done", "bot-a") with { Phase = "new", DoneAt = Now.AddDays(-3) }, Card("5", "done", null)])
             with { Phases = [new("old", "済んだ"), new("new", "今の")] };
         var tree = LatticeChart.Tree(snapshot, "工程表");
         Assert.Equal(["2", "4", "5"], tree.Cards.Keys.Order());
         Assert.DoesNotContain(tree.Nodes, node => node.Key == "phase:old");
         Assert.Contains(tree.Links, link => link.From == "phase:new" && link.To == "2");
         var node = tree.Nodes.ToDictionary(item => item.Key);
-        Assert.Equal((4, 5), (node["root"].Done, node["root"].Total));
+        Assert.Equal((3, 4), (node["root"].Done, node["root"].Total));
         Assert.Equal((2, 3), (node["phase:new"].Done, node["phase:new"].Total));
         Assert.Equal(["2", "4", "5"], LatticeChart.Layout(snapshot).Cards.Keys.Order());
-        Assert.Equal(5, LatticeChart.Counts(snapshot).Total);
+        Assert.Equal((4, 3), (LatticeChart.Counts(snapshot).Total, LatticeChart.Counts(snapshot).Done));
+        Assert.False((snapshot.Cards[0] with { Counted = null }).IsCounted); // an older child: an archived card does not count
         var log = LatticeChart.History(snapshot, Now);
         Assert.Equal(4, log.Count);
         Assert.Equal(["今日", "昨日", "11月8日", "日時の分からない工程"], log.Groups.Select(group => group.Heading));

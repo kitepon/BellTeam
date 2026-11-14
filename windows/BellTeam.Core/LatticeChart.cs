@@ -59,8 +59,11 @@ public sealed record LatticeCard
     public string? Phase { get; init; }
     public string? Parent { get; init; }
     public DateTimeOffset? DoneAt { get; init; }
-    /// <summary>Finished and none of its next cards is still unstarted: left out of the tree and lanes, kept for 詳細, links, 過去ログ and counts.</summary>
+    /// <summary>Finished and none of its next cards is still unstarted: left out of the tree and lanes, kept for 詳細, links and 過去ログ; counted per Counted.</summary>
     public bool Archived { get; init; }
+    /// <summary>In the progress fractions: its tree is not fully finished (a96, server rule). Null (an older child) = not archived.</summary>
+    public bool? Counted { get; init; }
+    public bool IsCounted => Counted ?? !Archived;
 }
 public sealed record LatticePhase(string Id, string? Title);
 public sealed record LatticeEdge(string From, string To, bool Waiting, bool External = false);
@@ -214,10 +217,11 @@ public static class LatticeChart
             draft.Y = kids.Count > 0 ? (drafts[kids[0]].Y + drafts[kids[^1]].Y) / 2 : TreeTop + row++ * TreeRow;
         }
         Place("root", TreeLeft);
+        var counted = all.Where(card => card.IsCounted).ToList();
         var nodes = drafts.Values.Where(draft => seen.Contains(draft.Key)).Select(draft =>
         {
-            // done/total count every card, archived included, like the ring: the chart all of them, a phase the cards of that phase.
-            var inside = draft.Kind switch { "card" => [], "root" => all, _ => all.Where(card => "phase:" + card.Phase == draft.Key).ToList() };
+            // done/total count the counted cards, like the ring (a96): the chart all of them, a phase the counted cards of that phase.
+            var inside = draft.Kind switch { "card" => [], "root" => counted, _ => counted.Where(card => "phase:" + card.Phase == draft.Key).ToList() };
             return new LatticeTreeNode(draft.Key, draft.Kind, draft.Label, draft.Card, draft.X, draft.Y, draft.Width, TreeBoxHeight, inside.Count(card => Finished(card.State)), inside.Count, PhaseTone(inside));
         }).ToList();
         var placed = nodes.ToDictionary(node => node.Key);
@@ -273,9 +277,10 @@ public static class LatticeChart
 
     public static LatticeCounts Counts(LatticeSnapshot snapshot)
     {
-        var waiting = snapshot.Edges.Where(edge => edge.Waiting).Select(edge => edge.To).ToHashSet();
-        return new(snapshot.Cards.Length, snapshot.Cards.Count(card => Finished(card.State)), snapshot.Cards.Count(card => card.State == "in-progress"),
-            snapshot.Cards.Count(card => waiting.Contains(card.Id)), snapshot.Cards.Count(card => card.State == "blocked"));
+        // Only counted cards (a96); an uncounted card is in a finished tree, so working / waiting / blocked are unchanged.
+        var waiting = snapshot.Edges.Where(edge => edge.Waiting).Select(edge => edge.To).ToHashSet(); var cards = snapshot.Cards.Where(card => card.IsCounted).ToList();
+        return new(cards.Count, cards.Count(card => Finished(card.State)), cards.Count(card => card.State == "in-progress"),
+            cards.Count(card => waiting.Contains(card.Id)), cards.Count(card => card.State == "blocked"));
     }
 
     /// <summary>作業中 N分 / 止まり: 理由 / 未着手: 担当 ◯◯ / 担当なし.</summary>
