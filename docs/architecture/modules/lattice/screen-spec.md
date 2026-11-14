@@ -20,7 +20,7 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. Use
 
 Pure function of the snapshot (Apple `LatticeStructure`), the same for Mac / iPad cards and iPhone icons; only the sizes differ.
 
-1. Nodes: the shown cards. Links: `edges` between two cards of this chart (a tree is shown or hidden whole, so no link touches a hidden card); a predecessor on another chart is not drawn (as in 担当).
+1. Nodes: the shown cards. Links: `edges` whose two ends are shown cards (an edge touching an archived card or another chart is not drawn, as in 担当).
 2. Column: the card's `depth`, as in 担当.
 3. Groups: cards joined by links form a group. Groups go top to bottom in the order of their first card in the snapshot `cards`; groups of one card (no link) go after all linked groups, in the same order.
 4. Rows inside a group, column by column from the left: a card's wanted row = the rounded mean row of its predecessors in the group (a card with none: the next free row of its column, in snapshot order). Cards of one column are sorted by wanted row (ties: snapshot order) and each takes the larger of its wanted row and the next free row of that column. So a chain runs straight, siblings stack under each other, and a join sits between its predecessors.
