@@ -82,7 +82,7 @@ callback kindはdelivery.status/words/answer/user.complete/turn.endだけ。para
 
 ## 親actorと閉root matrix
 
-src/conversation/authority.mjsが7種actorと許可root methodの一正本。owner、bot(botId)、scheduler、bridge、onboarding(botId)、usage(source secret/question,botId)、observerだけ。rootにはreport/system actorを追加しない。parent authentication/registered ingressがactorを捕捉し、wire actorの型検証だけで本人性を作らない。seatSession/launch/実executionSourceと両予約context={membersLease,conversationLease}は親closureに残す。作用前両予約はMolly同moduleOperations、子業務paramsのlease自己申告0。
+src/conversation/authority.mjsが7種actorと許可root methodの一正本。送り主はactorから決まる（監査H2、2026-11-15）：bot actorの`direct.post/fork.ask/room.post`は`from`=自分のbotIdだけ（子dispatcherと親receipt captureが確認、違えば`CONVERSATION_SENDER_FORBIDDEN`）。bot actorの上限に`user.post`は無く、BotはOwnerのturnを始められない（`send_user_message`は撤去）。配送HTTP（`/api/deliveries/{direct,fork,room}`）は内部入口の席だけが使い、Owner入口では404なので、bodyの`from`がOwner actorへ届く道は無い。owner、bot(botId)、scheduler、bridge、onboarding(botId)、usage(source secret/question,botId)、observerだけ。rootにはreport/system actorを追加しない。parent authentication/registered ingressがactorを捕捉し、wire actorの型検証だけで本人性を作らない。seatSession/launch/実executionSourceと両予約context={membersLease,conversationLease}は親closureに残す。作用前両予約はMolly同moduleOperations、子業務paramsのlease自己申告0。
 
 assets.openは公開facade上の親FD helper専用で、child root集合とは分ける。子にNode FD/streamを返す口にしない。Root matrixは各kindの許可methodの上限であり、MCPの既操作資格・fresh Room代表/所属・登録済みcaller限定の検査を省略しない。member.removeFromRoomsはmembers既削除の内部callerからだけ捕捉し、一般Bot JSONのmethod指定を許可にしない。
 

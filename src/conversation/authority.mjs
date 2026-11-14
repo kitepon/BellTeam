@@ -6,7 +6,8 @@ const posting = ['user.post', 'direct.post', 'room.post', 'room.reply', 'room.si
 // Admission/authentication is parent-owned; these are method ceilings, not credentials.
 export const CONVERSATION_ACTOR_METHODS = Object.freeze({
   owner: Object.freeze([...reading, ...rooms, ...posting, 'history.workInput', 'user.turn', 'delivery.resume', 'delivery.closeLaunch', 'member.removeFromRooms']),
-  bot: Object.freeze([...reading, ...rooms, ...posting, 'fork.ask', 'member.removeFromRooms', 'history.deliveryAnchor', 'history.workInput']),
+  // A Bot never starts an Owner turn (audit H2): user.post is Owner/onboarding/usage only.
+  bot: Object.freeze([...reading, ...rooms, ...posting.filter(method => method !== 'user.post'), 'fork.ask', 'member.removeFromRooms', 'history.deliveryAnchor', 'history.workInput']),
   scheduler: Object.freeze(['rooms.list', 'room.read', 'room.schedules.list', 'room.schedules.claimDue', 'room.schedules.skipDue', 'history.workInput', 'direct.post', 'room.post']),
   bridge: Object.freeze(['call.receive']),
   onboarding: Object.freeze(['user.post', 'user.turn']),

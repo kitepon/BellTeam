@@ -79,3 +79,7 @@ test('private payload validation does not impose a new history count or image te
   for (const expectedRevision of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() =>
     validateConversationRequest('room.schedules.claimDue', { ...due, expectedRevision }, contextFor('room.schedules.claimDue')))
 })
+
+test('a Bot never starts an Owner turn (audit H2)', () => {
+  assert.throws(() => validateConversationRequest('user.post', { target: 'bot-b', message: 'm', images: [] }, { ...root, actor: { kind: 'bot', botId: 'bot-a' } }), /CONVERSATION_METHOD_FORBIDDEN/)
+})

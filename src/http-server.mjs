@@ -59,7 +59,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
       administration }),
     createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }),
-    createDeliveryApi({ messenger, roomMessenger, transport }),
+    createDeliveryApi({ messenger, roomMessenger, transport, internal }),
     createScheduleApi({ bots, rooms, scheduler }),
     createGoalApi({ bots, goals, aiControl, ownerActions: !internal, notify: event => server.notify(event) }),
     createConversationApi({ bots, rooms, timeline }),

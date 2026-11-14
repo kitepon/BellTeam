@@ -13,15 +13,13 @@ test('direct send tools reach the receiver despite unavailable Room reads and st
     rooms: { async refresh() { roomReads++; throw Object.assign(new Error('unavailable'), { code: 'CONVERSATION_NOT_ACCEPTED' }) } },
     deliverMessage: async input => { calls.push(input); return receipt },
   }
-  for (const name of ['sendmessage', 'send_user_message']) {
-    assert.deepEqual(await callBellTeamTool({ ...context, name, arguments: { target: 'bot-b', message: 'message' } }), receipt)
-  }
-  assert.equal(refreshes, 2)
+  assert.deepEqual(await callBellTeamTool({ ...context, name: 'sendmessage', arguments: { target: 'bot-b', message: 'message' } }), receipt)
+  assert.equal(refreshes, 1)
   assert.equal(roomReads, 0)
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls.map(call => call.from), ['bot-a', 'user'])
+  assert.equal(calls.length, 1)
+  assert.deepEqual(calls.map(call => call.from), ['bot-a'])
   assert.ok(calls.every(call => call.target === 'bot-b' && call.message === 'message'))
   await assert.rejects(callBellTeamTool({ ...context, from: 'missing', name: 'sendmessage',
     arguments: { target: 'bot-b', message: 'message' } }), /BOT_NOT_FOUND: missing/u)
-  assert.equal(calls.length, 2)
+  assert.equal(calls.length, 1)
 })

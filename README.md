@@ -36,7 +36,6 @@ Windows版は [BellTeam for Windows](docs/windows-app.md)。Mac版を基準に�
 
 ```text
 sendmessage(target, message, image?)
-send_user_message(target, message)
 list_bots()
 get_bot(botId)
 get_self()

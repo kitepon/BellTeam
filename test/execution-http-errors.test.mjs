@@ -9,7 +9,7 @@ async function fixture(t, effect) {
   const error = Object.assign(new Error('internal native detail'), {
     schema: 'aiterm.execution-error.v1', code: 'EXECUTION_UNCONFIRMED', effect, follow_up: 'status_only',
   })
-  const server = createBellTeamServer({ bots: new Map(), authorize: () => true, store: {}, transport: {},
+  const server = createBellTeamServer({ internal: true, bots: new Map(), authorize: () => true, store: {}, transport: {},
     messenger: { async sendmessage() { calls++; throw error } } })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')

@@ -37,7 +37,7 @@ flowchart TD
   subgraph Aiterm["aiterm / Elegg"]
     N1["session fork from main session ref<br/>project-folder write ban below the tools (Aiterm 0.70.6)"]
   end
-  Owner["Owner message (HTTP / send_user_message)"] --> Main["startUserTurn -> transport.turn -> MAIN seat (unchanged)"]
+  Owner["Owner message (Owner HTTP)"] --> Main["startUserTurn -> transport.turn -> MAIN seat (unchanged)"]
   A1 --> I1 --> I2 --> C0 --> C3
   A2 --> I1
   C0 -.->|sendmessage + askerSeat| C7 --- C2
@@ -199,7 +199,7 @@ Guard check (common rule guards.*): `FORK_UNAVAILABLE` protects against a fork t
 
 ```mermaid
 flowchart LR
-  O["Owner message<br/>HTTP user send / send_user_message"] --> U["prepareUserTurn -> startUserTurn"]
+  O["Owner message<br/>Owner HTTP user send"] --> U["prepareUserTurn -> startUserTurn"]
   U --> T["transport.turn -> MAIN seat conversation"]
   O -. never .-> F["ask_readonly / forkInquiry"]
   O -. never .-> L["load / congestion count"]

@@ -283,6 +283,7 @@ test('Bot内MCPの直接・ルーム配送をメインサーバーの共通待�
     bots: new Map(), authorize: async () => true, store: {}, transport: {},
     messenger: { async sendmessage(value) { calls.push(['direct', value]); return { delivery: 'queued' } } },
     roomMessenger: { async sendroommessage(value) { calls.push(['room', value]); return { delivery: 'queued' } } },
+    internal: true,
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')

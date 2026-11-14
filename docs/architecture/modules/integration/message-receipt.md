@@ -10,7 +10,7 @@ Owner公開契約は2026-11-06の「耐久受領とAI実行を分ける」。共
 
 | 共通機能 | 入力→出力 | 保持する失敗境界 |
 | --- | --- | --- |
-| MCP直接送信入口 | 閉引数・fresh送信者・解決済宛先/添付→既deliverMessage | sendmessage/send_user_messageは不要なRoom一覧を取得しない。registry/本人/宛先/画像の検証は保持 |
+| MCP直接送信入口 | 閉引数・fresh送信者・解決済宛先/添付→既deliverMessage | sendmessageは不要なRoom一覧を取得しない。registry/本人/宛先/画像の検証は保持 |
 | その他のMCP/Room操作 | 既fresh registry/Room→各担当窓口 | 既room認可/取得/失敗は変更しない |
 | 耐久受領→AI | 同IDの保存結果→受領返却、未入力だけ通常ready後一回進行 | N102/Kiro/Epiの受領保存・pending・unknown非再送sourceが別途必要。Room一覧回避だけを保存/実行の成功にしない |
 

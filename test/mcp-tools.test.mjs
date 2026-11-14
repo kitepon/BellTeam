@@ -333,15 +333,15 @@ test('MCPから全Botの管理、画像設定、会話取得、ユーザー送�
   await callBellTeamTool({ ...context, name: 'list_schedules', arguments: { botId: 'bot-b' } })
   await callBellTeamTool({ ...context, name: 'remove_schedule', arguments: { botId: 'bot-b', id: 's-1' } })
   assert.equal((await callBellTeamTool({ ...context, name: 'list_messages', arguments: { botId: 'bot-b' } })).items[0].message, 'こんにちは')
-  await callBellTeamTool({ ...context, name: 'send_user_message', arguments: { target: 'bot-b', message: '状況を教えて' } })
   assert.deepEqual(await callBellTeamTool({ ...context, name: 'delete_bot', arguments: { botId: 'bot-b' } }), { deleting: 'bot-b' })
 
   assert.deepEqual(calls[0], ['update', 'bot-b', { role: '設計' }])
   assert.ok(calls.some(call => call[0] === 'update' && call[2].avatar === 'data:image/png;base64,iVBORw0KGgo='))
   assert.ok(calls.some(call => call[0] === 'schedule' && call[1] === 'bot-b'))
-  assert.ok(calls.some(call => call[0] === 'message' && call[1].from === 'user'))
-  for (const name of ['list_bots', 'get_bot', 'restart_session', 'delete_bot', 'update_bot', 'set_avatar', 'list_messages', 'send_user_message'])
+  for (const name of ['list_bots', 'get_bot', 'restart_session', 'delete_bot', 'update_bot', 'set_avatar', 'list_messages'])
     assert.ok(bellTeamTools.some(tool => tool.name === name), `${name}がない`)
+  // A Bot never sends as the Owner (audit H2).
+  assert.ok(!bellTeamTools.some(tool => tool.name === 'send_user_message'))
 })
 
 test('set_fast_modeは、自分または指定したBotのファストモードを設定画面と同じ適用経路へ渡す', async () => {
