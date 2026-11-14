@@ -67,8 +67,8 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
       assert.equal(facade.settings.list().length, 7)
       features = createApplicationFeatures({ services: { bots, settings: facade.settings, messenger: {}, diagnostics: { record: async () => {} },
         notifications: { initialStatus: async () => null }, transport: { isRunning: async () => stopPending, stopForConfiguration: async () => { stopStarted.resolve(); return stopped.promise } } }, home: '/unused', environment: {},
-        configureHarnessConfig: async () => {}, notify: () => {}, usageContext: method => {
-          const capturedAuthorization = token(method, 'system'), context = effectScope.getStore()
+        configureHarnessConfig: async () => {}, notify: () => {}, usageContext: (method, { detached = false } = {}) => {
+          const capturedAuthorization = token(method, 'system'), context = detached ? undefined : effectScope.getStore()
           return context ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
         } })
       await assert.rejects(controller.request('settings.list', {}), /NOT_ACCEPTING/)
@@ -97,10 +97,11 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
   stopPending = true
   const updating = hot.facade.settings.update('callBridge', { enabled: false }, { usageContext: hot.token('settings.update') })
   await stopStarted.promise
-  const replacing = hot.controller.replace('a'.repeat(64))
-  await new Promise(resolve => setImmediate(resolve))
+  // The save returns without waiting for members' turn ends; the late stop failure lands with the captured epoch.
+  assert.ok(!(await updating).error)
   stopped.reject(Object.assign(new Error('synthetic stop failure'), { code: 'SYNTHETIC_CONFIGURATION_STOP', status: 503 }))
-  assert.equal((await updating).error.code, 'SYNTHETIC_CONFIGURATION_STOP'); await replacing
+  for (let i = 0; i < 200 && !hot.facade.settings.list().find(item => item.id === 'callBridge').error; i++) await new Promise(resolve => setTimeout(resolve, 10))
+  await hot.controller.replace('a'.repeat(64))
   stopPending = false
   assert.equal(hot.facade.settings.list().find(item => item.id === 'callBridge').error.code, 'SYNTHETIC_CONFIGURATION_STOP')
   assert.equal(hot.facade, stable); assert.equal(hot.facade.settings.routingState().epoch, epoch)

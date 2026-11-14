@@ -274,7 +274,7 @@ test('settings and subscriptions can seed the real bootstrap order before member
 })
 
 
-test('the real settings apply caller waits for configuration completion and reports the captured feature epoch', async t => {
+test('the real settings apply caller does not wait for members\' turn ends and reports a late stop failure with the captured feature epoch', async t => {
   const entered = deferred(), done = deferred()
   let settings
   const f = await fixture(t, (method, params) => method === 'settings.changed' ? settings.onChange(params.id, params.configuration, { epoch: params.epoch }) : undefined)
@@ -287,13 +287,12 @@ test('the real settings apply caller waits for configuration completion and repo
     notifications: { initialStatus: async () => ({}) }, transport: { isRunning: async () => true, stopForConfiguration: async () => { entered.resolve(); await done.promise } } },
     home: '/unused', environment: {}, notify: () => {}, configureHarnessConfig: async () => {}, usageContext: method => authority.capture(method, system) })
   await features.initialize()
-  let finished = false
-  const update = f.service.request('settings.update', { id: 'callBridge', input: { enabled: false } }, owner).then(value => { finished = true; return value })
+  const result = await f.service.request('settings.update', { id: 'callBridge', input: { enabled: false } }, owner)
   await entered.promise
-  await new Promise(resolve => setImmediate(resolve)); assert.equal(finished, false)
+  assert.ok(!result.error)
   done.reject(error('SYNTHETIC_CONFIGURATION_FAILED'))
-  const result = await update
-  assert.equal(result.error.code, 'SYNTHETIC_CONFIGURATION_FAILED')
+  while (!failures.length) await new Promise(resolve => setImmediate(resolve))
+  assert.equal((await f.service.request('settings.list', {}, owner)).find(item => item.id === 'callBridge').error.code, 'SYNTHETIC_CONFIGURATION_FAILED')
   assert.ok(failures.some(row => row.code === 'SERVER_CALL_CONFIGURATION_FAILED'))
   assert.equal(f.effects.find(row => row.method === 'settings.changed').params.epoch, 1)
   await features.close()

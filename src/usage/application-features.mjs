@@ -9,10 +9,10 @@ import { writeHarnessConfig } from '../harness-config.mjs'
 // Feature settings own their listeners/configuration. They do not own Bot delivery state.
 export function createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment = process.env, notify, configureHarnessConfig = writeHarnessConfig, usageContext = () => undefined }) {
   const { bots, messenger, settings, diagnostics, notifications, transport } = services
-  const setError = async (id, error, epoch) => {
+  const setError = async (id, error, epoch, { detached = false } = {}) => {
     if (settings.configurationState) {
       if (!error) return
-      try { await settings.setError(id, error, { epoch, usageContext: usageContext('settings.setError') }) }
+      try { await settings.setError(id, error, { epoch, usageContext: usageContext('settings.setError', { detached }) }) }
       catch (failure) { if (failure.code !== 'USAGE_SETTINGS_STALE') throw failure }
     } else settings.setError(id, error)
   }
@@ -70,17 +70,17 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
         if (id === 'callBridge') {
           await configureCalls(config)
           // CLIは起動時にMCP登録を読む。現在のターンを終えたら閉じ、次の配送で新しい登録を読む。
-          const pending = []
+          // ターン終了は待たない。保存を流したBot自身のターンは保存の結果が返るまで終わらない。
           for (const bot of bots.values()) {
             if (!await transport.isRunning(bot)) continue
-            pending.push(transport.stopForConfiguration(bot).catch(async error => {
+            transport.stopForConfiguration(bot).catch(async error => {
               process.stderr.write(`BellTeam: 通話設定をメンバーへ反映できませんでした (${bot.id})\n`)
-              await setError(id, error, epoch)
+              // 保存のeffectは終わっているので、同じepochをroot要求で書く。
+              await setError(id, error, epoch, { detached: true })
               notify({ type: 'settings', featureId: id })
               await diagnostics.record({ code: 'SERVER_CALL_CONFIGURATION_FAILED', module: 'server', diagnostic_log: error.code ?? 'CALL_CONFIGURATION_FAILED' })
-            }))
+            }).catch(error => process.stderr.write(`BellTeam: 通話設定の失敗を記録できませんでした (${error.code ?? 'UNKNOWN'})\n`))
           }
-          if (settings.configurationState) await Promise.all(pending)
         }
         if (id === 'notifications') await notifications.configure(config)
         if (id === 'routing' && services.conversationUsageChanged) {
