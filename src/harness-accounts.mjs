@@ -19,6 +19,9 @@ async function present(path) {
   try { return await lstat(path) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
 
+// THIRD-PARTY UNOFFICIAL (harness-accounts.md, bd15): 'prepare', 'label' and 'usage' below are the only BellTeam code that reads
+// Claude Code's private files (~/.claude entries, .credentials.json) and endpoints (/api/oauth/profile, /api/oauth/usage); every
+// other part uses this module's outputs. A Claude Code change breaks only these ops.
 // Runs as the seat user (harness-accounts.md "Identity"): the engine is another user and cannot open the seat's files.
 // Self-contained on purpose: it is stringified into `node -e` for the parent's seat runner. No module-scope names.
 export async function seatFiles(op, ...args) {
