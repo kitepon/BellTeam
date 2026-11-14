@@ -93,6 +93,14 @@ export function createSeatLaunchCheck(transport, bots) {
   }
 }
 
+// a124: the local /mcp ingress. A header that names a Bot must carry that session's current launch id before the seat MCP
+// gives it the Bot's tools (and trusted internal re-calls). Names that are not Bots (forks, sub-sessions) keep their own paths.
+export async function verifyLocalSeatIngress(request, bots, checkLaunch) {
+  if (!checkLaunch) return true
+  const botId = await resolveSeatBotId(request, bots)
+  return !botId || checkLaunch(botId, request.headers[SEAT_HEADER.toLowerCase()], request.headers[LAUNCH_HEADER.toLowerCase()])
+}
+
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
 // sourceSession is the real Aiterm session name (an account seat keeps its suffix), not the Bot id.
 export function seatExecutionSource(request, bots) {

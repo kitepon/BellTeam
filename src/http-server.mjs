@@ -1,4 +1,4 @@
-import { bindAskerSeat, createSeatLaunchCheck, forkExecutionSource, resolveInternalSeat, seatExecutionSource } from './seat-mcp.mjs'
+import { bindAskerSeat, createSeatLaunchCheck, forkExecutionSource, resolveInternalSeat, seatExecutionSource, verifyLocalSeatIngress } from './seat-mcp.mjs'
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
 import { createScreenInputApi } from './http-screen-input-api.mjs'
@@ -105,6 +105,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       // 席のCLIがつなぐMCP。内部入口（loopback）だけで開く。
       if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) {
         stage = 'seat_mcp'
+        if (!(await verifyLocalSeatIngress(request, bots, seatLaunch))) return json(response, 403, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
         return await seatMcp(request, response, url)
       }
 
