@@ -30,13 +30,13 @@ async function readJson(path) {
   try { return JSON.parse((await readFile(path, 'utf8')).replace(/^\uFEFF/u, '')) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
 
-// E1 v1.1 check. Returns { servers: [{ name, harness, entry }], hooks: { <harness>: native }, owns, version }. Permissions and settings are a later slice.
+// E1 v1.1 check. Returns { servers: [{ name, harness, entry }], hooks: { <harness>: native }, settings, owns, version }. Permissions are a later slice.
 export function parseEntries(product, value) {
   if (!isObject(value) || value.schema !== 'bellteam.harness-entries.v1') throw new Error('schema is not bellteam.harness-entries.v1')
   if (value.product !== product) throw new Error(`product is ${JSON.stringify(value.product)}, not ${product}`)
-  for (const key of ['permissions', 'settings']) {
-    if (isObject(value[key]) && Object.keys(value[key]).length) throw new Error(`has ${key}, out of scope for the MCP and hooks slice`)
-  }
+  if (isObject(value.permissions) && Object.keys(value.permissions).length) throw new Error('has permissions, out of scope for the MCP, hooks and settings slice')
+  const settings = value.settings ?? {}
+  if (!isObject(settings) || !Object.values(settings).every(isObject)) throw new Error('settings is not an object of objects')
   const hooks = value.hooks ?? {}
   if (!isObject(hooks)) throw new Error('hooks is not an object')
   for (const [harness, native] of Object.entries(hooks)) {
@@ -60,24 +60,30 @@ export function parseEntries(product, value) {
       servers.push({ name, harness, entry })
     }
   }
-  return { servers, hooks, owns, version: value.version }
+  return { servers, hooks, settings, owns, version: value.version }
 }
 
 export async function configureHarnessEntries(home, { registry = REGISTRY, run = execFileAsync, appServer = codexAppServer, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const env = runtimeEnvironment(process.env, home)
   const recordPath = join(home, '.bellteam-cli-registration/applied.json')
   const applied = (await readJson(recordPath).catch(() => null)) ?? {}
-  const items = [], hookProducts = []
+  const items = [], hookProducts = [], settingItems = []
   // A missing E2 is a packaging fault (Z4 lab 2026-11-14): fail loudly; configureHarnesses reports it and writes nothing.
   const products = await readJson(registry)
   if (!Array.isArray(products)) throw new Error(`E2 ${registry} がありません`)
-  for (const { product, file } of products) {
+  // An E2 item is a shared-tool file or a command (`{home}` becomes the seat home) that prints the E1; a failed command or unreadable output is the same "E1 unusable" as a bad file.
+  for (const { product, file, command } of products) {
     try {
-      const value = await readJson(file)
-      if (value === null) throw new Error(`${file} がありません`)
-      const { servers, hooks, owns, version } = parseEntries(product, value)
+      const value = command ? JSON.parse((await run(command[0], command.slice(1).map(part => part.replaceAll('{home}', home)), { env })).stdout) : await readJson(file)
+      if (value === null) throw new Error(`${file ?? command[0]} がありません`)
+      const { servers, hooks, settings, owns, version } = parseEntries(product, value)
       applied[product] = { version, entries: [] }
       items.push(...servers.map(item => ({ ...item, product })))
+      // Settings allowlist: only codex features.hooks: true; any other key is reported and skipped, the rest of the product still applies.
+      for (const [harness, keys] of Object.entries(settings)) for (const [key, setting] of Object.entries(keys)) {
+        if (harness === 'codex' && key === 'features.hooks' && setting === true) settingItems.push({ product, harness, key })
+        else report(`BellTeam 設定 ${product}: ${harness} の ${key} は許可された設定ではないので適用しません`)
+      }
       if (Object.keys(hooks).length) hookProducts.push({ product, hooks, owns })
     } catch (error) {
       report(`BellTeam MCP ${product}: E1を使えないので現在の状態のままにします（${safeMessage(error)}）`)
@@ -123,11 +129,13 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
     }
   }
   const codexItems = items.filter(item => item.harness === 'codex')
-  if (codexItems.length) {
+  if (codexItems.length || settingItems.length) {
     try {
       await appServer(env, async request => {
-        const read = async () => (await request('config/read', { cwd: join(home, '.codex'), includeLayers: false }))?.config?.mcp_servers ?? {}
-        const current = await read()
+        const readConfig = async () => (await request('config/read', { cwd: join(home, '.codex'), includeLayers: false }))?.config ?? {}
+        const read = async () => (await readConfig()).mcp_servers ?? {}
+        const config = await readConfig()
+        const current = config.mcp_servers ?? {}
         for (const item of codexItems) {
           try {
             if (!codexMatches(current[item.name], item.entry)) {
@@ -137,6 +145,14 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
             }
             done(item)
           } catch (error) { failed(item, error) }
+        }
+        // features.hooks is set only while the key is absent (an explicit false stays false, so it is not recorded).
+        for (const item of settingItems) {
+          try {
+            const value = config.features?.hooks
+            if (value == null) await request('config/batchWrite', { edits: [{ keyPath: item.key, value: true, mergeStrategy: 'upsert' }], filePath: join(home, '.codex/config.toml') })
+            if (value !== false) applied[item.product].entries.push(`${item.harness}:settings:${item.key}`)
+          } catch (error) { report(`BellTeam 設定 ${item.product}: ${item.harness} の ${item.key} を適用できませんでした（${safeMessage(error)}）`) }
         }
       })
     } catch (error) {

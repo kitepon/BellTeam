@@ -301,3 +301,94 @@ test('an invalid hooks E1 keeps the seat hook files and is reported', async () =
   assert.deepEqual(await f.bytes(), HOOK_PATHS.map(file => OLD.legacy.before[file] ?? null))
   assert.match(f.reports[0], /rtk.*claude.*PreToolUse/u)
 })
+
+// bd14 third switch: Throughline's E1 is printed by its CLI (command form in E2). TL is `throughline harness-entries --json` of 0.20.0 and the files `throughline install` + the old RTK pass left (frozen).
+const TL = JSON.parse(await readFile(new URL('./fixtures/throughline-switch.json', import.meta.url), 'utf8'))
+const TL_PATHS = ['.claude/settings.json', '.codex/hooks.json', '.cursor/hooks.json', '.grok/hooks/throughline.json', '.grok/hooks/rtk.json']
+const TL_COMMAND = ['throughline', 'harness-entries', '--json', '--home', '{home}']
+
+async function tlSeat(before = {}, { e1 = TL.e1, features = { hooks: true }, fail = null } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-throughline-entries-'))
+  const home = join(dir, 'home')
+  for (const [file, text] of Object.entries(before)) {
+    await mkdir(join(home, file, '..'), { recursive: true })
+    await writeFile(join(home, file), text)
+  }
+  await writeFile(join(dir, 'rtk.json'), JSON.stringify(rtkE1))
+  await writeFile(join(dir, 'registry.json'), JSON.stringify([{ product: 'throughline', command: TL_COMMAND }, { product: 'rtk', file: join(dir, 'rtk.json') }]))
+  const requests = [], reports = [], commands = []
+  const run = async (program, args, options) => {
+    commands.push([program, args, options.env.HOME])
+    if (fail) throw fail
+    return { stdout: typeof e1 === 'string' ? e1 : JSON.stringify(e1) }
+  }
+  const appServer = async (_env, use) => use(async (method, params) => {
+    requests.push([method, params])
+    if (method === 'config/read') return { config: { mcp_servers: {}, features } }
+    if (method === 'config/batchWrite') return {}
+    const source = await realpath(join(home, '.codex/hooks.json'))
+    const hooks = []
+    for (const [event, groups] of Object.entries(JSON.parse(await readFile(source, 'utf8')).hooks ?? {}))
+      groups.forEach((group, gi) => group.hooks.forEach((hook, hi) => hooks.push({ key: `${source}:${event}:${gi}:${hi}`, command: hook.command, sourcePath: source, enabled: true, trustStatus: 'trusted', currentHash: 'h' })))
+    return { data: [{ hooks }] }
+  })
+  const apply = () => configureHarnessEntries(home, { registry: join(dir, 'registry.json'), run, appServer, report: message => reports.push(message) })
+  const read = file => readFile(join(home, file), 'utf8').catch(() => null)
+  return { home, requests, reports, commands, apply, read, bytes: () => Promise.all(TL_PATHS.map(read)) }
+}
+
+test('a seat holding what throughline install and the old RTK pass wrote is not written at all (command E2, no codex batchWrite)', async () => {
+  const f = await tlSeat(TL.after)
+  const inodes = async () => (await Promise.all(TL_PATHS.map(file => stat(join(f.home, file))))).map(info => info.ino)
+  const before = await inodes()
+  await f.apply()
+  assert.deepEqual(await f.bytes(), TL_PATHS.map(file => TL.after[file]))
+  assert.deepEqual(await inodes(), before)
+  assert.deepEqual(f.commands, [['throughline', ['harness-entries', '--json', '--home', f.home], f.home]])
+  assert.deepEqual([...new Set(f.requests.map(([method]) => method))], ['config/read', 'hooks/list'])
+  assert.deepEqual(f.reports, [])
+  const applied = JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))
+  assert.deepEqual(applied.throughline.entries, ['codex:settings:features.hooks', 'claude:hooks:SessionStart', 'claude:hooks:Stop', 'claude:hooks:UserPromptSubmit', 'codex:hooks:PreCompact', 'codex:hooks:UserPromptSubmit', 'codex:hooks:PostToolUse', 'codex:hooks:Stop', 'cursor:hooks:sessionStart', 'cursor:hooks:beforeSubmitPrompt', 'cursor:hooks:stop', 'grok:hooks'])
+})
+
+test('an empty seat gets the same hook bytes as throughline install plus the old RTK pass (throughline before rtk)', async () => {
+  const f = await tlSeat()
+  await f.apply()
+  assert.deepEqual(f.reports, [])
+  assert.deepEqual(await f.bytes(), TL_PATHS.map(file => TL.after[file]))
+})
+
+test('codex features.hooks is written through config/batchWrite only while the key is absent; an explicit false stays', async () => {
+  const absent = await tlSeat(TL.after, { features: {} })
+  await absent.apply()
+  assert.deepEqual(absent.requests.filter(([method]) => method === 'config/batchWrite').map(([, params]) => params), [{ edits: [{ keyPath: 'features.hooks', value: true, mergeStrategy: 'upsert' }], filePath: join(absent.home, '.codex/config.toml') }])
+  assert.ok(JSON.parse(await absent.read('.bellteam-cli-registration/applied.json')).throughline.entries.includes('codex:settings:features.hooks'))
+  const off = await tlSeat(TL.after, { features: { hooks: false } })
+  await off.apply()
+  assert.deepEqual(off.requests.filter(([method]) => method === 'config/batchWrite'), [])
+  assert.ok(!JSON.parse(await off.read('.bellteam-cli-registration/applied.json')).throughline.entries.includes('codex:settings:features.hooks'))
+  assert.deepEqual(off.reports, [])
+})
+
+test('a settings key outside the allowlist is reported and skipped while the product hooks still apply', async () => {
+  const f = await tlSeat({}, { e1: { ...TL.e1, settings: { codex: { 'features.hooks': true, 'approval_policy': 'never' }, claude: { theme: 'x' } } } })
+  await f.apply()
+  assert.deepEqual(f.reports, ['BellTeam 設定 throughline: codex の approval_policy は許可された設定ではないので適用しません', 'BellTeam 設定 throughline: claude の theme は許可された設定ではないので適用しません'])
+  assert.deepEqual(await f.bytes(), TL_PATHS.map(file => TL.after[file]))
+})
+
+test('a failed or unreadable E1 command keeps the seat as it was and reports only the program and exit code', async () => {
+  const secret = 'sk-live-secret'
+  for (const [options, expected] of [
+    [{ fail: Object.assign(new Error(`Command failed: throughline harness-entries ${secret}`), { cmd: `throughline harness-entries ${secret}`, code: 2 }) }, /throughline が終了コード 2 で失敗しました/u],
+    [{ e1: `not json ${secret}` }, /JSON として読めません/u],
+  ]) {
+    const f = await tlSeat(TL.after, options)
+    await f.apply()
+    assert.deepEqual(await f.bytes(), TL_PATHS.map(file => TL.after[file]))
+    assert.match(f.reports[0], /throughline.*E1を使えない/u)
+    assert.match(f.reports[0], expected)
+    assert.doesNotMatch(f.reports.join('\n'), new RegExp(secret, 'u'))
+    assert.deepEqual(f.requests.filter(([method]) => method === 'config/batchWrite'), [])
+  }
+})
