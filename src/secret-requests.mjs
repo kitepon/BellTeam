@@ -216,6 +216,7 @@ export class SecretRequests {
   close() { this.credentials.close() }
 
   async cancel(id) {
+    if (this.#submittedBotRequest(id)) return this.erase(id)
     return this.finish(id, async item => ({ ...item, status: 'cancelled' }))
   }
 
@@ -223,7 +224,19 @@ export class SecretRequests {
   // 取り下げた本人へは通知しない（道具の返りで分かる。通知すると、自分の取り下げで自分の番がもう1回起きる）。
   async withdraw(id, botId) {
     if (this.get(id).botId !== botId) throw new Error('SECRET_REQUEST_NOT_FOUND')
+    if (this.#submittedBotRequest(id)) return this.erase(id, { withdrawn: true }, { notify: false })
     return this.finish(id, async item => ({ ...item, status: 'cancelled', withdrawn: true }), { notify: false })
+  }
+
+  #submittedBotRequest(id) { const item = this.get(id); return item.botId !== null && item.status === 'submitted' }
+
+  // A submitted bot request is closed by erasing its value (secret exposure). Terminal-key requests never come here.
+  erase(id, extra = {}, options) {
+    return this.finishRequest(id, async ({ path, ...item }) => {
+      this.loginValues.delete(id)
+      await this.credentials.eraseRequest(item)
+      return { ...item, ...extra, status: 'cancelled' }
+    }, { ...options, from: 'submitted' })
   }
 
   async finish(id, update, { notify = true } = {}) {
@@ -231,9 +244,9 @@ export class SecretRequests {
     return this.finishRequest(id, update, { notify })
   }
 
-  async finishRequest(id, update, { notify = true } = {}) {
+  async finishRequest(id, update, { notify = true, from = 'pending' } = {}) {
     const item = this.get(id)
-    if (item.status !== 'pending' || this.busy.has(id)) throw new Error('SECRET_REQUEST_CLOSED')
+    if (item.status !== from || this.busy.has(id)) throw new Error('SECRET_REQUEST_CLOSED')
     this.busy.add(id)
     try {
       const result = await update(item)

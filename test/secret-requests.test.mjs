@@ -99,13 +99,24 @@ test('依頼したBotは未入力の自分の依頼を取り下げられ、本�
   // 取り下げた後と、入力済みの依頼は、取り下げも入力もできない。
   await assert.rejects(service.withdraw(request.id, 'bot-a'), /SECRET_REQUEST_CLOSED/u)
   await assert.rejects(service.submit(request.id, 'late'), /SECRET_REQUEST_CLOSED/u)
+  // 入力済みの依頼は、取り下げると保存値が消え、以後は使えない。ほかの依頼は残る。
   const submitted = await service.create(input)
-  await service.submit(submitted.id, 'dummy-secret')
+  const other = await service.create(input)
+  const { path } = await service.submit(submitted.id, 'dummy-secret')
+  await service.submit(other.id, 'other-secret')
+  const deliveredBefore = delivered.length
+  await assert.rejects(service.withdraw(submitted.id, 'bot-b'), /SECRET_REQUEST_NOT_FOUND/u)
+  const erased = await service.withdraw(submitted.id, 'bot-a')
+  assert.equal(erased.status, 'cancelled'); assert.equal(erased.withdrawn, true); assert.equal(erased.path, undefined)
+  await assert.rejects(stat(path), /ENOENT/u)
+  await assert.rejects(service.resolveValue(submitted.id), /SECRET_REQUEST_CLOSED/u)
   await assert.rejects(service.withdraw(submitted.id, 'bot-a'), /SECRET_REQUEST_CLOSED/u)
-  assert.equal(service.get(submitted.id).status, 'submitted')
+  assert.equal(await service.resolveValue(other.id), 'other-secret')
+  assert.equal(delivered.length, deliveredBefore)
   const restored = new SecretRequests({ root, bots, rooms, notify: () => {} })
   await restored.initialize()
   assert.equal(restored.get(request.id).status, 'cancelled')
+  assert.equal(restored.get(submitted.id).status, 'cancelled')
 })
 
 test('MCPの取り下げは呼び出しBotの番号を付けて渡し、内側のHTTPは取り下げだけを受ける', async t => {

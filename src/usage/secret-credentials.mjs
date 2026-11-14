@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { mkdir, open, readdir, realpath, rename, writeFile } from 'node:fs/promises'
+import { mkdir, open, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
@@ -206,6 +206,22 @@ export class SecretCredentials {
         this.#events.emit('change', this.#event(next, 'unbound'))
         this.#availability.delete(record.requestId)
       }
+      this.#publishRecovery()
+    })
+  }
+  // Revoke every handle on the request, then delete its stored value and source record. Missing files are fine (retry).
+  eraseRequest({ id: requestId, toolId }) {
+    return this.#serialize(async () => {
+      if (!id(requestId) || !id(toolId)) throw error('SECRET_REQUEST_INVALID')
+      for (const record of this.#handles.values()) if (!record.revoked && record.requestId === requestId) {
+        const next = { ...record, revoked: true, revision: record.revision + 1 }
+        await this.#save(next)
+        this.#events.emit('change', this.#event(next, 'unbound'))
+      }
+      await rm(join(this.toolsDirectory, toolId, 'secrets', requestId), { force: true })
+      await rm(join(this.sourceDirectory, requestId + '.json'), { force: true })
+      this.#sources.delete(requestId)
+      this.#availability.delete(requestId)
       this.#publishRecovery()
     })
   }

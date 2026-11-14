@@ -17,7 +17,11 @@ flowchart TD
   State --> Notify["場所と結果だけを<br/>Owner発言としてBotへ受付"]
   Notify --> Result["notification sent / failedを保存"]
   Result --> Reply["公開状態をHTTPへ返す"]
-  Pending -->|"依頼Botの取下げ"| Withdraw["所有を確認してcancelled保存<br/>notification not_needed"]
+  Pending -->|"依頼Botの取下げ"| Withdraw["withdraw → finish<br/>所有を確認してcancelled保存<br/>notification not_needed"]
+  State -->|"入力済みBot依頼: 依頼Botのcancel_secret_request<br/>またはOwnerの取消"| Erase["erase<br/>（botId付きのsubmittedだけ。端末鍵の依頼はここへ来ない）"]
+  Erase --> EraseCred["SecretCredentials.eraseRequest<br/>結び付いた鍵を失効（unbound）<br/>保存値ファイル・1Password参照記録を削除<br/>1回用のメモリ値を削除"]
+  EraseCred --> EraseSave["finishRequest(from: submitted)<br/>cancelled保存・pathを外す<br/>Bot取下げはnot_needed、Owner取消は通知"]
+  EraseSave -.->|"以後のuse_secret"| Closed["SECRET_REQUEST_CLOSED"]
   State -->|"依頼Botのuse_secret"| Seat{"internal HTTPで席を確定<br/>本文botIdは使わない"}
   Seat -->|"分身・未確定"| Refuse["403で拒否<br/>コマンドを起動しない"]
   Seat -->|"本人の席"| Use["所有・submittedを確認<br/>system限定capabilityで<br/>read/resolveValue"]
@@ -30,8 +34,8 @@ flowchart TD
 | 依頼 | MCP `request_secret` → `internalApi.requestSecret` → `createControlApi` → `createUsageApi` → `SecretRequests.create` | Bot台帳・任意roomの参加者を読む。`state/secret-requests/<id>.json`へ保存 | 検証失敗は作成前に返す。保存後に`onRequest`を呼ぶ |
 | カード | `create/get/initialize/save` → `CardTimelines.put` → `timelineView` | itemをBot/room別の表示索引へ投影 | 索引は正本ではない。値そのものを含まない |
 | 値の提出 | Web `openSecretInput.finish` / Apple → public HTTP → `submit` → `finish` | `busy`で同じ依頼の同時処理を抑え、`state/secret-values/<toolId>/secrets/<id>`を0600/`wx`で新規作成。`oneTime`の依頼はファイルを作らずchildのメモリだけに置き、`resolveValue`の1回目で取り出して消す | 値・NUL・byte長を検証。既存ファイルを上書きしない。`oneTime`は1Password参照を拒否 |
-| Owner取消 | public HTTP → `cancel` → `finish` | 状態だけを変更し、依頼Botへ通知 | 値ファイルは作らない |
-| Bot取下げ | MCP `cancel_secret_request` → internal HTTP → `withdraw` → `finish` | `botId`一致・pendingを確認。取消と`not_needed`を保存 | 自分への新しい配送を起こさない |
+| Owner取消 | public HTTP → `cancel` → pendingは`finish`、`botId`付きのsubmittedは`erase` → `SecretCredentials.eraseRequest` → `finishRequest(from: submitted)` | pendingは状態だけを変更。submittedは結び付いた鍵を失効し、保存値ファイル・1Password参照記録・1回用のメモリ値を消してから取消を保存（`path`を外す）。どちらも依頼Botへ通知 | pendingは値ファイルを作らない。端末鍵の依頼（`botId` null）は今までどおり`finish`でpendingだけ |
+| Bot取下げ | MCP `cancel_secret_request` → internal HTTP → `withdraw` → pendingは`finish`、submittedは`erase` → `SecretCredentials.eraseRequest` → `finishRequest(from: submitted)` | `botId`一致を確認。入力済みなら`SecretCredentials.eraseRequest`で結び付いた鍵を失効し、保存値ファイル・1Password参照記録・1回用のメモリ値を消す。取消と`not_needed`を保存し、`path`を外す | 自分への新しい配送を起こさない。消した後の`use_secret`は`SECRET_REQUEST_CLOSED` |
 | Botが値を使う | MCP `use_secret`（分身は`forkWritesProject`で拒否）→ `internalApi.useSecret`（席header付き）→ internal HTTP `/use`（`resolveInternalSeat`で席を確定。未確定403 `BELLTEAM_SEAT_UNRESOLVED`、分身403 `FORK_PROJECT_WRITE_REFUSED`。本文のbotIdは使わない）→ 組立ての`secretRequests.useValue`（[secret-use.mjs](../../../../src/secret-use.mjs)）→ usage facadeの`secrets.get`/`secrets.resolveRequest`（それぞれ新しいmethod限定system capability）→ `createSeatProcessRunner(依頼Botのproject)` | 確定した席のBotと依頼の`botId`一致・submittedを確認。値は本体プロセスのメモリから席UID（seat-exec）の子の標準入力へだけ渡す。`oneTime`はこの1回で消える。保存値は何度でも使える | 値をMCP引数・HTTP応答・診断へ出さない。応答の出力中の値（前後の空白を除いた形）を`[secret]`へ置換。出力上限1MiB・10分で停止。席runtimeの無い設置は503 `SECRET_USE_UNAVAILABLE` |
 | 結果を知らせる | `finish` → 組立ての`notify` → `secretCompletionMessage` → `messenger.enqueueUserTurn` | `path`と結果を通常会話へ保存。秘密値は渡さない | ここでの`sent`は会話の受付まで。通知例外は`failed`として保存して返す |
 | HTTPの失敗 | `respondHttpError`のsecret専用分岐 | 既知エラーは404/409/400。不明エラーは固定文だけをDiagnosticsへ | 例外本文/stackを診断へ渡さない。500 `SECRET_OPERATION_FAILED`。この分岐は一般500用の相関3headerを付けない |
