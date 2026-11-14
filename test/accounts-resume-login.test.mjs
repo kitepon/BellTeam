@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { AitermTransport } from '../src/aiterm-transport.mjs'
-import { HarnessAccounts } from '../src/harness-accounts.mjs'
+import { HarnessAccounts, seatFiles } from '../src/harness-accounts.mjs'
 
 // harness-accounts.md (E7): a resume carries the slot's current token, so the seat's login proof must follow it.
 test('old stamp -> re-login -> E7 resume records the new stamp -> E6 signs that token out (not stale)', async t => {
@@ -14,7 +14,9 @@ test('old stamp -> re-login -> E7 resume records the new stamp -> E6 signs that 
   const token = join(home, '.bellteam-accounts/claude/1st/oauth-token')
   await mkdir(join(home, '.bellteam-accounts/claude/1st'), { recursive: true })
   await writeFile(token, 'old'); await utimes(token, 1000, 1000)
-  const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), log: () => {} })
+  // The API rejects the token (token probe), so the E6 marks the slot.
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), log: () => {},
+    seat: async (op, ...args) => op === 'probe' ? 'rejected' : seatFiles(op, ...args) })
   const old = (await stat(token)).mtimeMs
   await accounts.setSeat('bot-a', '1st', old)
   await writeFile(token, 'new')
