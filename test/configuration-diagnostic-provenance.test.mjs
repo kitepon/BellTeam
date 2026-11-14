@@ -77,3 +77,14 @@ test('configuration failure keeps an internal code token as its cause (b5159a79)
   assert.deepEqual(detail.failure, { error_type: 'Error', error_code: 'CONFIGURATION_SEAT_BUSY', cause_code: 'AGENT_SESSION_REQUIRED' })
   assert.doesNotMatch(JSON.stringify(detail), /free private words/)
 })
+
+test('configuration not applied keeps the Aiterm picker refusal code only (BugHub b5159a79)', () => {
+  const error = Object.assign(new Error('CONFIGURATION_NOT_APPLIED'), { code: 'CONFIGURATION_NOT_APPLIED', effect: 'not_started',
+    reason: 'synthetic-secret', refusal: { code: 'MODEL_PICKER_REFUSED', relaunch: true } })
+  const detail = JSON.parse(executionFailureReport('bot-synthetic', 'configuration', error).diagnostic_log)
+  assert.deepEqual(detail.failure.refusal, { code: 'MODEL_PICKER_REFUSED', relaunch: true })
+  assert.doesNotMatch(JSON.stringify(detail), /synthetic-secret/)
+  // A running-turn refusal has no picker code; a free-text code never passes.
+  for (const refusal of [undefined, { code: 'not a token', relaunch: true }])
+    assert.equal(Object.hasOwn(JSON.parse(executionFailureReport('bot-synthetic', 'configuration', { ...error, refusal }).diagnostic_log).failure, 'refusal'), false)
+})
