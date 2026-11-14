@@ -25,7 +25,7 @@ Same shape as [work-graph](../work-graph/README.md): the module runs as its **ow
 
 ## BellTeam <-> Lattice connection (task a102)
 
-Owner 2026-11-14: 「プロダクト間の繋ぎはしっかりと図で定義」「直接参照は…サイレントに破壊されるから危険。契約されてる口でやり取り」. Lattice (the `@quolu/lattice` product, Snow White's team) and this module (Flora) meet only at Lattice's contracted interface, agreed in chart task a101. Since a102 (Lattice >= 0.101.0) the module uses only these rows; the Function map and Data flow below follow them.
+Owner 2026-11-14: 「プロダクト間の繋ぎはしっかりと図で定義」「直接参照は…サイレントに破壊されるから危険。契約されてる口でやり取り」. Lattice (the `@quolu/lattice` product, Snow White's team) and this module (Flora) meet only at Lattice's contracted interface, agreed in chart task a101. Since a102 (Lattice >= 0.101.1) the module uses only these rows; the Function map and Data flow below follow them.
 
 ```mermaid
 flowchart LR
@@ -42,7 +42,7 @@ flowchart LR
   Core -->|"read / write"| Rec
 ```
 
-Agreed with Snow White 2026-11-14 (a101; contract text: Lattice PR #174, `docs/architecture/dfd-charts-read.md`, function map "Host connection (a101)"). Versions: K3 `trees` in Lattice 0.100.0; K1, K2, K4, K5, K7, K8 in 0.101.0.
+Agreed with Snow White 2026-11-14 (a101; contract text: Lattice PR #174, `docs/architecture/dfd-charts-read.md`, function map "Host connection (a101)"). Versions: K3 `trees` in Lattice 0.100.0; K1, K2, K4, K5, K7, K8 in 0.101.0; K4 with `--created-by` alone in 0.101.1 (the module asks >= 0.101.1).
 
 | Id | BellTeam -> Lattice (contract) | What BellTeam gets | Replaces today's |
 | --- | --- | --- | --- |
@@ -343,6 +343,6 @@ Self-exit of the dirty state: the next sync reads again. No time ceiling: the to
 ## How it updates
 
 - Module code and the bundled Lattice version ship together as a module-only exchange (`publish-lattice.yml` attestation; Epinel adopts catalog rows; Molly exchanges). The body does not stop.
-- New Lattice release: Snow White announces it -> Flora refreshes the module lock to the latest release (Owner 2026-11-14: always the latest, no exact pin; `distribution/lattice/package.json` asks `>=` the minimum the module needs, today 0.100.0, and the lock records the resolved version) -> module-only exchange. 0.100.0: `trees` in display read (a100), incoming edges kept across a revision, revisions fast on large plans (production copy of bellteam: `todo add` 32.55 s on 0.99.0 -> 2.20 s). 0.101.0 (minimum since a102): the host contract K1-K8; the module asks `>=0.101.0`. If a release ever changes the chart repo format incompatibly, `LATTICE_STATE_COMPATIBILITY` changes with it so the updater does not swap it as compatible.
+- New Lattice release: Snow White announces it -> Flora refreshes the module lock to the latest release (Owner 2026-11-14: always the latest, no exact pin; `distribution/lattice/package.json` asks `>=` the minimum the module needs, today 0.101.1, and the lock records the resolved version) -> module-only exchange. 0.100.0: `trees` in display read (a100), incoming edges kept across a revision, revisions fast on large plans (production copy of bellteam: `todo add` 32.55 s on 0.99.0 -> 2.20 s). 0.101.0 (minimum since a102): the host contract K1-K8; the module asks `>=0.101.0`. If a release ever changes the chart repo format incompatibly, `LATTICE_STATE_COMPATIBILITY` changes with it so the updater does not swap it as compatible.
 - The MCP tool schema and the HTTP mount live in the body, so changing them rides a body train (Molly).
 - Web page ships through the Web gateway (Admi reviews the registration lines; Molly exchanges web-gateway). Apple and Windows pages ship with their apps; Flora accepts them on real screenshots.
