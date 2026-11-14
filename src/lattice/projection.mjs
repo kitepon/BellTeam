@@ -114,10 +114,11 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
     return { waiter: waiter.producer, waitingCard: waiter.id, forCard: maker.id, producer: maker.producer, producerState: maker.state,
       since: later(maker.changedAt, waiter.changedAt) }
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
-  const all = [...cards.values()], count = state => all.filter(card => card.state === state).length
+  // Fractions count only what the tree shows: the archived flag above, no second rule (Owner 2026-11-14, task a96).
+  const all = [...cards.values()], shown = all.filter(card => !card.archived), count = state => shown.filter(card => card.state === state).length
   return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases, externals: [...externals.values()],
     memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer)].filter(id => id && id !== 'owner'))].sort(),
-    counts: { total: all.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
+    counts: { total: shown.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
       waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size },
     createdBy: first?.agent ?? previous?.createdBy ?? null, updatedAt: updatedAt ?? previous?.updatedAt ?? null }
 }
