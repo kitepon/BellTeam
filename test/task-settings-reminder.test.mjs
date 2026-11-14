@@ -20,7 +20,9 @@ const clientFor = (calls,mode='agent_dispatch') => ({async call(name,args){
 test('task settings: one canonical rule reaches all five CLI globals with owner and user rules intact',async t=>{
  const home=await mkdtemp(join(tmpdir(),'model-policy-home-'));t.after(()=>rm(home,{recursive:true,force:true}))
  for(const cli of ['claude','codex','grok','cursor','gemini'])await mkdir(join(home,'.'+cli))
- await globalInstructions.createGlobalInstructionsRefresher({home,ownerProfile:{get:async()=>({name:'Synthetic owner',links:[]})},userRules:{get:async()=>'Synthetic user rule'}})()
+ const { renderGlobalInstructions } = await import(pathToFileURL(join(root,'src/members/instructions.mjs')))
+ const rendered=renderGlobalInstructions({name:'Synthetic owner',links:[]},'Synthetic user rule',await readFile(join(root,'config/common-agents.md'),'utf8'))
+ for(const cli of ['claude','codex','grok','cursor','gemini'])await (await import('node:fs/promises')).writeFile(join(home,'.'+cli,'AGENTS.md'),rendered)
  const rule=await globalInstructions.taskSettingsReminder()
  assert.doesNotMatch(rule,/currentWorkBinding|update_work_summary/u)
  for(const text of ['SECTION models','latest Sol at effort high','latest Terra at xhigh','task is extremely simple','get_self','list_models','update_self','set_fast_mode(enabled=false)','at the start of the next turn'])assert.ok(rule.includes(text),text)

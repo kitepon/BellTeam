@@ -58,12 +58,8 @@ test('起動ユーザーのHOMEにあるsymlinkを触らず専用homeへ規範�
   await symlink(sentinel, join(host, '.claude/CLAUDE.md'))
   execFileSync(process.execPath, ['--input-type=module', '-e', `
     import {writeHarnessConfig} from './src/harness-config.mjs';
-    import {createGlobalInstructionsRefresher} from './src/global-instructions.mjs';
     await writeHarnessConfig(new Map());
-    await createGlobalInstructionsRefresher({ownerProfile:{get:async()=>({name:'test',bio:'',x:'',github:'',links:[]})},userRules:{get:async()=>''}})();
   `], { cwd: root, env: { ...process.env, HOME: host, BELLTEAM_HOME: runtime }, stdio: 'pipe' })
   assert.equal(await readFile(sentinel, 'utf8'), '工場の正本\n')
-  assert.match(await readFile(join(runtime, '.codex/AGENTS.md'), 'utf8'), /BellTeam/u)
-  assert.equal(await readFile(join(runtime, '.claude/CLAUDE.md'), 'utf8'), '@AGENTS.md\n')
   assert.match(await readFile(join(runtime, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
 })

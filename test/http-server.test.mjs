@@ -754,13 +754,11 @@ test('Botの画面APIは稼働状態とCLI画面の末尾を返す', async (t) =
   assert.deepEqual(await response.json(), { online: true, screen: 'bot-a\n❯ 作業中' })
 })
 
-test('ユーザー規範はAPIで読み書きし、更新後に共通指示を作り直す', async (t) => {
+test('ユーザー規範はAPIで読み書きする（共通指示の作り直しはmembersの保存が行う）', async (t) => {
   let stored = '- 初期。\n'
-  let refreshed = 0
   const server = createBellTeamServer({
     bots: new Map(), authorize: mockAuthorize, messenger: {}, store: {}, transport: {},
     userRules: { async get() { return stored }, async update(text) { stored = `${text.trim()}\n`; return stored } },
-    refreshGlobalInstructions: async () => { refreshed++ },
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -770,7 +768,6 @@ test('ユーザー規範はAPIで読み書きし、更新後に共通指示を�
   assert.deepEqual(await (await fetch(`${base}/api/user-rules`, { headers })).json(), { text: '- 初期。\n' })
   const put = await fetch(`${base}/api/user-rules`, { method: 'PUT', headers, body: JSON.stringify({ text: '- 新しい規範。' }) })
   assert.deepEqual(await put.json(), { text: '- 新しい規範。\n' })
-  assert.equal(refreshed, 1)
 })
 
 test('会話は最新から件数指定で読み、beforeで遡り、afterで差分を取る', () => {

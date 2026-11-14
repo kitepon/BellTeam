@@ -58,10 +58,6 @@ export class SeatRuntime {
     return pending
   }
 
-  writeInstructions(home, instructions) {
-    return this.call('global-instructions', { home, instructions })
-  }
-
   membersProject(operation, params) {
     validateMembersProjectRequest(operation, params)
     return this.call('members-project', { operation, params }, { maxBuffer: 16 * 1024 * 1024 + 64 * 1024 })

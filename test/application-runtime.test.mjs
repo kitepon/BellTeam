@@ -136,10 +136,9 @@ test('隔離した本体を組み立て、公開/内部API・設定通知・終�
   const socketPath = join(root, 'calls.sock')
   await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-runtime-token' } }, { allowSecretValues: true })
   const calls = [], closed = []
-  let refreshes = 0
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
-    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => { refreshes++ } },
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] } },
     client: { async call(name) {
       calls.push(name)
       return { content: [{ type: 'text', text: '(セッション無し)' }], _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats: [] } } }
@@ -164,7 +163,6 @@ test('隔離した本体を組み立て、公開/内部API・設定通知・終�
   assert.ok((await stat(socketPath)).isSocket())
   const rules = await fetch(base + '/api/user-rules', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'synthetic preserved rule' }) })
   assert.equal(rules.status, 200)
-  assert.equal(refreshes, 1)
   const response = await fetch(base + '/api/events')
   const reader = response.body.getReader()
   assert.match(new TextDecoder().decode((await reader.read()).value), /event: ready/)

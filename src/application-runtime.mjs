@@ -28,7 +28,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
     store, transport, memory, ownerProfile, userRules, characterSheets,
-    refreshGlobalInstructions, assets, scheduler, diagnostics,
+    assets, scheduler, diagnostics,
     idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   } = services
   const { aiterm } = bootstrap
@@ -62,7 +62,6 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     ownerProfile,
     userRules,
     characterSheets,
-    refreshGlobalInstructions,
     assets,
     staticRoot: join(appRoot, 'web'),
     models,

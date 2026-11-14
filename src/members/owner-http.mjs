@@ -1,7 +1,8 @@
 import { json, readJson } from '../http-response.mjs'
 import { listAvatar, sendAvatar } from '../http-assets.mjs'
 
-export function createOwnerApi({ ownerProfile, refreshGlobalInstructions, userRules }) {
+// members re-renders the CLI homes' instructions itself after owner/rules saves (bd14 E4).
+export function createOwnerApi({ ownerProfile, userRules }) {
   return async (request, response, url, context) => {
     if (request.method === 'GET' && url.pathname === '/api/owner') {
       const owner = await ownerProfile.get()
@@ -10,14 +11,12 @@ export function createOwnerApi({ ownerProfile, refreshGlobalInstructions, userRu
     if (request.method === 'GET' && url.pathname === '/api/owner/avatar') return sendAvatar(request, response, (await ownerProfile.get()).avatar, url)
     if (request.method === 'PATCH' && url.pathname === '/api/owner') {
       const owner = await ownerProfile.update(await readJson(request), context)
-      await refreshGlobalInstructions()
       return json(response, 200, { owner })
     }
     if (request.method === 'GET' && url.pathname === '/api/user-rules') return json(response, 200, { text: await userRules.get() })
     if (request.method === 'GET' && url.pathname === '/api/user-rules/history') return json(response, 200, { changes: await userRules.history() })
     if (request.method === 'PUT' && url.pathname === '/api/user-rules') {
       const text = await userRules.update((await readJson(request)).text, context)
-      await refreshGlobalInstructions()
       return json(response, 200, { text })
     }
     return false

@@ -12,7 +12,7 @@ export const ownerTools = Object.freeze([
   },
 ])
 
-export async function callOwnerTool({ name, arguments: args = {}, userRules, refreshGlobalInstructions }) {
+export async function callOwnerTool({ name, arguments: args = {}, userRules }) {
   const tool = ownerTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('TOOL_ARGUMENT_INVALID')
@@ -21,7 +21,6 @@ export async function callOwnerTool({ name, arguments: args = {}, userRules, ref
   }
   if (name === 'update_user_rules') {
     const text = await userRules.update(args.text)
-    await refreshGlobalInstructions()
     return { text }
   }
   throw new Error(`TOOL_NOT_FOUND: ${name}`)

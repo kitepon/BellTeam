@@ -34,7 +34,7 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   // SK07: execution's live fork registry; engines without it have no forks.
@@ -54,7 +54,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
   const featureApis = [
-    createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }),
+    createApplicationApi({ ownerProfile, userRules, events, assets }),
     createMemberDeletionApi({ administration }),
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
       administration }),

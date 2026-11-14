@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { SeatRuntime } from '../../src/seat-runtime.mjs'
 import { BotRegistry } from '../../src/bot-registry.mjs'
 import { aitermExecutionRegistration } from '../../src/aiterm-hooks.mjs'
-import { createGlobalInstructionsRefresher } from '../../src/global-instructions.mjs'
 import { MessageAssets } from '../../src/message-assets.mjs'
 
 const root = '/srv/bellteam', home = '/home/bell'
@@ -38,9 +37,7 @@ const stateRoot = value => value.args[value.args.indexOf('--state-root') + 1]
 assert.notEqual(stateRoot(registration), stateRoot(parentRegistration))
 assert.ok(stateRoot(registration).includes('1000'))
 await seat.configureHarnesses(bots, registration, { enabled: false })
-await createGlobalInstructionsRefresher({ home, ownerProfile: { async get() { return { name: 'Synthetic owner', links: [] } } },
-  userRules: { async get() { return 'synthetic seat rule' } },
-  write: (home, instructions) => seat.writeInstructions(home, instructions) })()
+await seat.membersProject('global.writeInstructions', { body: 'synthetic seat rule\n' })
 await assert.rejects(readFile(join(home, '.codex/AGENTS.md')), { code: 'EACCES' })
 const inspection = `
 import {readFile,stat} from 'node:fs/promises';

@@ -1,30 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { createGlobalInstructionsRefresher } from '../src/global-instructions.mjs'
+import { renderGlobalInstructions } from '../src/members/instructions.mjs'
 
-test('Antigravityのglobal AGENTSにも同じ最新規範を書き、既存4種と分岐させない', async t => {
-  const home = await mkdtemp(join(tmpdir(), 'bellteam-global-instructions-'))
-  t.after(() => rm(home, { recursive: true, force: true }))
-  const directories = ['.claude', '.codex', '.grok', '.cursor', '.gemini']
-  await Promise.all(directories.map(name => mkdir(join(home, name))))
-  let rules = 'fixture owner rule'
-  const refresh = createGlobalInstructionsRefresher({ home,
-    ownerProfile: { get: async () => ({ name: 'fixture', profile: '', xUrl: '', githubUrl: '', links: [] }) },
-    userRules: { get: async () => rules },
-  })
-  for (const value of ['fixture owner rule', 'updated fixture owner rule']) {
-    rules = value
-    await refresh()
-    const expected = await readFile(join(home, '.codex/AGENTS.md'), 'utf8')
-    assert.ok(expected.includes(value))
-    assert.ok(Buffer.byteLength(expected) <= 24000, 'current common rules must fit the documented Antigravity file budget')
-    for (const directory of directories) {
-      const path = join(home, directory, 'AGENTS.md')
-      assert.equal(await readFile(path, 'utf8'), expected)
-      assert.equal((await stat(path)).mode & 0o777, 0o600)
-    }
-  }
+// The CLI homes' AGENTS.md has one writer (members global.writeInstructions, bd14 E4); its text must fit Antigravity's budget.
+test('the rendered global instructions fit the documented Antigravity file budget', async () => {
+  const common = await readFile(new URL('../config/common-agents.md', import.meta.url), 'utf8')
+  const text = renderGlobalInstructions({ name: 'fixture', profile: '', xUrl: '', githubUrl: '', links: [] }, 'fixture owner rule', common)
+  assert.ok(text.includes('fixture owner rule'))
+  assert.ok(Buffer.byteLength(text) <= 24000)
 })
