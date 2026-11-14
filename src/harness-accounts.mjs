@@ -66,16 +66,21 @@ export async function seatFiles(op, ...args) {
   }
   // The token file's mtime only (one login per slot); never its content.
   if (op === 'stamp') { const entry = await present(args[0]); return entry?.isFile() ? entry.mtimeMs : null }
-  // Token probe (harness-accounts.md "Signed out"): does the API accept the slot's token? 'accepted' (200), 'rejected' (401),
-  // else 'unknown'. /v1/models takes a setup-token and costs no inference. The token never leaves this process.
+  // Token probe (harness-accounts.md "Signed out"): does the API accept the slot's token? verdict 'accepted' (200), 'rejected'
+  // (401), else 'unknown', with the mtime of the very token it sent (one open handle), so a caller binds the verdict to a stamp.
+  // /v1/models takes a setup-token and costs no inference. The token never leaves this process.
   if (op === 'probe') {
-    let token
-    try { token = (await readFile(args[0], 'utf8')).trim() } catch { return 'unknown' }
+    const { open } = await import('node:fs/promises')
+    let token, stamp
+    try {
+      const handle = await open(args[0], 'r')
+      try { stamp = (await handle.stat()).mtimeMs; token = (await handle.readFile('utf8')).trim() } finally { await handle.close() }
+    } catch { return { verdict: 'unknown', stamp: null } }
     try {
       const response = await fetch('https://api.anthropic.com/v1/models', { headers: { Authorization: `Bearer ${token}`,
         'anthropic-beta': 'oauth-2025-04-20', 'anthropic-version': '2023-06-01' }, signal: AbortSignal.timeout(20_000) })
-      return response.status === 200 ? 'accepted' : response.status === 401 ? 'rejected' : 'unknown'
-    } catch { return 'unknown' }
+      return { verdict: response.status === 200 ? 'accepted' : response.status === 401 ? 'rejected' : 'unknown', stamp }
+    } catch { return { verdict: 'unknown', stamp } }
   }
   if (op === 'usage') {
     // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
@@ -291,8 +296,12 @@ export class HarnessAccounts {
     return stamp !== null && !this.signedOutEntry(harness, slot, stamp)
   }
 
-  // The API's verdict on the slot's token, asked as the seat user ('accepted' | 'rejected' | 'unknown').
-  async probe(harness, slot) { return this.seat('probe', this.tokenFile(harness, slot)).catch(() => 'unknown') }
+  // The API's verdict ('accepted' | 'rejected' | 'unknown') on the slot's token at `stamp`, asked as the seat user. A token
+  // that changed before the probe read it says nothing about `stamp`: 'unknown'.
+  async probe(harness, slot, stamp) {
+    const result = await this.seat('probe', this.tokenFile(harness, slot)).catch(() => null)
+    return result?.stamp === stamp && ['accepted', 'rejected'].includes(result.verdict) ? result.verdict : 'unknown'
+  }
 
   // E6 on a seat of `slot` is only a trigger: the slot is marked only when the API rejects its token (a77 / 2026-11-14: a
   // Cloudflare 403 page and one remote seat's failure had marked working slots). Returns 'signed_out' (the slot is marked; move
@@ -301,7 +310,7 @@ export class HarnessAccounts {
     const stamp = await this.stamp(harness, slot)
     if (stamp === null) return null
     const current = (this.state.logins[botId] ?? null) === stamp
-    const rejected = current && await this.probe(harness, slot) === 'rejected'
+    const rejected = current && await this.probe(harness, slot, stamp) === 'rejected'
     if (current && !rejected) this.log(`BellTeam accounts: ${harness} ${slot} token not rejected, only ${botId} renews: ${String(text ?? '').slice(0, 300)}`)
     let outcome
     await this.update(state => {
@@ -323,7 +332,7 @@ export class HarnessAccounts {
     const renewed = []
     for (const entry of this.state.signedOut) {
       const stamp = await this.stamp(entry.harness, entry.slot)
-      if (stamp !== null && (stamp !== entry.stamp || probe && await this.probe(entry.harness, entry.slot) === 'accepted')) renewed.push(this.key(entry) + entry.stamp)
+      if (stamp !== null && (stamp !== entry.stamp || probe && await this.probe(entry.harness, entry.slot, entry.stamp) === 'accepted')) renewed.push(this.key(entry) + entry.stamp)
     }
     if (renewed.length) await this.update(state => {
       const kept = state.signedOut.filter(entry => !renewed.includes(this.key(entry) + entry.stamp))

@@ -16,7 +16,7 @@ test('old stamp -> re-login -> E7 resume records the new stamp -> E6 signs that 
   await writeFile(token, 'old'); await utimes(token, 1000, 1000)
   // The API rejects the token (token probe), so the E6 marks the slot.
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), log: () => {},
-    seat: async (op, ...args) => op === 'probe' ? 'rejected' : seatFiles(op, ...args) })
+    seat: async (op, ...args) => op === 'probe' ? { verdict: 'rejected', stamp: await seatFiles('stamp', args[0]) } : seatFiles(op, ...args) })
   const old = (await stat(token)).mtimeMs
   await accounts.setSeat('bot-a', '1st', old)
   await writeFile(token, 'new')
