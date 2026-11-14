@@ -170,9 +170,13 @@ export class BotScheduler {
   }
 
   withOperationContext(operation, context) {
-    if (this.moduleOperations) return this.moduleOperations.withContext(operation, context)
-    if (!this.membersAdmission) return operation(context ?? {})
-    return this.membersAdmission.withLease(lease => operation({ membersLease: lease }), { lease: context?.membersLease })
+    const enter = () => {
+      if (this.moduleOperations) return this.moduleOperations.withContext(operation, context)
+      if (!this.membersAdmission) return operation(context ?? {})
+      return this.membersAdmission.withLease(lease => operation({ membersLease: lease }), { lease: context?.membersLease })
+    }
+    // A fresh run reserves inside members admission once open (as HTTP reads do) instead of being refused and lost.
+    return !context && this.membersAdmission?.whenOpen ? this.membersAdmission.whenOpen(enter) : enter()
   }
 
   async dispatchBotSchedule(bot, schedule, options = {}) {

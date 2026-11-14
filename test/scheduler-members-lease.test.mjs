@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os'
 import { BotRegistry } from '../src/bot-registry.mjs'
 import { RoomRegistry } from '../src/room-registry.mjs'
 import { BotScheduler } from '../src/scheduler.mjs'
+import { MembersAdmission } from '../src/members-admission.mjs'
+import { createModuleOperationContext } from '../src/module-operation-context.mjs'
 const now = new Date('2030-01-01T00:00:01Z')
 const due = { kind: 'once', at: '2030-01-01T00:00:00Z', prompt: 'Synthetic' }
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
@@ -105,4 +107,26 @@ test('a long command continues after the scheduler lease has finished', async t 
   const job = [...scheduler.commandJobs][0]
   completion.resolve({ code: 0, stdout: '', stderr: '' }); await job.completion
   assert.equal(scheduler.commandJobs.size, 0)
+})
+
+test('a fresh run during a members module exchange waits for resume instead of being refused', async t => {
+  const f = await fixture(t), gate = new MembersAdmission(), sent = []
+  const conversationAdmission = { enter: () => ({}), assertLease: lease => lease, assertCurrentLease() {}, finish() {} }
+  const moduleOperations = createModuleOperationContext({ membersAdmission: gate, conversationAdmission })
+  const scheduler = new BotScheduler({ registry: f.bots, membersAdmission: gate, moduleOperations,
+    messenger: { async sendmessage(input) { sent.push(input.target) } } })
+  const ticket = gate.close()
+  // The shared context enters members admission directly; without the wait this refusal was logged and the run lost.
+  assert.throws(() => moduleOperations.reserve(), { code: 'MEMBERS_NOT_ACCEPTED' })
+  const running = scheduler.runDue(now)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(sent, [])
+  gate.resume(ticket)
+  await running
+  assert.deepEqual(sent, ['bot-a'])
+  // Open at the call, closed right after: the reservation happens inside the open check, never after a yield.
+  const reserved = scheduler.withOperationContext(async options => { assert.ok(options.membersLease); return 'reserved' })
+  const closed = gate.close()
+  assert.equal(await reserved, 'reserved')
+  gate.resume(closed)
 })
