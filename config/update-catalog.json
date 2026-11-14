@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T05:47:13Z",
-  "expiresAt": "2026-11-21T05:47:13Z",
+  "publishedAt": "2026-11-14T06:18:54Z",
+  "expiresAt": "2026-11-21T06:18:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b",
-      "versionId": "c84cab3bffe0ba94e5628b0390e5782ac941b63aacbd69ed37b238dd28495a58",
+      "sourceCommit": "9abd393d7d85f729d84204218f54bfa9eb91c494",
+      "versionId": "80715a483db7f361d021f3f019cf5d182f0028f9fb4a7c8f82398e50524b6201",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-amd64.tar.gz",
-          "bytes": 5331843,
-          "sha256": "c84cab3bffe0ba94e5628b0390e5782ac941b63aacbd69ed37b238dd28495a58"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T061837Z/web-gateway-9abd393d7d85f729d84204218f54bfa9eb91c494-linux-amd64.tar.gz",
+          "bytes": 5332729,
+          "sha256": "80715a483db7f361d021f3f019cf5d182f0028f9fb4a7c8f82398e50524b6201"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "bc2c5153f5e11fac943b1ae6765910ecaa279b5f945a02d7bcffe5fb03093ad6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T061837Z/web-gateway-9abd393d7d85f729d84204218f54bfa9eb91c494-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11252,
+          "sha256": "ec8f7bf3e6462baad1a28ab32cb10f2c8403f121b0d2cae28736d25f3fbde2f3"
         },
-        "signerCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b"
+        "signerCommit": "9abd393d7d85f729d84204218f54bfa9eb91c494"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の進み具合の分数は、画面に出ている工程だけを数えるようにしました。"
+        "Web の工程表に、左上から全部の工程表へ戻る入口と、メンバーの欄からその人の工程表を開くボタンを足しました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b",
-      "versionId": "9e2fea7fd939d0c4829bd9807016637b57e44efac7534814f70d316228ac24e6",
+      "sourceCommit": "9abd393d7d85f729d84204218f54bfa9eb91c494",
+      "versionId": "2a544250a03938b23a4461a548f7c6a72bf5a7ea2ea43e5c5f03f1e649a8ee7b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-arm64.tar.gz",
-          "bytes": 5331843,
-          "sha256": "9e2fea7fd939d0c4829bd9807016637b57e44efac7534814f70d316228ac24e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T061837Z/web-gateway-9abd393d7d85f729d84204218f54bfa9eb91c494-linux-arm64.tar.gz",
+          "bytes": 5332729,
+          "sha256": "2a544250a03938b23a4461a548f7c6a72bf5a7ea2ea43e5c5f03f1e649a8ee7b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11146,
-          "sha256": "e77ab5ff5a2d8a0f4f3e43d79a6620a7ef18a13e7ee705829d7ca4a5dcd92cfe"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T061837Z/web-gateway-9abd393d7d85f729d84204218f54bfa9eb91c494-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11440,
+          "sha256": "69f7d1f828d8f271384c8404d44eb0fd66458a72969bc63a1071ed1fd6f843c7"
         },
-        "signerCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b"
+        "signerCommit": "9abd393d7d85f729d84204218f54bfa9eb91c494"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の進み具合の分数は、画面に出ている工程だけを数えるようにしました。"
+        "Web の工程表に、左上から全部の工程表へ戻る入口と、メンバーの欄からその人の工程表を開くボタンを足しました。"
       ]
     },
     {
