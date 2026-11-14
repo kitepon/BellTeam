@@ -37,6 +37,8 @@ export function executionFailureReport(botId, phase, error, context = {}) {
     const token = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value)
     if (configurationCodes.has(error?.code) || token(error?.code)) detail.failure.error_code = error.code
     if (configurationCodes.has(error?.cause?.code) || token(error?.cause?.code)) detail.failure.cause_code = error.cause.code
+    // a78 picker refusal: Aiterm's code token names why it refused (configuration-requests.md); absent = running-turn refusal.
+    if (token(error?.refusal?.code)) detail.failure.refusal = { code: error.refusal.code, relaunch: error.refusal.relaunch === true }
     const configuration = configurationRequestFailure(error)
     if (configuration) {
       try { detail.configuration_request = configurationBinding(configuration.binding) } catch { /* Invalid supplemental data is not diagnostic evidence. */ }
