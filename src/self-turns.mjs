@@ -7,20 +7,34 @@
 // （2026-10-13、リリーバイスの席で、子の結果で始まったターンの回答がオーナーの画面に出なかった）。
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { checkObserverProjects, observerCheckRequests, validateObserverCheckResult, runObserverCommand } from './observer-check.mjs'
 import { readSelfTurnsState } from './conversation/restore.mjs'
 import { observerProjectScope, observerScopedRequests } from './conversation/observer.mjs'
+import { captureRuntime } from './runtime-selection.mjs'
 
 // 公開checkと読み残しを確認する一巡の終了後から次巡までの間隔。
 const INTERVAL_MS = 5000
 // thread_switched（/clearなど）で読み終えた分がまた届くので、Botごとに最近の鍵を覚えて重複を落とす。
 const SEEN_LIMIT = 500
-// Aitermが子の結果を渡す文の頭（aiterm-mcp の src/parent-delivery.ts の answerMessage）。
+// Aitermが子の結果を渡す文の頭は、Aitermが約束した入口 exports['./child-result'] の CHILD_RESULT_PREFACE だけから読む
+// （Aiterm docs/architecture/bellteam-boundary.md「公開の入口」0.70.58、bd05c。図: conversation/flow.md）。
 // 配送したターンの途中に子の結果が差し込まれた時は、頭が配送した文になるので当たらない。
-const CHILD_RESULT_PREFACE = 'Aitermの子エージェントからの実行結果です。'
+export async function readChildResultPreface({ capture = captureRuntime } = {}) {
+  try {
+    const root = dirname((await capture()).components['runtime-aiterm-mcp'].dist)
+    const entry = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).exports?.['./child-result']
+    if (typeof entry !== 'string' || !entry.startsWith('./')) throw new Error('no entry')
+    const { CHILD_RESULT_PREFACE } = await import(pathToFileURL(join(root, entry)).href)
+    if (typeof CHILD_RESULT_PREFACE !== 'string' || !CHILD_RESULT_PREFACE) throw new Error('no preface')
+    return CHILD_RESULT_PREFACE
+  } catch {
+    throw Object.assign(new Error('AITERM_CHILD_RESULT_UNAVAILABLE'), { code: 'AITERM_CHILD_RESULT_UNAVAILABLE' })
+  }
+}
 
 // 追ったターンの終わり（Aitermの待ちが返った時刻）と、Throughlineの記録の終わりを、同じターンとみなす幅。
 const SAME_TURN_MS = 60_000
@@ -45,13 +59,9 @@ const reasonOf = (error, fallback) => {
   return /^[A-Z][A-Z0-9_]{0,99}$/u.test(candidate) ? candidate : fallback
 }
 
-function startedOutsideDelivery(turn) {
-  if (turn.turn_start === 'self') return true
-  return turn.turn_start === 'prompt' && typeof turn.user === 'string' && turn.user.trimStart().startsWith(CHILD_RESULT_PREFACE)
-}
 
 export class SelfTurns {
-  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, consumeShown = null, observer = null, read = readObserverTurns, check = checkObserverProjects, report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
+  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, consumeShown = null, observer = null, read = readObserverTurns, check = checkObserverProjects, report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS, childResultPreface = readChildResultPreface }) {
     this.bots = bots
     this.statePath = statePath
     this.appendAnswer = appendAnswer
@@ -64,6 +74,8 @@ export class SelfTurns {
     this.report = report
     this.groupId = groupId
     this.intervalMs = intervalMs
+    this.childResultPreface = childResultPreface
+    this.prefaceRead = null // per poll; a missing entry recovers when a later poll finds it
     this.state = {}
     this.pending = new Set()
     this.failures = new Map() // key -> last reported reason: report once per reason change, not every retry
@@ -134,6 +146,7 @@ export class SelfTurns {
   }
 
   async pollBots(signal) {
+    this.prefaceRead = null
     const bots = this.observer ? await this.observer.snapshot() : [...this.bots.values()].map(({ id, project }) => ({ id, project }))
     const pending = new Set(this.pending)
     for (const bot of bots.filter(bot => pending.has(bot.id))) {
@@ -228,7 +241,7 @@ export class SelfTurns {
     const startedAt = current.lastCompletedAt
     const completedAt = Number.isFinite(turn.completed_at) ? turn.completed_at : Date.now()
     const whole = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
-    if (startedOutsideDelivery(turn) && whole) {
+    if (whole && await this.startedOutsideDelivery(turn)) {
       const shown = await this.shown(bot.id)
       const text = withoutShownWords(whole, shown, completedAt)
       await this.appendAnswer(bot.id, this.groupId(), text)
@@ -243,6 +256,16 @@ export class SelfTurns {
       current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
       current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
     }
+  }
+
+  // selfのターンと、Aitermの子の結果で始まったpromptのターンは、BellTeamが配送していない。
+  async startedOutsideDelivery(turn) {
+    if (turn.turn_start === 'self') return true
+    if (turn.turn_start !== 'prompt' || typeof turn.user !== 'string') return false
+    this.prefaceRead ??= this.childResultPreface().then(preface => { this.failures.delete('child-result'); return preface },
+      error => { this.fail('child-result', reasonOf(error, 'AITERM_CHILD_RESULT_UNAVAILABLE'), 'BellTeam self turns: AITERM_CHILD_RESULT_UNAVAILABLE'); return null })
+    const preface = await this.prefaceRead
+    return preface !== null && turn.user.trimStart().startsWith(preface)
   }
 
   // 位置が無効になっても、その間に終わったターンは落とさない。読み直した中で、最後に見たターンより新しい分だけを受け取る。

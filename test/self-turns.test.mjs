@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { SelfTurns, readObserverTurns } from '../src/self-turns.mjs'
+import { SelfTurns, readChildResultPreface, readObserverTurns } from '../src/self-turns.mjs'
 
 const bots = new Map([['bot-r', { id: 'bot-r', project: '/srv/bellteam/bots/bot-r' }]])
 const turn = (key, start, assistant, completed) => ({ source_sha256: key, turn_start: start, assistant, completed_at: completed, host: 'claude', truncated: false })
 
-async function feed(pages, { changed = async () => true, state = null, shown = () => null, read = null } = {}) {
+const PREFACE = 'Aitermの子エージェントからの実行結果です。'
+async function feed(pages, { changed = async () => true, state = null, shown = () => null, read = null, childResultPreface = async () => PREFACE } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'self-turns-'))
   const statePath = join(dir, 'self-turns.json')
   if (state) state = Object.fromEntries(Object.entries(state).map(([id, value]) => [id, { project: bots.get(id).project, checkToken: 'tloc1.prior', ...value }]))
@@ -33,7 +34,7 @@ async function feed(pages, { changed = async () => true, state = null, shown = (
     appendAnswer: async (...args) => answers.push(args),
     afterTurn: value => turns.push(value),
     report: (message, detail) => reported.push(detail ? { message, ...detail } : message),
-    groupId: () => 'g-1',
+    groupId: () => 'g-1', childResultPreface,
   })
   await service.initialize()
   return { service, reads, answers, turns, reported, statePath, cleanup: () => rm(dir, { recursive: true, force: true }) }
@@ -88,6 +89,33 @@ test('Aitermの子の結果で始まったターンの回答も出す。配送�
   await service.poll()
   assert.deepEqual(answers, [['bot-r', 'g-1', '担当の成果を受け取ったよ。']])
   assert.deepEqual(turns.map(value => [value.context, value.startedAt]), [['self', new Date(1000).toISOString()]])
+  await cleanup()
+})
+
+test('子の結果の頭はAitermの約束した入口 exports[./child-result] からだけ読み、入口の無い版では理由で断る', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'aiterm-pkg-'))
+  await mkdir(join(root, 'dist'))
+  const capture = async () => ({ components: { 'runtime-aiterm-mcp': { dist: join(root, 'dist') } } })
+  await writeFile(join(root, 'package.json'), JSON.stringify({ exports: {} }))
+  await assert.rejects(readChildResultPreface({ capture }), { code: 'AITERM_CHILD_RESULT_UNAVAILABLE' })
+  await writeFile(join(root, 'dist/record.js'), "export const CHILD_RESULT_PREFACE = '子の頭。'")
+  await writeFile(join(root, 'package.json'), JSON.stringify({ exports: { './child-result': './dist/record.js' } }))
+  assert.equal(await readChildResultPreface({ capture }), '子の頭。')
+  await rm(root, { recursive: true, force: true })
+})
+
+test('入口が読めない巡も自分から始まったターンは出し、子の結果は見分けず、理由は1回だけ知らせる', async () => {
+  const child = `${PREFACE} delivery_id=d-1 成果`
+  let calls = 0
+  const { service, answers, reported, cleanup } = await feed([
+    { status: 'delta', throughCursor: 'c2', page: { complete: true }, turns: [
+      { ...turn('b', 'prompt', '子の成果', 2000), user: child }, { ...turn('c', 'prompt', '子の成果2', 2500), user: child }, turn('d', 'self', '自分の回答', 3000)] },
+  ], { state: { 'bot-r': { cursor: 'c1', seen: ['a'], lastCompletedAt: 1000 } },
+    childResultPreface: async () => { calls++; throw Object.assign(new Error('AITERM_CHILD_RESULT_UNAVAILABLE'), { code: 'AITERM_CHILD_RESULT_UNAVAILABLE' }) } })
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '自分の回答']])
+  assert.equal(calls, 1)
+  assert.deepEqual(reported.filter(item => item.reason === 'AITERM_CHILD_RESULT_UNAVAILABLE').length, 1)
   await cleanup()
 })
 

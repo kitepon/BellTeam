@@ -129,6 +129,28 @@ flowchart LR
   Out --> Read["MessageAssets / avatar の画像読取り"]
 ```
 
+## Aitermの公開入口 child-result（bd05c）
+
+自主ターンの観測（self-turns）は、Throughlineの記録で`turn_start: prompt`のターンの依頼文が、Aitermが子の結果を親へ渡す文の頭で始まる時、BellTeamが配送していないターンとして回答を画面へ出す。その頭はAitermの約束（Aitermのrepo `docs/architecture/bellteam-boundary.md`「公開の入口」、0.70.58）にある`exports['./child-result']`の`CHILD_RESULT_PREFACE`からだけ読む。Aitermの`dist/`のファイル名や文字列をBellTeamへ写さない。
+
+| 機能 | 入力 | 出力 | 読む物 | 所有 |
+| --- | --- | --- | --- | --- |
+| readChildResultPreface({capture}) | 今選ばれたruntimeの`runtime-aiterm-mcp`（`captureRuntime()`） | 頭の文字列。入口が無い・読めない時は`AITERM_CHILD_RESULT_UNAVAILABLE` | `<package根>/package.json`の`exports['./child-result']`（`./`で始まる文字列）→`<package根>/<値>`をimport→`CHILD_RESULT_PREFACE` | 会話・履歴（`src/self-turns.mjs`） |
+
+1巡（poll）で`prompt`のターンに初めて当たった時に1回だけ読む。読めない巡は子の結果で始まったターンを見分けず（配送したターンと同じく既読にして出さない）、理由を1回だけ報告する。次の巡でまた読むので、入口のある版のAiterm（0.70.58以上）が選ばれれば自分で戻る。selfのターンの表示は止めない。
+
+```mermaid
+flowchart LR
+  TL["Throughline observer: turn_start=prompt, user"] --> Accept["SelfTurns.accept"]
+  Accept -->|"その巡で初めて"| Pref["readChildResultPreface"]
+  Pref --> Sel["captureRuntime(): runtime-aiterm-mcp の package根"]
+  Sel --> Exp[("Aiterm package.json exports['./child-result']")]
+  Exp -->|"約束した入口だけ"| Mod[("Aiterm child-result: CHILD_RESULT_PREFACE")]
+  Mod -->|"頭"| Accept
+  Pref -.->|"入口なし/読めない: 報告1回、その巡は見分けない"| Accept
+  Accept -->|"頭で始まる"| Show["appendAnswer: 会話画面へ回答"]
+```
+
 ## 関数と確認先
 
 | 段階 | 主な実装 | 変更時に確認する試験 |
