@@ -109,7 +109,7 @@ flowchart LR
     C6[SettingsApi<br/>所有者・規範・追加機能（guide・connectionは寛容に読む）・AIの認証・仕事の要約・全体停止]
     C9[HarnessAccountsApi<br/>Claudeの1st・2ndアカウントの一覧]
     C10[WorkGraphModel・WorkGraphSimulation<br/>相関図の図の状態・シミュレーション・札の置き場所・入れ替え・clearance・当たり判定<br/>永続状態なし。文字の測り方は画面から受け取る]
-    C14[LatticeChart・LatticeChartFeed・LatticeApi<br/>工程表の計算（web/lattice-chart-model.jsの移植：名前・レーン・ツリー（LatticeChart.Tree＝layoutTree）・過去ログ（LatticeChart.History）・待ちの文・詳細・帯・粒・差分）<br/>開いている工程表1枚の最後のsnapshotと接続の状態。永続状態なし<br/>LatticeStops（web/lattice-stops.jsの純粋部分の移植：止めの行・新しい順・顔の規則・時刻・読み上げ・外すの答えの仕分け）]
+    C14[LatticeChart・LatticeChartFeed・LatticeApi<br/>工程表の計算（web/lattice-chart-model.jsの移植：一覧に出す工程表（LatticeChart.Shown＝shownCharts。分母0は一覧・切り替え・一枚だけ開く判定から外す、a107。メンバーの工程表ボタンは全件）・名前・レーン・ツリー（LatticeChart.Tree＝layoutTree）・過去ログ（LatticeChart.History）・待ちの文・詳細・帯・粒・差分）<br/>開いている工程表1枚の最後のsnapshotと接続の状態。永続状態なし<br/>LatticeStops（web/lattice-stops.jsの純粋部分の移植：止めの行・新しい順・顔の規則・時刻・読み上げ・外すの答えの仕分け）]
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
     C11[SecretRequestApi・SecretInputModel 14<br/>inputOptions・oneTimeは寛容に読む（型違いは無し）<br/>onepassword-items（404は旧本体）・検索と絞り込み・文言・送信の本文]
