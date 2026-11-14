@@ -45,6 +45,15 @@ export function usageTools(objectSchema) {
       inputSchema: objectSchema({ requestId: { type: 'string' } }, ['requestId']),
     },
     {
+      name: 'use_secret',
+      description: '自分が依頼し、利用者が入力済みの秘密の値を使う。BellTeamが自分の席（自分のプロジェクト、env.sh込み）でcommandを起動し、値を標準入力へ渡してEOFを送る。値は引数・結果に出ない。結果は終了コードと出力で、出力に混ざった値は[secret]に伏せる。oneTimeの値はこの1回で消える。シェルを通す時はcommand=/bin/sh、args=["-c","..."]にして値を標準入力から読む。',
+      inputSchema: objectSchema({
+        requestId: { type: 'string', description: '自分が依頼し、入力済みの秘密入力依頼のID。' },
+        command: { type: 'string', minLength: 1, description: '起動するプログラム（例: /usr/bin/gh）。PATH上の名前も使える。' },
+        args: { type: 'array', maxItems: 256, items: { type: 'string' }, description: 'プログラムの引数。秘密の値を書かない。' },
+      }, ['requestId', 'command']),
+    },
+    {
       name: 'ask_owner',
       description: 'オーナーに裁定や選択を求める時、選択肢のカードをオーナーとの会話画面へ出す。オーナーは選択肢を押すか、allowOtherがtrueなら文章で答える。答えは次のオーナーからのメッセージとして届く。',
       inputSchema: objectSchema({
@@ -71,4 +80,6 @@ export const usageToolHandlers = Object.freeze({
     return result
   },
   cancel_secret_request: ({ args, from, cancelSecretRequest }) => cancelSecretRequest(args.requestId, from),
+  // The internal HTTP binds the user to the resolved seat; no botId travels in the body.
+  use_secret: ({ args, useSecret }) => useSecret(args.requestId, { command: args.command, args: args.args ?? [] }),
 })

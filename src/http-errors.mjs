@@ -52,6 +52,8 @@ export async function respondHttpError(request, response, error, diagnostics, co
       SECRET_REQUEST_NOT_FOUND: 404, SECRET_REQUEST_CLOSED: 409,
       SECRET_REQUEST_INVALID: 400, SECRET_VALUE_INVALID: 400, SECRET_ROOM_INVALID: 400,
       BOT_NOT_FOUND: 404, INVALID_JSON: 400, REQUEST_TOO_LARGE: 400,
+      // use_secret: the Bot needs to know why its own command did not finish.
+      SECRET_USE_COMMAND_INVALID: 400, SECRET_SOURCE_UNAVAILABLE: 503, SEAT_BUFFER_EXCEEDED: 413, ABORT_ERR: 504, SEAT_PROCESS_START_FAILED: 502,
     }
     if (Object.hasOwn(statuses, error.message)) return json(response, statuses[error.message], { error: error.message })
     // この入口のエラーは、入力値を含み得る例外本文・スタックを記録しない。

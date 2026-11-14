@@ -10,6 +10,7 @@ import { createUsageAuthority } from '../src/usage/authority.mjs'
 import { createUsageProjection } from '../src/usage/projection.mjs'
 import { createUsageRegistryPorts } from '../src/usage/registry-ports.mjs'
 import { createUsageFacade } from '../src/usage/facade.mjs'
+import { createSecretUse } from '../src/secret-use.mjs'
 
 const owner = { kind: 'owner', botId: null }, system = { kind: 'system', botId: null }
 const bot = { kind: 'bot', botId: 'bot-a' }, other = { kind: 'bot', botId: 'bot-b' }
@@ -346,4 +347,23 @@ test('initial onboarding auth keeps nullable fields across the actual JSON IPC r
   assert.equal(value.auth.url, null); assert.equal(value.auth.user_code, null); assert.equal(value.auth.message, null)
   assert.equal(value.auth.input_required, false)
   assert.equal(usageResultValid('onboarding.select', value), true)
+})
+
+test('use_secret reads and resolves through the ordinary usage facade with fresh method-limited system capabilities', async t => {
+  const f = await fixture(t)
+  const authority = createUsageAuthority(), projection = createUsageProjection({ bots: f.bots })
+  const facade = createUsageFacade({ projection, request: (method, params, token) => f.service.request(method, params, authority.authorizeActor(method, token)) })
+  const item = await f.service.request('secrets.create', { toolId: 'synthetic', label: '鍵', message: '入力' }, bot)
+  await f.service.request('secrets.submit', { id: item.id, value: 'synthetic-use-value' }, owner)
+  await assert.rejects(async () => facade.secretRequests.resolveValue(item.id), { code: 'USAGE_ACTOR_FORBIDDEN' })
+  await assert.rejects(async () => facade.secretRequests.resolveValue(item.id, authority.capture('secrets.resolveRequest', bot)), { code: 'USAGE_ACTOR_FORBIDDEN' })
+  const captured = [], runs = []
+  const use = createSecretUse({ secretRequests: facade.secretRequests, projectPath: id => `/synthetic/${id}`,
+    systemContext: method => { captured.push(method); return authority.capture(method, system) },
+    runner: project => async (command, args, options) => { runs.push([project, command, options.input]); return { stdout: 'saw synthetic-use-value', stderr: '', code: 0, signal: null } } })
+  assert.deepEqual(await use(item.id, { botId: 'bot-a', command: 'true' }), { exitCode: 0, signal: null, stdout: 'saw [secret]', stderr: '', oneTime: false })
+  assert.deepEqual(runs, [['/synthetic/bot-a', 'true', 'synthetic-use-value']])
+  assert.deepEqual(captured, ['secrets.get', 'secrets.resolveRequest'])
+  await assert.rejects(use(item.id, { botId: 'bot-b', command: 'true' }), { code: 'SECRET_REQUEST_NOT_FOUND' })
+  assert.equal(runs.length, 1)
 })

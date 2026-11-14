@@ -118,7 +118,8 @@ export const bellTeamTools = Object.freeze([
 // Owner 2026-11-10: a fork seat never writes inside any Bot project folder (/srv/bellteam/bots/*/), SQL stores included.
 // These tools always do (AGENTS.md/CLAUDE.md rewrite, docs, previous-session.md, project create/remove);
 // the store writers only in scope personal. Everything else stays open to a fork.
-const PROJECT_WRITERS = new Set(['write_member_doc', 'update_self', 'update_bot', 'set_avatar', 'set_fast_mode', 'restart_session', 'create_bot', 'delete_bot'])
+// use_secret runs a command in the Bot's project.
+const PROJECT_WRITERS = new Set(['use_secret', 'write_member_doc', 'update_self', 'update_bot', 'set_avatar', 'set_fast_mode', 'restart_session', 'create_bot', 'delete_bot'])
 const PERSONAL_STORE_WRITERS = new Set(['remember', 'revise_memory', 'pin_memory', 'consolidate_growth', 'record_knowledge'])
 export const forkWritesProject = (name, args = {}) =>
   PROJECT_WRITERS.has(name) || (PERSONAL_STORE_WRITERS.has(name) && args?.scope !== 'shared')
