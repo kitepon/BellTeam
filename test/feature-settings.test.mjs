@@ -31,7 +31,7 @@ test('未設定で起動でき、全機能は未設定・無効で秘密の値�
   await assert.rejects(settings.update('routing', { enabled: true }), errorCode('FEATURE_UNCONFIGURED'))
 })
 
-test('既存envと通話Bearer値を初回だけ取り込み、保存後はenvで上書きしない', async t => {
+test('既存envを初回だけ取り込み、橋の認証ファイルは読まず、保存後はenvで上書きしない', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-env-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   await mkdir(join(root, 'shared/tools/call-bridge'), { recursive: true })
@@ -43,8 +43,9 @@ test('既存envと通話Bearer値を初回だけ取り込み、保存後はenv�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'unconfigured'])
-  assert.deepEqual(settings.configuration('callBridge'), { enabled: true, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: 'bridge-secret' })
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'unconfigured'])
+  // bd11: the token comes only from the Bridge export import (callBridgeSettingsInput), never from the Bridge-written file.
+  assert.deepEqual(settings.configuration('callBridge'), { enabled: false, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: '' })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
   const visible = JSON.stringify(settings.list())
   for (const value of ['routing-secret', 'bridge-secret', 'diagnostic-secret']) assert.ok(!visible.includes(value))
@@ -54,7 +55,7 @@ test('既存envと通話Bearer値を初回だけ取り込み、保存後はenv�
   await restored.initialize()
   assert.equal(restored.configuration('routing').apiKey, 'routing-secret')
   assert.equal(restored.configuration('routing').enabled, false)
-  assert.equal(restored.configuration('callBridge').token, 'bridge-secret')
+  assert.equal(restored.configuration('callBridge').token, '')
 })
 
 test('設定不足の機能は移行後も無効になり、既存の値は保持する', async t => {
@@ -183,9 +184,6 @@ test('破損した保存設定と不正な移行入力を隠さずエラーに�
   const separate = await mkdtemp(join(tmpdir(), 'bellteam-settings-invalid-'))
   t.after(() => rm(separate, { recursive: true, force: true }))
   await assert.rejects(new FeatureSettings({ root: separate, environment: { BELLTEAM_CALL_BRIDGE_MCP_URL: 'invalid-url' } }).initialize(), errorCode('FEATURE_VALUE_INVALID'))
-  await mkdir(join(separate, 'shared/tools/call-bridge'), { recursive: true })
-  await writeFile(join(separate, 'shared/tools/call-bridge/headers'), 'invalid-header')
-  await assert.rejects(new FeatureSettings({ root: separate, environment: {} }).initialize(), errorCode('FEATURE_VALUE_INVALID'))
 })
 
 test('各項目は有効化に必須かを返し、親の検証は新旧どちらの形も受ける', async t => {

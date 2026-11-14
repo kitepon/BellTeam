@@ -88,10 +88,9 @@ function validateValues(feature, values) {
 }
 
 export class FeatureSettings {
-  constructor({ root, bridgeHeadersPath = join(root, 'shared/tools/call-bridge/headers'), environment = process.env, onChange = async () => {} }) {
+  constructor({ root, environment = process.env, onChange = async () => {} }) {
     this.root = root
     this.path = join(root, 'shared/tools/bellteam-settings/settings.json')
-    this.bridgeHeadersPath = bridgeHeadersPath
     this.environment = environment
     this.onChange = onChange
     this.legacyAPNsConfigured = false
@@ -144,14 +143,6 @@ export class FeatureSettings {
       ['diagnostics', 'key', 'BELLTEAM_BUGHUB_KEY'],
     ]
     for (const [id, key, name] of assignments) this.settings[id][key] = this.environment[name] ?? ''
-    let header
-    try { header = await readFile(this.bridgeHeadersPath, 'utf8') }
-    catch (error) { if (error.code !== 'ENOENT') throw error }
-    if (header !== undefined) {
-      const token = header.match(/^Authorization:\s*Bearer ([^\r\n]+)\r?\n?$/iu)?.[1]
-      if (!token?.trim()) throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '通話ブリッジの認証ファイルの形式が正しくありません。')
-      this.settings.callBridge.token = token
-    }
     for (const feature of features) {
       const { enabled, ...values } = this.settings[feature.id]
       validateValues(feature, values)

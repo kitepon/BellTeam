@@ -51,7 +51,7 @@ export function createUsageChannelDispatcher({ root = '/srv/bellteam', effect, p
         if (stage !== 'new' || !keys(params, ['generation', 'mode', 'bootstrap', 'handoff']) || !bootstrapValid(params.bootstrap) || !params.handoff) throw usageError('USAGE_INITIALIZATION_ORDER', 409)
         const bootstrap = params.bootstrap
         const ports = createUsageRegistryPorts({ effect: sendEffect, initialMembers: [] })
-        services = createUsageServices({ root, ...ports, effect: sendEffect, onProjection: emit, bridgeHeadersPath: join(root, 'state/call-bridge/headers'), ...bootstrap })
+        services = createUsageServices({ root, ...ports, effect: sendEffect, onProjection: emit, ...bootstrap })
         restore = true
         await emit(await services.initializeSettings({ restore }), 'seed')
         await emit(await services.initializeSubscriptions({ restore }), 'seed')
@@ -68,7 +68,7 @@ export function createUsageChannelDispatcher({ root = '/srv/bellteam', effect, p
           restore = params.restore
           const ports = createUsageRegistryPorts({ effect: sendEffect, initialMembers: [] })
           services = createUsageServices({ root, ...ports, effect: sendEffect, onProjection: emit,
-            bridgeHeadersPath: join(root, 'state/call-bridge/headers'), ...params.bootstrap })
+            ...params.bootstrap })
           await emit(await services.initializeSettings({ restore }), 'seed'); stage = 'settings'
         } else if (params.mode === 'subscriptions') {
           if (stage !== 'settings' || Object.keys(params).sort().join(',') !== 'generation,mode') throw usageError('USAGE_INITIALIZATION_ORDER', 409)
