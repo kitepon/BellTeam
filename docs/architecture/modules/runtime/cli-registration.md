@@ -87,3 +87,30 @@ flowchart TD
 `aitermExecutionRegistration`はAitermの`localParentWorkerRuntime.scope`からstate root/socketを受け、BellTeam側で規則を複製しない。`configureAitermHooks`はnative登録ならその公開setup/argument parser、旧登録ならmergeClaudeParentHooks/mergeCursorParentHooks/ensureCodexParentSteerへ渡す。旧Codex登録の確認が一時的なCLI起動を含むことと、通常のBot起動を区別する。ここではいずれも実行していない。
 
 実装：[application-runtime.mjs](../../../../src/application-runtime.mjs)、[bootstrap.mjs](../../../../src/bootstrap.mjs)、[seat-runtime.mjs](../../../../src/seat-runtime.mjs)、[harness-config.mjs](../../../../src/harness-config.mjs)、[rtk-hooks.mjs](../../../../src/rtk-hooks.mjs)、[aiterm-hooks.mjs](../../../../src/aiterm-hooks.mjs)。参照する確認先はapplication-runtime、seat-command/process/stream/stdio/memory、character-sheets、harness-config、bot-environment、runtime-home、rtk-hooks、aiterm-hooks。native長命実行は[配送詳細](../../delivery-details.md)、通常installer/backupは[供給詳細](../../distribution-details.md)へ接続する。
+
+## One writer per CLI file: product harness entries (bd14, Trony GO 2026-11-14)
+
+Owner rule diagrams.product-boundary. The writer inventory (2026-11-14) found seven seat CLI files with four or more writers each: BellTeam, Throughline install, Approval Box setup, the Aiterm steer setup, typesafe/xarticle register-mcp, Caveat and its maintainer, the mcp-lazy wrap, and Peertable. They do unlocked read-modify-writes, several of them at container start in parallel with `configure(bots)`. Target:
+
+```mermaid
+flowchart TD
+  subgraph Products["Other products (each lead owns its side)"]
+    PE["<product> harness-entries --json<br/>or /srv/bellteam/shared/tools/<id>/harness-entries.json"]
+  end
+  Reg["config/harness-products.json<br/>(BellTeam: which products, in which order)"] --> Collect
+  PE -->|"bellteam.harness-entries.v1"| Collect["CLI registration: collect + validate<br/>(seat runtime chain, one pass)"]
+  Own["BellTeam's own entries<br/>(bellteam, call-bridge, aiterm, RTK/testgate hook, cursor instructions)"] --> Collect
+  Collect --> CLIcmd["CLI-rewritten files: only the CLI's public command/API<br/>claude mcp add-json/remove --scope user (~/.claude.json)<br/>codex app-server config/batchWrite (~/.codex/config.toml)<br/>grok mcp add/remove --scope user (~/.grok/config.toml MCP)"]
+  Collect --> Files["Files no CLI writes: ONE writer (BellTeam), atomic, ordered by registry<br/>~/.claude/settings.json hooks, ~/.codex/hooks.json, ~/.cursor/hooks.json,<br/>~/.cursor/mcp.json, ~/.gemini/config/mcp_config.json"]
+  Files --> Trust["Codex: hooks.state trust re-issued for every moved position, same pass"]
+  Members["members module (Belota)"] --> Rules["AGENTS.md / CLAUDE.md in CLI homes: ONE writer"]
+```
+
+| Step | From → to | Data | Owner |
+| --- | --- | --- | --- |
+| E1 | product → BellTeam | `{schema:'bellteam.harness-entries.v1', product, version, mcpServers:{<name>:{command,args,env}|{url,headers}}, hooks:{claude|codex|cursor|grok|gemini:{<event>:[{matcher, command, timeout?}]}}, settings:{codex?:{'features.hooks':true}}}`. Printed by the product's own CLI (`<product> harness-entries --json`, exit 0, stdout only) or placed by a shared tool as `/srv/bellteam/shared/tools/<id>/harness-entries.json`. Commands are absolute or `node <entry>`. No secret values: env values that are secrets are named, and the seat env supplies them. | the product |
+| E2 | `config/harness-products.json` | the ordered list of products BellTeam reads and how (command or file). The order fixes hook positions, so Codex trust stays valid. | BellTeam |
+| E3 | CLI registration → CLI files | MCP entries go through the CLI's public command or API (P1). Hooks and the MCP files no CLI writes go through BellTeam's single atomic writer (P2), merged by product tag; entries from a product absent from E2 are not touched. `settings` keys only from a fixed allowlist. | BellTeam |
+| E4 | members → CLI homes | AGENTS.md / CLAUDE.md: one implementation (members-project-files.mjs); the body's global-instructions.mjs second writer retires. | members (Belota) |
+
+Switchover, with no seat-visible change (Trony condition 2: every seat keeps the same MCP servers, hooks and rules): for each product, (1) the product publishes E1 with exactly the entries it writes today; (2) BellTeam adds it to E2 and applies it, and the resulting files are equal to today's; (3) the product removes its own writer, and its setup.sh stops writing CLI config. A product not yet switched keeps writing as today. Failure: an E1 that is missing, invalid, or that names a key another product owns is reported and leaves that product's current entries untouched (no partial removal); the next configure retries. No new guard: an invalid E1 keeps the last good state, which is the named protection against data loss and overwriting existing state, and the next pass leaves that state on its own.
