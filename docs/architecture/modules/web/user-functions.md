@@ -54,6 +54,7 @@ flowchart LR
   ChatTools --> Sched
   ChatTools --> Memory
   ChatTools --> Sheet
+  ChatTools -->|"工程表「name」を開く (charts the member made)"| Lattice["工程表<br/>lattice-chart.js"]
   SAI -.same stage function.-> Onb
   Settings --> Term
   Settings --> Upd
@@ -68,6 +69,7 @@ flowchart LR
 | Account limit banner | roster | `GET /api/accounts` | — | execution |
 | Conversation history and queue | timeline | `GET /api/{bots,rooms}/:id/messages`, `GET …/queue` | — | conversation |
 | Send, stop | composer | — | `POST /api/{bots,rooms}/:id/messages`, `POST /api/bots/:id/stop` | conversation, execution |
+| The member's charts (task a94) | chat header 「…」 menu (Bot only) | `GET /api/lattice/charts` when the menu opens, filtered by `createdBy`; nothing shown on failure | — | lattice |
 | Export | chat … menu | `GET /api/{bots,rooms}/:id/export` | — | conversation |
 | Owner question, secret request | cards | `GET /api/secret-requests/:id/onepassword-items` | `POST /api/owner-questions/:id/answer`, `POST /api/secret-requests/:id/{submit,cancel}` | usage |
 | Screen panel | chat | `GET /api/bots/:id/screen`, `GET …/screen/approval` | `POST …/screen/key`, `POST …/screen/approval` | execution |
