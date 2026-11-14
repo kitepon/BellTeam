@@ -53,10 +53,13 @@ test('fixed service worker has JavaScript MIME and no-cache in both static paths
       const result = await fetch(base + '/sw.js')
       assert.equal(result.headers.get('cache-control'), 'no-cache')
       assert.equal(result.headers.get('content-type'), 'text/javascript; charset=utf-8')
+      assert.equal(result.headers.get('x-frame-options'), 'DENY') // a119: both static paths refuse framing
+      assert.equal(result.headers.get('content-security-policy'), "frame-ancestors 'none'")
       assert.match(await result.text(), /const value=/)
     }
     const ordinary = await fetch(base + '/application.js')
     assert.equal(ordinary.headers.get('cache-control'), 'public, max-age=31536000, immutable')
+    assert.equal(ordinary.headers.get('x-frame-options'), 'DENY')
     await ordinary.text()
   } finally {
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(root, { recursive: true, force: true })

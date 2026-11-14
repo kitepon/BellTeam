@@ -297,7 +297,7 @@ flowchart LR
 
 `application-runtime`はprivate0700の一時directoryでUnix socketを作り、同じUIDの受付子を起動する。子へ渡すのはsocket/port/固定appRootに由来する引数だけで、親の環境・FD3/4・IPC以外の参照を渡さない。UID1000の席はsocketへ直接接続できない。初回は同UID1001内の寿命分離で、業務間の権限分離ではない。supervisor/server-start/installerの変更はこの差分に含めない。
 
-公開method/path/query/body、Host/認証header、status/業務headerとJSON bytesを既handlerへ渡す。接続固有headerだけ除く。相手名（SEC-049、usage契約）：受付は利用者が送った`x-bellteam-peer`・`x-bellteam-peer-uid`を捨て、`x-bellteam-peer`に接続の相手address、相手がこのコンテナ内のsocket（同network namespaceの`/proc/net/tcp`に載る。受付はIPv4だけ）なら`x-bellteam-peer-uid`にそのUIDを付ける（読めない・曖昧は`unknown`）。接続ごとに一度だけ読む。Owner判定は業務process（usage `authMode`）が持つ。Web資材は既web.assets公開登録とstaticFileを再利用し、既session認証成功後だけ子の固定資材から配信する。新しい公開API/ID/queue/再試行を追加しない。
+公開method/path/query/body、Host/認証header、status/業務headerとJSON bytesを既handlerへ渡す。接続固有headerだけ除く。相手名（SEC-049、usage契約）：受付は利用者が送った`x-bellteam-peer`・`x-bellteam-peer-uid`を捨て、`x-bellteam-peer`に接続の相手address、相手がこのコンテナ内のsocket（同network namespaceの`/proc/net/tcp`に載る。受付はIPv4だけ）なら`x-bellteam-peer-uid`にそのUIDを付ける（読めない・曖昧は`unknown`）。接続ごとに一度だけ読む。Owner判定は業務process（usage `authMode`）が持つ。Web資材は既web.assets公開登録とstaticFileを再利用し、既session認証成功後だけ子の固定資材から配信する。staticFileが資材を返す成功応答（200）は`X-Frame-Options: DENY`と`Content-Security-Policy: frame-ancestors 'none'`を付け、他サイトの枠内表示を断る（a119。アプリのログイン画面は枠ではなく最上位で開く）。新しい公開API/ID/queue/再試行を追加しない。
 
 SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し、正常EOFへ変換しない。更新後は既Webの再接続・履歴GETへ戻る。受付済み操作は接続断で再発行せず、返却前断線は結果不明のまま。非stream要求は通常終了でdrainする。5秒以内に受付子が終了しなければ、その子だけをSIGKILLし、stdioの回収後にGATEWAY_DRAIN_TIMEOUTを返す。業務側の実行jobは取消さない。親全体closeはこの失敗も集めて後続資源の終了を続ける。子の異常終了は自動で業務closeへ接続しない。
 

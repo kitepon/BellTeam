@@ -39,6 +39,9 @@ export function sendAvatar(request, response, avatar, url) {
   response.end(body)
 }
 
+// a119 (clickjacking): no other site may frame BellTeam's pages. The apps open login pages top-level, never in a frame.
+const NO_FRAMING = { 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" }
+
 export async function staticFile(response, root, pathname, assetVersion, { files = webAssetFiles, versioned = versionedWebAssets } = {}) {
   if (!root) return json(response, 404, { error: 'NOT_FOUND' })
   const name = files.get(pathname)
@@ -48,6 +51,7 @@ export async function staticFile(response, root, pathname, assetVersion, { files
   if (versioned.has(name)) {
     const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
     response.writeHead(200, {
+      ...NO_FRAMING,
       'content-type': contentTypes.get(extname(file)),
       'content-length': Buffer.byteLength(body),
       'cache-control': name === 'index.html' || name === 'sw.js' ? 'no-cache' : 'public, max-age=31536000, immutable',
@@ -55,6 +59,7 @@ export async function staticFile(response, root, pathname, assetVersion, { files
     return response.end(body)
   }
   response.writeHead(200, {
+    ...NO_FRAMING,
     'content-type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
     'content-length': info.size,
     'cache-control': name === 'sw.js' ? 'no-cache' : 'public, max-age=31536000, immutable',
