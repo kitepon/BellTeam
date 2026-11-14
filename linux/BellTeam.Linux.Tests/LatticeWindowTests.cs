@@ -28,6 +28,23 @@ public sealed class LatticeWindowTests
         LatticeWindow.Current!.Close();
     });
 
+    // 0/0 charts are not listed, and they do not count for the one-chart shortcut (screen-spec 一覧, task a107).
+    [Theory]
+    [InlineData("list", 5, false)]
+    [InlineData("single", 0, true)]
+    public Task ZeroChartsAreNotListed(string scene, int cards, bool opened) => Ui.Run(async () =>
+    {
+        using var workspace = new LinuxWorkspace(origin => new BellApi(origin, new LatticeFixture(scene)));
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask);
+        window.Show();
+        for (var wait = 0; wait < 100 && !window.ListSettled; wait++) await Task.Delay(20);
+        window.UpdateLayout();
+        Assert.Equal(cards, Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<Avalonia.Controls.Button>().Count(button => Avalonia.Automation.AutomationProperties.GetAutomationId(button) == "lattice-chart-card"));
+        Assert.Equal(opened, window.Chart is not null);
+        window.Close();
+    });
+
     // The card entrance, the change settle, the completion bloom and the card-to-detail morph start their animations on real controls (a wrong target type throws when the animation is applied).
     [Fact]
     public Task TheCardAnimationsStartOnTheirControls() => Ui.Run(async () =>

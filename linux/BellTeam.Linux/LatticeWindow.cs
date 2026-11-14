@@ -101,7 +101,7 @@ public sealed class LatticeWindow : Window
                 var next = await workspace.Management.Api.ChartsAsync(token);
                 if (token.IsCancellationRequested) return;
                 list = next; listProblem = null;
-                if (!autoOpened && next.Charts.Length == 1) { autoOpened = true; OpenChart(next.Charts[0].ProjectId); return; }
+                if (!autoOpened && LatticeChart.Shown(next) is [var only]) { autoOpened = true; OpenChart(only.ProjectId); return; }
                 autoOpened = true;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
@@ -148,7 +148,7 @@ public sealed class LatticeWindow : Window
             body.Children.Add(Notice(problem, problem == LatticeChart.OldServer ? LatticeChart.OldServerNext : null, problem == LatticeChart.OldServer ? ("閉じる", () => Close()) : null));
         }
         else if (list is null) body.Children.Add(Notice(listProblem ?? "読み込んでいます…", null, null));
-        else if (list.Charts.Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, ("閉じる", () => Close())));
+        else if (LatticeChart.Shown(list).Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, ("閉じる", () => Close())));
         else
         {
             var items = LatticeChart.ListItems(list, Roster);
