@@ -8,8 +8,15 @@ import { nudgeSweep } from './nudge.mjs'
 import { ownerDecisions } from './owner-decisions.mjs'
 import { stopsOf, unblockOutcome } from './blockers.mjs'
 
-// Display reads of changed charts, 16 at a time (README L4); tokens, names and creators come in one `charts list` / `charts source` process (K1/K2).
+// Display reads of changed charts, up to 16 at once (README L4); tokens, names and creators come in one `charts list` / `charts source` process (K1/K2).
 const CHART_PARALLEL = 16, STDOUT_KEPT = 64 * 1024
+// A pool, not batches: a slow read holds one slot, not the next 15 charts (production 2026-11-14).
+async function pool(ids, fn) {
+  const out = new Array(ids.length)
+  let next = 0
+  await Promise.all(Array.from({ length: Math.min(CHART_PARALLEL, ids.length) }, async () => { while (next < ids.length) { const i = next++; out[i] = await fn(ids[i]) } }))
+  return out
+}
 const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
 
@@ -36,13 +43,14 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
   }
   // K2 tokens; a failed probe or no chart is null (the caller reads again).
   const sourcesOf = ids => cli.sources(ids).catch(() => new Map())
-  // Own source (from K1 when the caller has it) + each external predecessor chart's source and memo version (README L4): no time ceiling.
+  const othersOf = memo => [...new Set((memo.projection?.externals ?? []).map(item => item.projectId))].sort()
+  // Own source (from K1 when the caller has it) + each external predecessor chart's source (README L4): no time ceiling.
   async function token(id, memo, known) {
     const own = known !== undefined ? known : (await sourcesOf([id])).get(id) ?? null
-    const others = [...new Set((memo.projection?.externals ?? []).map(item => item.projectId))].sort()
+    const others = othersOf(memo)
     if (own === null || !others.length) return own
     const sources = await sourcesOf(others)
-    return others.some(other => (sources.get(other) ?? null) === null) ? null : JSON.stringify([own, ...others.map(other => [other, sources.get(other), memos.get(other)?.version ?? null])])
+    return others.some(other => (sources.get(other) ?? null) === null) ? null : JSON.stringify([own, ...others.map(other => [other, sources.get(other)])])
   }
   // A chart's name and creator are Lattice's (K1/K4); a caller that already listed passes its row.
   const metaOf = async (id, row) => {
@@ -60,13 +68,13 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
 
   async function sync(id, members, row) {
     let memo = memos.get(id)
-    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, meta: null, roster: null, dirty: true, logged: null })
+    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, meta: null, view: null, dirty: true, logged: null })
     const current = await token(id, memo, row ? row.source : undefined)
-    const rosterBad = await members(), rosterKey = JSON.stringify([rosterBad, roster])
+    const rosterBad = await members(), viewKey = JSON.stringify([rosterBad, roster, othersOf(memo).map(other => memos.get(other)?.version ?? null)])
     const same = memo.content && !memo.dirty && current !== null && current === memo.token
-    if (same && rosterKey === memo.roster) return memo
-    // A roster change alone re-projects the kept read; no CLI.
-    if (same) return project(id, memo, memo.read, memo.meta, rosterBad, rosterKey)
+    if (same && viewKey === memo.view) return memo
+    // A roster change or another chart's new memo version only re-projects the kept read; no CLI.
+    if (same) return project(id, memo, memo.read, memo.meta, rosterBad, viewKey)
     let read, meta
     try { [read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), metaOf(id, row)]) } catch (error) {
       memo.dirty = true
@@ -76,9 +84,9 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return memo
     }
     Object.assign(memo, { token: current, dirty: false, logged: null, read, meta })
-    return project(id, memo, read, meta, rosterBad, rosterKey)
+    return project(id, memo, read, meta, rosterBad, viewKey)
   }
-  function project(id, memo, read, meta, rosterBad, rosterKey) {
+  function project(id, memo, read, meta, rosterBad, viewKey) {
     // shortcut: the other chart's title/producer come from its memo as last read (none until the child reads it once); its state is Lattice's own, read now.
     const elsewhere = (projectId, cardId) => {
       const other = memos.get(projectId)?.content, card = other?.cards?.find(item => item.id === cardId)
@@ -86,7 +94,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     }
     const projection = projectChart({ read, members: roster, previous: memo.projection, elsewhere })
     const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
-    Object.assign(memo, { projection, roster: rosterKey })
+    Object.assign(memo, { projection, view: viewKey })
     const createdBy = meta.createdBy ?? projection.createdBy
     commit(id, memo, { name: meta.name, createdBy, coordinator: createdBy === coordinatorId, state: projection.state, verifiedAt: projection.verifiedAt,
       degraded: rosterBad ? ['members'] : [],
@@ -102,9 +110,8 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     return () => pending ??= effect('members.list', {}).then(value => { roster = value.members; return false }, () => true)
   }
   async function syncAll(ids, effect, rows = new Map()) {
-    const members = rosterReader(effect), out = []
-    for (let i = 0; i < ids.length; i += CHART_PARALLEL) out.push(...await Promise.all(ids.slice(i, i + CHART_PARALLEL).map(id => sync(id, members, rows.get(id)))))
-    return out
+    const members = rosterReader(effect)
+    return pool(ids, id => sync(id, members, rows.get(id)))
   }
   const listed = async () => { const rows = await cli.list(); return { ids: rows.map(row => row.id), rows: new Map(rows.map(row => [row.id, row])) } }
   const mustExist = async id => { if (!await cli.exists(id)) throw latticeError('LATTICE_CHART_NOT_FOUND', 404) }
@@ -169,12 +176,12 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     // Owner stop list (L16): a read, so no chart lock; a chart that fails is named in unreadCharts.
     async blockers() {
       const { ids, rows: listedRows } = await listed(), rows = [], unreadCharts = []
-      for (let i = 0; i < ids.length; i += CHART_PARALLEL) await Promise.all(ids.slice(i, i + CHART_PARALLEL).map(async id => {
+      await pool(ids, async id => {
         try {
           const value = await lattice(id, ['todo', 'blockers', '--json'])
           rows.push(...stopsOf(id, value, { name: listedRows.get(id).name, createdBy: listedRows.get(id).createdBy }))
         } catch (error) { unreadCharts.push(id); log(`lattice-blockers ${id} ${error?.code ?? 'LATTICE_CLI_FAILED'}`) }
-      }))
+      })
       const order = row => [row.projectId, row.plan, row.taskId]
       rows.sort((a, b) => order(a).join('\0').localeCompare(order(b).join('\0')))
       return { schema: 'bellteam.lattice-blockers.v1', at: iso(now()), blockers: rows, unreadCharts: unreadCharts.sort() }
