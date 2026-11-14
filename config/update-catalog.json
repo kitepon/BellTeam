@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T05:11:39Z",
-  "expiresAt": "2026-11-21T05:11:39Z",
+  "publishedAt": "2026-11-14T05:23:51Z",
+  "expiresAt": "2026-11-21T05:23:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b",
-      "versionId": "c84cab3bffe0ba94e5628b0390e5782ac941b63aacbd69ed37b238dd28495a58",
+      "sourceCommit": "197794c7a9b2093732e0a2d56e265b3c4077fbd6",
+      "versionId": "11e551c562fc5aea0a604de9a52d99c8c46d9726bfb1201a5bb4e4d7f7842801",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-amd64.tar.gz",
-          "bytes": 5331843,
-          "sha256": "c84cab3bffe0ba94e5628b0390e5782ac941b63aacbd69ed37b238dd28495a58"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T010524Z/web-gateway-197794c7a9b2093732e0a2d56e265b3c4077fbd6-linux-amd64.tar.gz",
+          "bytes": 5330398,
+          "sha256": "11e551c562fc5aea0a604de9a52d99c8c46d9726bfb1201a5bb4e4d7f7842801"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "bc2c5153f5e11fac943b1ae6765910ecaa279b5f945a02d7bcffe5fb03093ad6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T010524Z/web-gateway-197794c7a9b2093732e0a2d56e265b3c4077fbd6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "9322661ae9cabe0eacad053bc883c38d0ba51a0c61c921c6d193fffb24cefb41"
         },
-        "signerCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b"
+        "signerCommit": "197794c7a9b2093732e0a2d56e265b3c4077fbd6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の進み具合の分数は、画面に出ている工程だけを数えるようにしました。"
+        "横に広い画面では、工程表の「待ちの流れ」が最初は右端のつまみに畳まれた状態で表示されます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b",
-      "versionId": "9e2fea7fd939d0c4829bd9807016637b57e44efac7534814f70d316228ac24e6",
+      "sourceCommit": "197794c7a9b2093732e0a2d56e265b3c4077fbd6",
+      "versionId": "7bbc63d6f0f0fbf8acd3edd7bc2b8ad4d9ddc5c48f8723e9c822bc090b2376f8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-arm64.tar.gz",
-          "bytes": 5331843,
-          "sha256": "9e2fea7fd939d0c4829bd9807016637b57e44efac7534814f70d316228ac24e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T010524Z/web-gateway-197794c7a9b2093732e0a2d56e265b3c4077fbd6-linux-arm64.tar.gz",
+          "bytes": 5330398,
+          "sha256": "7bbc63d6f0f0fbf8acd3edd7bc2b8ad4d9ddc5c48f8723e9c822bc090b2376f8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T044722Z/web-gateway-9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11146,
-          "sha256": "e77ab5ff5a2d8a0f4f3e43d79a6620a7ef18a13e7ee705829d7ca4a5dcd92cfe"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T010524Z/web-gateway-197794c7a9b2093732e0a2d56e265b3c4077fbd6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11299,
+          "sha256": "d379e1355459cb40f067dc070b31e8236f0f21d3ee7c185dd12f34751982ed1d"
         },
-        "signerCommit": "9a18b77b0ba93ab5de5101c6b2de42bf39e1e65b"
+        "signerCommit": "197794c7a9b2093732e0a2d56e265b3c4077fbd6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,13 +488,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の進み具合の分数は、画面に出ている工程だけを数えるようにしました。"
+        "横に広い画面では、工程表の「待ちの流れ」が最初は右端のつまみに畳まれた状態で表示されます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "acfcf9e95570c6476114309f78e8735f41a1f11f",
-      "versionId": "3e758a50acb57293f836574db7c5aa16632d70b35e9b0f7e0ae1b4911655e9ac",
+      "sourceCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0",
+      "versionId": "50726aaa97a88af687127d9881565dba76cedfd3228e2c15111030b8f2a1201c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T043924Z/execution-acfcf9e95570c6476114309f78e8735f41a1f11f-linux-amd64.tar.gz",
-          "bytes": 3972626,
-          "sha256": "3e758a50acb57293f836574db7c5aa16632d70b35e9b0f7e0ae1b4911655e9ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-amd64.tar.gz",
+          "bytes": 3972401,
+          "sha256": "50726aaa97a88af687127d9881565dba76cedfd3228e2c15111030b8f2a1201c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T043924Z/execution-acfcf9e95570c6476114309f78e8735f41a1f11f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11067,
-          "sha256": "eae10b2d7e849aaba14857287a9d562a363b8546247ce08492d468349b840219"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11271,
+          "sha256": "7ec8a94a0a792cd6cf6483d5154a76114b67a5d24d380d4f5dce337cbd4ceb3e"
         },
-        "signerCommit": "acfcf9e95570c6476114309f78e8735f41a1f11f"
+        "signerCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "モデルの切り替えが Claude の選ぶ画面で断られたとき、黙って待たずに、理由を付けてすぐ『反映されなかった』と表示するようにしました。"
+        "Claude のアカウントが『ログアウト』になるのは、API がそのトークンを本当に拒んだときだけにしました。10分ごとの見直しでトークンが使えると分かれば、席がなくても自動で戻ります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "acfcf9e95570c6476114309f78e8735f41a1f11f",
-      "versionId": "83449f27cfadb7faf12ee5046f7deacc199279c4a20398bda51d897dd9bdf1e7",
+      "sourceCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0",
+      "versionId": "5307369cb971df9e65f44ba8aa3bb5df6d4b12ec82ba21a5676f4d4f9e46b162",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T043924Z/execution-acfcf9e95570c6476114309f78e8735f41a1f11f-linux-arm64.tar.gz",
-          "bytes": 3972626,
-          "sha256": "83449f27cfadb7faf12ee5046f7deacc199279c4a20398bda51d897dd9bdf1e7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-arm64.tar.gz",
+          "bytes": 3972402,
+          "sha256": "5307369cb971df9e65f44ba8aa3bb5df6d4b12ec82ba21a5676f4d4f9e46b162"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T043924Z/execution-acfcf9e95570c6476114309f78e8735f41a1f11f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11114,
-          "sha256": "a9ce2877047ddd24c0c628354d34e84087008ee39307b3eb1e8c28c5466b8fdc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T030936Z/execution-71b0141723280c90d83eead25c9056f4d3fc5ff0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11067,
+          "sha256": "61f03e5cba4d8ba7d8702e78e6d8d532268d2bb694451c6eca7a4e7b300fcdf1"
         },
-        "signerCommit": "acfcf9e95570c6476114309f78e8735f41a1f11f"
+        "signerCommit": "71b0141723280c90d83eead25c9056f4d3fc5ff0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "モデルの切り替えが Claude の選ぶ画面で断られたとき、黙って待たずに、理由を付けてすぐ『反映されなかった』と表示するようにしました。"
+        "Claude のアカウントが『ログアウト』になるのは、API がそのトークンを本当に拒んだときだけにしました。10分ごとの見直しでトークンが使えると分かれば、席がなくても自動で戻ります。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1",
-      "versionId": "sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c",
+      "sourceCommit": "64485614a0a7a2b357a8dce7358a3c3cd59f607d",
+      "versionId": "sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude のモデルの別名で、版の付いた選ぶ画面でも一番新しい行を選ぶようにしました。選ぶ画面で断られたときは、理由がすぐ伝わります。"
+        "予定を登録しているだけでは、メンバーを稼働中と表示しなくなります。CLI の中で動かしている裏の作業は、これまでどおり稼働中に数えます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "684e04168b35cd69f07f18830b4af5c6dc6683c1",
-      "versionId": "sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c",
+      "sourceCommit": "64485614a0a7a2b357a8dce7358a3c3cd59f607d",
+      "versionId": "sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1cf447f33cda582f151f409c571e96424f9ebe0e01d5a6e7c145c107fbb3ac4c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude のモデルの別名で、版の付いた選ぶ画面でも一番新しい行を選ぶようにしました。選ぶ画面で断られたときは、理由がすぐ伝わります。"
+        "予定を登録しているだけでは、メンバーを稼働中と表示しなくなります。CLI の中で動かしている裏の作業は、これまでどおり稼働中に数えます。"
       ]
     },
     {
