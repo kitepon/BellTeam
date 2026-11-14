@@ -100,9 +100,9 @@ Every button leads to exactly one next view; every failure view says what happen
 | --- | --- | --- |
 | App (Apple nav / Web header button `工程表` / Windows nav) | open | 一覧. If exactly one chart exists, 工程表 of that chart |
 | 一覧 | tap a chart card | 工程表 of that chart |
-| A member's conversation, right panel 「AIと操作」 (Apple iPad/Mac, Windows, Linux; Owner 2026-11-14) | tap a chart button (one per chart whose `createdBy` is that member) | 工程表 of that chart (iPad: the 工程表 screen in the detail column; Mac, Windows, Linux: the 工程表 window) |
+| A member's conversation, right panel 「AIと操作」 (Apple iPad/Mac, Windows, Linux; Owner 2026-11-14); Web: the chat header 「…」 menu (Web has no right panel) | tap a chart button (one per chart whose `createdBy` is that member) | 工程表 of that chart (iPad: the 工程表 screen in the detail column; Mac, Windows, Linux: the 工程表 window; Web: the 工程表 dialog) |
 | 一覧 | close (Web dialog ×, Mac window close) | back to the app |
-| 一覧 opened from a 工程表 (switcher or the すべての工程表 button: iPhone at the right of the header, Apple wide layout and Windows at the far left of the toolbar, Owner 2026-11-14) | back (top-left chevron with that chart's name, iOS edge swipe, Esc) | the 工程表 it came from, same scroll position. The app's own navigation (tab bar, 相関図 / 工程表 switch) stays visible on 一覧, so the user can always leave (Owner 2026-11-12: no way back after the iPhone overview button) |
+| 一覧 opened from a 工程表 (switcher or the すべての工程表 button: iPhone at the right of the header, Apple wide layout, Windows and Web at the far left of the toolbar, Owner 2026-11-14) | back (top-left chevron with that chart's name, iOS edge swipe, Esc) | the 工程表 it came from, same scroll position. The app's own navigation (tab bar, 相関図 / 工程表 switch) stays visible on 一覧, so the user can always leave (Owner 2026-11-12: no way back after the iPhone overview button) |
 | 工程表 | chart switcher | 一覧 |
 | 工程表 | ツリー / 担当 / 過去ログ | the same chart in that view; 詳細 and highlight carry over |
 | 過去ログ | tap a row | 詳細 of that card |

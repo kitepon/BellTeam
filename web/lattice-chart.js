@@ -27,6 +27,7 @@ const GLYPHS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.7-6M20 4.5v4.8h-4.8"/>',
   back: '<path d="M19 12H6M11 6.5L5.5 12l5.5 5.5"/>',
+  grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
   bud: '<path d="M12 21v-6"/><path d="M12 15c-3.200 0-5-2.400-5-5.600C7 6.600 9 4 12 3c3 1 5 3.600 5 6.400 0 3.200-1.800 5.600-5 5.600z"/><path d="M12 18c-2.500 0-4-1-5-2.500"/>',
 }
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -301,6 +302,7 @@ export function createLatticeChart(dialog, {
     const canvas = h('div', { class: 'lattice-canvas', on: { click: event => { if (highlight && !event.target.closest?.('.lattice-card, .lattice-tbox')) { highlight = null; applyHighlight(); paintRail() } } } }, plane, tree, history)
     const modeBtn = (value, label) => h('button', { type: 'button', 'aria-pressed': String(mode === value), dataset: { mode: value, focusKey: `mode:${value}` }, on: { click: () => setMode(value) } }, label)
     const modes = h('div', { class: 'lattice-seg', role: 'group', 'aria-label': '表示' }, modeBtn('tree', 'ツリー'), modeBtn('lanes', '担当'), modeBtn('history', '過去ログ'))
+    const all = h('button', { class: 'lattice-btn lattice-all', type: 'button', dataset: { focusKey: 'all' }, on: { click: goList } }, glyph('grid'), 'すべての工程表') // Owner 2026-11-14: the plain way to every chart, top-left
     const switcher = h('button', { class: 'lattice-switcher', type: 'button', on: { click: goList } })
     const live = h('span', { class: 'lattice-live', hidden: true }, h('i', { class: 'ldot' }), 'ライブ')
     const summary = h('div', { class: 'lattice-sum' }), counters = h('div', { class: 'lattice-cnt' })
@@ -309,7 +311,7 @@ export function createLatticeChart(dialog, {
     const main = h('div', { class: `lattice-main${waitsOpen ? '' : ' is-folded'}` }, rail, canvas, waits, fold)
     const empty = h('div', { class: 'lattice-empty-slot', hidden: true })
     const loadingEl = loading()
-    const root = h('div', { class: 'lattice-chart', hidden: true }, h('div', { class: 'lattice-toolbar' }, switcher, live, modes, h('span', { class: 'lattice-spacer' }), summary, counters), banner, main, empty, sheet)
+    const root = h('div', { class: 'lattice-chart', hidden: true }, h('div', { class: 'lattice-toolbar' }, all, switcher, live, modes, h('span', { class: 'lattice-spacer' }), summary, counters), banner, main, empty, sheet)
     body.replaceChildren(loadingEl, root)
     view = 'chart'
     ui = { root, switcher, live, modes, history, tree, treeSvg, treeLinks, treeArcs, treeBoxes, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, fold, main, empty, sheet, loading: loadingEl }
@@ -619,8 +621,9 @@ export function createLatticeChart(dialog, {
   })
 
   return {
-    open() {
+    open(projectId = null) {
       if (isOpen) return
+      if (projectId) resumeId = projectId // a member's chart button: the first list read opens it, like the resume after 会話を開く
       isOpen = true; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
       document.addEventListener('visibilitychange', visibility)

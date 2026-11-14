@@ -13,6 +13,7 @@ import { createScreenView, createCharacterSheetView } from './bot-read-views.js?
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createWorkGraphView } from './work-graph.js?v=__ASSET_VERSION__'
 import { createLatticeChart } from './lattice-chart.js?v=__ASSET_VERSION__'
+import { chartName } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { bannerTexts } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -162,8 +163,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
   workGraphDialog.addEventListener('close', () => workGraph.close())
   // Lattice工程表：会話を開くは相関図と同じ経路（通知の member route）。
   const latticeDialog = document.querySelector('#lattice-dialog')
+  const latticeMember = id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.displayName ?? bot.name, color: bot.color, avatar: bot.avatar, known: true } : null }
   const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
-    getMember: id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.displayName ?? bot.name, color: bot.color, avatar: bot.avatar, known: true } : null },
+    getMember: latticeMember,
     getOwner: () => state.owner,
     openChat: async botId => {
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
@@ -284,6 +286,25 @@ export function createWebApp({ client = createWebClient() } = {}) {
   chatMore.addEventListener('click', event => { if (event.target.closest('.chat-more-menu button')) chatMore.open = false })
   document.addEventListener('click', event => { if (chatMore.open && !chatMore.contains(event.target)) chatMore.open = false })
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && chatMore.open) chatMore.open = false })
+  // a94: the charts this member made (createdBy) as direct links, read each time the menu opens; none when the read fails (an older server answers 404).
+  const memberCharts = document.querySelector('[data-member-charts]')
+  let memberChartsRead = 0
+  chatMore.addEventListener('toggle', async () => {
+    const read = ++memberChartsRead
+    memberCharts.replaceChildren()
+    if (!chatMore.open || state.selectedType !== 'bot' || !state.selected) return
+    const botId = state.selected.id
+    const list = await api('/api/lattice/charts').catch(() => null)
+    if (read !== memberChartsRead || !chatMore.open) return
+    memberCharts.replaceChildren(...(list?.charts ?? []).filter(chart => chart.createdBy === botId).map(chart => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>'
+      button.append(`工程表「${chartName(chart, latticeMember)}」を開く`)
+      button.addEventListener('click', () => lattice.open(chart.projectId))
+      return button
+    }))
+  })
   document.querySelector('#export-button').addEventListener('click', async event => {
     if (!state.selected) return
     const button = event.currentTarget
