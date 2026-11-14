@@ -308,7 +308,7 @@ test('CodexのAiterm登録にだけ、席の環境から渡す変数名を挙げ
 
   const codex = await readFile(join(home, '.codex/config.toml'), 'utf8')
   const names = JSON.parse(codex.match(/\[mcp_servers\.aiterm\]\n(?:[^\[\n][^\n]*\n)*?env_vars = (\[[^\n]+\])\n/u)[1])
-  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'npm_config_prefix', 'AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
+  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'THROUGHLINE_HOME', 'npm_config_prefix', 'AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
     assert.ok(names.includes(name), name)
   assert.deepEqual(names.filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
   assert.doesNotMatch(await readFile(join(home, '.grok/config.toml'), 'utf8'), /env_vars/u)

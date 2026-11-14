@@ -15,11 +15,6 @@ services:
         source: /home/kite/BellTeam/runtime/data
         target: /srv/bellteam
       - type: bind
-        source: /home/kite/BellTeam/runtime/data/shared/throughline
-        target: /home/bell/.throughline
-        bind:
-          create_host_path: false
-      - type: bind
         source: ${BELLTEAM_INTERNAL_PROFILE_FILE}
         target: /app/src/distribution-profile.mjs
         read_only: true

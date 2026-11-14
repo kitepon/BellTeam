@@ -101,7 +101,7 @@ flowchart TD
 
 Cursorのreaderは本体の環境を継承する`docker exec`をUID/GID1001で開始し、既存の固定`bellteam-seat-exec`が環境を消してからUID/GID1000へ移す。本体環境を持った席UIDのPythonや`env -i`を先に起動しない。producerにはstdinのarchive scriptと固定引数だけを渡し、同じCIDのCursor volumeを従来の席権限で読む。固定入口/sudo規則のない旧imageでは保存を失敗させ、直接席execへ戻らない。これは本体UID1001から席UID1000への既存境界であり、席の既存sudo権限全体を閉じる変更ではない。通常deploy-image.shはこの保存scriptを呼ばず、本番入口やHost内部nightlyの修理とは別経路である。
 
-`archive-live-volume.py.create`は一般fileの変化を拒否し、SQLiteのrawは観測bytesとしてだけ保存、復元用DBはread-only接続のbackup APIから作る。DBごとに120秒とquick_checkを持つ。Throughlineの既知atomic JSONだけrename交替を許し記録する。全volumeが同一瞬間のsnapshotという意味ではない。
+`archive-live-volume.py.create`は一般fileの変化を拒否し、SQLiteのrawは観測bytesとしてだけ保存、復元用DBはread-only接続のbackup APIから作る。DBごとに120秒とquick_checkを持つ。Throughlineのrootは`storage locate`で知り、volume内にあればrawから除いて`storage export`の写しを`throughline/`へ入れる（[契約](execution.md#throughline-storage-through-its-contract-throughline_home-molly-2026-11-14)）。Throughlineの内部file名や書込み方式は前提にしない。全volumeが同一瞬間のsnapshotという意味ではない。
 
 `restore`は既存destinationを拒否。manifest/重複member/相対path/type/SQLite family/hardlink/symlink祖先を検証し、仮directoryへ展開。生のSQLite/WAL群は復元に使わず、再検証したsnapshotを置く。symlinkは配置検証後に作り、最後に完成directoryをrenameする。復元したdirectoryを本番mountへ切替える操作はこの関数にない。
 

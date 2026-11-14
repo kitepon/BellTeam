@@ -26,7 +26,7 @@ PLATFORMS = {
     'arm64': {'os': 'linux', 'arch': 'arm64', 'libc': 'glibc', 'nodeMajor': 26},
 }
 SUPPLY_COMPONENTS = ('runtime-codex', 'runtime-claude-code', 'runtime-throughline')
-THROUGHLINE_APPROVED = '0.16.56'
+THROUGHLINE_MINIMUM = (0, 19, 0)  # storage locate/export and THROUGHLINE_HOME (ADR 0073); no upper pin
 MAX_ARCHIVE_BYTES = 512 * 1024 ** 2
 
 
@@ -57,8 +57,8 @@ def npm_metadata(component, work, env):
     metadata = json.loads(raw)
     if type(metadata) is not dict or not VERSION.fullmatch(str(metadata.get('version', ''))):
         raise ValueError('npm latest did not resolve to a stable exact version')
-    if component == 'runtime-throughline' and metadata['version'] != THROUGHLINE_APPROVED:
-        raise ValueError('Throughline latest differs from the accepted 0.16.56 compatibility decision')
+    if component == 'runtime-throughline' and not throughline_supported(metadata['version']):
+        raise ValueError('Throughline latest is older than 0.19.0')
     integrity = metadata.get('dist', {}).get('integrity')
     if type(integrity) is not str or not integrity.startswith('sha512-'):
         raise ValueError('npm latest metadata has no sha512 integrity')
@@ -121,15 +121,20 @@ def write_archive(prefix, manifest, output):
     return raw_manifest
 
 
+def throughline_supported(version):
+    return bool(VERSION.fullmatch(version)) and tuple(map(int, version.split('+')[0].split('.'))) >= THROUGHLINE_MINIMUM
+
+
 def probe_throughline(binary, temp, env):
     root = temp / 'throughline-probe'
     project = root / 'project'
     project.mkdir(parents=True)
     env.update({'HOME': str(root), 'USERPROFILE': str(root), 'CODEX_HOME': str(root / 'codex'),
-                'XDG_STATE_HOME': str(root / 'state'), 'LOCALAPPDATA': str(root / 'state')})
+                'XDG_STATE_HOME': str(root / 'state'), 'LOCALAPPDATA': str(root / 'state'),
+                'THROUGHLINE_HOME': str(root / 'tl')})
     version = run([str(binary), '--version'], env=env, cwd=project, timeout=10)
-    if version.stderr or version.stdout.strip() != THROUGHLINE_APPROVED:
-        raise ValueError('Throughline version probe did not report exactly 0.16.56')
+    if version.stderr or not throughline_supported(version.stdout.strip()):
+        raise ValueError('Throughline version probe did not report 0.19.0 or newer')
 
     def check(after):
         request = {'schema': 'throughline.observer_check_request.v1',
@@ -150,7 +155,12 @@ def probe_throughline(binary, temp, env):
     expected = {**first, 'results': [{**rows[0], 'status': 'unchanged'}]}
     if second != expected:
         raise ValueError('Throughline second observer-check was not unchanged')
-    if (root / '.throughline').exists() or (root / 'state').exists():
+    located = json.loads(run([str(binary), 'storage', 'locate', '--json'], env=env, cwd=project, timeout=10).stdout)
+    roots = located.get('roots') if located.get('schema') == 'throughline.storage_locations.v1' else None
+    if (located.get('source') != 'THROUGHLINE_HOME' or type(roots) is not dict
+            or any(type(roots.get(key)) is not str for key in ('data', 'appState', 'appConfig'))):
+        raise ValueError('Throughline storage locate did not report the probe THROUGHLINE_HOME')
+    if any(Path(roots[key]).exists() for key in ('data', 'appState', 'appConfig')):
         raise ValueError('Throughline observer-check created a database/state path')
     return {'version': version.stdout.strip(), 'firstStatus': 'changed', 'secondStatus': 'unchanged',
             'databaseCreated': False}

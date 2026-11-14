@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -13,29 +14,42 @@ from pathlib import Path, PurePosixPath
 
 FIELDS = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
 SIDECARS = ('-wal', '-shm', '-journal')
-# Throughline keeps each state file as one JSON document and replaces it by rename
-# (dot-prefixed .tmp, then rename), so an archived copy is always one complete document.
-ATOMIC_STORE_DIRS = {PurePosixPath('state/throughline'), PurePosixPath('state/throughline/completed-turn-receipts')}
+THROUGHLINE_ROOTS = ('data', 'appState', 'appConfig')
 
 
-def atomic_store(root, path):
-    relative = PurePosixPath(path.relative_to(root))
-    return relative.parent in ATOMIC_STORE_DIRS and relative.suffix == '.json'
+def throughline_roots():
+    """Throughline's roots through its public contract (ADR 0073); none when it is not installed."""
+    try:
+        result = subprocess.run(['throughline', 'storage', 'locate', '--json'], capture_output=True, text=True, timeout=60, check=True)
+    except FileNotFoundError:
+        return []
+    located = json.loads(result.stdout)
+    roots = located.get('roots') if located.get('schema') == 'throughline.storage_locations.v1' else None
+    if type(roots) is not dict or any(type(roots.get(key)) is not str or not os.path.isabs(roots[key]) for key in THROUGHLINE_ROOTS):
+        raise RuntimeError('throughline storage locate returned no roots')
+    return [Path(roots[key]) for key in THROUGHLINE_ROOTS]
 
 
-def transient(root, path):
-    relative = PurePosixPath(path.relative_to(root))
-    return relative.parent in ATOMIC_STORE_DIRS and relative.name.startswith('.') and relative.suffix == '.tmp'
+def throughline_export(archive):
+    with tempfile.TemporaryDirectory(prefix='bellteam-throughline-export-') as temp:
+        target = Path(temp) / 'export'
+        result = subprocess.run(['throughline', 'storage', 'export', '--to', str(target), '--json'], capture_output=True, text=True)
+        exported = json.loads(result.stdout or '{}')
+        if result.returncode or exported.get('schema') != 'throughline.storage_export.v1' or exported.get('status') != 'complete':
+            raise RuntimeError('throughline storage export failed: ' + str(exported.get('code')))
+        archive.add(target, arcname='throughline')
+        return exported
 
 
-def inventory(root):
+def inventory(root, excluded=frozenset()):
     result = []
     for current, dirs, files in os.walk(root, followlinks=False, onerror=lambda error: (_ for _ in ()).throw(error)):
         current = Path(current)
+        dirs[:] = [name for name in dirs if current / name not in excluded]
         result.append(current)
         for name in sorted(dirs + files):
             path = current / name
-            if (not path.is_dir() or path.is_symlink()) and not transient(root, path):
+            if not path.is_dir() or path.is_symlink():
                 result.append(path)
     return result
 
@@ -43,26 +57,17 @@ def inventory(root):
 def create(root):
     if not root.is_dir() or root.is_symlink():
         raise ValueError('expected a directory')
-    entries = inventory(root)
+    # Throughline's own files are backed up through its export, never read raw here.
+    excluded = frozenset(path for path in throughline_roots() if root in path.parents)
+    entries = inventory(root, excluded)
     identities = {path: path.lstat() for path in entries}
-    replaced = {}
-
-    def replacement(path, after):
-        if not (atomic_store(root, path) and stat.S_ISREG(after.st_mode) and after.st_nlink == 1):
-            return False
-        relative = str(path.relative_to(root))
-        before = replaced[relative]['before'] if relative in replaced else [identities[path].st_dev, identities[path].st_ino]
-        replaced[relative] = {'before': before, 'after': [after.st_dev, after.st_ino]}
-        identities[path] = after
-        return True
     databases = set()
     for path, before in identities.items():
         if stat.S_ISREG(before.st_mode):
             with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
                 opened = os.fstat(stream.fileno())
                 if not stat.S_ISREG(opened.st_mode) or (before.st_dev, before.st_ino, before.st_mode) != (opened.st_dev, opened.st_ino, opened.st_mode):
-                    if not replacement(path, opened):
-                        raise RuntimeError('file replaced during classification: ' + str(path))
+                    raise RuntimeError('file replaced during classification: ' + str(path))
                 if stream.read(16) == b'SQLite format 3\x00':
                     if opened.st_nlink != 1:
                         raise RuntimeError('hard-linked SQLite database cannot be safely archived: ' + str(path))
@@ -79,9 +84,7 @@ def create(root):
                 raise RuntimeError('SQLite database family must remain single regular files')
             initial = identities[path]
             if (initial.st_dev, initial.st_ino, stat.S_IFMT(initial.st_mode)) != (recorded.st_dev, recorded.st_ino, stat.S_IFMT(recorded.st_mode)):
-                # shortcut: a store replaced between this lstat and the open below still fails closed, retry here if that ever happens
-                if not replacement(path, recorded):
-                    raise RuntimeError('volume entry replaced before archive: ' + name)
+                raise RuntimeError('volume entry replaced before archive: ' + name)
             info = archive.gettarinfo(str(path), arcname=name)
             if info.isreg():
                 with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
@@ -143,7 +146,7 @@ def create(root):
                 info.size = snapshot.stat().st_size
                 with snapshot.open('rb') as stream:
                     archive.addfile(info, stream)
-        final_entries = inventory(root)
+        final_entries = inventory(root, excluded)
         sidecars = mutable - databases
         added = set(final_entries) - set(entries) - sidecars
         removed = set(entries) - set(final_entries) - sidecars
@@ -161,23 +164,25 @@ def create(root):
                 continue
             before = identities[path]
             if (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)) != (after.st_dev, after.st_ino, stat.S_IFMT(after.st_mode)):
-                if not replacement(path, after):
-                    raise RuntimeError('volume entry replaced during archive: ' + str(path.relative_to(root)))
+                raise RuntimeError('volume entry replaced during archive: ' + str(path.relative_to(root)))
         def file_identity(item):
             return [item.st_dev, item.st_ino] if item else None
         sidecar_changes = {str(path.relative_to(root)): {'before': file_identity(identities.get(path)),
                                                        'after': file_identity(final_stats.get(path))}
                            for path in sorted(sidecars) if file_identity(identities.get(path)) != file_identity(final_stats.get(path))}
+        exported = throughline_export(archive) if any(path.exists() for path in excluded) else None
         manifest = json.dumps({'format': 1, 'databases': [str(path.relative_to(root)) for path in sorted(databases)],
                                'identities': {str(path.relative_to(root)): [identities[path].st_dev, identities[path].st_ino] for path in sorted(databases)},
-                               'observations': observations, 'sidecar_changes': sidecar_changes, 'replaced': replaced}).encode()
+                               'observations': observations, 'sidecar_changes': sidecar_changes, 'throughline': exported}).encode()
         info = tarfile.TarInfo('manifest.json')
         info.mode, info.size = 0o600, len(manifest)
         archive.addfile(info, io.BytesIO(manifest))
 
 
 def restore(archive_path, destination):
-    if destination.exists() or destination.is_symlink():
+    # A Throughline export is laid out as a THROUGHLINE_HOME; it is restored beside the volume.
+    throughline = destination.with_name(destination.name + '.throughline')
+    if destination.exists() or destination.is_symlink() or throughline.exists() or throughline.is_symlink():
         raise ValueError('restore destination must not exist')
     with tarfile.open(archive_path) as archive, tempfile.TemporaryDirectory(prefix='bellteam-volume-restore-', dir=destination.parent) as temp:
         manifest = json.load(archive.extractfile('manifest.json'))
@@ -194,8 +199,10 @@ def restore(archive_path, destination):
         expected = {'sqlite/' + name for name in names}
         if {member.name for member in members if member.name.startswith('sqlite/')} != expected:
             raise ValueError('SQLite snapshot manifest does not match archive')
-        if any(member.name != 'manifest.json' and member.name != 'raw' and not member.name.startswith(('raw/', 'sqlite/')) for member in members):
+        if any(member.name not in ('manifest.json', 'raw', 'throughline') and not member.name.startswith(('raw/', 'sqlite/', 'throughline/')) for member in members):
             raise ValueError('unexpected archive member')
+        if any((member.name == 'throughline' or member.name.startswith('throughline/')) and not (member.isreg() or member.isdir()) for member in members):
+            raise ValueError('Throughline export member must be a regular file or directory')
         families = {name + suffix for name in names for suffix in ('', *SIDECARS)}
         if any(not archive.getmember('sqlite/' + name).isreg() or not archive.getmember('raw/' + name).isreg() for name in names):
             raise ValueError('SQLite snapshot or physical observation is not regular')
@@ -238,6 +245,8 @@ def restore(archive_path, destination):
         for member in reversed(selected):
             if member.isdir():
                 os.chmod(Path(temp) / member.name, member.mode & 0o777, follow_symlinks=False)
+        if (Path(temp) / 'throughline').is_dir():
+            os.rename(Path(temp) / 'throughline', throughline)
         os.rename(raw, destination)
 
 

@@ -178,7 +178,7 @@ flowchart LR
 
 ## Throughline公開observer-checkの実行接続
 
-N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。正式CLI0.16.56/sourcee7f8a701e521abbbe822bdb7fbdfdcf0e243cb57をDockerfileと既同image版検査へ固定する。公開check/read・hook命令・JSON/schema12契約は不変として継承し、本番の採用記録とは分ける。
+N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。（旧：正式CLI0.16.56への固定。2026-11-14に[Throughlineの保存場所契約](#throughline-storage-through-its-contract-throughline_home-molly-2026-11-14)で最低版>=0.19.0・常に最新へ置換。）公開check/read・hook命令・JSON/schema12契約は不変として継承し、本番の採用記録とは分ける。
 
 CLI登録は既`configureHarnesses → throughline install`を使う。通常のCodex `post-tool-use`失敗では、Throughlineが元例外/stack/event/stage/取得済みsession/transcript参照を私有ログへ先行保存し、既公開runtime-errorsへfingerprint/count/unknown影響を記録してexit1を保持する。診断の保存・収集設定・DBはThroughlineが所有し、BellTeamは私有DBを読まず、実席の収集設定を変更しない。正式供給の隔離CLI確認と、同source image/本番への実反映は別工程。元container例外の原因・利用者影響はunknown、repair_success=falseであり、この版更新を修理成功へ補完しない。
 
@@ -194,3 +194,31 @@ flowchart LR
 consumerは既createSeatProcessRunner(root,{environment:'base'})を直接使う。inputはUTF8 1MiB以内、stdout/stderr合計は既16MiB、input+EOF/close/非0拒否/取消時の子回収は既runnerの契約のまま。signalをJSONへ入れずoptionsへ渡す。結果schema/両上限での編成・分割/pending/消費cursor/tokenの保存はruntimeへ移さない。ThroughlineのDB/WAL fallbackや新しいruntime業務handler、daemonは加えない。
 
 runtimeの限定確認は旧method非公開と旧dispatch拒否、残存callerの責任確認だけ。conversation-services/self-turnsの旧callerはN102のconsumer差分で外すため、runtime単独では採用しない。既runner人工8case/製品試験/実DB/席/Host/本番は再走しない。
+
+## Throughline storage through its contract: THROUGHLINE_HOME (Molly, 2026-11-14)
+
+Contract: Throughline [ADR 0073](https://github.com/kitepon/Throughline/blob/main/docs/adr/0073-storage-location-and-export-contract.md) (0.19.0). BellTeam chooses placement only with `THROUGHLINE_HOME`, asks `throughline storage locate --json` where the roots are, and backs them up with `throughline storage export --to <empty dir> --json`. It never reads or writes inside Throughline's roots by its own knowledge (product boundary). No version pin: the image installs `throughline@latest`; the runtime package accepts any version >= 0.19.0.
+
+```mermaid
+flowchart TD
+  Image["Dockerfile ENV THROUGHLINE_HOME=/srv/bellteam/shared/throughline<br/>(host runtime/data/shared/throughline, the existing DB)"] --> Body["body (UID1001): server-start.c keeps image ENV"]
+  Body --> RE["runtimeEnvironment (spreads inherited env)"]
+  RE --> BodyCalls["body's own throughline calls<br/>(harness install, self-turns, room-context, remote seats)"]
+  Body --> SeatExec["seat-exec.c clearenv, then fixed list<br/>incl. THROUGHLINE_HOME (same value)"]
+  SeatExec --> SeatCmd["run-seat-command → baseBotEnvironment → runtimeEnvironment"]
+  SeatCmd --> Seats["seats: Aiterm-launched CLIs and their Throughline hooks"]
+  SeatCmd --> Sched["command schedules, setup.sh, env.sh (configured env)"]
+  SeatCmd --> SeatRT["run-seat-runtime short operations<br/>(incl. boot migration below)"]
+  Seats --> MCP["Codex/Cursor MCP servers: only names in AITERM_SEAT_ENV_VARS<br/>(THROUGHLINE_HOME listed)"]
+  Restore["save-deploy-restore-point → seat-exec → archive-live-volume.py"] --> SeatExec
+```
+
+| Item | Contract |
+| --- | --- |
+| Value | `THROUGHLINE_HOME=/srv/bellteam/shared/throughline` (absolute). Data (`throughline.db`, logs, state, handoff) at the top, `app-state/` (receipts, runtime errors; was `$XDG_STATE_HOME/throughline`), `app-config/` (was `$XDG_CONFIG_HOME/throughline`). Every process that runs Throughline sees the same value; one that does not writes a separate store at the defaults. |
+| Carriers | Image `ENV` (body and everything spawned from its env); `seat-exec.c` fixed list (it clears the env, so the value is set there like `BELLTEAM_ROOT`); `runtimeEnvironment` spreads it unchanged; `AITERM_SEAT_ENV_VARS` forwards it to Codex/Cursor MCP servers. |
+| Mount | `compose.yaml` and `distribution/internal/compose.overlay.yaml` no longer bind `runtime/data/shared/throughline` onto `/home/bell/.throughline`; the same host dir is already `/srv/bellteam/shared/throughline`. Production: Trony removes that mount entry from the updater `normal.json` at the swap (mount removal is allowed); no new mount. |
+| Boot migration | `bootstrap` → `SeatRuntime.migrateThroughlineStorage` → `run-seat-runtime` (seat UID1000, the owner of the files) → `migrateThroughlineStorage` in `runtime-home.mjs`, once per boot before any seat or harness registration runs Throughline. In order, `~/.throughline → $THROUGHLINE_HOME` (installs that never had the bind below; production already has its DB there, so it is kept), `<XDG_STATE_HOME>/throughline → $THROUGHLINE_HOME/app-state` and `<XDG_CONFIG_HOME>/throughline → app-config` (the defaults in the ADR's table): each only when the source has entries and the destination does not exist. Rename on the same filesystem; otherwise copy to a staging sibling, compare every entry's size, rename the staging dir in, then remove the source. Never overwrites a destination. Protection: no data loss. A failure removes only the staging copy, leaves the source, is logged (`THROUGHLINE_STORAGE_MIGRATION`), and boot continues; the next boot retries while the destination is still absent. |
+| Backup | `archive-live-volume.py create` asks `storage locate`, skips any Throughline root inside the archived volume, and only then adds a `storage export` of all roots under `throughline/` (manifest `throughline` = export counts). Restore places it beside the restored volume as `<destination>.throughline`, ready to be pointed at or copied into an empty `THROUGHLINE_HOME`. After the migration no root is inside `/home/bell/.local`, so the restore point carries no Throughline data; the DB and app state are under the shared dir that the nightly backup covers (moving to `storage export` is bd18, Trony). No `throughline` command means nothing to exclude. |
+| Package probe | `scripts/package-runtime.py` requires >= 0.19.0, runs `observer-check` with `THROUGHLINE_HOME=<probe>/tl`, then checks with `storage locate --json` (source `THROUGHLINE_HOME`) that no reported root exists. |
+| Not covered | Hosts outside the container (dev checkouts) keep Throughline's defaults. A Throughline process that already created `app-state` before a failed migration keeps the old files in place; they stay for manual export, never overwritten. |

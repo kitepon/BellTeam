@@ -8,8 +8,23 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/archive-live-volume.py'
+# Stands in for the public Throughline storage contract (ADR 0073) only.
+FAKE_THROUGHLINE = '''#!/usr/bin/env python3
+import json, os, shutil, sys
+home = os.environ['FAKE_THROUGHLINE_HOME']
+roots = {'data': home, 'appState': home + '/app-state', 'appConfig': home + '/app-config'}
+if sys.argv[1:] == ['storage', 'locate', '--json']:
+    print(json.dumps({'schema': 'throughline.storage_locations.v1', 'source': 'THROUGHLINE_HOME', 'roots': roots, 'database': home + '/throughline.db'}))
+elif sys.argv[1:4] == ['storage', 'export', '--to'] and sys.argv[5:] == ['--json'] and not os.environ.get('FAKE_THROUGHLINE_EXPORT_FAIL'):
+    shutil.copytree(home, sys.argv[4])
+    print(json.dumps({'schema': 'throughline.storage_export.v1', 'status': 'complete', 'to': sys.argv[4], 'files': 1}))
+else:
+    print(json.dumps({'schema': 'throughline.storage_export.v1', 'status': 'failed', 'code': 'synthetic'}))
+    sys.exit(1)
+'''
 
 
 class LiveVolumeArchiveTest(unittest.TestCase):
@@ -19,6 +34,14 @@ class LiveVolumeArchiveTest(unittest.TestCase):
         self.volume = self.root / 'volume'
         self.volume.mkdir()
         self.addCleanup(self.tmp.cleanup)
+        tools = self.root / 'tools'
+        tools.mkdir()
+        (tools / 'throughline').write_text(FAKE_THROUGHLINE)
+        (tools / 'throughline').chmod(0o755)
+        environment = mock.patch.dict(os.environ, {'PATH': str(tools) + os.pathsep + os.environ['PATH'],
+                                                   'FAKE_THROUGHLINE_HOME': str(self.root / 'throughline-home')})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def archive(self):
         return subprocess.run(['python3', str(SCRIPT), 'create', str(self.volume)], capture_output=True, timeout=15)
@@ -457,64 +480,51 @@ tarfile.TarFile.addfile=hide_alias
 ''')
         self.assertNotEqual(result.returncode,0)
 
-    def throughline_store(self, name, value):
-        path = self.volume / 'state/throughline' / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(value))
-        return path
-
-    def test_throughline_store_replacement_is_archived_as_one_complete_document(self):
-        receipts = 'completed-turn-receipts/' + 'a' * 64 + '.json'
-        self.throughline_store(receipts, {'next_sequence': 1})
-        self.throughline_store('runtime-errors.json', {'v': 'old'})
-        self.throughline_store('runtime-errors.report.state.json', {'v': 'old'})
-        self.throughline_store('completed-turn-receipts/.completed-turn-receipts.1.abc.tmp', {})
+    def test_throughline_roots_inside_the_volume_are_exported_not_read_raw(self):
+        home = self.volume / 'state/throughline-home'
+        (home / 'app-state').mkdir(parents=True)
+        (home / 'app-state/runtime-errors.json').write_text('{"v":1}')
         (self.volume / 'file').write_bytes(b'ABC')
+        os.environ['FAKE_THROUGHLINE_HOME'] = str(home)
+        # Throughline replacing its own file during the archive is never seen by the raw walk.
         result = self.hook('''
-import json
-state = root / 'state/throughline'
-def replace(path, value):
-    temporary = path.with_name('.' + path.stem + '.9.def.tmp')
-    temporary.write_text(json.dumps(value))
-    os.replace(temporary, path)
-original_open = os.open
-opened = 0
-def open_replacing(path, flags, *args, **kwargs):
-    global opened
-    if pathlib.Path(path) == state / 'runtime-errors.report.state.json':
-        opened += 1
-        if opened == 1: replace(pathlib.Path(path), {'v': 'classification'})
-    return original_open(path, flags, *args, **kwargs)
-os.open = open_replacing
-original_info = tarfile.TarFile.gettarinfo
-def info_replacing(self, name=None, arcname=None, fileobj=None):
-    if pathlib.Path(name) == root:
-        replace(state / 'runtime-errors.json', {'v': 'new'})
-        (state / 'completed-turn-receipts/.completed-turn-receipts.1.abc.tmp').unlink()
-    return original_info(self, name, arcname, fileobj)
-tarfile.TarFile.gettarinfo = info_replacing
-original_walk = os.walk
+original = os.walk
 walks = 0
 def walk_replacing(*args, **kwargs):
     global walks
     walks += 1
-    if walks == 2: replace(state / 'RECEIPTS', {'next_sequence': 2})
-    return original_walk(*args, **kwargs)
+    if walks == 2:
+        (root / 'state/throughline-home/app-state/.new.tmp').write_text('{"v":2}')
+        os.replace(root / 'state/throughline-home/app-state/.new.tmp', root / 'state/throughline-home/app-state/runtime-errors.json')
+    return original(*args, **kwargs)
 os.walk = walk_replacing
-'''.replace('RECEIPTS', receipts))
+''')
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
             names = archive.getnames()
-            self.assertNotIn('raw/state/throughline/completed-turn-receipts/.completed-turn-receipts.1.abc.tmp', names)
-            replaced = json.load(archive.extractfile('manifest.json'))['replaced']
-        self.assertEqual(set(replaced), {'state/throughline/' + receipts, 'state/throughline/runtime-errors.json', 'state/throughline/runtime-errors.report.state.json'})
-        self.assertTrue(all(value['before'] != value['after'] for value in replaced.values()))
+            self.assertFalse([name for name in names if name.startswith('raw/state/throughline-home')])
+            self.assertIn('throughline/app-state/runtime-errors.json', names)
+            self.assertEqual(json.load(archive.extractfile('manifest.json'))['throughline']['status'], 'complete')
         restored, output = self.restore(result.stdout)
         self.assertEqual(restored.returncode, 0, restored.stderr.decode())
-        self.assertEqual(json.loads((output / 'state/throughline' / receipts).read_text()), {'next_sequence': 1})
-        self.assertEqual(json.loads((output / 'state/throughline/runtime-errors.json').read_text()), {'v': 'new'})
-        self.assertEqual(json.loads((output / 'state/throughline/runtime-errors.report.state.json').read_text()), {'v': 'classification'})
         self.assertEqual((output / 'file').read_bytes(), b'ABC')
+        self.assertTrue((output.with_name('restored.throughline') / 'app-state/runtime-errors.json').is_file())
+        again, _ = self.restore(result.stdout, self.root / 'other')
+        self.assertEqual(again.returncode, 0, again.stderr.decode())
+        os.environ['FAKE_THROUGHLINE_EXPORT_FAIL'] = '1'
+        failed = self.archive()
+        del os.environ['FAKE_THROUGHLINE_EXPORT_FAIL']
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn(b'throughline storage export failed: synthetic', failed.stderr)
+
+    def test_throughline_outside_the_volume_is_not_exported(self):
+        (self.volume / 'file').write_bytes(b'ABC')
+        (self.root / 'throughline-home').mkdir()
+        result = self.archive()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+            self.assertFalse([name for name in archive.getnames() if name.startswith('throughline')])
+            self.assertIsNone(json.load(archive.extractfile('manifest.json'))['throughline'])
 
     def test_json_replacement_outside_throughline_state_still_refuses(self):
         (self.volume / 'state').mkdir()

@@ -49,7 +49,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
 const AITERM_SEAT_ENV_VARS = [
   'BELLTEAM_HOME', 'BELLTEAM_PROJECT', 'CODEX_HOME', 'GROK_HOME',
   'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME',
-  'npm_config_cache', 'npm_config_prefix', 'PIP_CACHE_DIR',
+  'npm_config_cache', 'npm_config_prefix', 'PIP_CACHE_DIR', 'THROUGHLINE_HOME',
 ]
 // 本体の環境にある時だけ席へ受け継がれる変数。
 const AITERM_INHERITED_ENV_VARS = ['BELLTEAM_ROOT', 'PLAYWRIGHT_BROWSERS_PATH', 'RTK_TELEMETRY_DISABLED', 'RTK_SUPPRESS_HOOK_WARNING', 'LC_CTYPE']

@@ -102,6 +102,7 @@ ENV HOME=/run/bellteam-server \
   BELLTEAM_HOME=/home/bell \
   PATH=/usr/local/bin:/usr/bin:/bin \
   BELLTEAM_ROOT=/srv/bellteam \
+  THROUGHLINE_HOME=/srv/bellteam/shared/throughline \
   BELLTEAM_BOTS_CONFIG=/app/config/bots.json \
   RTK_TELEMETRY_DISABLED=1 \
   RTK_SUPPRESS_HOOK_WARNING=1 \

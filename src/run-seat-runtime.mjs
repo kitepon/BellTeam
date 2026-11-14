@@ -10,6 +10,7 @@ import { readImageBytes } from './message-assets.mjs'
 import { aitermExecutionRegistration } from './aiterm-hooks.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { operateMembersProject } from './members-project-files.mjs'
+import { migrateThroughlineStorage } from './runtime-home.mjs'
 
 function temporaryImagePath(path) {
   if (typeof path !== 'string' || !isAbsolute(path)
@@ -37,6 +38,8 @@ async function operate(request) {
       return writeHarnessConfig(bots, request.home, { aiterm: async () => request.aiterm, callBridge: request.callBridge })
     case 'global-instructions':
       return writeGlobalInstructions(request.home, request.instructions)
+    case 'throughline-storage':
+      return migrateThroughlineStorage(process.env)
     case 'remove-claude-copies':
       return removeSeatClaudeCopies(bots)
     case 'read-image':
