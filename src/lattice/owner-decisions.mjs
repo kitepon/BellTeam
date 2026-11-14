@@ -1,22 +1,24 @@
-// Owner-lane filing (README L18-L19; Owner 2026-11-12: 「決裁箱連発すんなよ。決裁箱に出した記録もつけてスクリプトで判断しろ。」):
-// an Owner-lane task that is in progress or can start goes to the Approval Box once, by this script; the answer goes to the chart's creator Bot.
+// Owner-lane hand-over (README L18-L19; Owner 2026-11-12: 「決裁箱連発すんなよ。決裁箱に出した記録もつけてスクリプトで判断しろ。」):
+// an Owner-lane task that is in progress or can start is handed once to the chart's creator Bot, which files the one Approval Box request.
+// Owner 2026-11-14 (bug): a script cannot write a card the Owner understands from English chart rows, so Lattice files none itself.
 const SENT = ['running', 'steered', 'queued', 'delivered', 'answered']
 export const OPTIONS = Object.freeze([{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ（理由を書く）' }])
 // The cancel reason the Owner reads, per card state that ends the task (README L19).
 const ENDED = { retired: 'この工程は工程表で取り下げられたため、申請を取り下げました。', done: 'この工程は工程表で済になったため、申請を取り下げました。' }
+const OPEN = new Set(['in-progress', 'ready'])
+const REASK = name => `この申請は、何を決めていただきたいのかが伝わりにくい書き方でしたので取り下げました。同じ件は${name}が、わかる言葉であらためてお尋ねします。`
 
 const keyOf = (projectId, card) => `${projectId}/${card.plan}/${card.taskId}`
 // Only a refusal of one request lets the tick go on; anything else (unavailable, an old body) ends this tick's filing (README L18, Molly review).
 const goesOn = error => error?.code === 'LATTICE_DECISIONS_REFUSED'
 
-function filing(chart, card, requester) {
-  const context = [`工程表「${chart.name ?? chart.projectId}」で、担当があなた（owner）の工程です。`, `工程: ${card.title}`,
-    `終わりの条件: ${card.doneCondition ?? '（書かれていません）'}`, card.designMemo ? `\n設計メモ:\n${card.designMemo}` : null,
-    `\n答えは、この工程表を作った ${requester} に届き、${requester} が工程表に記録します。`].filter(Boolean).join('\n')
-  // session_label = the record key from stable ids (never the chart name or creator name): the body's identity for this task's request (L18, Epinel gate);
-  // the chart name in the title keeps titles apart (the server refuses a second open request with the same title).
-  return { title: `${chart.name ?? chart.projectId}: ${card.title}`.slice(0, 120), context: context.slice(0, 20000), options: OPTIONS, requester,
-    session_label: `${chart.projectId} / ${card.plan}/${card.taskId}` }
+function askMessage(chart, card) {
+  const where = `${card.plan}/${card.taskId} 「${card.title}」 on your chart ${chart.projectId} (lattice tool, project ${chart.projectId})`
+  return `Lattice: the Owner-lane task ${where} needs the Owner. Lattice does not file Approval Box requests itself (the Owner could not read the cards it made).\n`
+    + `You created this chart, so make sure exactly ONE Approval Box request exists for this decision: if you or the Bot that added this task already filed one, file nothing; otherwise file it yourself with request_decision.\n`
+    + `Write it to the Approval Box instructions, in plain Japanese: the title says in one sentence what the Owner should decide; the background gives the reason and the impact first; put on the card what he must see to decide (a draft he approves, the exact setting, the cost); each option says what happens after it. No task ids, no English chart text.\n`
+    + `When he answers, record it: \`lattice todo start --plan ${card.plan} --task ${card.taskId}\` (skip if already in progress), then \`lattice todo done --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`;`
+    + ` or \`lattice todo note --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`. If the task is retired or done before he answers, cancel_decision your request.`
 }
 
 function answerMessage(chart, item, answer) {
@@ -59,8 +61,20 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
       log(`lattice-owner-cancelled ${key}`)
       continue
     }
-    if (value.status !== 'answered') continue
+    // A legacy Lattice-filed card the Owner cannot read is withdrawn and handed to the creator below, in this tick (L19).
     const creator = chart?.createdBy
+    if ((value.status === 'pending' || value.status === 'held') && OPEN.has(cards.get(key)?.state) && bots.has(creator)) {
+      try { await effect('decisions.cancel', { decisionId: item.decisionId, reason: REASK(names.get(creator) ?? creator) }) } catch (error) {
+        log(`lattice-owner-cancel ${key} ${error?.code ?? 'FAILED'}`)
+        if (error?.code === 'LATTICE_DECISIONS_UNAVAILABLE') return out
+        continue
+      }
+      delete record[key]
+      await records.write(record)
+      log(`lattice-owner-reask ${key}`)
+      continue
+    }
+    if (value.status !== 'answered') continue
     if (!creator || !bots.has(creator)) { log(`lattice-owner-route ${item.projectId} no-creator`); continue }
     const sent = await effect('messages.send', { from: 'scheduler', target: creator, message: answerMessage(chart, item, value.answer) }).catch(() => null)
     if (!SENT.includes(sent?.delivery)) { log(`lattice-owner-route ${item.projectId} not accepted`); continue }
@@ -69,19 +83,14 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     out.routed++
   }
   for (const chart of charts) for (const card of chart.cards) {
-    if ((card.state !== 'in-progress' && card.state !== 'ready') || laneOf(card.lane) !== 'owner') continue
+    if (!OPEN.has(card.state) || laneOf(card.lane) !== 'owner') continue
     const key = keyOf(chart.projectId, card)
-    // shortcut: at most once per task, even after the answer; a reopened Owner task is not filed again. Upgrade if the Owner asks for re-filing.
+    // shortcut: at most once per task, even after the answer; a reopened Owner task is not handed over again. Upgrade if the Owner asks for it.
     if (record[key]) continue
-    const requester = names.get(chart.createdBy) ?? chart.createdBy ?? 'Lattice'
-    let value
-    try { value = await effect('decisions.file', filing(chart, card, requester)) } catch (error) {
-      log(`lattice-owner-file ${key} ${error?.code ?? 'FAILED'}`)
-      if (goesOn(error)) continue
-      return out
-    }
-    record[key] = { projectId: chart.projectId, plan: card.plan, taskId: card.taskId, title: card.title, decisionId: value.decisionId, status: 'open', filedAt: new Date().toISOString() }
-    // Written before the next card. A lost response or record is recovered by the body: the next file adopts the request by its session_label, answered or not (L18).
+    if (!bots.has(chart.createdBy)) { log(`lattice-owner-ask ${chart.projectId} no-creator`); continue }
+    const sent = await effect('messages.send', { from: 'scheduler', target: chart.createdBy, message: askMessage(chart, card) }).catch(() => null)
+    if (!SENT.includes(sent?.delivery)) { log(`lattice-owner-ask ${key} not accepted`); continue }
+    record[key] = { projectId: chart.projectId, plan: card.plan, taskId: card.taskId, title: card.title, status: 'asked', askedAt: new Date().toISOString() }
     await records.write(record)
     out.filed++
   }
