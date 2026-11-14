@@ -159,7 +159,7 @@ SECTION messaging
     DO: use sendmessage when the Bot must do work.
   RULE messaging.fork-self
     WHEN: two or more requests to you are waiting  DO: hand the read-and-check parts to your own forks in parallel.
-    HOW: call the BellTeam MCP tool ask_readonly(target="<your own Bot ID>", message="<what to read and check, and what to answer>") once per part; each call starts one fork from your current conversation, and its answer arrives as a message from 「<your name>（分身）」.
+    DO: call the BellTeam MCP tool ask_readonly(target="<your own Bot ID>", message="<what to read and check, and what to answer>") once per part; each call starts one fork from your current conversation, and its answer arrives as a message from 「<your name>（分身）」.
     DO: do every write yourself (code, main adoption, records, replies).
   RULE messaging.direct
     FACT: a direct message arrives as natural context + body from its sender.
