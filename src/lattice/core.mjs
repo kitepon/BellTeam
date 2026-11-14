@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { checkSeatArgs } from './cli.mjs'
-import { latticeError } from '../lattice-protocol.mjs'
+import { latticeError, latticeRunReads } from '../lattice-protocol.mjs'
 import { laneResolver, projectChart } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
@@ -131,7 +131,9 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return { snapshots, nextRefreshMs: refreshMs }
     },
     // `name` alone (args []) only names the chart; with args it names it and then runs the command.
-    run: (params, effect) => locked(params.projectId, () => runOnce(params, effect)),
+    // A read-only seat run on an existing chart runs beside writes: no per-chart lock, no maintenance (README L3).
+    run: async (params, effect) => latticeRunReads(params) && await cli.exists(params.projectId)
+      ? runOnce(params, effect, true) : locked(params.projectId, () => runOnce(params, effect)),
     // Each new child generation (parent onGeneration): unacked notices of every chart, at most NOTICE_SLICE sends.
     async deliver(params, effect) {
       const ids = await cli.list()
@@ -183,20 +185,20 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return answer(unblockOutcome({ exitCode: result.exitCode, out, err: parse(result.stderr) }))
     }),
   }
-  async function runOnce({ from, projectId, args, input, name }, effect) {
+  async function runOnce({ from, projectId, args, input, name }, effect, read = false) {
     const naming = name !== undefined
     const renameOnly = naming && args.length === 0 && input === null
     if (!renameOnly) checkSeatArgs(args, input)
     // Renaming needs a chart; only a Lattice command (plan create) makes one.
     else await mustExist(projectId)
     const existed = await cli.exists(projectId)
-    const { created } = await cli.ensure(projectId)
+    const { created } = read ? { created: false } : await cli.ensure(projectId)
     // The creator is recorded once: by the run that makes the store, or by naming a chart that has none recorded.
     if (naming) await cli.setMeta(projectId, { name, ...(existed && !(await cli.meta(projectId)).createdBy && { createdBy: from }) })
     const memo = memos.get(projectId)
-    if (memo) memo.dirty = true
+    if (memo && !read) memo.dirty = true
     if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
-    await codeCharts.maintain(projectId)
+    if (!read) await codeCharts.maintain(projectId)
     let result
     try { result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input }) } finally {
       // Only a dir this run created is removed; a pre-existing dir without a store is left as it was.
@@ -208,7 +210,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     const value = out !== undefined ? out : result.stdout.trim() === '' ? parse(result.stderr) : undefined
     // Delivery never changes the seat's result; its failures stay unacked in Lattice and are re-listed later.
     // A seat's own `todo notice list|ack` is not a release write: its notices are that seat's reading, never sent or acked here.
-    if (effect && result.exitCode === 0 && !(args[0] === 'todo' && args[1] === 'notice')) {
+    if (effect && !read && result.exitCode === 0 && !(args[0] === 'todo' && args[1] === 'notice')) {
       try { await rosterReader(effect)(); await notices.afterRun(projectId, value, { from, roster, effect }) } catch (error) { log(`lattice-notice ${projectId} ${error?.code ?? 'FAILED'}`) }
     }
     return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }

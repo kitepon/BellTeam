@@ -411,6 +411,22 @@ test('core: charts lists every chart, coordinator first then newest update', asy
   assert.equal((await x.core.charts({}, x.effect)).charts.length, 1)
 })
 
+test('core: a read-only seat run on an existing chart skips the chart lock; on a missing chart it keeps it (README L3)', async () => {
+  const x = rig()
+  let release
+  const slowRun = x.cli.run
+  x.cli.run = async params => params.args[0] === 'todo' && params.args[1] === 'start' ? new Promise(resolve => { release = () => resolve(x.cli.out) }) : slowRun(params)
+  const order = []
+  const write = x.core.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'], input: null }).then(() => order.push('write'))
+  await new Promise(resolve => setImmediate(resolve))
+  await x.core.run({ from: 'bot-b', projectId: 'alpha', args: ['status'], input: null }).then(() => order.push('read'))
+  release(); await write
+  assert.deepEqual(order, ['read', 'write'])
+  assert.deepEqual(x.cli.ensured, ['alpha'], 'the read did not ensure (no mkdir / git init)')
+  await x.core.run({ from: 'bot-b', projectId: 'fresh', args: ['status'], input: null })
+  assert.deepEqual(x.cli.ensured, ['alpha', 'fresh'], 'a read on a missing chart takes the old path')
+})
+
 test('core: run passes the seat id, parses JSON, falls back to stdout, and refuses before creating anything', async () => {
   const x = rig()
   const run = (args, input = null, projectId = 'fresh') => x.core.run({ from: 'bot-a', projectId, args, input })
@@ -584,15 +600,15 @@ test('cli: a hung process is killed at the timeout and the next call runs', asyn
   assert.deepEqual((await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
 })
 
-test('cli: stdout keeps the first MiB, stderr the last 64 KiB, spawn errors are a result', async t => {
+test('cli: stdout keeps the first 16 MiB, stderr the last 64 KiB, spawn errors are a result', async t => {
   const chartsRoot = await chartsWithAlpha(t)
   const big = fakeSpawn(child => {
-    for (let i = 0; i < 3; i++) child.stdout.emit('data', Buffer.alloc(700 * 1024, 'a'))
+    for (let i = 0; i < 24; i++) child.stdout.emit('data', Buffer.alloc(700 * 1024, 'a'))
     child.stderr.emit('data', Buffer.from('x'.repeat(70000))); child.stderr.emit('data', Buffer.from('tail'))
     child.emit('close', 0)
   })
   const result = await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: big.impl }).run({ id: 'alpha', args: ['status'] })
-  assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [1024 * 1024, 64 * 1024, true])
+  assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [16 * 1024 * 1024, 64 * 1024, true])
   const broken = fakeSpawn(child => child.emit('error', new Error('ENOENT')))
   assert.deepEqual(await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: broken.impl }).run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: '', stderr: 'LATTICE_CLI_SPAWN_FAILED' })
 })

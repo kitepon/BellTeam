@@ -9,6 +9,12 @@ export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 export const LATTICE_STOP_ID = /^[a-f0-9]{24}$/u
 // A chart's display name: 1-40 characters of plain text, no control characters, no surrounding spaces.
 export const validLatticeName = value => typeof value === 'string' && value === value.trim() && [...value].length >= 1 && [...value].length <= 40 && !/\p{Cc}/u.test(value)
+// A seat run that only reads (README L3): it runs beside writes. Lattice guards its own store; this list only says the command writes nothing.
+const READ_VERBS = new Set(['--version', '--help', 'help', 'status', 'session-context'])
+const READ_TODO = new Set(['show', 'status', 'blockers', 'display'])
+// Takes the run params whole: a `name` renames the chart (a write) and an `input` always writes, whatever the command.
+export const latticeRunReads = ({ args, input = null, name } = {}) => name === undefined && input === null && Array.isArray(args) && (READ_VERBS.has(args[0])
+  || (args[0] === 'plan' && args[1] === 'show') || (args[0] === 'todo' && (READ_TODO.has(args[1]) || (['note', 'notice'].includes(args[1]) && args[2] === 'list'))))
 export const latticeError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
 export const latticeObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
   && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => required.includes(key) || optional.includes(key))

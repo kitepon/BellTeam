@@ -7,12 +7,22 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { createLatticeParentChannel } from '../src/lattice-ipc.mjs'
 import { LATTICE_STATE_COMPATIBILITY, validateLatticeControl, validateLatticeControlResult, validateLatticeEffect, validateLatticeEffectResult,
-  validateLatticeReady, validateLatticeRequest, validateLatticeResult, latticeWireError } from '../src/lattice-protocol.mjs'
+  validateLatticeReady, validateLatticeRequest, validateLatticeResult, latticeWireError, latticeRunReads } from '../src/lattice-protocol.mjs'
 import { waitNotificationsChildClose } from '../src/notifications-ipc.mjs'
 
 const generation = 'builtin:fixture'
 const context = { generation }
 const bad = (fn, code) => assert.throws(fn, error => code ? error.code === code : true)
+
+test('protocol: latticeRunReads names only commands that write nothing (README L3)', () => {
+  for (const args of [['--version'], ['help'], ['status', '--json'], ['session-context'], ['plan', 'show', '--plan', 'p'], ['todo', 'show', '--plan', 'p', '--task', 't'],
+    ['todo', 'status'], ['todo', 'blockers', '--json'], ['todo', 'display', 'read', '--json'], ['todo', 'note', 'list'], ['todo', 'notice', 'list']]) assert.equal(latticeRunReads({ args }), true, args.join(' '))
+  for (const args of [['todo', 'start'], ['todo', 'note', '--message', 'x'], ['todo', 'notice', 'ack'], ['todo', 'add'], ['plan', 'create'], ['plan', 'revise'], ['todo'], [], 'status'])
+    assert.equal(latticeRunReads({ args }), false, String(args))
+  assert.equal(latticeRunReads({ args: ['status'], input: { a: 1 } }), false, 'an input always writes')
+  assert.equal(latticeRunReads({ args: ['status'], name: '名前' }), false, 'a name renames the chart: a write (Epinel #1393)')
+  assert.equal(latticeRunReads(), false)
+})
 
 test('protocol: request validators are exact', () => {
   validateLatticeRequest('charts', {}, context)
@@ -221,11 +231,15 @@ test('actual IPC: initialize, ready, resume, charts, chart, refresh, run, errors
   // Reads never wait behind a write (README L3, incident 2026-11-14); writes keep their order.
   const order = []
   const slow = channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['todo', 'slow'], input: null }).then(() => order.push('slow run'))
-  const next = channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }).then(() => order.push('next run'))
+  const next = channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'], input: null }).then(() => order.push('next run'))
   await channel.request('chart', { projectId: 'alpha' }).then(() => order.push('chart'))
   await channel.request('charts', {}).then(() => order.push('charts'))
-  await Promise.all([slow, next])
-  assert.deepEqual(order, ['chart', 'charts', 'slow run', 'next run'])
+  // A read-only seat run (Centi Z2: --version waited 37 s behind a write) goes beside the write too.
+  await channel.request('run', { from: 'bot-b', projectId: 'alpha', args: ['--version'], input: null }).then(() => order.push('seat read'))
+  // A named status run renames the chart: it waits its turn like any write.
+  const named = channel.request('run', { from: 'bot-b', projectId: 'alpha', args: ['status'], input: null, name: '名前' }).then(() => order.push('named run'))
+  await Promise.all([slow, next, named])
+  assert.deepEqual(order, ['chart', 'charts', 'seat read', 'slow run', 'next run', 'named run'])
   await assert.rejects(channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['setup'], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE', status: 400 })
   assert.equal(effects.length >= 1, true)
   assert.equal(channel.snapshot().root, 0)
