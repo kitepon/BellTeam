@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createLatticeFacade, createLatticeEffects, NUDGE_MS } from '../src/lattice-facade.mjs'
+import { createLatticeFacade, createLatticeEffects, NUDGE_MS, QUEUE_WAIT_MS } from '../src/lattice-facade.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const snap = (projectId, version) => ({ schema: 'bellteam.lattice-chart.v1', projectId, epoch: 'e', version })
 
-function fixture({ respond = () => null } = {}) {
+function fixture({ respond = () => null, now } = {}) {
   const calls = [], timers = [], nudges = []
   let gate = null
   const controller = { request: async (method, params) => {
@@ -15,14 +15,14 @@ function fixture({ respond = () => null } = {}) {
     if (value instanceof Error) throw value
     return value ?? (method === 'refresh' ? { snapshots: [], nextRefreshMs: 2000 } : { method, params })
   } }
-  const facade = createLatticeFacade({ controller,
+  const facade = createLatticeFacade({ controller, ...(now && { now }),
     // The nudge timer (60 s, always armed) is kept apart from the refresh loop's timers.
     setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick(); await tick() }
   return { facade, calls, timers, nudges, fire, hold: () => { let open; gate = new Promise(resolve => { open = resolve }); return () => { gate = null; open() } } }
 }
 
-test('root calls share one chain in call order', async () => {
+test('seat calls run one at a time in call order', async () => {
   const f = fixture()
   const release = f.hold()
   const results = [f.facade.charts(), f.facade.chart('alpha'), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
@@ -32,6 +32,35 @@ test('root calls share one chain in call order', async () => {
   assert.deepEqual((await Promise.all(results)).map(value => value.method), ['charts', 'chart', 'run', 'run'])
   assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['charts', {}], ['chart', { projectId: 'alpha' }],
     ['run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }], ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
+})
+
+test('seat calls go before queued background calls; the call in flight finishes first', async () => {
+  const f = fixture()
+  const release = f.hold()
+  const nudge = f.facade.nudge()
+  await tick()
+  const later = [f.facade.deliver(), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.charts()]
+  await tick()
+  assert.deepEqual(f.calls.map(([method]) => method), ['nudge'])
+  release()
+  await Promise.all([nudge, ...later])
+  assert.deepEqual(f.calls.map(([method]) => method), ['nudge', 'run', 'charts', 'deliver'])
+})
+
+test('a call queued past the wait bound is never sent; the next call is sent at once', async () => {
+  let clock = 0
+  const f = fixture({ now: () => clock })
+  const release = f.hold()
+  const first = f.facade.charts()
+  await tick()
+  const stale = f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] })
+  clock = QUEUE_WAIT_MS + 1
+  const fresh = f.facade.chart('alpha')
+  release()
+  await first
+  await assert.rejects(stale, { code: 'LATTICE_UNAVAILABLE', status: 503 })
+  assert.equal((await fresh).method, 'chart')
+  assert.deepEqual(f.calls.map(([method]) => method), ['charts', 'chart'], 'the stale run never reached the child')
 })
 
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {
