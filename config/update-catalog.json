@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T12:03:57Z",
-  "expiresAt": "2026-11-21T12:03:57Z",
+  "publishedAt": "2026-11-14T12:43:31Z",
+  "expiresAt": "2026-11-21T12:43:31Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "cb74b6ecf9554ad3863ccecaa93a0fb746a13efe",
-      "versionId": "sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45",
+      "sourceCommit": "2c948242b81b74b89194e062ecc097fcc0723028",
+      "versionId": "sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
-        "会話の一覧で、子の AI の答えが出ないことがある不具合を直しました。"
+        "Aiterm の hook も、Aiterm が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
+        "席を起こすときに、混んでいる環境で起動を誤って断ることがある問題を直した Aiterm を入れました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "cb74b6ecf9554ad3863ccecaa93a0fb746a13efe",
-      "versionId": "sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45",
+      "sourceCommit": "2c948242b81b74b89194e062ecc097fcc0723028",
+      "versionId": "sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e9501cf3a01ad44ad3edce9f4ab7421948f47e5bb87ab6d4c7f4be1fb7fb8b45"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fede892529ec0d09a7cc26bbe6447209318b23b99b7b33de14af81bb386cbd0d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "RTK と Throughline の hook を、それぞれの製品が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
-        "会話の一覧で、子の AI の答えが出ないことがある不具合を直しました。"
+        "Aiterm の hook も、Aiterm が公開している内容から本体がまとめて書くようにしました。席の設定ファイルの中身は変わりません。",
+        "席を起こすときに、混んでいる環境で起動を誤って断ることがある問題を直した Aiterm を入れました。"
       ]
     },
     {
