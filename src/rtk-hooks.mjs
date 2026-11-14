@@ -155,13 +155,13 @@ function arrayField(value, name, harness) {
 export async function codexAppServer(env, use) {
   const child = spawn('codex', ['app-server', '--listen', 'stdio://'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   let buffer = ''
-  let stderr = ''
   let nextId = 0
   const waiting = new Map()
   const fail = error => { for (const { reject } of waiting.values()) reject(error); waiting.clear() }
-  child.stderr.on('data', data => { stderr = (stderr + data).slice(-2000) })
+  child.stderr.resume()
   child.on('error', fail)
-  child.on('exit', code => fail(new Error(`CODEX_APP_SERVER_EXITED: ${code} ${stderr.trim()}`)))
+  // Messages reach the body log: Codex's stderr and remote error objects can echo config values (tokens), so only codes go out.
+  child.on('exit', code => fail(new Error(`CODEX_APP_SERVER_EXITED: ${code}`)))
   child.stdout.on('data', data => {
     buffer += data
     let index
@@ -173,7 +173,7 @@ export async function codexAppServer(env, use) {
       const pending = waiting.get(message.id)
       if (!pending) continue
       waiting.delete(message.id)
-      if (message.error) pending.reject(new Error(`CODEX_APP_SERVER_ERROR: ${JSON.stringify(message.error)}`))
+      if (message.error) pending.reject(new Error(`CODEX_APP_SERVER_ERROR: ${Number.isInteger(message.error?.code) ? message.error.code : '不明'}`))
       else pending.resolve(message.result)
     }
   })

@@ -123,7 +123,7 @@ export async function configureHarnessEntries(home, { registry = REGISTRY, run =
         }
       })
     } catch (error) {
-      report(`BellTeam MCP: Codexのapp-serverを使えませんでした（${error.message}）`)
+      report(`BellTeam MCP: Codexのapp-serverを使えませんでした（${safeMessage(error)}）`)
     }
   }
 

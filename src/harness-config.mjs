@@ -30,13 +30,13 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   try {
     await cursorInstructions(home)
   } catch (error) {
-    report(`BellTeam Cursor: 起動時指示のhookを登録できませんでした（${error.message}）`)
+    report(`BellTeam Cursor: 起動時指示のhookを登録できませんでした（${safeMessage(error)}）`)
   }
   // RTKはオーナーの指示で標準搭載する（インフラ整備の部屋 2026-09-27）。登録できなくてもBotは動かし、理由を記録する。
   try {
     await rtk(home)
   } catch (error) {
-    report(`BellTeam RTK: hookを登録できませんでした（${error.message}）`)
+    report(`BellTeam RTK: hookを登録できませんでした（${safeMessage(error)}）`)
   }
   // AitermのMCPはBellTeamが登録するので、親配送のhookも同じ場所で登録する。登録できなくてもBotは動かし、理由を記録する。
   try {
@@ -45,7 +45,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
     if (codex && codex.status !== 'ready')
       report(`BellTeam Aiterm: Codexの親配送hookは ${codex.status}${codex.reason_code ? `（${codex.reason_code}）` : ''}`)
   } catch (error) {
-    report(`BellTeam Aiterm: 親配送のhookを登録できませんでした（${error.message}）`)
+    report(`BellTeam Aiterm: 親配送のhookを登録できませんでした（${safeMessage(error)}）`)
   }
 }
 

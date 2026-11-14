@@ -169,3 +169,31 @@ test('a failed CLI call carrying a credential reports only product, harness, pro
   assert.doesNotMatch(f.reports[0], new RegExp(secret, 'u'))
   assert.match(f.reports[0], /typesafe: claude の typesafe を適用できませんでした（claude が終了コード 1 で失敗しました）/u)
 })
+
+test('Codex app-server failures carrying a credential (remote error, stderr on exit) report only codes', async () => {
+  const secret = 'SYNTHETIC-SECRET-1436-CODEX'
+  const changed = { ...typesafe, codex: { url: 'https://new.invalid/mcp', http_headers: { Authorization: `Bearer ${secret}` } } }
+  for (const [mode, expected] of [['error', /codex の typesafe を適用できませんでした（CODEX_APP_SERVER_ERROR: -32000）/u], ['exit', /Codexのapp-serverを使えませんでした（CODEX_APP_SERVER_EXITED: 3）/u]]) {
+    // A fake `codex` on PATH driven through the real codexAppServer: batchWrite answers an error object echoing the secret
+    // (per-entry report), or the server prints it on stderr and exits (outer report).
+    const bin = await mkdtemp(join(tmpdir(), 'bellteam-fake-codex-'))
+    await writeFile(join(bin, 'codex'), `#!/usr/bin/env node
+const rl = require('node:readline').createInterface({ input: process.stdin })
+rl.on('line', line => { const m = JSON.parse(line); if (m.id === undefined) return
+  if (m.method === 'initialize') return console.log(JSON.stringify({ id: m.id, result: {} }))
+  if (${JSON.stringify(mode)} === 'exit') { process.stderr.write('config ${secret}\\n'); process.exit(3) }
+  if (m.method === 'config/read') return console.log(JSON.stringify({ id: m.id, result: { config: { mcp_servers: {} } } }))
+  console.log(JSON.stringify({ id: m.id, error: { code: -32000, message: 'bad ${secret}', data: { value: '${secret}' } } })) })
+`, { mode: 0o755 })
+    const path = process.env.PATH
+    process.env.PATH = `${bin}:${path}`
+    try {
+      const f = await fixture({ products: { typesafe: e1('typesafe', changed) } })
+      await configureHarnessEntries(f.home, { registry: join(f.dir, 'registry.json'), run: async () => ({ stdout: '[]' }), report: message => f.reports.push(message) })
+      const codexReports = f.reports.filter(line => /codex|Codex/u.test(line))
+      assert.ok(codexReports.length >= 1, f.reports.join('\n'))
+      assert.doesNotMatch(f.reports.join('\n'), new RegExp(secret, 'u'))
+      assert.match(codexReports.join('\n'), expected)
+    } finally { process.env.PATH = path }
+  }
+})
