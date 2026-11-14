@@ -25,7 +25,7 @@ const SEEN_LIMIT = 500
 // 配送したターンの途中に子の結果が差し込まれた時は、頭が配送した文になるので当たらない。
 export async function readChildResultPreface({ capture = captureRuntime } = {}) {
   try {
-    const root = dirname((await capture()).components['runtime-aiterm-mcp'].dist)
+    const root = (await capture()).components['runtime-aiterm-mcp'].root
     const entry = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).exports?.['./child-result']
     if (typeof entry !== 'string' || !entry.startsWith('./')) throw new Error('no entry')
     const { CHILD_RESULT_PREFACE } = await import(pathToFileURL(join(root, entry)).href)
