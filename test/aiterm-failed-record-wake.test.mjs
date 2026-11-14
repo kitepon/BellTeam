@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
+import { aitermFailureCause } from '../src/agent-launch-error.mjs'
 
 // Aiterm 0.63.xは復帰に失敗した席を一覧と観測に残す（exists=true, state=unknown, reason=agent_failed）。
 const observation = (reason, state = reason === 'agent_failed' ? 'unknown' : 'idle') => ({ schema: 'aiterm.pty-observe-result.v1',
@@ -344,4 +345,10 @@ test('a67: 受付が開いたままなら、回復の起こし直しで断られ
   const first = names.indexOf('agent_launch')
   assert.equal(names.filter(name => name === 'agent_launch').length, 2)
   assert.ok(names.indexOf('pty_close', first) > first && names.indexOf('pty_close', first) < names.lastIndexOf('agent_launch'))
+})
+
+test('診断へ残す理由は、Aitermが返した断りの既知の記号だけで、他の文からは読まない', () => {
+  assert.deepEqual(aitermFailureCause(new Error('native_reason=privatevalue123')), { cause: null, native_reason: null })
+  assert.deepEqual(aitermFailureCause(Object.assign(new Error('aiterm: AGENT_LAUNCH_UNCONFIRMED: x native_reason=privatevalue123'), { aitermResponseReturned: true })),
+    { cause: 'AGENT_LAUNCH_UNCONFIRMED', native_reason: null })
 })
