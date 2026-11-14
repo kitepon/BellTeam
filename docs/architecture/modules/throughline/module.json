@@ -5,7 +5,8 @@
   "scope": "会話記録・引継ぎの公開契約",
   "external": true,
   "provides": [
-    "context"
+    "context CLI",
+    "storage: THROUGHLINE_HOME, locate, export"
   ],
   "uses": [],
   "source": []

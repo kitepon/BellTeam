@@ -20,7 +20,7 @@
     },
     {
       "module": "aiterm",
-      "port": "native"
+      "port": "bin: aiterm-remote-terminal"
     }
   ],
   "source": [

@@ -5,7 +5,8 @@
   "scope": "RTK製品とhook公開仕様",
   "external": true,
   "provides": [
-    "hook"
+    "hook",
+    "harness-entries.json"
   ],
   "uses": [],
   "source": []

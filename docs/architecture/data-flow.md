@@ -37,6 +37,100 @@ flowchart LR
   E4 -->|C11 recorded context| B
 ```
 
+## External product connections (Owner 2026-11-14, task a105)
+
+Owner rule (diagrams.product-boundary): BellTeam and each external product meet only at an interface that product has published, and every such connection is drawn in both products' function and data-flow diagrams. The BellTeam side is drawn here; each product draws its side in its own repository (links in the table). The edge names are the port names in the [function map](feature-map.md) section "アプリ・独立製品との接続". This section is the **target contract**. Where the BellTeam code still reads a product's file, module or storage directly, the arrow below is what the pending switch implements (tasks listed under the table); the direct access is not an allowed connection and is not drawn.
+
+```mermaid
+flowchart LR
+  subgraph BT["BellTeam modules"]
+    CONV["conversation / N102"]
+    EXE["execution / Kiro"]
+    MEM["memory / Biscuit"]
+    RT["runtime / Molly"]
+    USE["usage / Mica"]
+    TER["terminals / Crust"]
+    INT["integration / Molly"]
+    LAT["lattice / Flora"]
+  end
+  subgraph AT["Aiterm / Elegg"]
+    A1["MCP tools over stdio"]
+    A2["bins: aiterm-wait, aiterm-transcript-read, aiterm-remote-terminal"]
+    A3["package exports"]
+    A4["aiterm-setup harness-entries"]
+    A5["Steer delivery"]
+  end
+  subgraph AB["Approval Box / Nayuta"]
+    B1["connection export"]
+    B2["version --json"]
+    B3["harness-entries"]
+    B4["connector /v1 HTTP"]
+  end
+  subgraph TL["Throughline / Rivalin"]
+    T1["context CLIs"]
+    T2["THROUGHLINE_HOME, storage locate, storage export"]
+  end
+  subgraph CB["call bridge / Rita"]
+    R1["connection export"]
+    R2["MCP /mcp"]
+  end
+  subgraph TG["testgate and RTK / Shiratsuru, Drilly"]
+    G1["registration v1 via RTK harness-entries.json"]
+  end
+  subgraph LP["Lattice product / Snow White"]
+    L1["lattice CLI: charts list/source, chart set/repo, todo"]
+  end
+  EXE -->|"X1 launch, send, observe, close, configure, goal, auth; AITERM_* env"| A1
+  USE -->|"X1 agent_auth start/status/respond/cancel"| A1
+  EXE -->|"X2 wait result JSON; transcript read"| A2
+  TER -->|"X2 remote terminal status, credential-load, serve"| A2
+  RT -->|"X3 setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server, state-compat.json, resume-state-cli"| A3
+  CONV -->|"X3 child-result preface"| A3
+  RT -->|"X4 hook entries, bellteam.harness-entries.v1"| A4
+  USE -->|"X5 connection stdout: schema, server, token"| B1
+  EXE -->|"X6 capability bellteam-requester-wake"| B2
+  RT -->|"X7 MCP and hook entries"| B3
+  INT -->|"X8 decisions, connection"| B4
+  EXE -->|"X8 running-exclusion decisions"| B4
+  LAT -->|"X8 Owner-lane decisions"| B4
+  AB -->|"X9 sendmessage wake, resume_decision guidance"| INT
+  AB -->|"X10 answers delivered to the seat"| A5
+  CONV -->|"X11 observer-read, observer-check, room-context, handoff-context"| T1
+  EXE -->|"X11 handoff-context, remote-handoff-context, remote-ingest"| T1
+  MEM -->|"X11 context for memory use"| T1
+  RT -->|"X11 install, observer-check check"| T1
+  RT -->|"X12 set THROUGHLINE_HOME; locate; export to a directory"| T2
+  RT -->|"X13 run export_connection.py --json"| R1
+  USE -->|"X13 validate call-bridge.connection.v1, keep own callBridge setting"| R1
+  INT -->|"X14 seat traffic to /mcp"| R2
+  RT -->|"X14 register the call-bridge MCP server"| R2
+  CB -->|"X15 /v0/directory and /v0/deliver, call-bridge.delivery.v1"| CONV
+  RT -->|"X16 PreToolUse item for testgate or rtk, node testgate.mjs hook H"| G1
+  LAT -->|"X17 K1-K8: charts list/source, chart set, chart repo, todo, blockers, notice; LATTICE_CHARTS_ROOT, LATTICE_PROJECT_ID"| L1
+```
+
+| Flow | Product entry (contract source) | BellTeam consumer and data | Switch task |
+| --- | --- | --- | --- |
+| X1 | Aiterm MCP tools, stdio, 0.70.58 ([bellteam-boundary.md, 公開の入口](https://github.com/kitepon/aiterm-mcp/blob/main/docs/architecture/bellteam-boundary.md)) | execution: launch/send/observe/configure/goal; usage: `agent_auth`. Result schemas `aiterm.*`; no Aiterm state layout read | existing contract |
+| X2 | Aiterm bins `aiterm-wait`, `aiterm-transcript-read`, `aiterm-remote-terminal` (same document) | execution: wait receipt JSON, remote-seat transcript; terminals: remote terminal status/credential-load/serve | existing contract |
+| X3 | Aiterm `package.json` `exports`: `setup-node`, `setup-integrations`, `execution-parent-worker`, `execution-native-setup`, `execution-native-server`, `child-result`, `resume-state-cli`, `state-compat.json`. The path is read from the selected package root's `exports`, never a `dist/` path. **Not promised:** `model-handoff-*`, the state layout, the package file inventory | runtime: hook/registration helpers, state-compat declaration, resume-state CLI; conversation: the child-result preface string | bd05 (execution/conversation), bd06 (runtime) |
+| X4 | `aiterm-setup harness-entries --json` (same document) | runtime: Aiterm's hook items for the single CLI-file writer | bd14 |
+| X5 | `approval-box connection export --json`, `approval-box.connection.v1` ([connection-export.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/connection-export.md)) | usage: secrets approval owner validates schema and server; replaces reading the private config | bd02 |
+| X6 | `approval-box version --json`, capability `bellteam-requester-wake` (same document) | execution: idle-close policy for every harness; replaces inferring from the hook process tree | bd03 |
+| X7 | `approval-box harness-entries --json` ([harness-entries.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/harness-entries.md)) | runtime: MCP and hook entries written by BellTeam only | bd14 |
+| X8 | HTTP connector `/connector/v1` (Approval Box `docs/api.md`) | integration: connection and decision reads; execution: running-exclusion decisions; lattice: Owner-lane decisions. Separate tokens per use | existing contract |
+| X9 | BellTeam public MCP `sendmessage` (Approval Box -> BellTeam: the incoming wake call) | Approval Box wakes a requester whose seat closed | existing contract |
+| X10 | Aiterm Steer delivery (`aiterm-steer-delivery`, Steer's own product document) | Approval Box delivers an answer to the seat | existing contract |
+| X11 | Throughline CLIs (`observer-read`, `observer-check`, `room-context`, `handoff-context`, `remote-handoff-context`, `remote-ingest`, `install`), schemas `throughline.*.v1/v2` | conversation, execution, memory, runtime (install, observer-check probe) | existing contract |
+| X12 | `THROUGHLINE_HOME`, `throughline storage locate --json`, `throughline storage export --to <dir> --json` (Throughline 0.20.0, [ADR 0073](https://github.com/kitepon/Throughline/blob/main/docs/adr/0073-storage-location-and-export-contract.md)) | runtime: placement of the store, backup by export, distribution check; no hard-coded layout, no bind mount of a guessed directory | bd08 (placement/mount), bd18 (backup) |
+| X13 | `scripts/export_connection.py --json`, `call-bridge.connection.v1` `{url, token}` ([connection-handoff.md](https://github.com/kitepon/grokbot-bridge/blob/main/docs/architecture/connection-handoff.md)) | runtime: runs it on the host and hands the output to the import entry; usage: validates, saves BellTeam's own `callBridge` setting | bd10 (runtime), bd11 (usage) |
+| X14 | call bridge MCP `/mcp` (`call_directory`, `call_open`, `call_send`, ...) | integration: seat proxy; runtime: registers the MCP server in each CLI | existing contract |
+| X15 | BellTeam serves `/v0/directory` and `/v0/deliver` (`call-bridge.delivery.v1`) on a Unix socket; the bridge is the caller | conversation: receives delivery | existing contract |
+| X16 | testgate registration entry v1 ([registration-contract.md](https://github.com/kitepon/testgate/blob/main/docs/registration-contract.md), 0.3.32): one PreToolUse item `node <R>/current/bin/testgate.mjs hook <H>`, carried in RTK's `harness-entries.json` | runtime: writes the item as part of the single CLI-file writer; no probing of the testgate path from the body | bd13 |
+| X17 | Lattice CLI K1-K8 ([dfd-charts-read.md](https://github.com/kitepon/Lattice/blob/main/docs/architecture/dfd-charts-read.md), a101) | lattice: one read of all charts (name, creator, counts, trees, change token), chart naming, code-chart sync, seat commands. Detail: [lattice module](modules/lattice/README.md#bellteam---lattice-connection-target-task-a102) and P11 below | a102 |
+
+Switch tasks that implement these arrows against the diagram: bd02 (usage, X5), bd03 (execution, X6), bd05 (execution/conversation, X1-X3 `child-result`, `model-handoff-*` removal), bd06 (runtime, X3), bd08 (runtime, X12), bd10 (runtime, X13), bd11 (usage, X13), bd13 (runtime, X16), bd14 (runtime, X4/X7). Until a task lands, its arrow is the target and the code keeps today's access.
+
 ## Processes, public contracts and failure ownership
 
 Process IDs identify responsibilities, not execution order. Host composition can implement part of a module's interface without acquiring that module's business-state ownership.

@@ -48,10 +48,6 @@
       "port": "auth"
     },
     {
-      "module": "approval-box",
-      "port": "public"
-    },
-    {
       "module": "usage",
       "port": "notify"
     },
@@ -98,6 +94,14 @@
     {
       "module": "lattice",
       "port": "lattice-chart"
+    },
+    {
+      "module": "approval-box",
+      "port": "connector /v1 (HTTP)"
+    },
+    {
+      "module": "bridge",
+      "port": "MCP /mcp"
     }
   ],
   "source": [

@@ -23,23 +23,11 @@
       "port": "image"
     },
     {
-      "module": "aiterm",
-      "port": "native"
-    },
-    {
-      "module": "throughline",
-      "port": "context"
-    },
-    {
       "module": "mcp-lazy",
       "port": "relay"
     },
     {
       "module": "rtk",
-      "port": "hook"
-    },
-    {
-      "module": "testgate",
       "port": "hook"
     },
     {
@@ -49,6 +37,46 @@
     {
       "module": "distribution",
       "port": "runtime-artifact"
+    },
+    {
+      "module": "aiterm",
+      "port": "exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server"
+    },
+    {
+      "module": "aiterm",
+      "port": "exports: state-compat.json, resume-state-cli"
+    },
+    {
+      "module": "aiterm",
+      "port": "harness-entries (aiterm-setup)"
+    },
+    {
+      "module": "throughline",
+      "port": "context CLI"
+    },
+    {
+      "module": "throughline",
+      "port": "storage: THROUGHLINE_HOME, locate, export"
+    },
+    {
+      "module": "approval-box",
+      "port": "harness-entries (approval-box)"
+    },
+    {
+      "module": "bridge",
+      "port": "connection export (call-bridge.connection.v1)"
+    },
+    {
+      "module": "bridge",
+      "port": "MCP /mcp"
+    },
+    {
+      "module": "testgate",
+      "port": "registration v1 (item in RTK harness-entries.json)"
+    },
+    {
+      "module": "rtk",
+      "port": "harness-entries.json"
     }
   ],
   "source": [

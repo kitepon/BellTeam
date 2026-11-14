@@ -23,7 +23,11 @@
     },
     {
       "module": "approval-box",
-      "port": "public"
+      "port": "connector /v1 (HTTP)"
+    },
+    {
+      "module": "lattice-product",
+      "port": "contract: lattice CLI only (K1-K8, a102): charts list/source, chart set/repo, todo"
     }
   ],
   "source": [

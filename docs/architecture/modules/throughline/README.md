@@ -4,7 +4,16 @@
 
 製品内部図の正本は[Three-layer memory model](https://github.com/kitepon/Throughline/blob/main/README.md#three-layer-memory-model)、詳細索引は[docs/00_overview.md](https://github.com/kitepon/Throughline/blob/main/docs/00_overview.md)。[担当手順と接点](/srv/bellteam/bots/bot-220e0f1b/docs/throughline-maintenance.md)へリンクし、内部図は複製しない。
 
-`context`はhandoff-context（throughline.handoff_context.v1）、observer-check（request/result v1）、observer-read（v1/v2）、room-context（throughline.room_context.v1）をまとめた公開窓口。hook登録はinstall、診断はfactory-diagnostics。起動/配送はキロ、部屋/自主回答はN102、記憶の利用方針はビスケット、席実行/hook登録はエピネルへ接続する。
+## BellTeamへ約束する入口（2026-11-14 Owner：製品の間は契約された入口だけ、a105）
+
+Throughline 0.20.0。旧い総称 `context` は次の二つの接続線に分けた。
+
+| 入口（接続線の名前） | 中身 | BellTeam側の使い手 |
+| --- | --- | --- |
+| `context CLI` | observer-read、handoff-context、observer-check、room-context、remote-handoff-context、remote-ingest、install | conversation（N102）、execution（キロ）、memory（ビスケット）、runtime（モリー、installとobserver-checkの確認） |
+| `storage: THROUGHLINE_HOME, locate, export` | 置き場は環境変数 `THROUGHLINE_HOME`、場所の問合せ `throughline storage locate --json`、バックアップは `throughline storage export --to <dir> --json`（[ADR 0073](https://github.com/kitepon/Throughline/blob/main/docs/adr/0073-storage-location-and-export-contract.md)） | runtime（モリー）。コンテナのmount・バックアップ・配布の確認は、置き場の並びを知らずにこの三つだけで行う |
+
+`context CLI` の内訳：handoff-context（throughline.handoff_context.v1）、observer-check（request/result v1）、observer-read（v1/v2）、room-context（throughline.room_context.v1）をまとめた公開窓口。hook登録はinstall、診断はfactory-diagnostics。起動/配送はキロ、部屋/自主回答はN102、記憶の利用方針はビスケット、席実行/hook登録はエピネルへ接続する。
 
 ## 自主回答の変更検知と本文取得
 
