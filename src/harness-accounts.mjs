@@ -66,6 +66,22 @@ export async function seatFiles(op, ...args) {
   }
   // The token file's mtime only (one login per slot); never its content.
   if (op === 'stamp') { const entry = await present(args[0]); return entry?.isFile() ? entry.mtimeMs : null }
+  // Token probe (harness-accounts.md "Signed out"): does the API accept the slot's token? verdict 'accepted' (200), 'rejected'
+  // (401), else 'unknown', with the mtime of the very token it sent (one open handle), so a caller binds the verdict to a stamp.
+  // /v1/models takes a setup-token and costs no inference. The token never leaves this process.
+  if (op === 'probe') {
+    const { open } = await import('node:fs/promises')
+    let token, stamp
+    try {
+      const handle = await open(args[0], 'r')
+      try { stamp = (await handle.stat()).mtimeMs; token = (await handle.readFile('utf8')).trim() } finally { await handle.close() }
+    } catch { return { verdict: 'unknown', stamp: null } }
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/models', { headers: { Authorization: `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20', 'anthropic-version': '2023-06-01' }, signal: AbortSignal.timeout(20_000) })
+      return { verdict: response.status === 200 ? 'accepted' : response.status === 401 ? 'rejected' : 'unknown', stamp }
+    } catch { return { verdict: 'unknown', stamp } }
+  }
   if (op === 'usage') {
     // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
     let token
@@ -280,15 +296,26 @@ export class HarnessAccounts {
     return stamp !== null && !this.signedOutEntry(harness, slot, stamp)
   }
 
-  // E6 on a seat of `slot`. Returns 'signed_out' (the slot is marked; move like a limit), 'stale' (the seat ran an older
-  // token than the file has now: renew only that seat) or null (legacy 1st: nothing to mark).
+  // The API's verdict ('accepted' | 'rejected' | 'unknown') on the slot's token at `stamp`, asked as the seat user. A token
+  // that changed before the probe read it says nothing about `stamp`: 'unknown'.
+  async probe(harness, slot, stamp) {
+    const result = await this.seat('probe', this.tokenFile(harness, slot)).catch(() => null)
+    return result?.stamp === stamp && ['accepted', 'rejected'].includes(result.verdict) ? result.verdict : 'unknown'
+  }
+
+  // E6 on a seat of `slot` is only a trigger: the slot is marked only when the API rejects its token (a77 / 2026-11-14: a
+  // Cloudflare 403 page and one remote seat's failure had marked working slots). Returns 'signed_out' (the slot is marked; move
+  // like a limit), 'stale' (the seat ran an older token, or the token is not proven bad: renew only that seat) or null (no token).
   async recordSignedOut({ harness, slot, botId, text }) {
     const stamp = await this.stamp(harness, slot)
     if (stamp === null) return null
+    const current = (this.state.logins[botId] ?? null) === stamp
+    const rejected = current && await this.probe(harness, slot, stamp) === 'rejected'
+    if (current && !rejected) this.log(`BellTeam accounts: ${harness} ${slot} token not rejected, only ${botId} renews: ${String(text ?? '').slice(0, 300)}`)
     let outcome
     await this.update(state => {
       const renew = [...new Set([...state.renew, botId])]
-      if ((state.logins[botId] ?? null) !== stamp) { outcome = 'stale'; return { ...state, renew } }
+      if ((state.logins[botId] ?? null) !== stamp || !rejected) { outcome = 'stale'; return { ...state, renew } }
       outcome = 'signed_out'
       const previous = state.signedOut.find(entry => entry.harness === harness && entry.slot === slot && entry.stamp === stamp)
       const entry = previous ?? { harness, slot, since: new Date(this.now()).toISOString(), stamp, text: String(text ?? '').slice(0, 300) }
@@ -299,12 +326,13 @@ export class HarnessAccounts {
     return outcome
   }
 
-  // The self-exit of signed out: a different token mtime is a new login. Called by list() and the 10-minute re-read.
-  async refreshSignedOut() {
+  // The self-exit of signed out: a different token mtime is a new login (list() and the 10-minute re-read); the re-read also
+  // clears an entry whose token the API accepts, which needs no seat on the slot (a signed-out slot holds none).
+  async refreshSignedOut({ probe = false } = {}) {
     const renewed = []
     for (const entry of this.state.signedOut) {
       const stamp = await this.stamp(entry.harness, entry.slot)
-      if (stamp !== null && stamp !== entry.stamp) renewed.push(this.key(entry) + entry.stamp)
+      if (stamp !== null && (stamp !== entry.stamp || probe && await this.probe(entry.harness, entry.slot, entry.stamp) === 'accepted')) renewed.push(this.key(entry) + entry.stamp)
     }
     if (renewed.length) await this.update(state => {
       const kept = state.signedOut.filter(entry => !renewed.includes(this.key(entry) + entry.stamp))
@@ -397,7 +425,7 @@ export class HarnessAccounts {
   syncReread() {
     const unknown = this.state.limits.some(entry => !entry.resetAt) || this.state.signedOut.length > 0
     if (!unknown && this.reread) { this.timers.clear(this.reread); this.reread = null }
-    if (unknown && !this.reread) this.reread = this.timers.set(() => { this.reread = null; void this.rereadUnknown().then(() => this.refreshSignedOut()).finally(() => this.syncReread()) }, REREAD_MS)
+    if (unknown && !this.reread) this.reread = this.timers.set(() => { this.reread = null; void this.rereadUnknown().then(() => this.refreshSignedOut({ probe: true })).finally(() => this.syncReread()) }, REREAD_MS)
   }
 
   async rereadUnknown() {

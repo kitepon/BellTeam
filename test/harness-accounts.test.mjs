@@ -4,7 +4,7 @@ import { lstat, readdir, mkdtemp, mkdir, readFile, readlink, rm, writeFile, chmo
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { parseLimitText, modelScope } from '../src/claude-limit-text.mjs'
-import { HarnessAccounts } from '../src/harness-accounts.mjs'
+import { HarnessAccounts, seatFiles } from '../src/harness-accounts.mjs'
 
 // 2026-11-08 12:00 UTC
 const NOW = Date.UTC(2026, 10, 8, 12, 0)
@@ -30,7 +30,8 @@ test('limit text: observed Claude Code forms give scope and reset time', () => {
   assert.deepEqual(['claude-fable-5-1', 'opus', 'claude-sonnet-5-5', 'gpt-x'].map(modelScope), ['fable', 'opus', 'sonnet', null])
 })
 
-async function setup(t, { usage = async () => [] } = {}) {
+// The token probe is the API's verdict; tests answer it (default: the token is rejected, as a real sign-out).
+async function setup(t, { usage = async () => [], probe = { answer: 'rejected' } } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-accounts-'))
   t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.claude/projects'), { recursive: true })
@@ -39,14 +40,16 @@ async function setup(t, { usage = async () => [] } = {}) {
   await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: { bellteam: { url: 'x' }, other: { url: 'y' } }, projects: { '/p': { hasTrustDialogAccepted: true } }, oauthAccount: { emailAddress: 'a' }, hasCompletedOnboarding: true, lastOnboardingVersion: '2.1.261', numStartups: 9 }))
   let clock = NOW
   const timers = new Map(); let next = 0
-  const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), readUsage: usage, now: () => clock,
+  // The verdict comes with the stamp of the token it read: the file's own, unless a test changes the token during the probe.
+  const seat = async (op, ...args) => op === 'probe' ? { verdict: probe.answer, stamp: await (probe.during?.() ?? seatFiles('stamp', args[0])) } : seatFiles(op, ...args)
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), readUsage: usage, now: () => clock, seat,
     timeZone: 'Asia/Tokyo', log: () => {}, timers: { set: (fn, ms) => { timers.set(++next, { fn, at: clock + ms }); return next }, clear: id => timers.delete(id) } })
   const advance = async ms => {
     clock += ms
     for (const [id, timer] of [...timers]) if (timer.at <= clock) { timers.delete(id); timer.fn() }
     await accounts.writing; await new Promise(resolve => setImmediate(resolve)); await accounts.writing
   }
-  return { home, accounts, advance, timers }
+  return { home, accounts, advance, timers, probe }
 }
 
 test('prepare: every 1st entry and the 1st config are links, only the login is the slot\'s own; own entries moved aside', async t => {
@@ -275,4 +278,38 @@ test('signed out by one seat, cleared when another seat on the same token finish
   await accounts.turnSucceeded('claude', '1st', 'opus', 'box')
   assert.equal(await accounts.loggedIn('claude', '1st'), true)
   assert.equal((await accounts.list()).harnesses[0].slots[0].signedOutAt, null)
+})
+
+// 2026-11-14 RE-FAILURE: a seat's E6 marks a slot only when the API rejects the slot's token, and the 10-minute re-read clears a
+// mark whose token the API accepts, with no seat on the slot (the 2nd stayed signed out from 11-13 while its token worked).
+test('signed out only on the token\'s own rejection; the re-read probe clears a mark with no seat on the slot', async t => {
+  const probe = { answer: 'accepted' }
+  const { home, accounts, advance } = await setup(t, { probe })
+  await mkdir(join(home, '.bellteam-accounts/claude/2nd'), { recursive: true })
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 't')
+  const stamp = await accounts.stamp('claude', '2nd')
+  await accounts.setSeat('b1', '2nd', stamp)
+  const text = 'Please run /login · API Error: 403 Attention Required! | Cloudflare'
+  // Token accepted or not reached: nothing is marked, only that seat renews.
+  for (const answer of ['accepted', 'unknown']) {
+    probe.answer = answer
+    assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '2nd', botId: 'b1', text }), 'stale')
+    assert.equal(await accounts.loggedIn('claude', '2nd'), true)
+  }
+  // Rejected: marked. list() alone (no new mtime) keeps it; the re-read probe clears it once the token is accepted.
+  probe.answer = 'rejected'
+  assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '2nd', botId: 'b1', text }), 'signed_out')
+  assert.equal(await accounts.loggedIn('claude', '2nd'), false)
+  probe.answer = 'accepted'
+  await accounts.list()
+  assert.equal(await accounts.loggedIn('claude', '2nd'), false)
+  await advance(600_000)
+  for (let i = 0; i < 20 && !await accounts.loggedIn('claude', '2nd'); i++) await new Promise(resolve => setTimeout(resolve, 5))
+  assert.equal(await accounts.loggedIn('claude', '2nd'), true)
+  // Epinel #1359: a new login written during the probe gives a 401 for a token other than the recorded one: no mark, only renew.
+  const token = join(home, '.bellteam-accounts/claude/2nd/oauth-token')
+  probe.answer = 'rejected'
+  probe.during = async () => { await new Promise(resolve => setTimeout(resolve, 20)); await writeFile(token, 'new login'); return seatFiles('stamp', token) }
+  assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '2nd', botId: 'b1', text }), 'stale')
+  assert.equal(accounts.state.signedOut.length, 0)
 })
