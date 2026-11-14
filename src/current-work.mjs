@@ -78,8 +78,13 @@ export class CurrentWork {
     const targets = [...this.restartActivity.values()].map(value => ({ ...value }))
     this.activityPending++
     const saving = this.activityQueue.then(async () => {
-      await mkdir(dirname(this.activityPath), { recursive: true, mode: 0o700 })
-      await writeAtomic(this.activityPath, { schema: 'bellteam.execution-activity.v1', targets })
+      // A save queued before a handover runs after it: the new engine is then the only writer (host-factory.md).
+      const path = this.activityPath
+      if (!path) return
+      await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+      // A handover during the await moved ownership; a write already in writeAtomic is ordered by the successor's queue.
+      if (this.activityPath !== path) return
+      await writeAtomic(path, { schema: 'bellteam.execution-activity.v1', targets })
     })
     this.activityQueue = saving.catch(() => { this.reportActivity() }).finally(() => { this.activityPending-- })
     return saving
