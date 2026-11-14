@@ -1,3 +1,4 @@
+import { goalFailureCause } from './execution-failure-report.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { createDirectReceiptAssembly, directFailureReport } from './direct-receipt-assembly.mjs'
 import { createSubmittedSecretApprovalBridge } from './submitted-secret-approval-bridge.mjs'
@@ -246,7 +247,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   const goalError = async error => {
     const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)
-    await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
+    await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${JSON.stringify(goalFailureCause(error))}\n${frames.join('\n')}` })
   }
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
   if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, getServices: () => conversationPorts,
