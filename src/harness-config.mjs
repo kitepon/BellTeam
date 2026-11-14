@@ -83,7 +83,7 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
   const tomlSeat = (header, tail = '') => seatServers.map(([id, path]) =>
     `[mcp_servers.${id}]\nurl = "${seatUrl(path)}"\n${header}\nstartup_timeout_sec = 30\ntool_timeout_sec = 2592000\n${tail}`).join('\n')
   const jsonSeat = entry => Object.fromEntries(seatServers.map(([id, path]) => [id, entry(seatUrl(path))]))
-  // Aitermの本体は `aiterm-setup` が書くものと同じ形（nodeの絶対path＋index.js）で起こす。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
+  // Aitermの本体は、公開の入口 setup-node の mcpRegistration() が返す形（aiterm-setup が書く形と同じ）で起こす。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
   // 中継（mcp-lazy）がある環境では、その本体を中継ごしに登録する。本体は席がAitermの道具を呼ぶまで起きない。
   const bundledAiterm = await aiterm().catch(() => null)
   const relayPath = bundledAiterm ? await relay() : null

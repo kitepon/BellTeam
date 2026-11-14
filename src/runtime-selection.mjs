@@ -7,10 +7,11 @@ import { join } from 'node:path'
 export const RUNTIME_ROOT = '/srv/bellteam/shared/tools/bellteam-runtime'
 export const BUILTIN_PREFIX = '/usr/local'
 export const RUNTIME_COMPONENTS = Object.freeze({
-  'runtime-aiterm-mcp': { bins: ['aiterm-mcp'], dist: 'lib/node_modules/aiterm-mcp/dist' },
-  'runtime-codex': { bins: ['codex'], dist: null },
-  'runtime-claude-code': { bins: ['claude'], dist: null },
-  'runtime-throughline': { bins: ['throughline'], dist: null },
+  // root = the package root; its files are reached only through package.json exports (aitermEntry).
+  'runtime-aiterm-mcp': { bins: ['aiterm-mcp'], root: 'lib/node_modules/aiterm-mcp' },
+  'runtime-codex': { bins: ['codex'], root: null },
+  'runtime-claude-code': { bins: ['claude'], root: null },
+  'runtime-throughline': { bins: ['throughline'], root: null },
 })
 const SHA = /^[a-f0-9]{64}$/u
 
@@ -27,15 +28,15 @@ async function readJson(path) {
 }
 
 function paths(prefix, id) {
-  const { bins, dist } = RUNTIME_COMPONENTS[id]
+  const { bins, root } = RUNTIME_COMPONENTS[id]
   return {
     prefix,
     bin: Object.fromEntries(bins.map(name => [name, join(prefix, 'bin', name)])),
-    ...(dist ? { dist: join(prefix, dist) } : {}),
+    ...(root ? { root: join(prefix, root) } : {}),
   }
 }
 
-// -> {generation: sha|null, components: {<id>: {origin:'release'|'builtin', prefix, bin:{name:abs}, dist?, archiveSha256?}}}
+// -> {generation: sha|null, components: {<id>: {origin:'release'|'builtin', prefix, bin:{name:abs}, root?, archiveSha256?}}}
 // Callers keep the returned object for the launch's whole lifetime; a later selection never changes it.
 // generation: undefined = current selection; null = builtin; sha = that recorded generation (resume of a recorded launch).
 export async function captureRuntime({ root = RUNTIME_ROOT, builtin = BUILTIN_PREFIX, generation: requested } = {}) {

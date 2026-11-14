@@ -68,7 +68,6 @@ export class AitermGenerationClient {
       call: (...args) => invoke('call', args),
       connect: (...args) => invoke('connect', args),
       runtime: (...args) => invoke('runtime', args),
-      captureHandoffConnection: (...args) => invoke('captureHandoffConnection', args),
       prepareAuthConnection: (...args) => invoke('prepareAuthConnection', args),
       authOptions: (...args) => invoke('authOptions', args),
       launchOptions: (...args) => invoke('launchOptions', args),
@@ -95,7 +94,6 @@ export class AitermGenerationClient {
   call(...args) { return this.invokeCurrent('call', args) }
   connect(...args) { return this.invokeCurrent('connect', args) }
   runtime(...args) { return this.invokeCurrent('runtime', args) }
-  captureHandoffConnection(...args) { return this.invokeCurrent('captureHandoffConnection', args) }
   prepareAuthConnection(...args) { return this.invokeCurrent('prepareAuthConnection', args) }
   authOptions(...args) { return this.invokeCurrent('authOptions', args) }
   launchOptions(...args) { return this.invokeCurrent('launchOptions', args) }

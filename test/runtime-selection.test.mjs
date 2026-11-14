@@ -32,7 +32,7 @@ test('builtin until a selection exists, then release paths; an earlier capture k
     const before = await captureRuntime({ root, builtin: '/usr/local' })
     assert.equal(before.generation, null)
     assert.deepEqual(before.components['runtime-codex'], { origin: 'builtin', prefix: '/usr/local', bin: { codex: '/usr/local/bin/codex' } })
-    assert.equal(before.components['runtime-aiterm-mcp'].dist, '/usr/local/lib/node_modules/aiterm-mcp/dist')
+    assert.equal(before.components['runtime-aiterm-mcp'].root, '/usr/local/lib/node_modules/aiterm-mcp')
 
     const first = commitWithPython(root, 'v1')
     const old = await captureRuntime({ root })
