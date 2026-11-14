@@ -74,7 +74,7 @@ SSE本文をそのまま名簿や会話の正本にしない。`AppStore`が必�
 | push登録・受信・通知から移動 | `Core/BellNotifications.swift`、`AppStore.openPendingNotification`（会話の移動は`AppStore.openConversation`。相関図のメンバーのタップも同じ経路を使う。[相関図](work-graph.md)）、`NotificationService/BellNotificationService.swift`、`Shared/CommunicationNotification.swift`・`BotAvatarCache.swift` | `GET /api/notifications`、`POST /api/notifications/devices`、`POST /api/notifications/unregister`。秘密要求は個別GET | 通知拡張はSSE・HTTPを使わずApp Groupの画像を読む |
 | 購読と復元・AI利用判定 | `Core/BillingStore.swift`、`AppleSubscriptionAccess.swift`、`Views/SubscriptionView.swift`。StoreKit本人権利と本体状態を別に保持 | `GET /api/subscription`、`POST /api/subscription/verify`、`POST /api/subscription/refresh`。AppleのStoreKit商品・取引・復元も利用 | 専用購読なし。前面復帰で再確認 |
 | 端末保存とlogout削除 | `AppStore.swift`、`BellNotifications.swift`、`BotAvatarCache.swift`、`ConversationList.swift`。保存物・残存物は[状態の詳細](state-and-sync.md#端末保存と後始末) | 通知解除は`POST /api/notifications/unregister`。logout専用HTTPなし | logoutでSSE停止 |
-| 診断 | `Core/BellDiagnostics.swift`、`BellAPI.swift`。呼出元が影響と入力保持を渡す。MetricKitのhang/crashも送る | `POST /api/diagnostics`。BellAPIを介さずURLSession.sharedから送信、202を確認 | SSEの失敗もAppStoreから診断 |
+| 診断 | `Core/BellDiagnostics.swift`、`BellAPI.swift`。呼出元が影響と入力保持を渡す。MetricKitのhang/crashも送る。crashは先頭に終了理由・例外種別とコード・signal、両方にbuild・TestFlightか（試験のhostはfalse）・OS版・機種を置き、その後に呼出し履歴を続ける（サーバーで後ろが切れても種類と出どころが残る） | `POST /api/diagnostics`。BellAPIを介さずURLSession.sharedから送信、202を確認 | SSEの失敗もAppStoreから診断 |
 | 試験とpack構成 | `BellBotTests/`、`BellBotUITests/`、`Tests/`、`Core/PreviewFixtures.swift`、`project.yml`、Xcode schemeとPackage.resolved | Debug fixtureまたは試験用接続先。製品機能のHTTP窓口なし | preview引数でSSE開始する経路あり |
 
 Appleソースで独立したApproval Box用の型・route・画面は確認していない。確認できた選択要求は`OwnerQuestionCard`であり、上表では質問・選択回答として扱う。

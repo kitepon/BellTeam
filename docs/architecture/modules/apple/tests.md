@@ -113,6 +113,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testAppStateRevisionChangesOnlyWhenScenePhaseChanges](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L5) | sceneの値が変わる時だけrevision増加 |
+| [testCrashFieldsKeepTheWatchdogReasonOnOneLine](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L30) | crash診断の先頭行：終了理由を1行にし、例外種別・コード・signalを並べ、無い値はnone |
 | [testGoalTimeoutCarriesCallsiteWithoutPrivateRoute](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L20) | 合成goal timeoutはcaller文脈を保持し私的route/queryを除外 |
 | [testServerErrorStoresOnlyThisResponsesDiagnosticReference](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L40) | 500応答自身の診断参照のみ採用、欠損/不正はunknown、502には付けない |
 | [testProtectedRequestFailureStoresDiagnosticReferenceWithoutSecretOrID](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L86) | 秘密POST失敗の参照を保持しrequest ID/秘密値を除外 |
@@ -359,6 +360,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testAccessRedirectDuringBootstrapOpensWebLoginAutomatically](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L48) | bootstrapのAccess redirectで自動Webログイン、sessionは1GET |
 | [testAccessRedirectDuringEventsOpensWebLoginAutomatically](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L60) | SSEのAccess redirectでログイン、eventsは1GET |
 | [testLostGETIsRetriedOnceWithoutReportingRecoveredFailure](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L80) | GET接続喪失1回だけ再取得、回復は報告無し |
+| [testEarlyTimedOutGETIsRetriedOnceLikeALostConnection](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L88) | 計時より早いGET timeout（死んだ共有接続）は接続喪失と同じく1回だけ再取得、回復は報告無し。計時を使い切るtimeoutは試験の短い計時（0.2秒）で再現 |
 | [testRepeatedLostGETReportsOnceAndIncludesAnonymousContext](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L88) | 連続GET喪失は2試行・診断1件、既存値保持と匿名化した各試行記録 |
 | [testBackgroundMemberListTimeoutRecordsItsCaller](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L127) | 背景の名簿timeoutに呼出元/時計/状態revisionを保持 |
 | [testGoalListFailureDirectReportIncludesCallerContext](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L158) | 合成goal一覧2試行の直接診断にcallerを含めquery秘密を隠す（UI未再現） |

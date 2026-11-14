@@ -389,7 +389,10 @@ final class BellAPI {
                     startedContinuousTick: firstStartedContinuousTick, startedState: firstState,
                     returnedResponse: true, errorCode: nil, metrics: metrics.snapshot()))
             }
-            catch let error as URLError where request.httpMethod == "GET" && error.code == .networkConnectionLost {
+            // A timedOut before the request's own timer is a dead shared connection (its requests fail at the same instant), handled like connection lost.
+            catch let error as URLError where request.httpMethod == "GET" && (error.code == .networkConnectionLost
+                || error.code == .timedOut && Double(DispatchTime.now().uptimeNanoseconds - firstStartedTick) / 1e9
+                    < min(request.timeoutInterval, session.configuration.timeoutIntervalForRequest)) {
                 attemptDetails.append(recordedAttempt(startedAt: firstStartedAt, startedTick: firstStartedTick,
                     startedContinuousTick: firstStartedContinuousTick, startedState: firstState,
                     returnedResponse: false, errorCode: error.errorCode, metrics: metrics.snapshot()))
