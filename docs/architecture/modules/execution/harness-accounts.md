@@ -23,6 +23,7 @@ One login per slot (Trony request 2026-11-11, Owner: 「何度も何度もログ
 | Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list` route, `account` in Bot items, SSE topic `settings` |
 | Rendering: card rows, banner, member card | Admi (Web), Apple and Windows owners | the data contacts above |
 | Per-seat config root on launch, resume and auth | Aiterm (Elegg) | E1–E3 below |
+| **Claude Code private interfaces — third-party, UNOFFICIAL dependency** (bd15, Owner 2026-11-14: Claude Code offers no contracted interface for these facts) | execution only: `seatFiles` ops `prepare` / `label` / `usage` and the label stamp in `src/harness-accounts.mjs` (`EXECUTION_FILES` only) | Reads: the `~/.claude` entries it links into a slot root (`prepare`), `<root>/.credentials.json` (access token, mtime), `GET https://api.anthropic.com/api/oauth/profile` and `/api/oauth/usage` (as `claude-code`). Every other part — usage card / HarnessAuth (Mika), HTTP routes and SSE (Molly), Web / Apple / Windows clients — uses only this module's own outputs: `accounts.list()` (label, limits, `allLimited`), `accounts.prepare()` (`configurationRoot`), `accounts.json`. If a Claude Code release changes one of them, only these ops fail: label → null (card shows no e-mail), usage → `ACCOUNT_USAGE_UNAVAILABLE` (reset time null; the limit text, the 10-minute re-read and the successful-turn exit still return the slot), prepare → `ACCOUNT_ROOT_UNAVAILABLE` (that card login fails visibly) |
 
 ## Data flow
 
@@ -50,6 +51,9 @@ flowchart TD
   Wait --> Parse[parse scope and reset time from the limit text]
   Parse --> Mark[mark slot × scope limited until resetAt]
   Parse -->|text has no time| Usage[usage reading with that slot's token, in process: row of the same scope]
+  Usage -.->|UNOFFICIAL third-party: .credentials.json token + GET /api/oauth/usage (Claude Code private), execution seatFiles only| ClaudePrivate[(Claude Code private endpoints/files)]
+  Label[accounts.list label] -.->|UNOFFICIAL: .credentials.json token + GET /api/oauth/profile, execution seatFiles only| ClaudePrivate
+  Auth -.->|accounts.prepare: UNOFFICIAL link copy of ~/.claude into the slot root, execution seatFiles only| ClaudePrivate
   Usage -->|resets_at| Mark
   Mark --> Registry
   Seat --> End[Aiterm pty_list limit end per seat: last_input_at, limit_end at / continued / hold armed|cancelled; the turn is closed, its watch ends]
@@ -212,7 +216,7 @@ Seat name format (public contract with integration `seat-mcp`, #759): a Bot's se
 
 ## Deployment order (#754, cross-cutting)
 
-The link-based `prepare` (execution and usage modules, both ship `src/harness-accounts.mjs`) needs a body that no longer writes into slot roots (`writeHarnessConfig` in `src/harness-config.mjs`, body-resident, in no module payload). An older body's atomic merge into `<2nd root>/.claude.json` replaces the link with a regular file that carries the 1st `oauthAccount` (wrong-account state). So: the body with #754 goes live first, then the execution and usage modules carrying #754. Known payload consumers of `src/harness-accounts.mjs`: execution (`EXECUTION_FILES` in `scripts/web_gateway_artifact.py`, execution module.json) and usage (HarnessAuth / usage prepare). After the modules: restart the seats running on the 2nd so they read the 1st config.
+The link-based `prepare` (only the execution module ships `src/harness-accounts.mjs`; the usage module calls `accounts.prepare` through its channel, bd15 checked 2026-11-14) needs a body that no longer writes into slot roots (`writeHarnessConfig` in `src/harness-config.mjs`, body-resident, in no module payload). An older body's atomic merge into `<2nd root>/.claude.json` replaces the link with a regular file that carries the 1st `oauthAccount` (wrong-account state). So: the body with #754 goes live first, then the execution and usage modules carrying #754. Known payload consumers of `src/harness-accounts.mjs`: execution (`EXECUTION_FILES` in `scripts/web_gateway_artifact.py`, execution module.json) and usage (HarnessAuth / usage prepare). After the modules: restart the seats running on the 2nd so they read the 1st config.
 
 ## Implementation map
 
