@@ -9,10 +9,10 @@ import { writeHarnessConfig } from '../harness-config.mjs'
 // Feature settings own their listeners/configuration. They do not own Bot delivery state.
 export function createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment = process.env, notify, configureHarnessConfig = writeHarnessConfig, usageContext = () => undefined }) {
   const { bots, messenger, settings, diagnostics, notifications, transport } = services
-  const setError = async (id, error, epoch, { detached = false } = {}) => {
+  const setError = async (id, error, epoch) => {
     if (settings.configurationState) {
       if (!error) return
-      try { await settings.setError(id, error, { epoch, usageContext: usageContext('settings.setError', { detached }) }) }
+      try { await settings.setError(id, error, { epoch, usageContext: usageContext('settings.setError') }) }
       catch (failure) { if (failure.code !== 'USAGE_SETTINGS_STALE') throw failure }
     } else settings.setError(id, error)
   }
@@ -71,13 +71,14 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
           await configureCalls(config)
           // CLIは起動時にMCP登録を読む。現在のターンを終えたら閉じ、次の配送で新しい登録を読む。
           // ターン終了は待たない。保存を流したBot自身のターンは保存の結果が返るまで終わらない。
+          // 席の有無はpty_listを1回で読む。Botごとに読むと人数分のtmux起動（140人で約50秒）が保存の返事に乗り、60秒の期限へ近づく。
+          const running = await transport.runningBots([...bots.values()])
           for (const bot of bots.values()) {
-            if (!await transport.isRunning(bot)) continue
+            if (!running.has(bot.id)) continue
+            // 席を閉じられなかったのはその席の状態（ターンの結末が不明など）で、設定の失敗ではない。設定は保存・反映済みで、
+            // その席は次のcloseIdle/再起動で新しい登録を読むので、設定のerror（「再度保存してください」）には書かず診断に残す。
             transport.stopForConfiguration(bot).catch(async error => {
               process.stderr.write(`BellTeam: 通話設定をメンバーへ反映できませんでした (${bot.id})\n`)
-              // 保存のeffectは終わっているので、同じepochをroot要求で書く。
-              await setError(id, error, epoch, { detached: true })
-              notify({ type: 'settings', featureId: id })
               await diagnostics.record({ code: 'SERVER_CALL_CONFIGURATION_FAILED', module: 'server', diagnostic_log: error.code ?? 'CALL_CONFIGURATION_FAILED' })
             }).catch(error => process.stderr.write(`BellTeam: 通話設定の失敗を記録できませんでした (${error.code ?? 'UNKNOWN'})\n`))
           }
