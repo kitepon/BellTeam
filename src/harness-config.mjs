@@ -18,7 +18,8 @@ const execFileAsync = promisify(execFile)
 export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, aitermHooks = configureAitermHooks, entryVars = aitermEntryVars, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, productEntries = configureHarnessEntries, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const registration = await aiterm().catch(() => null)
   await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration, relay })
-  await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
+  // bd14 step 3 (Throughline >= 0.21.0): install places only Throughline's own files (commands, codex skill); its hooks come from its E1 below.
+  await run('throughline', ['install', '--own-files'], { env: runtimeEnvironment(process.env, home) })
   // Cursor CLIは ~/.cursor/AGENTS.md を読まないので、起動時指示はsessionStartのhookで渡す。
   try {
     await cursorInstructions(home)
