@@ -274,8 +274,8 @@ struct LatticeChartScreen: View {
         let counts = LatticeCounts(snapshot)
         let rows = LatticeWaitRow.rows(snapshot, now: now)
         let progress = HStack(spacing: 12) {
-            LatticeRing(done: counts.progressDone, total: counts.progressTotal, size: 34, line: 3.5, showsText: false)  // done/total is written beside it
-            Text("\(counts.progressDone)/\(counts.progressTotal)").font(.system(size: 15, weight: .bold)).monospacedDigit()
+            LatticeRing(done: counts.done, total: counts.total, size: 34, line: 3.5, showsText: false)  // done/total is written beside it
+            Text("\(counts.done)/\(counts.total)").font(.system(size: 15, weight: .bold)).monospacedDigit()
                 + Text(" 完了").font(.system(size: 13)).foregroundColor(LatticePalette.muted)
             LatticeCounters(counts: counts, compact: false)
         }.fixedSize()
@@ -561,7 +561,7 @@ struct LatticeChartScreen: View {
                     } else {
                         Group {
                             HStack(spacing: 0) {
-                                LatticeRing(done: counts.progressDone, total: counts.progressTotal, size: 50, line: 4.5)
+                                LatticeRing(done: counts.done, total: counts.total, size: 50, line: 4.5)
                                     .padding(.trailing, 18)
                                 LatticeCounters(counts: counts, compact: true)
                             }
