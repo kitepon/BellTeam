@@ -105,7 +105,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  Input["Owner設定 / Bot update_settings"] --> Validate["項目・型・値・入力元を検証"]
+  Input["Owner設定 / Bot update_settings"] --> Validate
+  Export["橋の公開export（bd09）→本体の取込み口（bd10）"] --> Import["callBridgeSettingsInput<br/>閉schemaを検証"]
+  Import --> Validate["項目・型・値・入力元を検証"]
   Secret["提出済みbellteam-settings依頼"] --> Read["依頼Bot・提出状態を確認<br/>秘密入力の解決窓口から値を受け取る"]
   Read --> Validate
   Validate --> Save["設定の正本を保存"]
@@ -127,6 +129,7 @@ flowchart TD
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
 | 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlと、旧APNs設定がある間のnotifications.relayUrlだけfalse。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
 | 必須項目の親検証 | 親`usage/projection.mjs:usageSettingValid` | 親の閉検証は`required`を任意booleanとして受ける（旧子のkey無しも通す）。旧親は新子の行を拒否するため、親の変更を含む本体releaseを新usage moduleより先に入れる。module単独更新では配らない |
+| 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url,token}}, {allowSecretValues:true})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`だけを受ける。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。header/socket/CLI登録は既onChange。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
 | 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境・旧APNs設定・橋headerから作る |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
