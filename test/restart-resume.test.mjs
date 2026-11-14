@@ -129,3 +129,17 @@ for (const sendFails of [false, true]) test(`refused resume asks for one fresh c
   if (!sendFails) assert.equal(rows.length, 0)
   else assert.equal(JSON.parse(rows[0].diagnostic_log).continuation, 'failed')
 })
+
+test('a save queued before a handover runs after it as a no-op, not RESTART_ACTIVITY_UNAVAILABLE (BugHub af20e350)', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'restart-handover-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  let reports = 0, release
+  const activity = new CurrentWork({ activityPath: join(root, 'execution-activity.json'), reportActivity: () => { reports++ } })
+  activity.activityQueue = new Promise(resolve => { release = resolve }) // an earlier save still running
+  const queued = activity.saveActivity()
+  activity.activityPath = null // exportState({handover})
+  release()
+  await queued
+  await activity.activityQueue
+  assert.equal(reports, 0)
+})
