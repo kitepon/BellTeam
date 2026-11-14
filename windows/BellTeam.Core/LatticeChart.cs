@@ -376,9 +376,11 @@ public static class LatticeChart
         return new(false, added, changed, completed);
     }
 
-    /// <summary>List cards in the server's order (coordinator charts first). Active members come from the app's roster; one not in it is 「?」.</summary>
+    /// <summary>Charts 一覧 shows (shownCharts): a chart whose list counts.total is 0 has nothing to open (Owner 2026-11-14, a107). Member chart buttons read the full list.</summary>
+    public static LatticeChartSummary[] Shown(LatticeChartList list) => list.Charts.Where(chart => (chart.Counts?.Total ?? 0) > 0).ToArray();
+    /// <summary>List cards of the shown charts in the server's order (coordinator charts first). Active members come from the app's roster; one not in it is 「?」.</summary>
     public static IReadOnlyList<LatticeListItem> ListItems(LatticeChartList list, Func<string, LatticePerson?> roster)
-        => list.Charts.Select(chart =>
+        => Shown(list).Select(chart =>
         {
             var members = chart.ActiveMembers.Take(4).Select(id => roster(id) ?? new LatticePerson(id, UnknownMember, null, "", false)).ToList();
             var counts = chart.Counts ?? new(0, 0, 0, 0, 0);

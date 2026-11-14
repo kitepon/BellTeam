@@ -105,7 +105,7 @@ public sealed class LatticeWindow : Window
                 var next = await workspace.Management.Api.ChartsAsync(token);
                 if (token.IsCancellationRequested) return;
                 list = next; listProblem = null;
-                if (!autoOpened && next.Charts.Length == 1) { autoOpened = true; OpenChart(next.Charts[0].ProjectId); return; }
+                if (!autoOpened && LatticeChart.Shown(next) is [var only]) { autoOpened = true; OpenChart(only.ProjectId); return; }
                 autoOpened = true;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
@@ -146,7 +146,7 @@ public sealed class LatticeWindow : Window
             System.Windows.Automation.AutomationProperties.SetAutomationId(backButton, "lattice-back"); header.Children.Add(backButton);
         }
         var title = Text("工程表", 28, Ink, FontWeights.Bold); DockPanel.SetDock(title, Dock.Left); header.Children.Add(title);
-        if (list is { Charts.Length: > 0 })
+        if (list is not null && LatticeChart.Shown(list).Length > 0)
         {
             var stops = Action("止め一覧", ""); stops.Margin = new Thickness(18, 0, 0, 0); stops.VerticalAlignment = VerticalAlignment.Center; stops.HorizontalAlignment = HorizontalAlignment.Left; stops.Click += (_, _) => ShowStops();
             System.Windows.Automation.AutomationProperties.SetAutomationId(stops, "lattice-stops"); header.Children.Add(stops);
@@ -157,7 +157,7 @@ public sealed class LatticeWindow : Window
             body.Children.Add(Notice(problem, problem == LatticeChart.OldServer ? LatticeChart.OldServerNext : null, problem == LatticeChart.OldServer ? ("閉じる", Close) : null));
         }
         else if (list is null) body.Children.Add(Notice(listProblem ?? "読み込んでいます…", null, null));
-        else if (list.Charts.Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, ("閉じる", Close)));
+        else if (LatticeChart.Shown(list).Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, ("閉じる", Close)));
         else
         {
             var items = LatticeChart.ListItems(list, Roster);

@@ -29,6 +29,15 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
+    public void ChartsWithAZeroDenominatorAreNotListed()
+    {
+        LatticeChartSummary Chart(string id, int? total) => new() { ProjectId = id, Name = id, Counts = total is { } t ? new(t, 0, 0, 0, 0) : null };
+        var list = new LatticeChartList { Charts = [Chart("a", 3), Chart("zero", 0), Chart("none", null), Chart("b", 1)] };
+        Assert.Equal(["a", "b"], LatticeChart.Shown(list).Select(chart => chart.ProjectId));
+        Assert.Equal(["a", "b"], LatticeChart.ListItems(list, _ => null).Select(item => item.ProjectId));
+    }
+
+    [Fact]
     public void LanesAreKnownMembersByNameThenUnknownThenUnassignedAndColumnsFollowDepth()
     {
         var layout = LatticeChart.Layout(Snapshot([Card("1", "pending", null, 2), Card("2", "ready", "bot-ghost", 1), Card("3", "in-progress", "bot-k", 0), Card("4", "done", "bot-a", 1)]));
