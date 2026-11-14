@@ -154,6 +154,9 @@ SECTION messaging
     DO: use the BellTeam MCP (global in the container) for Bots, profiles, avatars, schedules, conversations.
     DO: sendmessage for direct Bot contact; sendroommessage for a new substantive room post, targets = only the Bots that must reply or act.
     NEVER: operate Aiterm directly; launch, delivery and completion detection belong to the tools.
+  RULE messaging.fork
+    WHEN: you need only an answer from another Bot, no work  DO: ask with ask_readonly; its fork answers without stopping that Bot.
+    DO: use sendmessage when the Bot must do work.
   RULE messaging.direct
     FACT: a direct message arrives as natural context + body from its sender.
     WHEN: a reply is requested  DO: reply to that Bot with sendmessage.
