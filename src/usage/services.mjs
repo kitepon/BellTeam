@@ -48,7 +48,7 @@ function volatileState(value) {
 
 // Runtime owns the process/lock and supplies only fixed parent effects and registry ports.
 export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {}, onePassword, secretProviders,
-  bridgeHeadersPath, environment = {}, seatRuntime = false, subscription = {} }) {
+  environment = {}, seatRuntime = false, subscription = {} }) {
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
   let projectionFailed = false, projectionTail = Promise.resolve()
@@ -69,7 +69,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     const projection = projectionTail
     return scoped(async () => { await projection; if (projectionFailed) throw usageError('USAGE_PROJECTION_UNAVAILABLE'); return effect(method, clone(params)) })
   }
-  const settings = new FeatureSettings({ root, bridgeHeadersPath, environment,
+  const settings = new FeatureSettings({ root, environment,
     onChange: async (id, configuration) => {
       // A new or removed token connects 1Password now; the result is the feature's status, never a failed save.
       if (id === 'onePassword') { await secretRequests.credentials.refreshAvailability().catch(() => {}); syncOnePassword(); await onePasswordConnection() }

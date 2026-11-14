@@ -74,7 +74,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     runningExclusions: () => services.runningExclusions,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
-  const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
+  const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'state/call-bridge/headers')
   const features = createApplicationFeatures({ services: services.conversationAssembly ? { ...services, messenger: { ...messenger, receiveCallBridge: (...args) => services.conversationAssembly.run({ kind: 'bridge' }, () => messenger.receiveCallBridge(...args)) } } : services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
     ...(services.usageAssembly ? { usageContext: method => services.usageAssembly.systemContext(method) } : {}),
     ...(bootstrap.seatRuntime ? { configureHarnessConfig: (bots, _home, { callBridge }) =>
