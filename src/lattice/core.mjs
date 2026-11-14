@@ -132,7 +132,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     },
     // `name` alone (args []) only names the chart; with args it names it and then runs the command.
     // A read-only seat run on an existing chart runs beside writes: no per-chart lock, no maintenance (README L3).
-    run: async (params, effect) => params.name === undefined && latticeRunReads(params.args, params.input) && await cli.exists(params.projectId)
+    run: async (params, effect) => latticeRunReads(params) && await cli.exists(params.projectId)
       ? runOnce(params, effect, true) : locked(params.projectId, () => runOnce(params, effect)),
     // Each new child generation (parent onGeneration): unacked notices of every chart, at most NOTICE_SLICE sends.
     async deliver(params, effect) {

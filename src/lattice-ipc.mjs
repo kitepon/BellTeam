@@ -120,7 +120,7 @@ export function createLatticeChildChannel({ dispatcher, event = process, version
       quiesced = false
       // Writes run one at a time in arrival order; reads never wait behind a write (README L3; incident 2026-11-14:
       // a ~40 s `todo add` on a large plan held every list and chart read). Each call reaches the parent only through its bound effect.
-      const write = !(READS.has(message.method) || (message.method === 'run' && latticeRunReads(message.params?.args, message.params?.input ?? null))), done = deferred(), before = write ? chain : null
+      const write = !(READS.has(message.method) || (message.method === 'run' && latticeRunReads(message.params))), done = deferred(), before = write ? chain : null
       if (write) chain = done.promise
       active.add(done.promise)
       const effect = async (method, params) => {
