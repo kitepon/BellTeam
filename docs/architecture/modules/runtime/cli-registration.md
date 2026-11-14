@@ -66,7 +66,7 @@ flowchart TD
 | native遅延起動 | `relayedAiterm` | mcp-lazyは起動後idle停止なし。nativeでは旧profile/旧tool cache/wakeを使用しない。独立製品の実装は変えない |
 | 管理節の置換 | `writeCodexConfig/writeGrokConfig/mergeMcpConfig` | BellTeam管理MCPと対象project trustを更新、他MCPを保持。無効MCPの扱いはplatform条件を維持 |
 | Claude初回画面の省略（2026-11-12 a15） | `mergeMcpConfig`（`~/.claude.json`の`hasCompletedOnboarding: true`）、`acceptBypassPrompt`（`~/.claude/settings.json`の`skipDangerousModePermissionPrompt: true`） | Webでログインしただけの新しい環境では、Claude Codeを一度も手で起動していない。最初の席が初回案内（テーマ・Security notes）と「Bypass Permissions」の確認画面で止まり、配送が終わらない（Centi 95a8 lab）。BellTeamは全Claude席を`--dangerously-skip-permissions`で起こし、容器が隔離の境界なので、この2つをBellTeamが答える。他の項目は保持。利用規約の更新への回答は書かない（アカウントの持ち主が選ぶ。Aitermの`vendor_onboarding_required`案内のまま） |
-| hook登録 | `configureHarnesses` | Throughline install後、Cursor instructions/RTK/Aiterm hookを個別登録。後三者の失敗は報告し続行。Throughline installまで成功扱いに広げない |
+| hook登録 | `configureHarnesses` | Throughline install後、Cursor instructions、製品のE1（RTK/testgateのhookを含む。下のbd14）、Aiterm hookを個別登録。後三者の失敗は報告し続行。Throughline installまで成功扱いに広げない。製品E1の位置はRTK writerが走っていた所と同じで、各hookのevent順と配列順が変わらない |
 
 全体指示はOwner/profile/rulesと製品規範、個別指示はBotのプロフィールと短期記憶という別の元データを持つ。CLI設定文書が変わったことと、既に起きているCLIが読み直したことを分ける。任意機能からの再設定は[利用支援](../../support-details.md)の背景反映へ接続する。
 
@@ -75,34 +75,32 @@ flowchart TD
 ```mermaid
 flowchart TD
   Config["configureHarnesses"] --> Throughline["Throughline公開install"]
-  Throughline --> RTK["RTK / testgateの管理項目を選ぶ"]
-  RTK --> Merge["既存hookの同じ位置へ登録<br/>他の項目を保持"]
+  Throughline --> Cursor["Cursor instructions hook"]
+  Cursor --> Products["製品のE1（E2順。RTK/testgateを含む）<br/>harness-entries.mjs"]
+  Products --> Merge["既存hookの同じ位置へ登録<br/>他の項目を保持"]
   Merge --> Trust["Codexだけ公式App Serverで<br/>対象handlerのhashを信頼"]
-  Throughline --> Aiterm["Aiterm同梱の公開登録関数"]
+  Products --> Aiterm["Aiterm同梱の公開登録関数"]
   Aiterm --> Scope["同じnative scopeとprovider<br/>親配送hookへ結ぶ"]
 ```
 
-`configureRtk → setGroupHook/addCursorHook/ownedCommands`は、自分のdirect/gated commandだけを同じ位置で置換する。二重の自分の登録はどちらかを勝手に削除せずエラー。`writeGrokHook/grokHookConfig`は既存Grok専用入口、`trustCodexHook`はhooks/listのsourcePath/key/currentHashに一致したhandlerだけをconfig/batchWriteし読戻す。`codexAppServer`は設定用stdio接続をfinallyで終了し、thread/turnを作らない。
+hookのファイルは、製品のE1を適用する`harness-entries.mjs`が一つの書き手として更新する（下のbd14）。RTK/testgateの項目はRTKのE1（E2の`rtk`）だけが運び、BellTeam自身のRTK writer（`configureRtk`）は退役した。`trustCodexHook`はhooks/listのsourcePath/key/currentHashに一致したhandlerだけをconfig/batchWriteし読戻す。`codexAppServer`は設定用stdio接続をfinallyで終了し、thread/turnを作らない（どちらも`rtk-hooks.mjs`に残る）。
 
 ## Testgate PreToolUse registration (bd13)
 
-BellTeam's registration follows the [testgate registration contract v1, release 0.3.32](https://github.com/kitepon/testgate/blob/v0.3.32/docs/registration-contract.md). Testgate owns hook behavior and its release lifecycle; Epinel owns the BellTeam container registration. Terminal registration belongs to Drilly and uses the terminal's own installation root. This section documents only the BellTeam side of the boundary.
+BellTeam's registration follows the [testgate registration contract v1, release 0.3.32](https://github.com/kitepon/testgate/blob/v0.3.32/docs/registration-contract.md). Testgate owns hook behavior and its release lifecycle; Epinel owns the BellTeam container registration. Since the bd14 second switch the item reaches the seat through RTK's E1 (`rtk` in E2), which always names the testgate entry: BellTeam no longer chooses between testgate and `rtk hook H`, so the unreadable-path fallback below is retired with `configureRtk`. Terminal registration belongs to Drilly and uses the terminal's own installation root. This section documents only the BellTeam side of the boundary.
 
 ```mermaid
 flowchart TD
   Contract["testgate registration contract v1<br/>release 0.3.32"] --> Select
-  Path["/srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs<br/>readable?"] --> Select["configureRtk / ownedCommands<br/>select one PreToolUse item for H"]
-  Select -->|readable| Gate["node .../testgate.mjs hook H"]
-  Select -->|unreadable| Fallback["rtk hook H"]
-  Gate --> Same["replace the existing RTK item<br/>at the same position"]
-  Fallback --> Same
+  Path["RTK harness-entries.json (E1, owner Drilly)<br/>names node .../testgate.mjs hook H"] --> Select["harness-entries.mjs<br/>owned item = E1 command or owns.commandIncludes"]
+  Select --> Same["replace the existing RTK item<br/>at the same position"]
   Same --> Harnesses["Claude / Codex / Cursor / Grok"]
 ```
 
 | From → to | Data and rule | Owner |
 | --- | --- | --- |
-| Testgate contract → BellTeam registration | For `H` in `claude`, `codex`, `cursor`, `grok`, use `node /srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook H` when that fixed path is readable; otherwise keep `rtk hook H` directly. | Testgate owns the v1 entry contract; Epinel owns the container registration. |
-| `configureRtk` → harness hook file | Replace the single existing PreToolUse RTK item in place. Never add a second item. The stable v1 path, argv, stdin/stdout behavior, and passthrough on internal failure remain unchanged; testgate never exits 2. | BellTeam owns its item and position. |
+| Testgate contract → RTK E1 → BellTeam registration | For `H` in `claude`, `codex`, `cursor`, `grok`, RTK's E1 carries `node /srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook H`; BellTeam writes it as given. | Testgate owns the v1 entry contract; Epinel owns the container registration. |
+| `harness-entries.mjs` → harness hook file | Replace the single existing PreToolUse RTK item in place. Never add a second item. The stable v1 path, argv, stdin/stdout behavior, and passthrough on internal failure remain unchanged; testgate never exits 2. | BellTeam owns its item and position. |
 | Testgate release → next hook invocation | A release updates the `current` link only; it needs no hook re-registration or Codex re-trust. A v2 change is announced to Epinel and Drilly with a v1 compatibility period. | Testgate owns release/distribution; BellTeam consumes the stable entry. |
 
 `aitermExecutionRegistration`はAitermの`localParentWorkerRuntime.scope`からstate root/socketを受け、BellTeam側で規則を複製しない。`configureAitermHooks`はnative登録ならその公開setup/argument parser、旧登録ならmergeClaudeParentHooks/mergeCursorParentHooks/ensureCodexParentSteerへ渡す。旧Codex登録の確認が一時的なCLI起動を含むことと、通常のBot起動を区別する。ここではいずれも実行していない。
@@ -120,7 +118,7 @@ flowchart TD
   end
   Reg["config/harness-products.json<br/>(BellTeam: which products, in which order)"] --> Collect
   PE -->|"bellteam.harness-entries.v1"| Collect["CLI registration: collect + validate<br/>(seat runtime chain, one pass)"]
-  Own["BellTeam's own entries<br/>(bellteam, call-bridge, aiterm, RTK/testgate hook, cursor instructions)"] --> Collect
+  Own["BellTeam's own entries<br/>(bellteam, call-bridge, aiterm, cursor instructions)"] --> Collect
   Collect --> CLIcmd["CLI-rewritten files: only the CLI's public command/API<br/>claude mcp add-json/remove --scope user (~/.claude.json)<br/>codex app-server config/batchWrite (~/.codex/config.toml)<br/>grok mcp add/remove --scope user (~/.grok/config.toml MCP)"]
   Collect --> Files["Files no CLI writes: ONE writer (BellTeam), atomic, ordered by registry<br/>~/.claude/settings.json hooks, ~/.codex/hooks.json, ~/.cursor/hooks.json,<br/>~/.cursor/mcp.json, ~/.gemini/config/mcp_config.json"]
   Files --> Trust["Codex: hooks.state trust re-issued for every moved position, same pass"]
@@ -159,14 +157,19 @@ E1 v1.1 (2026-11-14, from the leads' answers: Moran, Elegg, Nayuta, Drilly, Noah
 
 Switchover, with no seat-visible change (Trony condition 2: every seat keeps the same MCP servers, hooks and rules): for each product, (1) the product publishes E1 with exactly the entries it writes today, and E1 alone changes nothing; (2) BellTeam adds the product to E2 in a body PR, applies it, and verifies in Centi's lab that the seat files are byte-equal to today's; (3) after that body is LIVE, Molly sends the product's lead ONE "applied" message, and only then does the product retire its writer for BellTeam seat homes (managed deployment only; standalone install and uninstall stay the product's own). Until (3) ends, both sides write identical content. Startup maintainers owned by another Bot (for example Trony's caveat maintainer and mcp-lazy reapply) retire through their owner, in the same serialized order. A product not yet switched keeps writing as today. Failure: an E1 that is missing, invalid, or that names a key another product owns is reported and leaves that product's current entries untouched (no partial removal); the next configure retries. No new guard: an invalid E1 keeps the last good state, which is the named protection against data loss and overwriting existing state, and the next pass leaves that state on its own.
 
-First slice (MCP-only products, 2026-11-14): E2 is [config/harness-products.json](../../../../config/harness-products.json) (shipped in the image through `scripts/package-server.mjs`; a missing E2 is reported as an error, never a silent no-op, after the Z4 lab found it absent) (today `xarticle`, `typesafe`, each a shared-tool `harness-entries.json`). Code: [harness-entries.mjs](../../../../src/harness-entries.mjs), called from `configureHarnesses` right after `writeHarnessConfig` (try/catch + report like RTK/Aiterm; `productEntries`, `run` and the app-server are injectable). Tests: [harness-entries.test.mjs](../../../../test/harness-entries.test.mjs).
+First slice (MCP, 2026-11-14) and second switch (hooks, RTK, 2026-11-14): E2 is [config/harness-products.json](../../../../config/harness-products.json) (shipped in the image through `scripts/package-server.mjs`; a missing E2 is reported as an error, never a silent no-op, after the Z4 lab found it absent) (today `xarticle`, `typesafe`, `rtk`, each a shared-tool `harness-entries.json`). Code: [harness-entries.mjs](../../../../src/harness-entries.mjs), called from `configureHarnesses` where the RTK writer ran, after Throughline install and the Cursor instructions and before the Aiterm hooks (try/catch + report like Aiterm; `productEntries`, `run` and the app-server are injectable). That position keeps every hook event's key and array order as it was: RTK's PreToolUse group lands after Throughline's events and before Aiterm's, in each file. The hooks tests freeze the bytes the old `configureRtk` wrote (`test/fixtures/rtk-switch.json`) and assert the new pass reproduces them and writes nothing on a seat that already has them. Tests: [harness-entries.test.mjs](../../../../test/harness-entries.test.mjs).
 
 | Function | Role |
 | --- | --- |
-| `parseEntries(product, value)` | E1 v1.1 check: schema, product name, `mcpServers` shape, five harness keys. A product with non-empty hooks/permissions/settings throws (out of scope for this slice) and is reported and skipped. |
+| `parseEntries(product, value)` | E1 v1.1 check: schema, product name, `mcpServers` shape, five harness keys. `hooks` (claude, codex, cursor, grok), `owns.commandIncludes`; a product with non-empty permissions/settings throws (out of scope) and is reported and skipped. |
 | `mergeEntry(current, entry)` | The E1 merge rule: E1's declared keys win, existing undeclared keys stay, `env` merges by key (E1 wins), `env:{}` clears nothing. claude/grok/cursor/gemini write the merged whole entry. |
-| `configureHarnessEntries(home, deps)` | Per product (E2 order) and per (server, harness): read the seat's current entry, write only when it differs, then record `harness:server` in `applied.json`. An invalid or missing E1 leaves that product's state and record untouched (a missing file is reported as missing, not as a schema error). A failed entry is reported and not recorded; the rest continue. Reports are the seat child's stderr lines; `SeatRuntime.call` forwards them to the body log (docker logs), stdout carries only the JSON answer (Z8 lab (4), 2026-11-14). Because these lines reach docker logs, a report never quotes a failed CLI call's message or a JSON parse error (both can carry entry tokens/headers/env): `safeMessage` gives product, harness, program and exit code only; `codexAppServer` errors carry only the exit code (`CODEX_APP_SERVER_EXITED: <code>`, stderr is drained, never kept) or the JSON-RPC error code (`CODEX_APP_SERVER_ERROR: <code>`), and every `configureHarnesses` report (MCP products, Cursor, RTK, Aiterm) goes through `safeMessage`. |
+| `configureHarnessEntries(home, deps)` | Per product (E2 order) and per (server, harness): read the seat's current entry, write only when it differs, then record `harness:server` in `applied.json`. An invalid or missing E1 leaves that product's state and record untouched (a missing file is reported as missing, not as a schema error). A failed entry is reported and not recorded; the rest continue. Reports are the seat child's stderr lines; `SeatRuntime.call` forwards them to the body log (docker logs), stdout carries only the JSON answer (Z8 lab (4), 2026-11-14). Because these lines reach docker logs, a report never quotes a failed CLI call's message or a JSON parse error (both can carry entry tokens/headers/env): `safeMessage` gives product, harness, program and exit code only; `codexAppServer` errors carry only the exit code (`CODEX_APP_SERVER_EXITED: <code>`, stderr is drained, never kept) or the JSON-RPC error code (`CODEX_APP_SERVER_ERROR: <code>`), and every `configureHarnesses` report (products MCP and hooks, Cursor, Aiterm) goes through `safeMessage`. |
 | claude | read `~/.claude.json` `mcpServers[name]`; write `claude mcp remove <name> --scope user` (only if present) then `claude mcp add-json <name> <json> --scope user` If that add fails after the remove, the previous entry is added back the same way (`replaceOrRestore`), and the error is reported. The same holds for grok's remove/add. The seat never loses the server. |
 | codex | `codexAppServer` (exported from rtk-hooks.mjs): `config/read` compares only the keys E1 declares (env: only E1's env keys); write `config/batchWrite` `mcp_servers.<name>`, `upsert` (undeclared keys stay), then read back. |
 | grok | read `grok mcp list --json` (scope `user`); write `grok mcp remove` then `grok mcp add --scope user` for `command`/`args`/`url`/`env`/`headers`/`enabled: true`. `grok mcp add` has no flag for `startup_timeout_sec` (or any other key): a differing entry with such a key is reported, never hand-edited into the TOML. An identical entry (today's xarticle, `startup_timeout_sec: 60`) is verified and written nothing. |
 | cursor, gemini | `~/.cursor/mcp.json` and `~/.gemini/config/mcp_config.json`: `mcpServers[name]` merged through `writeAtomic`, every other key kept. |
+| claude, codex hooks | `~/.claude/settings.json` `hooks.<event>` and `~/.codex/hooks.json` `hooks.<event>`: arrays of native groups. An existing item is the product's when its `command` equals an E1 command or contains an `owns.commandIncludes` substring. The i-th existing item is replaced in place by the i-th E1 item (`{...existing, ...E1}`: E1's declared fields win, undeclared item fields and the group's `matcher`/metadata stay); E1 items beyond that are appended as E1 groups. More existing items than E1 items reports an error for that harness and writes nothing. Written through `writeAtomic` only when the content differs. |
+| cursor hooks | `~/.cursor/hooks.json` `hooks.<event>`: arrays of native items, same matching and replacement; `version: 1` is added when the file is written and has none. |
+| grok hooks | The whole E1 `hooks.grok` content is `~/.grok/hooks/<product>.json` (one writer per product, same 2-space JSON + newline as before), written only when the bytes differ. |
+| Codex trust | After the codex hook pass, for each E1 codex command `trustCodexHook` reads `hooks/list` and writes `hooks.state.<key>.trusted_hash/enabled` through `config/batchWrite` only for an untrusted or disabled handler, then reads back. Items are only replaced in place or appended, so no other handler's position moves. An unchanged, trusted seat gets `hooks/list` only. |
+| applied.json (hooks) | `<harness>:hooks:<event>` per applied event (`grok:hooks` for the grok file) under the product. Ownership of existing items is decided by the rule above, not by this record. |

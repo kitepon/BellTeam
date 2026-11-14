@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -118,11 +118,11 @@ test('an invalid or missing E1 writes nothing for that product while the other p
   assert.deepEqual(Object.keys(applied), ['typesafe'])
 })
 
-test('a product that also has hooks is skipped and reported', async () => {
-  const f = await fixture({ products: { xarticle: e1('xarticle', { ...xarticle, claude: { type: 'http', url: 'http://new.invalid' } }, { hooks: { claude: { Stop: [] }, codex: {} } }) } })
+test('a product that also has permissions is skipped and reported', async () => {
+  const f = await fixture({ products: { xarticle: e1('xarticle', { ...xarticle, claude: { type: 'http', url: 'http://new.invalid' } }, { permissions: { cursor: { allow: ['Mcp(x:y)'] } } }) } })
   await f.apply()
   assert.deepEqual(writes(f.calls), [])
-  assert.match(f.reports[0], /xarticle.*hooks/u)
+  assert.match(f.reports[0], /xarticle.*permissions/u)
   assert.equal(JSON.parse(await readFile(join(f.home, '.claude.json'), 'utf8')).mcpServers.xarticle.url, xarticle.claude.url)
 })
 
@@ -196,4 +196,108 @@ rl.on('line', line => { const m = JSON.parse(line); if (m.id === undefined) retu
       assert.match(codexReports.join('\n'), expected)
     } finally { process.env.PATH = path }
   }
+})
+
+// bd14 second switch: RTK's hooks. RTK's E1 (Drilly, v1.1) as published, and the bytes the old configureRtk wrote (test/fixtures/rtk-switch.json, frozen from origin/main c685e719).
+const gate = harness => `node /srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook ${harness}`
+const rtkE1 = {
+  schema: 'bellteam.harness-entries.v1', product: 'rtk', version: 'rtk 1.2.0 via testgate current', mcpServers: {},
+  hooks: {
+    claude: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: gate('claude') }] }] },
+    codex: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: gate('codex') }] }] },
+    cursor: { preToolUse: [{ command: gate('cursor'), matcher: 'Shell' }] },
+    grok: { hooks: { PreToolUse: [{ matcher: '^run_terminal_command$', hooks: [{ type: 'command', command: gate('grok'), timeout: 5, env: { RTK_BIN: '/usr/local/bin/rtk' } }] }] } },
+  },
+  owns: { commandIncludes: ['/srv/bellteam/shared/tools/testgate/current/bin/testgate.mjs hook ', 'rtk hook ', 'integrations/rtk/grok-hook.mjs'] },
+}
+const OLD = JSON.parse(await readFile(new URL('./fixtures/rtk-switch.json', import.meta.url), 'utf8'))
+const HOOK_PATHS = ['.claude/settings.json', '.codex/hooks.json', '.cursor/hooks.json', '.grok/hooks/rtk.json']
+
+async function hookSeat(before = {}, e1 = rtkE1) {
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-hook-entries-'))
+  const home = join(dir, 'home')
+  for (const [file, text] of Object.entries(before)) {
+    await mkdir(join(home, file, '..'), { recursive: true })
+    await writeFile(join(home, file), text)
+  }
+  await writeFile(join(dir, 'rtk.json'), JSON.stringify(e1))
+  await writeFile(join(dir, 'registry.json'), JSON.stringify([{ product: 'rtk', file: join(dir, 'rtk.json') }]))
+  const requests = [], reports = []
+  const appServer = async (_env, use) => use(async (method, params) => {
+    requests.push([method, params])
+    const source = await realpath(join(home, '.codex/hooks.json'))
+    const hooks = []
+    for (const [event, groups] of Object.entries(JSON.parse(await readFile(source, 'utf8')).hooks ?? {}))
+      groups.forEach((group, gi) => group.hooks.forEach((hook, hi) => hooks.push({ key: `${source}:${event}:${gi}:${hi}`, command: hook.command, sourcePath: source, enabled: true, trustStatus: 'trusted', currentHash: 'h' })))
+    return { data: [{ hooks }] }
+  })
+  const apply = () => configureHarnessEntries(home, { registry: join(dir, 'registry.json'), run: async () => ({ stdout: '[]' }), appServer, report: message => reports.push(message) })
+  const read = async file => readFile(join(home, file), 'utf8').catch(() => null)
+  return { home, requests, reports, apply, read, bytes: () => Promise.all(HOOK_PATHS.map(read)) }
+}
+
+for (const name of ['seat', 'legacy', 'fresh']) {
+  test(`RTK hooks from E1 give the bytes the old configureRtk wrote (${name})`, async () => {
+    const f = await hookSeat(OLD[name].before)
+    await f.apply()
+    assert.deepEqual(f.reports, [])
+    assert.deepEqual(await f.bytes(), HOOK_PATHS.map(file => OLD[name].after[file]))
+  })
+}
+
+test('a seat already holding the old writer output is not written at all (same bytes, same inode, trust only read)', async () => {
+  const f = await hookSeat(OLD.legacy.after)
+  const inodes = async () => (await Promise.all(HOOK_PATHS.map(file => stat(join(f.home, file))))).map(info => info.ino)
+  const before = await inodes()
+  await f.apply()
+  await f.apply()
+  assert.deepEqual(await f.bytes(), HOOK_PATHS.map(file => OLD.legacy.after[file]))
+  assert.deepEqual(await inodes(), before)
+  assert.deepEqual([...new Set(f.requests.map(([method]) => method))], ['hooks/list'])
+  assert.deepEqual(f.reports, [])
+  const applied = JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))
+  assert.deepEqual(applied.rtk.entries, ['claude:hooks:PreToolUse', 'codex:hooks:PreToolUse', 'cursor:hooks:preToolUse', 'grok:hooks'])
+})
+
+test('a hook item the product owns is replaced in place; user hooks, group metadata and undeclared item fields stay', async () => {
+  const f = await hookSeat(OLD.legacy.before)
+  await f.apply()
+  const claude = JSON.parse(await f.read('.claude/settings.json'))
+  assert.deepEqual(claude.hooks.PreToolUse[1], { matcher: 'Bash', note: 'user group metadata', hooks: [{ type: 'command', command: gate('claude'), timeout: 9 }, { type: 'command', command: 'user-second' }] })
+  assert.equal(claude.hooks.PreToolUse.length, 3)
+  assert.deepEqual(JSON.parse(await f.read('.codex/hooks.json')).hooks.PreToolUse, [{ matcher: 'Bash', hooks: [{ type: 'command', command: gate('codex') }] }, { hooks: [{ type: 'command', command: 'later' }] }])
+})
+
+test('codex trust is re-issued for the changed handler through hooks/list and config/batchWrite', async () => {
+  const e1 = { ...rtkE1, hooks: { codex: rtkE1.hooks.codex } }
+  const f = await hookSeat({ '.codex/hooks.json': JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] }] } }) }, e1)
+  const source = await realpath(join(f.home, '.codex/hooks.json'))
+  const key = `${source}:PreToolUse:0:0`
+  let trusted = false
+  const requests = []
+  await configureHarnessEntries(f.home, { registry: join(f.home, '../registry.json'), run: async () => ({ stdout: '[]' }), report: message => f.reports.push(message), appServer: async (_env, use) => use(async (method, params) => {
+    requests.push([method, params])
+    if (method === 'config/batchWrite') { trusted = true; return {} }
+    return { data: [{ hooks: [{ key, command: gate('codex'), sourcePath: source, enabled: trusted, trustStatus: trusted ? 'trusted' : 'untrusted', currentHash: 'sha256:g' }] }] }
+  }) })
+  assert.deepEqual(f.reports, [])
+  assert.deepEqual(requests.map(([method]) => method), ['hooks/list', 'config/batchWrite', 'hooks/list'])
+  assert.deepEqual(requests[1][1].edits.map(edit => edit.keyPath), [`hooks.state.${JSON.stringify(key)}.trusted_hash`, `hooks.state.${JSON.stringify(key)}.enabled`])
+})
+
+test('two existing owned items for one E1 item report an error and leave the file untouched', async () => {
+  const text = JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook claude' }] }, { matcher: 'Bash', hooks: [{ type: 'command', command: gate('claude') }] }] } })
+  const f = await hookSeat({ '.claude/settings.json': text })
+  await f.apply()
+  assert.equal(await f.read('.claude/settings.json'), text)
+  assert.match(f.reports.join('\n'), /rtk.*claude.*2件/u)
+  // the other harnesses of the product still apply
+  assert.equal(await f.read('.cursor/hooks.json'), OLD.fresh.after['.cursor/hooks.json'])
+})
+
+test('an invalid hooks E1 keeps the seat hook files and is reported', async () => {
+  const f = await hookSeat(OLD.legacy.before, { ...rtkE1, hooks: { claude: { PreToolUse: 'x' } } })
+  await f.apply()
+  assert.deepEqual(await f.bytes(), HOOK_PATHS.map(file => OLD.legacy.before[file] ?? null))
+  assert.match(f.reports[0], /rtk.*claude.*PreToolUse/u)
 })

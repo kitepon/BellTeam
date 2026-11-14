@@ -23,7 +23,7 @@ test('五つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こ�
     productEntries: async () => {},
     aiterm: async () => registration,
     relay: async () => null,
-    run: async () => {}, rtk: async () => {}, cursorInstructions: async () => {},
+    run: async () => {}, cursorInstructions: async () => {},
     aitermHooks: async (_, options) => { hookRegistration = options.registration },
   })
   assert.deepEqual(hookRegistration, registration)
@@ -133,26 +133,24 @@ test('BellTeam設定の後に公式Throughline installを実行する', async ()
   const home = await mkdtemp(join(tmpdir(), 'bellteam-throughline-config-'))
   const calls = []
   await configureHarnesses(new Map(), home, {
-    productEntries: async () => {},
+    productEntries: async value => { calls.push(['products', value]) },
     run: async (command, args, options) => { calls.push([command, args, options.env.HOME]) },
-    rtk: async value => { calls.push(['rtk', value]) },
     aitermHooks: async value => { calls.push(['aiterm', value]) },
   })
-  assert.deepEqual(calls, [['throughline', ['install'], home], ['rtk', home], ['aiterm', home]])
+  assert.deepEqual(calls, [['throughline', ['install'], home], ['products', home], ['aiterm', home]])
   assert.match(await readFile(join(home, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
 })
 
-test('RTKのhookを登録できなくても設定の反映は止めず、理由を記録する', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'bellteam-rtk-failure-'))
+test('製品のMCP・hookを登録できなくても設定の反映は止めず、理由を記録する', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-products-failure-'))
   const reported = []
   await configureHarnesses(new Map(), home, {
-    productEntries: async () => {},
+    productEntries: async () => { throw new Error('E2 がありません') },
     run: async () => {},
-    rtk: async () => { throw new Error('RTK_CODEX_HOOK_NOT_TRUSTED') },
     aitermHooks: async () => {},
     report: message => reported.push(message),
   })
-  assert.deepEqual(reported, ['BellTeam RTK: hookを登録できませんでした（RTK_CODEX_HOOK_NOT_TRUSTED）'])
+  assert.deepEqual(reported, ['BellTeam products: 製品のMCP・hook登録を適用できませんでした（E2 がありません）'])
 })
 
 test('Codex設定更新はhookの信頼記録と他プロジェクトを保持する', async () => {
@@ -404,7 +402,6 @@ test('Cursorの起動時指示のhookを登録できなくても設定の反映�
   await configureHarnesses(new Map(), home, {
     productEntries: async () => {},
     run: async () => {},
-    rtk: async () => {},
     aitermHooks: async () => {},
     cursorInstructions: async () => { throw new Error('CURSOR_HOOK_CONFIG_INVALID') },
     report: message => reported.push(message),
@@ -418,7 +415,6 @@ test('Aitermの親配送hookを登録できなくても設定の反映は止め�
   await configureHarnesses(new Map(), home, {
     productEntries: async () => {},
     run: async () => {},
-    rtk: async () => {},
     aitermHooks: async () => { throw new Error('ERR_MODULE_NOT_FOUND') },
     report: message => reported.push(message),
   })
@@ -431,7 +427,6 @@ test('Codexの親配送hookが ready 以外で返った時は、設定の反映�
   const configure = codex => configureHarnesses(new Map(), home, {
     productEntries: async () => {},
     run: async () => {},
-    rtk: async () => {},
     aitermHooks: async () => ({ codex }),
     report: message => reported.push(message),
   })
