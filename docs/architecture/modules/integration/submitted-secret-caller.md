@@ -28,7 +28,18 @@ flowchart TD
 
 ## 登録credential所有主体での固定検証
 
-Rootが13:09:33の独立connection GET identityを今回の検証先として採用した。既登録configはUID1000/0600のまま使い、管理1001は直接読まない。固定owner検証scriptを既base seat runner→固定Node/固定argvで実行し、両元spec/Owner/connectionを実照合する。tokenは1000内メモリだけ、戻りは閉schema/authorizedの2key。任意script/URL/path/credential入力なし。Owner照合失敗/未知/stdout追加field/stderrは親grantを作らず、opaque grant生成前に拒否する。child実close後だけ親へ戻る。固定回答の専用照合後、live固定検証は両原本照合を終えauthorized=true。これは認可接点までで、秘密消費成功や本番導入成功を表さない。
+```mermaid
+flowchart LR
+ Bridge[submitted-secret-approval-bridge.mjs / 管理側] -->|base seat runner・固定argv| Verify[scripts/verify-submitted-secret-approval.mjs / UID1000]
+ Verify -->|"approval-box connection export --json"| Export[Approval Box公開CLI /home/bell/.approval-box/bin/approval-box（bd01・製品所有）]
+ Export -->|"{schema:approval-box.connection.v1,server,token} stdout"| Verify
+ Verify -->|Bearer・connectionId/userId| Auth[既createSubmittedSecretApprovalAuthorization → Approval Box remote]
+ Verify -->|"{schema,authorized} 2key"| Bridge
+```
+
+製品側の正本は[connection-export.md](https://github.com/kitepon/approval-box/blob/df99efdabe34f2b8fb6e87790cf12be1178fac93/docs/architecture/connection-export.md)（approval-box@0.1.35）。
+
+Rootが13:09:33の独立connection GET identityを今回の検証先として採用した。既登録connectionはApproval Box所有の公開CLI `/home/bell/.approval-box/bin/approval-box connection export --json`（bd01、閉schema `approval-box.connection.v1` の{schema,server,token}だけ、非0終了=拒否）からUID1000内で受け取り、私有config/内部moduleは読まない。所有者/0600/nlink/size/symlink/競合の検査は製品側、server/connectionId/userId/remote認可の検査はこのscript側。stdoutはbufferで受け、解析後0埋めする。管理1001は直接読まない。固定owner検証scriptを既base seat runner→固定Node/固定argvで実行し、両元spec/Owner/connectionを実照合する。tokenは1000内メモリだけ、戻りは閉schema/authorizedの2key。任意script/URL/path/credential入力なし。Owner照合失敗/未知/stdout追加field/stderrは親grantを作らず、opaque grant生成前に拒否する。child実close後だけ親へ戻る。固定回答の専用照合後、live固定検証は両原本照合を終えauthorized=true。これは認可接点までで、秘密消費成功や本番導入成功を表さない。
 
 ## 固定開始回答の添え書き
 
