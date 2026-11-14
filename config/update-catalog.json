@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-13T21:07:43Z",
-  "expiresAt": "2026-11-20T21:07:43Z",
+  "publishedAt": "2026-11-14T00:04:00Z",
+  "expiresAt": "2026-11-21T00:04:00Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "72970ba876eba8984eba09a64d3510b9472ae065",
-      "versionId": "sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872",
+      "sourceCommit": "64485614a0a7a2b357a8dce7358a3c3cd59f607d",
+      "versionId": "sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,21 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravity のメンバーがバックグラウンドで作業しているとき、理由を「バックグラウンドの作業」と正しく表示します。",
-        "Antigravity にログインした直後の最初の起動が止められなくなります。"
+        "予定を登録しているだけでは、メンバーを稼働中と表示しなくなります。CLI の中で動かしている裏の作業は、これまでどおり稼働中に数えます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "72970ba876eba8984eba09a64d3510b9472ae065",
-      "versionId": "sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872",
+      "sourceCommit": "64485614a0a7a2b357a8dce7358a3c3cd59f607d",
+      "versionId": "sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:48f357e970d06240f20e1a70ac8de9cfc9d9e126dc860ce6a0ab7671371b1872"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:97aa8ccb0937faee7eb4aa3f12576d3045b90e386fcd99095c6fab6e08c1882e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,8 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravity のメンバーがバックグラウンドで作業しているとき、理由を「バックグラウンドの作業」と正しく表示します。",
-        "Antigravity にログインした直後の最初の起動が止められなくなります。"
+        "予定を登録しているだけでは、メンバーを稼働中と表示しなくなります。CLI の中で動かしている裏の作業は、これまでどおり稼働中に数えます。"
       ]
     },
     {
