@@ -130,6 +130,7 @@ export function createLatticeChart(dialog, {
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
   let stops = null, pendingDetail = null // 止め一覧の画面、止め一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
+  let opens = 0 // 開いた回数。閉じて開き直す前の一覧の答えを捨てる。
   let waitsOpen = false // 広い画面の待ちの流れ。畳んだ取っ手から始め、ページが生きている間だけ覚える（Owner 2026-11-14）。
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
   const lookup = () => memberLookup(snapshot)
@@ -225,9 +226,7 @@ export function createLatticeChart(dialog, {
     }
     if (!isOpen || token !== listToken || !listWanted()) return
     listAttempt = 0; status = 'live'; listNote = null; list = data
-    const resume = view === 'loading' && data.charts?.find(chart => chart.projectId === resumeId)
-    resumeId = null
-    if (view === 'loading' && (resume || data.charts?.length === 1)) { paintPills(); return openChart((resume || data.charts[0]).projectId) }
+    if (view === 'loading' && data.charts?.length === 1) { paintPills(); return openChart(data.charts[0].projectId) }
     view = 'list'; paintList(); paintPills()
     listTimer = later(loadList, LIST_POLL_MS)
   }
@@ -623,12 +622,17 @@ export function createLatticeChart(dialog, {
   return {
     open(projectId = null) {
       if (isOpen) return
-      if (projectId) resumeId = projectId // a member's chart button: the first list read opens it, like the resume after 会話を開く
-      isOpen = true; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
+      isOpen = true; opens++; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
       document.addEventListener('visibilitychange', visibility)
       if (!dialog.open) dialog.showModal()
-      void loadList()
+      // A known chart (a member's chart button, the resume after 会話を開く) opens at once; the list read takes seconds on a big server (a90).
+      const target = projectId ?? resumeId
+      resumeId = null
+      if (!target) return void loadList()
+      openChart(target)
+      const opened = opens
+      void api('/api/lattice/charts').then(data => { if (!isOpen || opened !== opens || list) return; list = data; if (view === 'chart' && snapshot) paintChart({ ...diffSnapshots(snapshot, snapshot), first: true }) }).catch(() => {})
     },
     close() {
       if (!isOpen) return
