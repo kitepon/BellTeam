@@ -46,6 +46,8 @@ public sealed record LatticeMember(string BotId, string Name, string? Color, str
 public sealed record LatticeCard
 {
     public required string Id { get; init; }
+    public string? Plan { get; init; }
+    public string? TaskId { get; init; }
     public string? Title { get; init; }
     public string? DoneCondition { get; init; }
     public string? DesignMemo { get; init; }
@@ -71,6 +73,8 @@ public sealed record LatticeEdge(string From, string To, bool Waiting, bool Exte
 public sealed record LatticeExternal(string Id, string ProjectId, string CardId, string? ChartName, string? Title, string? State, bool Finished, string? Producer);
 /// <summary>Where a 工程へ移動 / 前の工程 on another chart opens: that chart at that card.</summary>
 public sealed record LatticeCardRef(string ProjectId, string CardId);
+/// <summary>The Approval Box extension's decision for an Owner-lane card (GET /api/approvals/by-task, screen-spec 詳細); Status is a key of LatticeChart.DecisionStates.</summary>
+public sealed record LatticeDecision(string DecisionId, string Status, string Title);
 public sealed record LatticeWait(string? Waiter, string WaitingCard, string ForCard, string? Producer, string? ProducerState, DateTimeOffset? Since);
 
 /// <summary>A member as drawn: the roster entry, or 名簿にないメンバー (Known false, drawn as 「?」 and never opened as a chat).
@@ -109,6 +113,13 @@ public static class LatticeChart
         NewChart = "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。", OldServer = "このサーバーではまだ工程表を使えません。", OldServerNext = "サーバーが更新されると使えるようになります。",
         NotFound = "この工程表は見つかりません。", Unavailable = "この工程表はまだ読めません。", UnavailableNext = "記録が整うと自動で表示します。", NoCards = "この工程表にはまだ工程がありません。",
         LoginRequired = "ログインが必要です。ログインし直すと、自動で表示します。";
+    public static readonly IReadOnlyDictionary<string, string> DecisionStates = new Dictionary<string, string> { ["pending"] = "待ち", ["held"] = "保留", ["answered"] = "回答済み", ["cancelled"] = "取り下げ" };
+    /// <summary>web decisionOf: a non-empty decisionId, a title and a known status, else null (no 決裁 block).</summary>
+    public static LatticeDecision? DecisionOf(JsonElement value)
+        => value.ValueKind == JsonValueKind.Object && value.TryGetProperty("decisionId", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } decisionId
+            && value.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String
+            && value.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String && DecisionStates.ContainsKey(status.GetString()!)
+            ? new LatticeDecision(decisionId, status.GetString()!, title.GetString()!) : null;
 
     public static LatticeStateInfo StateInfo(string? state) => state switch
     {
@@ -453,6 +464,12 @@ public sealed class LatticeChartFeed
 
 public static class LatticeApi
 {
+    /// <summary>The Approval Box extension's decision for a card. Anything but a well-formed 200 (404 before the extension ships, 401, 503, network, bad JSON) is null: no block, no message, no retry.</summary>
+    public static async Task<LatticeDecision?> DecisionAsync(this BellApi api, string projectId, string plan, string taskId, CancellationToken token = default)
+    {
+        try { return LatticeChart.DecisionOf(await api.GetAsync<JsonElement>($"/api/approvals/by-task?project={Uri.EscapeDataString(projectId)}&plan={Uri.EscapeDataString(plan)}&task={Uri.EscapeDataString(taskId)}", token)); }
+        catch (Exception) { return null; }
+    }
     public static Task<LatticeChartList> ChartsAsync(this BellApi api, CancellationToken token = default) => api.GetAsync<LatticeChartList>("/api/lattice/charts", token);
     public static async IAsyncEnumerable<LatticeSnapshot> LatticeEventsAsync(this BellApi api, string projectId, Action onActivity, [EnumeratorCancellation] CancellationToken token = default)
     {
