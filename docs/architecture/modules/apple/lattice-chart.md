@@ -39,7 +39,7 @@ flowchart LR
   Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは接続を既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数（作業中・接続・ブロック）・接続（横に送る札）・工程（見出し「工程」の右にツリー/担当/過去ログ N。各札は自分の文字の幅で、同じ行に入らなければ見出しの下の行へ。Nの桁が増えても切らない。Owner 2026-11-14）（ツリー＝a98：LatticeIconMap＝LatticeStructureの位置に担当の小さな顔（レールの顔と同じ描き方）、作業中は顔の下に題、辺は札の文字なし。顔を押すとその札（広い面と同じLatticeCardView）を顔の上に出し、札を押すと詳細 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
   Wide -->|"札を押す"| Detail["LatticeDetailPanel<br/>Mac・iPad：盤の上の不透明な面（幅350。札からmatchedGeometryEffectで育つ。中身は全部その面の中：文は折り返し、次の工程の札（LatticeFlowLayout）は行より広ければ行の幅に縮めて題を…で切る。a110）<br/>iPhone：sheet（160pt・中・大、背後も操作可）"]
   Compact -->|"札を押す"| Detail
-  Detail -->|"前の工程・次の工程"| Detail
+  Detail -->|"前の工程・次の工程（取り下げた後続は次の工程に出さない。a185）"| Detail
   Detail -->|"担当が指揮官（producer owner）の札を開いた時に1回（.task(id: 札のid)。snapshotごとではない）"| Decision["LatticeChartModel.decision(for:api:)<br/>GET /api/approvals/by-task?project&plan&task（決裁箱拡張、Delta）<br/>200で形が正しい → 終了条件の下に「決裁」：題（状態＝待ち/保留/回答済み/取り下げ）。idは出さない<br/>404・401・503・切断・形違い → 何も出さない（知らせも再試行もない）<br/>決裁を開く（approvals/<decisionId>）は、アプリに決裁箱の画面が入るまで出さない"]
   Wide -->|"会話を開く"| Chat["LatticeChatOpener → AppStore.openConversation<br/>相関図の顔のタップと同じ経路"]
   Compact -->|"会話を開く"| Chat

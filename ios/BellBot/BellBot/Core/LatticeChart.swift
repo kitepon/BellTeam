@@ -623,7 +623,8 @@ struct LatticeDetail: Equatable {
         producer = lookup(card.owner)
         stateText = LatticeText.producerState(card, producer: producer, now: now)
         previous = snapshot.edgeList.filter { $0.to == cardId }.compactMap { link($0.from) }
-        next = snapshot.edgeList.filter { $0.from == cardId }.compactMap { link($0.to) }
+        // A retired successor is not a live next step (Owner 2026-11-16, a185; Web does the same); 前の工程 keeps every card.
+        next = snapshot.edgeList.filter { $0.from == cardId }.compactMap { link($0.to) }.filter { $0.status != .retired }
         let started = LatticeTime.jstText(card.startedAt)
         startedText = started.isEmpty ? "まだ着手されていません" : "着手 \(started) JST"
     }
