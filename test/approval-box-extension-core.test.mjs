@@ -67,20 +67,20 @@ test('L9: an external decision causes no chart action and no row', () => {
   assert.deepEqual(plan, { actions: [], row: null })
 })
 
-test('L1: a BellTeam decision links first, ensures the plan, then adds one owner-lane task', () => {
+test('L1: a BellTeam decision links first, ensures the plan, then adds one approval-box-lane task', () => {
   const plan = planLink({ d: view(), row: null, chart: chart() })
   assert.deepEqual(kinds(plan), ['link', 'ensurePlan', 'todo add'])
   assert.equal(plan.actions[0].taskId, 'dec-k-1')
   const add = plan.actions[2].args
-  assert.equal(add[add.indexOf('--lane') + 1], 'owner'); assert.ok(!add.includes('--after'))
+  assert.equal(add[add.indexOf('--lane') + 1], 'approval-box'); assert.ok(!add.includes('--after'))
   assert.equal(plan.row.state, 'linked')
-  assert.deepEqual(planLink({ d: view(), row: plan.row, chart: chart([{ id: 'approval-box/dec-k-1', plan: 'approval-box', taskId: 'dec-k-1', state: 'ready', lane: 'owner' }]) }).actions, []) // replay is quiet
+  assert.deepEqual(planLink({ d: view(), row: plan.row, chart: chart([{ id: 'approval-box/dec-k-1', plan: 'approval-box', taskId: 'dec-k-1', state: 'ready', lane: 'approval-box' }]) }).actions, []) // replay is quiet
 })
 
 test('L2: answered -> start then done; an in-progress card only gets done; a done card gets nothing', () => {
   const row = { decisionId: 'K-1', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-1', state: 'linked', attached: false, sessionLabel: 's', handledVersion: 1 }
   const answered = view({ status: 'answered', version: 2, answer: { option_id: 'o1', answered_at: '2026-11-15T01:30:00Z' } })
-  const card = state => chart([{ id: 'approval-box/dec-k-1', plan: 'approval-box', taskId: 'dec-k-1', state, lane: 'owner' }])
+  const card = state => chart([{ id: 'approval-box/dec-k-1', plan: 'approval-box', taskId: 'dec-k-1', state, lane: 'approval-box' }])
   const ready = planLink({ d: answered, row, chart: card('ready') })
   assert.deepEqual(kinds(ready), ['todo start', 'todo done']); assert.equal(ready.row.state, 'answered')
   assert.match(ready.actions[1].args.at(-1), /同じにする.*11月15日 10:30/u)
@@ -90,7 +90,7 @@ test('L2: answered -> start then done; an in-progress card only gets done; a don
 
 test('L3/L4/L6: cancel retires, amend notes, a card closed by hand is only marked diverged', () => {
   const row = { decisionId: 'K-1', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-1', state: 'linked', attached: false, sessionLabel: 's', handledVersion: 1 }
-  const card = state => chart([{ id: 'approval-box/dec-k-1', plan: 'approval-box', taskId: 'dec-k-1', state, lane: 'owner' }])
+  const card = state => chart([{ id: 'approval-box/dec-k-1', plan: 'approval-box', taskId: 'dec-k-1', state, lane: 'approval-box' }])
   assert.deepEqual(kinds(planLink({ d: view({ status: 'cancelled', cancel_reason: '統合した' }), row, chart: card('ready') })), ['todo retire'])
   const amended = view({ version: 2, history: [{ at: 'b', kind: 'amended', by: 'ai', fields: ['options'] }] })
   const noted = planLink({ d: amended, row, chart: card('ready') })
@@ -101,7 +101,7 @@ test('L3/L4/L6: cancel retires, amend notes, a card closed by hand is only marke
 
 test('L7: a new decision of the same session is inserted after the answered one and before its unfinished successors', () => {
   const answeredRow = { decisionId: 'K-0', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-0', state: 'answered', attached: false, sessionLabel: 'ブレッディ / billing', handledVersion: 2 }
-  const c = chart([{ id: 'approval-box/dec-k-0', plan: 'approval-box', taskId: 'dec-k-0', state: 'done', lane: 'owner' }, { id: 'p/impl', plan: 'p', taskId: 'impl', state: 'pending', lane: 'bot-823b56e9' }],
+  const c = chart([{ id: 'approval-box/dec-k-0', plan: 'approval-box', taskId: 'dec-k-0', state: 'done', lane: 'approval-box' }, { id: 'p/impl', plan: 'p', taskId: 'impl', state: 'pending', lane: 'bot-823b56e9' }],
     [{ from: 'approval-box/dec-k-0', to: 'p/impl' }])
   const plan = planLink({ d: view(), row: null, rows: [answeredRow], chart: c })
   const add = plan.actions.find(a => a.args?.[1] === 'add').args
@@ -109,12 +109,13 @@ test('L7: a new decision of the same session is inserted after the answered one 
   assert.deepEqual(plan.actions.filter(a => a.args?.[1] === 'predecessor').map(a => a.args[2]), ['add', 'remove'])
 })
 
-test('L8/L10: a decision naming a chart task attaches to it (never creates), kind does not matter; a missing or non-owner card waits', () => {
+test('L8/L10: a decision naming a chart task attaches to it (never creates), kind does not matter; a missing card, or one outside lane approval-box (owner included), waits', () => {
   const src = { client: 'claude-code', session_label: 'ブレッディ / Lattice bellteam a1/t07', requester: 'ブレッディ' }
   const card = lane => chart([{ id: 'a1/t07', plan: 'a1', taskId: 't07', state: 'ready', lane }])
-  const plan = planLink({ d: view({}, src), row: null, chart: card('owner') })
+  const plan = planLink({ d: view({}, src), row: null, chart: card('approval-box') })
   assert.deepEqual(kinds(plan), ['link']); assert.equal(plan.row.attached, true)
   assert.deepEqual(planLink({ d: view({}, src), row: null, chart: card('bot-1') }).actions, [])
+  assert.deepEqual(planLink({ d: view({}, src), row: null, chart: card('owner') }).actions, [])
   assert.deepEqual(attachTarget('Lattice bellteam a1/t07'), { projectId: 'bellteam', plan: 'a1', taskId: 't07' })
 })
 

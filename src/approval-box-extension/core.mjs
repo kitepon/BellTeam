@@ -6,7 +6,7 @@ import { createApprovalBoxClient } from './client.mjs'
 import { toViewDecision, summarize } from './origin-view.mjs'
 import { entitlementFrom, cacheMillis } from './entitlement.mjs'
 import { nextConnect } from './connect-state.mjs'
-import { planLink, targetChart, DECISION_PLAN } from './link-plan.mjs'
+import { planLink, targetChart, DECISION_PLAN, DECISION_LANE } from './link-plan.mjs'
 import { approvalsError } from '../approval-box-extension-protocol.mjs'
 
 export const STATE_DIR = '/srv/bellteam/state/approval-box-extension'
@@ -179,7 +179,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         // The first decision task rides in `plan create` itself (a plan may not be empty); the planner's `todo add` for it is then skipped.
         const add = plan.actions[++i].args, at = name => add[add.indexOf(name) + 1]
         await owner(action.projectId, ['plan', 'create', '--json'], { schema: 'lattice.plan_create_input.v5', plan_key: DECISION_PLAN, phases: [{ phase_id: 'decisions', title: '決裁箱の決裁' }],
-          tasks: [{ task_id: at('--task'), title: at('--title'), phase_id: 'decisions', design_memo: at('--design-memo'), lane: 'owner' }], hard_dependencies: [] })
+          tasks: [{ task_id: at('--task'), title: at('--title'), phase_id: 'decisions', design_memo: at('--design-memo'), lane: DECISION_LANE }], hard_dependencies: [] })
       } else await owner(action.projectId, action.args)
     }
   }

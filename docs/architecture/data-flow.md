@@ -92,7 +92,7 @@ flowchart LR
   RT -->|"X7 MCP and hook entries"| B3
   INT -->|"X8 decisions, connection"| B4
   EXE -->|"X8 running-exclusion decisions"| B4
-  LAT -->|"X8 Owner-lane decisions"| B4
+  LAT -->|"X8 approval-box-lane decisions"| B4
   AB -->|"X9 sendmessage wake, resume_decision guidance"| INT
   AB -->|"X10 answers delivered to the seat"| A5
   CONV -->|"X11 observer-read, observer-check, room-context, handoff-context"| T1

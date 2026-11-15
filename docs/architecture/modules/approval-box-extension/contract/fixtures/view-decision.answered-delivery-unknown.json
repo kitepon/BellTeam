@@ -72,7 +72,7 @@
     "task": {
       "title": "Macの窓",
       "state": "done",
-      "lane": "owner",
+      "lane": "approval-box",
       "cardId": "approval-box/dec-k-demo1"
     },
     "previous": [],
