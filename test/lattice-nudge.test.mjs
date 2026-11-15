@@ -14,14 +14,14 @@ const members = ['bot-a', 'bot-b', 'bot-c', 'bot-del'].map(id => ({ id, name: id
 const card = (taskId, state, lane) => ({ plan: 'p1', taskId, title: taskId.toUpperCase(), state, lane })
 
 function rig({ charts, turns = {}, deliveries = {}, turnsFail = false }) {
-  const sent = [], logs = [], reads = []
+  const sent = [], logs = [], reads = [], warned = new Map()
   const effect = async (method, params) => {
     if (method === 'turns.read') { reads.push(params.botIds); if (turnsFail) throw new Error('down'); return { turns } }
     assert.equal(method, 'messages.send')
     sent.push(params)
     return { delivery: deliveries[params.target] ?? 'running', deliveryId: 'd' }
   }
-  return { sent, logs, reads, go: () => nudgeSweep(charts, { laneOf: laneResolver(members), log: line => logs.push(line), effect }) }
+  return { sent, logs, reads, charts, go: () => nudgeSweep(charts, { laneOf: laneResolver(members), log: line => logs.push(line), effect, warned }) }
 }
 
 test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is not working; no todo nudge, no other condition', async () => {
@@ -142,4 +142,26 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   await core.nudge({}, effect)
   assert.deepEqual(sent.map(item => item.target), ['bot-b'], 'prompted once the other chart\'s task is done')
   assert.match(sent[0].message, /beta[\s\S]*p1\/t1 「p1 one」: can start/u)
+})
+
+test('nudge b25: the creator warning about one task is sent once; again only when the task changes; own tasks still repeat', async () => {
+  const x = rig({ charts: [{ projectId: 'alpha', createdBy: 'bot-b', cards: [card('t1', 'ready', 'mac-bench'), card('t2', 'ready', 'bot-a')] }], deliveries: { 'bot-b': 'running' } })
+  await x.go()
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a'])
+  await x.go(); await x.go()
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a', 'bot-a', 'bot-a'], 'the creator is not warned again; the lane Bot is nudged every sweep (Owner design)')
+  x.charts[0].cards[0] = card('t1', 'in-progress', 'mac-bench')
+  await x.go()
+  assert.equal(x.sent.at(-2).target, 'bot-b', 'a changed task (state) warns the creator again')
+  x.charts[0].cards[0] = card('t1', 'ready', 'bot-c')
+  await x.go()
+  x.charts[0].cards[0] = card('t1', 'in-progress', 'mac-bench')
+  await x.go()
+  assert.equal(x.sent.filter(item => item.target === 'bot-b').length, 3, 'a task that left the warning and came back is warned again')
+})
+
+test('nudge b25: a warning that was not accepted is sent again at the next sweep', async () => {
+  const x = rig({ charts: [{ projectId: 'alpha', createdBy: 'bot-b', cards: [card('t1', 'ready', 'mac-bench')] }], deliveries: { 'bot-b': 'refused' } })
+  await x.go(); await x.go()
+  assert.equal(x.sent.length, 2)
 })
