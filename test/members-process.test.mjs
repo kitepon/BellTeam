@@ -8,6 +8,7 @@ import { createMembersProcess } from '../src/members-process.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 
 const a = 'a'.repeat(64), bad = 'b'.repeat(64), hang = 'c'.repeat(64)
 async function setup(t, { mode = '', prepare = async () => {}, membersAdmission, exchangeMutex } = {}) {
@@ -67,7 +68,7 @@ test('shared exchange mutex rejects members before prepare and releases when clo
 test('controller routes a method pin through actual IPC while all AI lease slots are occupied', async t => {
   const gate = new MembersAdmission(), x = await setup(t, { membersAdmission: gate })
   await x.controller.start()
-  const leases = Array.from({ length: 8 }, () => gate.enter()), pin = gate.enterReadPin('owner.read')
+  const leases = Array.from({ length: MODULE_CONCURRENCY }, () => gate.enter()), pin = gate.enterReadPin('owner.read')
   await assert.rejects(x.controller.request('owner.read', {}), { code: 'MEMBERS_NOT_ACCEPTED' })
   assert.equal((await x.controller.request('owner.read', {}, { membersReadPin: pin })).owner.name, 'fixture')
   gate.finishReadPin(pin); leases.forEach(lease => gate.finish(lease))
@@ -156,8 +157,12 @@ test('45-second replacement ready failure is reaped before restoring the old cod
 test('only a quiesced old child can be killed at the five-second exit deadline', async t => {
   const x = await setup(t, { mode: 'hang-exit' }); await x.controller.start()
   t.mock.timers.enable({ apis: ['setTimeout'] })
-  const entered = new Promise(resolve => x.children[0].on('message', message => {
-    if (message.type === 'accepted' && message.kind === 'control' && message.id === 4) resolve()
+  // Match the exit call by method, not by a fixed control id that shifts when the exchange adds calls.
+  const child = x.children[0], send = child.send.bind(child)
+  let exitId
+  child.send = (message, ...rest) => { if (message.kind === 'control' && message.method === 'exit') exitId = message.id; return send(message, ...rest) }
+  const entered = new Promise(resolve => child.on('message', message => {
+    if (message.type === 'accepted' && message.kind === 'control' && message.id === exitId) resolve()
   }))
   const updating = x.controller.replace(a)
   await entered; t.mock.timers.tick(5001); await updating
