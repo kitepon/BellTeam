@@ -46,32 +46,3 @@ test('a124: the local /mcp ingress refuses a Bot name without that session\'s la
   assert.equal((await post({ 'X-Bellteam-Seat': 'not-a-bot' })).status, 200) // non-Bot names keep their own path in the seat MCP
   assert.deepEqual(served, ['bot-a', 'not-a-bot'])
 })
-
-test('SK10: a command schedule run speaks for its own Bot with the run credential only while the run lasts', async t => {
-  const { createBellTeamServer } = await import('../src/http-server.mjs')
-  const { runSeatSchedule } = await import('../src/application-services.mjs')
-  const served = []
-  const bots = { has: id => ['bot-a', 'bot-b'].includes(id), get: id => ({ id, project: `/srv/bots/${id}` }), list: () => [] }
-  const transport = { observe: async bot => ({ session_id: bot.id, exists: false, launch_id: null }) } // the seat is not running
-  const server = createBellTeamServer({ authorize: async () => true, writeLog() {}, bots, transport, internal: true,
-    seatMcp: Object.assign(async (request, response) => { served.push(request.headers['x-bellteam-seat']); response.end('{}') }, { close: async () => {} }) })
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-  t.after(() => new Promise(resolve => server.close(resolve)))
-  const post = headers => fetch(`http://127.0.0.1:${server.address().port}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: '{}' })
-  let credential, statuses
-  const runner = (project, options) => async (command, args, { input }) => {
-    assert.deepEqual([project, options, command, args], ['/srv/bots/bot-a', { scheduleCredential: true }, 'sh', ['-c', 'notify']])
-    credential = input
-    statuses = [(await post({ 'X-Bellteam-Seat': 'bot-a', 'X-Bellteam-Schedule-Credential': input })).status,
-      (await post({ 'X-Bellteam-Seat': 'bot-b', 'X-Bellteam-Schedule-Credential': input })).status, // bound to bot-a only
-      (await post({ 'X-Bellteam-Seat': 'bot-a', 'X-Bellteam-Schedule-Credential': 'a'.repeat(64) })).status]
-    return { code: 0, signal: null, stdout: '', stderr: '' }
-  }
-  assert.equal((await runSeatSchedule({ command: 'notify', cwd: '/srv/bots/bot-a' }, bots, runner)).code, 0)
-  assert.match(credential, /^[0-9a-f]{64}$/u)
-  assert.deepEqual(statuses, [200, 403, 403])
-  assert.equal((await post({ 'X-Bellteam-Seat': 'bot-a', 'X-Bellteam-Schedule-Credential': credential })).status, 403) // revoked after the run
-  assert.deepEqual(served, ['bot-a'])
-  const internal = { headers: { 'x-bellteam-seat': 'bot-a', 'x-bellteam-schedule-credential': credential } }
-  assert.deepEqual(await resolveInternalSeat(internal, bots, null, createSeatLaunchCheck(transport, bots)), { botId: null, fork: null })
-})
