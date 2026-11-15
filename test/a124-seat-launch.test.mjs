@@ -10,7 +10,13 @@ test('a124: a seat name speaks on the internal listener only with that session\'
   const seat = (headers) => resolveInternalSeat({ headers }, bots, null, check)
   assert.deepEqual(await seat({ 'x-bellteam-seat': 'bot-a', 'x-bellteam-launch-id': launch }), { botId: 'bot-a', fork: null })
   assert.deepEqual(await seat({ 'x-bellteam-seat': 'bot-a', 'x-bellteam-launch-id': launch }), { botId: 'bot-a', fork: null })
-  assert.equal(calls.length, 1) // a confirmed pair is cached
+  assert.equal(calls.length, 2) // every check asks Aiterm; nothing is cached
+  // After a stop or a relaunch the old launch id is refused at once (Epinel's #1498 return).
+  transport.observe = async bot => ({ session_id: bot.id, exists: true, launch_id: 'd'.repeat(32) })
+  assert.deepEqual(await seat({ 'x-bellteam-seat': 'bot-a', 'x-bellteam-launch-id': launch }), { botId: null, fork: null })
+  transport.observe = async bot => ({ session_id: bot.id, exists: false, launch_id: null })
+  assert.deepEqual(await seat({ 'x-bellteam-seat': 'bot-a', 'x-bellteam-launch-id': launch }), { botId: null, fork: null })
+  transport.observe = async bot => { calls.push(bot.id); return { session_id: bot.id, exists: true, launch_id: launch } }
   // Forged: the name alone, a wrong launch id, or a session Aiterm says is not running.
   assert.deepEqual(await seat({ 'x-bellteam-seat': 'bot-a' }), { botId: null, fork: null })
   assert.deepEqual(await seat({ 'x-bellteam-seat': 'bot-a', 'x-bellteam-launch-id': 'c'.repeat(32) }), { botId: null, fork: null })

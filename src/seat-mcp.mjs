@@ -76,20 +76,16 @@ export async function resolveInternalSeat(request, bots, forkSeat, checkLaunch =
 }
 
 // a124: the internal listener's check that the X-Bellteam-Seat name is backed by the launch id Aiterm reports for that session
-// (pty_observe through execution's public observe; it never wakes a seat). Verified pairs are cached until a newer launch appears.
+// (pty_observe through execution's public observe; it never wakes a seat). Every check asks Aiterm: a cached pair would outlive a stop or a relaunch.
 // Limit: every local seat runs as UID 1000 with container sudo, so a seat that reads another seat's AITERM_AGENT_LAUNCH_ID
 // (/proc/<pid>/environ or sudo) can still claim it. This stops plain or injected header forgery only; remote seats keep their Bearer binding.
 export function createSeatLaunchCheck(transport, bots) {
-  const verified = new Map()
   return async (botId, name, launch) => {
     if (typeof launch !== 'string' || !/^[0-9a-f]{32}$/u.test(launch)) return false
-    if (verified.get(name) === launch) return true
     let observed
     try { observed = await transport.observe(bots.get?.(botId) ?? { id: botId }) }
     catch { throw Object.assign(new Error('EXECUTION_UNAVAILABLE'), { code: 'EXECUTION_UNAVAILABLE', status: 503 }) }
-    const valid = observed?.session_id === name && observed.exists === true && observed.launch_id === launch
-    if (valid) verified.set(name, launch)
-    return valid
+    return observed?.session_id === name && observed.exists === true && observed.launch_id === launch
   }
 }
 
