@@ -37,7 +37,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   const adoptionPath = join(root, 'state/members-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, builtinSourceCommit = null
   let available = false, exchanging = false, phase = 'unavailable', initialized = false, closed = false
-  let operation = null, closing = null, update = null, draining = null, cancellation = null
+  let operation = null, closing = null, update = null, cancellation = null
   const recovery = createModuleChildRestart(async () => {
     await operation?.catch(() => {})
     if (closed || available) return
@@ -154,13 +154,8 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   }
   const drain = async (target, ticket) => {
     const started = Date.now()
-    const completing = membersAdmission.drain(ticket)
-    draining = completing
-    void completing.finally(() => { if (draining === completing) draining = null }).catch(() => {})
-    await within(completing, 60000, 'MEMBERS_DRAIN_TIMEOUT')
+    await within(membersAdmission.drain(ticket), 60000, 'MEMBERS_DRAIN_TIMEOUT')
     const attempt = target.channel.control('quiesce', {}, Math.max(1, 60000 - (Date.now() - started)))
-    draining = attempt.completion
-    void attempt.completion.finally(() => { if (draining === attempt.completion) draining = null }).catch(() => {})
     if ((await attempt).quiesced !== true) throw fail('MEMBERS_QUIESCE_FAILED')
   }
   const finishExit = async target => {
@@ -228,7 +223,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   }
   const replace = (requested, { expectedRelease } = {}) => {
     if (requested !== 'builtin' && !versionValid(requested)) return Promise.reject(fail('MEMBERS_VERSION_INVALID', 400))
-    if (closed || !initialized || !instance || !available || draining) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
+    if (closed || !initialized || !instance || !available) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
     const versionId = requested === 'builtin' ? null : requested
     const expected = expectedRelease ? structuredClone(expectedRelease) : undefined
     const perform = async signal => {
@@ -279,7 +274,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   }
   const reserve = (versionId, { expectedRelease } = {}) => {
     if (versionId !== 'builtin' && !versionValid(versionId)) throw fail('MEMBERS_VERSION_INVALID', 400)
-    if (!available || closed || draining) throw fail('MEMBERS_NOT_ACCEPTING')
+    if (!available || closed) throw fail('MEMBERS_NOT_ACCEPTING')
     if (operation || update && ['accepted', 'running'].includes(update.status)) throw fail('MEMBERS_UPDATE_IN_PROGRESS', 409)
     const next = { versionId, status: 'accepted' }; update = next
     const options = expectedRelease ? { expectedRelease: structuredClone(expectedRelease) } : undefined
