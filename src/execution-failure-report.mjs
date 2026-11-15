@@ -36,6 +36,12 @@ export function executionFailureReport(botId, phase, error, context = {}) {
     detail.failure = diagnosticFailureDetails(error)
     // Any internal code token names the cause (wait-contract.md); free messages stay out.
     const token = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value)
+    // b5159a79: a code bug (not an input or a peer answer) names only the top src/<file>.mjs:line:col; no message or stack text.
+    if (['TypeError', 'ReferenceError', 'RangeError'].includes(detail.failure.error_type)) {
+      const site = /\((?:file:\/\/)?[^()\n]*?\/(src\/[A-Za-z0-9_.-]+\.mjs:\d{1,6}:\d{1,6})\)|at (?:file:\/\/)?[^()\s]*?\/(src\/[A-Za-z0-9_.-]+\.mjs:\d{1,6}:\d{1,6})$/mu
+        .exec(String(error?.stack ?? '').split('\n').slice(1).join('\n'))
+      if (site) detail.failure.site = site[1] ?? site[2]
+    }
     if (configurationCodes.has(error?.code) || token(error?.code)) detail.failure.error_code = error.code
     if (configurationCodes.has(error?.cause?.code) || token(error?.cause?.code)) detail.failure.cause_code = error.cause.code
     // a78 picker refusal: Aiterm's code token names why it refused (configuration-requests.md); absent = running-turn refusal.
