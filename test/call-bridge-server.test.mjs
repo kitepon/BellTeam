@@ -22,7 +22,7 @@ function call(socketPath, method, path, body) {
   })
 }
 
-test('新しいsocket親は0711・socketは0600となり、閉じるとsocketだけ除去する', async t => {
+test('新しいsocket親は0711・socketは0666となり、閉じるとsocketだけ除去する', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-socket-mode-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const parent = join(root, 'state/call-bridge-socket'), socketPath = join(parent, 'bellteam.sock')
@@ -33,7 +33,7 @@ test('新しいsocket親は0711・socketは0600となり、閉じるとsocketだ
   try {
     assert.equal((await lstat(parent)).mode & 0o777, 0o711)
     const socket = await lstat(socketPath)
-    assert.equal(socket.isSocket(), true); assert.equal(socket.mode & 0o777, 0o600)
+    assert.equal(socket.isSocket(), true); assert.equal(socket.mode & 0o777, 0o666)
     assert.equal((await call(socketPath, 'GET', '/v0/directory')).status, 200)
   } finally { await close() }
   await assert.rejects(lstat(socketPath), { code: 'ENOENT' })
