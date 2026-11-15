@@ -87,8 +87,17 @@ test('U3: initialize mints a session, calls are relayed, an unknown session is a
   assert.deepEqual(adopted.map(message => message.method), ['initialize', 'notifications/initialized', 'tools/call'])
   assert.equal(adopted[0].params.protocolVersion, '2025-03-26')
 
+  const freshHost = started.at(-1).child
+  // Two parallel calls after a restart share one adopted host (Molly #1529 review).
+  const parallel = createUserToolRelay({ spawnHost, log: () => {} })
+  const before = started.length
+  const [a, b] = await Promise.all([4, 5].map(id => exchange(parallel, seat, 'meta', { body: { jsonrpc: '2.0', id, method: 'tools/call', params: { id } }, headers: { 'mcp-session-id': session } })))
+  assert.deepEqual([a.body.result, b.body.result], [{ echo: { id: 4 } }, { echo: { id: 5 } }])
+  assert.equal(started.length - before, 1); assert.equal(started.at(-1).child.exited, undefined)
+  assert.deepEqual(started.at(-1).child.received.map(message => message.method), ['initialize', 'notifications/initialized', 'tools/call', 'tools/call'])
+  parallel.closeSeat(seat.sessionName)
   assert.equal((await exchange(fresh, seat, 'meta', { method: 'DELETE', headers: { 'mcp-session-id': session } })).status, 200)
-  assert.equal(started.at(-1).child.exited, true); assert.equal(fresh.size(), 0)
+  assert.equal(freshHost.exited, true); assert.equal(fresh.size(), 0)
   assert.equal((await exchange(fresh, seat, 'meta', { method: 'GET' })).status, 405)
 
   await exchange(relay, seat, 'xarticle', { body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {} } } })

@@ -15,6 +15,7 @@ const readBody = async request => { const chunks = []; for await (const chunk of
 
 export function createUserToolRelay({ spawnHost, log = message => process.stderr.write(`${message}\n`) }) {
   const hosts = new Map() // `${sessionName}\0${name}` -> host
+  const adopting = new Map() // same key -> in-flight adopt, shared by concurrent requests (parallel calls after a restart)
   let seq = 0
 
   const start = (binding, name) => {
@@ -88,7 +89,16 @@ export function createUserToolRelay({ spawnHost, log = message => process.stderr
         host = fresh(binding, name)
         session = host.session = randomUUID()
       } else if (!host || !sessionId || host.session !== sessionId) {
-        const adopted = await adopt(binding, name, sessionId || randomUUID(), request.headers['mcp-protocol-version'])
+        const entry = key(binding.sessionName, name)
+        let pending = adopting.get(entry)
+        // Join an adopt already starting this host for the same session; only a different session replaces it.
+        if (!pending || (sessionId && pending.sessionId !== sessionId)) {
+          const id = sessionId || randomUUID()
+          pending = { sessionId: id, promise: adopt(binding, name, id, request.headers['mcp-protocol-version']) }
+          adopting.set(entry, pending)
+          pending.promise.finally(() => { if (adopting.get(entry) === pending) adopting.delete(entry) })
+        }
+        const adopted = await pending.promise
         host = adopted.host; session = host.session
         if (adopted.error) return json(response, 502, rpcError(messages.find(message => message?.id !== undefined)?.id ?? null, adopted.error))
       }
