@@ -207,6 +207,8 @@ flowchart LR
 
 早期returnしていた型付き503だけを既writerへ記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・既入場上限・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
 
+遅い要求と途中で切られた要求（t20、BugHub 44906d23/4783ee40/c882af7b）：公開入口の`/api/`要求のうち、応答を返し終える前に相手が切ったもの、または60秒以上かかったものを`SERVER_HTTP_SLOW_OR_ABORTED`（schema `bellteam.http-slow.v1`）として既Diagnosticsへ記録する（`recordSlowOrAborted`、src/http-request-log.mjs）。項目はmethod・route型（`httpRouteType`、503と共通。IDやqueryは残さない）・開始時刻・所要時間・応答headerを送ったか・応答を返し終えたか・status。`/api/events`とtext/event-streamの応答は閉じて終わるので記録しない。内部入口（席）は対象外。既存の本体ログ行（BellTeam read/write）はそのまま。
+
 型付きエラーの応答messageは、`publicMessage`が無ければ`http-errors`の共通code文表を引く。module IPCは文を運ばず（`Error(code)`とstatusだけ）、親の表が利用者向けの日本語を戻す。IPC payloadは広げない。表の行：`HARNESS_AUTH_ACCOUNTS_UNAVAILABLE`→「アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。」（usageのaccounts.prepare失敗の正規化、2026-11-08 F-ACCT）。同じcodeは子process経由でも同一process経由でも同じ文になる。
 
 型付き503の`error.code`は、大文字・数字・`_`だけの定数（`/^[A-Z][A-Z0-9_]{2,63}$/`）ならそのまま保存し、それ以外はunknownとする（2026-11-08、BugHub ef83d4ee）。旧allowlistはmembers IPCの符号だけで、control段階（更新・初期設定・認証・利用設定module・Web/通知公開）や他moduleのIPC符号（`USAGE_NOT_ACCEPTED`等）が全てunknown・route `/api/other`に潰れ、担当を特定できなかった。codeは製品内の固定符号で、本文・入力値・IDを含まない。routeの型・message/stack/query非記録・status/JSON応答は不変。
@@ -525,6 +527,8 @@ get_selfだけ既bot.currentWorkBindingを読取側の互換欄として返し�
 ```mermaid
 flowchart LR
   Caller[削除・予定・跨module保存の固定caller] --> Reserve[module-operation-context: 同期reserve]
+  FreshFacade[会話facadeの新しい呼び出し（引き継ぎなし）] -->|members交換中| WhenOpen[MembersAdmission.whenOpen / resume直後・60秒の出口] --> Reserve
+  FreshFacade -->|開いている| Reserve
   Reserve --> Members[同membersAdmission.enter]
   Reserve --> Conversation[同conversationAdmission.enter]
   Conversation -->|閉鎖・満杯| Release[同stackでmembers finish / 作用なし]
@@ -542,7 +546,7 @@ flowchart LR
 
 横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。親が認証済みmembers callerの既leaseを借用する場合は同identityを検証し、会話側の予約だけを所有する。子や外部DTOから借用leaseを生成しない。
 
-`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
+`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。会話facadeの新しい呼び出し（引き継ぐoperationContext・leaseなし）は、members交換中だけ開始処理ごと`MembersAdmission.whenOpen`へ渡し、resume直後に同期でreserveする（[members-admission.md](../execution/members-admission.md)、2026-11-15 a127）。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
 
 故障writer退役後の新作用は`assert`/`withContext`/`forMembers`からexecutionの`assertCurrentLease`でcurrentだけに限定する。`finish`は元opaqueの`assertLease`を使い、retiredの実終端処理を保持する。登録済みcontextの拒否を`forMembers`でnullへ変換せず、`conversationAssembly.memberRequest`の新reserveへ旧参照を付け替えない。未登録のmembers leaseだけは従来どおりnullを返す。gateとmoduleOperationsの実体・authority/ALS・実completionの所有は不変、[executionの世代契約](../execution/conversation-lifetimes.md)を使う。
 

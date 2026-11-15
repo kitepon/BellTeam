@@ -10,16 +10,18 @@ const inherit = (promise, original) => {
 const pick = (value, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]))
 
 // Synchronous Room reads are display projections; refresh/read perform the authenticated fresh RPC.
-export function createConversationFacade({ getController, context, memberScoped = () => false }) {
+export function createConversationFacade({ getController, context, memberScoped = () => false, admit = (_method, _options, start) => start() }) {
   let projection = new Map()
   const freeze = room => Object.freeze({ ...room, memberIds: Object.freeze([...room.memberIds]) })
   const invoke = (method, params, options, map, callback = false, chunks = null) => {
-    let attempt
-    try {
+    const start = () => {
       const captured = context(method, options)
       if (chunks) captured.onChunk = async chunk => { chunks.push(chunk) }
-      attempt = getController()[callback ? 'callback' : 'request'](method, params, captured)
-    } catch (error) {
+      return getController()[callback ? 'callback' : 'request'](method, params, captured)
+    }
+    let attempt
+    // admit starts at once, or after a members exchange for a fresh call (members-admission.md a127).
+    try { attempt = admit(method, options, start) } catch (error) {
       attempt = Promise.reject(error); attempt.catch(() => {}); attempt.completion = attempt
       if (method === 'user.turn') attempt.accepted = attempt
     }

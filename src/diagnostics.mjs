@@ -25,6 +25,7 @@ const reports = {
   CONVERSATION_OBSERVATION_FAILED: ['warn', '自分から始めたターンの答えを読み取れなかった（理由はdiagnostic_logのreason）'],
   SERVER_HTTP_500: ['high', 'BellTeamのAPI処理に失敗した'],
   SERVER_HTTP_503: ['warn', 'BellTeamのAPIが利用不可の応答を返した（原因未確定）'],
+  SERVER_HTTP_SLOW_OR_ABORTED: ['warn', 'BellTeamのAPI要求が60秒以上かかった、または応答前に相手が切った'],
   SERVER_MODEL_CONFIGURATION_FAILED: ['high', 'AIのモデル設定を反映できなかった'],
   SERVER_TURN_TRACKING_FAILED: ['high', 'AIの処理終了を追跡できなかった'],
   SERVER_MODULE_CHILD_EXITED: ['high', 'BellTeamの部品が予期せず終了した'],

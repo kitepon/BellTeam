@@ -33,9 +33,13 @@ Owner不具合: members子の単独更新中（13:37:44 JST、job d92d948e）に
 | --- | --- |
 | `withLease(op)` / `withReadPin(method, op)`（lease・pin・expected なし＝新root） | 拒否せず `resume(ticket)` まで待ち、新generationで入場して実行する。待ちの出口は resume（交換の成功・失敗・回復のどれでも必ず呼ばれる）。resume が来ない時（members が閉じたまま）の出口として `MEMBERS_EXCHANGE_HOLD_MS`=60秒後に従来の 503 |
 | 既lease/既pin を渡す呼び出し、`expected` を渡す呼び出し、同期の `enter()` / `enterReadPin()` | 変更なし（旧epochに束縛された要求は従来どおり拒否） |
+| 会話facadeの新しい呼び出し（引き継ぐoperationContext・leaseなし。Owner HTTPのrooms.list・履歴・投稿など）（2026-11-15 a127） | `exchanging`の時だけ、予約（`moduleOperations.reserve()`＝同期`enter()`）を含む開始処理を`whenOpen`へ渡し、resume直後に同期で予約して始める（AT7の予定と同じ口、同じ60秒の出口）。開いている時と引き継ぎのある呼び出しは従来どおりその場で同期に始める。戻り値の`completion`（`user.turn`は`accepted`も）は保つ。BugHub ef83d4ee: 2026-11-14 23:02:31Z GET /api/roomsがmembers交換中に即503 MEMBERS_NOT_ACCEPTEDになった |
 
 ```mermaid
 flowchart LR
+  Facade[会話facadeの新しい呼び出し] -->|exchanging| WhenOpen[whenOpen: resume直後に同期reserve]
+  Facade -->|開いている / 引き継ぎあり| Reserve[その場で同期reserve]
+  WhenOpen --> Reserve
   Req[新root要求] -->|ticketなし| Enter[enter / 実行]
   Req -->|ticketあり| Hold[resume待ち]
   Hold -->|resume| Enter
