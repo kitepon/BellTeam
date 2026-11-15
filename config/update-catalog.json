@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T08:44:03Z",
-  "expiresAt": "2026-11-22T08:44:03Z",
+  "publishedAt": "2026-11-15T09:43:27Z",
+  "expiresAt": "2026-11-22T09:43:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -755,8 +755,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc",
-      "versionId": "6063deba908fe7928d9b581427c47b8c6c6d3972e4303f94aa51cfa1ad74a72b",
+      "sourceCommit": "6486435be3475e0a850a73825aa8df11ff4481d0",
+      "versionId": "244e604f99a462107c0b6236002bc0f16810390b1dc97c9fd1600a09daba3bdb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-amd64.tar.gz",
-          "bytes": 15296704,
-          "sha256": "6063deba908fe7928d9b581427c47b8c6c6d3972e4303f94aa51cfa1ad74a72b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T094247Z/lattice-6486435be3475e0a850a73825aa8df11ff4481d0-linux-amd64.tar.gz",
+          "bytes": 15300743,
+          "sha256": "244e604f99a462107c0b6236002bc0f16810390b1dc97c9fd1600a09daba3bdb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "d172bc486330a1e6f4766ba6fd224ed90deeddbaadf0f4ad2b171f5c6d16bceb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T094247Z/lattice-6486435be3475e0a850a73825aa8df11ff4481d0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "37c52757d7f0d390749f1bb14239e2f1c751476d9d5eeab33c07b1ff13691fa3"
         },
-        "signerCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc"
+        "signerCommit": "6486435be3475e0a850a73825aa8df11ff4481d0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "承認ボックスの拡張が、評価者様の名義で工程を書けるようにする部品の準備をしました。"
+        "工程表の部品を新しい版（0.103.0）にしました。書き込みが多くなった工程表でも、書き込めるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc",
-      "versionId": "4259aac751862351c7f9586f7559ac19e8ccf0a2f98c4e5dd43288635d120c7d",
+      "sourceCommit": "6486435be3475e0a850a73825aa8df11ff4481d0",
+      "versionId": "2cb8f8dd8be2da38114820fc92152df338282689ebc8e1e75ee76fb67a6cd902",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-arm64.tar.gz",
-          "bytes": 15296710,
-          "sha256": "4259aac751862351c7f9586f7559ac19e8ccf0a2f98c4e5dd43288635d120c7d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T094247Z/lattice-6486435be3475e0a850a73825aa8df11ff4481d0-linux-arm64.tar.gz",
+          "bytes": 15300738,
+          "sha256": "2cb8f8dd8be2da38114820fc92152df338282689ebc8e1e75ee76fb67a6cd902"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11000,
-          "sha256": "2842dc4d5f3a2abdc3a1b63092187f8578f8494d8df52418ed400476fd73419c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T094247Z/lattice-6486435be3475e0a850a73825aa8df11ff4481d0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "5d13975609a668daa29153a0f9bbb88c49f8cacd92550da2c9f80f94a11dc3c1"
         },
-        "signerCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc"
+        "signerCommit": "6486435be3475e0a850a73825aa8df11ff4481d0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "承認ボックスの拡張が、評価者様の名義で工程を書けるようにする部品の準備をしました。"
+        "工程表の部品を新しい版（0.103.0）にしました。書き込みが多くなった工程表でも、書き込めるようにします。"
       ]
     }
   ],
