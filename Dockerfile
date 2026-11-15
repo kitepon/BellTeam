@@ -23,7 +23,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # npm itself too (t20 CVEs): the npm bundled with the Node image carries older undici / brace-expansion / glob / minimatch.
-RUN npm install --global npm@latest corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@latest aiterm-mcp@latest \
+# shortcut: aiterm-mcp pinned to 0.70.62 (0.70.63 hangs on Claude's opusplan 'Switch model?' dialog, a141); back to @latest when the fix is on npm.
+RUN npm install --global npm@latest corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@latest aiterm-mcp@0.70.62 \
   && npm --version && corepack --version && codex --version && claude --version && throughline --version \
   && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)'
 RUN curl -fsSL https://x.ai/cli/install.sh | bash \
