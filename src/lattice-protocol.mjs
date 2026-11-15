@@ -121,8 +121,11 @@ export function validateLatticeReady(value) {
 
 const DISPLAY_STATES = ['verified', 'unverified', 'last_verified', 'unavailable']
 const CARD_STATES = ['pending', 'ready', 'in-progress', 'blocked', 'done', 'retired']
+// An open 接続 of a card (Lattice 0.104.0): `ref` for a task of another chart (its externals[] id) or a schedule, `agent` for a 優先接続.
+const connection = value => latticeObject(value, ['kind', 'state', 'reason', 'since'], ['ref', 'agent']) && ['task', 'schedule', 'priority'].includes(value.kind) && value.state === 'open'
+  && strOrNull(value.reason) && strOrNull(value.since) && (value.ref === undefined || str(value.ref)) && (value.agent === undefined || strOrNull(value.agent))
 const card = value => latticeObject(value, ['id', 'plan', 'taskId', 'title', 'doneCondition', 'designMemo', 'state', 'lane', 'producer',
-  'startedAt', 'changedAt', 'blockedReason', 'depth'], ['phase', 'parent', 'doneAt', 'archived', 'counted']) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
+  'startedAt', 'changedAt', 'blockedReason', 'depth'], ['phase', 'parent', 'doneAt', 'archived', 'counted', 'connections']) && (value.connections === undefined || list(value.connections, connection)) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
   && [value.phase, value.parent, value.doneAt].every(item => item === undefined || strOrNull(item))
   && [value.archived, value.counted].every(item => item === undefined || typeof item === 'boolean')
   && ['doneCondition', 'designMemo', 'lane', 'producer', 'startedAt', 'changedAt', 'blockedReason'].every(key => strOrNull(value[key]))
@@ -138,7 +141,7 @@ const external = value => latticeObject(value, ['id', 'projectId', 'cardId', 'ch
   && (CARD_STATES.includes(value.state) || value.state === null) && typeof value.finished === 'boolean'
 const phase = value => latticeObject(value, ['id', 'title']) && str(value.id) && strOrNull(value.title)
 const member = value => latticeObject(value, ['botId', 'name', 'color', 'avatarVersion']) && Object.values(value).every(str)
-const counts = value => latticeObject(value, ['total', 'done', 'working', 'waiting', 'blocked']) && Object.values(value).every(count)
+const counts = value => latticeObject(value, ['total', 'done', 'working', 'waiting', 'blocked'], ['connections']) && Object.values(value).every(count)
 const snapshot = value => latticeObject(value, ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded',
   'members', 'cards', 'edges', 'waits'], ['phases', 'externals']) && value.schema === 'bellteam.lattice-chart.v1' && str(value.epoch) && value.epoch.length > 0
   && Number.isInteger(value.version) && value.version >= 1 && str(value.at) && validId(value.projectId) && strOrNull(value.name) && strOrNull(value.createdBy)

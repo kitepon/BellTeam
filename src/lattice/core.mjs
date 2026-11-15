@@ -124,7 +124,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       for (const id of memos.keys()) if (!ids.includes(id)) memos.delete(id)
       const charts = (await syncAll(ids, effect, rows)).map((memo, i) => ({ projectId: ids[i], name: memo.content.name, coordinator: memo.content.coordinator,
         createdBy: memo.content.createdBy,
-        counts: memo.projection?.counts ?? { total: 0, done: 0, working: 0, waiting: 0, blocked: 0 },
+        counts: memo.projection?.counts ?? { total: 0, done: 0, working: 0, waiting: 0, blocked: 0, connections: 0 },
         activeMembers: [...new Set(memo.content.cards.filter(card => card.state === 'in-progress' && card.producer).map(card => card.producer))].sort(),
         updatedAt: memo.projection?.updatedAt ?? null, state: memo.content.state }))
       charts.sort((a, b) => b.coordinator - a.coordinator || (b.updatedAt ? Date.parse(b.updatedAt) : -Infinity) - (a.updatedAt ? Date.parse(a.updatedAt) : -Infinity)

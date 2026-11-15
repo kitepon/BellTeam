@@ -24,7 +24,7 @@ export const STATES = {
   pending: { badge: '未着手', glyph: 'dashed', tone: 'pending' },
   ready: { badge: '着手可', glyph: 'play', tone: 'ready' },
   'in-progress': { badge: '作業中', glyph: 'progress', tone: 'working' },
-  blocked: { badge: '止まり', glyph: 'octagon', tone: 'blocked' },
+  blocked: { badge: 'ブロック', glyph: 'octagon', tone: 'blocked' },
   done: { badge: '完了', glyph: 'seal', tone: 'done' },
   retired: { badge: '取り下げ', glyph: 'archive', tone: 'retired' },
 }
@@ -204,7 +204,7 @@ export function pointOnEdge(geometry, t) {
   return { x: at('x'), y: at('y') }
 }
 export const FLOW = { spawnMs: 600, travelMs: 1400 }
-// 待ちの辺：600ms ごとに一粒、1.4 秒で待つ側へ。いま飛んでいる粒の進み具合（0〜1）。
+// 前工程を待つ辺：600ms ごとに一粒、1.4 秒で待つ側へ。いま飛んでいる粒の進み具合（0〜1）。
 export function flowPositions(now) {
   const out = []
   for (let n = Math.floor(now / FLOW.spawnMs); n * FLOW.spawnMs > now - FLOW.travelMs; n--) out.push((now - n * FLOW.spawnMs) / FLOW.travelMs)
@@ -215,18 +215,18 @@ export const particleOpacity = t => Math.min(1, t / 0.07, (1 - t) / 0.23)
 // counted が無い古い子では、archived でない札を数える。
 export const isCounted = card => card.counted ?? !card.archived
 export function chartCounts(snapshot) {
-  // 分数は counted の札だけ（a96）。数えない札は終わった木の札なので、作業中・止まり・待ちは変わらない。
-  const cards = (snapshot.cards ?? []).filter(isCounted), waiting = new Set((snapshot.edges ?? []).filter(edge => edge.waiting).map(edge => edge.to))
+  // 分数は counted の札だけ（a96）。数えない札は終わった木の札なので、作業中・ブロック・接続は変わらない。接続 = 開いている接続の数。
+  const cards = (snapshot.cards ?? []).filter(isCounted)
   return {
     total: cards.length,
     done: cards.filter(card => finished(card.state)).length,
     working: cards.filter(card => card.state === 'in-progress').length,
     blocked: cards.filter(card => card.state === 'blocked').length,
-    waiting: cards.filter(card => waiting.has(card.id)).length,
+    connections: cards.reduce((sum, card) => sum + (card.connections?.length ?? 0), 0),
   }
 }
 
-// 担当の状態を一文に：作業中 N分 / 止まり: 理由 / 未着手: 担当 ◯◯ / 担当なし。
+// 担当の状態を一文に：作業中 N分 / ブロック: 理由 / 未着手: 担当 ◯◯ / 担当なし。
 export function producerStateText(card, member, now) {
   if (!card) return ''
   const info = stateInfo(card.state)
@@ -239,7 +239,7 @@ export function producerStateText(card, member, now) {
 export function cardLabel(card, member) {
   return `${card.title}、${stateInfo(card.state).badge}、つくっている ${nameOf(member)}`
 }
-// 札の下の一行：止まりは理由、未着手と着手可は担当。
+// 札の下の一行：ブロックは理由、未着手と着手可は担当。
 export function cardNote(card, member) {
   if (card.state === 'blocked') return card.blockedReason ?? ''
   if (card.state === 'pending' || card.state === 'ready') return member ? `担当 ${member.name}` : UNASSIGNED
@@ -247,68 +247,71 @@ export function cardNote(card, member) {
   return ''
 }
 
-// 別の工程表の前の工程（externals[]）：題名と工程表の名前の穴埋め、読めていない状態は「読めていません」。
+// 別の工程表の工程につながる接続（externals[]）：題名と工程表の名前の穴埋め、読めていない状態は「読めていません」。
 const NO_READ = '読めていません'
 const externalsOf = snapshot => new Map((snapshot.externals ?? []).map(ext => [ext.id, ext]))
 const externalTitle = ext => ext.title ?? 'ほかの工程表の工程', externalChart = ext => `${ext.chartName ?? 'ほかの工程表'}の工程表`
 // 別の工程表の工程は着手時刻を持たないので、作業中は分を付けない。
 const externalState = (ext, producer, now) => ext.state === null ? NO_READ : ext.state === 'in-progress' ? stateInfo(ext.state).badge : producerStateText({ state: ext.state }, producer, now)
 
-export function waitRows(snapshot, now) {
-  const lookup = memberLookup(snapshot), ownerOf = ownerLookup(snapshot), titles = new Map((snapshot.cards ?? []).map(card => [card.id, card])), externals = externalsOf(snapshot)
-  return (snapshot.waits ?? []).map(wait => {
-    const ext = externals.get(wait.forCard), awaited = ext ? { state: ext.state } : titles.get(wait.forCard), waiting = titles.get(wait.waitingCard)
-    const waiter = wait.waiter ? lookup(wait.waiter) : ownerOf(waiting), producer = wait.producer ? lookup(wait.producer) : ext ? null : ownerOf(awaited)
-    const title = ext ? externalTitle(ext) : awaited?.title ?? '', chart = ext ? externalChart(ext) : null
-    const state = ext ? externalState(ext, producer, now) : producerStateText({ ...awaited, state: wait.producerState ?? awaited?.state }, producer, now)
-    return {
-      key: `${wait.waitingCard}>${wait.forCard}`, waiter, producer, title, chart, external: ext ? { projectId: ext.projectId, cardId: ext.cardId } : null, state, forCard: wait.forCard, waitingCard: wait.waitingCard,
-      headline: waiting?.title ?? '', ownerText: waiter ? `担当 ${waiter.name}` : UNASSIGNED,
-      length: sinceText(wait.since, now),
-      emphasized: wait.producerState === 'blocked', info: stateInfo(wait.producerState ?? awaited?.state),
-      canChat: Boolean(producer?.known && !producer.owner),
-      label: `「${waiting?.title ?? ''}」（${waiter ? `担当 ${waiter.name}` : UNASSIGNED}）は、「${title}」${chart ? `（${chart}）` : ''}が終わるのを待っています。つくっているのは${nameOf(producer)}、${state}`,
-      waitingTitle: waiting?.title ?? '',
+// 接続（開いているものだけ、古い順）：ほかの工程表の工程 / BellTeam の予定 / 優先接続。線にはならず、札の connections だけから作る。
+const openEntries = snapshot => (snapshot.cards ?? []).flatMap(card => (card.connections ?? []).map(entry => ({ card, entry })))
+const connectionKey = (card, entry) => `${card.id}>${entry.kind}:${entry.ref ?? entry.agent ?? ''}`
+const priorityMark = agent => `${agent}が、着手できるようになったらすぐ動きたいと伝えています`
+export function connectionRows(snapshot, now) {
+  const lookup = memberLookup(snapshot), ownerOf = ownerLookup(snapshot), externals = externalsOf(snapshot), entries = openEntries(snapshot)
+  const since = ({ entry }) => entry.since ? Date.parse(entry.since) : Infinity
+  return entries.toSorted((a, b) => since(a) - since(b) || a.card.id.localeCompare(b.card.id)).map(({ card, entry }) => {
+    const waiter = ownerOf(card), ownerText = waiter ? `担当 ${waiter.name}` : UNASSIGNED
+    const row = { key: connectionKey(card, entry), kind: entry.kind, waiter, headline: card.title, ownerText, length: sinceText(entry.since, now),
+      reason: entry.reason ?? '', card: card.id, emphasized: false, canChat: false, external: null, producer: null, title: '', chart: null, state: '', info: stateInfo(null) }
+    const who = `「${card.title}」（${ownerText}）は、`
+    if (entry.kind === 'schedule') return { ...row, mark: '予定の結果が条件になっています', label: `${who}予定の結果が条件になっています` }
+    if (entry.kind === 'priority') {
+      const agent = lookup(entry.agent)
+      return { ...row, agent, mark: priorityMark(nameOf(agent)), label: `${who}${priorityMark(nameOf(agent))}` }
     }
+    const [projectId, ...rest] = String(entry.ref).split(':')
+    const ext = externals.get(entry.ref) ?? { projectId, cardId: rest.join(':'), title: null, chartName: null, state: null, producer: null }
+    const producer = ext.producer ? lookup(ext.producer) : null, title = externalTitle(ext), chart = externalChart(ext), state = externalState(ext, producer, now)
+    return { ...row, producer, title, chart, state, external: { projectId: ext.projectId, cardId: ext.cardId }, info: stateInfo(ext.state), emphasized: ext.state === 'blocked',
+      canChat: Boolean(producer?.known && !producer.owner), mark: 'この工程の完了が条件になっています',
+      label: `${who}「${title}」（${chart}）の完了が条件になっています。つくっているのは${nameOf(producer)}、${state}` }
   })
 }
 
-// 待っている辺ごとの札「◯◯が待っています」。待つ側 = 後ろの札の担当。
+// 終わるのを待つ辺ごとの札「前工程：◯◯」。◯◯ = 前の札（辺の始まり）の担当。
 export function edgeChipText(snapshot, edge) {
-  const to = (snapshot.cards ?? []).find(card => card.id === edge.to)
-  const owner = ownerLookup(snapshot)(to)
-  return owner ? `${owner.name}が待っています` : '次の工程が待っています'
+  const owner = ownerLookup(snapshot)((snapshot.cards ?? []).find(card => card.id === edge.from))
+  return `前工程：${owner ? owner.name : UNASSIGNED}`
 }
 
-// 左のレール：担当ごとの顔と、作業中・止まり・待ちの数。
+// 左のレール：担当ごとの顔と、作業中・ブロック・接続（開いた接続のある札）の数。
 export function railItems(snapshot, layout) {
-  const cards = snapshot.cards ?? [], waits = snapshot.waits ?? []
+  const cards = snapshot.cards ?? []
   return layout.lanes.filter(lane => lane.botId && !lane.member?.owner).map(lane => ({
     botId: lane.botId, member: lane.member,
     working: cards.some(card => card.producer === lane.botId && card.state === 'in-progress'),
     blocked: cards.some(card => card.producer === lane.botId && card.state === 'blocked'),
-    waiting: waits.filter(wait => wait.waiter === lane.botId).length,
+    connections: cards.filter(card => card.producer === lane.botId && card.connections?.length).length,
   }))
 }
 
-// 強調：その担当の札と待ちだけ。
+// 強調：その担当の札と接続だけ（札の担当、つくっている人、優先接続を伝えた人）。
 export function highlightSets(snapshot, botId) {
   if (!botId) return null
+  const producers = new Map((snapshot.externals ?? []).map(ext => [ext.id, ext.producer]))
   return {
     cards: new Set((snapshot.cards ?? []).filter(card => card.producer === botId).map(card => card.id)),
-    waits: new Set((snapshot.waits ?? []).filter(wait => wait.waiter === botId || wait.producer === botId).map(wait => `${wait.waitingCard}>${wait.forCard}`)),
+    connections: new Set(openEntries(snapshot).filter(({ card, entry }) => card.producer === botId || entry.agent === botId || producers.get(entry.ref) === botId).map(({ card, entry }) => connectionKey(card, entry))),
   }
 }
 
 export function detailOf(snapshot, cardId, now) {
   const cards = new Map((snapshot.cards ?? []).map(card => [card.id, card])), card = cards.get(cardId)
   if (!card) return null
-  const ownerOf = ownerLookup(snapshot), externals = externalsOf(snapshot)
-  const link = id => {
-    const ext = externals.get(id), producer = ext?.producer ? memberLookup(snapshot)(ext.producer) : null
-    if (ext) return { id, title: externalTitle(ext), state: ext.state, producer, stateText: externalState(ext, producer, now), chart: externalChart(ext), external: { projectId: ext.projectId, cardId: ext.cardId } }
-    const other = cards.get(id); return other && { id, title: other.title, state: other.state, producer: ownerOf(other), stateText: producerStateText(other, ownerOf(other), now) }
-  }
+  const ownerOf = ownerLookup(snapshot)
+  const link = id => { const other = cards.get(id); return other && { id, title: other.title, state: other.state, producer: ownerOf(other), stateText: producerStateText(other, ownerOf(other), now) } }
   const edges = snapshot.edges ?? []
   return {
     id: cardId, card, producer: ownerOf(card), info: stateInfo(card.state),
@@ -356,14 +359,14 @@ export const shownCharts = list => (list?.charts ?? []).filter(chart => (chart.c
 export function listItems(list, getMember = () => null) {
   return shownCharts(list).map(chart => {
     const members = (chart.activeMembers ?? []).slice(0, 4).map(botId => getMember(botId) ?? { botId, name: UNKNOWN_MEMBER, color: 'unknown', avatar: '', known: false })
-    const { done = 0, total = 0, waiting = 0 } = chart.counts ?? {}
+    const { done = 0, total = 0, connections = 0 } = chart.counts ?? {}
     const name = chartName(chart, getMember)
     return {
-      projectId: chart.projectId, name, coordinator: Boolean(chart.coordinator), done, total, waiting, members,
+      projectId: chart.projectId, name, coordinator: Boolean(chart.coordinator), done, total, connections, members,
       fraction: total ? Math.min(1, done / total) : 0,
-      waitingText: `待ち ${waiting}`,
+      connectionsText: `接続 ${connections}`,
       updated: chart.updatedAt ? `更新 ${formatJst(chart.updatedAt)}` : '',
-      label: `${name}${chart.coordinator ? '、統括の工程表' : ''}、完了 ${done}/${total}、待ち ${waiting}${members.length ? `、動いているのは${members.map(member => member.name).join('、')}` : ''}`,
+      label: `${name}${chart.coordinator ? '、統括の工程表' : ''}、完了 ${done}/${total}、接続 ${connections}${members.length ? `、動いているのは${members.map(member => member.name).join('、')}` : ''}`,
     }
   })
 }

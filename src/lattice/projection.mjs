@@ -18,12 +18,13 @@ export function laneResolver(members) {
 
 // Malformed fields drop only the task or edge they belong to. An unverified read has no journal, so producers fall back to the lane.
 // elsewhere(projectId, cardId) -> {chartName, title, producer} | null: the other chart's memo, if the child holds one (core.mjs).
+// A 接続 (Lattice 0.104.0 `connections`: another chart's task, a schedule, a Bot's 優先接続) is never an edge or a wait: it only rides on its card.
 export function projectChart({ read, members = [], previous = null, elsewhere = () => null }) {
   const state = DISPLAY.includes(read?.state) ? read.state : 'unavailable'
   const raw = state === 'unverified'
   const assigned = laneResolver(members)
   const cards = new Map(), deps = [], cross = [], removed = new Set(), phases = [], parents = new Map()
-  // Predecessors on another chart (Lattice 0.99.0, task a60): facts from external_tasks, keyed `<project>:<plan>/<task>`.
+  // Facts of a task connected on another chart: external_tasks, keyed `<project>:<plan>/<task>`.
   const outside = new Map(list(read?.external_tasks).filter(item => text(item?.project_id) && ref(item)).map(item => [`${item.project_id}:${ref(item)}`, item]))
   let first = null, updatedAt = null
   for (const member of list(read?.store?.members)) {
@@ -61,9 +62,8 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
     for (const join of list(plan.joins)) for (const after of list(join?.after)) deps.push([ref(after), ref(join?.before)])
     for (const event of list(member.plan_scoped?.events)) {
       const from = event?.payload?.from, to = event?.payload?.to
-      const other = text(from?.project_id) && text(to?.project_id) && from.project_id !== to.project_id ? `${from.project_id}:` : ''
-      if (other && !/^[a-z0-9][a-z0-9-]{0,62}:$/u.test(other)) continue // a malformed project id drops only this edge
-      if (event?.kind === 'cross_plan_dependency') cross.push({ digest: event.event_digest, edge: [ref(from) && other + ref(from), ref(to)] })
+      if (text(from?.project_id) && text(to?.project_id) && from.project_id !== to.project_id) continue // another chart's task: a 接続, read from `connections`
+      if (event?.kind === 'cross_plan_dependency') cross.push({ digest: event.event_digest, edge: [ref(from), ref(to)] })
       else if (event?.kind === 'cross_plan_dependency_removed' && text(event.payload?.target_event_digest)) removed.add(event.payload.target_event_digest)
     }
   }
@@ -75,26 +75,35 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
   }
   deps.push(...cross.filter(item => !removed.has(item.digest)).map(item => item.edge))
 
-  const externals = new Map(), next = new Map(), before = new Map(), edges = []
+  const next = new Map(), before = new Map(), edges = []
   const reaches = (from, to, seen = new Set()) => from === to || !seen.has(from) && seen.add(from) && (next.get(from) ?? []).some(id => reaches(id, to, seen))
   for (const [from, to] of deps) {
-    if (from?.includes(':')) {
-      // The other chart is not walked, so an external edge never closes a local cycle.
-      if (!cards.has(to) || edges.some(edge => edge.from === from && edge.to === to)) continue
-      const item = outside.get(from), [projectId] = from.split(':', 1)
-      const cardId = from.slice(projectId.length + 1), known = elsewhere(projectId, cardId)
-      if (!externals.has(from)) externals.set(from, { id: from, projectId, cardId, chartName: known?.chartName ?? null, title: known?.title ?? null,
-        state: STATUS.includes(String(item?.status).replace('_', '-')) && !text(item?.reason) ? String(item.status).replace('_', '-') : null, finished: item?.finished === true, producer: known?.producer ?? null })
-      before.set(to, [...before.get(to) ?? [], from])
-      edges.push({ from, to, waiting: !externals.get(from).finished && !finished(cards.get(to)), external: true })
-      continue
-    }
     if (!cards.has(from) || !cards.has(to) || from === to || next.get(from)?.includes(to) || reaches(to, from)) continue
     next.set(from, [...next.get(from) ?? [], to]); before.set(to, [...before.get(to) ?? [], from])
     edges.push({ from, to, waiting: !finished(cards.get(from)) && !finished(cards.get(to)) })
   }
+  // Open 接続 per card (Lattice `connections`; only `open` entries count). A task of another chart: ref = its `externals[]` id.
+  const externals = new Map(), links = new Map(list(read?.connections).map(item => [ref(item), item]))
   for (const card of cards.values()) {
-    if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => externals.get(id)?.finished ?? finished(cards.get(id)))) card.state = 'ready'
+    card.connections = []
+    for (const entry of list(links.get(card.id)?.connections)) {
+      const kind = entry?.kind, [project, plan, task] = String(entry?.ref).split('/')
+      if (!['task', 'schedule', 'priority'].includes(kind) || (entry.state ?? 'open') !== 'open') continue
+      const item = { kind, state: 'open', reason: text(entry.reason), since: stamp(entry.since) }
+      if (kind === 'priority') item.agent = text(entry.agent)
+      else if (kind === 'schedule') { if (!text(entry.ref)) continue; item.ref = entry.ref }
+      else {
+        if (!/^[a-z0-9][a-z0-9-]{0,62}$/u.test(project) || !plan || !task) continue // a malformed ref drops only this entry
+        const id = `${project}:${plan}/${task}`, found = outside.get(id), known = elsewhere(project, `${plan}/${task}`), status = String(found?.status).replace('_', '-')
+        if (!externals.has(id)) externals.set(id, { id, projectId: project, cardId: `${plan}/${task}`, chartName: known?.chartName ?? null, title: known?.title ?? null,
+          state: STATUS.includes(status) && !text(found?.reason) ? status : null, finished: found?.finished === true, producer: known?.producer ?? null })
+        item.ref = id
+      }
+      card.connections.push(item)
+    }
+    // A task or schedule condition keeps a card unstartable; a 優先接続 only asks to be told.
+    const held = card.connections.some(entry => entry.kind !== 'priority' && !externals.get(entry.ref)?.finished)
+    if (card.state === 'pending' && !held && (before.get(card.id) ?? []).every(id => finished(cards.get(id)))) card.state = 'ready'
   }
   // Trees come from Lattice (display read `trees`, 0.100.0; Owner: BellTeam computes no trees). A card in no tree is a tree of one.
   const treeOf = new Map((read?.store ? read.trees ?? [] : []).flatMap(tree => (tree?.tasks ?? []).map(task => [`${task?.plan_key}/${task?.task_id}`, tree])))
@@ -117,15 +126,16 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
     }
   }
   const waits = edges.filter(edge => edge.waiting).map(edge => {
-    const waiter = cards.get(edge.to), maker = cards.get(edge.from) ?? { ...externals.get(edge.from), changedAt: null }
+    const waiter = cards.get(edge.to), maker = cards.get(edge.from)
     return { waiter: waiter.producer, waitingCard: waiter.id, forCard: maker.id, producer: maker.producer, producerState: maker.state,
       since: later(maker.changedAt, waiter.changedAt) }
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
   // Fractions count only what the tree shows: the archived flag above, no second rule (Owner 2026-11-14, task a96).
   const all = [...cards.values()], counted = all.filter(card => card.counted), count = state => counted.filter(card => card.state === state).length
   return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases, externals: [...externals.values()],
-    memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer)].filter(id => id && id !== 'owner'))].sort(),
+    memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer),
+      ...all.flatMap(card => card.connections.map(entry => entry.agent))].filter(id => id && id !== 'owner'))].sort(),
     counts: { total: counted.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
-      waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size },
+      waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size, connections: counted.reduce((sum, card) => sum + card.connections.length, 0) },
     createdBy: first?.agent ?? previous?.createdBy ?? null, updatedAt: updatedAt ?? previous?.updatedAt ?? null }
 }

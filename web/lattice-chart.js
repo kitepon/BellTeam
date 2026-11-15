@@ -3,13 +3,14 @@ import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
   MESSAGES, SCHEMA, UNASSIGNED, OWNER_ID, DECISION_STATES, decisionOf, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, shownCharts, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
+  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, shownCharts, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, connectionRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
 
 export const GLYPHS = {
   crown: '<path d="M3.6 8.6l4.4 3.6L12 5.2l4 7 4.4-3.6-1.7 9.6H5.3z" fill="currentColor" fill-opacity=".18"/><path d="M5.6 20.8h12.8"/>',
-  hour: '<path d="M7 3.5h10M7 20.5h10"/><path d="M8 3.5c0 4.6 3.2 5.8 4 8.5-.8 2.7-4 3.9-4 8.5M16 3.5c0 4.6-3.2 5.8-4 8.5.8 2.7 4 3.9 4 8.5"/>',
+  hour: '<path d="M7 3.5h10M7 20.5h10"/><path d="M8 3.5c0 4.6 3.2 5.8 4 8.5-.8 2.7-4 3.9-4 8.5M16 3.5c0 4.6-3.2 5.8-4 8.5.8 2.7 4 3.9 4 8.5"/>', // also used by approvals.js
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   play: '<circle cx="12" cy="12" r="9"/><path d="M10.2 8.6l5.2 3.4-5.2 3.4z" fill="currentColor"/>',
   dashed: '<circle cx="12" cy="12" r="9" stroke-dasharray="3.2 3.1"/>',
   progress: '<circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9"/>',
@@ -128,10 +129,10 @@ export function createLatticeChart(dialog, {
   let resumeId = null, places = new Map(), chartId = null, snapshot = null, ui = null, stream = null, highlight = null, detailId = null, frameId = 0, tickTimer = null, particles = []
   const cardEls = new Map(), treeEls = new Map(), entering = new Set(), avatars = new Map(), timers = new Set()
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
-  let stops = null, pendingDetail = null // 止め一覧の画面、止め一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
+  let stops = null, pendingDetail = null // ブロック一覧の画面、ブロック一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
   let opens = 0 // 開いた回数。閉じて開き直す前の一覧の答えを捨てる。
-  let waitsOpen = false // 広い画面の待ちの流れ。畳んだ取っ手から始め、ページが生きている間だけ覚える（Owner 2026-11-14）。
+  let waitsOpen = false // 広い画面の接続の一覧。畳んだ取っ手から始め、ページが生きている間だけ覚える（Owner 2026-11-14）。
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
   const lookup = () => memberLookup(snapshot)
   // 会話を開くと工程表のダイアログは閉じる。戻って開き直したら、その工程表から続ける。
@@ -201,14 +202,14 @@ export function createLatticeChart(dialog, {
       const back = cameFrom && (list?.charts ?? []).some(chart => chart.projectId === cameFrom.id)
       show('list', h('div', { class: 'lattice-list' },
         h('div', { class: 'lattice-list-head' }, h('h3', { text: '工程表の一覧' }),
-          h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'stops' }, on: { click: openStops } }, glyph('octagon'), '止め一覧')),
+          h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'stops' }, on: { click: openStops } }, glyph('octagon'), 'ブロック一覧')),
         back && h('button', { class: 'lattice-back', type: 'button', dataset: { focusKey: 'back' }, 'aria-label': `${cameFrom.name}へ戻る`, on: { click: () => openChart(cameFrom.id) } }, glyph('back'), h('span', { text: cameFrom.name })),
         h('div', { class: 'lattice-grid' },
           ...items.map(item => h('button', { class: `lattice-cc${item.coordinator ? ' pin' : ''}`, type: 'button', 'aria-label': item.label, dataset: { focusKey: item.projectId }, on: { click: () => openChart(item.projectId) } },
             h('span', { class: 'nm' }, item.coordinator && glyph('crown', 'lattice-crown'), h('b', { text: item.name }), item.coordinator && h('span', { class: 'lattice-badge', text: '統括' })),
             ringEl(item.fraction, 40, `${item.done}/${item.total}`),
             h('span', { class: 'co' }, ...item.members.map(member => avatar(member, 22))),
-            h('span', { class: `wt${item.waiting ? '' : ' z'}` }, glyph('hour'), item.waitingText),
+            h('span', { class: `wt${item.connections ? '' : ' z'}` }, glyph('link'), item.connectionsText),
             h('span', { class: 'upd', text: item.updated }))),
           h('div', { class: 'lattice-cc new' }, h('span', { class: 'pl' }, glyph('plus')), h('b', { text: '新しい工程表' }), h('p', { text: MESSAGES.newChart })))))
     }
@@ -250,7 +251,7 @@ export function createLatticeChart(dialog, {
     if (list) { view = 'list'; paintList() } else show('loading', loading())
     paintPills(); void loadList()
   }
-  // ---- 止め一覧：一覧から入り、同じダイアログの中に出す。戻ると一覧、行をタップするとその工程表と詳細。
+  // ---- ブロック一覧：一覧から入り、同じダイアログの中に出す。戻ると一覧、行をタップするとその工程表と詳細。
   function openStops() {
     clear(listTimer); listToken++; stops?.close(); status = 'live'
     const host = h('div', { class: 'lattice-stops-host' })
@@ -306,7 +307,7 @@ export function createLatticeChart(dialog, {
     const switcher = h('button', { class: 'lattice-switcher', type: 'button', on: { click: goList } })
     const live = h('span', { class: 'lattice-live', hidden: true }, h('i', { class: 'ldot' }), 'ライブ')
     const summary = h('div', { class: 'lattice-sum' }), counters = h('div', { class: 'lattice-cnt' })
-    const banner = h('div', { class: 'lattice-banner-slot' }), rail = h('nav', { class: 'lattice-rail', 'aria-label': 'メンバー' }), waits = h('aside', { class: 'lattice-waits', 'aria-label': '待ちの流れ' })
+    const banner = h('div', { class: 'lattice-banner-slot' }), rail = h('nav', { class: 'lattice-rail', 'aria-label': 'メンバー' }), waits = h('aside', { class: 'lattice-waits', 'aria-label': '接続' })
     const fold = h('button', { class: 'lattice-wfold', type: 'button', 'aria-expanded': 'false', on: { click: () => setWaitsOpen(true) } })
     const main = h('div', { class: `lattice-main${waitsOpen ? '' : ' is-folded'}` }, rail, canvas, waits, fold)
     const empty = h('div', { class: 'lattice-empty-slot', hidden: true })
@@ -402,7 +403,7 @@ export function createLatticeChart(dialog, {
     const fraction = counts.total ? counts.done / counts.total : 0
     fill(ui.summary, ringEl(fraction, 30), h('span', { class: 't' }, `${counts.done}/${counts.total}`, h('small', { text: '完了' })))
     const count = (label, n, color) => h('span', {}, h('i', { style: { background: color } }), `${label} `, h('b', { text: String(n) }))
-    fill(ui.counters, count('作業中', counts.working, accent('violet')), count('待ち', counts.waiting, '#B3B6C6'), count('止まり', counts.blocked, RED))
+    fill(ui.counters, count('作業中', counts.working, accent('violet')), count('接続', counts.connections, '#B3B6C6'), count('ブロック', counts.blocked, RED))
   }
   function bannerEl(banner) {
     const coordinatorId = coordinatorBotId(list)
@@ -429,14 +430,16 @@ export function createLatticeChart(dialog, {
         if (animate) { entering.add(id); after(() => { entering.delete(id); el.classList.remove('is-entering') }, 320) }
       }
       const elapsed = card.state === 'in-progress' ? minutesSince(card.startedAt, at) : null
-      const signature = [card.state, card.title, cardNote(card, member), member?.botId, member?.name, member?.avatarVersion, elapsed].join('\n')
+      const signature = [card.state, card.title, cardNote(card, member), member?.botId, member?.name, member?.avatarVersion, elapsed, card.connections?.length ?? 0].join('\n')
       if (el.dataset.signature !== signature) {
         el.dataset.signature = signature
         const mark = member ? (card.state === 'in-progress' ? withArc(member, 22) : avatar(member, 22)) : null
         fill(el, ...(info.tone === 'done' || info.tone === 'retired'
           ? [glyph(info.glyph), h('span', { class: 'ti', text: card.title }), mark]
           : [h('div', { class: 'top' }, glyph(info.glyph), h('b', { text: info.badge }), elapsed !== null && h('span', { class: 'el', text: elapsed < 1 ? '1分未満' : `${elapsed}分` }), h('span', { class: 'pa' }, mark)),
-            h('div', { class: 'ti', text: card.title }), h('div', { class: `en${card.state === 'blocked' ? ' rs' : ''}`, text: cardNote(card, member) })]))
+            h('div', { class: 'ti', text: card.title }),
+            h('div', { class: `en${card.state === 'blocked' ? ' rs' : ''}` }, h('span', { text: cardNote(card, member) }),
+              card.connections?.length > 0 && h('span', { class: 'lk' }, glyph('link'), `接続 ${card.connections.length}`))]))
         el.setAttribute('aria-label', cardLabel(card, member))
         if (animate && diff.completedCards.includes(id)) {
           el.append(h('span', { class: 'lattice-bloom', 'aria-hidden': 'true' }, ...[0, 1, 2, 3, 4].map(i => h('i', { style: { '--i': String(i) } }))))
@@ -458,7 +461,7 @@ export function createLatticeChart(dialog, {
     paintEdges(layout, diff, owners)
   }
 
-  // 辺：満たされた辺は細く淡く、待っている辺は太い勾配。待っている辺には粒を流し、「◯◯が待っています」の札を付ける。
+  // 辺：満たされた辺は細く淡く、終わりを待つ辺は太い勾配。待つ辺には粒を流し、「前工程：◯◯」の札を付ける。
   function paintEdges(layout, diff, owners) {
     const cards = new Map(snapshot.cards.map(card => [card.id, card]))
     ui.defs.replaceChildren(); ui.edgeLayer.replaceChildren(); ui.flowLayer.replaceChildren(); ui.chips.replaceChildren(); particles = []
@@ -473,8 +476,8 @@ export function createLatticeChart(dialog, {
       ui.defs.append(svg('linearGradient', { id: `lattice-grad-${i}`, gradientUnits: 'userSpaceOnUse', x1: geometry.p0.x, y1: geometry.p0.y, x2: geometry.p3.x, y2: geometry.p3.y },
         svg('stop', { offset: 0, 'stop-color': start }), svg('stop', { offset: 1, 'stop-color': end })))
       ui.edgeLayer.append(svg('path', { d: geometry.d, class: `lattice-edge waiting${fresh ? ' is-new' : ''}`, style: `stroke: url(#lattice-grad-${i})`, 'data-edge': key }))
-      const mid = pointOnEdge(geometry, 0.5), waiter = owners(cards.get(edge.to))
-      ui.chips.append(h('div', { class: 'lattice-chip', dataset: { edge: key }, style: { transform: `translate(${mid.x}px, ${mid.y}px) translate(-50%, -50%)` } }, avatar(waiter, 18), edgeChipText(snapshot, edge)))
+      const mid = pointOnEdge(geometry, 0.5), maker = owners(cards.get(edge.from))
+      ui.chips.append(h('div', { class: 'lattice-chip', dataset: { edge: key }, style: { transform: `translate(${mid.x}px, ${mid.y}px) translate(-50%, -50%)` } }, avatar(maker, 18), edgeChipText(snapshot, edge)))
       const circles = [0, 1, 2].map(() => svg('circle', { r: 3.5, fill: end, opacity: 0, style: `filter: drop-shadow(0 0 4px ${end})` }))
       ui.flowLayer.append(...circles)
       particles.push({ geometry, circles, key })
@@ -487,15 +490,15 @@ export function createLatticeChart(dialog, {
     keepFocus(ui.rail, () => fill(ui.rail, ...railItems(snapshot, layout).map(item => {
       const name = item.member.name
       return h('button', { class: `lattice-ri${item.working ? ' is-working' : ''}${item.blocked ? ' is-blk' : ''}`, type: 'button', 'aria-pressed': String(highlight === item.botId), dataset: { focusKey: item.botId },
-        'aria-label': `${name}${item.working ? '、作業中' : ''}${item.blocked ? '、止まりあり' : ''}${item.waiting ? `、待ち ${item.waiting}` : ''}`,
+        'aria-label': `${name}${item.working ? '、作業中' : ''}${item.blocked ? '、ブロックあり' : ''}${item.connections ? `、接続 ${item.connections}` : ''}`,
         on: { click: () => { highlight = highlight === item.botId ? null : item.botId; applyHighlight(); paintRail(layout) } } },
       item.working ? withArc(item.member, 36) : avatar(item.member, 36),
       item.blocked && h('span', { class: 'rdot' }, glyph('octagon')),
-      item.waiting > 0 && h('span', { class: 'rhg' }, glyph('hour'), String(item.waiting)))
+      item.connections > 0 && h('span', { class: 'rhg' }, glyph('link'), String(item.connections)))
     })))
   }
 
-  // ---- 待ちの流れ
+  // ---- 接続
   function setWaitsOpen(open) {
     waitsOpen = open
     if (!ui) return
@@ -503,26 +506,28 @@ export function createLatticeChart(dialog, {
     ;(open ? [...walk(ui.waits)].find(item => item.dataset?.focusKey === 'waits:close') : ui.fold)?.focus?.()
   }
   function paintWaits() {
-    const rows = waitRows(snapshot, now())
+    const rows = connectionRows(snapshot, now())
     ui.fold.classList.toggle('is-red', rows.some(row => row.emphasized))
-    ui.fold.setAttribute('aria-label', `待ちの流れを開く、待ち ${rows.length}`)
-    fill(ui.fold, glyph('hour'), h('span', { text: String(rows.length) }))
+    ui.fold.setAttribute('aria-label', `接続を開く、接続 ${rows.length}`)
+    fill(ui.fold, glyph('link'), h('span', { text: String(rows.length) }))
     keepFocus(ui.waits, () => fill(ui.waits, 
-      h('div', { class: 'wp-h' }, h('h3', {}, glyph('hour'), '待ちの流れ', h('span', { class: 'n', text: String(rows.length) })),
-        h('button', { class: 'wp-x', type: 'button', 'aria-label': '待ちの流れを閉じる', dataset: { focusKey: 'waits:close' }, on: { click: () => setWaitsOpen(false) } }, glyph('xmark')),
-        h('p', { text: '誰が何を待っていて、誰がつくっているか' })),
+      h('div', { class: 'wp-h' }, h('h3', {}, glyph('link'), '接続', h('span', { class: 'n', text: String(rows.length) })),
+        h('button', { class: 'wp-x', type: 'button', 'aria-label': '接続を閉じる', dataset: { focusKey: 'waits:close' }, on: { click: () => setWaitsOpen(false) } }, glyph('xmark')),
+        h('p', { text: '工程表の外の条件に接続している工程' })),
       rows.length ? h('ul', { class: 'wp-l' }, ...rows.map(row => h('li', { class: `wr${row.emphasized ? ' em' : ''}`, role: 'group', 'aria-label': row.label, dataset: { wait: row.key } },
-        h('div', { class: 'l1' }, avatar(row.waiter, 20), h('span', { text: row.headline }), h('span', { class: 'w', text: `待ち ${row.length}` })),
+        h('div', { class: 'l1' }, avatar(row.waiter, 20), h('span', { text: row.headline }), h('span', { class: 'w', text: `接続 ${row.length}` })),
         h('div', { class: 'ow', text: row.ownerText }),
-        h('div', { class: 'mk', text: 'この工程が終わるのを待っています' }),
-        h('div', { class: 'l2' }, glyph(row.info.glyph), h('b', { text: row.title })),
-        row.chart && h('div', { class: 'ow', text: row.chart }),
-        h('div', { class: 'l3' }, h('span', { class: 'mk2', text: 'つくっている' }), avatar(row.producer, 18), h('b', { text: row.producer ? row.producer.name : UNASSIGNED }),
-          h('span', { class: `stp tone-${row.info.tone}` }, glyph(row.info.glyph), row.state)),
-        h('div', { class: 'l4' },
+        row.reason && h('div', { class: 'ow', text: row.reason }),
+        row.kind === 'priority' ? h('div', { class: 'l3' }, avatar(row.agent, 18), h('b', { text: row.mark })) : h('div', { class: 'mk', text: row.mark }),
+        row.kind === 'task' && [
+          h('div', { class: 'l2' }, glyph(row.info.glyph), h('b', { text: row.title })),
+          h('div', { class: 'ow', text: row.chart }),
+          h('div', { class: 'l3' }, h('span', { class: 'mk2', text: 'つくっている' }), avatar(row.producer, 18), h('b', { text: row.producer ? row.producer.name : UNASSIGNED }),
+            h('span', { class: `stp tone-${row.info.tone}` }, glyph(row.info.glyph), row.state))],
+        row.kind !== 'schedule' && h('div', { class: 'l4' },
           row.canChat && h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: `${row.key}:chat` }, on: { click: () => openChat(row.producer.botId) } }, glyph('chat'), '会話を開く'),
-          h('button', { class: 'lattice-btn pri', type: 'button', dataset: { focusKey: `${row.key}:go` }, on: { click: () => row.external ? openCard(row.external.projectId, row.external.cardId) : goTo(row.forCard) } }, glyph('target'), '工程へ移動')))))
-        : h('p', { class: 'wp-none', text: 'いま待っている工程はありません。' })))
+          h('button', { class: 'lattice-btn pri', type: 'button', dataset: { focusKey: `${row.key}:go` }, on: { click: () => row.external ? openCard(row.external.projectId, row.external.cardId) : goTo(row.card) } }, glyph('target'), '工程へ移動')))))
+        : h('p', { class: 'wp-none', text: '接続している工程はありません。' })))
   }
 
   // ---- 詳細
@@ -554,8 +559,8 @@ export function createLatticeChart(dialog, {
     if (detailId && !detail) detailId = null
     ui.sheet.hidden = !detail
     if (!detail) { ui.sheet.replaceChildren(); return }
-    const link = item => h('button', { class: 'lattice-mini', type: 'button', dataset: { focusKey: `d:${item.id}` }, 'aria-label': `${item.title}${item.chart ? `（${item.chart}）` : ''}、${item.external ? item.stateText : stateInfo(item.state).badge}`, on: { click: () => item.external ? openCard(item.external.projectId, item.external.cardId) : goTo(item.id, true) } },
-      avatar(item.producer, 18), h('span', { class: 'ti', text: item.title }), item.chart && h('span', { class: 'ch', style: { flex: 'none', fontSize: '11px', fontWeight: '500', opacity: '.7' }, text: item.chart }), h('span', { class: `st tone-${stateInfo(item.state).tone}` }, glyph(stateInfo(item.state).glyph), item.stateText))
+    const link = item => h('button', { class: 'lattice-mini', type: 'button', dataset: { focusKey: `d:${item.id}` }, 'aria-label': `${item.title}、${stateInfo(item.state).badge}`, on: { click: () => goTo(item.id, true) } },
+      avatar(item.producer, 18), h('span', { class: 'ti', text: item.title }), h('span', { class: `st tone-${stateInfo(item.state).tone}` }, glyph(stateInfo(item.state).glyph), item.stateText))
     const decision = decisions.get(detailId) ?? null
     const parts = [detail.producer?.name, detail.stateText].filter(Boolean)
     if (!detail.producer && detail.stateText !== UNASSIGNED) parts.push(UNASSIGNED)
@@ -589,12 +594,12 @@ export function createLatticeChart(dialog, {
     if (keepSheet) focusClose()
   }
 
-  // ---- 強調：選んだ担当の札と待ちだけ残し、ほかは薄く。
+  // ---- 強調：選んだ担当の札と接続だけ残し、ほかは薄く。
   function applyHighlight() {
     if (!ui || !snapshot) return
     const sets = highlightSets(snapshot, highlight)
     for (const [id, el] of [...cardEls, ...treeEls]) el.classList.toggle('dim', Boolean(sets) && !sets.cards.has(id))
-    for (const row of ui.waits.querySelectorAll?.('[data-wait]') ?? []) row.classList.toggle('dim', Boolean(sets) && !sets.waits.has(row.dataset.wait))
+    for (const row of ui.waits.querySelectorAll?.('[data-wait]') ?? []) row.classList.toggle('dim', Boolean(sets) && !sets.connections.has(row.dataset.wait))
     const lit = key => !sets || sets.cards.has(key.split('>')[0]) || sets.cards.has(key.split('>')[1])
     for (const item of [...(ui.edgeLayer.children ?? []), ...(ui.chips.children ?? []), ...(ui.treeArcs.children ?? [])]) { const key = item.getAttribute?.('data-edge') ?? item.dataset?.edge; if (key) item.classList.toggle('dim', !lit(key)) }
   }

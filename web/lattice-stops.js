@@ -1,14 +1,14 @@
-// 止め一覧の画面。データは GET /api/lattice/blockers と POST /api/lattice/charts/:projectId/unblock、見た目と動きは screen-spec.md の「止め一覧」。
+// ブロック一覧の画面。データは GET /api/lattice/blockers と POST /api/lattice/charts/:projectId/unblock、見た目と動きは screen-spec.md の「ブロック一覧」。
 import { UNASSIGNED, backoffMs, chartName as defaultChartName, formatJst, memberLookup } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 
 export const BLOCKERS_SCHEMA = 'bellteam.lattice-blockers.v1'
 export const STOPS_MESSAGES = {
-  loading: '止めを読んでいます…',
-  empty: '止まっている工程はありません。',
-  retry: '止め一覧を読み直しています…',
-  old: 'このサーバーではまだ止め一覧を使えません。',
+  loading: 'ブロックを読んでいます…',
+  empty: 'ブロックされている工程はありません。',
+  retry: 'ブロック一覧を読み直しています…',
+  old: 'このサーバーではまだブロック一覧を使えません。',
   unread: '一部の工程表を読めませんでした。読めた分だけ表示しています。',
-  ask: 'この止めを外しますか？',
+  ask: 'このブロックを外しますか？',
   later: 'いまは外せませんでした。少し待ってからもう一度お試しください。',
   refused: reason => reason ? `外せませんでした: ${reason}` : '外せませんでした',
 }
@@ -23,7 +23,7 @@ export function stopTime(value, now) {
   return day === DAY.format(now - 86400000) ? `昨日 ${TIME.format(new Date(value))}` : formatJst(value)
 }
 
-// 担当・止めた人：Bot id -> 名簿の顔（名簿に無ければ名簿にないメンバー）、"owner" -> 指揮官、それ以外の文字はそのまま、null -> 担当なし（null）。
+// 担当・ブロックした人：Bot id -> 名簿の顔（名簿に無ければ名簿にないメンバー）、"owner" -> 指揮官、それ以外の文字はそのまま、null -> 担当なし（null）。
 const BOT_ID = /^bot-[0-9a-z]+$/u
 function faceLookup(getMember, getOwner) {
   const known = memberLookup({ members: [], owner: getOwner() })
@@ -43,7 +43,7 @@ export function stopRows(blockers, { now = Date.now(), getMember = () => null, g
       const lane = face(item.lane), by = face(item.blockedBy), time = stopTime(item.blockedAt, now), byName = by ? by.name : UNASSIGNED
       return {
         stopId: item.stopId, projectId: item.projectId, cardId: item.cardId, title, chart, lane, reason, by, time,
-        label: `止まり、${title}、${chart}、${lane ? `担当 ${lane.name}` : UNASSIGNED}${reason ? `、理由 ${reason}` : ''}、${byName}が${time ? `${time}に` : ''}止めました`,
+        label: `ブロック、${title}、${chart}、${lane ? `担当 ${lane.name}` : UNASSIGNED}${reason ? `、理由 ${reason}` : ''}、${byName}が${time ? `${time}に` : ''}ブロックしました`,
       }
     })
 }
@@ -87,7 +87,7 @@ export function createStopsView(host, {
     const stale = phase === 'retry' ? ' is-stale' : ''
     const head = h('div', { class: 'lattice-stops-head' },
       h('button', { class: 'lattice-back', type: 'button', 'aria-label': 'すべての工程表へ戻る', dataset: { focusKey: 'back' }, on: { click: () => back() } }, glyph('back'), h('span', { text: 'すべての工程表' })),
-      h('h3', { text: '止め一覧' }),
+      h('h3', { text: 'ブロック一覧' }),
       h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'reload' }, on: { click: () => void read() } }, glyph('refresh'), '読み直す'))
     let content
     if (phase === 'loading') content = h('div', { class: 'lattice-loading', role: 'status' }, h('i', { class: 'lattice-spinner', 'aria-hidden': 'true' }), h('span', { class: 'lattice-stops-wait', text: STOPS_MESSAGES.loading }))
@@ -119,7 +119,7 @@ export function createStopsView(host, {
           h('span', { class: 'ch', text: row.chart }),
           h('span', { class: 'mt' }, h('small', { text: '担当' }), person(row.lane)),
           h('span', { class: 'rs' }, h('small', { text: '理由' }), h('span', { class: 'tx', text: row.reason })),
-          h('span', { class: 'mt' }, h('small', { text: '止めた人' }), person(row.by), row.time && h('time', { text: row.time })))),
+          h('span', { class: 'mt' }, h('small', { text: 'ブロックした人' }), person(row.by), row.time && h('time', { text: row.time })))),
       h('div', { class: 'lattice-stop-act' }, ...act),
       note && h('p', { class: 'lattice-stop-note', role: 'status', text: note }))
     rowEls.set(id, el)
