@@ -190,6 +190,17 @@ test('http: owner only, JSON and Idempotency-Key required for answers, errors be
   assert.equal((await call(api, 'POST', '/api/approvals/K-AAAA/answer', { headers: { 'idempotency-key': 'abcdefgh-1' }, body: {} })).status, 415)
 })
 
+test('http: an attachment is sandboxed and only images are inline (the sender may not be ours)', async () => {
+  const serve = async contentType => {
+    const { out, response } = reply()
+    const api = createApprovalsApi({ facade: { attachment: async () => ({ contentType, size: 1, data: 'AA==' }) }, internal: false })
+    await api({ method: 'GET', headers: {}, on() {} }, response, new URL('http://x/api/approvals/K-AAAA/attachments/a1'))
+    return out.headers
+  }
+  const svg = await serve('image/svg+xml'), png = await serve('image/png')
+  assert.match(svg['content-security-policy'], /^sandbox;/u)
+  assert.deepEqual([svg['content-disposition'], png['content-disposition'], png['content-security-policy'] === svg['content-security-policy']], ['attachment', 'inline', true])
+})
 test('module.json source lists every file of src/approval-box-extension* (the packager test pattern)', () => {
   const listed = JSON.parse(readFileSync(new URL('../docs/architecture/modules/approval-box-extension/module.json', import.meta.url), 'utf8')).source
   const files = [...readdirSync(new URL('../src/approval-box-extension', import.meta.url)).map(name => `src/approval-box-extension/${name}`),

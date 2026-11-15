@@ -307,7 +307,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
       if (!caughtUp || now() - lastCatchUp > CATCH_UP_MS) await catchUp(effect)
       const memo = {}
       for (const id of [...dirty].slice(0, PER_TICK)) {
-        try { await process_(effect, id, memo); dirty.delete(id) } catch (error) { if (error?.code === 'APPROVALS_NOT_CONNECTED') return idle }
+        try { await process_(effect, id, memo); dirty.delete(id) } catch (error) { if (error?.code === 'APPROVALS_NOT_CONNECTED') return idle; dirty.delete(id); dirty.add(id) } // a failing id goes to the back so five stuck ones cannot starve the rest
       }
       return { seq, events: fresh.map(({ type, id, version }) => ({ type, id, version })), summary: fresh.length || since === 0 ? await summaryOf(effect).catch(() => null) : null }
     },

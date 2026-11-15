@@ -78,7 +78,7 @@ export function createApprovalsApi({ facade, internal, heartbeatMs = 15000 }) {
       if (!/^[A-Za-z0-9_-]{1,64}$/u.test(third)) return error(response, 404, 'not_found')
       let file
       try { file = await facade.attachment({ id: first, aid: third }) } catch (caught) { return failed(response, caught) }
-      response.writeHead(200, { 'content-type': file.contentType, 'content-length': file.size, ...(file.etag ? { etag: file.etag } : {}), 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' })
+      response.writeHead(200, { 'content-type': file.contentType, 'content-length': file.size, ...(file.etag ? { etag: file.etag } : {}), 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'", 'content-disposition': /^image\/(png|jpeg|gif|webp)$/iu.test(file.contentType) ? 'inline' : 'attachment' }) // the AI that attached it may not be ours: a direct open of html/svg must not run script on this origin
       return response.end(Buffer.from(file.data, 'base64'))
     }
     if (second === 'answer') {
