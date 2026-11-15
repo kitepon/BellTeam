@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T00:46:41Z",
-  "expiresAt": "2026-11-22T00:46:41Z",
+  "publishedAt": "2026-11-15T01:40:47Z",
+  "expiresAt": "2026-11-22T01:40:47Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
-      "versionId": "fa17629461cc95709cf644d8e0e22bc2e75d39dd1e09e54a5771422363283c6e",
+      "sourceCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6",
+      "versionId": "cf00c450af92633eec942d298343efd6baf9c2b272e9cec7a7ade1ee0a31dd6a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz",
-          "bytes": 5347257,
-          "sha256": "fa17629461cc95709cf644d8e0e22bc2e75d39dd1e09e54a5771422363283c6e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-amd64.tar.gz",
+          "bytes": 5355814,
+          "sha256": "cf00c450af92633eec942d298343efd6baf9c2b272e9cec7a7ade1ee0a31dd6a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11299,
-          "sha256": "322e1b6561c697ff75351b6e390c876c9afbf734a6fbf69674f3fb6d437e6393"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11162,
+          "sha256": "0eddb461a568834858275ba2ee92a44698a356cf5f8979d7ffbd37cb4a455561"
         },
-        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
+        "signerCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "BellTeamの画面を、他のサイトの枠の中に表示させないようにしました。"
+        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
-      "versionId": "5b5b3791d9a2689e2c9202a453bfd182b4af164b5c82c4958863a6b08e093b70",
+      "sourceCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6",
+      "versionId": "1449fee05c0c7d9b3499cfb007a0aafc062601cdf02bacfac78254e4f83e8b8d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz",
-          "bytes": 5347257,
-          "sha256": "5b5b3791d9a2689e2c9202a453bfd182b4af164b5c82c4958863a6b08e093b70"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-arm64.tar.gz",
+          "bytes": 5355814,
+          "sha256": "1449fee05c0c7d9b3499cfb007a0aafc062601cdf02bacfac78254e4f83e8b8d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224427Z/web-gateway-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11115,
-          "sha256": "65d65635dec09e038e132dcb0523a5aa8929663706d46d7faf8c5027b7be7906"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11099,
+          "sha256": "61344d750a4f9706459b09f5a96c0f81cdbc6ef4db821e60081c37b389f371e6"
         },
-        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
+        "signerCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "BellTeamの画面を、他のサイトの枠の中に表示させないようにしました。"
+        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
-      "versionId": "sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855",
+      "sourceCommit": "5751962b2e24047d1872980868ea1955585cbf95",
+      "versionId": "sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,23 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Botが別のBotの席になりすますことを防ぐ確認を強めました。",
-        "古いブラウザから他サイト経由の書き込みを断るようにしました。",
-        "部品の入れ替え中も、会話の読み込みや更新結果の読み込みが失敗しにくくなりました。",
-        "依存部品とnpmを最新にしました。"
+        "予定や共有ツールが席の名前だけで本体を呼べるように戻しました。",
+        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
-      "versionId": "sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855",
+      "sourceCommit": "5751962b2e24047d1872980868ea1955585cbf95",
+      "versionId": "sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,10 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Botが別のBotの席になりすますことを防ぐ確認を強めました。",
-        "古いブラウザから他サイト経由の書き込みを断るようにしました。",
-        "部品の入れ替え中も、会話の読み込みや更新結果の読み込みが失敗しにくくなりました。",
-        "依存部品とnpmを最新にしました。"
+        "予定や共有ツールが席の名前だけで本体を呼べるように戻しました。",
+        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
       ]
     },
     {
