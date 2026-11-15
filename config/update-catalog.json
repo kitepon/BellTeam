@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T02:23:13Z",
-  "expiresAt": "2026-11-22T02:23:13Z",
+  "publishedAt": "2026-11-15T02:42:08Z",
+  "expiresAt": "2026-11-22T02:42:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ce6558af9a00e759002e5c16df7daaac7122676c",
-      "versionId": "sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16",
+      "sourceCommit": "22cca1a97aa5e917e157e451303002fb6f9ea3cf",
+      "versionId": "sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席が止まっているBotへの通話で、席が起動できずに届かないことがある不具合を直しました。"
+        "部品の入れ替え中に始まった設定や認証の処理が、入れ替えの完了を待ってから進むようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ce6558af9a00e759002e5c16df7daaac7122676c",
-      "versionId": "sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16",
+      "sourceCommit": "22cca1a97aa5e917e157e451303002fb6f9ea3cf",
+      "versionId": "sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席が止まっているBotへの通話で、席が起動できずに届かないことがある不具合を直しました。"
+        "部品の入れ替え中に始まった設定や認証の処理が、入れ替えの完了を待ってから進むようにしました。"
       ]
     },
     {
