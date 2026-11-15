@@ -17,7 +17,7 @@ import { createRunningExclusionsApi } from './http-running-exclusions-api.mjs'
 import { createServer } from 'node:http'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { crossSiteWrite, json } from './http-response.mjs'
-import { logWriteRequest, logReadRequest } from './http-request-log.mjs'
+import { logWriteRequest, logReadRequest, recordSlowOrAborted } from './http-request-log.mjs'
 import { staticFile } from './http-assets.mjs'
 import { respondHttpError } from './http-errors.mjs'
 import { createMessageViews } from './http-messages.mjs'
@@ -76,6 +76,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     let stage = 'url'
     logWriteRequest(request, response, writeLog)
     logReadRequest(request, response, writeLog)
+    if (!internal) recordSlowOrAborted(request, response, diagnostics)
     let membersContext
     try {
       const url = new URL(request.url, 'http://bellteam.local')
