@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T01:53:34Z",
-  "expiresAt": "2026-11-22T01:53:34Z",
+  "publishedAt": "2026-11-15T02:23:13Z",
+  "expiresAt": "2026-11-22T02:23:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3c027627744bba48b6e94a15855a6803e89558c5",
-      "versionId": "sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1",
+      "sourceCommit": "ce6558af9a00e759002e5c16df7daaac7122676c",
+      "versionId": "sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "通話ブリッジの受け口を、席から使える元の設定に戻しました。",
-        "席を確かめる条件のうち、効果のない部分を外しました。"
+        "席が止まっているBotへの通話で、席が起動できずに届かないことがある不具合を直しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3c027627744bba48b6e94a15855a6803e89558c5",
-      "versionId": "sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1",
+      "sourceCommit": "ce6558af9a00e759002e5c16df7daaac7122676c",
+      "versionId": "sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5d391b87143997749d3e6e68cbc7da64a20df3449e9520443323f1c976246a16"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "通話ブリッジの受け口を、席から使える元の設定に戻しました。",
-        "席を確かめる条件のうち、効果のない部分を外しました。"
+        "席が止まっているBotへの通話で、席が起動できずに届かないことがある不具合を直しました。"
       ]
     },
     {
