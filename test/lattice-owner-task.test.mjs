@@ -16,13 +16,14 @@ const ok = (args, input = null, linked = () => false) => assert.doesNotThrow(() 
 const dec = 'dec-k-abc123'
 
 test('owner task check: only decision tasks, and cards that were linked; no file flags, no other verbs', () => {
-  const plan = { plan_key: 'approval-box', tasks: [{ task_id: dec, lane: 'owner' }] }
+  const plan = { plan_key: 'approval-box', tasks: [{ task_id: dec, lane: 'approval-box' }] }
   ok(['plan', 'create', '--json'], plan)
   refused(['plan', 'create', '--json'], { ...plan, plan_key: 'other' })
   refused(['plan', 'create', '--json'], { plan_key: 'approval-box', tasks: [{ task_id: 't1', lane: 'owner' }] })
   refused(['plan', 'create', '--json'], { plan_key: 'approval-box', tasks: [{ task_id: dec, lane: 'bot-a' }] })
-  ok(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x', '--lane', 'owner', '--after', 'dec-k-prev'])
+  ok(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x', '--lane', 'approval-box', '--after', 'dec-k-prev'])
   ok(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x', '--lane', 'approval-box'])
+  refused(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x', '--lane', 'owner'])
   ok(['plan', 'create', '--json'], { ...plan, tasks: [{ task_id: dec, lane: 'approval-box' }] })
   refused(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x'], null)
   refused(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--lane', 'bot-a'])
@@ -103,9 +104,9 @@ test('real Lattice: the Owner actor drives decision tasks only; link registers a
   assert.equal((await core.link({ projectId: 'alpha', plan: 'p1', taskId: 't1' }, effect)).linked, true, 'idempotent')
   // The Owner actor: the decision plan, a decision task, the edge to the waiting task, then the answer.
   const made = await owner(['plan', 'create', '--json'], { schema: 'lattice.plan_create_input.v5', plan_key: 'approval-box', phases: [{ phase_id: 'decisions', title: 'Decisions' }], hard_dependencies: [],
-    tasks: [{ task_id: 'dec-k-first', title: 'first', phase_id: 'decisions', design_memo: 'm', lane: 'owner' }] })
+    tasks: [{ task_id: 'dec-k-first', title: 'first', phase_id: 'decisions', design_memo: 'm', lane: 'approval-box' }] })
   assert.equal(made.exitCode, 0, made.stderr)
-  const added = await owner(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'decide', '--phase', 'decisions', '--lane', 'owner', '--after', 'dec-k-first', '--design-memo', 'the decision', '--reason', 'filed'])
+  const added = await owner(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'decide', '--phase', 'decisions', '--lane', 'approval-box', '--after', 'dec-k-first', '--design-memo', 'the decision', '--reason', 'filed'])
   assert.equal(added.exitCode, 0, added.stderr)
   assert.equal(added.result.actor.agent, 'owner', 'the chart records the Owner as the actor')
   const edge = await owner(['todo', 'predecessor', 'add', '--plan', 'p1', '--task', 's1', '--after', `approval-box/${dec}`, '--reason', 'waits for the answer'])
@@ -118,5 +119,5 @@ test('real Lattice: the Owner actor drives decision tasks only; link registers a
   await assert.rejects(owner(['todo', 'start', '--plan', 'p1', '--task', 's1']), { code: 'LATTICE_OWNER_TASK_REFUSED' })
   const chart = await core.chart({ projectId: 'alpha' }, effect)
   assert.ok(chart.edges.some(item => item.from === `approval-box/${dec}` && item.to === 'p1/s1' && item.waiting), 'edges carry <plan>/<task> ids')
-  assert.deepEqual(chart.cards.find(card => card.id === `approval-box/${dec}`)?.lane, 'owner')
+  assert.deepEqual(chart.cards.find(card => card.id === `approval-box/${dec}`)?.lane, 'approval-box')
 })
