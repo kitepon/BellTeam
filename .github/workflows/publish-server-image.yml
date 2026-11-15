@@ -57,6 +57,7 @@ on:
       - config/diagnostics-verification.json
       - config/work-graph-verification.json
       - config/lattice-verification.json
+      - config/approval-box-extension-verification.json
       - config/execution-verification.json
       - config/conversation-verification.json
       - config/update-catalog-verification.json
@@ -71,6 +72,7 @@ on:
       - scripts/verify-diagnostics.py
       - scripts/verify-work-graph.py
       - scripts/verify-lattice.py
+      - scripts/verify-approval-box-extension.py
       - scripts/verify-execution.py
       - scripts/verify-conversation.py
       - scripts/module_artifact_verifier.py
@@ -82,6 +84,7 @@ on:
       - scripts/install-diagnostics-release.py
       - scripts/install-work-graph-release.py
       - scripts/install-lattice-release.py
+      - scripts/install-approval-box-extension-release.py
       - scripts/install-execution-release.py
       - scripts/install-conversation-release.py
       - scripts/verify-update-catalog.py

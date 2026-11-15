@@ -189,6 +189,26 @@ BUSINESS_FILES = {
         'src/module-locks.mjs',
         'src/module-streams.mjs',
     )},
+    # package/lock are the body's root files: the child imports only node: builtins and its own files.
+    # src/approval-box-extension/http-api.mjs is body-resident (the parent serves the routes) and stays out.
+    'approval-box-extension': {'payload/' + name for name in (
+        'package-lock.json',
+        'package.json',
+        'src/approval-box-extension-dispatcher.mjs',
+        'src/approval-box-extension-entry.mjs',
+        'src/approval-box-extension-ipc.mjs',
+        'src/approval-box-extension-locks.mjs',
+        'src/approval-box-extension-protocol.mjs',
+        'src/approval-box-extension/client.mjs',
+        'src/approval-box-extension/connect-state.mjs',
+        'src/approval-box-extension/core.mjs',
+        'src/approval-box-extension/entitlement.mjs',
+        'src/approval-box-extension/link-plan.mjs',
+        'src/approval-box-extension/origin-view.mjs',
+        'src/module-ipc.mjs',
+        'src/module-locks.mjs',
+        'src/module-streams.mjs',
+    )},
 }
 
 EXECUTION_FILES = {'payload/' + name for name in (
@@ -254,6 +274,7 @@ BUSINESS_STATE = {
     'diagnostics': dict(diagnostics='unversioned-rows-array', investigations='optional-fingerprint-map'),
     'work-graph': dict(state='none'),
     'lattice': dict(state='none'),
+    'approval-box-extension': dict(state='none'),
 }
 
 def state_form(value):
@@ -279,7 +300,7 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice'), 'MODULE_COMPONENT_INVALID')
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     # Install accepts the module's own signed file list; only the public entry contract is fixed here.

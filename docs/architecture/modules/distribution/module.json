@@ -14,7 +14,8 @@
     "conversation-artifact",
     "runtime-artifact",
     "work-graph-artifact",
-    "lattice-artifact"
+    "lattice-artifact",
+    "approval-box-extension-artifact"
   ],
   "uses": [
     {
@@ -78,6 +79,10 @@
     "scripts/probe-lattice-runtime.mjs",
     "config/lattice-verification.json",
     "distribution/lattice/package.json",
-    "distribution/lattice/package-lock.json"
+    "distribution/lattice/package-lock.json",
+    ".github/workflows/publish-approval-box-extension.yml",
+    "scripts/package-approval-box-extension.py",
+    "scripts/probe-approval-box-extension-runtime.mjs",
+    "config/approval-box-extension-verification.json"
   ]
 }

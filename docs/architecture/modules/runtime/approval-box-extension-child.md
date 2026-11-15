@@ -63,6 +63,8 @@ Effects exist only inside a root call. No file, network or process effect is off
 
 Slices 2-4 ship in one body train (with Delta's child as a module row after it); until then the HTTP routes answer 404 and nothing else changes.
 
+Slices 4 and 5 are delivered together (a176, 2026-11-16): `approval-box-extension` joins the closed component lists (update catalog ids/state ids, update center row `決裁箱拡張`, module adapters, `prepareApprovalBoxExtensionRelease`, release validator, install plan, host `MODULES` + state validator, preflight fallback set, `update_catalog.py`), and the signed-asset chain (`package-approval-box-extension.py`, `verify-`/`install-approval-box-extension-release.py`, `BUSINESS_FILES`/`BUSINESS_STATE`, `probe-approval-box-extension-runtime.mjs`, `publish-approval-box-extension.yml`, `config/approval-box-extension-verification.json`). The payload closure is the child's own files plus `module-ipc/locks/streams` and the body's root `package.json`/lock; `http-api.mjs` and the parent files stay body-resident. The update row is body code, so a body image must carry slice 4 before the module row can be installed (the old body refuses an unknown componentId).
+
 ## Failure handling
 
 | Failure | Behavior | Self-exit |
