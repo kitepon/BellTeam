@@ -7,8 +7,9 @@ flowchart TD
   Http["HTTP認証"] --> Owner["members.owner-http<br/>Owner profile / user-rules"]
   Read["通常MCPの2読取"] --> Member["members.profiles-mcp"]
   BotWrite["通常MCP update_user_rules<br/>text"] --> Code["profiles-mcp: before=現在値, after=正規化text<br/>code=HMAC(process key, from/before/after) 8桁"]
-  Code --> Proof["呼出Botの直接会話timelineで24h以内<br/>messageAuthor.kind=user のOwner入力の全文が<br/>「規範変更を承認 code」か"]
-  Proof -->|"無し"| Proposal["保存しない。差分+「規範変更を承認 code」を<br/>呼出Botからユーザーへ送る。approval.required"]
+  Code --> Proof["呼出Botの直接会話timelineで24h以内<br/>Owner入力（outgoing、作者がuser以外と記されていない）の全文が<br/>「規範変更を承認 code」か"]
+  Proof -->|"無し・このcodeを未通知"| Proposal["保存しない。差分+「規範変更を承認 code」を<br/>呼出Botからユーザーへ送る。approval.required"]
+  Proof -->|"無し・このcodeを24h以内に通知済み"| Pending["保存しない。再通知しない<br/>approval.required, notice.alreadySent"]
   Proposal -->|"Owner本人がその言葉を送る→同じtextで再呼出"| Code
   Proof -->|"有り: messageId/at/quote"| BotSave["members rules.botUpdate<br/>actor=bot, before固定"]
   BotSave -->|"現在値≠before"| Changed["USER_RULES_CHANGED 409<br/>読み直して案を出し直す"]
@@ -94,13 +95,13 @@ Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一�
 ### Botによるユーザー規範の更新（Owner本人の承認だけ）
 
 - 入力: `update_user_rules({text})`。textは全文置換。Botはユーザーが直接会話で自分の言葉で頼んだ時だけ呼ぶ（common-agents RULE owner.rules-write）。ただしその頼みは保存の根拠にしない。引用は文の証拠であって、規範変更の許可ではないため（Epinel #876 review）。
-- 承認の運び方: profiles-mcpが`before`（現在値）と`after`（`normalizeUserRules(text)`）から、親プロセスごとの乱数鍵で`code = HMAC(key, [from, before, after])`の先頭8桁（16進大文字）を作る。鍵はBotに見えないので、Botは示された差分以外のcodeを作れない。呼出元`from`（ingressが決めたBot ID、引数ではない）の直接会話timeline（conversationの公開`store.timeline`）で、24時間以内の`kind=message, direction=outgoing, messageAuthor.kind=user`（conversationが認証済みOwner入力だけに付ける作者、#877）の発言の全文が、通知した承認の言葉`規範変更を承認 <code>`そのものなら承認とする。照合は空白（全角含む）を除き、全体を囲む「」一組を外し、大文字小文字を問わない。codeに触れただけの発言（「その<code>は承認しない」、質問、前後に言葉が付いたもの）は承認にならない。Botの代筆（`messageAuthor.kind=bot`。撤去済みの旧`send_user_message`で残った過去記録を含む）、作者の無い過去記録（`unknown`/欄なし）、peer、予定、ルームは承認にならない。
-- 承認が無い時: 保存せず、呼出Botからユーザーへの直接会話に「承認のお願い」（Bot名・JST時刻・行差分・「規範変更を承認 code」を送れば保存、24時間有効）を送り、`{text: before, changed: false, approval: {required: true, notice: {delivered}}}`を返す。
+- 承認の運び方: profiles-mcpが`before`（現在値）と`after`（`normalizeUserRules(text)`）から、親プロセスごとの乱数鍵で`code = HMAC(key, [from, before, after])`の先頭8桁（16進大文字）を作る。鍵はBotに見えないので、Botは示された差分以外のcodeを作れない。呼出元`from`（ingressが決めたBot ID、引数ではない）の直接会話timeline（conversationの公開`store.timeline`）で、24時間以内の`kind=message, direction=outgoing`で、`messageAuthor`が無いか`kind=user`の発言の全文が、通知した承認の言葉`規範変更を承認 <code>`そのものなら承認とする。照合は空白（全角含む）を除き、全体を囲む「」一組を外し、大文字小文字を問わない。codeに触れただけの発言（「その<code>は承認しない」、質問、前後に言葉が付いたもの）は承認にならない。`direction=outgoing`はconversationの`from=user`行で、それを書く`user.post`はOwner HTTP・初期設定・usageだけに許され、Botには無い（conversation/authority.mjs、audit H2）。Botが代筆できた旧`send_user_message`は撤去済み。usageの`user.post`（質問の回答・秘密入力の完了）は固定の前置き付きの文なので、全文一致の承認の言葉にならない。過去記録はcodeを含みえない（鍵は親プロセスごと）。作者欄（conversation #877、未取込み）が配られた後も`messageAuthor.kind=bot`/`unknown`は承認にならない。peer、予定、ルームは承認にならない。作業中に届き`delivery=queued`のOwner発言も同じoutgoing行なので承認になる。
+- 承認が無い時: 保存せず、呼出Botからユーザーへの直接会話に「承認のお願い」（Bot名・JST時刻・行差分・「規範変更を承認 code」を送れば保存、24時間有効）を送り、`{text: before, changed: false, approval: {required: true, notice: {delivered}}}`を返す。同じcode（同じBot・同じ差分・同じ親プロセス）の通知が24時間以内に届いていれば再送せず、`notice: {alreadySent: true}`を返す。通知済みの記録は親プロセスのメモリだけに持ち、届かなかった通知は記録しない（次の呼出で再送する）。
 - 拒否（guard）: 承認が無い保存と、承認後に本文が変わった保存。守るもの: 既存状態（Ownerの規範の正本）の上書き。Ownerが見ていない差分は書かない。self-exit: 状態を持たない。Ownerが示された言葉を送ると、同じtextの次の呼出が保存する。`USER_RULES_CHANGED`の時は読み直して出した新しい案に、新しいcodeが付く。親の再起動は鍵を替えるだけで、次の呼出が新しい案を送る。Owner HTTPの保存は常に通る。
 - 保存: members `rules.botUpdate {text, before, botId, instruction:{messageId,at,quote}}`（quoteは承認したOwner発言、ownerWrite不要。承認の確認は親のprofiles-mcpが済ませる）→ Owner保存と同じ直列化の中で、現在値が`before`と違えば`USER_RULES_CHANGED`(409)で書かない → 保存・`refreshGlobalInstructions`。結果は`{text, before}`。承認済みcodeは`before`に結び付くため、保存後は同じcodeが別の差分へ効かない。
 - Ownerへの見え方: 本文が変わった保存は、Owner/Botどちらも`owner/user-rules-history.jsonl`に`{schema:'bellteam.user-rules-change.v1', at, actor:{kind:'owner'}|{kind:'bot',botId}, instruction?, before, after}`を追記し、`GET /api/user-rules/history`（members `rules.history`、lease付き読取）が新しい順50件を`{changes}`で返す。Botの保存後は、そのBotからユーザーへの直接会話に、Bot名・JST時刻・承認した発言・行差分の自動記録を送る。Web/Apple/Windowsはクライアント変更なしで会話として見える。通知の失敗は保存を取り消さず、結果の`ownerNotice.delivered=false`で返す。
 - 差分の計算（`userRulesDiff`、承認前にも走る）: 共通の先頭・末尾行を除き、残りの行数の積が100万以下の時だけLCS（Uint16、最大2MB）を使う。超える時は残りの旧行を全部`- `、新行を全部`+ `で並べる。どちらも変更の全体を示し、時間とメモリは入力20,000字に比例して収まる。
-- 前提: conversationの`messageAuthor`（#877）。それより前の配置では作者付きのOwner発言が無いので、Botの保存は起きない（案の通知だけ）。
+- 作者欄: conversationの`messageAuthor`（#877）は未取込み。承認はそれを前提にしない（2026-11-15 a142: 前提にしていたため本番で承認が一度も通らなかった）。
 
 どちらの更新も正本保存→指示再生成の順。生成失敗時は元の例外を伝え、保存済みprofile/rulesを消したり成功へ変えたりしない。通常MCPの応答整形、共通認証とエラー変換はintegration。全製品共通テンプレートの変更をmembers内部で行わない。
 
