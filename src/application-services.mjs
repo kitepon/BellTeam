@@ -382,7 +382,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const { store } = conversation
   let directTurnReports
   directMessages = createDirectReceiptAssembly({ root, bots, assets: conversationAssembly?.directAssets ?? conversation.assets,
-    legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex,
+    legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex, environmentReady: botEnvironments?.ready,
     executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available && !execution.hold?.held,
     onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
     onError: (error, context) => diagnostics.record(directFailureReport(error, context)),

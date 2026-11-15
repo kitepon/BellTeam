@@ -49,6 +49,7 @@ Owner不具合: members子の単独更新中（13:37:44 JST、job d92d948e）に
 | `expected` を渡す呼び出し、同期の `enter()` / `enterReadPin()` | 変更なし（旧epochに束縛された要求は従来どおり拒否）。既lease/既pinを渡すrootは上のa149bの行 |
 | 会話facadeの新しい呼び出し（引き継ぐoperationContext・leaseなし。Owner HTTPのrooms.list・履歴・投稿など）（2026-11-15 a127） | `exchanging`の時だけ、予約（`moduleOperations.reserve()`＝同期`enter()`）を含む開始処理を`whenOpen`へ渡し、resume直後に同期で予約して始める（AT7の予定と同じ口、同じ60秒の出口）。開いている時と引き継ぎのある呼び出しは従来どおりその場で同期に始める。戻り値の`completion`（`user.turn`は`accepted`も）は保つ。BugHub ef83d4ee: 2026-11-14 23:02:31Z GET /api/roomsがmembers交換中に即503 MEMBERS_NOT_ACCEPTEDになった |
 | 会話rootのmembers lease（2026-11-15 a149） | `conversation-assembly`のinvokeは、会話rootのmembers leaseへ`result.accepted ?? result`（turnは受付、他はrootの返答）だけを登録する。会話leaseは従来どおり`completion`まで保つ。受付後のAI完走でmembers交換を待たせない（本番11/15 13:37、Ownerのturn中にmembers交換がMEMBERS_DRAIN_TIMEOUT。Owner 11/08「更新は作業を待たない」）。部屋root（`room.post`/`room.reply`）は配送を発行した時点で返るので、その`execution.notify`は報告・fork返答の中継と同じく新しいmembers leaseで入り直す。受付後に同じleaseを使う会話側のeffectは無い（N102確認）。実行側のlease検査は受付前だけ（Kiro確認） |
+| 直接配送の入口でのsetup待ち（2026-11-15 a149c、Molly依頼、Kiro） | `direct-receipt-assembly`のdispatchは、`withLease`の前に親の既存`environmentReady(bot.project)`（`botEnvironments.ready`、そのBotのsetup.sh終了）を待つ。本体再起動直後、約68席のsetupは順に数分かかり、従来はleaseを取ってから席起動（`launchOptions`）の中でこの待ちに入ったため、保存済み受付のdrain・予定・sendmessageがlease枠64を埋め、他の入場が`enter()`で即拒否された（Z28 14:46 JST）。待ちはleaseの外なので枠を消費せず、出口は既存のsetup期限600秒（cli-registration）。新しい待ち・期限・拒否は足さない。登録の無いBotは即時。会話root（部屋・Owner turn）の同じ並べ替えは会話facadeの所有（N102）で、この変更の範囲外 |
 
 ```mermaid
 flowchart LR
