@@ -16,9 +16,20 @@ function askMessage(chart, card) {
   const where = `${card.plan}/${card.taskId} 「${card.title}」 on your chart ${chart.projectId} (lattice tool, project ${chart.projectId})`
   return `Lattice: the Owner-lane task ${where} needs the Owner. Lattice does not file Approval Box requests itself (the Owner could not read the cards it made).\n`
     + `You created this chart, so make sure exactly ONE Approval Box request exists for this decision: if you or the Bot that added this task already filed one, file nothing; otherwise file it yourself with request_decision.\n`
+    + `Set its session_label to \`Lattice ${chart.projectId} ${card.plan}/${card.taskId}\`, so the answer that reaches you names this task.\n`
     + `Write it to the Approval Box instructions, in plain Japanese: the title says in one sentence what the Owner should decide; the background gives the reason and the impact first; put on the card what he must see to decide (a draft he approves, the exact setting, the cost); each option says what happens after it. No task ids, no English chart text.\n`
     + `When he answers, record it: \`lattice todo start --plan ${card.plan} --task ${card.taskId}\` (skip if already in progress), then \`lattice todo done --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`;`
     + ` or \`lattice todo note --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`. If the task is retired or done before he answers, cancel_decision your request.`
+}
+
+// Task a145 (Owner 2026-11-15; Ink K-HME3YU: the answer reached Ink's conversation at 10:45 JST, the task stayed open ~2.5 h): Lattice cannot see a
+// Bot's own request (Nayuta: per-connection scope), so a handed-over task still open reminds its creator, at most once an hour while it is not running.
+const REMIND_MS = 60 * 60 * 1000
+function remindMessage(entries) {
+  return `Lattice: these Owner-lane tasks on charts you created are still open. Check your Approval Box request for each (list_my_decisions / resume_decision).\n`
+    + `If the Owner has answered, record it now: \`lattice todo start --plan <P> --task <T>\` (skip if in progress), then \`lattice todo done --plan <P> --task <T> --message "<the Owner's answer>"\`, or \`lattice todo note\` if the answer is not "done". `
+    + `If no request exists, file it as the hand-over said. If he has not answered yet, do nothing; this reminder comes again in an hour while the task is open.\n`
+    + entries.map(({ chart, card }) => `- chart ${chart.projectId} (lattice tool, project ${chart.projectId}): ${card.plan}/${card.taskId} 「${card.title}」`).join('\n')
 }
 
 function answerMessage(chart, item, answer) {
@@ -85,10 +96,13 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     await records.write(record)
     out.routed++
   }
+  const due = new Map()
   for (const chart of charts) for (const card of chart.cards) {
     if (!OPEN.has(card.state) || laneOf(card.lane) !== 'owner') continue
     const key = keyOf(chart.projectId, card)
     // shortcut: at most once per task, even after the answer; a reopened Owner task is not handed over again. Upgrade if the Owner asks for it.
+    if (record[key]?.status === 'asked' && bots.has(chart.createdBy) && Date.now() - Date.parse(record[key].remindedAt ?? record[key].askedAt) >= REMIND_MS)
+      due.set(chart.createdBy, [...due.get(chart.createdBy) ?? [], { chart, card, key }])
     if (record[key]) continue
     if (!bots.has(chart.createdBy)) { log(`lattice-owner-ask ${chart.projectId} no-creator`); continue }
     const sent = await effect('messages.send', { from: 'scheduler', target: chart.createdBy, message: askMessage(chart, card) }).catch(() => null)
@@ -96,6 +110,19 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     record[key] = { projectId: chart.projectId, plan: card.plan, taskId: card.taskId, title: card.title, status: 'asked', askedAt: new Date().toISOString() }
     await records.write(record)
     out.filed++
+  }
+  if (!due.size) return out
+  // As the nudge (L15): only 'working' proves a Bot is running; unknown or a failed read is reminded.
+  const turns = await effect('turns.read', { botIds: [...due.keys()] }).then(value => value.turns, () => ({}))
+  for (const [creator, all] of due) {
+    if (turns[creator] === 'working') continue
+    // shortcut: 20 tasks per message keep it under the 4000-char send limit with short titles; the rest wait for the next tick. Upgrade if titles grow long.
+    const entries = all.slice(0, 20)
+    const sent = await effect('messages.send', { from: 'scheduler', target: creator, message: remindMessage(entries) }).catch(() => null)
+    if (!SENT.includes(sent?.delivery)) { log(`lattice-owner-remind ${creator} not accepted`); continue }
+    const at = new Date().toISOString()
+    for (const { key } of entries) record[key] = { ...record[key], remindedAt: at }
+    await records.write(record)
   }
   return out
 }
