@@ -118,3 +118,19 @@ test('Room legacy sources fallback retains all records and order', async () => {
   const request = roomRequest(rooms, createMessageViews({ rooms }).sources)
   await request.run(); assert.deepEqual(request.response.body.rooms.map(value => value.id), ids)
 })
+
+test('a fresh facade call during a members exchange waits for resume instead of 503, in its caller scope (a127, BugHub ef83d4ee)', async () => {
+  const h = harness()
+  const ticket = h.admission.close()
+  const refreshed = h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
+  await tick()
+  assert.equal(h.calls.length, 0) // held, not refused
+  h.admission.adopt(ticket, 'next-generation'); h.admission.resume(ticket)
+  const rooms = await refreshed
+  await refreshed.completion
+  assert.equal(rooms.size, ids.length)
+  assert.deepEqual(h.calls.map(call => call.method), ['rooms.list'])
+  // Open admission keeps the synchronous start (no extra await before the request is issued).
+  h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
+  assert.equal(h.calls.length, 2)
+})

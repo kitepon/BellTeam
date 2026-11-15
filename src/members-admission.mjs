@@ -118,6 +118,9 @@ export class MembersAdmission {
     })
   }
 
+  // An exchange is open: a fresh caller that cannot wait inside its own gate routes its start through whenOpen.
+  get exchanging() { return Boolean(this.#ticket) }
+
   // A fresh caller entering through another gate (the shared module operation context) passes its entry here:
   // it runs synchronously while admission is open, now or right after resume, so no close can fall in between.
   whenOpen(operation) {
