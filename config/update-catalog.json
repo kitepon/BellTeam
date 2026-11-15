@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T15:44:28Z",
-  "expiresAt": "2026-11-22T15:44:28Z",
+  "publishedAt": "2026-11-15T22:53:59Z",
+  "expiresAt": "2026-11-22T22:53:59Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "15427144ac90a019074fe67316c089676196c3a9",
-      "versionId": "62b8bfedf1f8bf0d73f75a266fa6775df1020028f814b7836004b05dab7b56a8",
+      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
+      "versionId": "5eb7607dace1d331d10913b9b7133aa423cce34d07b26989cc2f781dd3d1c079",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131600Z/web-gateway-15427144ac90a019074fe67316c089676196c3a9-linux-amd64.tar.gz",
-          "bytes": 5421157,
-          "sha256": "62b8bfedf1f8bf0d73f75a266fa6775df1020028f814b7836004b05dab7b56a8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz",
+          "bytes": 5425125,
+          "sha256": "5eb7607dace1d331d10913b9b7133aa423cce34d07b26989cc2f781dd3d1c079"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131600Z/web-gateway-15427144ac90a019074fe67316c089676196c3a9-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11193,
-          "sha256": "0eb499e3117ff4f3fd69ddd3ceacfaf18bc79529b932b2b0ddacf994399774a9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "7b094bae9e3b519eb5d25e5900152920686689ebbe1c01d662400a35094f159d"
         },
-        "signerCommit": "15427144ac90a019074fe67316c089676196c3a9"
+        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の画面に、接続の表示を足しました。"
+        "Webの決裁箱の画面に「決裁箱につなぐ」ボタンを付けました。",
+        "工程表の「次の工程」から、取り下げた後続の工程を除くようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "15427144ac90a019074fe67316c089676196c3a9",
-      "versionId": "31d2cb15550fce3f5bea707457b6543acdf2480b8c3e752b2263b6d41a876868",
+      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
+      "versionId": "5d467061305eb2133b6d22b2e133e3cf0d8f22e6ab326adeef7344ceae7b62b8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +469,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131600Z/web-gateway-15427144ac90a019074fe67316c089676196c3a9-linux-arm64.tar.gz",
-          "bytes": 5421157,
-          "sha256": "31d2cb15550fce3f5bea707457b6543acdf2480b8c3e752b2263b6d41a876868"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz",
+          "bytes": 5425125,
+          "sha256": "5d467061305eb2133b6d22b2e133e3cf0d8f22e6ab326adeef7344ceae7b62b8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131600Z/web-gateway-15427144ac90a019074fe67316c089676196c3a9-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11052,
-          "sha256": "13cec16cfede9ae5f81b0b31726e6d35ed5a0c19189881bfdbf9c0c29bee11d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11146,
+          "sha256": "7b652a80afa665837324998d356890707b54864ce920529444b5a8bcf8c75b63"
         },
-        "signerCommit": "15427144ac90a019074fe67316c089676196c3a9"
+        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +487,8 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表の画面に、接続の表示を足しました。"
+        "Webの決裁箱の画面に「決裁箱につなぐ」ボタンを付けました。",
+        "工程表の「次の工程」から、取り下げた後続の工程を除くようにしました。"
       ]
     },
     {
@@ -557,8 +559,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e",
-      "versionId": "a532273ad67980821e1ab63733009e0d6a17e4612e467b16482776c88fd301de",
+      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
+      "versionId": "6c662ba7b378f71c4c6754f0990770f9ce0492f656fc265d651a26327c20098e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-amd64.tar.gz",
-          "bytes": 4585826,
-          "sha256": "a532273ad67980821e1ab63733009e0d6a17e4612e467b16482776c88fd301de"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz",
+          "bytes": 4586705,
+          "sha256": "6c662ba7b378f71c4c6754f0990770f9ce0492f656fc265d651a26327c20098e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "2369c42f1b9fd5e563126050752df0923cba8686cda13fecbc46f6570db49e52"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "bc13841f236cbf47ec9e266360c4470536d5739750d0a7f29cb52a5fad124aab"
         },
-        "signerCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e"
+        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +594,13 @@
         }
       },
       "changes": [
-        "共通ルールに、スクリプトで確かめられる待ちは、予定の「接続」でつなぐという決まりを入れました。"
+        "共通ルールに、オーナーの待ちは担当「決裁箱」の工程にするという決まりを入れました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e",
-      "versionId": "d3ba20c596fe88f223bc68bfdd1a098ef886dd1ef4ac4133b442653b33a262bc",
+      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
+      "versionId": "9b18485de113db4432ecda7878fe9c26b77e6faaf28819e16b5a397a8ec506f1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-arm64.tar.gz",
-          "bytes": 4585826,
-          "sha256": "d3ba20c596fe88f223bc68bfdd1a098ef886dd1ef4ac4133b442653b33a262bc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz",
+          "bytes": 4586708,
+          "sha256": "9b18485de113db4432ecda7878fe9c26b77e6faaf28819e16b5a397a8ec506f1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11184,
-          "sha256": "a1f88e17eddcea9b893826323c3819a8cbf82a6d5c69574eafd8c6ef672e3876"
+          "sha256": "934a2326baba81eb51a747ef5196a155dfb124ac6f911556bbc2fe604ba25d30"
         },
-        "signerCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e"
+        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +634,7 @@
         }
       },
       "changes": [
-        "共通ルールに、スクリプトで確かめられる待ちは、予定の「接続」でつなぐという決まりを入れました。"
+        "共通ルールに、オーナーの待ちは担当「決裁箱」の工程にするという決まりを入れました。"
       ]
     },
     {
@@ -707,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "bad9cd2d739bf2a89b671a09c7aa69e0d3cd0a8e",
-      "versionId": "sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0",
+      "sourceCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b",
+      "versionId": "sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +726,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.70にしました（モデル切り替えが、実行中のターンでも確かに効くようにする直し）。",
-        "接続付きの予定を消したとき、工程表の接続が外れるようにしました。"
+        "決裁箱拡張を部品として更新できるようにしました。",
+        "席の道具の説明に、予定の接続と決裁箱の担当の使い方を書きました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "bad9cd2d739bf2a89b671a09c7aa69e0d3cd0a8e",
-      "versionId": "sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0",
+      "sourceCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b",
+      "versionId": "sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,14 +749,14 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.70にしました（モデル切り替えが、実行中のターンでも確かに効くようにする直し）。",
-        "接続付きの予定を消したとき、工程表の接続が外れるようにしました。"
+        "決裁箱拡張を部品として更新できるようにしました。",
+        "席の道具の説明に、予定の接続と決裁箱の担当の使い方を書きました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b303dc1675f8869de97137e71601ac52f5d09b5e",
-      "versionId": "d12810262a03fac301a877f6c89e1b0f306c472bf5ea67ea9f155a485ba871d5",
+      "sourceCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b",
+      "versionId": "f47521a4e039599ef59c34790e23a01d2533717650e25bd727494cf209ac3fc8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151319Z/lattice-b303dc1675f8869de97137e71601ac52f5d09b5e-linux-amd64.tar.gz",
-          "bytes": 15307791,
-          "sha256": "d12810262a03fac301a877f6c89e1b0f306c472bf5ea67ea9f155a485ba871d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T224102Z/lattice-b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b-linux-amd64.tar.gz",
+          "bytes": 15308010,
+          "sha256": "f47521a4e039599ef59c34790e23a01d2533717650e25bd727494cf209ac3fc8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151319Z/lattice-b303dc1675f8869de97137e71601ac52f5d09b5e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11184,
-          "sha256": "7132eec6a3206137bf8f056a8509e83aa7bb30669ee577aae4ed746320ec64d0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T224102Z/lattice-b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "84b4af1ebc4a9f42417b0097bfb6915dd79d0a7e0f566c9152c611cf84b7b594"
         },
-        "signerCommit": "b303dc1675f8869de97137e71601ac52f5d09b5e"
+        "signerCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +785,14 @@
         }
       },
       "changes": [
-        "工程表の部品を新しい版（0.106.0）にしました。書き込みが速くなります。"
+        "決裁を待つ工程の担当は「決裁箱」になりました（これまでの「オーナー」は使いません）。",
+        "引き継ぎと催促の文に、決裁待ちの工程を誰が閉じるかを書くようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b303dc1675f8869de97137e71601ac52f5d09b5e",
-      "versionId": "45d6908d120764a002529f46533172be96c0ca28b025509b1a7fd44b83e9395a",
+      "sourceCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b",
+      "versionId": "194e5a5e250b6c3cc6b5ea2a1a80d5e4a790fda2b257831b74294ae4d5966497",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +800,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151319Z/lattice-b303dc1675f8869de97137e71601ac52f5d09b5e-linux-arm64.tar.gz",
-          "bytes": 15307791,
-          "sha256": "45d6908d120764a002529f46533172be96c0ca28b025509b1a7fd44b83e9395a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T224102Z/lattice-b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b-linux-arm64.tar.gz",
+          "bytes": 15308010,
+          "sha256": "194e5a5e250b6c3cc6b5ea2a1a80d5e4a790fda2b257831b74294ae4d5966497"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151319Z/lattice-b303dc1675f8869de97137e71601ac52f5d09b5e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11192,
-          "sha256": "c60f43dec18a13460364c195a4deaa80be3c9cfdc2607ea491c2b3d99fdfb660"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T224102Z/lattice-b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "a5e8d5b607e10b09b7d510936218d269741de98e44e288ce40f6cdeb0210a01f"
         },
-        "signerCommit": "b303dc1675f8869de97137e71601ac52f5d09b5e"
+        "signerCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +821,78 @@
         }
       },
       "changes": [
-        "工程表の部品を新しい版（0.106.0）にしました。書き込みが速くなります。"
+        "決裁を待つ工程の担当は「決裁箱」になりました（これまでの「オーナー」は使いません）。",
+        "引き継ぎと催促の文に、決裁待ちの工程を誰が閉じるかを書くようにしました。"
+      ]
+    },
+    {
+      "componentId": "approval-box-extension",
+      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
+      "versionId": "d6e84527a489f2d26acfd1b3defd387803433c363d6613d87cf633b03d6ab55c",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz",
+          "bytes": 3836666,
+          "sha256": "d6e84527a489f2d26acfd1b3defd387803433c363d6613d87cf633b03d6ab55c"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11409,
+          "sha256": "7c6806cc5c7019d34cb5e47f2f70591cbd81176a85f74ef33e67695144e18f60"
+        },
+        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "none"
+        }
+      },
+      "changes": [
+        "決裁箱拡張を追加しました。決裁箱の決裁を工程表の工程につなぎ、アプリの決裁画面へ届けます。"
+      ]
+    },
+    {
+      "componentId": "approval-box-extension",
+      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
+      "versionId": "149544a3bf117324566955fb9b5da06a88155eafe635f0dbe38113ec9112ebec",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz",
+          "bytes": 3836666,
+          "sha256": "149544a3bf117324566955fb9b5da06a88155eafe635f0dbe38113ec9112ebec"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11358,
+          "sha256": "b251244c49d35cdab342d6b69262342a013d6dd58795fa09b74bf3824d6ed7af"
+        },
+        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "none"
+        }
+      },
+      "changes": [
+        "決裁箱拡張を追加しました。決裁箱の決裁を工程表の工程につなぎ、アプリの決裁画面へ届けます。"
       ]
     }
   ],
