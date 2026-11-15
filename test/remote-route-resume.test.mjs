@@ -52,7 +52,8 @@ test('a working seat waits for its turn end; seat refusals hold until the seat r
     run(held, { route_since: later }); await setImmediate(); await setImmediate()
     assert.equal(held.calls.length, 2, `${code}: asked again after the seat ran a turn`)
     assert.equal(held.routeResumes.get(key), 'turn')
-    assert.deepEqual(held.errors, [{ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution', diagnostic_log: `bot=b1 stage=close reason=${code} message=no` }])
+    // 829de1dc: the designed hold is not a failure and files no diagnostic.
+    assert.deepEqual(held.errors, [])
     run(held, { route_since: '2026-11-13T02:07:00.000Z' }); await setImmediate()
     assert.equal(held.calls.length, 3, `${code}: a rebuilt forward is a new route`)
   }
