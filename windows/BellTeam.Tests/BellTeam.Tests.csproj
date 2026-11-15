@@ -6,6 +6,7 @@
     <None Include="fixtures/update-center-mixed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fixtures/update-center-current.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fixtures/update-notification-wire.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/architecture/modules/approval-box-extension/contract/fixtures/*.json" Link="approvals-fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <ProjectReference Include="../BellTeam.App/BellTeam.App.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

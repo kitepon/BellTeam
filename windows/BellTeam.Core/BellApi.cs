@@ -127,6 +127,29 @@ public sealed class BellApi : IDisposable
         return JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions(Json) { WriteIndented = true });
     }
 
+    /// <summary>One call whose error bodies the caller maps itself (the 決裁箱 routes answer 402/403/409 with {error:{code,state,decision}}): the status and the JSON body, never thrown for a 4xx/5xx.
+    /// A lost sign-in (redirect, 401, a 403 that is not JSON) fires <see cref="AuthenticationRequired"/> and throws like every other call; a network failure or timeout throws as HttpClient does.</summary>
+    public async Task<(int Status, JsonElement? Body)> RawAsync(HttpMethod method, string path, object? body = null, string? idempotencyKey = null, CancellationToken token = default, TimeSpan? limit = null)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(limit ?? TimeSpan.FromSeconds(30));
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null) request.Content = JsonContent.Create(body, options: Json);
+        if (idempotencyKey is not null) request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var response = await client.SendAsync(request, timeout.Token);
+        var status = (int)response.StatusCode;
+        var isJson = response.Content.Headers.ContentType?.MediaType == "application/json";
+        if (status is >= 300 and < 400 || status == 401 || status == 403 && !isJson)
+        {
+            AuthenticationRequired?.Invoke();
+            throw new BellApiException("Cloudflare Accessへログインしてください。", response.StatusCode);
+        }
+        if (!isJson) return (status, null);
+        try { using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token)); return (status, document.RootElement.Clone()); }
+        catch (JsonException) { return (status, null); }
+    }
+
     private async Task<T> JsonAsync<T>(HttpRequestMessage request, CancellationToken token, TimeSpan? limit = null) => (await JsonWithStatusAsync<T>(request, token, limit)).Value;
     private async Task<(T Value, int Status)> JsonWithStatusAsync<T>(HttpRequestMessage request, CancellationToken token, TimeSpan? limit = null)
     {
