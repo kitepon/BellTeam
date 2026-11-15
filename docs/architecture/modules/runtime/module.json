@@ -194,6 +194,8 @@
     "scripts/lattice-start.c",
     "scripts/approval-box-extension-start.c",
     "src/lattice-process.mjs",
+    "src/approval-box-parent-process.mjs",
+    "src/approval-box-parent-effects.mjs",
     "src/lattice-locks.mjs",
     "src/lattice-install-plan.mjs",
     "scripts/install-lattice-release.py",
