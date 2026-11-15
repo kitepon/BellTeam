@@ -4,7 +4,7 @@ import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
 import { GLYPHS as LATTICE_GLYPHS } from './lattice-chart.js?v=__ASSET_VERSION__'
 import { accent, stateInfo, UNKNOWN_MEMBER } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import {
-  MESSAGES, STATUS_TEXT, answerOutcome, backoffMs, cardRow, clock, confirmText, countsOf, deliveryBadge, deliveryNote, entryView, failureOf,
+  CONNECT, MESSAGES, STATUS_TEXT, answerOutcome, backoffMs, cardRow, clock, confirmText, connectOutcome, connectView, countsOf, deliveryBadge, deliveryNote, entryView, failureOf,
   groupDone, historyRows, linkPanel, originCounts, originFilter, originOf, answerText,
 } from './approvals-model.js?v=__ASSET_VERSION__'
 import { stopTime } from './lattice-stops.js?v=__ASSET_VERSION__'
@@ -82,6 +82,8 @@ export function createApprovalsView(dialog, {
   feed, fetch, fetchImage = fetch, getMember = () => null, openChart = () => {}, now = Date.now,
   setTimeout: later = globalThis.setTimeout, clearTimeout: clear = globalThis.clearTimeout, random = Math.random,
   uuid = () => globalThis.crypto.randomUUID(), copyText = text => globalThis.navigator.clipboard.writeText(text),
+  // 押した瞬間に空の画面を開く（待ったあとの open はブラウザに止められる）。開いた先は決裁箱の画面で、こちらの画面は触らせない。
+  openTab = () => { const tab = globalThis.open('', '_blank'); if (tab) tab.opener = null; return tab },
 } = {}) {
   const body = dialog.querySelector('[data-approvals-body]')
   const pill = dialog.querySelector('[data-approvals-pill]')
@@ -90,6 +92,7 @@ export function createApprovalsView(dialog, {
   let answer = null, banner = null, draft = { id: null, text: '' }
   const extra = new Map(), notes = new Map(), seen = new Set(), thumbs = new Map(), avatars = new Map(), timers = new Set()
   let ui = null, copied = null, unsubscribe = null
+  let connect = { phase: 'idle', server: null, note: '' }, connectToken = 0, connectTimer = null, pollAttempt = 0, drop = null
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
 
   // ---- 通信：approvals は入れ子の error を返すので、共有の api() ではなく fetch で読む。
@@ -180,7 +183,11 @@ export function createApprovalsView(dialog, {
   }
   function onFeed(event) {
     if (!isOpen) return
-    if (event.type === 'status' || event.type === 'summary') { if (event.type === 'status' && event.status === 'live') void loadPending(); return paint() }
+    if (event.type === 'status' || event.type === 'summary') {
+      if (event.type === 'status' && event.status === 'live') void loadPending()
+      if (event.type === 'status' && event.status === 'noCredential') void enterConnect()
+      return paint()
+    }
     if (event.type === 'resync') { void loadPending(); if (doneLoaded) void loadDone(); return }
     if (event.type === 'decision') {
       const current = known(event.id)
@@ -198,14 +205,15 @@ export function createApprovalsView(dialog, {
     const seg = h('div', { class: 'lattice-seg', role: 'group', 'aria-label': '表示' })
     const reload = h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'reload' }, on: { click: () => { stale = false; void feed.refresh(); void loadPending(); if (doneLoaded) void loadDone() } } }, glyph('refresh'), '読み直す')
     const sum = h('div', { class: 'lattice-sum' }), counters = h('div', { class: 'lattice-cnt' })
-    const toolbar = h('div', { class: 'lattice-toolbar approvals-toolbar' }, title, live, seg, h('span', { class: 'lattice-spacer' }), sum, counters, reload)
+    const unlink = h('span', { class: 'approvals-unlink' })
+    const toolbar = h('div', { class: 'lattice-toolbar approvals-toolbar' }, title, live, seg, h('span', { class: 'lattice-spacer' }), sum, counters, reload, unlink)
     const bannerSlot = h('div', { class: 'approvals-banner-slot' })
     const list = h('section', { class: 'approvals-list', 'aria-label': '決裁の一覧' }), detail = h('section', { class: 'approvals-detail', 'aria-label': '決裁の詳細' }), links = h('aside', { class: 'approvals-links', 'aria-label': '工程とのつながり' })
     const main = h('div', { class: 'approvals-main' }, list, detail, links)
     const note = h('div', { class: 'approvals-note-slot', hidden: true })
     const root = h('div', { class: 'approvals' }, toolbar, bannerSlot, main, note)
     body.replaceChildren(root)
-    ui = { root, title, live, seg, sum, counters, bannerSlot, list, detail, links, main, note }
+    ui = { root, title, live, seg, sum, counters, unlink, bannerSlot, list, detail, links, main, note }
   }
 
   function paint() {
@@ -223,6 +231,7 @@ export function createApprovalsView(dialog, {
       ui.root.classList.toggle('is-stale', stale || feed.status === 'drop')
       ui.root.classList.toggle('has-selection', Boolean(selectedId) && !status)
       fill(ui.bannerSlot, banner && selectedId === banner.id && h('div', { class: 'lattice-banner violet', role: 'status' }, glyph('info'), h('span', { text: banner.text })))
+      fill(ui.unlink, !status && unlinkEl())
       if (status) fill(ui.note, noteEl(status))
       else { paintList(); paintDetail() }
     })
@@ -230,11 +239,85 @@ export function createApprovalsView(dialog, {
     if (!pill.hidden) fill(pill, h('span', { class: 'lattice-pill-item' }, h('i', { class: 'lattice-spinner', 'aria-hidden': 'true' }), MESSAGES.reconnect))
   }
   function noteEl(status) {
+    if (status === 'noCredential') return connectEl()
     const again = status === 'notEntitled' ? '契約を確かめる' : '読み直す'
     return h('div', { class: 'lattice-empty', role: 'status' }, glyph('bud', 'lattice-bud'), h('p', { text: STATUS_TEXT[status] }),
       status !== 'old' && h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'again' }, on: { click: () => void feed.refresh().then(() => { if (!blocked()) void loadPending() }) } }, glyph('refresh'), again),
       h('button', { class: 'lattice-btn', type: 'button', on: { click: () => dialog.close() } }, '閉じる'))
   }
+  // ---- つなぐ：決裁箱につなぐ -> 決裁箱の画面で許可 -> こちらは GET /connection を見て、つながったら読む。待ちに時間の上限は置かない（閉じる・やめるが出口）。
+  function connectEl() {
+    const view = connectView(connect)
+    const run = { connect: () => void startConnect(), again: () => void startConnect(), cancel: () => void stopConnect(), reload: () => void recheck() }
+    return h('div', { class: 'lattice-empty approvals-connect', role: 'status' }, glyph('bud', 'lattice-bud'), h('p', { text: view.text }),
+      view.spinner && h('i', { class: 'lattice-spinner', 'aria-hidden': 'true' }),
+      h('div', { class: 'approvals-connect-acts' }, ...view.actions.map(item => h('button', { class: `lattice-btn${item.primary ? ' pri' : ''}`, type: 'button', dataset: { focusKey: `connect:${item.key}` }, on: { click: run[item.key] } }, item.primary && item.key !== 'cancel' ? glyph('link') : null, item.label)),
+        h('button', { class: 'lattice-btn', type: 'button', on: { click: () => dialog.close() } }, '閉じる')),
+      view.note && h('p', { class: 'approvals-fail', role: 'status', text: view.note }))
+  }
+  const settle = patch => { connectToken++; clear(connectTimer); pollAttempt = 0; connect = { phase: 'idle', server: null, note: '', ...patch }; paint() }
+  function recover() { settle({}); void feed.refresh() } // つながった：読み直すと feed が live になり、一覧を読む
+  // 入る時に一度、モジュールが何を待っているかを聞く（開き直しても、許可待ち・断りの続きが分かる）。
+  async function enterConnect() {
+    if (connect.phase !== 'idle') return
+    const mine = ++connectToken, result = await call('/api/approvals/connection')
+    if (!isOpen || mine !== connectToken || result.status !== 200 || blocked() !== 'noCredential') return
+    const state = result.body?.state
+    if (state === 'connected') return recover()
+    connect = { phase: state === 'waiting' ? 'waiting' : state === 'denied' ? 'denied' : 'idle', server: state, note: '' }
+    if (state === 'waiting') watch(mine, 2000)
+    paint()
+  }
+  async function recheck() {
+    await feed.refresh()
+    if (!blocked()) void loadPending(); else if (blocked() === 'noCredential') void enterConnect()
+  }
+  function watch(mine, ms) {
+    clear(connectTimer)
+    connectTimer = later(async () => {
+      const result = await call('/api/approvals/connection')
+      if (!isOpen || mine !== connectToken) return
+      const state = result.status === 200 ? result.body?.state : null
+      if (state === 'connected') return recover()
+      if (state === 'denied') return settle({ phase: 'denied' })
+      if (state === 'not_connected' || state === 'expired') return settle({ note: CONNECT.lapsed })
+      watch(mine, state === 'waiting' ? (pollAttempt = 0, 2000) : backoffMs(pollAttempt++, random)) // 読めない間も、止まらず見続ける
+    }, ms)
+  }
+  async function startConnect() {
+    if (connect.phase === 'opening') return
+    let tab = null
+    try { tab = openTab() } catch { /* 開けなくても、要求は出す。もう一度開くで開ける */ }
+    const mine = ++connectToken; clear(connectTimer)
+    connect = { phase: 'opening', server: connect.server, note: '' }; paint()
+    const result = await call('/api/approvals/connect', { method: 'POST' })
+    if (!isOpen || mine !== connectToken) { tab?.close?.(); return }
+    const outcome = connectOutcome(result.status, result.body)
+    if (outcome.kind === 'ok') {
+      if (tab) tab.location.href = outcome.url
+      connect = { phase: 'waiting', server: 'waiting', note: tab ? '' : CONNECT.blocked }; pollAttempt = 0; paint(); return watch(mine, 2000)
+    }
+    tab?.close?.()
+    settle(outcome.kind === 'retry' ? { note: outcome.message } : {})
+    if (outcome.kind === 'again') void feed.refresh()
+  }
+  async function stopConnect() { settle({}); await call('/api/approvals/connect', { method: 'DELETE' }); if (isOpen && blocked() === 'noCredential') void enterConnect() }
+  // つながっている間の、つなぎを外す（二段）。外すと summary が 409 になり、つなぐ画面に変わる。
+  function unlinkEl() {
+    if (drop?.step === 'busy') return h('i', { class: 'lattice-spinner', 'aria-hidden': 'true' })
+    if (drop?.step === 'confirm') return [h('span', { class: 'approvals-unlink-ask', role: 'group', 'aria-label': 'つなぎを外す確認', text: drop.note ?? CONNECT.dropAsk }),
+      h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'unlink-no' }, on: { click: () => { drop = null; paint() } } }, 'やめる'),
+      h('button', { class: 'lattice-btn pri', type: 'button', dataset: { focusKey: 'unlink-yes' }, on: { click: () => void unlink() } }, '外す')]
+    return h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'unlink' }, on: { click: () => { drop = { step: 'confirm' }; paint(); focusKey('unlink-no') } } }, 'つなぎを外す')
+  }
+  async function unlink() {
+    drop = { step: 'busy' }; paint()
+    const result = await call('/api/approvals/connection', { method: 'DELETE' })
+    if (!isOpen) return
+    if (result.status === 200) { drop = null; connect = { phase: 'idle', server: 'not_connected', note: '' }; await feed.refresh(); return paint() }
+    drop = { step: 'confirm', note: CONNECT.dropFailed }; paint()
+  }
+
   function setTab(value) {
     tab = value; selectedId = null; answer = null
     if (value === 'done' && !doneLoaded) void loadDone()
@@ -394,7 +477,7 @@ export function createApprovalsView(dialog, {
   }
   function ask(decision, choice) { answer = { id: decision.id, step: 'confirm', version: decision.version, key: uuid(), ...choice }; paint(); focusKey('confirm') }
   function cancel(refocus) { const was = answer; answer = null; paint(); if (refocus && was) focusKey(was.optionId ? `o:${was.optionId}` : 'send-text') }
-  function focusKey(key) { [...walk(ui.detail)].find(item => item.dataset?.focusKey === key)?.focus?.() }
+  function focusKey(key) { [...walk(ui.root)].find(item => item.dataset?.focusKey === key)?.focus?.() }
   async function send(decision) {
     const mine = answer
     mine.step = 'sending'; mine.note = null; paint()
@@ -446,17 +529,18 @@ export function createApprovalsView(dialog, {
   return {
     open(decisionId = null) {
       if (isOpen) { if (decisionId) select(decisionId); return }
-      isOpen = true; loaded = false; stale = false; attempt = 0; tab = 'pending'; origin = 'all'; selectedId = decisionId; answer = null; banner = null; pending = []; done = []; doneLoaded = false; doneNext = null
+      isOpen = true; connect = { phase: 'idle', server: null, note: '' }; drop = null; loaded = false; stale = false; attempt = 0; tab = 'pending'; origin = 'all'; selectedId = decisionId; answer = null; banner = null; pending = []; done = []; doneLoaded = false; doneNext = null
       build(); paint()
       if (!dialog.open) dialog.showModal()
       unsubscribe = feed.on(onFeed)
       if (feed.status === 'live') void loadPending(); else void feed.refresh() // 読めたら feed の status が知らせ、一覧を読む
+      if (blocked() === 'noCredential') void enterConnect()
       if (decisionId) void loadOne(decisionId)
     },
     close() {
       if (!isOpen) return
       isOpen = false; unsubscribe?.(); unsubscribe = null
-      pendingToken++; doneToken++; clear(retryTimer); for (const id of timers) clear(id); timers.clear()
+      pendingToken++; doneToken++; connectToken++; clear(retryTimer); clear(connectTimer); for (const id of timers) clear(id); timers.clear()
       for (const entry of [...avatars.values(), ...thumbs.values()]) if (entry.src) URL.revokeObjectURL(entry.src)
       avatars.clear(); thumbs.clear(); extra.clear(); notes.clear(); seen.clear(); body.replaceChildren(); pill.hidden = true; ui = null
     },
