@@ -263,20 +263,34 @@ test('a confirmed stop (BOT_STOPPED) at acceptance files no tracking-failure rep
 })
 
 test('an update-hold refusal (BOT_UPDATE_HOLD) keeps the receipt queued without a report; the release drain delivers it', async t => {
-  let held = true
+  let held = true, notified = 0
   const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
     async notify(_bot, _envelope, options) {
+      notified++
       if (held) throw Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503, effect: 'not_started' })
       await options.onStatus('running'); return { delivery: 'running' }
     } }) })
   f.direct.start(); f.aiControl.enable()
   const status = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery
   const saved = await f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message: 'during the swap' }))
-  const seen = []
-  await settled(async () => { seen.push(await status(saved.delivery_id)); return seen.includes('dispatching') && seen.at(-1) === 'queued' })
+  await settled(async () => notified > 0 && await status(saved.delivery_id) === 'queued')
   assert.deepEqual(f.errors, [])
   held = false; f.direct.requestDrain()
   await settled(async () => await status(saved.delivery_id) === 'running')
+  assert.deepEqual(f.errors, [])
+  await f.direct.close()
+})
+
+test('an Owner turn refused by the update hold files no report from its completion either, and stays queued', async t => {
+  const hold = () => Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503, effect: 'not_started' })
+  let called = 0
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+    turn() { called++; const completion = Promise.reject(hold()); completion.accepted = Promise.reject(hold()); completion.accepted.catch(() => {}); return completion } }) })
+  f.direct.start(); f.aiControl.enable()
+  const saved = await f.conversation.run({ kind: 'owner' }, () => f.direct.messenger.enqueueUserTurn({ target: 'bot-quincy', message: 'during the swap' }))
+  const status = async () => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === saved.delivery_id)?.delivery
+  await settled(async () => called > 0 && await status() === 'queued')
+  await tick(); await tick()
   assert.deepEqual(f.errors, [])
   await f.direct.close()
 })
