@@ -13,12 +13,17 @@ export async function readJson(request, maxBytes = 16 * 1024 * 1024) {
 
 // a115 (CSRF): another site's page can make the Owner's browser send a write (its cookies attached). Browsers mark it with
 // Sec-Fetch-Site; older ones only with Origin, and only a simple content type skips the CORS preflight. Apps and seats send neither header.
-// shortcut: a bodyless cross-site POST from a browser without Sec-Fetch-Site (Safari < 16.4) still passes; add an Origin/host match if such clients matter.
+// a128: a browser without Sec-Fetch-Site (Safari < 16.4) still sends Origin on every cross-origin write, bodyless ones included:
+// an Origin that is neither this request's own Host nor the configured public URL is refused too. Apps and seats send no Origin.
 const SIMPLE_TYPES = ['text/plain', 'multipart/form-data', 'application/x-www-form-urlencoded']
-export function crossSiteWrite({ method, headers }) {
+export function crossSiteWrite({ method, headers }, publicOrigin = null) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false
   const site = headers['sec-fetch-site'], type = headers['content-type']?.split(';')[0].trim().toLowerCase()
-  return site !== undefined && site !== 'same-origin' && site !== 'none' || headers.origin !== undefined && SIMPLE_TYPES.includes(type)
+  if (site !== undefined) return site !== 'same-origin' && site !== 'none' || headers.origin !== undefined && SIMPLE_TYPES.includes(type)
+  if (headers.origin === undefined) return false
+  let origin
+  try { origin = new URL(headers.origin) } catch { return true } // "null" and malformed origins are never this site
+  return origin.host !== headers.host && origin.origin !== publicOrigin
 }
 
 export function json(response, status, value) {

@@ -303,7 +303,7 @@ flowchart LR
 
 SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し、正常EOFへ変換しない。更新後は既Webの再接続・履歴GETへ戻る。受付済み操作は接続断で再発行せず、返却前断線は結果不明のまま。非stream要求は通常終了でdrainする。5秒以内に受付子が終了しなければ、その子だけをSIGKILLし、stdioの回収後にGATEWAY_DRAIN_TIMEOUTを返す。業務側の実行jobは取消さない。親全体closeはこの失敗も集めて後続資源の終了を続ける。子の異常終了は自動で業務closeへ接続しない。
 
-他サイトからの書き込み（a115、CSRF）：業務processの公開入口は認証の後、GET/HEAD/OPTIONS以外で`Sec-Fetch-Site`が`same-origin`/`none`以外、または`Origin`付きで`text/plain`・`multipart/form-data`・`application/x-www-form-urlencoded`の要求を403 `CROSS_SITE_REQUEST_FORBIDDEN`で断る（`crossSiteWrite`、src/http-response.mjs）。自前のWeb画面・アプリ・席はJSONか本文なしで、この印を付けない。内部入口は対象外。
+他サイトからの書き込み（a115、CSRF）：業務processの公開入口は認証の後、GET/HEAD/OPTIONS以外で`Sec-Fetch-Site`が`same-origin`/`none`以外、または`Origin`付きで`text/plain`・`multipart/form-data`・`application/x-www-form-urlencoded`の要求を403 `CROSS_SITE_REQUEST_FORBIDDEN`で断る（`crossSiteWrite`、src/http-response.mjs）。自前のWeb画面・アプリ・席はJSONか本文なしで、この印を付けない。`Sec-Fetch-Site`の無い古いブラウザ（Safari 16.4未満）向けに、`Origin`が要求自身のHostとも設定済み公開URLとも違う書き込みは本文なしでも断る（a128。`null`や壊れたOriginも他サイト扱い）。内部入口は対象外。
 
 全体closeだけが受付子→既loop/HTTP/features/transportの終了を持つ。受付子のclose/startは業務graphの再生成を伴わない。同じ受付二重起動をせず、終了を確認して次を起動する。子起動失敗・port競合は元例外を返し、実行中業務を停止しない。独立配布物の署名/配置/版切替と実席保持は後続工程で、このsource分離の成功へ補完しない。
 

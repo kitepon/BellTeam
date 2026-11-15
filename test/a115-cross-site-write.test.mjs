@@ -19,4 +19,11 @@ test('a115: browser cross-site writes are refused; apps, seats and same-origin p
   assert.equal(write({}), false)
   // Reads are never refused here.
   assert.equal(write({ 'sec-fetch-site': 'cross-site' }, 'GET'), false)
+  // a128: browsers without Sec-Fetch-Site: a foreign Origin is refused even with no body; this site's own Origin passes.
+  assert.equal(write({ origin: 'https://evil.example', host: 'bell.example' }), true)
+  assert.equal(write({ origin: 'null', host: 'bell.example' }), true)
+  assert.equal(write({ origin: 'https://bell.example', host: 'bell.example' }), false)
+  assert.equal(write({ origin: 'http://localhost:18891', host: 'localhost:18891' }), false)
+  assert.equal(crossSiteWrite({ method: 'POST', headers: { origin: 'https://bell.example', host: 'localhost:18891' } }, 'https://bell.example'), false) // proxy rewrote Host
+  assert.equal(crossSiteWrite({ method: 'POST', headers: { origin: 'https://evil.example', host: 'localhost:18891' } }, 'https://bell.example'), true)
 })
