@@ -287,6 +287,10 @@ internal sealed class LatticeChartPage : Grid
     private readonly LatticeChartSummary? summary;
     internal LatticeChartFeed Feed { get; } = new();
     private CancellationTokenSource? run;
+    private BellApi? api;
+    // 決裁箱拡張 (Delta, R3): asked once when an Owner-lane card's 詳細 opens, not on every snapshot; null = no block.
+    private readonly Dictionary<string, LatticeDecision?> decisions = [];
+    internal IReadOnlyDictionary<string, LatticeDecision?> Decisions => decisions;
     internal LatticeBoard Board { get; }
     internal LatticeTreeView Tree { get; }
     // ツリー / 担当 / 過去ログ ("tree" / "lanes" / "history"): ツリー by default, remembered while the app is open (screen-spec "ツリー").
@@ -363,7 +367,7 @@ internal sealed class LatticeChartPage : Grid
 
     public void Run(BellApi api, CancellationToken connection)
     {
-        Running = true; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
+        Running = true; this.api = api; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
         _ = FollowAsync(api, run);
     }
     // A feed that ended on its own (not found, sign-in) stays "running" until Stop, as before; only its token source is released.
@@ -675,7 +679,15 @@ internal sealed class LatticeChartPage : Grid
     /// <summary>Brings a board point near the top left, clear of the lane names.</summary>
     internal void ScrollBoard(double x, double y) { scroller.ScrollToHorizontalOffset(Math.Max(0, x - LatticeChart.LabelWidth - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, y - 60)); scroller.UpdateLayout(); }
 
-    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ApplyHistory(); ShowDetail(cardId, morph); }
+    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ApplyHistory(); LoadDecision(cardId); ShowDetail(cardId, morph); }
+    private async void LoadDecision(string cardId)
+    {
+        if (api is not { } source || run is not { } running || Feed.Snapshot?.Cards.FirstOrDefault(card => card.Id == cardId) is not { Producer: LatticeChart.OwnerId, Plan: { } plan, TaskId: { } task }) return;
+        var decision = await source.DecisionAsync(projectId, plan, task, running.Token);
+        if (running.IsCancellationRequested) return;
+        decisions[cardId] = decision;
+        if (SelectedCard == cardId) ShowDetail(cardId, false);
+    }
     internal bool CloseDetail()
     {
         if (SelectedCard is null) return false;
@@ -698,6 +710,8 @@ internal sealed class LatticeChartPage : Grid
         var started = Text(detail.StartedText, 12.5, Muted); started.Margin = new Thickness(0, 8, 0, 0); body.Children.Add(started);
         Section(body, "設計メモ", detail.Card.DesignMemo);
         Section(body, "終了条件", detail.Card.DoneCondition);
+        // The id never shows. 決裁を開く waits for a 決裁箱 screen in this app (Delta's extension); until then the block has no button.
+        if (decisions.GetValueOrDefault(cardId) is { } decision) Section(body, "決裁", $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");
         Links(body, "前の工程", detail.Previous);
         Links(body, "次の工程", detail.Next);
         var panel = Glass(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 22, new Thickness(20, 16, 18, 18), 0xFA);

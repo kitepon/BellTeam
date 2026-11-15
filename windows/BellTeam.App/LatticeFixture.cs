@@ -11,7 +11,7 @@ namespace BellTeam.App;
 /// (test/helpers/lattice-ui-server.mjs on Rapi's branch). Times are relative to now. Scenes pick the state, the list, the stream, an unknown producer and
 /// authored lanes (「authored」: cards nobody started carry the plan's lane text and no producer, as production plans write kiro / anis / root).
 /// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
-/// 「owner」: t11 belongs to the Owner (producer = the reserved value owner, as the server resolves a lane 指揮官 / owner).
+/// 「owner」: t11 belongs to the Owner (producer = the reserved value owner, as the server resolves a lane 指揮官 / owner); its 詳細 shows the Approval Box decision (GET /api/approvals/by-task answers only there, 404 elsewhere as before the extension ships).
 /// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not. counted (a96): every card but t03, the only card of its finished tree; t02 is hidden but its tree is open.
 /// 止め一覧 scenes (stops*): GET /api/lattice/blockers has five stops on four charts (a member, the Owner, an authored lane, an unknown Bot, no lane; today,
 /// yesterday, an older day); stops-unread names an unread chart, stops-empty none, stops-retry answers 503, stops-old 404; 外す removes, stops-refused answers 409.
@@ -125,6 +125,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/unblock", StringComparison.Ordinal) && request.Method == HttpMethod.Post => scene == "stops-refused"
                 ? Json(new { error = "LATTICE_UNBLOCK_REFUSED", outcome = "refused", code = "TODO_TRANSITION_REFUSED", reason = "この工程はもう取り下げられています。" }, HttpStatusCode.Conflict)
                 : Json(new { schema = "bellteam.lattice-unblock.v1", projectId = Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/unblock".Length]), stopId = "", outcome = "removed" }),
+            "/api/approvals/by-task" when scene == "owner" && request.RequestUri.Query.Contains("task=t11") => Json(new { decisionId = "K-FIXTUR", status = "pending", title = "3画面の受け取りを承認しますか" }),
             "/api/lattice/charts" => Json(new { schema = "bellteam.lattice-charts.v1", at = Ago(0), charts = scene == "single" ? Charts().Take(1) : Charts() }),
             _ when path.EndsWith("/messages", StringComparison.Ordinal) => Json(new { items = Array.Empty<object>(), hasMore = false }),
             _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/events", StringComparison.Ordinal) => Events(Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/events".Length]), Json),

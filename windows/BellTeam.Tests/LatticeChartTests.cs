@@ -251,6 +251,39 @@ public sealed class LatticeChartTests
     });
 
     [Fact]
+    public void ADecisionNeedsAnIdATitleAndAKnownStatus()
+    {
+        LatticeDecision? Of(string json) => LatticeChart.DecisionOf(System.Text.Json.JsonDocument.Parse(json).RootElement);
+        Assert.Equal(new LatticeDecision("K-1", "held", "承認しますか"), Of("""{"decisionId":"K-1","status":"held","title":"承認しますか"}"""));
+        Assert.Null(Of("""{"decisionId":"","status":"held","title":"t"}"""));
+        Assert.Null(Of("""{"decisionId":"K-1","status":"open","title":"t"}"""));
+        Assert.Null(Of("""{"decisionId":"K-1","status":"held"}"""));
+        Assert.Null(Of("""{"error":"NOT_FOUND"}"""));
+        Assert.Null(Of("[]"));
+    }
+
+    // 詳細 of an Owner-lane card: the decision's title and state, never its id; 404 (the extension absent) leaves no block and no message.
+    [Theory]
+    [InlineData("owner")]
+    [InlineData("owner-lanes")]
+    public void AnOwnerCardsDetailShowsItsDecisionOnlyWhenTheExtensionAnswers(string scene) => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture(scene)));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        window.Sync(); Until(() => window.ListSettled);
+        window.OpenChart("lattice"); var chart = window.Chart!;
+        Until(() => chart.Feed.Snapshot is not null);
+        chart.OpenDetail("p1/t11", morph: false);
+        Until(() => chart.Decisions.ContainsKey("p1/t11"));
+        var texts = LogicalTree.Find<TextBox>(window.Content).Select(box => box.Text).Concat(LogicalTree.Find<TextBlock>(window.Content).Select(text => text.Text)).ToList();
+        Assert.Equal(scene == "owner", texts.Contains("3画面の受け取りを承認しますか（待ち）"));
+        Assert.Equal(scene == "owner", texts.Contains("決裁"));
+        Assert.DoesNotContain(texts, text => text.Contains("K-FIXTUR", StringComparison.Ordinal));
+        chart.Stop(); window.Close();
+    });
+
+    [Fact]
     public void AChartThatIsNotTheCoordinatorsHasNoCrown() => RunSta(() =>
     {
         using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("chart")));
