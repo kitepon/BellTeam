@@ -110,7 +110,12 @@ test('quiesce deadline resumes the same old child and never starts a second writ
   await new Promise(resolve => setImmediate(resolve)); t.mock.timers.tick(60001)
   await rejected
   assert.equal(x.controller.snapshot().available, true); assert.equal(x.children.length, 1)
-  await assert.rejects(x.controller.replace(a), { outcome: 'not_accepted' })
+  // The failed attempt leaves no refusal (a149b): the next replace tries again and ends the same bounded way.
+  const again = x.controller.replace(a), refused = assert.rejects(again, { outcome: 'unknown' })
+  while (x.controller.snapshot().phase !== 'quiescing') await new Promise(resolve => setImmediate(resolve))
+  await new Promise(resolve => setImmediate(resolve)); t.mock.timers.tick(60001)
+  await refused
+  assert.equal(x.controller.snapshot().available, true); assert.equal(x.children.length, 1)
   t.mock.timers.reset()
 })
 
@@ -137,6 +142,24 @@ test('unknown current state is rejected before the old writer exits', async t =>
   assert.equal(x.children.length, 1); assert.equal(x.controller.snapshot().available, true)
   assert.equal(await readFile(path, 'utf8'), invalid)
   await writeFile(path, original)
+})
+
+test('a drain timeout resumes the old child and the next replace is not refused while the old lease lives', async t => {
+  const gate = new MembersAdmission(), x = await setup(t, { membersAdmission: gate }); await x.controller.start()
+  const lease = gate.enter()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const first = x.controller.replace(a), rejected = assert.rejects(first, { code: 'MEMBERS_DRAIN_TIMEOUT' })
+  while (x.controller.snapshot().phase !== 'quiescing') await new Promise(resolve => setImmediate(resolve))
+  t.mock.timers.tick(60001); await rejected
+  assert.equal(x.controller.snapshot().available, true)
+  // Before a149b the leftover drain refused this at once with MEMBERS_NOT_ACCEPTING.
+  const second = x.controller.replace(a)
+  while (x.controller.snapshot().phase !== 'quiescing') await new Promise(resolve => setImmediate(resolve))
+  t.mock.timers.reset()
+  gate.finish(lease)
+  await second
+  assert.equal(x.controller.snapshot().currentVersionId, a)
+  assert.equal(x.children.filter(child => child.exitCode === null && child.signalCode === null).length, 1)
 })
 
 test('45-second replacement ready failure is reaped before restoring the old code', async t => {

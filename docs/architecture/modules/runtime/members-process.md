@@ -18,6 +18,7 @@ flowchart TD
   Control[prepare→新root閉鎖 / 旧lease継続] --> Drain[全root/effect/callback・席stdio・CLI終端60秒]
   Mutex[親の共有exchangeMutex.runExclusive] --> Control
   Drain --> Exit[quiesced後exit5秒 / OS・pipe close]
+  Drain -->|"60秒超・quiesce失敗"| Back[旧resumeで受付を開く / 失敗は呼出元へ<br/>次のreplace・reserveを断らない（a149b）]
   Exit --> C[固定C / IPC3 / 子新privateSH4・membersEX5]
   C --> Restore[同state読取restore / ready45秒]
   Restore --> Adopt[投影全件採用 / adoption保存 / resumeACK]
@@ -66,6 +67,8 @@ Root採用の`MEMBERS_READ_PIN_METHODS`6methodだけを`options.membersReadPin`�
 pinの親projectionは同pendingのprofiles.readだけ、親effectは同schedules.listのownerKind=roomかつ同ownerIdに対するroom.schedules.listだけ受ける。captureした要求paramsへ相関し、他effectを親adapterへ渡さない。親contextはmembersReadPinを持ち、一般membersLease branchへ入れない。Mollyの専用readonly effect adapterが同pinを再確認する。
 
 送信前にroot actual completion、親readonly effect開始前にeffect実終端を`trackReadCompletion`へ登録する。caller期限/断線だけで解放せず、finish要請と両completion終端後にのみ解放。既pinはclose後も同generationの元methodだけ継続、新pinは閉鎖中拒否。drain/adoptはKiroのAIleaseとreadpinの双方を待つ。固定readのfresh結果を採用し、投影を認可の代用にしない。
+
+失敗した入れ替え（MEMBERS_DRAIN_TIMEOUT・quiesce失敗）は旧子をresumeし、受付を開いて終わる。旧leaseの完了待ちやquiesceの残りを理由に、次の`replace`/`reserve`を`MEMBERS_NOT_ACCEPTING`で断らない。次の試行は新しいticketでもう一度drainする（2026-11-15 a149b: 本番で失敗直後の再試行が0.1秒で断られた）。二重の入れ替えは既存の`operation`（MEMBERS_UPDATE_IN_PROGRESS）と共有exchangeMutexが防ぐ。
 
 親の同exchangeMutex.runExclusiveはreplaceのprepare前からdrain/旧OS終端/保存ACK/失敗復旧まで保持する。共有競合は受付閉鎖・prepare前にMODULE_EXCHANGE_BUSYで拒否する。signal/実completion/readonly pin/root64とclose時の取消は既契約を維持し、新mutexは作らない。親assemblyの同一体DIはintegrationが所有する。
 
