@@ -65,7 +65,8 @@ const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcp
 const explicitlyUnsent = error => !outcomeUnknown(error)
   && (['AGENT_SESSION_REQUIRED', ...RESENDABLE].includes(error.code) || String(error.message).includes('送信していません'))
 // A conversation lease or an execution generation closed under the job (module swap).
-const SWAP_CODES = ['CONVERSATION_NOT_ACCEPTED', 'EXECUTION_GENERATION_RETIRED']
+// BOT_UPDATE_HOLD (update-hold.md H2): refused before typing, so the saved receipt waits queued and the release drains it.
+const SWAP_CODES = ['CONVERSATION_NOT_ACCEPTED', 'EXECUTION_GENERATION_RETIRED', 'BOT_UPDATE_HOLD']
 // Typed "not started" for a job a module swap ended before any words could reach the CLI; the record owner requeues it.
 const swapNotStarted = () => ({ schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STALE_GENERATION', effect: 'not_started', follow_up: 'none' })
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
