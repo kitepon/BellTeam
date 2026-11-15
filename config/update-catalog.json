@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T14:36:22Z",
-  "expiresAt": "2026-11-22T14:36:22Z",
+  "publishedAt": "2026-11-15T14:57:02Z",
+  "expiresAt": "2026-11-22T14:57:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3b4ba943a40665faac40e4fd62cd787972a49440",
-      "versionId": "9ea33b66edcb542391f7daa72d189055ed62d70a09c11c45b656153466184b16",
+      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
+      "versionId": "cf16ccca5adf5bea98705038ffa74b2818f9f8bf1017454d0349442653d6baa5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-amd64.tar.gz",
-          "bytes": 3980200,
-          "sha256": "9ea33b66edcb542391f7daa72d189055ed62d70a09c11c45b656153466184b16"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz",
+          "bytes": 3980786,
+          "sha256": "cf16ccca5adf5bea98705038ffa74b2818f9f8bf1017454d0349442653d6baa5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "8010e2a4c485d8f3e423d24b61d22cd7f8dffd647802a2744f5e26698c8e7544"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "8d3b0dabd0bc0b7001bbf5ee45e3442542ea1f1a3ab31f639b0ce543ccc80bde"
         },
-        "signerCommit": "3b4ba943a40665faac40e4fd62cd787972a49440"
+        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "フォーク（分身）を、本体で保存しているモデルと強さで起動するようにしました。"
+        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3b4ba943a40665faac40e4fd62cd787972a49440",
-      "versionId": "60f8d3962c0dbcef5e86c90e8f12861a147e3b6e2308ee9f8b6b4b0068b77bc4",
+      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
+      "versionId": "e33b1114138637f7b205226f6fe11f4b56ebb67cd6e674e86b6030eabe491f07",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-arm64.tar.gz",
-          "bytes": 3980201,
-          "sha256": "60f8d3962c0dbcef5e86c90e8f12861a147e3b6e2308ee9f8b6b4b0068b77bc4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz",
+          "bytes": 3980786,
+          "sha256": "e33b1114138637f7b205226f6fe11f4b56ebb67cd6e674e86b6030eabe491f07"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11181,
-          "sha256": "16eea49664a7c47f8d670ef3f19f3a042de36cc7df23b54c3eb411ef4373c454"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "d08ab0c3aa816bfb211c9dfb2797e3eaed14dd378e9ba77a46c2dd41a1c47414"
         },
-        "signerCommit": "3b4ba943a40665faac40e4fd62cd787972a49440"
+        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "フォーク（分身）を、本体で保存しているモデルと強さで起動するようにしました。"
+        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "15427144ac90a019074fe67316c089676196c3a9",
-      "versionId": "sha256:e5e6c9fce5018de3639960da4ff893ff5b5bd1c8331d292b252c11650239ab42",
+      "sourceCommit": "bad9cd2d739bf2a89b671a09c7aa69e0d3cd0a8e",
+      "versionId": "sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e5e6c9fce5018de3639960da4ff893ff5b5bd1c8331d292b252c11650239ab42"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.69にしました。",
-        "計画モードに入るとき、仕様が書かれていなければ一度だけ書くよう促します。",
-        "予定を工程表の「接続」につなぐ土台を入れました。"
+        "Aitermを0.70.70にしました（モデル切り替えが、実行中のターンでも確かに効くようにする直し）。",
+        "接続付きの予定を消したとき、工程表の接続が外れるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "15427144ac90a019074fe67316c089676196c3a9",
-      "versionId": "sha256:e5e6c9fce5018de3639960da4ff893ff5b5bd1c8331d292b252c11650239ab42",
+      "sourceCommit": "bad9cd2d739bf2a89b671a09c7aa69e0d3cd0a8e",
+      "versionId": "sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e5e6c9fce5018de3639960da4ff893ff5b5bd1c8331d292b252c11650239ab42"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ab0ab8b220a149123a12225f95ae23e8182cc8425605658866e67ba3f0291cb0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.69にしました。",
-        "計画モードに入るとき、仕様が書かれていなければ一度だけ書くよう促します。",
-        "予定を工程表の「接続」につなぐ土台を入れました。"
+        "Aitermを0.70.70にしました（モデル切り替えが、実行中のターンでも確かに効くようにする直し）。",
+        "接続付きの予定を消したとき、工程表の接続が外れるようにしました。"
       ]
     },
     {
