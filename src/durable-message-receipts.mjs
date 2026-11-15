@@ -138,8 +138,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     await this.appendDeliveryStatus(deliveryId, 'dispatching')
     let observed = false
     const callbacks = this.notificationCallbacks(record.target, deliveryId, record.session_id ? 'call' : 'direct')
-    const knownReplyIds = new Set(records.filter(row => row.from === record.target && row.target === 'user').map(row => row.delivery_id))
-    const prepared = { target: record.target, deliveryId, startedAt: this.now(), knownReplyIds }
+    const prepared = { target: record.target, deliveryId, startedAt: this.now() }
     let result
     try {
       const options = {

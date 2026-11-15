@@ -42,7 +42,6 @@ export class BellTeamMessenger extends ConversationWriter {
     // fork-inquiry.md "Owed notice": inquiries whose ONE notice this process holds (live) or still owes (owed).
     // refused: pre-accept refusals whose terminal status write failed; each sweep retries them and they stay live until it succeeds.
     this.forkNotices = { live: new Set(), owed: new Map(), refused: new Map(), scanned: false }
-    this.claimedReplyIds = new Set()
   }
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
@@ -368,10 +367,7 @@ export class BellTeamMessenger extends ConversationWriter {
         deliveryId, from: 'user', target, message, images, imageAssets, delivery: 'running',
       }))
     }
-    const knownReplyIds = new Set((await this.store.records())
-      .filter(record => record.from === target && record.target === 'user')
-      .map(record => record.delivery_id))
-    return { target, message, images, bot, deliveryId, knownReplyIds, startedAt, check }
+    return { target, message, images, bot, deliveryId, startedAt, check }
   }
 
   startUserTurn(prepared) {
@@ -396,23 +392,12 @@ export class BellTeamMessenger extends ConversationWriter {
     return result
   }
 
-  async recordUserReply({ target, deliveryId, knownReplyIds }, reply) {
-    const explicitReplies = (await this.store.records())
-      .filter(record => record.from === target && record.target === 'user'
-        && !knownReplyIds.has(record.delivery_id) && !this.claimedReplyIds.has(record.delivery_id))
-    const explicitReply = explicitReplies.at(-1)
-    if (explicitReply) {
-      this.claimedReplyIds.add(explicitReply.delivery_id)
-      return {
-        delivery: 'delivered', delivery_id: deliveryId, reply_id: explicitReply.delivery_id,
-        from: target, target: 'user', reply: explicitReply.message,
-      }
-    }
+  // Rows the Bot sent to the Owner mid-turn (sendmessage, approval notices) are their own messages, never this answer (a148).
+  async recordUserReply({ target, deliveryId }, reply) {
     // Botが回答を空で終えた時（Aiterm 0.54.0から、空の回答は誤りではなく空の本文で届く）は、空の発言を会話へ足さない。
     if (typeof reply !== 'string' || !reply.trim())
       return { delivery: 'delivered', delivery_id: deliveryId, from: target, target: 'user', reply: null }
     const replyId = this.deliveryId()
-    this.claimedReplyIds.add(replyId)
     await this.append(this.record({ deliveryId: replyId, from: target, target: 'user', message: reply }))
     return { delivery: 'delivered', delivery_id: deliveryId, reply_id: replyId, from: target, target: 'user', reply }
   }

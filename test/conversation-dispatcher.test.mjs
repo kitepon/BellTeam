@@ -124,7 +124,7 @@ test('dispatcher restore has no effects/writes and history holds one complete sn
   assert.deepEqual(all.map(x => x.message), ['first', 'second'])
 })
 
-test('user acceptance releases independently; registered completion saves and claims an explicit reply once', async t => {
+test('user acceptance releases independently; registered completion saves the turn answer even after a mid-turn Bot row', async t => {
   const h = await setup(t); await initialize(h)
   const target = h.fixture.bots[0].id
   const first = h.dispatch('user.turn', { target, message: 'one', images: [] })
@@ -139,8 +139,12 @@ test('user acceptance releases independently; registered completion saves and cl
   await h.callback(firstDelivery, 'user.complete', { reply: 'native-one' })
   await h.callback(secondDelivery, 'user.complete', { reply: 'native-two' })
   const [a, b] = await Promise.all([first, second])
-  assert.equal(a.reply, 'explicit'); assert.equal(b.reply, 'native-two')
+  // a148: a Bot row to the Owner mid-turn is its own message, not the turn's answer.
+  assert.equal(a.reply, 'native-one'); assert.equal(b.reply, 'native-two')
   assert.notEqual(a.reply_id, b.reply_id)
+  const history = []
+  for await (const row of await h.dispatch('history.listMessages', { botId: target })) history.push(row.message)
+  for (const text of ['explicit', 'native-one', 'native-two']) assert.ok(history.includes(text), text)
   await assert.rejects(h.callback(firstDelivery, 'user.complete', { reply: 'again' }), /PROTOCOL_INVALID/)
   await Promise.all(h.backgrounds.map(x => x.task))
   let drained = false

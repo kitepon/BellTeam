@@ -64,5 +64,4 @@ test('accepted does not mask a later save failure or transfer answer claims to a
   saved.reject(failure)
   await assert.rejects(completion, error => error === failure)
   assert.equal((await messenger.store.records()).length, 1)
-  assert.equal(messenger.claimedReplyIds.size, 0)
 })
