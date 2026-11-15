@@ -381,7 +381,7 @@ public static class LatticeChart
         LatticeLink? Link(string id) => cards.TryGetValue(id, out var other) ? new(id, Title(other), other.State, ownerOf(other), ProducerStateText(other, other.State, ownerOf(other), now)) : null;
         return new(card, ownerOf(card), StateInfo(card.State), ProducerStateText(card, card.State, ownerOf(card), now),
             snapshot.Edges.Where(edge => edge.To == cardId).Select(edge => Link(edge.From)).OfType<LatticeLink>().ToList(),
-            snapshot.Edges.Where(edge => edge.From == cardId).Select(edge => Link(edge.To)).OfType<LatticeLink>().ToList(),
+            snapshot.Edges.Where(edge => edge.From == cardId).Select(edge => Link(edge.To)).OfType<LatticeLink>().Where(link => link.State != "retired").ToList(),   // a retired card is no live successor (a185, as Web)
             card.StartedAt is { } started ? $"着手 {FormatJst(started)} JST" : "まだ着手されていません");
     }
 

@@ -72,6 +72,16 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
+    public void ADetailsNextLeavesOutARetiredCardButPreviousKeepsIt()
+    {
+        var snapshot = Snapshot([Card("1", "done", "bot-k"), Card("2", "ready", "bot-k"), Card("3", "retired", "bot-k"), Card("4", "retired", "bot-k")],
+            [new("1", "2", true), new("1", "3", false), new("3", "2", false), new("2", "4", false)]);
+        Assert.Equal(["工程2"], LatticeChart.Detail(snapshot, "1", Now)!.Next.Select(link => link.Title));
+        Assert.Empty(LatticeChart.Detail(snapshot, "2", Now)!.Next);
+        Assert.Equal(["工程1", "工程3"], LatticeChart.Detail(snapshot, "2", Now)!.Previous.Select(link => link.Title));
+    }
+
+    [Fact]
     public void TheTreeHangsCardsFromParentThenPhaseThenTheChartAndArcsTheDependencies()
     {
         var snapshot = Snapshot([Card("1", "blocked", "bot-a") with { Phase = "ph" }, Card("2", "in-progress", "bot-k") with { Parent = "1" }, Card("3", "done", null) with { Phase = "ph" }, Card("4", "pending", null) with { Parent = "4" }],
