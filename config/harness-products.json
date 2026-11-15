@@ -1,5 +1,6 @@
 [
   { "product": "xarticle", "file": "/srv/bellteam/shared/tools/xarticle/harness-entries.json" },
+  { "product": "meta", "file": "/srv/bellteam/shared/tools/meta-mcp/harness-entries.json", "wrap": "mcp-lazy" },
   { "product": "typesafe", "file": "/srv/bellteam/shared/tools/typesafe/harness-entries.json" },
   { "product": "throughline", "command": ["throughline", "harness-entries", "--json", "--home", "{home}"] },
   { "product": "rtk", "file": "/srv/bellteam/shared/tools/rtk/harness-entries.json" },

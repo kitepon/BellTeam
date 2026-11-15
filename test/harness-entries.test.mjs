@@ -704,3 +704,10 @@ test('Caveat: a second pass writes nothing (no CLI write, no batchWrite, hooks.j
   assert.equal((await stat(join(f.home, '.codex/hooks.json'))).ino, inode)
   assert.deepEqual(f.reports, [])
 })
+
+test('meta: E2 item follows xarticle, reads the shared meta-mcp E1 and is wrapped by mcp-lazy', async () => {
+  const items = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8'))
+  const at = items.findIndex(item => item.product === 'meta')
+  assert.equal(items[at - 1].product, 'xarticle')
+  assert.deepEqual(items[at], { product: 'meta', file: '/srv/bellteam/shared/tools/meta-mcp/harness-entries.json', wrap: 'mcp-lazy' })
+})
