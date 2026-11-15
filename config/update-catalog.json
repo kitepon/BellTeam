@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T14:05:56Z",
-  "expiresAt": "2026-11-22T14:05:56Z",
+  "publishedAt": "2026-11-15T14:20:18Z",
+  "expiresAt": "2026-11-22T14:20:18Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "15427144ac90a019074fe67316c089676196c3a9",
-      "versionId": "65c517daaafa05ba3cddd8b455f92ff46482d15b6e05246865e8c1668b4471c3",
+      "sourceCommit": "b87a468561b456253227245a32bac2785111d251",
+      "versionId": "dc833e5857388d6063d2ed817fefb3e916a193894b67cb7ae48fa047fac31603",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131544Z/lattice-15427144ac90a019074fe67316c089676196c3a9-linux-amd64.tar.gz",
-          "bytes": 15306324,
-          "sha256": "65c517daaafa05ba3cddd8b455f92ff46482d15b6e05246865e8c1668b4471c3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T141949Z/lattice-b87a468561b456253227245a32bac2785111d251-linux-amd64.tar.gz",
+          "bytes": 15306593,
+          "sha256": "dc833e5857388d6063d2ed817fefb3e916a193894b67cb7ae48fa047fac31603"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131544Z/lattice-15427144ac90a019074fe67316c089676196c3a9-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "5fbef183d3b0b22b63709c46c9ef6233473c261e4b4818eaed01212cbf837053"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T141949Z/lattice-b87a468561b456253227245a32bac2785111d251-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10957,
+          "sha256": "8c122135c6fa29807a16d92ac75a9ec13d3f32d74513edbfdbd63d48edc8f0fd"
         },
-        "signerCommit": "15427144ac90a019074fe67316c089676196c3a9"
+        "signerCommit": "b87a468561b456253227245a32bac2785111d251"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +787,13 @@
         }
       },
       "changes": [
-        "工程表の画面に、工程ごとの「接続」を出せるようにしました。"
+        "同じ工程についての作成者への警告が、何度も届かないようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "15427144ac90a019074fe67316c089676196c3a9",
-      "versionId": "d0c6fa4b2a1cff1dcda4b53a106cd363f75a54fff6028f55bc30b0e3520d0725",
+      "sourceCommit": "b87a468561b456253227245a32bac2785111d251",
+      "versionId": "b2787c14763ad8a8922ca1e6815fa4da30a553915a3dbc199053cea142a8c25a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131544Z/lattice-15427144ac90a019074fe67316c089676196c3a9-linux-arm64.tar.gz",
-          "bytes": 15306325,
-          "sha256": "d0c6fa4b2a1cff1dcda4b53a106cd363f75a54fff6028f55bc30b0e3520d0725"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T141949Z/lattice-b87a468561b456253227245a32bac2785111d251-linux-arm64.tar.gz",
+          "bytes": 15306593,
+          "sha256": "b2787c14763ad8a8922ca1e6815fa4da30a553915a3dbc199053cea142a8c25a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T131544Z/lattice-15427144ac90a019074fe67316c089676196c3a9-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "e81995dadd6a34549f43c2caf85f786e52ff20e5b7f9790f72348409786172cc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T141949Z/lattice-b87a468561b456253227245a32bac2785111d251-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11031,
+          "sha256": "964f60e01a0f4105013a3cf492ad7698eb782f540d0b757735d75302defcbed9"
         },
-        "signerCommit": "15427144ac90a019074fe67316c089676196c3a9"
+        "signerCommit": "b87a468561b456253227245a32bac2785111d251"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +822,7 @@
         }
       },
       "changes": [
-        "工程表の画面に、工程ごとの「接続」を出せるようにしました。"
+        "同じ工程についての作成者への警告が、何度も届かないようにしました。"
       ]
     }
   ],
