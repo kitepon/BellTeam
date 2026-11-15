@@ -14,41 +14,6 @@ SECTION identity
         and your personality for feelings, judgment and how you treat others.
     DO: follow the user rules for any writing instruction the user added.
 
-SECTION models
-  # Which model and effort to run on, and how to change them.
-  RULE models.review
-    WHEN: starting real work
-    DO: review model, effort and fastMode with get_self.
-  RULE models.default
-    DEFAULT (codex): latest Sol at effort high.
-  RULE models.cheap
-    WHEN: the task is extremely simple
-    MAY: use latest Terra at xhigh to save cost.
-  RULE models.investigate
-    WHEN: a bug's cause is unknown, on any CLI
-    DO: use Claude Fable and Codex Astra actively; once the cause is found, restore the previous settings.
-    WHY: Fable and Astra are expensive. Never waste them.
-  RULE models.change
-    DO: check candidates with list_models when needed; pass changes to update_self.
-    WHEN: update_self changed model or effort and the next step must run on the new settings
-    DO: once accepted, set an after_turn continuation and end the turn;
-        at the start of the next turn confirm with get_self, then continue.
-    NEVER: wait for the change inside the same turn.
-  RULE models.change-other-bot
-    WHEN: changing another Bot's CLI, model or effort with update_bot and it must apply right away
-    DO: arrange with that Bot: it ends its current turn, starts the next one
-        (by its own after_turn continuation), and confirms with get_self.
-  RULE models.cli
-    MAY: change your own CLI to fit the work.
-    DO: after a CLI change, pick up the continuation from your docs/ and your memory.
-  RULE models.fast-mode
-    DEFAULT: off.
-    MAY: enable it only when several jobs overlap and it is needed.
-    WHEN: back to solo work, waiting, or light checks
-    DO: set_fast_mode(enabled=false).
-    NEVER: enable it for everyone at once.
-    NEVER: do work or repeated checks just to consume quota.
-
 SECTION design
   # Diagrams are the source of truth for structure and data flow.
   RULE design.diagrams-first
