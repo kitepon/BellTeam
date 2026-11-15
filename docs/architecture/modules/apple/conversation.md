@@ -60,7 +60,7 @@ flowchart LR
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```
 
-[MessageText](../../../../ios/BellBot/BellBot/Views/MessageText.swift#L4)はEnrichedMarkdownを使用し、改行保持、末尾余白除去、選択・通常コピー/Markdownコピー、openURL、チェック項目の変更無効を設定する。[SelectableText](../../../../ios/BellBot/BellBot/Views/SelectableText.swift#L4)はプロフィール・要求本文等の編集不可UITextView。同一本文では再代入せず選択範囲を保持し、本文/幅/displayScaleに応じて寸法をcacheする。
+[MessageText](../../../../ios/BellBot/BellBot/Views/MessageText.swift#L4)はEnrichedMarkdown（quolu/enriched-markdown-iosのフォーク。md4cを修正し、GFMと同じく段落の直後の行からでも表が始まる。その段落の最後の行が表の見出しになる）を使用し、改行保持、末尾余白除去、選択・通常コピー/Markdownコピー、openURL、チェック項目の変更無効を設定する。[SelectableText](../../../../ios/BellBot/BellBot/Views/SelectableText.swift#L4)はプロフィール・要求本文等の編集不可UITextView。同一本文では再代入せず選択範囲を保持し、本文/幅/displayScaleに応じて寸法をcacheする。
 
 一覧はUICollectionViewと[ChatLayout](https://github.com/ekazaev/ChatLayout)（MIT、revision固定、ライセンスは`Resources/ChatLayout-LICENSE.txt`）の`CollectionViewChatLayout`。チャットの定番のスクロール・アンカリングで、読んでいる位置の補正はすべてレイアウトが行い、アプリは位置を計算しない（`keepContentOffsetAtBottomOnBatchUpdates`、`supportSelfSizingInvalidation`）。行の高さはセルが幅固定で中身から測る。初回は最後の行を下端に合わせる。下の余白（キーボード・入力欄）が変わった時だけ、末尾にいれば末尾へ寄せ直す。初回配置後にrise/fadeで1回表示し、後から入る行にも同じ方式を適用する。動きはセルのcontentViewに付ける（セル本体の位置・透明度はレイアウトが当て直すため）。行再利用時はcontentViewのalpha/transform/animationを戻す。Macの離散ホイールはWheelScrollSmoother、連続スクロールは標準処理。pull完了時にrefreshControlを終了する。表への反映とHTTPの取得完了は別段階である。
 
