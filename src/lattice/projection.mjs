@@ -9,11 +9,11 @@ const ref = value => text(value?.plan_key) && text(value?.task_id) ? `${value.pl
 const finished = card => card.state === 'done' || card.state === 'retired'
 
 // The authored lane names a member by Bot id or by name; anything else stays plain lane text for the screens.
-// `owner` is the reserved value for the Owner (指揮官), who has no Bot id. Shared with the prompt sweep (nudge.mjs).
+// `owner` is the reserved value for the Owner (指揮官), who has no Bot id; lane `approval-box` (決裁箱, Owner 2026-11-16) is the Owner-wait lane, `owner` / `指揮官` its retired spellings. Shared with the prompt sweep (nudge.mjs).
 export function laneResolver(members) {
   const live = members.filter(member => !member.deleting), bots = new Set(live.map(member => member.id))
   const named = new Map(live.map(member => [String(member.name).toLowerCase(), member.id]))
-  return lane => !lane ? null : bots.has(lane) ? lane : ['owner', '指揮官'].includes(lane.toLowerCase()) ? 'owner' : named.get(lane.toLowerCase()) ?? null
+  return lane => !lane ? null : bots.has(lane) ? lane : ['approval-box', '決裁箱', 'owner', '指揮官'].includes(lane.toLowerCase()) ? 'owner' : named.get(lane.toLowerCase()) ?? null
 }
 
 // Malformed fields drop only the task or edge they belong to. An unverified read has no journal, so producers fall back to the lane.

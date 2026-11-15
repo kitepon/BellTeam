@@ -3,6 +3,8 @@
 import { latticeError } from '../lattice-protocol.mjs'
 
 export const DECISION_PLAN = 'approval-box'
+// The Owner-wait lane (a189). shortcut: `owner` stays accepted until Delta's a188 switch is live; then drop it.
+const OWNER_LANES = ['approval-box', 'owner']
 export const decisionTask = (plan, task) => plan === DECISION_PLAN && typeof task === 'string' && /^dec-[a-z0-9-]{1,100}$/u.test(task)
 const refuse = reason => Object.assign(latticeError('LATTICE_OWNER_TASK_REFUSED', 403), { detail: reason })
 // The flags each command may carry (value = takes one value, bool = none), read from the bundled Lattice's `todo --help`. Anything else is refused,
@@ -40,7 +42,7 @@ export function ownerTaskCheck(args, input, linked) {
   if (args[0] === 'plan' && args[1] === 'create') {
     readFlags(args, 2, FLAGS['plan create'])
     const tasks = input?.tasks
-    if (input?.plan_key !== DECISION_PLAN || !Array.isArray(tasks) || !tasks.every(task => task?.lane === 'owner' && decisionTask(DECISION_PLAN, task.task_id))) throw refuse('plan create input')
+    if (input?.plan_key !== DECISION_PLAN || !Array.isArray(tasks) || !tasks.every(task => OWNER_LANES.includes(task?.lane) && decisionTask(DECISION_PLAN, task.task_id))) throw refuse('plan create input')
     return
   }
   if (args[0] !== 'todo' || input !== null) throw refuse('command')
@@ -52,6 +54,6 @@ export function ownerTaskCheck(args, input, linked) {
   }
   if (!Object.hasOwn(FLAGS, args[1]) || args[1] === 'predecessor' || args[1] === 'plan create') throw refuse('verb')
   const flags = readFlags(args, 2, FLAGS[args[1]]), plan = flags.get('--plan'), task = flags.get('--task')
-  // A task is made only as a decision task of lane owner; the others are driven only if they are decision tasks or were linked.
-  if (args[1] === 'add' ? !decisionTask(plan, task) || flags.get('--lane') !== 'owner' : !own(plan, task)) throw refuse('task')
+  // A task is made only as a decision task of the Owner-wait lane; the others are driven only if they are decision tasks or were linked.
+  if (args[1] === 'add' ? !decisionTask(plan, task) || !OWNER_LANES.includes(flags.get('--lane')) : !own(plan, task)) throw refuse('task')
 }

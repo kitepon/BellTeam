@@ -86,7 +86,7 @@ test('nudge a145: a card whose lane is no Bot and not the Owner goes to the char
   assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a'])
   const creator = x.sent[0].message
   assert.ok(creator.startsWith('Lattice: on charts you created') && !creator.includes('you are not running'), 'a creator with only reassignments gets no start head')
-  assert.ok(creator.includes('lattice plan revise --plan <P>') && creator.includes('--lane <Bot id or owner>'))
+  assert.ok(creator.includes('lattice plan revise --plan <P>') && creator.includes('--lane <Bot id or approval-box>'))
   assert.ok(creator.endsWith('\nChart alpha (lattice tool, project alpha):\n- p1/t1 「T1」: lane "stranger" is not a Bot\n- p1/t2 「T2」: lane "bot-del" is not a Bot\n- p1/t3 「T3」: lane is empty'),
     'a deleting Bot and an empty lane are no Bot; pending and Owner cards are not listed')
   const both = x.sent[1].message

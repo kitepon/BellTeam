@@ -22,6 +22,8 @@ test('owner task check: only decision tasks, and cards that were linked; no file
   refused(['plan', 'create', '--json'], { plan_key: 'approval-box', tasks: [{ task_id: 't1', lane: 'owner' }] })
   refused(['plan', 'create', '--json'], { plan_key: 'approval-box', tasks: [{ task_id: dec, lane: 'bot-a' }] })
   ok(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x', '--lane', 'owner', '--after', 'dec-k-prev'])
+  ok(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x', '--lane', 'approval-box'])
+  ok(['plan', 'create', '--json'], { ...plan, tasks: [{ task_id: dec, lane: 'approval-box' }] })
   refused(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'x'], null)
   refused(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--lane', 'bot-a'])
   refused(['todo', 'add', '--plan', 'p1', '--task', 't9', '--lane', 'owner'])

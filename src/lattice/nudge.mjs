@@ -16,7 +16,7 @@ const HEAD = 'Lattice: you are not running, and you have tasks in progress or ta
 // so a card whose lane is no roster Bot and not the Owner reaches nobody; the chart's creator is asked to give it to a member.
 const REASSIGN = 'Lattice: on charts you created, these tasks are in progress or can start, but their lane is not a BellTeam Bot or the Owner, so nobody is prompted to do them. '
   + 'Give each one to the member who does it (a Bot id) or to `owner`: `lattice plan show <P> --json`, change the task\'s lane, and send the whole plan back with `lattice plan revise --plan <P> --input <file>`; '
-  + 'or retire it (`lattice todo retire --plan <P> --task <T> --reason <why>`) and add it again in the right lane (`lattice todo add ... --lane <Bot id or owner>`).\n'
+  + 'or retire it (`lattice todo retire --plan <P> --task <T> --reason <why>`) and add it again in the right lane (`lattice todo add ... --lane <Bot id or approval-box>`).\n'
 
 const line = card => card.state === 'ready'
   ? `- ${card.plan}/${card.taskId} 「${card.title}」: can start -> \`lattice todo start --plan ${card.plan} --task ${card.taskId}\``
