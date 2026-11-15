@@ -42,6 +42,9 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     private readonly Button clearSearch;
     private readonly Button addMenu;
     private readonly Button updateBadge;
+    // 決裁箱 entry (screen-spec entry A): the pinned row at the top of the left column; its count is the pending count of every origin.
+    private readonly ApprovalsHub approvals;
+    private readonly Button approvalsEntry;
     private readonly Border accountsBanner = new() { Background = new SolidColorBrush(Color.Parse("#1FFF9500")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 7), Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock accountsText = new() { Foreground = new SolidColorBrush(Color.Parse("#C77700")), FontSize = 13, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock notFound = BellTheme.Text("見つかりませんでした", 13, BellTheme.Muted, margin: new Thickness(24, 16));
@@ -100,6 +103,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
         addMenu = BuildAddMenu();
         updateBadge = BuildUpdateBadge();
+        approvals = new ApprovalsHub(model); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
         clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
         attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, "画像を添付", AttachAsync, "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます");
@@ -114,10 +118,10 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         var navButtons = new List<Button>();
         Content = BuildRoot(navButtons);
         nav = navButtons.ToArray();
-        WireModel(); UpdateAll();
+        WireModel(); UpdateAll(); approvals.Sync();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
         // The separate windows read through this workspace, so they end with the main window.
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); (startupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
         // Mac scenePhase .active: coming back to the window reads the goals again.
         Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); };
         if (persistPlacement) RestorePlacement();
@@ -208,7 +212,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         search.TextChanged += (_, _) => { var text = search.Text ?? ""; clearSearch.IsVisible = text.Length != 0; searchHint.IsVisible = text.Length == 0; if (model.Search != text) model.Search = text; };
         var searchBox = new Border { Background = new SolidColorBrush(Color.Parse("#EFFFFFFF")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 9), Child = new DockPanel { Children = { searchRight, magnifier, search } } };
         accountsBanner.Child = accountsText; AutomationProperties.SetName(accountsBanner, "アカウントの上限");
-        var top = new StackPanel { Margin = new Thickness(18, 20, 18, 10), Children = { titleRow, searchBox, accountsBanner } };
+        var top = new StackPanel { Margin = new Thickness(18, 20, 18, 10), Children = { titleRow, searchBox, accountsBanner, approvalsEntry } };
         DockPanel.SetDock(top, Dock.Top);
 
         // Footer: 予定 and 設定 at the ends, ゴール, 相関図 and 工程表 spaced between (Mac footer). 予定, ゴール and 設定 open an empty placeholder page in this stage.
@@ -342,7 +346,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
             case nameof(LinuxWorkspace.HasMore): older.IsVisible = model.HasMore; break;
         }
     }
-    private void UpdateAll() { UpdateNav(); UpdateSelection(); UpdateWelcome(); UpdateQueue(); UpdateComposerBand(); UpdateStrip(); UpdateSidebarTexts(); QueueListRebuild(); }
+    private void UpdateAll() { UpdateApprovalsEntry(); UpdateNav(); UpdateSelection(); UpdateWelcome(); UpdateQueue(); UpdateComposerBand(); UpdateStrip(); UpdateSidebarTexts(); QueueListRebuild(); }
     private void UpdateNav() { foreach (var button in nav) button.IsEnabled = model.Connected; addMenu.IsEnabled = model.Connected; }
     private void UpdateSidebarTexts()
     {
@@ -542,7 +546,38 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
 
     // ---- the 相関図 and 工程表 windows (Mac openWindow): one each; a second open brings the existing one forward ----
     public WorkGraphWindow? ShowWorkGraph() => ShowSeparate(() => WorkGraphWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
-    public LatticeWindow? ShowLattice() => ShowSeparate(() => LatticeWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
+    internal ApprovalsWindow? ShowApprovals(string? decisionId = null)
+    {
+        var window = ShowSeparate(() => ApprovalsWindow.Open(approvals, model, (project, card) => ShowLattice()?.OpenCard(project, card),
+            botId => _ = OpenConversationFromWindowAsync(botId, "決裁のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
+        if (window is not null && decisionId is not null) window.Select(decisionId);
+        return window;
+    }
+    private Button BuildApprovalsEntry()
+    {
+        var button = new Button { Classes = { "plain" }, Padding = default, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Background = Brushes.Transparent };
+        button.Click += (_, _) => ShowApprovals();
+        return button;
+    }
+    private void UpdateApprovalsEntry()
+    {
+        var summary = approvals.Feed?.Summary; var view = Approvals.EntryView(summary, approvals.Feed?.Failure);
+        var lit = view.Pending > 0; var violet = LatticeLook.Violet;
+        var tile = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(10), Background = LatticeLook.Brush(violet, lit ? (byte)0x26 : (byte)0x14), Child = LatticeLook.Icon(ApprovalsWindow.Inbox, 19, violet) };
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(11, 0, 0, 0), Children = { LatticeLook.Text("決裁箱", 15, LatticeLook.Ink, FontWeight.SemiBold), LatticeLook.Text(view.Sub, 12, LatticeLook.Muted) } };
+        var tail = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Spacing = 6 };
+        if (view.Urgent) tail.Children.Add(LatticeLook.Icon(ApprovalsWindow.Bolt, 16, LatticeLook.Amber));
+        if (lit) tail.Children.Add(LatticeLook.Pill(LatticeLook.Text(view.Pending.ToString(), 12.5, Colors.White, FontWeight.Bold), violet, 0xFF, new Thickness(9, 2, 9, 2)));
+        var dock = new DockPanel { Children = { tile, texts } }; DockPanel.SetDock(tile, Dock.Left); DockPanel.SetDock(tail, Dock.Right); dock.Children.Insert(0, tail);
+        approvalsEntry.Content = new Border
+        {
+            CornerRadius = new CornerRadius(14), Padding = new Thickness(10, 8, 12, 8), Background = LatticeLook.Brush(Colors.White, lit ? (byte)0xF2 : (byte)0xA0), Child = dock,
+            BorderBrush = LatticeLook.Brush(violet, lit ? (byte)0x90 : (byte)0x00), BorderThickness = new Thickness(lit ? 1.4 : 1), BoxShadow = lit ? new BoxShadows(new BoxShadow { Blur = 20, Color = Color.FromArgb(0x30, violet.R, violet.G, violet.B) }) : default
+        };
+        Avalonia.Automation.AutomationProperties.SetName(approvalsEntry, view.Label); ToolTip.SetTip(approvalsEntry, "決裁箱");
+        approvalsEntry.IsEnabled = model.Connected;
+    }
+    public LatticeWindow? ShowLattice() => ShowSeparate(() => LatticeWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"), id => ShowApprovals(id)));
     private T? ShowSeparate<T>(Func<T> open) where T : Window
     {
         if (!model.Connected) return null;

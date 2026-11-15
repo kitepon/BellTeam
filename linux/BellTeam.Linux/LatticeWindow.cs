@@ -26,7 +26,9 @@ namespace BellTeam.Linux;
 public sealed class LatticeWindow : Window
 {
     public static LatticeWindow? Current { get; private set; }
-    public static LatticeWindow Open(LinuxWorkspace workspace, Func<string, Task> openChat) => Current ??= new LatticeWindow(workspace, openChat);
+    public static LatticeWindow Open(LinuxWorkspace workspace, Func<string, Task> openChat, Action<string>? openDecision = null) => Current ??= new LatticeWindow(workspace, openChat) { OpenDecision = openDecision };
+    /// <summary>決裁を開く of a 詳細: shows that decision on the 決裁箱 screen (the main window supplies it; null draws the block without the button).</summary>
+    internal Action<string>? OpenDecision { get; set; }
 
     private readonly LinuxWorkspace workspace;
     private readonly Func<string, Task> openChat;
@@ -315,9 +317,13 @@ internal sealed class LatticeChartPage : Grid
         Render();
     }
 
+    // 決裁箱拡張 (Delta, R3): asked once when an Owner-lane card's 詳細 opens, not on every snapshot; null = no block.
+    private readonly Dictionary<string, LatticeDecision?> decisions = [];
+    private BellApi? decisionApi;
+    internal IReadOnlyDictionary<string, LatticeDecision?> Decisions => decisions;
     public void Run(BellApi api, CancellationToken connection)
     {
-        Running = true; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
+        decisionApi = api; Running = true; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
         _ = FollowAsync(api, run);
     }
     // A feed that ended on its own (not found, sign-in) stays "running" until Stop, as before; only its token source is released.
@@ -622,7 +628,15 @@ internal sealed class LatticeChartPage : Grid
     /// <summary>Brings a board point near the top left, clear of the lane names.</summary>
     internal void ScrollBoard(double x, double y) { scroller.UpdateLayout(); scroller.Offset = new Vector(Math.Max(0, x - LatticeChart.LabelWidth - 40), Math.Max(0, y - 60)); }
 
-    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ApplyHistory(); ShowDetail(cardId, morph); }
+    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ApplyHistory(); LoadDecision(cardId); ShowDetail(cardId, morph); }
+    private async void LoadDecision(string cardId)
+    {
+        if (decisionApi is not { } source || run is not { } running || Feed.Snapshot?.Cards.FirstOrDefault(card => card.Id == cardId) is not { Producer: LatticeChart.OwnerId, Plan: { } plan, TaskId: { } task }) return;
+        var decision = await source.DecisionAsync(projectId, plan, task, running.Token);
+        if (running.IsCancellationRequested) return;
+        decisions[cardId] = decision;
+        if (SelectedCard == cardId) ShowDetail(cardId, false);
+    }
     internal bool CloseDetail()
     {
         if (SelectedCard is null) return false;
@@ -645,6 +659,12 @@ internal sealed class LatticeChartPage : Grid
         var started = Text(detail.StartedText, 12.5, Muted); started.Margin = new Thickness(0, 8, 0, 0); body.Children.Add(started);
         Section(body, "設計メモ", detail.Card.DesignMemo);
         Section(body, "終了条件", detail.Card.DoneCondition);
+        // The id never shows; 決裁を開く opens the 決裁箱 screen with that decision selected.
+        if (decisions.GetValueOrDefault(cardId) is { } decision)
+        {
+            Section(body, "決裁", $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");
+            if (window.OpenDecision is { } openDecision) { var open = Action("決裁を開く", ForwardGlyph); open.Margin = new Thickness(0, 8, 0, 0); var id = decision.DecisionId; open.Click += (_, _) => openDecision(id); body.Children.Add(open); }
+        }
         Links(body, "前の工程", detail.Previous);
         Links(body, "次の工程", detail.Next);
         var panel = Glass(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, 22, new Thickness(20, 16, 18, 18), 0xFA);
