@@ -45,7 +45,7 @@ export class UserRules {
     if (typeof text !== 'string' || text.length > MAX_LENGTH) throw new Error('USER_RULES_INVALID')
     const normalized = normalizeUserRules(text)
     const before = await this.get()
-    // The Owner approved the diff from expectedBefore; never apply it over a different text (instructions.md).
+    // The caller's diff was made from expectedBefore; never apply it over a different text (instructions.md).
     if (expectedBefore !== undefined && before !== expectedBefore) throw Object.assign(new Error('USER_RULES_CHANGED'), { code: 'USER_RULES_CHANGED', status: 409 })
     if (before !== normalized) {
       const entry = { schema: 'bellteam.user-rules-change.v1', at: new Date().toISOString(), actor, ...(instruction ? { instruction } : {}), before, after: normalized }
