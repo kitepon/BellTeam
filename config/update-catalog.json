@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T07:11:33Z",
-  "expiresAt": "2026-11-22T07:11:33Z",
+  "publishedAt": "2026-11-15T07:34:08Z",
+  "expiresAt": "2026-11-22T07:34:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b3532aaa01a565701a5802a68ecc6c53a8e1de1e",
-      "versionId": "2ca1b31aaaa48a3295f2ef698d5e4891fbc8366f1b46f3c61ad1bdcc2a6ba915",
+      "sourceCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f",
+      "versionId": "c1e32bf1bf5717da2880103d9bf1ff7d53a04422684913f2d280b918e9628608",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T041426Z/lattice-b3532aaa01a565701a5802a68ecc6c53a8e1de1e-linux-amd64.tar.gz",
-          "bytes": 15294111,
-          "sha256": "2ca1b31aaaa48a3295f2ef698d5e4891fbc8366f1b46f3c61ad1bdcc2a6ba915"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-amd64.tar.gz",
+          "bytes": 15294670,
+          "sha256": "c1e32bf1bf5717da2880103d9bf1ff7d53a04422684913f2d280b918e9628608"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T041426Z/lattice-b3532aaa01a565701a5802a68ecc6c53a8e1de1e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "9b97d326d1e6b8e4b5680477101aa21b9ec8a1d34a0b9101bd422012530c9222"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11196,
+          "sha256": "01016b5c34e0cbd53b8f5d9fa6cd634a11c68e007d624373a6c1e73796fa3af9"
         },
-        "signerCommit": "b3532aaa01a565701a5802a68ecc6c53a8e1de1e"
+        "signerCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +787,13 @@
         }
       },
       "changes": [
-        "担当のいない工程の催促を、工程表を作った人へ届けるようにしました。"
+        "工程表の記録の一覧が、一部の工程表で読めなくなる不具合を直しました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b3532aaa01a565701a5802a68ecc6c53a8e1de1e",
-      "versionId": "0c5c927e5c9849823715fa8e4abf6391f8ed647742241e0da13e76342fb82170",
+      "sourceCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f",
+      "versionId": "d0f88548eddad57770c22f8ff063b671906d1489731ecef2ccf7ff5b32207cdf",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T041426Z/lattice-b3532aaa01a565701a5802a68ecc6c53a8e1de1e-linux-arm64.tar.gz",
-          "bytes": 15294115,
-          "sha256": "0c5c927e5c9849823715fa8e4abf6391f8ed647742241e0da13e76342fb82170"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-arm64.tar.gz",
+          "bytes": 15294675,
+          "sha256": "d0f88548eddad57770c22f8ff063b671906d1489731ecef2ccf7ff5b32207cdf"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T041426Z/lattice-b3532aaa01a565701a5802a68ecc6c53a8e1de1e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "4ab5f1882f292f327b4bde180562581d5917f4389bc5bf520c99e100ad51bb51"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "87863b0a567972cf384fea869014a89bd70898be55f032227162d35ffc452bef"
         },
-        "signerCommit": "b3532aaa01a565701a5802a68ecc6c53a8e1de1e"
+        "signerCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +822,7 @@
         }
       },
       "changes": [
-        "担当のいない工程の催促を、工程表を作った人へ届けるようにしました。"
+        "工程表の記録の一覧が、一部の工程表で読めなくなる不具合を直しました。"
       ]
     }
   ],
