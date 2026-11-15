@@ -24,6 +24,17 @@ test('effects: refusal is told apart, session uses the fixed scope, put/erase ab
   await assert.rejects(bare('nope', {}), { code: 'APPROVAL_BOX_EXTENSION_EFFECT_INVALID' })
 })
 
+test('effects: the real facade shapes of lattice.chart / lattice.charts are narrowed to what the child protocol accepts', async () => {
+  const card = { id: 'p/t', plan: 'p', taskId: 't', state: 'pending', lane: 'approval-box', title: 'x', producer: 'owner', designMemo: '', startedAt: null }
+  const lattice = { chart: async () => ({ schema: 'bellteam.lattice-chart.v1', epoch: 1, projectId: 'bellteam', name: 'n', cards: [card], edges: [{ from: 'p/a', to: 'p/t', waiting: true }], members: [], waits: [], phases: [], externals: [] }),
+    charts: async () => ({ schema: 'bellteam.lattice-charts.v1', at: 'now', charts: [{ projectId: 'bellteam', name: 'n', coordinator: true, createdBy: undefined, counts: {}, activeMembers: [], updatedAt: 'now', state: 'active' }] }) }
+  const effects = createApprovalBoxExtensionEffects({ lattice, bots: {}, credentials: { current: async () => null } })
+  validateApprovalsEffectResult('lattice.chart', await effects('lattice.chart', { projectId: 'bellteam' }))
+  const charts = await effects('lattice.charts', {})
+  validateApprovalsEffectResult('lattice.charts', charts)
+  assert.deepEqual(charts, [{ projectId: 'bellteam', name: 'n', createdBy: null, coordinator: true }])
+})
+
 test('facade: loop fans events out, keeps child codes, hides other failures', async () => {
   const timers = []
   const calls = []
