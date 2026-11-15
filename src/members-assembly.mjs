@@ -84,17 +84,24 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     return join(root, 'bots', id)
   }
   // a164: members saves a schedule with `connect`; the parent adds the Lattice 接続 right after the save (lattice README L21).
-  // Only a save that carries `connect` adds (the scheduler's own disable and plain editors do not), so a resolved 接続 is never reopened.
+  // Lattice REOPENS a settled 接続 on a later `condition add` (Flora, real 0.104.0), so the add runs only for a new schedule or a changed `connect`:
+  // an editor echoing the whole schedule back or re-enabling a disabled connected one never reopens it. No scheduler yet (startup window): refuse BEFORE the save.
   // A failed add (not `unchanged`) removes a schedule this call created, so no half-linked schedule stays; an update keeps the stored one.
   const saveSchedule = facade.bots.setSchedule
+  const sameConnect = (a, b) => a?.project === b?.project && a?.plan === b?.plan && a?.task === b?.task
+  const connectFailed = reason => Object.assign(new Error(`SCHEDULE_CONNECT_FAILED: ${reason}`), { code: 'SCHEDULE_CONNECT_FAILED', status: 502 })
   facade.bots.setSchedule = async (botId, input, context) => {
+    if (!input?.connect) return saveSchedule(botId, input, context)
+    const scheduler = dependencies().scheduler
+    if (!scheduler) throw connectFailed('LATTICE_UNAVAILABLE')
+    const stored = input.id ? (await facade.bots.listSchedules(botId, context)).find(item => item.id === input.id) : null
     const schedule = await saveSchedule(botId, input, context)
-    if (!input?.connect || !schedule?.connect) return schedule
+    if (!schedule?.connect || (stored && sameConnect(stored.connect, schedule.connect))) return schedule
     const { project, plan, task } = schedule.connect
-    const added = await dependencies().scheduler.runLattice(botId, project, ['todo', 'connect', 'condition', 'add', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`, '--reason', schedule.name || schedule.command])
+    const added = await scheduler.runLattice(botId, project, ['todo', 'connect', 'condition', 'add', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`, '--reason', schedule.name || schedule.command])
     if (added.ok) return schedule
     if (!input.id) await facade.bots.removeSchedule(botId, schedule.id, context)
-    throw Object.assign(new Error(`SCHEDULE_CONNECT_FAILED: ${added.reason}`), { code: 'SCHEDULE_CONNECT_FAILED', status: 502 })
+    throw connectFailed(added.reason)
   }
   facade.bots.watch = listener => { listeners.add(listener); return () => listeners.delete(listener) }
   return { ...facade, controller, projection }

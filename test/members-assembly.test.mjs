@@ -60,30 +60,39 @@ test('a153: a planned quiesce keeps the snapshot the old child is still sending;
 })
 
 // a164 (lattice README L21): the parent adds the Lattice 接続 right after a save that carries `connect`; members never calls Lattice.
-test('a164: set_schedule with connect adds the 接続 after the save; a failed add removes a created schedule; other saves never add', async () => {
+test('a164: set_schedule with connect adds the 接続 for a new schedule or a changed connect only; a failed add removes a created schedule', async () => {
   const calls = []
-  let added = { ok: true }
+  let added = { ok: true }, scheduler = null
+  const row = (id, connect) => ({ id, name: 'ci', kind: 'cron', expression: '* * * * *', command: 'x', lastRunAt: null, nextRunAt: null, revision: 1, connect })
+  const connect = { project: 'bellteam', plan: 'plan-a', task: 'task-b' }
   const assembly = createMembersAssembly({ root: '/synthetic', membersAdmission: new MembersAdmission(), membersAuthorization: createMembersOwnerAuthorization(),
     diagnostics: { record() {} }, aiterm: {}, settings: { configuration: () => ({}) }, models: { forHarness: async () => ({ efforts: [], models: [] }) },
-    dependencies: () => ({ scheduler: { runLattice: async (from, project, args) => { calls.push(['lattice', from, project, args]); return added } } }),
+    dependencies: () => ({ scheduler }),
     createProcess: () => ({ async request(method, params) {
-      calls.push([method, params.input?.id ?? params.scheduleId])
-      if (method === 'schedules.set') return { schedule: { id: params.input.id ?? 'sch-new', name: 'ci', kind: 'cron', expression: '* * * * *', command: 'x', lastRunAt: null, nextRunAt: null, revision: 1, connect: params.input.connect ?? { project: 'p', plan: 'pl', task: 't' } } }
+      calls.push(method)
+      if (method === 'schedules.list') return { schedules: [row('sch-old', connect)] }
+      if (method === 'schedules.set') return { schedule: row(params.input.id ?? 'sch-new', params.input.connect ?? connect) }
       return { removed: params.scheduleId }
     } }) })
-  const connect = { project: 'bellteam', plan: 'plan-a', task: 'task-b' }
+  const lattice = []
+  // Startup window: no scheduler yet -> refused before the save.
+  await assert.rejects(assembly.bots.setSchedule('bot-test', { kind: 'cron', command: 'x', connect }), { code: 'SCHEDULE_CONNECT_FAILED' })
+  assert.deepEqual(calls, [])
+  scheduler = { runLattice: async (from, project, args) => { lattice.push([from, project, args]); return added } }
   const saved = await assembly.bots.setSchedule('bot-test', { kind: 'cron', command: 'x', connect })
   assert.equal(saved.id, 'sch-new')
-  assert.deepEqual(calls.at(-1), ['lattice', 'bot-test', 'bellteam', ['todo', 'connect', 'condition', 'add', '--plan', 'plan-a', '--task', 'task-b', '--to', 'schedule:sch-new', '--reason', 'ci']])
-  calls.length = 0
-  await assembly.bots.setSchedule('bot-test', { id: 'sch-new', enabled: false }) // the scheduler's own disable: no connect in the input
-  assert.deepEqual(calls.map(call => call[0]), ['schedules.set'])
+  assert.deepEqual(lattice.at(-1), ['bot-test', 'bellteam', ['todo', 'connect', 'condition', 'add', '--plan', 'plan-a', '--task', 'task-b', '--to', 'schedule:sch-new', '--reason', 'ci']])
+  lattice.length = 0; calls.length = 0
+  await assembly.bots.setSchedule('bot-test', { id: 'sch-old', enabled: false }) // the scheduler's own disable: no connect in the input
+  await assembly.bots.setSchedule('bot-test', { id: 'sch-old', kind: 'cron', command: 'x', connect }) // an editor echoing the same connect back: Lattice would reopen a settled 接続
+  assert.deepEqual(lattice, [])
   calls.length = 0; added = { ok: false, reason: 'CONNECTION_INVALID' }
   await assert.rejects(assembly.bots.setSchedule('bot-test', { kind: 'cron', command: 'x', connect }), { code: 'SCHEDULE_CONNECT_FAILED' })
-  assert.deepEqual(calls.map(call => call[0]), ['schedules.set', 'lattice', 'schedules.remove'])
-  calls.length = 0
-  await assert.rejects(assembly.bots.setSchedule('bot-test', { id: 'sch-old', connect }), { code: 'SCHEDULE_CONNECT_FAILED' })
-  assert.deepEqual(calls.map(call => call[0]), ['schedules.set', 'lattice']) // an update keeps the stored schedule
+  assert.deepEqual(calls, ['schedules.set', 'schedules.remove'])
+  calls.length = 0; lattice.length = 0
+  await assert.rejects(assembly.bots.setSchedule('bot-test', { id: 'sch-old', kind: 'cron', command: 'x', connect: { ...connect, task: 'other' } }), { code: 'SCHEDULE_CONNECT_FAILED' })
+  assert.equal(lattice.length, 1) // a changed connect on an update adds; its failure keeps the stored schedule
+  assert.deepEqual(calls, ['schedules.list', 'schedules.set'])
 })
 
 test('a164: the effect schedules.connectionRemoved calls the parent scheduler once and answers nothing', async () => {
