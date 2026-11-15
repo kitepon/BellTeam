@@ -82,7 +82,7 @@ flowchart TB
   Runtime --> Close["close<br/>各終了処理を集めて結果を返す"]
 ```
 
-Bot setup.shのデータの流れ：`bootstrap → restoreBotEnvironmentsInBackground（背景、Bot順に一回ずつ）→ 各Botのready promise → AitermTransport.wake/resumePreviouslyActive（members lease取得前に待つ）→ AitermClient.launchOptions(project)（席のagent_launch前に待つ）`。listenと/healthzはsetupを待たない。登録の無いBotのpromiseは無く、待たない。
+Bot setup.shのデータの流れ：`bootstrap → restoreBotEnvironmentsInBackground（背景、Bot順に一回ずつ）→ 各Botのready promise → AitermTransport.wake/resumePreviouslyActive（members lease取得前に待つ）→ AitermClient.launchOptions(project)（席のagent_launch前に待つ）`。listenと/healthzはsetupを待たない。登録の無いBotのpromiseは無く、待たない。`environment/setup.sh`の無いBotのpromiseは走査の前に解け、他Botのsetupを待たない（a149d）。
 
 factoryのimport/構築と通信口・監視のstartを分ける。HTTPとMCPへ同じサービス実体を渡す。機能handlerへ保存の別実装を足さない。共通失敗応答・認証・要求ログはHTTP入口の責任、業務の判断は各サービスの責任である。
 

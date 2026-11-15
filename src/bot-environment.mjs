@@ -125,6 +125,12 @@ export function restoreBotEnvironmentsInBackground(bots, { restore = restoreBotE
   const entries = [...bots.values()]
   const gates = new Map(entries.map(bot => [bot.project, Promise.withResolvers()]))
   const finished = (async () => {
+    // A Bot with no environment/setup.sh has nothing to wait for: open its gate before the serial walk, so it never waits behind
+    // other Bots' setup.sh (Z30 lab 11/15: no-setup seats waited 44 s). An unreadable path keeps the gate for the walk.
+    await Promise.all(entries.map(async bot => {
+      try { await access(join(bot.project, 'environment', 'setup.sh')) }
+      catch (error) { if (error.code === 'ENOENT') gates.get(bot.project).resolve() }
+    }))
     for (const bot of entries) {
       try { await restore(new Map([[bot.id, bot]]), options) }
       catch (error) { process.stderr.write(`BellTeam environment ${bot.id}: failed (${error.message})\n`) }

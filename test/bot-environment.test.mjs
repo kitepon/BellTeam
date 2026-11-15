@@ -206,6 +206,7 @@ test('Aitermの短命MCP接続は環境値を個別に持ち、ツール引数�
 
 test('席の起動は該当Botのsetup終了まで待ち、失敗後・登録の無いBotは待たない。setupは順に一回ずつ', async t => {
   const { bots, a, b } = await fixture(t)
+  await writeFile(join(b, 'environment/setup.sh'), 'true\n')
   const order = [], release = new Map()
   const restore = async map => {
     const [id] = map.keys()
@@ -226,4 +227,20 @@ test('席の起動は該当Botのsetup終了まで待ち、失敗後・登録の
   await waiting
   await background.finished
   assert.deepEqual(order, ['start bot-a', 'start bot-b', 'end bot-b', 'launch bot-b'])
+})
+
+test('setup.shの無いBotは、前のBotのsetupを待たずにすぐ席を起こせる（Z30試験 11/15）', async t => {
+  const { bots, a, b } = await fixture(t)
+  await writeFile(join(a, 'environment/setup.sh'), 'sleep 40\n')
+  let release
+  const restore = async map => { if (map.has('bot-a')) await new Promise(resolve => { release = resolve }) }
+  const background = restoreBotEnvironmentsInBackground(bots, { restore })
+  const client = new AitermClient({ environmentReady: background.ready })
+  await client.launchOptions(b) // bot-b has no setup.sh: ready while bot-a's setup still runs
+  let aReady = false
+  const waitingA = client.launchOptions(a).then(() => { aReady = true })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(aReady, false, 'bot-a waits for its own setup')
+  release(); await waitingA; await background.finished
+  assert.equal(aReady, true)
 })
