@@ -3,7 +3,7 @@
 // While any chart has subscribers, one timer drives a root 'refresh'.
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
-const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID'])
+const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID', 'LATTICE_OWNER_TASK_REFUSED'])
 const SLICE = 50
 // Owner 2026-11-12: 「では、1分で。」 (README L13).
 export const NUDGE_MS = 60_000
@@ -86,6 +86,14 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
       if (subscribers.has(projectId)) void call('refresh', { projectIds: [projectId] }).then(result => publish(result?.snapshots), () => {})
       return value
     },
+    // a156 (Flora R3, Approval Box extension): Owner-task writes for the extension's module child only. Neither is on the HTTP API or the seat MCP
+    // (a seat must never reach the Owner actor). Both queue as seat writes through `call`; an old child answers LATTICE_INVALID (-> 503).
+    async ownerTask({ projectId, args, input = null }) {
+      const value = await call('ownerTask', { projectId, args, input })
+      if (subscribers.has(projectId)) void call('refresh', { projectIds: [projectId] }).then(result => publish(result?.snapshots), () => {})
+      return value
+    },
+    link: ({ projectId, plan, taskId }) => call('link', { projectId, plan, taskId }),
     subscribe(projectId, send) {
       const first = !subscribers.size
       if (!subscribers.has(projectId)) subscribers.set(projectId, new Set())
