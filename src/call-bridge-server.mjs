@@ -78,7 +78,8 @@ export async function listenCallBridge(server, socketPath) {
     server.once('error', reject)
     server.listen(socketPath, () => { server.off('error', reject); resolve() })
   })
-  try { await chmod(socketPath, 0o666) }
+  // Audit M4: only the server's own uid (and root, which the bridge container runs as) may connect; Bot seats run as another uid.
+  try { await chmod(socketPath, 0o600) }
   catch (error) {
     const cleanupErrors = []
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))

@@ -207,6 +207,8 @@ flowchart LR
 
 早期returnしていた型付き503だけを既writerへ記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・既入場上限・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
 
+遅い要求と途中で切られた要求（t20、BugHub 44906d23/4783ee40/c882af7b）：公開入口の`/api/`要求のうち、応答を返し終える前に相手が切ったもの、または60秒以上かかったものを`SERVER_HTTP_SLOW_OR_ABORTED`（schema `bellteam.http-slow.v1`）として既Diagnosticsへ記録する（`recordSlowOrAborted`、src/http-request-log.mjs）。項目はmethod・route型（`httpRouteType`、503と共通。IDやqueryは残さない）・開始時刻・所要時間・応答headerを送ったか・応答を返し終えたか・status。`/api/events`とtext/event-streamの応答は閉じて終わるので記録しない。内部入口（席）は対象外。既存の本体ログ行（BellTeam read/write）はそのまま。
+
 型付きエラーの応答messageは、`publicMessage`が無ければ`http-errors`の共通code文表を引く。module IPCは文を運ばず（`Error(code)`とstatusだけ）、親の表が利用者向けの日本語を戻す。IPC payloadは広げない。表の行：`HARNESS_AUTH_ACCOUNTS_UNAVAILABLE`→「アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。」（usageのaccounts.prepare失敗の正規化、2026-11-08 F-ACCT）。同じcodeは子process経由でも同一process経由でも同じ文になる。
 
 型付き503の`error.code`は、大文字・数字・`_`だけの定数（`/^[A-Z][A-Z0-9_]{2,63}$/`）ならそのまま保存し、それ以外はunknownとする（2026-11-08、BugHub ef83d4ee）。旧allowlistはmembers IPCの符号だけで、control段階（更新・初期設定・認証・利用設定module・Web/通知公開）や他moduleのIPC符号（`USAGE_NOT_ACCEPTED`等）が全てunknown・route `/api/other`に潰れ、担当を特定できなかった。codeは製品内の固定符号で、本文・入力値・IDを含まない。routeの型・message/stack/query非記録・status/JSON応答は不変。
@@ -307,7 +309,7 @@ SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し�
 
 受付子の交換は重ねて行う（BugHub 95eef79b、Owner 2026-11-08「部品交換は呼び手に見せない」）。受付子は公開portを`reusePort: true`（Linux SO_REUSEPORT）でlistenするので、新子は旧子の横で同じportへbindできる。並ぶ間はどちらの子にも要求が届くので、両方が双方の資材版を解決する：親は新子を起こす前に旧子へIPC `{type:'asset-version', version, root}`（新版のkeyと準備済みroot）を送り、旧子は起動時の旧版と同じく`<root>/web/assets.mjs`を読んで、要求ごとに引く版表へ足し、`asset-version-ack`を返す。新子は旧版を既存のassetCatalog引数で起動時から持つ。内蔵版のkeyは子ではなく親が決めて渡すので、旧子に先に知らせられる。親はこの応答を5秒待つ。応答が無い・error・IPCが無い旧子は版を共有できない子として、下の従来の順で交換する。親は新子を起こしてready確認と採用記録を済ませてから、旧子へcloseを送る。公開portに受け手のいない瞬間は無く、新旧どちらのページの`?v=`資材もどちらの子で404にならない。旧子に開いていたSSE・要求は上の通り切断/drainされ、呼び手は再接続して新子へ着く。ready確認は新子だけに宛てる：新子は公開portのlisten成功後、`127.0.0.1`の一時portを一つ開いて`ready.probePort`で知らせ、そこへ来た一接続を同じHTTP serverへ渡してからその一時portを閉じる。親は既存と同じ`GET /`（既session認証と資材配信を通る）をこのportへ送るので、公開portで旧子が答えても新子の合否にならない。新子が起動・ready・`GET /`・採用記録のどこで失敗しても新子だけを回収し、旧子は止めずに配り続ける（戻しの再起動も、lifecycle回収も無い）。意図して止めた旧子・捨てた新子は異常終了として数えない。親closeは存在する全受付子（交換中は二つ）を止める。採用記録を書いている間に新子が終了していたら、親は新子を採用せず旧子を止めない。採用記録を旧子の版へ書き戻し、交換は失敗として返す（受け手のいない成功は作らない）。旧子か新子のどちらかがSO_REUSEPORT無しでbindしている（この変更より前の受付子、本番で最初の交換の旧子、古い版への戻し）と新子のbindがEADDRINUSEで終わる。親はこれを子のstderrで見分け、従来の順（旧子停止→新子起動、失敗時は前版へ戻す）で交換を完了する。この場合と資材版を共有できない旧子の場合だけ短い空白が残る（共有できない旧子は応答待ちの5秒も加わる）。運び手は親の順序・資材版の通知がBODY、listen指定・`probePort`・`asset-version`受付がWEB-GATEWAYで、空白が消えるのは両方が稼働した後の交換から。
 
-他サイトからの書き込み（a115、CSRF）：業務processの公開入口は認証の後、GET/HEAD/OPTIONS以外で`Sec-Fetch-Site`が`same-origin`/`none`以外、または`Origin`付きで`text/plain`・`multipart/form-data`・`application/x-www-form-urlencoded`の要求を403 `CROSS_SITE_REQUEST_FORBIDDEN`で断る（`crossSiteWrite`、src/http-response.mjs）。自前のWeb画面・アプリ・席はJSONか本文なしで、この印を付けない。内部入口は対象外。
+他サイトからの書き込み（a115、CSRF）：業務processの公開入口は認証の後、GET/HEAD/OPTIONS以外で`Sec-Fetch-Site`が`same-origin`/`none`以外、または`Origin`付きで`text/plain`・`multipart/form-data`・`application/x-www-form-urlencoded`の要求を403 `CROSS_SITE_REQUEST_FORBIDDEN`で断る（`crossSiteWrite`、src/http-response.mjs）。自前のWeb画面・アプリ・席はJSONか本文なしで、この印を付けない。`Sec-Fetch-Site`の無い古いブラウザ（Safari 16.4未満）向けに、`Origin`が要求自身のHostとも設定済み公開URLとも違う書き込みは本文なしでも断る（a128。`null`や壊れたOriginも他サイト扱い）。内部入口は対象外。
 
 全体closeだけが受付子→既loop/HTTP/features/transportの終了を持つ。受付子のclose/startは業務graphの再生成を伴わない。起動・自動回収では受付子を二重起動せず、終了を確認して次を起動する。版交換だけは上の重ねた交換で新旧二つが一時的に並ぶ。子起動失敗・port競合は元例外を返し、実行中業務を停止しない。独立配布物の署名/配置/版切替と実席保持は後続工程で、このsource分離の成功へ補完しない。
 
@@ -531,6 +533,8 @@ get_selfだけ既bot.currentWorkBindingを読取側の互換欄として返し�
 ```mermaid
 flowchart LR
   Caller[削除・予定・跨module保存の固定caller] --> Reserve[module-operation-context: 同期reserve]
+  FreshFacade[会話facadeの新しい呼び出し（引き継ぎなし）] -->|members交換中| WhenOpen[MembersAdmission.whenOpen / resume直後・60秒の出口] --> Reserve
+  FreshFacade -->|開いている| Reserve
   Reserve --> Members[同membersAdmission.enter]
   Reserve --> Conversation[同conversationAdmission.enter]
   Conversation -->|閉鎖・満杯| Release[同stackでmembers finish / 作用なし]
@@ -548,7 +552,7 @@ flowchart LR
 
 横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。親が認証済みmembers callerの既leaseを借用する場合は同identityを検証し、会話側の予約だけを所有する。子や外部DTOから借用leaseを生成しない。
 
-`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
+`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。会話facadeの新しい呼び出し（引き継ぐoperationContext・leaseなし）は、members交換中だけ開始処理ごと`MembersAdmission.whenOpen`へ渡し、resume直後に同期でreserveする（[members-admission.md](../execution/members-admission.md)、2026-11-15 a127）。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
 
 故障writer退役後の新作用は`assert`/`withContext`/`forMembers`からexecutionの`assertCurrentLease`でcurrentだけに限定する。`finish`は元opaqueの`assertLease`を使い、retiredの実終端処理を保持する。登録済みcontextの拒否を`forMembers`でnullへ変換せず、`conversationAssembly.memberRequest`の新reserveへ旧参照を付け替えない。未登録のmembers leaseだけは従来どおりnullを返す。gateとmoduleOperationsの実体・authority/ALS・実completionの所有は不変、[executionの世代契約](../execution/conversation-lifetimes.md)を使う。
 

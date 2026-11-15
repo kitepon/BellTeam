@@ -265,7 +265,7 @@ channelのattachは送信試行前に受け取った実`completion`をrecord.act
 
 ## 既callerの親facadeと表示callback
 
-モリー11/4 01:15頃の正式移管により、`createConversationFacade({getController,context})`はN102所有。rooms/assets/messenger/roomMessenger/store/selfTurnsの既callerを固定methodへ正規化する。getControllerは各RPCで取得し、元optionsを同identityでcontext(method,options)へ渡す。返る親captured optionsはRPCごとのmutable objectで、履歴だけonChunkを付け、その同objectをcontrollerへ渡す。親lease/operationContext/authorityや元accepted/completionをcloneしない。結果の射影が不要な送信は元Promiseをそのまま返し、射影時もaccepted/completionを元実体へ結ぶ。
+モリー11/4 01:15頃の正式移管により、`createConversationFacade({getController,context,memberScoped,admit})`はN102所有。rooms/assets/messenger/roomMessenger/store/selfTurnsの既callerを固定methodへ正規化する。getControllerは各RPCで取得し、元optionsを同identityでcontext(method,options)へ渡す。返る親captured optionsはRPCごとのmutable objectで、履歴だけonChunkを付け、その同objectをcontrollerへ渡す。親lease/operationContext/authorityや元accepted/completionをcloneしない。結果の射影が不要な送信は元Promiseをそのまま返し、射影時もaccepted/completionを元実体へ結ぶ。任意の`admit(method,options,start)`（既定は即`start()`）へ、context捕捉とcontroller要求を合わせた開始を渡す。assemblyは引き継ぎの無い新しい呼出しをmembers交換中だけ`MembersAdmission.whenOpen`で始め、返り値のcompletion/acceptedを保つ（a127、[members-admission](../execution/members-admission.md)）。
 
 ```mermaid
 flowchart LR

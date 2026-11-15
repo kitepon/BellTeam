@@ -72,13 +72,16 @@ test('usage staged parent assembly authenticates HTTP and seat callers and uses 
   t.after(() => runtime.close())
   // This fixture covers the parent wiring; it does not launch AI or shell producers.
   for (const producer of ['scheduler', 'selfTurns', 'seatTurns', 'idleSessions']) runtime.services[producer].start = () => {}
+  // a124: a seat speaks only with its session's current launch id; the synthetic Aiterm reports this one.
+  const launch = 'a'.repeat(32)
+  runtime.services.transport.observe = async bot => ({ schema: 'aiterm.pty-observe-result.v1', session_id: bot.id, exists: true, launch_id: launch })
   assert.equal(runtime.services.settings, usageAssembly.facade.settings)
   assert.equal(usageAssembly.controller.snapshot().available, true)
   await runtime.start()
   const port = runtime.gateway.address.port, parent = process.pid
   const call = async (path, body, { internal = false, seat = undefined, method = body ? 'POST' : 'GET' } = {}) => {
     const target = internal ? runtime.internalServer.address().port : port
-    const response = await fetch(`http://127.0.0.1:${target}${path}`, { method, headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...(seat ? { 'X-Bellteam-Seat': seat } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+    const response = await fetch(`http://127.0.0.1:${target}${path}`, { method, headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...(seat ? { 'X-Bellteam-Seat': seat, 'X-Bellteam-Launch-Id': launch } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
     return { response, value: await response.json() }
   }
   let result = await call('/api/settings/routing', { enabled: false }, { method: 'PATCH' })
@@ -91,7 +94,7 @@ test('usage staged parent assembly authenticates HTTP and seat callers and uses 
   const id = result.value.request.id
   assert.equal(result.value.request.botId, 'bot-fixture')
   const mcp = new Client({ name: 'usage-fixture', version: '0' }, { capabilities: {} })
-  await mcp.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${internalPort}/mcp`), { requestInit: { headers: { 'X-Bellteam-Seat': 'bot-fixture' } } }))
+  await mcp.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${internalPort}/mcp`), { requestInit: { headers: { 'X-Bellteam-Seat': 'bot-fixture', 'X-Bellteam-Launch-Id': launch } } }))
   t.after(() => mcp.close())
   const card = await mcp.callTool({ name: 'request_secret', arguments: { toolId: 'mcp-fixture', label: 'key', message: 'synthetic MCP' } })
   assert.equal(JSON.parse(card.content[0].text).request.botId, 'bot-fixture')

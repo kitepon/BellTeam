@@ -1,4 +1,4 @@
-import { bindAskerSeat, forkExecutionSource, resolveInternalSeat, seatExecutionSource } from './seat-mcp.mjs'
+import { bindAskerSeat, createSeatLaunchCheck, forkExecutionSource, resolveInternalSeat, seatExecutionSource, verifyLocalSeatIngress } from './seat-mcp.mjs'
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
 import { createScreenInputApi } from './http-screen-input-api.mjs'
@@ -17,7 +17,7 @@ import { createRunningExclusionsApi } from './http-running-exclusions-api.mjs'
 import { createServer } from 'node:http'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { crossSiteWrite, json } from './http-response.mjs'
-import { logWriteRequest, logReadRequest } from './http-request-log.mjs'
+import { logWriteRequest, logReadRequest, recordSlowOrAborted } from './http-request-log.mjs'
 import { staticFile } from './http-assets.mjs'
 import { respondHttpError } from './http-errors.mjs'
 import { createMessageViews } from './http-messages.mjs'
@@ -39,23 +39,24 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   // SK07: execution's live fork registry; engines without it have no forks.
   const forkSeat = typeof transport?.forkSeat === 'function' ? name => transport.forkSeat(name) : null
+  const seatLaunch = internal && typeof transport?.observe === 'function' ? createSeatLaunchCheck(transport, bots) : null
   const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, updateCenter: internal ? null : updateCenter, eventKeepalive, messageEventWindow })
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions,
     ownerSecretGuide: internal ? null : ownerSecretGuide })
 
   const assertWebPushOrigin = createWebPushOrigin({ settings })
   const captureUsageContext = usageAssembly ? async (request, method) => {
-    const botId = internal ? (await resolveInternalSeat(request, bots, forkSeat)).botId : null
+    const botId = internal ? (await resolveInternalSeat(request, bots, forkSeat, seatLaunch)).botId : null
     if (internal && !botId) throw Object.assign(new Error('BELLTEAM_SEAT_UNRESOLVED'), { code: 'BELLTEAM_SEAT_UNRESOLVED', status: 403 })
     return usageAssembly.capture(method, { kind: internal ? 'bot' : 'owner', botId })
   } : undefined
-  const controlApi = createControlApi({ captureUsageContext, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : undefined, submittedSecretConsumer, captureSubmittedSecretContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin,
+  const controlApi = createControlApi({ captureUsageContext, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat, seatLaunch) : undefined, submittedSecretConsumer, captureSubmittedSecretContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin,
     captureInstallInspectionOwner: request => captureInstallInspectionOwner(async () => !internal && await authorize(request) === true) })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
   const featureApis = [
     createApplicationApi({ ownerProfile, userRules, events, assets }),
-    createMemberDeletionApi({ administration, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : null }),
+    createMemberDeletionApi({ administration, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat, seatLaunch) : null }),
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
       administration }),
     createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }),
@@ -76,6 +77,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     let stage = 'url'
     logWriteRequest(request, response, writeLog)
     logReadRequest(request, response, writeLog)
+    if (!internal) recordSlowOrAborted(request, response, diagnostics)
     let membersContext
     try {
       const url = new URL(request.url, 'http://bellteam.local')
@@ -84,7 +86,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
-      if (!internal && crossSiteWrite(request)) return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
+      if (!internal && crossSiteWrite(request, (() => { try { return new URL(settings?.configuration('cloudflare')?.publicUrl).origin } catch { return null } })()))
+        return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
       if (url.pathname === '/api/diagnostics/conversation-admission') {
         if (internal) return json(response, 403, { error: 'DIAGNOSTIC_OWNER_REQUIRED' })
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
@@ -104,6 +107,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       // 席のCLIがつなぐMCP。内部入口（loopback）だけで開く。
       if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) {
         stage = 'seat_mcp'
+        if (!(await verifyLocalSeatIngress(request, bots, seatLaunch))) return json(response, 403, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
         return await seatMcp(request, response, url)
       }
 
@@ -129,7 +133,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
 
       }
       if (conversationAssembly && url.pathname.startsWith('/api/')) {
-        const { botId, fork } = internal ? await resolveInternalSeat(request, bots, forkSeat) : { botId: null, fork: null }
+        const { botId, fork } = internal ? await resolveInternalSeat(request, bots, forkSeat, seatLaunch) : { botId: null, fork: null }
         if (internal && request.method === 'POST' && ['/api/deliveries/direct', '/api/deliveries/fork'].includes(url.pathname)) await bindAskerSeat(request, fork)
         const actor = internal ? (botId ? { kind: 'bot', botId } : null) : { kind: 'owner' }
         return await conversationAssembly.run(actor, dispatchApi, internal && botId ? { executionSource: fork ? forkExecutionSource(request) : seatExecutionSource(request, bots) } : undefined)

@@ -176,10 +176,10 @@ for (const purchaseState of ['未購入', '失効', '通信エラー']) {
       { id: 'ai', enabled: true, prompt: '予定のAI送信', nextRunAt: '2026-09-28T00:00:00Z' }]
     const scheduler = new BotScheduler({ registry: {
       refresh: async () => {}, values: () => [bot], listSchedules: async () => schedules,
-      markScheduleRun: async (...args) => marked.push(args),
+      claimDue: async input => { marked.push(input); return schedules.find(schedule => schedule.id === input.scheduleId) },
     }, messenger, rooms: {
       refresh: async () => {}, values: () => [room], listSchedules: async () => [{ ...schedules[1], targets: [bot.id] }],
-      markScheduleRun: async (...args) => marked.push(args),
+      claimDue: async input => { marked.push(input); return { ...schedules[1], targets: [bot.id] } },
     }, roomMessenger, runCommand: async input => { executed.push(input); return { code: 0 } } })
     await scheduler.runDue()
     assert.equal(executed.length, 1)

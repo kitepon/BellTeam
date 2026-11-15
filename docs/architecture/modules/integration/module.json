@@ -107,6 +107,8 @@
   "source": [
     "src/application-services.mjs",
     "src/application-runtime.mjs",
+    "src/http-request-log.mjs",
+    "src/http-response.mjs",
     "src/http-server.mjs",
     "src/mcp-tools.mjs",
     "src/seat-mcp.mjs",

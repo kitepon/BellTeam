@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T23:35:35Z",
-  "expiresAt": "2026-11-21T23:35:35Z",
+  "publishedAt": "2026-11-15T00:46:41Z",
+  "expiresAt": "2026-11-22T00:46:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -355,8 +355,8 @@
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "63aa2e409a9df2cab52f53e31880d5756be12415",
-      "versionId": "4905527acb75b975ee5040912208134408aea23f28946bb3bd1add3e63762e3a",
+      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
+      "versionId": "59e0afd669ed5e05a061f129b76e6aa3986914cfc60f1afc2cfcb894b1747e89",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -364,16 +364,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-amd64.tar.gz",
-          "bytes": 3828240,
-          "sha256": "4905527acb75b975ee5040912208134408aea23f28946bb3bd1add3e63762e3a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-amd64.tar.gz",
+          "bytes": 3834343,
+          "sha256": "59e0afd669ed5e05a061f129b76e6aa3986914cfc60f1afc2cfcb894b1747e89"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11452,
-          "sha256": "67eb3d1a6e3cfc362ead16b8aee1f4e7445b0ca92de9a9b0fcd34a1c961742e3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11115,
+          "sha256": "ad564c3f2559f99575d82a617a2f142b746aa98535ff91d3d8d96502fba64a69"
         },
-        "signerCommit": "63aa2e409a9df2cab52f53e31880d5756be12415"
+        "signerCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -386,13 +386,13 @@
         }
       },
       "changes": [
-        "AI実行の部品が出す新しい失敗4つが、診断に載るようになります。"
+        "APIの要求が60秒以上かかったときや、応答前に相手が切ったときの記録を受け付けるようにしました。"
       ]
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "63aa2e409a9df2cab52f53e31880d5756be12415",
-      "versionId": "801928cc34674b03b374b227e932d77ddeed22dbd6fad8e87e4d877828c926e4",
+      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
+      "versionId": "4f620db9fde1974fc88359efa131a8371ebe2a8eea5f2b441048793de3d58c50",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -400,16 +400,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-arm64.tar.gz",
-          "bytes": 3828241,
-          "sha256": "801928cc34674b03b374b227e932d77ddeed22dbd6fad8e87e4d877828c926e4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-arm64.tar.gz",
+          "bytes": 3834342,
+          "sha256": "4f620db9fde1974fc88359efa131a8371ebe2a8eea5f2b441048793de3d58c50"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261113T041557Z/diagnostics-63aa2e409a9df2cab52f53e31880d5756be12415-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11252,
-          "sha256": "2be94d45b878918aa96f1bdb8b7c052f25ab51eb6a47da71a9808882faaaf528"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "91d61c001964b55df578cf33ca084a3de931f92ba44b12a877eed94cc435714e"
         },
-        "signerCommit": "63aa2e409a9df2cab52f53e31880d5756be12415"
+        "signerCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -422,7 +422,7 @@
         }
       },
       "changes": [
-        "AI実行の部品が出す新しい失敗4つが、診断に載るようになります。"
+        "APIの要求が60秒以上かかったときや、応答前に相手が切ったときの記録を受け付けるようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "63330d17fe9f1db3273f904fab8d47dd2b8ed3ce",
-      "versionId": "sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57",
+      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
+      "versionId": "sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,23 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の画面が、入れ替えの途中でも表示されるようにしました。",
-        "部品の入れ替え中も、予定の実行が止まらないようにしました。"
+        "Botが別のBotの席になりすますことを防ぐ確認を強めました。",
+        "古いブラウザから他サイト経由の書き込みを断るようにしました。",
+        "部品の入れ替え中も、会話の読み込みや更新結果の読み込みが失敗しにくくなりました。",
+        "依存部品とnpmを最新にしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "63330d17fe9f1db3273f904fab8d47dd2b8ed3ce",
-      "versionId": "sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57",
+      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
+      "versionId": "sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c56d245013215193197631222800dba82dd1b35cd9b0166dd49b3ce227ec0855"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +749,10 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の画面が、入れ替えの途中でも表示されるようにしました。",
-        "部品の入れ替え中も、予定の実行が止まらないようにしました。"
+        "Botが別のBotの席になりすますことを防ぐ確認を強めました。",
+        "古いブラウザから他サイト経由の書き込みを断るようにしました。",
+        "部品の入れ替え中も、会話の読み込みや更新結果の読み込みが失敗しにくくなりました。",
+        "依存部品とnpmを最新にしました。"
       ]
     },
     {
