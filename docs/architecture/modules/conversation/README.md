@@ -63,7 +63,7 @@ flowchart TD
 
 `ConversationWriter`だけが直接JSONLのappend/配送状態/途中経過を実装する。Messengerはwriterを継承してappend系の互換窓口を保つ。既callerがappendを差し替えた場合も状態/途中経過の保存を同じ窓口へ通す。直接/部屋のmcp_errorとnative_launchは同fileのdeliveryFailureFieldsで変換し、任意例外本文やnative内部情報を新しい保存fieldへ流さない。失敗/停止の結論はtransportが渡した値を保ち、会話側で成功へ変えない。
 
-利用者の回答保存はMessenger.recordUserReplyが持つ。明示user返信を優先し、差し込み・空回答・claimedReplyIdsの既契約を維持する。通知で始まったターンの最終回答はOwner画面用のinterim-word(kind=answer)として残し、送信元や部屋への新投稿にしない。表示projectionではこの最終回答をkind=message/direction=incomingの返信として返し、途中経過のkind=interimと分ける。Web/Apple/Windowsの返信表示・一覧の最新・並び順・Windows通知は開始元に関係なく同じ返信として扱う。保存記録・配送・push通知・送信元/部屋への投稿は変えない。SelfTurnsの重複抑止とcursorの順序は[自主回答の図](observation.md)に従う。
+利用者の回答保存はMessenger.recordUserReplyが持つ。ターンの空でない最終回答は必ず返信として保存する。ターン中にBotがOwnerへ送った行（sendmessage target=user、規範承認の通知など）は別の発言で、最終回答の代わりにしない（a148）。差し込み・空回答の既契約を維持する。通知で始まったターンの最終回答はOwner画面用のinterim-word(kind=answer)として残し、送信元や部屋への新投稿にしない。表示projectionではこの最終回答をkind=message/direction=incomingの返信として返し、途中経過のkind=interimと分ける。Web/Apple/Windowsの返信表示・一覧の最新・並び順・Windows通知は開始元に関係なく同じ返信として扱う。保存記録・配送・push通知・送信元/部屋への投稿は変えない。SelfTurnsの重複抑止とcursorの順序は[自主回答の図](observation.md)に従う。
 
 | 所有データ | writer / 読取 |
 | --- | --- |

@@ -31,7 +31,7 @@ flowchart TD
 | BotからOwnerへの送信 | `sendmessage`のtarget=user分岐 | native処理なし。画像はこの入口の一枚契約、直接記録と通知で完了 |
 | 部屋 | `RoomMessenger.sendroommessage → sendRoomMessageInOrder` | 発言・参加者・返信者のsnapshotと各配送状態を部屋に保存。下図へ |
 
-`recordUserReply`は、そのターンの間にBotが明示的にOwnerへ送った新しい記録を優先し、`knownReplyIds/claimedReplyIds`で二度の回答保存を避ける。空回答を新しい発言にしない。この処理は通知の単なる表示callbackとは責務が違う。
+`recordUserReply`は、そのターンの空でない最終回答を新しい返信として一度保存する。ターン中にBotがOwnerへ送った行（`sendmessage` target=user、規範承認の通知）は独立した発言で、最終回答を置き換えない。以前の「明示返信を優先」はsend_user_message廃止（a116）で根拠を失い、承認通知が最終回答を消していた（a148、Z26 lab）。空回答を新しい発言にしない。この処理は通知の単なる表示callbackとは責務が違う。
 
 ### members予定から配送への既受付lease
 
