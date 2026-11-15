@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T06:16:07Z",
-  "expiresAt": "2026-11-22T06:16:07Z",
+  "publishedAt": "2026-11-15T06:36:09Z",
+  "expiresAt": "2026-11-22T06:36:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "2c9e3748e3f952e788f629409d204fe2b8f3f29b",
-      "versionId": "sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d",
+      "sourceCommit": "67b5424554b8b831c13baa32de8add8283824fc7",
+      "versionId": "sha256:f496f5ec4747b5429e8754fa9d4720c51740d05953654befc5255a08cbdf124b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f496f5ec4747b5429e8754fa9d4720c51740d05953654befc5255a08cbdf124b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の再起動直後、席の準備が終わるのを待ってから配送するようにして、部品の受付枠が埋まらないようにしました。"
+        "本体の再起動直後、席の準備が終わるのを待ってから配送するようにして、部品の受付枠が埋まらないようにしました。",
+        "席の準備が要らないBotは、ほかのBotの準備を待たずにすぐ起きられるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "2c9e3748e3f952e788f629409d204fe2b8f3f29b",
-      "versionId": "sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d",
+      "sourceCommit": "67b5424554b8b831c13baa32de8add8283824fc7",
+      "versionId": "sha256:f496f5ec4747b5429e8754fa9d4720c51740d05953654befc5255a08cbdf124b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f496f5ec4747b5429e8754fa9d4720c51740d05953654befc5255a08cbdf124b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +749,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の再起動直後、席の準備が終わるのを待ってから配送するようにして、部品の受付枠が埋まらないようにしました。"
+        "本体の再起動直後、席の準備が終わるのを待ってから配送するようにして、部品の受付枠が埋まらないようにしました。",
+        "席の準備が要らないBotは、ほかのBotの準備を待たずにすぐ起きられるようにしました。"
       ]
     },
     {
