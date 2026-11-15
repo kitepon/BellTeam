@@ -192,12 +192,16 @@ Source reach: `web/folder-picker.js` (S6), `web/terminals.js` (new), `web/secret
 
 [工程表 page](lattice-chart.md): full-screen dialog drawing the [lattice app contract](../lattice/README.md#public-contract-apps) with the shared [screen spec](../lattice/screen-spec.md). Source reach: `web/lattice-chart-model.js`, `web/lattice-chart.js`, `web/index.html` (header button + dialog), `web/application.js` (mount, 会話を開く -> notification route), `web/styles.css`, `web/assets.mjs`, `test/web-lattice-chart.test.mjs`.
 
+## 決裁箱
+
+[決裁箱 page](approvals.md): entry row at the top of the roster (entry A, one component so entry B is a placement change) and a full-screen dialog drawing Delta's `/api/approvals/*` contract (module 決裁箱拡張) with its `screen-spec.md`; decisions from outside BellTeam are listed and answered like any other. Source reach: `web/approvals-model.js`, `web/approvals-feed.js`, `web/approvals.js`, `web/lattice-chart.js` (a 決裁 block in 詳細, `open(projectId, cardId)`), `web/index.html` (roster row + dialog), `web/application.js` (mount, hash `#approvals/<id>`, 工程表で見る), `web/styles.css`, `web/assets.mjs`, `test/web-approvals.test.mjs`, `test/web-lattice-chart.test.mjs`, `test/fixtures/approvals/`.
+
 ## 単独試験
 
 Node 24以上の標準機能だけで実行でき、サーバー・native・他機能の内部実装・実データは起動しない。
 
 ```sh
-node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-refresh.test.mjs test/web-final-ownership.test.mjs test/web-bot-avatar-list.test.mjs test/bot-profile-ui.test.mjs test/editor-ownership.test.mjs test/conversation-composer.test.mjs test/timeline-open-queue.test.mjs test/message-images.test.mjs test/bot-read-views.test.mjs test/goals-view-order.test.mjs test/chat-input.test.mjs test/schedule-list.test.mjs test/memory-view.test.mjs test/web-harness-accounts.test.mjs test/harness-auth-client.test.mjs test/auth-poll-order.test.mjs test/web-work-graph.test.mjs test/web-lattice-chart.test.mjs
+node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-refresh.test.mjs test/web-final-ownership.test.mjs test/web-bot-avatar-list.test.mjs test/bot-profile-ui.test.mjs test/editor-ownership.test.mjs test/conversation-composer.test.mjs test/timeline-open-queue.test.mjs test/message-images.test.mjs test/bot-read-views.test.mjs test/goals-view-order.test.mjs test/chat-input.test.mjs test/schedule-list.test.mjs test/memory-view.test.mjs test/web-harness-accounts.test.mjs test/harness-auth-client.test.mjs test/auth-poll-order.test.mjs test/web-work-graph.test.mjs test/web-lattice-chart.test.mjs test/web-approvals.test.mjs
 ```
 
 `web-module`は実際のapplication/各viewを人工HTTP/SSEと小さいDOMで接続し、起動前の無通信、会話別下書き、既読、対象外通知、受付後の表示失敗とPOST一回、pagehideを確認する。`web-client`はJSON/204/error、分割UTF-8、通知順、EOF、既存の再接続分類と解除を確認する。実ブラウザーのレイアウト・native実配送・本番反映を証明する試験ではない。

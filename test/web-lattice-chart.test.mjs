@@ -240,7 +240,7 @@ const textOf = el => el.textContent
 const byClass = (root, name) => all(root).filter(el => el.className.split(' ').includes(name))
 const buttonByText = (root, text) => all(root).find(el => el.tagName === 'button' && textOf(el).includes(text))
 
-function setup(t, { api, fetchImage, reduce = false, getMember = () => null, mode = 'lanes' } = {}) {
+function setup(t, { api, fetchImage, reduce = false, getMember = () => null, mode = 'lanes', ...extra } = {}) {
   const saved = Object.fromEntries(['document', 'matchMedia'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)]))
   globalThis.document = { createElement: tag => new El(tag), createElementNS: (ns, tag) => new El(tag), createTextNode: s => new Text(s), addEventListener() {}, removeEventListener() {}, activeElement: null, hidden: false }
   globalThis.matchMedia = () => ({ matches: reduce })
@@ -252,7 +252,7 @@ function setup(t, { api, fetchImage, reduce = false, getMember = () => null, mod
   const clock = { now: BASE, next: 1, timers: new Map() }
   const frames = [], opened = []
   const view = createLatticeChart(dialog, {
-    api, fetchImage, getMember, mode, openChat: botId => opened.push(botId), now: () => clock.now,
+    api, fetchImage, getMember, mode, openChat: botId => opened.push(botId), now: () => clock.now, ...extra,
     setTimeout: (fn, ms) => { const id = clock.next++; clock.timers.set(id, { fn, at: clock.now + ms }); return id }, clearTimeout: id => clock.timers.delete(id), random: () => 0.5,
     requestFrame: fn => { frames.push(fn); return frames.length }, cancelFrame() {},
   })
@@ -608,4 +608,25 @@ test('SSE：snapshot だけ読み、35秒の無音・空の終わり・壊れた
   assert.deepEqual(statuses, ['unreadable', 'live', 'drop', 'unreadable', 'notfound'])
   assert.deepEqual(snapshots, [{ v: 1 }])
   assert.deepEqual(timers, [1000, 1000, 2000], '成功したら間隔は1秒から数え直す')
+})
+
+test('決裁箱（a154）：open(projectId, cardId) は最初の一枚でその工程の詳細を開く。詳細に決裁があれば「決裁を開く」、無い・読めない時は何も出さない', async t => {
+  const feed = sse(), net = router({ streams: [feed] }), asked = [], opened = []
+  const answers = [{ decisionId: 'K-1', status: 'pending', title: 'x' }, null, 'fail']
+  const ui = setup(t, { api: async () => chartsList('bellteam', 'other'), fetchImage: net.fetchImage,
+    decisionFor: async (projectId, cardId) => { asked.push([projectId, cardId]); const next = answers.shift(); if (next === 'fail') throw new Error('x'); return next }, openDecision: id => opened.push(id) })
+  ui.view.open('other', 'p1/t03'); await flush()
+  feed.snapshot(fixture()); await flush()
+  const sheet = byClass(ui.body, 'lattice-sheet')[0]
+  assert.equal(sheet.hidden, false); assert.match(textOf(sheet), /部品の実装/u, '最初の一枚でその工程の詳細が開く')
+  assert.deepEqual(asked, [['other', 'p1/t03']]); assert.match(textOf(sheet), /決裁.*回答待ち.*決裁を開く/su)
+  buttonByText(sheet, '決裁を開く').click(); assert.deepEqual(opened, ['K-1'])
+  assert.equal(asked.length, 1, '同じ版の再描画では聞き直さない')
+  all(sheet).find(el => el.getAttribute('aria-label') === '詳細を閉じる').click()
+  byClass(ui.body, 'lattice-card').find(el => el.dataset.cardId === 'p1/t04').click(); await flush()
+  assert.equal(asked.length, 2); assert.doesNotMatch(textOf(sheet), /決裁を開く/u, '決裁が無い（null）なら出さない')
+  all(sheet).find(el => el.getAttribute('aria-label') === '詳細を閉じる').click()
+  byClass(ui.body, 'lattice-card').find(el => el.dataset.cardId === 'p1/t03').click(); await flush()
+  assert.doesNotMatch(textOf(sheet), /決裁を開く/u, '読めない時も出さない'); assert.match(textOf(sheet), /部品の実装/u)
+  ui.view.close()
 })

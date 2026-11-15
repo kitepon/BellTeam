@@ -1,0 +1,87 @@
+{
+  "id": "K-DEMO4",
+  "title": "Mac版の工程表の窓を1つだけ開く",
+  "context": "決裁箱は月額300円で課金しています。拡張を同じ請求に載せると、利用者は支払いを1か所で見られます。",
+  "options": [
+    {
+      "id": "o1",
+      "label": "1つだけ開く",
+      "recommended": true
+    },
+    {
+      "id": "o2",
+      "label": "何枚でも開く",
+      "recommended": false
+    }
+  ],
+  "urgency": "normal",
+  "deadline": null,
+  "status": "answered",
+  "answer": {
+    "optionId": "o1",
+    "text": null,
+    "attachments": [],
+    "answeredAt": "2026-11-14T12:10:00Z"
+  },
+  "delivery": "unknown",
+  "resumePhrase": "Approval Box K-DEMO1 の答えを確認して続けて",
+  "version": 2,
+  "createdAt": "2026-11-15T01:42:00Z",
+  "updatedAt": "2026-11-15T01:55:00Z",
+  "cancelReason": null,
+  "amended": {
+    "is": false,
+    "fields": [],
+    "note": null,
+    "at": null
+  },
+  "history": [
+    {
+      "at": "2026-11-14T11:30:00Z",
+      "kind": "created",
+      "by": "ai"
+    },
+    {
+      "at": "2026-11-14T12:10:00Z",
+      "kind": "answered",
+      "by": "user"
+    }
+  ],
+  "requestAttachments": [],
+  "origin": {
+    "kind": "bellteam",
+    "basis": "botId",
+    "client": "claude-code",
+    "tool": "Claude Code",
+    "sessionLabel": "ブレッディ / billing / extension",
+    "workLabel": "billing / extension",
+    "connectionLabel": "bellteam",
+    "via": "connector"
+  },
+  "requester": {
+    "botId": "bot-823b56e9",
+    "name": "ブレッディ"
+  },
+  "link": {
+    "state": "answered",
+    "attached": false,
+    "chart": {
+      "name": "BellTeam開発",
+      "projectId": "bellteam"
+    },
+    "task": {
+      "title": "Macの窓",
+      "state": "done",
+      "lane": "owner",
+      "cardId": "approval-box/dec-k-demo1"
+    },
+    "previous": [],
+    "next": [
+      {
+        "title": "Macの窓の実装",
+        "state": "ready",
+        "cardId": "bellteam-dev-added/a-next-0"
+      }
+    ]
+  }
+}

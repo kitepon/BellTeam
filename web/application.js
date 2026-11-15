@@ -14,6 +14,9 @@ import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createWorkGraphView } from './work-graph.js?v=__ASSET_VERSION__'
 import { createLatticeChart } from './lattice-chart.js?v=__ASSET_VERSION__'
 import { chartName } from './lattice-chart-model.js?v=__ASSET_VERSION__'
+import { createApprovalsFeed } from './approvals-feed.js?v=__ASSET_VERSION__'
+import { createApprovalsEntry, createApprovalsView } from './approvals.js?v=__ASSET_VERSION__'
+import { parseHash } from './approvals-model.js?v=__ASSET_VERSION__'
 import { bannerTexts } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -164,9 +167,26 @@ export function createWebApp({ client = createWebClient() } = {}) {
   // Lattice工程表：会話を開くは相関図と同じ経路（通知の member route）。
   const latticeDialog = document.querySelector('#lattice-dialog')
   const latticeMember = id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.displayName ?? bot.name, color: bot.color, avatar: bot.avatar, known: true } : null }
+  // 決裁箱：読み手は一つで、入口のバッジと画面が共有する。Web は /api/approvals/* だけを読む（決裁箱本体は呼ばない）。
+  const approvalsDialog = document.querySelector('#approvals-dialog')
+  const approvalsFeed = createApprovalsFeed({ fetch: fetchImage })
+  const approvals = createApprovalsView(approvalsDialog, { feed: approvalsFeed, fetch: fetchImage, fetchImage, getMember: latticeMember,
+    openChart: (projectId, cardId) => { approvalsDialog.close(); lattice.open(projectId, cardId) } })
+  createApprovalsEntry(document.querySelector('#approvals-entry'), { feed: approvalsFeed, open: () => approvals.open() })
+  approvalsDialog.addEventListener('close', () => approvals.close())
+  const openApprovalsFromHash = () => { const target = parseHash(window.location?.hash); if (target) approvals.open(target.id) }
+  window.addEventListener('hashchange', openApprovalsFromHash)
   const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
     getMember: latticeMember,
     getOwner: () => state.owner,
+    // 詳細に「決裁を開く」を出すための問い合わせ。読めない時・無い時は null（ブロックを出さない）。
+    decisionFor: async (projectId, cardId) => {
+      if (['old', 'notEntitled', 'expired', 'noCredential'].includes(approvalsFeed.status)) return null
+      const [plan, ...rest] = String(cardId).split('/')
+      const response = await fetchImage(`/api/approvals/by-task?${new URLSearchParams({ project: projectId, plan, task: rest.join('/') })}`).catch(() => null)
+      return response?.ok ? response.json().catch(() => null) : null
+    },
+    openDecision: id => { latticeDialog.close(); approvals.open(id) },
     openChat: async botId => {
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
       latticeDialog.close()
@@ -395,7 +415,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     setupNotice.hidden = setup.phase === 'ready'
     const first = !conversationsStarted
     conversationsStarted = true
-    if (first) void updateCenter.start()
+    if (first) { void updateCenter.start(); approvalsFeed.start(); openApprovalsFromHash() }
     // W2: a failed first list read leaves its error card in the list (with its own retry); boot still connects updates and routes.
     // A refused session (401/403) still stops boot: nothing else can be read.
     const loaded = await loadBots().catch(error => { if (error.status === 401 || error.status === 403) throw error; return false })

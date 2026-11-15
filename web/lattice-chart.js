@@ -7,7 +7,7 @@ import {
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
 
-const GLYPHS = {
+export const GLYPHS = {
   crown: '<path d="M3.6 8.6l4.4 3.6L12 5.2l4 7 4.4-3.6-1.7 9.6H5.3z" fill="currentColor" fill-opacity=".18"/><path d="M5.6 20.8h12.8"/>',
   hour: '<path d="M7 3.5h10M7 20.5h10"/><path d="M8 3.5c0 4.6 3.2 5.8 4 8.5-.8 2.7-4 3.9-4 8.5M16 3.5c0 4.6-3.2 5.8-4 8.5.8 2.7 4 3.9 4 8.5"/>',
   play: '<circle cx="12" cy="12" r="9"/><path d="M10.2 8.6l5.2 3.4-5.2 3.4z" fill="currentColor"/>',
@@ -118,6 +118,8 @@ export function createChartStream({ fetch, url, setTimeout: later = globalThis.s
 
 export function createLatticeChart(dialog, {
   api, fetchImage, openChat: openMemberChat = () => {}, getMember = () => null, getOwner = () => null, mode: startMode = 'tree',
+  decisionFor = async () => null, openDecision = () => {}, // 決裁箱（approvals.js）：その工程の決裁 {decisionId, status, title} と、それを開く
+
   setTimeout: later = globalThis.setTimeout, clearTimeout: clear = globalThis.clearTimeout, random = Math.random, now = Date.now,
   requestFrame = callback => globalThis.requestAnimationFrame(callback), cancelFrame = id => globalThis.cancelAnimationFrame(id),
 } = {}) {
@@ -127,6 +129,7 @@ export function createLatticeChart(dialog, {
   let isOpen = false, view = 'loading', status = 'connecting', list = null, listShown = '', listNote = null, listToken = 0, listAttempt = 0, listTimer = null
   let resumeId = null, places = new Map(), chartId = null, snapshot = null, ui = null, stream = null, highlight = null, detailId = null, frameId = 0, tickTimer = null, particles = []
   const cardEls = new Map(), treeEls = new Map(), entering = new Set(), avatars = new Map(), timers = new Set()
+  let decisionSlot = null // 詳細の「決裁」ブロックの問い合わせ {key, value}
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
   let stops = null, pendingDetail = null // 止め一覧の画面、止め一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
@@ -259,7 +262,7 @@ export function createLatticeChart(dialog, {
   }
   function leaveStops() { stops?.close(); stops = null; showList() }
   function openCard(projectId, cardId) { stops?.close(); stops = null; openChart(projectId); pendingDetail = cardId }
-  function clearChart() { chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
+  function clearChart() { chartId = null; snapshot = null; decisionSlot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
   function openChart(id) {
     clear(listTimer); listToken++
     clearChart(); chartId = id; status = 'connecting'
@@ -556,8 +559,28 @@ export function createLatticeChart(dialog, {
       detail.card.doneCondition && h('div', { class: 'sc' }, h('div', { class: 'l', text: '終了条件' }), h('div', { class: 'endc' }, glyph('check'), h('span', { text: detail.card.doneCondition }))),
       detail.previous.length > 0 && h('div', { class: 'sc' }, h('div', { class: 'l', text: `前の工程 · ${detail.previous.length}` }), ...detail.previous.map(link)),
       detail.next.length > 0 && h('div', { class: 'sc' }, h('div', { class: 'l', text: `次の工程 · ${detail.next.length}` }), ...detail.next.map(link)),
+      decisionBlock(detail.card.id),
       h('div', { class: 'ft', text: detail.startedText })))
     if (from && !reduceMotion() && ui.sheet.getBoundingClientRect) morph(from)
+  }
+  // 決裁：その工程が決裁箱の決裁なら「決裁を開く」。聞くのは詳細が開いている間、版（snapshot.version）が変わるたびだけ。読めない・無い時は何も出さない。
+  const DECISION_STATE = { pending: ['回答待ち', 'inbox'], held: ['保留', 'pause'], answered: ['回答済み', 'seal'], cancelled: ['取り下げ', 'xmark'] }
+  function decisionBlock(cardId) {
+    const key = `${chartId}\n${cardId}\n${snapshot?.version}`
+    if (decisionSlot?.key !== key) {
+      decisionSlot = { key, value: null }
+      const mine = decisionSlot, wanted = detailId
+      void Promise.resolve().then(() => decisionFor(chartId, cardId)).catch(() => null).then(value => {
+        if (decisionSlot !== mine || !isOpen || detailId !== wanted || typeof value?.decisionId !== 'string') return
+        mine.value = value; paintDetail()
+      })
+    }
+    const value = decisionSlot.value
+    if (!value) return null
+    const [text, name] = DECISION_STATE[value.status] ?? ['その他', 'info']
+    return h('div', { class: 'sc' }, h('div', { class: 'l', text: '決裁' }),
+      h('div', { class: 'lattice-decision' }, h('span', { class: 'approvals-badge vio' }, glyph(name), text),
+        h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'decision' }, on: { click: () => openDecision(value.decisionId) } }, glyph('chat'), '決裁を開く')))
   }
   // カードが詳細の面に広がる動き（FLIP）。
   function morph(from) {
@@ -621,7 +644,7 @@ export function createLatticeChart(dialog, {
   })
 
   return {
-    open(projectId = null) {
+    open(projectId = null, cardId = null) {
       if (isOpen) return
       isOpen = true; opens++; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
@@ -632,6 +655,7 @@ export function createLatticeChart(dialog, {
       resumeId = null
       if (!target) return void loadList()
       openChart(target)
+      if (cardId) pendingDetail = cardId // 決裁箱の「工程表で見る」：最初の一枚が来たらその工程の詳細を開く
       const opened = opens
       void api('/api/lattice/charts').then(data => { if (!isOpen || opened !== opens || list) return; list = data; if (view === 'chart' && snapshot) paintChart({ ...diffSnapshots(snapshot, snapshot), first: true }) }).catch(() => {})
     },
