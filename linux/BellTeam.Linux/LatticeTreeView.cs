@@ -123,11 +123,11 @@ internal sealed class LatticeTreeView : Canvas
 
     public void Highlight(string? botId)
     {
-        var on = botId is null || snapshot is null ? ((HashSet<string> Cards, HashSet<string> Waits)?)null : LatticeChart.Highlight(snapshot, botId);
+        var on = botId is null || snapshot is null ? ((HashSet<string> Cards, HashSet<string> Connections)?)null : LatticeChart.Highlight(snapshot, botId);
         foreach (var (id, card) in cards) card.Opacity = on is { } set && !set.Cards.Contains(id) ? .28 : 1;
         foreach (var (arc, path, head) in arcs)
         {
-            var dim = on is { } set && !set.Waits.Contains($"{arc.To}>{arc.From}") && !(set.Cards.Contains(arc.From) && set.Cards.Contains(arc.To));
+            var dim = on is { } set && !set.Cards.Contains(arc.From) && !set.Cards.Contains(arc.To);
             path.Opacity = dim ? .25 : 1; if (head is not null) head.Opacity = path.Opacity;
         }
     }
