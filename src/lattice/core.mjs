@@ -24,7 +24,7 @@ const parse = text => { try { return JSON.parse(text) } catch { return undefined
 // Chart state of one child generation: a memo per chart, re-read only when its token moves or it is dirty (README State it owns, task a95).
 export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000,
   log = line => process.stderr.write(line + '\n'), codeCharts = createCodeCharts({ cli, now, log }) }) {
-  const epoch = randomUUID(), memos = new Map(), locks = new Map()
+  const epoch = randomUUID(), memos = new Map(), locks = new Map(), warned = new Map()
   // Seat runs on one chart run one at a time, so a code chart's fast-forward and sensor sync never overlap a write.
   const locked = (id, fn) => {
     const next = (locks.get(id) ?? Promise.resolve()).then(fn, fn)
@@ -165,7 +165,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       const memos = await syncAll(ids, effect, rows)
       const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))
       const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)
-      const out = await nudgeSweep(charts, { laneOf, log, effect })
+      const out = await nudgeSweep(charts, { laneOf, log, effect, warned })
       // Owner-lane filing (L18-L19); a failed record read or write ends this part of the tick, the next tick retries.
       let owner = { filed: 0, routed: 0 }
       try {
