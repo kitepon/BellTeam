@@ -78,9 +78,9 @@ test('projection: a lane naming a member (Bot id or name, Latin case-insensitive
 })
 
 test('projection: a lane owner / 指揮官 is the reserved Owner value, never a member id', () => {
-  const plan = planMember({ tasks: [{ task_id: 'a', lane: 'owner' }, { task_id: 'b', lane: 'Owner' }, { task_id: 'c', lane: '指揮官' }], states: [['a', 'pending'], ['b', 'pending'], ['c', 'pending']] })
+  const plan = planMember({ tasks: [{ task_id: 'a', lane: 'owner' }, { task_id: 'b', lane: 'Owner' }, { task_id: 'c', lane: '指揮官' }, { task_id: 'd', lane: 'approval-box' }, { task_id: 'e', lane: '決裁箱' }], states: [['a', 'pending'], ['b', 'pending'], ['c', 'pending'], ['d', 'pending'], ['e', 'pending']] })
   const result = projectChart({ read: readOf([plan]), members: [] })
-  assert.deepEqual([result.cards.map(card => card.producer), result.memberIds], [['owner', 'owner', 'owner'], []])
+  assert.deepEqual([result.cards.map(card => card.producer), result.memberIds], [['owner', 'owner', 'owner', 'owner', 'owner'], []])
 })
 
 test("projection: Lattice's default lane main is no lane (担当なし)", () => {
