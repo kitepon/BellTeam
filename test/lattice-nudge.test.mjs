@@ -73,6 +73,29 @@ test('nudge: a task list over 4000 chars is ONE send per Bot, bounded, the rest 
   assert.equal(nudgeMessage(cards.slice(0, 2).map(c => ({ projectId: 'a', card: c }))).includes('more of your tasks'), false, 'a short list has no tail')
 })
 
+test('nudge a145: a card whose lane is no Bot and not the Owner goes to the chart creator in its ONE message; no creator is logged once per chart', async () => {
+  const x = rig({
+    charts: [
+      { projectId: 'alpha', createdBy: 'bot-b', cards: [card('t1', 'ready', 'stranger'), card('t2', 'in-progress', 'bot-del'), card('t3', 'ready', ''),
+        card('t4', 'ready', 'bot-a'), card('t5', 'pending', 'stranger'), card('t6', 'ready', 'owner')] },
+      { projectId: 'beta', createdBy: null, cards: [card('t1', 'ready', 'ghost'), card('t2', 'ready', 'ghost')] },
+      { projectId: 'gamma', createdBy: 'bot-a', cards: [card('t1', 'ready', 'ghost')] },
+    ],
+  })
+  const out = await x.go()
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a'])
+  const creator = x.sent[0].message
+  assert.ok(creator.startsWith('Lattice: on charts you created') && !creator.includes('you are not running'), 'a creator with only reassignments gets no start head')
+  assert.ok(creator.includes('lattice plan revise --plan <P>') && creator.includes('--lane <Bot id or owner>'))
+  assert.ok(creator.endsWith('\nChart alpha (lattice tool, project alpha):\n- p1/t1 「T1」: lane "stranger" is not a Bot\n- p1/t2 「T2」: lane "bot-del" is not a Bot\n- p1/t3 「T3」: lane is empty'),
+    'a deleting Bot and an empty lane are no Bot; pending and Owner cards are not listed')
+  const both = x.sent[1].message
+  assert.ok(both.startsWith('Lattice: you are not running') && both.indexOf('Lattice: on charts you created') > both.indexOf('p1/t4'), 'own tasks first, then reassignments, one message')
+  assert.ok(both.endsWith('\nChart gamma (lattice tool, project gamma):\n- p1/t1 「T1」: lane "ghost" is not a Bot'))
+  assert.deepEqual(x.logs, ['lattice-nudge-lane beta no-creator'])
+  assert.deepEqual(out, { charts: 3, prompted: 2, skipped: 0, failed: 0 })
+})
+
 test('protocol: root nudge and effect turns.read', () => {
   const context = { generation: 'g1' }
   validateLatticeRequest('nudge', {}, context)
