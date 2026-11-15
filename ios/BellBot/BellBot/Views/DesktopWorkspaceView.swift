@@ -202,7 +202,7 @@ struct DesktopWorkspaceView: View {
                     .keyboardShortcut("3", modifiers: .command)
                 Button {
                     #if targetEnvironment(macCatalyst)
-                    openWindow(id: "work-graph")
+                    MainWindow.bringToFront("work-graph", open: { openWindow(id: "work-graph") }) { _ in }
                     #else
                     store.selectedTab = 4; compactColumn = .detail
                     #endif
@@ -211,7 +211,7 @@ struct DesktopWorkspaceView: View {
                     .accessibilityIdentifier("open-work-graph")
                 Button {
                     #if targetEnvironment(macCatalyst)
-                    openWindow(id: "lattice")
+                    MainWindow.bringToFront("lattice", open: { openWindow(id: "lattice") }) { _ in }
                     #else
                     store.selectedTab = 5; compactColumn = .detail
                     #endif
@@ -367,7 +367,7 @@ private struct DesktopInspector: View {
                     }, charts: ownedCharts.map { ($0.projectId, store.latticeChartName($0)) }, openChart: { id in
                         store.openLatticeChart(id)
                         #if targetEnvironment(macCatalyst)
-                        openWindow(id: "lattice")
+                        MainWindow.bringToFront("lattice", open: { openWindow(id: "lattice") }) { _ in }
                         #endif
                     })
                     heading("プロフィール")

@@ -13,7 +13,7 @@ struct BellBotApp: App {
         WindowGroup(id: MainWindow.id) {
             mainContent
                 .frame(minWidth: 1100, idealWidth: 1280, minHeight: 640, idealHeight: 820)
-                .background(SceneReader { MainWindow.sessionID = $0.session.persistentIdentifier })
+                .background(SceneReader { MainWindow.sessionIDs[MainWindow.id] = $0.session.persistentIdentifier })
         }
         .windowResizability(.contentMinSize)
         .onChange(of: scenePhase) { _, next in sceneChanged(to: next) }
@@ -23,6 +23,7 @@ struct BellBotApp: App {
                 .environmentObject(store)
                 .tint(BellTheme.violet)
                 .frame(minWidth: 480, minHeight: 360)
+                .background(SceneReader { MainWindow.sessionIDs["work-graph"] = $0.session.persistentIdentifier })
         }
         .windowResizability(.contentMinSize)
 
@@ -31,6 +32,7 @@ struct BellBotApp: App {
                 .environmentObject(store)
                 .tint(BellTheme.violet)
                 .frame(minWidth: 720, minHeight: 520)
+                .background(SceneReader { MainWindow.sessionIDs["lattice"] = $0.session.persistentIdentifier })
         }
         .defaultSize(width: 1360, height: 860)
         .windowResizability(.contentMinSize)
@@ -82,15 +84,18 @@ struct BellBotApp: App {
 }
 
 #if targetEnvironment(macCatalyst)
-/// 本体の窓。相関図の窓から会話を開く時に前へ出す（work-graph behavior-spec.md「Tap or click on a member」）。
+/// 窓は種類ごとに1つ。本体の窓は相関図の窓から会話を開く時に前へ出す（work-graph behavior-spec.md「Tap or click on a member」）。
+/// 相関図・工程表の窓もサイドバーから押すたびに増やさず、開いていれば前へ出す（Owner 2026-11-15）。
 @MainActor
 enum MainWindow {
     static let id = "main"
-    static var sessionID: String?
+    /// WindowGroupのid → その窓のscene session。
+    static var sessionIDs: [String: String] = [:]
 
-    /// 開いている本体の窓を前へ出す。無ければopenで開く。
-    static func bringToFront(open: () -> Void, failed: @escaping @MainActor (Error) -> Void) {
-        guard let session = UIApplication.shared.openSessions.first(where: { $0.persistentIdentifier == sessionID }) else { open(); return }
+    /// 開いているその窓を前へ出す。無ければopenで開く。
+    static func bringToFront(_ windowID: String = id, open: () -> Void, failed: @escaping @MainActor (Error) -> Void) {
+        guard let sessionID = sessionIDs[windowID],
+              let session = UIApplication.shared.openSessions.first(where: { $0.persistentIdentifier == sessionID }) else { open(); return }
         UIApplication.shared.requestSceneSessionActivation(session, userActivity: nil, options: nil) { error in
             Task { @MainActor in failed(error) }
         }
