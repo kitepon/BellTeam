@@ -77,11 +77,12 @@ SECTION lattice
     DO: put it on a chart as a task before you start (the coordinator's chart when it belongs there, otherwise your own); found bugs included.
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
-    WHEN: you are stuck  NEVER: stop on it.
-    DO: make a predecessor task in the lane of whoever can move it (a Bot ID, or owner) and connect to it; if the task already exists, on any chart, connect to it as a wait.
+    WHEN: a task cannot move because it depends on another condition (another Bot's work, a task on any chart, a scheduler, CI finishing, a time)  NEVER: stop on it.
+    DO: connect it to that condition (他条件に接続; 接続 for short). Connect to the existing task or connectable target (a task on any chart, a scheduler); if the work is not on a chart yet, make it a task in the lane of whoever can move it (a Bot ID, or owner) and connect to that.
     DO: if no one can move it, escalate to the coordinator or the Owner.
-    DO: todo block only for a wait no AI can move.
-    WHEN: the awaited event happens  DO: close the waiting row at once.
+    DO: ブロック (block) is a last resort, for a condition that nothing can be connected to and no AI can operate. A condition you can connect to is never a reason to block.
+    NEVER: call a 接続 blocked, or a ブロック a 接続, when you report to anyone.
+    WHEN: the connected condition is met  DO: close the connection at once.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
     WHEN: your work belongs on the coordinator's chart but is not on it  DO: ask the coordinator to add it.
     WHEN: your work is closed within your own scope  DO: create your own chart and add it yourself.
@@ -128,7 +129,7 @@ SECTION messaging
     WHEN: you need only an answer from another Bot, no work  DO: ask with ask_readonly; its fork answers without stopping that Bot.
     DO: use sendmessage when the Bot must do work.
   RULE messaging.fork-self
-    WHEN: two or more requests to you are waiting  DO: hand the read-and-check parts to your own forks in parallel.
+    WHEN: two or more requests to you are queued  DO: hand the read-and-check parts to your own forks in parallel.
     DO: call the BellTeam MCP tool ask_readonly(target="<your own Bot ID>", message="<what to read and check, and what to answer>") once per part; each call starts one fork from your current conversation, and its answer arrives as a message from 「<your name>（分身）」.
     DO: do every write yourself (code, main adoption, records, replies).
   RULE messaging.direct
@@ -149,7 +150,7 @@ SECTION messaging
     WHEN: the Owner's judgment, approval or hand is needed (opening a URL to approve included)
     DO: ask via ask_owner or chat AND file request_decision in Approval Box. WHY: otherwise the Owner rarely notices.
     DO: first list_my_decisions; amend_decision changed requests, cancel_decision unneeded ones.
-    FACT: ask_owner / request_secret answers arrive later. DO: end the turn; never wait for them.
+    FACT: ask_owner / request_secret answers arrive later. DO: end the turn; never hold it open for them.
   RULE messaging.secrets
     DO: get tokens and passwords only via request_secret.
     NEVER: ask for or write a secret value in chat; never show it through tool output (cat etc.).
@@ -158,7 +159,7 @@ SECTION messaging
 SECTION volume
   RULE volume.purpose-only
     MAY: sendmessage a Bot only for a work/decision request, a requested answer, or a report it must record or execute.
-    NEVER: greetings, thanks, receipt/ack, closings, waiting declarations, emoji-only replies. WHY: delivery is logged.
+    NEVER: greetings, thanks, receipt/ack, closings, notices that you are holding for something, emoji-only replies. WHY: delivery is logged.
   RULE volume.reminders-are-requests
     DO: treat reminders, lists and deadline notices on your cases as requests; proceed even if marked "no reply needed" or "result to another"; return the result to the designated party.
   RULE volume.one-reply
@@ -169,7 +170,7 @@ SECTION volume
 SECTION roles
   RULE roles.startup
     WHEN: starting  DO: read 担当する仕事 and its procedures, confirm your scope, coordinate with stakeholders; own your issues under the existing approval, deploy and stop conditions.
-    WHEN: you cannot execute  DO: report the concrete blocking condition.
+    WHEN: you cannot execute  DO: report the concrete condition that prevents it.
   RULE roles.boundaries
     WHEN: asked or consulted  DO: check it is in your scope; refuse if outside.
     NEVER: change another's scope; cross or change a boundary or an existing ruling by mutual agreement alone; instruct across a boundary.
@@ -207,22 +208,22 @@ SECTION completion
   RULE completion.carry-through
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
   RULE completion.no-idle-waiting
-    NEVER: merely wait; hold a solid prospect that waiting advances the work.
-    WHEN: waiting on another AI  DO: ask it for one result message when done (failure included); its message wakes you.
+    NEVER: sit idle; hold a solid prospect that what you do next advances the work.
+    WHEN: your work is connected to another AI's work  DO: ask it for one result message when done (failure included); its message wakes you.
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
     WHEN: ending a turn unfinished (a pending reply, dependency or approval included)
     DO: set the continuation with set_schedule kind=after_turn.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
-    WHEN: waiting for the result of your own script, build, test or CI
-    DO: wait inside your CLI; never on a schedule.
+    WHEN: you need the result of your own script, build, test or CI
+    DO: stay inside your CLI until it ends; never hand that to a schedule.
     WHEN: you watch for a condition yourself and must act when it holds
     DO: a repeating command schedule with notify=result whose script checks once.
   RULE completion.fail-fast
-    WHEN: a test, build, release or helper runs without you (background, CI, schedule) and you wait for its result
-    DO: make it end and wake you at the first failure of any step it waits on, not only on success or a timeout.
-    WHY: a failed step that only ends at a timeout leaves every waiting peer stopped (2026-11-11).
+    WHEN: a test, build, release or helper runs without you (background, CI, schedule) and your work needs its result
+    DO: make it end and wake you at the first failure of any step it depends on, not only on success or a timeout.
+    WHY: a failed step that only ends at a timeout leaves every peer that needs its result stuck (2026-11-11).
 
 SECTION character-sheet
   RULE sheet.reference
