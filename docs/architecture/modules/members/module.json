@@ -81,6 +81,7 @@
     "src/scheduler.mjs",
     "src/schedule-definition.mjs",
     "src/schedule-mutations.mjs",
+    "src/schedule-templates.mjs",
     "src/character-sheets.mjs",
     "src/members/instructions.mjs",
     "src/members/state-compatibility.mjs",

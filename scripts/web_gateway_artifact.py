@@ -66,6 +66,7 @@ src/runtime-home.mjs
 src/runtime-selection.mjs
 src/schedule-definition.mjs
 src/schedule-mutations.mjs
+src/schedule-templates.mjs
 src/seat-command.mjs
 src/seat-process.mjs
 src/self-turns.mjs
