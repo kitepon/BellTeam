@@ -62,6 +62,7 @@ flowchart TD
 | コマンド構成 | `seatCommandSpec/requireSeatProject` | 絶対project、mode、command/argsを検証。渡す環境は最小PATH。root-owned entryをcheckoutへ置換しない |
 | identity変更 | `scripts/seat-exec.c` | FD3以降・継承環境・groupsを除き、`oom_score_adj=1000`を設定（失敗しても起動は続ける）、実効/実/保存UID/GIDを1000へ。変更後にだけNode/対象commandを実行 |
 | env選択 | `run-seat-command` → `baseBotEnvironment/loadBotEnvironment` | configuredのみprojectのenv.shを評価。baseはsetupや短命操作用。env.shのJSON値を通常logへ出さない |
+| 予定の席証明 | `seatCommandSpec({scheduleCredential})` → `run-seat-command --schedule-credential-stdin` | command予定の一回分だけ、親がstdinへ書いた64桁hexを`BELLTEAM_SCHEDULE_CREDENTIAL`として渡す。形が違えば起動しない。commandはEOFのstdinを継ぐ（従来どおり）。発行と失効はintegration SK10 |
 | H1固定base | `fixedResumeBase/checkResumeEnvironment` | 信頼済み固定pathをclearenv後に適用し、configured読込後の逸脱は拒否。汎用dynamic envは許可しない |
 | 子の取消 | `run-seat-command.run/signalGroup` | detached process groupへsignal。250ms後のKILLを受信時に予約し、leader終了後もgroupが残れば待つ |
 | JSONの回収 | `createSeatProcessRunner` | stdout/stderr合計maxBuffer、stdin EOF、start/input/nonzero/abortを区別。stdio close前に取消完了を返さない |

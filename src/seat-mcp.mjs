@@ -23,6 +23,19 @@ export const BELLTEAM_MCP_PATH = '/mcp'
 // a124: known only to this server process (seats run as another UID), so a re-call from the seat MCP is told apart from a seat's raw HTTP.
 export const INTERNAL_CALL_HEADER = 'X-Bellteam-Internal-Call'
 const INTERNAL_CALL_KEY = randomBytes(32).toString('hex')
+// SK10: a command schedule run has no Aiterm launch; the server issues it one credential bound to the schedule's Bot, revoked when the run ends.
+export const SCHEDULE_CREDENTIAL_HEADER = 'X-Bellteam-Schedule-Credential'
+export const SCHEDULE_CREDENTIAL_VARIABLE = 'BELLTEAM_SCHEDULE_CREDENTIAL'
+const scheduleCredentials = new Map()
+export function issueScheduleCredential(botId) {
+  const value = randomBytes(32).toString('hex')
+  scheduleCredentials.set(value, botId)
+  return { value, revoke: () => scheduleCredentials.delete(value) }
+}
+function scheduleRun(request, botId) {
+  const value = request.headers[SCHEDULE_CREDENTIAL_HEADER.toLowerCase()]
+  return typeof value === 'string' && scheduleCredentials.get(value) === botId
+}
 export const CALL_BRIDGE_MCP_PATH = '/mcp/call-bridge'
 export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
 export const REMOTE_SEAT_MCP_PATH = '/api/seat-mcp'
@@ -65,7 +78,7 @@ export async function resolveInternalSeat(request, bots, forkSeat, checkLaunch =
   const name = request.headers[SEAT_HEADER.toLowerCase()]
   // a124: a seat name speaks only with that session's current Aiterm launch id; a mismatch stays unresolved (403).
   if (botId && checkLaunch && request.headers[INTERNAL_CALL_HEADER.toLowerCase()] !== INTERNAL_CALL_KEY
-    && !(await checkLaunch(botId, name, request.headers[LAUNCH_HEADER.toLowerCase()]))) return { botId: null, fork: null }
+    && !scheduleRun(request, botId) && !(await checkLaunch(botId, name, request.headers[LAUNCH_HEADER.toLowerCase()]))) return { botId: null, fork: null }
   if (botId || typeof forkSeat !== 'function' || typeof name !== 'string' || !name.includes('-fork-')) return { botId, fork: null }
   let fork
   try { fork = await forkSeat(name) ?? null }
@@ -94,7 +107,7 @@ export function createSeatLaunchCheck(transport, bots) {
 export async function verifyLocalSeatIngress(request, bots, checkLaunch) {
   if (!checkLaunch) return true
   const botId = await resolveSeatBotId(request, bots)
-  return !botId || checkLaunch(botId, request.headers[SEAT_HEADER.toLowerCase()], request.headers[LAUNCH_HEADER.toLowerCase()])
+  return !botId || scheduleRun(request, botId) || checkLaunch(botId, request.headers[SEAT_HEADER.toLowerCase()], request.headers[LAUNCH_HEADER.toLowerCase()])
 }
 
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.

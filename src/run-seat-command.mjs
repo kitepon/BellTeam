@@ -59,6 +59,8 @@ try {
   if (baseOnly) parameters.shift()
   const resume = parameters[0] === '--resume-state-base'
   if (resume) parameters.shift()
+  const scheduleRun = parameters[0] === '--schedule-credential-stdin'
+  if (scheduleRun) parameters.shift()
   const [separator, command, ...args] = parameters
   if (process.getuid() !== 1000 || process.geteuid() !== 1000 || process.getgid() !== 1000
     || !isAbsolute(project ?? '') || separator !== '--' || !command) throw Error('IDENTITY_OR_ARGUMENTS')
@@ -67,6 +69,14 @@ try {
   const env = baseOnly ? baseBotEnvironment(project, inherited) : await loadBotEnvironment(project, inherited, {
     run: (command, args, options) => run(command, args, options, true),
   })
+  // SK10: the parent writes the run's credential to stdin; the command then inherits stdin at EOF, as before.
+  if (scheduleRun) {
+    const chunks = []
+    for await (const chunk of process.stdin) chunks.push(chunk)
+    const credential = Buffer.concat(chunks).toString()
+    if (!/^[0-9a-f]{64}$/u.test(credential)) throw Error('SCHEDULE_CREDENTIAL')
+    env.BELLTEAM_SCHEDULE_CREDENTIAL = credential
+  }
   if (stopping) throw Error('STOPPED')
   const result = await run(command, args, { cwd: project, env })
   process.exitCode = result.code ?? 1
