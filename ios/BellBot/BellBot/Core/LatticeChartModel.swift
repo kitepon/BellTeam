@@ -116,6 +116,13 @@ final class LatticeChartModel: ObservableObject {
         }
     }
 
+    /// Asked once when an Owner-lane card's 詳細 opens; every failure is no decision (no message, no retry).
+    func decision(for card: LatticeCard, api: BellAPI) async -> LatticeDecision? {
+        guard let path = LatticeDecision.path(projectId: projectId, card: card),
+              let decision: LatticeDecision = try? await api.get(path), decision.valid else { return nil }
+        return decision
+    }
+
     private func chartMissing(api: BellAPI) async -> Bool {
         do {
             let _: LatticeChartSnapshot = try await api.get("/api/lattice/charts/\(projectId)")

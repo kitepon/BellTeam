@@ -157,6 +157,22 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertNil(LatticeDetail(try snapshot(), cardId: "missing", now: now))
     }
 
+    func testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow() throws {
+        func card(_ json: String) throws -> LatticeCard { try JSONDecoder().decode(LatticeCard.self, from: Data(json.utf8)) }
+        let owner = try card(#"{"id":"approval-box/dec-1","plan":"approval-box","taskId":"dec-1","title":"t","state":"ready","producer":"owner"}"#)
+        XCTAssertEqual(LatticeDecision.path(projectId: "belltea m", card: owner),
+                       "/api/approvals/by-task?project=belltea%20m&plan=approval-box&task=dec-1")
+        let member = try card(#"{"id":"p1/t1","plan":"p1","taskId":"t1","title":"t","state":"ready","producer":"bot-1"}"#)
+        XCTAssertNil(LatticeDecision.path(projectId: "bellteam", card: member), "a member's card asks nothing")
+        let decode = { (json: String) in try JSONDecoder().decode(LatticeDecision.self, from: Data(json.utf8)) }
+        let held = try decode(#"{"decisionId":"K-1","status":"held","title":"公開してよいか"}"#)
+        XCTAssertTrue(held.valid)
+        XCTAssertEqual(held.stateText, "保留")
+        XCTAssertEqual(LatticeDecision.stateWords.values.sorted(), ["取り下げ", "回答済み", "待ち", "保留"].sorted())
+        XCTAssertFalse(try decode(#"{"decisionId":"K-1","status":"open","title":"x"}"#).valid, "unknown state: no block")
+        XCTAssertFalse(try decode(#"{"decisionId":"","status":"pending","title":"x"}"#).valid, "no id: no block")
+    }
+
     func testBannersAndDegradedPills() throws {
         XCTAssertNil(LatticeBanner.of(try snapshot()))
         XCTAssertEqual(LatticeBanner.of(try snapshot("unverified"))?.tone, .amber)

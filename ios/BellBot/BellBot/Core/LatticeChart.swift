@@ -15,6 +15,9 @@ struct LatticeMember: Decodable, Equatable {
 struct LatticeCard: Decodable, Equatable, Identifiable {
     let id: String
     let title: String
+    /// Lattice's own task key (`id` is `<plan>/<taskId>`); the 決裁 lookup sends both.
+    var plan: String?
+    var taskId: String?
     var doneCondition: String?
     var designMemo: String?
     var state: String
@@ -42,6 +45,26 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
         if let producer, !producer.isEmpty { return producer }
         if let lane = lane?.trimmingCharacters(in: .whitespacesAndNewlines), !lane.isEmpty { return LatticePerson.lanePrefix + lane }
         return nil
+    }
+}
+
+/// The Approval Box extension's decision for an Owner-lane card (`GET /api/approvals/by-task`, screen-spec 詳細).
+struct LatticeDecision: Decodable, Equatable {
+    let decisionId: String
+    let status: String
+    let title: String
+
+    static let stateWords = ["pending": "待ち", "held": "保留", "answered": "回答済み", "cancelled": "取り下げ"]
+    var stateText: String? { Self.stateWords[status] }
+    /// Any other shape is no decision (no block, no message).
+    var valid: Bool { !decisionId.isEmpty && stateText != nil }
+
+    /// The lookup path for an Owner-lane card; nil for any other card (nothing is asked).
+    static func path(projectId: String, card: LatticeCard) -> String? {
+        guard card.producer == LatticePerson.ownerKey, let plan = card.plan, let task = card.taskId else { return nil }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        func q(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value }
+        return "/api/approvals/by-task?project=\(q(projectId))&plan=\(q(plan))&task=\(q(task))"
     }
 }
 

@@ -131,6 +131,8 @@ struct LatticeChartScreen: View {
 
     // MARK: Shared pieces
 
+    private func loadDecision(_ card: LatticeCard) async -> LatticeDecision? { await model.decision(for: card, api: store.api) }
+
     private func person(_ botId: String?) -> LatticePerson? {
         if let found = LatticePerson.lookup(model.snapshot)(botId), found.known { return found }
         guard let botId, !botId.isEmpty else { return nil }
@@ -319,7 +321,7 @@ struct LatticeChartScreen: View {
                         }
                         if let id = selected, let detail = LatticeDetail(snapshot, cardId: id, now: now) {
                             LatticeDetailPanel(detail: detail, compact: false, close: { select(nil) },
-                                               open: { select($0, scroll: true) }, chat: { chat($0) })
+                                               open: { select($0, scroll: true) }, chat: { chat($0) }, loadDecision: loadDecision)
                                 .frame(width: 350)
                                 .background {
                                     // Opaque: cards behind must not show through the detail (Owner a110).
@@ -589,7 +591,8 @@ struct LatticeChartScreen: View {
             if let detail = LatticeDetail(snapshot, cardId: selection.id, now: now) {
                 ScrollView {
                     LatticeDetailPanel(detail: detail, compact: true, close: { selected = nil },
-                                       open: { id in selected = id; scrollTarget = id }, chat: { id in selected = nil; chat(id) })
+                                       open: { id in selected = id; scrollTarget = id }, chat: { id in selected = nil; chat(id) },
+                                       loadDecision: loadDecision)
                 }
                 .presentationDetents([.height(160), .medium, .large], selection: $detent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
@@ -1414,7 +1417,9 @@ struct LatticeDetailPanel: View {
     let close: () -> Void
     let open: (String) -> Void
     let chat: (String) -> Void
+    let loadDecision: (LatticeCard) async -> LatticeDecision?
     @State private var shown = false
+    @State private var decision: LatticeDecision?
 
     private var status: LatticeTaskState { detail.card.status }
 
@@ -1463,6 +1468,17 @@ struct LatticeDetailPanel: View {
                         .font(.system(size: 13.5, weight: .medium)).foregroundStyle(LatticePalette.ink)
                     }
                 }
+                // 決裁を開く is not drawn until the app has the extension's 決裁箱 screen (route approvals/<decisionId>).
+                if let decision, let state = decision.stateText {
+                    section("決裁") {
+                        Label { Text(verbatim: "\(decision.title)（\(state)）").fixedSize(horizontal: false, vertical: true) } icon: {
+                            Image(systemName: "checkmark.seal").foregroundStyle(LatticePalette.amber)
+                        }
+                        .font(.system(size: 13.5, weight: .medium)).foregroundStyle(LatticePalette.ink)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("lattice-detail-decision")
+                }
                 if !detail.previous.isEmpty {
                     section("前の工程 · \(detail.previous.count)") {
                         VStack(spacing: 6) { ForEach(detail.previous) { link in linkRow(link) } }
@@ -1486,6 +1502,12 @@ struct LatticeDetailPanel: View {
         }
         .padding(compact ? 20 : 18)
         .onAppear { withAnimation(.easeIn(duration: 0.2).delay(compact ? 0 : 0.22)) { shown = true } }
+        // Once per opened card, not per snapshot (screen-spec 詳細 of an Owner-lane card).
+        .task(id: detail.card.id) {
+            decision = nil
+            let found = await loadDecision(detail.card)
+            if !Task.isCancelled { decision = found }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("lattice-detail")
     }
