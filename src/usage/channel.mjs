@@ -4,7 +4,7 @@ import { validateUsageRequest, usageError } from './process-schema.mjs'
 import { usageResultValid } from './process-results.mjs'
 import { usageHandoffValid } from './services.mjs'
 import { assertUsageStateCompatibility, USAGE_STATE_COMPATIBILITY } from './state-compatibility.mjs'
-import { exact, check, contextValid, sameContext, ackValid, marker, publicationValid, usageEffectValid, usageEffectResultValid } from './channel-protocol.mjs'
+import { exact, check, contextValid, sameContext, ackValid, marker, publicationValid, usageEffectValid, usageEffectResultValid, USAGE_CALLBACK_METHODS } from './channel-protocol.mjs'
 
 const controls = new Set(['initialize', 'quiesce', 'resume', 'export', 'exit'])
 const system = Object.freeze({ kind: 'system', botId: null })
@@ -129,7 +129,7 @@ export function createUsageParentChannel(child, { generation, admission, authori
         validateUsageRequest(method, params, actor)
         continuation = lease.epoch !== admission.capture().epoch
         if (kind === 'callback') {
-          check(method === 'settings.setError' && actor.kind === 'system' && effects.has(options.usageEffect), 'USAGE_CALLBACK_UNAVAILABLE')
+          check(USAGE_CALLBACK_METHODS.includes(method) && actor.kind === 'system' && effects.has(options.usageEffect), 'USAGE_CALLBACK_UNAVAILABLE')
           const parent = effects.get(options.usageEffect)
           check(parent.operation.lease === lease && parent.operation.context.kind === 'root')
           check(![...operations.values()].some(value => value.effect === options.usageEffect), 'USAGE_IPC_CAPACITY')
