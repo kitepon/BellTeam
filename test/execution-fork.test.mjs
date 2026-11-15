@@ -52,6 +52,24 @@ test('local fork: fork_from launch, registry while running, answer then delivere
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('a fork is launched with the main\'s saved model and effort (opusplan Bot: Opus in plan mode); a Bot without them passes neither', async () => {
+  const withModel = await fixture({ bot: { model: 'opusplan', reasoningEffort: 'high' } })
+  try {
+    await withModel.transport.forkInquiry(withModel.member, 'q', { forkId: 'f-m', deliveryId: 'd-m', onStatus: async () => {}, onAnswer: async () => {}, onTurnEnd: () => {} })
+    const launch = withModel.calls.find(call => call.name === 'agent_launch').args
+    assert.equal(launch.model, 'opusplan'); assert.equal(launch.reasoning_effort, 'high')
+    assert.equal(Object.hasOwn(launch, 'fast'), false)
+    await Promise.all(withModel.tracked)
+  } finally { await rm(withModel.root, { recursive: true, force: true }) }
+  const plain = await fixture()
+  try {
+    await plain.transport.forkInquiry(plain.member, 'q', { forkId: 'f-p', deliveryId: 'd-p', onStatus: async () => {}, onAnswer: async () => {}, onTurnEnd: () => {} })
+    const launch = plain.calls.find(call => call.name === 'agent_launch').args
+    assert.deepEqual(['model', 'reasoning_effort'].filter(key => Object.hasOwn(launch, key)), [])
+    await Promise.all(plain.tracked)
+  } finally { await rm(plain.root, { recursive: true, force: true }) }
+})
+
 test('failure after accept: one failed status with FORK_FAILED, the fork is closed', async () => {
   const { root, calls, tracked, transport, member } = await fixture({ wait: async () => ({ outcome: 'error', error: 'boom' }) })
   try {
