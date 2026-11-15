@@ -14,6 +14,6 @@
 | `MCP /mcp` | HTTP /mcpのcall_open/send/poll/list/hangup/info/history/receipt/directory | integration（モリー、席の中継）、runtime（モリー、CLIへの登録） |
 | `call-bridge delivery (/v0/directory, /v0/deliver)` | 橋からBellTeamへの向き。UNIX socketの /v0/directory・/v0/deliver、call-bridge.delivery.v1 | conversation（N102）が提供し、橋が呼ぶ |
 
-従来の説明：HTTP /mcpのcall_open/send/poll/list/hangup/info/history/receipt/directory。conversation.messagesはUNIX /v0/directory・/v0/deliverとcall-bridge.delivery.v1で利用する。受付running/steeredは読了・完了を意味しない。N102が通話受付、ミカが利用設定、エピネルが登録、トロニーが共通中継/統合を持つ。製品内部図をここへ複製しない。担当の未公開候補を本番供給済みとしない。
+従来の説明：HTTP /mcpのcall_open/send/poll/list/hangup/info/history/receipt/directory。conversation.messagesはUNIX /v0/directory・/v0/deliverとcall-bridge.delivery.v1で利用する。受付running/steered/queued（queuedは本体の永続受付）は読了・完了を意味しない。橋はこの3つを受付とし、他はunknownで再送しない。N102が通話受付、ミカが利用設定、エピネルが登録、トロニーが共通中継/統合を持つ。製品内部図をここへ複製しない。担当の未公開候補を本番供給済みとしない。
 
 [接続情報](module.json) / [共通の変更手順](../../module-ownership.md)
