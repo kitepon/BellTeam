@@ -44,11 +44,7 @@ test('owner task check: only decision tasks, and cards that were linked; no file
   refused(['todo', 'start', '--task', dec])
   refused(['plan', 'revise', '--plan', 'p1'])
   refused(['status'])
-  const connect = (...rest) => ['todo', 'dependency', 'connect', '--reason', 'why', ...rest]
-  ok(connect('--from-plan', 'approval-box', '--from-task', dec, '--to-plan', 'p1', '--to-task', 's1'))
-  ok(connect('--from-plan', 'p1', '--from-task', 's1', '--to-plan', 'approval-box', '--to-task', dec))
-  refused(connect('--from-plan', 'p1', '--from-task', 's1', '--to-plan', 'p1', '--to-task', 's2'))
-  refused(connect('--from-project', 'other', '--from-plan', 'approval-box', '--from-task', dec, '--to-plan', 'p1', '--to-task', 's1'))
+  refused(['todo', 'dependency', 'connect', '--reason', 'why', '--from-plan', 'approval-box', '--from-task', dec, '--to-plan', 'p1', '--to-task', 's1']) // retired in 0.104.0
   const predecessor = (verb, ...rest) => ['todo', 'predecessor', verb, '--reason', 'why', ...rest]
   for (const verb of ['add', 'remove']) {
     ok(predecessor(verb, '--plan', 'p1', '--task', 's1', '--after', `approval-box/${dec}`))
@@ -110,7 +106,7 @@ test('real Lattice: the Owner actor drives decision tasks only; link registers a
   const added = await owner(['todo', 'add', '--plan', 'approval-box', '--task', dec, '--title', 'decide', '--phase', 'decisions', '--lane', 'owner', '--after', 'dec-k-first', '--design-memo', 'the decision', '--reason', 'filed'])
   assert.equal(added.exitCode, 0, added.stderr)
   assert.equal(added.result.actor.agent, 'owner', 'the chart records the Owner as the actor')
-  const edge = await owner(['todo', 'dependency', 'connect', '--from-plan', 'approval-box', '--from-task', dec, '--to-plan', 'p1', '--to-task', 's1', '--reason', 'waits for the answer'])
+  const edge = await owner(['todo', 'predecessor', 'add', '--plan', 'p1', '--task', 's1', '--after', `approval-box/${dec}`, '--reason', 'waits for the answer'])
   assert.equal(edge.exitCode, 0, edge.stderr)
   assert.equal((await owner(['todo', 'start', '--plan', 'approval-box', '--task', 'dec-k-first'])).exitCode, 0)
   assert.equal((await owner(['todo', 'start', '--plan', 'approval-box', '--task', dec])).exitCode, 1, 'its predecessor is not done: Lattice refuses, the port passes the refusal on')

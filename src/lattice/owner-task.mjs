@@ -16,7 +16,6 @@ const FLAGS = {
   note: { '--plan': 'value', '--task': 'value', '--message': 'value' },
   retire: { '--plan': 'value', '--task': 'value', '--reason': 'value' },
   retract: { '--plan': 'value', '--task': 'value', '--reason': 'value' },
-  dependency: Object.fromEntries(['--from-plan', '--from-task', '--to-plan', '--to-task', '--reason'].map(name => [name, 'value'])),
   predecessor: Object.fromEntries([...PLAN_REF, '--after', '--reason'].map(name => [name, 'value'])),
 }
 
@@ -45,18 +44,13 @@ export function ownerTaskCheck(args, input, linked) {
     return
   }
   if (args[0] !== 'todo' || input !== null) throw refuse('command')
-  if (args[1] === 'dependency' && (args[2] === 'connect' || args[2] === 'disconnect')) {
-    const flags = readFlags(args, 3, FLAGS.dependency)
-    if (!own(flags.get('--from-plan'), flags.get('--from-task')) && !own(flags.get('--to-plan'), flags.get('--to-task'))) throw refuse('dependency ends')
-    return
-  }
-  // Lattice 0.104.0 (a161): `predecessor add|remove` replaces `dependency connect|disconnect` (same chart only); the old verbs stay an alias for one minor.
+  // Lattice 0.104.0 (a161): `predecessor add|remove` replaced `dependency connect|disconnect` (same chart only); Delta switched (#1627), the old verbs are refused.
   if (args[1] === 'predecessor' && (args[2] === 'add' || args[2] === 'remove')) {
     const flags = readFlags(args, 3, FLAGS.predecessor), after = String(flags.get('--after') ?? '').split('/')
     if (after.length !== 2 || !own(flags.get('--plan'), flags.get('--task')) && !own(after[0], after[1])) throw refuse('predecessor ends')
     return
   }
-  if (!Object.hasOwn(FLAGS, args[1]) || args[1] === 'dependency' || args[1] === 'predecessor' || args[1] === 'plan create') throw refuse('verb')
+  if (!Object.hasOwn(FLAGS, args[1]) || args[1] === 'predecessor' || args[1] === 'plan create') throw refuse('verb')
   const flags = readFlags(args, 2, FLAGS[args[1]]), plan = flags.get('--plan'), task = flags.get('--task')
   // A task is made only as a decision task of lane owner; the others are driven only if they are decision tasks or were linked.
   if (args[1] === 'add' ? !decisionTask(plan, task) || flags.get('--lane') !== 'owner' : !own(plan, task)) throw refuse('task')
