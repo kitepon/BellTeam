@@ -15,7 +15,7 @@ const answer = (blockers, extra = {}) => ({ schema: SCHEMA, at: '', blockers, un
 const http = (status, body = {}) => Object.assign(new Error(`HTTP_${status}`), { status, ...body })
 
 // ---- pure ----
-test('stopRows：新しい止めが先、担当と止めた人は名簿・指揮官・書かれた文字・名簿にない子・なし、時刻はJST、id もコードも出ない', () => {
+test('stopRows：新しいブロックが先、担当とブロックした人は名簿・指揮官・書かれた文字・名簿にない子・なし、時刻はJST、id もコードも出ない', () => {
   const blockers = [
     stop(1, { blockedAt: '2026-11-05T15:30:00Z', lane: 'kiro', blockedBy: GHOST, chartName: null, chartCreatedBy: 'bot-nobody0001' }),
     stop(2, { blockedAt: ago(30 * MIN), lane: null, blockedBy: 'owner', chartName: null }),
@@ -29,8 +29,8 @@ test('stopRows：新しい止めが先、担当と止めた人は名簿・指揮
   assert.equal(r2.lane, null); assert.equal(r2.by.name, 'クオ'); assert.equal(r2.chart, 'トロニーの工程表', '名前が無ければ作った人の工程表')
   assert.equal(r3.lane.name, 'クオ'); assert.equal(r3.by.name, 'トロニー'); assert.equal(r3.chart, 'BellTeam開発')
   assert.deepEqual([r1.lane.name, r1.lane.authored, r1.by.name, r1.by.known, r1.chart], ['kiro', true, '名簿にないメンバー', false, '名前のない工程表'])
-  assert.equal(r2.label, '止まり、工程2、トロニーの工程表、担当なし、理由 CI is red on main、クオが今日 20:30に止めました')
-  assert.equal(rows[3].label, '止まり、工程4、BellTeam開発、担当 モリー、モリーが止めました', '理由が空なら言わない、時刻が読めなければ時刻を言わない')
+  assert.equal(r2.label, 'ブロック、工程2、トロニーの工程表、担当なし、理由 CI is red on main、クオが今日 20:30にブロックしました')
+  assert.equal(rows[3].label, 'ブロック、工程4、BellTeam開発、担当 モリー、モリーがブロックしました', '理由が空なら言わない、時刻が読めなければ時刻を言わない')
   assert.doesNotMatch(rows.map(row => `${row.label}${row.chart}`).join('\n'), /bot-[0-9a-z]{6,}|bellteam\b|p1\/t\d|[0-9a-f]{24}/u)
   assert.deepEqual(rows.map(row => [row.projectId, row.cardId]).slice(0, 1), [['bellteam', 'p1/t2']])
   assert.equal(stopTime(ago(0), BASE), '今日 21:00'); assert.equal(stopTime('', BASE), '')
@@ -120,13 +120,13 @@ test('開く：最初はスピナー、読めたら新しい順の行。読み�
   const net = fakeApi({ reads: [answer([stop(1, { blockedAt: ago(DAY) }), stop(2)])] })
   const ui = makeView(t, net.api)
   ui.view.open()
-  assert.match(textOf(ui.host), /止めを読んでいます…/u); assert.equal(rowsOf(ui.host).length, 0)
+  assert.match(textOf(ui.host), /ブロックを読んでいます…/u); assert.equal(rowsOf(ui.host).length, 0)
   await flush()
   assert.equal(net.calls[0].path, '/api/lattice/blockers')
   const rows = rowsOf(ui.host)
   assert.deepEqual(rows.map(el => el.dataset.stopId), [stop(2).stopId, stop(1).stopId])
-  assert.equal(rows[0].getAttribute('aria-label'), '止まり、工程2、BellTeam開発、担当 モリー、理由 CI is red on main、モリーが今日 20:30に止めました')
-  assert.match(textOf(rows[0]), /工程2.*BellTeam開発.*担当.*モリー.*理由.*CI is red on main.*止めた人.*モリー.*今日 20:30.*外す/su)
+  assert.equal(rows[0].getAttribute('aria-label'), 'ブロック、工程2、BellTeam開発、担当 モリー、理由 CI is red on main、モリーが今日 20:30にブロックしました')
+  assert.match(textOf(rows[0]), /工程2.*BellTeam開発.*担当.*モリー.*理由.*CI is red on main.*ブロックした人.*モリー.*今日 20:30.*外す/su)
   assert.match(textOf(rows[1]), /昨日 21:00/u)
   assert.doesNotMatch(textOf(ui.host), /bot-[0-9a-f]{6,}|p1\/t\d|[0-9a-f]{24}|LATTICE_/u)
   assert.equal(byClass(ui.host, 'lattice-stops-pill').length, 0)
@@ -136,14 +136,14 @@ test('開く：最初はスピナー、読めたら新しい順の行。読み�
   ui.view.close()
 })
 
-test('止まりが無い：止まっている工程はありません。読み直すで読み直せる', async t => {
+test('ブロックが無い：ブロックされている工程はありません。読み直すで読み直せる', async t => {
   const reads = [answer([])], net = fakeApi({ reads })
   const ui = makeView(t, net.api)
   ui.view.open(); await flush()
-  assert.match(textOf(ui.host), /止まっている工程はありません。/u)
+  assert.match(textOf(ui.host), /ブロックされている工程はありません。/u)
   reads.unshift(answer([stop(1)]))
   buttonByText(ui.host, '読み直す').click(); await flush()
-  assert.equal(rowsOf(ui.host).length, 1); assert.doesNotMatch(textOf(ui.host), /止まっている工程はありません。/u)
+  assert.equal(rowsOf(ui.host).length, 1); assert.doesNotMatch(textOf(ui.host), /ブロックされている工程はありません。/u)
   ui.view.close()
 })
 
@@ -151,7 +151,7 @@ test('古いサーバー（404）は案内だけで読み直さない。戻る�
   const net = fakeApi({ reads: () => http(404) })
   const ui = makeView(t, net.api)
   ui.view.open(); await flush()
-  assert.match(textOf(ui.host), /このサーバーではまだ止め一覧を使えません。/u)
+  assert.match(textOf(ui.host), /このサーバーではまだブロック一覧を使えません。/u)
   await ui.advance(120000); assert.equal(net.gets(), 1)
   ui.doc.visibility(false); await flush(); assert.equal(net.gets(), 1, '古いサーバーは前面に戻っても読み直さない')
   buttonByText(ui.host, 'すべての工程表').click(); assert.deepEqual(ui.goneBack, [true])
@@ -163,7 +163,7 @@ test('503・通信エラー・壊れたJSON・別のschema：薄くした行と�
   const net = fakeApi({ reads: () => results.shift() })
   const ui = makeView(t, net.api)
   ui.view.open(); await flush()
-  assert.equal(net.gets(), 1); assert.match(textOf(byClass(ui.host, 'lattice-stops-pill')[0]), /止め一覧を読み直しています…/u)
+  assert.equal(net.gets(), 1); assert.match(textOf(byClass(ui.host, 'lattice-stops-pill')[0]), /ブロック一覧を読み直しています…/u)
   await ui.advance(999); assert.equal(net.gets(), 1)
   await ui.advance(1); assert.equal(net.gets(), 2)
   await ui.advance(2000); assert.equal(net.gets(), 3)
@@ -211,14 +211,14 @@ test('外す：二段階（確認の行、やめる・Esc・ほかをタップ�
   const ask = el => all(el).find(item => item.tagName === 'button' && textOf(item) === '外す')
   assert.equal(ask(first()).getAttribute('aria-label'), '外す、工程1')
   ask(first()).click()
-  assert.match(textOf(first()), /この止めを外しますか？/u); assert.equal(net.posts().length, 0, '一度では外さない')
+  assert.match(textOf(first()), /このブロックを外しますか？/u); assert.equal(net.posts().length, 0, '一度では外さない')
   assert.equal(document.activeElement.dataset.focusKey, `confirm:${stop(1).stopId}`, '確認の外すへフォーカス')
   buttonByText(first(), 'やめる').click()
-  assert.doesNotMatch(textOf(first()), /この止めを外しますか？/u); assert.equal(document.activeElement.dataset.focusKey, `ask:${stop(1).stopId}`, 'やめるは行の外すへ戻す')
+  assert.doesNotMatch(textOf(first()), /このブロックを外しますか？/u); assert.equal(document.activeElement.dataset.focusKey, `ask:${stop(1).stopId}`, 'やめるは行の外すへ戻す')
   ask(first()).click(); ui.view.escape()
-  assert.doesNotMatch(textOf(first()), /この止めを外しますか？/u); assert.deepEqual(ui.goneBack, [], 'Esc は確認だけ閉じる')
+  assert.doesNotMatch(textOf(first()), /このブロックを外しますか？/u); assert.deepEqual(ui.goneBack, [], 'Esc は確認だけ閉じる')
   ask(first()).click(); ui.host.click()
-  assert.doesNotMatch(textOf(first()), /この止めを外しますか？/u, 'ほかをタップしたら戻る')
+  assert.doesNotMatch(textOf(first()), /このブロックを外しますか？/u, 'ほかをタップしたら戻る')
   ask(first()).click(); ui.view.escape(); ask(first()).click()
   const confirm = all(first()).find(item => item.tagName === 'button' && textOf(item) === '外す' && item.dataset.focusKey.startsWith('confirm'))
   const gets = net.gets()
@@ -238,7 +238,7 @@ test('already-gone も外れた扱いで行が消える。行が消えた確認�
   const ui = makeView(t, net.api)
   ui.view.open(); await flush()
   buttonByText(ui.host, '外す').click(); all(ui.host).find(item => item.dataset?.focusKey?.startsWith('confirm')).click(); await flush()
-  assert.equal(rowsOf(ui.host).length, 0); assert.match(textOf(ui.host), /止まっている工程はありません。/u)
+  assert.equal(rowsOf(ui.host).length, 0); assert.match(textOf(ui.host), /ブロックされている工程はありません。/u)
   ui.view.close()
 })
 
@@ -287,7 +287,7 @@ const chartSnapshot = () => ({ schema: 'bellteam.lattice-chart.v1', epoch: 'e', 
   members: [{ botId: MOLLY, name: 'モリー', color: 'mint', avatarVersion: '' }],
   cards: [{ id: 'p9/t07', plan: 'p9', taskId: 't07', title: '止まった工程', doneCondition: '', designMemo: 'メモ', state: 'blocked', lane: null, producer: MOLLY, startedAt: null, changedAt: ago(MIN), blockedReason: 'CI is red', depth: 0 }], edges: [], waits: [] })
 
-test('一覧の止め一覧ボタン → 止め一覧 → 戻る・Esc で一覧 → 行のタップでその工程表と詳細', async t => {
+test('一覧のブロック一覧ボタン → ブロック一覧 → 戻る・Esc で一覧 → 行のタップでその工程表と詳細', async t => {
   const env = fakeEnv(t), dialog = new El('dialog'), body = new El('div'), pill = new El('p'); pill.hidden = true
   dialog.querySelector = sel => sel === '[data-lattice-body]' ? body : sel === '[data-lattice-pill]' ? pill : null
   const streams = [], encoder = new TextEncoder(), calls = []
@@ -306,17 +306,17 @@ test('一覧の止め一覧ボタン → 止め一覧 → 戻る・Esc で一覧
   dialog.addEventListener('close', () => view.close())
   view.open(); await flush()
   assert.equal(byClass(body, 'lattice-cc').filter(el => el.tagName === 'button').length, 2)
-  buttonByText(body, '止め一覧').click(); await flush()
-  assert.match(textOf(body), /止め一覧/u); assert.equal(byClass(body, 'lattice-stop').length, 1)
-  assert.equal(byClass(body, 'lattice-cc').length, 0, '止め一覧の間は一覧を描かない')
+  buttonByText(body, 'ブロック一覧').click(); await flush()
+  assert.match(textOf(body), /ブロック一覧/u); assert.equal(byClass(body, 'lattice-stop').length, 1)
+  assert.equal(byClass(body, 'lattice-cc').length, 0, 'ブロック一覧の間は一覧を描かない')
   const reads = () => calls.filter(c => c === '/api/lattice/charts').length
-  const before = reads(); await env.advance(60000); assert.equal(reads(), before, '止め一覧の間は一覧を読み直さない')
+  const before = reads(); await env.advance(60000); assert.equal(reads(), before, 'ブロック一覧の間は一覧を読み直さない')
   buttonByText(body, 'すべての工程表').click(); await flush()
   assert.equal(byClass(body, 'lattice-cc').filter(el => el.tagName === 'button').length, 2, '戻ると一覧')
-  buttonByText(body, '止め一覧').click(); await flush()
+  buttonByText(body, 'ブロック一覧').click(); await flush()
   assert.equal(dialog.fire('cancel').prevented, true); await flush()
   assert.equal(byClass(body, 'lattice-cc').filter(el => el.tagName === 'button').length, 2, 'Esc も一覧へ')
-  buttonByText(body, '止め一覧').click(); await flush()
+  buttonByText(body, 'ブロック一覧').click(); await flush()
   all(body).find(el => el.attrs.get('aria-label') === '工程1を開く').click(); await flush()
   assert.ok(calls.includes('/api/lattice/charts/peer/events'), 'その工程表を開く')
   assert.equal(byClass(body, 'lattice-sheet')[0].hidden, true)

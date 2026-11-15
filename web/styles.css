@@ -1268,7 +1268,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 /* chart: rail | canvas | waits */
 .lattice-main { display: grid; grid-template-columns: 64px minmax(0, 1fr) 340px; min-height: 0; }
 .lattice-main[hidden], .lattice-empty-slot[hidden] { display: none; }
-/* 待ちの流れ on a wide window: folded to a right-edge handle until opened (a76) */
+/* 接続 panel on a wide window: folded to a right-edge handle until opened (a76) */
 .lattice-main.is-folded { grid-template-columns: 64px minmax(0, 1fr) 44px; }
 .lattice-main.is-folded .lattice-waits, .lattice-main:not(.is-folded) .lattice-wfold { display: none; }
 .lattice-wfold { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 0; border: 0; border-left: 1px solid rgba(33,41,61,.08); background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(247,245,254,.9)); color: var(--l-violet); font: inherit; font-size: 12px; font-weight: 700; }
@@ -1376,7 +1376,10 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 .lattice-card .top .el { font-size: 10.5px; font-weight: 600; color: var(--l-muted); white-space: nowrap; }
 .lattice-card .top .pa { display: flex; margin-left: auto; }
 .lattice-card .ti { flex: none; margin-top: 5px; font-size: 12.5px; line-height: 1.3; font-weight: 650; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.lattice-card .en { flex: none; margin-top: auto; padding-top: 4px; font-size: 10px; line-height: 13px; color: var(--l-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lattice-card .en { flex: none; display: flex; align-items: center; gap: 4px; margin-top: auto; padding-top: 4px; font-size: 10px; line-height: 13px; color: var(--l-muted); white-space: nowrap; }
+.lattice-card .en > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lattice-card .en .lk { flex: none; display: inline-flex; align-items: center; gap: 2px; font-weight: 700; color: var(--l-violet); }
+.lattice-card .en .lk .lattice-g { font-size: 10px; }
 .lattice-card .en.rs { color: var(--l-red); font-weight: 700; }
 .lattice-card.is-pending { background: rgba(255,255,255,.55); border: 1.5px dashed #C3C1D2; box-shadow: none; }
 .lattice-card.is-pending .top { color: #8C90A3; }
@@ -1406,7 +1409,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 .lattice-bloom i { --r: calc(var(--i) * 72deg); }
 .lattice-card.is-done { overflow: visible; }
 
-/* 待ちの流れ */
+/* 接続 panel */
 .lattice-waits { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; border-left: 1px solid rgba(33,41,61,.08); background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(247,245,254,.9)); }
 .lattice-waits .wp-h { position: relative; padding: 16px 46px 10px 16px; }
 .lattice-waits h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 16px; font-weight: 750; }
@@ -1478,7 +1481,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 .lattice-empty-slot { min-height: 0; }
 .lattice-empty p { margin: 0; max-width: 420px; font-size: 15px; line-height: 1.7; color: var(--l-muted); }
 
-/* 止め一覧 (web/lattice-stops.js, screen-spec.md 止め一覧) */
+/* ブロック一覧 (web/lattice-stops.js, screen-spec.md ブロック一覧) */
 .lattice-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
 .lattice-list-head h3, .lattice-stops-head h3 { margin: 0; font-size: 15px; font-weight: 750; }
 .lattice-stops { max-width: 780px; padding: 8px 20px 28px; }

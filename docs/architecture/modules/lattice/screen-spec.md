@@ -145,9 +145,9 @@ Data only from the [Stops contract](README.md#stops-blockers--get-apilatticebloc
 | --- | --- |
 | Entry | 一覧 has a button ブロック一覧 at the top (next to the list title). Only the Owner apps show it (the route is Owner-only) |
 | Header | ブロック一覧, back (「← すべての工程表」, Esc / edge swipe) to 一覧, a 読み直す button (Web, Windows; F5 on Windows) / pull-to-refresh (Apple) |
-| Row (one per `blockers[]`, newest `blockedAt` first) | octagon glyph in the ブロック red; card `title` (2 lines, then ellipsis); chart name (name rule above, never `projectId`); 担当 = `lane` face + name (owner rule: Bot id -> member, `"owner"` -> the Owner, other text as written, null -> 担当なし); 理由 = `reason` as written (up to 3 lines, the whole text in the spoken label); 止めた人 = `blockedBy` face + name (same rule) and 止めた時刻 `blockedAt` in JST (今日 HH:MM / 昨日 HH:MM / M月D日 HH:MM); button 外す |
+| Row (one per `blockers[]`, newest `blockedAt` first) | octagon glyph in the ブロック red; card `title` (2 lines, then ellipsis); chart name (name rule above, never `projectId`); 担当 = `lane` face + name (owner rule: Bot id -> member, `"owner"` -> the Owner, other text as written, null -> 担当なし); 理由 = `reason` as written (up to 3 lines, the whole text in the spoken label); ブロックした人 = `blockedBy` face + name (same rule) and 止めた時刻 `blockedAt` in JST (今日 HH:MM / 昨日 HH:MM / M月D日 HH:MM); button 外す |
 | Row tap (not the button) | opens that chart (工程表) and the card's 詳細 (`cardId` = card `id`) |
-| 外す | two steps in the row, no modal: 外す -> the row shows 「この止めを外しますか？」 with 外す (accent) and やめる; やめる / Esc / tapping elsewhere returns. Confirmed: the button shows a spinner, the row stays |
+| 外す | two steps in the row, no modal: 外す -> the row shows 「このブロックを外しますか？」 with 外す (accent) and やめる; やめる / Esc / tapping elsewhere returns. Confirmed: the button shows a spinner, the row stays |
 | `unreadCharts` non-empty | thin amber line above the rows: 一部の工程表を読めませんでした。読めた分だけ表示しています。 (no ids) |
 
 ```mermaid
@@ -180,7 +180,7 @@ stateDiagram-v2
 
 | State / answer | Shown (Japanese, plain) | What happens next | Action |
 | --- | --- | --- | --- |
-| StopsLoading (first read) | spinner 止めを読んでいます… (later reads keep the rows, no spinner) | the answer | back |
+| StopsLoading (first read) | spinner ブロックを読んでいます… (later reads keep the rows, no spinner) | the answer | back |
 | StopsEmpty | 止まっている工程はありません。 | 読み直す / foreground re-read | back |
 | StopsRetry | the last rows dimmed (or empty) + pill ブロック一覧を読み直しています… | backoff 1, 2, 4 … 30 s forever while open | back, 読み直す (now) |
 | StopsOld (404) | このサーバーではまだブロック一覧を使えません。 | appears after the server update | back |
@@ -192,7 +192,7 @@ stateDiagram-v2
 
 Re-reads: on open, 読み直す / pull-to-refresh, after every 外す answer (any outcome), and on coming back to the foreground; never on a timer while the list is readable (the contract has no stream). An open 工程表 sees a removal through its own chart stream. A re-send after an unknown answer is harmless (`already-gone`).
 
-Accessibility: each row is one element 「ブロック、<title>、<chart name>、担当 <lane>、理由 <reason>、<止めた人>が<時刻>に止めました」 with the action 外す; the confirm step moves focus to its 外す, やめる returns focus to the row's 外す.
+Accessibility: each row is one element 「ブロック、<title>、<chart name>、担当 <lane>、理由 <reason>、<ブロックした人>が<時刻>にブロックしました」 with the action 外す; the confirm step moves focus to its 外す, やめる returns focus to the row's 外す.
 
 ## 接続 and ブロック (a161)
 
@@ -204,14 +204,14 @@ Owner 2026-11-15 (via Trony): 「他条件に接続と優先接続はUI上は同
 | --- | --- |
 | Data | Per card `connections[]` (from `todo display read` 0.104.0, read by `projection.mjs`): `{kind: 'task'\|'schedule'\|'priority', ref, state: 'open'\|'settled', reason, since, settledAt?, evidence?}`; a `priority` entry carries `agent` (the Bot that asked) instead of `ref`. Only `open` entries count and draw; a settled one leaves the area (the task is startable again). `kind: 'task'` rows take the awaited card's title, chart name and producer from `externals[]` when Lattice gives that fact, else ほかの工程表の工程 (state unknown: 読めていません) |
 | Never a line | A 接続 is never an edge: not in ツリー, not in 担当, no curve, no particle. It is shown only in the 接続 area and as a chip on the card itself (link glyph + 「接続 N」, N open entries; none for a card without one) |
-| 前工程 | Unchanged: same-chart `edges`, drawn as lines (satisfied = faint, waiting = accent gradient with particles and the chip 「前工程：◯◯」, ◯◯ = the producer of the finishing card, 担当なし when it has none), listed in 詳細 under 前の工程. They are NOT rows of the 接続 panel (proposal to Trony 2026-11-15, awaiting his word; until then the panel shows connections only) |
+| 前工程 | Unchanged: same-chart `edges`, drawn as lines (satisfied = faint, waiting = accent gradient with particles and the chip 「前工程：◯◯」, ◯◯ = the producer of the finishing card, 担当なし when it has none), listed in 詳細 under 前の工程. They are NOT rows of the 接続 panel (Trony 2026-11-15: the panel shows only 他条件に接続 and 優先接続) |
 | Toolbar counters | 作業中 / 接続 / ブロック. 接続 = number of open entries on the chart; ブロック = number of `blocked` cards |
 | Member rail | working = rotating arc; ブロック = red dot; 接続 = a link glyph with the count of that member's cards that have an open entry (the old hourglass) |
 | Right handle / panel | handle: link glyph + 接続 count (red when a producer is in ブロック); panel title 接続; same wide-layout rule and fold behaviour as before (Mac/iPad/Linux/Windows start folded; Web 1024 px+; narrow = the horizontal strip / iPhone pager) |
-| Panel rows (open entries, oldest `since` first) | **task**: the card that is connected (title, owner face, 接続 <length>, 「担当 ◯◯」); 「この工程の完了が条件になっています」; the awaited card title with its chart (「<chart name>の工程表」), producer and state as in the old cross-chart row; buttons 会話を開く (producer), 工程へ移動 (opens that chart at that card). **schedule**: 「予定「<name>」の結果が条件になっています」, the schedule's owner face and 「次の確認 <JST>」 when known, no 工程へ移動. **priority**: 「<agent face + name> が、着手できるようになったらすぐ動きたいと伝えています」; no awaited card; 工程へ移動 opens the card. Reason text of the entry is shown as one muted line (as written). A row whose connected card's producer is in ブロック is emphasized |
+| Panel rows (open entries, oldest `since` first) | **task**: the card that is connected (title, owner face, 接続 <length>, 「担当 ◯◯」); 「この工程の完了が条件になっています」; the awaited card title with its chart (「<chart name>の工程表」), producer and state as in the old cross-chart row; buttons 会話を開く (producer), 工程へ移動 (opens that chart at that card). **schedule**: 「予定の結果が条件になっています」 (Lattice gives only the schedule id, so no name, owner face or next-check time yet; they join when BellTeam supplies them), no 工程へ移動. **priority**: 「<agent face + name> が、着手できるようになったらすぐ動きたいと伝えています」; no awaited card; 工程へ移動 opens the card. Reason text of the entry is shown as one muted line (as written). A row whose connected card's producer is in ブロック is emphasized |
 | Empty | 接続している工程はありません。 |
 | ブロック一覧 | The former 止め一覧, renamed everywhere: entry button, header, rows, empty text (「ブロックされている工程はありません。」), the card state badge 止まり -> ブロック, its spoken label. Behaviour, contract and 外す unchanged |
-| Accessibility | Panel rows read 「「<card title>」（担当 <owner>）は、<task: 「<awaited title>」の完了が条件になっています。つくっているのは<producer>、<state> / schedule: 予定「<name>」の結果が条件になっています / priority: <agent>が着手できたらすぐ動きたいと伝えています>」; chip: 「接続 N」 |
+| Accessibility | Panel rows read 「「<card title>」（担当 <owner>）は、<task: 「<awaited title>」の完了が条件になっています。つくっているのは<producer>、<state> / schedule: 予定の結果が条件になっています / priority: <agent>が着手できたらすぐ動きたいと伝えています>」; chip: 「接続 N」 |
 
 Order of work (a161): this spec -> Web (Flora: `projection.mjs` connections, `lattice-chart-model.js`, `lattice-chart.js`, `lattice-stops.js` words) -> Apple (Rapi) and Windows (Anis) build to it with real shots. State diagram: the states and arrows are unchanged; every `止め一覧` / `Stops` label above reads ブロック一覧.
 

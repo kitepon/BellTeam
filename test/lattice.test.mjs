@@ -42,7 +42,7 @@ test('projection: cards, ready, producer (start beats lane), edges, waits, depth
   assert.deepEqual(Object.keys(cards), ['p1/t1', 'p1/t2', 'p1/t3', 'p1/t4', 'p1/t5', 'p1/t6', 'p1/t7'])
   assert.deepEqual(Object.values(cards).map(card => card.state), ['done', 'ready', 'in-progress', 'pending', 'blocked', 'retired', 'pending'])
   assert.deepEqual(cards['p1/t3'], { id: 'p1/t3', plan: 'p1', taskId: 't3', title: 'C', doneCondition: 'done when', designMemo: 'memo', state: 'in-progress',
-    lane: null, producer: 'bot-b', startedAt: at(10), changedAt: at(10), blockedReason: null, depth: 0, phase: null, parent: null, doneAt: null, archived: false, counted: true })
+    lane: null, producer: 'bot-b', startedAt: at(10), changedAt: at(10), blockedReason: null, depth: 0, phase: null, parent: null, doneAt: null, archived: false, counted: true, connections: [] })
   assert.deepEqual([cards['p1/t4'].producer, cards['p1/t4'].startedAt, cards['p1/t4'].changedAt], ['bot-c', null, at(12)])
   assert.deepEqual([cards['p1/t5'].producer, cards['p1/t5'].blockedReason, cards['p1/t1'].title, cards['p1/t2'].title], [null, 'x', 'A', 't2'])
   assert.deepEqual(result.edges, [{ from: 'p1/t1', to: 'p1/t2', waiting: false }, { from: 'p1/t3', to: 'p1/t4', waiting: true },
@@ -54,11 +54,11 @@ test('projection: cards, ready, producer (start beats lane), edges, waits, depth
     { waiter: null, waitingCard: 'p1/t7', forCard: 'p1/t2', producer: null, producerState: 'ready', since: null }])
   // No `trees` (an older Lattice): each card is a tree of one. t6 (retired, alone) is archived and uncounted;
   // t1 (done, next t2 unfinished) stays, but alone it is a finished tree, so it is not counted.
-  assert.deepEqual(result.counts, { total: 5, done: 0, working: 1, blocked: 1, waiting: 2 })
+  assert.deepEqual(result.counts, { total: 5, done: 0, working: 1, blocked: 1, waiting: 2, connections: 0 })
   // With Lattice's trees (0.100.0): t1-t4,t7 one tree (1 of 5 finished), t5 alone, t6 alone and finished.
   const tree = (id, tasks, finished) => ({ tree_id: `p1/${id}`, tasks: tasks.map(task => ({ plan_key: 'p1', task_id: task })), total: tasks.length, finished })
   const withTrees = projectChart({ read: readOf([mainPlan()], { trees: [tree('t1', ['t1', 't2', 't3', 't4', 't7'], 1), tree('t5', ['t5'], 0), tree('t6', ['t6'], 1)] }), members: roster(ids) })
-  assert.deepEqual(withTrees.counts, { total: 6, done: 1, working: 1, blocked: 1, waiting: 2 }, 'every task of an open tree counts; the finished tree t6 counts nowhere')
+  assert.deepEqual(withTrees.counts, { total: 6, done: 1, working: 1, blocked: 1, waiting: 2, connections: 0 }, 'every task of an open tree counts; the finished tree t6 counts nowhere')
   assert.deepEqual(withTrees.cards.map(card => [card.taskId, card.archived, card.counted]),
     [['t1', false, true], ['t2', false, true], ['t3', false, true], ['t4', false, true], ['t5', false, true], ['t6', true, false], ['t7', false, true]])
   assert.deepEqual(result.memberIds, ['bot-a', 'bot-b', 'bot-c'])
@@ -150,33 +150,37 @@ test('projection: cross-plan edges minus tombstones', () => {
   assert.equal(byId(result)['p2/t1'].depth, 1)
 })
 
-test('projection: a predecessor on another chart (task a60) keeps the card pending until Lattice reads it finished', () => {
+test('projection: a 接続 (Lattice 0.104.0 connections, a161) is never an edge or a wait; only open entries ride on the card', () => {
   const xref = (project_id, plan, task) => ({ project_id, plan_key: plan, task_id: task })
-  // The other chart's plan key equals a local one (p1): the external edge must not land on local p1/t1.
+  // Lattice still records a cross-chart 接続 as a plan-scoped event: it must not become an edge (the other chart's plan key equals a local one, p1).
   const p1 = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2', lane: 'bot-b' }, { task_id: 't3' }], states: [['t1', 'pending'], ['t2', 'pending'], ['t3', 'pending']], scoped: [
     { kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: xref('other', 'p1', 't1'), to: xref('here', 'p1', 't2') } },
-    { kind: 'cross_plan_dependency', event_digest: 'e2', payload: { from: xref('gone', 'q', 'x'), to: xref('here', 'p1', 't3') } },
-    { kind: 'cross_plan_dependency', event_digest: 'e3', payload: { from: xref('other', 'p1', 't9'), to: xref('here', 'p1', 't3') } },
-    { kind: 'cross_plan_dependency_removed', event_digest: 'e4', payload: { target_event_digest: 'e3' } }] })
+    { kind: 'cross_plan_dependency', event_digest: 'e2', payload: { from: xref('gone', 'q', 'x'), to: xref('here', 'p1', 't3') } }] })
+  const entry = (kind, minute, extra = {}) => ({ kind, state: 'open', reason: null, since: at(minute), ...extra })
+  const connections = [
+    { plan_key: 'p1', task_id: 't1', connections: [{ kind: 'priority', agent: 'bot-b', reason: 'urgent', since: at(20) }] },
+    { plan_key: 'p1', task_id: 't2', connections: [entry('task', 10, { ref: 'other/p1/t1', reason: 'release first' })] },
+    { plan_key: 'p1', task_id: 't3', connections: [entry('task', 11, { ref: 'gone/q/x' }), entry('schedule', 12, { ref: 'sch-1' }), entry('schedule', 13, { ref: 'sch-0', state: 'settled' }),
+      entry('task', 14, { ref: 'broken' }), entry('other', 15, { ref: 'x' })] }]
   const external = (status, finished, reason = null) => [{ project_id: 'other', plan_key: 'p1', task_id: 't1', status, finished, reason, trigger: null },
     { project_id: 'gone', plan_key: 'q', task_id: 'x', status: null, finished: false, reason: 'chart_unreadable', trigger: null }]
   const elsewhere = (projectId, cardId) => projectId === 'other' && cardId === 'p1/t1' ? { chartName: 'Other', title: 'Release', producer: 'bot-c' } : null
-  const open = projectChart({ read: readOf([p1], { external_tasks: external('in_progress', false) }), members: roster(['bot-b', 'bot-c']), elsewhere })
+  const open = projectChart({ read: readOf([p1], { external_tasks: external('in_progress', false), connections }), members: roster(['bot-b', 'bot-c']), elsewhere })
   const cards = byId(open)
-  assert.deepEqual([cards['p1/t1'].state, cards['p1/t2'].state, cards['p1/t3'].state], ['ready', 'pending', 'pending'], 'unfinished and unread predecessors keep it pending')
-  assert.deepEqual(open.edges, [{ from: 'other:p1/t1', to: 'p1/t2', waiting: true, external: true }, { from: 'gone:q/x', to: 'p1/t3', waiting: true, external: true }])
+  assert.deepEqual([cards['p1/t1'].state, cards['p1/t2'].state, cards['p1/t3'].state], ['ready', 'pending', 'pending'], 'a task or schedule 接続 keeps the card pending; a 優先接続 does not')
+  assert.deepEqual([open.edges, open.waits], [[], []], 'a 接続 is never an edge or a wait')
+  assert.deepEqual(cards['p1/t1'].connections, [{ kind: 'priority', state: 'open', reason: 'urgent', since: at(20), agent: 'bot-b' }])
+  assert.deepEqual(cards['p1/t2'].connections, [{ kind: 'task', state: 'open', reason: 'release first', since: at(10), ref: 'other:p1/t1' }])
+  assert.deepEqual(cards['p1/t3'].connections.map(item => [item.kind, item.ref]), [['task', 'gone:q/x'], ['schedule', 'sch-1']], 'settled, malformed and unknown entries are dropped')
+  assert.deepEqual(byId(projectChart({ read: readOf([p1]), members: [] }))['p1/t2'].connections, [], 'no connections: an empty array')
   assert.deepEqual(open.externals, [
     { id: 'other:p1/t1', projectId: 'other', cardId: 'p1/t1', chartName: 'Other', title: 'Release', state: 'in-progress', finished: false, producer: 'bot-c' },
     { id: 'gone:q/x', projectId: 'gone', cardId: 'q/x', chartName: null, title: null, state: null, finished: false, producer: null }])
-  assert.deepEqual(open.waits.map(wait => [wait.waitingCard, wait.forCard, wait.waiter, wait.producer, wait.producerState]),
-    [['p1/t2', 'other:p1/t1', 'bot-b', 'bot-c', 'in-progress'], ['p1/t3', 'gone:q/x', null, null, null]])
-  assert.ok(open.memberIds.includes('bot-c'), 'the other chart\'s producer is named')
-  assert.equal(open.counts.waiting, 2)
+  assert.ok(open.memberIds.includes('bot-c') && open.memberIds.includes('bot-b'), 'the other chart\'s producer and the Bot that asked are named')
+  assert.deepEqual([open.counts.connections, open.counts.waiting], [4, 0])
   assert.equal(cards['p1/t2'].depth, 0, 'the other chart is not walked')
-  const done = byId(projectChart({ read: readOf([p1], { external_tasks: external('done', true) }), members: [] }))
-  assert.deepEqual([done['p1/t2'].state, done['p1/t3'].state], ['ready', 'pending'])
-  // No external_tasks (an older read) = not finished: the card waits.
-  assert.equal(byId(projectChart({ read: readOf([p1]), members: [] }))['p1/t2'].state, 'pending')
+  const done = byId(projectChart({ read: readOf([p1], { external_tasks: external('done', true), connections }), members: [] }))
+  assert.deepEqual([done['p1/t2'].state, done['p1/t3'].state], ['ready', 'pending'], 'a finished task 接続 no longer holds; a schedule still does')
 })
 
 test('projection: self, unknown-end, duplicate and cycle edges are dropped', () => {
@@ -333,7 +337,8 @@ test('core: a chart waiting on another chart re-reads when that chart changes, n
   const x = rig()
   x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
     scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'other', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
-    { external_tasks: [{ project_id: 'other', plan_key: 'q', task_id: 'x', status: 'in_progress', finished: false, reason: null, trigger: null }] })
+    { connections: [{ plan_key: 'p1', task_id: 't1', connections: [{ kind: 'task', ref: 'other/q/x', state: 'open', reason: 'r', since: at(1) }] }],
+      external_tasks: [{ project_id: 'other', plan_key: 'q', task_id: 'x', status: 'in_progress', finished: false, reason: null, trigger: null }] })
   x.cli.charts.push('other'); x.cli.tokens.other = 1; x.cli.reads.other = chartRead()
   const alphaReads = () => x.cli.calls.filter(call => call === READ + ' alpha').length
   await x.chart('other')
@@ -447,7 +452,7 @@ test('core: charts lists every chart, coordinator first then newest update', asy
   Object.assign(x.cli.tokens, { beta: 1, gamma: 1, empty: 1 })
   const list = await x.core.charts({}, x.effect)
   assert.deepEqual([list.schema, list.charts.map(chart => chart.projectId)], ['bellteam.lattice-charts.v1', ['alpha', 'beta', 'gamma', 'empty']])
-  assert.deepEqual(list.charts[0], { projectId: 'alpha', name: null, coordinator: true, createdBy: 'bot-7b140b27', counts: { total: 2, done: 0, working: 1, waiting: 1, blocked: 0 },
+  assert.deepEqual(list.charts[0], { projectId: 'alpha', name: null, coordinator: true, createdBy: 'bot-7b140b27', counts: { total: 2, done: 0, working: 1, waiting: 1, blocked: 0, connections: 0 },
     activeMembers: ['bot-a'], updatedAt: at(2), state: 'verified' })
   assert.equal(x.world.effects, 1)
   x.cli.charts = ['alpha']; await x.core.charts({}, x.effect)

@@ -135,7 +135,8 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   const before = await core.chart({ projectId: 'beta' }, effect)
   assert.equal(before.cards[0].state, 'pending')
   assert.deepEqual(before.externals, [{ id: 'alpha:p1/t1', projectId: 'alpha', cardId: 'p1/t1', chartName: null, title: 'p1 one', state: 'in-progress', finished: false, producer: 'bot-a' }])
-  assert.deepEqual(before.waits.map(wait => [wait.waitingCard, wait.forCard, wait.waiter, wait.producer]), [['p1/t1', 'alpha:p1/t1', 'bot-b', 'bot-a']])
+  assert.deepEqual([before.edges, before.waits], [[], []], 'a 接続 is never an edge or a wait (a161)')
+  assert.deepEqual(before.cards[0].connections.map(item => [item.kind, item.ref, item.reason]), [['task', 'alpha:p1/t1', 'waits on alpha']])
   await run('bot-a', 'alpha', ['todo', 'done', '--plan', 'p1', '--task', 't1', '--message', 'ok'])
   sent.length = 0
   await core.nudge({}, effect)

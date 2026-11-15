@@ -83,6 +83,11 @@ test('protocol: root results are exact', () => {
     waits: [{ waiter: null, waitingCard: 'p1/t1', forCard: 'other:p1/t1', producer: null, producerState: null, since: null }] })
   for (const patch of [{ externals: [{ ...ext, projectId: 'Bad' }] }, { externals: [{ ...ext, state: 'weird' }] }, { externals: [{ ...ext, finished: null }] }, { externals: [{ ...ext, extra: 1 }] },
     { edges: [{ from: 'a', to: 'b', waiting: true, external: false }] }]) bad(() => validateLatticeResult('chart', { ...snapshot, ...patch }))
+  // 接続 (a161): optional card connections and counts.connections.
+  const open = { kind: 'task', state: 'open', reason: null, since: null, ref: 'other:p1/t1' }
+  validateLatticeResult('chart', { ...snapshot, cards: [{ ...card, connections: [open, { ...open, kind: 'priority', ref: undefined, agent: 'a' }] }] })
+  validateLatticeResult('charts', { schema: 'bellteam.lattice-charts.v1', at: 'x', charts: [{ ...summary, counts: { ...summary.counts, connections: 2 } }] })
+  for (const connections of [[{ ...open, state: 'settled' }], [{ ...open, kind: 'other' }], [{ ...open, extra: 1 }], 'x']) bad(() => validateLatticeResult('chart', { ...snapshot, cards: [{ ...card, connections }] }))
   validateLatticeResult('refresh', { snapshots: [snapshot], nextRefreshMs: 2000 })
   validateLatticeResult('refresh', { snapshots: [], nextRefreshMs: 0 })
   for (const result of [{ exitCode: 0, result: { a: 1 }, stdout: null, stderr: '' }, { exitCode: null, result: null, stdout: 'text', stderr: 'LATTICE_CLI_TIMEOUT' },
