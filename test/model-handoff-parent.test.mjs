@@ -31,10 +31,7 @@ test('original parent MCP keeps per-call context/meta and anchor actor/actual co
   const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
   for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
   const client = new AitermClient({ command: 'synthetic-not-launched', args: [] })
-  // a124: pty_observe reports the launch id this fixture's seat sends; every other call stays an empty answer.
-  t.mock.method(client, 'call', async (name, args) => name === 'pty_observe'
-    ? { structuredContent: { schema: 'aiterm.pty-observe-result.v1', session_id: args.session_id, exists: true, launch_id: 'a'.repeat(32) } }
-    : { content: [{ type: 'text', text: '' }] })
+  t.mock.method(client, 'call', async () => ({ content: [{ type: 'text', text: '' }] }))
   t.mock.method(client, 'close', async () => {})
   assert.equal(client.captureHandoffConnection, undefined)
   let readAnchor, conversation, firstReady, releaseFirst

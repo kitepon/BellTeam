@@ -42,7 +42,7 @@ import { createLatticeDecisions, createApprovalDecisions } from './lattice-appro
 import { createRunningExclusions } from './running-exclusions.mjs'
 import { createSeatCredentials } from './seat-credentials.mjs'
 import { createCredentialRefresh } from './secret-credential-refresh.mjs'
-import { REMOTE_SEAT_MCP_PATH, issueScheduleCredential, seatCandidates } from './seat-mcp.mjs'
+import { REMOTE_SEAT_MCP_PATH, seatCandidates } from './seat-mcp.mjs'
 import { TERMINALS_UNAVAILABLE } from './http-terminals-api.mjs'
 import { createTerminalKeys } from './terminals-mcp.mjs'
 import { createMessageViews } from './http-messages.mjs'
@@ -83,17 +83,6 @@ export const conversationDiagnosticPort = diagnostics => report => Promise.resol
 const REMOTE_TERMINAL_STATUS_UNAVAILABLE = () => Object.assign(new Error('Remote terminal status unavailable'), { code: 'REMOTE_TERMINAL_STATUS_UNAVAILABLE' })
 
 // Exit 0 = aiterm.remote-binding-status.v1, exit 2 = aiterm.remote-binding-error.v1; both are returned as-is.
-// SK10: a seat command schedule gets a credential bound to its Bot for the run only (a124 refuses a seat name without a launch).
-export async function runSeatSchedule(request, bots, runner = createSeatProcessRunner) {
-  const botId = basename(request.cwd ?? '')
-  if (request.signal?.aborted || bots.get(botId)?.project !== request.cwd) return runShellCommand(request, { seatProject: request.cwd })
-  const credential = issueScheduleCredential(botId)
-  try {
-    return await runner(request.cwd, { scheduleCredential: true })('sh', ['-c', request.command],
-      { signal: request.signal, acceptNonzero: true, input: credential.value })
-  } finally { credential.revoke() }
-}
-
 export async function remoteTerminalStatus(project, ref, run = createSeatProcessRunner(project)) {
   let result
   try { result = await run('/usr/bin/env', ['aiterm-remote-terminal', 'status', '--ref', ref], { acceptNonzero: true, maxBuffer: 65536 }) } catch { throw REMOTE_TERMINAL_STATUS_UNAVAILABLE() }
@@ -424,7 +413,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     ...(conversationAssembly ? { moduleOperations: { withContext: (operation, context) => conversationAssembly.run({ kind: 'scheduler' }, () => conversationAssembly.moduleOperations.withContext(operation, context)) } } : {}),
     admitWork: () => aiControl.admit(),
     ...(seatRuntime ? { completedTurns: project => completedThroughlineTurns(project, { seatCommands: true }),
-      runCommand: request => runSeatSchedule(request, bots) } : {}),
+      runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
   })
