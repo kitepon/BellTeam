@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T05:57:00Z",
-  "expiresAt": "2026-11-22T05:57:00Z",
+  "publishedAt": "2026-11-15T06:16:07Z",
+  "expiresAt": "2026-11-22T06:16:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4e8392520cbbb5ea2d1dca52b61a1b9bd2f3181e",
-      "versionId": "sha256:f814dd265cd0f8fe7da14c036347727fc00d70cfe9ee4d92d11d6b1492d00c4e",
+      "sourceCommit": "2c9e3748e3f952e788f629409d204fe2b8f3f29b",
+      "versionId": "sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f814dd265cd0f8fe7da14c036347727fc00d70cfe9ee4d92d11d6b1492d00c4e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,21 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeの席で opusplan に切り替えられるようにしました。",
-        "部品の入れ替えが、動いている作業を待たずに引き継ぐようにしました。"
+        "本体の再起動直後、席の準備が終わるのを待ってから配送するようにして、部品の受付枠が埋まらないようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4e8392520cbbb5ea2d1dca52b61a1b9bd2f3181e",
-      "versionId": "sha256:f814dd265cd0f8fe7da14c036347727fc00d70cfe9ee4d92d11d6b1492d00c4e",
+      "sourceCommit": "2c9e3748e3f952e788f629409d204fe2b8f3f29b",
+      "versionId": "sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f814dd265cd0f8fe7da14c036347727fc00d70cfe9ee4d92d11d6b1492d00c4e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:845d5e836363cfe516c2654a7a1ef43f95af70fc863a7f9d75a197ed4b6bd56d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,8 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeの席で opusplan に切り替えられるようにしました。",
-        "部品の入れ替えが、動いている作業を待たずに引き継ぐようにしました。"
+        "本体の再起動直後、席の準備が終わるのを待ってから配送するようにして、部品の受付枠が埋まらないようにしました。"
       ]
     },
     {
