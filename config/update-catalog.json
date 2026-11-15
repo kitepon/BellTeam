@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T15:21:17Z",
-  "expiresAt": "2026-11-22T15:21:17Z",
+  "publishedAt": "2026-11-15T15:44:28Z",
+  "expiresAt": "2026-11-22T15:44:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "38c2233acdfc4941e17f6a8f35e540e6e8dacb93",
-      "versionId": "17953b6d0c2a3961312cef211953a7aa080154124b17584d01ce2da8d39313e1",
+      "sourceCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e",
+      "versionId": "a532273ad67980821e1ab63733009e0d6a17e4612e467b16482776c88fd301de",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151858Z/members-38c2233acdfc4941e17f6a8f35e540e6e8dacb93-linux-amd64.tar.gz",
-          "bytes": 4585559,
-          "sha256": "17953b6d0c2a3961312cef211953a7aa080154124b17584d01ce2da8d39313e1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-amd64.tar.gz",
+          "bytes": 4585826,
+          "sha256": "a532273ad67980821e1ab63733009e0d6a17e4612e467b16482776c88fd301de"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151858Z/members-38c2233acdfc4941e17f6a8f35e540e6e8dacb93-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "316a59bb03cc88ab29383868831aa37d51f3f4b8cc9a1fbccd243dab1c9b2538"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "2369c42f1b9fd5e563126050752df0923cba8686cda13fecbc46f6570db49e52"
         },
-        "signerCommit": "38c2233acdfc4941e17f6a8f35e540e6e8dacb93"
+        "signerCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "共通ルールに、仕事を終えたら報告するか、つながった工程を閉じて知らせる決まりを入れました。"
+        "共通ルールに、スクリプトで確かめられる待ちは、予定の「接続」でつなぐという決まりを入れました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "38c2233acdfc4941e17f6a8f35e540e6e8dacb93",
-      "versionId": "47b7ee26b2407538ac876a242f6c696de1764a897a85379abb96bdff1ac2a66e",
+      "sourceCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e",
+      "versionId": "d3ba20c596fe88f223bc68bfdd1a098ef886dd1ef4ac4133b442653b33a262bc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151858Z/members-38c2233acdfc4941e17f6a8f35e540e6e8dacb93-linux-arm64.tar.gz",
-          "bytes": 4585558,
-          "sha256": "47b7ee26b2407538ac876a242f6c696de1764a897a85379abb96bdff1ac2a66e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-arm64.tar.gz",
+          "bytes": 4585826,
+          "sha256": "d3ba20c596fe88f223bc68bfdd1a098ef886dd1ef4ac4133b442653b33a262bc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T151858Z/members-38c2233acdfc4941e17f6a8f35e540e6e8dacb93-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10957,
-          "sha256": "7df6c50d792143bb707f452060654a4ab32b988cafd6b3a9b030f70dda446708"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T154408Z/members-d08d4def0d86abdc5becf87dad309bcd7545023e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "a1f88e17eddcea9b893826323c3819a8cbf82a6d5c69574eafd8c6ef672e3876"
         },
-        "signerCommit": "38c2233acdfc4941e17f6a8f35e540e6e8dacb93"
+        "signerCommit": "d08d4def0d86abdc5becf87dad309bcd7545023e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "共通ルールに、仕事を終えたら報告するか、つながった工程を閉じて知らせる決まりを入れました。"
+        "共通ルールに、スクリプトで確かめられる待ちは、予定の「接続」でつなぐという決まりを入れました。"
       ]
     },
     {
