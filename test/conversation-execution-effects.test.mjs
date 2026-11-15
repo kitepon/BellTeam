@@ -144,3 +144,20 @@ test('fork answer relay: execution.notify after the fork.ask root returned uses 
   await assert.rejects(f.effect('execution.notify', f.params, f.context)); assert.equal(calls, 1)
   f.admission.finish(f.context.conversationDelivery); f.admission.finish(f.lease)
 })
+// a149: a room root returns once its deliveries are issued and its members lease ends with that result (members exchange
+// must not wait for turns), so each fan-out execution.notify re-enters members fresh, like the fork relay.
+for (const rootMethod of ['room.post', 'room.reply']) test(`a149: ${rootMethod} fan-out notify after the room root returned uses a fresh members lease`, async () => {
+  const f = fixture(); let calls = 0
+  f.context.rootMethod = rootMethod
+  f.context.conversationDelivery = f.admission.registerDelivery(f.lease, { deliveryId: 'delivery-a', target: f.bot.id, kinds: [], dispatch() {} })
+  const root = f.context.operationContext.membersLease
+  f.members.finish(root)
+  f.services.bots.readMember = async (id, membersContext) => { f.members.assertLease(membersContext.membersLease) }
+  f.services.transport.membersAdmission = f.members
+  f.services.transport.notify = async (bot, message, options) => {
+    calls++; assert.notEqual(options.membersLease, root); f.members.assertLease(options.membersLease)
+    return { delivery: 'running' }
+  }
+  assert.deepEqual(await f.effect('execution.notify', f.params, f.context), { delivery: 'running' }); assert.equal(calls, 1)
+  f.admission.finish(f.context.conversationDelivery); f.admission.finish(f.lease)
+})
