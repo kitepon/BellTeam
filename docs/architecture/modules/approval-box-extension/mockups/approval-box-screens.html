@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BellTeam 決裁箱拡張 デザイン案</title>
+<style>:root{
+  --violet:#6147D4;--rose:#E86B94;--indigo:#4559C2;--sky:#47A1E3;--mint:#2EB29E;--amber:#E89E47;
+  --ink:#21293D;--muted:#787D91;--line:#E6E3F0;--canvas:#F8F8FB;--violetLight:#E8E0FF;--red:#E0533D;--ok:#34C759;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Hiragino Kaku Gothic ProN","IPAGothic","IPAPGothic",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+  background:linear-gradient(180deg,#F0ECFB 0%,#F8F7FD 24%,#F5F5FB 58%,#F1EFFA 100%);min-height:100vh}
+button{font:inherit;color:inherit;border:0;background:none}
+.page{max-width:1500px;margin:0 auto;padding:56px 40px 96px}
+.eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--violet);text-transform:uppercase}
+h1{font-size:40px;line-height:1.2;font-weight:800;letter-spacing:-.01em;margin:12px 0 10px}
+.lead{font-size:16px;color:#4a516a;max-width:820px}
+.sec{margin:64px 0 0}
+.sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+.sec-h h2{font-size:22px;font-weight:700}
+.sec-h .tag{font:500 11px/1 var(--mono);color:var(--muted)}
+.sec-n{font-size:13px;color:#4a516a;max-width:900px;margin:-6px 0 18px}
+.shot .page{padding:0;max-width:none}
+.shot body,.shot{background:transparent}
+.shot *{animation:none!important}
+.fs{overflow-x:auto;padding:24px 40px 60px;margin:-24px -40px -20px}
+.fs>.pad{width:max-content}
+
+/* glyphs, avatars */
+.g{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+.av{display:inline-grid;place-items:center;width:var(--s);height:var(--s);border-radius:50%;flex:none;color:#fff;font-weight:700;font-size:calc(var(--s)*.46);line-height:1;
+  background:linear-gradient(155deg,rgba(255,255,255,.34),rgba(255,255,255,0) 58%),var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.4),0 1px 2px rgba(33,41,61,.16)}
+.av.you{--c:#21293D}
+.avw{position:relative;display:inline-grid;place-items:center;width:var(--s);height:var(--s);flex:none}
+.arc{position:absolute;left:-5px;top:-5px;width:calc(var(--s) + 10px);height:calc(var(--s) + 10px)}
+.arc circle{fill:none;stroke:var(--c);stroke-width:3.2;stroke-linecap:round}.arc .tr{stroke-opacity:.2}
+.mac>.sbar{flex:1}
+.stack{display:inline-flex}.stack .av{margin-left:-7px;box-shadow:0 0 0 2px #fff,0 1px 2px rgba(33,41,61,.16)}.stack .av:first-child{margin-left:0}
+
+/* windows */
+.mac{position:relative;width:1360px;height:860px;border-radius:14px;overflow:hidden;background:#FBFAFF;display:flex;flex-direction:column;
+  box-shadow:0 0 0 .5px rgba(33,41,61,.28),0 30px 60px -26px rgba(70,48,160,.42),0 10px 24px -6px rgba(33,41,61,.10)}
+.tb{height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(249,248,255,.9));border-bottom:1px solid rgba(33,41,61,.09)}
+.tl{display:flex;gap:8px;margin-right:6px}.tl i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)}
+.tl i:nth-child(1){background:#FF5F57}.tl i:nth-child(2){background:#FEBC2E}.tl i:nth-child(3){background:#28C840}
+.tbi{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#6b7186;font-size:18px}
+.switcher{display:flex;align-items:center;gap:8px;height:34px;padding:0 13px 0 11px;border-radius:17px;background:#fff;box-shadow:0 0 0 .5px rgba(33,41,61,.16),0 1px 3px rgba(33,41,61,.08)}
+.switcher .ic{color:var(--violet);font-size:17px}
+.switcher b{font-size:13.5px;font-weight:700}
+.nbadge{min-width:20px;height:20px;border-radius:10px;padding:0 6px;display:inline-grid;place-items:center;background:var(--violet);color:#fff;font-size:11.5px;font-weight:800;box-shadow:0 2px 6px -1px rgba(97,71,212,.6)}
+.live{display:flex;align-items:center;gap:7px;height:26px;padding:0 11px 0 9px;border-radius:13px;background:rgba(52,199,89,.12);color:#1f8a3f;font-size:12px;font-weight:600}
+.ldot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.sp{flex:1}
+.seg{display:flex;padding:2px;border-radius:9px;background:rgba(33,41,61,.07);font-size:12px;font-weight:600;color:#5b617a}
+.seg span{padding:5px 13px;border-radius:7px;display:flex;gap:5px;align-items:center}.seg .on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(33,41,61,.18)}
+.seg em{font-style:normal;font-weight:800;color:var(--violet)}
+.sum{display:flex;align-items:center;gap:10px}
+.ring{position:relative;width:30px;height:30px}.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:4;stroke-linecap:round}
+.sum .t{font-size:13px;font-weight:700}.sum .t small{font-weight:500;color:var(--muted);font-size:12px;margin-left:3px}
+.cnt{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#4a516a;padding-left:12px;border-left:1px solid var(--line);height:22px}
+.cnt span{display:inline-flex;align-items:center;gap:6px;font-weight:500}.cnt b{font-weight:700;color:var(--ink)}.cnt i{width:7px;height:7px;border-radius:50%;display:block}
+.tbtn{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:17px;color:var(--violet);background:var(--violetLight)}
+.body{flex:1;display:flex;min-height:0}
+
+/* state badges (Lattice stp) */
+.stp{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 9px 0 7px;border-radius:11px;font-size:11px;font-weight:700;white-space:nowrap}
+.stp .g{font-size:12px}
+.stp.vio{background:rgba(97,71,212,.13);color:#4a3bb0}
+.stp.amb{background:rgba(232,158,71,.18);color:#9A5C12}
+.stp.red{background:rgba(224,83,61,.14);color:#C23E28}
+.stp.pen{background:rgba(140,144,163,.16);color:#6e748a}
+.stp.ok{background:rgba(46,178,158,.15);color:#1E8A78}
+.stp.ind{background:rgba(69,89,194,.12);color:var(--indigo)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 13px;border-radius:15px;font-size:12px;font-weight:650;background:rgba(33,41,61,.06);color:#3b435c;white-space:nowrap}
+.btn .g{font-size:14px}
+.btn.pri{background:var(--violet);color:#fff;box-shadow:0 3px 8px -2px rgba(97,71,212,.55)}
+.btn.soft{background:var(--violetLight);color:var(--violet)}
+.btn.red{background:rgba(224,83,61,.12);color:#B93E29}
+.spn{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff}
+.spn.v{border:2px solid rgba(97,71,212,.22);border-top-color:var(--violet)}
+
+/* list column */
+.col{display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#FDFCFF,#F8F7FD);border-right:1px solid rgba(33,41,61,.07)}
+.col-h{padding:16px 18px 6px;display:flex;align-items:baseline;gap:8px}
+.col-h h2{font-size:16px;font-weight:750}.col-h small{font-size:11.5px;color:var(--muted)}
+.lab{font:700 10px var(--mono);letter-spacing:.12em;color:#9096aa;margin:12px 4px 7px;display:flex;align-items:center;gap:6px}
+.lab .g{font-size:12px}
+.list{padding:2px 16px 18px;display:flex;flex-direction:column;gap:11px;overflow:hidden}
+.dc{position:relative;border-radius:20px;padding:12px 15px 12px;background:#fff;border:1px solid var(--line);box-shadow:0 1px 2px rgba(33,41,61,.06),0 8px 18px -10px rgba(33,41,61,.22)}
+.dc .top{display:flex;align-items:center;gap:7px}
+.dc .top .age{font-size:11px;color:var(--muted);font-weight:600}
+.dc .top .who{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;color:#3b435c}
+.dc .ti{margin-top:8px;font-size:15px;line-height:1.38;font-weight:700;letter-spacing:-.005em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dc .en{margin-top:7px;display:flex;align-items:center;gap:6px;font-size:11.5px;line-height:1.4;color:var(--muted)}
+.dc .en .g{font-size:13px;color:var(--violet)}
+.dc .en b{color:#3b435c;font-weight:650}
+.dc .ch{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.dc.pend{border:1.5px solid var(--violet);box-shadow:0 0 0 4px rgba(97,71,212,.10),0 12px 28px -10px rgba(97,71,212,.45);background:linear-gradient(160deg,#fff,#FAF8FF)}
+.dc.urg::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 3px 3px 0;background:var(--amber)}
+.dc.held{background:rgba(255,255,255,.55);border:1.5px dashed #C3C1D2;box-shadow:none}
+.dc.held .ti{color:#6e748a}
+.dc.sel{outline:2px solid var(--violet);outline-offset:3px}
+.dc.done,.dc.wd{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px}
+.dc.done{background:rgba(255,255,255,.72);border:1px solid #E4E6EC;box-shadow:0 1px 2px rgba(33,41,61,.04)}
+.dc.done>.g{color:#7DA89F;font-size:20px}
+.dc.done .m{flex:1;min-width:0}
+.dc.done .m b{display:block;font-size:12.5px;font-weight:650;color:#6f758a;line-height:1.35}
+.dc.done .m small{display:block;font-size:11px;color:#9096aa;margin-top:2px}
+.dc.wd{background:transparent;border:1px dashed #C9CBD6;box-shadow:none}
+.dc.wd>.g{color:#A1A4B4;font-size:18px}
+.dc.wd .m b{display:block;font-size:12.5px;font-weight:650;color:#A1A4B4;text-decoration:line-through}
+.dc.wd .m small{display:block;font-size:11px;color:#A1A4B4;margin-top:2px}
+.dc .tm{font:600 11px var(--mono);color:#9096aa}
+.dh{font:700 10px var(--mono);letter-spacing:.1em;color:#9aa0b3;margin:10px 4px 6px}
+
+/* detail */
+.dp{display:flex;flex-direction:column;background:#fff;border-right:1px solid rgba(33,41,61,.07);min-height:0;overflow:hidden}
+.dp-in{padding:18px 22px 18px}
+.dp .row1{display:flex;align-items:center;gap:7px}
+.dp .x{margin-left:auto;width:24px;height:24px;border-radius:50%;background:rgba(33,41,61,.07);display:grid;place-items:center;font-size:13px;color:#6b7186}
+.dp h3{font-size:19px;line-height:1.35;font-weight:760;letter-spacing:-.01em;margin-top:10px}
+.dp .sub{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-top:7px;flex-wrap:wrap}
+.dp .sub b{color:#3b435c;font-weight:650}
+.dp .sc{margin-top:14px}
+.dp .sc>.l{font:700 9.5px/1 var(--mono);letter-spacing:.1em;color:#9096aa;margin-bottom:6px;display:flex;gap:6px;align-items:center}
+.dp .sc p{font-size:12.5px;line-height:1.65;color:#3b435c}
+.rec{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;border-radius:14px;background:rgba(97,71,212,.08);box-shadow:inset 0 0 0 .5px rgba(97,71,212,.25);font-size:12px;color:#3a2f86;font-weight:600}
+.rec .g{font-size:16px;color:var(--violet)}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.opt{display:flex;align-items:center;gap:10px;min-height:46px;padding:9px 14px;border-radius:14px;background:#fff;box-shadow:0 0 0 1px var(--line),0 2px 6px -3px rgba(33,41,61,.2);font-size:13.5px;font-weight:650;line-height:1.35}
+.opt .g{font-size:17px;color:#a3a7b8}
+.opt.rc{background:var(--violet);color:#fff;box-shadow:0 8px 18px -8px rgba(97,71,212,.7)}
+.opt.rc .g{color:#fff}
+.opt .tag{margin-left:auto;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.22);padding:2px 8px;border-radius:9px;white-space:nowrap}
+.ta{margin-top:10px;border-radius:14px;padding:10px 12px;background:var(--canvas);box-shadow:inset 0 0 0 .5px var(--line);font-size:12.5px;color:#9096aa;min-height:58px;display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.acts{display:flex;gap:8px;margin-top:12px;align-items:center}
+.tlne{position:relative;padding-left:14px}
+.tlne::before{content:"";position:absolute;left:3px;top:6px;bottom:6px;width:1.5px;background:var(--line)}
+.tlne div{position:relative;font-size:11.5px;line-height:1.5;color:#3b435c;margin-bottom:6px}
+.tlne div::before{content:"";position:absolute;left:-14px;top:5px;width:8px;height:8px;border-radius:50%;background:#fff;border:2px solid var(--violet)}
+.tlne time{font:500 10px var(--mono);color:#9096aa;margin-right:6px}
+
+/* link panel (wait panel shape) */
+.wp{display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,.85),rgba(247,245,254,.9));min-height:0;overflow:hidden}
+.wp-h{padding:16px 16px 8px}
+.wp-h h2{font-size:16px;font-weight:750;display:flex;align-items:center;gap:7px}.wp-h h2 .g{color:var(--violet);font-size:17px}
+.wp-h p{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+.wp-l{padding:6px 14px 14px;display:flex;flex-direction:column;gap:0}
+.cn{position:relative;border-radius:16px;padding:10px 12px;background:#fff;box-shadow:0 0 0 .5px rgba(33,41,61,.12),0 4px 12px -8px rgba(33,41,61,.22)}
+.cn .a{display:flex;align-items:center;gap:7px}
+.cn .a b{font-size:12.5px;font-weight:700;flex:1;line-height:1.35}
+.cn .b{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11px;color:var(--muted)}
+.cn.dn{background:rgba(255,255,255,.65);box-shadow:0 0 0 .5px rgba(33,41,61,.07)}
+.cn.dn .a b{color:#8a90a3;font-weight:600}
+.cn.pe{background:rgba(255,255,255,.5);box-shadow:none;border:1.5px dashed #C3C1D2}
+.cn.me{border:1.5px solid var(--violet);box-shadow:0 0 0 4px rgba(97,71,212,.10),0 10px 24px -10px rgba(97,71,212,.5)}
+.cn.rd{border:1.5px solid var(--indigo);box-shadow:0 0 0 4px rgba(69,89,194,.10),0 10px 24px -10px rgba(69,89,194,.5)}
+.cn.nw{border:1.5px dashed var(--violet);background:rgba(97,71,212,.05)}
+.lk{width:2px;height:18px;margin:0 0 0 22px;background:linear-gradient(var(--line),#c9c1ee)}
+.lk.hot{background:linear-gradient(#8F78F0,#6147D4);width:3px;margin-left:21px;border-radius:2px}
+.note{font-size:11.5px;line-height:1.6;color:#4a516a;margin:12px 4px 0}
+.note b{color:var(--ink)}
+
+/* sidebar */
+.sbar{width:300px;flex:none;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(232,224,255,.45),rgba(246,244,253,.9));border-right:1px solid rgba(33,41,61,.07);position:relative}
+.sb-top{padding:14px 14px 6px}
+.sb-ttl{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:800;letter-spacing:-.01em;margin-bottom:10px}
+.sb-ttl .g{color:var(--violet);font-size:20px}
+.srch{display:flex;align-items:center;gap:6px;height:30px;border-radius:10px;padding:0 10px;background:rgba(33,41,61,.06);font-size:12.5px;color:#9096aa}
+.pin{position:relative;margin:10px 12px 2px;border-radius:18px;padding:11px 12px;display:flex;align-items:center;gap:11px;background:linear-gradient(160deg,#fff,#F3EFFF);
+  box-shadow:0 0 0 1.5px rgba(97,71,212,.55),0 0 0 5px rgba(97,71,212,.10),0 14px 28px -12px rgba(97,71,212,.55)}
+.pin .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:21px;background:var(--violet);color:#fff;box-shadow:0 6px 14px -5px rgba(97,71,212,.7)}
+.pin b{display:block;font-size:14px;font-weight:760;letter-spacing:-.005em}
+.pin small{display:block;font-size:11px;color:var(--muted);margin-top:1px;line-height:1.35}
+.pin .nbadge{margin-left:auto;height:24px;min-width:24px;border-radius:12px;font-size:13px}
+.pin .urg{position:absolute;right:-5px;top:-7px;width:20px;height:20px;border-radius:50%;background:var(--amber);color:#fff;display:grid;place-items:center;font-size:12px;box-shadow:0 0 0 2px #fff}
+.mh{display:flex;align-items:center;gap:6px;padding:14px 18px 6px;font:700 10px var(--mono);letter-spacing:.12em;color:#9096aa}
+.mr{display:flex;align-items:center;gap:11px;padding:7px 14px;margin:0 8px;border-radius:14px}
+.mr.on{background:rgba(255,255,255,.8);box-shadow:0 0 0 .5px rgba(33,41,61,.1)}
+.mr .t b{display:block;font-size:13px;font-weight:700;line-height:1.3}
+.mr .t small{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.mr .on-dot{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--mint)}
+.tiles{display:flex;gap:2px;padding:10px 8px 8px;border-top:1px solid rgba(33,41,61,.08)}
+.tile{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0 5px;font-size:10px;font-weight:600;color:#5b617a;position:relative;border-radius:10px}
+.tile .g{font-size:19px;color:#6b7186}
+.tile.hot{background:rgba(97,71,212,.12);color:#4a3bb0}.tile.hot .g{color:var(--violet)}
+.tile .nbadge{position:absolute;right:3px;top:0;min-width:17px;height:17px;font-size:10px;padding:0 4px;border-radius:9px}
+.foot{display:flex;align-items:center;gap:7px;padding:2px 18px 12px;font-size:11.5px;color:var(--muted)}
+.foot i{width:6px;height:6px;border-radius:50%;background:var(--mint)}
+
+/* phone */
+.phone{position:relative;width:410px;height:864px;border-radius:64px;padding:10px;background:linear-gradient(145deg,#343a4d,#0d101c);
+  box-shadow:0 0 0 1.5px #0a0c14,inset 0 0 0 1.5px #565c72,0 34px 50px -26px rgba(40,26,110,.55),0 10px 24px -8px rgba(33,41,61,.2)}
+.scr{position:relative;width:390px;height:844px;border-radius:54px;overflow:hidden;background:linear-gradient(180deg,#F3F0FD,#F8F8FB 30%)}
+.sbt{position:absolute;left:0;right:0;top:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 38px;z-index:20;font-weight:700;font-size:15px}
+.isl{position:absolute;left:50%;top:11px;width:116px;height:33px;margin-left:-58px;border-radius:20px;background:#000;z-index:21}
+.hi{position:absolute;left:50%;bottom:7px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1b1f2e;z-index:22}
+.pc{position:absolute;left:0;right:0;top:54px;bottom:0}
+.nav{display:flex;align-items:center;padding:0 16px;height:44px;gap:6px;color:var(--violet);font-size:15px;font-weight:600}
+.nav .g{font-size:20px}
+.ptitle{padding:2px 20px 0;font-size:30px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.psum{margin:10px 16px 0;height:72px;border-radius:24px;display:flex;align-items:center;gap:14px;padding:0 16px;background:rgba(255,255,255,.66);box-shadow:0 0 0 .5px rgba(33,41,61,.14),0 18px 36px -16px rgba(60,40,140,.3)}
+.psum .ring{width:46px;height:46px}.psum .ring span{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:800}
+.psum .ct{display:flex;flex:1;justify-content:space-around}
+.psum .ct div{text-align:center}.psum .ct b{display:block;font-size:20px;line-height:1.1;font-weight:800}
+.psum .ct small{font-size:10.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:4px;justify-content:center}.psum .ct i{width:6px;height:6px;border-radius:50%;display:block}
+.pseg{margin:12px 16px 0}.pseg .seg{width:100%}.pseg .seg span{flex:1;justify-content:center;padding:6px 0}
+.plist{padding:12px 14px 0;display:flex;flex-direction:column;gap:10px}
+.plist .dc .ti{font-size:14.5px}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;display:flex;justify-content:space-around;padding:8px 6px 0;background:rgba(255,255,255,.82);border-top:.5px solid rgba(33,41,61,.14)}
+.tabbar div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:600;color:#8a90a3;width:64px}
+.tabbar .g{font-size:24px}.tabbar .on{color:var(--violet)}
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;top:120px;border-radius:40px 40px 46px 46px;padding:8px 20px 0;z-index:15;background:rgba(255,255,255,.92);overflow:hidden;
+  box-shadow:0 0 0 .5px rgba(33,41,61,.16),0 -10px 40px -10px rgba(60,40,140,.35)}
+.sheet .gr{width:38px;height:5px;border-radius:3px;background:rgba(33,41,61,.25);margin:0 auto 12px}
+.sheet h3{font-size:18px;line-height:1.35}
+.dim{position:absolute;inset:0;background:rgba(33,41,61,.18);z-index:14}
+
+.ctile{display:inline-grid;place-items:center;width:var(--s);height:var(--s);border-radius:calc(var(--s)*.32);background:rgba(120,125,145,.16);color:#5b617a;font-size:calc(var(--s)*.6);flex:none;box-shadow:inset 0 0 0 .5px rgba(120,125,145,.3)}
+.plist .sess{display:none}.dc .age{white-space:nowrap}
+.stp.ext{background:rgba(120,125,145,.14);color:#4a5068}
+.fch{display:flex;align-items:center;gap:8px;padding:2px 16px 0}
+.fch .lbl{font:700 10px var(--mono);letter-spacing:.1em;color:#9096aa;margin-right:2px}
+.fch .c{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:13px;background:rgba(33,41,61,.06);font-size:12px;font-weight:650;color:#5b617a}
+.fch .c em{font-style:normal;font-weight:800;color:var(--violet)}
+.fch .c.on{background:#fff;color:var(--ink);box-shadow:0 0 0 .5px rgba(33,41,61,.16),0 1px 3px rgba(33,41,61,.12)}
+.fch .hint{margin-left:auto;font-size:10.5px;color:var(--muted)}
+.hidn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:rgba(232,158,71,.14);box-shadow:inset 0 0 0 .5px rgba(232,158,71,.45);font-size:11.5px;font-weight:600;color:#8A5412}
+.hidn .g{font-size:15px}.hidn .go{margin-left:auto;font-weight:750;color:var(--violet)}
+.orgbox{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--canvas);box-shadow:inset 0 0 0 .5px var(--line)}
+.orgbox b{display:block;font-size:12.5px}.orgbox small{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.cn.nolink{background:rgba(255,255,255,.5);box-shadow:none;border:1.5px dashed #C3C1D2}
+/* frames */
+.fr{position:relative}
+.cap{position:absolute;z-index:40;font:700 11px/1 var(--mono);letter-spacing:.08em;color:#fff;background:#1b1f2e;border-radius:11px;padding:6px 10px}
+.fgrid{display:grid;gap:22px}
+.fp{position:relative;border-radius:20px;overflow:hidden;background:#FBFAFF;box-shadow:0 0 0 .5px rgba(33,41,61,.2),0 22px 44px -22px rgba(70,48,160,.35)}
+.fp .fc{display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;font-size:12px;font-weight:700;border-bottom:1px solid rgba(33,41,61,.07);background:rgba(255,255,255,.7)}
+.fp .fc em{font:700 10px var(--mono);font-style:normal;color:#fff;background:#1b1f2e;border-radius:6px;padding:2px 6px}
+.fp .fc small{margin-left:auto;font:500 10px var(--mono);color:#9096aa}
+.fp .fs2{position:relative;padding:14px 16px 16px;min-height:250px}
+.banner{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-radius:14px;font-size:12px;line-height:1.5;font-weight:600}
+.banner .g{font-size:17px;margin-top:1px}
+.banner.am{background:rgba(232,158,71,.16);color:#8A5412;box-shadow:inset 0 0 0 .5px rgba(232,158,71,.5)}
+.banner.bg{background:rgba(120,125,145,.14);color:#4a5068;box-shadow:inset 0 0 0 .5px rgba(120,125,145,.4)}
+.banner.vi{background:rgba(97,71,212,.09);color:#3a2f86;box-shadow:inset 0 0 0 .5px rgba(97,71,212,.3)}
+.banner .bt{margin-left:auto;flex:none;height:24px;padding:0 11px;border-radius:12px;background:rgba(138,84,18,.14);font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;align-self:center}
+.banner.vi .bt{background:rgba(97,71,212,.14);color:var(--violet)}
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px 0}
+.empty .big{width:52px;height:52px;border-radius:18px;display:grid;place-items:center;font-size:28px;background:rgba(140,144,163,.14);color:#8C90A3}
+.empty h5{font-size:15px;font-weight:750;margin-top:10px}
+.empty p{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.6}
+.empty .btn{margin-top:12px}
+.rpill{position:absolute;z-index:4;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;height:30px;padding:0 15px 0 11px;border-radius:15px;font-size:12px;font-weight:650;white-space:nowrap;
+  background:rgba(255,255,255,.86);box-shadow:0 0 0 .5px rgba(33,41,61,.14),0 4px 12px -4px rgba(33,41,61,.25);color:#3b435c}
+.dimc{opacity:.5;filter:saturate(.6)}
+
+/* chain board */
+.board{position:relative;width:470px;height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle,rgba(97,71,212,.10) 1px,transparent 1.3px) 0 0/22px 22px,linear-gradient(180deg,#FDFCFF,#F8F7FD);
+  box-shadow:0 0 0 .5px rgba(33,41,61,.16),0 22px 44px -22px rgba(70,48,160,.35)}
+.lane{position:absolute;left:8px;right:8px;height:112px;border-radius:18px;background:rgba(97,71,212,.04);box-shadow:inset 0 0 0 .5px rgba(97,71,212,.07)}
+.lane.alt{background:rgba(97,71,212,.075)}
+.lane-l{position:absolute;left:12px;width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10.5px;font-weight:650;color:#3b435c}
+.ec{position:absolute;width:150px;height:90px;border-radius:16px;padding:9px 11px;background:#fff;border:1px solid var(--line);box-shadow:0 1px 2px rgba(33,41,61,.06),0 8px 18px -10px rgba(33,41,61,.22);z-index:3}
+.ec .top{display:flex;align-items:center;gap:5px;height:20px;color:var(--st);font-size:10.5px;font-weight:700}
+.ec .ti{margin-top:4px;font-size:11.5px;line-height:1.3;font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ec .en{position:absolute;left:11px;right:9px;bottom:8px;font-size:9.5px;line-height:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ec.dn{height:44px;padding:0 10px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.72);border:1px solid #E4E6EC;box-shadow:none;color:#8a90a3}
+.ec.dn .g{color:#7DA89F;font-size:15px}.ec.dn .ti{margin:0;font-size:10.5px;font-weight:600;color:#7b8197}
+.ec.pe{background:rgba(255,255,255,.55);border:1.5px dashed #C3C1D2;box-shadow:none;--st:#8C90A3}
+.ec.rd{border:1.5px solid var(--indigo);box-shadow:0 0 0 4px rgba(69,89,194,.11),0 12px 28px -8px rgba(69,89,194,.5);--st:var(--indigo)}
+.ec.dec{border:1.5px solid var(--violet);box-shadow:0 0 0 4px rgba(97,71,212,.12),0 12px 28px -8px rgba(97,71,212,.5);--st:var(--violet);background:linear-gradient(160deg,#fff,#FAF8FF)}
+.ec.nw{border:1.5px dashed var(--violet);background:rgba(255,255,255,.8);--st:var(--violet);box-shadow:0 0 0 4px rgba(97,71,212,.08)}
+.ec .newtag{position:absolute;right:-6px;top:-9px;background:var(--violet);color:#fff;font-size:9.5px;font-weight:800;border-radius:9px;padding:2px 8px;box-shadow:0 3px 8px -2px rgba(97,71,212,.6)}
+.chip{position:absolute;z-index:4;display:flex;align-items:center;gap:6px;height:22px;padding:0 10px 0 4px;border-radius:11px;font-size:10px;font-weight:650;white-space:nowrap;background:rgba(255,255,255,.88);
+  box-shadow:0 0 0 .5px rgba(33,41,61,.14),0 4px 12px -4px rgba(33,41,61,.25);color:#3b435c}
+.chain svg.edges{position:absolute;inset:0;pointer-events:none}
+.stage{width:470px}
+.stage h4{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:750;margin:0 0 4px}
+.stage h4 i{font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--violet);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+.stage p{font-size:12px;color:#4a516a;margin:0 0 10px;min-height:38px;line-height:1.55}
+.who3{display:flex;gap:12px;align-items:stretch}
+.sys{flex:1;border-radius:20px;padding:16px 18px;background:rgba(255,255,255,.75);box-shadow:0 0 0 .5px rgba(33,41,61,.14),0 14px 30px -18px rgba(33,41,61,.25)}
+.sys.me{background:linear-gradient(160deg,#fff,#F3EFFF);box-shadow:0 0 0 1.5px rgba(97,71,212,.5),0 14px 30px -14px rgba(97,71,212,.5)}
+.sys h5{font-size:14px;font-weight:760;display:flex;align-items:center;gap:7px}.sys h5 .g{font-size:17px;color:var(--violet)}
+.sys small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.sys ul{list-style:none;margin-top:9px;font-size:11.5px;line-height:1.6;color:#3b435c}
+.sys li{display:flex;gap:6px;align-items:flex-start}.sys li .g{font-size:13px;margin-top:3px;color:var(--violet)}
+.api{flex:none;width:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:10.5px;font-weight:700;color:#5b617a;text-align:center}
+.api .ln{width:100%;height:2px;background:linear-gradient(90deg,#c9c1ee,#6147D4,#c9c1ee);border-radius:2px;position:relative}
+.api .pill{background:#fff;border-radius:11px;padding:3px 9px;box-shadow:0 0 0 .5px rgba(33,41,61,.14)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+.opt-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.opt-h i{font-style:normal;width:30px;height:30px;border-radius:50%;background:#1b1f2e;color:#fff;display:grid;place-items:center;font-weight:800}
+.opt-h b{font-size:17px;font-weight:760}
+.opt-h span{font-size:12px;color:var(--muted);margin-left:4px}
+.reasons{font-size:12px;line-height:1.7;color:#3b435c;margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 .5px var(--line)}
+.reasons b{color:var(--ink)}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-crown" viewBox="0 0 24 24"><path d="M3.6 8.6l4.4 3.6L12 5.2l4 7 4.4-3.6-1.7 9.6H5.3z" fill="currentColor" fill-opacity=".18"/><path d="M5.6 20.8h12.8"/></symbol>
+<symbol id="i-hour" viewBox="0 0 24 24"><path d="M7 3.5h10M7 20.5h10"/><path d="M8 3.5c0 4.6 3.2 5.8 4 8.5-.8 2.7-4 3.9-4 8.5M16 3.5c0 4.6-3.2 5.8-4 8.5.8 2.7 4 3.9 4 8.5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10.2 8.6l5.2 3.4-5.2 3.4z" fill="currentColor"/></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="3.2 3.1"/></symbol>
+<symbol id="i-progress" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9"/></symbol>
+<symbol id="i-octagon" viewBox="0 0 24 24"><path d="M8.6 3h6.8L21 8.6v6.8L15.4 21H8.6L3 15.4V8.6z"/><path d="M12 7.8v5.2"/><circle cx="12" cy="16.3" r=".7" fill="currentColor"/></symbol>
+<symbol id="i-seal" viewBox="0 0 24 24"><path d="M21.95 12.00 L21.79 12.64 L21.34 13.23 L20.73 13.74 L20.09 14.17 L19.57 14.57 L19.25 15.00 L19.17 15.53 L19.25 16.19 L19.40 16.94 L19.48 17.74 L19.38 18.47 L19.04 19.04 L18.47 19.38 L17.74 19.48 L16.94 19.40 L16.19 19.25 L15.53 19.17 L15.00 19.25 L14.57 19.57 L14.17 20.09 L13.74 20.73 L13.23 21.34 L12.64 21.79 L12.00 21.95 L11.36 21.79 L10.77 21.34 L10.26 20.73 L9.83 20.09 L9.43 19.57 L9.00 19.25 L8.47 19.17 L7.81 19.25 L7.06 19.40 L6.26 19.48 L5.53 19.38 L4.96 19.04 L4.62 18.47 L4.52 17.74 L4.60 16.94 L4.75 16.19 L4.83 15.53 L4.75 15.00 L4.43 14.57 L3.91 14.17 L3.27 13.74 L2.66 13.23 L2.21 12.64 L2.05 12.00 L2.21 11.36 L2.66 10.77 L3.27 10.26 L3.91 9.83 L4.43 9.43 L4.75 9.00 L4.83 8.47 L4.75 7.81 L4.60 7.06 L4.52 6.26 L4.62 5.53 L4.96 4.96 L5.53 4.62 L6.26 4.52 L7.06 4.60 L7.81 4.75 L8.47 4.83 L9.00 4.75 L9.43 4.43 L9.83 3.91 L10.26 3.27 L10.77 2.66 L11.36 2.21 L12.00 2.05 L12.64 2.21 L13.23 2.66 L13.74 3.27 L14.17 3.91 L14.57 4.43 L15.00 4.75 L15.53 4.83 L16.19 4.75 L16.94 4.60 L17.74 4.52 L18.47 4.62 L19.04 4.96 L19.38 5.53 L19.48 6.26 L19.40 7.06 L19.25 7.81 L19.17 8.47 L19.25 9.00 L19.57 9.43 L20.09 9.83 L20.73 10.26 L21.34 10.77 L21.79 11.36Z"/><path d="M8.2 12.3l2.7 2.8 4.9-5.5"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v9.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-6l-4.5 4v-4H7a3 3 0 0 1-3-3z"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><path d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></symbol>
+<symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+<symbol id="i-chev-ud" viewBox="0 0 24 24"><path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-tri" viewBox="0 0 24 24"><path d="M12 3.6l9.4 16.3H2.6z"/><path d="M12 10v4.6"/><circle cx="12" cy="17.3" r=".7" fill="currentColor"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.7-6M20 4.5v4.8h-4.8"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor"/></symbol>
+<symbol id="i-xmark" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3.5h6l-1 6 3 3.5H7l3-3.5zM12 13v7.5"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="i-side" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3.5"/><path d="M9.5 5v14"/></symbol>
+<symbol id="i-stack" viewBox="0 0 24 24"><path d="M12 3.5l9 4.6-9 4.6-9-4.6z"/><path d="M3 12.2l9 4.6 9-4.6M3 16.4l9 4.6 9-4.6"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h6M9.5 15.5h6"/></symbol>
+<symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c.8-3.8 3.6-5.6 7-5.6s6.2 1.8 7 5.6"/></symbol>
+</defs></svg><svg width="0" height="0" style="position:absolute"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8F78F0"/><stop offset="1" stop-color="#6147D4"/></linearGradient></defs></svg>
+<div class="page">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3.5 13.5l2.2-7.2A2 2 0 0 1 7.6 5h8.8a2 2 0 0 1 1.9 1.3l2.2 7.2"/><path d="M3.5 13.5V18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4.5h-5.2a3.3 3.3 0 0 1-6.6 0z"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5.5 13.2H11L10 21l7.5-10.2H12z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 17-3-7z"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 2.8 0l.2.2a2 2 0 0 1 0 2.8L8 19z"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></symbol>
+<symbol id="i-graph" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.2"/><circle cx="18" cy="7" r="2.2"/><circle cx="12" cy="17.5" r="2.2"/><path d="M7.8 8.2l3 7.2M16.2 8.2l-3 7.2"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M4.5 7h2M9.5 7H20M7.5 12H9M12 12h8M10.5 17H12M15 17h5"/></symbol>
+<symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.7-3.4 2.9-5 5.5-5s4.8 1.6 5.5 5"/><circle cx="17" cy="9.5" r="2.5"/><path d="M16.5 14.2c2.3 0 3.6 1.2 4.2 3.8"/></symbol>
+<symbol id="i-term" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M7.5 10l3 2.5-3 2.5M13 15h4"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></symbol>
+</defs></svg>
+<div class="page" id="root"></div>
+<script>
+const G=(id,c='')=>`<svg class="g ${c}" viewBox="0 0 24 24"><use href="#i-${id}"/></svg>`;
+const M={tr:['ト','#4559C2','トロニー'],ny:['ナ','#47A1E3','ナユタ'],fl:['フ','#E86B94','フローラ'],br:['ブ','#E89E47','ブレッディ'],ra:['ラ','#2EB29E','ラピ'],an:['ア','#6147D4','アニス'],ne:['ネ','#47A1E3','ネオン'],mo:['モ','#E86B94','モリー'],ki:['キ','#4559C2','キロ'],de:['デ','#6147D4','デルタ'],me:['ク','#21293D','クオ']};
+const av=(k,s=22)=>`<span class="av" style="--s:${s}px;--c:${M[k][1]}">${M[k][0]}</span>`;
+const avw=(k,s=36,work)=>work?`<span class="avw" style="--s:${s}px"><svg class="arc" style="--c:${M[k][1]}" viewBox="0 0 40 40"><circle class="tr" cx="20" cy="20" r="18"/><circle cx="20" cy="20" r="18" stroke-dasharray="40 113" transform="rotate(-40 20 20)"/></svg>${av(k,s)}</span>`:av(k,s);
+const ring=(d,t,s=30,sw=4)=>{const r=s/2-sw/2-1,c=2*Math.PI*r,f=t?c*d/t:0;return `<div class="ring" style="width:${s}px;height:${s}px"><svg viewBox="0 0 ${s} ${s}"><circle cx="${s/2}" cy="${s/2}" r="${r}" stroke="rgba(97,71,212,.15)" style="stroke-width:${sw}"/><circle cx="${s/2}" cy="${s/2}" r="${r}" stroke="url(#rg)" style="stroke-width:${sw}" stroke-dasharray="${f.toFixed(2)} ${(c).toFixed(2)}"/></svg></div>`};
+const stp=(k,g,t)=>`<span class="stp ${k}">${G(g)}${t}</span>`;
+const S={wait:stp('vio','inbox','回答待ち'),urg:stp('amb','bolt','急ぎ'),held:stp('pen','pause','保留'),ok:stp('ok','seal','回答済み'),drop:stp('pen','archive','取り下げ'),unk:stp('amb','tri','届いたか不明'),got:stp('ok','check','届きました'),fix:stp('ind','pencil','修正あり')};
+
+/* ---------- sample data (plain Japanese; no ids on screen) ---------- */
+const D=[
+ {w:'br',age:'10分前',urg:true,t:'決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？',task:'課金の設計',en:'工程表「課金の設計」が、この回答を待っています',dl:'今日 18:00',rec:0,opts:['決裁箱と同じ請求にする','別の請求にする（拡張だけ別に請求）'],
+  ctx:'決裁箱は月額300円で課金しています。拡張を同じ請求に載せると、利用者は支払いを1か所で見られます。別請求にすると、契約と解約を別々に扱えますが、請求の窓口が2つになります。'},
+ {w:'fl',age:'32分前',t:'本番のLatticeを新しい版へ更新してよいですか？',task:'工程表の更新',en:'工程表「工程表の更新」が、この回答を待っています',opts:['更新する','今回は見送る'],ctx:''},
+ {w:'ra',age:'2時間前',t:'iPadの縦向きで、決裁箱を2列にしてよいですか？',task:'iPadの縦向き',en:'工程表「iPadの縦向き」が、この回答を待っています',opts:['2列にする','1列のままにする'],ctx:''},
+ {w:'an',age:'昨日 21:40',held:true,t:'Windows版の工程表の色を、このまま出してよいですか？',task:'Windowsの色',en:'保留中です。戻すまで工程は待ちます',opts:['このまま出す','色を直してから出す'],ctx:''}
+];
+const E1={ext:{tile:'term',client:'Claude Code',label:'Macのレシート整理',via:'リモート接続'},age:'5分前',t:'領収書の保存先を、共有フォルダにしてよいですか？',en:'工程表とはつながっていません',opts:['共有フォルダに保存する','今のフォルダのままにする'],
+ ctx:'Macのレシート整理で、領収書のPDFを毎月まとめています。いまは自分のフォルダに置いていますが、共有フォルダに移すと、経理の担当も同じ場所から読めます。'};
+const who=d=>d.ext?`<span class="ctile" style="--s:22px">${G(d.ext.tile)}</span>${d.ext.client}${d.ext.label?'<span class="sess">&nbsp;· '+d.ext.label+'</span>':''}`:`${av(d.w,22)}${M[d.w][2]}`;
+const dcard=(d,x={})=>`<div class="dc ${d.held?'held':'pend'} ${d.urg?'urg':''} ${x.sel?'sel':''}">
+ <div class="top">${d.held?S.held:(d.urg?S.urg:S.wait)}${d.urg?S.wait:''}${d.ext?'<span class="stp ext">'+G('globe')+'外部から</span>':''}<span class="age">${d.age}</span><span class="who">${who(d)}</span></div>
+ <div class="ti">${d.t}</div>
+ <div class="en">${d.ext?'<span style="color:#9096aa">'+G('link')+'</span>':G('link')}<span>${d.en}</span></div>
+ ${d.dl||d.rec!==undefined?`<div class="ch">${d.dl?`<span class="stp pen">${G('clock')}期限 ${d.dl}</span>`:''}${d.rec!==undefined&&!d.held?`<span class="stp vio">${G('check')}推奨あり</span>`:''}</div>`:''}
+</div>`;
+const A=[
+ {t:'ログインの文言を「ログインし直す」にする',a:'「ログインし直す」にする',tm:'今日 10:42',who:'ra',s:'got'},
+ {t:'Mac版の工程表の窓を1つだけ開く',a:'1つだけ開く',tm:'昨日 21:10',who:'ra',s:'unk'},
+ {t:'Webの配色確認は、別の決裁にまとめます',a:'AIが取り下げました',tm:'昨日 18:02',who:'an',s:'drop',wd:true}
+];
+const acard=a=>a.wd?`<div class="dc wd">${G('archive')}<div class="m"><b>${a.t}</b><small>${a.a} · ${a.tm}</small></div>${M[a.who]?av(a.who,22):''}</div>`
+ :`<div class="dc done">${G('seal')}<div class="m"><b>${a.t}</b><small>あなたの答え：${a.a} · ${a.tm}</small></div>${S[a.s]}</div>`;
+
+/* ---------- Mac window: 決裁箱 ---------- */
+const macToolbar=(tab,counts)=>`<div class="tb"><div class="tl"><i></i><i></i><i></i></div><div class="tbi">${G('side')}</div>
+ <div class="switcher"><span class="ic">${G('inbox')}</span><b>決裁箱</b><span class="nbadge">${counts[0]}</span></div>
+ <div class="live"><i class="ldot"></i>ライブ</div><div class="sp"></div>
+ <div class="seg"><span class="${tab==0?'on':''}">待ち <em>${counts[0]}</em></span><span class="${tab==1?'on':''}">保留 <em>${counts[1]}</em></span><span class="${tab==2?'on':''}">済み <em>12</em></span></div>
+ <div class="sp"></div>
+ <div class="sum">${ring(2,6)}<div class="t">2/6<small>今日の回答</small></div></div>
+ <div class="cnt"><span><i style="background:var(--violet)"></i>待ち <b>4</b></span><span style="color:#b9bccb">·</span><span><i style="background:var(--amber)"></i>急ぎ <b>1</b></span><span style="color:#b9bccb">·</span><span><i style="background:#B3B6C6"></i>保留 <b>1</b></span></div>
+ <div class="tbtn">${G('refresh')}</div></div>`;
+function macMain(){
+ const d=D[0];
+ return `<div class="mac">${macToolbar(0,[4,1])}
+ <div class="body">
+  <div class="col" style="width:500px;flex:none"><div class="col-h"><h2>回答を待っています</h2><small>急ぎ → 期限 → 古い順</small></div>
+   <div class="fch"><span class="lbl">出どころ</span><span class="c on">すべて <em>5</em></span><span class="c">BellTeam <em>4</em></span><span class="c">外部 <em>1</em></span><span class="hint">どれも隠れません</span></div>
+   <div class="list" style="padding-top:12px">${dcard(D[0],{sel:1})}${dcard(D[1])}${dcard(E1)}${dcard(D[2])}
+   <div class="lab">${G('pause')}保留 1</div>${dcard(D[3])}</div></div>
+  <div class="dp" style="width:520px;flex:none"><div class="dp-in">
+   <div class="row1">${S.wait}${S.urg}<span class="x">${G('xmark')}</span></div>
+   <h3>${d.t}</h3>
+   <div class="sub">${av('br',20)}<b>ブレッディ</b>·課金・契約 · 10:42 に受付 · 期限 今日 18:00</div>
+   <div class="sc"><div class="l">${G('doc')}背景</div><p>${d.ctx}</p></div>
+   <div class="rec">${G('check')}ブレッディの推奨：決裁箱と同じ請求にする</div>
+   <div class="sc" style="margin-top:12px"><div class="l">${G('target')}答えを選ぶ</div>
+   <div class="opts"><div class="opt rc">${G('check')}${d.opts[0]}<span class="tag">推奨</span></div><div class="opt">${G('arrow')}${d.opts[1]}</div></div></div>
+   <div class="sc"><div class="l">${G('pencil')}選ばずに、指示を書いて返す</div><div class="ta"><span>やり直してほしいこと、足したい条件を書きます</span><span class="btn soft">${G('send')}指示を送る</span></div></div>
+   <div class="acts"><span class="btn">${G('pause')}保留にする</span><span class="btn">${G('list')}工程表で見る</span></div>
+   <div class="sc"><div class="l">${G('clock')}経過</div><div class="tlne"><div><time>10:42</time>ブレッディが申請しました</div><div><time>10:55</time>ブレッディが内容を直しました（選択肢）<span class="stp ind" style="margin-left:4px">修正あり</span></div></div></div>
+  </div></div>
+  <div class="wp" style="flex:1"><div class="wp-h"><h2>${G('link')}工程とのつながり</h2><p>この決裁は、工程表の1つの工程になっています。答えると、その工程が済みになります。</p></div>
+   <div class="wp-l">
+    <div class="cn dn"><div class="a">${G('seal','')}<b>課金の方式を調べる</b>${av('br',20)}</div><div class="b">前の工程 · 済み</div></div><div class="lk"></div>
+    <div class="cn me"><div class="a">${G('inbox')}<b>課金の設計<br><span style="font-weight:500;color:var(--muted);font-size:11px">決裁箱の工程</span></b>${av('me',20)}</div><div class="b">${S.wait} <span>あなたの回答を待っています</span></div></div><div class="lk hot"></div>
+    <div class="cn pe"><div class="a">${G('dashed')}<b>課金の実装</b>${av('br',20)}</div><div class="b">次の工程 · この決裁が終わるのを待っています</div></div>
+    <div class="note">答えると、<b>「課金の設計」が済みになり</b>、ブレッディが「課金の実装」へ進めます。答えで決まらない時は、新しい決裁が工程に差し込まれます。</div>
+    <div class="acts" style="margin-top:12px"><span class="btn soft">${G('list')}工程表の工程を開く</span></div>
+    <div class="note" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">工程表は「BellTeam開発」。工程の持ち主は指揮官（決裁箱の工程）です。</div>
+   </div></div>
+ </div></div>`;
+}
+
+/* ---------- sidebar (Mac/iPad main window), variants ---------- */
+function sidebar(v){
+ const rows=[['tr','トロニー','統括の調整をしています',1],['ny','ナユタ','決裁箱の本体を見ています',1],['fl','フローラ','Latticeの更新を準備中',1],['br','ブレッディ','課金の設計を待っています',0],['ra','ラピ','iPadの縦向きを作っています',1],['an','アニス','Windowsの色を確認中',0],['ne','ネオン','Linux版の窓を整えています',0]];
+ const pin=`<div class="pin"><span class="urg">${G('bolt')}</span><span class="ic">${G('inbox')}</span><div><b>決裁箱</b><small>あなたの回答を待っています</small></div><span class="nbadge">4</span></div>`;
+ const tiles=[['cal','予定'],['target','ゴール'],['graph','相関図'],['list','工程表'],['gear','設定']];
+ return `<div class="sbar"><div class="sb-top"><div class="sb-ttl">${G('users')}BellTeam</div><div class="srch">${G('search')}メンバーを探す</div></div>
+ ${v=='A'?pin:''}
+ <div class="mh">メンバー 12</div>
+ ${rows.map((r,i)=>`<div class="mr ${i==0?'on':''}">${avw(r[0],38,r[3])}<div class="t"><b>${r[1]}</b><small>${r[2]}</small></div>${r[3]?'<i class="on-dot"></i>':''}</div>`).join('')}
+ <div style="flex:1"></div>
+ <div class="tiles">${tiles.map(t=>`<div class="tile">${G(t[0])}${t[1]}</div>`).join('')}${v=='B'?`<div class="tile hot"><span class="nbadge">4</span>${G('inbox')}決裁箱</div>`:''}</div>
+ <div class="foot"><i></i>5人オンライン<span style="margin-left:auto">クオ</span></div></div>`;
+}
+function phoneShell(inner,cls=''){return `<div class="phone"><div class="scr"><div class="sbt"><span>9:41</span><span style="display:flex;gap:6px;align-items:center">${G('info')}</span></div><div class="isl"></div><div class="pc">${inner}</div><div class="hi"></div></div></div>`}
+const tab=(on)=>`<div class="tabbar">${[['users','メンバー'],['cal','予定'],['target','ゴール'],['graph','相関図'],['gear','設定']].map((t,i)=>`<div class="${i==on?'on':''}">${G(t[0])}${t[1]}</div>`).join('')}</div>`;
+function phoneEntry(v){
+ if(v=='A') return phoneShell(`<div class="ptitle">メンバー</div><div style="padding:10px 16px 0"><div class="srch">${G('search')}メンバーを探す</div></div>
+ <div style="padding:0 4px">${sidebar('A').match(/<div class="pin">.*?<\/span><\/div>(?=\s*<div class="mh">)/s)?.[0]||''}</div>
+ <div class="mh" style="padding-left:20px">メンバー 12</div>
+ ${[['tr','トロニー','統括の調整をしています',1],['ny','ナユタ','決裁箱の本体を見ています',1],['fl','フローラ','Latticeの更新を準備中',1],['br','ブレッディ','課金の設計を待っています',0],['ra','ラピ','iPadの縦向きを作っています',1],['an','アニス','Windowsの色を確認中',0]].map(r=>`<div class="mr" style="margin:0 6px">${avw(r[0],42,r[3])}<div class="t"><b style="font-size:14px">${r[1]}</b><small style="max-width:230px">${r[2]}</small></div></div>`).join('')}
+ ${tab(0)}`);
+ return phoneShell(`<div class="ptitle">相関図</div>
+ <div style="padding:10px 16px 0"><div class="seg" style="width:100%"><span style="flex:1;justify-content:center;padding:6px 0">相関図</span><span style="flex:1;justify-content:center;padding:6px 0">工程表</span><span class="on" style="flex:1;justify-content:center;padding:6px 0">決裁箱 <span class="nbadge" style="height:17px;min-width:17px;font-size:10px">4</span></span></div></div>
+ <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">${dcard(D[0])}${dcard(D[1])}</div>${tab(3)}`);
+}
+function entryFrame(){
+ const col=(v,title,sub,pts)=>`<div><div class="opt-h"><i>${v}</i><b>${title}</b><span>${sub}</span></div>
+  <div style="display:flex;gap:26px;align-items:flex-start"><div class="mac" style="width:300px;height:760px;border-radius:18px">${sidebar(v)}</div><div style="transform:scale(.88);transform-origin:top left;width:410px;height:864px;margin-right:-50px;margin-bottom:-104px">${phoneEntry(v)}</div></div>
+  <div class="reasons" style="width:700px">${pts}</div></div>`;
+ return `<div class="cmp" style="grid-template-columns:760px 760px;gap:40px;width:1560px;padding:8px">
+ ${col('A','左メニューの一番上','トロニー推奨','<b>決裁がある時だけ目立つ。</b>回答待ちはあなたの手を待つ唯一のもので、メンバーの一覧より先に目に入ります。<br><b>iPhoneも同じ。</b>メンバー一覧の先頭の行から開き、デスクトップと同じ置き場所。<br><b>0件の時</b>は光を消して、行は小さく静かに残ります。')}
+ ${col('B','一番下の行（6つ目のタイル）','','<b>今の並びを崩さない。</b>予定・ゴール・相関図・工程表・設定と同じ小さなタイルが1つ増えます。<br><b>目に入りにくい。</b>下の行は「たまに開く道具」の置き場で、バッジが付いても件数が小さく埋もれます。<br><b>iPhoneはタブを6つにできない</b>ため、相関図タブの切り替え（3つ目）に入り、2つ階層が深くなります。')}
+ </div>`;
+}
+
+/* ---------- answer flow ---------- */
+function ansPanel(step){
+ const d=D[0];
+ const head=`<div class="dp-in" style="padding-bottom:0"><div class="row1">${step>=4?S.ok:S.wait}${step<4?S.urg:''}</div><h3 style="font-size:16.5px">${d.t}</h3></div>`;
+ let mid='';
+ if(step==1) mid=`<div class="dp-in" style="padding-top:6px"><div class="rec">${G('check')}ブレッディの推奨：決裁箱と同じ請求にする</div><div class="opts"><div class="opt rc" style="outline:3px solid rgba(97,71,212,.25);outline-offset:2px">${G('check')}${d.opts[0]}<span class="tag">推奨</span></div><div class="opt">${G('arrow')}${d.opts[1]}</div></div><div class="ta" style="min-height:44px"><span>選ばずに、指示を書いて返す</span></div></div>`;
+ if(step==2) mid=`<div class="dp-in" style="padding-top:8px"><div class="banner vi" style="flex-direction:column;gap:8px;padding:13px 14px"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5">${G('send')}<span>「<b>${d.opts[0]}</b>」で答えますか？<br><span style="font-weight:500;font-size:12px;color:#4a516a">答えると、ブレッディが続きに進み、工程「課金の設計」が済みになります。</span></span></div><div style="display:flex;gap:8px;align-self:flex-end"><span class="btn">やめる</span><span class="btn pri">答える</span></div></div></div>`;
+ if(step==3) mid=`<div class="dp-in" style="padding-top:8px"><div class="banner vi" style="padding:13px 14px;align-items:center"><span class="spn v"></span><span style="flex:1">答えを送っています…</span></div><div class="acts"><span class="btn" style="opacity:.5">やめる</span></div></div>`;
+ if(step==4) mid=`<div class="dp-in" style="padding-top:8px"><div class="banner" style="background:rgba(46,178,158,.13);color:#1b7c6c;box-shadow:inset 0 0 0 .5px rgba(46,178,158,.4);flex-direction:column;gap:6px;padding:13px 14px"><div style="display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:700">${G('seal')}答えました。ブレッディに届きました。</div><div style="font-weight:500;font-size:12px">あなたの答え：${d.opts[0]}</div></div></div>`;
+ if(step==5) mid=`<div class="dp-in" style="padding-top:8px"><div class="banner am" style="flex-direction:column;gap:8px;padding:13px 14px"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5">${G('tri')}<span>答えは保存しました。ただ、ブレッディに届いたかを確かめられませんでした。<br><span style="font-weight:500;font-size:12px">工程は済みになったので、次の担当にはこちらから知らせます。念のため、再開の文をブレッディの会話に貼ってください。</span></span></div><div style="align-self:flex-end"><span class="btn" style="background:rgba(138,84,18,.16);color:#8A5412">${G('copy')}再開の文をコピー</span></div></div></div>`;
+ const chart=step<4?`<div class="cn me"><div class="a">${G('inbox')}<b>課金の設計</b>${av('me',20)}</div><div class="b">${S.wait}<span>あなたの回答を待っています</span></div></div>`
+ :`<div class="cn dn"><div class="a">${G('seal')}<b>課金の設計</b>${av('me',20)}</div><div class="b">${S.ok}<span>回答して済みになりました</span></div></div><div class="lk"></div><div class="cn rd"><div class="a">${G('play')}<b>課金の実装</b>${av('br',20)}</div><div class="b">${stp('ind','play','着手可')}<span>ブレッディが進められます</span></div></div>`;
+ return `<div class="dp" style="width:440px;border-radius:20px;box-shadow:0 0 0 .5px rgba(33,41,61,.2),0 22px 44px -22px rgba(70,48,160,.35);min-height:380px">${head}${mid}
+  <div style="padding:8px 22px 18px;margin-top:auto"><div class="lab" style="margin-left:0">${G('link')}工程表のようす</div>${chart}</div></div>`;
+}
+function answerFrame(){
+ const cell=(n,t,sub,p)=>`<div><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:14px;font-weight:750"><i style="font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--violet);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800">${n}</i>${t}</div><div style="font-size:11.5px;color:#4a516a;margin:0 0 10px;height:34px;line-height:1.5">${sub}</div>${p}</div>`;
+ return `<div style="width:1400px;display:grid;grid-template-columns:repeat(3,440px);gap:40px 40px;padding:6px">
+ ${cell(1,'選ぶ','候補を押すと、すぐには送らず確認に進みます。推奨は紫で目立たせ、勝手には押しません。',ansPanel(1))}
+ ${cell(2,'確かめる','押した場所のその場に、答えた後に起きることを一文で出します。やめるで戻れます。',ansPanel(2))}
+ ${cell(3,'送っている間','ボタンの場所が「送っています…」になります。ここで閉じても答えは失われません。',ansPanel(3))}
+ ${cell(4,'届いた','決裁箱に保存でき、AIへ届いたら、工程表の「決裁箱の工程」が済みになります。次の工程は着手可に。',ansPanel(4))}
+ ${cell(5,'届いたか不明','決裁箱の言う「届いたか不明」をそのまま言います。自動で送り直しません。工程は済みのままで、次の担当は工程表から起こされます。',ansPanel(5))}
+ <div class="reasons" style="align-self:end;height:fit-content"><b>押した結果は、押した場所に出る。</b><br>設定の画面と同じ規則です。待つ間はボタン自身が「…しています」になり、失敗の一文はそのすぐ下に出ます。<br><b>答えは取り消せないので</b>、確認を1回だけ挟みます。長い確認画面は出しません。</div></div>`;
+}
+
+/* ---------- chain (core requirement) ---------- */
+function board(kind){
+ const W=1000,H=268;
+ const lane=(y,alt,who,label)=>`<div class="lane ${alt?'alt':''}" style="top:${y}px;height:112px"></div><div class="lane-l" style="top:${y}px;height:112px;width:84px">${who?av(who,32):`<span class="av you" style="--s:32px">ク</span>`}<span>${label}</span></div>`;
+ const card=(x,y,cls,top,ti,en,extra='')=>`<div class="ec ${cls}" style="left:${x}px;top:${y}px">${extra}<div class="top">${top}</div><div class="ti">${ti}</div><div class="en">${en}</div></div>`;
+ const done=(x,y,ti)=>`<div class="ec dn" style="left:${x}px;top:${y}px">${G('seal')}<div class="ti">${ti}</div></div>`;
+ const E=(a,b,hot)=>{const d=(b[0]-a[0])/2;return `<path d="M${a[0]} ${a[1]} C ${a[0]+d} ${a[1]}, ${b[0]-d} ${b[1]}, ${b[0]} ${b[1]}" fill="none" stroke="${hot?'url(#eg)':'#d8d5e8'}" stroke-width="${hot?3.4:1.6}" stroke-linecap="round"/>`};
+ const c1=110,c2=350,c3=590,c4=830;
+ const PEND=card2=>'<span style="color:#8C90A3">'+G('dashed')+'</span>未着手';
+ let inner=lane(10,0,'br','ブレッディ')+lane(146,1,null,'指揮官'),edges='';
+ if(kind==1){
+  inner+=done(c1,44,'課金の方式を調べる')+card(c3,34,'pe',PEND(),'課金の実装','担当 ブレッディ')
+   +card(c2,157,'dec',G('inbox')+'回答待ち','課金を決裁箱と同じ請求にするか','指揮官の回答を待っています')
+   +`<span class="chip" style="left:420px;top:122px">${av('br',16)}ブレッディが待っています</span>`;
+  edges=E([c1+150,66],[c2,202],0)+E([c2+150,202],[c3,79],1);
+ }
+ if(kind==2){
+  inner+=done(c1,44,'課金の方式を調べる')+card(c3,34,'rd',G('play')+'着手可','課金の実装','ブレッディが進められます')
+   +done(c2,180,'課金の設計（決裁箱）')
+   +`<span class="chip" style="left:372px;top:138px;color:#3a47a6">${G('check')}回答して済みになりました</span>`;
+  edges=E([c1+150,66],[c2,202],0)+E([c2+150,202],[c3,79],0);
+ }
+ if(kind==3){
+  inner+=done(c1,44,'課金の方式を調べる')+done(c2,180,'課金の設計（決裁箱）')
+   +card(c3,157,'nw',G('inbox')+'回答待ち','請求書の宛名は、会社名にするか','指揮官の回答を待っています','<span class="newtag">差し込み</span>')
+   +card(c4,34,'pe',PEND(),'課金の実装','担当 ブレッディ')
+   +`<span class="chip" style="left:650px;top:122px">${av('br',16)}ブレッディが待っています</span>`;
+  edges=E([c1+150,66],[c2,202],0)+E([c2+150,202],[c3,202],0)+E([c3+150,202],[c4,79],1);
+ }
+ return `<div class="board" style="width:${W}px;height:${H}px">${inner}<svg class="edges" width="${W}" height="${H}"><defs><linearGradient id="eg" x1="0" x2="1"><stop offset="0" stop-color="#8F78F0"/><stop offset="1" stop-color="#6147D4"/></linearGradient></defs>${edges}</svg></div>`;
+}
+function chainFrame(){
+ const st=(n,t,p,b)=>`<div style="display:grid;grid-template-columns:330px 1000px;gap:34px;align-items:center;margin-bottom:26px"><div class="stage" style="width:330px"><h4><i>${n}</i>${t}</h4><p style="min-height:0">${p}</p></div>${b}</div>`;
+ return `<div style="width:1500px;padding:6px 6px 0">
+ <div class="who3" style="margin-bottom:34px">
+  <div class="sys"><h5>${G('inbox')}決裁箱</h5><small>ナユタ · 本体は今のまま</small><ul><li>${G('check')}申請と答えを持つ（決裁の正本）</li><li>${G('check')}iPhone・Android・Web・コネクタはそのまま使える</li></ul></div>
+  <div class="api"><span class="pill">公開API</span><div class="ln"></div><span style="font-weight:500;color:var(--muted)">読む・答える<br>1つの資格情報</span></div>
+  <div class="sys me"><h5>${G('link')}決裁箱拡張（この部品）</h5><small>デルタ · BellTeamの追加機能（有料）</small><ul><li>${G('check')}決裁を工程表につなぐ</li><li>${G('check')}画面を持つ（BellTeam専用の見た目）</li><li>${G('check')}決裁の内容は<b>写さない</b>。つなぎの目印だけ持つ</li></ul></div>
+  <div class="api"><span class="pill">公開の入口</span><div class="ln"></div><span style="font-weight:500;color:var(--muted)">工程を足す・始める・終える</span></div>
+  <div class="sys"><h5>${G('list')}Lattice 工程表</h5><small>フローラ（部品）· Snow White（製品）</small><ul><li>${G('check')}工程と、その前後の関係を持つ</li><li>${G('check')}済みになれば、次の担当を起こす</li></ul></div>
+ </div>
+ ${st(1,'申請が出ると、工程が1つできる','AIが決裁箱に申請すると、指揮官の列に「決裁箱の工程」ができます。次の工程は、この決裁が終わるのを待ちます。',board(1))}
+ ${st(2,'答えると、その工程が済みになる','答えるとすぐ、決裁箱の工程が済みになります。待っていた工程は着手可になり、担当に知らせが行きます。',board(2))}
+ ${st(3,'答えで決まらなければ、決裁が差し込まれる','答えのあと、AIがまだ決められず新しく決裁を出すと、その決裁が同じ場所に差し込まれます。次の工程は一つ右へ押され、まだ待ちます。ふつうの工程の改定です。',board(3))}
+ </div>`;
+}
+
+/* ---------- iPhone ---------- */
+function phoneList(){
+ return phoneShell(`<div class="nav">${G('chev-l')}メンバー</div><div class="ptitle">${G('inbox')}決裁箱</div>
+ <div class="psum">${ring(2,6,46,5).replace('</div>','<span>2/6</span></div>')}<div class="ct"><div><b>4</b><small><i style="background:var(--violet)"></i>待ち</small></div><div><b>1</b><small><i style="background:var(--amber)"></i>急ぎ</small></div><div><b>1</b><small><i style="background:#B3B6C6"></i>保留</small></div></div></div>
+ <div class="pseg"><div class="seg"><span class="on">待ち <em>4</em></span><span>保留 <em>1</em></span><span>済み <em>12</em></span></div></div>
+ <div class="fch" style="padding:10px 16px 0"><span class="c on">すべて <em>5</em></span><span class="c">BellTeam <em>4</em></span><span class="c">外部 <em>1</em></span></div>
+ <div class="plist" style="padding-top:10px">${dcard(D[0])}${dcard(E1)}${dcard(D[1])}</div>${tab(0)}`);
+}
+function phoneDetail(){
+ const d=D[0];
+ return phoneShell(`<div class="nav">${G('chev-l')}メンバー</div><div class="ptitle">${G('inbox')}決裁箱</div><div class="plist" style="opacity:.4">${dcard(D[0])}</div><div class="dim"></div>
+ <div class="sheet"><div class="gr"></div>
+  <div class="row1" style="display:flex;gap:6px">${S.wait}${S.urg}</div>
+  <h3 style="margin-top:8px">${d.t}</h3>
+  <div class="sub" style="display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted);margin-top:6px">${av('br',18)}<b style="color:#3b435c">ブレッディ</b>· 期限 今日 18:00</div>
+  <div class="sc" style="margin-top:10px"><p style="font-size:12px;line-height:1.6;color:#3b435c;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${d.ctx}</p></div>
+  <div class="rec" style="margin-top:8px;padding:7px 10px;font-size:11.5px">${G('check')}推奨：決裁箱と同じ請求にする</div>
+  <div class="opts"><div class="opt rc" style="min-height:44px">${G('check')}${d.opts[0]}</div><div class="opt" style="min-height:44px">${G('arrow')}別の請求にする</div></div>
+  <div class="acts" style="margin-top:10px"><span class="btn">${G('pencil')}指示を書く</span><span class="btn">${G('pause')}保留</span></div>
+  <div class="cn me" style="margin-top:12px"><div class="a">${G('inbox')}<b>工程「課金の設計」が済みになります</b></div><div class="b">${G('link')}答えると、ブレッディが「課金の実装」へ進めます</div></div>
+ </div>`);
+}
+function phoneDone(){
+ return phoneShell(`<div class="nav">${G('chev-l')}メンバー</div><div class="ptitle">${G('inbox')}決裁箱</div>
+ <div class="pseg"><div class="seg"><span>待ち <em>4</em></span><span>保留 <em>1</em></span><span class="on">済み <em>12</em></span></div></div>
+ <div class="plist"><div class="dh">今日</div>${acard(A[0])}<div class="dh">昨日</div>${acard(A[1])}${acard(A[2])}
+ <div class="banner am" style="margin-top:2px">${G('tri')}<span style="flex:1">「届いたか不明」の答えが1件あります。再開の文をコピーして、AIの会話に貼れます。</span></div></div>${tab(0)}`);
+}
+
+/* ---------- failure / edge views ---------- */
+function edgeFrame(){
+ const P=(n,t,tag,body,cls='')=>`<div class="fp"><div class="fc"><em>${n}</em>${t}<small>${tag}</small></div><div class="fs2 ${cls}">${body}</div></div>`;
+ const empty=(ic,h,p,btns)=>`<div class="empty"><div class="big">${G(ic)}</div><h5>${h}</h5><p>${p}</p><div style="display:flex;gap:8px;margin-top:12px">${btns}</div></div>`;
+ return `<div class="fgrid" style="grid-template-columns:repeat(3,436px);width:1360px;padding:4px">
+ ${P(1,'拡張を契約していない','自分で抜ける: 閉じる',empty('lock','決裁箱の拡張は、まだ使えません','決裁箱を購読すると、決裁が工程表とつながります。購読は決裁箱のアプリで行います。いまお使いの決裁箱のアプリは、これまでどおり使えます。','<span class="btn pri">決裁箱で購読する</span><span class="btn">契約を確かめる</span><span class="btn">閉じる</span>'))}
+ ${P(2,'決裁箱の契約が切れている','402',empty('clock','決裁箱の契約が切れています','契約を更新すると、また決裁を読めます。更新するまでは、答えの送信と工程への反映を止めています。','<span class="btn pri">決裁箱で購読する</span><span class="btn">閉じる</span>'))}
+ ${P(3,'再接続している','503 · 通信が切れた',`<div class="rpill"><span class="spn v"></span>決裁箱に再接続しています…</div><div class="dimc" style="margin-top:34px;display:flex;flex-direction:column;gap:9px">${dcard(D[0])}${dcard(D[1]).replace('<div class="ch">','<div class="ch" style="display:none">')}</div>`)}
+ ${P(4,'つなぎ（資格情報）が使えない','401',empty('lock','決裁箱との接続が切れています','つなぎ直すと、自動で決裁を読み込みます。','<span class="btn pri">決裁箱につなぐ</span><span class="btn">読み直す</span>'))}
+ ${P(5,'AIが内容を直した','409 · 版が違う',`<div class="banner vi">${G('pencil')}<span style="flex:1">答える前に、ブレッディが内容を直しました。もう一度、内容を確かめてください。</span></div><div style="margin-top:10px"><div class="dc pend">${'<div class="top">'+S.wait+S.fix+'<span class="who">'+av('br',22)+'ブレッディ</span></div>'}<div class="ti">決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？</div><div class="en">${G('link')}直した項目：選択肢</div></div></div>`)}
+ ${P(6,'答えを送れなかった','503 · 通信',`<div class="opts" style="margin-top:0"><div class="opt rc" style="justify-content:center;font-size:14px"><span class="spn" style="display:none"></span>答える</div></div><div class="banner am" style="margin-top:10px">${G('tri')}<span style="flex:1">いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。</span></div>`)}
+ ${P(7,'工程表へ反映が遅れている','Lattice が読めない',`<div class="banner bg">${G('info')}<span style="flex:1">答えは決裁箱に送れました。工程表への反映は少し遅れています。つながり次第、自動で済みになります。</span></div><div style="margin-top:12px"><div class="cn me"><div class="a">${G('inbox')}<b>課金の設計</b>${av('me',20)}</div><div class="b">${stp('pen','clock','反映を待っています')}</div></div></div>`)}
+ ${P(8,'決裁がない','自分で抜ける: 次の申請',empty('inbox','決裁はありません','AIが判断を求めると、ここに並びます。','<span class="btn">済みを見る</span>'))}
+ ${P(9,'このサーバーでは使えない','404 · 旧い本体',empty('info','このサーバーではまだ決裁箱の拡張を使えません','サーバーが更新されると、自動で使えます。','<span class="btn">閉じる</span>'))}
+ </div>`;
+}
+
+/* ---------- origin (decisions from outside BellTeam) ---------- */
+function originFrame(){
+ const e=E1;
+ const ann=(n,t,sub,body)=>`<div><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:14px;font-weight:750"><i style="font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--violet);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800">${n}</i>${t}</div><div style="font-size:11.5px;color:#4a516a;margin:0 0 10px;height:34px;line-height:1.5">${sub}</div>${body}</div>`;
+ const unk={ext:{tile:'globe',client:'出どころ不明',label:''},age:'12分前',t:'デプロイの前に、データベースを退避してよいですか？',en:'工程表とはつながっていません',opts:['',''],ctx:''};
+ const detail=`<div class="dp" style="width:520px;border-radius:20px;box-shadow:0 0 0 .5px rgba(33,41,61,.2),0 22px 44px -22px rgba(70,48,160,.35);min-height:640px"><div class="dp-in">
+   <div class="row1">${S.wait}<span class="stp ext">${G('globe')}外部から</span><span class="x">${G('xmark')}</span></div>
+   <h3>${e.t}</h3>
+   <div class="sub"><span class="ctile" style="--s:20px">${G('term')}</span><b>Claude Code</b>· Macのレシート整理 · 5分前に受付</div>
+   <div class="orgbox"><span class="ctile" style="--s:34px">${G('term')}</span><div><b>BellTeamの外から届いた決裁です</b><small>Claude Code · リモート接続 · セッション「Macのレシート整理」</small></div></div>
+   <div class="sc"><div class="l">${G('doc')}背景</div><p>${e.ctx}</p></div>
+   <div class="sc" style="margin-top:12px"><div class="l">${G('target')}答えを選ぶ</div>
+   <div class="opts"><div class="opt">${G('arrow')}${e.opts[0]}</div><div class="opt">${G('arrow')}${e.opts[1]}</div></div></div>
+   <div class="sc"><div class="l">${G('pencil')}選ばずに、指示を書いて返す</div><div class="ta"><span>やり直してほしいこと、足したい条件を書きます</span><span class="btn soft">${G('send')}指示を送る</span></div></div>
+   <div class="acts"><span class="btn">${G('pause')}保留にする</span></div>
+   <div class="sc"><div class="l">${G('clock')}経過</div><div class="tlne"><div><time>10:51</time>Claude Codeが申請しました</div></div></div>
+  </div></div>`;
+ const link=`<div class="wp" style="width:340px;border-radius:20px;box-shadow:0 0 0 .5px rgba(33,41,61,.2),0 22px 44px -22px rgba(70,48,160,.35);min-height:640px"><div class="wp-h"><h2>${G('link')}工程とのつながり</h2><p>BellTeamの工程表とつながる決裁は、ここに前後の工程が出ます。</p></div>
+   <div class="wp-l"><div class="cn nolink"><div class="a"><span style="color:#9096aa">${G('link')}</span><b>つながっていません</b></div><div class="b">この決裁は、BellTeamの外から届きました。工程は作りません。</div></div>
+   <div class="note">答えは、出したAI（Claude Code）へそのまま届きます。<b>BellTeamの工程には何も起こりません。</b></div>
+   <div class="note" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">出したAIが、BellTeamの工程表の工程を指して申請した時だけ（セッション名に工程の宛先がある時）、通常の決裁と同じようにつながります。</div></div></div>`;
+ const right=`<div style="width:430px;display:flex;flex-direction:column;gap:16px">
+   <div class="reasons" style="margin:0"><b>絞り込みは「出どころ」。既定は「すべて」で、何も隠しません。</b></div>
+   <div class="fch" style="padding:0"><span class="lbl">出どころ</span><span class="c">すべて <em>5</em></span><span class="c on">BellTeam <em>4</em></span><span class="c">外部 <em>1</em></span></div>
+   <div class="hidn">${G('info')}外部の決裁 1件を隠しています。<span class="go">すべてを見る</span></div>
+   <div class="reasons" style="margin:0">絞り込んでいる間は、必ずこの一行が出ます。入口のバッジ（4）は、どの絞り込みでも<b>すべての回答待ち</b>を数えます。選んだ絞り込みは、アプリを開いている間だけ覚えます。</div>
+   <div class="banner vi" style="flex-direction:column;gap:8px;padding:13px 14px"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5">${G('send')}<span>「<b>共有フォルダに保存する</b>」で答えますか？<br><span style="font-weight:500;font-size:12px;color:#4a516a">答えると、Claude Codeに届きます。</span></span></div><div style="display:flex;gap:8px;align-self:flex-end"><span class="btn">やめる</span><span class="btn pri">答える</span></div></div>
+   <div class="reasons" style="margin:0">確認の文は、つながりのない決裁では「工程が済みになります」を言わず、<b>誰に届くか</b>だけを言います。</div></div>`;
+ return `<div style="width:1400px;padding:6px"><div style="display:grid;grid-template-columns:repeat(3,440px);gap:40px;margin-bottom:34px">
+  ${ann(1,'BellTeamのメンバーから','顔と名前。工程表とつながり、答えると工程が済みになります。',dcard(D[1]))}
+  ${ann(2,'BellTeamの外から','道具の記号とセッション名。「外部から」の札。工程は作らず、同じように答えられます。',dcard(E1))}
+  ${ann(3,'出どころが分からない','決裁箱が出どころを教えない時も、隠さず並べます。道具の記号は地球儀にします。',dcard(unk))}
+ </div><div style="display:flex;gap:20px;align-items:flex-start">${detail}${link}${right}</div></div>`;
+}
+
+/* ---------- registry ---------- */
+const FR=[
+ ['entry','入口の2案：左メニューの一番上 / 一番下','1560 × 960',entryFrame,1580,980],
+ ['main','Mac · 決裁箱ウィンドウ（待ち）','macOS 1360 × 860',macMain,1360,860],
+ ['answer','答える流れ','詳細パネル · 5つの状態',answerFrame,1424,1240],
+ ['chain','決裁と工程表のつながり','指揮官の要件',chainFrame,1512,1050],
+ ['origin','BellTeamの外から来た決裁（隠さない・答えられる）','追加条件 2026-11-15',originFrame,1412,820],
+ ['phone','iPhone · 一覧 / 回答 / 済み','390 × 844',()=>`<div style="display:flex;gap:40px;padding:6px">${phoneList()}${phoneDetail()}${phoneDone()}</div>`,1330,880],
+ ['edge','失敗と端の見え方','すべて自分で抜けられる',edgeFrame,1368,1000]
+];
+const root=document.getElementById('root');
+const only=location.hash.slice(1);
+if(only){document.documentElement.classList.add('shot');const f=FR.find(x=>x[0]==only);root.innerHTML=`<div style="width:${f[4]}px;height:${f[5]}px;overflow:hidden;background:linear-gradient(180deg,#F0ECFB,#F5F5FB);padding:0">${f[3]()}</div>`;}
+else root.innerHTML=`<header><div class="eyebrow">BellTeam · 決裁箱拡張 · Apple-first design proposal</div><h1>決裁箱 拡張</h1><p class="lead">AIが出した決裁が、そのまま工程表の工程になる。答えると工程が済みになり、次へ進む。決裁箱の本体は今のまま、BellTeamの追加機能として、Latticeの画面と同じ言葉と部品で描きます。</p></header>`
+ +FR.map(f=>`<section class="sec"><div class="sec-h"><h2>${f[1]}</h2><span class="tag">${f[2]}</span></div><div class="fs"><div class="pad">${f[3]()}</div></div></section>`).join('');
+</script></body></html>

@@ -1,0 +1,41 @@
+{
+  "not_entitled.expired": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "not_entitled",
+        "message": "決裁箱の契約が切れています。",
+        "state": "expired",
+        "validUntil": "2026-10-31T00:00:00Z"
+      }
+    }
+  },
+  "not_connected": {
+    "status": 409,
+    "body": {
+      "error": {
+        "code": "not_connected",
+        "message": "決裁箱につながっていません。"
+      }
+    }
+  },
+  "conflict": {
+    "status": 409,
+    "body": {
+      "error": {
+        "code": "conflict",
+        "message": "答える前に、内容が直されました。",
+        "decision": "<ViewDecision, latest>"
+      }
+    }
+  },
+  "unavailable": {
+    "status": 503,
+    "body": {
+      "error": {
+        "code": "unavailable",
+        "message": "いまは決裁箱を読めません。"
+      }
+    }
+  }
+}

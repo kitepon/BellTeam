@@ -1,0 +1,213 @@
+{
+  "items": [
+    {
+      "id": "K-DEMO1",
+      "title": "決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？",
+      "context": "決裁箱は月額300円で課金しています。拡張を同じ請求に載せると、利用者は支払いを1か所で見られます。",
+      "options": [
+        {
+          "id": "o1",
+          "label": "決裁箱と同じ請求にする",
+          "recommended": true
+        },
+        {
+          "id": "o2",
+          "label": "別の請求にする（拡張だけ別に請求）",
+          "recommended": false
+        }
+      ],
+      "urgency": "high",
+      "deadline": "2026-11-15T09:00:00Z",
+      "status": "pending",
+      "answer": null,
+      "delivery": null,
+      "resumePhrase": "Approval Box K-DEMO1 の答えを確認して続けて",
+      "version": 2,
+      "createdAt": "2026-11-15T01:42:00Z",
+      "updatedAt": "2026-11-15T01:55:00Z",
+      "cancelReason": null,
+      "amended": {
+        "is": true,
+        "fields": [
+          "options"
+        ],
+        "note": "選択肢を直しました",
+        "at": "2026-11-15T01:55:00Z"
+      },
+      "history": [
+        {
+          "at": "2026-11-15T01:42:00Z",
+          "kind": "created",
+          "by": "ai"
+        },
+        {
+          "at": "2026-11-15T01:55:00Z",
+          "kind": "amended",
+          "by": "ai",
+          "note": "選択肢を直しました",
+          "fields": [
+            "options"
+          ]
+        }
+      ],
+      "requestAttachments": [],
+      "origin": {
+        "kind": "bellteam",
+        "basis": "botId",
+        "client": "claude-code",
+        "tool": "Claude Code",
+        "sessionLabel": "ブレッディ / billing / extension",
+        "workLabel": "billing / extension",
+        "connectionLabel": "bellteam",
+        "via": "connector"
+      },
+      "requester": {
+        "botId": "bot-823b56e9",
+        "name": "ブレッディ"
+      },
+      "link": {
+        "state": "linked",
+        "attached": false,
+        "chart": {
+          "name": "BellTeam開発",
+          "projectId": "bellteam"
+        },
+        "task": {
+          "title": "課金の設計",
+          "state": "ready",
+          "lane": "owner",
+          "cardId": "approval-box/dec-k-demo1"
+        },
+        "previous": [
+          {
+            "title": "課金の方式を調べる",
+            "state": "done",
+            "cardId": "bellteam-dev-added/a-prev-0"
+          }
+        ],
+        "next": [
+          {
+            "title": "課金の実装",
+            "state": "pending",
+            "cardId": "bellteam-dev-added/a-next-0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "K-DEMO2",
+      "title": "領収書の保存先を、共有フォルダにしてよいですか？",
+      "context": "Macのレシート整理で、領収書のPDFを毎月まとめています。共有フォルダに移すと、経理の担当も同じ場所から読めます。",
+      "options": [
+        {
+          "id": "o1",
+          "label": "共有フォルダに保存する",
+          "recommended": false
+        },
+        {
+          "id": "o2",
+          "label": "今のフォルダのままにする",
+          "recommended": false
+        }
+      ],
+      "urgency": "normal",
+      "deadline": null,
+      "status": "pending",
+      "answer": null,
+      "delivery": null,
+      "resumePhrase": "Approval Box K-DEMO2 の答えを確認して続けて",
+      "version": 1,
+      "createdAt": "2026-11-15T01:51:00Z",
+      "updatedAt": "2026-11-15T01:51:00Z",
+      "cancelReason": null,
+      "amended": {
+        "is": false,
+        "fields": [],
+        "note": null,
+        "at": null
+      },
+      "history": [
+        {
+          "at": "2026-11-15T01:51:00Z",
+          "kind": "created",
+          "by": "ai"
+        }
+      ],
+      "requestAttachments": [
+        {
+          "id": "A-DEMO1",
+          "name": "receipt-list.png",
+          "contentType": "image/png",
+          "size": 183204,
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "origin": {
+        "kind": "external",
+        "basis": "none",
+        "client": "claude-code",
+        "tool": "Claude Code",
+        "sessionLabel": "Macのレシート整理",
+        "workLabel": "Macのレシート整理",
+        "connectionLabel": "mac",
+        "via": "remote"
+      },
+      "requester": null,
+      "link": null
+    },
+    {
+      "id": "K-DEMO3",
+      "title": "デプロイの前に、データベースを退避してよいですか？",
+      "context": "Macのレシート整理で、領収書のPDFを毎月まとめています。共有フォルダに移すと、経理の担当も同じ場所から読めます。",
+      "options": [
+        {
+          "id": "o1",
+          "label": "共有フォルダに保存する",
+          "recommended": false
+        },
+        {
+          "id": "o2",
+          "label": "今のフォルダのままにする",
+          "recommended": false
+        }
+      ],
+      "urgency": "normal",
+      "deadline": null,
+      "status": "pending",
+      "answer": null,
+      "delivery": null,
+      "resumePhrase": "Approval Box K-DEMO2 の答えを確認して続けて",
+      "version": 1,
+      "createdAt": "2026-11-15T01:51:00Z",
+      "updatedAt": "2026-11-15T01:51:00Z",
+      "cancelReason": null,
+      "amended": {
+        "is": false,
+        "fields": [],
+        "note": null,
+        "at": null
+      },
+      "history": [
+        {
+          "at": "2026-11-15T01:51:00Z",
+          "kind": "created",
+          "by": "ai"
+        }
+      ],
+      "requestAttachments": [],
+      "origin": {
+        "kind": "unknown",
+        "basis": "none",
+        "client": "other",
+        "tool": "出どころ不明",
+        "sessionLabel": "",
+        "workLabel": "",
+        "connectionLabel": "",
+        "via": "connector"
+      },
+      "requester": null,
+      "link": null
+    }
+  ],
+  "nextCursor": null
+}

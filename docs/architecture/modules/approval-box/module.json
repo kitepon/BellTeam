@@ -8,7 +8,8 @@
     "connection export (approval-box connection export --json)",
     "version --json (capabilities)",
     "harness-entries (approval-box)",
-    "connector /v1 (HTTP)"
+    "connector /v1 (HTTP)",
+    "bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing)"
   ],
   "uses": [
     {
