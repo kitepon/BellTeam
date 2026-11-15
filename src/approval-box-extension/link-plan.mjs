@@ -6,6 +6,8 @@ export const DECISION_PLAN = 'approval-box'
 export const taskIdOf = decisionId => `dec-${decisionId.toLowerCase()}`
 const ended = card => card?.state === 'done' || card?.state === 'retired'
 const jst = iso => { const t = new Date(Date.parse(iso) + 9 * 3_600_000); return `${t.getUTCMonth() + 1}月${t.getUTCDate()}日 ${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}` }
+// The owner-task allowlist reads a value that starts with `--` as a missing value and refuses (documented shortcut there), so free text never starts with dashes.
+const safe = text => String(text ?? '').replace(/^[\s-]+/u, '') || '決裁'
 const owner = (projectId, args) => ({ op: 'ownerTask', projectId, args })
 export const attachTarget = sessionLabel => { const m = CHART_LABEL.exec(sessionLabel ?? ''); return m ? { projectId: m[1], plan: m[2], taskId: m[3] } : null }
 
@@ -38,8 +40,8 @@ export function planLink({ d, row, rows = [], chart }) {
     const prev = d.origin.sessionLabel && rows.filter(r => r.projectId === chart.projectId && r.sessionLabel === d.origin.sessionLabel && r.state === 'answered').at(-1)
     const prevId = prev && `${prev.plan}/${prev.taskId}`
     const successors = prev ? chart.edges.filter(edge => edge.from === prevId).map(edge => chart.cards.find(c => c.id === edge.to)).filter(c => c && !ended(c)) : []
-    const memo = `決裁箱の決裁「${d.title}」に指揮官が答えるまでの工程。決裁の内容は決裁箱にあり、ここへは写していない。`
-    actions.push(owner(chart.projectId, ['todo', 'add', '--plan', DECISION_PLAN, '--task', taskId, '--title', d.title, '--phase', 'decisions', '--lane', 'owner',
+    const memo = `決裁箱の決裁「${safe(d.title)}」に指揮官が答えるまでの工程。決裁の内容は決裁箱にあり、ここへは写していない。`
+    actions.push(owner(chart.projectId, ['todo', 'add', '--plan', DECISION_PLAN, '--task', taskId, '--title', safe(d.title), '--phase', 'decisions', '--lane', 'owner',
       ...(successors.length ? ['--after', prev.taskId] : []), '--design-memo', memo, '--reason', '決裁箱に申請が出たため']))
     for (const next of successors) {
       actions.push(owner(chart.projectId, ['todo', 'dependency', 'connect', '--from-plan', DECISION_PLAN, '--from-task', taskId, '--to-plan', next.plan, '--to-task', next.taskId, '--reason', '決裁が先に要るため']))
@@ -54,12 +56,12 @@ export function planLink({ d, row, rows = [], chart }) {
     const label = d.answer?.text ?? d.options.find(option => option.id === d.answer?.optionId)?.label ?? ''
     if (!card || ended(card)) return to('answered')
     return to('answered', [...(card.state === 'in-progress' ? [] : [owner(row.projectId, ['todo', 'start', '--plan', row.plan, '--task', row.taskId])]),
-      owner(row.projectId, ['todo', 'done', '--plan', row.plan, '--task', row.taskId, '--message', `指揮官の答え：${label}（${jst(d.answer.answeredAt)}）`])])
+      owner(row.projectId, ['todo', 'done', '--plan', row.plan, '--task', row.taskId, '--message', safe(`指揮官の答え：${label}（${jst(d.answer.answeredAt)}）`)])])
   }
   if (d.status === 'cancelled') { // L3
     if (row.state === 'closed') return { actions: [], row }
     if (!card || ended(card)) return to('closed')
-    return to('closed', [owner(row.projectId, ['todo', 'retire', '--plan', row.plan, '--task', row.taskId, '--reason', d.cancelReason ?? '申請したAIが取り下げました'])])
+    return to('closed', [owner(row.projectId, ['todo', 'retire', '--plan', row.plan, '--task', row.taskId, '--reason', safe(d.cancelReason ?? '申請したAIが取り下げました')])])
   }
   if (ended(card) && row.state === 'linked') return to('diverged') // L6: closed by hand while the decision is pending; the decision is the AI's, so nothing is cancelled
   if (d.amended.is && d.version > row.handledVersion && row.state !== 'diverged') // L4

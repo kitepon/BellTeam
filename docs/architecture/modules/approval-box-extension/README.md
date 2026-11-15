@@ -181,3 +181,19 @@ Filing, amending or cancelling decisions from the app (the API gives the apps on
 ## 11. Verification plan (minimal, by the diagrams, at implementation)
 
 F1/F2 against a recorded Approval Box fixture (list, answer 200/409/402/503, events replay); F3 rules L1–L8 as a pure table test over (decision event, link row, chart state) → (port action, new row); crash points between "write row" and "port call"; one real round trip on the Owner's own chart once R1–R4 exist; screens by real screenshots from Rapi/Anis/Neon accepted against the mockups.
+
+## 12. The child (step 2, R5 with Molly)
+
+Parent side (process, effects, mount, update): [runtime/approval-box-extension-child.md](../runtime/approval-box-extension-child.md) (Molly). This page owns the child:
+
+| File | Role |
+| --- | --- |
+| `src/approval-box-extension-protocol.mjs` | protocol v1: roots `summary / list / get / answer / hold / unhold / attachment / byTask / connection / connect / cancelConnect / disconnect / refresh`; effects `lattice.ownerTask / lattice.link / lattice.chart / lattice.charts / members.list / session.get / session.put / session.erase`; validators; wire errors |
+| `src/approval-box-extension-ipc.mjs`, `-dispatcher.mjs`, `-entry.mjs` | channel, generation control and entry, the lattice child's shape; reads run beside the one write at a time; `refresh` is a write (it is the engine) |
+| `src/approval-box-extension/core.mjs` | F1-F7: gate (connected + entitled, in-process), Approval Box calls, events held by the child (`/v1/events`, ring of 200, backoff 1-30 s forever), the connect poll, the engine tick, `links.json` (temp + rename) |
+| `src/approval-box-extension/client.mjs` | the child's own HTTPS to approval-box.kitepon.dev (pairing, long poll, `/v1/*`, SSE parse); the session is never logged |
+| `src/approval-box-extension/http-api.mjs` | the body-resident handler for `/api/approvals/*` (Owner only, JSON writes only, Idempotency-Key on answers, SSE framing); errors become the contract's bodies |
+| `origin-view.mjs`, `entitlement.mjs`, `connect-state.mjs`, `link-plan.mjs` | the pure parts (step 1) |
+
+Rules that the tests pin: `connection {}` never makes a network call (it is the exchange ready probe); an answer goes to Approval Box first and the task follows on the next tick; an external decision never causes a Lattice write; the first decision task rides in `plan create` (a plan may not be empty) and its `todo add` is skipped; free text that starts with `--` is stripped before it reaches the owner-task allowlist; every failed effect keeps the decision id for the next tick (nothing is given up).
+Shortcuts named in the code: a Lattice duplicate is recognised by the code's name (`EXIST|ALREADY|UNCHANGED`); attachments travel base64 over the channel (Approval Box caps a file at 20 MiB); the plan-create input shape is Lattice's `plan_create_input.v5` and must be confirmed once against a real chart at the integration test.
