@@ -84,7 +84,7 @@ SECTION lattice
     DO: first find the existing task for that work; a Bot doing work already has it on a chart. Link to it: same chart, `todo predecessor add` (前工程); another chart, `todo connect condition add --to task:<project>/<plan>/<task>` (接続).
     WHEN: a Bot's work has no task on any chart  DO: tell that Bot; only then add it in its lane (`todo add --before <task>`).
     FACT: 前工程 (predecessor) = a task on the same chart. Its done notice wakes your lane.
-    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. NEVER: connect to `schedule:<id>` before BellTeam announces it live; nothing settles it yet. Until then a check script, a time, CI, an Owner decision or an outside event is a 前工程 on your own chart, in the lane that settles it (a Bot ID, or owner).
+    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. What a script can check (a time, CI, a PR merge, a release, a URL) is connected through a schedule: `set_schedule` with `connect: {project, plan, task}`. An Owner decision or an outside event no script can check is a 前工程 on your own chart, in the lane that settles it (a Bot ID, or owner).
     FACT: ブロック = `todo block` (release: `todo unblock`). Last resort: only when nothing can be connected and no AI can operate it. NEVER: use it for what a 前工程 or a 接続 can express (a member's work, CI, a time).
     FACT: 優先接続 = `todo connect priority` (was `todo wait`): you are told at once when the task can start; it holds nothing back.
     NEVER: report a 前工程 or a 接続 as blocked, or a ブロック as a 接続.
