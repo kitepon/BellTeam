@@ -144,21 +144,21 @@ test('unknown current state is rejected before the old writer exits', async t =>
   await writeFile(path, original)
 })
 
-test('a drain timeout resumes the old child and the next replace is not refused while the old lease lives', async t => {
-  const gate = new MembersAdmission(), x = await setup(t, { membersAdmission: gate }); await x.controller.start()
-  const lease = gate.enter()
-  t.mock.timers.enable({ apis: ['setTimeout'] })
-  const first = x.controller.replace(a), rejected = assert.rejects(first, { code: 'MEMBERS_DRAIN_TIMEOUT' })
-  while (x.controller.snapshot().phase !== 'quiescing') await new Promise(resolve => setImmediate(resolve))
-  t.mock.timers.tick(60001); await rejected
-  assert.equal(x.controller.snapshot().available, true)
-  // Before a149b the leftover drain refused this at once with MEMBERS_NOT_ACCEPTING.
-  const second = x.controller.replace(a)
-  while (x.controller.snapshot().phase !== 'quiescing') await new Promise(resolve => setImmediate(resolve))
-  t.mock.timers.reset()
-  gate.finish(lease)
-  await second
+test('an exchange does not wait for a live lease, which keeps working on the new child (a149b)', async t => {
+  const gate = new MembersAdmission()
+  let lease, held, preparations = 0
+  // The second prepare runs after the old child quiesced: a root bound to the live lease is refused there and held.
+  const x = await setup(t, { membersAdmission: gate, prepare: async () => {
+    if (++preparations === 2) held = x.controller.request('owner.read', {}, { membersLease: lease })
+  } })
+  await x.controller.start()
+  lease = gate.enter()
+  await x.controller.replace(a)
   assert.equal(x.controller.snapshot().currentVersionId, a)
+  assert.equal((await held).owner.name, 'fixture', 'the held root ran on the new child after resume')
+  assert.equal(x.children[0].signalCode, null, 'the quiesced old child took no late root and exited without SIGKILL')
+  assert.equal((await x.controller.request('owner.read', {}, { membersLease: lease })).owner.name, 'fixture')
+  gate.finish(lease)
   assert.equal(x.children.filter(child => child.exitCode === null && child.signalCode === null).length, 1)
 })
 

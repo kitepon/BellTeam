@@ -8,11 +8,12 @@ flowchart TD
   Enter --> Lease[opaque lease / generation・epoch・相関]
   Lease --> Work[prepare→native→session/fast保存]
   Work --> Finish[finish / 実終端]
-  Close[close / 新入場拒否・epochを進める] --> Drain[drain / live leaseだけ待つ]
+  Close[close / 新入場拒否・epochを進める] --> Quiesce[members交換: 旧子quiesceが進行中IPCだけ待つ<br/>lease完了は待たない（a149b）]
   Lease -->|旧epochでも同generation/live| Callback[逆effect・保存callback / assertLease]
-  Finish --> Drain
-  Drain --> Adopt[旧子終了/新readyの後にadopt]
+  Quiesce --> Adopt[旧子終了/新readyの後にadopt<br/>live lease・pinは新generationへ持ち越す]
   Adopt --> Resume[resume / 新generation入場]
+  Quiesce -->|失敗・期限| Back[旧子resume / 次の試行を断らない（#1547）]
+  Lease -->|持ち越し後もlive中| Carried[assertLease: 自分か現在のgeneration<br/>finishで終わる・相関不変]
 ```
 
 `MembersAdmission(generation)`を親が一つ所有し、runtime controller/channelとtransportへ同じ実体を注入する。captureは待機開始時のgeneration/epoch、enter(expected?,correlation?)は親の信頼済み受付でだけ呼ぶ。最大64（MODULE_CONCURRENCY）root、上限/交換/世代不一致は503・not_accepted/not_started。opaque objectは親内Setで同一性検査し、wireから再構成しない。runtimeはleaseIdを自分の固定channel相関へ対応付け、assertLease(opaque,{generation,correlation})で既effect/callbackを通す。live leaseのepochは比較しない。終了/別generation/相関違い/偽objectを拒否する。
@@ -25,6 +26,19 @@ transportはwake prepare→native→session/fast保存、restart close→wake保
 
 この公開口はlease相関/寿命だけ。IPCのroot/effect/callback別credit・byte上限・ACK期限はruntime、唯一writer/fresh本人/投影はmembers/common。channelに任意method/pathを公開するものではない。正式assemblyの共有注入とfresh callbackはMolly/Epi/Belortaの同公開窓口へ接続する。
 
+## 交換は使用中のleaseを待たない（2026-11-15 a149b、Trony裁定、キロ合意）
+
+本番13:37 JSTのmembers交換が、Owner turnの持つleaseを待ってMEMBERS_DRAIN_TIMEOUTになった。Owner 11/08「更新は仕事を待たない」に合わせる。保護対象「旧子が書き終える前に新子が書かない」は、members子の書き込みが進行中のIPC root/effect/callbackの中だけで起き、旧子のquiesceがそれを全部待ってからexitするので、leaseの寿命を待たなくても守られる。
+
+- members交換・回復・起動は`drain(ticket)`（lease完了待ち）を呼ばない。旧子のquiesce（60秒）だけを待つ。`drain(ticket)`自体は他の利用者のために残す。
+- `adopt(ticket, generation)`はlive lease/pinを拒否せず、新generationへ持ち越す。持ち越したleaseは`assertLease`で自分のgenerationか現在のgenerationなら通り、`finish`で終わる。相関は変わらない。
+- `expected`/`capture`で旧generation・旧epochを掴んだ呼出し（`enter(expected)`など）は従来どおり拒否する。守るもの: 古いmembers状態を前提にした変更の適用。出口: 呼出し側がcaptureし直す。
+- 失敗した試行（quiesce失敗・期限）は旧子をresumeして受付を開く。次の試行を断らない（#1547）。
+
+| 入口 | 交換中（ticketあり）の動き |
+| --- | --- |
+| 既lease/既pinを渡すroot（members-process `request`） | 旧子がquiesceを終えるまでは旧子へ送る（continuation）。quiesce後の旧子はcontinuationも断る（members-ipc）ので、親はそのrootを既存の`whenOpen`で`resume`まで待たせ、新子で実行する。待ちの出口は既存の`MEMBERS_EXCHANGE_HOLD_MS`。新しい待ちやtimeoutは無い。 |
+
 ## 交換中の新rootは待って通す（2026-11-08、Molly、キロ確認）
 
 Owner不具合: members子の単独更新中（13:37:44 JST、job d92d948e）に GET /api/bots 等が 503 MEMBERS_NOT_ACCEPTED になった。本体は動いており、部品の交換は呼び手に見えてはいけない。
@@ -32,7 +46,7 @@ Owner不具合: members子の単独更新中（13:37:44 JST、job d92d948e）に
 | 入口 | 交換中（ticketあり）の動き |
 | --- | --- |
 | `withLease(op)` / `withReadPin(method, op)`（lease・pin・expected なし＝新root） | 拒否せず `resume(ticket)` まで待ち、新generationで入場して実行する。待ちの出口は resume（交換の成功・失敗・回復のどれでも必ず呼ばれる）。resume が来ない時（members が閉じたまま）の出口として `MEMBERS_EXCHANGE_HOLD_MS`=60秒後に従来の 503 |
-| 既lease/既pin を渡す呼び出し、`expected` を渡す呼び出し、同期の `enter()` / `enterReadPin()` | 変更なし（旧epochに束縛された要求は従来どおり拒否） |
+| `expected` を渡す呼び出し、同期の `enter()` / `enterReadPin()` | 変更なし（旧epochに束縛された要求は従来どおり拒否）。既lease/既pinを渡すrootは上のa149bの行 |
 | 会話facadeの新しい呼び出し（引き継ぐoperationContext・leaseなし。Owner HTTPのrooms.list・履歴・投稿など）（2026-11-15 a127） | `exchanging`の時だけ、予約（`moduleOperations.reserve()`＝同期`enter()`）を含む開始処理を`whenOpen`へ渡し、resume直後に同期で予約して始める（AT7の予定と同じ口、同じ60秒の出口）。開いている時と引き継ぎのある呼び出しは従来どおりその場で同期に始める。戻り値の`completion`（`user.turn`は`accepted`も）は保つ。BugHub ef83d4ee: 2026-11-14 23:02:31Z GET /api/roomsがmembers交換中に即503 MEMBERS_NOT_ACCEPTEDになった |
 | 会話rootのmembers lease（2026-11-15 a149） | `conversation-assembly`のinvokeは、会話rootのmembers leaseへ`result.accepted ?? result`（turnは受付、他はrootの返答）だけを登録する。会話leaseは従来どおり`completion`まで保つ。受付後のAI完走でmembers交換を待たせない（本番11/15 13:37、Ownerのturn中にmembers交換がMEMBERS_DRAIN_TIMEOUT。Owner 11/08「更新は作業を待たない」）。部屋root（`room.post`/`room.reply`）は配送を発行した時点で返るので、その`execution.notify`は報告・fork返答の中継と同じく新しいmembers leaseで入り直す。受付後に同じleaseを使う会話側のeffectは無い（N102確認）。実行側のlease検査は受付前だけ（Kiro確認） |
 
@@ -47,7 +61,7 @@ flowchart LR
   Hold -->|60秒内にresumeなし| Refuse[従来の503]
 ```
 
-新しい拒否・lockは追加しない。保護対象は従来どおり「旧子が書き終える前に新子が書かない」（drain/adopt）で、待ちはその閉鎖の間だけ。待ちはlive leaseに数えないのでdrain/adoptを止めない。body-resident（親の`MembersAdmission`実体は本体の`/app/src`）。
+新しい拒否・lockは追加しない。保護対象は従来どおり「旧子が書き終える前に新子が書かない」（旧子quiesce→exit→新子launch、a149b）で、待ちはその閉鎖の間だけ。待ちはlive leaseに数えないのでadoptを止めない。body-resident（親の`MembersAdmission`実体は本体の`/app/src`）。
 
 ## fresh readの世代pin（限定新契約）
 

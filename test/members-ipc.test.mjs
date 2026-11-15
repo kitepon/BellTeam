@@ -176,13 +176,15 @@ test('trusted old lease fresh read and startup continue through the closed child
   const x = await start(t); await x.channel.control('resume')
   const { bot } = await x.request('profile.create', { input: { name: 'fixture', harness: 'codex' } })
   const lease = x.admission.enter(), ticket = x.admission.close()
-  await x.channel.control('quiesce')
   const fresh = await x.channel.request('profile.read', { botId: bot.id }, { membersLease: lease })
   assert.equal(fresh.bot.id, bot.id)
   await x.channel.request('profile.startup', { botId: bot.id, shortTermMemory: 'continued' }, { membersLease: lease })
   const saved = await x.channel.callback('profile.session', { botId: bot.id, session: 'continued-session' }, { membersLease: lease })
   assert.equal(saved.bot.session, 'continued-session')
   assert.equal(await readFile(join(x.root, 'bots', bot.id, 'memory/previous-session.md'), 'utf8'), 'continued\n')
+  // Once quiesced, the old child takes no further root, continuation included; the controller holds it for the next generation (a149b).
+  await x.channel.control('quiesce')
+  await assert.rejects(x.channel.request('profile.read', { botId: bot.id }, { membersLease: lease }), { code: 'MEMBERS_NOT_ACCEPTING' })
   // A fresh root waits through the exchange instead of failing (members-admission.md); the sync enter still refuses.
   let settled = false
   x.request('profiles.read', { continuation: true }).then(() => { settled = true }, () => { settled = true })

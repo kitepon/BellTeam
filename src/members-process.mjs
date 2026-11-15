@@ -50,13 +50,12 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       if (instance) {
         const target = instance
         if (target.child.exitCode !== null || target.child.signalCode !== null || !target.child.connected) await target.finishTermination()
-        else if (target.probeFailed) { await drain(target, ticket); await finishExit(target) }
+        else if (target.probeFailed) { await drain(target); await finishExit(target) }
         else if (target.intentional) await finishExit(target)
         else if (target.versionId === currentVersionId) { await resume(target, ticket); initialized = true; return }
-        else if (target.resumed) { await drain(target, ticket); await finishExit(target) }
+        else if (target.resumed) { await drain(target); await finishExit(target) }
         else await killUnadmitted(target)
       }
-      await membersAdmission.drain(ticket)
       const target = await launch(currentVersionId, ticket, signal)
       try { await resume(target, ticket) }
       catch (error) { if (!target.probeFailed) await killUnadmitted(target); throw error }
@@ -152,11 +151,9 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     }
     exchanging = false; state('running', true)
   }
-  const drain = async (target, ticket) => {
-    const started = Date.now()
-    await within(membersAdmission.drain(ticket), 60000, 'MEMBERS_DRAIN_TIMEOUT')
-    const attempt = target.channel.control('quiesce', {}, Math.max(1, 60000 - (Date.now() - started)))
-    if ((await attempt).quiesced !== true) throw fail('MEMBERS_QUIESCE_FAILED')
+  // Only in-flight IPC is drained (child quiesce); live leases are carried across adopt, never waited for (a149b).
+  const drain = async target => {
+    if ((await target.channel.control('quiesce', {}, 60000)).quiesced !== true) throw fail('MEMBERS_QUIESCE_FAILED')
   }
   const finishExit = async target => {
     target.intentional = true
@@ -192,7 +189,6 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     }
     const ticket = membersAdmission.close()
     try {
-      await membersAdmission.drain(ticket)
       const target = await launch(currentVersionId, ticket, signal)
       if (closed) throw fail('MEMBERS_CLOSED')
       await resume(target, ticket); initialized = true
@@ -207,6 +203,14 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
   })
   const request = (method, params, options = {}) => {
+    const bound = Boolean(options.membersLease || options.membersReadPin)
+    // A bound root during an exchange waits for resume (existing whenOpen hold) once the old child stopped taking it.
+    if (bound && membersAdmission.exchanging && phase !== 'quiescing') return membersAdmission.whenOpen(() => send(method, params, options))
+    if (!bound) return send(method, params, options)
+    return send(method, params, options).catch(error => error?.code === 'MEMBERS_NOT_ACCEPTING' && membersAdmission.exchanging
+      ? membersAdmission.whenOpen(() => send(method, params, options)) : Promise.reject(error))
+  }
+  const send = (method, params, options) => {
     if (!instance || !options.membersLease && !options.membersReadPin && (!available || exchanging || closed)) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
     try {
       if (options.membersReadPin) {
@@ -233,7 +237,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       const old = instance, oldVersion = currentVersionId, oldPrevious = previousVersionId
       const ticket = membersAdmission.close()
       exchanging = true; state('quiescing')
-      try { await drain(old, ticket) }
+      try { await drain(old) }
       catch (error) {
         if (!closed) { try { await resume(old, ticket) } catch { state('unavailable') } }
         throw error
@@ -295,7 +299,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       const target = instance
       if (target) {
         const ticket = membersAdmission.close()
-        try { await drain(target, ticket); await finishExit(target) }
+        try { await drain(target); await finishExit(target) }
         catch (error) {
           // An unquiesced writer is not killed; parent loss uses the child's finite drain contract.
           if (target.child.connected) target.child.disconnect()

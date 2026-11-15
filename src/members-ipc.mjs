@@ -198,7 +198,8 @@ export function createMembersChildChannel({ validateRequest, dispatch, validateC
       }
       check(['root', 'callback'].includes(message.kind) && contextValid(message.context)
         && message.context.generation === generation && message.context.rootId === String(message.id))
-      check(received[message.kind] < MODULE_CONCURRENCY && (message.kind === 'callback' || accepting || message.context.continuation), 'MEMBERS_NOT_ACCEPTING')
+      // A quiesced child takes no further root, continuation included: the parent holds it for the next generation (a149b).
+      check(received[message.kind] < MODULE_CONCURRENCY && (message.kind === 'callback' || accepting || message.context.continuation && !quiesced), 'MEMBERS_NOT_ACCEPTING')
       const validate = message.kind === 'callback' ? validateCallback : validateRequest
       check(validate(message.method, message.params, message.context) !== false)
       const context = Object.freeze({ ...message.context })
