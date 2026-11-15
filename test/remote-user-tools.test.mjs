@@ -106,6 +106,25 @@ test('U3: initialize mints a session, calls are relayed, an unknown session is a
   assert.equal(relay.size(), 0); assert.equal(started.filter(entry => entry.binding === seat).every(entry => entry.child.exited), true)
 })
 
+test('U3: a host that cannot start rejects that request only, with no unhandled rejection, and the next request adopts afresh', async () => {
+  let calls = 0
+  const unhandled = []
+  const listener = reason => unhandled.push(reason)
+  process.on('unhandledRejection', listener)
+  try {
+    const relay = createUserToolRelay({ spawnHost: () => { calls++; throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND' }) }, log: () => {} })
+    const seat = { sessionName: 'bot-gone-1st-x', botId: 'bot-gone' }
+    for (const id of [1, 2]) {
+      const request = PassThrough.from([Buffer.from(JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: {} }))])
+      request.method = 'POST'; request.headers = { 'mcp-session-id': 'old-session' }
+      await assert.rejects(relay.handle(request, { writeHead() {}, end() {} }, seat, 'meta'), { code: 'BOT_NOT_FOUND' })
+    }
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(calls, 2, 'the failed adopt was cleared, so the second request started its own')
+    assert.deepEqual(unhandled, [])
+  } finally { process.off('unhandledRejection', listener) }
+})
+
 test('U4: prepare adds one http entry per user tool with the seat headers; a list failure still prepares the launch', async () => {
   const make = (list, callerReplace = true) => new RemoteSeats({
     terminals: { connection: { async target(request) { return { terminal: { ref: 't', target: {} }, cwd: request.projectRoot, accountOwner: 'owner' } } }, watch: () => () => {} },

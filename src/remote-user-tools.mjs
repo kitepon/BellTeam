@@ -96,7 +96,9 @@ export function createUserToolRelay({ spawnHost, log = message => process.stderr
           const id = sessionId || randomUUID()
           pending = { sessionId: id, promise: adopt(binding, name, id, request.headers['mcp-protocol-version']) }
           adopting.set(entry, pending)
-          pending.promise.finally(() => { if (adopting.get(entry) === pending) adopting.delete(entry) })
+          // Clean up without a second, unhandled rejection (a spawn failure rejects the awaited promise only).
+          const done = () => { if (adopting.get(entry) === pending) adopting.delete(entry) }
+          pending.promise.then(done, done)
         }
         const adopted = await pending.promise
         host = adopted.host; session = host.session
