@@ -106,7 +106,7 @@ test('L7: a new decision of the same session is inserted after the answered one 
   const plan = planLink({ d: view(), row: null, rows: [answeredRow], chart: c })
   const add = plan.actions.find(a => a.args?.[1] === 'add').args
   assert.equal(add[add.indexOf('--after') + 1], 'dec-k-0')
-  assert.deepEqual(plan.actions.filter(a => a.args?.[1] === 'dependency').map(a => a.args[2]), ['connect', 'disconnect'])
+  assert.deepEqual(plan.actions.filter(a => a.args?.[1] === 'predecessor').map(a => a.args[2]), ['add', 'remove'])
 })
 
 test('L8/L10: a decision naming a chart task attaches to it (never creates), kind does not matter; a missing or non-owner card waits', () => {
