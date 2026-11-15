@@ -156,7 +156,8 @@ export function createMembersChildChannel({ validateRequest, dispatch, validateC
   validateEffect = validateMembersEffect, validateResult = (_kind, method, value) => validateMembersEffectResult(method, value),
   validateProjection = validateMembersProjection, control, disconnect, afterControl = async () => {},
   stateCompatibility = MEMBERS_STATE_COMPATIBILITY }) {
-  let generation = null, accepting = false, quiesced = false, epoch = 0, orphaned = false, sentReady = false
+  // sealed: in-flight work drained for a quiesce; from then on no root is taken until resume (a149b).
+  let generation = null, accepting = false, quiesced = false, sealed = false, epoch = 0, orphaned = false, sentReady = false
   const active = new Set(), contexts = new Set(), contextKinds = new Map(), received = { root: 0, callback: 0 }
   let channel
   const drain = async () => { while (active.size) await Promise.allSettled([...active]) }
@@ -185,12 +186,12 @@ export function createMembersChildChannel({ validateRequest, dispatch, validateC
         if (message.method === 'quiesce') accepting = false
         const context = Object.freeze({ generation, leaseId: null, rootId: String(message.id), ownerWrite: false, continuation: false })
         return async () => {
-          if (message.method === 'quiesce') { await drain(); check(current === epoch, 'MEMBERS_QUIESCE_CANCELLED') }
+          if (message.method === 'quiesce') { await drain(); check(current === epoch, 'MEMBERS_QUIESCE_CANCELLED'); sealed = true }
           if (message.method === 'exit') check(quiesced && active.size === 0, 'MEMBERS_NOT_QUIESCED')
           contexts.add(context)
           try {
             const result = await control(message.method, message.params, context)
-            if (message.method === 'resume') { accepting = true; quiesced = false }
+            if (message.method === 'resume') { accepting = true; quiesced = false; sealed = false }
             if (message.method === 'quiesce' && current === epoch) quiesced = true
             return result
           } finally { contexts.delete(context) }
@@ -198,8 +199,9 @@ export function createMembersChildChannel({ validateRequest, dispatch, validateC
       }
       check(['root', 'callback'].includes(message.kind) && contextValid(message.context)
         && message.context.generation === generation && message.context.rootId === String(message.id))
-      // A quiesced child takes no further root, continuation included: the parent holds it for the next generation (a149b).
-      check(received[message.kind] < MODULE_CONCURRENCY && (message.kind === 'callback' || accepting || message.context.continuation && !quiesced), 'MEMBERS_NOT_ACCEPTING')
+      // A sealed child (quiesce drained its in-flight work) takes no further root, continuation included: the parent holds it
+      // for the next generation, so no late root can keep exit from succeeding (a149b).
+      check(received[message.kind] < MODULE_CONCURRENCY && (message.kind === 'callback' || accepting || message.context.continuation && !sealed), 'MEMBERS_NOT_ACCEPTING')
       const validate = message.kind === 'callback' ? validateCallback : validateRequest
       check(validate(message.method, message.params, message.context) !== false)
       const context = Object.freeze({ ...message.context })
