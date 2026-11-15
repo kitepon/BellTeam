@@ -174,19 +174,17 @@ export function createWebApp({ client = createWebClient() } = {}) {
     openChart: (projectId, cardId) => { approvalsDialog.close(); lattice.open(projectId, cardId) } })
   createApprovalsEntry(document.querySelector('#approvals-entry'), { feed: approvalsFeed, open: () => approvals.open() })
   approvalsDialog.addEventListener('close', () => approvals.close())
-  const openApprovalsFromHash = () => { const target = parseHash(window.location?.hash); if (target) approvals.open(target.id) }
+  // 工程表の「決裁を開く」は #approvals/<id> を立てる。同じ決裁をもう一度開けるよう、開いたら印を外す（replaceState は hashchange を起こさない）。
+  const openApprovalsFromHash = () => {
+    const target = parseHash(window.location?.hash)
+    if (!target) return
+    window.history?.replaceState?.(null, '', `${window.location.pathname}${window.location.search}`)
+    approvals.open(target.id)
+  }
   window.addEventListener('hashchange', openApprovalsFromHash)
   const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
     getMember: latticeMember,
     getOwner: () => state.owner,
-    // 詳細に「決裁を開く」を出すための問い合わせ。読めない時・無い時は null（ブロックを出さない）。
-    decisionFor: async (projectId, cardId) => {
-      if (['old', 'notEntitled', 'expired', 'noCredential'].includes(approvalsFeed.status)) return null
-      const [plan, ...rest] = String(cardId).split('/')
-      const response = await fetchImage(`/api/approvals/by-task?${new URLSearchParams({ project: projectId, plan, task: rest.join('/') })}`).catch(() => null)
-      return response?.ok ? response.json().catch(() => null) : null
-    },
-    openDecision: id => { latticeDialog.close(); approvals.open(id) },
     openChat: async botId => {
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
       latticeDialog.close()

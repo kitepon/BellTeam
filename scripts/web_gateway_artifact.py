@@ -182,6 +182,7 @@ BUSINESS_FILES = {
         'src/lattice/notices.mjs',
         'src/lattice/nudge.mjs',
         'src/lattice/owner-decisions.mjs',
+        'src/lattice/owner-task.mjs',
         'src/lattice/projection.mjs',
         'src/module-ipc.mjs',
         'src/module-locks.mjs',

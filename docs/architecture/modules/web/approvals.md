@@ -19,9 +19,8 @@ flowchart TD
   Detail -->|"POST /api/approvals/:id/hold | unhold"| Detail
   Detail -->|"GET /api/approvals/:id/attachments/:aid via fetchImage -> Blob URL"| Pics["thumbnails -> large view (image-gallery.js)"]
   Detail -->|"工程表で見る / 工程表の工程を開く / 前の工程・次の工程 (only when link.chart.projectId and the task's cardId are present)"| Chart["application.js openChart -> lattice.open(projectId, cardId)<br/>(closes this dialog; lattice-chart.js opens the card 詳細)"]
-  Lattice["lattice-chart.js 詳細 of a card"] -->|"decisionFor(projectId, cardId): GET /api/approvals/by-task; 404 or any failure = no block"| Block["block 決裁: state badge + 決裁を開く"]
-  Block -->|"openDecision(id)"| View
-  Hash["location.hash #approvals/<decisionId>"] -->|"on load / hashchange"| View
+  Lattice["lattice-chart.js 詳細 of an Owner-lane card (main, task R3)<br/>GET /api/approvals/by-task once when it opens; 404 or any failure = no block"] -->|"決裁を開く sets location.hash #approvals/<id>"| Hash
+  Hash["location.hash #approvals/<decisionId>"] -->|"application.js: on load / hashchange, then the hash is cleared (replaceState) so the same decision can be opened again"| View
   View -->|"avatar: fetchImage /api/bots/:id/avatar?v= -> Blob URL"| Faces["initial on the accent while loading / on failure; ? for 名簿にないメンバー"]
   Model["approvals-model.js (pure)<br/>failureOf, originOf, cardRow, detailOf, confirmText, answerOutcome, deliveryNote, groupDone, countsOf, hashOf"] --- View
 ```

@@ -369,7 +369,7 @@ public partial class App : Application
                     await Until(() => latticeScene switch { "not-found" => chart.Feed.Connection == LatticeConnection.NotFound, "reconnecting" => chart.Feed.Connection == LatticeConnection.Reconnecting, _ => chart.Feed.Snapshot is not null }, "工程表のsnapshotを受け取れませんでした。");
                     latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout();
                     if (latticeScene is "detail" or "tree-detail") chart.OpenDetail("p1/t04", morph: false);
-                    if (latticeScene == "owner") chart.OpenDetail("p1/t11", morph: false);
+                    if (latticeScene == "owner") { chart.OpenDetail("p1/t11", morph: false); await Until(() => chart.Decisions.GetValueOrDefault("p1/t11") is not null, "決裁を読めませんでした。"); }
                     if (latticeScene == "external-detail") chart.OpenDetail("p1/t10", morph: false);
                     if (latticeScene == "external") chart.ScrollWaitsToEnd();
                     if (latticeScene == "owner-lanes") { chart.ScrollBoard(chart.Board.CardRect("p1/t09").X, chart.Board.CardRect("p1/t11").Y - 120); chart.ScrollWaitsToEnd(); }

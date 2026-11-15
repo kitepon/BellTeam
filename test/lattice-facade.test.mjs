@@ -185,3 +185,23 @@ test('messages.send runs the messenger in the actor scope named by from, outside
   // Without a scope port the old behavior stays: the error is thrown, the child keeps the notice unacked.
   await assert.rejects(createLatticeEffects({ bots: {}, messenger })('messages.send', { from: 'scheduler', target: 'p', message: 'm' }), /CONVERSATION_CONTEXT_REQUIRED/)
 })
+
+// a156 (Flora R3, Approval Box extension): ownerTask and link are seat-queue writes; ownerTask refreshes its chart's subscribers like run;
+// the child's LATTICE_OWNER_TASK_REFUSED keeps its code (403 path); an old child's LATTICE_INVALID_METHOD-like failure is 503.
+test('a156: ownerTask and link queue as writes one at a time; ownerTask refreshes its subscribers; the refusal code passes', async () => {
+  const f = fixture({ respond: (method, params) => method === 'ownerTask' && params.args[0] === 'refused'
+    ? Object.assign(new Error('refused'), { code: 'LATTICE_OWNER_TASK_REFUSED', status: 403 }) : method === 'link' && params.taskId === 'old'
+      ? Object.assign(new Error('x'), { code: 'SOMETHING_ELSE' }) : null })
+  const heard = []
+  f.facade.subscribe('alpha', snapshot => heard.push(snapshot.version))
+  await tick()
+  const release = f.hold()
+  const writes = [f.facade.ownerTask({ projectId: 'alpha', args: ['todo', 'add'], input: { a: 1 } }), f.facade.link({ projectId: 'alpha', plan: 'p', taskId: 't' })]
+  await tick()
+  assert.deepEqual(f.calls.filter(call => ['ownerTask', 'link'].includes(call[0])).map(call => call[0]), ['ownerTask'], 'one write at a time')
+  release(); await Promise.all(writes)
+  assert.deepEqual(f.calls.filter(call => ['ownerTask', 'link'].includes(call[0])), [['ownerTask', { projectId: 'alpha', args: ['todo', 'add'], input: { a: 1 } }], ['link', { projectId: 'alpha', plan: 'p', taskId: 't' }]])
+  assert.ok(f.calls.some(call => call[0] === 'refresh' && call[1].projectIds?.[0] === 'alpha'), 'ownerTask asks the child for a fresh snapshot')
+  await assert.rejects(f.facade.ownerTask({ projectId: 'alpha', args: ['refused'] }), { code: 'LATTICE_OWNER_TASK_REFUSED', status: 403 })
+  await assert.rejects(f.facade.link({ projectId: 'alpha', plan: 'p', taskId: 'old' }), { code: 'LATTICE_UNAVAILABLE', status: 503 })
+})
