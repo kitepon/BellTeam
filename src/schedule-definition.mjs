@@ -1,5 +1,6 @@
 import { Cron } from 'croner'
 import { scheduleRevision } from './schedule-mutations.mjs'
+import { validateTemplate } from './schedule-templates.mjs'
 
 export function normalizeSchedule(value, now) {
   if (typeof value.id !== 'string' || value.id.length === 0) throw new Error('SCHEDULE_ID_INVALID')
@@ -14,12 +15,18 @@ export function normalizeSchedule(value, now) {
   // notify=result: the command's own completion is delivered to the owning Bot (not only failures).
   if (![undefined, 'failure', 'result'].includes(value.notify) || (value.notify === 'result' && (!command || value.kind === 'after_turn')))
     throw new Error('SCHEDULE_NOTIFY_INVALID')
+  // connect: this command schedule is a one-shot check of a Lattice 他条件に接続 (a164); the body settles it, never the module.
+  const connect = value.connect
+  if (connect !== undefined && (!command || value.kind === 'after_turn' || value.notify === 'result' || !validConnect(connect))) throw new Error('SCHEDULE_CONNECT_INVALID')
+  if (value.template !== undefined) { if (!command) throw new Error('SCHEDULE_TEMPLATE_INVALID'); validateTemplate(value.template) }
   const base = {
     id: value.id,
     name: typeof value.name === 'string' ? value.name.slice(0, 100) : '',
     kind: value.kind,
     ...(command ? { command } : { prompt }),
     ...(value.notify === 'result' ? { notify: 'result' } : {}),
+    ...(connect ? { connect: { project: connect.project, plan: connect.plan, task: connect.task } } : {}),
+    ...(value.template ? { template: { kind: value.template.kind, params: { ...value.template.params }, until: value.template.until } } : {}),
     enabled,
     lastRunAt: value.lastRunAt ?? null,
     ...(Object.hasOwn(value, 'revision') ? { revision: scheduleRevision(value) } : {}),
@@ -67,6 +74,10 @@ export function normalizeSchedule(value, now) {
   const nextRunAt = enabled ? cronNext(expression, timezone, now) : null
   return { ...base, expression, timezone, nextRunAt }
 }
+
+const LATTICE_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
+export const validConnect = value => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join() === 'plan,project,task'
+  && LATTICE_ID.test(value.project) && ['plan', 'task'].every(key => typeof value[key] === 'string' && /^[\w.-]{1,128}$/u.test(value[key]))
 
 function intervalDaysNext(schedule, now) {
   const { time, timezone, startDate, intervalDays } = schedule

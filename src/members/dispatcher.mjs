@@ -62,6 +62,8 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   const bots = new BotRegistry({ seedPath: join(dirname(dirname(dirname(fileURLToPath(import.meta.url)))), 'config/bots.json'),
     botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots'), projectFiles,
     currentTurn: botId => call('schedules.currentTurn', { botId }),
+    // The parent owns Lattice: it closes the 接続 of a connected schedule this child removed (a164).
+    onScheduleRemoved: (botId, { id, name, command, connect }) => call('schedules.connectionRemoved', { botId, schedule: { id, name, command, connect } }),
     models: { forHarness: harness => call('models.read', { harness }) },
     terminals: { read: terminalId => offered('terminals.read', { terminalId }, undefined), folder: request => offered('terminals.folder', request, null) },
     onChange: registry => call('cli.configure', { botIds: [...registry.keys()] }),

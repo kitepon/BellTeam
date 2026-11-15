@@ -592,10 +592,16 @@ export class BotRegistry extends Map {
       const existing = input.id ? schedules.find(item => item.id === input.id) : null
       if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
       if (existing?.kind === 'after_turn' && input.kind !== 'after_turn') throw registryError('SCHEDULE_AFTER_TURN_REPLACE_REQUIRED')
+      // A connection is changed by removing the schedule: a changed or dropped connect would leave the old 接続 open (a164).
+      if (existing?.connect && (!input.command || (Object.hasOwn(input, 'connect') && JSON.stringify(input.connect) !== JSON.stringify(existing.connect))))
+        throw registryError('SCHEDULE_CONNECT_CHANGE_REFUSED')
       const schedule = normalizeSchedule({
         ...input,
         // Released editors drop unknown fields; an update without notify keeps the stored command result delivery.
         ...(!Object.hasOwn(input, 'notify') && input.command && existing?.notify ? { notify: existing.notify } : {}),
+        // Same for connect; template survives only while the command is the one it expanded to.
+        ...(!Object.hasOwn(input, 'connect') && existing?.connect ? { connect: existing.connect } : {}),
+        ...(!Object.hasOwn(input, 'template') && existing?.template && input.command?.trim() === existing.command ? { template: existing.template } : {}),
         id: input.id ?? this.id(),
         lastRunAt: null,
         revision: nextScheduleRevision(existing),
