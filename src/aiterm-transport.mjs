@@ -1413,8 +1413,8 @@ export class AitermTransport {
       this.routeResumes.set(key, 'resuming')
       void this.resumeRemoteSeat(bot).then(() => this.routeResumes.delete(key), error => {
         if (!Number.isFinite(error?.routeClosedAt)) {
-          const retryAt = this.routeRetryAt(bot, key, error)
-          this.routeResumes.set(key, SEAT_REFUSALS.has(error?.aitermErrorCode ?? error?.code) ? 'turn' : retryAt)
+          // remote-seat.md: the hold until the seat's next turn is the designed path, not a failure; it files no diagnostic (829de1dc).
+          this.routeResumes.set(key, SEAT_REFUSALS.has(error?.aitermErrorCode ?? error?.code) ? 'turn' : this.routeRetryAt(bot, key, error))
           return
         }
         this.routeResumes.delete(key)
