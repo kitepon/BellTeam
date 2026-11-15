@@ -99,7 +99,9 @@ export function createConversationExecutionEffects({ getServices, getController,
         }
         // Reports keep the original conversation lifetime, but re-enter members only for fresh preparation/acceptance. So does a fork
         // answer relay (fork-inquiry.md "Live relay members lease"): the fork.ask root's members lease ended with the root result.
-        return method === 'execution.report' || (method === 'execution.notify' && context.rootMethod === 'fork.ask')
+        // a149: a room root returns once every delivery is issued (not accepted), and its members lease ends with that result,
+        // so the fan-out deliveries re-enter members fresh too (N102 check 11/15).
+        return method === 'execution.report' || (method === 'execution.notify' && ['fork.ask', 'room.post', 'room.reply'].includes(context.rootMethod))
           ? transport.membersAdmission.withLease(membersLease => deliver({ membersLease }))
           : deliver(context.operationContext)
       }

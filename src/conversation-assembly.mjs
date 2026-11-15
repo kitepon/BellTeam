@@ -93,7 +93,9 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     try {
       result = controller[callback ? 'callback' : 'request'](method, params, options)
       const completion = result.completion ?? result
-      membersAdmission.trackCompletion(state.operationContext.membersLease, completion)
+      // a149: members serves the root's start only (its reply, or a turn's acceptance); a running turn must not hold a members
+      // exchange (Owner 11/08: an update never waits for work). Later members needs re-enter as fresh roots (reports, deliveries).
+      membersAdmission.trackCompletion(state.operationContext.membersLease, result.accepted ?? result)
       admission.trackCompletion(state.operationContext.conversationLease, completion)
       // Callback authority lives through delivery and background ACKs, beyond the root result.
       admission.operationCompletion(state.operationContext.conversationLease).then(() => authority.release(state.capturedAuthority), () => authority.release(state.capturedAuthority))
