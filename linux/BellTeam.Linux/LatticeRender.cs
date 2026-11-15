@@ -6,7 +6,7 @@ namespace BellTeam.Linux;
 // The render modes of the two separate windows (windows/BellTeam.App/App.xaml.cs --render-lattice and --render-workgraph): the real reads and drawing in a headless window.
 internal static class LatticeRender
 {
-    public static readonly string[] Scenes = ["list", "list-many", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "waits-open"];
+    public static readonly string[] Scenes = ["list", "list-many", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "connections", "connections-end"];
 
     private static async Task Until(Func<bool> done, string what)
     {
@@ -23,8 +23,8 @@ internal static class LatticeRender
         if (model.ConnectionError is { } failure) throw new BellApiException(failure);
         var lattice = new LatticeWindow(model, _ => Task.CompletedTask) { Clock = () => 2300 };
         LatticeChartPage.View = scene switch { "tree" or "tree-detail" or "owner" => "tree", "history" => "history", _ => "lanes" };
-        // 待ちの流れ starts closed; the scenes that read its rows open it. 「narrow」 is the window at its minimum width.
-        LatticeChartPage.WaitsOpen = scene is "unknown" or "owner-lanes" or "waits-open";
+        // The 接続 panel starts closed; the scenes that read its rows open it. 「narrow」 is the window at its minimum width.
+        LatticeChartPage.WaitsOpen = scene is "unknown" or "owner-lanes" or "connections" or "connections-end";
         if (scene == "narrow") lattice.Width = lattice.MinWidth;
         lattice.Show();
         lattice.Sync();
@@ -46,7 +46,7 @@ internal static class LatticeRender
             if (scene == "owner") chart.OpenDetail("p1/t11", morph: false);
             if (scene == "owner-lanes") { chart.ScrollBoard(chart.Board.CardRect("p1/t09")!.Value.X, chart.Board.CardRect("p1/t11")!.Value.Y - 120); chart.ScrollWaitsToEnd(); }
             if (scene == "highlight") chart.Highlight("bot-flora");
-            if (scene == "unknown") chart.ScrollWaitsToEnd();
+            if (scene is "unknown" or "connections-end") chart.ScrollWaitsToEnd();
             if (scene == "authored") chart.ScrollBoard(chart.Board.CardRect("p1/t07")!.Value.X, chart.Board.CardRect("p1/t09")!.Value.Y);
         }
         Dispatcher.UIThread.RunJobs(); lattice.UpdateLayout();

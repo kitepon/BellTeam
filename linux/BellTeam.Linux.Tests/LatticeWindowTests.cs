@@ -82,9 +82,9 @@ public sealed class LatticeWindowTests
         window.Close();
     });
 
-    // 待ちの流れ starts folded to the right-edge handle (count red: a row waits on a blocked producer); the handle opens it, its close folds it, and the choice outlives the chart.
+    // The 接続 panel starts folded to the right-edge handle (count red: a row's producer is in ブロック); the handle opens it, its close folds it, and the choice outlives the chart.
     [Fact]
-    public Task TheWaitPanelStartsFoldedAndRemembersItsState() => Ui.Run(async () =>
+    public Task TheConnectionPanelStartsFoldedAndRemembersItsState() => Ui.Run(async () =>
     {
         using var workspace = new LinuxWorkspace(origin => new BellApi(origin, new LatticeFixture("chart")));
         await workspace.ConnectAsync("http://localhost", listen: false);
@@ -93,9 +93,10 @@ public sealed class LatticeWindowTests
         window.Show(); window.OpenChart("lattice");
         for (var wait = 0; wait < 100 && window.Chart!.Feed.Snapshot is null; wait++) await Task.Delay(20);
         Avalonia.Controls.Button? Find(string id) { window.UpdateLayout(); return Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<Avalonia.Controls.Button>().FirstOrDefault(button => Avalonia.Automation.AutomationProperties.GetAutomationId(button) == id); }
+        var rows = LatticeChart.ConnectionRows(window.Chart!.Feed.Snapshot!, window.Now()).Count; Assert.True(rows > 0);
         var handle = Find("lattice-waits-open");
         Assert.NotNull(handle); Assert.Null(Find("lattice-waits-close"));
-        Assert.Equal("待ちの流れを開く、7件", Avalonia.Automation.AutomationProperties.GetName(handle!));
+        Assert.Equal($"接続を開く、{rows}件", Avalonia.Automation.AutomationProperties.GetName(handle!));
         handle!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
         Assert.True(LatticeChartPage.WaitsOpen); Assert.NotNull(Find("lattice-waits-close")); Assert.Null(Find("lattice-waits-open"));
         window.ShowList(); window.OpenChart("lattice");

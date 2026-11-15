@@ -25,10 +25,18 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private string State => scene switch { "unverified" => "unverified", "last-verified" => "last_verified", "unavailable" => "unavailable", _ => "verified" };
     private static string Ago(double minutes) => DateTimeOffset.UtcNow.AddMinutes(-minutes).ToString("O");
 
+    // 接続 (README: card `connections`, only open entries): a task of another chart (ref = its externals[] id), a priority (agent) and a schedule (ref = its id).
+    private static object[] Joins(string id) => id switch
+    {
+        "t10" => [new { kind = "task", state = "open", @ref = "call-bridge:cb/release", reason = "橋の新しい版が出てから", since = Ago(3) }, new { kind = "task", state = "open", @ref = "guide:g/intro", reason = (string?)null, since = Ago(1) }],
+        "t08" => [new { kind = "priority", state = "open", agent = "bot-rapi", reason = "受け口が空いたらすぐ着手したい", since = Ago(18) }],
+        "t09" => [new { kind = "schedule", state = "open", @ref = "sch-7f3a", reason = "夜間の控えが終わってから", since = Ago(40) }],
+        _ => []
+    };
     private object[] Cards()
     {
         object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false, bool counted = true)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted };
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted, connections = Joins(id) };
         return [
             Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする", finished: 95),
             Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる", finished: 60 * 27, archived: true),
@@ -38,7 +46,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             Card("t06", "Web画面の組込口", "blocked", "bot-admi", 1, "Webから工程表を開ける", reason: "組込の登録点が未定"),
             Card("t07", "公開契約の裁定", "ready", "bot-trony", 1, "公開契約が確定する", authored: "root"),
             Card("t08", "部品の実装", "pending", "bot-flora", 2, "契約どおりに動き、席から工程表を読める", "Lattice部品の本体をつくる。公開の入口は裁定済みの契約だけに限り、保存はモリーの配置先を使う。", authored: "kiro"),
-            Card("t09", scene == "authored" ? "iPhone/Mac画面の工程表と、待ちの流れの横めくり" : "iPhone/Mac画面", "pending", scene == "unknown" ? "bot-ghost" : "bot-rapi", 3, "実画面で承認される", authored: "anis"),
+            Card("t09", scene == "authored" ? "iPhone/Mac画面の工程表と、接続パネルの横めくり" : "iPhone/Mac画面", "pending", scene == "unknown" ? "bot-ghost" : "bot-rapi", 3, "実画面で承認される", authored: "anis"),
             Card("t10", "Web画面", "pending", "bot-flora", 3, "Webで工程表が開く", authored: "kiro"),
             Card("t11", "受け取り確認", "pending", scene is "owner" or "owner-lanes" ? "owner" : null, 4, "3画面を実画面で承認"),
         ];
@@ -49,18 +57,17 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         var cards = Cards(); var json = JsonSerializer.SerializeToElement(cards);
         var byId = json.EnumerateArray().ToDictionary(card => card.GetProperty("taskId").GetString()!);
         bool Finished(string id) => byId[id].GetProperty("state").GetString() is "done" or "retired";
-        string? Producer(string id) => byId[id].GetProperty("producer").GetString();
-        var waits = Edges.Where(edge => !Finished(edge[0]) && !Finished(edge[1]))
-            .Select(edge => new { waiter = Producer(edge[1]), waitingCard = $"p1/{edge[1]}", forCard = $"p1/{edge[0]}", producer = Producer(edge[0]), producerState = byId[edge[0]].GetProperty("state").GetString(), since = Ago(Since.GetValueOrDefault(edge[0], 1)) })
-            .OrderBy(wait => wait.since, StringComparer.Ordinal).ToArray();
-        var referenced = byId.Values.Select(card => card.GetProperty("producer").GetString()).Concat(waits.Select(wait => wait.waiter)).ToHashSet();
+        // externals[]: the other chart's facts for each open `task` connection (drawn as text only).
+        var externals = new[] { new { id = "call-bridge:cb/release", projectId = "call-bridge", cardId = "cb/release", chartName = (string?)"通話ブリッジの刷新", title = (string?)"橋の新しい版を出す", state = (string?)"in-progress", finished = false, producer = (string?)"bot-kiro" },
+                                new { id = "guide:g/intro", projectId = "guide", cardId = "g/intro", chartName = (string?)null, title = (string?)null, state = (string?)null, finished = false, producer = (string?)(scene == "unknown" ? "bot-ghost" : null) } };
+        var referenced = byId.Values.Select(card => card.GetProperty("producer").GetString()).Concat(externals.Select(ext => ext.producer)).Append("bot-rapi").ToHashSet();
         var name = Names.GetValueOrDefault(projectId);
         return new
         {
             schema = "bellteam.lattice-chart.v1", epoch = "fixture", version = 1, at = Ago(0), projectId, name = name.Name, createdBy = name.CreatedBy, coordinator = projectId == "lattice",
             state = State, verifiedAt = Ago(State == "last_verified" ? 46 : 0), degraded = scene == "degraded" ? new[] { "lattice-read", "members" } : [],
             members = Members.Where(member => referenced.Contains(member.Id)).Select(member => new { botId = member.Id, name = member.Name, color = member.Color, avatarVersion = "" }),
-            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), waits
+            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), externals
         };
     }
     private static readonly Dictionary<string, (string? Name, string CreatedBy)> Names = new()
@@ -79,8 +86,8 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         .. Enumerable.Range(1, scene == "list-many" ? 32 : 0).Select(index => Summary($"extra-{index:00}", false, 6, index % 6, 1, index % 3, 0, ["bot-kiro"], 20 * 60 + index)),
     ];
     private object EmptyChart() => Summary("empty-draft", false, 0, 0, 0, 0, 0, [], 30);
-    private object Summary(string id, bool coordinator, int total, int done, int working, int waiting, int blocked, string[] active, double updated)
-        => new { projectId = id, name = Names.TryGetValue(id, out var known) ? known.Name : $"追加の工程表 {id[^2..]}", coordinator, createdBy = Names.TryGetValue(id, out var maker) ? maker.CreatedBy : "bot-kiro", counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
+    private object Summary(string id, bool coordinator, int total, int done, int working, int connections, int blocked, string[] active, double updated)
+        => new { projectId = id, name = Names.TryGetValue(id, out var known) ? known.Name : $"追加の工程表 {id[^2..]}", coordinator, createdBy = Names.TryGetValue(id, out var maker) ? maker.CreatedBy : "bot-kiro", counts = new { total, done, working, blocked, connections }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
