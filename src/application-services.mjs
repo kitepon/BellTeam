@@ -442,7 +442,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
+    lattice: () => lattice,
   })
+  if (!members) bots.onScheduleRemoved = (botId, schedule) => scheduler.releaseConnection(botId, schedule)
   aiControl.watch(control => { if (!control.paused && transport.currentTurn) scheduler.requestAfterTurn() })
   const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
     : new CharacterSheets({ projectPath: id => bots.projectPath(id) })

@@ -8,9 +8,10 @@ import { completedThroughlineTurns, NIGHTLY_RESTART_TURNS } from './throughline-
 
 const MAINTENANCE_HOUR = 3
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'
+const SCHEDULE_INPUT = ['id', 'name', 'kind', 'at', 'expression', 'timezone', 'command', 'notify', 'intervalDays', 'startDate', 'time', 'intervalHours', 'startHour', 'endHour', 'minute']
 
 export class BotScheduler {
-  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null, moduleOperations = null }) {
+  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null, moduleOperations = null, lattice = null }) {
     this.registry = registry
     this.messenger = messenger
     this.runCommand = runCommand
@@ -25,6 +26,8 @@ export class BotScheduler {
     this.paused = paused
     this.assertWorkAllowed = assertWorkAllowed
     this.moduleOperations = moduleOperations
+    // Lazy: the scheduler is built before the lattice facade (application-services).
+    this.lattice = lattice
     this.membersAdmission = membersAdmission
     this.admitWork = admitWork ?? (() => () => this.assertWorkAllowed())
     this.unconfirmedClaims = new Map()
@@ -211,6 +214,7 @@ export class BotScheduler {
       result = { code: null, signal: null, stdout: '', stderr: error.message }
     }
     if (job.controller.signal.aborted) return result
+    if (schedule.connect) return this.settleConnection(bot, schedule, result)
     if (schedule.notify === 'result' && result.code === 75) return result
     if (result.code === 0) {
       if (schedule.notify !== 'result') return result
@@ -230,6 +234,63 @@ export class BotScheduler {
     if (failures.length === 1) throw failures[0]
     if (failures.length > 1) throw new AggregateError(failures, 'SCHEDULE_COMMAND_NOTIFICATION_FAILED')
     return result
+  }
+
+  // A connected schedule is a one-shot check of a Lattice 他条件に接続: 0 resolves it, 75 waits, anything else tells the task's lane.
+  async settleConnection(bot, schedule, result) {
+    if (result.code === 75) return result
+    const { project, plan, task } = schedule.connect
+    const label = `予定「${schedule.name || schedule.command}」`
+    let problem
+    if (result.code === 0) {
+      const tail = (result.stdout.trim() || result.stderr.trim()).split('\n').slice(-5).join('\n') || '終了コード0'
+      const resolved = await this.runLattice(bot.id, project, ['todo', 'connect', 'condition', 'resolve', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`, '--message', tail])
+      problem = resolved.ok ? null : `${label}のコマンドは終了コード0で終わったが、接続の完了を記録できなかった（${resolved.reason}）。`
+    } else {
+      const outcome = result.code === null ? `シグナル${result.signal ?? '不明'}` : `終了コード${result.code}`
+      problem = `${label}のコマンドが${outcome}で失敗した。\n${(result.stderr.trim() || result.stdout.trim()).split('\n').slice(-5).join('\n')}`
+    }
+    // One run settles the schedule either way; a disabled schedule cannot repeat the notice.
+    await this.disableSchedule(bot, schedule).catch(reportError)
+    if (problem) await this.notifyLane(bot.id, schedule.connect, `[BellTeam schedule ${schedule.id}] ${problem}\n接続（${plan}/${task}）は開いたままで、この予定は止めた。`)
+    return result
+  }
+
+  // After the schedule is durably removed (BotRegistry.onScheduleRemoved): close its 接続; idempotent in Lattice.
+  async releaseConnection(botId, schedule) {
+    const { project, plan, task } = schedule.connect
+    const removed = await this.runLattice(botId, project, ['todo', 'connect', 'condition', 'remove', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`])
+    if (!removed.ok) await this.notifyLane(botId, schedule.connect, `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」を削除したが、接続（${plan}/${task}）を外せなかった（${removed.reason}）。接続は開いたまま。`)
+  }
+
+  // Lattice write through the parent facade. Never throws: ok=false covers no facade, a refusal, and an unsent or still-pending write.
+  async runLattice(from, projectId, args) {
+    try {
+      const facade = this.lattice?.()
+      if (!facade) return { ok: false, reason: 'LATTICE_UNAVAILABLE' }
+      const value = await facade.run({ from, projectId, args })
+      const code = value?.result?.code
+      if (value?.exitCode === 0 && code !== 'LATTICE_WRITE_PENDING' && code !== 'LATTICE_WRITE_NOT_SENT') return { ok: true, value }
+      return { ok: false, reason: code ?? `exit ${value?.exitCode}`, value }
+    } catch (error) { return { ok: false, reason: error.code ?? error.message } }
+  }
+
+  // The task's lane Bot only (never the Owner); the schedule's owner when the lane is not a Bot.
+  async notifyLane(ownerId, { project, plan, task }, message) {
+    const shown = await this.runLattice(ownerId, project, ['todo', 'show', '--plan', plan, '--task', task])
+    const lane = shown.value?.result?.task?.lane
+    await this.messenger.sendmessage({ from: 'scheduler', target: this.registry.get?.(lane) ? lane : ownerId, message })
+  }
+
+  async disableSchedule(bot, schedule) {
+    await this.withOperationContext(async options => {
+      const current = (await this.registry.listSchedules(bot.id, options)).find(item => item.id === schedule.id)
+      // A newer revision means an editor changed it meanwhile; the editor wins.
+      if (!current?.enabled || scheduleRevision(current) !== scheduleRevision(schedule)) return
+      // The members protocol accepts only editable fields; connect/template are kept when omitted.
+      const input = Object.fromEntries(SCHEDULE_INPUT.filter(key => Object.hasOwn(current, key)).map(key => [key, current[key]]))
+      await this.registry.setSchedule(bot.id, { ...input, enabled: false }, options)
+    })
   }
 
   async interruptCommands() {

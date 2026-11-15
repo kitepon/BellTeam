@@ -7,7 +7,8 @@
   "provides": [
     "lattice-chart",
     "lattice-seat",
-    "lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"
+    "lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)",
+    "lattice-schedule-connect (facade.run fixed 接続 verbs, L21; caller: body scheduler and registry removal hook, a164)"
   ],
   "uses": [
     {

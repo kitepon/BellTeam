@@ -50,6 +50,8 @@ export class BotRegistry extends Map {
     this.id = id
     this.botId = botId
     this.onChange = onChange
+    // Called with (botId, schedule) after a connected schedule is durably gone; application-services sets it (like currentTurn).
+    this.onScheduleRemoved = options.onScheduleRemoved ?? (async () => {})
     this.models = models
     this.projectFiles = projectFiles
     this.currentTurn = options.currentTurn ?? (() => ({ state: 'idle', turnId: null }))
@@ -440,10 +442,12 @@ export class BotRegistry extends Map {
   }
 
   async #remove(id) {
-    let bot
+    let bot, connected = []
     await this.#mutateProfile(id, async () => {
       await this.refresh()
       bot = this.get(id)
+      // The schedules die with the Bot: read the connected ones before the state moves.
+      if (bot) connected = (await this.listSchedules(id)).filter(item => item.connect)
       if (!this.separateState) {
         if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
         this.deletionIntents.add(id)
@@ -474,6 +478,7 @@ export class BotRegistry extends Map {
         this.changed()
       }
     })
+    for (const schedule of connected) await this.#scheduleRemoved(id, schedule)
     // Accepted instruction effects finish before physical project cleanup, without holding the state lock.
     await this.#instructionWrites.get(id)?.catch(() => {})
     let cleanupError
@@ -601,10 +606,20 @@ export class BotRegistry extends Map {
   }
 
   async removeSchedule(id, scheduleId) {
-    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
-      if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+    let removed
+    const value = await this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
+      removed = schedules.find(item => item.id === scheduleId)
+      if (!removed) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
       return { schedules: schedules.filter(item => item.id !== scheduleId), value: true }
     }))
+    if (removed.connect) await this.#scheduleRemoved(id, removed)
+    return value
+  }
+
+  async #scheduleRemoved(id, schedule) {
+    try { await this.onScheduleRemoved(id, schedule) } catch (error) {
+      process.stderr.write(`BellTeam registry error: ${error.stack ?? error.message}\n`)
+    }
   }
 
   async markScheduleRun(id, scheduleId, ranAt, { skipped = false, expectedRevision } = {}) {
