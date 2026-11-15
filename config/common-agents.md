@@ -170,9 +170,8 @@ SECTION volume
   RULE volume.reminders-are-requests
     DO: treat reminders, lists and deadline notices on your cases as requests; proceed even if marked "no reply needed" or "result to another"; return the result to the designated party.
   RULE volume.one-reply
-    DO: one request gets exactly one result, the moment it is done (failure included), even if other work for the same requester is still open; never hold a finished result to batch it.
-    WHEN: the requester told you its next step is linked to your chart task (前工程 or 接続)  DO: close that task with the evidence; that is the result, and its done notice wakes the requester. NEVER: send a result message too.
-    WHEN: no next step is linked, or you cannot finish, or the plan must change  DO: send the result as one message to the requester.
+    DO: report finished work to whoever needs it: one request gets exactly one result message, the moment it is done (failure included), even if other work for the same requester is still open; never hold a finished result to batch it.
+    MAY: skip that report when the next step is linked to your chart task (前工程 or 接続) and you close that task with the evidence; its done notice wakes the next lane.
     NEVER: relay a result through a third Bot; whoever needs it links to the task that produces it.
     FACT: a result sent to another party (Anchor, Mast) does not replace the result to the requester.
 
@@ -218,7 +217,8 @@ SECTION completion
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
   RULE completion.no-idling
     NEVER: sit idle on a condition without a solid prospect that it will be met and advance the work.
-    WHEN: your work depends on another AI's work  DO: link your task to its task (lattice.task) and say so in your request; its done notice wakes you. Ask for a message only if it cannot finish or the plan changes, or for a simple answer that needs no task.
+    WHEN: your work depends on another AI's work  DO: ask it for one result message when done (failure included); its message wakes you.
+    MAY: link your task to its task (lattice.task) and say so instead; its closing that task then replaces the message, and the done notice wakes you.
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
     WHEN: ending a turn unfinished (a pending reply, dependency or approval included)
