@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T12:32:22Z",
-  "expiresAt": "2026-11-22T12:32:22Z",
+  "publishedAt": "2026-11-15T12:55:19Z",
+  "expiresAt": "2026-11-22T12:55:19Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548",
-      "versionId": "1075904a8cb11d6e93aa69a8573c77caae0f29b18f971e5cbf84567e7085f432",
+      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
+      "versionId": "672ac124affd3e2b85b33b649d337f360ba67cbc6894c27099748f72b0272e66",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-amd64.tar.gz",
-          "bytes": 4575925,
-          "sha256": "1075904a8cb11d6e93aa69a8573c77caae0f29b18f971e5cbf84567e7085f432"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz",
+          "bytes": 4581186,
+          "sha256": "672ac124affd3e2b85b33b649d337f360ba67cbc6894c27099748f72b0272e66"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "776c02b9c74777b8333dd72ea68e0e82e536d0da68dcc3ac71d82e28838a07c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11027,
+          "sha256": "97945a65eab7bbb29a2553204a0d14477fe89160bf045dc4b361e5404f7c7868"
         },
-        "signerCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548"
+        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "共通の規範の言い方を、前工程・接続・ブロックに改めました。止まったときは、まず既にある工程につなぐようにしました。"
+        "共通ルールに、工程表の新しいコマンド名（前工程・他条件への接続・優先接続）を入れました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548",
-      "versionId": "f1ef8d3328deaa50ce3f2ce2ab21448d7a26b9e0bf7fa8aa0e7ab4444619b30b",
+      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
+      "versionId": "bbf1ea2e85afb18180f23a306535bd1a95c76f7751e554124e38ccc358dd69e9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-arm64.tar.gz",
-          "bytes": 4575927,
-          "sha256": "f1ef8d3328deaa50ce3f2ce2ab21448d7a26b9e0bf7fa8aa0e7ab4444619b30b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz",
+          "bytes": 4581194,
+          "sha256": "bbf1ea2e85afb18180f23a306535bd1a95c76f7751e554124e38ccc358dd69e9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "540334f8f36e091045e4cad3253eaaa6a6fea01d746c3b1db1d789e02faf9be9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10906,
+          "sha256": "3729f45fe07300a64c32faacd4ba9e75a0da9e86e15412b22a1757b47c102dcf"
         },
-        "signerCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548"
+        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "共通の規範の言い方を、前工程・接続・ブロックに改めました。止まったときは、まず既にある工程につなぐようにしました。"
+        "共通ルールに、工程表の新しいコマンド名（前工程・他条件への接続・優先接続）を入れました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ba910a66bf484b26c324cd1c450bb07e8f20dd71",
-      "versionId": "sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918",
+      "sourceCommit": "064623f4518ca2b5b721e1ccd599c22ede68d2f2",
+      "versionId": "sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.68にしました。",
-        "計画モードに入るとき、仕様が書かれていなければ一度だけ書くよう促します。",
-        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
+        "Aitermを0.70.66にしました（計画モードの確認で席が止まらなくなります）。",
+        "席から工程表へ書くとき、60秒で打ち切られる前に結果を返すようにしました。",
+        "決裁箱の拡張の、本体側の土台を入れました（まだ画面は使えません）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ba910a66bf484b26c324cd1c450bb07e8f20dd71",
-      "versionId": "sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918",
+      "sourceCommit": "064623f4518ca2b5b721e1ccd599c22ede68d2f2",
+      "versionId": "sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,15 +748,15 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.68にしました。",
-        "計画モードに入るとき、仕様が書かれていなければ一度だけ書くよう促します。",
-        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
+        "Aitermを0.70.66にしました（計画モードの確認で席が止まらなくなります）。",
+        "席から工程表へ書くとき、60秒で打ち切られる前に結果を返すようにしました。",
+        "決裁箱の拡張の、本体側の土台を入れました（まだ画面は使えません）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "69778017d9a63042978f8ff2b2d53995c128b70f",
-      "versionId": "e624500e810f163a40b435b9baab202629fad1f0a99276f9e1790fbc2fb8c268",
+      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
+      "versionId": "0ade6c5b968c3a7a10324d6846f8fd958dca4fdef823e5a5409440ff3ab4f358",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T120518Z/lattice-69778017d9a63042978f8ff2b2d53995c128b70f-linux-amd64.tar.gz",
-          "bytes": 15304193,
-          "sha256": "e624500e810f163a40b435b9baab202629fad1f0a99276f9e1790fbc2fb8c268"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz",
+          "bytes": 15304403,
+          "sha256": "0ade6c5b968c3a7a10324d6846f8fd958dca4fdef823e5a5409440ff3ab4f358"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T120518Z/lattice-69778017d9a63042978f8ff2b2d53995c128b70f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "4569fadfff66b1be158bceafcab80ba7828318bb6599b4b3320cd5119d31ed3d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "350fe93e9c56d27eef884691ef5f9f246369c2a4bae5205774d4cc98243e2493"
         },
-        "signerCommit": "69778017d9a63042978f8ff2b2d53995c128b70f"
+        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "工程表の部品を新しい版（0.104.0）にしました。1つの工程表に、512件を超える工程を足せるようにします。"
+        "工程表の案内の言葉を、新しいコマンド名に合わせました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "69778017d9a63042978f8ff2b2d53995c128b70f",
-      "versionId": "29316ab9e1207689524cf0de59ff34f36d70db6c2a7e188525203dd04d720ba9",
+      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
+      "versionId": "6b456e1126df250426c26ca0ec0ddd6436cf28c7c3159f27e516e53549b91af4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T120518Z/lattice-69778017d9a63042978f8ff2b2d53995c128b70f-linux-arm64.tar.gz",
-          "bytes": 15304193,
-          "sha256": "29316ab9e1207689524cf0de59ff34f36d70db6c2a7e188525203dd04d720ba9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz",
+          "bytes": 15304403,
+          "sha256": "6b456e1126df250426c26ca0ec0ddd6436cf28c7c3159f27e516e53549b91af4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T120518Z/lattice-69778017d9a63042978f8ff2b2d53995c128b70f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "148ec71267c480d4e504bc4e183d394c35dfae3702041988ef8a4fa0bc0a2770"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10902,
+          "sha256": "b88fb3444d788b39e0fe918c63709814b1dd00897bc7a6aed1d3c591f0ee99b9"
         },
-        "signerCommit": "69778017d9a63042978f8ff2b2d53995c128b70f"
+        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "工程表の部品を新しい版（0.104.0）にしました。1つの工程表に、512件を超える工程を足せるようにします。"
+        "工程表の案内の言葉を、新しいコマンド名に合わせました。"
       ]
     }
   ],
