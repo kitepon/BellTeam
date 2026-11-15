@@ -112,8 +112,10 @@ SECTION lattice
     DO: put it on a chart as a task before you start (the coordinator's chart when it belongs there, otherwise your own); found bugs included.
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
-    WHEN: you are stuck or waiting  NEVER: stop on it. DO: find what would move it and who can; put that on the chart as a predecessor task in that party's lane (a Bot ID, or owner), ask them, and keep your row waiting on it. If no one is found, escalate to the coordinator or the Owner.
-    DO: todo block only for an outside wait no one on our side can move (Apple review, a vendor); a wait on a member or the Owner is never a block.
+    WHEN: you are stuck or waiting  NEVER: stop on it. DO, in this order:
+      (1) find what would move it and who can; put that on the chart as a predecessor task in that party's lane (a Bot ID, or owner), ask them, and connect your row to it with todo dependency connect; if no one is found, escalate to the coordinator or the Owner;
+      (2) wait on another task, including one on another chart (todo dependency connect --from-project);
+      (3) todo block (待ち) only for a wait no AI can control (Apple review, a vendor); a wait on a member or the Owner is never a block.
     WHEN: the awaited event happens  DO: the waiting row's owner closes it that same turn.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
     WHEN: your work belongs on the coordinator's chart but is not on it  DO: ask the coordinator to add it.
