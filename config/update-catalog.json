@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T08:03:27Z",
-  "expiresAt": "2026-11-22T08:03:27Z",
+  "publishedAt": "2026-11-15T08:44:03Z",
+  "expiresAt": "2026-11-22T08:44:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "7449ae46b65cb430ab2cb0b0528c0b25f6611cc5",
-      "versionId": "4cfb0a121d9587e63b9eafba65b6c3ea051f6eff6d185a508b374443a0a7cfd4",
+      "sourceCommit": "3b4ba943a40665faac40e4fd62cd787972a49440",
+      "versionId": "9ea33b66edcb542391f7daa72d189055ed62d70a09c11c45b656153466184b16",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T074928Z/execution-7449ae46b65cb430ab2cb0b0528c0b25f6611cc5-linux-amd64.tar.gz",
-          "bytes": 3980115,
-          "sha256": "4cfb0a121d9587e63b9eafba65b6c3ea051f6eff6d185a508b374443a0a7cfd4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-amd64.tar.gz",
+          "bytes": 3980200,
+          "sha256": "9ea33b66edcb542391f7daa72d189055ed62d70a09c11c45b656153466184b16"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T074928Z/execution-7449ae46b65cb430ab2cb0b0528c0b25f6611cc5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "fe8dd178c48eec68635d74eed546ec0ebfd0780a0a715b62466e512a6de3e55c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "8010e2a4c485d8f3e423d24b61d22cd7f8dffd647802a2744f5e26698c8e7544"
         },
-        "signerCommit": "7449ae46b65cb430ab2cb0b0528c0b25f6611cc5"
+        "signerCommit": "3b4ba943a40665faac40e4fd62cd787972a49440"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "設定を変えるときのエラーの診断に、原因の場所が書かれるようにしました。"
+        "フォーク（分身）を、本体で保存しているモデルと強さで起動するようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "7449ae46b65cb430ab2cb0b0528c0b25f6611cc5",
-      "versionId": "274875d97750e2aad0223ba04dcc8e27611d6ef7f53956c92cd3f1450609dce7",
+      "sourceCommit": "3b4ba943a40665faac40e4fd62cd787972a49440",
+      "versionId": "60f8d3962c0dbcef5e86c90e8f12861a147e3b6e2308ee9f8b6b4b0068b77bc4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T074928Z/execution-7449ae46b65cb430ab2cb0b0528c0b25f6611cc5-linux-arm64.tar.gz",
-          "bytes": 3980116,
-          "sha256": "274875d97750e2aad0223ba04dcc8e27611d6ef7f53956c92cd3f1450609dce7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-arm64.tar.gz",
+          "bytes": 3980201,
+          "sha256": "60f8d3962c0dbcef5e86c90e8f12861a147e3b6e2308ee9f8b6b4b0068b77bc4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T074928Z/execution-7449ae46b65cb430ab2cb0b0528c0b25f6611cc5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "346012ac70038b355b39d9781c81f99c376c82595a520258fa4c64355700d3a8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T084326Z/execution-3b4ba943a40665faac40e4fd62cd787972a49440-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11181,
+          "sha256": "16eea49664a7c47f8d670ef3f19f3a042de36cc7df23b54c3eb411ef4373c454"
         },
-        "signerCommit": "7449ae46b65cb430ab2cb0b0528c0b25f6611cc5"
+        "signerCommit": "3b4ba943a40665faac40e4fd62cd787972a49440"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "設定を変えるときのエラーの診断に、原因の場所が書かれるようにしました。"
+        "フォーク（分身）を、本体で保存しているモデルと強さで起動するようにしました。"
       ]
     },
     {
