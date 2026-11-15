@@ -348,8 +348,7 @@ internal sealed class ApprovalsPage : Grid
         FrameworkElement main;
         if (state == ApprovalFeedStatus.LoginRequired) main = LatticeWindow.Notice(LatticeChart.LoginRequired, null, null);
         else if (blocked == ApprovalFeedStatus.NoCredential) main = ConnectView();
-        else if (blocked is { } kind) main = LatticeWindow.Notice(kind switch { ApprovalFeedStatus.Old => Approvals.Old, ApprovalFeedStatus.NotEntitled => Approvals.NotEntitled, _ => Approvals.Expired }, null,
-            kind == ApprovalFeedStatus.Old ? ("閉じる", window.Close) : (kind == ApprovalFeedStatus.NotEntitled ? "契約を確かめる" : "読み直す", () => Reload()), kind != ApprovalFeedStatus.Old);
+        else if (blocked is { } kind) main = Refused(kind);
         else main = Columns(stale || state == ApprovalFeedStatus.Drop);
         SetRow(main, 2); root.Children.Add(main);
         body.Children.Clear(); body.Children.Add(root);
@@ -372,6 +371,17 @@ internal sealed class ApprovalsPage : Grid
         if (at is ContentControl { Content: DependencyObject }) yield break;
     }
     private static T Key<T>(T element, string key) where T : DependencyObject { System.Windows.Automation.AutomationProperties.SetAutomationId(element, "ab:" + key); return element; }
+
+    // Failure views 1, 2, 9: the words and a way out on the same screen (契約を確かめる / 読み直す re-read, 閉じる leaves); nothing runs behind them.
+    private FrameworkElement Refused(ApprovalFeedStatus kind)
+    {
+        var text = kind switch { ApprovalFeedStatus.Old => Approvals.Old, ApprovalFeedStatus.NotEntitled => Approvals.NotEntitled, _ => Approvals.Expired };
+        var notice = (StackPanel)LatticeWindow.Notice(text, null, null, kind != ApprovalFeedStatus.Old);
+        var acts = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) };
+        if (kind != ApprovalFeedStatus.Old) { var again = Action(kind == ApprovalFeedStatus.NotEntitled ? "契約を確かめる" : "読み直す", "", true); again.Click += (_, _) => Reload(); acts.Children.Add(Key(again, "again")); }
+        var close = Action("閉じる", "", kind == ApprovalFeedStatus.Old); close.Click += (_, _) => window.Close(); acts.Children.Add(Key(close, "close-screen"));
+        notice.Children.Add(acts); return notice;
+    }
 
     private WrapPanel Toolbar(bool full)
     {
