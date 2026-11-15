@@ -1,0 +1,36 @@
+{
+  "title": "決裁箱拡張",
+  "owner": "デルタ",
+  "botId": "bot-ae42e3e9",
+  "scope": "決裁箱の決裁を工程表につなぐ有料の追加機能。決裁箱の公開APIで読み・答え、決裁1件を工程1件に結ぶ記録とアプリ向け口 /api/approvals を持つ。決裁箱本体はナユタ、工程表はフローラ、各画面は各アプリの担当",
+  "external": false,
+  "optional": true,
+  "provides": [
+    "approvals-app-contract (/api/approvals/*)",
+    "decision-task-link"
+  ],
+  "uses": [
+    {
+      "module": "approval-box",
+      "port": "bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing)"
+    },
+    {
+      "module": "lattice",
+      "port": "lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"
+    },
+    {
+      "module": "usage",
+      "port": "secrets"
+    },
+    {
+      "module": "members",
+      "port": "registry"
+    }
+  ],
+  "source": [
+    "src/approval-box-extension/origin-view.mjs",
+    "src/approval-box-extension/entitlement.mjs",
+    "src/approval-box-extension/connect-state.mjs",
+    "src/approval-box-extension/link-plan.mjs"
+  ]
+}

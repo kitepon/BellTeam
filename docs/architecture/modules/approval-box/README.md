@@ -14,6 +14,7 @@
 | `version --json (capabilities)` | `approval-box version --json`、capability `bellteam-requester-wake`。席が閉じていても申請者へsendmessageで起こす版かを知る | execution（キロ、bd03、IdleSessions） |
 | `harness-entries (approval-box)` | `approval-box harness-entries --json`、`bellteam.harness-entries.v1`。BellTeamがCLIファイルの唯一のwriterとして書く | runtime（モリー、bd14） |
 | `connector /v1 (HTTP)` | 既存のHTTP接続 `/connector/v1`（decisions、fetched、connection） | integration（モリー、OLRWの承認確認）、execution（キロ、実行除外の申請）、lattice（フローラ、Ownerレーンの決裁） |
+| `bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing)` | BellTeamは登録クライアント `bellteam`。利用者が決裁箱の画面で一度許可し、BellTeamは待ち受けで限定セッション（スライド90日）を受け取る。リダイレクトも貼り付けも無い。正本は製品repoの `docs/bellteam-client.md` | 決裁箱拡張（デルタ、[契約](../approval-box-extension/contract/approvals-contract.md)） |
 
 逆向きは `HTTP/MCP`（BellTeamの公開MCP `sendmessage` で申請者の席を起こす）と `Steer delivery`（Aiterm）。Approval Boxの設定ファイル、内部module、DBをBellTeamは読まない。
 

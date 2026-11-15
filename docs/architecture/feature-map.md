@@ -10,6 +10,7 @@
 
 ```mermaid
 flowchart LR
+  m_approval_box_extension["決裁箱拡張 / デルタ"]
   m_conversation["会話・履歴 / N102"]
   m_diagnostics["診断 / シグナル"]
   m_distribution["商用配布 / モリー"]
@@ -23,6 +24,9 @@ flowchart LR
   m_usage["利用設定・通知 / ミカ"]
   m_web["Webアプリ / アドミ"]
   m_work_graph["相関図 / アークレンジャー・ブラック"]
+  m_approval_box_extension -->|"lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"| m_lattice
+  m_approval_box_extension -->|"secrets"| m_usage
+  m_approval_box_extension -->|"registry"| m_members
   m_conversation -->|"turn"| m_execution
   m_conversation -->|"registry"| m_members
   m_conversation -->|"notify"| m_usage
@@ -109,6 +113,7 @@ flowchart LR
   m_aiterm["Aiterm/Steer / エレグ"]
   m_apple["Appleアプリ / ベル"]
   m_approval_box["Approval Box / ナユタ"]
+  m_approval_box_extension["決裁箱拡張 / デルタ"]
   m_bridge["call-bridge/grokbot-bridge / リター"]
   m_bughub["BugHub / フラジャイル"]
   m_conversation["会話・履歴 / N102"]
@@ -129,6 +134,7 @@ flowchart LR
   m_apple -->|"HTTP/SSE"| m_integration
   m_approval_box -->|"Steer delivery (aiterm-steer-delivery)"| m_aiterm
   m_approval_box -->|"HTTP/MCP"| m_integration
+  m_approval_box_extension -->|"bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing)"| m_approval_box
   m_bridge -->|"call-bridge delivery (/v0/directory, /v0/deliver)"| m_conversation
   m_bughub -->|"diagnostics"| m_integration
   m_conversation -->|"context CLI"| m_throughline
@@ -145,7 +151,6 @@ flowchart LR
   m_linux -->|"HTTP/SSE"| m_integration
   m_memory -->|"context CLI"| m_throughline
   m_runtime -->|"relay"| m_mcp_lazy
-  m_runtime -->|"hook"| m_rtk
   m_runtime -->|"exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server"| m_aiterm
   m_runtime -->|"exports: state-compat.json, resume-state-cli"| m_aiterm
   m_runtime -->|"harness-entries (aiterm-setup)"| m_aiterm
@@ -169,7 +174,8 @@ flowchart LR
 | --- | --- | --- |
 | [Aiterm/Steer](modules/aiterm/README.md) | エレグ | MCP tools (stdio) / bin: aiterm-wait, aiterm-transcript-read / bin: aiterm-remote-terminal / exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server / exports: state-compat.json, resume-state-cli / exports: child-result / harness-entries (aiterm-setup) / Steer delivery (aiterm-steer-delivery) |
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
-| [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) |
+| [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
+| [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link |
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | connection export (call-bridge.connection.v1) / MCP /mcp |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
@@ -178,7 +184,7 @@ flowchart LR
 | [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact / lattice-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics / remote-seat-port |
-| [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat |
+| [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat / lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta) |
 | [Lattice（製品 @quolu/lattice）](modules/lattice-product/README.md) | スノーホワイト | contract: lattice CLI only (K1-K8, a102): charts list/source, chart set/repo, todo |
 | [Linuxアプリ](modules/linux/README.md) | ネオン | public |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
