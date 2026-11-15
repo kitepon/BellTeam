@@ -156,3 +156,16 @@ test('list projection disappearance skips confirmed 404 only, unknown never retu
   failure = Object.assign(new Error(), { code: 'MEMBERS_UNAVAILABLE', status: 503, outcome: 'unknown' })
   await assert.rejects(f.bots.listForClient(), { status: 503, outcome: 'unknown' })
 })
+
+// a153: a lease carried across a members exchange (#1554 adopt) keeps its old generation; the roster it reads is the new child's,
+// so the projection check compares with the current admission generation, not the lease's frozen one.
+test('a153: a lease carried across an exchange reads the current generation roster instead of UNCONFIRMED', async () => {
+  const admission = new MembersAdmission('old')
+  const projection = { snapshot: () => ({ available: true, generation: 'new', revision: 2, profiles: [bot] }), get: () => bot, has: () => true, keys: () => [bot.id].values(), values: () => [bot].values() }
+  const facade = createMembersFacade({ admission, projection, request: async () => ({ revision: 1 }), callback: async () => ({}) })
+  const lease = admission.enter(), ticket = admission.close()
+  admission.adopt(ticket, 'new'); admission.resume(ticket) // the lease is carried; its own generation stays 'old'
+  assert.equal(lease.generation, 'old')
+  assert.deepEqual(await facade.bots.refresh({ membersLease: lease }), [bot])
+  admission.finish(lease)
+})

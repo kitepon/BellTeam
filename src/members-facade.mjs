@@ -22,7 +22,8 @@ export function createMembersFacade({ request, callback, admission, projection }
   const readProfiles = async (context = {}) => withContext('profiles.read', context, async options => {
     const receipt = await invoke('profiles.read', {}, options)
     const view = projection.snapshot()
-    const generation = (options.membersReadPin ?? options.membersLease).generation
+    // a153: a lease or pin carried across a members exchange (#1554) keeps its old generation; the roster it read is the current child's.
+    const generation = admission.capture().generation
     if (!view.available || view.generation !== generation || !Number.isSafeInteger(view.revision) || view.revision < receipt.revision)
       throw Object.assign(new Error('MEMBERS_PROJECTION_UNCONFIRMED'), { code: 'MEMBERS_PROJECTION_UNCONFIRMED', status: 503, outcome: 'unknown' })
     return view.profiles
