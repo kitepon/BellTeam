@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   failureOf, originOf, cardRow, confirmText, answerOutcome, deliveryNote, groupDone, countsOf, entryView, linkPanel, historyRows, originCounts, originFilter,
-  parseHash, decisionHash, ageText, MESSAGES,
+  parseHash, decisionHash, ageText, MESSAGES, connectView, connectOutcome,
 } from '../web/approvals-model.js'
 import { createApprovalsFeed } from '../web/approvals-feed.js'
 import { createApprovalsView } from '../web/approvals.js'
@@ -206,7 +206,7 @@ const all = root => root.children.flatMap(c => c.nodeType === 3 ? [] : [c, ...al
 const byClass = (root, name) => all(root).filter(el => el.className.split(' ').includes(name))
 const buttonByText = (root, text) => all(root).find(el => el.tagName === 'button' && el.textContent.includes(text))
 
-function viewHarness(t, { routes, getMember = id => id === 'bot-823b56e9' ? { botId: id, name: 'ブレッディ', color: 'amber', known: true } : null } = {}) {
+function viewHarness(t, { routes, openTab, feedStatus = 'live', getMember = id => id === 'bot-823b56e9' ? { botId: id, name: 'ブレッディ', color: 'amber', known: true } : null } = {}) {
   const saved = Object.fromEntries(['document', 'matchMedia'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)]))
   globalThis.document = { createElement: tag => new El(tag), createElementNS: () => new El('svg'), createTextNode: s => new Text(s), activeElement: null, hidden: false, addEventListener() {}, removeEventListener() {} }
   globalThis.matchMedia = () => ({ matches: false })
@@ -214,7 +214,7 @@ function viewHarness(t, { routes, getMember = id => id === 'bot-823b56e9' ? { bo
   const dialog = new El('dialog'), body = new El('div'), pill = new El('p'); body.dataset.approvalsBody = ''; pill.dataset.approvalsPill = ''; pill.hidden = true
   dialog.append(body, pill)
   const calls = [], listeners = [], timing = fakeClock()
-  const feed = { status: 'live', summary, on: fn => { listeners.push(fn); return () => listeners.splice(listeners.indexOf(fn), 1) }, refresh: async () => { calls.push({ path: 'feed.refresh' }) } }
+  const feed = { status: feedStatus, summary, on: fn => { listeners.push(fn); return () => listeners.splice(listeners.indexOf(fn), 1) }, refresh: async () => { calls.push({ path: 'feed.refresh' }) } }
   const fetch = async (path, options = {}) => {
     calls.push({ path, method: options.method ?? 'GET', headers: options.headers, body: options.body ? JSON.parse(options.body) : null })
     const route = routes[`${options.method ?? 'GET'} ${path}`] ?? routes[path]
@@ -223,7 +223,7 @@ function viewHarness(t, { routes, getMember = id => id === 'bot-823b56e9' ? { bo
     return { status: value.status, json: async () => value.body }
   }
   const opened = [], keys = ['key-1', 'key-2', 'key-3', 'key-4']
-  const view = createApprovalsView(dialog, { feed, fetch, getMember, openChart: (projectId, cardId) => opened.push([projectId, cardId]), now: () => NOW, uuid: () => keys.shift(), copyText: async () => {}, ...timing })
+  const view = createApprovalsView(dialog, { feed, fetch, getMember, openChart: (projectId, cardId) => opened.push([projectId, cardId]), now: () => NOW, uuid: () => keys.shift(), copyText: async () => {}, ...(openTab ? { openTab } : {}), ...timing })
   return { view, dialog, body, pill, calls, feed, emit: event => { for (const fn of [...listeners]) fn(event) }, opened, ...timing }
 }
 const ok = body => ({ status: 200, body })
@@ -323,7 +323,7 @@ test('view 失敗：旧サーバー・契約・読めない時は、その言葉
   h.feed.status = 'expired'; h.emit({ type: 'status', status: 'expired' })
   assert.match(h.body.textContent, /決裁箱の契約が切れています。/u)
   h.feed.status = 'noCredential'; h.emit({ type: 'status', status: 'noCredential' })
-  assert.match(h.body.textContent, /決裁箱との接続が切れています。/u)
+  assert.match(h.body.textContent, /決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。/u); assert.ok(buttonByText(h.body, '決裁箱につなぐ'))
   h.view.close(); assert.equal(h.clock.timers.size, 0, '閉じたらタイマーを持たない')
 })
 
@@ -337,5 +337,96 @@ test('view 知らせ：decision の知らせで一覧を読み直し、同じ版
   assert.deepEqual(h.calls.map(call => call.path), ['/api/approvals?status=pending,held'])
   h.emit({ type: 'resync' }); await flush()
   assert.equal(h.calls.filter(call => call.path === '/api/approvals?status=pending,held').length, 2)
+  h.view.close()
+})
+
+// ---- つなぐ ----
+const CONSENT = 'https://approvals.example/consent?code=ZXCV-1234'
+const tabMaker = () => { const tabs = [], openTab = () => { const tab = { location: { href: '' }, closed: false, close() { this.closed = true } }; tabs.push(tab); return tab }; return { tabs, openTab } }
+const fire = async h => { const [id, timer] = [...h.clock.timers][0]; h.clock.timers.delete(id); timer.fn(); await flush() }
+const connectRoutes = extra => ({ '/api/approvals?status=pending,held': { status: 409, body: errors.not_connected.body }, ...extra })
+
+test('connectView / connectOutcome：状態ごとの言葉とボタン。開くのは https の許可ページだけ', () => {
+  assert.deepEqual(connectView({}).actions.map(item => item.label), ['決裁箱につなぐ', '読み直す']); assert.equal(connectView({}).text, MESSAGES.noCredential)
+  assert.equal(connectView({ server: 'expired' }).text, '決裁箱とのつなぎの期限が切れました。もう一度つないでください。')
+  const waiting = connectView({ phase: 'waiting' }); assert.equal(waiting.text, '決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。'); assert.equal(waiting.spinner, true); assert.deepEqual(waiting.actions.map(item => item.label), ['もう一度開く', 'やめる'])
+  assert.deepEqual(connectView({ phase: 'denied' }).actions.map(item => item.label), ['もう一度つなぐ']); assert.equal(connectView({ phase: 'denied' }).text, '許可されませんでした。もう一度つなげます。')
+  assert.equal(connectView({ phase: 'opening' }).actions.length, 0)
+  assert.deepEqual(connectOutcome(200, { authorizationUrl: CONSENT, expiresAt: 'x' }), { kind: 'ok', url: CONSENT })
+  for (const body of [{ authorizationUrl: 'http://x/y' }, { authorizationUrl: 'javascript:alert(1)' }, {}, null]) assert.equal(connectOutcome(200, body).kind, 'retry', 'https 以外は開かない')
+  for (const status of [402, 403, 404, 409]) assert.equal(connectOutcome(status, null).kind, 'again')
+  for (const status of [0, 429, 503, 400]) assert.deepEqual(connectOutcome(status, null), { kind: 'retry', message: 'いまは決裁箱につなげませんでした。少し待って、もう一度押してください。' })
+})
+
+test('view つなぐ：押す→決裁箱の画面が開く（コードは出さない・貼らせない）→許可待ちを見続け→つながったら読む', async t => {
+  const { tabs, openTab } = tabMaker()
+  const routes = connectRoutes({ 'GET /api/approvals/connection': [ok({ state: 'not_connected' }), ok({ state: 'waiting' }), ok({ state: 'waiting' }), ok({ state: 'connected' })], 'POST /api/approvals/connect': ok({ authorizationUrl: CONSENT, expiresAt: '2026-11-15T13:00:00Z' }) })
+  const h = viewHarness(t, { routes, openTab, feedStatus: 'noCredential' })
+  h.view.open(); await flush()
+  assert.match(h.body.textContent, /決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。/u); assert.equal(h.clock.timers.size, 0)
+  const refreshed = h.calls.filter(call => call.path === 'feed.refresh').length
+  buttonByText(h.body, '決裁箱につなぐ').click(); assert.equal(tabs.length, 1, '押した瞬間に開く'); assert.equal(tabs[0].location.href, '', 'まだ空の画面')
+  assert.match(h.body.textContent, /決裁箱の画面で、許可してください。/u); assert.equal(buttonByText(h.body, '決裁箱につなぐ'), undefined, '送っている間は押せない')
+  await flush()
+  assert.equal(tabs[0].location.href, CONSENT); assert.equal(h.calls.filter(call => call.method === 'POST').length, 1)
+  assert.ok(buttonByText(h.body, 'もう一度開く')); assert.ok(buttonByText(h.body, 'やめる')); assert.equal(h.clock.timers.size, 1); assert.equal([...h.clock.timers.values()][0].ms, 2000)
+  assert.doesNotMatch(h.body.textContent, /ZXCV|consent|https:/u, '画面にコードも住所も出さない')
+  await fire(h); assert.match(h.body.textContent, /許可してください/u); assert.equal(h.clock.timers.size, 1, '待ち続ける（回数の上限は置かない）')
+  await fire(h); assert.equal(h.clock.timers.size, 1)
+  await fire(h)
+  assert.equal(h.clock.timers.size, 0, 'つながったら見張りを止める'); assert.equal(h.calls.filter(call => call.path === 'feed.refresh').length, refreshed + 1, 'つながったら読み直す')
+  h.view.close()
+})
+
+test('view つなぐ：断り・待ち時間切れ・失敗は、その言葉ともう一度つなぐ。やめるは DELETE。閉じたら見張りを持たない', async t => {
+  const { tabs, openTab } = tabMaker()
+  const states = [ok({ state: 'waiting' }), ok({ state: 'denied' }), ok({ state: 'not_connected' })]
+  const routes = connectRoutes({ 'GET /api/approvals/connection': () => states.length > 1 ? states.shift() : states[0],
+    'POST /api/approvals/connect': [{ status: 503, body: errors.unavailable.body }, ok({ authorizationUrl: CONSENT }), ok({ authorizationUrl: CONSENT })], 'DELETE /api/approvals/connect': ok({ state: 'not_connected' }) })
+  const h = viewHarness(t, { routes, openTab, feedStatus: 'noCredential' })
+  h.view.open(); await flush()
+  assert.match(h.body.textContent, /決裁箱の画面で、許可してください。/u, '開き直しても許可待ちの続きが分かる'); assert.equal(h.clock.timers.size, 1)
+  await fire(h)
+  assert.match(h.body.textContent, /許可されませんでした。もう一度つなげます。/u); assert.equal(h.clock.timers.size, 0)
+  buttonByText(h.body, 'もう一度つなぐ').click(); await flush()
+  assert.equal(tabs[0].closed, true, '作れなかったら開いた画面は閉じる'); assert.match(h.body.textContent, /いまは決裁箱につなげませんでした。少し待って、もう一度押してください。/u); assert.ok(buttonByText(h.body, '決裁箱につなぐ'))
+  buttonByText(h.body, '決裁箱につなぐ').click(); await flush()
+  assert.equal(tabs[1].location.href, CONSENT); await fire(h)
+  assert.match(h.body.textContent, /許可の待ち時間が過ぎました。もう一度つないでください。/u); assert.ok(buttonByText(h.body, '決裁箱につなぐ'))
+  buttonByText(h.body, '決裁箱につなぐ').click(); await flush()
+  buttonByText(h.body, 'やめる').click(); await flush()
+  assert.equal(h.calls.some(call => call.method === 'DELETE' && call.path === '/api/approvals/connect'), true); assert.equal(h.clock.timers.size, 0)
+  buttonByText(h.body, '決裁箱につなぐ').click(); await flush(); assert.equal(h.clock.timers.size, 1)
+  h.view.close(); assert.equal(h.clock.timers.size, 0, '閉じたら見張りを持たない')
+})
+
+test('view つなぐ：期限切れの言葉、画面が開かなかった時の案内、契約の止まりは feed に任せる', async t => {
+  const blocked = viewHarness(t, { routes: connectRoutes({ 'GET /api/approvals/connection': ok({ state: 'expired' }), 'POST /api/approvals/connect': ok({ authorizationUrl: CONSENT }) }), openTab: () => null, feedStatus: 'noCredential' })
+  blocked.view.open(); await flush()
+  assert.match(blocked.body.textContent, /決裁箱とのつなぎの期限が切れました。もう一度つないでください。/u)
+  buttonByText(blocked.body, '決裁箱につなぐ').click(); await flush()
+  assert.match(blocked.body.textContent, /決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。/u); assert.ok(buttonByText(blocked.body, 'もう一度開く'))
+  blocked.view.close()
+  const gone = viewHarness(t, { routes: connectRoutes({ 'GET /api/approvals/connection': ok({ state: 'not_connected' }), 'POST /api/approvals/connect': { status: 403, body: errors['not_entitled.expired'].body } }), openTab: tabMaker().openTab, feedStatus: 'noCredential' })
+  gone.view.open(); await flush()
+  const before = gone.calls.filter(call => call.path === 'feed.refresh').length
+  buttonByText(gone.body, '決裁箱につなぐ').click(); await flush()
+  assert.equal(gone.calls.filter(call => call.path === 'feed.refresh').length, before + 1, '契約の止まりは feed が決める'); assert.equal(gone.clock.timers.size, 0)
+  gone.view.close()
+})
+
+test('view つなぎを外す：つながっている間だけ出て、二段（外す / やめる）。外したら読み直してつなぐ画面へ', async t => {
+  const routes = { ...baseRoutes(), 'DELETE /api/approvals/connection': [{ status: 503, body: errors.unavailable.body }, ok({ state: 'not_connected' })] }
+  const h = viewHarness(t, { routes })
+  h.view.open(); await flush()
+  buttonByText(h.body, 'つなぎを外す').click()
+  assert.match(h.body.textContent, /決裁箱とのつなぎを外します。外すと、また決裁箱につなぐまで決裁は読めません。/u); assert.equal(h.calls.some(call => call.method === 'DELETE'), false, '押しただけでは外さない')
+  buttonByText(h.body, 'やめる').click(); assert.ok(buttonByText(h.body, 'つなぎを外す'))
+  buttonByText(h.body, 'つなぎを外す').click(); buttonByText(h.body, '外す').click(); await flush()
+  assert.match(h.body.textContent, /いまはつなぎを外せませんでした。少し待って、もう一度押してください。/u)
+  buttonByText(h.body, '外す').click(); await flush()
+  assert.equal(h.calls.filter(call => call.method === 'DELETE' && call.path === '/api/approvals/connection').length, 2); assert.equal(h.calls.filter(call => call.path === 'feed.refresh').length, 1)
+  h.feed.status = 'noCredential'; h.emit({ type: 'status', status: 'noCredential' }); await flush()
+  assert.ok(buttonByText(h.body, '決裁箱につなぐ')); assert.equal(buttonByText(h.body, 'つなぎを外す'), undefined, 'つながっていなければ外す操作は出ない')
   h.view.close()
 })

@@ -9,7 +9,7 @@ export const MESSAGES = {
   old: 'このサーバーではまだ決裁箱の拡張を使えません。サーバーが更新されると、自動で使えます。',
   notEntitled: '決裁箱の拡張は、まだ使えません。契約すると、決裁が工程表とつながります。いまお使いの決裁箱のアプリは、これまでどおり使えます。',
   expired: '決裁箱の契約が切れています。契約を更新すると、また決裁を読めます。更新するまでは、答えの送信と工程への反映を止めています。',
-  noCredential: '決裁箱との接続が切れています。つなぎ直すと、自動で決裁を読み込みます。',
+  noCredential: '決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。',
   emptyPending: '決裁はありません。AIが判断を求めると、ここに並びます。',
   emptyHeld: '保留中の決裁はありません。',
   emptyDone: 'まだ済んだ決裁はありません。',
@@ -210,6 +210,33 @@ export function entryView(summary, status) {
     sub: summary ? (pending ? 'あなたの回答を待っています' : '待っている決裁はありません') : status === 'old' ? 'このサーバーではまだ使えません' : '決裁箱を開く',
     label: pending ? `決裁箱、回答待ち${pending}件` : '決裁箱',
   }
+}
+
+// ---- つなぐ（screen-spec「つなぐ」）：コードは見せず、貼らせない。許可は決裁箱自身の画面でする。
+export const CONNECT = {
+  expired: '決裁箱とのつなぎの期限が切れました。もう一度つないでください。',
+  waiting: '決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。',
+  denied: '許可されませんでした。もう一度つなげます。',
+  lapsed: '許可の待ち時間が過ぎました。もう一度つないでください。',
+  failed: 'いまは決裁箱につなげませんでした。少し待って、もう一度押してください。',
+  blocked: '決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。',
+  dropAsk: '決裁箱とのつなぎを外します。外すと、また決裁箱につなぐまで決裁は読めません。',
+  dropFailed: 'いまはつなぎを外せませんでした。少し待って、もう一度押してください。',
+}
+// phase: idle（つながっていない）/ opening（要求を出している）/ waiting（許可待ち）/ denied。server は GET /connection の state。
+export function connectView({ phase = 'idle', server = null, note = '' } = {}) {
+  const act = (key, label, primary = false) => ({ key, label, primary })
+  if (phase === 'opening') return { text: CONNECT.waiting, tone: 'wait', spinner: true, note, actions: [] }
+  if (phase === 'waiting') return { text: CONNECT.waiting, tone: 'wait', spinner: true, note, actions: [act('again', 'もう一度開く', true), act('cancel', 'やめる')] }
+  if (phase === 'denied') return { text: CONNECT.denied, tone: 'denied', spinner: false, note, actions: [act('connect', 'もう一度つなぐ', true)] }
+  return { text: server === 'expired' ? CONNECT.expired : MESSAGES.noCredential, tone: 'idle', spinner: false, note, actions: [act('connect', '決裁箱につなぐ', true), act('reload', '読み直す')] }
+}
+// POST /api/approvals/connect の答え。authorizationUrl は https だけ開く。
+export function connectOutcome(status, body) {
+  const url = body?.authorizationUrl
+  if (status === 200 && typeof url === 'string' && /^https:\/\//u.test(url)) return { kind: 'ok', url }
+  if ([402, 403, 404, 409].includes(status)) return { kind: 'again' } // 契約・旧サーバーの画面は feed が決める
+  return { kind: 'retry', message: CONNECT.failed }
 }
 
 // ---- 深いリンク： #approvals と #approvals/<決裁>

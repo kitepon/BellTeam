@@ -22,7 +22,10 @@ flowchart TD
   Lattice["lattice-chart.js 詳細 of an Owner-lane card (main, task R3)<br/>GET /api/approvals/by-task once when it opens; 404 or any failure = no block"] -->|"決裁を開く sets location.hash #approvals/<id>"| Hash
   Hash["location.hash #approvals/<decisionId>"] -->|"application.js: on load / hashchange, then the hash is cleared (replaceState) so the same decision can be opened again"| View
   View -->|"avatar: fetchImage /api/bots/:id/avatar?v= -> Blob URL"| Faces["initial on the accent while loading / on failure; ? for 名簿にないメンバー"]
-  Model["approvals-model.js (pure)<br/>failureOf, originOf, cardRow, detailOf, confirmText, answerOutcome, deliveryNote, groupDone, countsOf, hashOf"] --- View
+  View -->|"status noCredential (409 not_connected from summary / list)"| Connect
+  Connect["connect view (approvals.js connectEl, drawn in place of the list; model connectView)<br/>GET /api/approvals/connection once on entry -> not_connected | expired | waiting | denied | connected;<br/>決裁箱につなぐ: open a blank tab inside the click, POST /api/approvals/connect -> {authorizationUrl (https only), expiresAt}, set the tab to it (no code is shown or pasted);<br/>then GET /api/approvals/connection every 2 s (backoff on failure) while the page is open: connected -> feed.refresh + read; denied -> もう一度つなぐ; not_connected / expired -> 許可の待ち時間が過ぎました;<br/>もう一度開く = the same POST (the module returns the same request), the tab opens again; やめる = DELETE /api/approvals/connect"] -->|connected| View
+  View -->|"つなぎを外す (toolbar, two steps: 外す / やめる)"| Drop["DELETE /api/approvals/connection -> feed.refresh -> summary 409 -> Connect view"]
+  Model["approvals-model.js (pure)<br/>failureOf, originOf, cardRow, detailOf, confirmText, answerOutcome, deliveryNote, groupDone, countsOf, hashOf, connectView, connectOutcome"] --- View
 ```
 
 | Function | Input -> output |
@@ -35,13 +38,15 @@ flowchart TD
 | `deliveryNote(decision)` | `delivered`/`fetched` green 答えました。<who>に届きました。; `waiting` violet …会話に戻ると受け取ります。; `unknown` amber 答えは保存しました。ただ、…届いたかを確かめられませんでした。… + 再開の文をコピー (`resumePhrase`, button reads コピーしました for 2 s) |
 | `groupDone(items, now)` | 済み: newest `updatedAt` first, JST day headings (今日 / 昨日 / M月D日), AI-withdrawn rows struck through with `cancelReason` |
 | `linkPanel(decision)` | right column: `linked` (previous / this / next cards, one sentence of what answering does, `ids` for 工程表の工程を開く), `connecting` (工程表につなげています, muted), `unlinked` (dashed neutral card つながっていません + the two explanations, no button) |
+| `connectView({phase, server, note})` | connect state -> `{text, tone, spinner, actions}`: `idle` (決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。 / after `server: expired` 決裁箱とのつなぎの期限が切れました。もう一度つないでください。; 決裁箱につなぐ, 読み直す), `opening` (spinner, button off), `waiting` (決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。 + spinner; もう一度開く, やめる), `denied` (許可されませんでした。もう一度つなげます。; もう一度つなぐ); `note` is one line under the buttons |
+| `connectOutcome(status, body)` | POST /api/approvals/connect -> `ok {url}` (200 and `authorizationUrl` starts with `https://`), `again` (402 / 403 / 404 / 409: leave to the feed, `feed.refresh()` draws the right view), `retry {message}` (503, 429, network, bad body: いまは決裁箱につなげませんでした。少し待って、もう一度押してください。) |
 | `countsOf(summary)` | ring `answeredToday / filedToday`, counters 待ち / 急ぎ / 保留, entry badge; every origin counted whatever the filter |
 | `createApprovalsEntry(button, {feed, open})` / `createApprovalsView(dialog, {...})` | the entry row and the dialog; `view.open(decisionId?)` selects that decision (the hash form `#approvals/<id>` is read by `application.js`, `parseHash`) |
 | `createApprovalsFeed({fetch, ...})` | `start()` / `stop()` / `refresh()` / `on(fn)`; `summary`, `status` (`connecting`, `live`, `drop`, `old`, `notEntitled`, `expired`, `noCredential`). Terminal statuses stop the stream and hold no timer; they leave on 読み直す, opening the page, or the page becoming visible |
 
 ## Data ownership
 
-Memory only: the last summary, the lists, the selected decision, the origin filter (kept while the page lives, not stored), the answer step of one decision with its Idempotency-Key, thumbnail Blob URLs (revoked on close). The server stays the source; every first read, 読み直す, reconnect (`resync`) and version mismatch refetches. Nothing is stored in the browser and no id is drawn.
+Memory only: the connect phase (`idle` / `opening` / `waiting` / `denied`) and the one-line note, the last summary, the lists, the selected decision, the origin filter (kept while the page lives, not stored), the answer step of one decision with its Idempotency-Key, thumbnail Blob URLs (revoked on close). The server stays the source; every first read, 読み直す, reconnect (`resync`) and version mismatch refetches. Nothing is stored in the browser and no id is drawn.
 
 ## Failure handling
 
@@ -52,7 +57,9 @@ The views are the `screen-spec.md` failure views 1-11. Each leaves on its own or
 | route 404 | このサーバーではまだ決裁箱の拡張を使えません。サーバーが更新されると、自動で使えます。 + 閉じる | 読み直す / next open / page visible |
 | 403 not_entitled (trial / none) | 決裁箱の拡張は、まだ使えません。… + 契約を確かめる (re-read), 閉じる | 契約を確かめる |
 | 402 / 403 expired / revoked | 決裁箱の契約が切れています。… + 閉じる | 読み直す |
-| 409 not_connected | 決裁箱との接続が切れています。つなぎ直すと、自動で決裁を読み込みます。 + 読み直す | 読み直す |
+| 409 not_connected | the connect view: 決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。 + 決裁箱につなぐ, 読み直す, 閉じる | 決裁箱につなぐ (waits for the Owner's allow in Approval Box's own tab, then reads by itself), 読み直す |
+| connect waiting | 決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。 + spinner | the poll sees `connected` and reads; もう一度開く; やめる; 閉じる (the poll stops with the page) |
+| connect denied / lapsed / not started | 許可されませんでした。もう一度つなげます。 / 許可の待ち時間が過ぎました。もう一度つないでください。 / いまは決裁箱につなげませんでした。… | もう一度つなぐ (a new request) |
 | 503 / network / stream drop / 35 s silence | last view dimmed, pill 決裁箱に再接続しています… | backoff 1, 2, 4 … 30 s forever while the page is visible and open |
 | 答える 503 / 429 / network | いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。 | 答える again, same Idempotency-Key |
 | 答える 409 conflict | violet banner 答える前に、◯◯が内容を直しました。もう一度、内容を確かめてください。; the screen shows the decision from the error | nothing is sent; options are on screen |
