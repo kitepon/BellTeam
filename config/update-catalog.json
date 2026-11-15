@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T07:49:46Z",
-  "expiresAt": "2026-11-22T07:49:46Z",
+  "publishedAt": "2026-11-15T08:03:27Z",
+  "expiresAt": "2026-11-22T08:03:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6",
-      "versionId": "cf00c450af92633eec942d298343efd6baf9c2b272e9cec7a7ade1ee0a31dd6a",
+      "sourceCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc",
+      "versionId": "9d4229fe08c481c25603b8d5ee3f28f77cabd5b7e6f9dcbfcfe4645645cbc594",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-amd64.tar.gz",
-          "bytes": 5355814,
-          "sha256": "cf00c450af92633eec942d298343efd6baf9c2b272e9cec7a7ade1ee0a31dd6a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080257Z/web-gateway-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-amd64.tar.gz",
+          "bytes": 5371265,
+          "sha256": "9d4229fe08c481c25603b8d5ee3f28f77cabd5b7e6f9dcbfcfe4645645cbc594"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11162,
-          "sha256": "0eddb461a568834858275ba2ee92a44698a356cf5f8979d7ffbd37cb4a455561"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080257Z/web-gateway-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10962,
+          "sha256": "b4ee10d4760c124302f6bae8626a4bfc9fea347d99ea63b49d30df09223e99ae"
         },
-        "signerCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6"
+        "signerCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
+        "工程表の詳細に、評価者様の決裁がある工程では決裁の欄を出せるようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6",
-      "versionId": "1449fee05c0c7d9b3499cfb007a0aafc062601cdf02bacfac78254e4f83e8b8d",
+      "sourceCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc",
+      "versionId": "cf05d5803d3ee7859068f4122104dc5ccf82ea9b7405ebed7b3279b354f1467a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-arm64.tar.gz",
-          "bytes": 5355814,
-          "sha256": "1449fee05c0c7d9b3499cfb007a0aafc062601cdf02bacfac78254e4f83e8b8d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080257Z/web-gateway-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-arm64.tar.gz",
+          "bytes": 5371265,
+          "sha256": "cf05d5803d3ee7859068f4122104dc5ccf82ea9b7405ebed7b3279b354f1467a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T014002Z/web-gateway-f760af6f6e02966b9bb3b07c344c358255d979b6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11099,
-          "sha256": "61344d750a4f9706459b09f5a96c0f81cdbc6ef4db821e60081c37b389f371e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080257Z/web-gateway-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10970,
+          "sha256": "f93cb3b9161a3833241540f27f710b7850b2b620eae64c7dd4482853ab3d8ea5"
         },
-        "signerCommit": "f760af6f6e02966b9bb3b07c344c358255d979b6"
+        "signerCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
+        "工程表の詳細に、評価者様の決裁がある工程では決裁の欄を出せるようにしました。"
       ]
     },
     {
@@ -755,8 +755,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f",
-      "versionId": "c1e32bf1bf5717da2880103d9bf1ff7d53a04422684913f2d280b918e9628608",
+      "sourceCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc",
+      "versionId": "6063deba908fe7928d9b581427c47b8c6c6d3972e4303f94aa51cfa1ad74a72b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-amd64.tar.gz",
-          "bytes": 15294670,
-          "sha256": "c1e32bf1bf5717da2880103d9bf1ff7d53a04422684913f2d280b918e9628608"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-amd64.tar.gz",
+          "bytes": 15296704,
+          "sha256": "6063deba908fe7928d9b581427c47b8c6c6d3972e4303f94aa51cfa1ad74a72b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11196,
-          "sha256": "01016b5c34e0cbd53b8f5d9fa6cd634a11c68e007d624373a6c1e73796fa3af9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "d172bc486330a1e6f4766ba6fd224ed90deeddbaadf0f4ad2b171f5c6d16bceb"
         },
-        "signerCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f"
+        "signerCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "工程表の記録の一覧が、一部の工程表で読めなくなる不具合を直しました。"
+        "承認ボックスの拡張が、評価者様の名義で工程を書けるようにする部品の準備をしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f",
-      "versionId": "d0f88548eddad57770c22f8ff063b671906d1489731ecef2ccf7ff5b32207cdf",
+      "sourceCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc",
+      "versionId": "4259aac751862351c7f9586f7559ac19e8ccf0a2f98c4e5dd43288635d120c7d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-arm64.tar.gz",
-          "bytes": 15294675,
-          "sha256": "d0f88548eddad57770c22f8ff063b671906d1489731ecef2ccf7ff5b32207cdf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-arm64.tar.gz",
+          "bytes": 15296710,
+          "sha256": "4259aac751862351c7f9586f7559ac19e8ccf0a2f98c4e5dd43288635d120c7d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T071647Z/lattice-53e6bf840a0406fe88387f465ab081ae83bd958f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "87863b0a567972cf384fea869014a89bd70898be55f032227162d35ffc452bef"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T080239Z/lattice-b4995ff5d43b0a4663763e2c109a030f0ac90bcc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11000,
+          "sha256": "2842dc4d5f3a2abdc3a1b63092187f8578f8494d8df52418ed400476fd73419c"
         },
-        "signerCommit": "53e6bf840a0406fe88387f465ab081ae83bd958f"
+        "signerCommit": "b4995ff5d43b0a4663763e2c109a030f0ac90bcc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "工程表の記録の一覧が、一部の工程表で読めなくなる不具合を直しました。"
+        "承認ボックスの拡張が、評価者様の名義で工程を書けるようにする部品の準備をしました。"
       ]
     }
   ],
