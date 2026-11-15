@@ -2,7 +2,7 @@
 import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
-  MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
+  MESSAGES, SCHEMA, UNASSIGNED, OWNER_ID, DECISION_STATES, decisionOf, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
   flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, shownCharts, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
@@ -117,7 +117,7 @@ export function createChartStream({ fetch, url, setTimeout: later = globalThis.s
 }
 
 export function createLatticeChart(dialog, {
-  api, fetchImage, openChat: openMemberChat = () => {}, getMember = () => null, getOwner = () => null, mode: startMode = 'tree',
+  api, fetchImage, openChat: openMemberChat = () => {}, openApproval = id => { globalThis.location.hash = `approvals/${encodeURIComponent(id)}` }, getMember = () => null, getOwner = () => null, mode: startMode = 'tree',
   setTimeout: later = globalThis.setTimeout, clearTimeout: clear = globalThis.clearTimeout, random = Math.random, now = Date.now,
   requestFrame = callback => globalThis.requestAnimationFrame(callback), cancelFrame = id => globalThis.cancelAnimationFrame(id),
 } = {}) {
@@ -259,7 +259,7 @@ export function createLatticeChart(dialog, {
   }
   function leaveStops() { stops?.close(); stops = null; showList() }
   function openCard(projectId, cardId) { stops?.close(); stops = null; openChart(projectId); pendingDetail = cardId }
-  function clearChart() { chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
+  function clearChart() { decisions.clear(); chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
   function openChart(id) {
     clear(listTimer); listToken++
     clearChart(); chartId = id; status = 'connecting'
@@ -526,9 +526,19 @@ export function createLatticeChart(dialog, {
   }
 
   // ---- 詳細
+  // 決裁箱拡張（Delta, R3）：Owner の札の詳細を開いた時に一度だけ聞く（スナップショットのたびではない）。
+  // 答えが無い・失敗・形違いは、決裁のブロックを出さないだけ（メッセージも再試行も無い）。
+  const decisions = new Map()
+  function loadDecision(id) {
+    const found = snapshot?.cards?.find(item => item.id === id)
+    if (!found || found.producer !== OWNER_ID) return
+    const project = chartId, query = `project=${encodeURIComponent(project)}&plan=${encodeURIComponent(found.plan)}&task=${encodeURIComponent(found.taskId)}`
+    void Promise.resolve().then(() => api(`/api/approvals/by-task?${query}`)).then(decisionOf, () => null)
+      .then(value => { if (chartId !== project) return; decisions.set(id, value); if (detailId === id) paintDetail() })
+  }
   function openDetail(id, source) {
     const from = source?.getBoundingClientRect?.()
-    detailId = id; paintDetail(from); applyCardSelection(); focusClose()
+    detailId = id; loadDecision(id); paintDetail(from); applyCardSelection(); focusClose()
   }
   const focusClose = () => [...walk(ui.sheet)].find(item => item.dataset && 'close' in item.dataset)?.focus?.()
   function closeDetail() {
@@ -546,6 +556,7 @@ export function createLatticeChart(dialog, {
     if (!detail) { ui.sheet.replaceChildren(); return }
     const link = item => h('button', { class: 'lattice-mini', type: 'button', dataset: { focusKey: `d:${item.id}` }, 'aria-label': `${item.title}${item.chart ? `（${item.chart}）` : ''}、${item.external ? item.stateText : stateInfo(item.state).badge}`, on: { click: () => item.external ? openCard(item.external.projectId, item.external.cardId) : goTo(item.id, true) } },
       avatar(item.producer, 18), h('span', { class: 'ti', text: item.title }), item.chart && h('span', { class: 'ch', style: { flex: 'none', fontSize: '11px', fontWeight: '500', opacity: '.7' }, text: item.chart }), h('span', { class: `st tone-${stateInfo(item.state).tone}` }, glyph(stateInfo(item.state).glyph), item.stateText))
+    const decision = decisions.get(detailId) ?? null
     const parts = [detail.producer?.name, detail.stateText].filter(Boolean)
     if (!detail.producer && detail.stateText !== UNASSIGNED) parts.push(UNASSIGNED)
     keepFocus(ui.sheet, () => fill(ui.sheet,
@@ -554,6 +565,8 @@ export function createLatticeChart(dialog, {
         h('button', { class: 'x', type: 'button', 'aria-label': '詳細を閉じる', dataset: { close: '', focusKey: 'close' }, on: { click: closeDetail } }, glyph('xmark'))),
       detail.card.designMemo && h('div', { class: 'sc' }, h('div', { class: 'l', text: '設計メモ' }), h('p', { class: 'memo', text: detail.card.designMemo })),
       detail.card.doneCondition && h('div', { class: 'sc' }, h('div', { class: 'l', text: '終了条件' }), h('div', { class: 'endc' }, glyph('check'), h('span', { text: detail.card.doneCondition }))),
+      decision && h('div', { class: 'sc' }, h('div', { class: 'l', text: '決裁' }), h('p', { class: 'memo', text: `${decision.title}（${DECISION_STATES[decision.status]}）` }),
+        h('button', { class: 'lattice-btn', type: 'button', on: { click: () => { dialog.close(); openApproval(decision.decisionId) } } }, '決裁を開く')),
       detail.previous.length > 0 && h('div', { class: 'sc' }, h('div', { class: 'l', text: `前の工程 · ${detail.previous.length}` }), ...detail.previous.map(link)),
       detail.next.length > 0 && h('div', { class: 'sc' }, h('div', { class: 'l', text: `次の工程 · ${detail.next.length}` }), ...detail.next.map(link)),
       h('div', { class: 'ft', text: detail.startedText })))
@@ -572,7 +585,7 @@ export function createLatticeChart(dialog, {
     const el = (mode === 'lanes' ? cardEls : treeEls).get(id)
     const canvas = ui.canvas, place = el && (mode === 'tree' ? treePlaces : mode === 'lanes' ? places : null)?.get(id)
     if (place) canvas.scrollTo?.({ left: Math.max(0, place.x - ((canvas.clientWidth ?? 0) - place.w) / 2), top: Math.max(0, place.y - ((canvas.clientHeight ?? 0) - place.h) / 2), behavior: reduceMotion() ? 'auto' : 'smooth' })
-    detailId = id; paintDetail(keepSheet ? undefined : el?.getBoundingClientRect?.()); applyCardSelection()
+    detailId = id; loadDecision(id); paintDetail(keepSheet ? undefined : el?.getBoundingClientRect?.()); applyCardSelection()
     if (keepSheet) focusClose()
   }
 

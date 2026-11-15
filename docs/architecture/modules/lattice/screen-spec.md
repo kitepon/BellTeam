@@ -73,11 +73,13 @@ stateDiagram-v2
     Tree --> Detail: tap a box
     Lanes --> Detail: tap a card
     Detail --> Detail: 前の工程 / 次の工程
+    Detail --> Approvals: 決裁を開く (Owner-lane card whose decision the Approval Box extension knows; none without the extension)
     Detail --> Tree: close / swipe / Esc (came from Tree)
     Detail --> Lanes: close / swipe / Esc (came from Lanes)
     Lanes --> Lanes: member highlight on / off
     Tree --> Tree: member highlight on / off
   }
+  Approvals --> Chart: 工程表で見る (the extension's 決裁箱 screen, its 詳細; Web: the chart dialog closes, hash #approvals/<decisionId>, the way back reopens the chart at that card)
   Chart --> Chart: 待ちの流れ 工程へ移動 (opens that card's 詳細; a card on another chart opens that chart at it)
   Chart --> Chart: 待ちの流れ handle opens the panel / × folds it (wide: Mac, iPad, Web 1024 px+; starts folded, kept while the app is open)
   Chart --> List: chart switcher / すべての工程表
@@ -113,6 +115,8 @@ Every button leads to exactly one next view; every failure view says what happen
 | 工程表 | tap a member in the rail | highlight that member's cards and waits, dim the rest; tap again or tap empty canvas -> clear |
 | 待ちの流れ row | 会話を開く | the producer's chat (existing chat screen); back returns to this 工程表 |
 | 待ちの流れ row | 工程へ移動 | canvas scrolls/zooms to the awaited card and opens its 詳細; an awaited card on another chart opens that chart at it |
+| 詳細 of an Owner-lane card (`producer` is `owner`) | (shown by itself, no tap) | The app asks the Approval Box extension `GET /api/approvals/by-task?project=<chartId>&plan=<plan>&task=<taskId>` once when the 詳細 opens (not on every snapshot). 200 `{decisionId, status: pending\|held\|answered\|cancelled, title}` -> a 決裁 block under 終了条件: the decision's own `title` (as Approval Box has it) and its state in words 待ち / 保留 / 回答済み / 取り下げ, and the button 決裁を開く. 404, 401, 503, network, bad JSON, or no extension -> no block and nothing else changes (no message, no retry: the next 詳細 asks again). The id never shows |
+| 詳細 | 決裁を開く | The extension's 決裁箱 screen with that decision's 詳細 selected (Apple route `approvals/<decisionId>`; Web: the 工程表 dialog closes and the hash becomes `#approvals/<decisionId>`; Windows/Linux: the extension's window). Delta owns that screen and its way back (工程表で見る) |
 | 詳細 | tap 前の工程 / 次の工程 item | 詳細 of that card, canvas follows; an item on another chart opens that chart and its 詳細 (back to the first chart: the chart switcher) |
 | 詳細 | close / swipe down / Esc | 工程表, same scroll position |
 

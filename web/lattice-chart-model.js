@@ -64,6 +64,10 @@ export function memberLookup(snapshot) {
     return member ? { botId, name: member.name, color: member.color, avatarVersion: member.avatarVersion ?? '', known: true } : { botId, name: UNKNOWN_MEMBER, color: 'unknown', avatarVersion: '', known: false }
   }
 }
+// 決裁箱拡張（Delta）の by-task 応答。形が違う時は null（決裁のブロックを出さない）。決裁の id は画面に出さない。
+export const DECISION_STATES = { pending: '待ち', held: '保留', answered: '回答済み', cancelled: '取り下げ' }
+export const decisionOf = value => value && typeof value.decisionId === 'string' && value.decisionId && typeof value.title === 'string'
+  && typeof value.status === 'string' && Object.hasOwn(DECISION_STATES, value.status) ? { decisionId: value.decisionId, status: value.status, title: value.title } : null
 export const nameOf = member => member ? member.name : UNASSIGNED
 // 札の担当：つくっている人（着手した人か、名簿にいる担当）。いなければ工程表に書かれた担当の文字（顔は頭文字、会話なし）。それも無ければ null（担当なし）。
 export function ownerLookup(snapshot) {
