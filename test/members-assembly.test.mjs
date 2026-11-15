@@ -38,3 +38,23 @@ test('assembly uses one gate/controller and dispatches only fixed effects with o
   gate.finish(lease)
   await assert.rejects(hooks.onEffect('project.claim', { botId: 'bot-test' }, context), { status: 503 })
 })
+
+// a153 (BugHub ef83d4ee 11/15 06:15Z): GET /api/rooms got 503 MEMBERS_PROJECTION_INVALID when the exchange's quiesce began while the old
+// child was still sending a snapshot: state(quiescing) cleared the pending snapshot and the next record was refused.
+test('a153: a planned quiesce keeps the snapshot the old child is still sending; a real loss still clears it', async () => {
+  const gate = new MembersAdmission()
+  let hooks, ticket
+  const assembly = createMembersAssembly({ root: '/synthetic', membersAdmission: gate, membersAuthorization: createMembersOwnerAuthorization(),
+    diagnostics: { record() {} }, aiterm: {}, settings: { configuration: () => ({}) }, models: { forHarness: async () => ({ efforts: [], models: [] }) },
+    dependencies: () => ({}), createProcess(options) { hooks = options; return { async start() { ticket = gate.close(); gate.adopt(ticket, 'g'); options.onGeneration('g'); gate.resume(ticket) } } } })
+  await assembly.controller.start()
+  const context = { generation: 'g', leaseId: null, rootId: 'initialize', ownerWrite: false, continuation: false }
+  const bot = { id: 'bot-test', name: 'test', harness: 'codex', session: '' }
+  await hooks.onProjection({ type: 'snapshot-start', revision: 1 }, context)
+  await hooks.onProjection({ type: 'profile', revision: 1, bot }, context)
+  hooks.onState({ available: false, phase: 'quiescing' })
+  await hooks.onProjection({ type: 'snapshot-end', revision: 1 }, context) // before: MEMBERS_PROJECTION_INVALID
+  assert.equal(assembly.projection.snapshot().available, true)
+  hooks.onState({ available: false, phase: 'unavailable' })
+  assert.equal(assembly.projection.snapshot().available, false)
+})

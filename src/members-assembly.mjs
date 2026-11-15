@@ -70,7 +70,9 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
   },
     onGeneration: generation => projection.begin(generation), onProjection: (record, context) => projection.accept(record, context),
     onDiagnostic: report => diagnostics.record(report),
-    onState: state => { if (!state.available) { projection.unavailable(); notify() }; onState(state) },
+    // a153: a planned quiesce keeps the old child's roster and any snapshot it is still sending (quiesce lets in-flight work finish);
+    // clearing `pending` there made that read fail 503 MEMBERS_PROJECTION_INVALID. `begin()` resets the view for the next child.
+    onState: state => { if (!state.available && state.phase !== 'quiescing') { projection.unavailable(); notify() }; onState(state) },
     authorizeOwner: (method, authorization) => membersAuthorization.authorizeOwner(method, authorization),
   })
   facade = createMembersFacade({ request: (method, params, options) => dependencies().conversationAssembly?.memberRequest(method, params, options, (...args) => controller.request(...args)) ?? controller.request(method, params, options), callback: (...args) => controller.callback(...args), admission: membersAdmission, projection })
