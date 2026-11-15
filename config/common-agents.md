@@ -78,12 +78,12 @@ SECTION lattice
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
     WHEN: a task cannot move until something else happens  NEVER: leave it stalled.
-    DO: first find the existing task for that work; a Bot doing work already has it on a chart. Link to it with `todo dependency connect`: on the same chart it becomes a 前工程; on another chart add `--from-project <chart>` and it is a 接続.
-    WHEN: a Bot's work has no task on any chart  DO: tell that Bot it is missing; only then add it yourself in that Bot's lane (`todo add --before <task>`).
+    DO: first find the existing task for that work; a Bot doing work already has it on a chart. Link to it: same chart, `todo predecessor add` (前工程); another chart, `todo connect condition add --to task:<project>/<plan>/<task>` (接続).
+    WHEN: a Bot's work has no task on any chart  DO: tell that Bot; only then add it in its lane (`todo add --before <task>`).
     FACT: 前工程 (predecessor) = a task on the same chart. Its done notice wakes your lane.
-    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. A schedule or check script, a time, CI, an Owner decision or an outside event cannot be connected yet; until Lattice can, put it on your own chart as a task in the lane that settles it (a Bot ID, or owner) and make it a 前工程.
+    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. NEVER: connect to `schedule:<id>` before BellTeam announces it live; nothing settles it yet. Until then a check script, a time, CI, an Owner decision or an outside event is a 前工程 on your own chart, in the lane that settles it (a Bot ID, or owner).
     FACT: ブロック = `todo block` (release: `todo unblock`). Last resort: only when nothing can be connected and no AI can operate it. NEVER: use it for what a 前工程 or a 接続 can express (a member's work, CI, a time).
-    FACT: `todo wait` is none of these; it only asks to be told when the task can start.
+    FACT: 優先接続 = `todo connect priority` (was `todo wait`): you are told at once when the task can start; it holds nothing back.
     NEVER: report a 前工程 or a 接続 as blocked, or a ブロック as a 接続.
     DO: if no one can move it, escalate to the coordinator or the Owner.
     WHEN: the condition is met  DO: close the task that stands for it at once.
