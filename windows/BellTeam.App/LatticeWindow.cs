@@ -720,8 +720,16 @@ internal sealed class LatticeChartPage : Grid
         var started = Text(detail.StartedText, 12.5, Muted); started.Margin = new Thickness(0, 8, 0, 0); body.Children.Add(started);
         Section(body, "設計メモ", detail.Card.DesignMemo);
         Section(body, "終了条件", detail.Card.DoneCondition);
-        // The id never shows. 決裁を開く waits for a 決裁箱 screen in this app (Delta's extension); until then the block has no button.
-        if (decisions.GetValueOrDefault(cardId) is { } decision) Section(body, "決裁", $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");
+        // The id never shows. 決裁を開く opens the 決裁箱 window on that decision (screen-spec "詳細 | 決裁を開く").
+        if (decisions.GetValueOrDefault(cardId) is { } decision)
+        {
+            Section(body, "決裁", $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");
+            if (ApprovalsHub.Current?.Show is { } show)
+            {
+                var open = Action("決裁を開く", "", true); open.HorizontalAlignment = HorizontalAlignment.Left; open.Margin = new Thickness(0, 8, 0, 0); open.Click += (_, _) => show(decision.DecisionId);
+                System.Windows.Automation.AutomationProperties.SetAutomationId(open, "lattice-decision-open"); body.Children.Add(open);
+            }
+        }
         Links(body, "前の工程", detail.Previous);
         Links(body, "次の工程", detail.Next);
         var panel = Glass(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 22, new Thickness(20, 16, 18, 18), 0xFA);

@@ -326,6 +326,33 @@ public partial class App : Application
                 WritePng(graphWindow, graphWidth, graphHeight, graphOutput);
                 model.Dispose(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-approvals", var approvalsScene, var approvalsOutput])
+            {
+                // The 決裁箱 window over the in-process fixture (ApprovalsFixture): the real API reads, SSE and drawing, no window shown.
+                var model = new Workspace(origin => new BellApi(origin, new ApprovalsFixture(approvalsScene))); await model.ConnectAsync("http://localhost", listen: false);
+                if (model.ConnectionError is { } approvalsFailure) throw new BellApiException(approvalsFailure);
+                var hub = new ApprovalsHub(model);
+                var approvals = new ApprovalsWindow(hub) { Rendering = true };
+                var page = approvals.Page; page.Now = () => DateTimeOffset.UtcNow;
+                async Task Wait(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
+                approvals.Sync();
+                await Wait(() => page.Settled || approvalsScene == "reconnecting" && hub.Feed?.Status == ApprovalFeedStatus.Drop, "決裁箱を読めませんでした。");
+                if (approvalsScene is "waiting") await Wait(() => page.ConnectPhase == "waiting", "つなぎの待ちになりませんでした。");
+                if (approvalsScene is "main" or "answer" or "conflict" or "chain") page.Select("K-1");
+                if (approvalsScene is "external") { page.Select("K-3"); await Task.Delay(500); }
+                if (approvalsScene == "unknown-member") page.Select("K-4");
+                if (approvalsScene == "held") { page.SetTab(ApprovalsPage.Tab.Held); page.Select("K-5"); }
+                if (approvalsScene is "done" or "done-unknown") { page.SetTab(ApprovalsPage.Tab.Done); await Wait(() => page.Done.Count > 0, "済みを読めませんでした。"); page.Select(approvalsScene == "done" ? "K-6" : "K-7"); }
+                if (approvalsScene == "filter") page.SetOrigin("external");
+                if (approvalsScene is "answer" or "conflict") page.Choose("o1");
+                if (approvalsScene == "conflict") { await page.SendAsync(); }
+                if (approvalsScene == "unknown-delivery") { page.Select("K-2"); page.Choose("o1"); await page.SendAsync(); }
+                const int approvalsWidth = 1360, approvalsHeight = 860;
+                var approvalsRoot = (FrameworkElement)approvals.Content;
+                approvalsRoot.Measure(new Size(approvalsWidth, approvalsHeight)); approvalsRoot.Arrange(new Rect(0, 0, approvalsWidth, approvalsHeight)); approvalsRoot.UpdateLayout();
+                WritePng(approvals, approvalsWidth, approvalsHeight, approvalsOutput);
+                page.Stop(); hub.Dispose(); model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-lattice", var latticeScene, var latticeOutput])
             {
                 // The 工程表 window over the in-process fixture (LatticeFixture): the real API reads, SSE and drawing, no window shown. Particles are drawn at a fixed clock.
@@ -400,7 +427,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-approvals <main|answer|conflict|unknown-delivery|external|unknown-member|held|done|done-unknown|filter|empty|waiting|denied|not-connected|expired-session|not-entitled|expired|old|reconnecting> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
