@@ -84,7 +84,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
-      if (!internal && crossSiteWrite(request)) return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
+      if (!internal && crossSiteWrite(request, (() => { try { return new URL(settings?.configuration('cloudflare')?.publicUrl).origin } catch { return null } })()))
+        return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
       if (url.pathname === '/api/diagnostics/conversation-admission') {
         if (internal) return json(response, 403, { error: 'DIAGNOSTIC_OWNER_REQUIRED' })
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })

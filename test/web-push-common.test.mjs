@@ -41,7 +41,9 @@ test('common server injects saved Origin after Owner authentication and rejects 
   assert.equal((await call(server, { origin: 'https://changed.example' })).status, 200)
   assert.equal(effects[1][1], 'https://changed.example')
   publicUrl = ''
-  assert.equal((await call(server)).status, 503)
+  // a128: with no public URL only this server's own Origin passes the entry; the push route then reports itself unavailable.
+  assert.equal((await call(server, { origin: `http://127.0.0.1:${server.address().port}` })).status, 503)
+  assert.equal((await call(server)).status, 403)
 })
 
 test('one assembly binds both saved configurations and sticky provider errors to the existing settings and HTTP facade', async t => {
