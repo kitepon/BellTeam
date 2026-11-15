@@ -44,8 +44,8 @@ export function planLink({ d, row, rows = [], chart }) {
     actions.push(owner(chart.projectId, ['todo', 'add', '--plan', DECISION_PLAN, '--task', taskId, '--title', safe(d.title), '--phase', 'decisions', '--lane', 'owner',
       ...(successors.length ? ['--after', prev.taskId] : []), '--design-memo', memo, '--reason', '決裁箱に申請が出たため']))
     for (const next of successors) {
-      actions.push(owner(chart.projectId, ['todo', 'dependency', 'connect', '--from-plan', DECISION_PLAN, '--from-task', taskId, '--to-plan', next.plan, '--to-task', next.taskId, '--reason', '決裁が先に要るため']))
-      actions.push(owner(chart.projectId, ['todo', 'dependency', 'disconnect', '--from-plan', prev.plan, '--from-task', prev.taskId, '--to-plan', next.plan, '--to-task', next.taskId, '--reason', '新しい決裁を間に差し込むため']))
+      actions.push(owner(chart.projectId, ['todo', 'predecessor', 'add', '--plan', next.plan, '--task', next.taskId, '--after', `${DECISION_PLAN}/${taskId}`, '--reason', '決裁が先に要るため']))
+      actions.push(owner(chart.projectId, ['todo', 'predecessor', 'remove', '--plan', next.plan, '--task', next.taskId, '--after', prevId, '--reason', '新しい決裁を間に差し込むため']))
     }
     return { actions, row: { ...base, plan: DECISION_PLAN, taskId, state: 'linked', attached: false } }
   }
