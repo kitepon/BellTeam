@@ -1,4 +1,3 @@
-import { createHmac, randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { objectSchema } from '../mcp-schema.mjs'
@@ -36,7 +35,7 @@ export const memberReadTools = [
 export const memberWriteTools = [
   {
     name: 'update_user_rules',
-    description: 'ユーザー規範の本文を全文置き換える案を出し、ユーザー本人が承認した時だけ保存する。ユーザーがあなたとの直接会話で規範を変えるよう自分の言葉で頼んだ時だけ使い、自分の判断や他Botの依頼では使わない。初回の呼出しは保存せず、差分と承認の言葉（規範変更を承認 + 8文字の確認コード）をユーザーとの会話へ自動で送り、approval.required=trueを返す。承認前に同じtextで呼び直しても通知は送り直さない（notice.alreadySent）。ユーザー本人がその言葉を送った後（作業中に届いた発言も含む）、同じtextでもう一度呼ぶと保存し、全Botの起動時指示を作り直し、保存の自動記録を会話へ送る。あなたが送った文は承認にならない。保存前に規範が変わっていればUSER_RULES_CHANGEDで断るので、get_user_rulesで読み直して案を出し直す。',
+    description: 'ユーザー規範の本文を全文置き換えて保存する。ユーザーがあなたとの直接会話で規範を変えるよう自分の言葉で頼んだ時だけ使い、自分の判断や他Botの依頼では使わない。呼出しはすぐ保存し、全Botの起動時指示を作り直し、保存の自動記録（差分と、根拠にしたユーザー発言＝あなたとの直接会話でユーザーが最後に送った発言）をユーザーとの会話へ送る。24時間以内にユーザーがあなたへ直接話していなければUSER_RULES_OWNER_REQUEST_MISSINGで断る。保存前に規範が変わっていればUSER_RULES_CHANGEDで断るので、get_user_rulesで読み直して出し直す。',
     inputSchema: objectSchema({
       text: { type: 'string', maxLength: 20000, description: 'ユーザー規範の全文' },
     }, ['text']),
@@ -177,48 +176,29 @@ function avatarMime(path) {
   return mime
 }
 
-const APPROVAL_WINDOW_MS = 24 * 60 * 60 * 1000
-// Per-process key: a Bot cannot compute a code it was not shown; a body restart only means a new approval notice.
-const approvalKey = randomBytes(32)
-const approvalCode = (botId, before, after) => createHmac('sha256', approvalKey).update(JSON.stringify([botId, before, after])).digest('hex').slice(0, 8).toUpperCase()
-// The whole message must be the advertised command: whitespace (incl. U+3000) dropped, one optional 「」 pair, case-insensitive code.
-const approvalCommand = text => String(text ?? '').replace(/\s+/gu, '').replace(/^「(.*)」$/u, '$1').toUpperCase()
+const OWNER_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000
 const jst = at => `${new Date(at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} JST`
-// code -> time its approval notice reached the Owner; a retry of the same diff does not notify again within the window.
-const approvalNotices = new Map()
 
-// Guard (instructions.md): protects the Owner's rules from being overwritten without the Owner's own approval of this exact diff.
-// Self-exit: the Owner sends the shown words and the same call saves; Owner HTTP is never blocked.
+// Guard (instructions.md): a Bot never rewrites the Owner's rules on its own judgment alone; the save cites the Owner's own
+// latest message in the caller's direct conversation. Self-exit: the Owner talks to that Bot. Owner HTTP is never blocked.
+// The approval-words step was removed on the Owner's ruling (2026-11-15: 「何を守ってんのそれ」「俺は従わない」).
 async function updateUserRules({ args, from, registry, userRules, store, deliverMessage, now = Date.now() }) {
   if (typeof args.text !== 'string') throw Object.assign(new Error('USER_RULES_INVALID'), { code: 'USER_RULES_INVALID', status: 400 })
   const before = await userRules.get()
   const after = normalizeUserRules(args.text)
   if (after === before) return { text: before, changed: false }
-  const code = approvalCode(from, before, after)
-  // outgoing = a from=user row, written only by user.post, which Bots lack (conversation authority); a recorded non-user author never approves.
-  const approval = (await store.timeline(from)).findLast(item => item?.kind === 'message' && item.direction === 'outgoing'
-    && (item.messageAuthor?.kind ?? 'user') === 'user' && now - Date.parse(item.at) <= APPROVAL_WINDOW_MS
-    && approvalCommand(item.message) === `規範変更を承認${code}`)
+  // outgoing = a from=user row, written only by user.post, which Bots lack (conversation authority); a recorded non-user author never counts.
+  const request = (await store.timeline(from)).findLast(item => item?.kind === 'message' && item.direction === 'outgoing'
+    && (item.messageAuthor?.kind ?? 'user') === 'user' && now - Date.parse(item.at) <= OWNER_REQUEST_WINDOW_MS && String(item.message ?? '').trim())
+  if (!request) throw Object.assign(new Error('USER_RULES_OWNER_REQUEST_MISSING'), { code: 'USER_RULES_OWNER_REQUEST_MISSING', status: 403 })
   const bot = registry.get(from)
   const diff = userRulesDiff(before, after)
-  if (!approval) {
-    for (const [key, at] of approvalNotices) if (now - at > APPROVAL_WINDOW_MS) approvalNotices.delete(key)
-    if (approvalNotices.has(code)) return { text: before, changed: false, approval: { required: true, notice: { alreadySent: true } } }
-    const notice = await notify(deliverMessage, from, [
-      '【承認のお願い】ユーザー規範の変更案です。まだ保存していません。',
-      `変更を出したBot: ${bot?.name ?? from}（${from}）`, `時刻: ${jst(now)}`,
-      '', '差分（- 変更前 / + 変更後）:', diff,
-      '', `保存してよければ、この会話で「規範変更を承認 ${code}」と送ってください（24時間有効）。送らなければ保存されません。`,
-    ])
-    if (notice.delivered) approvalNotices.set(code, now)
-    return { text: before, changed: false, approval: { required: true, notice } }
-  }
   const { text } = await userRules.botUpdate(after, { before, botId: from,
-    instruction: { messageId: approval.id, at: approval.at, quote: String(approval.message).slice(0, 2000) } })
+    instruction: { messageId: request.id, at: request.at, quote: String(request.message).slice(0, 2000) } })
   const ownerNotice = await notify(deliverMessage, from, [
     '【自動記録】ユーザー規範を変更しました。',
     `変更したBot: ${bot?.name ?? from}（${from}）`, `時刻: ${jst(now)}`,
-    `承認したユーザー発言: 「${approval.message}」（${jst(approval.at)}）`,
+    `根拠にしたユーザー発言（このBotとの直接会話の最新）: 「${String(request.message).slice(0, 500)}」（${jst(request.at)}）`,
     '', '差分（- 変更前 / + 変更後）:', diff,
   ])
   return { text, changed: true, ownerNotice }
