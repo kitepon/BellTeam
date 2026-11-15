@@ -293,8 +293,10 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         #if DEBUG
         let preview = ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-bellbot-preview") }
         let reportingProbe = ProcessInfo.processInfo.arguments.contains("-bellbot-preview-reporting")
-        let reportingURL = preview && !reportingProbe && onReport == nil ? nil : serverURL
-        let mayRegister = !preview
+        // A unit-test host must not send to the saved production server: its own crashes reached BugHub as production fatals (05541b84).
+        let testHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        let reportingURL = (preview && !reportingProbe || testHost) && onReport == nil ? nil : serverURL
+        let mayRegister = !preview && !testHost
         #else
         let reportingURL = serverURL
         let mayRegister = true
