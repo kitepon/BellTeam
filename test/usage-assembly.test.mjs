@@ -160,3 +160,25 @@ test('a non-callback system call made from an effect scope is a fresh root, also
   await later
   assert.deepEqual(requests, ['onboarding.prepareStartup'])
 })
+
+test('a fresh usage call during a usage exchange enters after resume instead of a refusal; authority is checked at once (a133)', async () => {
+  let ports
+  const calls = []
+  const assembly = createUsageAssembly({ root: '/unused', getServices: () => ({ bots: new Map() }), onEffect: () => {},
+    createProcess: value => {
+      ports = value
+      return { request(method, params, options) {
+        ports.admission.assertLease(options.usageLease); calls.push(method)
+        const result = Promise.resolve('ok'); Object.defineProperty(result, 'completion', { value: result }); return result
+      } }
+    } })
+  const ticket = ports.admission.close()
+  assert.throws(() => assembly.facade.settings.update('routing', {}, { usageContext: {} }), /FORBIDDEN/)
+  const held = assembly.facade.settings.update('routing', { enabled: false }, { usageContext: assembly.capture('settings.update', { kind: 'owner', botId: null }) })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(calls, []) // held, not refused
+  ports.admission.adopt(ticket, 'next-generation'); ports.admission.resume(ticket)
+  assert.equal(await held, 'ok')
+  assert.equal(await held.completion, 'ok')
+  assert.deepEqual(calls, ['settings.update'])
+})

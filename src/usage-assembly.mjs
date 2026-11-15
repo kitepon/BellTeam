@@ -20,7 +20,20 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
   const scope = new AsyncLocalStorage()
   const projection = createUsageProjection({ bots: { get: id => getServices().bots?.get(id) } })
   let controller
+  // usage-process.md (a133): a fresh root that arrives during a usage exchange enters right after resume instead of
+  // being refused; same whenOpen and 60 s exit as members (a127). Authority is still checked at once.
   const request = (method, params, context) => {
+    if (context?.usageEffect || !admission.exchanging) return start(method, params, context)
+    try { authority.authorizeActor(method, context) } catch (error) { authority.release(context); throw error }
+    let started
+    const opened = admission.whenOpen(() => { started = start(method, params, context) })
+    opened.catch(() => { authority.release(context); capturedContexts.delete(context) })
+    const result = opened.then(() => started)
+    result.completion = opened.then(() => started.completion ?? started)
+    for (const promise of [result, result.completion]) promise.catch(() => {})
+    return result
+  }
+  const start = (method, params, context) => {
     const callback = Boolean(context?.usageEffect)
     const token = callback ? context.capturedAuthorization : context
     let lease, result
