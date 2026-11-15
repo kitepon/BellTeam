@@ -19,7 +19,7 @@ flowchart TD
   Detail -->|"POST /api/approvals/:id/hold | unhold"| Detail
   Detail -->|"GET /api/approvals/:id/attachments/:aid via fetchImage -> Blob URL"| Pics["thumbnails -> large view (image-gallery.js)"]
   Detail -->|"工程表で見る / 工程表の工程を開く / 前の工程・次の工程 (only when link.chart.projectId and the task's cardId are present)"| Chart["application.js openChart -> lattice.open(projectId, cardId)<br/>(closes this dialog; lattice-chart.js opens the card 詳細)"]
-  Lattice["lattice-chart.js 詳細 of an Owner-lane card (main, task R3)<br/>GET /api/approvals/by-task once when it opens; 404 or any failure = no block"] -->|"決裁を開く sets location.hash #approvals/<id>"| Hash
+  Lattice["lattice-chart.js 詳細 of a card in the 決裁箱 lane (was the owner lane; a188 / a189; main, task R3)<br/>GET /api/approvals/by-task once when it opens; 404 or any failure = no block"] -->|"決裁を開く sets location.hash #approvals/<id>"| Hash
   Hash["location.hash #approvals/<decisionId>"] -->|"application.js: on load / hashchange, then the hash is cleared (replaceState) so the same decision can be opened again"| View
   View -->|"avatar: fetchImage /api/bots/:id/avatar?v= -> Blob URL"| Faces["initial on the accent while loading / on failure; ? for 名簿にないメンバー"]
   View -->|"status noCredential (409 not_connected from summary / list)"| Connect
