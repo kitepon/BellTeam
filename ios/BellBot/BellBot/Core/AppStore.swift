@@ -110,6 +110,13 @@ final class AppStore: ObservableObject {
     private var chatReturnTab: Int?
     /// A chart to open from a member's 「AIと操作」 (iPad/Mac); `LatticeHomeView` takes it and clears it.
     @Published var latticeOpenRequest: String?
+    /// The card to open inside `latticeOpenRequest`'s chart (「工程表の工程を開く」 from a 決裁).
+    @Published var latticeOpenCard: String?
+    /// 決裁箱 (the Approval Box extension): one read path for the entry's count and the screen.
+    let approvals = ApprovalsModel()
+    /// iPhone: the 決裁箱 screen is pushed from 会話's list. iPad/Mac containers watch `approvalsRequest`.
+    @Published var approvalsScreenOpen = false
+    @Published private(set) var approvalsRequest = 0
     private var drafts: [ChatTarget: ConversationDraft] = [:]
     // 編集値は再認証をまたいで保持する。文字入力でアプリ全体へ更新通知を出さない。
     var botEditorDrafts: [String: BotEditorDraft] = [:]
@@ -946,6 +953,30 @@ final class AppStore: ObservableObject {
         #if !targetEnvironment(macCatalyst)
         selectedTab = 5
         #endif
+    }
+
+    /// 決裁を開く from a chart's 詳細: the 決裁箱 screen with that decision's 詳細 selected.
+    func openApprovals(decision: String? = nil) {
+        approvals.openRequest = decision
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            selectedTab = 0
+            approvalsScreenOpen = true
+        } else {
+            approvalsRequest += 1
+        }
+    }
+
+    /// 工程表の工程を開く from a 決裁: the chart at that card.
+    func openLatticeCard(project: String, card: String?) {
+        latticeOpenCard = card
+        latticeOpenRequest = project
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            selectedTab = 4
+        } else {
+            #if !targetEnvironment(macCatalyst)
+            selectedTab = 5
+            #endif
+        }
     }
 
     /// The charts that member made (`createdBy`), read once from the chart list for the 「AIと操作」 buttons.

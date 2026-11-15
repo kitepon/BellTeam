@@ -55,6 +55,7 @@ struct HomeView: View {
             .navigationDestination(for: ChatTarget.self) { target in
                 ConversationView(target: target)
             }
+            .navigationDestination(isPresented: $store.approvalsScreenOpen) { ApprovalsHomeView() }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $addingBot) { BotEditor(initial: nil).environmentObject(store) }
             .sheet(isPresented: $addingRoom) { RoomEditor(initial: nil).environmentObject(store) }
@@ -155,6 +156,7 @@ struct HomeView: View {
     private func botsSection(_ bots: [Bot]) -> some View {
         VStack(alignment: .leading, spacing: 15) {
             sectionTitle("メンバー", symbol: "bubble.left.and.text.bubble.right.fill")
+            ApprovalsEntryRow(model: store.approvals) { store.approvalsScreenOpen = true }
             if bots.isEmpty {
                 ContentUnavailableView("メンバーが見つかりません", systemImage: "person.crop.circle.badge.questionmark")
                     .frame(maxWidth: .infinity)

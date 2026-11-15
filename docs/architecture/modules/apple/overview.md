@@ -21,6 +21,7 @@ flowchart TD
   Wide --> Inspector["プロフィール・端末画面<br/>iPadはinspector、MacはHStack"]
   App --> EditorWindow["Macのmember-editor WindowGroup<br/>共通BotEditor"]
   App --> LatticeWindow["Macのlattice WindowGroup<br/>工程表（lattice-chart.md）"]
+  App --> ApprovalsWindow["Macのapprovals WindowGroup<br/>決裁箱（approvals.md。iPhoneは会話タブから押し込み、iPadは詳細の列 selectedTab = 6）"]
 ```
 
 入口は [BellBotApp.swift](../../../../ios/BellBot/BellBot/App/BellBotApp.swift#L4)、配置は [DesktopWorkspaceView.swift](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L25)。iPadのcompact幅では一覧・詳細を切替え、詳細パネルを閉じる。Macは個別Botの会話とプロフィールを等幅にし、ルーム詳細は固定幅。iPhoneの詳細はシート。全画面が同じ`AppStore`、通信・編集部品を使う。

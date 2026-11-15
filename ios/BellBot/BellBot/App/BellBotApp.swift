@@ -37,6 +37,16 @@ struct BellBotApp: App {
         .defaultSize(width: 1360, height: 860)
         .windowResizability(.contentMinSize)
 
+        WindowGroup("決裁箱", id: "approvals") {
+            NavigationStack { ApprovalsHomeView() }
+                .environmentObject(store)
+                .tint(BellTheme.violet)
+                .frame(minWidth: 720, minHeight: 520)
+                .background(SceneReader { MainWindow.sessionIDs["approvals"] = $0.session.persistentIdentifier })
+        }
+        .defaultSize(width: 1360, height: 860)
+        .windowResizability(.contentMinSize)
+
         WindowGroup("メンバーを編集", id: "member-editor", for: String.self) { $botID in
             if let botID, let bot = store.bots.first(where: { $0.id == botID }) {
                 MemberEditorWindow(bot: bot)
@@ -167,6 +177,7 @@ private struct MemberEditorWindowGeometry: UIViewRepresentable {
 
 private struct RootView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
 
     @ViewBuilder private var readyView: some View {
         #if targetEnvironment(macCatalyst)
@@ -206,10 +217,10 @@ private struct RootView: View {
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
                     NavigationStack { ConversationView(target: .bot("bot-two")) }
                 } else {
-                    readyView
+                    readyView.modifier(ApprovalsRunner(model: store.approvals))
                 }
                 #else
-                readyView
+                readyView.modifier(ApprovalsRunner(model: store.approvals))
                 #endif
             case .failure(let message):
                 ConnectionFailureView(detail: message)
@@ -285,6 +296,7 @@ private struct ConnectionFailureView: View {
 private struct TeamBoardTab: View {
     enum Board: String, CaseIterable { case graph = "相関図", lattice = "工程表" }
     @SceneStorage("team-board") private var board = Board.graph
+    @EnvironmentObject private var store: AppStore
 
     var body: some View {
         // 切り替えは上に縦に並べる（重ねると工程表のナビゲーションバーと重なる）。
@@ -303,6 +315,7 @@ private struct TeamBoardTab: View {
             case .lattice: LatticeHomeView(returnTab: 4)
             }
         }
+        .onChange(of: store.latticeOpenRequest) { _, id in if id != nil { board = .lattice } }
         #if DEBUG
         .onAppear { if ProcessInfo.processInfo.arguments.contains("-bellbot-open-lattice") { board = .lattice } }
         #endif
@@ -331,7 +344,10 @@ private struct BellTabs: View {
                 .tag(2)
         }
         #if DEBUG
-        .onAppear { if ProcessInfo.processInfo.arguments.contains("-bellbot-open-lattice") { store.selectedTab = 4 } }
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-open-lattice") { store.selectedTab = 4 }
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-open-approvals") { store.approvalsScreenOpen = true }
+        }
         #endif
         .sheet(item: $store.notificationSecret) { request in
             SecretInputSheet(request: request) { _ in store.eventRevision += 1 }

@@ -1462,6 +1462,7 @@ struct LatticeDetailPanel: View {
     let loadDecision: (LatticeCard) async -> LatticeDecision?
     @State private var shown = false
     @State private var decision: LatticeDecision?
+    @EnvironmentObject private var store: AppStore
 
     private var status: LatticeTaskState { detail.card.status }
 
@@ -1510,15 +1511,16 @@ struct LatticeDetailPanel: View {
                         .font(.system(size: 13.5, weight: .medium)).foregroundStyle(LatticePalette.ink)
                     }
                 }
-                // 決裁を開く is not drawn until the app has the extension's 決裁箱 screen (route approvals/<decisionId>).
                 if let decision, let state = decision.stateText {
                     section("決裁") {
                         Label { Text(verbatim: "\(decision.title)（\(state)）").fixedSize(horizontal: false, vertical: true) } icon: {
                             Image(systemName: "checkmark.seal").foregroundStyle(LatticePalette.amber)
                         }
                         .font(.system(size: 13.5, weight: .medium)).foregroundStyle(LatticePalette.ink)
+                        Button { store.openApprovals(decision: decision.decisionId) } label: { Label("決裁を開く", systemImage: "tray") }
+                            .font(.system(size: 13, weight: .semibold))
+                            .accessibilityIdentifier("lattice-detail-open-decision")
                     }
-                    .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("lattice-detail-decision")
                 }
                 if !detail.previous.isEmpty {
