@@ -6,7 +6,8 @@
   "external": false,
   "provides": [
     "lattice-chart",
-    "lattice-seat"
+    "lattice-seat",
+    "lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"
   ],
   "uses": [
     {
@@ -41,6 +42,7 @@
     "src/lattice/notices.mjs",
     "src/lattice/nudge.mjs",
     "src/lattice/owner-decisions.mjs",
+    "src/lattice/owner-task.mjs",
     "src/lattice-approval.mjs",
     "src/lattice-protocol.mjs",
     "src/lattice-ipc.mjs",

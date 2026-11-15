@@ -1,6 +1,6 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
-export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock'])
+export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock', 'link', 'ownerTask'])
 export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'decisions.file', 'decisions.read', 'decisions.cancel'])
 // An Approval Box decision id (README L18-L19).
 export const LATTICE_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
@@ -25,6 +25,8 @@ const strOrNull = value => value === null || str(value)
 const list = (value, each) => Array.isArray(value) && value.every(each)
 const count = value => Number.isInteger(value) && value >= 0
 const validId = value => str(value) && LATTICE_PROJECT_ID.test(value)
+// A Lattice plan key or task id as the Owner-task port takes it (README L20).
+const validRef = value => str(value) && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(value)
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const invalid = () => { throw latticeError('LATTICE_IPC_INVALID', 503) }
 const need = condition => { if (!condition) invalid() }
@@ -41,8 +43,11 @@ export function validateLatticeRequest(method, params, context) {
     check(latticeObject(params, ['projectIds']) && Array.isArray(params.projectIds) && params.projectIds.length >= 1 && params.projectIds.length <= 50
       && new Set(params.projectIds).size === params.projectIds.length)
     params.projectIds.forEach(project)
+  } else if (method === 'link') { check(latticeObject(params, ['projectId', 'plan', 'taskId']) && validRef(params.plan) && validRef(params.taskId)); project(params.projectId)
   } else {
-    check(latticeObject(params, ['from', 'projectId', 'args', 'input'], ['name']) && str(params.from) && params.from.length >= 1 && params.from.length <= 128)
+    // ownerTask has no `from`: the child sets the actor (README L20).
+    check(method === 'ownerTask' ? latticeObject(params, ['projectId', 'args', 'input'])
+      : latticeObject(params, ['from', 'projectId', 'args', 'input'], ['name']) && str(params.from) && params.from.length >= 1 && params.from.length <= 128)
     if (Object.hasOwn(params, 'name') && !validLatticeName(params.name)) throw latticeError('LATTICE_NAME_INVALID')
     project(params.projectId)
     check(Array.isArray(params.args) && params.args.length <= 200 && params.args.every(arg => str(arg) && arg.length <= 8192)
@@ -153,7 +158,9 @@ export function validateLatticeResult(method, value) {
     && str(value.at) && list(value.charts, summary))
   else if (method === 'chart') need(snapshot(value))
   else if (method === 'refresh') need(latticeObject(value, ['snapshots', 'nextRefreshMs']) && list(value.snapshots, snapshot) && count(value.nextRefreshMs))
-  else if (method === 'run') need(latticeObject(value, ['exitCode', 'result', 'stdout', 'stderr'])
+  else if (method === 'link') need(latticeObject(value, ['schema', 'projectId', 'plan', 'taskId', 'linked']) && value.schema === 'bellteam.lattice-link.v1'
+    && validId(value.projectId) && validRef(value.plan) && validRef(value.taskId) && value.linked === true)
+  else if (method === 'run' || method === 'ownerTask') need(latticeObject(value, ['exitCode', 'result', 'stdout', 'stderr'])
     && (value.exitCode === null || Number.isInteger(value.exitCode)) && strOrNull(value.stdout) && str(value.stderr))
   else if (method === 'deliver') need(latticeObject(value, ['delivered', 'failed']) && count(value.delivered) && count(value.failed))
   else if (method === 'blockers') need(latticeObject(value, ['schema', 'at', 'blockers', 'unreadCharts']) && value.schema === 'bellteam.lattice-blockers.v1'
@@ -171,6 +178,7 @@ const knownErrors = new Map([
   ['LATTICE_INVALID', 400], ['LATTICE_CONTROL_INVALID', 400], ['LATTICE_CHART_NOT_FOUND', 404], ['LATTICE_PROJECT_INVALID', 400],
   ['LATTICE_INPUT_CONFLICT', 400], ['LATTICE_NAME_INVALID', 400], ['LATTICE_COMMAND_NOT_SEAT_SURFACE', 400], ['LATTICE_NOT_ACCEPTED', 503], ['LATTICE_UNAVAILABLE', 503],
   ['LATTICE_NOT_QUIESCED', 503], ['LATTICE_EFFECT_FAILED', 503], ['LATTICE_DECISIONS_UNAVAILABLE', 503], ['LATTICE_DECISIONS_REFUSED', 409],
+  ['LATTICE_OWNER_TASK_REFUSED', 403],
 ])
 export function latticeWireError(error, outcome) {
   const code = knownErrors.has(error?.code) ? error.code : knownErrors.has(error?.message) ? error.message : 'LATTICE_OPERATION_FAILED'
