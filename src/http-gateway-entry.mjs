@@ -9,10 +9,11 @@ if (!socketPath?.startsWith('/') || !Number.isInteger(port) || port < 0 || port 
   throw new Error('GATEWAY_CONFIGURATION_INVALID')
 const assetVersion = configuredVersion || Date.now().toString(36)
 const assetVersions = new Map()
-for (const [version, root] of JSON.parse(previousVersions)) {
+const addAssetVersion = async (version, root) => {
   const assets = await import(pathToFileURL(join(root, 'web/assets.mjs')).href)
   assetVersions.set(version, { root: join(root, 'web'), files: assets.webAssetFiles, versioned: assets.versionedWebAssets })
 }
+for (const [version, root] of JSON.parse(previousVersions)) await addAssetVersion(version, root)
 const gateway = createHttpGateway({ socketPath, assetVersion, assetVersions,
   staticRoot: join(dirname(dirname(fileURLToPath(import.meta.url))), 'web') })
 await new Promise((resolve, reject) => {
@@ -38,6 +39,17 @@ const stop = async () => {
   finally { if (process.connected) process.disconnect() }
 }
 process.on('message', message => { if (message?.type === 'close') void stop() })
+// During an exchange the kernel may route a request for the new child's ?v=<new> assets here; resolve them too (95eef79b).
+process.on('message', message => { if (message?.type === 'asset-version') void shareAssetVersion(message) })
+async function shareAssetVersion({ version, root }) {
+  let error = null
+  try {
+    if (typeof version !== 'string' || !version || version === assetVersion || typeof root !== 'string' || !root.startsWith('/'))
+      throw new Error('GATEWAY_ASSET_VERSION_INVALID')
+    await addAssetVersion(version, root)
+  } catch (failure) { error = failure?.code ?? failure?.message ?? 'GATEWAY_ASSET_VERSION_FAILED' }
+  if (process.connected) process.send({ type: 'asset-version-ack', version, ...(error ? { error: String(error) } : {}) })
+}
 process.on('disconnect', () => { void stop() })
 process.on('SIGTERM', () => { void stop() })
 process.on('SIGINT', () => { void stop() })

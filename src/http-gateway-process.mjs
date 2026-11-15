@@ -9,6 +9,7 @@ import { writeAtomic } from './json-file.mjs'
 
 export const GATEWAY_DRAIN_TIMEOUT_MS = 5000
 export const GATEWAY_START_TIMEOUT_MS = 15000
+export const GATEWAY_ASSET_SHARE_TIMEOUT_MS = 5000
 
 export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit, onModuleRestartLimit }) {
   let child = null, address = null
@@ -61,10 +62,11 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
   // Every spawned child until its close; close() ends all of them (an exchange briefly has two).
   const live = new Set()
   // overlap: the new child binds beside the serving one (SO_REUSEPORT) and stays out of `child` until commit().
-  const launch = async (root, versionId, overlap) => {
+  // The builtin key is chosen here, not in the child, so an old child can be told it before the new one starts.
+  const launch = async (root, versionId, overlap, assetKey = versionId ?? Date.now().toString(36)) => {
     const requestedPort = boundPort
     recovery.restarting()
-    const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), versionId ?? '', assetCatalog()], {
+    const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), assetKey, assetCatalog()], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     // A child bound without SO_REUSEPORT (a release before 95eef79b) on either side makes the new bind fail with EADDRINUSE.
@@ -96,7 +98,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
             || readyPort < 1 || readyPort > 65535 || requestedPort !== 0 && readyPort !== requestedPort
             || probePort !== undefined && (!Number.isInteger(probePort) || probePort < 1 || probePort > 65535)
             || typeof message.assetVersion !== 'string' || !message.assetVersion
-            || versionId !== null && message.assetVersion !== versionId)
+            || message.assetVersion !== assetKey)
             return reject(new Error('GATEWAY_START_FAILED'))
           // Beside a serving child the public port may answer from either; only the child's own probe port proves it serves `/`.
           if (overlap && probePort === undefined) return reject(new Error('GATEWAY_PORT_NOT_SHARED'))
@@ -152,12 +154,28 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     return next.stopping
   }
   const stop = () => child ? stopChild(child) : Promise.resolve()
+  const shareAssetVersion = (next, version, root) => new Promise(resolve => {
+    if (!next.connected) return resolve(false)
+    const done = value => {
+      clearTimeout(timer); next.removeListener('message', answered); next.removeListener('close', gone)
+      resolve(value)
+    }
+    const answered = message => { if (message?.type === 'asset-version-ack' && message.version === version) done(!message.error) }
+    const gone = () => done(false)
+    const timer = setTimeout(() => done(false), GATEWAY_ASSET_SHARE_TIMEOUT_MS)
+    next.on('message', answered); next.once('close', gone)
+    next.send({ type: 'asset-version', version, root }, error => { if (error) done(false) })
+  })
   // 95eef79b: the new child is listening and ready before the old one stops, so the public port is never unanswered.
-  // false = the port could not be shared (a child without SO_REUSEPORT); the caller falls back to stop-then-start.
+  // false = the port or the assets could not be shared (a child before 95eef79b); the caller falls back to stop-then-start.
   const exchange = async (release, previousVersion, signal) => {
-    const old = child
+    const old = child, assetKey = release.versionId ?? Date.now().toString(36)
+    // Either child may answer any request while both listen: the old one must resolve the new ?v= assets
+    // (the new one gets the old ones through assetCatalog()). No ack = a child that cannot share them.
+    if (!await shareAssetVersion(old, assetKey, release.appRoot)) { signal.throwIfAborted(); return false }
+    signal.throwIfAborted()
     let candidate
-    try { candidate = await launch(release.appRoot, release.versionId, true) }
+    try { candidate = await launch(release.appRoot, release.versionId, true, assetKey) }
     catch (error) {
       signal.throwIfAborted()
       if (error.message === 'GATEWAY_PORT_NOT_SHARED') return false

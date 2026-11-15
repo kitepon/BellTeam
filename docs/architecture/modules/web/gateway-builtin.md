@@ -10,7 +10,9 @@ flowchart TD
   Adapter -->|source一致・apply| Replace
   Control -->|finish後だけ| Replace[process.replace builtin]
   Fixed[親起動時の固定appRoot] --> Replace
-  Replace --> Ready[旧子の横で固定appRootから起動・同port reusePort・自分のprobePortでready]
+  Replace --> Share[旧子へasset-version: 親が決めた内蔵版key・固定appRoot → ack]
+  Share -->|ack無し・error| Fallback
+  Share --> Ready[旧子の横で固定appRootからそのkeyで起動・同port reusePort・自分のprobePortでready]
   Ready --> Assets[readyの実assetVersionを既catalogへ登録]
   Ready --> Adoption[atomic採用: currentVersionId null / previous SHA又はnull]
   Adoption --> Stop[その後に旧子へclose: 既5秒drain・OS/IPC/stdio close待ち]
@@ -32,4 +34,4 @@ asset catalogへnullやbuiltinという仮keyは追加しない。実子readyの
 
 既Owner認可/内部403・finish前cancel・共通mutex/completion・prepare拒否時の旧子維持・同port・5秒drainは変更しない。親closeは交換中の旧子と新子の両方を止める（95eef79bの重ねた交換、[integration](../integration/README.md#公開web受付の二プロセス化初回差分)）。未配置Host設置や署名/実root受入は固有層から補完しない。process/control直接境界は`test/web-gateway-builtin.test.mjs`、adapter直接境界は`test/web-gateway-update-adapter.test.mjs`。人工descriptorと実子/HTTP/一時採用fileを使う。
 
-新旧が並ぶ短い間（readyの確認・採用記録・旧子の50ms待ち接続の回収まで）に、新しい子が返したページの`?v=<新版>`資材要求がkeep-aliveで旧子へ届くと、旧子はその版を知らず404 JSON（キャッシュしない）を返し、そのページの読み込みが1回崩れる。再読込で直る。今までの待ち受け無しのすき間より短い（Admi 11/15）。
+新旧が並ぶ間、どちらの子も新旧両方の`?v=`資材を返す。旧子は新子の起動前に`asset-version`で新版（内蔵版は親が決めたkey）を版表へ足してackし、新子は旧版をassetCatalogで起動時から持つ。資材は各版の準備済みrootから返し、版を混ぜない。ackできない旧子とは重ねずに従来の順で交換するので、新しいページの資材要求が旧子で404になる時間は無い（Epinel差戻し 11/15）。

@@ -88,7 +88,7 @@ manifestは配布の`bellteam.web-gateway.artifact.v1`、component、sourceCommi
 
 ## 失敗・戻し
 
-重ねた交換（95eef79b、契約は[integration](../integration/README.md#公開web受付の二プロセス化初回差分)）：旧子が配っている間に新子を同port（SO_REUSEPORT）で起こし、新子自身の`ready.probePort`への`GET /`と採用記録の書込が済んでから旧子を止める。新子の起動失敗・期限切れ・ready不正・READY_TIMEOUT/READY_PROBE_FAILED・採用記録の失敗では新子だけを回収し、旧子と採用記録はそのまま（前descriptorの再起動もlifecycle回収も起きない。READY_*はそのcodeのまま返す）。新子のbindがEADDRINUSEで終わった時（どちらかがSO_REUSEPORT無しの受付子）だけ、下の従来の順で交換する。
+重ねた交換（95eef79b、契約は[integration](../integration/README.md#公開web受付の二プロセス化初回差分)）：まず旧子へ新版のkeyと準備済みrootを`asset-version`で送り、旧子が新版資材を版表へ足したack（5秒以内）を受ける。ackが無い・errorなら下の従来の順で交換する。その後、旧子が配っている間に新子を同port（SO_REUSEPORT）で起こし、新子自身の`ready.probePort`への`GET /`と採用記録の書込が済んでから旧子を止める。新子の起動失敗・期限切れ・ready不正・READY_TIMEOUT/READY_PROBE_FAILED・採用記録の失敗では新子だけを回収し、旧子と採用記録はそのまま（前descriptorの再起動もlifecycle回収も起きない。READY_*はそのcodeのまま返す）。新子のbindがEADDRINUSEで終わった時（どちらかがSO_REUSEPORT無しの受付子）だけ、下の従来の順で交換する。
 
 従来の順（port共有ができない時）：prepareが欠測/信頼/互換/bytesで拒否したら旧子を止めない。旧子終了を確認できない場合は新子を起こさない。5秒drainで旧子を強制回収した場合も、旧要求の結果は不明のままで本文を再送しない。drainの失敗・期限切れは交換の失敗にしない（旧子は交換を拒否できない、Owner 2026-11-08）。stopは必ず旧子の終了まで待つ（期限でSIGKILL）ので、そのまま新版の起動へ進む。2026-11-09 07:46 JST、drain中の旧子が既存keep-alive接続で新しい要求（3〜7秒かかる /api/rooms 等）を受け続けて5秒で回収され、この拒否が旧版へ戻してUPDATE_MODULE_FAILEDにしていた。新版ready前の失敗は前descriptorで旧受付を戻し、restore成功までは採用版を更新しない。旧版も失敗なら受付停止と両例外を返し、業務親/Aitermを閉じない。親closeと重なれば新版起動/旧版戻しを抑止する。
 

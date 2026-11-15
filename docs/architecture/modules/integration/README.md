@@ -291,7 +291,8 @@ flowchart LR
   Assembly[application-runtime: 組立て・明示start/close] --> Gateway
   Assembly --> HTTP
   Gateway -. 終了・異常終了は受付接続だけ .-> Disconnected[公開接続断 / 自動再送なし]
-  Browser --> Next[交換中の新受付子: 同portへreusePort]
+  Assembly -->|IPC asset-version 新版key/root → ack| Gateway
+  Browser --> Next[交換中の新受付子: 同portへreusePort・旧版資材もassetCatalogで持つ]
   Next -->|ready.probePortへのGET /合格と採用記録の後| OldClose[旧受付子へclose]
   OldClose -.-> Disconnected
 ```
@@ -304,7 +305,7 @@ flowchart LR
 
 SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し、正常EOFへ変換しない。更新後は既Webの再接続・履歴GETへ戻る。受付済み操作は接続断で再発行せず、返却前断線は結果不明のまま。非stream要求は通常終了でdrainする。5秒以内に受付子が終了しなければ、その子だけをSIGKILLし、stdioの回収後にGATEWAY_DRAIN_TIMEOUTを返す。業務側の実行jobは取消さない。親全体closeはこの失敗も集めて後続資源の終了を続ける。子の異常終了は自動で業務closeへ接続しない。
 
-受付子の交換は重ねて行う（BugHub 95eef79b、Owner 2026-11-08「部品交換は呼び手に見せない」）。受付子は公開portを`reusePort: true`（Linux SO_REUSEPORT）でlistenするので、新子は旧子の横で同じportへbindできる。親は新子を起こしてready確認と採用記録を済ませてから、旧子へcloseを送る。公開portに受け手のいない瞬間は無い。旧子に開いていたSSE・要求は上の通り切断/drainされ、呼び手は再接続して新子へ着く。ready確認は新子だけに宛てる：新子は公開portのlisten成功後、`127.0.0.1`の一時portを一つ開いて`ready.probePort`で知らせ、そこへ来た一接続を同じHTTP serverへ渡してからその一時portを閉じる。親は既存と同じ`GET /`（既session認証と資材配信を通る）をこのportへ送るので、公開portで旧子が答えても新子の合否にならない。新子が起動・ready・`GET /`・採用記録のどこで失敗しても新子だけを回収し、旧子は止めずに配り続ける（戻しの再起動も、lifecycle回収も無い）。意図して止めた旧子・捨てた新子は異常終了として数えない。親closeは存在する全受付子（交換中は二つ）を止める。旧子か新子のどちらかがSO_REUSEPORT無しでbindしている（この変更より前の受付子、本番で最初の交換の旧子、古い版への戻し）と新子のbindがEADDRINUSEで終わる。親はこれを子のstderrで見分け、従来の順（旧子停止→新子起動、失敗時は前版へ戻す）で交換を完了する。この場合だけ短い空白が残る。運び手は親の順序がBODY、listen指定と`probePort`がWEB-GATEWAYで、空白が消えるのは両方が稼働した後の交換から。
+受付子の交換は重ねて行う（BugHub 95eef79b、Owner 2026-11-08「部品交換は呼び手に見せない」）。受付子は公開portを`reusePort: true`（Linux SO_REUSEPORT）でlistenするので、新子は旧子の横で同じportへbindできる。並ぶ間はどちらの子にも要求が届くので、両方が双方の資材版を解決する：親は新子を起こす前に旧子へIPC `{type:'asset-version', version, root}`（新版のkeyと準備済みroot）を送り、旧子は起動時の旧版と同じく`<root>/web/assets.mjs`を読んで、要求ごとに引く版表へ足し、`asset-version-ack`を返す。新子は旧版を既存のassetCatalog引数で起動時から持つ。内蔵版のkeyは子ではなく親が決めて渡すので、旧子に先に知らせられる。親はこの応答を5秒待つ。応答が無い・error・IPCが無い旧子は版を共有できない子として、下の従来の順で交換する。親は新子を起こしてready確認と採用記録を済ませてから、旧子へcloseを送る。公開portに受け手のいない瞬間は無く、新旧どちらのページの`?v=`資材もどちらの子で404にならない。旧子に開いていたSSE・要求は上の通り切断/drainされ、呼び手は再接続して新子へ着く。ready確認は新子だけに宛てる：新子は公開portのlisten成功後、`127.0.0.1`の一時portを一つ開いて`ready.probePort`で知らせ、そこへ来た一接続を同じHTTP serverへ渡してからその一時portを閉じる。親は既存と同じ`GET /`（既session認証と資材配信を通る）をこのportへ送るので、公開portで旧子が答えても新子の合否にならない。新子が起動・ready・`GET /`・採用記録のどこで失敗しても新子だけを回収し、旧子は止めずに配り続ける（戻しの再起動も、lifecycle回収も無い）。意図して止めた旧子・捨てた新子は異常終了として数えない。親closeは存在する全受付子（交換中は二つ）を止める。旧子か新子のどちらかがSO_REUSEPORT無しでbindしている（この変更より前の受付子、本番で最初の交換の旧子、古い版への戻し）と新子のbindがEADDRINUSEで終わる。親はこれを子のstderrで見分け、従来の順（旧子停止→新子起動、失敗時は前版へ戻す）で交換を完了する。この場合と資材版を共有できない旧子の場合だけ短い空白が残る（共有できない旧子は応答待ちの5秒も加わる）。運び手は親の順序・資材版の通知がBODY、listen指定・`probePort`・`asset-version`受付がWEB-GATEWAYで、空白が消えるのは両方が稼働した後の交換から。
 
 他サイトからの書き込み（a115、CSRF）：業務processの公開入口は認証の後、GET/HEAD/OPTIONS以外で`Sec-Fetch-Site`が`same-origin`/`none`以外、または`Origin`付きで`text/plain`・`multipart/form-data`・`application/x-www-form-urlencoded`の要求を403 `CROSS_SITE_REQUEST_FORBIDDEN`で断る（`crossSiteWrite`、src/http-response.mjs）。自前のWeb画面・アプリ・席はJSONか本文なしで、この印を付けない。内部入口は対象外。
 

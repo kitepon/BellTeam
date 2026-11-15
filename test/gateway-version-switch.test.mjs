@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { createServer } from 'node:http'
+import { createServer, get } from 'node:http'
 import { connect } from 'node:net'
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { createHttpGatewayProcess, GATEWAY_START_TIMEOUT_MS } from '../src/http-gateway-process.mjs'
+import { createHttpGatewayProcess, GATEWAY_ASSET_SHARE_TIMEOUT_MS, GATEWAY_START_TIMEOUT_MS } from '../src/http-gateway-process.mjs'
 
 const ids = { one: 'a'.repeat(64), two: 'b'.repeat(64), broken: 'c'.repeat(64), incompatible: 'd'.repeat(64), unknown: 'f'.repeat(64) }
 
@@ -319,4 +319,49 @@ test('close() during an exchange stops both the old child and the new one', { ti
   assert.ok(exited(candidatePid))
   assert.equal(gateway.pid, null)
   assert.equal(await replacing, 'stopped')
+})
+
+// A fresh connection each time, so a pooled keep-alive socket cannot pick the child.
+const read = url => new Promise((resolve, reject) => get(url, { agent: false }, response => {
+  let body = ''
+  response.setEncoding('utf8').on('data', chunk => { body += chunk }).once('end', () => resolve({ status: response.statusCode, body }))
+}).once('error', reject))
+
+test('during the overlap the old child resolves the new ?v= assets and the new child resolves the old ones', { timeout: 10000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  // The candidate holds off listening, so the old child is the only one on the port after the share ack.
+  const marker = join(root, 'candidate-started'), candidate = join(releases.get(ids.two).appRoot, 'src/http-gateway-entry.mjs')
+  await writeFile(candidate, `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(marker)}, '')\n`
+    + `await new Promise(resolve => setTimeout(resolve, 1500))\n${await readFile(candidate, 'utf8')}`)
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid, base = `http://127.0.0.1:${port}`
+  const oldVersion = (await read(base)).body.match(/app\.js\?v=([^"]+)/)[1]
+  const replacing = gateway.replace(ids.two)
+  while (!await stat(marker).catch(() => null)) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(gateway.pid, oldPid)
+  assert.deepEqual(await read(`${base}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+  await replacing
+  assert.ok(exited(oldPid))
+  assert.deepEqual(await read(`${base}/app.js?v=${oldVersion}`), { status: 200, body: `one:${oldVersion}` })
+  assert.deepEqual(await read(`${base}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+})
+
+test('an old child that never acknowledges the shared asset version falls back to stop-then-start and still completes', { timeout: 20000 }, async t => {
+  const { socketPath, releases } = await fixture(t)
+  const entry = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs'), source = await readFile(entry, 'utf8')
+  const handler = "process.on('message', message => { if (message?.type === 'asset-version') void shareAssetVersion(message) })"
+  assert.ok(source.includes(handler))
+  await writeFile(entry, source.replace(handler, ''))
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid
+  const started = Date.now()
+  await gateway.replace(ids.two)
+  assert.ok(Date.now() - started >= GATEWAY_ASSET_SHARE_TIMEOUT_MS - 100, 'waited for the bounded ack first')
+  assert.ok(exited(oldPid))
+  assert.equal(gateway.versionId, ids.two)
+  assert.deepEqual(await read(`http://127.0.0.1:${port}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
 })
