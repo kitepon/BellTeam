@@ -73,6 +73,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (error?.turnCompleted === true) return
       // A confirmed stop (explicit restart/stop, BOT_STOPPED) is recorded by the 'stopped' status, not a tracking failure (BugHub 95f155b7).
       if (error?.code === 'BOT_STOPPED') return
+      // update-hold.md H2: refused before any input, so it stays queued; also covers an Owner turn's completion rejection.
+      if (error?.code === 'BOT_UPDATE_HOLD') return
       report(error, { delivery_id: record.delivery_id, target: record.target, stage })
     }
     try {
@@ -114,7 +116,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         return await transport.notify(bot, envelope, options)
       })
     } catch (error) {
-      // update-hold.md H2: refused before any input; stays queued and the hold release drains it (BugHub 95f155b7).
+      // update-hold.md H2: not_started keeps it queued; the hold release drains it (BugHub 95f155b7).
       if (error?.code === 'BOT_UPDATE_HOLD') throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
       reportOnce(error, invoked ? 'acceptance' : 'preflight')
       if (invoked) {
