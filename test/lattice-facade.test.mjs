@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createLatticeFacade, createLatticeEffects, NUDGE_MS, QUEUE_WAIT_MS } from '../src/lattice-facade.mjs'
+import { createLatticeFacade, createLatticeEffects, NUDGE_MS, QUEUE_WAIT_MS, SEAT_ANSWER_MS } from '../src/lattice-facade.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const snap = (projectId, version) => ({ schema: 'bellteam.lattice-chart.v1', projectId, epoch: 'e', version })
@@ -16,8 +16,8 @@ function fixture({ respond = () => null, now } = {}) {
     return value ?? (method === 'refresh' ? { snapshots: [], nextRefreshMs: 2000 } : { method, params })
   } }
   const facade = createLatticeFacade({ controller, ...(now && { now }),
-    // The nudge timer (60 s, always armed) is kept apart from the refresh loop's timers.
-    setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
+    // The nudge timer (60 s, always armed) and the seat answer timers are kept apart from the refresh loop's timers.
+    setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : ms === SEAT_ANSWER_MS ? [] : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick(); await tick() }
   return { facade, calls, timers, nudges, fire, hold: () => { let open; gate = new Promise(resolve => { open = resolve }); return () => { gate = null; open() } } }
 }
@@ -80,6 +80,55 @@ test('a write queued past the wait bound is never sent; the next write is sent a
   await assert.rejects(stale, { code: 'LATTICE_UNAVAILABLE', status: 503 })
   assert.equal((await fresh).method, 'unblock')
   assert.deepEqual(f.calls.map(([method, params]) => [method, params.args?.[1] ?? null]), [['run', 'note'], ['unblock', null]], 'the stale run never reached the child')
+})
+
+// a162: the seat gets a definite answer before Claude Code aborts the MCP call at 60 s; the write slot follows the child, not the caller.
+function slowChild() {
+  const sent = [], finish = [], timers = []
+  const controller = { request: (method, params) => {
+    sent.push(params.args?.[1] ?? method)
+    let end
+    const completion = new Promise(resolve => { end = resolve })
+    const result = completion.then(() => ({ method, params }))
+    Object.defineProperty(result, 'completion', { value: completion })
+    finish.push(end)
+    return result
+  } }
+  const facade = createLatticeFacade({ controller, setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
+  const bounds = () => timers.filter(timer => timer.ms === SEAT_ANSWER_MS)
+  return { facade, sent, finish, bounds }
+}
+const writeRun = (f, step) => f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', step] })
+
+test('a sent seat write unanswered at the answer bound resolves PENDING; the slot stays with the child until it finishes', async () => {
+  const f = slowChild()
+  const first = writeRun(f, 'note'), second = writeRun(f, 'start')
+  await tick()
+  f.bounds()[0].run()
+  const value = await first
+  assert.deepEqual([value.exitCode, value.result.code], [null, 'LATTICE_WRITE_PENDING'])
+  await tick()
+  assert.deepEqual(f.sent, ['note'], 'the next write is not sent beside the one the child still runs')
+  f.finish[0]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['note', 'start'])
+  f.finish[1]()
+  assert.equal((await second).method, 'run')
+})
+
+test('a queued seat write unanswered at the answer bound fails LATTICE_WRITE_NOT_SENT and is never sent', async () => {
+  const f = slowChild()
+  const first = writeRun(f, 'note'), dropped = writeRun(f, 'start'), kept = writeRun(f, 'done')
+  await tick()
+  f.bounds()[1].run()
+  await assert.rejects(dropped, { code: 'LATTICE_WRITE_NOT_SENT', status: 503 })
+  f.finish[0]()
+  assert.equal((await first).method, 'run')
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['note', 'done'], 'the dropped write never reached the child')
+  f.finish[1]()
+  assert.equal((await kept).method, 'run')
+  assert.ok(f.bounds().every(timer => timer.cleared || timer === f.bounds()[1]), 'answered writes clear their timers')
 })
 
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {
