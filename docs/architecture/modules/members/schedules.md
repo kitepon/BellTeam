@@ -70,6 +70,9 @@ flowchart TD
 
 | SC8 | scheduler → conversation.messages / 予定IDと終了コード0、既末尾5行を含む結果文 | `notify=result`のBot予定だけ。`from:scheduler,target:bot.id`で一回、Ownerへは送らない。受付/失敗はSC5と同じく元reportErrorへ。眠っている席を起こすのは既配送(execution)の所有 |
 | SC9 | (なし) | 予定は稼働中の判定へ何も渡さない。有効な `notify=result` の予定も実行中のcommand jobも、Botを稼働中にしない（Owner 2026-11-14「予定機能に例外を作りたくない」。自分のscript/CIの待ちはCLIの中で数える）。registry.watch はイベントの botIds（無い・all:true は全Bot）を requestAfterTurn へ渡す。after_turn/currentTurnは変えない |
+| SC10 | members child → parent / effect `schedules.connectionRemoved {botId, schedule:{id,name,command,connect}}`, no result | 接続つき予定を共通`removeSchedule`/Bot削除が永続削除した**後**に子が一度送る（`BotRegistry.onScheduleRemoved`、子のdispatcherが設定）。親は`scheduler.releaseConnection`でLatticeの`condition remove`を呼ぶ。子はLatticeを呼ばない。親へ届かない/失敗は子のstderrに残し予定の削除を戻さない |
+| SC11 | members child → members writer / `connect {project,plan,task}`、`template {kind,params,until}` | 保存は子。`connect`はcommand予定だけ（prompt/after_turn/`notify=result`と併用不可）。更新で省略すると保持。`connect`の変更・脱落は`SCHEDULE_CONNECT_CHANGE_REFUSED`（削除して作り直す）。`template`は元commandのままの間だけ保持し、commandを手で直したら捨てる |
+| SC12 | scheduler → conversation.messages / 失敗文（接続つき予定） | **接続つき予定だけ**SC4の宛先が変わる：Ownerへ送らず、工程のlane Botへ一回（laneがBotでなければ予定所有Bot）、予定は止める（本体 #1604/#1605）。非接続予定のSC4/SC5は不変 |
 
 配送が失敗した時は両宛先の試行を終えてから一つなら元例外、複数ならAggregateErrorを返す。元command結果は変更せず、別の成功結果へ置換しない。手動runも同じdispatch窓口を通る。予定schema/保存/claim/停止・runShellCommand/親assembly/通知内部に変更はない。
 
@@ -209,3 +212,28 @@ shortcut: the scheduler does not disable a repeating check after its result; a c
 Update compatibility: `setSchedule` keeps the stored `notify` when an update omits the key, so released Apple/Web editors that drop unknown fields do not silently turn result delivery off. `notify=failure` turns it off explicitly.
 
 Release order: the parent validates members results with its own `members/protocol.mjs`, so the body that accepts `notify` must be live before or with the members module that lets Bots save it. No new connection, queue, daemon, execution contract or runtime change: SC8 uses the same `Messenger.sendmessage` and scheduler actor as SC4 and prompt schedules.
+
+## Connected schedules (`connect`, a164)
+
+Owner go 2026-11-15 (via Trony, task a164; design: Flora `bot-7e777fe5/docs/a164-schedule-connect-design.md`). A command schedule can be the condition of a Lattice 他条件に接続; it is one one-shot check. The scheduler (body, #1604/#1605) reads `schedule.connect`: exit 0 → `todo connect condition resolve`, then disable; 75 → nothing (a `once` schedule is disabled at claim, so 75 there is a failure); any other exit, signal or a failed resolve → ONE notice to the lane Bot (fallback: owner Bot, never the Owner), schedule disabled, 接続 left open.
+
+```mermaid
+flowchart LR
+  Save[set_schedule connect / template] --> Expand[members: template expands once to command]
+  Expand --> Store[members writer stores connect, template]
+  Store --> Add[parent facade: condition add, Molly]
+  Run[body scheduler runs command] --> Settle[0 resolve+disable / 75 wait / else lane notice+disable]
+  Remove[remove_schedule / HTTP DELETE / Bot deletion in the child] --> Gone[members writer: schedule durably gone]
+  Gone -->|SC10 effect| Release[parent scheduler.releaseConnection: condition remove]
+```
+
+Members owns only the definition, storage and the removal report. Lattice calls (add after save, resolve, remove, lane notice) are parent/body-side; the signed members child never calls the Lattice facade (diagrams.product-boundary).
+
+| Rule | Detail |
+| --- | --- |
+| Fields | `connect` and `template` are optional on Bot command schedules; the hand-written `command` and a `template` cannot be given together. `normalizeSchedule` validates both (ids are `[a-z0-9-]` for the project, `[\w.-]` for plan/task) and is shared with the body validator, so the body ships first. |
+| Templates (`src/schedule-templates.mjs`) | kinds `ci` (repo, run), `pr-merged` (repo, number), `npm` (package, version), `url` (url). Params are exact keys, regex-validated, then shell-quoted. Expanded ONCE at save into the stored `command` (cap 8000). Exit 0 done, 75 not yet, 1 failed. `until` (ISO) is a hard deadline: after it the command exits 1 before any check. No `time` template: `kind=once` with the command `true` does it. shortcut: `url` has no body filter, 2xx = done, 404 = not yet; add a jq check when a caller needs it. |
+| Removal | One report per removed connected schedule (SC10), after the write. If the report fails the 接続 stays open without a schedule; accepted shortcut (parent down while the child runs is a stop anyway), upgrade only if it recurs. |
+| Disable after a run | The body disables through `setSchedule` with editable fields, after its own revision check (an editor change wins). No CAS on the members protocol; the read-to-save window is milliseconds. `connect`/`template` survive because an update that omits them keeps them. |
+
+Release order: body first (its `members/protocol.mjs` and `schedule-definition.mjs` accept `connect`/`template` and the `schedules.connectionRemoved` effect, and `members-assembly` calls `scheduler.releaseConnection`), then members. Add-after-save is the parent facade's (Molly).

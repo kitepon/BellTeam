@@ -1,4 +1,5 @@
 import { objectSchema } from '../mcp-schema.mjs'
+import { expandTemplate, TEMPLATE_KINDS } from '../schedule-templates.mjs'
 import { requireRoomMember, requireRepresentative } from '../room-access.mjs'
 
 const intervalScheduleProperties = {
@@ -26,6 +27,8 @@ export const botScheduleTools = [
       prompt: { type: 'string', minLength: 1, maxLength: 8000, description: 'AIへの指示。commandと同時には指定しない。' },
       command: { type: 'string', minLength: 1, maxLength: 8000, description: 'Botのプロジェクトフォルダでsh -cとして実行するコマンド。既定では正常時はAIを起こさず、失敗した時だけ予定所有Botとユーザーへ知らせる。' },
       notify: { type: 'string', enum: ['failure', 'result'], description: 'command用。resultにすると、終了コード0で終わった時に結果（末尾5行）を予定所有Botだけへ届け、ユーザーには失敗として出さない。終了コード75は「まだ終わっていない」で何も届けず、反復予定は次回また確かめる。それ以外の非0は既定どおり失敗として予定所有Botとユーザーへ届く。待っている物の失敗（CIの失敗など）は0で終えて本文に書く。結果を受けた反復予定はremove_scheduleで消す。更新で省略すると今の値を保つ。既定はfailure。' },
+      connect: { type: 'object', description: 'command用。この予定を工程表の「他条件に接続」の条件にする。予定は一回きりの確認になる：終了コード0で接続を完了して予定を止め、75は何もせず次回また確かめ、それ以外の非0（またはonceでの75）は担当レーンのBotへ失敗を一回知らせて予定を止める（Ownerへは知らせない）。notify=resultとは同時に使えない。接続は更新で変えられない（削除して作り直す）。', properties: { project: { type: 'string' }, plan: { type: 'string' }, task: { type: 'string' } }, required: ['project', 'plan', 'task'], additionalProperties: false },
+      template: { type: 'object', description: `commandの代わりに、待つ物の確認コマンドを作る。保存時に一度だけcommandへ展開する。kind: ${TEMPLATE_KINDS.join(' / ')}（ci: repo,run。pr-merged: repo,number。npm: package,version。url: url）。untilは期限（ISO日時）で、過ぎると確認は失敗になる。commandとは同時に使えない。`, properties: { kind: { type: 'string', enum: TEMPLATE_KINDS }, params: { type: 'object' }, until: { type: 'string' } }, required: ['kind', 'params', 'until'], additionalProperties: false },
       enabled: { type: 'boolean' },
       botId: { type: 'string', minLength: 1, description: '対象Bot ID。省略時は自分。' },
     }, ['kind']),
@@ -74,6 +77,10 @@ export const roomScheduleTools = [
 export const scheduleToolHandlers = {
   async set_schedule({ registry, from, args }) {
     const { botId = from, ...schedule } = args
+    if (schedule.template) {
+      if (schedule.command !== undefined) throw new Error('SCHEDULE_ACTION_INVALID')
+      schedule.command = expandTemplate(schedule.template)
+    }
     return { schedule: await registry.setSchedule(botId, schedule) }
   },
   async list_schedules({ registry, from, args }) {

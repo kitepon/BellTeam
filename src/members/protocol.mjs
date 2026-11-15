@@ -1,5 +1,5 @@
 import { validateAvatar } from '../avatar-value.mjs'
-import { normalizeSchedule, validateScheduleTurn } from '../schedule-definition.mjs'
+import { normalizeSchedule, validateScheduleTurn, validConnect } from '../schedule-definition.mjs'
 import { normalizeMembersError } from './errors.mjs'
 
 const fail = () => { throw Object.assign(new Error('MEMBERS_INPUT_INVALID'), { code: 'MEMBERS_INPUT_INVALID', outcome: 'not_accepted', status: 400 }) }
@@ -39,7 +39,7 @@ const ownerChanges = value => object(value, {
   links: value => { if (!Array.isArray(value) || value.length > 20) fail(); value.forEach(item => object(item, { label: value => string(value, 100), url: value => string(value, 2048) })) },
 }, [])
 const schedule = value => {
-  object(value, Object.fromEntries(['id', 'name', 'kind', 'at', 'expression', 'timezone', 'prompt', 'command', 'notify', 'enabled', 'intervalDays', 'startDate', 'time', 'intervalHours', 'startHour', 'endHour', 'minute', 'targets'].map(key => [key, () => {}])), ['kind'])
+  object(value, Object.fromEntries(['id', 'name', 'kind', 'at', 'expression', 'timezone', 'prompt', 'command', 'notify', 'connect', 'template', 'enabled', 'intervalDays', 'startDate', 'time', 'intervalHours', 'startHour', 'endHour', 'minute', 'targets'].map(key => [key, () => {}])), ['kind'])
   if (value.targets !== undefined) ids(value.targets)
   normalizeSchedule({ ...value, id: value.id ?? 'validation' }, new Date())
 }
@@ -111,6 +111,7 @@ const effects = {
   'project.appendInstructions': value => object(value, { ...projectId, text: body }),
   'global.writeInstructions': value => object(value, { body }),
   'project.composeInstructions': value => object(value, { ...projectId, body }),
+  'schedules.connectionRemoved': value => object(value, { botId: id, schedule: value => object(value, { id: text, name: text, command: text, connect: value => { if (!validConnect(value)) fail() } }, ['id', 'connect']) }),
   'project.docs.list': value => object(value, projectId),
   'project.docs.read': value => object(value, { ...projectId, path: docPath }),
   'project.docs.write': value => object(value, { ...projectId, path: docPath, content: docContent }),
