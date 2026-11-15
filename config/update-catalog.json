@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T02:42:08Z",
-  "expiresAt": "2026-11-22T02:42:08Z",
+  "publishedAt": "2026-11-15T03:49:38Z",
+  "expiresAt": "2026-11-22T03:49:38Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb",
-      "versionId": "416a4a5f50bdd9e72006b80d1d64d055f9eb881d77654957b06ad1c3132eafa1",
+      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
+      "versionId": "08c8034b902d7a4be344cfc83f26b7fccc0afe5d17996ad9551d11a293bf40c4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-amd64.tar.gz",
-          "bytes": 3976137,
-          "sha256": "416a4a5f50bdd9e72006b80d1d64d055f9eb881d77654957b06ad1c3132eafa1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T034748Z/execution-c1a1e1e20ddecad51cfe8d9295e4583471867e9b-linux-amd64.tar.gz",
+          "bytes": 3979916,
+          "sha256": "08c8034b902d7a4be344cfc83f26b7fccc0afe5d17996ad9551d11a293bf40c4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10899,
-          "sha256": "022e3e4b95c900ce5a663912c615ec5e3da603f245190ea809cca94f4c3f7db3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T034748Z/execution-c1a1e1e20ddecad51cfe8d9295e4583471867e9b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "919a1dbce3f6f57875f83ebd8430f105e6c2e59d9702ce7f302d6b76ec858d92"
         },
-        "signerCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb"
+        "signerCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "AIの実行部品で、停止・再起動と設定の失敗を正しく見分けて記録するようにしました。"
+        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb",
-      "versionId": "f2005b88be881336101e4efda95d98caf5ea4b098caf73bef5a9bb22b7054999",
+      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
+      "versionId": "ce9081a14ccfc7daac62a2be405123548f84fe34fa1d950a0f8c89d09da3895c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-arm64.tar.gz",
-          "bytes": 3976137,
-          "sha256": "f2005b88be881336101e4efda95d98caf5ea4b098caf73bef5a9bb22b7054999"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T034748Z/execution-c1a1e1e20ddecad51cfe8d9295e4583471867e9b-linux-arm64.tar.gz",
+          "bytes": 3979916,
+          "sha256": "ce9081a14ccfc7daac62a2be405123548f84fe34fa1d950a0f8c89d09da3895c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T231245Z/execution-cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "ca3726bb55ae6668877b9f1f2370e5a1a005569d2d4caec4020eebd74f0557fd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T034748Z/execution-c1a1e1e20ddecad51cfe8d9295e4583471867e9b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "0e3da0030b610112f479c502625cc47a597606cdaafaedea3641e48973002157"
         },
-        "signerCommit": "cee3ab9dc0f01d32f0b89dd304767c8ee39f1afb"
+        "signerCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "AIの実行部品で、停止・再起動と設定の失敗を正しく見分けて記録するようにしました。"
+        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "22cca1a97aa5e917e157e451303002fb6f9ea3cf",
-      "versionId": "sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790",
+      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
+      "versionId": "sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の入れ替え中に始まった設定や認証の処理が、入れ替えの完了を待ってから進むようにしました。"
+        "ユーザー規範を変えるとき、オーナーの承認の言葉が受け付けられるようにしました。",
+        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "22cca1a97aa5e917e157e451303002fb6f9ea3cf",
-      "versionId": "sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790",
+      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
+      "versionId": "sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ce68d1cf61a67f7c3b17e1b430690c6690e979bc8cbdca9a4babd162c117f790"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の入れ替え中に始まった設定や認証の処理が、入れ替えの完了を待ってから進むようにしました。"
+        "ユーザー規範を変えるとき、オーナーの承認の言葉が受け付けられるようにしました。",
+        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
       ]
     },
     {
