@@ -27,6 +27,9 @@ SECTION design
     WHY: the diagrams exist so that AI understands the function structure and the data flow correctly.
     MAY: keep the source of truth as structured text or tables.
     NOT REQUIRED: human-oriented visualization.
+  RULE design.no-unused
+    DO: before adding a check, record or test, name who uses its result.
+    NEVER: build it if no one does; never re-check facts another product owns.
 
 SECTION guards
   # Stopping is a cost. A guard must name what it protects and how the system leaves it.
