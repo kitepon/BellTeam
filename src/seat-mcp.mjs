@@ -79,9 +79,11 @@ export function seatExecutionSource(request, bots) {
   return { sourceSession, source: { launch, boundary: null } }
 }
 
+const USER_TOOL_PATH = new RegExp(`^${REMOTE_SEAT_MCP_PATH}/user/([A-Za-z0-9_-]{1,64})$`, 'u')
+
 // LAN seat MCP on the public listener (remote-seat-ingress.md RS05-RS07). The seat name comes from the
 // credential binding, never from the caller's headers; the launch header stays today's runtime claim.
-export function createRemoteSeatIngress({ credentials, bots, seatMcp }) {
+export function createRemoteSeatIngress({ credentials, bots, seatMcp, userTools = null }) {
   const seatKey = SEAT_HEADER.toLowerCase()
   return async (request, response, url) => {
     const binding = await credentials.verify(request.headers.authorization)
@@ -89,23 +91,29 @@ export function createRemoteSeatIngress({ credentials, bots, seatMcp }) {
     delete request.headers[seatKey]
     if (!binding) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
     request.headers[seatKey] = binding.sessionName
+    // remote-user-tools.md U3: the seat's user tools, under the same binding.
+    const userTool = USER_TOOL_PATH.exec(url.pathname)?.[1]
     const path = url.pathname === REMOTE_SEAT_MCP_PATH ? BELLTEAM_MCP_PATH : CALL_BRIDGE_MCP_PATH
     // SK03: a fork credential names its Bot; the fork name itself never resolves (SK02).
-    if (binding.kind === 'fork') return seatMcp()(request, response, new URL(`${path}${url.search}`, url), { botId: binding.botId })
+    if (binding.kind === 'fork') {
+      if (userTool) return userTools ? userTools.handle(request, response, binding, userTool) : reply(response, 404, { error: 'NOT_FOUND' })
+      return seatMcp()(request, response, new URL(`${path}${url.search}`, url), { botId: binding.botId })
+    }
     let from
     try { from = await resolveSeatBotId(request, bots) }
     catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
     if (from !== binding.botId) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
+    if (userTool) return userTools ? userTools.handle(request, response, binding, userTool) : reply(response, 404, { error: 'NOT_FOUND' })
     return seatMcp()(request, response, new URL(`${path}${url.search}`, url))
   }
 }
 
-// RS05: the container-loopback listener that Aiterm's SSH reverse forward targets. Only the two seat MCP paths; no other API.
+// RS05: the container-loopback listener that Aiterm's SSH reverse forward targets. Only the seat MCP paths (bellteam, call-bridge, user/<name>); no other API.
 export function createRemoteSeatServer(ingress) {
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url, 'http://bellteam.local')
-      if (url.pathname !== REMOTE_SEAT_MCP_PATH && url.pathname !== `${REMOTE_SEAT_MCP_PATH}/call-bridge`) return reply(response, 404, { error: 'NOT_FOUND' })
+      if (url.pathname !== REMOTE_SEAT_MCP_PATH && url.pathname !== `${REMOTE_SEAT_MCP_PATH}/call-bridge` && !USER_TOOL_PATH.test(url.pathname)) return reply(response, 404, { error: 'NOT_FOUND' })
       return await ingress(request, response, url)
     } catch (error) {
       if (!response.headersSent) reply(response, error?.status ?? 500, { error: error?.code ?? 'INTERNAL_ERROR' })

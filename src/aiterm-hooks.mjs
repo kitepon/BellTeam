@@ -12,6 +12,15 @@ const loadModule = path => import(pathToFileURL(path).href)
 
 // Aiterm promises only its exports table (aiterm-mcp bellteam-boundary.md 公開の入口). Read it from the chosen root:
 // a bare import('aiterm-mcp/...') would hit BellTeam's own node_modules copy, not the selected version.
+// remote-user-tools.md: Aiterm >= 0.70.62 keeps a terminal's own same-name MCP server and accepts a caller server's
+// `replace: true` (a138). The body and this bundled Aiterm ship together, so the bundled version decides.
+export function aitermCallerReplaceSupported(root = AITERM_ROOT) {
+  try {
+    const [major, minor, patch] = String(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version).split('.').map(Number)
+    return major > 0 || minor > 70 || (minor === 70 && patch >= 62)
+  } catch { return false }
+}
+
 export function aitermEntry(root, name) {
   const target = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).exports?.[`./${name}`]
   const path = typeof target === 'string' && target.startsWith('./') ? join(root, target) : ''
