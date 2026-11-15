@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { createServer } from 'node:http'
+import { createServer, get } from 'node:http'
+import { connect } from 'node:net'
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { createHttpGatewayProcess, GATEWAY_START_TIMEOUT_MS } from '../src/http-gateway-process.mjs'
+import { createHttpGatewayProcess, GATEWAY_ASSET_SHARE_TIMEOUT_MS, GATEWAY_START_TIMEOUT_MS } from '../src/http-gateway-process.mjs'
+import { writeAtomic } from '../src/json-file.mjs'
 
 const ids = { one: 'a'.repeat(64), two: 'b'.repeat(64), broken: 'c'.repeat(64), incompatible: 'd'.repeat(64), unknown: 'f'.repeat(64) }
 
@@ -206,4 +208,203 @@ test('a request still running in the old gateway cannot veto the exchange: the d
   assert.equal(gateway.versionId, ids.two)
   assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
   assert.equal(await inflight, 'reset')
+})
+
+// 95eef79b: the new gateway listens beside the old one (SO_REUSEPORT) and is ready before the old one stops.
+const refusalsDuring = async (port, work) => {
+  let refused = 0, connected = 0, running = true
+  const loop = (async () => {
+    while (running) {
+      await new Promise(resolve => {
+        const socket = connect(port, '127.0.0.1')
+        socket.once('connect', () => { connected++; socket.destroy(); resolve() })
+        socket.once('error', error => { if (error.code === 'ECONNREFUSED') refused++; resolve() })
+      })
+    }
+  })()
+  try { await work() } finally { running = false; await loop }
+  return { refused, connected }
+}
+const exited = pid => { try { process.kill(pid, 0); return false } catch (error) { return error.code === 'ESRCH' } }
+
+test('an exchange never leaves the public port without a listener, and stopping the old child is not a crash', { timeout: 10000 }, async t => {
+  const { socketPath, releases } = await fixture(t)
+  const exits = []
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id), onModuleChildExit: exit => exits.push(exit) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid
+  const { refused, connected } = await refusalsDuring(port, () => gateway.replace(ids.two))
+  assert.equal(refused, 0)
+  assert.ok(connected > 0)
+  assert.notEqual(gateway.pid, oldPid)
+  assert.ok(exited(oldPid))
+  assert.equal(gateway.address.port, port)
+  assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>two<\/h1>/)
+  await new Promise(resolve => setTimeout(resolve, 1200))
+  assert.deepEqual(exits, [])
+})
+
+test('a child bound without SO_REUSEPORT on either side falls back to stop-then-start and still completes', { timeout: 10000 }, async t => {
+  const { socketPath, releases } = await fixture(t)
+  // Release one stands for the entry before 95eef79b (the child live in production when this ships).
+  const legacy = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs')
+  await writeFile(legacy, (await readFile(legacy, 'utf8')).replace('reusePort: true', 'reusePort: false'))
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start()
+  const base = `http://127.0.0.1:${port}`
+  const firstPid = gateway.pid
+  await gateway.replace(ids.two)
+  assert.ok(exited(firstPid))
+  assert.equal(gateway.versionId, ids.two)
+  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  // Back to the legacy entry: it cannot bind beside the reusePort child either.
+  await gateway.replace(ids.one)
+  assert.equal(gateway.versionId, ids.one)
+  assert.equal(gateway.address.port, port)
+  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+})
+
+test('a new child that fails to start or to answer its own ready read leaves the old child serving untouched', { timeout: 10000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const adoptionPath = join(root, 'adoption.json'), exits = []
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id), onModuleChildExit: exit => exits.push(exit) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid
+  const base = `http://127.0.0.1:${port}`
+  const { refused } = await refusalsDuring(port, () => assert.rejects(gateway.replace(ids.broken),
+    error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK' && error.cause.message === 'GATEWAY_START_FAILED'))
+  assert.equal(refused, 0)
+  assert.equal(gateway.pid, oldPid)
+  // The public port of this candidate answers 200, so only a read addressed to the candidate itself can fail it.
+  await writeFile(join(releases.get(ids.broken).appRoot, 'src/http-gateway-entry.mjs'), `
+    import { createServer } from 'node:http'
+    const pub = createServer((_request, response) => response.end('candidate'))
+    await new Promise(resolve => pub.listen({ port: Number(process.argv[3]), host: '0.0.0.0', reusePort: true }, resolve))
+    const probe = createServer((_request, response) => { response.statusCode = 500; response.end() })
+    await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve))
+    process.send({ type: 'ready', protocolVersion: 1, assetVersion: process.argv[4], address: pub.address(), probePort: probe.address().port })
+    process.on('message', () => process.exit(0))
+  `)
+  await assert.rejects(gateway.replace(ids.broken), { code: 'READY_PROBE_FAILED' })
+  assert.equal(gateway.pid, oldPid)
+  assert.equal(gateway.versionId, null)
+  await assert.rejects(readFile(adoptionPath), { code: 'ENOENT' })
+  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  await new Promise(resolve => setTimeout(resolve, 1200))
+  assert.equal(gateway.pid, oldPid)
+  assert.deepEqual(exits, [])
+})
+
+test('close() during an exchange stops both the old child and the new one', { timeout: 10000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const pidPath = join(root, 'candidate.pid')
+  await writeFile(join(releases.get(ids.broken).appRoot, 'src/http-gateway-entry.mjs'), `
+    import { writeFileSync } from 'node:fs'
+    writeFileSync(${JSON.stringify(pidPath)}, String(process.pid))
+    process.on('message', () => process.exit(0))
+  `)
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  await gateway.start()
+  const oldPid = gateway.pid
+  const replacing = gateway.replace(ids.broken).then(() => 'replaced', () => 'stopped')
+  let candidatePid
+  while (!(candidatePid = Number(await readFile(pidPath, 'utf8').catch(() => 0)))) await new Promise(resolve => setTimeout(resolve, 10))
+  await gateway.close()
+  assert.ok(exited(oldPid))
+  assert.ok(exited(candidatePid))
+  assert.equal(gateway.pid, null)
+  assert.equal(await replacing, 'stopped')
+})
+
+// A fresh connection each time, so a pooled keep-alive socket cannot pick the child.
+const read = url => new Promise((resolve, reject) => get(url, { agent: false }, response => {
+  let body = ''
+  response.setEncoding('utf8').on('data', chunk => { body += chunk }).once('end', () => resolve({ status: response.statusCode, body }))
+}).once('error', reject))
+
+test('during the overlap the old child resolves the new ?v= assets and the new child resolves the old ones', { timeout: 10000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  // The candidate holds off listening, so the old child is the only one on the port after the share ack.
+  const marker = join(root, 'candidate-started'), candidate = join(releases.get(ids.two).appRoot, 'src/http-gateway-entry.mjs')
+  await writeFile(candidate, `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(marker)}, '')\n`
+    + `await new Promise(resolve => setTimeout(resolve, 1500))\n${await readFile(candidate, 'utf8')}`)
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid, base = `http://127.0.0.1:${port}`
+  const oldVersion = (await read(base)).body.match(/app\.js\?v=([^"]+)/)[1]
+  const replacing = gateway.replace(ids.two)
+  while (!await stat(marker).catch(() => null)) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(gateway.pid, oldPid)
+  assert.deepEqual(await read(`${base}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+  await replacing
+  assert.ok(exited(oldPid))
+  assert.deepEqual(await read(`${base}/app.js?v=${oldVersion}`), { status: 200, body: `one:${oldVersion}` })
+  assert.deepEqual(await read(`${base}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+})
+
+test('an old child that never acknowledges the shared asset version falls back to stop-then-start and still completes', { timeout: 20000 }, async t => {
+  const { socketPath, releases } = await fixture(t)
+  const entry = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs'), source = await readFile(entry, 'utf8')
+  const handler = "process.on('message', message => { if (message?.type === 'asset-version') void shareAssetVersion(message) })"
+  assert.ok(source.includes(handler))
+  await writeFile(entry, source.replace(handler, ''))
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid
+  const started = Date.now()
+  await gateway.replace(ids.two)
+  assert.ok(Date.now() - started >= GATEWAY_ASSET_SHARE_TIMEOUT_MS - 100, 'waited for the bounded ack first')
+  assert.ok(exited(oldPid))
+  assert.equal(gateway.versionId, ids.two)
+  assert.deepEqual(await read(`http://127.0.0.1:${port}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+})
+
+test('a candidate that exits during the adoption write is not committed: the old child keeps serving and the record is restored', { timeout: 15000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const adoptionPath = join(root, 'adoption.json'), pidPath = join(root, 'latest.pid')
+  const entry = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs')
+  await writeFile(entry, `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(pidPath)}, String(process.pid))\n${await readFile(entry, 'utf8')}`)
+  let pause = null
+  // The new record lands, then the write is held open: the window Epinel named.
+  const writeAdoption = async (path, value) => {
+    await writeAtomic(path, value)
+    if (pause && value.currentVersionId === ids.one) { pause.entered.resolve(); await pause.released.promise }
+  }
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id), writeAdoption })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start()
+  await gateway.replace(ids.two)
+  const saved = await readFile(adoptionPath, 'utf8'), servingPid = gateway.pid
+  pause = { entered: Promise.withResolvers(), released: Promise.withResolvers() }
+  let outcome
+  const { refused } = await refusalsDuring(port, async () => {
+    const replacing = gateway.replace(ids.one).then(() => null, error => error)
+    await pause.entered.promise
+    const candidatePid = Number(await readFile(pidPath, 'utf8'))
+    assert.notEqual(candidatePid, servingPid)
+    process.kill(candidatePid, 'SIGKILL')
+    while (!exited(candidatePid)) await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    pause.released.resolve()
+    outcome = await replacing
+  })
+  assert.equal(outcome?.message, 'GATEWAY_REPLACE_ROLLED_BACK')
+  assert.equal(outcome.cause.message, 'GATEWAY_START_FAILED')
+  assert.equal(refused, 0)
+  assert.equal(gateway.pid, servingPid)
+  assert.equal(gateway.versionId, ids.two)
+  assert.deepEqual(JSON.parse(await readFile(adoptionPath, 'utf8')), JSON.parse(saved))
+  assert.match((await read(`http://127.0.0.1:${port}`)).body, /<h1>two<\/h1>/)
+  // Recovery stayed with the serving child: no restart replaces it.
+  await new Promise(resolve => setTimeout(resolve, 1500))
+  assert.equal(gateway.pid, servingPid)
 })

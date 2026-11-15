@@ -96,17 +96,19 @@ test('明示null以外の欠落/不正currentはbuiltinへ補完せず起動前�
   await assert.rejects(readFile(join(f.root, 'children.jsonl')), { code: 'ENOENT' })
 })
 
-test('builtin起動失敗はsignedを再確認して復旧し、採用記録を保持する', { timeout: 5000 }, async t => {
+test('builtin起動失敗は旧signed子を止めずに配り続け、採用記録を保持する', { timeout: 5000 }, async t => {
   const f = await fixture(t), gateway = f.create()
   await gateway.start(); await gateway.replace(signed)
-  const port = gateway.address.port, saved = await readFile(f.adoptionPath, 'utf8')
+  const port = gateway.address.port, saved = await readFile(f.adoptionPath, 'utf8'), signedPid = gateway.pid
   await writeFile(join(f.roots.builtin, 'src/http-gateway-entry.mjs'), 'process.exit(1)\n')
   await assert.rejects(gateway.replace('builtin'), error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK'
     && error.cause.message === 'GATEWAY_START_FAILED')
   assert.equal(gateway.versionId, signed); assert.equal(gateway.address.port, port)
   assert.equal(await readFile(f.adoptionPath, 'utf8'), saved)
   assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>signed<\/h1>/)
-  assert.deepEqual(f.prepared, [signed, signed])
+  // 95eef79b: the signed child was never stopped, so nothing is re-prepared or restarted.
+  assert.equal(gateway.pid, signedPid)
+  assert.deepEqual(f.prepared, [signed])
 })
 
 test('builtin採用保存失敗は新子を回収しsignedの記録と公開版を保持する', { timeout: 5000 }, async t => {
@@ -126,7 +128,7 @@ test('builtin採用保存失敗は新子を回収しsignedの記録と公開版�
   assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>signed<\/h1>/)
 })
 
-test('builtin戻しのdrain中に親closeすると旧子を回収し次子を起動しない', { timeout: 5000 }, async t => {
+test('builtin戻しの交換中に親closeすると旧子も新子も回収し、子を残さない', { timeout: 5000 }, async t => {
   const entered = Promise.withResolvers(), released = Promise.withResolvers()
   const backend = createServer(async (request, response) => {
     if (request.url === '/api/held') { entered.resolve(); await released.promise }
@@ -145,7 +147,10 @@ test('builtin戻しのdrain中に親closeすると旧子を回収し次子を起
   assert.equal((await held).status, 200)
   await closing; await rejected
   assert.equal(gateway.pid, null)
-  assert.equal((await f.children()).length, count)
+  // 95eef79b: the builtin child may already be up beside the old one; close() ends every child it started.
+  const spawned = await f.children()
+  assert.ok(spawned.length <= count + 1)
+  for (const child of spawned) assert.throws(() => process.kill(child.pid, 0), { code: 'ESRCH' })
 })
 
 test('builtin予約はcompletion/同時拒否/cancel/closeを保ち現在nullと操作builtinを区別する', async () => {
