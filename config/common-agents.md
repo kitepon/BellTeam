@@ -77,9 +77,11 @@ SECTION lattice
     DO: put it on a chart as a task before you start (the coordinator's chart when it belongs there, otherwise your own); found bugs included.
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
-    WHEN: a task cannot move until something else happens  NEVER: leave it stalled; express what it depends on with the first of these that fits.
-    FACT: 前工程 (predecessor) = a task on the same chart; work not on the chart yet becomes a task there in the lane of whoever does it (a Bot ID, or owner). Tools: `todo add --before <task>`, `todo dependency connect`. Its done notice wakes your lane.
-    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. Tool today: `todo dependency connect --from-project <chart>`, for a task on another chart. A schedule or check script, a time, CI, an Owner decision or an outside event cannot be connected yet; until Lattice can, put it on your own chart as a task in the lane that settles it and make it a 前工程.
+    WHEN: a task cannot move until something else happens  NEVER: leave it stalled.
+    DO: first find the existing task for that work; a Bot doing work already has it on a chart. Link to it with `todo dependency connect`: on the same chart it becomes a 前工程; on another chart add `--from-project <chart>` and it is a 接続.
+    WHEN: a Bot's work has no task on any chart  DO: tell that Bot it is missing; only then add it yourself in that Bot's lane (`todo add --before <task>`).
+    FACT: 前工程 (predecessor) = a task on the same chart. Its done notice wakes your lane.
+    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. A schedule or check script, a time, CI, an Owner decision or an outside event cannot be connected yet; until Lattice can, put it on your own chart as a task in the lane that settles it (a Bot ID, or owner) and make it a 前工程.
     FACT: ブロック = `todo block` (release: `todo unblock`). Last resort: only when nothing can be connected and no AI can operate it. NEVER: use it for what a 前工程 or a 接続 can express (a member's work, CI, a time).
     FACT: `todo wait` is none of these; it only asks to be told when the task can start.
     NEVER: report a 前工程 or a 接続 as blocked, or a ブロック as a 接続.
