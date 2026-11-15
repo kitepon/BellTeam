@@ -29,6 +29,7 @@ export const updateComponents = [
   ['diagnostics', '診断', '機能が報告した問題を集め、調査用に記録します。'],
   ['work-graph', '相関図', '作業中のメンバーとBot間の依頼を、図のデータにして届けます。'],
   ['lattice', 'Lattice工程表', 'プロジェクトごとの工程表を保管し、席の道具とアプリの画面へ届けます。'],
+  ['approval-box-extension', '決裁箱拡張', '決裁箱の決裁を工程表につなぎ、アプリの決裁画面へ届けます。'],
 ]
 
 // Z-b2 slice D: runtime rows reach only readers that opt in with runtime=1 (docs/architecture/modules/runtime/runtime-updates.md).

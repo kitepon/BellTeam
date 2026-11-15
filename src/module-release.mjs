@@ -6,6 +6,7 @@ const validators = Object.freeze({
   conversation: value => assertBusinessModuleCompatibility('conversation', value),
   'work-graph': value => assertBusinessModuleCompatibility('work-graph', value),
   lattice: value => assertBusinessModuleCompatibility('lattice', value),
+  'approval-box-extension': value => assertBusinessModuleCompatibility('approval-box-extension', value),
 })
 const exact = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')

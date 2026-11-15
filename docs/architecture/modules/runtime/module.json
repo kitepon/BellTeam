@@ -199,6 +199,8 @@
     "src/lattice-locks.mjs",
     "src/lattice-install-plan.mjs",
     "scripts/install-lattice-release.py",
-    "scripts/verify-lattice.py"
+    "scripts/verify-lattice.py",
+    "scripts/install-approval-box-extension-release.py",
+    "scripts/verify-approval-box-extension.py"
   ]
 }
