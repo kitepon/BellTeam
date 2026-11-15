@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T12:55:19Z",
-  "expiresAt": "2026-11-22T12:55:19Z",
+  "publishedAt": "2026-11-15T13:05:49Z",
+  "expiresAt": "2026-11-22T13:05:49Z",
   "releases": [
     {
       "componentId": "usage",
@@ -755,8 +755,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
-      "versionId": "0ade6c5b968c3a7a10324d6846f8fd958dca4fdef823e5a5409440ff3ab4f358",
+      "sourceCommit": "dfdacfe4ad50fa240d9e0d365e5f86c473b320c8",
+      "versionId": "57c908721e17750ada40797548c6397e11c44ea346cf605e31311934bc300cb5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz",
-          "bytes": 15304403,
-          "sha256": "0ade6c5b968c3a7a10324d6846f8fd958dca4fdef823e5a5409440ff3ab4f358"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T130521Z/lattice-dfdacfe4ad50fa240d9e0d365e5f86c473b320c8-linux-amd64.tar.gz",
+          "bytes": 15305648,
+          "sha256": "57c908721e17750ada40797548c6397e11c44ea346cf605e31311934bc300cb5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T130521Z/lattice-dfdacfe4ad50fa240d9e0d365e5f86c473b320c8-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11043,
-          "sha256": "350fe93e9c56d27eef884691ef5f9f246369c2a4bae5205774d4cc98243e2493"
+          "sha256": "a792b6a39801cf561b059db95da924eb3004dea25ee220894f67c1f3d9e278c0"
         },
-        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
+        "signerCommit": "dfdacfe4ad50fa240d9e0d365e5f86c473b320c8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "工程表の案内の言葉を、新しいコマンド名に合わせました。"
+        "工程表の部品を新しい版（0.105.0）にしました。まとめて小さくした工程表も読めるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
-      "versionId": "6b456e1126df250426c26ca0ec0ddd6436cf28c7c3159f27e516e53549b91af4",
+      "sourceCommit": "dfdacfe4ad50fa240d9e0d365e5f86c473b320c8",
+      "versionId": "77e9064d18339a200b8ff2fc3f927f5acea9ef978cf0d16e3edad9cdf69b4cbc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz",
-          "bytes": 15304403,
-          "sha256": "6b456e1126df250426c26ca0ec0ddd6436cf28c7c3159f27e516e53549b91af4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T130521Z/lattice-dfdacfe4ad50fa240d9e0d365e5f86c473b320c8-linux-arm64.tar.gz",
+          "bytes": 15305648,
+          "sha256": "77e9064d18339a200b8ff2fc3f927f5acea9ef978cf0d16e3edad9cdf69b4cbc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125433Z/lattice-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10902,
-          "sha256": "b88fb3444d788b39e0fe918c63709814b1dd00897bc7a6aed1d3c591f0ee99b9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T130521Z/lattice-dfdacfe4ad50fa240d9e0d365e5f86c473b320c8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "345b57f8314bb73224021337a20bc05a234714b6417dc9d43b05c8b4f5729820"
         },
-        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
+        "signerCommit": "dfdacfe4ad50fa240d9e0d365e5f86c473b320c8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "工程表の案内の言葉を、新しいコマンド名に合わせました。"
+        "工程表の部品を新しい版（0.105.0）にしました。まとめて小さくした工程表も読めるようにします。"
       ]
     }
   ],
