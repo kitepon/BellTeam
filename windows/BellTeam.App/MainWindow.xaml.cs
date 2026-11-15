@@ -38,6 +38,8 @@ public partial class MainWindow : Window, IInspectorHost
         SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent(); ProfilePanel.Host = this;
         DataContext = model;
+        approvals = new ApprovalsHub(model) { Show = decisionId => ShowApprovals(decisionId), OpenChart = (project, card) => ShowLattice()?.OpenCard(project, card) };
+        ApprovalsHub.Current = approvals; ApprovalsEntry.Attach(approvals);
         if (notifications is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Error) && notifications.Error is { } error) Dispatcher.Invoke(() => model.ReportActionError(error)); };
         model.MessageArrived += async message =>
         {
@@ -56,7 +58,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { approvals.Dispose(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
@@ -296,6 +298,17 @@ public partial class MainWindow : Window, IInspectorHost
         var window = LatticeWindow.Open(model, OpenFromLatticeAsync);
         if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
         window.Show(); window.Activate();
+        return window;
+    }
+    private readonly ApprovalsHub approvals;
+    // The 決裁箱 window, one at a time like 工程表: null opens the list, an id opens that decision's 詳細 (the 工程表 詳細's 決裁を開く).
+    internal ApprovalsWindow? ShowApprovals(string? decisionId = null)
+    {
+        if (!model.Connected) return null;
+        var window = ApprovalsWindow.Open(approvals);
+        if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        window.Show(); window.Activate(); window.Sync();
+        if (decisionId is not null) window.Page.Show(decisionId);
         return window;
     }
     public void OpenLatticeChart(string projectId) => ShowLattice()?.OpenChart(projectId);
