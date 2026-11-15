@@ -37,7 +37,8 @@ final class LatticeChartTests: XCTestCase {
           {"id":"p1/t12","title":"未知の状態","state":"someday","depth":4}],
          "edges":[{"from":"p1/t01","to":"p1/t04","waiting":false},{"from":"p1/t04","to":"p1/t08","waiting":true},
                   {"from":"p1/t06","to":"p1/t08","waiting":true},{"from":"p1/t08","to":"p1/t09","waiting":true},
-                  {"from":"p1/t09","to":"p1/t11","waiting":true},{"from":"p1/t07","to":"p1/t08","waiting":true}],
+                  {"from":"p1/t09","to":"p1/t11","waiting":true},{"from":"p1/t07","to":"p1/t08","waiting":true},
+                  {"from":"p1/t04","to":"p1/t03","waiting":false}],
          "externals":[{"id":"lattice:lattice-0990/release","projectId":"lattice","cardId":"lattice-0990/release","chartName":"Lattice","title":"0.99.0 を出す","state":"blocked","finished":false,"producer":"bot-admi"}]}
         """
         return try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
@@ -182,6 +183,8 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(detail.startedText, "まだ着手されていません")
         XCTAssertEqual(detail.card.designMemo, "**太字**のまま")
         let started = try XCTUnwrap(LatticeDetail(try snapshot(), cardId: "p1/t04", now: now))
+        XCTAssertEqual(started.next.map(\.id), ["p1/t08"], "取り下げた後続（t03）は次の工程に出さない")
+        XCTAssertEqual(try XCTUnwrap(LatticeDetail(try snapshot(), cardId: "p1/t03", now: now)).previous.map(\.id), ["p1/t04"], "前の工程は変えない")
         XCTAssertEqual(started.startedText, "着手 11月11日 20:48 JST")
         XCTAssertNil(LatticeDetail(try snapshot(), cardId: "missing", now: now))
     }
