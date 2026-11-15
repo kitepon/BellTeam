@@ -5,14 +5,14 @@ import { seatCommandSpec } from './seat-command.mjs'
 
 const failure = (code, properties = {}) => Object.assign(new Error(code), { code, ...properties })
 
-export function createSeatProcessRunner(project, { environment = 'configured' } = {}) {
+export function createSeatProcessRunner(project, { environment = 'configured', scheduleCredential = false } = {}) {
   // Validate before a caller can supply input or start a process.
   seatCommandSpec('true', [], { project, environment })
   return (command, args = [], options = {}) => {
     if (Object.hasOwn(options, 'env')) throw failure('SEAT_DYNAMIC_ENV_UNWIRED')
     const { signal, input, maxBuffer = 16 * 1024 * 1024, acceptNonzero = false } = options
     if (typeof acceptNonzero !== 'boolean') throw failure('SEAT_EXIT_MODE_INVALID')
-    const spec = seatCommandSpec(command, args, { project, environment })
+    const spec = seatCommandSpec(command, args, { project, environment, scheduleCredential })
     if (!Number.isSafeInteger(maxBuffer) || maxBuffer < 1) throw failure('SEAT_BUFFER_INVALID')
     if (input !== undefined && typeof input !== 'string' && !Buffer.isBuffer(input)) throw failure('SEAT_INPUT_INVALID')
     if (signal?.aborted) return Promise.reject(failure('ABORT_ERR', { name: 'AbortError', effect: 'not_started' }))
