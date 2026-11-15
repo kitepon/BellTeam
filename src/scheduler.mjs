@@ -238,7 +238,8 @@ export class BotScheduler {
 
   // A connected schedule is a one-shot check of a Lattice 他条件に接続: 0 resolves it, 75 waits, anything else tells the task's lane.
   async settleConnection(bot, schedule, result) {
-    if (result.code === 75) return result
+    // A once schedule is disabled at claim and is never checked again, so its 75 is a failure; any other kind checks again.
+    if (result.code === 75 && schedule.kind !== 'once') return result
     const { project, plan, task } = schedule.connect
     const label = `予定「${schedule.name || schedule.command}」`
     let problem

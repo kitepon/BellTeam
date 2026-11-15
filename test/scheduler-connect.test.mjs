@@ -49,6 +49,13 @@ test('exit 75 touches nothing', async () => {
   assert.deepEqual([calls, sent, saved], [[], [], []])
 })
 
+test('exit 75 on a once schedule is a failure: it is never checked again', async () => {
+  const once = { ...schedule, kind: 'once', enabled: false }
+  const { scheduler, sent } = harness({ outcome: { code: 75, signal: null, stdout: 'not yet', stderr: '' }, stored: once })
+  await scheduler.runCommandSchedule(bot, once)
+  assert.deepEqual(sent.map(({ target }) => target), ['bot-lane'])
+})
+
 test('failure notifies the lane Bot only, keeps the connection and disables the schedule', async () => {
   for (const outcome of [{ code: 1, signal: null, stdout: '', stderr: 'gh failed' }, { code: null, signal: 'SIGKILL', stdout: '', stderr: '' }]) {
     const { scheduler, sent, calls, saved } = harness({ outcome })
