@@ -9,7 +9,7 @@
 //   &history=1 (32 more finished, archived cards: 過去ログ 35, a two-digit count on the iPhone switch)
 //   &many=1 (30 more charts after the five: the switcher list runs past the screen edge, Owner iPad 2026-11-14)
 //   &zero=1 (one more chart counting 0/0: the apps leave it out of 一覧 and the switcher, task a107)
-// /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
+// GET /api/lattice/blockers answers two ブロック (the ブロック一覧). /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
 import { createServer } from 'node:http'
 
 const MEMBERS = [
@@ -59,14 +59,20 @@ function snapshot(projectId) {
   const list = cards(), byId = new Map(list.map(card => [card.taskId, card]))
   const finished = card => card.state === 'done' || card.state === 'retired'
   const edges = EDGES.map(([from, to]) => ({ from: `p1/${from}`, to: `p1/${to}`, waiting: !finished(byId.get(from)) && !finished(byId.get(to)) }))
-  const waits = EDGES.filter(([from, to]) => !finished(byId.get(from)) && !finished(byId.get(to)))
-    .map(([from, to]) => ({ waiter: byId.get(to).producer, waitingCard: `p1/${to}`, forCard: `p1/${from}`, producer: byId.get(from).producer, producerState: byId.get(from).state, since: ago(SINCE[from] ?? 1) }))
-    .sort((a, b) => a.since.localeCompare(b.since))
-  const referenced = new Set([...list.map(card => card.producer), ...waits.map(wait => wait.waiter)])
+  // 接続 (a161): never edges. t08 waits on another chart's task (its producer is blocked) and asked Trony to be told at once, t09 waits on a
+  // BellTeam schedule, t11 on a task of another chart that the externals[] do not describe (読めていません).
+  const connections = {
+    t08: [{ kind: 'task', ref: 'call-bridge:p1/t03', state: 'open', reason: '通話側の契約が先', since: ago(52) }, { kind: 'priority', agent: 'bot-trony', state: 'open', reason: '着手できたら教えて', since: ago(41) }],
+    t09: [{ kind: 'schedule', ref: 'nightly-sweep', state: 'open', reason: '夜の確認の結果を待つ', since: ago(24) }],
+    t11: [{ kind: 'task', ref: 'web-polish:p1/t09', state: 'open', since: ago(6) }],
+  }
+  const withConnections = list.map(card => connections[card.taskId] && !finished(card) ? { ...card, connections: connections[card.taskId] } : card)
+  const externals = [{ id: 'call-bridge:p1/t03', projectId: 'call-bridge', cardId: 'p1/t03', chartName: '通話ブリッジの刷新', title: '通話の公開契約', state: 'blocked', finished: false, producer: 'bot-kiro' }]
+  const referenced = new Set([...list.map(card => card.producer), 'bot-trony', 'bot-kiro'])
   return {
     schema: 'bellteam.lattice-chart.v1', epoch: 'fixture', version: state.version, at: new Date().toISOString(), projectId, ...NAMES[projectId], coordinator: projectId === 'lattice',
     state: state.mode.state, verifiedAt: ago(state.mode.state === 'last_verified' ? 46 : 0), degraded: state.mode.degraded,
-    members: MEMBERS.filter(member => referenced.has(member.botId)), phases: PHASES, cards: list, edges, waits,
+    members: MEMBERS.filter(member => referenced.has(member.botId)), phases: PHASES, cards: withConnections, edges, externals,
   }
 }
 
@@ -85,13 +91,13 @@ function charts() {
   if (state.mode.list === 'empty') return []
   const main = snapshot('lattice'), done = main.cards.filter(card => card.state === 'done' || card.state === 'retired').length
   return [
-    { projectId: 'lattice', ...NAMES.lattice, coordinator: true, counts: { total: main.cards.length, done, working: 2, waiting: 4, blocked: 1 }, activeMembers: ['bot-trony', 'bot-molly', 'bot-kiro', 'bot-admi', 'bot-rapi', 'bot-flora'], updatedAt: ago(1), state: state.mode.state },
-    { projectId: 'nightly-care', ...NAMES['nightly-care'], coordinator: false, counts: { total: 12, done: 7, working: 2, waiting: 1, blocked: 0 }, activeMembers: ['bot-molly', 'bot-kiro', 'bot-admi'], updatedAt: ago(12), state: 'verified' },
-    { projectId: 'call-bridge', ...NAMES['call-bridge'], coordinator: false, counts: { total: 8, done: 3, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-kiro', 'bot-molly', 'bot-trony', 'bot-rapi'], updatedAt: ago(34), state: 'verified' },
-    { projectId: 'web-polish', ...NAMES['web-polish'], coordinator: false, counts: { total: 11, done: 9, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
-    { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
-    ...(state.mode.many ? MANY.map((projectId, index) => ({ projectId, ...NAMES[projectId], coordinator: false, counts: { total: 6, done: index % 6, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-rapi'], updatedAt: ago(20 * (index + 1)), state: 'verified' })) : []),
-    ...(state.mode.zero ? [{ projectId: 'empty', name: '空の工程表', createdBy: 'bot-rapi', coordinator: false, counts: { total: 0, done: 0, working: 0, waiting: 0, blocked: 0 }, activeMembers: [], updatedAt: ago(2), state: 'verified' }] : []),
+    { projectId: 'lattice', ...NAMES.lattice, coordinator: true, counts: { total: main.cards.length, done, working: 2, waiting: 4, connections: 4, blocked: 1 }, activeMembers: ['bot-trony', 'bot-molly', 'bot-kiro', 'bot-admi', 'bot-rapi', 'bot-flora'], updatedAt: ago(1), state: state.mode.state },
+    { projectId: 'nightly-care', ...NAMES['nightly-care'], coordinator: false, counts: { total: 12, done: 7, working: 2, waiting: 1, connections: 1, blocked: 0 }, activeMembers: ['bot-molly', 'bot-kiro', 'bot-admi'], updatedAt: ago(12), state: 'verified' },
+    { projectId: 'call-bridge', ...NAMES['call-bridge'], coordinator: false, counts: { total: 8, done: 3, working: 1, waiting: 2, connections: 2, blocked: 0 }, activeMembers: ['bot-kiro', 'bot-molly', 'bot-trony', 'bot-rapi'], updatedAt: ago(34), state: 'verified' },
+    { projectId: 'web-polish', ...NAMES['web-polish'], coordinator: false, counts: { total: 11, done: 9, working: 1, waiting: 0, connections: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
+    { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, connections: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
+    ...(state.mode.many ? MANY.map((projectId, index) => ({ projectId, ...NAMES[projectId], coordinator: false, counts: { total: 6, done: index % 6, working: 1, waiting: 0, connections: 0, blocked: 0 }, activeMembers: ['bot-rapi'], updatedAt: ago(20 * (index + 1)), state: 'verified' })) : []),
+    ...(state.mode.zero ? [{ projectId: 'empty', name: '空の工程表', createdBy: 'bot-rapi', coordinator: false, counts: { total: 0, done: 0, working: 0, waiting: 0, connections: 0, blocked: 0 }, activeMembers: [], updatedAt: ago(2), state: 'verified' }] : []),
   ]
 }
 
@@ -118,6 +124,11 @@ const server = createServer((request, response) => {
   if (path === '/api/bots') return send(200, { bots: [] })
   if (path === '/api/rooms') return send(200, { rooms: [] })
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return send(200, { messages: [], items: [], hasMore: false })
+  if (path === '/api/lattice/blockers') {
+    return send(200, { schema: 'bellteam.lattice-blockers.v1', at: new Date().toISOString(), unreadCharts: [], blockers: [
+      { stopId: '000000000000000000000001', projectId: 'lattice', chartName: NAMES.lattice.name, chartCreatedBy: 'bot-trony', plan: 'p1', taskId: 't06', cardId: 'p1/t06', title: 'Web画面の組込口', lane: 'bot-admi', reason: '組込の登録点が未定', blockedAt: ago(52), blockedBy: 'owner' },
+      { stopId: '000000000000000000000002', projectId: 'nightly-care', chartName: NAMES['nightly-care'].name, chartCreatedBy: 'bot-molly', plan: 'p1', taskId: 't03', cardId: 'p1/t03', title: '夜間の控えの場所', lane: 'bot-molly', reason: '保存先の容量を確認する', blockedAt: ago(60 * 26), blockedBy: 'bot-trony' }] })
+  }
   const route = /^\/api\/lattice\/charts(?:\/([^/]+?)(\/events)?)?$/u.exec(path)
   if (!route) return send(404, { error: 'NOT_FOUND' })
   if (state.mode.list === 'old') return send(404, { error: 'NOT_FOUND' })

@@ -36,8 +36,12 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
     var archived: Bool?
     /// Whether the progress fractions count the card (server, a96); an older server without it: not archived.
     var counted: Bool?
+    /// The card's 接続 (a161): 他条件に接続 and 優先接続, never lines. Missing on an older server = none.
+    var connections: [LatticeConnection]?
 
     var status: LatticeTaskState { LatticeTaskState(state) }
+    /// Open entries only (a settled one is gone; an entry without `state` is open).
+    var openConnections: [LatticeConnection] { (connections ?? []).filter { $0.state == nil || $0.state == "open" } }
     var isArchived: Bool { archived == true }
     var isCounted: Bool { counted ?? !isArchived }
     /// Owner key (README "Owner on screen"): the producer's Bot id, else "lane:<text>", else nil (担当なし).
@@ -81,14 +85,26 @@ struct LatticeEdge: Decodable, Equatable {
     var id: String { "\(from)>\(to)" }
 }
 
-struct LatticeWait: Decodable, Equatable {
-    var waiter: String?
-    let waitingCard: String
-    let forCard: String
-    var producer: String?
-    var producerState: String?
+/// One 接続 entry of a card (README `cards[].connections`): kind task (ref = an `externals[]` id) | schedule (ref = its id) | priority (agent = the Bot that asked).
+struct LatticeConnection: Decodable, Equatable {
+    let kind: String
+    var ref: String?
+    var state: String?
+    var reason: String?
     var since: String?
-    var id: String { "\(waitingCard)>\(forCard)" }
+    var agent: String?
+}
+
+/// The other chart's facts for an open `task` connection (README `externals[]`); every fact may be missing (read it as 読めていません).
+struct LatticeExternal: Decodable, Equatable {
+    let id: String
+    var projectId: String?
+    var cardId: String?
+    var chartName: String?
+    var title: String?
+    var state: String?
+    var finished: Bool?
+    var producer: String?
 }
 
 struct LatticeChartSnapshot: Decodable, Equatable {
@@ -105,12 +121,12 @@ struct LatticeChartSnapshot: Decodable, Equatable {
     var members: [LatticeMember]?
     var cards: [LatticeCard]?
     var edges: [LatticeEdge]?
-    var waits: [LatticeWait]?
+    var externals: [LatticeExternal]?
     var phases: [LatticePhase]?
 
     var cardList: [LatticeCard] { cards ?? [] }
     var edgeList: [LatticeEdge] { edges ?? [] }
-    var waitList: [LatticeWait] { waits ?? [] }
+    var externalList: [LatticeExternal] { externals ?? [] }
     var phaseList: [LatticePhase] { phases ?? [] }
 }
 
@@ -123,8 +139,9 @@ struct LatticeChartSummary: Decodable, Equatable, Identifiable {
         var total: Int?
         var done: Int?
         var working: Int?
-        var waiting: Int?
         var blocked: Int?
+        /// The open 接続 entries on the counted cards (a161); missing = 0.
+        var connections: Int?
     }
 
     let projectId: String
@@ -140,7 +157,7 @@ struct LatticeChartSummary: Decodable, Equatable, Identifiable {
     var isCoordinator: Bool { coordinator == true }
     var done: Int { counts?.done ?? 0 }
     var total: Int { counts?.total ?? 0 }
-    var waiting: Int { counts?.waiting ?? 0 }
+    var connections: Int { counts?.connections ?? 0 }
 }
 
 /// 工程表の表示名（lattice README「Display name rule」）：`name`、無ければ「<作った人の名簿の名前>の工程表」、
@@ -167,7 +184,7 @@ enum LatticeTaskState: String, CaseIterable {
         case .pending: "未着手"
         case .ready: "着手可"
         case .inProgress: "作業中"
-        case .blocked: "止まり"
+        case .blocked: "ブロック"
         case .done: "完了"
         case .retired: "取り下げ"
         }
@@ -201,7 +218,7 @@ enum LatticeTaskState: String, CaseIterable {
 
 // MARK: Members
 
-/// 担当・待つ側の表示。名簿にいない担当は「名簿にないメンバー」と「?」で描く。
+/// 担当の表示。名簿にいない担当は「名簿にないメンバー」と「?」で描く。
 struct LatticePerson: Equatable, Hashable {
     static let unknownName = "名簿にないメンバー"
     static let unassigned = "担当なし"
@@ -228,7 +245,7 @@ struct LatticePerson: Equatable, Hashable {
         LatticePerson(botId: ownerKey, name: ownerName.flatMap { $0.isEmpty ? nil : $0 } ?? "指揮官", color: "violet", known: false, isOwner: true)
     }
 
-    /// 止め一覧の担当・止めた人（Stops contract）：名簿のBot → 顔と名前、"owner" → 指揮官、`bot-…`で名簿に無い → 名簿にないメンバー、
+    /// ブロック一覧の担当・ブロックした人（Stops contract）：名簿のBot → 顔と名前、"owner" → 指揮官、`bot-…`で名簿に無い → 名簿にないメンバー、
     /// ほかの文字 → 書かれたまま（頭文字の顔）、無し → nil（担当なし）。
     static func stopFace(_ value: String?, roster: (String) -> (name: String, color: String)?) -> LatticePerson? {
         guard let value, !value.isEmpty else { return nil }
@@ -333,7 +350,7 @@ enum LatticeTime {
         return "\(n / 1440)日"
     }
 
-    /// 止めた時刻（JST）：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm。読めない値は空。
+    /// ブロックした時刻（JST）：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm。読めない値は空。
     static func stopTime(_ value: String?, now: Date) -> String {
         guard let date = date(value) else { return "" }
         return "\(dayHeading(date, now: now)) \(hhmm.string(from: date))"
@@ -366,13 +383,13 @@ enum LatticeText {
     static let noCards = "この工程表にはまだ工程がありません。"
     static let unverified = "工程表の記録に食い違いがあります。読める分だけ表示しています。直り次第、自動で最新に戻ります。"
     static let login = "ログインが必要です。"
-    static let stops = "止め一覧"
-    static let stopsLoading = "止めを読んでいます…"
-    static let stopsEmpty = "止まっている工程はありません。"
-    static let stopsRetry = "止め一覧を読み直しています…"
-    static let stopsOld = "このサーバーではまだ止め一覧を使えません。"
+    static let stops = "ブロック一覧"
+    static let stopsLoading = "ブロックを読んでいます…"
+    static let stopsEmpty = "ブロックされている工程はありません。"
+    static let stopsRetry = "ブロック一覧を読み直しています…"
+    static let stopsOld = "このサーバーではまだブロック一覧を使えません。"
     static let stopsUnread = "一部の工程表を読めませんでした。読めた分だけ表示しています。"
-    static let stopsAsk = "この止めを外しますか？"
+    static let stopsAsk = "このブロックを外しますか？"
     static let stopsLater = "いまは外せませんでした。少し待ってからもう一度お試しください。"
     static func stopsRefused(_ reason: String) -> String { reason.isEmpty ? "外せませんでした" : "外せませんでした: \(reason)" }
 
@@ -384,7 +401,7 @@ enum LatticeText {
         }
     }
 
-    /// 担当の状態を一文に：作業中 N分 / 止まり: 理由 / 未着手: 担当 ◯◯ / 担当なし。
+    /// 担当の状態を一文に：作業中 N分 / ブロック: 理由 / 未着手: 担当 ◯◯ / 担当なし。
     static func producerState(_ card: LatticeCard?, state: LatticeTaskState? = nil, producer: LatticePerson?, now: Date) -> String {
         guard let card else { return "" }
         let status = state ?? card.status
@@ -398,7 +415,7 @@ enum LatticeText {
         }
     }
 
-    /// 札の下の一行：止まりは理由、未着手と着手可は終了条件、作業中は終了条件。
+    /// 札の下の一行：ブロックは理由、未着手と着手可は終了条件、作業中は終了条件。
     /// The card's one note line (screen-spec "Card body"): 理由 when blocked, ◯◯がつくっています while working, else 担当 ◯◯.
     static func cardNote(_ card: LatticeCard, owner: LatticePerson?) -> String {
         if card.status == .blocked, let reason = card.blockedReason, !reason.isEmpty { return "理由: \(reason)" }
@@ -406,8 +423,34 @@ enum LatticeText {
         return owner.map { "担当 \($0.name)" } ?? LatticePerson.unassigned
     }
 
-    /// The edge chip over a waiting edge: the waiting card's owner, or 「次の工程」 when it has none.
-    static func chipText(waiter: LatticePerson?) -> String { "\(waiter?.name ?? "次の工程")が待っています" }
+    /// The edge chip over a 前工程 that is still open: 「前工程：◯◯」, ◯◯ = the owner of the finishing card (the edge's start), 担当なし when it has none.
+    static func chipText(maker: LatticePerson?) -> String { "前工程：\(latticeName(maker))" }
+
+    /// A card's chip for its open 接続 entries; nil when it has none.
+    static func connectionChip(_ card: LatticeCard) -> String? {
+        let count = card.openConnections.count
+        return count > 0 ? "接続 \(count)" : nil
+    }
+
+    static let connectionsTitle = "接続"
+    static let connectionsEmpty = "接続している工程はありません。"
+    static let connectionsLead = "工程表の外の条件に接続している工程"
+    static let connectionTask = "この工程の完了が条件になっています"
+    static let connectionSchedule = "予定の結果が条件になっています"
+    static func connectionPriority(_ agent: String) -> String { "\(agent)が、着手できるようになったらすぐ動きたいと伝えています" }
+    static let notRead = "読めていません"
+    static let otherTask = "ほかの工程表の工程"
+    static let otherChart = "ほかの工程表"
+
+    /// The awaited task of another chart in one phrase (README `externals[]`): in-progress has no minutes (no start time), no state = 読めていません.
+    static func externalState(_ state: String?, producer: LatticePerson?) -> String {
+        guard let state else { return notRead }
+        let status = LatticeTaskState(state)
+        switch status {
+        case .pending, .ready: return producer.map { "\(status.badge): 担当 \($0.name)" } ?? LatticePerson.unassigned
+        default: return status.badge
+        }
+    }
 
     static func cardLabel(_ card: LatticeCard, producer: LatticePerson?) -> String {
         "\(card.title)、\(card.status.badge)、つくっている \(latticeName(producer))"
@@ -441,7 +484,7 @@ struct LatticeBanner: Equatable {
 // MARK: Counts
 
 struct LatticeCounts: Equatable {
-    var total = 0, done = 0, working = 0, blocked = 0, waiting = 0
+    var total = 0, done = 0, working = 0, blocked = 0, connections = 0
     var fraction: Double { total == 0 ? 0 : min(1, Double(done) / Double(total)) }
 
     init() {}
@@ -449,56 +492,101 @@ struct LatticeCounts: Equatable {
     /// decides, Owner 2026-11-14, a96); done = done + retired, as Web / Windows / Linux and the server's list counts.
     init(_ snapshot: LatticeChartSnapshot) {
         let cards = snapshot.cardList.filter(\.isCounted)
-        let waitingCards = Set(snapshot.edgeList.filter(\.waiting).map(\.to))
         total = cards.count
         done = cards.filter { $0.status.finished }.count
         working = cards.filter { $0.status == .inProgress }.count
         blocked = cards.filter { $0.status == .blocked }.count
-        waiting = cards.filter { waitingCards.contains($0.id) }.count
+        connections = cards.reduce(0) { $0 + $1.openConnections.count }
     }
 }
 
-// MARK: Wait rows
+// MARK: Connection rows
 
-struct LatticeWaitRow: Identifiable, Equatable {
+/// One open 接続 entry of the 接続 panel (screen-spec 「接続 and ブロック」): built only from `cards[].connections` and `externals[]`, never from edges.
+struct LatticeConnectionRow: Identifiable, Equatable {
+    enum Kind: Equatable { case task, schedule, priority }
+
     let id: String
-    /// The waiting card (what the row is about), its owner (owner rule) and 「担当 ◯◯」 / 担当なし.
-    let waitingTitle: String
-    let waiter: LatticePerson?
-    /// The awaited card and its producer.
-    let producer: LatticePerson?
+    let kind: Kind
+    /// The connected card (what the row is about), its owner (owner rule) and its id (工程へ移動 for schedule / priority).
+    let card: String
     let title: String
-    let producerStatus: LatticeTaskState
-    let stateText: String
+    let owner: LatticePerson?
     let length: String
     let minutes: Int
-    let forCard: String
+    /// The entry's reason as written (one muted line); empty when none.
+    let reason: String
+    /// task: the awaited task of another chart (title, 「<chart>の工程表」, producer, state) and where 工程へ移動 goes.
+    let awaitedTitle: String
+    let chart: String
+    let producer: LatticePerson?
+    let producerStatus: LatticeTaskState?
+    let stateText: String
+    let external: (projectId: String, cardId: String)?
+    /// priority: the Bot that asked.
+    let agent: LatticePerson?
     let emphasized: Bool
 
-    var waiterLine: String { waiter.map { "担当 \($0.name)" } ?? LatticePerson.unassigned }
-    var canChat: Bool { producer?.known == true }
-    var accessibilityLabel: String {
-        "「\(waitingTitle)」（\(waiterLine)）は、「\(title)」が終わるのを待っています。つくっているのは\(latticeName(producer))、\(stateText)"
+    static func == (a: LatticeConnectionRow, b: LatticeConnectionRow) -> Bool {
+        a.id == b.id && a.kind == b.kind && a.title == b.title && a.owner == b.owner && a.length == b.length && a.reason == b.reason
+            && a.awaitedTitle == b.awaitedTitle && a.chart == b.chart && a.producer == b.producer && a.producerStatus == b.producerStatus
+            && a.stateText == b.stateText && a.external?.projectId == b.external?.projectId && a.external?.cardId == b.external?.cardId
+            && a.agent == b.agent && a.emphasized == b.emphasized
     }
 
-    /// サーバーの並び（待ちの古い順）のまま。
-    static func rows(_ snapshot: LatticeChartSnapshot, now: Date) -> [LatticeWaitRow] {
+    var ownerLine: String { owner.map { "担当 \($0.name)" } ?? LatticePerson.unassigned }
+    var canChat: Bool { producer?.known == true }
+    var mark: String {
+        switch kind {
+        case .task: LatticeText.connectionTask
+        case .schedule: LatticeText.connectionSchedule
+        case .priority: LatticeText.connectionPriority(latticeName(agent))
+        }
+    }
+    var accessibilityLabel: String {
+        let who = "「\(title)」（\(ownerLine)）は、"
+        switch kind {
+        case .task: return "\(who)「\(awaitedTitle)」（\(chart)）の完了が条件になっています。つくっているのは\(latticeName(producer))、\(stateText)"
+        case .schedule: return "\(who)\(LatticeText.connectionSchedule)"
+        case .priority: return "\(who)\(LatticeText.connectionPriority(latticeName(agent)))"
+        }
+    }
+
+    /// Open entries of every card, oldest `since` first (an entry without a time last), then card id. An unknown kind is dropped.
+    static func rows(_ snapshot: LatticeChartSnapshot, now: Date) -> [LatticeConnectionRow] {
         let lookup = LatticePerson.lookup(snapshot)
-        let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        // A wait that touches an archived card is not on screen.
-        return snapshot.waitList.filter { cards[$0.waitingCard]?.isArchived != true && cards[$0.forCard]?.isArchived != true }.map { wait in
-            let awaited = cards[wait.forCard]
-            let status = LatticeTaskState(wait.producerState ?? awaited?.state)
-            // Owner rule: the waiter owns the waiting card, the producer owns the awaited card.
-            let producer = lookup(awaited?.owner ?? wait.producer)
-            let waiter = lookup(cards[wait.waitingCard]?.owner ?? wait.waiter)
-            return LatticeWaitRow(
-                id: wait.id, waitingTitle: cards[wait.waitingCard]?.title ?? "", waiter: waiter, producer: producer,
-                title: awaited?.title ?? "",
-                producerStatus: status,
-                stateText: LatticeText.producerState(awaited, state: status, producer: producer, now: now),
-                length: LatticeTime.since(wait.since, now: now), minutes: LatticeTime.minutes(since: wait.since, now: now),
-                forCard: wait.forCard, emphasized: status == .blocked)
+        let externals = Dictionary(snapshot.externalList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let entries = snapshot.cardList.flatMap { card in card.openConnections.map { (card: card, entry: $0) } }
+        let known = entries.filter { ["task", "schedule", "priority"].contains($0.entry.kind) }
+        let sorted = known.sorted { a, b in
+            let x = LatticeTime.date(a.entry.since)?.timeIntervalSince1970 ?? .infinity, y = LatticeTime.date(b.entry.since)?.timeIntervalSince1970 ?? .infinity
+            return x != y ? x < y : a.card.id < b.card.id
+        }
+        return sorted.map { card, entry in
+            let key = "\(card.id)>\(entry.kind):\(entry.ref ?? entry.agent ?? "")"
+            let owner = lookup(card.owner)
+            let length = LatticeTime.since(entry.since, now: now), minutes = LatticeTime.minutes(since: entry.since, now: now)
+            func row(_ kind: Kind, awaited: String = "", chart: String = "", producer: LatticePerson? = nil, status: LatticeTaskState? = nil, state: String = "",
+                     external: (projectId: String, cardId: String)? = nil, agent: LatticePerson? = nil, emphasized: Bool = false) -> LatticeConnectionRow {
+                LatticeConnectionRow(id: key, kind: kind, card: card.id, title: card.title, owner: owner, length: length, minutes: minutes, reason: entry.reason ?? "",
+                                     awaitedTitle: awaited, chart: chart, producer: producer, producerStatus: status, stateText: state, external: external,
+                                     agent: agent, emphasized: emphasized)
+            }
+            switch entry.kind {
+            case "schedule": return row(.schedule)
+            case "priority": return row(.priority, agent: lookup(entry.agent))
+            default:
+                let ref = entry.ref ?? ""
+                let parts = ref.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+                let ext = externals[ref] ?? LatticeExternal(id: ref, projectId: parts.first.map(String.init), cardId: parts.count > 1 ? String(parts[1]) : nil)
+                let producer = lookup(ext.producer)
+                let status = ext.state.map { LatticeTaskState($0) }
+                let target = ext.projectId.flatMap { project in ext.cardId.map { (projectId: project, cardId: $0) } }
+                return row(.task, awaited: ext.title ?? LatticeText.otherTask,
+                           chart: ext.chartName.map { "\($0)の工程表" } ?? LatticeText.otherChart,
+                           producer: producer, status: status, state: LatticeText.externalState(ext.state, producer: producer),
+                           external: target, emphasized: status == .blocked)
+            }
         }
     }
 }
@@ -800,7 +888,7 @@ enum LatticeFlow {
     static let spawn: Double = 0.6
     static let travel: Double = 1.4
 
-    /// 待ちの辺：600msごとに一粒、1.4秒で待つ側へ。いま飛んでいる粒の進み具合（0〜1）。止まりの辺は半分の速さ。
+    /// 前工程を待つ辺：600msごとに一粒、1.4秒で待つ側へ。いま飛んでいる粒の進み具合（0〜1）。ブロックの辺は半分の速さ。
     static func positions(now: Double, slow: Bool) -> [Double] {
         let spawn = slow ? Self.spawn * 2 : Self.spawn, travel = slow ? Self.travel * 2 : Self.travel
         var out: [Double] = []
@@ -815,7 +903,7 @@ enum LatticeFlow {
     static func opacity(_ t: Double) -> Double { max(0, min(1, t / 0.07, (1 - t) / 0.23)) }
 }
 
-/// 待ちの辺の札「◯◯が待っています」の置き場所。曲線の中点が空いていればそこ、ふさがっていれば曲線に沿って、
+/// 前工程の辺の札「前工程：◯◯」の置き場所。曲線の中点が空いていればそこ、ふさがっていれば曲線に沿って、
 /// 札の左右どちらかの端を曲線に掛けて隣の空いたレーンの升へ滑らせる（note 08）。空きが無ければ置かない（札にも他の札にも重ねない）。
 enum LatticeChipPlacement {
     static let tries: [CGFloat] = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82]
@@ -886,7 +974,7 @@ enum LatticeDiff {
     }
 }
 
-// MARK: Stops (止め一覧; contract docs/architecture/modules/lattice/README.md "Stops")
+// MARK: Stops (ブロック一覧; contract docs/architecture/modules/lattice/README.md "Stops")
 
 struct LatticeBlockersList: Decodable {
     static let schema = "bellteam.lattice-blockers.v1"
@@ -909,7 +997,7 @@ struct LatticeBlocker: Decodable, Equatable, Identifiable {
     var id: String { stopId }
 }
 
-/// 止め一覧の1行。新しい止めが上。
+/// ブロック一覧の1行。新しいブロックが上。
 struct LatticeStopRow: Equatable, Identifiable {
     let stopId: String
     let projectId: String
@@ -922,11 +1010,11 @@ struct LatticeStopRow: Equatable, Identifiable {
     let time: String
     var id: String { stopId }
 
-    /// 読み上げ：止まり、題、工程表、担当、理由（全文）、止めた人と時刻。
+    /// 読み上げ：ブロック、題、工程表、担当、理由（全文）、ブロックした人と時刻。
     var label: String {
         let reasonPart = reason.isEmpty ? "" : "、理由 \(reason)"
         let timePart = time.isEmpty ? "" : "\(time)に"
-        return "止まり、\(title)、\(chart)、\(lane.map { "担当 \($0.name)" } ?? LatticePerson.unassigned)\(reasonPart)、\(latticeName(by))が\(timePart)止めました"
+        return "ブロック、\(title)、\(chart)、\(lane.map { "担当 \($0.name)" } ?? LatticePerson.unassigned)\(reasonPart)、\(latticeName(by))が\(timePart)ブロックしました"
     }
 
     static func rows(_ blockers: [LatticeBlocker], now: Date, face: (String?) -> LatticePerson?,

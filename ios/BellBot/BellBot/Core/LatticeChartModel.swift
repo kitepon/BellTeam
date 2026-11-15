@@ -155,7 +155,7 @@ final class LatticeChartModel: ObservableObject {
     }
 }
 
-/// 止め一覧（screen-spec.md「止め一覧」）。読むのは開いた時・読み直す・外すの答えの後・前面へ戻った時だけ（契約にstreamは無い）。
+/// ブロック一覧（screen-spec.md「ブロック一覧」）。読むのは開いた時・読み直す・外すの答えの後・前面へ戻った時だけ（契約にstreamは無い）。
 /// 読めない間だけ 1, 2, 4 … 30秒で読み直し続ける。
 @MainActor
 final class LatticeStopsModel: ObservableObject {
@@ -166,7 +166,7 @@ final class LatticeStopsModel: ObservableObject {
     @Published private(set) var unread = false
     @Published private(set) var removing: Set<String> = []
     @Published private(set) var notes: [String: String] = [:]
-    /// The row asking 「この止めを外しますか？」.
+    /// The row asking 「このブロックを外しますか？」.
     @Published var confirming: String?
     /// The view's read task is keyed on this: a re-read replaces the running loop (and its backoff wait), never runs beside it.
     @Published private(set) var readRequest = 0

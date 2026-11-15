@@ -15,7 +15,7 @@ final class LatticeChartUITests: XCTestCase {
         _ = try await call("/test/reset")
     }
 
-    func testListChartWaitFlowAndDetailInLightAndDark() async throws {
+    func testListChartConnectionsAndDetailInLightAndDark() async throws {
         for scheme in ["light", "dark"] {
             _ = try await call("/test/reset")
             let app = launch(["-bellbot-color-scheme", scheme])
@@ -32,13 +32,13 @@ final class LatticeChartUITests: XCTestCase {
             chart.tap()
             let firstWait = element(app, "lattice-wait-row-0")
             XCTAssertTrue(firstWait.waitForExistence(timeout: 10))
-            XCTAssertTrue(firstWait.label.contains("「Web画面」（担当 フローラ）は、「Web画面の組込口」が終わるのを待っています"), firstWait.label)
+            XCTAssertTrue(firstWait.label.contains("「部品の実装」（担当 フローラ）は、「通話の公開契約」（通話ブリッジの刷新の工程表）の完了が条件になっています"), firstWait.label)
             settle()
             shot(app, "\(scheme)-02-chart")
 
             firstWait.swipeLeft()
             settle()
-            shot(app, "\(scheme)-03-wait-flow")
+            shot(app, "\(scheme)-03-connections")
 
             // ツリーが既定：写真に撮ってから担当に切り替える。
             app.swipeUp()
@@ -57,6 +57,21 @@ final class LatticeChartUITests: XCTestCase {
             shot(app, "\(scheme)-05-detail")
             app.terminate()
         }
+    }
+
+    /// a161: 止め一覧 is the ブロック一覧 (fixture: two blocks), reached from 一覧.
+    func testBlockListReadsAsBlocks() async throws {
+        let app = launch([])
+        defer { app.terminate() }
+        XCTAssertTrue(element(app, "lattice-chart-lattice").waitForExistence(timeout: 10))
+        let open = element(app, "lattice-open-stops")
+        XCTAssertEqual(open.label, "ブロック一覧")
+        open.tap()
+        XCTAssertTrue(element(app, "lattice-stops").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["ブロックした人"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["止めた人"].exists)
+        settle()
+        shot(app, "block-list")
     }
 
     func testTreeBoxOpensDetailAndTheOverviewHasABackToTheChart() async throws {

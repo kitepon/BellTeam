@@ -226,9 +226,9 @@ struct LatticeChatOpener {
 enum LatticeRoute: Hashable {
     case chart(String)
     case list
-    /// 止め一覧, pushed over the 一覧 it was opened from.
+    /// ブロック一覧, pushed over the 一覧 it was opened from.
     case stops
-    /// A chart opened from 止め一覧 with that card's 詳細 open (back returns to 止め一覧).
+    /// A chart opened from ブロック一覧 with that card's 詳細 open (back returns to ブロック一覧).
     case card(String, String)
 }
 
@@ -286,7 +286,7 @@ struct LatticeHomeView: View {
     private func chart(_ id: String, card: String?) -> some View {
         LatticeChartScreen(projectId: id, list: list, returnTab: returnTab, initialCard: card, switchTo: { next in
             if let next { path = [.chart(next)] } else if path.last != .list { path.append(.list) }
-        }, leave: { path = [] })
+        }, openCard: { project, card in path.append(.card(project, card)) }, leave: { path = [] })
         .id(card.map { "\(id)/\($0)" } ?? id)
     }
 }
@@ -305,7 +305,7 @@ enum LatticeDebug {
 // MARK: List
 
 struct LatticeListView: View {
-    enum Filter: String, CaseIterable { case all = "すべて", waiting = "待ちあり" }
+    enum Filter: String, CaseIterable { case all = "すべて", connected = "接続あり" }
 
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
@@ -317,7 +317,7 @@ struct LatticeListView: View {
 
     private var visible: [LatticeChartSummary] {
         list.listed.filter { chart in
-            (filter == .all || chart.waiting > 0) && (search.isEmpty || store.latticeChartName(chart).localizedCaseInsensitiveContains(search))
+            (filter == .all || chart.connections > 0) && (search.isEmpty || store.latticeChartName(chart).localizedCaseInsensitiveContains(search))
         }
     }
 
@@ -465,11 +465,11 @@ struct LatticeChartCard: View {
                 HStack {
                     LatticeFaces(people: Array(faces), size: 24)
                     Spacer()
-                    Label("待ち \(chart.waiting)", systemImage: "hourglass")
+                    Label("接続 \(chart.connections)", systemImage: "link")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(chart.waiting > 0 ? LatticePalette.amber : LatticePalette.muted)
+                        .foregroundStyle(chart.connections > 0 ? LatticePalette.amber : LatticePalette.muted)
                         .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background((chart.waiting > 0 ? LatticePalette.amber : LatticePalette.muted).opacity(0.12), in: Capsule())
+                        .background((chart.connections > 0 ? LatticePalette.amber : LatticePalette.muted).opacity(0.12), in: Capsule())
                 }
             }
         }
@@ -480,14 +480,14 @@ struct LatticeChartCard: View {
             .strokeBorder(pinned ? BellTheme.violet.opacity(0.45) : LatticePalette.line.opacity(0.7), lineWidth: pinned ? 1.5 : 0.5))
         .shadow(color: (pinned ? BellTheme.violet : .black).opacity(pinned ? 0.12 : 0.05), radius: pinned ? 16 : 8, y: 4)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、待ち \(chart.waiting)\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
+        .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、接続 \(chart.connections)\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
         .accessibilityAddTraits(.isButton)
     }
 }
 
 // MARK: Stops
 
-/// 止め一覧：すべての工程表の止めと、1件ずつの外す（screen-spec.md「止め一覧」）。
+/// ブロック一覧：すべての工程表のブロックと、1件ずつの外す（screen-spec.md「ブロック一覧」）。
 struct LatticeStopsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
@@ -588,7 +588,7 @@ struct LatticeStopsView: View {
     }
 }
 
-/// 止め一覧の1行：押すとその工程表と詳細、外すは行の中で2段。
+/// ブロック一覧の1行：押すとその工程表と詳細、外すは行の中で2段。
 struct LatticeStopRowView: View {
     let row: LatticeStopRow
     @ObservedObject var model: LatticeStopsModel
@@ -614,7 +614,7 @@ struct LatticeStopRowView: View {
                             Text(row.reason).font(.system(size: 13)).foregroundStyle(LatticePalette.ink).lineLimit(3)
                         }
                         HStack(spacing: 8) {
-                            person("止めた人", row.by)
+                            person("ブロックした人", row.by)
                             if !row.time.isEmpty { Text(row.time).font(.system(size: 12)).foregroundStyle(LatticePalette.muted) }
                         }
                     }
