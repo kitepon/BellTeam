@@ -158,7 +158,7 @@ stateDiagram-v2
 | Waiting | the button area: 決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。 + a spinner | もう一度開く, やめる |
 | Denied | 許可されませんでした。もう一度つなげます。 | もう一度つなぐ |
 | Lapsed (the request ended while Waiting: `not_connected` / `expired` from the connection read) | 許可の待ち時間が過ぎました。もう一度つないでください。 (Web, Admi a177, confirmed by Delta) | 決裁箱につなぐ |
-| Connected | the normal screen; 設定 shows 「決裁箱につながっています」 with つなぎを外す (two-step confirm). The Web has no 設定 page: there つなぎを外す sits in the 決裁箱 dialog toolbar, same two steps (外す / やめる). The session slides: use renews it for 90 days, so no date is shown; unused for 90 days it ends and view 4 reads 「決裁箱とのつなぎの期限が切れました」. The Owner can also remove it in Approval Box's own connection list: the next call is 401 and view 4 appears | つなぎを外す |
+| Connected | the normal screen; 設定 shows 「決裁箱につながっています」 with つなぎを外す (two-step confirm). The Web has no 設定 page: there つなぎを外す sits in the 決裁箱 dialog toolbar, same two steps (外す / やめる). Apple (Rapi a182) puts it at the end of the 決裁箱 list, same two steps, so the settings page stays untouched. The session slides: use renews it for 90 days, so no date is shown; unused for 90 days it ends and view 4 reads 「決裁箱とのつなぎの期限が切れました」. The Owner can also remove it in Approval Box's own connection list: the next call is 401 and view 4 appears | つなぎを外す |
 | browser | Approval Box's own consent page, then its own 「許可しました」 page (not BellTeam's) | none |
 
 ## Answer outcomes, in the words the Owner sees
@@ -171,7 +171,7 @@ stateDiagram-v2
 | 409 `conflict` | 答える前に、◯◯が内容を直しました。もう一度、内容を確かめてください。 (violet banner, card shows 修正あり + the changed fields) | the screen is replaced by the decision in the error body; nothing is sent | none (the options are on screen) |
 | 402 | 決裁箱の契約が切れています。 | answers and chart updates stop until renewed | 決裁箱の契約へ |
 | 503 / network on 答える | いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。 | nothing changed; same Idempotency-Key | 答える |
-| Lattice unreachable after a 200 | 答えは決裁箱に送れました。工程表への反映は少し遅れています。つながり次第、自動で済みになります。 (grey) | the link engine retries on its next tick | none |
+| Lattice unreachable after a 200 | **Not shown** (Apple review a182, 2026-11-16: the contract has no field and the apps cannot know; no one would use it). The answer is saved; the link engine retries on its next tick and the task becomes 済み by itself | the link engine retries on its next tick | none |
 
 ## Failure views
 
@@ -185,7 +185,7 @@ Pictures: `mockups/edge.png`. All leave on their own or by one action on the sam
 | 4 | no session, 401, or the 90-day session ended | 決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。 (after an expiry: 決裁箱とのつなぎの期限が切れました。もう一度つないでください。) | reads when the connection works again | 決裁箱につなぐ (opens Approval Box's own consent page in the browser; see 「つなぐ」 below), 読み直す |
 | 5 | 409 | the amended banner above | the latest decision is shown | none |
 | 6 | answer failed | the 503 text above | next press | 答える |
-| 7 | Lattice unreachable | grey banner above | link engine retries | none |
+| 7 | Lattice unreachable | **not shown** (no contract field; see the answer outcome of the same name) | link engine retries | none |
 | 8 | no pending, no held | 決裁はありません。AIが判断を求めると、ここに並びます。 | the next event fills the list | 済みを見る |
 | 9 | 404 (older server) | このサーバーではまだ決裁箱の拡張を使えません。サーバーが更新されると、自動で使えます。 | reads after the update | 閉じる |
 | 10 | requester is a BellTeam Bot id not in the roster | face 「?」, name 名簿にないメンバー | appears once the member exists | none |
@@ -213,7 +213,7 @@ All answer `404` when the module is not installed (the app shows failure view 9)
 | Platform | Entry | Window |
 | --- | --- | --- |
 | iPhone | pinned first row of メンバー (A) / third segment of 相関図 tab (B) | pushed screen with back 「メンバー」; 詳細 as a large-detent sheet |
-| iPad | pinned row (A) / sixth tile (B) | detail column; three columns when the column is ≥ 1000 pt, else the iPhone flow |
+| iPad | pinned row (A) / sixth tile (B) | detail column; three columns when the width fits them (Apple: 500 + 520 + 340 = 1360 pt, Rapi a182; the 1000 pt above is the floor for the other apps), else the iPhone flow |
 | Mac | pinned row (A) / sixth tile (B) | its own window 1360 × 860, one window only (like 工程表), `bringToFront` |
 | Windows / Linux | pinned row / bottom navigation | own window, same three columns |
 | Web | pinned row in the roster / header button | dialog (wide: three columns, < 1024 px: list + sheet), same as 工程表 |
