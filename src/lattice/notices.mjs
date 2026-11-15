@@ -8,16 +8,16 @@ const triggerText = trigger => `${trigger.kind ?? 'change'} of ${trigger.plan_ke
   + (trigger.actor?.agent ? ` by ${trigger.actor.agent}` : '')
 
 // Owner ruling 2026-11-12: a startable notice is information, never an order; the lane decides whether to start.
-// A recipient that ran `todo wait` (0.92.0) is woken by it: the text names its wait; a waiter that is not the lane is told who starts it.
+// A recipient that ran `todo connect priority` (old `todo wait`, 0.92.0) is woken by it: the text names its wait; a waiter that is not the lane is told who starts it.
 export function noticeMessage(projectId, notice, target = notice.lane) {
   const done = notice.triggers?.length ? ` (prerequisite ${notice.triggers.map(triggerText).join(', ')})` : ''
   const wait = notice.waiting?.find(entry => entry.agent === target)
-  const waited = wait ? `, which you are waiting for (todo wait since ${wait.since}${wait.reason ? `: ${wait.reason}` : ''}),` : ''
+  const waited = wait ? `, which you are waiting for (優先接続 since ${wait.since}${wait.reason ? `: ${wait.reason}` : ''}),` : ''
   const lane = target === notice.lane
   return [
     `Lattice notice (information, not a request): task ${notice.plan_key}/${notice.task_id} 「${notice.title}」 on chart ${projectId} (lane ${notice.lane})${waited} can start now${done}.`,
     lane ? 'Whether and when to start is your call; keep your current work if it comes first.'
-      : `The lane ${notice.lane} starts it; your wait ends when it is started or retired (todo wait --cancel ends it now).`,
+      : `The lane ${notice.lane} starts it; your 優先接続 ends when it is started or retired (todo connect priority --cancel ends it now).`,
     notice.done_condition ? `Done condition: ${notice.done_condition}` : null,
     lane ? `For reference, if you start it: ${notice.next_action} (lattice tool, project ${projectId}).` : null,
   ].filter(Boolean).join('\n').slice(0, 4000)

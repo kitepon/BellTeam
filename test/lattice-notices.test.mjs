@@ -8,7 +8,7 @@ const roster = ids => ids.map(id => ({ id, name: id, color: 'sky', avatarVersion
 const notice = (id, lane, extra = {}) => ({ notice_id: id, plan_key: 'p1', plan_version: 'v1', task_id: `t-${id}`, title: `Task ${id}`, lane,
   done_condition: 'shipped', coordination_mode: 'conversation', next_action: `lattice todo start --plan p1 --task t-${id}`,
   triggers: [{ plan_key: 'p1', task_id: 't0', kind: 'done', actor: { agent: 'bot-a' } }], ...extra })
-// The Bots in `agents` ran `todo wait` on it (plain lane notices are abolished; only waiters are sent).
+// The Bots in `agents` ran `todo connect priority` on it (plain lane notices are abolished; only waiters are sent).
 const waits = (...agents) => ({ waiting: agents.map(agent => ({ agent, since: '2026-11-12T09:00:00.000Z', reason: null })), waiting_digest: 'w', acked_recipients: [] })
 
 function rig({ listed = [], ackFails = false } = {}) {
@@ -88,8 +88,8 @@ test('notices: a waiting notice wakes every roster waiter, tells a non-lane wait
     notice('n3', 'bot-b', { waiting: [waiting[1]], waiting_digest: 'w3', acked_recipients: ['bot-b'] })]
   await x.delivery.afterRun('alpha', { notices }, { from: 'bot-a', roster: roster(['bot-a', 'bot-b', 'bot-c']), effect: x.effect })
   assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-c', 'bot-c', 'bot-c'], 'owner is never sent; n3 skips bot-b (already informed)')
-  assert.match(x.sent[0].message, /\(lane bot-b\), which you are waiting for \(todo wait since 2026-11-12T09:00:00.000Z\), can start now[\s\S]*Whether and when to start is your call[\s\S]*For reference, if you start it/)
-  assert.match(x.sent[1].message, /which you are waiting for \(todo wait since 2026-11-12T09:01:00.000Z: needs the API\)[\s\S]*\nThe lane bot-b starts it; your wait ends when it is started or retired/)
+  assert.match(x.sent[0].message, /\(lane bot-b\), which you are waiting for \(優先接続 since 2026-11-12T09:00:00.000Z\), can start now[\s\S]*Whether and when to start is your call[\s\S]*For reference, if you start it/)
+  assert.match(x.sent[1].message, /which you are waiting for \(優先接続 since 2026-11-12T09:01:00.000Z: needs the API\)[\s\S]*\nThe lane bot-b starts it; your 優先接続 ends when it is started or retired/)
   assert.doesNotMatch(x.sent[1].message, /For reference/, 'start command only for the lane')
   assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-b --notice n1,n3', 'alpha todo notice ack --lane owner --notice n2'])
 })
