@@ -3,11 +3,14 @@
 // A card whose lane is no Bot and not the Owner goes to the chart's creator Bot instead, asking it to reassign the card (a145).
 const LIMIT = 4000
 const HEAD = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.\n'
-  // Owner settled 2026-11-13 20:0x JST (task a58): a member's work is a predecessor; a stop is the last resort, only for what no AI can operate.
-  + 'If a task cannot move because it waits on a member\'s work, connect that work as its predecessor (`lattice todo dependency connect --from-plan <P> --from-task <that task> --to-plan <P> --to-task <T> --reason <why>`; when that task is on another chart, add `--from-project <its chart id>`), '
-  + 'or, when that work is not on the chart yet, add it as a task in that member\'s lane (`lattice todo add --plan <P> --task <id> --title <what you wait for> --phase <phase of T> --lane <member Bot id> --before <T> --design-memo <what and why> --reason <why>`). '
-  + 'Then return the task to unstarted if it is in progress (`lattice todo retract --plan <P> --task <T> --reason <why>`); a task waiting on prerequisites is not prompted. '
-  + 'Only if it waits on something no AI can operate at all (an outside review such as Apple\'s), set a stop as the last resort, naming what it waits on (`lattice todo block --plan <P> --task <T> --reason <what it waits on>`); a stopped task is not prompted.'
+  // Owner settled 2026-11-13 20:0x JST (task a58), words 2026-11-15 (a161, Lattice 0.104.0): first link the member's EXISTING task (a Bot doing work has one),
+  // a task in its lane only when none exists; 前工程 = same chart, 他条件に接続 = another chart; ブロック is the last resort, only for what no AI can operate.
+  + 'If a task cannot move because it waits on a member\'s work, first find the task that member already has for that work (a Bot doing work has it on a chart) and link it: '
+  + 'on the same chart as its 前工程 (`lattice todo predecessor add --plan <P> --task <T> --after <plan>/<that task> --reason <why>`); '
+  + 'on another chart as a 他条件に接続 (`lattice todo connect condition add --plan <P> --task <T> --to task:<its chart id>/<plan>/<that task> --reason <why>`). '
+  + 'Only when that work has no task yet, add it in that member\'s lane (`lattice todo add --plan <P> --task <id> --title <what you wait for> --phase <phase of T> --lane <member Bot id> --before <T> --design-memo <what and why> --reason <why>`); it becomes the 前工程. '
+  + 'Then return the task to unstarted if it is in progress (`lattice todo retract --plan <P> --task <T> --reason <why>`); a task waiting on a 前工程 or an open 接続 is not prompted. '
+  + 'Only if it waits on something no AI can operate at all (an outside review such as Apple\'s), set a ブロック as the last resort, naming what it waits on (`lattice todo block --plan <P> --task <T> --reason <what it waits on>`); a blocked task is not prompted.'
 
 // Task a145 (Owner 2026-11-15 「こんなに工程があるのに、動いてるやつが少ない…催促で動くんじゃないんだっけ」): Lattice takes any lane id,
 // so a card whose lane is no roster Bot and not the Owner reaches nobody; the chart's creator is asked to give it to a member.

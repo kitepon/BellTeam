@@ -39,7 +39,7 @@ test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is no
   assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['scheduler', 'bot-a'], ['scheduler', 'bot-c']], 'a working Bot is not prompted')
   const text = x.sent[0].message
   assert.ok(text.startsWith('Lattice: you are not running') && text.includes('Start at least one now.'))
-  assert.ok(text.includes('lattice todo dependency connect') && text.includes('--before <T>') && text.includes('lattice todo retract'))
+  assert.ok(text.includes('lattice todo predecessor add') && text.includes('--before <T>') && text.includes('lattice todo retract') && text.includes('lattice todo connect condition add') && text.includes('lattice todo block'))
   assert.ok(text.indexOf('lattice todo block') > text.indexOf('lattice todo add') && text.includes('no AI can operate at all') && text.includes('as the last resort') && text.includes('--lane <member Bot id> --before <T>'), 'a stop is the last resort, only for what no AI can operate (Owner, task a58)')
   assert.ok(!text.includes('such as apple') && !text.includes('done yourself'))
   assert.ok(text.endsWith('\nChart alpha (lattice tool, project alpha):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`\n- p1/t2 「T2」: in progress'
