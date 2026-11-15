@@ -2,8 +2,12 @@
 // Reads go at once; writes one at a time, seat writes first, background after (doc: Call queue; the child runs reads beside writes).
 // While any chart has subscribers, one timer drives a root 'refresh'.
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
+const notSent = () => Object.assign(new Error('LATTICE_WRITE_NOT_SENT'), { code: 'LATTICE_WRITE_NOT_SENT', status: 503 })
+// Not an error: the write was sent and is still running (docs/architecture/modules/runtime/lattice-child.md: Call queue).
+const pending = () => ({ exitCode: null, result: { schema: 'bellteam.lattice-write-pending.v1', code: 'LATTICE_WRITE_PENDING',
+  next_action: 'The write was sent and is still running. Do not resend: check with `todo show` or `todo note list`.' }, stdout: null, stderr: null })
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
-const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID', 'LATTICE_OWNER_TASK_REFUSED'])
+const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID', 'LATTICE_OWNER_TASK_REFUSED', 'LATTICE_WRITE_NOT_SENT'])
 const SLICE = 50
 // Owner 2026-11-12: 「では、1分で。」 (README L13).
 export const NUDGE_MS = 60_000
@@ -11,31 +15,43 @@ import { latticeRunReads } from './lattice-protocol.mjs'
 
 const READS = new Set(['charts', 'chart', 'refresh', 'blockers'])
 const BACKGROUND = new Set(['nudge', 'deliver'])
-// Under the seat MCP caller's 60 s: a write queued longer is never sent, so no write lands after the caller gave up.
+// Background writes and unblock: a write queued longer is never sent (nobody can read its answer late).
 export const QUEUE_WAIT_MS = 50_000
+// Seat writes: Claude Code aborts the MCP call at 60 s ("The operation timed out."), so the seat gets a definite answer first (a162).
+export const SEAT_ANSWER_MS = 40_000
 
-export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
   const queues = { seat: [], background: [] }
   let busy = false, session = 0, timer = null
 
-  const send = (method, params) => Promise.resolve().then(() => controller.request(method, params)).catch(error => {
-    throw PASS.has(error?.code) ? Object.assign(new Error(error.code), { code: error.code, status: error.status ?? 400 }) : unavailable()
-  })
+  const fail = error => PASS.has(error?.code) ? Object.assign(new Error(error.code), { code: error.code, status: error.status ?? 400 }) : unavailable()
+  const send = (method, params) => Promise.resolve().then(() => controller.request(method, params)).catch(error => { throw fail(error) })
 
+  // busy ends when the child finishes the write (the call's completion), not at the parent's IPC deadline: sent order stays child order.
   const pump = () => {
     while (!busy) {
       const job = queues.seat.shift() ?? queues.background.shift()
-      if (!job) return
+      if (!job || job.answered) { if (job) continue; return }
       if (now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
-      busy = true
-      send(job.method, job.params).then(job.resolve, job.reject).finally(() => { busy = false; pump() })
+      busy = true; job.sent = true
+      let request
+      try { request = controller.request(job.method, job.params) } catch (error) { request = Promise.reject(error) }
+      request.then(job.resolve, error => job.reject(fail(error)))
+      Promise.resolve(request.completion ?? request).then(() => {}, () => {}).finally(() => { busy = false; pump() })
     }
   }
 
   // A seat run that writes nothing (Flora's classifier, shared with the child) is a read too.
   const call = (method, params) => READS.has(method) || method === 'run' && latticeRunReads(params) ? send(method, params) : new Promise((resolve, reject) => {
-    queues[BACKGROUND.has(method) ? 'background' : 'seat'].push({ method, params, resolve, reject, queuedAt: now() })
+    const queue = queues[BACKGROUND.has(method) ? 'background' : 'seat']
+    const job = { method, params, queuedAt: now(), sent: false, answered: false, timer: null,
+      resolve: value => { job.answered = true; clearTimer(job.timer); resolve(value) }, reject: error => { job.answered = true; clearTimer(job.timer); reject(error) } }
+    if (method === 'run') job.timer = setTimer(() => {
+      if (job.answered) return
+      if (job.sent) { job.answered = true; resolve(pending()) } else { queue.splice(queue.indexOf(job), 1); job.reject(notSent()) }
+    }, answerMs)
+    queue.push(job)
     pump()
   })
 

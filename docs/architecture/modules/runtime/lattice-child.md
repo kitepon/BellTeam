@@ -9,7 +9,7 @@ flowchart LR
   subgraph Parent["Body parent"]
     Route["src/lattice/http-api.mjs (Flora, body-resident thin handler)<br/>auth / internal 403 / 405 / 404 / SSE framing + heartbeat<br/>GET blockers, POST unblock (Owner, JSON only)"]
     Tool["src/lattice/mcp.mjs (Flora)<br/>tool lattice; registered in mcp-tools.mjs (Molly)<br/>from = authenticated calling seat"]
-    Facade["src/lattice-facade.mjs (Molly)<br/>charts() / chart(id) / run(...) / subscribe(id, send)<br/>ownerTask(...) / link(...) (Approval Box extension only)<br/>reads sent at once; writes one at a time:<br/>seat writes first, background after;<br/>a write queued over 50 s is dropped, never sent"]
+    Facade["src/lattice-facade.mjs (Molly)<br/>charts() / chart(id) / run(...) / subscribe(id, send)<br/>ownerTask(...) / link(...) (Approval Box extension only)<br/>reads sent at once; writes one at a time:<br/>seat writes first, background after;<br/>a seat write unanswered at 40 s gets LATTICE_WRITE_NOT_SENT (queued) or a PENDING result (sent); a background write or unblock queued over 50 s is dropped"]
     Loop["refresh loop (Molly)<br/>only while >=1 subscriber; one timer from nextRefreshMs"]
     Nudge["nudge timer (Flora, in the facade)<br/>every 60 s, always; root nudge"]
     Proc["src/lattice-process.mjs (Molly)<br/>common createModuleProcess"]
@@ -83,13 +83,21 @@ The builtin child (`/app`) carries the same pin: the image runs `npm ci --omit=d
 The child runs writes one at a time and reads beside them (Flora #1382: Lattice reads take no store lock; seat runs per chart stay serialized by core's lock). The facade matches:
 
 - Reads: `charts`, `chart`, `refresh`, `blockers`, and a seat `run` that writes nothing (`latticeRunReads(params)` in `src/lattice-protocol.mjs`, the same classifier the child uses: `--version`, `status`, `session-context`, `todo show` and the like; never with input or name: a named run renames the chart). Sent at once, even while a write is in flight. A Lattice write can take ~40 s on a large plan (production 2026-11-14), and a read waiting behind it took 36-83 s.
-- Writes, one at a time from two queues. Seat writes: every other `run`, and `unblock` (a seat or the Owner waits on the answer). Background writes: `nudge`, `deliver` (timers; nobody waits). When the write in flight ends, the next write is the oldest seat write; a background write goes only when no seat write waits. A write in flight is never interrupted. Its IPC timeout (60 s, `run` 70 s) starts when it is sent.
+- Writes, one at a time from two queues. Seat writes: every other `run`, and `unblock` (a seat or the Owner waits on the answer). Background writes: `nudge`, `deliver` (timers; nobody waits). When the write in flight ends (the child finished it), the next write is the oldest seat write; a background write goes only when no seat write waits. A write in flight is never interrupted. Its IPC timeout (60 s, `run` 70 s) starts when it is sent.
 
-A write that waited more than 50 s in a queue is not sent: it fails with 503 `LATTICE_UNAVAILABLE`. A seat's MCP caller gives up at 60 s, so a write sent later would change the chart (todo start, note) after the caller already read a failure, and its retry would write twice. Named protection: no late write after the caller gave up. Self-exit: the drop runs no work, so the next queued write is sent at once. A background drop needs nothing more: the nudge timer re-arms after 60 s, and deliver runs again on the next generation. Reads are never queued, so they are never dropped.
+A seat write (`run`) always gets a definite answer before its MCP caller gives up (Claude Code aborts an HTTP MCP call at 60 s with the text "The operation timed out."; BellTeam cannot raise it, a162, 2026-11-15). The facade starts a 40 s answer timer (`SEAT_ANSWER_MS`) when the call enters:
+
+- Still queued at 40 s: it leaves the queue and is never sent; the call fails with 503 `LATTICE_WRITE_NOT_SENT` (not applied, safe to retry once).
+- Already sent at 40 s: the call resolves `{exitCode: null, result: {code: 'LATTICE_WRITE_PENDING', next_action}, stdout: null, stderr: null}` (applied or about to be; never resend, check with `todo show` or `todo note list`). The write keeps running to its end.
+- Answered before 40 s: the real result, as before.
+
+The write slot (`busy`) is released when the child finishes the write (the call's `completion`), not when the parent's IPC deadline fires. Before a162 the slot was released at the 60 s IPC deadline while the child still held the write, so the next write was sent beside it and a late write could start after its caller had gone. Now sent order is child order.
+
+Named protection: no late write behind a caller that already read a failure, and no failure reported for a write that may land. Self-exit: the answer timer needs no other event; a queued write that is dropped runs no work, so the slot passes to the next write at once; `busy` ends when the child answers or exits (`completion` settles on both). A background write (`nudge`, `deliver`) has no caller and keeps the 50 s queue wait bound (`QUEUE_WAIT_MS`): older than that it is dropped (the nudge timer re-arms after 60 s, deliver runs again on the next generation); `unblock` keeps the same bound and fails with 503 `LATTICE_UNAVAILABLE`. Reads are never queued, so they are never dropped.
 
 An old child (before #1382) still runs every root call one at a time. With it, reads wait inside the child as before, and nothing breaks.
 
-Limit: a seat write sent after a 49 s wait can still run past its caller's 60 s, because the child's `run` has its own 60 s CLI budget. The 50 s wait bound only ensures that nothing starts after the caller is gone.
+Limit: a pending write is not cancelled. Its real duration is the child chain (maintain of the code chart up to 120 s, the Lattice CLI up to 60 s, notice sends) and can exceed 40 s on a large plan (production 2026-11-15: ~49 s for a note on bellteam-dev-added, ~24 s on a tiny chart behind the nudge); the speed of the Lattice write itself is Snow White's. No client request id exists yet: a retry after a pending answer would write twice, hence "never resend".
 
 ## Failure handling
 
@@ -99,7 +107,9 @@ Limit: a seat write sent after a 49 s wait can still run past its caller's 60 s,
 | Refresh fails while subscribers exist | Nothing is sent; the loop re-arms with 2000 ms | Next refresh after the child is back; a new epoch is pushed whole |
 | Parent `members.list` fails | Effect returns the error; the child keeps the last roster, `degraded:['members']` | Next read |
 | Nudge tick fails (child unavailable, old child) | Swallowed; nothing is sent this tick | Next tick 60 s later |
-| A write waited over 50 s in the facade queue (the child is behind) | 503 `LATTICE_UNAVAILABLE`; the write is never sent | The next queued write is sent at once; see Call queue |
+| A seat write still queued after 40 s (the child is behind) | 503 `LATTICE_WRITE_NOT_SENT`; the write is never sent | The next queued write is sent at once; see Call queue |
+| A seat write sent and unanswered after 40 s | `LATTICE_WRITE_PENDING` result (not an error); the write keeps running | The child finishes it; the slot passes on at its `completion`; the seat checks with `todo show` |
+| A background write or `unblock` waited over 50 s in the facade queue | 503 `LATTICE_UNAVAILABLE`; the write is never sent | The next queued write is sent at once; see Call queue |
 | Incompatible adopted release | Common prepareRelease refusal, same as the other modules; a state-format mismatch falls back to builtin | Common adoption path |
 
-One guard: the 50 s queue wait bound (Call queue: named protection and self-exit). Beyond it, the route and the tool wait only on the child request itself.
+Guards: the 40 s seat answer timer and the 50 s queue wait bound for background writes and `unblock` (Call queue: named protection and self-exit). Beyond them, the route and the tool wait only on the child request itself.

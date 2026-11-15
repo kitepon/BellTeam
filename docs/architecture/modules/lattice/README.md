@@ -173,7 +173,7 @@ Input schema: `{ project: string, name?: string, args: string[], input?: object 
 - Storage boundary (Epinel gate 2026-11-12): since a102 the chart paths are Lattice's (K8); Lattice refuses a symlinked or non-directory chart path with `CHART_PATH_INVALID` before any write, and that refusal reaches the seat as the result. BellTeam writes nothing under the charts root.
 - CLI stdout is kept up to 16 MiB (named protection: memory; a larger output reads as `LATTICE_CLI_BAD_JSON` and the chart is degraded until it shrinks; Centi 2026-11-14: bellteam's display read is already 0.84 MB, past the old 1 MiB soon).
 - The CLI run is bounded at 60 s (named protection: a hung CLI would hold the one call chain and stop every chart; self-exit: the process is killed, the result says `LATTICE_CLI_TIMEOUT`, the next call runs).
-- Tool errors (not Lattice results): `LATTICE_PROJECT_INVALID`, `LATTICE_NAME_INVALID`, `LATTICE_INPUT_CONFLICT`, `LATTICE_COMMAND_NOT_SEAT_SURFACE`, `LATTICE_UNAVAILABLE` (child not serving).
+- Tool errors (not Lattice results): `LATTICE_PROJECT_INVALID`, `LATTICE_NAME_INVALID`, `LATTICE_INPUT_CONFLICT`, `LATTICE_COMMAND_NOT_SEAT_SURFACE`, `LATTICE_UNAVAILABLE` (child not serving). `LATTICE_WRITE_NOT_SENT` (503): the write waited behind others for 40 s and was never sent, retry once. A write sent but unanswered after 40 s is not an error: the result is `{exitCode: null, result: {code: 'LATTICE_WRITE_PENDING', next_action}}`; it keeps running, never resend, check with `todo show` / `todo note list` (Claude Code aborts the MCP call at 60 s with "The operation timed out.", a162).
 
 ## Public contract (apps)
 
