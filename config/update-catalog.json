@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T04:22:46Z",
-  "expiresAt": "2026-11-22T04:22:46Z",
+  "publishedAt": "2026-11-15T04:34:45Z",
+  "expiresAt": "2026-11-22T04:34:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "af102cd3d0013e9a32bfa8bf915829583397549c",
-      "versionId": "sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad",
+      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
+      "versionId": "sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeの席で opusplan を選べるようにしました。"
+        "ユーザー規範を変えるとき、オーナーの承認の言葉が受け付けられるようにしました。",
+        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "af102cd3d0013e9a32bfa8bf915829583397549c",
-      "versionId": "sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad",
+      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
+      "versionId": "sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeの席で opusplan を選べるようにしました。"
+        "ユーザー規範を変えるとき、オーナーの承認の言葉が受け付けられるようにしました。",
+        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
       ]
     },
     {
