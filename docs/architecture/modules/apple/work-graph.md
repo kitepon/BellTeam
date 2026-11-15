@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-  Nav["iPhone/iPad: タブ 相関図<br/>Mac: サイドバーの相関図 → openWindow(id: work-graph)"] --> View["Views/WorkGraphView.swift<br/>TimelineView(.animation, paused: still または背景) + Canvas<br/>空・再接続中・一部欠落・未対応の表示"]
+  Nav["iPhone/iPad: タブ 相関図<br/>Mac: サイドバーの相関図 → MainWindow.bringToFront(work-graph)<br/>開いていれば前へ、無ければopenWindow（窓は1つだけ）"] --> View["Views/WorkGraphView.swift<br/>TimelineView(.animation, paused: still または背景) + Canvas<br/>空・再接続中・一部欠落・未対応の表示"]
   View --> Model["Core/WorkGraphModel.swift<br/>WorkGraphModel（参照型・botId鍵）<br/>描画中の図・シミュレーション・接続状態"]
   Model --> Stream["BellAPI.eventStream(path:)<br/>GET /api/work-graph/events"]
   Stream --> Model

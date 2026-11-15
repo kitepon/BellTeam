@@ -8,8 +8,8 @@
 | --- | --- | --- |
 | iPhone | 「相関図」タブの上の切り替え「相関図 / 工程表」（`App/BellBotApp.swift` `TeamBoardTab`。タブを6つにしない） | タブ4（切り替えの状態は`@SceneStorage`で残る） |
 | iPad | サイドバー下の「工程表」（⌘5）→ `selectedTab = 5`（`Views/DesktopWorkspaceView.swift`）。工程表のstackは詳細の列のstackになるので、ほかの画面もそれぞれ自分のstackで列を置き換える（相関図・会話は`stacklessDetail`を包む） | タブ5 |
-| Mac | サイドバー下の「工程表」（⌘5）→ `openWindow(id: "lattice")`。窓は1360×860で開く | 工程表の窓を残し、本体の窓を前へ（`MainWindow.bringToFront`） |
-| iPad・Mac：会話の右の「AIと操作」 | そのメンバーが作った工程表（一覧の`createdBy`がそのBot）ごとのボタン（Owner 2026-11-14）。押すと`AppStore.openLatticeChart(id)`が`latticeOpenRequest`に置き、iPadは`selectedTab = 5`、Macは`openWindow(id: "lattice")`。`LatticeHomeView`が`latticeOpenRequest`を受けて`path = [.chart(id)]`にし、要求を消す。一覧の読み取りは`DesktopInspector`が開いたメンバーごとに1回（`AppStore.latticeCharts(createdBy:)`）。読めない時はボタンを出さず診断へ送る。iPhoneの詳細には出さない | 上と同じ |
+| Mac | サイドバー下の「工程表」（⌘5）→ `MainWindow.bringToFront("lattice")`。工程表の窓が開いていれば前へ出し、無ければ`openWindow(id: "lattice")`で開く（窓は1つだけ。Owner 2026-11-15）。窓は1360×860で開く | 工程表の窓を残し、本体の窓を前へ（`MainWindow.bringToFront`） |
+| iPad・Mac：会話の右の「AIと操作」 | そのメンバーが作った工程表（一覧の`createdBy`がそのBot）ごとのボタン（Owner 2026-11-14）。押すと`AppStore.openLatticeChart(id)`が`latticeOpenRequest`に置き、iPadは`selectedTab = 5`、Macは`MainWindow.bringToFront("lattice")`（開いている工程表の窓を前へ、無ければ開く）。`LatticeHomeView`が`latticeOpenRequest`を受けて`path = [.chart(id)]`にし、要求を消す。一覧の読み取りは`DesktopInspector`が開いたメンバーごとに1回（`AppStore.latticeCharts(createdBy:)`）。読めない時はボタンを出さず診断へ送る。iPhoneの詳細には出さない | 上と同じ |
 
 ## 部品と流れ
 
