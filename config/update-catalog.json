@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-14T23:13:12Z",
-  "expiresAt": "2026-11-21T23:13:12Z",
+  "publishedAt": "2026-11-14T23:35:35Z",
+  "expiresAt": "2026-11-21T23:35:35Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9fbc42872207f1572cbbfe4ccaec0b7847865505",
-      "versionId": "sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960",
+      "sourceCommit": "63330d17fe9f1db3273f904fab8d47dd2b8ed3ce",
+      "versionId": "sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Botが評価者になりすましてメッセージを送れないようにしました。",
-        "Botの停止を、追跡の失敗として記録しないようにしました。",
-        "Bot一覧が一時的に読めなくなる問題（Aiterm 0.70.61）を直しました。"
+        "更新の画面が、入れ替えの途中でも表示されるようにしました。",
+        "部品の入れ替え中も、予定の実行が止まらないようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9fbc42872207f1572cbbfe4ccaec0b7847865505",
-      "versionId": "sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960",
+      "sourceCommit": "63330d17fe9f1db3273f904fab8d47dd2b8ed3ce",
+      "versionId": "sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0e4a087943a2516e22aa7a068290db36906d310ab0a7805b82089b9896961960"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4b237beef8f1db1f782627e8cda6208e1b17d97e69555d49bc066c02b1ddfb57"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Botが評価者になりすましてメッセージを送れないようにしました。",
-        "Botの停止を、追跡の失敗として記録しないようにしました。",
-        "Bot一覧が一時的に読めなくなる問題（Aiterm 0.70.61）を直しました。"
+        "更新の画面が、入れ替えの途中でも表示されるようにしました。",
+        "部品の入れ替え中も、予定の実行が止まらないようにしました。"
       ]
     },
     {

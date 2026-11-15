@@ -14,9 +14,8 @@ const now = new Date('2030-01-01T00:00:01Z')
 function gates() {
   const members = new MembersAdmission('members')
   // Kiro's conversation lifetime gate and real IPC are later integration boundaries.
-  const conversation = new MembersAdmission('conversation')
-  // The shared context checks the conversation lease is current (ConversationLifetimes); this stand-in has one epoch per lease.
-  conversation.assertCurrentLease = lease => conversation.assertLease(lease)
+  // Current-lease check: a fixed generation makes it the same lease and generation check as assertLease.
+  const conversation = Object.assign(new MembersAdmission('conversation'), { assertCurrentLease(lease, expected) { return this.assertLease(lease, expected) } })
   return { members, conversation, operations: createModuleOperationContext({ membersAdmission: members, conversationAdmission: conversation }) }
 }
 
@@ -90,8 +89,7 @@ test('real combined admission holds both drains beyond deletion 202 until remova
     async remove(id, value) { assert.equal(value, context); f.operations.assert(value); entered.resolve(); await release.promise; return { id } } }
   const admin = new BotAdministration({ bots, moduleOperations: f.operations, writeLog: line => assert.fail(line),
     rooms: { async removeBot(id, value) { assert.equal(value, context); f.operations.assert(value); tickets = [f.members.close(), f.conversation.close()] } },
-    transport: { membersAdmission: f.members, async stop(bot, version, { allSessions, ...value }) {
-      assert.equal(allSessions, true); assert.deepEqual(value, context); f.operations.assert(context) } } })
+    transport: { membersAdmission: f.members, async stop(bot, version, value) { assert.equal(value.allSessions, true); assert.equal(value.membersLease, context.membersLease); assert.equal(value.conversationLease, context.conversationLease); f.operations.assert(context) } } })
   const finish = f.operations.finish
   f.operations.finish = value => { finish(value); completed.resolve() }
   assert.deepEqual(await admin.remove('bot-a'), { deleting: 'bot-a' })

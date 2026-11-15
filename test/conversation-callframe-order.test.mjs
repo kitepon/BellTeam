@@ -29,6 +29,8 @@ async function fanout(t) {
   const from = h.fixture.bots[0].id
   const posted = await h.request('room.post', { from, room: room.id, message: 'hello all', images: [], targets: null }, { kind: 'bot', botId: from })
   assert.equal(posted.delivery, 'running')
+  // room.post returns once every delivery is issued, before the native effects reach the parent (c3648562).
+  for (let n = 0; n < 200 && bots.some(bot => !h.native.some(entry => entry.params.target === bot.id)); n++) await settle(5)
   // Exactly what AitermTransport.submit does with its conversationDelivery (aiterm-transport.mjs:868).
   const seat = id => h.admission.callbacks(h.native.find(entry => entry.params.target === id).delivery)
   const finish = () => { for (const entry of h.native) h.admission.finish(entry.delivery); h.admission.finish(h.lease) }

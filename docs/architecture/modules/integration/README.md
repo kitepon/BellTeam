@@ -525,6 +525,8 @@ get_selfだけ既bot.currentWorkBindingを読取側の互換欄として返し�
 ```mermaid
 flowchart LR
   Caller[削除・予定・跨module保存の固定caller] --> Reserve[module-operation-context: 同期reserve]
+  FreshFacade[会話facadeの新しい呼び出し（引き継ぎなし）] -->|members交換中| WhenOpen[MembersAdmission.whenOpen / resume直後・60秒の出口] --> Reserve
+  FreshFacade -->|開いている| Reserve
   Reserve --> Members[同membersAdmission.enter]
   Reserve --> Conversation[同conversationAdmission.enter]
   Conversation -->|閉鎖・満杯| Release[同stackでmembers finish / 作用なし]
@@ -542,7 +544,7 @@ flowchart LR
 
 横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。親が認証済みmembers callerの既leaseを借用する場合は同identityを検証し、会話側の予約だけを所有する。子や外部DTOから借用leaseを生成しない。
 
-`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
+`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。会話facadeの新しい呼び出し（引き継ぐoperationContext・leaseなし）は、members交換中だけ開始処理ごと`MembersAdmission.whenOpen`へ渡し、resume直後に同期でreserveする（[members-admission.md](../execution/members-admission.md)、2026-11-15 a127）。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
 
 故障writer退役後の新作用は`assert`/`withContext`/`forMembers`からexecutionの`assertCurrentLease`でcurrentだけに限定する。`finish`は元opaqueの`assertLease`を使い、retiredの実終端処理を保持する。登録済みcontextの拒否を`forMembers`でnullへ変換せず、`conversationAssembly.memberRequest`の新reserveへ旧参照を付け替えない。未登録のmembers leaseだけは従来どおりnullを返す。gateとmoduleOperationsの実体・authority/ALS・実completionの所有は不変、[executionの世代契約](../execution/conversation-lifetimes.md)を使う。
 

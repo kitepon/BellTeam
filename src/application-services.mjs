@@ -361,7 +361,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex,
     executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available && !execution.hold?.held,
     onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
-    onError: (error, context) => diagnostics.record(directFailureReport(error, context)) })
+    onError: (error, context) => diagnostics.record(directFailureReport(error, context)),
+    onLogCorruption: conversationDiagnosticPort(diagnostics) })
   conversationPorts.directReceipts = directMessages.receipts
   const messenger = directMessages.messenger
   directTurnReports = new TurnReports({ bots, store: directMessages.receipts.store, transport,
