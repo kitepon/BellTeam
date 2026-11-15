@@ -3,6 +3,7 @@
 import { CHART_LABEL } from './origin-view.mjs'
 
 export const DECISION_PLAN = 'approval-box'
+export const DECISION_LANE = 'approval-box' // the extension is the worker of a wait on the Owner; lane `owner` is no longer used (a188)
 export const taskIdOf = decisionId => `dec-${decisionId.toLowerCase()}`
 const ended = card => card?.state === 'done' || card?.state === 'retired'
 const jst = iso => { const t = new Date(Date.parse(iso) + 9 * 3_600_000); return `${t.getUTCMonth() + 1}月${t.getUTCDate()}日 ${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}` }
@@ -28,9 +29,9 @@ export function planLink({ d, row, rows = [], chart }) {
     const named = attachTarget(d.origin.sessionLabel)
     if (!named && d.origin.kind !== 'bellteam') return { actions: [], row: null } // L9: outside BellTeam, no chart action at all
     const base = { decisionId: d.id, projectId: chart.projectId, sessionLabel: d.origin.sessionLabel, handledVersion: d.version }
-    if (named) { // L8/L10: attach to the existing Owner-lane task
+    if (named) { // L8/L10: attach to the existing approval-box-lane task
       const card = chart.cards.find(c => c.id === `${named.plan}/${named.taskId}`)
-      if (!card || card.lane !== 'owner') return { actions: [], row: null }
+      if (!card || card.lane !== DECISION_LANE) return { actions: [], row: null }
       return { actions: [{ op: 'link', projectId: chart.projectId, plan: named.plan, taskId: named.taskId }], row: { ...base, plan: named.plan, taskId: named.taskId, state: 'linked', attached: true } }
     }
     const taskId = taskIdOf(d.id)
@@ -41,7 +42,7 @@ export function planLink({ d, row, rows = [], chart }) {
     const prevId = prev && `${prev.plan}/${prev.taskId}`
     const successors = prev ? chart.edges.filter(edge => edge.from === prevId).map(edge => chart.cards.find(c => c.id === edge.to)).filter(c => c && !ended(c)) : []
     const memo = `決裁箱の決裁「${safe(d.title)}」に指揮官が答えるまでの工程。決裁の内容は決裁箱にあり、ここへは写していない。`
-    actions.push(owner(chart.projectId, ['todo', 'add', '--plan', DECISION_PLAN, '--task', taskId, '--title', safe(d.title), '--phase', 'decisions', '--lane', 'owner',
+    actions.push(owner(chart.projectId, ['todo', 'add', '--plan', DECISION_PLAN, '--task', taskId, '--title', safe(d.title), '--phase', 'decisions', '--lane', DECISION_LANE,
       ...(successors.length ? ['--after', prev.taskId] : []), '--design-memo', memo, '--reason', '決裁箱に申請が出たため']))
     for (const next of successors) {
       actions.push(owner(chart.projectId, ['todo', 'predecessor', 'add', '--plan', next.plan, '--task', next.taskId, '--after', `${DECISION_PLAN}/${taskId}`, '--reason', '決裁が先に要るため']))

@@ -75,7 +75,7 @@
         "task": {
           "title": "課金の設計",
           "state": "ready",
-          "lane": "owner",
+          "lane": "approval-box",
           "cardId": "approval-box/dec-k-demo1"
         },
         "previous": [

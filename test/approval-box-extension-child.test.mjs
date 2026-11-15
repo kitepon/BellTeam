@@ -85,20 +85,20 @@ test('answer: success marks the decision for the engine; a stale version comes b
   assert.equal(ok.outcome, 'answered'); assert.equal(ok.decision.status, 'answered')
 })
 
-test('refresh: a BellTeam decision becomes one owner-lane task (link first), and its answer completes that task', async () => {
+test('refresh: a BellTeam decision becomes one approval-box-lane task (link first), and its answer completes that task', async () => {
   const h = harness({ decisions: [raw('K-AAAA')] })
   const first = await h.core.refresh({ since: 0 }, h.effect)
   assert.equal(first.summary.pending, 1)
   const order = h.calls.filter(([method]) => method.startsWith('lattice.')).map(([method, params]) => params.args ? params.args.slice(0, 2).join(' ') : method)
   assert.deepEqual(order.filter(item => item !== 'lattice.charts' && item !== 'lattice.chart'), ['lattice.link', 'plan create'])
   const created = [...h.writes.values()][0]
-  assert.equal(created.input.tasks[0].task_id, 'dec-k-aaaa'); assert.equal(created.input.tasks[0].lane, 'owner')
+  assert.equal(created.input.tasks[0].task_id, 'dec-k-aaaa'); assert.equal(created.input.tasks[0].lane, 'approval-box')
 })
 
 test('refresh: an answered decision with a link row starts then finishes its task, once', async () => {
   const answered = raw('K-AAAA', { status: 'answered', version: 2, answer: { option_id: 'o1', answered_at: '2026-11-15T02:00:00Z' } })
   const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'linked', attached: false, sessionLabel: 'ブレッディ / billing', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
-  const cards = [{ id: 'approval-box/dec-k-aaaa', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'ready', lane: 'owner', title: 't' }]
+  const cards = [{ id: 'approval-box/dec-k-aaaa', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'ready', lane: 'approval-box', title: 't' }]
   const h = harness({ decisions: [answered], cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
   await h.core.refresh({ since: 0 }, h.effect)
   assert.deepEqual([...h.writes.keys()].map(key => key.split(' ').slice(0, 2).join(' ')), ['todo start', 'todo done'])

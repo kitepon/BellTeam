@@ -157,7 +157,8 @@ stateDiagram-v2
 | NotConnected | view 4 | 決裁箱につなぐ |
 | Waiting | the button area: 決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。 + a spinner | もう一度開く, やめる |
 | Denied | 許可されませんでした。もう一度つなげます。 | もう一度つなぐ |
-| Connected | the normal screen; 設定 shows 「決裁箱につながっています」 with つなぎを外す (two-step confirm). The session slides: use renews it for 90 days, so no date is shown; unused for 90 days it ends and view 4 reads 「決裁箱とのつなぎの期限が切れました」. The Owner can also remove it in Approval Box's own connection list: the next call is 401 and view 4 appears | つなぎを外す |
+| Lapsed (the request ended while Waiting: `not_connected` / `expired` from the connection read) | 許可の待ち時間が過ぎました。もう一度つないでください。 (Web, Admi a177, confirmed by Delta) | 決裁箱につなぐ |
+| Connected | the normal screen; 設定 shows 「決裁箱につながっています」 with つなぎを外す (two-step confirm). The Web has no 設定 page: there つなぎを外す sits in the 決裁箱 dialog toolbar, same two steps (外す / やめる). The session slides: use renews it for 90 days, so no date is shown; unused for 90 days it ends and view 4 reads 「決裁箱とのつなぎの期限が切れました」. The Owner can also remove it in Approval Box's own connection list: the next call is 401 and view 4 appears | つなぎを外す |
 | browser | Approval Box's own consent page, then its own 「許可しました」 page (not BellTeam's) | none |
 
 ## Answer outcomes, in the words the Owner sees
