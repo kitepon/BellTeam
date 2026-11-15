@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T12:06:11Z",
-  "expiresAt": "2026-11-22T12:06:11Z",
+  "publishedAt": "2026-11-15T12:32:22Z",
+  "expiresAt": "2026-11-22T12:32:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "064623f4518ca2b5b721e1ccd599c22ede68d2f2",
-      "versionId": "sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1",
+      "sourceCommit": "ba910a66bf484b26c324cd1c450bb07e8f20dd71",
+      "versionId": "sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.66にしました（計画モードの確認で席が止まらなくなります）。",
-        "席から工程表へ書くとき、60秒で打ち切られる前に結果を返すようにしました。",
-        "決裁箱の拡張の、本体側の土台を入れました（まだ画面は使えません）。"
+        "Aitermを0.70.68にしました。",
+        "計画モードに入るとき、仕様が書かれていなければ一度だけ書くよう促します。",
+        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "064623f4518ca2b5b721e1ccd599c22ede68d2f2",
-      "versionId": "sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1",
+      "sourceCommit": "ba910a66bf484b26c324cd1c450bb07e8f20dd71",
+      "versionId": "sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8151fc1ff89e9af86179edce76ed3c6ce936de12d6a5fc6c20104fe760644918"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.66にしました（計画モードの確認で席が止まらなくなります）。",
-        "席から工程表へ書くとき、60秒で打ち切られる前に結果を返すようにしました。",
-        "決裁箱の拡張の、本体側の土台を入れました（まだ画面は使えません）。"
+        "Aitermを0.70.68にしました。",
+        "計画モードに入るとき、仕様が書かれていなければ一度だけ書くよう促します。",
+        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
       ]
     },
     {
