@@ -39,6 +39,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     updateCenter: services.updateCenter,
     workGraph: services.workGraph,
     lattice: services.lattice,
+    approvals: services.approvals,
     accounts: services.accounts,
     membersAuthorization: services.membersAuthorization,
     usageAssembly: services.usageAssembly,

@@ -11,6 +11,7 @@ import { createConversationApi } from './http-conversation-api.mjs'
 import { createGoalApi } from './http-goal-api.mjs'
 import { createWorkGraphApi } from './work-graph/http-api.mjs'
 import { createLatticeApi } from './lattice/http-api.mjs'
+import { createApprovalsApi } from './approval-box-extension/http-api.mjs'
 import { createAccountsApi } from './http-accounts-api.mjs'
 import { createTerminalsApi } from './http-terminals-api.mjs'
 import { createRunningExclusionsApi } from './http-running-exclusions-api.mjs'
@@ -34,7 +35,7 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, approvals = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   // SK07: execution's live fork registry; engines without it have no forks.
@@ -66,6 +67,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createScreenInputApi({ bots, transport, internal }),
     createWorkGraphApi({ facade: workGraph, internal }),
     createLatticeApi({ facade: lattice, internal }),
+    ...(approvals ? [createApprovalsApi({ facade: approvals, internal })] : []),
     createAccountsApi({ accounts }),
     createTerminalsApi({ terminals, internal }),
     createRunningExclusionsApi({ runningExclusions, internal }),
