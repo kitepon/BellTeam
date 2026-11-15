@@ -4,7 +4,7 @@ Permanent distribution owner Centi; Molly owns the Root-assigned common normal-m
 
 ## Function and data flow
 
-Dockerfile uses its existing normal npm install with `aiterm-mcp@latest`, alongside the existing CLI inputs. Official normal publication → npm latest dist-tag → normal Docker build → immutable image → actual installed package-version observation → assigned product retest. No private tar/dist overlay, native source layer, seat/global runtime update, or native source/test re-audit.
+Dockerfile uses its existing normal npm install with `aiterm-mcp@latest` (temporarily pinned to `aiterm-mcp@0.70.62` from 2026-11-15, Trony: 0.70.63 hangs on the opusplan dialog, a141; back to `@latest` with the fix), alongside the existing CLI inputs. Official normal publication → npm latest dist-tag → normal Docker build → immutable image → actual installed package-version observation → assigned product retest. No private tar/dist overlay, native source layer, seat/global runtime update, or native source/test re-audit.
 
 Root confirms formal aiterm-mcp0.63.12/tagv0.63.12/source6b592f62 under OwnerK-SA3NX5. Elegg npm42252302934/Registry42252334174 success and native6/build/metadata15 are inherited. Kiro compatibility source09d6782→260247d2/PR451mainc3254ec1 and its3 direct cases are inherited. Public launch/send fields and ordering remain unchanged; live connection acceptance is not tied to a release label.
 
