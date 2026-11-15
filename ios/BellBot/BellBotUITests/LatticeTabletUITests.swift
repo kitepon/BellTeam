@@ -112,17 +112,17 @@ final class LatticeTabletUITests: XCTestCase {
             shot(app, "\(tag)-\(index + 1)0-\(view)-chart-open")
             assertBesideSidebar(app, "\(view)")
             if index == 0 {
-                // 待ちの流れ starts folded and opens and folds again (Owner 2026-11-14).
-                let open = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '待ちの流れを開く'")).firstMatch
-                XCTAssertTrue(open.waitForExistence(timeout: 5), "待ちの流れは既定で閉じている")
+                // 接続 starts folded and opens and folds again (Owner 2026-11-14).
+                let open = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '接続を開く'")).firstMatch
+                XCTAssertTrue(open.waitForExistence(timeout: 5), "接続は既定で閉じている")
                 open.tap()
-                let close = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '待ちの流れを閉じる'")).firstMatch
-                XCTAssertTrue(close.waitForExistence(timeout: 5), "待ちの流れが開く")
+                let close = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '接続を閉じる'")).firstMatch
+                XCTAssertTrue(close.waitForExistence(timeout: 5), "接続が開く")
                 settle()
-                shot(app, "\(tag)-13-waits-open")
-                assertBesideSidebar(app, "待ちの流れを開いた時")
+                shot(app, "\(tag)-13-connections-open")
+                assertBesideSidebar(app, "接続を開いた時")
                 close.tap()
-                XCTAssertTrue(open.waitForExistence(timeout: 5), "待ちの流れが畳める")
+                XCTAssertTrue(open.waitForExistence(timeout: 5), "接続が畳める")
             }
 
             // 予定 in the sidebar: the chart leaves and the schedules screen comes.

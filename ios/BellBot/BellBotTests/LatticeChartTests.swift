@@ -23,20 +23,22 @@ final class LatticeChartTests: XCTestCase {
          "cards":[
           {"id":"p1/t01","title":"仕様の確認","state":"done","producer":"bot-flora","depth":0},
           {"id":"p1/t03","title":"旧案の比較","state":"retired","producer":"bot-admi","depth":0},
-          {"id":"p1/t04","title":"部品の配置","state":"in-progress","producer":"bot-molly","startedAt":"2026-11-11T11:48:00Z","doneCondition":"配置を決定","depth":1},
+          {"id":"p1/t04","title":"部品の配置","state":"in-progress","producer":"bot-molly","startedAt":"2026-11-11T11:48:00Z","doneCondition":"配置を決定","depth":1,
+           "connections":[{"kind":"task","ref":"x:p/t","state":"settled","reason":"gone","since":"2026-11-11T09:00:00Z"}]},
           {"id":"p1/t06","title":"Web画面の組込口","state":"blocked","producer":"bot-admi","blockedReason":"登録点が未定","depth":1},
           {"id":"p1/t07","title":"公開契約の裁定","state":"ready","producer":"bot-trony","depth":1},
-          {"id":"p1/t08","title":"部品の実装","state":"pending","producer":"bot-flora","depth":2,"designMemo":"**太字**のまま"},
-          {"id":"p1/t09","title":"画面","state":"pending","producer":"bot-ghost","depth":3},
-          {"id":"p1/t11","title":"受け取り確認","state":"pending","producer":null,"depth":4},
+          {"id":"p1/t08","title":"部品の実装","state":"pending","producer":"bot-flora","depth":2,"designMemo":"**太字**のまま",
+           "connections":[{"kind":"task","ref":"lattice:lattice-0990/release","state":"open","reason":"0.99.0 first","since":"2026-11-11T11:08:00Z"},
+                          {"kind":"priority","agent":"bot-molly","reason":"tell me at once","since":"2026-11-11T10:30:00Z"}]},
+          {"id":"p1/t09","title":"画面","state":"pending","producer":"bot-ghost","depth":3,
+           "connections":[{"kind":"schedule","ref":"sched-1","state":"open","reason":"nightly","since":"2026-11-11T11:59:30Z"}]},
+          {"id":"p1/t11","title":"受け取り確認","state":"pending","producer":null,"depth":4,
+           "connections":[{"kind":"task","ref":"other:p9/t1","state":"open","since":"2026-11-09T11:00:00Z"}]},
           {"id":"p1/t12","title":"未知の状態","state":"someday","depth":4}],
          "edges":[{"from":"p1/t01","to":"p1/t04","waiting":false},{"from":"p1/t04","to":"p1/t08","waiting":true},
                   {"from":"p1/t06","to":"p1/t08","waiting":true},{"from":"p1/t08","to":"p1/t09","waiting":true},
                   {"from":"p1/t09","to":"p1/t11","waiting":true},{"from":"p1/t07","to":"p1/t08","waiting":true}],
-         "waits":[{"waiter":"bot-flora","waitingCard":"p1/t08","forCard":"p1/t06","producer":"bot-admi","producerState":"blocked","since":"2026-11-11T11:08:00Z"},
-                  {"waiter":"bot-flora","waitingCard":"p1/t08","forCard":"p1/t04","producer":"bot-molly","producerState":"in-progress","since":"2026-11-11T10:30:00Z"},
-                  {"waiter":"bot-ghost","waitingCard":"p1/t09","forCard":"p1/t08","producer":"bot-flora","producerState":"pending","since":"2026-11-11T11:59:30Z"},
-                  {"waiter":null,"waitingCard":"p1/t11","forCard":"p1/t09","producer":"bot-ghost","producerState":"pending","since":"2026-11-09T11:00:00Z"}]}
+         "externals":[{"id":"lattice:lattice-0990/release","projectId":"lattice","cardId":"lattice-0990/release","chartName":"Lattice","title":"0.99.0 を出す","state":"blocked","finished":false,"producer":"bot-admi"}]}
         """
         return try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
     }
@@ -48,7 +50,7 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(counts.done, 2, "done + retired, as Web and the server (a96)")
         XCTAssertEqual(counts.working, 1)
         XCTAssertEqual(counts.blocked, 1)
-        XCTAssertEqual(counts.waiting, 3, "待っている辺が入る札の数")
+        XCTAssertEqual(counts.connections, 4, "open entries only: a settled one is not counted")
         XCTAssertEqual(chart.cardList.last?.status, .pending)
     }
 
@@ -71,26 +73,55 @@ final class LatticeChartTests: XCTestCase {
         for (i, a) in frames.enumerated() { for b in frames[(i + 1)...] { XCTAssertFalse(a.intersects(b)) } }
     }
 
-    func testWaitRowsUsePlainSentencesAndKeepServerOrder() throws {
-        let rows = LatticeWaitRow.rows(try snapshot(), now: now)
-        XCTAssertEqual(rows.map(\.forCard), ["p1/t06", "p1/t04", "p1/t08", "p1/t09"])
-        XCTAssertEqual(rows[0].waitingTitle, "部品の実装", "the row starts with the waiting card, so it reads on its own")
-        XCTAssertEqual(rows[0].waiterLine, "担当 フローラ")
-        XCTAssertEqual(rows[0].title, "Web画面の組込口")
-        XCTAssertEqual(rows[0].stateText, "止まり: 登録点が未定")
-        XCTAssertEqual(rows[0].length, "52分")
-        XCTAssertTrue(rows[0].emphasized)
-        XCTAssertEqual(rows[1].stateText, "作業中 12分")
+    func testConnectionRowsAreOpenEntriesOldestFirstAndNeverLines() throws {
+        let chart = try snapshot()
+        let rows = LatticeConnectionRow.rows(chart, now: now)
+        XCTAssertEqual(rows.map(\.id), ["p1/t11>task:other:p9/t1", "p1/t08>priority:bot-molly", "p1/t08>task:lattice:lattice-0990/release", "p1/t09>schedule:sched-1"])
+        // task whose externals[] entry is missing: 読めていません, still opens that chart at that card
+        XCTAssertEqual(rows[0].kind, .task)
+        XCTAssertEqual(rows[0].ownerLine, "担当なし")
+        XCTAssertEqual(rows[0].awaitedTitle, "ほかの工程表の工程")
+        XCTAssertEqual(rows[0].chart, "ほかの工程表")
+        XCTAssertEqual(rows[0].stateText, "読めていません")
+        XCTAssertEqual(rows[0].external?.projectId, "other")
+        XCTAssertEqual(rows[0].external?.cardId, "p9/t1")
+        XCTAssertEqual(rows[0].length, "2日")
+        XCTAssertFalse(rows[0].canChat)
+        // priority: the Bot that asked, no awaited card, no external target
+        XCTAssertEqual(rows[1].kind, .priority)
+        XCTAssertEqual(rows[1].agent?.name, "モリー")
+        XCTAssertNil(rows[1].external)
+        XCTAssertEqual(rows[1].reason, "tell me at once")
         XCTAssertEqual(rows[1].length, "1時間30分")
-        XCTAssertEqual(rows[2].waitingTitle, "画面")
-        XCTAssertEqual(rows[2].waiterLine, "担当 \(LatticePerson.unknownName)")
-        XCTAssertEqual(rows[2].stateText, "未着手: 担当 フローラ")
-        XCTAssertEqual(rows[2].length, "1分未満")
-        XCTAssertFalse(rows[3].canChat, "名簿にないメンバーには会話を開けない")
-        XCTAssertEqual(rows[3].waiterLine, "担当なし", "neither a producer nor a lane")
-        XCTAssertEqual(rows[3].length, "2日")
-        XCTAssertEqual(rows[1].accessibilityLabel, "「部品の実装」（担当 フローラ）は、「部品の配置」が終わるのを待っています。つくっているのはモリー、作業中 12分")
-        XCTAssertEqual(rows[3].accessibilityLabel, "「受け取り確認」（担当なし）は、「画面」が終わるのを待っています。つくっているのは\(LatticePerson.unknownName)、未着手: 担当 \(LatticePerson.unknownName)")
+        XCTAssertEqual(rows[1].mark, "モリーが、着手できるようになったらすぐ動きたいと伝えています")
+        // task with externals[]: title, 「<chart>の工程表」, producer, state; a blocked producer emphasizes the row
+        XCTAssertEqual(rows[2].title, "部品の実装")
+        XCTAssertEqual(rows[2].ownerLine, "担当 フローラ")
+        XCTAssertEqual(rows[2].awaitedTitle, "0.99.0 を出す")
+        XCTAssertEqual(rows[2].chart, "Latticeの工程表")
+        XCTAssertEqual(rows[2].stateText, "ブロック")
+        XCTAssertEqual(rows[2].length, "52分")
+        XCTAssertEqual(rows[2].reason, "0.99.0 first")
+        XCTAssertTrue(rows[2].emphasized)
+        XCTAssertTrue(rows[2].canChat)
+        XCTAssertEqual(rows[2].external?.projectId, "lattice")
+        XCTAssertEqual(rows[2].external?.cardId, "lattice-0990/release")
+        // schedule: only the id is known, so no awaited card and no target
+        XCTAssertEqual(rows[3].kind, .schedule)
+        XCTAssertEqual(rows[3].ownerLine, "担当 \(LatticePerson.unknownName)")
+        XCTAssertNil(rows[3].external)
+        XCTAssertEqual(rows[3].length, "1分未満")
+        XCTAssertEqual(rows[0].accessibilityLabel, "「受け取り確認」（担当なし）は、「ほかの工程表の工程」（ほかの工程表）の完了が条件になっています。つくっているのは担当なし、読めていません")
+        XCTAssertEqual(rows[1].accessibilityLabel, "「部品の実装」（担当 フローラ）は、モリーが、着手できるようになったらすぐ動きたいと伝えています")
+        XCTAssertEqual(rows[2].accessibilityLabel, "「部品の実装」（担当 フローラ）は、「0.99.0 を出す」（Latticeの工程表）の完了が条件になっています。つくっているのはアドミ、ブロック")
+        XCTAssertEqual(rows[3].accessibilityLabel, "「画面」（担当 \(LatticePerson.unknownName)）は、予定の結果が条件になっています")
+        // the chip on a card counts open entries only
+        XCTAssertEqual(LatticeText.connectionChip(chart.cardList[5]), "接続 2")
+        XCTAssertNil(LatticeText.connectionChip(chart.cardList[2]), "a settled entry is not an open one")
+        // an older server (no connections / externals) is an empty panel, not an error
+        let old = try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(#"{"epoch":"e","version":1,"projectId":"p","state":"verified","cards":[{"id":"a","title":"A","state":"pending"}]}"#.utf8))
+        XCTAssertTrue(LatticeConnectionRow.rows(old, now: now).isEmpty)
+        XCTAssertEqual(LatticeCounts(old).connections, 0)
     }
 
     /// README "Owner on screen": producer, else the authored lane text as written, else 担当なし — in lanes, rows and notes.
@@ -100,11 +131,11 @@ final class LatticeChartTests: XCTestCase {
          "members":[{"botId":"bot-molly","name":"モリー","color":"mint"}],
          "cards":[
           {"id":"p/a","title":"配置","state":"in-progress","producer":"bot-molly","lane":"molly","startedAt":"2026-11-11T11:50:00Z","depth":0},
-          {"id":"p/b","title":"実装","state":"pending","producer":null,"lane":"kiro","depth":1},
-          {"id":"p/c","title":"確認","state":"pending","producer":null,"lane":"  ","depth":2}],
-         "edges":[{"from":"p/a","to":"p/b","waiting":true},{"from":"p/b","to":"p/c","waiting":true}],
-         "waits":[{"waiter":null,"waitingCard":"p/b","forCard":"p/a","producer":"bot-molly","producerState":"in-progress","since":"2026-11-11T11:50:00Z"},
-                  {"waiter":null,"waitingCard":"p/c","forCard":"p/b","producer":null,"producerState":"pending","since":"2026-11-11T11:55:00Z"}]}
+          {"id":"p/b","title":"実装","state":"pending","producer":null,"lane":"kiro","depth":1,
+           "connections":[{"kind":"priority","agent":"bot-molly","since":"2026-11-11T11:50:00Z"}]},
+          {"id":"p/c","title":"確認","state":"pending","producer":null,"lane":"  ","depth":2,
+           "connections":[{"kind":"schedule","ref":"s","since":"2026-11-11T11:55:00Z"}]}],
+         "edges":[{"from":"p/a","to":"p/b","waiting":true},{"from":"p/b","to":"p/c","waiting":true}]}
         """
         let snapshot = try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
         let layout = LatticeLayout(snapshot)
@@ -114,12 +145,10 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(kiro.initial, "K")
         XCTAssertTrue(kiro.lane)
         XCTAssertFalse(kiro.known, "書かれた担当には会話を開けない")
-        let rows = LatticeWaitRow.rows(snapshot, now: now)
-        XCTAssertEqual(rows[0].waiterLine, "担当 kiro", "an authored lane is named before anyone starts")
-        XCTAssertEqual(rows[1].waiterLine, "担当なし", "the waiting card has neither a producer nor a lane")
-        XCTAssertEqual(rows[1].title, "実装")
-        XCTAssertEqual(rows[1].stateText, "未着手: 担当 kiro")
-        XCTAssertFalse(rows[1].canChat)
+        let rows = LatticeConnectionRow.rows(snapshot, now: now)
+        XCTAssertEqual(rows[0].ownerLine, "担当 kiro", "an authored lane is named before anyone starts")
+        XCTAssertEqual(rows[1].ownerLine, "担当なし", "the connected card has neither a producer nor a lane")
+        XCTAssertEqual(rows[1].title, "確認")
         let cards = snapshot.cardList
         XCTAssertEqual(LatticeText.cardNote(cards[0], owner: LatticePerson.lookup(snapshot)(cards[0].owner)), "モリーがつくっています")
         XCTAssertEqual(LatticeText.cardNote(cards[1], owner: kiro), "担当 kiro")
@@ -189,7 +218,7 @@ final class LatticeChartTests: XCTestCase {
             XCTAssertTrue((2...3).contains(flying.count), "1.4秒の旅に600msごと：同時に2〜3粒")
             XCTAssertTrue(flying.allSatisfy { (0...1).contains($0) })
         }
-        XCTAssertEqual(LatticeFlow.positions(now: 9.7, slow: true).first ?? 0, 0.1 / 2.8, accuracy: 1e-9, "止まりは半分の速さ")
+        XCTAssertEqual(LatticeFlow.positions(now: 9.7, slow: true).first ?? 0, 0.1 / 2.8, accuracy: 1e-9, "ブロックは半分の速さ")
         XCTAssertEqual(LatticeFlow.opacity(0), 0)
         XCTAssertEqual(LatticeFlow.opacity(1), 0)
         let from = CGRect(x: 0, y: 0, width: 100, height: 100), to = CGRect(x: 400, y: 0, width: 100, height: 100)
@@ -229,7 +258,7 @@ final class LatticeChartTests: XCTestCase {
     func testChartListDecodesAndNamesTheCoordinator() throws {
         let json = """
         {"schema":"bellteam.lattice-charts.v1","at":"x","charts":[
-          {"projectId":"lattice","name":"Lattice組込","coordinator":true,"createdBy":"bot-trony","counts":{"total":11,"done":3,"working":2,"waiting":4,"blocked":1},"activeMembers":["bot-molly"],"updatedAt":"2026-11-11T11:59:00Z","state":"verified"},
+          {"projectId":"lattice","name":"Lattice組込","coordinator":true,"createdBy":"bot-trony","counts":{"total":11,"done":3,"working":2,"waiting":4,"blocked":1,"connections":2},"activeMembers":["bot-molly"],"updatedAt":"2026-11-11T11:59:00Z","state":"verified"},
           {"projectId":"guide","coordinator":false,"createdBy":"bot-flora","counts":{},"activeMembers":[],"state":"unavailable"}]}
         """
         let list = try JSONDecoder().decode(LatticeChartsList.self, from: Data(json.utf8))
@@ -238,11 +267,13 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertTrue(list.charts[0].isCoordinator)
         XCTAssertEqual(list.charts[0].name, "Lattice組込")
         XCTAssertNil(list.charts[1].name)
+        XCTAssertEqual(list.charts[0].connections, 2)
+        XCTAssertEqual(list.charts[1].connections, 0, "an older server has no counts.connections")
     }
 
-    func testEdgeChipNamesTheWaiterOrTheNextStep() {
-        XCTAssertEqual(LatticeText.chipText(waiter: LatticePerson(botId: "bot-flora", name: "フローラ", color: "violet", known: true)), "フローラが待っています")
-        XCTAssertEqual(LatticeText.chipText(waiter: nil), "次の工程が待っています")
+    func testEdgeChipNamesTheFinishingCardsOwner() {
+        XCTAssertEqual(LatticeText.chipText(maker: LatticePerson(botId: "bot-flora", name: "フローラ", color: "violet", known: true)), "前工程：フローラ")
+        XCTAssertEqual(LatticeText.chipText(maker: nil), "前工程：担当なし")
     }
 
     // MARK: Tree (a98 Structure layout)
@@ -343,10 +374,8 @@ final class LatticeChartTests: XCTestCase {
           {"id":"b2","title":"B2","state":"in-progress","producer":"bot-molly","phase":"ph2","parent":"b1"},
           {"id":"b3","title":"B3","state":"done","producer":"bot-molly","phase":"ph2","doneAt":"2026-11-09T10:00:00Z"},
           {"id":"b4","title":"B4","state":"done","phase":"ph2"},
-          {"id":"b5","title":"B5","state":"pending"}],
-         "edges":[{"from":"b1","to":"b2","waiting":false},{"from":"b2","to":"b5","waiting":true}],
-         "waits":[{"waiter":null,"waitingCard":"b5","forCard":"b2","producer":"bot-molly","producerState":"in-progress","since":"2026-11-11T11:59:30Z"},
-                  {"waiter":null,"waitingCard":"b2","forCard":"b1","producer":"bot-molly","producerState":"done","since":"2026-11-11T11:00:00Z"}]}
+          {"id":"b5","title":"B5","state":"pending","connections":[{"kind":"priority","agent":"bot-molly","since":"2026-11-11T11:59:30Z"}]}],
+         "edges":[{"from":"b1","to":"b2","waiting":false},{"from":"b2","to":"b5","waiting":true}]}
         """
         return try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
     }
@@ -359,10 +388,10 @@ final class LatticeChartTests: XCTestCase {
         let counts = LatticeCounts(snapshot)
         XCTAssertEqual(counts.total, 4, "no `counted` (older server): the cards not archived")
         XCTAssertEqual(counts.done, 2)
-        // Lanes leave archived cards out too; waits that touch one are not on screen.
+        // Lanes leave archived cards out too.
         let layout = LatticeLayout(snapshot)
         XCTAssertEqual(Set(layout.frames.keys), ["b2", "b3", "b4", "b5"])
-        XCTAssertEqual(LatticeWaitRow.rows(snapshot, now: now).map(\.forCard), ["b2"])
+        XCTAssertEqual(LatticeConnectionRow.rows(snapshot, now: now).map(\.card), ["b5"])
         // The detail of an archived card still opens (前の工程 links).
         XCTAssertNotNil(LatticeDetail(snapshot, cardId: "b1", now: now))
     }
@@ -411,8 +440,8 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(rows[1].by?.name, LatticePerson.unknownName)
         XCTAssertNil(rows[2].lane)
         XCTAssertEqual(rows[2].cardId, "p1/t03")
-        XCTAssertEqual(rows[0].label, "止まり、CIを直す、BellTeam開発、担当 フローラ、理由 CI is red on main、指揮官が今日 20:30に止めました")
-        XCTAssertEqual(rows[2].label, "止まり、古い止め、フローラの工程表、担当なし、担当なしが11月8日 09:07に止めました")
+        XCTAssertEqual(rows[0].label, "ブロック、CIを直す、BellTeam開発、担当 フローラ、理由 CI is red on main、指揮官が今日 20:30にブロックしました")
+        XCTAssertEqual(rows[2].label, "ブロック、古い止め、フローラの工程表、担当なし、担当なしが11月8日 09:07にブロックしました")
     }
 
     func testUnblockAnswersDropRefuseOrLater() {

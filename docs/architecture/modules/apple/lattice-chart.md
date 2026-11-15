@@ -19,11 +19,11 @@ flowchart LR
   Home --> ListModel["Core/LatticeChartModel.swift<br/>LatticeChartsModel（一覧・統括のBot）<br/>listed＝counts.total が0より大きい工程表（a107。サーバーの一覧はそのまま、統括のBot・工程表の名前探しは全件）"]
   ListModel -->|"開いている間10秒ごと"| ListAPI["GET /api/lattice/charts<br/>bellteam.lattice-charts.v1"]
   ListAPI -->|"404（旧本体）→ unsupported / 認証 → failed / 503・切断 → reconnecting（一覧は残す）"| ListModel
-  Home --> List["LatticeListView（listedだけ）<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（表示名）<br/>右上に「止め一覧」"]
-  List -->|"止め一覧（.stops を積む）"| Stops["LatticeStopsView＋LatticeStopsModel（画面の@StateObject）<br/>行＝LatticeStopRow（新しい止めが上）・行の中で2段の外す"]
+  Home --> List["LatticeListView（listedだけ）<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/接続あり（`counts.connections`）・札は「接続 N」・検索（表示名）<br/>右上に「ブロック一覧」"]
+  List -->|"ブロック一覧（.stops を積む）"| Stops["LatticeStopsView＋LatticeStopsModel（画面の@StateObject）<br/>行＝LatticeStopRow（新しいブロックが上）・行の中で2段の外す"]
   Stops -->|"開いた時・引っぱって読み直す（Macは読み直すボタン）・外すの答えの後・前面へ戻った時"| StopsAPI["GET /api/lattice/blockers<br/>bellteam.lattice-blockers.v1"]
   StopsAPI -->|"404 → old / 認証 → failed / 503・切断・形が違う → retry（1, 2, 4 … 30秒、開いている間ずっと）"| Stops
-  Stops -->|"外す → この止めを外しますか？ → 外す"| Unblock["POST /api/lattice/charts/:id/unblock {stopId}<br/>LatticeUnblockOutcome：200 removed/already-gone → 行を消す / 409 → 外せませんでした: reason / ほか → いまは外せませんでした"]
+  Stops -->|"外す → このブロックを外しますか？ → 外す"| Unblock["POST /api/lattice/charts/:id/unblock {stopId}<br/>LatticeUnblockOutcome：200 removed/already-gone → 行を消す / 409 → 外せませんでした: reason / ほか → いまは外せませんでした"]
   Unblock -->|"どの答えでも"| StopsAPI
   Stops -->|"行を押す（.card を積む）"| Screen
   List -->|"札を押す"| Screen["Views/LatticeChartView.swift<br/>LatticeChartScreen(projectId)<br/>ツリー / 担当 / 過去ログ N の切り替え（@SceneStorage）"]
@@ -33,10 +33,10 @@ flowchart LR
   Stream -->|"35秒無通信・切断・503"| Retry["reconnecting：最後の図を薄くして残し<br/>1, 2, 4 … 30秒（±20%）で開いている間ずっと"]
   Stream -->|"404"| Probe["GET /api/lattice/charts/:id で見分ける<br/>LATTICE_CHART_NOT_FOUND → notFound（止める）<br/>それ以外 → unsupported（60秒ごとに確かめ直す）"]
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
-  Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（archivedの札は除く。LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeStructure（a98：ツリーの配置＝出ている札をつながりの塊ごと・列ごとに、前の工程の行の平均へ置く。旧LatticeTree・LatticeTreeLink・LatticeTreeArcを置き換える）・LatticeHistory（終わった工程のJSTの日ごと）<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
+  Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（archivedの札は除く。LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeStructure（a98：ツリーの配置＝出ている札をつながりの塊ごと・列ごとに、前の工程の行の平均へ置く。旧LatticeTree・LatticeTreeLink・LatticeTreeArcを置き換える）・LatticeHistory（終わった工程のJSTの日ごと）<br/>LatticeCounts（接続＝開いている接続の数）・LatticeConnectionRow（札の`connections`と`externals[]`だけから作る接続の行。辺・`waits`は読まない）・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
   ListModel -->|"統括のBot（createdBy）"| Model
-  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：一番左に「すべての工程表」のボタン（一覧を積む。iPhoneは見出しの右の同じボタン。Owner 2026-11-14）・切り替え（popover。工程表の行は最大440ptで、それより多いと行だけ縦に送る。「すべての工程表」は送りの外の下に残る）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）。この帯の輪は中に文字を持たず、横に done/total を書く。輪（`LatticeRing`）の中の文字はどこでも1行で、入らなければ縮める<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定。a98）：担当と同じ盤（`LatticeChartScreen.board(tree: true)`）＝縦横に送る盤。担当のレーンと同じ札（LatticeCardView）と辺（LatticeEdgesLayer・待ちの札）を、レーンと名前の列なしで`LatticeLayout(LatticeStructure, size: .cards)`の位置へ置く<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeWaitPanel（既定は閉じて右端のつまみ LatticeWaitHandle＝砂時計と件数。押すと開き、パネルの閉じるで畳む）"]
-  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは待ちの流れを既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数・待ちの流れ（横に送る札）・工程（見出し「工程」の右にツリー/担当/過去ログ N。各札は自分の文字の幅で、同じ行に入らなければ見出しの下の行へ。Nの桁が増えても切らない。Owner 2026-11-14）（ツリー＝a98：LatticeIconMap＝LatticeStructureの位置に担当の小さな顔（レールの顔と同じ描き方）、作業中は顔の下に題、辺は札の文字なし。顔を押すとその札（広い面と同じLatticeCardView）を顔の上に出し、札を押すと詳細 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
+  Calc --> Wide["広い面（sizeClass regular かつ 工程表に渡された幅が LatticeChartScreen.wideMinimum 760 以上：Mac・iPadの横向き）<br/>上の帯：一番左に「すべての工程表」のボタン（一覧を積む。iPhoneは見出しの右の同じボタン。Owner 2026-11-14）・切り替え（popover。工程表の行は最大440ptで、それより多いと行だけ縦に送る。「すべての工程表」は送りの外の下に残る）・ライブ・ツリー/担当/過去ログ N（各札は自分の文字の幅）・読み直し中・進み具合・数。1行に入らなければ進み具合と数を2行目へ（帯が工程表より広くならない）。この帯の輪は中に文字を持たず、横に done/total を書く。輪（`LatticeRing`）の中の文字はどこでも1行で、入らなければ縮める<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中（ツリー、既定。a98）：担当と同じ盤（`LatticeChartScreen.board(tree: true)`）＝縦横に送る盤。担当のレーンと同じ札（LatticeCardView）と辺（LatticeEdgesLayer・前工程の札「前工程：◯◯」）を、レーンと名前の列なしで`LatticeLayout(LatticeStructure, size: .cards)`の位置へ置く<br/>中（過去ログ）：LatticeHistoryView＝縦に送る一覧（日の見出し→終わった工程）<br/>中（担当）：横に送る盤（レーン・札（接続のある札は「接続 N」の印）・LatticeEdgesLayer・前工程の札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>下：LatticeLegend＝中の列の下の帯（盤に重ねない。1行に入らなければ2行、それでも入らなければ3行。語の中では折らない）<br/>右：LatticeConnectionPanel（既定は閉じて右端のつまみ LatticeConnectionHandle＝鎖の印と接続の数。押すと開き、パネルの閉じるで畳む。左のレールの接続の印は、そのメンバーの札で開いた接続を持つ札の数）"]
+  Calc --> Compact["iPhone・幅が760未満の時（サイドバーの横のiPadの縦向き。iPadでは接続を既定で畳み、見出しを押すと開く＝lattice-waits-openを共有）<br/>切り替え・数（作業中・接続・ブロック）・接続（横に送る札）・工程（見出し「工程」の右にツリー/担当/過去ログ N。各札は自分の文字の幅で、同じ行に入らなければ見出しの下の行へ。Nの桁が増えても切らない。Owner 2026-11-14）（ツリー＝a98：LatticeIconMap＝LatticeStructureの位置に担当の小さな顔（レールの顔と同じ描き方）、作業中は顔の下に題、辺は札の文字なし。顔を押すとその札（広い面と同じLatticeCardView）を顔の上に出し、札を押すと詳細 / 担当＝段ごと・担当ごと の縦の流れ / 過去ログ＝日ごとの一覧）"]
   Wide -->|"札を押す"| Detail["LatticeDetailPanel<br/>Mac・iPad：盤の上の不透明な面（幅350。札からmatchedGeometryEffectで育つ。中身は全部その面の中：文は折り返し、次の工程の札（LatticeFlowLayout）は行より広ければ行の幅に縮めて題を…で切る。a110）<br/>iPhone：sheet（160pt・中・大、背後も操作可）"]
   Compact -->|"札を押す"| Detail
   Detail -->|"前の工程・次の工程"| Detail
@@ -55,15 +55,15 @@ flowchart LR
 
 一覧の札・切り替え・読み上げの名前は`LatticeChartName.of`（`AppStore.latticeChartName`）：`name`、無ければ「<作った人の名簿の名前>の工程表」（`createdBy`をアプリの名簿で引く）、それも分からなければ「名前のない工程表」。`projectId`はAPIの宛先と試験の識別子（`accessibilityIdentifier`）だけで、画面と読み上げに出さない（[Display name rule](../lattice/README.md#get-apilatticecharts)）。一覧の「統括 <顔> <名前>」の行は`coordinator: true`の工程表だけに出す。
 
-## 止め一覧
+## ブロック一覧
 
-[screen-spec「止め一覧」](../lattice/screen-spec.md)と[Stops契約](../lattice/README.md)をそのまま描く。入口は一覧の右上の「止め一覧」（Owner用のアプリなので常に出す）。戻るは端末の戻る（一覧の名前「工程表」の矢印と端のスワイプ）とEsc。
+[screen-spec「ブロック一覧」](../lattice/screen-spec.md)と[Stops契約](../lattice/README.md)をそのまま描く。入口は一覧の右上の「ブロック一覧」（Owner用のアプリなので常に出す）。戻るは端末の戻る（一覧の名前「工程表」の矢印と端のスワイプ）とEsc。
 
-- 行（`LatticeStopRow.rows`、純粋）：`blockedAt`の新しい順。止まりの赤の八角形・題（2行）・工程表の名前（`LatticeChartName`、`projectId`は出さない）・担当と止めた人（`LatticePerson.stopFace`：名簿のBot→顔と名前、`owner`→指揮官のプロフィール、`bot-…`で名簿に無い→名簿にないメンバー、ほかの文字→その文字と頭文字、無し→担当なし）・理由（3行、読み上げは全文）・止めた時刻（`LatticeTime.stopTime`：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm、JST）。
-- 行を押す（外す以外）：`.card(projectId, cardId)`を積み、その工程表をその札の詳細を開いた状態で出す（`LatticeChartScreen(initialCard:)`）。戻ると止め一覧。
-- 外す：行の中で「この止めを外しますか？」・外す（`.bellPrimary`）・やめる。やめる・Esc・行の外を押すと戻る。確認に入ると読み上げの焦点は確認の外すへ移り、やめるで行の外すへ戻る（`@AccessibilityFocusState`）。送信中は外すが回る印になり、行は残る。答え（`LatticeUnblockOutcome`）：外れた・もう無い→行を0.2秒で消す（動きを減らす設定では消すだけ）、409→行の下に「外せませんでした: <reason>」、それ以外→「いまは外せませんでした。…」。どの答えでもすぐ読み直す。409の`reason`は`BellAPI`の失敗の本文（`message`→`reason`→`error`の順）から取る。
+- 行（`LatticeStopRow.rows`、純粋）：`blockedAt`の新しい順。ブロックの赤の八角形・題（2行）・工程表の名前（`LatticeChartName`、`projectId`は出さない）・担当とブロックした人（`LatticePerson.stopFace`：名簿のBot→顔と名前、`owner`→指揮官のプロフィール、`bot-…`で名簿に無い→名簿にないメンバー、ほかの文字→その文字と頭文字、無し→担当なし）・理由（3行、読み上げは全文）・止めた時刻（`LatticeTime.stopTime`：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm、JST）。
+- 行を押す（外す以外）：`.card(projectId, cardId)`を積み、その工程表をその札の詳細を開いた状態で出す（`LatticeChartScreen(initialCard:)`）。戻るとブロック一覧。
+- 外す：行の中で「このブロックを外しますか？」・外す（`.bellPrimary`）・やめる。やめる・Esc・行の外を押すと戻る。確認に入ると読み上げの焦点は確認の外すへ移り、やめるで行の外すへ戻る（`@AccessibilityFocusState`）。送信中は外すが回る印になり、行は残る。答え（`LatticeUnblockOutcome`）：外れた・もう無い→行を0.2秒で消す（動きを減らす設定では消すだけ）、409→行の下に「外せませんでした: <reason>」、それ以外→「いまは外せませんでした。…」。どの答えでもすぐ読み直す。409の`reason`は`BellAPI`の失敗の本文（`message`→`reason`→`error`の順）から取る。
 - 読み直しはタイマーで行わない（読める間）。読めない間だけ1, 2, 4 … 30秒（±20%）。読み直しは`readRequest`を変えて画面の読み取りtaskを入れ替えるので、同時に2本は走らない。
-- 表示：初回は「止めを読んでいます…」、空は「止まっている工程はありません。」、`unreadCharts`があれば琥珀の1行「一部の工程表を読めませんでした。…」、retryは行を薄くして「止め一覧を読み直しています…」と読み直すボタン、404は「このサーバーではまだ止め一覧を使えません。」。識別子は`lattice-open-stops`・`lattice-stops`・`lattice-stop-<stopId>`・`lattice-stop-remove-<stopId>`・`lattice-stop-confirm-<stopId>`。
+- 表示：初回は「ブロックを読んでいます…」、空は「ブロックされている工程はありません。」、`unreadCharts`があれば琥珀の1行「一部の工程表を読めませんでした。…」、retryは行を薄くして「ブロック一覧を読み直しています…」と読み直すボタン、404は「このサーバーではまだブロック一覧を使えません。」。識別子は`lattice-open-stops`・`lattice-stops`・`lattice-stop-<stopId>`・`lattice-stop-remove-<stopId>`・`lattice-stop-confirm-<stopId>`。
 
 ## 状態の持ち主
 
@@ -74,19 +74,26 @@ flowchart LR
 | 詳細の決裁（決裁箱拡張の答え） | `LatticeDetailPanel`の`@State`（札のidごとに1回読む） | その札の詳細を開いている間 |
 | 選んだ札・強調した担当・送り先・iPhoneの並べ方と詳細の高さ・iPhoneのツリーで顔の上に出している札（a98） | `LatticeChartScreen`の`@State`（ツリーと担当で同じものを使う＝切り替えても引き継ぐ） | 画面の間 |
 | ツリー / 担当 / 過去ログ | `LatticeChartScreen`の`@SceneStorage("lattice-center")`（既定はツリー） | アプリ（シーン）を開いている間 |
-| 待ちの流れを開いているか（Mac・iPad） | `LatticeChartScreen`の`@SceneStorage("lattice-waits-open")`（既定は閉じる。Owner 2026-11-14） | アプリ（シーン）を開いている間 |
-| 一覧を工程表の上へ積んだか・止め一覧と、そこから開いた工程表（`.stops`・`.card`） | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
+| 接続を開いているか（Mac・iPad） | `LatticeChartScreen`の`@SceneStorage("lattice-waits-open")`（既定は閉じる。Owner 2026-11-14） | アプリ（シーン）を開いている間 |
+| 一覧を工程表の上へ積んだか・ブロック一覧と、そこから開いた工程表（`.stops`・`.card`。別の工程表の工程へ移動する接続の行もここへ`.card`を積む） | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
 | 会話の右から開く工程表（まだ開いていない要求） | `AppStore.latticeOpenRequest`（`String?`）。`openLatticeChart`が置き、`LatticeHomeView`が受けて消す | 受け取られるまで |
-| 止め一覧の止め・読み取りの状態・確認中の行・送信中の行・行の下の知らせ | `LatticeStopsModel`（`LatticeStopsView`の`@StateObject`） | 止め一覧を開いている間。背景へ回ると止め、戻ると読み直す |
+| ブロック一覧のブロック・読み取りの状態・確認中の行・送信中の行・行の下の知らせ | `LatticeStopsModel`（`LatticeStopsView`の`@StateObject`） | ブロック一覧を開いている間。背景へ回ると止め、戻ると読み直す |
 | 担当の顔 | `AppStore.bots`の画像（`LatticeAvatar`）。名簿にないBotは「?」、担当なしは「–」 | アプリの名簿に従う |
 
 ## 過去ログ
 
 `LatticeHistory`（純粋）：終わった工程（`done` / `retired`、archivedかどうかに関わらず）を`doneAt`の新しい順に、JSTの日の見出し（今日 / 昨日 / M月d日）の下へ。`doneAt`が無い・読めない工程は「日時の分からない工程」として最後。行（`LatticeHistoryView`）：状態の記号・題・担当の顔と名前（owner rule）・HH:mm（JST）。押すと詳細（ツリー・担当と同じ`select`、強調は薄くするだけ引き継ぐ）。空は「まだ終わった工程はありません。」。切り替えの表示は「過去ログ N」（Nは終わった工程の数）。識別子は`lattice-view-history`・`lattice-history-row-<札のid>`・`lattice-history-empty`。
 
-## 待ちの流れの行
+## 接続の行と札（a161）
 
-1行でその行だけが読める（`LatticeWaitRow`・`LatticeWaitRowView`、広い面のパネルもiPhoneの横に送る札も同じ）：待っている工程の題＋その担当の顔＋待ち N、「担当 ◯◯」（`card.owner`、無ければ担当なし）、「この工程が終わるのを待っています」と待たれている工程の題、「つくっている」＋作り手の顔・名前＋状態、ボタン。読み上げは「「<待っている工程>」（担当 <名前>）は、「<待たれている工程>」が終わるのを待っています。つくっているのは<作り手>、<状態>」。待ちの辺の札は、待つ側に担当がいなければ「次の工程が待っています」。
+接続（他条件に接続・優先接続）は辺ではなく、線・粒には一切ならない。出す場所は接続の区画（ツールバーの接続 N・レールの鎖の印・右の取っ手とパネル・iPhoneの横に送る札）と、札自身の「接続 N」の印だけ。前工程（同じ工程表の`edges`）は線のまま、辺の札は「前工程：◯◯」（◯◯＝終わりを待たれている札の担当、いなければ担当なし）で、接続のパネルには出さない。データは札の`connections[]`（開いたものだけ。`state`が無いか`open`）と`externals[]`だけ。旧本体（`connections`・`externals`・`counts.connections`が無い）は接続0・空のパネルで、エラーにしない。`waits[]`は読まない。
+
+1行でその行だけが読める（`LatticeConnectionRow`・`LatticeConnectionRowView`、広い面のパネルもiPhoneの横に送る札も同じ。古い`since`順、時刻が無いものは最後）：つながれている工程の題＋担当の顔＋接続 N、「担当 ◯◯」（`card.owner`、無ければ担当なし）、理由（書かれたまま1行）、種類ごとの文。
+- task：「この工程の完了が条件になっています」・`externals[]`の題（無ければ「ほかの工程表の工程」）・「<工程表の名前>の工程表」（無ければ「ほかの工程表」）・「つくっている」＋作り手＋状態（`externals[]`に状態が無ければ「読めていません」。作業中に分は付けない）。ボタン：会話を開く（作り手が名簿にいる時）、工程へ移動（`LatticeChartScreen.openCard`→`LatticeHomeView`が`.card(projectId, cardId)`を積み、その工程表をその札で開く）。作り手がブロックの行は赤で強調（取っ手の件数も赤）。
+- schedule：「予定の結果が条件になっています」だけ（予定の名前・次の確認は未提供）。工程へ移動なし。
+- priority：「<Botの顔・名前>が、着手できるようになったらすぐ動きたいと伝えています」。工程へ移動はその札へ送る。
+
+読み上げは「「<題>」（担当 <名前>）は、」＋task「「<相手の工程>」（<工程表>）の完了が条件になっています。つくっているのは<作り手>、<状態>」／schedule「予定の結果が条件になっています」／priority「<名前>が、着手できるようになったらすぐ動きたいと伝えています」。札の印は「接続 N」（開いた接続の数）。空は「接続している工程はありません。」。
 
 ## 失敗と端の表示
 
@@ -101,7 +108,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 | 切断・503・35秒無通信 | 「工程表に再接続しています…」・図を薄く | 上の再接続 |
 | 404（見つからない） | 「この工程表は見つかりません。」・「一覧へ戻る」（`leave`：経路を空にして根の一覧へ。戻るでこの画面へは戻らない） | 利用者が戻る |
 | 404（旧本体） | 「このサーバーではまだ工程表を使えません。」・「閉じる」（`leave`） | 60秒ごとに確かめ直す（一覧は10秒ごと） |
-| 書かれた担当（producerが無くlaneがある） | lane の文字そのままと頭文字の顔。メンバーのレーンの後ろに自分のレーン。会話は開けない。左のレールには出さない。待ちの流れと待ちの札も同じ決まり（待つ側＝待っている札の担当、つくる側＝待たれている札の担当）。[Owner on screen](../lattice/README.md#projection-rules-projectionmjs) | 本人が着手すると producer になり顔へ変わる |
+| 書かれた担当（producerが無くlaneがある） | lane の文字そのままと頭文字の顔。メンバーのレーンの後ろに自分のレーン。会話は開けない。左のレールには出さない。接続の行の担当と前工程の札も同じ決まり（接続の行＝つながれている札の担当、前工程の札＝終わりを待たれている札の担当）。[Owner on screen](../lattice/README.md#projection-rules-projectionmjs) | 本人が着手すると producer になり顔へ変わる |
 | 指揮官が担当（producer/waiter が予約値 `owner`） | アプリの指揮官のプロフィール（`AppStore.owner` の名前と写真。分からない間は「指揮官」と頭文字）。生の語は出さない。会話は開けない。左のレールには出さない。メンバーと同じく自分のレーン。[Owner as an owner](../lattice/screen-spec.md) | 指揮官の名前が読めれば次の描画で名前になる |
 | 名簿にない担当 | 「?」と「名簿にないメンバー」。線と状態は消さない。会話を開くは押せない（Webの`canChat`と同じ） | 名簿に入れば次のsnapshotで名前になる |
 
@@ -111,8 +118,8 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 - 配置：`LatticeStructure`（`Core/LatticeChart.swift`、純粋）。入力はsnapshotだけ。出ている札（`archived`でない＝担当のレーンと同じ札）を、辺でつながった塊ごとに上から（塊の最初の札のsnapshotの順。辺の無い札は最後）、列＝depth（担当と同じ）、行＝前の工程の行の平均（丸め）とその列の次の空き行の大きい方。出力は札のid → 列・行と、描く辺（両端が出ている札の`edges`）。広い面とiPhoneは同じ結果を、大きさだけ変えて描く。
 - 寸法：`LatticeLayout(_ structure:, snapshot:, size:)`が列・行を枠へ直す。`.cards`＝担当の札の大きさと列の間隔（184pt）、行は行の中で一番高い札＋積みの間隔。`.icons`＝顔32pt・列96pt・行52pt（作業中の札がある行は＋32pt、題の分）。`left`（0列目の左端）と`rowBands`（行の上端と高さ）を持つ。担当のレーンの`LatticeLayout`は`left`＝名前の列の右、`rowBands`は空。
-- 広い面（Mac・iPad）：担当と同じ`LatticeChartScreen.board`を`tree: true`で使う。担当のレーンと同じ`LatticeCardView`・`LatticeEdgesLayer`（線・待ちの粒）・待ちの札を、レーンの帯と名前の列なしで置く。根・まとまり・親子の箱と肘の線は描かない。押すと詳細、強調は担当と同じ。
-- iPhone（と幅が760未満の時）：`LatticeIconMap`が、同じ位置に担当の小さな顔（`LatticeAvatar`、レールの顔と同じく作業中は回る弧、止まりは赤い点。担当なしは点線の丸）を置き、作業中の札は顔の下に題（2行まで）。辺は同じ線で、札の文字は出さない。顔を押すと、その札を広い面と同じ`LatticeCardView`で顔の上に出す（上に入らない一番上の行は顔の下。`LatticeChartScreen`の`@State`）。その札を押すと詳細のsheet、ほかを押すと閉じ、別の顔を押すとそちらへ移る。
+- 広い面（Mac・iPad）：担当と同じ`LatticeChartScreen.board`を`tree: true`で使う。担当のレーンと同じ`LatticeCardView`・`LatticeEdgesLayer`（線・待ちの粒）・前工程の札を、レーンの帯と名前の列なしで置く。根・まとまり・親子の箱と肘の線は描かない。押すと詳細、強調は担当と同じ。
+- iPhone（と幅が760未満の時）：`LatticeIconMap`が、同じ位置に担当の小さな顔（`LatticeAvatar`、レールの顔と同じく作業中は回る弧、ブロックは赤い点。担当なしは点線の丸）を置き、作業中の札は顔の下に題（2行まで）。辺は同じ線で、札の文字は出さない。顔を押すと、その札を広い面と同じ`LatticeCardView`で顔の上に出す（上に入らない一番上の行は顔の下。`LatticeChartScreen`の`@State`）。その札を押すと詳細のsheet、ほかを押すと閉じ、別の顔を押すとそちらへ移る。
 - 出す札：`archived`でない札（サーバーが付ける。決まりは[README Projection rules](../lattice/README.md#projection-rules-projectionmjs)が正本。最後の決まり（Owner 2026-11-14）：終わった札は次の札が全部終わったら消え、次の札が無い終わった札（単発か最後の札）はすぐ消える（a109）。終わっていない札は必ず出る。木はLattice 0.100.0 の `trees` が返す）。分数は札の `counted` で数える。アプリは印をそのまま使い、自分で決めない。
 - 数（a96）：分数（上の帯の輪・根・まとまりの done/total）は、札の `counted` が真の札だけを数える（まだ終わりきっていない木の全部の工程、消えた札も含む）。`counted` の無い古い子では `archived` でない札を数える。
 - 置き換えで消える物：`LatticeTree`・`LatticeTreeLink`・`LatticeTreeArc`・`LatticeTreeCardBox`、識別子`lattice-tree-phase-*`・`lattice-tree-root`。残す識別子：`lattice-view-tree`・`lattice-center-picker`。札は`lattice-tree-box-<札のid>`（広い面）・`lattice-tree-icon-<札のid>`（iPhone）。
@@ -120,11 +127,11 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## 札の中身
 
-上から状態の行、題（2行まで、続きは…）、1行の注記（止まり＝理由、作業中＝◯◯がつくっています、ほか＝担当 ◯◯／担当なし）。札の高さ（`LatticeLayout.cardHeight` 116）は3つが重ならない高さ（screen-spec「Card body」）。
+上から状態の行、題（2行まで、続きは…）、1行の注記（ブロック＝理由、作業中＝◯◯がつくっています、ほか＝担当 ◯◯／担当なし）。札の高さ（`LatticeLayout.cardHeight` 116）は3つが重ならない高さ（screen-spec「Card body」）。
 
 ## 動き
 
-`screen-spec.md`「Motion」の数値を使う。札の状態の変化・新しい札・一覧の更新は`spring(response: 0.45, dampingFraction: 0.82)`（`LatticeChartModel.apply`と盤の`.animation(value: snapshot)`）。待ちの粒は`LatticeEdgesLayer`の`TimelineView(.animation)`＋`Canvas`（止まりの辺は半分の速さ、接続中でない時と動きを減らす設定では止める）。作業中の弧は`LatticeWorkingArc`、止まりの脈は`symbolEffect(.pulse)`、完了は`symbolEffect(.bounce)`＋`LatticeBloom`、着手可のレールの輪は`phaseAnimator`。動きを減らす設定では粒・回転・脈・花を出さず、0.2秒の切り替えだけにする。
+`screen-spec.md`「Motion」の数値を使う。札の状態の変化・新しい札・一覧の更新は`spring(response: 0.45, dampingFraction: 0.82)`（`LatticeChartModel.apply`と盤の`.animation(value: snapshot)`）。前工程の粒は`LatticeEdgesLayer`の`TimelineView(.animation)`＋`Canvas`（ブロックの辺は半分の速さ、接続中でない時と動きを減らす設定では止める）。作業中の弧は`LatticeWorkingArc`、止まりの脈は`symbolEffect(.pulse)`、完了は`symbolEffect(.bounce)`＋`LatticeBloom`、着手可のレールの輪は`phaseAnimator`。動きを減らす設定では粒・回転・脈・花を出さず、0.2秒の切り替えだけにする。
 
 ## 色
 
@@ -132,9 +139,9 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## 試験
 
-- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・待ちの文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
-- `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・待ちの流れ・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
-- `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、待ちの流れが既定で畳まれ、開いて畳めること。
+- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・接続の行（種類ごとの文・古い順・他の工程表の穴埋め・旧本体）と前工程の札の文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
+- `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・接続・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
+- `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、接続が既定で畳まれ、開いて畳めること。
 - Macの写真は使い捨ての自己描画のコピーで撮る（repoに入れない）。
 
 ## 未対応（契約にデータが無いもの）
