@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bd10: Bridge's connection export on stdin -> the RUNNING server's callBridge settings, so there is one settings writer.
 // Host (as kite, cwd /home/kite/call-bridge): python3 scripts/export_connection.py --json | docker exec -i bellteam node /app/scripts/import-call-bridge.mjs
-// docker exec runs as the server's own UID, which the gateway names (SEC-049) = authMode 'local' = Owner, so the token may be given as a value. Nothing read from stdin is ever printed.
+// Loopback Host from inside the container = authMode 'local' = Owner, so the token may be given as a value. Nothing read from stdin is ever printed.
 import { callBridgeSettingsInput } from '../src/usage/call-bridge-import.mjs'
 
 const MAX_BYTES = 64 * 1024

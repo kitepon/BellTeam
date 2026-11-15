@@ -20,9 +20,9 @@ test('SEC-049: Cloudflare有効時、内側のHostを名乗るだけではオー
     [request('192.168.1.10:18891'), 'local'], // 旧gateway・非公開socketの直接呼び出しは従来どおり
     [request('192.168.1.10:18891', '192.168.1.20'), 'local'], // LANのアプリ
     [request('mac.local', '172.18.0.1'), 'local'], // 同じマシン（Dockerの橋渡し）
-    [request('main-server', '172.18.0.2', '4242'), 'cloudflare'], // コンテナ内のBot席
-    [request('127.0.0.1', '127.0.0.1', 'unknown'), 'cloudflare'],
-    [request('127.0.0.1', '127.0.0.1', own), 'local'], // docker execの本体ユーザー（通話橋の取込み）
+    [request('main-server', '172.18.0.2', '4242'), 'local'], // コンテナ内のBot席（a131：sudoできる席は止めない）
+    [request('127.0.0.1', '127.0.0.1', 'unknown'), 'local'],
+    [request('127.0.0.1', '127.0.0.1', own), 'local'], // docker exec（通話橋の取込み）
     [request('localhost', '203.0.113.9'), 'cloudflare'], // 外のネットからHostを偽る
     [request('bellteam.example.com', '192.168.1.20'), 'cloudflare'],
   ]
@@ -32,9 +32,9 @@ test('SEC-049: Cloudflare有効時、内側のHostを名乗るだけではオー
   }
 })
 
-test('SEC-049: Cloudflare無効でも、コンテナ内の別ユーザーはオーナーにならない', async () => {
+test('a131: Cloudflare無効なら、コンテナ内の別ユーザーも従来どおりオーナー', async () => {
   const { authorize } = features(false)
-  assert.equal(await authorize(request('127.0.0.1', '127.0.0.1', '4242')), false)
+  assert.equal(await authorize(request('127.0.0.1', '127.0.0.1', '4242')), true)
   assert.equal(await authorize(request('127.0.0.1', '127.0.0.1', own)), true)
   assert.equal(await authorize(request('203.0.113.9', '203.0.113.9')), true) // 直接接続の公開サーバーは従来どおり
 })
