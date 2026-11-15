@@ -31,3 +31,5 @@ builtin targetのorigin/version/sourceCommit/digest:nullが確認済sourceと一
 asset catalogへnullやbuiltinという仮keyは追加しない。実子readyのassetVersionを登録する。再起動時は直前SHAの資材を再確認して旧URLへ接続する。全世代asset一覧の親再起動を跨ぐ保持は既shortcutの範囲外。
 
 既Owner認可/内部403・finish前cancel・共通mutex/completion・prepare拒否時の旧子維持・同port・5秒drainは変更しない。親closeは交換中の旧子と新子の両方を止める（95eef79bの重ねた交換、[integration](../integration/README.md#公開web受付の二プロセス化初回差分)）。未配置Host設置や署名/実root受入は固有層から補完しない。process/control直接境界は`test/web-gateway-builtin.test.mjs`、adapter直接境界は`test/web-gateway-update-adapter.test.mjs`。人工descriptorと実子/HTTP/一時採用fileを使う。
+
+新旧が並ぶ短い間（readyの確認・採用記録・旧子の50ms待ち接続の回収まで）に、新しい子が返したページの`?v=<新版>`資材要求がkeep-aliveで旧子へ届くと、旧子はその版を知らず404 JSON（キャッシュしない）を返し、そのページの読み込みが1回崩れる。再読込で直る。今までの待ち受け無しのすき間より短い（Admi 11/15）。
