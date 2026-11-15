@@ -28,9 +28,16 @@
     }
   ],
   "source": [
-    "src/approval-box-extension/origin-view.mjs",
-    "src/approval-box-extension/entitlement.mjs",
+    "src/approval-box-extension-dispatcher.mjs",
+    "src/approval-box-extension-entry.mjs",
+    "src/approval-box-extension-ipc.mjs",
+    "src/approval-box-extension-protocol.mjs",
+    "src/approval-box-extension/client.mjs",
     "src/approval-box-extension/connect-state.mjs",
-    "src/approval-box-extension/link-plan.mjs"
+    "src/approval-box-extension/core.mjs",
+    "src/approval-box-extension/entitlement.mjs",
+    "src/approval-box-extension/http-api.mjs",
+    "src/approval-box-extension/link-plan.mjs",
+    "src/approval-box-extension/origin-view.mjs"
   ]
 }
