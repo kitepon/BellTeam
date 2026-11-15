@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T13:42:36Z",
-  "expiresAt": "2026-11-22T13:42:36Z",
+  "publishedAt": "2026-11-15T13:55:05Z",
+  "expiresAt": "2026-11-22T13:55:05Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
-      "versionId": "672ac124affd3e2b85b33b649d337f360ba67cbc6894c27099748f72b0272e66",
+      "sourceCommit": "4926d759195c5f8ff97514e589bcc900866ef3a3",
+      "versionId": "64ba29443300ba6f15823600256fe79dda3561ab0c3c324d002ddbe5e987664e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz",
-          "bytes": 4581186,
-          "sha256": "672ac124affd3e2b85b33b649d337f360ba67cbc6894c27099748f72b0272e66"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T132346Z/members-4926d759195c5f8ff97514e589bcc900866ef3a3-linux-amd64.tar.gz",
+          "bytes": 4585112,
+          "sha256": "64ba29443300ba6f15823600256fe79dda3561ab0c3c324d002ddbe5e987664e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11027,
-          "sha256": "97945a65eab7bbb29a2553204a0d14477fe89160bf045dc4b361e5404f7c7868"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T132346Z/members-4926d759195c5f8ff97514e589bcc900866ef3a3-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10906,
+          "sha256": "7e9b0988c0fb4a47012fca7ade821d493b6f7ade986261c5fcfe654fcb6fe8c5"
         },
-        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
+        "signerCommit": "4926d759195c5f8ff97514e589bcc900866ef3a3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "共通ルールに、工程表の新しいコマンド名（前工程・他条件への接続・優先接続）を入れました。"
+        "予定を、工程表の「接続」につなげるようにしました。決まった確認のひな形も使えます。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
-      "versionId": "bbf1ea2e85afb18180f23a306535bd1a95c76f7751e554124e38ccc358dd69e9",
+      "sourceCommit": "4926d759195c5f8ff97514e589bcc900866ef3a3",
+      "versionId": "e3631318247b5f4541eafa0c8a249487406c98ba345259876141aab99f2c4d8a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz",
-          "bytes": 4581194,
-          "sha256": "bbf1ea2e85afb18180f23a306535bd1a95c76f7751e554124e38ccc358dd69e9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T132346Z/members-4926d759195c5f8ff97514e589bcc900866ef3a3-linux-arm64.tar.gz",
+          "bytes": 4585114,
+          "sha256": "e3631318247b5f4541eafa0c8a249487406c98ba345259876141aab99f2c4d8a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125424Z/members-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10906,
-          "sha256": "3729f45fe07300a64c32faacd4ba9e75a0da9e86e15412b22a1757b47c102dcf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T132346Z/members-4926d759195c5f8ff97514e589bcc900866ef3a3-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "091bb017572f7df7ca2d4e85a99447c5dc46d5ae1bdb0a51ca5f4e5a515a7bea"
         },
-        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
+        "signerCommit": "4926d759195c5f8ff97514e589bcc900866ef3a3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "共通ルールに、工程表の新しいコマンド名（前工程・他条件への接続・優先接続）を入れました。"
+        "予定を、工程表の「接続」につなげるようにしました。決まった確認のひな形も使えます。"
       ]
     },
     {
