@@ -161,8 +161,12 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
       const withStatus = value => ({ ...value, components: value.components.map(component => ({ ...component, status: componentStatus(component, value.jobs) })) })
       const project = value => {
         const result = { ...value, notificationCandidates: updateNotificationCandidates(value) }
-        return jobReader || problemReader ? Promise.all([jobReader?.jobs(), problemReader?.()])
-          .then(([jobs, problems]) => withStatus({ ...result, ...(jobs && visibleJobs(jobs, runtime)), ...(problems ? { problems } : {}) })) : withStatus(result)
+        // a152: the Host job list is read last and may be unreachable right after a body swap (the module-installer container
+        // binds update.sock after its own catalog refresh). Like the per-job reads (#1494/#1504), answer the inventory without jobs.
+        let jobsUnreadable = false
+        return jobReader || problemReader ? Promise.all([jobReader?.jobs().catch(() => { jobsUnreadable = true; return null }), problemReader?.()])
+          .then(([jobs, problems]) => withStatus({ ...result, ...(jobs && visibleJobs(jobs, runtime)), ...(problems ? { problems } : {}),
+            ...(jobsUnreadable && result.notice?.state !== 'attention' ? { notice: { state: 'attention', code: 'UPDATE_RESULT_UNAVAILABLE', message: '更新結果を確認できません。少し待ってから、もう一度開いてください。' } } : {}) })) : withStatus(result)
       }
       return result?.then ? result.then(project) : project(result)
     },
