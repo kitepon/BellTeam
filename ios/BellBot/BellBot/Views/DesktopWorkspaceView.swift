@@ -41,6 +41,7 @@ struct DesktopWorkspaceView: View {
             case 2: SettingsView()
             case 3: GoalsView()
             case 5: LatticeHomeView(returnTab: 5)
+            case 6: NavigationStack { ApprovalsHomeView() }
             default:
                 // Every screen here owns a NavigationStack, as 予定・ゴール・設定 do: a chart pushed on the 工程表 stack stayed
                 // in the detail column when the next screen had none (会話, 相関図), so the sidebar seemed dead (Owner 2026-11-14).
@@ -57,6 +58,7 @@ struct DesktopWorkspaceView: View {
             let arguments = ProcessInfo.processInfo.arguments
             if arguments.contains("-bellbot-preview-work-graph") || arguments.contains("-bellbot-open-work-graph") { openWindow(id: "work-graph") }
             if arguments.contains("-bellbot-open-lattice") { openWindow(id: "lattice") }
+            if arguments.contains("-bellbot-open-approvals") { openWindow(id: "approvals") }
         }
         #endif
         .sheet(item: $store.notificationSecret) { request in
@@ -66,6 +68,7 @@ struct DesktopWorkspaceView: View {
             compactColumn = target == nil ? .sidebar : .detail
             inspectorScreenVisible = false
         }
+        .onChange(of: store.approvalsRequest) { _, _ in openApprovals() }
         .onChange(of: store.selectedTab) { _, tab in
             compactColumn = tab == 0 && selection == nil ? .sidebar : .detail
         }
@@ -140,6 +143,15 @@ struct DesktopWorkspaceView: View {
         }
     }
 
+    /// 決裁箱: Mac opens its own window (one only, like 工程表); iPad takes the detail column.
+    private func openApprovals() {
+        #if targetEnvironment(macCatalyst)
+        MainWindow.bringToFront("approvals", open: { openWindow(id: "approvals") }) { _ in }
+        #else
+        store.selectedTab = 6; compactColumn = .detail
+        #endif
+    }
+
     private var sidebar: some View {
         let visibleBots = visibleBots
         let visibleRooms = visibleRooms
@@ -175,6 +187,8 @@ struct DesktopWorkspaceView: View {
             .font(BellTheme.controlsFont)
             .padding(10).background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal, 14).padding(.bottom, 8)
+            ApprovalsEntryRow(model: store.approvals) { openApprovals() }
+                .padding(.horizontal, 14).padding(.bottom, 8)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 5) {
                     sectionTitle("ルーム", count: visibleRooms.count)

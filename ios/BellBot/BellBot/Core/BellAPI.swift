@@ -474,7 +474,25 @@ final class BellAPI {
         return request
     }
 
-    private func validate(_ response: URLResponse, data: Data = Data()) throws {
+    /// 決裁箱の呼び出し：応答の状態と本文をそのまま返す（403 not_entitled・409 conflict などは本文の {error:{code,…}} で分かれるため）。
+    /// Accessのログイン・別ホストへの転送・401だけ認証切れとして投げる。
+    func approvalsResponse(path: String, method: String = "GET", body: Data? = nil,
+                           headers: [String: String] = [:]) async throws -> (Data, Int) {
+        var request = try request(path: path, method: method)
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let (data, response, trace) = try await load(request)
+        do { try validate(response, data: data, keepStatus: true) }
+        catch { throw traced(error, with: trace, body: data) }
+        guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
+        if http.statusCode == 401 { throw BellAPIError.unauthorized }
+        return (data, http.statusCode)
+    }
+
+    private func validate(_ response: URLResponse, data: Data = Data(), keepStatus: Bool = false) throws {
         guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
         if let responseURL = http.url,
            responseURL.host?.hasSuffix(".cloudflareaccess.com") == true || responseURL.path.hasPrefix("/cdn-cgi/access/") {
@@ -484,6 +502,7 @@ final class BellAPI {
               responseURL.scheme == baseURL.scheme,
               responseURL.host == baseURL.host,
               responseURL.port == baseURL.port else { throw BellAPIError.unauthorized }
+        if keepStatus { return }
         if http.statusCode == 401 || http.statusCode == 403 { throw BellAPIError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
             struct ErrorBody: Decodable { let error: String; let message: String?; let reason: String? }

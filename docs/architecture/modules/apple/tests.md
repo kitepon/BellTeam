@@ -1157,3 +1157,5 @@ TerminalsUITestsの`call(_:)`は`fixtureCall`へ委譲し、`launch(_:)`は`fixt
 ## SettingsStatusTests.swift
 
 設定ホームの一行と札（`SettingsSummary`の純関数：AIの最も悪い段階と行き先、通知の4状態、端末の台数と鍵、1Password、要約のAI、全体停止、規範、更新）と、`UserRulesDocument.parse`（SECTION/RULE/節・続きの行・FORMATの説明・形式でない箇条書き）。
+
+- `BellBotTests/ApprovalsTests.swift`：決裁箱の契約の見本（`test/fixtures/approvals`）の読み取り・出どころ（BellTeam／外部／出どころ不明は外部として描く）・確認の文・届いたかの文・エラー本文の読み分け（403 not_entitled・409 not_connected・409 conflict・503）・並び。画面は`BellBotUITests/ApprovalsUITests.swift`と`test/helpers/approvals-ui-server.mjs`（`BELLTEAM_APPROVALS_FIXTURE_URL`）で状態ごとに写真に撮る。

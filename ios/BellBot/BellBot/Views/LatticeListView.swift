@@ -268,9 +268,11 @@ struct LatticeHomeView: View {
         }
         .onChange(of: store.latticeOpenRequest, initial: true) { _, id in
             guard let id else { return }
+            let card = store.latticeOpenCard
             store.latticeOpenRequest = nil
+            store.latticeOpenCard = nil
             openedSingle = true
-            path = [.chart(id)]
+            path = [card.map { .card(id, $0) } ?? .chart(id)]
         }
         .onChange(of: list.listed) { _, charts in
             guard !openedSingle, path.isEmpty, charts.count == 1, let only = charts.first else { return }
