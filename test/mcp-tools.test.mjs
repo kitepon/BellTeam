@@ -97,14 +97,17 @@ test('update_user_rulesはOwner本人が差分の承認コードを送った時�
   assert.match(sent[0].message, /まだ保存していません[\s\S]*\+ - 挨拶する/u)
   const code = sent[0].message.match(/規範変更を承認 ([0-9A-F]{8})/u)[1]
 
-  // Bot-sent (send_user_message), unattributed and stale records carrying the code never approve.
+  // A retry of the same diff before approval does not send the notice again.
+  assert.deepEqual(await call(proposed), { text: '- 日本語\n', changed: false, approval: { required: true, notice: { alreadySent: true } } })
+  assert.equal(sent.length, 1, '同じ差分の呼び直しで承認のお願いを再送しない')
+
+  // Records with a recorded non-user author (after conversation #877), stale records and peers never approve.
   timeline.push({ id: 'm-bot', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code}`, messageAuthor: { kind: 'bot', botId: 'bot-a' } },
     { id: 'm-unknown', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code}`, messageAuthor: { kind: 'unknown' } },
-    { id: 'm-legacy', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code}` },
     { id: 'm-old', kind: 'message', direction: 'outgoing', at: old, message: `規範変更を承認 ${code}`, messageAuthor: { kind: 'user' } },
     { id: 'p-1', kind: 'peer', direction: 'received', at: now, message: `規範変更を承認 ${code}` })
   assert.equal((await call(proposed)).changed, false)
-  assert.equal(saved.length, 0, 'Bot代筆・作者不明・期限切れ・peerは承認にならない')
+  assert.equal(saved.length, 0, 'Bot作者・作者不明・期限切れ・peerは承認にならない')
 
   // A genuine Owner message that only mentions the code (refusal, question, extra words) is not the approval command.
   for (const message of [`その ${code} は承認しない`, `${code} って何？`, `規範変更を承認 ${code} しないで`, `規範変更を承認しない ${code}`, code])
@@ -113,7 +116,8 @@ test('update_user_rulesはOwner本人が差分の承認コードを送った時�
   assert.equal(saved.length, 0, 'コードに触れただけのOwner発言は承認にならない')
 
   // The Owner's own message with the code saves exactly that diff, pinned to the approved before.
-  timeline.push({ id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: `「規範変更を承認\u3000${code.toLowerCase()}」\n`, messageAuthor: { kind: 'user' } })
+  // Today's conversation rows carry no messageAuthor, and a mid-turn Owner message is still queued: both approve.
+  timeline.push({ id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: `「規範変更を承認\u3000${code.toLowerCase()}」\n`, delivery: 'queued' })
   const result = await call(proposed)
   assert.deepEqual(result, { text: '- 日本語\n- 挨拶する\n', changed: true, ownerNotice: { delivered: true } })
   assert.deepEqual(saved, [{ text: '- 日本語\n- 挨拶する\n', before: '- 日本語\n', botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: `「規範変更を承認\u3000${code.toLowerCase()}」\n` } }])
