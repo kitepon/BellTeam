@@ -180,6 +180,8 @@ test('件数・強調・レール・詳細・一覧の項目', () => {
   const sets = highlightSets(fixture(), MOLLY); assert.ok(sets.cards.has('p1/t02') && !sets.cards.has('p1/t03')); assert.ok(sets.connections.has('p1/t03>task:lattice:l1/release') && !sets.connections.has('p1/t05>task:lattice:l1/apple'))
   const detail = detailOf(fixture(), 'p1/t03', BASE)
   assert.deepEqual(detail.previous.map(item => item.id), ['p1/t01', 'p1/t02']); assert.deepEqual(detail.next, [])
+  const withRetired = detailOf(fixture({ edges: [...fixture().edges, { from: 'p1/t02', to: 'p1/t06', waiting: false }] }), 'p1/t02', BASE)
+  assert.deepEqual(withRetired.next.map(item => item.id), ['p1/t03'], '取り下げた続きは次の工程に出さず、数えない')
   assert.equal(detail.startedText, 'まだ着手されていません'); assert.equal(detailOf(fixture(), 'p1/t02', BASE).startedText, '着手 11月11日 20:48 JST')
   assert.equal(detailOf(fixture(), 'nope', BASE), null)
   const items = listItems(chartsList('a', 'b'), id => id === MOLLY ? { botId: id, name: 'モリー', color: 'mint', avatar: '', known: true } : id === TRONY ? { botId: id, name: 'トロニー', known: true } : null)
