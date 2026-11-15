@@ -170,3 +170,16 @@ test('one catalog check refreshes the module store and the container Host store'
   assert.deepEqual(calls.sort(), ['container', 'module'])
   assert.deepEqual(reported, ['UNREADABLE'])
 })
+
+// a152 (BugHub ef83d4ee, 11/15 06:29Z): right after a body swap the Host update.sock is not bound yet; the inventory must
+// answer 200 with the data it has and an UPDATE_RESULT_UNAVAILABLE notice, not 503 UNREADABLE.
+test('a152: an unreachable Host job list leaves jobs out and keeps the inventory readable with a notice', async () => {
+  const unreadable = Object.assign(new Error('UNREADABLE'), { code: 'UNREADABLE', status: 503, path: '/run/bellteam-updater/update.sock', reason: 'ENOENT' })
+  const center = createUpdateCenter({ gateway: () => ({ versionId: 'a'.repeat(64), pid: 1 }), jobReader: { jobs: () => Promise.reject(unreadable), job() {} } })
+  const value = await center.snapshot()
+  assert.equal(value.jobs, undefined)
+  assert.equal(value.notice.state, 'attention'); assert.equal(value.notice.code, 'UPDATE_RESULT_UNAVAILABLE')
+  assert.equal(value.components.length > 0, true)
+  const ok = createUpdateCenter({ gateway: () => ({ versionId: 'a'.repeat(64), pid: 1 }), jobReader: { jobs: () => Promise.resolve({ jobs: [] }), job() {} } })
+  assert.notEqual((await ok.snapshot()).notice.code, 'UPDATE_RESULT_UNAVAILABLE')
+})
