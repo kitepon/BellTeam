@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T10:18:38Z",
-  "expiresAt": "2026-11-22T10:18:38Z",
+  "publishedAt": "2026-11-15T10:25:58Z",
+  "expiresAt": "2026-11-22T10:25:58Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "7fdca04a6f4e0f091c0427e3ec7712eabd20c50d",
-      "versionId": "d1d1edc23b3faf2ab61f05381fd8e66b70968698e45618d3b5c88525d0c512b5",
+      "sourceCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548",
+      "versionId": "1075904a8cb11d6e93aa69a8573c77caae0f29b18f971e5cbf84567e7085f432",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T101810Z/members-7fdca04a6f4e0f091c0427e3ec7712eabd20c50d-linux-amd64.tar.gz",
-          "bytes": 4575870,
-          "sha256": "d1d1edc23b3faf2ab61f05381fd8e66b70968698e45618d3b5c88525d0c512b5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-amd64.tar.gz",
+          "bytes": 4575925,
+          "sha256": "1075904a8cb11d6e93aa69a8573c77caae0f29b18f971e5cbf84567e7085f432"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T101810Z/members-7fdca04a6f4e0f091c0427e3ec7712eabd20c50d-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11043,
-          "sha256": "31bb2035a95e1067fe7ec526a73ba5291f250d006a984ae571602f36574c251f"
+          "sha256": "776c02b9c74777b8333dd72ea68e0e82e536d0da68dcc3ac71d82e28838a07c0"
         },
-        "signerCommit": "7fdca04a6f4e0f091c0427e3ec7712eabd20c50d"
+        "signerCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "共通の規範の言い方を、前工程・接続・ブロックに改めました。"
+        "共通の規範の言い方を、前工程・接続・ブロックに改めました。止まったときは、まず既にある工程につなぐようにしました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "7fdca04a6f4e0f091c0427e3ec7712eabd20c50d",
-      "versionId": "d00c1a6f82fade306d89fc65c85ccde52420076330d67fe83cd74cc2e270f8d8",
+      "sourceCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548",
+      "versionId": "f1ef8d3328deaa50ce3f2ce2ab21448d7a26b9e0bf7fa8aa0e7ab4444619b30b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T101810Z/members-7fdca04a6f4e0f091c0427e3ec7712eabd20c50d-linux-arm64.tar.gz",
-          "bytes": 4575871,
-          "sha256": "d00c1a6f82fade306d89fc65c85ccde52420076330d67fe83cd74cc2e270f8d8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-arm64.tar.gz",
+          "bytes": 4575927,
+          "sha256": "f1ef8d3328deaa50ce3f2ce2ab21448d7a26b9e0bf7fa8aa0e7ab4444619b30b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T101810Z/members-7fdca04a6f4e0f091c0427e3ec7712eabd20c50d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10906,
-          "sha256": "11f53c4ae7bcc533eaaf9e21900efa70ef7ab3e9dc329cbc3ea3062810ad22c9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T102534Z/members-eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10855,
+          "sha256": "540334f8f36e091045e4cad3253eaaa6a6fea01d746c3b1db1d789e02faf9be9"
         },
-        "signerCommit": "7fdca04a6f4e0f091c0427e3ec7712eabd20c50d"
+        "signerCommit": "eb42bad69f1b4c9c9f5a5a80bb0abc1d42683548"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "共通の規範の言い方を、前工程・接続・ブロックに改めました。"
+        "共通の規範の言い方を、前工程・接続・ブロックに改めました。止まったときは、まず既にある工程につなぐようにしました。"
       ]
     },
     {
