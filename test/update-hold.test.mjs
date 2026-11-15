@@ -88,6 +88,9 @@ test('input is refused before typing: facade guard and the transport check gate,
   const transport = new AitermTransport({ client: { call: async name => { native.push(name); return { content: [] } }, close: async () => {} },
     handoffContext: async () => '', assertInputAllowed: () => { throw Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', effect: 'not_started' }) } })
   t.after(() => transport.close())
-  await assert.rejects(transport.turn({ id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/unused' }, 'held input'), { code: 'BOT_UPDATE_HOLD', effect: 'not_started' })
+  // The engine gate's refusal carries the typed not-started marker, so durable receipts requeue the same ID (95f155b7).
+  await assert.rejects(transport.turn({ id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/unused' }, 'held input'), error =>
+    error.code === 'BOT_UPDATE_HOLD' && error.effect === 'not_started'
+    && error.executionError?.code === 'EXECUTION_STALE_GENERATION' && error.executionError.effect === 'not_started')
   assert.equal(native.includes('pty_send'), false)
 })
