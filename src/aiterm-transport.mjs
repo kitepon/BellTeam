@@ -598,7 +598,10 @@ export class AitermTransport {
     if (this.needsRestart(current, next, options.reapply))
       return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
     const version = this.captureStopVersion(current)
-    let turns = this.activity.of(current.id)
+    // b8: Claude's picker switches the model mid-turn, so a model/effort-only change waits for no turn; a refusal while a turn
+    // runs still lands in the a53 loop below. shortcut: Aiterm builds without the in-turn picker refuse once first, upgrade by capability.
+    const inTurn = this.seatHarness(current) === 'claude-code' && !options.reapply && (current.fastMode === true) === (next.fastMode === true)
+    let turns = inTurn ? [] : this.activity.of(current.id)
     let applying, applyOptions = options
     const apply = () => applying ??= Promise.resolve().then(() => {
       this.requireStopVersion(current.id, version)
