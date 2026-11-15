@@ -11,7 +11,7 @@ export const GATEWAY_DRAIN_TIMEOUT_MS = 5000
 export const GATEWAY_START_TIMEOUT_MS = 15000
 
 export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit, onModuleRestartLimit }) {
-  let child = null, address = null, ending = null
+  let child = null, address = null
   let closed = false
   const recovery = createModuleChildRestart(async () => {
     if (closed || child) return
@@ -58,51 +58,57 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
       return state
     } finally { await file.close() }
   }
-  const startAt = async (root, versionId = null) => {
-    if (child) throw new Error('GATEWAY_ALREADY_STARTED')
+  // Every spawned child until its close; close() ends all of them (an exchange briefly has two).
+  const live = new Set()
+  // overlap: the new child binds beside the serving one (SO_REUSEPORT) and stays out of `child` until commit().
+  const launch = async (root, versionId, overlap) => {
     const requestedPort = boundPort
     recovery.restarting()
     const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), versionId ?? '', assetCatalog()], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
-    const stderrObservation = observeModuleChild(next)
-    child = next
-    const ended = new Promise(resolve => next.once('close', (code, signal) => {
+    // A child bound without SO_REUSEPORT (a release before 95eef79b) on either side makes the new bind fail with EADDRINUSE.
+    let addressInUse = false
+    const stderrObservation = observeModuleChild(next, line => { if (line.includes('EADDRINUSE')) addressInUse = true })
+    if (!overlap) child = next
+    live.add(next)
+    next.ended = new Promise(resolve => next.once('close', (code, signal) => {
+      live.delete(next)
       if (child === next) { child = null; address = null }
       if (next.wasReady && !next.intentional && !closed) { recovery.exited({ code, signal }); reportModuleChildExit('web-gateway', { code, signal }, stderrObservation(), onModuleChildExit); recovery.lost() }
       resolve({ code, signal })
     }))
-    ending = ended
+    let ready
     try {
-      await new Promise((resolve, reject) => {
+      ready = await new Promise((resolve, reject) => {
         const deadline = setTimeout(() => {
           next.kill('SIGKILL')
           reject(new Error('GATEWAY_START_TIMEOUT'))
         }, GATEWAY_START_TIMEOUT_MS)
         next.once('close', () => clearTimeout(deadline))
-        const earlyExit = () => reject(new Error('GATEWAY_START_FAILED'))
+        const earlyExit = () => reject(new Error(overlap && addressInUse ? 'GATEWAY_PORT_NOT_SHARED' : 'GATEWAY_START_FAILED'))
         const failed = error => reject(error)
         next.once('close', earlyExit)
         next.once('error', failed)
         next.once('message', message => {
-          const readyPort = message?.address?.port
+          const readyPort = message?.address?.port, probePort = message?.probePort
           if (message?.type !== 'ready' || message.protocolVersion !== 1 || !Number.isInteger(readyPort)
             || readyPort < 1 || readyPort > 65535 || requestedPort !== 0 && readyPort !== requestedPort
+            || probePort !== undefined && (!Number.isInteger(probePort) || probePort < 1 || probePort > 65535)
             || typeof message.assetVersion !== 'string' || !message.assetVersion
             || versionId !== null && message.assetVersion !== versionId)
             return reject(new Error('GATEWAY_START_FAILED'))
+          // Beside a serving child the public port may answer from either; only the child's own probe port proves it serves `/`.
+          if (overlap && probePort === undefined) return reject(new Error('GATEWAY_PORT_NOT_SHARED'))
           next.wasReady = true
-          address = message.address
-          boundPort = address.port
-          assetVersions.set(message.assetVersion, root)
           next.removeListener('close', earlyExit)
           next.removeListener('error', failed)
           clearTimeout(deadline)
-          resolve()
+          resolve(message)
         })
       })
       await probeModuleReady(() => new Promise((resolve, reject) => {
-        const request = get({ host: '127.0.0.1', port: address.port, path: '/', timeout: 30_000 }, response => {
+        const request = get({ host: '127.0.0.1', port: ready.probePort ?? ready.address.port, path: '/', timeout: 30_000 }, response => {
           response.resume()
           response.once('end', () => response.statusCode === 200 ? resolve() : reject(new Error('HTTP_STATUS')))
           response.once('error', reject)
@@ -110,32 +116,69 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         request.once('timeout', () => request.destroy(new Error('HTTP_TIMEOUT')))
         request.once('error', reject)
       }))
-      recovery.running()
-      return address
+      return { next, root, address: ready.address, assetVersion: ready.assetVersion }
     } catch (error) {
+      // A discarded overlap candidate is an intentional stop: the serving child is untouched, so no recovery.
+      if (overlap) next.intentional = true
       next.kill('SIGKILL')
-      await ended
+      await next.ended
       throw error
     }
   }
-  let closing = null
-  const stop = () => {
-    if (!child) return ending ?? Promise.resolve()
-    if (!closing) {
-      const next = child, ended = ending
-      next.intentional = true
-      closing = (async () => {
-        let timedOut = false
-        // The gateway owns connections, never the business work behind them.
-        const deadline = setTimeout(() => { timedOut = true; next.kill('SIGKILL') }, GATEWAY_DRAIN_TIMEOUT_MS)
-        try {
-          if (next.connected) await new Promise((resolve, reject) => next.send({ type: 'close' }, error => error ? reject(error) : resolve()))
-          else next.kill('SIGTERM')
-        } finally { await ended; clearTimeout(deadline) }
-        if (timedOut) throw new Error('GATEWAY_DRAIN_TIMEOUT')
-      })().finally(() => { closing = null })
+  const commit = candidate => {
+    child = candidate.next
+    address = candidate.address
+    boundPort = address.port
+    assetVersions.set(candidate.assetVersion, candidate.root)
+    recovery.running()
+    return address
+  }
+  const startAt = async (root, versionId = null) => {
+    if (child) throw new Error('GATEWAY_ALREADY_STARTED')
+    return commit(await launch(root, versionId, false))
+  }
+  const stopChild = next => {
+    next.intentional = true
+    next.stopping ??= (async () => {
+      let timedOut = false
+      // The gateway owns connections, never the business work behind them.
+      const deadline = setTimeout(() => { timedOut = true; next.kill('SIGKILL') }, GATEWAY_DRAIN_TIMEOUT_MS)
+      try {
+        if (next.connected) await new Promise((resolve, reject) => next.send({ type: 'close' }, error => error ? reject(error) : resolve()))
+        else next.kill('SIGTERM')
+      } finally { await next.ended; clearTimeout(deadline) }
+      if (timedOut) throw new Error('GATEWAY_DRAIN_TIMEOUT')
+    })()
+    return next.stopping
+  }
+  const stop = () => child ? stopChild(child) : Promise.resolve()
+  // 95eef79b: the new child is listening and ready before the old one stops, so the public port is never unanswered.
+  // false = the port could not be shared (a child without SO_REUSEPORT); the caller falls back to stop-then-start.
+  const exchange = async (release, previousVersion, signal) => {
+    const old = child
+    let candidate
+    try { candidate = await launch(release.appRoot, release.versionId, true) }
+    catch (error) {
+      signal.throwIfAborted()
+      if (error.message === 'GATEWAY_PORT_NOT_SHARED') return false
+      // The old child kept serving throughout: nothing to roll back, adopt or recover.
+      if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) throw error
+      throw new Error('GATEWAY_REPLACE_ROLLED_BACK', { cause: error })
     }
-    return closing
+    try {
+      signal.throwIfAborted()
+      if (adoptionPath) await writeAtomic(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1',
+        currentVersionId: release.versionId, previousVersionId: previousVersion })
+      signal.throwIfAborted()
+    } catch (error) {
+      await stopChild(candidate.next).catch(() => {})
+      signal.throwIfAborted()
+      throw new Error('GATEWAY_REPLACE_ROLLED_BACK', { cause: error })
+    }
+    commit(candidate)
+    // The old gateway cannot veto its replacement (Owner 2026-11-08): stopChild always ends it (SIGKILL after the 5 s drain).
+    await stopChild(old).catch(() => {})
+    return true
   }
   const start = async () => {
     if (closed) throw new Error('GATEWAY_CLOSED')
@@ -163,10 +206,11 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
       return address
     } finally { if (updating === startup) updating = null }
   }
-  const close = () => {
+  const close = async () => {
     closed = true; recovery.close()
     updating?.abort()
-    return stop()
+    const failed = (await Promise.allSettled([...live].map(stopChild))).find(result => result.status === 'rejected')
+    if (failed) throw failed.reason
   }
   const replace = async versionId => {
     if (updating) throw new Error('GATEWAY_UPDATE_IN_PROGRESS')
@@ -182,7 +226,8 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         currentVersion = release.versionId
         return { versionId: currentVersion, address }
       }
-      try {
+      if (!(child && await exchange(release, previousVersion, update.signal))) try {
+        // Fallback when the port cannot be shared: stop the old gateway, then start the new one (a short no-listener gap).
         // The old gateway cannot veto its replacement (Owner 2026-11-08): stop() always ends it (SIGKILL after the 5 s drain).
         await stop().catch(() => {})
         update.signal.throwIfAborted()

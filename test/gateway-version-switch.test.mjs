@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
+import { connect } from 'node:net'
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -206,4 +207,116 @@ test('a request still running in the old gateway cannot veto the exchange: the d
   assert.equal(gateway.versionId, ids.two)
   assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
   assert.equal(await inflight, 'reset')
+})
+
+// 95eef79b: the new gateway listens beside the old one (SO_REUSEPORT) and is ready before the old one stops.
+const refusalsDuring = async (port, work) => {
+  let refused = 0, connected = 0, running = true
+  const loop = (async () => {
+    while (running) {
+      await new Promise(resolve => {
+        const socket = connect(port, '127.0.0.1')
+        socket.once('connect', () => { connected++; socket.destroy(); resolve() })
+        socket.once('error', error => { if (error.code === 'ECONNREFUSED') refused++; resolve() })
+      })
+    }
+  })()
+  try { await work() } finally { running = false; await loop }
+  return { refused, connected }
+}
+const exited = pid => { try { process.kill(pid, 0); return false } catch (error) { return error.code === 'ESRCH' } }
+
+test('an exchange never leaves the public port without a listener, and stopping the old child is not a crash', { timeout: 10000 }, async t => {
+  const { socketPath, releases } = await fixture(t)
+  const exits = []
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id), onModuleChildExit: exit => exits.push(exit) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid
+  const { refused, connected } = await refusalsDuring(port, () => gateway.replace(ids.two))
+  assert.equal(refused, 0)
+  assert.ok(connected > 0)
+  assert.notEqual(gateway.pid, oldPid)
+  assert.ok(exited(oldPid))
+  assert.equal(gateway.address.port, port)
+  assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>two<\/h1>/)
+  await new Promise(resolve => setTimeout(resolve, 1200))
+  assert.deepEqual(exits, [])
+})
+
+test('a child bound without SO_REUSEPORT on either side falls back to stop-then-start and still completes', { timeout: 10000 }, async t => {
+  const { socketPath, releases } = await fixture(t)
+  // Release one stands for the entry before 95eef79b (the child live in production when this ships).
+  const legacy = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs')
+  await writeFile(legacy, (await readFile(legacy, 'utf8')).replace('reusePort: true', 'reusePort: false'))
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start()
+  const base = `http://127.0.0.1:${port}`
+  const firstPid = gateway.pid
+  await gateway.replace(ids.two)
+  assert.ok(exited(firstPid))
+  assert.equal(gateway.versionId, ids.two)
+  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  // Back to the legacy entry: it cannot bind beside the reusePort child either.
+  await gateway.replace(ids.one)
+  assert.equal(gateway.versionId, ids.one)
+  assert.equal(gateway.address.port, port)
+  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+})
+
+test('a new child that fails to start or to answer its own ready read leaves the old child serving untouched', { timeout: 10000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const adoptionPath = join(root, 'adoption.json'), exits = []
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id), onModuleChildExit: exit => exits.push(exit) })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start(), oldPid = gateway.pid
+  const base = `http://127.0.0.1:${port}`
+  const { refused } = await refusalsDuring(port, () => assert.rejects(gateway.replace(ids.broken),
+    error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK' && error.cause.message === 'GATEWAY_START_FAILED'))
+  assert.equal(refused, 0)
+  assert.equal(gateway.pid, oldPid)
+  // The public port of this candidate answers 200, so only a read addressed to the candidate itself can fail it.
+  await writeFile(join(releases.get(ids.broken).appRoot, 'src/http-gateway-entry.mjs'), `
+    import { createServer } from 'node:http'
+    const pub = createServer((_request, response) => response.end('candidate'))
+    await new Promise(resolve => pub.listen({ port: Number(process.argv[3]), host: '0.0.0.0', reusePort: true }, resolve))
+    const probe = createServer((_request, response) => { response.statusCode = 500; response.end() })
+    await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve))
+    process.send({ type: 'ready', protocolVersion: 1, assetVersion: process.argv[4], address: pub.address(), probePort: probe.address().port })
+    process.on('message', () => process.exit(0))
+  `)
+  await assert.rejects(gateway.replace(ids.broken), { code: 'READY_PROBE_FAILED' })
+  assert.equal(gateway.pid, oldPid)
+  assert.equal(gateway.versionId, null)
+  await assert.rejects(readFile(adoptionPath), { code: 'ENOENT' })
+  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  await new Promise(resolve => setTimeout(resolve, 1200))
+  assert.equal(gateway.pid, oldPid)
+  assert.deepEqual(exits, [])
+})
+
+test('close() during an exchange stops both the old child and the new one', { timeout: 10000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const pidPath = join(root, 'candidate.pid')
+  await writeFile(join(releases.get(ids.broken).appRoot, 'src/http-gateway-entry.mjs'), `
+    import { writeFileSync } from 'node:fs'
+    writeFileSync(${JSON.stringify(pidPath)}, String(process.pid))
+    process.on('message', () => process.exit(0))
+  `)
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  await gateway.start()
+  const oldPid = gateway.pid
+  const replacing = gateway.replace(ids.broken).then(() => 'replaced', () => 'stopped')
+  let candidatePid
+  while (!(candidatePid = Number(await readFile(pidPath, 'utf8').catch(() => 0)))) await new Promise(resolve => setTimeout(resolve, 10))
+  await gateway.close()
+  assert.ok(exited(oldPid))
+  assert.ok(exited(candidatePid))
+  assert.equal(gateway.pid, null)
+  assert.equal(await replacing, 'stopped')
 })
