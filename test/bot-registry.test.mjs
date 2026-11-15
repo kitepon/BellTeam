@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { BotRegistry } from '../src/bot-registry.mjs'
+import { BotRegistry, normalizeSchedule } from '../src/bot-registry.mjs'
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-bots-'))
@@ -375,3 +375,33 @@ test('メンバーの追加・設定変更・削除を購読者へ知らせ、�
   assert.equal(count, 3)
 })
 
+
+test('onScheduleRemoved runs after the durable removal, only for connected schedules, and its error never fails removeSchedule', async () => {
+  const { registry } = await fixture()
+  const connect = { project: 'bellteam', plan: 'p', task: 't' }
+  const base = { kind: 'once', at: '2026-09-01T00:00:00.000Z', command: 'true' }
+  await registry.writeScheduleDocument('bot-a', [
+    { ...normalizeSchedule({ ...base, id: 'plain' }, new Date('2026-08-31T00:00:00Z')) },
+    { ...normalizeSchedule({ ...base, id: 'linked' }, new Date('2026-08-31T00:00:00Z')), connect },
+  ])
+  const seen = []
+  registry.onScheduleRemoved = async (botId, schedule) => {
+    seen.push([botId, schedule.id, (await registry.listSchedules(botId)).map(item => item.id)])
+    throw new Error('hook failed')
+  }
+  assert.equal(await registry.removeSchedule('bot-a', 'plain'), true)
+  assert.deepEqual(seen, [])
+  assert.equal(await registry.removeSchedule('bot-a', 'linked'), true)
+  assert.deepEqual(seen, [['bot-a', 'linked', []]])
+})
+
+test('deleting a Bot calls onScheduleRemoved once for each connected schedule', async () => {
+  const { registry } = await fixture()
+  const base = { kind: 'once', at: '2026-09-01T00:00:00.000Z', command: 'true' }, now = new Date('2026-08-31T00:00:00Z')
+  await registry.writeScheduleDocument('bot-a', [normalizeSchedule({ ...base, id: 'plain' }, now),
+    { ...normalizeSchedule({ ...base, id: 'linked' }, now), connect: { project: 'bellteam', plan: 'p', task: 't' } }])
+  const seen = []
+  registry.onScheduleRemoved = async (botId, schedule) => { seen.push([botId, schedule.id]) }
+  await registry.remove('bot-a')
+  assert.deepEqual(seen, [['bot-a', 'linked']])
+})
