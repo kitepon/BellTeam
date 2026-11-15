@@ -102,7 +102,7 @@ test('an unconnected schedule keeps the existing contract (owner and user, no fa
 test('releaseConnection removes the connection as the owner Bot and notifies the lane once if that fails', async () => {
   const ok = harness({ outcome: done })
   await ok.scheduler.releaseConnection(bot.id, schedule)
-  assert.deepEqual(ok.calls, [{ from: bot.id, projectId: 'bellteam', args: ['todo', 'connect', 'condition', 'remove', '--plan', 'p1', '--task', 't1', '--to', 'schedule:s-1'] }])
+  assert.deepEqual(ok.calls, [{ from: bot.id, projectId: 'bellteam', args: ['todo', 'connect', 'condition', 'remove', '--plan', 'p1', '--task', 't1', '--to', 'schedule:s-1', '--reason', 'schedule removed'] }])
   assert.deepEqual(ok.sent, [])
   const failed = harness({ outcome: done, answer: { exitCode: 1, result: { code: 'LATTICE_INVALID' } } })
   await failed.scheduler.releaseConnection(bot.id, schedule)

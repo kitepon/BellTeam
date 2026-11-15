@@ -260,7 +260,7 @@ export class BotScheduler {
   // After the schedule is durably removed (BotRegistry.onScheduleRemoved): close its 接続; idempotent in Lattice.
   async releaseConnection(botId, schedule) {
     const { project, plan, task } = schedule.connect
-    const removed = await this.runLattice(botId, project, ['todo', 'connect', 'condition', 'remove', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`])
+    const removed = await this.runLattice(botId, project, ['todo', 'connect', 'condition', 'remove', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`, '--reason', 'schedule removed'])
     if (!removed.ok) await this.notifyLane(botId, schedule.connect, `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」を削除したが、接続（${plan}/${task}）を外せなかった（${removed.reason}）。接続は開いたまま。`)
   }
 
