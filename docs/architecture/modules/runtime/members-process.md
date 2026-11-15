@@ -15,7 +15,8 @@ flowchart TD
   Parent --> External[execution・conversation・memoryの公開窓口]
   External --> Callback[同lease専用保存callback / 新root不要]
   Callback --> Child
-  Control[prepare→新root閉鎖 / 旧lease継続] --> Drain[全root/effect/callback・席stdio・CLI終端60秒]
+  Control[prepare→新root閉鎖 / 旧lease継続] --> Drain[旧子quiesce: 進行中のroot/effect/callback終端60秒<br/>lease完了は待たない（a149b）]
+  Drain -->|quiesce後に届く旧lease root| Hold[旧子は断る→親がwhenOpenでresumeまで待たせ新子で実行]
   Mutex[親の共有exchangeMutex.runExclusive] --> Control
   Drain --> Exit[quiesced後exit5秒 / OS・pipe close]
   Drain -->|"60秒超・quiesce失敗"| Back[旧resumeで受付を開く / 失敗は呼出元へ<br/>次のreplace・reserveを断らない（a149b）]
@@ -67,6 +68,8 @@ Root採用の`MEMBERS_READ_PIN_METHODS`6methodだけを`options.membersReadPin`�
 pinの親projectionは同pendingのprofiles.readだけ、親effectは同schedules.listのownerKind=roomかつ同ownerIdに対するroom.schedules.listだけ受ける。captureした要求paramsへ相関し、他effectを親adapterへ渡さない。親contextはmembersReadPinを持ち、一般membersLease branchへ入れない。Mollyの専用readonly effect adapterが同pinを再確認する。
 
 送信前にroot actual completion、親readonly effect開始前にeffect実終端を`trackReadCompletion`へ登録する。caller期限/断線だけで解放せず、finish要請と両completion終端後にのみ解放。既pinはclose後も同generationの元methodだけ継続、新pinは閉鎖中拒否。drain/adoptはKiroのAIleaseとreadpinの双方を待つ。固定readのfresh結果を採用し、投影を認可の代用にしない。
+
+交換・回復・起動は`membersAdmission.drain`（lease完了待ち）を呼ばない。live lease/pinは`adopt`で新generationへ持ち越す（execution/members-admission.md、a149b、キロ合意）。quiesce後の旧子はcontinuation rootも`MEMBERS_NOT_ACCEPTING`で断る（members-ipc）。親`request`はlease/pin付きrootを、交換中かつquiescing以外なら、又は旧子に断られたら、既存の`whenOpen`で待たせて新子で実行する。これで旧子が静かになった後に届いた要求で、旧子がSIGKILLされない。
 
 失敗した入れ替え（MEMBERS_DRAIN_TIMEOUT・quiesce失敗）は旧子をresumeし、受付を開いて終わる。旧leaseの完了待ちやquiesceの残りを理由に、次の`replace`/`reserve`を`MEMBERS_NOT_ACCEPTING`で断らない。次の試行は新しいticketでもう一度drainする（2026-11-15 a149b: 本番で失敗直後の再試行が0.1秒で断られた）。二重の入れ替えは既存の`operation`（MEMBERS_UPDATE_IN_PROGRESS）と共有exchangeMutexが防ぐ。
 

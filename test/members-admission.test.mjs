@@ -72,9 +72,19 @@ test('root capacity does not consume new credit for an existing lease', async ()
   leases.slice(1).forEach(lease => gate.finish(lease))
 })
 
+test('adopt carries a live lease to the new generation while old captures keep refusing (a149b)', async () => {
+  const gate = new MembersAdmission('a'), captured = gate.capture(), lease = gate.enter(), ticket = gate.close()
+  gate.adopt(ticket, 'b'); gate.resume(ticket)
+  gate.assertLease(lease); gate.assertLease(lease, { generation: 'b' })
+  assert.throws(() => gate.assertLease(lease, { generation: 'c' }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.enter(captured), { code: 'MEMBERS_NOT_ACCEPTED' })
+  await gate.withLease(current => gate.assertLease(current, { generation: 'b' }), { lease })
+  gate.finish(lease)
+  assert.throws(() => gate.assertLease(lease), { code: 'MEMBERS_NOT_ACCEPTED' })
+})
+
 test('failed drain can resume old generation without invalidating live leases', async () => {
   const gate = new MembersAdmission('a'), lease = gate.enter(), ticket = gate.close()
-  assert.throws(() => gate.adopt(ticket, 'b'), { code: 'MEMBERS_NOT_ACCEPTED' })
   gate.resume(ticket); gate.assertLease(lease)
   const second = gate.close()
   assert.throws(() => gate.resume(ticket), { code: 'MEMBERS_NOT_ACCEPTED' })
@@ -121,7 +131,6 @@ test('read timeout does not release actual completions and shared drain waits bo
   const ticket = gate.close()
   assert.throws(() => gate.enterReadPin('profiles.read'), { code: 'MEMBERS_NOT_ACCEPTED' })
   gate.assertReadPin(pin)
-  assert.throws(() => gate.adopt(ticket, 'b'), { code: 'MEMBERS_NOT_ACCEPTED' })
   const callback = new Promise(resolve => { finishEffect = resolve })
   gate.trackReadCompletion(pin, callback)
   let drained = false

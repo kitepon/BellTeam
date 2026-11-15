@@ -43,9 +43,10 @@ export class MembersAdmission {
     return lease
   }
 
+  // A live lease is carried across adopt (a149b): it stays valid for its own and the current generation until finished.
   assertLease(lease, { generation = lease?.generation, correlation = lease?.correlation } = {}) {
-    if (!this.#leases.has(lease) || lease.generation !== this.#generation
-      || generation !== lease.generation || correlation !== lease.correlation) throw rejected()
+    if (!this.#leases.has(lease) || generation !== lease.generation && generation !== this.#generation
+      || correlation !== lease.correlation) throw rejected()
     return lease
   }
 
@@ -91,8 +92,8 @@ export class MembersAdmission {
   }
 
   assertReadPin(pin, { method = pin?.method, generation = pin?.generation, correlation = pin?.correlation } = {}) {
-    if (!this.#readPins.has(pin) || pin.generation !== this.#generation || method !== pin.method
-      || generation !== pin.generation || correlation !== pin.correlation) throw rejected()
+    if (!this.#readPins.has(pin) || method !== pin.method || generation !== pin.generation && generation !== this.#generation
+      || correlation !== pin.correlation) throw rejected()
     return pin
   }
 
@@ -168,7 +169,8 @@ export class MembersAdmission {
 
   adopt(ticket, generation) {
     this.#assertTicket(ticket)
-    if (this.#leases.size || this.#readPins.size || typeof generation !== 'string' || !generation || generation === this.#generation) throw rejected()
+    // Live leases and pins are carried, not waited for: the old child already finished its in-flight writes (quiesce).
+    if (typeof generation !== 'string' || !generation || generation === this.#generation) throw rejected()
     this.#generation = generation
   }
 
