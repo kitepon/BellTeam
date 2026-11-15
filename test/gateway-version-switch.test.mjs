@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { createHttpGatewayProcess, GATEWAY_ASSET_SHARE_TIMEOUT_MS, GATEWAY_START_TIMEOUT_MS } from '../src/http-gateway-process.mjs'
+import { writeAtomic } from '../src/json-file.mjs'
 
 const ids = { one: 'a'.repeat(64), two: 'b'.repeat(64), broken: 'c'.repeat(64), incompatible: 'd'.repeat(64), unknown: 'f'.repeat(64) }
 
@@ -364,4 +365,46 @@ test('an old child that never acknowledges the shared asset version falls back t
   assert.ok(exited(oldPid))
   assert.equal(gateway.versionId, ids.two)
   assert.deepEqual(await read(`http://127.0.0.1:${port}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+})
+
+test('a candidate that exits during the adoption write is not committed: the old child keeps serving and the record is restored', { timeout: 15000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const adoptionPath = join(root, 'adoption.json'), pidPath = join(root, 'latest.pid')
+  const entry = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs')
+  await writeFile(entry, `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(pidPath)}, String(process.pid))\n${await readFile(entry, 'utf8')}`)
+  let pause = null
+  // The new record lands, then the write is held open: the window Epinel named.
+  const writeAdoption = async (path, value) => {
+    await writeAtomic(path, value)
+    if (pause && value.currentVersionId === ids.one) { pause.entered.resolve(); await pause.released.promise }
+  }
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id), writeAdoption })
+  t.after(() => gateway.close())
+  const { port } = await gateway.start()
+  await gateway.replace(ids.two)
+  const saved = await readFile(adoptionPath, 'utf8'), servingPid = gateway.pid
+  pause = { entered: Promise.withResolvers(), released: Promise.withResolvers() }
+  let outcome
+  const { refused } = await refusalsDuring(port, async () => {
+    const replacing = gateway.replace(ids.one).then(() => null, error => error)
+    await pause.entered.promise
+    const candidatePid = Number(await readFile(pidPath, 'utf8'))
+    assert.notEqual(candidatePid, servingPid)
+    process.kill(candidatePid, 'SIGKILL')
+    while (!exited(candidatePid)) await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    pause.released.resolve()
+    outcome = await replacing
+  })
+  assert.equal(outcome?.message, 'GATEWAY_REPLACE_ROLLED_BACK')
+  assert.equal(outcome.cause.message, 'GATEWAY_START_FAILED')
+  assert.equal(refused, 0)
+  assert.equal(gateway.pid, servingPid)
+  assert.equal(gateway.versionId, ids.two)
+  assert.deepEqual(JSON.parse(await readFile(adoptionPath, 'utf8')), JSON.parse(saved))
+  assert.match((await read(`http://127.0.0.1:${port}`)).body, /<h1>two<\/h1>/)
+  // Recovery stayed with the serving child: no restart replaces it.
+  await new Promise(resolve => setTimeout(resolve, 1500))
+  assert.equal(gateway.pid, servingPid)
 })

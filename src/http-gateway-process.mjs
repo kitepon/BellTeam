@@ -11,7 +11,8 @@ export const GATEWAY_DRAIN_TIMEOUT_MS = 5000
 export const GATEWAY_START_TIMEOUT_MS = 15000
 export const GATEWAY_ASSET_SHARE_TIMEOUT_MS = 5000
 
-export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit, onModuleRestartLimit }) {
+export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit, onModuleRestartLimit,
+  writeAdoption = writeAtomic }) {
   let child = null, address = null
   let closed = false
   const recovery = createModuleChildRestart(async () => {
@@ -73,11 +74,17 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     let addressInUse = false
     const stderrObservation = observeModuleChild(next, line => { if (line.includes('EADDRINUSE')) addressInUse = true })
     if (!overlap) child = next
+    // An overlap candidate is not serving until commit(): its crash is reported, but recovery belongs to the serving child.
+    next.candidate = overlap
     live.add(next)
     next.ended = new Promise(resolve => next.once('close', (code, signal) => {
       live.delete(next)
       if (child === next) { child = null; address = null }
-      if (next.wasReady && !next.intentional && !closed) { recovery.exited({ code, signal }); reportModuleChildExit('web-gateway', { code, signal }, stderrObservation(), onModuleChildExit); recovery.lost() }
+      if (next.wasReady && !next.intentional && !closed) {
+        if (!next.candidate) recovery.exited({ code, signal })
+        reportModuleChildExit('web-gateway', { code, signal }, stderrObservation(), onModuleChildExit)
+        if (!next.candidate) recovery.lost()
+      }
       resolve({ code, signal })
     }))
     let ready
@@ -128,6 +135,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     }
   }
   const commit = candidate => {
+    candidate.next.candidate = false
     child = candidate.next
     address = candidate.address
     boundPort = address.port
@@ -183,15 +191,31 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
       if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) throw error
       throw new Error('GATEWAY_REPLACE_ROLLED_BACK', { cause: error })
     }
+    // The record the old child was serving under, written back if the candidate dies after the new one is written.
+    const restore = adoptionPath ? await readAdoption().catch(() => null)
+      ?? { schema: 'bellteam.web-gateway.adoption.v1', currentVersionId: previousVersion, previousVersionId: null } : null
     try {
       signal.throwIfAborted()
-      if (adoptionPath) await writeAtomic(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1',
+      if (adoptionPath) await writeAdoption(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1',
         currentVersionId: release.versionId, previousVersionId: previousVersion })
       signal.throwIfAborted()
     } catch (error) {
       await stopChild(candidate.next).catch(() => {})
       signal.throwIfAborted()
       throw new Error('GATEWAY_REPLACE_ROLLED_BACK', { cause: error })
+    }
+    // A candidate that exited during the write must not be committed: the old child would be retired with no listener left.
+    // commit() and the old child's close below run with no await between, so this one check covers both.
+    const next = candidate.next
+    if (next.exitCode !== null || next.signalCode !== null || !live.has(next)) {
+      await stopChild(next).catch(() => {})
+      const exited = new Error('GATEWAY_START_FAILED')
+      if (adoptionPath) {
+        try { await writeAdoption(adoptionPath, restore) }
+        catch (restoreError) { throw new AggregateError([exited, restoreError], 'GATEWAY_REPLACE_AND_ROLLBACK_FAILED') }
+      }
+      signal.throwIfAborted()
+      throw new Error('GATEWAY_REPLACE_ROLLED_BACK', { cause: exited })
     }
     commit(candidate)
     // The old gateway cannot veto its replacement (Owner 2026-11-08): stopChild always ends it (SIGKILL after the 5 s drain).
@@ -251,13 +275,13 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         update.signal.throwIfAborted()
         await startAt(release.appRoot, release.versionId)
         update.signal.throwIfAborted()
-        if (adoptionPath) await writeAtomic(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1',
+        if (adoptionPath) await writeAdoption(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1',
           currentVersionId: release.versionId, previousVersionId: previousVersion })
       } catch (error) {
         if (update.signal.aborted) throw error
         if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
           currentRoot = release.appRoot; currentVersion = release.versionId
-          if (adoptionPath) await writeAtomic(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1', currentVersionId: currentVersion, previousVersionId: previousVersion })
+          if (adoptionPath) await writeAdoption(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1', currentVersionId: currentVersion, previousVersionId: previousVersion })
           recovery.lost(error); throw error
         }
         const errors = [error]

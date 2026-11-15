@@ -13,9 +13,17 @@ flowchart TD
   Place --> Store[既private root/web-gateway/releases/digest<br/>normalにはreadonlyで見える]
   Store --> Prepare[runtime prepareGatewayRelease<br/>root受入記録・manifest・file実bytesを再確認]
   Prepare --> Descriptor[versionId / appRoot / protocolVersion 1]
-  Descriptor --> Switch[integration: 旧受付回収→新版ready]
-  Switch -->|ready成功後| Adopt[親UID1001: 採用版記録をatomic更新]
-  Switch -->|起動失敗| Previous[旧descriptorを再確認して旧受付へ戻す]
+  Descriptor --> Share[integration: 旧受付子へasset-version 新版key/root → ack]
+  Share -->|ack| Ready[新受付子を同portへreusePortで起動・自分のprobePortでGET / ready]
+  Ready --> Adopt[親UID1001: 採用版記録をatomic更新]
+  Adopt --> Alive{新受付子はまだ生存}
+  Alive -->|生存| Commit[新子を採用・旧受付子へclose 5秒drain]
+  Alive -->|書込中に終了| Restore[採用記録を旧版へ書き戻す・旧子が配り続ける・交換失敗]
+  Ready -->|起動/ready失敗| KeepOld[新子だけ回収・旧子と採用記録はそのまま]
+  Adopt -->|書込失敗| KeepOld
+  Share -->|ack無し・error| Fallback[従来順: 旧受付回収→新版ready→採用記録]
+  Ready -->|EADDRINUSE / port非共有| Fallback
+  Fallback -->|起動失敗| Previous[旧descriptorを再確認して旧受付へ戻す]
   Verify -->|失敗| Keep[旧採用版/資材/受付を維持]
   Prepare -->|欠測/不一致| Keep
 ```
@@ -88,7 +96,7 @@ manifestは配布の`bellteam.web-gateway.artifact.v1`、component、sourceCommi
 
 ## 失敗・戻し
 
-重ねた交換（95eef79b、契約は[integration](../integration/README.md#公開web受付の二プロセス化初回差分)）：まず旧子へ新版のkeyと準備済みrootを`asset-version`で送り、旧子が新版資材を版表へ足したack（5秒以内）を受ける。ackが無い・errorなら下の従来の順で交換する。その後、旧子が配っている間に新子を同port（SO_REUSEPORT）で起こし、新子自身の`ready.probePort`への`GET /`と採用記録の書込が済んでから旧子を止める。新子の起動失敗・期限切れ・ready不正・READY_TIMEOUT/READY_PROBE_FAILED・採用記録の失敗では新子だけを回収し、旧子と採用記録はそのまま（前descriptorの再起動もlifecycle回収も起きない。READY_*はそのcodeのまま返す）。新子のbindがEADDRINUSEで終わった時（どちらかがSO_REUSEPORT無しの受付子）だけ、下の従来の順で交換する。
+重ねた交換（95eef79b、契約は[integration](../integration/README.md#公開web受付の二プロセス化初回差分)）：まず旧子へ新版のkeyと準備済みrootを`asset-version`で送り、旧子が新版資材を版表へ足したack（5秒以内）を受ける。ackが無い・errorなら下の従来の順で交換する。その後、旧子が配っている間に新子を同port（SO_REUSEPORT）で起こし、新子自身の`ready.probePort`への`GET /`と採用記録の書込が済んでから旧子を止める。新子の起動失敗・期限切れ・ready不正・READY_TIMEOUT/READY_PROBE_FAILED・採用記録の失敗では新子だけを回収し、旧子と採用記録はそのまま（前descriptorの再起動もlifecycle回収も起きない。READY_*はそのcodeのまま返す）。採用記録を書いている間に新子が終了していたら新子を採用せず、旧子を止めず、採用記録を旧子の版へ書き戻してGATEWAY_REPLACE_ROLLED_BACK（cause GATEWAY_START_FAILED）を返す。書き戻しも失敗したらGATEWAY_REPLACE_AND_ROLLBACK_FAILEDを返す。採用前の新子の異常終了は報告だけで、lifecycle回収は配っている旧子に残る。新子のbindがEADDRINUSEで終わった時（どちらかがSO_REUSEPORT無しの受付子）だけ、下の従来の順で交換する。
 
 従来の順（port共有ができない時）：prepareが欠測/信頼/互換/bytesで拒否したら旧子を止めない。旧子終了を確認できない場合は新子を起こさない。5秒drainで旧子を強制回収した場合も、旧要求の結果は不明のままで本文を再送しない。drainの失敗・期限切れは交換の失敗にしない（旧子は交換を拒否できない、Owner 2026-11-08）。stopは必ず旧子の終了まで待つ（期限でSIGKILL）ので、そのまま新版の起動へ進む。2026-11-09 07:46 JST、drain中の旧子が既存keep-alive接続で新しい要求（3〜7秒かかる /api/rooms 等）を受け続けて5秒で回収され、この拒否が旧版へ戻してUPDATE_MODULE_FAILEDにしていた。新版ready前の失敗は前descriptorで旧受付を戻し、restore成功までは採用版を更新しない。旧版も失敗なら受付停止と両例外を返し、業務親/Aitermを閉じない。親closeと重なれば新版起動/旧版戻しを抑止する。
 
