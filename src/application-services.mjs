@@ -12,6 +12,7 @@ import { mkdir } from 'node:fs/promises'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { seatCommandSpec } from './seat-command.mjs'
 import { createUserToolRelay } from './remote-user-tools.mjs'
+import { aitermCallerReplaceSupported } from './aiterm-hooks.mjs'
 import { createTeamBackgroundSummary } from './background-summary-assembly.mjs'
 import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createConversationUsage } from './usage/conversation-effects.mjs'
@@ -350,7 +351,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
           return () => { for (const stop of off) stop?.() }
         } }, ingress: { seatCredential,
           ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}),
-          ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor } } : {}) } } : {}
+          ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor, callerReplace: aitermCallerReplaceSupported() } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
         input = { ...input, ports: { ...input.ports, ...remote } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,

@@ -98,10 +98,10 @@ test('U3: initialize mints a session, calls are relayed, an unknown session is a
 })
 
 test('U4: prepare adds one http entry per user tool with the seat headers; a list failure still prepares the launch', async () => {
-  const make = list => new RemoteSeats({
+  const make = (list, callerReplace = true) => new RemoteSeats({
     terminals: { connection: { async target(request) { return { terminal: { ref: 't', target: {} }, cwd: request.projectRoot, accountOwner: 'owner' } } }, watch: () => () => {} },
     ingress: { seatCredential: { async issue() { return { url: 'http://127.0.0.1:4183/api/seat-mcp', credentialRef: {} } }, async revoke() {}, async reveal() { return 'secret' } },
-      userTools: { list } },
+      userTools: { list, callerReplace } },
     launchContext: async () => ({ text: 'RULES' }) })
   const bot = { id: 'bot-a', terminalId: 'mac', projectRoot: '/Users/q/app' }
   const args = { harness: 'claude-code', session_name: 'bot-a-1st-x' }
@@ -109,6 +109,12 @@ test('U4: prepare adds one http entry per user tool with the seat headers; a lis
   const servers = ok.args.mcp_config.mcpServers
   assert.deepEqual(Object.keys(servers), ['meta', 'bellteam', 'call-bridge'])
   assert.deepEqual(servers.meta, { type: 'http', url: 'http://127.0.0.1:4183/api/seat-mcp/user/meta', headers: servers.bellteam.headers })
+  // a138: only BellTeam's managed servers knowingly replace a same-name terminal server; user tools never do.
+  assert.equal(servers.bellteam.replace, true); assert.equal(servers['call-bridge'].replace, true); assert.equal(Object.hasOwn(servers.meta, 'replace'), false)
+  // An older bundled Aiterm (< 0.70.62): exactly today's config, no user tools, no replace key.
+  const old = await make(async () => { throw new Error('must not be listed') }, false).prepare(bot, args, { harness: 'claude-code' })
+  assert.deepEqual(Object.keys(old.args.mcp_config.mcpServers), ['bellteam', 'call-bridge'])
+  assert.equal(Object.hasOwn(old.args.mcp_config.mcpServers.bellteam, 'replace'), false)
   const failed = await make(async () => { throw Object.assign(new Error('USER_TOOL_LIST_FAILED'), { code: 'USER_TOOL_LIST_FAILED' }) }).prepare(bot, args, { harness: 'claude-code' })
   assert.deepEqual(Object.keys(failed.args.mcp_config.mcpServers), ['bellteam', 'call-bridge'])
 })
