@@ -14,9 +14,13 @@ A delivery can reach the CLI as a new turn before BellTeam's wait for the captur
 
 Restart or configure is decided against the harness the live seat actually runs (`seatHarness`: the launch record, else the saved harness), not only against the saved settings (2026-11-15, BugHub b5159a79). A saved harness can differ from the live seat (the seat kept its old CLI after an earlier change). Comparing saved with saved then sent a model-only `agent_configure` (Cecil, `opus`) to a Codex seat, and Aiterm answered `not_applied` / `unsupported`. When the live seat's harness differs from the requested one, the change takes the existing restart path, which launches the requested harness.
 
+In-turn apply for Claude (b8, 2026-11-15, Owner: 「ターンを終えずに、CLIの中で/modelを切り替える」). A change of a live Claude seat's model and/or effort alone (same harness, no fast change, not a reapply) is applied at once, with no captured turns to wait for. Measured on Claude Code 2.1.325: `/model` typed into a busy seat is queued as plain text, but Alt+P opens the model picker while a turn runs and a session-only pick switches the same turn's next request (Sonnet to Opus to Fable 5.2, no new user message). Aiterm opens the picker that way for a running Claude turn (chart bellteam-dev-3 b10, Elegg). An Aiterm without it, or any refusal while a turn runs, still ends in the a53 path below (capture the running turns, apply again as a new request at their end). Other harnesses, fast changes, goal-bound changes and reapply keep the boundary wait. The saved model and `configurationApplication` are unchanged: the settings screens show the saved model with `pending` until the applied receipt, which now arrives within seconds instead of after the turn; a failed apply stays visible as `failed` with its reason.
+
 ```mermaid
 flowchart LR
-  Req[saved settings] --> Wait[wait captured turns' native completion]
+  Req[saved settings] --> Kind{live Claude seat, model/effort only?}
+  Kind -->|yes: b8| Apply
+  Kind -->|no| Wait[wait captured turns' native completion]
   Wait --> Apply[apply in dispatch order]
   Apply -->|applied| Done[receipt saved]
   Apply -->|not_applied, not issued, a turn runs| Recapture[capture running turns; next apply gets a new request ID] --> Wait
@@ -40,6 +44,7 @@ The allowed protection names below are data loss, wrong target, secret exposure,
 | Explicit stop epoch/job stop check, executionStopping wait | Keep: privilege escalation by running canceled work; wrong target during stop/restart | Stop operation settles; canceled request ends, independent later request proceeds |
 | Nondeferred restart/reset barrier | Keep: wrong target and overwriting state while replacing a session | Explicit operation settles success/error; subsequent dispatch judges target afresh |
 | Deferred model/effort/fast wait before current-turn message | Remove: no allowed protection from holding an authorized steer | Input goes to current turn; captured boundary applies settings before later BellTeam delivery |
+| Claude model/effort change waits for the running turn (b8) | Remove: no allowed protection; Claude's picker works mid-turn and a session-only pick leaves the new-session default untouched | Applied at once in dispatch order; a refusal while a turn runs falls to the a53 row; fast, goal, reapply and other harnesses keep the wait |
 | Deferred apply refused because a new turn already runs (a53) | None held: the refusal is Aiterm's, not issued (`not_applied`, `later_effect: excluded`, no `aiterm/configure_error`) | The apply runs again when the turns running at the refusal end; it repeats only for this refusal while a turn runs. A picker refusal (`refusal.code` from `aiterm/configure_error`, a78) is never retried here: it ends the operation at once as a visible `not_applied` with its reason. A stop, another failure, or a refusal with no running turn ends the operation as before |
 | dispatchInOrder acceptance serialization | Keep minimum: data loss/overwriting the same composer; prevents two launches or overlapping inputs | Prior acceptance or rejection settles; chain never awaits turn completion |
 | Desired-configure-before-every-send / matching persisted audit prerequisite | Remove from message path: settings are an explicit operation, no allowed protection from delaying steer | Explicit boundary configuration owns desired apply/audit; input does not wait on missing history |

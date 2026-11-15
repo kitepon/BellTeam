@@ -8,11 +8,11 @@ import { ConfigurationIntents } from '../src/configuration-intents.mjs'
 import { ConfigurationRequests } from '../src/configuration-requests.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 
-async function fixture(t, exists) {
+async function fixture(t, exists, harness = 'codex') {
   const root = await mkdtemp(join(tmpdir(), 'desired-dispatch-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const bot = { id: 'bot-target', name: 'Target', session: exists ? 'bot-target' : null, project: root,
-    harness: 'codex', model: 'desired-model', reasoningEffort: 'high', fastMode: false }
+    harness, model: 'desired-model', reasoningEffort: 'high', fastMode: false }
   const f = { exists, launch: 'a'.repeat(32), calls: [], diagnostics: [], observationError: null, applyError: null }
   const client = { async call(name, args) {
     f.calls.push({ name, args: structuredClone(args) })
@@ -234,4 +234,62 @@ test('a picker refusal at the boundary is not retried as a running-turn refusal'
   assert.equal(f.calls.filter(c => c.name === 'agent_configure' && c.args.action === 'apply').length, 1, 'never retried')
   waits[1].resolve()
   await Promise.all([first, next])
+})
+
+// b8 (2026-11-15): Claude's picker switches the model while a turn runs, so a model/effort-only change does not wait for the turn.
+test('a Claude model change is applied while its turn runs, without waiting for the turn', { timeout: 3000 }, async t => {
+  const f = await fixture(t, true, 'claude')
+  const wait = Promise.withResolvers()
+  f.onWait = () => wait.promise
+  f.onSend = () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } })
+  const first = f.transport.turn(f.bot, 'first', { queue: { groupId: 'first' } })
+  await first.accepted
+  const old = { ...f.bot }
+  f.bot.model = 'fable'
+  const result = await f.transport.reconfigure(old, f.bot, { requestId: '8b1c2d3e-4a5b-4c6d-8e7f-0123456789ab' })
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure' && c.args.action === 'apply').length, 1, 'applied before the turn ended')
+  assert.equal(result.configurationRequest.outcome ?? f.requests.view(f.bot.id).receipt.outcome, 'applied')
+  wait.resolve()
+  await first
+})
+
+test('a Claude fast change and a non-Claude model change still wait for the running turn', { timeout: 3000 }, async t => {
+  for (const [harness, change] of [['claude', bot => { bot.fastMode = true }], ['codex', bot => { bot.model = 'opus' }]]) {
+    const f = await fixture(t, true, harness)
+    const wait = Promise.withResolvers()
+    f.onWait = () => wait.promise
+    f.onSend = () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } })
+    const first = f.transport.turn(f.bot, 'first', { queue: { groupId: 'first' } })
+    await first.accepted
+    const old = { ...f.bot }
+    change(f.bot)
+    const pending = f.transport.reconfigure(old, f.bot, { requestId: '9b1c2d3e-4a5b-4c6d-8e7f-0123456789ab' })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    assert.equal(f.calls.some(c => c.name === 'agent_configure' && c.args.action === 'apply'), false, `${harness} waits`)
+    wait.resolve()
+    await Promise.all([first, pending.catch(() => {})])
+  }
+})
+
+test('a Claude in-turn apply that Aiterm refuses while the turn runs is applied again at the end of the turn', { timeout: 3000 }, async t => {
+  const f = await fixture(t, true, 'claude')
+  const wait = Promise.withResolvers()
+  f.onWait = () => wait.promise
+  f.onSend = () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } })
+  const first = f.transport.turn(f.bot, 'first', { queue: { groupId: 'first' } })
+  await first.accepted
+  const old = { ...f.bot }
+  f.bot.model = 'opus'
+  f.refuseConfigure = 1
+  const requestId = 'ab1c2d3e-4a5b-4c6d-8e7f-0123456789ab'
+  const change = f.transport.reconfigure(old, f.bot, { requestId })
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure' && c.args.action === 'apply').length, 1, 'refused mid-turn')
+  wait.resolve()
+  await change
+  const ids = f.calls.filter(c => c.name === 'agent_configure' && c.args.action === 'apply').map(c => c.args.request.id)
+  assert.equal(ids.length, 2)
+  assert.notEqual(ids[1], requestId)
+  assert.equal(f.requests.view(f.bot.id).receipt.outcome, 'applied')
+  await first
 })
