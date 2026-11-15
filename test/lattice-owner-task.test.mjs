@@ -49,6 +49,15 @@ test('owner task check: only decision tasks, and cards that were linked; no file
   ok(connect('--from-plan', 'p1', '--from-task', 's1', '--to-plan', 'approval-box', '--to-task', dec))
   refused(connect('--from-plan', 'p1', '--from-task', 's1', '--to-plan', 'p1', '--to-task', 's2'))
   refused(connect('--from-project', 'other', '--from-plan', 'approval-box', '--from-task', dec, '--to-plan', 'p1', '--to-task', 's1'))
+  const predecessor = (verb, ...rest) => ['todo', 'predecessor', verb, '--reason', 'why', ...rest]
+  for (const verb of ['add', 'remove']) {
+    ok(predecessor(verb, '--plan', 'p1', '--task', 's1', '--after', `approval-box/${dec}`))
+    ok(predecessor(verb, '--plan', 'approval-box', '--task', dec, '--after', 'p1/s1'))
+    refused(predecessor(verb, '--plan', 'p1', '--task', 's1', '--after', 'p1/s2'))
+    refused(predecessor(verb, '--plan', 'p1', '--task', 's1', '--after', 'approval-box'))
+    refused(predecessor(verb, '--plan', 'p1', '--task', 's1', '--after', `approval-box/${dec}`, '--from-project', 'other'))
+  }
+  refused(['todo', 'predecessor', 'set', '--plan', 'approval-box', '--task', dec, '--after', 'p1/s1'])
 })
 
 test('owner task protocol: link and ownerTask requests and results, the refusal code crosses the wire', () => {
