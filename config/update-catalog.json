@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T03:49:38Z",
-  "expiresAt": "2026-11-22T03:49:38Z",
+  "publishedAt": "2026-11-15T04:09:04Z",
+  "expiresAt": "2026-11-22T04:09:04Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
-      "versionId": "0d0367fc1f18c7057bdd53a1bcd3a83b266360a112327f39ef7606db2d139806",
+      "sourceCommit": "cab4b0f477f3913a25f0d28221da588298c32e76",
+      "versionId": "a13d20516b75c2e75b7f7a4aba3746d87e97311b85a341f8299cd3345572c9c4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz",
-          "bytes": 4531553,
-          "sha256": "0d0367fc1f18c7057bdd53a1bcd3a83b266360a112327f39ef7606db2d139806"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-amd64.tar.gz",
+          "bytes": 4551268,
+          "sha256": "a13d20516b75c2e75b7f7a4aba3746d87e97311b85a341f8299cd3345572c9c4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "ebc1168ee5c8c2ec74035ebee9b18124dbf69ab851c9ec9a0dd4276906591bbe"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11074,
+          "sha256": "b8fabeb6ca247a92f5601fba075cccb9224494efe84ed20a35cd858724cfe1bc"
         },
-        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
+        "signerCommit": "cab4b0f477f3913a25f0d28221da588298c32e76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "同時に来たメンバー一覧の読み込みを一つにまとめ、混み合って応答できなくなる問題を直しました。"
+        "共通の規範で、工程表の作業が進められない時の止め方を書き換えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b",
-      "versionId": "9bbf90a014bcbfbb10d3705d8322dfcfcb6b221b8a080c4485760dace24f8981",
+      "sourceCommit": "cab4b0f477f3913a25f0d28221da588298c32e76",
+      "versionId": "672a4a3b18b95290201966a3ff33829d5234ff919c9e912cdd637eb09d584829",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz",
-          "bytes": 4531553,
-          "sha256": "9bbf90a014bcbfbb10d3705d8322dfcfcb6b221b8a080c4485760dace24f8981"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-arm64.tar.gz",
+          "bytes": 4551267,
+          "sha256": "672a4a3b18b95290201966a3ff33829d5234ff919c9e912cdd637eb09d584829"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T224435Z/members-c3826edcf39ddb3a00e79d36f401e195ea7ffe2b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11000,
-          "sha256": "3f262b41433817b87b78b4842d173af94590d174565b82060d7c1b3ee1f5e759"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11098,
+          "sha256": "71722748660e86f692573297e054d159378785b649bbb39ae4ef0ddaafc39090"
         },
-        "signerCommit": "c3826edcf39ddb3a00e79d36f401e195ea7ffe2b"
+        "signerCommit": "cab4b0f477f3913a25f0d28221da588298c32e76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "同時に来たメンバー一覧の読み込みを一つにまとめ、混み合って応答できなくなる問題を直しました。"
+        "共通の規範で、工程表の作業が進められない時の止め方を書き換えました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
-      "versionId": "sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5",
+      "sourceCommit": "af102cd3d0013e9a32bfa8bf915829583397549c",
+      "versionId": "sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ユーザー規範を変えるとき、オーナーの承認の言葉が受け付けられるようにしました。",
-        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
+        "Claudeの席で opusplan を選べるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c1a1e1e20ddecad51cfe8d9295e4583471867e9b",
-      "versionId": "sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5",
+      "sourceCommit": "af102cd3d0013e9a32bfa8bf915829583397549c",
+      "versionId": "sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:10624e8060bcb66231e9d5e55aeba92f99d174f48e363e98e2614a784cb2a8f5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:68d1c1ae61b8444ccf8011db65eada8831cc483f6dd9ed35802df669bfced2ad"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ユーザー規範を変えるとき、オーナーの承認の言葉が受け付けられるようにしました。",
-        "別の端末で動く席から、そのBotが自分で設定した道具を使えるようにしました。"
+        "Claudeの席で opusplan を選べるようにしました。"
       ]
     },
     {
