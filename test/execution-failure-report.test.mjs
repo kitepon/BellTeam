@@ -170,3 +170,16 @@ test('delivery wait keeps the original exception when diagnostic reporting fails
   assert.equal(reports.length, 1)
   assert.equal(JSON.parse(reports[0].diagnostic_log).phase, 'delivery_wait')
 })
+
+test('b5159a79: a code bug in the configuration path names only its src file:line:col; a plain Error and peer text add nothing', () => {
+  const bug = new TypeError("Cannot read properties of undefined (reading 'catch') secret-text")
+  bug.stack = "TypeError: Cannot read properties of undefined (reading 'catch') secret-text\n    at Array.map (<anonymous>)\n    at file:///app/src/aiterm-transport.mjs:609:77\n    at async next (file:///app/node_modules/x/y.js:1:1)"
+  const withSite = JSON.parse(executionFailureReport('bot-a', 'configuration', bug).diagnostic_log)
+  assert.equal(withSite.failure.error_type, 'TypeError')
+  assert.equal(withSite.failure.site, 'src/aiterm-transport.mjs:609:77')
+  assert.doesNotMatch(JSON.stringify(withSite), /secret-text|properties of undefined/u)
+  const plain = new Error('boom'); plain.stack = 'Error: boom\n    at file:///app/src/aiterm-transport.mjs:1:1'
+  assert.equal(JSON.parse(executionFailureReport('bot-a', 'configuration', plain).diagnostic_log).failure.site, undefined)
+  const outside = new TypeError('x'); outside.stack = 'TypeError: x\n    at file:///app/node_modules/x/y.js:1:1'
+  assert.equal(JSON.parse(executionFailureReport('bot-a', 'configuration', outside).diagnostic_log).failure.site, undefined)
+})
