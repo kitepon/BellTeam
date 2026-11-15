@@ -1,3 +1,4 @@
+import { MANAGED_MCP_IDS } from './user-tools.mjs'
 import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -209,7 +210,6 @@ async function writeGrokConfig(path, managedConfig) {
 
 // BellTeamが書き直すMCPの節と、その下の表（headers・envなど）。
 // 下の表を残すと、ほかの道具が設定を書き直した後に同じ表が二重になり、CLIが設定全体を読めなくなる。
-const MANAGED_MCP_IDS = ['bellteam', 'aiterm', 'call-bridge']
 function isManagedMcpSection(header) {
   return MANAGED_MCP_IDS.some(id => header === `[mcp_servers.${id}]` || header?.startsWith(`[mcp_servers.${id}.`))
 }
@@ -261,7 +261,7 @@ async function mergeMcpConfig(path, servers, trustedProjects = []) {
     ...current,
     // A Web-only login never ran claude by hand; without this the first seat stops at the first-run screens (a15).
     hasCompletedOnboarding: true,
-    mcpServers: { ...Object.fromEntries(Object.entries(current.mcpServers ?? {}).filter(([id]) => !['bellteam', 'aiterm', 'call-bridge'].includes(id))), ...servers },
+    mcpServers: { ...Object.fromEntries(Object.entries(current.mcpServers ?? {}).filter(([id]) => !MANAGED_MCP_IDS.includes(id))), ...servers },
     ...(trustedProjects.length ? { projects } : {}),
   })
 }

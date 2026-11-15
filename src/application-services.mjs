@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { goalFailureCause } from './execution-failure-report.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { createDirectReceiptAssembly, directFailureReport } from './direct-receipt-assembly.mjs'
@@ -8,6 +10,8 @@ import { createSubmittedSecretCaller } from './submitted-secret-caller.mjs'
 import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { mkdir } from 'node:fs/promises'
 import { createSeatProcessRunner } from './seat-process.mjs'
+import { seatCommandSpec } from './seat-command.mjs'
+import { createUserToolRelay } from './remote-user-tools.mjs'
 import { createTeamBackgroundSummary } from './background-summary-assembly.mjs'
 import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createConversationUsage } from './usage/conversation-effects.mjs'
@@ -254,6 +258,22 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     onDiagnostic: conversationDiagnosticPort(diagnostics), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   // Remote seats (remote-seat-ingress.md): terminals core is an in-parent injectable; seat credentials are parent state.
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
+  // remote-user-tools.md U1: names/kinds of the user-global MCP servers for a Bot's harness, read as the seat user.
+  const listUserToolsFor = async botId => {
+    const bot = bots.get(botId)
+    if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND' })
+    const { stdout } = await createSeatProcessRunner(bot.project)(process.execPath, [fileURLToPath(new URL('./user-tools.mjs', import.meta.url)), 'list', bot.harness])
+    const value = JSON.parse(stdout)
+    if (value?.schema !== 'bellteam.user-tools.v1' || !Array.isArray(value.tools)) throw Object.assign(new Error('USER_TOOL_LIST_FAILED'), { code: 'USER_TOOL_LIST_FAILED' })
+    return value.tools.filter(tool => typeof tool?.name === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(tool.name)).map(tool => ({ name: tool.name, kind: tool.kind }))
+  }
+  // remote-user-tools.md U3: one host per (terminal seat, user tool), run as the seat user in the Bot's container folder.
+  const userToolRelay = createUserToolRelay({ spawnHost: (binding, name) => {
+    const bot = bots.get(binding.botId)
+    if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })
+    const spec = seatCommandSpec(process.execPath, [fileURLToPath(new URL('./run-user-tool.mjs', import.meta.url)), bot.harness, name], { project: bot.project })
+    return spawn(spec.command, spec.args, { env: spec.env, stdio: ['pipe', 'pipe', 'pipe'] })
+  } })
   terminals = createTerminalsCore ? createTerminalsCore({ stateRoot: join(root, 'state'), credentials: usageAssembly?.credentials ?? null,
     report: report => diagnostics.record(report) }) : null
   // RS11: native SSH credential status comes from Elegg's one-shot UID 1000 bin; usage validates the DTO.
@@ -283,9 +303,11 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       // RS05: the listener is retried here while it is down, so a seat is never launched toward a dead MCP.
       await remoteSeatListener.ensureFor(terminalId)
       const origin = `http://127.0.0.1:${remoteSeatPort(environment)}`
+      // A new launch of this seat replaces the old one; its user-tool hosts end with it.
+      userToolRelay.closeSeat(sessionName)
       return { url: `${origin}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId, kind }) }
     },
-    revoke: ({ sessionName }) => seatCredentials.revoke({ sessionName }),
+    revoke: ({ sessionName }) => { userToolRelay.closeSeat(sessionName); return seatCredentials.revoke({ sessionName }) },
     // RS03: only execution's seat launch call uses this, to put the value into the launcher's stdin privateEnv.
     reveal: credentialRef => seatCredentials.reveal(credentialRef),
     // RS13: execution calls this before launching on a secret-backed terminal (target.credential {handle, revision}).
@@ -327,7 +349,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
           const off = [terminals.watch(listener), remoteSeatListener.watch(listener)]
           return () => { for (const stop of off) stop?.() }
         } }, ingress: { seatCredential,
-          ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}) } } : {}
+          ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}),
+          ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
         input = { ...input, ports: { ...input.ports, ...remote } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
@@ -516,7 +539,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,

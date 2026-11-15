@@ -314,6 +314,8 @@ This existing anchor is retained for catalog/consumer references. A caller's dea
 
 ## Proposed remote terminal seats (P0)
 
+Terminal seats also receive the container's user-global MCP servers of their harness through the same seat listener (`/api/seat-mcp/user/<name>`); the tools run in the container as the seat user and credentials stay there: [remote-user-tools.md](modules/execution/remote-user-tools.md).
+
 Canonical owner: [terminals / Crust](modules/terminals/README.md), public dependency descriptor [module.json](modules/terminals/module.json). This is the new P10 responsibility, not an implementation claim. Trony adopted contracts C1-C9 in the owner document; their remote extensions and incoming consumer edges remain unimplemented. Other owners update their own descriptors/diagrams as they implement them. The generated function map indexes terminals' proposed outgoing dependencies only.
 
 ```mermaid

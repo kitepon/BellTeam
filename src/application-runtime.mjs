@@ -82,7 +82,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
           () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
   server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   // Remote seats reach this only through Aiterm's SSH reverse forward (remote-seat-ingress.md RS05); never via 4180/18891.
-  const remoteSeatServer = createRemoteSeatServer(createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp }))
+  const remoteSeatServer = createRemoteSeatServer(createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp, userTools: services.userToolRelay ?? null }))
   const seatMcp = createSeatMcp({
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),

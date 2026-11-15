@@ -102,12 +102,18 @@ export class RemoteSeats {
       const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId, ...(kind === 'fork' ? { kind } : {}) })
       issued = true
       const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
+      // remote-user-tools.md U4: the Bot's user-global MCP servers of this harness, each through the same seat listener.
+      // A list failure never stops the launch: the seat starts with bellteam and call-bridge only.
+      let userTools = []
+      try { userTools = await this.ingress.userTools?.list(bot.id) ?? [] }
+      catch (error) { process.stderr.write(`BellTeam remote seat: user tools unavailable: ${bot.id}: ${error?.code ?? 'USER_TOOL_LIST_FAILED'}\n`) }
+      const userServers = Object.fromEntries(userTools.map(({ name }) => [name, { type: 'http', url: `${url}/user/${name}`, headers }]))
       // Owner ruling: the Owner's 1st/2nd login applies only on the Owner's terminals; others use the terminal's own login.
       // One login per slot (harness-accounts.md 2026-11-11): every slot, the 1st too, so no host login is needed.
       const claudeLogin = accountOwner === 'owner' && slot ? slot : null
       return {
         args: { ...args, terminal, cwd, append_system_prompt: text,
-          mcp_config: { mcpServers: { bellteam: { type: 'http', url, headers }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers } } } },
+          mcp_config: { mcpServers: { ...userServers, bellteam: { type: 'http', url, headers }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers } } } },
         claudeLogin,
         // CREDENTIAL_NOT_LOADED / CREDENTIAL_REVISION_STALE on agent_launch: load again and launch once more (R13), only for
         // the same target intent. A changed owner, binding, host or folder would mix the prepared login/options with another
