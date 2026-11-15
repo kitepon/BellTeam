@@ -77,12 +77,14 @@ SECTION lattice
     DO: put it on a chart as a task before you start (the coordinator's chart when it belongs there, otherwise your own); found bugs included.
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
-    WHEN: a task cannot move because it depends on another condition (another Bot's work, a task on any chart, a scheduler, CI finishing, a time)  NEVER: stop on it.
-    DO: connect it to that condition (他条件に接続; 接続 for short). Connect to the existing task or connectable target (a task on any chart, a scheduler); if the work is not on a chart yet, make it a task in the lane of whoever can move it (a Bot ID, or owner) and connect to that.
+    WHEN: a task cannot move until something else happens  NEVER: leave it stalled; express what it depends on with the first of these that fits.
+    FACT: 前工程 (predecessor) = a task on the same chart; work not on the chart yet becomes a task there in the lane of whoever does it (a Bot ID, or owner). Tools: `todo add --before <task>`, `todo dependency connect`. Its done notice wakes your lane.
+    FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart; it is not a 前工程. Tool today: `todo dependency connect --from-project <chart>`, for a task on another chart. A schedule or check script, a time, CI, an Owner decision or an outside event cannot be connected yet; until Lattice can, put it on your own chart as a task in the lane that settles it and make it a 前工程.
+    FACT: ブロック = `todo block` (release: `todo unblock`). Last resort: only when nothing can be connected and no AI can operate it. NEVER: use it for what a 前工程 or a 接続 can express (a member's work, CI, a time).
+    FACT: `todo wait` is none of these; it only asks to be told when the task can start.
+    NEVER: report a 前工程 or a 接続 as blocked, or a ブロック as a 接続.
     DO: if no one can move it, escalate to the coordinator or the Owner.
-    DO: ブロック (block) is a last resort, for a condition that nothing can be connected to and no AI can operate. A condition you can connect to is never a reason to block.
-    NEVER: call a 接続 blocked, or a ブロック a 接続, when you report to anyone.
-    WHEN: the connected condition is met  DO: close the connection at once.
+    WHEN: the condition is met  DO: close the task that stands for it at once.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
     WHEN: your work belongs on the coordinator's chart but is not on it  DO: ask the coordinator to add it.
     WHEN: your work is closed within your own scope  DO: create your own chart and add it yourself.
@@ -159,7 +161,7 @@ SECTION messaging
 SECTION volume
   RULE volume.purpose-only
     MAY: sendmessage a Bot only for a work/decision request, a requested answer, or a report it must record or execute.
-    NEVER: greetings, thanks, receipt/ack, closings, notices that you are holding for something, emoji-only replies. WHY: delivery is logged.
+    NEVER: greetings, thanks, receipt/ack, closings, standby announcements, emoji-only replies. WHY: delivery is logged.
   RULE volume.reminders-are-requests
     DO: treat reminders, lists and deadline notices on your cases as requests; proceed even if marked "no reply needed" or "result to another"; return the result to the designated party.
   RULE volume.one-reply
@@ -189,7 +191,7 @@ SECTION diagrams-and-code
     WHEN: changing code  DO: read the target version's overall, own and caller/connection diagrams first; decide whether function, I/O, data/state ownership, connections or failure handling change.
   RULE diagrams.fix-mismatch-first
     DO: fix diagram/reality mismatches first. A product without diagrams gets no exemption: refactor and produce them; hold code changes, repairs included, until done.
-    EXCEPT: production outage, money/data loss, security: draw the repaired range first, then repair without waiting.
+    EXCEPT: production outage, money/data loss, security: draw the repaired range first, then repair at once.
   RULE diagrams.same-diff
     DO: ship needed diagram changes with the code in one diff; if none is needed, state which existing function contract the repair stays within.
   RULE diagrams.canonical
@@ -207,9 +209,9 @@ SECTION completion
     NEVER: finish with first aid; find why it fails and fix the root.
   RULE completion.carry-through
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
-  RULE completion.no-idle-waiting
-    NEVER: sit idle; hold a solid prospect that what you do next advances the work.
-    WHEN: your work is connected to another AI's work  DO: ask it for one result message when done (failure included); its message wakes you.
+  RULE completion.no-idling
+    NEVER: sit idle on a condition without a solid prospect that it will be met and advance the work.
+    WHEN: your work depends on another AI's work  DO: ask it for one result message when done (failure included); its message wakes you.
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
     WHEN: ending a turn unfinished (a pending reply, dependency or approval included)
