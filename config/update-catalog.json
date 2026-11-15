@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T22:53:59Z",
-  "expiresAt": "2026-11-22T22:53:59Z",
+  "publishedAt": "2026-11-15T22:59:33Z",
+  "expiresAt": "2026-11-22T22:59:33Z",
   "releases": [
     {
       "componentId": "usage",
@@ -559,8 +559,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
-      "versionId": "6c662ba7b378f71c4c6754f0990770f9ce0492f656fc265d651a26327c20098e",
+      "sourceCommit": "0190ff7d7a98fa2df63d59df0f7000f715f875f7",
+      "versionId": "aef053cad2a534e114275f62947f7899d20324d7f74757cabfdb577b8e8a2b34",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz",
-          "bytes": 4586705,
-          "sha256": "6c662ba7b378f71c4c6754f0990770f9ce0492f656fc265d651a26327c20098e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T225909Z/members-0190ff7d7a98fa2df63d59df0f7000f715f875f7-linux-amd64.tar.gz",
+          "bytes": 4586695,
+          "sha256": "aef053cad2a534e114275f62947f7899d20324d7f74757cabfdb577b8e8a2b34"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10949,
-          "sha256": "bc13841f236cbf47ec9e266360c4470536d5739750d0a7f29cb52a5fad124aab"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T225909Z/members-0190ff7d7a98fa2df63d59df0f7000f715f875f7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10953,
+          "sha256": "cbbced540e63b4efe9769c24cc9b60b22d868989cce76a69d95215d172846f86"
         },
-        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+        "signerCommit": "0190ff7d7a98fa2df63d59df0f7000f715f875f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,13 +594,14 @@
         }
       },
       "changes": [
-        "共通ルールに、オーナーの待ちは担当「決裁箱」の工程にするという決まりを入れました。"
+        "共通ルールに、オーナーの待ちは担当「決裁箱」の工程にするという決まりを入れました。",
+        "共通ルールから、返事の最後に「やらなかったこと」を書く決まりを外しました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
-      "versionId": "9b18485de113db4432ecda7878fe9c26b77e6faaf28819e16b5a397a8ec506f1",
+      "sourceCommit": "0190ff7d7a98fa2df63d59df0f7000f715f875f7",
+      "versionId": "83001eb1c9619e13849bb2bcea8e5ce0cb7c2442cd4d5bd55a59002b580cb0a0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -608,16 +609,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz",
-          "bytes": 4586708,
-          "sha256": "9b18485de113db4432ecda7878fe9c26b77e6faaf28819e16b5a397a8ec506f1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T225909Z/members-0190ff7d7a98fa2df63d59df0f7000f715f875f7-linux-arm64.tar.gz",
+          "bytes": 4586694,
+          "sha256": "83001eb1c9619e13849bb2bcea8e5ce0cb7c2442cd4d5bd55a59002b580cb0a0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223829Z/members-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11184,
-          "sha256": "934a2326baba81eb51a747ef5196a155dfb124ac6f911556bbc2fe604ba25d30"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T225909Z/members-0190ff7d7a98fa2df63d59df0f7000f715f875f7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "7f575a45df3831518dee5d8abafb2b68da3baaa6de20f4550c40a9fbce4bd262"
         },
-        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+        "signerCommit": "0190ff7d7a98fa2df63d59df0f7000f715f875f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -634,7 +635,8 @@
         }
       },
       "changes": [
-        "共通ルールに、オーナーの待ちは担当「決裁箱」の工程にするという決まりを入れました。"
+        "共通ルールに、オーナーの待ちは担当「決裁箱」の工程にするという決まりを入れました。",
+        "共通ルールから、返事の最後に「やらなかったこと」を書く決まりを外しました。"
       ]
     },
     {
