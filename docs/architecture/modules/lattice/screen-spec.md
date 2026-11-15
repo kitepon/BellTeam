@@ -1,5 +1,7 @@
 # Lattice工程表: screen, user path and motion spec
 
+Words (a161, Owner 2026-11-15 via Trony; Lattice 0.104.0): 前工程 = a task of the same chart that must finish first (a tree line); 他条件に接続 (接続) = waiting on a condition outside the chart (a task of another chart, a BellTeam schedule); 優先接続 = a Bot asked to be told at once when a task can start; ブロック = `todo block`, the last resort. 「待ち」 and 「止め / 止まり」 are retired words: where this spec used them they now read 接続 and ブロック (section [接続 and ブロック](#接続-and-ブロック-a161)).
+
 Shared by all three native drawings: Apple first (SwiftUI, Rapi), Web (Flora), Windows (Anis). Data only from the [lattice contract](README.md#public-contract-apps). The visual reference is Flora's design mock (`/srv/bellteam/bots/bot-7e777fe5/docs/lattice-chart-screen.html`, accepted by Trony 2026-11-11). Owner 2026-11-11: the old Web-made chart looked cheap; use each platform's rendering to the full, and never pull the Apple design down to Web limits.
 
 Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. User-facing text is Japanese and plain: no codes, reasons, ids or paths anywhere on screen (Trony ruling 2026-11-11).
@@ -8,12 +10,12 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. Use
 
 | Screen | Content |
 | --- | --- |
-| **一覧** (chart list) | Only charts whose list `counts.total` is above 0 are listed, here and in the chart switcher's choices (Owner 2026-11-14, task a107: 「0/0は開いたって何もないから、表示しなくていい…工程表の選択のプルダウンにもね」; the list's own count, no new rule). Each app filters the list it already reads; the server list keeps every chart, because the member chart buttons read the same list and must stay unchanged. Other ways in (a member's chart button, 工程へ移動, a stop row) still open such a chart. Cards: chart name (rule below; never the project id), crown + 統括 on coordinator charts (pinned first), mini progress ring `done/total` (the server's `counts`: the `counted` cards, every task of the trees not fully finished, hidden ones included; README Projection rules), active member avatars, 待ち N. A non-tappable card 新しい工程表 says: 工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。 |
-| **工程表** (chart) | Toolbar: chart switcher (chart name, 統括 badge), live pill, progress ring, counters 作業中 / 待ち / 止まり. Left: member rail (avatars; working = rotating accent arc; blocked = red dot; waiting = hourglass with count). Center: swimlanes per owner ([owner rule](README.md#projection-rules-projectionmjs): `producer`, else the authored `lane` text, else none; lane label = member avatar + name, or the lane text with its initial; unassigned lane 担当なし, last), cards in columns by `depth`, edges as smooth curves. Right (Mac/iPad/Linux/Windows/Web wide): 待ちの流れ panel. Mac/iPad/Linux/Windows (Owner 2026-11-14): the panel starts closed as a slim handle on the right edge (hourglass + wait count); tapping the handle opens it, its close button folds it back; the choice is kept while the app is open. Web (Owner 2026-11-14, task a76): the same on a wide window (1024 px and wider): a right-edge handle (hourglass + wait count, red when a producer is blocked) opens the panel and its close button folds it, kept while the page is open; under 1024 px the panel stays the horizontal strip above the chart. Linux: the toolbar wraps progress and counters to a second row when the window is too narrow for one row. Apple (Owner 2026-11-14): the wide layout is used only when the chart's column is wide enough for it (760 pt); a narrower column, such as an iPad in portrait beside the sidebar, uses the iPhone flow, so the chart never spreads under the sidebar. |
-| **ツリー** (Owner 2026-11-12; default view of 工程表; **redesigned for Apple, Owner 2026-11-14, task a98 (Owner OK: 「よし進めろ。」)**) | Owner: 「工程表のツリーが無駄。ただ分類しただけになっている。繋がりの表現は弱い。一方、担当ごと表示は素晴らしい」. Shown cards: exactly the 担当 view's (not `archived`; one flag for both views). Which cards are archived is the server's one rule ([README Projection rules](README.md#projection-rules-projectionmjs), final rule: a finished card leaves once all its next cards are finished; a finished card with no next card (single or last) leaves at once (a109); unfinished cards always show; trees from Lattice 0.100.0); both views and every client follow the flag. Same toolbar, rail and 待ちの流れ as 担当; the segmented control ツリー / 担当 / 過去ログ stays. **Mac / iPad (wide)**: 「現担当の表示方針をベースに、担当ごとにまとめず、木の構造を優先して表示する」: the 担当 view's cards (Card body below), edges (curves, waiting particles, chips) and columns (`depth`), with no lanes: rows follow the dependency structure ([Structure layout](#structure-layout-ツリー-task-a98)) so lines cross as little as possible. No chart root, phase or parent boxes and no parent links (the old tree's classification; the structure shown is the dependencies, `edges`). Tap a card -> 詳細; member highlight dims cards and edges like 担当. **iPhone** (and the iPhone flow, e.g. an iPad column under 760 pt): the old tree is removed (「ツリーを廃止」); in its place the same Structure layout with each card drawn only as its owner's small icon (owner rule face; 担当なし: an empty dashed circle), drawn like the member rail's avatar (working = rotating arc, blocked = red dot). An in-progress card shows its title under its icon (「作業中のものは近くに作業内容を出す」). Tapping an icon shows that card exactly as Mac / iPad draws it, just above the icon (「MacとiPadと同等の作業内容が表示される」); tapping that card opens 詳細; tapping elsewhere or another icon closes or moves it. Edges as on Mac / iPad, without chips. Web, Windows and Linux keep the 2026-11-12 tree (chart -> phases -> cards, parent nesting, dependency arcs) until the Owner decides otherwise. Fractions: every progress fraction (toolbar ring, chart root, phase done/total, 一覧 ring) counts the cards with `counted` (every task of the trees not fully finished, hidden ones included; a fully finished tree counts nowhere; Owner 2026-11-14, a96; the server decides, README Projection rules). The counters 作業中 / 待ち / 止まり are unchanged. |
+| **一覧** (chart list) | Only charts whose list `counts.total` is above 0 are listed, here and in the chart switcher's choices (Owner 2026-11-14, task a107: 「0/0は開いたって何もないから、表示しなくていい…工程表の選択のプルダウンにもね」; the list's own count, no new rule). Each app filters the list it already reads; the server list keeps every chart, because the member chart buttons read the same list and must stay unchanged. Other ways in (a member's chart button, 工程へ移動, a stop row) still open such a chart. Cards: chart name (rule below; never the project id), crown + 統括 on coordinator charts (pinned first), mini progress ring `done/total` (the server's `counts`: the `counted` cards, every task of the trees not fully finished, hidden ones included; README Projection rules), active member avatars, 接続 N. A non-tappable card 新しい工程表 says: 工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。 |
+| **工程表** (chart) | Toolbar: chart switcher (chart name, 統括 badge), live pill, progress ring, counters 作業中 / 接続 / ブロック. Left: member rail (avatars; working = rotating accent arc; blocked = red dot; waiting = hourglass with count). Center: swimlanes per owner ([owner rule](README.md#projection-rules-projectionmjs): `producer`, else the authored `lane` text, else none; lane label = member avatar + name, or the lane text with its initial; unassigned lane 担当なし, last), cards in columns by `depth`, edges as smooth curves. Right (Mac/iPad/Linux/Windows/Web wide): 接続 panel. Mac/iPad/Linux/Windows (Owner 2026-11-14): the panel starts closed as a slim handle on the right edge (hourglass + 接続 count); tapping the handle opens it, its close button folds it back; the choice is kept while the app is open. Web (Owner 2026-11-14, task a76): the same on a wide window (1024 px and wider): a right-edge handle (hourglass + 接続 count, red when a producer is blocked) opens the panel and its close button folds it, kept while the page is open; under 1024 px the panel stays the horizontal strip above the chart. Linux: the toolbar wraps progress and counters to a second row when the window is too narrow for one row. Apple (Owner 2026-11-14): the wide layout is used only when the chart's column is wide enough for it (760 pt); a narrower column, such as an iPad in portrait beside the sidebar, uses the iPhone flow, so the chart never spreads under the sidebar. |
+| **ツリー** (Owner 2026-11-12; default view of 工程表; **redesigned for Apple, Owner 2026-11-14, task a98 (Owner OK: 「よし進めろ。」)**) | Owner: 「工程表のツリーが無駄。ただ分類しただけになっている。繋がりの表現は弱い。一方、担当ごと表示は素晴らしい」. Shown cards: exactly the 担当 view's (not `archived`; one flag for both views). Which cards are archived is the server's one rule ([README Projection rules](README.md#projection-rules-projectionmjs), final rule: a finished card leaves once all its next cards are finished; a finished card with no next card (single or last) leaves at once (a109); unfinished cards always show; trees from Lattice 0.100.0); both views and every client follow the flag. Same toolbar, rail and 接続 as 担当; the segmented control ツリー / 担当 / 過去ログ stays. **Mac / iPad (wide)**: 「現担当の表示方針をベースに、担当ごとにまとめず、木の構造を優先して表示する」: the 担当 view's cards (Card body below), edges (curves, waiting particles, chips) and columns (`depth`), with no lanes: rows follow the dependency structure ([Structure layout](#structure-layout-ツリー-task-a98)) so lines cross as little as possible. No chart root, phase or parent boxes and no parent links (the old tree's classification; the structure shown is the dependencies, `edges`). Tap a card -> 詳細; member highlight dims cards and edges like 担当. **iPhone** (and the iPhone flow, e.g. an iPad column under 760 pt): the old tree is removed (「ツリーを廃止」); in its place the same Structure layout with each card drawn only as its owner's small icon (owner rule face; 担当なし: an empty dashed circle), drawn like the member rail's avatar (working = rotating arc, blocked = red dot). An in-progress card shows its title under its icon (「作業中のものは近くに作業内容を出す」). Tapping an icon shows that card exactly as Mac / iPad draws it, just above the icon (「MacとiPadと同等の作業内容が表示される」); tapping that card opens 詳細; tapping elsewhere or another icon closes or moves it. Edges as on Mac / iPad, without chips. Web, Windows and Linux keep the 2026-11-12 tree (chart -> phases -> cards, parent nesting, dependency arcs) until the Owner decides otherwise. Fractions: every progress fraction (toolbar ring, chart root, phase done/total, 一覧 ring) counts the cards with `counted` (every task of the trees not fully finished, hidden ones included; a fully finished tree counts nowhere; Owner 2026-11-14, a96; the server decides, README Projection rules). The counters 作業中 / 接続 / ブロック are unchanged. |
 | **過去ログ** (Owner 2026-11-12) | Third view of the ツリー / 担当 / 過去ログ switch. Every finished card (`done` / `retired`, archived or not), newest `doneAt` first, under JST day headings (今日 / 昨日 / M月D日): state glyph, title, owner face + name (owner rule), finish time HH:MM. Tap opens 詳細. Empty: まだ終わった工程はありません。 The switch shows the count (過去ログ N). |
-| **止め一覧** (stops) | Every stop on every chart with 外す (Owner only). Reached from 一覧. Detail in the section 止め一覧 below |
-| **待ちの流れ** | One row per `waits[]`, oldest first. Each row reads on its own (Owner 2026-11-12: 「この1116って誰がやってんだ？何の表示なの」): the **waiting card's title** with its owner face and 待ち <length>; under it 「担当 ◯◯」 (or 担当なし); then 「この工程が終わるのを待っています」 over the **awaited card title**; then 「つくっている」 producer avatar + name + state (作業中 N分 / 止まり: blockedReason / 未着手: 担当 ◯◯ / 担当なし; ◯◯ and 「◯◯が待っている」 follow the owner rule, so an authored lane is named even before anyone starts), wait length. Buttons: 会話を開く, 工程へ移動. A row whose awaited card is on another chart (`forCard` names an `externals[]` entry, task a60) shows that card's title (else ほかの工程表の工程) with 「<chart name, else ほかの工程表>の工程表」 under it, its producer and state as above (state unknown while unread: 読めていません), and 工程へ移動 opens that chart at that card. A row whose producer is blocked is emphasized. iPhone: these rows come first, as a horizontal card pager above the chart. |
+| **ブロック一覧** (stops) | Every stop on every chart with 外す (Owner only). Reached from 一覧. Detail in the section ブロック一覧 below |
+| **接続** | One row per `waits[]`, oldest first. Each row reads on its own (Owner 2026-11-12: 「この1116って誰がやってんだ？何の表示なの」): the **waiting card's title** with its owner face and 接続 <length>; under it 「担当 ◯◯」 (or 担当なし); then 「この工程が終わるのを待っています」 over the **awaited card title**; then 「つくっている」 producer avatar + name + state (作業中 N分 / ブロック: blockedReason / 未着手: 担当 ◯◯ / 担当なし; ◯◯ and 「◯◯が待っている」 follow the owner rule, so an authored lane is named even before anyone starts), wait length. Buttons: 会話を開く, 工程へ移動. A row whose awaited card is on another chart (`forCard` names an `externals[]` entry, task a60) shows that card's title (else ほかの工程表の工程) with 「<chart name, else ほかの工程表>の工程表」 under it, its producer and state as above (state unknown while unread: 読めていません), and 工程へ移動 opens that chart at that card. A row whose producer is blocked is emphasized. iPhone: these rows come first, as a horizontal card pager above the chart. |
 | **詳細** (card detail) | Sheet over the chart: title, state badge + producer, 設計メモ (`designMemo`, Markdown as plain text), 終了条件, 前の工程 / 次の工程 with their states (tappable), 着手 time. A predecessor on another chart (task a60) is listed in 前の工程 with its chart name (「<chart name>の工程表」); tapping it opens that chart at that card. It is never drawn on the canvas or in ツリー (no line leaves the chart). No notes in v1. |
 
 ### Structure layout (ツリー, task a98)
@@ -31,7 +33,7 @@ Owner as an owner (Trony 2026-11-12): `producer` / `waiter` `"owner"` is the Own
 
 Chart name, everywhere a chart is named (list card, switcher, spoken labels): the snapshot/list `name`; if null, 「<作った人の名前>の工程表」 from `createdBy` and the app's own roster name; if that is unknown, 名前のない工程表. The project id is only an API address and never appears on screen or in a spoken label.
 
-Card states (glyph, badge text): 未着手 `pending` (dashed outline, dashed circle), 着手可 `ready` (accent outline + soft glow, play), 作業中 `in-progress` (accent tint, producer avatar with rotating arc, elapsed minutes), 止まり `blocked` (warm red tint #E0533D, octagon exclamation, reason line), 完了 `done` (compact desaturated pill, seal check), 取り下げ `retired` (struck-through grey, archive). Edges: satisfied = thin faint line; waiting = thicker accent gradient from producer card to the waiting card, particles flowing toward the waiter, chip 「◯◯が待っています」.
+Card states (glyph, badge text): 未着手 `pending` (dashed outline, dashed circle), 着手可 `ready` (accent outline + soft glow, play), 作業中 `in-progress` (accent tint, producer avatar with rotating arc, elapsed minutes), ブロック `blocked` (warm red tint #E0533D, octagon exclamation, reason line), 完了 `done` (compact desaturated pill, seal check), 取り下げ `retired` (struck-through grey, archive). Edges: satisfied = thin faint line; waiting = thicker accent gradient from producer card to the waiting card, particles flowing toward the waiter, chip 「◯◯が待っています」.
 
 Card body (open states): a vertical stack of badge row, title (up to 2 lines, then ellipsis) and one note line (担当 ◯◯ / 理由 / ◯◯がつくっています). The card is tall enough for all three; the note line never overlaps the title (Trony defect 2026-11-12, Web 1440x900).
 
@@ -53,7 +55,7 @@ stateDiagram-v2
   List --> Chart: tap a chart card
   List --> Chart: back (when 一覧 was opened from a chart)
   List --> [*]: close / app navigation
-  List --> Stops: 止め一覧 (see 止め一覧 below)
+  List --> Stops: ブロック一覧 (see ブロック一覧 below)
   Stops --> List: back
   Stops --> Chart: tap a stop row (opens its 詳細)
   state Chart {
@@ -80,8 +82,8 @@ stateDiagram-v2
     Tree --> Tree: member highlight on / off
   }
   Approvals --> Chart: 工程表で見る (the extension's 決裁箱 screen, its 詳細; Web: the chart dialog closes, hash #approvals/<decisionId>, the way back reopens the chart at that card)
-  Chart --> Chart: 待ちの流れ 工程へ移動 (opens that card's 詳細; a card on another chart opens that chart at it)
-  Chart --> Chart: 待ちの流れ handle opens the panel / × folds it (wide: Mac, iPad, Web 1024 px+; starts folded, kept while the app is open)
+  Chart --> Chart: 接続 工程へ移動 (opens that card's 詳細; a card on another chart opens that chart at it)
+  Chart --> Chart: 接続 handle opens the panel / × folds it (wide: Mac, iPad, Web 1024 px+; starts folded, kept while the app is open)
   Chart --> List: chart switcher / すべての工程表
   Chart --> Conversation: 会話を開く / 統括と話す
   Conversation --> Chart: back (Web: reopening 工程表 resumes this chart)
@@ -113,8 +115,8 @@ Every button leads to exactly one next view; every failure view says what happen
 | that card over an icon | tap it / tap elsewhere / tap another icon | 詳細 of that card / closes / moves to that icon |
 | 工程表 | tap a card | 詳細 of that card (card morphs into the sheet) |
 | 工程表 | tap a member in the rail | highlight that member's cards and waits, dim the rest; tap again or tap empty canvas -> clear |
-| 待ちの流れ row | 会話を開く | the producer's chat (existing chat screen); back returns to this 工程表 |
-| 待ちの流れ row | 工程へ移動 | canvas scrolls/zooms to the awaited card and opens its 詳細; an awaited card on another chart opens that chart at it |
+| 接続 row | 会話を開く | the producer's chat (existing chat screen); back returns to this 工程表 |
+| 接続 row | 工程へ移動 | canvas scrolls/zooms to the awaited card and opens its 詳細; an awaited card on another chart opens that chart at it |
 | 詳細 of an Owner-lane card (`producer` is `owner`) | (shown by itself, no tap) | The app asks the Approval Box extension `GET /api/approvals/by-task?project=<chartId>&plan=<plan>&task=<taskId>` once when the 詳細 opens (not on every snapshot). 200 `{decisionId, status: pending\|held\|answered\|cancelled, title}` -> a 決裁 block under 終了条件: the decision's own `title` (as Approval Box has it) and its state in words 待ち / 保留 / 回答済み / 取り下げ, and the button 決裁を開く. 404, 401, 503, network, bad JSON, or no extension -> no block and nothing else changes (no message, no retry: the next 詳細 asks again). The id never shows |
 | 詳細 | 決裁を開く | The extension's 決裁箱 screen with that decision's 詳細 selected (Apple route `approvals/<decisionId>`; Web: the 工程表 dialog closes and the hash becomes `#approvals/<decisionId>`; Windows/Linux: the extension's window). Delta owns that screen and its way back (工程表で見る) |
 | 詳細 | tap 前の工程 / 次の工程 item | 詳細 of that card, canvas follows; an item on another chart opens that chart and its 詳細 (back to the first chart: the chart switcher) |
@@ -135,22 +137,22 @@ Failure and edge views (all leave on their own; the action is optional):
 | 404 `LATTICE_CHART_NOT_FOUND` | この工程表は見つかりません。 | — | 一覧へ戻る |
 | 404 on `/api/lattice/charts` (older server) | このサーバーではまだ工程表を使えません。 | appears after the server update | 閉じる |
 
-## 止め一覧 (stops; Owner 2026-11-12: 「ブロッカー（止め）一覧は作ってくれ。それを見て俺が解除する。」)
+## ブロック一覧 (stops; Owner 2026-11-12: 「ブロッカー（止め）一覧は作ってくれ。それを見て俺が解除する。」)
 
 Data only from the [Stops contract](README.md#stops-blockers--get-apilatticeblockers-and-post-apilatticechartsprojectidunblock). Order of the apps: Web (Flora) first, then Apple (Rapi) and Windows (Anis) from this section. The screen shows the stops and one 外す button per stop; nothing else is written.
 
 | Part | Content |
 | --- | --- |
-| Entry | 一覧 has a button 止め一覧 at the top (next to the list title). Only the Owner apps show it (the route is Owner-only) |
-| Header | 止め一覧, back (「← すべての工程表」, Esc / edge swipe) to 一覧, a 読み直す button (Web, Windows; F5 on Windows) / pull-to-refresh (Apple) |
-| Row (one per `blockers[]`, newest `blockedAt` first) | octagon glyph in the 止まり red; card `title` (2 lines, then ellipsis); chart name (name rule above, never `projectId`); 担当 = `lane` face + name (owner rule: Bot id -> member, `"owner"` -> the Owner, other text as written, null -> 担当なし); 理由 = `reason` as written (up to 3 lines, the whole text in the spoken label); 止めた人 = `blockedBy` face + name (same rule) and 止めた時刻 `blockedAt` in JST (今日 HH:MM / 昨日 HH:MM / M月D日 HH:MM); button 外す |
+| Entry | 一覧 has a button ブロック一覧 at the top (next to the list title). Only the Owner apps show it (the route is Owner-only) |
+| Header | ブロック一覧, back (「← すべての工程表」, Esc / edge swipe) to 一覧, a 読み直す button (Web, Windows; F5 on Windows) / pull-to-refresh (Apple) |
+| Row (one per `blockers[]`, newest `blockedAt` first) | octagon glyph in the ブロック red; card `title` (2 lines, then ellipsis); chart name (name rule above, never `projectId`); 担当 = `lane` face + name (owner rule: Bot id -> member, `"owner"` -> the Owner, other text as written, null -> 担当なし); 理由 = `reason` as written (up to 3 lines, the whole text in the spoken label); 止めた人 = `blockedBy` face + name (same rule) and 止めた時刻 `blockedAt` in JST (今日 HH:MM / 昨日 HH:MM / M月D日 HH:MM); button 外す |
 | Row tap (not the button) | opens that chart (工程表) and the card's 詳細 (`cardId` = card `id`) |
 | 外す | two steps in the row, no modal: 外す -> the row shows 「この止めを外しますか？」 with 外す (accent) and やめる; やめる / Esc / tapping elsewhere returns. Confirmed: the button shows a spinner, the row stays |
 | `unreadCharts` non-empty | thin amber line above the rows: 一部の工程表を読めませんでした。読めた分だけ表示しています。 (no ids) |
 
 ```mermaid
 stateDiagram-v2
-  [*] --> StopsLoading: 一覧 止め一覧
+  [*] --> StopsLoading: 一覧 ブロック一覧
   StopsLoading --> Stops: 200, 1+ stops
   StopsLoading --> StopsEmpty: 200, no stops
   StopsLoading --> StopsRetry: 503 / network / bad JSON
@@ -180,8 +182,8 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | StopsLoading (first read) | spinner 止めを読んでいます… (later reads keep the rows, no spinner) | the answer | back |
 | StopsEmpty | 止まっている工程はありません。 | 読み直す / foreground re-read | back |
-| StopsRetry | the last rows dimmed (or empty) + pill 止め一覧を読み直しています… | backoff 1, 2, 4 … 30 s forever while open | back, 読み直す (now) |
-| StopsOld (404) | このサーバーではまだ止め一覧を使えません。 | appears after the server update | back |
+| StopsRetry | the last rows dimmed (or empty) + pill ブロック一覧を読み直しています… | backoff 1, 2, 4 … 30 s forever while open | back, 読み直す (now) |
+| StopsOld (404) | このサーバーではまだブロック一覧を使えません。 | appears after the server update | back |
 | StopsLogin (Windows; sign-in lost) | ログインが必要です。ログインし直すと、自動で表示します。 (same text as the 工程表) | no timer; reads again when the app reconnects after signing in, or on 読み直す / foreground | back, 読み直す |
 | removed / already-gone | the row fades out (200 ms; Reduce Motion: none) | re-read | — |
 | 409 refused | under the row: 外せませんでした: `reason` (Lattice's text as is) | re-read; the stop stays | 外す again |
@@ -190,7 +192,28 @@ stateDiagram-v2
 
 Re-reads: on open, 読み直す / pull-to-refresh, after every 外す answer (any outcome), and on coming back to the foreground; never on a timer while the list is readable (the contract has no stream). An open 工程表 sees a removal through its own chart stream. A re-send after an unknown answer is harmless (`already-gone`).
 
-Accessibility: each row is one element 「止まり、<title>、<chart name>、担当 <lane>、理由 <reason>、<止めた人>が<時刻>に止めました」 with the action 外す; the confirm step moves focus to its 外す, やめる returns focus to the row's 外す.
+Accessibility: each row is one element 「ブロック、<title>、<chart name>、担当 <lane>、理由 <reason>、<止めた人>が<時刻>に止めました」 with the action 外す; the confirm step moves focus to its 外す, やめる returns focus to the row's 外す.
+
+## 接続 and ブロック (a161)
+
+Owner 2026-11-15 (via Trony): 「他条件に接続と優先接続はUI上は同じ場所に表示しようぜ　今でいうと『待ち』の表示箇所だ。」 and 「ツリーで表現されるものではない、特別な接続たちってことだ。」 Snow White (contract 2026-11-15): cross-chart and schedule connections are never in `edges`; Lattice gives them only in each task's `connections`.
+
+**One place, the old 待ち place.** The toolbar counter (接続 N), the member rail mark, the right-edge handle and the 接続 panel (formerly 待ちの流れ) show 他条件に接続 and 優先接続 together. The word 待ち is gone from every screen and spoken label.
+
+| Part | Rule |
+| --- | --- |
+| Data | Per card `connections[]` (from `todo display read` 0.104.0, read by `projection.mjs`): `{kind: 'task'\|'schedule'\|'priority', ref, state: 'open'\|'settled', reason, since, settledAt?, evidence?}`; a `priority` entry carries `agent` (the Bot that asked) instead of `ref`. Only `open` entries count and draw; a settled one leaves the area (the task is startable again). `kind: 'task'` rows take the awaited card's title, chart name and producer from `externals[]` when Lattice gives that fact, else ほかの工程表の工程 (state unknown: 読めていません) |
+| Never a line | A 接続 is never an edge: not in ツリー, not in 担当, no curve, no particle. It is shown only in the 接続 area and as a chip on the card itself (link glyph + 「接続 N」, N open entries; none for a card without one) |
+| 前工程 | Unchanged: same-chart `edges`, drawn as lines (satisfied = faint, waiting = accent gradient with particles and the chip 「◯◯が待っています」), listed in 詳細 under 前の工程. They are NOT rows of the 接続 panel (proposal to Trony 2026-11-15, awaiting his word; until then the panel shows connections only) |
+| Toolbar counters | 作業中 / 接続 / ブロック. 接続 = number of open entries on the chart; ブロック = number of `blocked` cards |
+| Member rail | working = rotating arc; ブロック = red dot; 接続 = a link glyph with the count of that member's cards that have an open entry (the old hourglass) |
+| Right handle / panel | handle: link glyph + 接続 count (red when a producer is in ブロック); panel title 接続; same wide-layout rule and fold behaviour as before (Mac/iPad/Linux/Windows start folded; Web 1024 px+; narrow = the horizontal strip / iPhone pager) |
+| Panel rows (open entries, oldest `since` first) | **task**: the card that is connected (title, owner face, 接続 <length>, 「担当 ◯◯」); 「この工程が終わるのを待っています」; the awaited card title with its chart (「<chart name>の工程表」), producer and state as in the old cross-chart row; buttons 会話を開く (producer), 工程へ移動 (opens that chart at that card). **schedule**: 「予定「<name>」の結果を待っています」, the schedule's owner face and 「次の確認 <JST>」 when known, no 工程へ移動. **priority**: 「<agent face + name> が、着手できるようになったらすぐ動きたいと伝えています」; no awaited card; 工程へ移動 opens the card. Reason text of the entry is shown as one muted line (as written). A row whose connected card's producer is in ブロック is emphasized |
+| Empty | 接続している工程はありません。 |
+| ブロック一覧 | The former 止め一覧, renamed everywhere: entry button, header, rows, empty text (「ブロックされている工程はありません。」), the card state badge 止まり -> ブロック, its spoken label. Behaviour, contract and 外す unchanged |
+| Accessibility | Panel rows read 「「<card title>」（担当 <owner>）は、<task: 「<awaited title>」が終わるのを待っています。つくっているのは<producer>、<state> / schedule: 予定「<name>」の結果を待っています / priority: <agent>が着手できたらすぐ動きたいと伝えています>」; chip: 「接続 N」 |
+
+Order of work (a161): this spec -> Web (Flora: `projection.mjs` connections, `lattice-chart-model.js`, `lattice-chart.js`, `lattice-stops.js` words) -> Apple (Rapi) and Windows (Anis) build to it with real shots. State diagram: the states and arrows are unchanged; every `止め一覧` / `Stops` label above reads ブロック一覧.
 
 ## Data handling
 
@@ -214,4 +237,4 @@ Accessibility: each row is one element 「止まり、<title>、<chart name>、�
 
 ## Accessibility
 
-Each card is one accessibility element: 「<title>、<state>、つくっている <producer>」. 待ちの流れ rows read 「「<waiting title>」（担当 <waiter>）は、「<awaited title>」が終わるのを待っています。つくっているのは<producer>、<state>」. Edge chips say 「<waiter>が待っています」, or 「次の工程が待っています」 when the waiting card has no owner. Colour never carries state alone: glyph + badge text always present.
+Each card is one accessibility element: 「<title>、<state>、つくっている <producer>」. 接続 rows read 「「<waiting title>」（担当 <waiter>）は、「<awaited title>」が終わるのを待っています。つくっているのは<producer>、<state>」. Edge chips say 「<waiter>が待っています」, or 「次の工程が待っています」 when the waiting card has no owner. Colour never carries state alone: glyph + badge text always present.
