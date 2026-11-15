@@ -19,7 +19,8 @@ function askMessage(chart, card) {
     + `Set its session_label to \`Lattice ${chart.projectId} ${card.plan}/${card.taskId}\`, so the answer that reaches you names this task.\n`
     + `Write it to the Approval Box instructions, in plain Japanese: the title says in one sentence what the Owner should decide; the background gives the reason and the impact first; put on the card what he must see to decide (a draft he approves, the exact setting, the cost); each option says what happens after it. No task ids, no English chart text.\n`
     + `When he answers, record it: \`lattice todo start --plan ${card.plan} --task ${card.taskId}\` (skip if already in progress), then \`lattice todo done --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`;`
-    + ` or \`lattice todo note --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`. If the task is retired or done before he answers, cancel_decision your request.`
+    + ` or \`lattice todo note --plan ${card.plan} --task ${card.taskId} --message "<the Owner's answer>"\`. If the task is retired or done before he answers, cancel_decision your request.\n`
+    + `No Approval Box extension drives this card, so you close it on his answer. A card the extension drives is closed by the extension itself (it is skipped here), and a hand close of it shows as diverged.`
 }
 
 // Task a145 (Owner 2026-11-15; Ink K-HME3YU: the answer reached Ink's conversation at 10:45 JST, the task stayed open ~2.5 h): Lattice cannot see a
@@ -29,6 +30,7 @@ function remindMessage(entries) {
   return `Lattice: these Owner-lane tasks on charts you created are still open. Check your Approval Box request for each (list_my_decisions / resume_decision).\n`
     + `If the Owner has answered, record it now: \`lattice todo start --plan <P> --task <T>\` (skip if in progress), then \`lattice todo done --plan <P> --task <T> --message "<the Owner's answer>"\`, or \`lattice todo note\` if the answer is not "done". `
     + `If no request exists, file it as the hand-over said. If he has not answered yet, do nothing; this reminder comes again in an hour while the task is open.\n`
+    + `You close these cards: no Approval Box extension drives them (a card it drives is closed by the extension and is not listed here).\n`
     + entries.map(({ chart, card }) => `- chart ${chart.projectId} (lattice tool, project ${chart.projectId}): ${card.plan}/${card.taskId} 「${card.title}」`).join('\n')
 }
 
