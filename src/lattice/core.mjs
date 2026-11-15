@@ -6,6 +6,7 @@ import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
 import { nudgeSweep } from './nudge.mjs'
 import { ownerDecisions } from './owner-decisions.mjs'
+import { decisionTask, ownerTaskCheck } from './owner-task.mjs'
 import { stopsOf, unblockOutcome } from './blockers.mjs'
 
 // Display reads of changed charts, up to 16 at once (README L4); tokens, names and creators come in one `charts list` / `charts source` process (K1/K2).
@@ -186,6 +187,28 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       rows.sort((a, b) => order(a).join('\0').localeCompare(order(b).join('\0')))
       return { schema: 'bellteam.lattice-blockers.v1', at: iso(now()), blockers: rows, unreadCharts: unreadCharts.sort() }
     },
+    // Owner-task port (L20; Approval Box extension): the Owner actor, confined to decision tasks and cards `link` registered. Notices go out as 'scheduler' like L17.
+    ownerTask: async ({ projectId, args, input }, effect) => {
+      const record = await cli.readOwnerRecord()
+      ownerTaskCheck(args, input, (plan, task) => record[`${projectId}/${plan}/${task}`]?.status === 'linked')
+      return locked(projectId, () => runOnce({ from: 'owner', sender: 'scheduler', projectId, args, input }, effect))
+    },
+    // Marks a card decision-driven (L20): the Owner-lane hand-over and the hourly reminder skip it. A card that is not a decision task must exist in lane owner.
+    link: async ({ projectId, plan, taskId }, effect) => {
+      if (!decisionTask(plan, taskId)) {
+        await mustExist(projectId)
+        const [memo] = await syncAll([projectId], effect)
+        const card = memo.content.cards.find(item => item.plan === plan && item.taskId === taskId)
+        if (!card || laneResolver(roster)(card.lane) !== 'owner') throw latticeError('LATTICE_OWNER_TASK_REFUSED', 403)
+      }
+      const record = await cli.readOwnerRecord(), key = `${projectId}/${plan}/${taskId}`
+      // Legacy open/reask records and final routed/closed ones keep their state: each already skips the hand-over (L18-L19).
+      if (!record[key] || record[key].status === 'asked') {
+        record[key] = { projectId, plan, taskId, status: 'linked', linkedAt: iso(now()) }
+        await cli.writeOwnerRecord(record)
+      }
+      return { schema: 'bellteam.lattice-link.v1', projectId, plan, taskId, linked: true }
+    },
     // Owner unblock (L17): the only Owner write; actor 'owner' reaches LATTICE_SEAT_ID only here (named protection, README L17).
     unblock: ({ projectId, stopId }, effect) => locked(projectId, async () => {
       const answer = outcome => ({ schema: 'bellteam.lattice-unblock.v1', projectId, stopId, ...outcome })
@@ -203,7 +226,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return answer(unblockOutcome({ exitCode: result.exitCode, out, err: parse(result.stderr) }))
     }),
   }
-  async function runOnce({ from, projectId, args, input, name }, effect, read = false) {
+  async function runOnce({ from, sender = from, projectId, args, input, name }, effect, read = false) {
     const naming = name !== undefined
     const renameOnly = naming && args.length === 0 && input === null
     if (!renameOnly) checkSeatArgs(args, input)
@@ -224,7 +247,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     // Delivery never changes the seat's result; its failures stay unacked in Lattice and are re-listed later.
     // A seat's own `todo notice list|ack` is not a release write: its notices are that seat's reading, never sent or acked here.
     if (effect && !read && result.exitCode === 0 && !(args[0] === 'todo' && args[1] === 'notice')) {
-      try { await rosterReader(effect)(); await notices.afterRun(projectId, value, { from, roster, effect }) } catch (error) { log(`lattice-notice ${projectId} ${error?.code ?? 'FAILED'}`) }
+      try { await rosterReader(effect)(); await notices.afterRun(projectId, value, { from: sender, roster, effect }) } catch (error) { log(`lattice-notice ${projectId} ${error?.code ?? 'FAILED'}`) }
     }
     return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
   }
