@@ -348,6 +348,27 @@ test('同じCLIのモデルとエフォートは会話セッションを保っ�
   ]])
 })
 
+test('b5159a79: saved harness matches but the live seat runs another CLI, so the change restarts instead of configuring', async () => {
+  const calls = []
+  const project = await mkdtemp(join(tmpdir(), 'bellteam-live-harness-'))
+  const client = {
+    async call(name, args) {
+      calls.push([name, args])
+      if (name === 'pty_close') return {}
+      if (name === 'agent_launch') return { structuredContent: { session_id: 'claude-new' } }
+      throw new Error(`unexpected ${name}`)
+    },
+  }
+  const transport = new AitermTransport({ client, handoffContext: noMemory })
+  // Cecil 2026-11-15 14:06 JST: saved claude/sonnet, live seat still codex, request claude/opus.
+  const current = { id: 'bot-a', session: 'bot-a', harness: 'claude', project, model: 'sonnet', reasoningEffort: 'high' }
+  transport.seatHarnesses.set('bot-a', { session: 'bot-a', harness: 'codex-cli' })
+  const next = { ...current, model: 'opus' }
+  assert.equal((await transport.reconfigure(current, next)).mode, 'restart')
+  assert.deepEqual(calls.map(([name]) => name), ['pty_close', 'agent_launch'])
+  assert.equal(calls[1][1].harness, 'claude-code')
+})
+
 test('モデルとエフォートをCLI既定へ戻す時は記憶引き継ぎ付きで再起動する', async () => {
   const calls = []
   const project = await mkdtemp(join(tmpdir(), 'bellteam-model-default-'))

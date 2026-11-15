@@ -589,8 +589,13 @@ export class AitermTransport {
     return { version, closed, issued: Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])]) }
   }
 
+  // configuration-delivery.md (b5159a79): restart when the live seat runs another harness than requested, even if saved matches.
+  needsRestart(current, next, reapply) {
+    return configurationNeedsRestart(current, next, reapply) || this.seatHarness(current) !== HARNESS.get(next.harness)
+  }
+
   reconfigure(current, next, options = {}) {
-    if (configurationNeedsRestart(current, next, options.reapply))
+    if (this.needsRestart(current, next, options.reapply))
       return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
     const version = this.captureStopVersion(current)
     let turns = this.activity.of(current.id)
@@ -640,7 +645,7 @@ export class AitermTransport {
     return this.memberOperation(current, async membersLease => {
       admissionCheck?.()
       this.requireStopVersion(current.id, version)
-      const requiresRestart = configurationNeedsRestart(current, next, reapply)
+      const requiresRestart = this.needsRestart(current, next, reapply)
       if (requiresRestart) {
         const session = await this.restartNow(next, version, undefined, membersLease, admissionCheck)
         return { botId: next.id, session, mode: 'restart' }

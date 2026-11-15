@@ -12,6 +12,8 @@ New launch still receives saved settings. Present-session delivery no longer inv
 
 A delivery can reach the CLI as a new turn before BellTeam's wait for the captured turn returns (production 2026-11-13 06:33Z: an `after_turn` continuation arrived at the boundary; Aiterm refused the apply, which was never applied again, and the seat kept running on the old model). So a deferred apply refused with `CONFIGURATION_NOT_APPLIED` / `not_started` while a turn of that Bot runs captures the running turns again and applies at their end, as a NEW configuration request (fresh ID): the refused request keeps its terminal `not_applied` receipt under its own ID ([configuration-requests](configuration-requests.md)), and the caller's application takes the ID of the final receipt. Stderr: `BellTeam configuration: not applied while a turn runs, again at its end`.
 
+Restart or configure is decided against the harness the live seat actually runs (`seatHarness`: the launch record, else the saved harness), not only against the saved settings (2026-11-15, BugHub b5159a79). A saved harness can differ from the live seat (the seat kept its old CLI after an earlier change). Comparing saved with saved then sent a model-only `agent_configure` (Cecil, `opus`) to a Codex seat, and Aiterm answered `not_applied` / `unsupported`. When the live seat's harness differs from the requested one, the change takes the existing restart path, which launches the requested harness.
+
 ```mermaid
 flowchart LR
   Req[saved settings] --> Wait[wait captured turns' native completion]
