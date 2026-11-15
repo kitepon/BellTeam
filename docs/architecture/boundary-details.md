@@ -19,15 +19,15 @@ Claudeの一覧は、席と同じログインで取る（Trony a04、2026-11-12�
 ```mermaid
 flowchart LR
   CLI["Claude CLI 2.1.325<br/>別名 opusplan（Opus Plan Mode: plan mode は Opus、それ以外は Sonnet）"] -->|"initialize の models は、席の model が opusplan の時だけ opusplan を含む"| AM["Aiterm agent_models（Elegg）"]
-  AM -->|"claude 一覧に opusplan を足す（a142）"| Cat["LiveModelCatalog → list_models / /api/models"]
+  AM -->|"claude 一覧に opusplan を足す（a141-aiterm-opusplan）"| Cat["LiveModelCatalog → list_models / /api/models"]
   Cat --> Apps["Apple・Windows・Linux・Web の候補（本体の一覧をそのまま表示。決め打ち無し）"]
   Upd["update_self / update_bot（BotRegistry: MODEL_ID の形だけ確認）"] -->|"model=opusplan を保存"| Launch["agent_launch --model opusplan（容器・端末とも）"]
-  Upd -->|"動いている席"| Conf["Aiterm agent_configure: /model 画面に opusplan が無い時は /model opusplan で適用（a142）"]
+  Upd -->|"動いている席"| Conf["Aiterm agent_configure: /model 画面に opusplan が無い時は /model opusplan で適用（a141-aiterm-opusplan）"]
 ```
 
 - 確かめた事（2026-11-15、容器の Claude CLI 2.1.325 の本体）：`opusplan` は CLI の別名一覧に入っており `--model opusplan` で起動できる。`/model` 画面の「Opus Plan Mode」行は、席の model がすでに opusplan の時だけ足される。Aiterm の一覧取得は model 無しで initialize を聞くので、一覧に出ない。
 - BellTeam は変えない：作成・設定変更の検証は `MODEL_ID` の形だけ、起動は保存した model をそのまま `--model` へ渡す。Apple（`ios/`）・Windows・Linux・Web は `/api/models` の候補を表示し、Claude の model 名を決め打ちしていない（`HarnessAccounts` の名前表は上限の系統名で、候補ではない）。
-- 一覧と、動いている席への適用は Aiterm（Elegg、a142）が持つ：claude の `agent_models` に opusplan を加え、`agent_configure` は画面に行が無い時 `/model opusplan` で適用する。
+- 一覧と、動いている席への適用は Aiterm（Elegg、a141-aiterm-opusplan）が持つ：claude の `agent_models` に opusplan を加え、`agent_configure` は画面に行が無い時 `/model opusplan` で適用する。
 - 上限の系統：`modelScope('opusplan')` は文字列に opus を含むので `opus` の上限として数える（plan mode の turn は Opus）。新しい拒否は足さない。
 
 検証はBotRegistryの作成/設定変更とWebの編集候補から使う。空配列を成功した候補一覧の代わりにせず、errorを同じCLIの結果へ載せる。モデル候補は永続化も自動再試行もしない。model/effortの変換と取得元はAitermが所有する。
