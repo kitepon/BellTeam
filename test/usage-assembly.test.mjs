@@ -133,3 +133,30 @@ test('a one-shot terminal.login value reaches the consumer although the child re
   await assembly.credentials.withResolved('child-handle', { ...login, memberId: null }, value => { got = value })
   assert.equal(got, 'synthetic-login')
 })
+
+test('a non-callback system call made from an effect scope is a fresh root, also after the effect ended (a132)', async () => {
+  let ports, assembly, later
+  const requests = []
+  assembly = createUsageAssembly({ root: '/unused', getServices: () => ({ bots: new Map() }),
+    // The effect starts long-lived work (like the call-bridge listener) that calls usage after the effect returned.
+    onEffect: async () => {
+      // Scheduled inside the effect, run after it returned: the AsyncLocalStorage scope travels with it.
+      later = new Promise(resolve => setImmediate(() =>
+        resolve(assembly.facade.onboarding.prepareStartup({ id: 'bot-a' }, assembly.systemContext('onboarding.prepareStartup')))))
+    },
+    createProcess: value => {
+      ports = value
+      return {
+        request(method, params, options) {
+          requests.push(method); ports.admission.assertLease(options.usageLease)
+          assert.equal(Object.hasOwn(options, 'usageEffect'), false)
+          const result = Promise.resolve(null); Object.defineProperty(result, 'completion', { value: result }); return result
+        },
+        callback() { throw new Error('a non-callback method must not be sent as an effect callback') },
+      }
+    } })
+  // A control-rooted effect carries no lease (usageLease null), as at startup activation.
+  await ports.onEffect('settings.changed', {}, { usageLease: null, usageEffect: Object.freeze({}) })
+  await later
+  assert.deepEqual(requests, ['onboarding.prepareStartup'])
+})

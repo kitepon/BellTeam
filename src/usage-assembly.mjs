@@ -4,6 +4,7 @@ import { developerAccessAllowed } from './distribution-profile.mjs'
 import { MembersAdmission } from './members-admission.mjs'
 import { createUsageProcess } from './usage-process.mjs'
 import { createUsageAuthority } from './usage/authority.mjs'
+import { USAGE_CALLBACK_METHODS } from './usage/channel-protocol.mjs'
 import { createUsageFacade } from './usage/facade.mjs'
 import { createUsageProjection } from './usage/projection.mjs'
 import { NativeSecretCredentials } from './usage/native-secret-credentials.mjs'
@@ -45,7 +46,10 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     const capturedAuthorization = authority.capture(method, { kind: 'system', botId: null })
     if (parentContext) capturedContexts.set(capturedAuthorization, parentContext)
     const context = scope.getStore()
-    return context?.usageEffect ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
+    // Only the effect's own callback joins it. Any other system call is a fresh root, also from work an effect
+    // started that outlives it (the call-bridge listener created in a settings apply, a132).
+    return context?.usageEffect && USAGE_CALLBACK_METHODS.includes(method)
+      ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
   }
   const credentials = {
     requestTerminalKey: input => facade.secretRequests.requestTerminalKey(input, systemContext('secrets.requestTerminalKey')),

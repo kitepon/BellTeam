@@ -6,6 +6,8 @@ import { backgroundHarnesses, backgroundRecordValid, backgroundModelsValid } fro
 
 export const object = value => value && typeof value === 'object' && !Array.isArray(value)
 export const exact = (value, keys) => object(value) && Object.keys(value).sort().join(',') === keys.split(',').sort().join(',')
+// The only parent callback a live usage effect may make (settings apply records its own error).
+export const USAGE_CALLBACK_METHODS = Object.freeze(['settings.setError'])
 export const check = (value, code = 'USAGE_IPC_INVALID') => { if (!value) throw usageError(code) }
 export const contextValid = value => exact(value, 'generation,rootId,kind,method,mode,actor,continuation')
   && typeof value.generation === 'string' && value.generation.length > 0 && value.generation.length <= 200
