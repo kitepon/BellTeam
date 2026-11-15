@@ -18,19 +18,23 @@ const PUBLIC_MESSAGES = {
 const safeCode = /^[A-Z][A-Z0-9_]{2,63}$/u
 const httpStages = new Set(['url', 'authorize', 'members_authorization', 'seat_mcp', 'control', 'members_refresh', 'feature', 'static'])
 const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings', '/api/schedules'])
+// The route TYPE only (never an id, query or body), shared by the 503 and slow/aborted request records.
+export function httpRouteType(url) {
+  const path = typeof url === 'string' ? url.split(/[?#]/u, 1)[0] : ''
+  const scoped = /^\/api\/(bots|rooms)\/[a-z0-9-]+\/(messages|queue|avatar|screen)$/u.exec(path)
+  return unavailableRoutes.has(path) ? path : scoped ? `/api/${scoped[1]}/:id/${scoped[2]}` : '/api/other'
+}
 
 export async function respondHttpError(request, response, error, diagnostics, context = {}) {
   const unreadable = error.code === 'UNREADABLE' && error.status === 503
   if (typeof error.code === 'string' && Number.isInteger(error.status)) {
     if (error.status === 503 && diagnostics) {
-      const path = typeof request.url === 'string' ? request.url.split(/[?#]/u, 1)[0] : ''
-      const scoped = /^\/api\/(bots|rooms)\/[a-z0-9-]+\/(messages|queue|avatar)$/u.exec(path)
       try {
         await diagnostics.record({ code: 'SERVER_HTTP_503', module: 'server', diagnostic_log: JSON.stringify({
           schema: 'bellteam.http-unavailable.v1',
           error_code: safeCode.test(error.code) ? error.code : 'unknown',
           http_method: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(request.method) ? request.method : 'unknown',
-          request_route: unavailableRoutes.has(path) ? path : scoped ? `/api/${scoped[1]}/:id/${scoped[2]}` : '/api/other',
+          request_route: httpRouteType(request.url),
           request_started_at_ms: Number.isSafeInteger(context.startedAt) && context.startedAt >= 0 ? context.startedAt : null,
           response_selected_at: new Date().toISOString(),
           http_stage: httpStages.has(context.stage) ? context.stage : 'unknown',
