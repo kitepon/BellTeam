@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T04:09:04Z",
-  "expiresAt": "2026-11-22T04:09:04Z",
+  "publishedAt": "2026-11-15T04:22:46Z",
+  "expiresAt": "2026-11-22T04:22:46Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "cab4b0f477f3913a25f0d28221da588298c32e76",
-      "versionId": "a13d20516b75c2e75b7f7a4aba3746d87e97311b85a341f8299cd3345572c9c4",
+      "sourceCommit": "ccb492504be7e06bd3d81390b48eb214f5d08e6f",
+      "versionId": "579bccfd06a079bd5ad57d409d4fb14adcf20bd163b2b84d68ddfb5a8b848caf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-amd64.tar.gz",
-          "bytes": 4551268,
-          "sha256": "a13d20516b75c2e75b7f7a4aba3746d87e97311b85a341f8299cd3345572c9c4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T042223Z/members-ccb492504be7e06bd3d81390b48eb214f5d08e6f-linux-amd64.tar.gz",
+          "bytes": 4552322,
+          "sha256": "579bccfd06a079bd5ad57d409d4fb14adcf20bd163b2b84d68ddfb5a8b848caf"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11074,
-          "sha256": "b8fabeb6ca247a92f5601fba075cccb9224494efe84ed20a35cd858724cfe1bc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T042223Z/members-ccb492504be7e06bd3d81390b48eb214f5d08e6f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "629b8969edd4cb0771f70f94c5f0af0a6f05ae7dc7d2357d6d60e1bb6a4b26b4"
         },
-        "signerCommit": "cab4b0f477f3913a25f0d28221da588298c32e76"
+        "signerCommit": "ccb492504be7e06bd3d81390b48eb214f5d08e6f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "共通の規範で、工程表の作業が進められない時の止め方を書き換えました。"
+        "共通の規範で、工程表の作業が進められない時の止め方を短く書き換えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "cab4b0f477f3913a25f0d28221da588298c32e76",
-      "versionId": "672a4a3b18b95290201966a3ff33829d5234ff919c9e912cdd637eb09d584829",
+      "sourceCommit": "ccb492504be7e06bd3d81390b48eb214f5d08e6f",
+      "versionId": "67b638614c8446ece4458243d43a33ea7110154e56c14933bef4749ac7e2a505",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-arm64.tar.gz",
-          "bytes": 4551267,
-          "sha256": "672a4a3b18b95290201966a3ff33829d5234ff919c9e912cdd637eb09d584829"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T042223Z/members-ccb492504be7e06bd3d81390b48eb214f5d08e6f-linux-arm64.tar.gz",
+          "bytes": 4552321,
+          "sha256": "67b638614c8446ece4458243d43a33ea7110154e56c14933bef4749ac7e2a505"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T040647Z/members-cab4b0f477f3913a25f0d28221da588298c32e76-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11098,
-          "sha256": "71722748660e86f692573297e054d159378785b649bbb39ae4ef0ddaafc39090"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T042223Z/members-ccb492504be7e06bd3d81390b48eb214f5d08e6f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "33fbb37889d6bcec5651826bfa88b9931d8ee996599cad96ae9802ee74f28875"
         },
-        "signerCommit": "cab4b0f477f3913a25f0d28221da588298c32e76"
+        "signerCommit": "ccb492504be7e06bd3d81390b48eb214f5d08e6f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "共通の規範で、工程表の作業が進められない時の止め方を書き換えました。"
+        "共通の規範で、工程表の作業が進められない時の止め方を短く書き換えました。"
       ]
     },
     {
