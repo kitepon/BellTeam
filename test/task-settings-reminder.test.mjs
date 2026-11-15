@@ -17,23 +17,21 @@ const clientFor = (calls,mode='agent_dispatch') => ({async call(name,args){
  throw Error('unexpected '+name)
 }})
 
-test('task settings: one canonical rule reaches all five CLI globals with owner and user rules intact',async t=>{
+test('task settings: the common rules carry no model section and reach all five CLI globals with owner and user rules intact',async t=>{
  const home=await mkdtemp(join(tmpdir(),'model-policy-home-'));t.after(()=>rm(home,{recursive:true,force:true}))
  for(const cli of ['claude','codex','grok','cursor','gemini'])await mkdir(join(home,'.'+cli))
  const { renderGlobalInstructions } = await import(pathToFileURL(join(root,'src/members/instructions.mjs')))
  const rendered=renderGlobalInstructions({name:'Synthetic owner',links:[]},'Synthetic user rule',await readFile(join(root,'config/common-agents.md'),'utf8'))
  for(const cli of ['claude','codex','grok','cursor','gemini'])await (await import('node:fs/promises')).writeFile(join(home,'.'+cli,'AGENTS.md'),rendered)
- const rule=await globalInstructions.taskSettingsReminder()
- assert.doesNotMatch(rule,/currentWorkBinding|update_work_summary/u)
- for(const text of ['SECTION models','latest Sol at effort high','latest Terra at xhigh','task is extremely simple','get_self','list_models','update_self','set_fast_mode(enabled=false)','at the start of the next turn'])assert.ok(rule.includes(text),text)
+ // Model usage is owned by the user rules now; the product common rules carry no SECTION models.
+ const common=await readFile(join(root,'config/common-agents.md'),'utf8')
+ assert.equal(await globalInstructions.taskSettingsReminder(),'')
+ assert.doesNotMatch(common,/SECTION models|latest Sol|latest Terra|Codex Astra/)
  for(const cli of ['claude','codex','grok','cursor','gemini']){
   const text=await readFile(join(home,'.'+cli,'AGENTS.md'),'utf8')
-  assert.ok(text.includes(rule));assert.ok(text.includes('Synthetic owner'));assert.ok(text.includes('Synthetic user rule'))
+  assert.ok(text.includes(common.trim()));assert.ok(text.includes('Synthetic owner'));assert.ok(text.includes('Synthetic user rule'))
   assert.doesNotMatch(text,/currentWorkBinding|update_work_summary/u)
  }
- const common=await readFile(join(root,'config/common-agents.md'),'utf8')
- assert.match(rule,/^SECTION models\n/)
- assert.doesNotMatch(rule,/SECTION design/)
  assert.match(common,/RULE guards\.named-protection/)
  assert.doesNotMatch(common,/LunaのHigh|平常時はTerra|平常の仕事へ戻る時はTerra/)
  assert.match(common,/command schedule when no AI is needed; prompt schedule when judgment or repair is/)
