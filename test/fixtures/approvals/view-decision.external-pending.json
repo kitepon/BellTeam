@@ -1,0 +1,61 @@
+{
+  "id": "K-DEMO2",
+  "title": "領収書の保存先を、共有フォルダにしてよいですか？",
+  "context": "Macのレシート整理で、領収書のPDFを毎月まとめています。共有フォルダに移すと、経理の担当も同じ場所から読めます。",
+  "options": [
+    {
+      "id": "o1",
+      "label": "共有フォルダに保存する",
+      "recommended": false
+    },
+    {
+      "id": "o2",
+      "label": "今のフォルダのままにする",
+      "recommended": false
+    }
+  ],
+  "urgency": "normal",
+  "deadline": null,
+  "status": "pending",
+  "answer": null,
+  "delivery": null,
+  "resumePhrase": "Approval Box K-DEMO2 の答えを確認して続けて",
+  "version": 1,
+  "createdAt": "2026-11-15T01:51:00Z",
+  "updatedAt": "2026-11-15T01:51:00Z",
+  "cancelReason": null,
+  "amended": {
+    "is": false,
+    "fields": [],
+    "note": null,
+    "at": null
+  },
+  "history": [
+    {
+      "at": "2026-11-15T01:51:00Z",
+      "kind": "created",
+      "by": "ai"
+    }
+  ],
+  "requestAttachments": [
+    {
+      "id": "A-DEMO1",
+      "name": "receipt-list.png",
+      "contentType": "image/png",
+      "size": 183204,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "origin": {
+    "kind": "external",
+    "basis": "none",
+    "client": "claude-code",
+    "tool": "Claude Code",
+    "sessionLabel": "Macのレシート整理",
+    "workLabel": "Macのレシート整理",
+    "connectionLabel": "mac",
+    "via": "remote"
+  },
+  "requester": null,
+  "link": null
+}

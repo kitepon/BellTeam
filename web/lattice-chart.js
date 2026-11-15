@@ -7,7 +7,7 @@ import {
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
 
-const GLYPHS = {
+export const GLYPHS = {
   crown: '<path d="M3.6 8.6l4.4 3.6L12 5.2l4 7 4.4-3.6-1.7 9.6H5.3z" fill="currentColor" fill-opacity=".18"/><path d="M5.6 20.8h12.8"/>',
   hour: '<path d="M7 3.5h10M7 20.5h10"/><path d="M8 3.5c0 4.6 3.2 5.8 4 8.5-.8 2.7-4 3.9-4 8.5M16 3.5c0 4.6-3.2 5.8-4 8.5.8 2.7 4 3.9 4 8.5"/>',
   play: '<circle cx="12" cy="12" r="9"/><path d="M10.2 8.6l5.2 3.4-5.2 3.4z" fill="currentColor"/>',
@@ -634,7 +634,7 @@ export function createLatticeChart(dialog, {
   })
 
   return {
-    open(projectId = null) {
+    open(projectId = null, cardId = null) {
       if (isOpen) return
       isOpen = true; opens++; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
@@ -645,6 +645,7 @@ export function createLatticeChart(dialog, {
       resumeId = null
       if (!target) return void loadList()
       openChart(target)
+      if (cardId) pendingDetail = cardId // 決裁箱の「工程表で見る」：最初の一枚が来たらその工程の詳細を開く
       const opened = opens
       void api('/api/lattice/charts').then(data => { if (!isOpen || opened !== opens || list) return; list = data; if (view === 'chart' && snapshot) paintChart({ ...diffSnapshots(snapshot, snapshot), first: true }) }).catch(() => {})
     },

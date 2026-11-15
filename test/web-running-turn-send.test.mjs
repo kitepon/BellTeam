@@ -25,7 +25,7 @@ test('active Bot keeps ordinary send alongside stop and the existing single-flig
       if (path.includes('/messages')) return { items: [], has_more: false }
       throw Error(`Unexpected API ${path}`)
     },
-    fetchImage() {}, watchEvents() { return () => {} },
+    fetchImage: async () => new Response('{}', { status: 404 }), watchEvents() { return () => {} }, // 決裁箱拡張が入っていない本体
   }
   const app = createWebApp({ client })
   const send = dom.get('send-button'), stopButton = dom.get('stop-button'), input = dom.get('message-input')

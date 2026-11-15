@@ -1,0 +1,12 @@
+{
+  "schema": "bellteam.approvals-summary.v1",
+  "pending": 4,
+  "urgent": 1,
+  "held": 1,
+  "answeredToday": 2,
+  "filedToday": 6,
+  "byOrigin": {
+    "bellteam": 4,
+    "external": 1
+  }
+}

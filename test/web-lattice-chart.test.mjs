@@ -644,3 +644,13 @@ test('詳細：by-task が 404・失敗・形違いなら決裁のブロック�
     ui.view.close()
   }
 })
+
+test('決裁箱（a154）：open(projectId, cardId) は一覧の答えを待たず、最初の一枚でその工程の詳細を開く', async t => {
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api: async () => chartsList('bellteam', 'other'), fetchImage: net.fetchImage })
+  ui.view.open('other', 'p1/t03'); await flush()
+  const sheet = byClass(ui.body, 'lattice-sheet')[0]
+  feed.snapshot(fixture()); await flush()
+  assert.equal(sheet.hidden, false); assert.match(textOf(sheet), /部品の実装/u)
+  ui.view.close()
+})

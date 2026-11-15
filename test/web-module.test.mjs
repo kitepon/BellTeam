@@ -16,6 +16,7 @@ function fixture(t, settings = {}) {
       options.signal.addEventListener('abort', () => dom.events.error(new DOMException('closed', 'AbortError')))
       return new Response(events)
     }
+    if (path.startsWith('/api/approvals')) return Response.json({ error: 'NOT_FOUND' }, { status: 404 }) // 決裁箱拡張が入っていない本体
     if (path === '/api/session') return Response.json({ authenticated: true })
     if (path === '/api/setup') return Response.json({ phase: 'ready', complete: true })
     if (path === '/api/settings') return Response.json({ settings: [] })

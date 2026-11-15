@@ -14,6 +14,9 @@ import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createWorkGraphView } from './work-graph.js?v=__ASSET_VERSION__'
 import { createLatticeChart } from './lattice-chart.js?v=__ASSET_VERSION__'
 import { chartName } from './lattice-chart-model.js?v=__ASSET_VERSION__'
+import { createApprovalsFeed } from './approvals-feed.js?v=__ASSET_VERSION__'
+import { createApprovalsEntry, createApprovalsView } from './approvals.js?v=__ASSET_VERSION__'
+import { parseHash } from './approvals-model.js?v=__ASSET_VERSION__'
 import { bannerTexts } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -164,6 +167,21 @@ export function createWebApp({ client = createWebClient() } = {}) {
   // Lattice工程表：会話を開くは相関図と同じ経路（通知の member route）。
   const latticeDialog = document.querySelector('#lattice-dialog')
   const latticeMember = id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.displayName ?? bot.name, color: bot.color, avatar: bot.avatar, known: true } : null }
+  // 決裁箱：読み手は一つで、入口のバッジと画面が共有する。Web は /api/approvals/* だけを読む（決裁箱本体は呼ばない）。
+  const approvalsDialog = document.querySelector('#approvals-dialog')
+  const approvalsFeed = createApprovalsFeed({ fetch: fetchImage })
+  const approvals = createApprovalsView(approvalsDialog, { feed: approvalsFeed, fetch: fetchImage, fetchImage, getMember: latticeMember,
+    openChart: (projectId, cardId) => { approvalsDialog.close(); lattice.open(projectId, cardId) } })
+  createApprovalsEntry(document.querySelector('#approvals-entry'), { feed: approvalsFeed, open: () => approvals.open() })
+  approvalsDialog.addEventListener('close', () => approvals.close())
+  // 工程表の「決裁を開く」は #approvals/<id> を立てる。同じ決裁をもう一度開けるよう、開いたら印を外す（replaceState は hashchange を起こさない）。
+  const openApprovalsFromHash = () => {
+    const target = parseHash(window.location?.hash)
+    if (!target) return
+    window.history?.replaceState?.(null, '', `${window.location.pathname}${window.location.search}`)
+    approvals.open(target.id)
+  }
+  window.addEventListener('hashchange', openApprovalsFromHash)
   const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
     getMember: latticeMember,
     getOwner: () => state.owner,
@@ -395,7 +413,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     setupNotice.hidden = setup.phase === 'ready'
     const first = !conversationsStarted
     conversationsStarted = true
-    if (first) void updateCenter.start()
+    if (first) { void updateCenter.start(); approvalsFeed.start(); openApprovalsFromHash() }
     // W2: a failed first list read leaves its error card in the list (with its own retry); boot still connects updates and routes.
     // A refused session (401/403) still stops boot: nothing else can be read.
     const loaded = await loadBots().catch(error => { if (error.status === 401 || error.status === 403) throw error; return false })

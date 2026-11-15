@@ -28,7 +28,7 @@ export function webDOM(t) {
   const get = id => { if (!nodes.has(id)) nodes.set(id, new WebElement()); return nodes.get(id) }
   const previous = Object.fromEntries(['document', 'window', 'localStorage', 'ResizeObserver', 'CSS'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   Object.assign(globalThis, {
-    document: { querySelector: selector => get(selector.slice(1)), querySelectorAll: () => [], createElement: () => new WebElement(), addEventListener() {}, fonts: { ready: Promise.resolve() } },
+    document: { querySelector: selector => get(selector.slice(1)), querySelectorAll: () => [], createElement: () => new WebElement(), createElementNS: () => new WebElement(), addEventListener() {}, fonts: { ready: Promise.resolve() } },
     window: { addEventListener: (type, handler) => windowEvents.set(type, handler) },
     localStorage: { getItem: key => reads.get(key), setItem: (key, value) => reads.set(key, value), removeItem: key => reads.delete(key) },
     ResizeObserver: class { observe() {} }, CSS: { escape: value => value },
