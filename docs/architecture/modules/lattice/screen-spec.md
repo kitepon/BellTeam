@@ -211,7 +211,7 @@ Owner 2026-11-15 (via Trony): 「他条件に接続と優先接続はUI上は同
 | Panel rows (open entries, oldest `since` first) | **task**: the card that is connected (title, owner face, 接続 <length>, 「担当 ◯◯」); 「この工程の完了が条件になっています」; the awaited card title with its chart (「<chart name>の工程表」), producer and state as in the old cross-chart row; buttons 会話を開く (producer), 工程へ移動 (opens that chart at that card). **schedule**: 「予定の結果が条件になっています」 (Lattice gives only the schedule id, so no name, owner face or next-check time yet; they join when BellTeam supplies them), no 工程へ移動. **priority**: 「<agent face + name> が、着手できるようになったらすぐ動きたいと伝えています」; no awaited card; 工程へ移動 opens the card. Reason text of the entry is shown as one muted line (as written). A row whose connected card's producer is in ブロック is emphasized |
 | Empty | 接続している工程はありません。 |
 | ブロック一覧 | The former 止め一覧, renamed everywhere: entry button, header, rows, empty text (「ブロックされている工程はありません。」), the card state badge 止まり -> ブロック, its spoken label. Behaviour, contract and 外す unchanged |
-| Accessibility | Panel rows read 「「<card title>」（担当 <owner>）は、<task: 「<awaited title>」の完了が条件になっています。つくっているのは<producer>、<state> / schedule: 予定の結果が条件になっています / priority: <agent>が着手できたらすぐ動きたいと伝えています>」; chip: 「接続 N」 |
+| Accessibility | Panel rows read 「「<card title>」（担当 <owner>）は、<task: 「<awaited title>」の完了が条件になっています。つくっているのは<producer>、<state> / schedule: 予定の結果が条件になっています / priority: <agent>が、着手できるようになったらすぐ動きたいと伝えています>」; chip: 「接続 N」 |
 
 Order of work (a161): this spec -> Web (Flora: `projection.mjs` connections, `lattice-chart-model.js`, `lattice-chart.js`, `lattice-stops.js` words) -> Apple (Rapi) and Windows (Anis) build to it with real shots. State diagram: the states and arrows are unchanged; every `止め一覧` / `Stops` label above reads ブロック一覧.
 
