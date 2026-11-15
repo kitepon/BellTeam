@@ -22,8 +22,9 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
 
-RUN npm install --global corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@latest aiterm-mcp@latest \
-  && corepack --version && codex --version && claude --version && throughline --version \
+# npm itself too (t20 CVEs): the npm bundled with the Node image carries older undici / brace-expansion / glob / minimatch.
+RUN npm install --global npm@latest corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@latest aiterm-mcp@latest \
+  && npm --version && corepack --version && codex --version && claude --version && throughline --version \
   && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)'
 RUN curl -fsSL https://x.ai/cli/install.sh | bash \
   && install -m 0755 /root/.grok/bin/grok /usr/local/bin/grok \
