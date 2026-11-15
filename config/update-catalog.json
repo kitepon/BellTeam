@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T01:40:47Z",
-  "expiresAt": "2026-11-22T01:40:47Z",
+  "publishedAt": "2026-11-15T01:53:34Z",
+  "expiresAt": "2026-11-22T01:53:34Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5751962b2e24047d1872980868ea1955585cbf95",
-      "versionId": "sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80",
+      "sourceCommit": "3c027627744bba48b6e94a15855a6803e89558c5",
+      "versionId": "sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "予定や共有ツールが席の名前だけで本体を呼べるように戻しました。",
-        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
+        "通話ブリッジの受け口を、席から使える元の設定に戻しました。",
+        "席を確かめる条件のうち、効果のない部分を外しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5751962b2e24047d1872980868ea1955585cbf95",
-      "versionId": "sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80",
+      "sourceCommit": "3c027627744bba48b6e94a15855a6803e89558c5",
+      "versionId": "sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:119b109b6dd1cb102760b96932f7937e717382f73575cf00f4ea58ec2aaf2f80"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:82817a69b90ddf2f0cf0922185eed11f59fe7a51d6f5f9fa7f1883ce7e3fe9f1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "予定や共有ツールが席の名前だけで本体を呼べるように戻しました。",
-        "画面の入口を入れ替えるとき、接続が途切れないようにしました。"
+        "通話ブリッジの受け口を、席から使える元の設定に戻しました。",
+        "席を確かめる条件のうち、効果のない部分を外しました。"
       ]
     },
     {
