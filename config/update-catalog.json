@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T14:20:18Z",
-  "expiresAt": "2026-11-22T14:20:18Z",
+  "publishedAt": "2026-11-15T14:36:22Z",
+  "expiresAt": "2026-11-22T14:36:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "9f1ae31fc004df32faaa001d0575734623346784",
-      "versionId": "127893754b5a96575e696ca9837429e3644975cd82df30f7ca17997cd65e194b",
+      "sourceCommit": "65de1421822b885fca0efaa228b55e5b033dd3f8",
+      "versionId": "339657408e8eacce08ca835c1a0563b1f9c3e6dc0efc7cb95db8641ddf86b410",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T140531Z/members-9f1ae31fc004df32faaa001d0575734623346784-linux-amd64.tar.gz",
-          "bytes": 4585129,
-          "sha256": "127893754b5a96575e696ca9837429e3644975cd82df30f7ca17997cd65e194b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T143603Z/members-65de1421822b885fca0efaa228b55e5b033dd3f8-linux-amd64.tar.gz",
+          "bytes": 4585621,
+          "sha256": "339657408e8eacce08ca835c1a0563b1f9c3e6dc0efc7cb95db8641ddf86b410"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T140531Z/members-9f1ae31fc004df32faaa001d0575734623346784-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11047,
-          "sha256": "bee9953fa07cc1b376fd98472ddcf2bfea218e5a839f80c936a5a32a4dfff2ba"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T143603Z/members-65de1421822b885fca0efaa228b55e5b033dd3f8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10902,
+          "sha256": "7c36659989f3b4b20d1fea08e07c8bfd8773622f6e2faaadc659c620d0840d5f"
         },
-        "signerCommit": "9f1ae31fc004df32faaa001d0575734623346784"
+        "signerCommit": "65de1421822b885fca0efaa228b55e5b033dd3f8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,14 +592,13 @@
         }
       },
       "changes": [
-        "予定を、工程表の「接続」につなげるようにしました。決まった確認のひな形も使えます。",
-        "共通ルールに、使われないものを残さないという決まり（design.no-unused）を入れました。"
+        "共通ルールに、知らせのやり取りを少なくする決まりを入れました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "9f1ae31fc004df32faaa001d0575734623346784",
-      "versionId": "83efd353963412ef42d4c93ff065ce9eb2c82dd649f6abc711e9e80a25769bbd",
+      "sourceCommit": "65de1421822b885fca0efaa228b55e5b033dd3f8",
+      "versionId": "e59416ad7c308abfbcfbc0a29813321259f3612fafaebedabab7a748ef7fedf5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -607,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T140531Z/members-9f1ae31fc004df32faaa001d0575734623346784-linux-arm64.tar.gz",
-          "bytes": 4585122,
-          "sha256": "83efd353963412ef42d4c93ff065ce9eb2c82dd649f6abc711e9e80a25769bbd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T143603Z/members-65de1421822b885fca0efaa228b55e5b033dd3f8-linux-arm64.tar.gz",
+          "bytes": 4585621,
+          "sha256": "e59416ad7c308abfbcfbc0a29813321259f3612fafaebedabab7a748ef7fedf5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T140531Z/members-9f1ae31fc004df32faaa001d0575734623346784-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "29352e0d989cde0430161d3d7307f0fbc49f1fb795a50428fe0cc38c11bcc5ed"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T143603Z/members-65de1421822b885fca0efaa228b55e5b033dd3f8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10953,
+          "sha256": "8ec7dd4c220d873f829d561e8d57bb30976eb3f0e98b07e67083692cdcc98c13"
         },
-        "signerCommit": "9f1ae31fc004df32faaa001d0575734623346784"
+        "signerCommit": "65de1421822b885fca0efaa228b55e5b033dd3f8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -633,8 +632,7 @@
         }
       },
       "changes": [
-        "予定を、工程表の「接続」につなげるようにしました。決まった確認のひな形も使えます。",
-        "共通ルールに、使われないものを残さないという決まり（design.no-unused）を入れました。"
+        "共通ルールに、知らせのやり取りを少なくする決まりを入れました。"
       ]
     },
     {
