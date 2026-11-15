@@ -262,6 +262,25 @@ test('a confirmed stop (BOT_STOPPED) at acceptance files no tracking-failure rep
   assert.equal(f.errors[0].code, 'BOT_SEND_FAILED')
 })
 
+test('an update-hold refusal (BOT_UPDATE_HOLD) keeps the receipt queued without a report; the release drain delivers it', async t => {
+  let held = true
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+    async notify(_bot, _envelope, options) {
+      if (held) throw Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503, effect: 'not_started' })
+      await options.onStatus('running'); return { delivery: 'running' }
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const status = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery
+  const saved = await f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message: 'during the swap' }))
+  const seen = []
+  await settled(async () => { seen.push(await status(saved.delivery_id)); return seen.includes('dispatching') && seen.at(-1) === 'queued' })
+  assert.deepEqual(f.errors, [])
+  held = false; f.direct.requestDrain()
+  await settled(async () => await status(saved.delivery_id) === 'running')
+  assert.deepEqual(f.errors, [])
+  await f.direct.close()
+})
+
 test('a target whose acceptance is pending does not delay a later saved input for another target', async t => {
   const holds = new Map(), notified = []
   const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},

@@ -114,6 +114,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         return await transport.notify(bot, envelope, options)
       })
     } catch (error) {
+      // update-hold.md H2: refused before any input; stays queued and the hold release drains it (BugHub 95f155b7).
+      if (error?.code === 'BOT_UPDATE_HOLD') throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
       reportOnce(error, invoked ? 'acceptance' : 'preflight')
       if (invoked) {
         const pending = normalInputPending(error)
