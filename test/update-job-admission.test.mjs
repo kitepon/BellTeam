@@ -137,6 +137,8 @@ test('an unreachable Host hides only the job rows: the inventory still answers w
   const down = await f.executor.snapshot(inventory())
   assert.equal(down.operation.requestId, f.input.requestId); assert.equal(down.operation.jobs, undefined)
   assert.equal(down.notice.code, 'UPDATE_RESULT_UNAVAILABLE')
+  const read = await f.executor.operation(f.input.requestId) // the single-operation read answers too, without jobs
+  assert.equal(read.requestId, f.input.requestId); assert.equal(read.jobs, undefined)
   f.jobsDown(false)
   const up = await f.executor.snapshot(inventory())
   assert.equal(up.operation.jobs[0].state, 'ready'); assert.notEqual(up.notice.code, 'UPDATE_RESULT_UNAVAILABLE')

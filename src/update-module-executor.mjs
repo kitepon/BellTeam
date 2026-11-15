@@ -553,13 +553,16 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       validateUpdateRequest('requestId', id)
       return exclusive(async () => {
         const entry = findOperation(id); requireValue(entry, 'UPDATE_OPERATION_NOT_FOUND', 404)
-        if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active && !closed) await refreshHost(entry)
+        // A Host briefly gone during a swap must not fail this read either; the saved state stays and the next read refreshes it.
+        if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active && !closed) { try { await refreshHost(entry) } catch {} }
         if (!active && !closed) { try { await refreshRuntime(entry) } catch {} }
         if (entry.steps.some(installPending) && !active && !closed) {
           // A failed readback must not hide the already durable unknown result.
           try { await refreshInstalls(entry) } catch {}
         }
-        return publicJobs(entry)
+        // Same as the inventory (t20 f6c057c6): a Host that is briefly gone during a swap hides only the job rows of this read;
+        // the saved report stays for the next read. Lab Z20 saw this route answer one 503 per exchange before.
+        return publicJobs(entry).catch(() => publicOperation(entry))
       }, true)
     },
     async snapshot(inventory) {
