@@ -1682,7 +1682,9 @@ export class AitermTransport {
       const slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(bot.id) : null
       let claudeLogin = slot ?? null
       // cwd = the main's folder: Aiterm accepts the same real path, the seat launcher requires it.
-      let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId } }
+      // fork.md: the same saved model/effort as a main launch, so an opusplan Bot's fork also runs Opus in plan mode.
+      let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId },
+        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}) }
       if (isRemoteBot(bot)) {
         if (!this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
         remote = await this.remoteSeats.prepare(bot, args, { shortTermMemory: '', context: {}, slot, harness, kind: 'fork' })
