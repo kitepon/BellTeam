@@ -58,3 +58,47 @@ test('a153: a planned quiesce keeps the snapshot the old child is still sending;
   hooks.onState({ available: false, phase: 'unavailable' })
   assert.equal(assembly.projection.snapshot().available, false)
 })
+
+// a164 (lattice README L21): the parent adds the Lattice 接続 right after a save that carries `connect`; members never calls Lattice.
+test('a164: set_schedule with connect adds the 接続 after the save; a failed add removes a created schedule; other saves never add', async () => {
+  const calls = []
+  let added = { ok: true }
+  const assembly = createMembersAssembly({ root: '/synthetic', membersAdmission: new MembersAdmission(), membersAuthorization: createMembersOwnerAuthorization(),
+    diagnostics: { record() {} }, aiterm: {}, settings: { configuration: () => ({}) }, models: { forHarness: async () => ({ efforts: [], models: [] }) },
+    dependencies: () => ({ scheduler: { runLattice: async (from, project, args) => { calls.push(['lattice', from, project, args]); return added } } }),
+    createProcess: () => ({ async request(method, params) {
+      calls.push([method, params.input?.id ?? params.scheduleId])
+      if (method === 'schedules.set') return { schedule: { id: params.input.id ?? 'sch-new', name: 'ci', kind: 'cron', expression: '* * * * *', command: 'x', lastRunAt: null, nextRunAt: null, revision: 1, connect: params.input.connect ?? { project: 'p', plan: 'pl', task: 't' } } }
+      return { removed: params.scheduleId }
+    } }) })
+  const connect = { project: 'bellteam', plan: 'plan-a', task: 'task-b' }
+  const saved = await assembly.bots.setSchedule('bot-test', { kind: 'cron', command: 'x', connect })
+  assert.equal(saved.id, 'sch-new')
+  assert.deepEqual(calls.at(-1), ['lattice', 'bot-test', 'bellteam', ['todo', 'connect', 'condition', 'add', '--plan', 'plan-a', '--task', 'task-b', '--to', 'schedule:sch-new', '--reason', 'ci']])
+  calls.length = 0
+  await assembly.bots.setSchedule('bot-test', { id: 'sch-new', enabled: false }) // the scheduler's own disable: no connect in the input
+  assert.deepEqual(calls.map(call => call[0]), ['schedules.set'])
+  calls.length = 0; added = { ok: false, reason: 'CONNECTION_INVALID' }
+  await assert.rejects(assembly.bots.setSchedule('bot-test', { kind: 'cron', command: 'x', connect }), { code: 'SCHEDULE_CONNECT_FAILED' })
+  assert.deepEqual(calls.map(call => call[0]), ['schedules.set', 'lattice', 'schedules.remove'])
+  calls.length = 0
+  await assert.rejects(assembly.bots.setSchedule('bot-test', { id: 'sch-old', connect }), { code: 'SCHEDULE_CONNECT_FAILED' })
+  assert.deepEqual(calls.map(call => call[0]), ['schedules.set', 'lattice']) // an update keeps the stored schedule
+})
+
+test('a164: the effect schedules.connectionRemoved calls the parent scheduler once and answers nothing', async () => {
+  const gate = new MembersAdmission(), released = []
+  let hooks
+  const assembly = createMembersAssembly({ root: '/synthetic', membersAdmission: gate, membersAuthorization: createMembersOwnerAuthorization(),
+    diagnostics: { record() {} }, aiterm: {}, settings: { configuration: () => ({}) }, models: { forHarness: async () => ({ efforts: [], models: [] }) },
+    dependencies: () => ({ scheduler: { releaseConnection: async (botId, schedule) => { released.push([botId, schedule.id]) } } }),
+    createProcess(options) { hooks = options; return { async start() { const ticket = gate.close(); gate.adopt(ticket, 'current'); options.onGeneration('current'); gate.resume(ticket) } } } })
+  await assembly.controller.start()
+  const lease = gate.enter()
+  const context = { generation: 'current', leaseId: lease.leaseId, rootId: 'root', ownerWrite: false, continuation: false, membersLease: lease, membersEffect: Object.freeze({}) }
+  const schedule = { id: 'sch-1', name: 'ci', command: 'x', connect: { project: 'bellteam', plan: 'plan-a', task: 'task-b' } }
+  assert.equal(await hooks.onEffect('schedules.connectionRemoved', { botId: 'bot-test', schedule }, context), undefined)
+  assert.deepEqual(released, [['bot-test', 'sch-1']])
+  await assert.rejects(hooks.onEffect('schedules.connectionRemoved', { botId: 'bot-test', schedule: { ...schedule, connect: { project: 'x' } } }, context), { code: 'MEMBERS_INPUT_INVALID' })
+  gate.finish(lease)
+})

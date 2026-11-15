@@ -166,6 +166,8 @@ export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = nul
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, createApprovalBoxExtensionProcess: approvalsFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
   let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   let scheduleTurns = null
+  // a164: the members assembly reads the scheduler lazily; it is built after the members child starts.
+  let scheduler = null
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
   const modelHandoffGeneration = () => {
@@ -197,7 +199,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   } }, !diagnosticsModule || Boolean(diagnosticsModule.snapshot().available))
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission, exchangeMutex,
-      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, dependencies: () => ({ memory, rooms, assets, conversationAssembly, scheduleTurns, terminals }), onState: () => updateCenter?.notify(),
+      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, dependencies: () => ({ memory, rooms, assets, conversationAssembly, scheduleTurns, terminals, scheduler }), onState: () => updateCenter?.notify(),
       ...(membersFactory ? { createProcess: membersFactory } : {}),
     })
     await members.controller.start()
@@ -434,7 +436,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       async stop() { clearInterval(pollTimer); pollTimer = null; await Promise.all([pollWork, sweepForks.inFlight()]) } } } : await conversation.initialize()
   rooms = conversationServices.rooms
   const { selfTurns, seatTurns, roomMessenger } = conversationServices
-  const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
+  scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
     membersAdmission: transport.membersAdmission,
     ...(conversationAssembly ? { moduleOperations: { withContext: (operation, context) => conversationAssembly.run({ kind: 'scheduler' }, () => conversationAssembly.moduleOperations.withContext(operation, context)) } } : {}),
     admitWork: () => aiControl.admit(),

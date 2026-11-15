@@ -32,6 +32,8 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
       const { rooms, assets } = dependencies()
       switch (method) {
         case 'schedules.currentTurn': value = dependencies().scheduleTurns.currentTurn(params.botId); break
+        // a164: the child removed a connected schedule; only the parent calls Lattice (lattice README L21). Idempotent in Lattice.
+        case 'schedules.connectionRemoved': await dependencies().scheduler.releaseConnection(params.botId, params.schedule); break
         case 'models.read': value = await models.forHarness(params.harness); break
         // S5 (remote-seat.md): no terminals core, or a core without folder, answers null = not checked.
         // os only when not macos: an older members child still reads macOS terminals; Windows/Linux need the members OS rule LIVE first.
@@ -80,6 +82,19 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
   facade.bots.projectPath = id => {
     if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) throw new Error('BOT_ID_INVALID')
     return join(root, 'bots', id)
+  }
+  // a164: members saves a schedule with `connect`; the parent adds the Lattice 接続 right after the save (lattice README L21).
+  // Only a save that carries `connect` adds (the scheduler's own disable and plain editors do not), so a resolved 接続 is never reopened.
+  // A failed add (not `unchanged`) removes a schedule this call created, so no half-linked schedule stays; an update keeps the stored one.
+  const saveSchedule = facade.bots.setSchedule
+  facade.bots.setSchedule = async (botId, input, context) => {
+    const schedule = await saveSchedule(botId, input, context)
+    if (!input?.connect || !schedule?.connect) return schedule
+    const { project, plan, task } = schedule.connect
+    const added = await dependencies().scheduler.runLattice(botId, project, ['todo', 'connect', 'condition', 'add', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`, '--reason', schedule.name || schedule.command])
+    if (added.ok) return schedule
+    if (!input.id) await facade.bots.removeSchedule(botId, schedule.id, context)
+    throw Object.assign(new Error(`SCHEDULE_CONNECT_FAILED: ${added.reason}`), { code: 'SCHEDULE_CONNECT_FAILED', status: 502 })
   }
   facade.bots.watch = listener => { listeners.add(listener); return () => listeners.delete(listener) }
   return { ...facade, controller, projection }
