@@ -317,7 +317,7 @@ export function detailOf(snapshot, cardId, now) {
     id: cardId, card, producer: ownerOf(card), info: stateInfo(card.state),
     stateText: producerStateText(card, ownerOf(card), now),
     previous: edges.filter(edge => edge.to === cardId).map(edge => link(edge.from)).filter(Boolean),
-    next: edges.filter(edge => edge.from === cardId).map(edge => link(edge.to)).filter(Boolean),
+    next: edges.filter(edge => edge.from === cardId).map(edge => link(edge.to)).filter(item => item && item.state !== 'retired'), // 取り下げた工程は、続きではない（重複した工程に見える）
     startedText: card.startedAt ? `着手 ${formatJst(card.startedAt)} JST` : 'まだ着手されていません',
   }
 }
