@@ -13,11 +13,14 @@ public sealed class LatticeChartTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 11, 12, 0, 0, TimeSpan.Zero);
     private static LatticeCard Card(string id, string state, string? producer, int depth = 0, string? reason = null) => new() { Id = id, Title = "工程" + id, State = state, Producer = producer, Depth = depth, BlockedReason = reason, StartedAt = Now.AddMinutes(-12) };
-    private static LatticeSnapshot Snapshot(LatticeCard[] cards, LatticeEdge[]? edges = null, LatticeWait[]? waits = null, string state = "verified") => new()
+    private static LatticeSnapshot Snapshot(LatticeCard[] cards, LatticeEdge[]? edges = null, string state = "verified") => new()
     {
         ProjectId = "proj", State = state, VerifiedAt = Now.AddMinutes(-46),
-        Members = [new("bot-a", "アドミ", "amber", ""), new("bot-k", "キロ", "sky", "")], Cards = cards, Edges = edges ?? [], Waits = waits ?? []
+        Members = [new("bot-a", "アドミ", "amber", ""), new("bot-k", "キロ", "sky", "")], Cards = cards, Edges = edges ?? []
     };
+    // An open 接続 (a161) that began `minutes` ago: kind task (ref = an externals[] id), schedule (ref = its id) or priority (agent = the Bot that asked).
+    private static LatticeConnectionEntry Join(string kind, string? reference, int minutes, string? agent = null, string? reason = null, string? state = "open") => new(kind, reference, agent, reason, Now.AddMinutes(-minutes), state);
+    private static LatticeExternal Other(string id, string? state, string? producer, string? title = "題", string? chart = "別") => new(id, id[..id.IndexOf(':')], id[(id.IndexOf(':') + 1)..], chart, title, state, false, producer);
 
     [Fact]
     public void TheChartNameNeverFallsBackToTheProjectId()
@@ -52,20 +55,18 @@ public sealed class LatticeChartTests
     [Fact]
     public void AnAuthoredLaneIsTheOwnerWhenNobodyStartedItInItsOwnLaneAfterTheMembers()
     {
-        var snapshot = Snapshot([Card("1", "in-progress", "bot-k"), Card("2", "pending", null, 1) with { Lane = "root" }, Card("3", "ready", null, 1) with { Lane = "anis" }, Card("4", "pending", null, 2), Card("5", "pending", "bot-ghost", 2)],
-            [new("1", "2", true), new("2", "4", true)], [new(null, "2", "1", "bot-k", "in-progress", Now.AddMinutes(-9)), new(null, "4", "2", null, "pending", Now.AddMinutes(-3))]);
+        var snapshot = Snapshot([Card("1", "in-progress", "bot-k"), Card("2", "pending", null, 1) with { Lane = "root" }, Card("3", "ready", null, 1) with { Lane = "anis" }, Card("4", "pending", null, 2) with { Connections = [Join("schedule", "sch-1", 3)] }, Card("5", "pending", "bot-ghost", 2)],
+            [new("1", "2", true), new("2", "4", true)]);
         var layout = LatticeChart.Layout(snapshot);
         Assert.Equal(["キロ", "anis", "root", LatticeChart.UnknownMember, LatticeChart.Unassigned], layout.Lanes.Select(lane => LatticeChart.NameOf(lane.Member)));
         Assert.Equal(["bot-k", null, null, "bot-ghost", null], layout.Lanes.Select(lane => lane.BotId));
         Assert.Equal(["bot-k", "bot-ghost"], LatticeChart.Rail(snapshot, layout).Select(item => item.BotId));
-        var rows = LatticeChart.WaitRows(snapshot, Now);
-        Assert.Equal(("工程2", "担当 root"), (rows[0].Headline, rows[0].OwnerText));
-        Assert.Equal(("工程4", LatticeChart.Unassigned), (rows[1].Headline, rows[1].OwnerText));
-        Assert.Equal("「工程4」（担当なし）は、「工程2」が終わるのを待っています。つくっているのはroot、未着手: 担当 root", rows[1].Label);
-        Assert.Equal("次の工程が待っています", LatticeChart.EdgeChip(snapshot, new("2", "4", true)));
-        Assert.Equal("未着手: 担当 root", rows[1].StateText);
-        Assert.False(rows[1].CanChat);
-        Assert.Equal("rootが待っています", LatticeChart.EdgeChip(snapshot, new("1", "2", true)));
+        var row = Assert.Single(LatticeChart.ConnectionRows(snapshot, Now));
+        Assert.Equal(("工程4", LatticeChart.Unassigned, "3分"), (row.Headline, row.OwnerText, row.Length));
+        Assert.Equal("「工程4」（担当なし）は、予定の結果が条件になっています", row.Label);
+        Assert.Equal("前工程：root", LatticeChart.EdgeChip(snapshot, new("2", "4", true)));
+        Assert.Equal("前工程：キロ", LatticeChart.EdgeChip(snapshot, new("1", "2", true)));
+        Assert.Equal("前工程：担当なし", LatticeChart.EdgeChip(snapshot, new("4", "5", true)));
         Assert.Equal("担当 anis", LatticeChart.CardNote(snapshot.Cards[2], LatticeChart.Owner(snapshot)(snapshot.Cards[2])));
         Assert.Equal("root", LatticeChart.Detail(snapshot, "2", Now)!.Producer!.Name);
     }
@@ -116,67 +117,93 @@ public sealed class LatticeChartTests
     [Fact]
     public void TheOwnerValueIsTheOwnerProfileWithItsOwnLaneNoChatAndNoRailFace()
     {
-        var snapshot = Snapshot([Card("1", "in-progress", "bot-a"), Card("2", "pending", "owner", 1)], [new("1", "2", true)], [new("owner", "2", "1", "bot-a", "in-progress", Now.AddMinutes(-3)), new("bot-a", "1", "2", "owner", "pending", Now.AddMinutes(-1))]);
+        var snapshot = Snapshot([Card("1", "in-progress", "bot-a"), Card("2", "pending", "owner", 1) with { Connections = [Join("task", "other:p/q", 3)] }], [new("1", "2", true)]) with { Externals = [Other("other:p/q", "in-progress", "owner")] };
         var unknown = LatticeChart.Lookup(snapshot)("owner")!;
         Assert.Equal((LatticeChart.OwnerFallback, true, true, false), (unknown.Name, unknown.IsOwner, unknown.Known, unknown.CanChat));
         var named = snapshot with { OwnerName = "クオ", OwnerAvatarVersion = "v1" };
         var layout = LatticeChart.Layout(named);
         Assert.Equal(["アドミ", "クオ"], layout.Lanes.Select(lane => LatticeChart.NameOf(lane.Member)));
         Assert.Equal(["bot-a"], LatticeChart.Rail(named, layout).Select(item => item.BotId));
-        var rows = LatticeChart.WaitRows(named, Now);
-        Assert.Equal(("担当 クオ", true), (rows[0].OwnerText, rows[0].CanChat));
-        Assert.False(rows[1].CanChat);   // the Owner makes the awaited card: no 会話を開く
-        Assert.Equal("クオが待っています", LatticeChart.EdgeChip(named, new("1", "2", true)));
+        var row = Assert.Single(LatticeChart.ConnectionRows(named, Now));
+        Assert.Equal(("担当 クオ", false), (row.OwnerText, row.CanChat));   // the Owner makes the awaited task: no 会話を開く
+        Assert.Equal("前工程：アドミ", LatticeChart.EdgeChip(named, new("1", "2", true)));
+        Assert.Equal("前工程：クオ", LatticeChart.EdgeChip(named, new("2", "1", true)));
         Assert.DoesNotContain(LatticeChart.Detail(named, "2", Now)!.StateText, "owner");
     }
 
     [Fact]
-    public void WaitRowsAreOldestFirstEmphasizeABlockedProducerAndNeverChatWithAnUnknownMember()
+    public void ConnectionRowsAreOldestFirstEmphasizeABlockedProducerAndNeverChatWithAnUnknownMember()
     {
-        var snapshot = Snapshot([Card("1", "blocked", "bot-a", reason: "登録点が未定"), Card("2", "pending", "bot-k", 1), Card("3", "in-progress", "bot-ghost"), Card("4", "pending", "bot-k", 1)],
-            [new("1", "2", true), new("3", "4", true)],
-            [new("bot-k", "4", "3", "bot-ghost", "in-progress", Now.AddMinutes(-5)), new("bot-k", "2", "1", "bot-a", "blocked", Now.AddMinutes(-52))]);
-        var rows = LatticeChart.WaitRows(snapshot, Now);
-        Assert.Equal(["2>1", "4>3"], rows.Select(row => row.Key));
+        var snapshot = Snapshot([Card("1", "blocked", "bot-a", reason: "登録点が未定"), Card("2", "pending", "bot-k", 1) with { Connections = [Join("task", "o:a/b", 52)] }, Card("3", "in-progress", "bot-ghost"), Card("4", "pending", "bot-k", 1) with { Connections = [Join("task", "o:c/d", 5)] }]) with
+        {
+            Externals = [Other("o:a/b", "blocked", "bot-a", "題1", "A"), Other("o:c/d", "in-progress", "bot-ghost", "題2", "B")]
+        };
+        var rows = LatticeChart.ConnectionRows(snapshot, Now);
+        Assert.Equal(["2>task:o:a/b", "4>task:o:c/d"], rows.Select(row => row.Key));
         Assert.True(rows[0].Emphasized);
-        Assert.Equal("止まり: 登録点が未定", rows[0].StateText);
+        Assert.Equal("ブロック", rows[0].StateText);
         Assert.Equal("52分", rows[0].Length);
-        Assert.Equal("「工程2」（担当 キロ）は、「工程1」が終わるのを待っています。つくっているのはアドミ、止まり: 登録点が未定", rows[0].Label);
+        Assert.Equal("「工程2」（担当 キロ）は、「題1」（Aの工程表）の完了が条件になっています。つくっているのはアドミ、ブロック", rows[0].Label);
         Assert.True(rows[0].CanChat);
         Assert.False(rows[1].CanChat);
+        Assert.False(rows[1].Emphasized);
         Assert.Equal(LatticeChart.UnknownMember, rows[1].Producer!.Name);
-        Assert.Equal("作業中 12分", rows[1].StateText);
+        Assert.Equal("作業中", rows[1].StateText);
+        Assert.Equal("blocked", LatticeChart.StateInfo("blocked").Tone);
+        Assert.Equal("ブロック", LatticeChart.StateInfo("blocked").Badge);
     }
 
     [Fact]
-    public void ATaskOfAnotherChartIsTextWithItsChartAndOpensThatChartNeverALine()
+    public void ConnectionsAreInTheAreaAndOnTheCardNeverALineAndOnlyOpenOnesCount()
     {
-        // Wire (lattice README snapshot, task a60): externals[] and edge external; a snapshot without them reads as none.
+        // Wire (lattice README snapshot, a161): per card `connections` (open entries), counts and externals; an older server sends none, which reads as none.
         var snapshot = System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""
             {"projectId":"proj","members":[{"botId":"bot-a","name":"アドミ"},{"botId":"bot-k","name":"キロ"}],
-             "cards":[{"id":"p1/t05","title":"組み込む","state":"pending","producer":"bot-a"},{"id":"p1/t06","title":"配る","state":"pending"}],
-             "edges":[{"from":"lattice:lattice-0990/release","to":"p1/t05","waiting":true,"external":true},{"from":"other:p/q","to":"p1/t06","waiting":true,"external":true}],
-             "externals":[{"id":"lattice:lattice-0990/release","projectId":"lattice","cardId":"lattice-0990/release","chartName":"Lattice","title":"0.99.0を出す","state":"in-progress","finished":false,"producer":"bot-k"},
-                          {"id":"other:p/q","projectId":"other","cardId":"p/q","chartName":null,"title":null,"state":null,"finished":false,"producer":null}],
-             "waits":[{"waiter":"bot-a","waitingCard":"p1/t05","forCard":"lattice:lattice-0990/release","producer":"bot-k","producerState":"in-progress","since":"2026-11-11T11:30:00Z"},
-                      {"waiter":null,"waitingCard":"p1/t06","forCard":"other:p/q","producer":null,"producerState":null,"since":"2026-11-11T11:50:00Z"}]}
+             "cards":[{"id":"p1/t05","title":"組み込む","state":"pending","producer":"bot-a","connections":[
+                         {"kind":"task","state":"open","ref":"lattice:lattice-0990/release","reason":"0.99.0 first","since":"2026-11-11T11:30:00Z"},
+                         {"kind":"task","state":"settled","ref":"gone:p/q","reason":"","since":"2026-11-11T11:00:00Z"},
+                         {"kind":"schedule","ref":"sch-9","reason":"","since":"2026-11-11T11:10:00Z"}]},
+                      {"id":"p1/t06","title":"配る","state":"pending","connections":[{"kind":"priority","state":"open","agent":"bot-k","reason":"すぐ動きたい","since":"2026-11-11T11:50:00Z"},{"kind":"priority","agent":"bot-new","since":"2026-11-11T11:55:00Z"},{"kind":"future","since":"2026-11-11T11:56:00Z"}]},
+                      {"id":"p1/t07","title":"終わった","state":"done","connections":[]}],
+             "edges":[{"from":"p1/t05","to":"p1/t06","waiting":true}],
+             "externals":[{"id":"lattice:lattice-0990/release","projectId":"lattice","cardId":"lattice-0990/release","chartName":"Lattice","title":"0.99.0を出す","state":"in-progress","finished":false,"producer":"bot-k"}]}
             """, BellApi.Json)!;
-        Assert.True(snapshot.Edges[0].External);
-        Assert.Empty(System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""{"projectId":"proj"}""", BellApi.Json)!.Externals);
-        var rows = LatticeChart.WaitRows(snapshot, Now);
-        Assert.Equal(("0.99.0を出す", "Latticeの工程表", "作業中"), (rows[0].Title, rows[0].Chart, rows[0].StateText));
-        Assert.Equal(new LatticeCardRef("lattice", "lattice-0990/release"), rows[0].External);
-        Assert.True(rows[0].CanChat);
-        Assert.Equal("「組み込む」（担当 アドミ）は、「0.99.0を出す」（Latticeの工程表）が終わるのを待っています。つくっているのはキロ、作業中", rows[0].Label);
-        Assert.Equal(("ほかの工程表の工程", "ほかの工程表の工程表", LatticeChart.ExternalUnread), (rows[1].Title, rows[1].Chart, rows[1].StateText));
-        Assert.Null(rows[1].Producer);
-        var previous = Assert.Single(LatticeChart.Detail(snapshot, "p1/t05", Now)!.Previous);
-        Assert.Equal(("0.99.0を出す", "Latticeの工程表", "キロ", new LatticeCardRef("lattice", "lattice-0990/release")), (previous.Title, previous.Chart, previous.Producer?.Name, previous.External));
-        Assert.Equal(LatticeChart.ExternalUnread, Assert.Single(LatticeChart.Detail(snapshot, "p1/t06", Now)!.Previous).StateText);
-        Assert.Empty(LatticeChart.Tree(snapshot, "工程表").Arcs);
-        Assert.False(LatticeChart.Layout(snapshot).Cards.ContainsKey("lattice:lattice-0990/release"));
+        Assert.Empty(System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""{"projectId":"proj","cards":[{"id":"p1/t01"}]}""", BellApi.Json)!.Cards[0].Connections);
+        Assert.Equal(4, LatticeChart.Counts(snapshot).Connections);   // open task + schedule + two priorities; the settled entry and the unknown kind do not count
+        var rows = LatticeChart.ConnectionRows(snapshot, Now);
+        Assert.Equal(["p1/t05>schedule:sch-9", "p1/t05>task:lattice:lattice-0990/release", "p1/t06>priority:bot-k", "p1/t06>priority:bot-new"], rows.Select(row => row.Key));
+        Assert.Equal("予定の結果が条件になっています", rows[0].Mark);
+        Assert.Equal(("0.99.0を出す", "Latticeの工程表", "作業中", "0.99.0 first"), (rows[1].Title, rows[1].Chart, rows[1].StateText, rows[1].Reason));
+        Assert.Equal(new LatticeCardRef("lattice", "lattice-0990/release"), rows[1].External);
+        Assert.True(rows[1].CanChat);
+        Assert.Equal("「組み込む」（担当 アドミ）は、「0.99.0を出す」（Latticeの工程表）の完了が条件になっています。つくっているのはキロ、作業中", rows[1].Label);
+        Assert.Equal("キロが、着手できるようになったらすぐ動きたいと伝えています", rows[2].Mark);
+        Assert.Equal("「配る」（担当なし）は、キロが、着手できるようになったらすぐ動きたいと伝えています", rows[2].Label);
+        Assert.Equal(LatticeChart.UnknownMember + "が、着手できるようになったらすぐ動きたいと伝えています", rows[3].Mark);   // a Bot not in the roster
+        Assert.All(rows.Where(row => row.Kind != "task"), row => { Assert.Null(row.External); Assert.False(row.CanChat); });
+        // The 接続 is no line: the same-chart edge stays, nothing is drawn for a 接続; an unread task falls back to words.
+        Assert.Single(LatticeChart.Tree(snapshot, "工程表").Arcs);
+        var unread = LatticeChart.ConnectionRows(snapshot with { Externals = [] }, Now)[1];
+        Assert.Equal(("ほかの工程表の工程", "ほかの工程表の工程表", LatticeChart.ExternalUnread), (unread.Title, unread.Chart, unread.StateText));
+        Assert.Equal(new LatticeCardRef("lattice", "lattice-0990/release"), unread.External);
+        // The chip 「接続 N」 and the spoken label; 前の工程 lists same-chart cards only.
+        Assert.Equal("組み込む、未着手、つくっている アドミ、接続 2", LatticeChart.CardLabel(snapshot.Cards[0], LatticeChart.Owner(snapshot)(snapshot.Cards[0])));
+        Assert.Equal("終わった、完了、つくっている 担当なし", LatticeChart.CardLabel(snapshot.Cards[2], null));
+        Assert.Equal(["組み込む"], LatticeChart.Detail(snapshot, "p1/t06", Now)!.Previous.Select(link => link.Title));
+        // Rail and highlight: アドミ owns the card with two entries, キロ makes the awaited task and asked for a 優先接続.
+        Assert.Equal([1], LatticeChart.Rail(snapshot, LatticeChart.Layout(snapshot)).Select(item => item.Connections));   // アドミ's cards that have an open entry
+        Assert.Equal(["p1/t05>schedule:sch-9", "p1/t05>task:lattice:lattice-0990/release"], LatticeChart.Highlight(snapshot, "bot-a").Connections.Order());
+        Assert.Equal(["p1/t05>task:lattice:lattice-0990/release", "p1/t06>priority:bot-k"], LatticeChart.Highlight(snapshot, "bot-k").Connections.Order());
     }
 
+    [Fact]
+    public void TheListCardsReadConnectionsFromTheCountsAndSayTheirWord()
+    {
+        var list = System.Text.Json.JsonSerializer.Deserialize<LatticeChartList>("""{"charts":[{"projectId":"a","name":"A","counts":{"total":3,"done":1,"working":1,"waiting":2,"blocked":0,"connections":2}},{"projectId":"b","name":"B","counts":{"total":2,"done":0,"working":0,"waiting":1,"blocked":0}}]}""", BellApi.Json)!;
+        var items = LatticeChart.ListItems(list, _ => null);
+        Assert.Equal([2, 0], items.Select(item => item.Connections));   // an older server sends no connections: 0
+        Assert.Equal("A、完了 1/3、接続 2", items[0].Label);
+    }
     [Fact]
     public void BannersAndPillsArePlainSentences()
     {
@@ -242,9 +269,14 @@ public sealed class LatticeChartTests
         Assert.DoesNotContain(texts, text => text.Contains("bot-", StringComparison.Ordinal) || text.Contains("p1/", StringComparison.Ordinal) || text.Contains("lattice-", StringComparison.Ordinal) || text.Contains("LATTICE_", StringComparison.Ordinal) || text == "lattice");
         // The crown and 統括 only on the coordinator chart (this one is).
         Assert.Contains("統括", texts);
+        // 待ち / 止め are retired words (a161): the screen says 接続 and ブロック.
+        Assert.DoesNotContain(texts, text => new[] { "待ちの流れ", "待ち ", "止め一覧", "止まり", "止めた人", "が待っています" }.Any(word => text.Contains(word, StringComparison.Ordinal)));
+        Assert.Contains("接続", texts);
+        Assert.Contains("ブロック", texts);
         var chats = LogicalTree.Find<Button>(window.Content).Where(button => button.Content as string == "会話を開く").ToList();
         Assert.NotEmpty(chats);
-        Assert.Equal(scene == "unknown", chats.Any(button => !button.IsEnabled));
+        var rows = LatticeChart.ConnectionRows(chart.Feed.Snapshot!, window.Now());
+        Assert.Equal(scene == "unknown", rows.Any(row => row.Producer is { Known: false } && !row.CanChat));
         Assert.Equal(scene == "unknown", texts.Contains(LatticeChart.UnknownMember));
         Assert.Equal(scene == "unverified", LogicalTree.Find<Button>(window.Content).Any(button => button.Content as string == "統括と話す"));
         chart.Stop(); window.Close();
@@ -298,9 +330,9 @@ public sealed class LatticeChartTests
         chart.Stop(); window.Close();
     });
 
-    // Owner 2026-11-14 (a74): 待ちの流れ starts folded as the right-edge handle with the wait count; the handle opens it, its close button folds it.
+    // Owner 2026-11-14 (a74): the 接続 panel (formerly 待ちの流れ) starts folded as the right-edge handle with the 接続 count; the handle opens it, its close button folds it.
     [Fact]
-    public void TheWaitFlowStartsFoldedAndTheHandleOpensAndFoldsIt() => RunSta(() =>
+    public void TheConnectionPanelStartsFoldedAndTheHandleOpensAndFoldsIt() => RunSta(() =>
     {
         LatticeChartPage.WaitsOpen = false;
         using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("chart")));
@@ -312,9 +344,9 @@ public sealed class LatticeChartTests
         Button Find(string id) => LogicalTree.Find<Button>(window.Content).Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == id);
         Visibility Shown(Button button) => ((FrameworkElement)LogicalTreeHelper.GetParent(button) is ContentControl host ? host : FindPanel(button)).Visibility;
         FrameworkElement FindPanel(DependencyObject element) { var at = element; while (at is not null && !(at is Border { Child: DockPanel })) at = LogicalTreeHelper.GetParent(at); return (FrameworkElement)at!; }
-        var rows = LatticeChart.WaitRows(chart.Feed.Snapshot!, window.Now()).Count;
+        var rows = LatticeChart.ConnectionRows(chart.Feed.Snapshot!, window.Now()).Count;
         Assert.True(rows > 0);
-        Assert.Equal($"待ちの流れを開く、{rows}件", System.Windows.Automation.AutomationProperties.GetName(Find("lattice-waits-open")));
+        Assert.Equal($"接続を開く、{rows}件", System.Windows.Automation.AutomationProperties.GetName(Find("lattice-waits-open")));
         Assert.Equal(Visibility.Visible, Shown(Find("lattice-waits-open")));
         Assert.Equal(Visibility.Collapsed, Shown(Find("lattice-waits-close")));
         Find("lattice-waits-open").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

@@ -62,7 +62,8 @@ internal static class LatticeLook
     }
 
     public static Geometry CrownGeometry { get; } = Freeze(Geometry.Parse("M1,11 L2.6,3.6 L6.6,7.2 L10,1.4 L13.4,7.2 L17.4,3.6 L19,11 Z M1.6,12.6 H18.4 V14.6 H1.6 Z"));
-    public static Geometry HourglassGeometry { get; } = Freeze(Geometry.Parse("M0,0 H10 V1.6 L6.4,5 L10,8.4 V10 H0 V8.4 L3.6,5 L0,1.6 Z"));
+    // The link mark of 接続 (Material "link", 24 x 24): two chain links, the one glyph the counter, rail, handle, panel and card chip share.
+    public static Geometry LinkGeometry { get; } = Freeze(Geometry.Parse("M3.9,12 C3.9,10.29 5.29,8.9 7,8.9 H11 V7 H7 C4.24,7 2,9.24 2,12 C2,14.76 4.24,17 7,17 H11 V15.1 H7 C5.29,15.1 3.9,13.71 3.9,12 Z M8,13 H16 V11 H8 Z M17,7 H13 V8.9 H17 C18.71,8.9 20.1,10.29 20.1,12 C20.1,13.71 18.71,15.1 17,15.1 H13 V17 H17 C19.76,17 22,14.76 22,12 C22,9.24 19.76,7 17,7 Z"));
     public static Geometry OctagonGeometry { get; } = Freeze(Geometry.Parse("M4.1,0 H9.9 L14,4.1 V9.9 L9.9,14 H4.1 L0,9.9 V4.1 Z"));
     private static Geometry Freeze(Geometry geometry) { geometry.Freeze(); return geometry; }
     public static Path Shape(Geometry geometry, double size, Color color) => new() { Data = geometry, Fill = Brush(color), Width = size, Height = size, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };

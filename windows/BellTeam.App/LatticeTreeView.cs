@@ -9,7 +9,7 @@ namespace BellTeam.App;
 
 /// <summary>
 /// ツリー (screen-spec "ツリー"): the chart -> its phases -> cards nested by parent, left to right. Each card is a compact box (state glyph, one-line title, owner face)
-/// that opens 詳細; tree links are soft elbows; dependencies are arcs on the right of the boxes (waiting = accent with an arrow toward the waiter, satisfied = faint).
+/// that opens 詳細; tree links are soft elbows; dependencies are arcs on the right of the boxes (前工程 still being made = accent with an arrow toward the later card, satisfied = faint).
 /// Highlight dims boxes and arcs like the lane view. Holds no state of its own beyond the drawing.
 /// </summary>
 internal sealed class LatticeTreeView : Canvas
@@ -45,7 +45,7 @@ internal sealed class LatticeTreeView : Canvas
             var path = new Path { Data = new PathGeometry([figure]), Stroke = Brush(arc.Waiting ? Violet : Muted, arc.Waiting ? (byte)0xE6 : (byte)0x40), StrokeThickness = arc.Waiting ? 2 : 1.2, IsHitTestVisible = false };
             Children.Add(path);
             Path? head = null;
-            // The arrow points left, into the waiter's right edge.
+            // The arrow points left, into the later card's right edge.
             if (arc.Waiting) Children.Add(head = new Path { Data = Geometry.Parse($"M{arc.X1 - 6},{arc.Y1} L{arc.X1 + 4},{arc.Y1 - 5} L{arc.X1 + 4},{arc.Y1 + 5} Z"), Fill = Brush(Violet), IsHitTestVisible = false });
             arcs.Add((arc, path, head));
         }
@@ -115,11 +115,11 @@ internal sealed class LatticeTreeView : Canvas
 
     public void Highlight(string? botId)
     {
-        var on = botId is null || snapshot is null ? ((HashSet<string> Cards, HashSet<string> Waits)?)null : LatticeChart.Highlight(snapshot, botId);
+        var on = botId is null || snapshot is null ? ((HashSet<string> Cards, HashSet<string> Connections)?)null : LatticeChart.Highlight(snapshot, botId);
         foreach (var (id, card) in cards) card.Opacity = on is { } set && !set.Cards.Contains(id) ? .28 : 1;
         foreach (var (arc, path, head) in arcs)
         {
-            var dim = on is { } set && !set.Waits.Contains($"{arc.To}>{arc.From}") && !(set.Cards.Contains(arc.From) && set.Cards.Contains(arc.To));
+            var dim = on is { } set && !set.Cards.Contains(arc.From) && !set.Cards.Contains(arc.To);
             path.Opacity = dim ? .25 : 1; if (head is not null) head.Opacity = path.Opacity;
         }
     }
