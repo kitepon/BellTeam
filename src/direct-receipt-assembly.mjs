@@ -34,7 +34,7 @@ export function directFailureReport(error, context) {
 
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
-  exchangeMutex, executionReady = () => true, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
+  exchangeMutex, executionReady = () => true, environmentReady = null, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
   let started = false, closed = false, requested = false, draining = null, unwatchQueue = null
   const completions = new Set(), drains = new Set()
   const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
@@ -78,6 +78,9 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       report(error, { delivery_id: record.delivery_id, target: record.target, stage })
     }
     try {
+      // a149c: wait the seat's setup.sh outside the lease, so a cold start's deliveries do not fill the 64 lease slots.
+      const project = bots.get(record.target)?.project
+      if (project) await environmentReady?.(project)
       return await transport.membersAdmission.withLease(async membersLease => {
         const check = aiControl.admit()
         if (typeof bots.readMember === 'function') await bots.readMember(record.target, { membersLease })

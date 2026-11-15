@@ -38,7 +38,7 @@ async function fixture(t, options = {}) {
       assert.fail('unexpected ' + name)
     }, async close() {} } })
   const legacy = new BellTeamMessenger({ bots, transport, logPath: join(root, 'logs/direct-messages.jsonl') })
-  const direct = createDirectReceiptAssembly({ root, bots, transport, conversation, aiControl, exchangeMutex,
+  const direct = createDirectReceiptAssembly({ root, bots, transport, conversation, aiControl, exchangeMutex, environmentReady: options.environmentReady,
     assets: conversation.directAssets, legacy, onMessage: () => {}, onError: (error, context) => { errors.push(error); return options.onError?.(error, context) } })
   services.directReceipts = direct.receipts
   await conversation.initialize()
@@ -314,6 +314,31 @@ test('a target whose acceptance is pending does not delay a later saved input fo
   holds.get('bot-quincy')()
   await settled(async () => await status(held.delivery_id) === 'running')
   assert.equal(f.errors.length, 0)
+  await f.direct.close()
+})
+
+test('a149c: dispatch waits the target seat setup before taking a members lease, so a cold start holds no lease slot', async t => {
+  const gate = Promise.withResolvers(), waited = [], notified = []
+  const f = await fixture(t, { environmentReady: project => { waited.push(project); return project === '/p/quincy' ? gate.promise : undefined },
+    createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+      async notify(bot, _envelope, options) { notified.push(bot.id); await options.onStatus('running'); return { delivery: 'running' } } }) })
+  f.bots.get('bot-quincy').project = '/p/quincy'
+  let leases = 0
+  const withLease = f.membersAdmission.withLease.bind(f.membersAdmission)
+  f.membersAdmission.withLease = (operation, options) => { leases++; return withLease(operation, options) }
+  f.direct.start(); f.aiControl.enable()
+  const receive = (from, target, message) => f.conversation.run({ kind: 'bot', botId: from }, () => f.direct.messenger.sendmessage({ from, target, message }))
+  const status = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery
+  const held = await receive('bot-peer', 'bot-quincy', 'cold seat input')
+  await settled(async () => waited.includes('/p/quincy'))
+  assert.equal(leases, 0); assert.deepEqual(notified, [])
+  gate.resolve()
+  await settled(async () => await status(held.delivery_id) === 'running')
+  assert.equal(leases, 1); assert.deepEqual(notified, ['bot-quincy'])
+  // A Bot with no project (created after startup) is not waited on.
+  const other = await receive('bot-quincy', 'bot-peer', 'no project')
+  await settled(async () => await status(other.delivery_id) === 'running')
+  assert.deepEqual(waited, ['/p/quincy']); assert.equal(f.errors.length, 0)
   await f.direct.close()
 })
 
