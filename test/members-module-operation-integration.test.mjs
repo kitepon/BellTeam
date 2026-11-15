@@ -14,7 +14,8 @@ const now = new Date('2030-01-01T00:00:01Z')
 function gates() {
   const members = new MembersAdmission('members')
   // Kiro's conversation lifetime gate and real IPC are later integration boundaries.
-  const conversation = new MembersAdmission('conversation')
+  // Current-lease check: a fixed generation makes it the same lease and generation check as assertLease.
+  const conversation = Object.assign(new MembersAdmission('conversation'), { assertCurrentLease(lease, expected) { return this.assertLease(lease, expected) } })
   return { members, conversation, operations: createModuleOperationContext({ membersAdmission: members, conversationAdmission: conversation }) }
 }
 
@@ -26,6 +27,15 @@ test('real common reservation rejects either closed peer before scheduler or rem
     const promise = operation === 'schedule'
       ? new BotScheduler({ registry: bots, transport, moduleOperations: f.operations }).runDue(now)
       : new BotAdministration({ bots, transport, moduleOperations: f.operations }).remove('bot-a')
+    if (peer === 'members' && operation === 'schedule') {
+      // A fresh scheduler run is held through a members exchange (AT7); once resumed it enters both gates and reaches the first effect.
+      let settled = false
+      const outcome = promise.then(() => 'ran', error => error).finally(() => { settled = true })
+      await new Promise(resolve => setImmediate(resolve)); assert.equal(settled, false)
+      f.members.resume(closed)
+      assert.match((await outcome).message, /effect before both admissions/)
+      continue
+    }
     await assert.rejects(promise, { status: 503, outcome: 'not_accepted' })
     const other = peer === 'members' ? f.conversation : f.members
     await other.drain(other.close())
@@ -75,7 +85,7 @@ test('real combined admission holds both drains beyond deletion 202 until remova
     async remove(id, value) { assert.equal(value, context); f.operations.assert(value); entered.resolve(); await release.promise; return { id } } }
   const admin = new BotAdministration({ bots, moduleOperations: f.operations, writeLog: line => assert.fail(line),
     rooms: { async removeBot(id, value) { assert.equal(value, context); f.operations.assert(value); tickets = [f.members.close(), f.conversation.close()] } },
-    transport: { membersAdmission: f.members, async stop(bot, version, value) { assert.equal(value, context); f.operations.assert(value) } } })
+    transport: { membersAdmission: f.members, async stop(bot, version, value) { assert.equal(value.membersLease, context.membersLease); assert.equal(value.conversationLease, context.conversationLease); f.operations.assert(context) } } })
   const finish = f.operations.finish
   f.operations.finish = value => { finish(value); completed.resolve() }
   assert.deepEqual(await admin.remove('bot-a'), { deleting: 'bot-a' })
