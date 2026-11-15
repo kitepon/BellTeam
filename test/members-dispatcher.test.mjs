@@ -49,7 +49,9 @@ test('Owner write needs trusted context, and ordinary params cannot inject it', 
   assert.throws(() => f.dispatcher.validateRequest('rules.botUpdate', { text: 'rule2', before: 'rule\n', botId: 'bot-a', instruction: { ...instruction, quote: ' ' } }, context), /MEMBERS_INPUT_INVALID/)
   await assert.rejects(f.request('rules.botUpdate', { text: 'rule2', before: 'other\n', botId: 'bot-a', instruction }, context), /USER_RULES_CHANGED/)
   assert.deepEqual(await f.request('rules.botUpdate', { text: 'rule2', before: 'rule\n', botId: 'bot-a', instruction }, context), { text: 'rule2\n', before: 'rule\n' })
-  assert.deepEqual((await f.request('rules.history', {}, context)).changes.map(change => change.actor), [{ kind: 'bot', botId: 'bot-a' }, { kind: 'owner' }])
+  // a150: a Bot save may carry no cited Owner message.
+  assert.deepEqual(await f.request('rules.botUpdate', { text: 'rule3', before: 'rule2\n', botId: 'bot-a' }, context), { text: 'rule3\n', before: 'rule2\n' })
+  assert.deepEqual((await f.request('rules.history', {}, context)).changes.map(change => change.actor), [{ kind: 'bot', botId: 'bot-a' }, { kind: 'bot', botId: 'bot-a' }, { kind: 'owner' }])
 })
 
 test('same-lease session callback completes while root update waits for parent effect', async t => {

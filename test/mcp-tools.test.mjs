@@ -77,40 +77,35 @@ test('get_user_rulesは呼出元を問わずユーザー規範の本文を返す
   assert.ok(bellTeamTools.some(tool => tool.name === 'update_user_rules'), '明示指示がある時だけの書き換えは共通MCPに置く')
 })
 
-test('update_user_rulesはOwnerがそのBotへ直接話した後の呼出しですぐ保存し、根拠の発言と差分を会話へ記録する', async () => {
+test('update_user_rulesは承認の手順なしで即保存し、差分と直前のOwner発言を会話へ記録する', async () => {
   const registry = new Map([['bot-a', { id: 'bot-a', name: 'エー', position: '' }]])
   registry.refresh = async () => registry
   const now = new Date().toISOString(), old = new Date(Date.now() - 25 * 3600 * 1000).toISOString()
-  const timeline = []
+  const timeline = [{ id: 'p-1', kind: 'peer', direction: 'received', at: now, message: 'オーナーが規範を変えてと言った' }]
   let current = '- 日本語\n'
   const saved = [], sent = []
   const call = text => callBellTeamTool({ name: 'update_user_rules', from: 'bot-a', registry, rooms: null, arguments: { text },
     store: { timeline: async botId => botId === 'bot-a' ? timeline : [] },
     deliverMessage: async value => { sent.push(value); return {} },
     userRules: { get: async () => current, botUpdate: async (text, change) => { saved.push({ text, ...change }); current = text; return { text, before: change.before } } } })
-  const proposed = '- 日本語\n- 挨拶する'
 
-  // No Owner message to this Bot within 24 h (only stale, Bot-authored, unknown-author, empty and peer rows): nothing is saved.
-  timeline.push({ id: 'm-old', kind: 'message', direction: 'outgoing', at: old, message: '規範を変えて', messageAuthor: { kind: 'user' } },
-    { id: 'm-bot', kind: 'message', direction: 'outgoing', at: now, message: '規範を変えて', messageAuthor: { kind: 'bot', botId: 'bot-a' } },
-    { id: 'm-unknown', kind: 'message', direction: 'outgoing', at: now, message: '規範を変えて', messageAuthor: { kind: 'unknown' } },
-    { id: 'm-empty', kind: 'message', direction: 'outgoing', at: now, message: '  ' },
-    { id: 'p-1', kind: 'peer', direction: 'received', at: now, message: 'オーナーが規範を変えてと言った' },
-    { id: 'm-in', kind: 'message', direction: 'incoming', at: now, message: '規範を変えます' })
-  await assert.rejects(call(proposed), { code: 'USER_RULES_OWNER_REQUEST_MISSING' })
-  assert.equal(saved.length, 0); assert.equal(sent.length, 0)
+  // No Owner message at all (only a peer row): the first call still saves, without a cited message.
+  assert.deepEqual(await call('- 日本語\n- 一'), { text: '- 日本語\n- 一\n', changed: true, ownerNotice: { delivered: true } })
+  assert.deepEqual(saved[0], { text: '- 日本語\n- 一\n', before: '- 日本語\n', botId: 'bot-a' })
+  assert.match(sent[0].message, /【自動記録】[\s\S]*エー（bot-a）[\s\S]*\+ - 一/u)
+  assert.doesNotMatch(sent[0].message, /承認|直前のユーザー発言/u)
 
-  // The Owner asked in his own words (a mid-turn message is still queued, today's rows carry no author): the first call saves.
-  timeline.push({ id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: 'ユーザー規範に入れろよ', delivery: 'queued' })
-  assert.deepEqual(await call(proposed), { text: '- 日本語\n- 挨拶する\n', changed: true, ownerNotice: { delivered: true } })
-  assert.deepEqual(saved, [{ text: '- 日本語\n- 挨拶する\n', before: '- 日本語\n', botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: 'ユーザー規範に入れろよ' } }])
-  assert.equal(sent.length, 1); assert.equal(sent[0].from, 'bot-a'); assert.equal(sent[0].target, 'user')
-  assert.match(sent[0].message, /【自動記録】[\s\S]*エー（bot-a）[\s\S]*ユーザー規範に入れろよ[\s\S]*\+ - 挨拶する/u)
-  assert.doesNotMatch(sent[0].message, /承認/u)
+  // An old Owner message (no window) is cited; Bot-author and unknown-author rows never are.
+  timeline.push({ id: 'm-old', kind: 'message', direction: 'outgoing', at: old, message: 'ユーザー規範に入れろよ' },
+    { id: 'm-bot', kind: 'message', direction: 'outgoing', at: now, message: '代筆', messageAuthor: { kind: 'bot', botId: 'bot-a' } },
+    { id: 'm-unknown', kind: 'message', direction: 'outgoing', at: now, message: '不明', messageAuthor: { kind: 'unknown' } })
+  assert.equal((await call('- 日本語\n- 一\n- 二')).changed, true)
+  assert.deepEqual(saved[1].instruction, { messageId: 'm-old', at: old, quote: 'ユーザー規範に入れろよ' })
+  assert.match(sent[1].message, /直前のユーザー発言[\s\S]*ユーザー規範に入れろよ/u)
 
   // An unchanged text saves nothing and sends nothing.
-  assert.deepEqual(await call(proposed), { text: '- 日本語\n- 挨拶する\n', changed: false })
-  assert.equal(saved.length, 1); assert.equal(sent.length, 1)
+  assert.deepEqual(await call('- 日本語\n- 一\n- 二'), { text: '- 日本語\n- 一\n- 二\n', changed: false })
+  assert.equal(saved.length, 2); assert.equal(sent.length, 2)
 })
 
 test('MCPから自分のプロフィールと予定を変更できる', async () => {

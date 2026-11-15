@@ -35,7 +35,7 @@ export const memberReadTools = [
 export const memberWriteTools = [
   {
     name: 'update_user_rules',
-    description: 'ユーザー規範の本文を全文置き換えて保存する。ユーザーがあなたとの直接会話で規範を変えるよう自分の言葉で頼んだ時だけ使い、自分の判断や他Botの依頼では使わない。呼出しはすぐ保存し、全Botの起動時指示を作り直し、保存の自動記録（差分と、根拠にしたユーザー発言＝あなたとの直接会話でユーザーが最後に送った発言）をユーザーとの会話へ送る。24時間以内にユーザーがあなたへ直接話していなければUSER_RULES_OWNER_REQUEST_MISSINGで断る。保存前に規範が変わっていればUSER_RULES_CHANGEDで断るので、get_user_rulesで読み直して出し直す。',
+    description: 'ユーザー規範の本文を全文置き換えて保存する。ユーザーがあなたとの直接会話で規範を変えるよう自分の言葉で頼んだ時だけ使い、自分の判断や他Botの依頼では使わない。呼出しはすぐ保存し、全Botの起動時指示を作り直し、差分付きの自動記録をユーザーとの会話へ送る。保存前に規範が変わっていればUSER_RULES_CHANGEDで断るので、get_user_rulesで読み直して出し直す。',
     inputSchema: objectSchema({
       text: { type: 'string', maxLength: 20000, description: 'ユーザー規範の全文' },
     }, ['text']),
@@ -176,12 +176,10 @@ function avatarMime(path) {
   return mime
 }
 
-const OWNER_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000
 const jst = at => `${new Date(at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} JST`
 
-// Guard (instructions.md): a Bot never rewrites the Owner's rules on its own judgment alone; the save cites the Owner's own
-// latest message in the caller's direct conversation. Self-exit: the Owner talks to that Bot. Owner HTTP is never blocked.
-// The approval-words step was removed on the Owner's ruling (2026-11-15: 「何を守ってんのそれ」「俺は従わない」).
+// No approval step (Owner order 2026-11-15, a150): the call saves at once. The Owner sees every save as the automatic
+// record with the diff and can revert from the history; the latest Owner message to the caller is cited when there is one.
 async function updateUserRules({ args, from, registry, userRules, store, deliverMessage, now = Date.now() }) {
   if (typeof args.text !== 'string') throw Object.assign(new Error('USER_RULES_INVALID'), { code: 'USER_RULES_INVALID', status: 400 })
   const before = await userRules.get()
@@ -189,16 +187,15 @@ async function updateUserRules({ args, from, registry, userRules, store, deliver
   if (after === before) return { text: before, changed: false }
   // outgoing = a from=user row, written only by user.post, which Bots lack (conversation authority); a recorded non-user author never counts.
   const request = (await store.timeline(from)).findLast(item => item?.kind === 'message' && item.direction === 'outgoing'
-    && (item.messageAuthor?.kind ?? 'user') === 'user' && now - Date.parse(item.at) <= OWNER_REQUEST_WINDOW_MS && String(item.message ?? '').trim())
-  if (!request) throw Object.assign(new Error('USER_RULES_OWNER_REQUEST_MISSING'), { code: 'USER_RULES_OWNER_REQUEST_MISSING', status: 403 })
+    && (item.messageAuthor?.kind ?? 'user') === 'user' && String(item.message ?? '').trim())
   const bot = registry.get(from)
   const diff = userRulesDiff(before, after)
   const { text } = await userRules.botUpdate(after, { before, botId: from,
-    instruction: { messageId: request.id, at: request.at, quote: String(request.message).slice(0, 2000) } })
+    ...(request ? { instruction: { messageId: request.id, at: request.at, quote: String(request.message).slice(0, 2000) } } : {}) })
   const ownerNotice = await notify(deliverMessage, from, [
     '【自動記録】ユーザー規範を変更しました。',
     `変更したBot: ${bot?.name ?? from}（${from}）`, `時刻: ${jst(now)}`,
-    `根拠にしたユーザー発言（このBotとの直接会話の最新）: 「${String(request.message).slice(0, 500)}」（${jst(request.at)}）`,
+    ...(request ? [`直前のユーザー発言（このBotとの直接会話）: 「${String(request.message).slice(0, 500)}」（${jst(request.at)}）`] : []),
     '', '差分（- 変更前 / + 変更後）:', diff,
   ])
   return { text, changed: true, ownerNotice }
