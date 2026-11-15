@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T10:25:58Z",
-  "expiresAt": "2026-11-22T10:25:58Z",
+  "publishedAt": "2026-11-15T10:42:53Z",
+  "expiresAt": "2026-11-22T10:42:53Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4094a1371ed768eba3deb879cc9cd25169c94ec8",
-      "versionId": "sha256:cc9944344a6af662b5132a52fbd37471cc84b11c1178e15c38a3e5ddb462c68b",
+      "sourceCommit": "064623f4518ca2b5b721e1ccd599c22ede68d2f2",
+      "versionId": "sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cc9944344a6af662b5132a52fbd37471cc84b11c1178e15c38a3e5ddb462c68b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体を入れ替えた直後でも、更新の一覧が読めるようにしました。",
-        "部品の入れ替えの最中でも、部屋の一覧が読めるようにしました。",
-        "Aitermを0.70.65にしました（止まりかけの席を自分で直します）。"
+        "Aitermを0.70.66にしました（計画モードの確認で席が止まらなくなります）。",
+        "席から工程表へ書くとき、60秒で打ち切られる前に結果を返すようにしました。",
+        "決裁箱の拡張の、本体側の土台を入れました（まだ画面は使えません）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4094a1371ed768eba3deb879cc9cd25169c94ec8",
-      "versionId": "sha256:cc9944344a6af662b5132a52fbd37471cc84b11c1178e15c38a3e5ddb462c68b",
+      "sourceCommit": "064623f4518ca2b5b721e1ccd599c22ede68d2f2",
+      "versionId": "sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cc9944344a6af662b5132a52fbd37471cc84b11c1178e15c38a3e5ddb462c68b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3b34585e6c79371ca3ed0f5bba012c8112d02aff8c921f3a494b76cbbec1a2e1"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体を入れ替えた直後でも、更新の一覧が読めるようにしました。",
-        "部品の入れ替えの最中でも、部屋の一覧が読めるようにしました。",
-        "Aitermを0.70.65にしました（止まりかけの席を自分で直します）。"
+        "Aitermを0.70.66にしました（計画モードの確認で席が止まらなくなります）。",
+        "席から工程表へ書くとき、60秒で打ち切られる前に結果を返すようにしました。",
+        "決裁箱の拡張の、本体側の土台を入れました（まだ画面は使えません）。"
       ]
     },
     {
