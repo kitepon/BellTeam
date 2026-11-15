@@ -13,9 +13,10 @@ namespace BellTeam.App;
 /// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
 /// 「owner」: t11 belongs to the Owner (producer = the reserved value owner, as the server resolves a lane 指揮官 / owner); its 詳細 shows the Approval Box decision (GET /api/approvals/by-task answers only there, 404 elsewhere as before the extension ships).
 /// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not. counted (a96): every card but t03, the only card of its finished tree; t02 is hidden but its tree is open.
-/// 止め一覧 scenes (stops*): GET /api/lattice/blockers has five stops on four charts (a member, the Owner, an authored lane, an unknown Bot, no lane; today,
+/// ブロック一覧 scenes (stops*): GET /api/lattice/blockers has five stops on four charts (a member, the Owner, an authored lane, an unknown Bot, no lane; today,
 /// yesterday, an older day); stops-unread names an unread chart, stops-empty none, stops-retry answers 503, stops-old 404; 外す removes, stops-refused answers 409.
-/// 「external」 / 「external-detail」 (task a60): t10 also waits on two tasks of other charts, one read (通話ブリッジの刷新, Kiro, in progress) and one Lattice could not read.
+/// 接続 (a161; every scene, the 「connections」 scene opens the panel): cards carry `connections` and no edge or wait is sent for them. t10 connects to two tasks of other charts (one read: 通話ブリッジの刷新, Kiro, in progress; one Lattice could not read),
+/// t08 carries a 優先接続 asked by Rapi, t09 a schedule 接続. `externals[]` holds the other charts' facts for the two `task` entries.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
@@ -30,7 +31,15 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private object[] Cards()
     {
         object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted = id != "t03" };
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted = id != "t03", connections = Joins(id) };
+        // 接続 (README: card `connections`, only open entries): a task of another chart (ref = its externals[] id), a priority (agent) and a schedule (ref = its id).
+        object[] Joins(string id) => id switch
+        {
+            "t10" => [new { kind = "task", state = "open", @ref = "call-bridge:cb/release", reason = "橋の新しい版が出てから", since = Ago(3) }, new { kind = "task", state = "open", @ref = "guide:g/intro", reason = (string?)null, since = Ago(1) }],
+            "t08" => [new { kind = "priority", state = "open", agent = "bot-rapi", reason = "受け口が空いたらすぐ着手したい", since = Ago(18) }],
+            "t09" => [new { kind = "schedule", state = "open", @ref = "sch-7f3a", reason = "夜間の控えが終わってから", since = Ago(40) }],
+            _ => []
+        };
         return [
             Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする", finished: 95),
             Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる", finished: 60 * 27, archived: true),
@@ -40,7 +49,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             Card("t06", "Web画面の組込口", "blocked", "bot-admi", 1, "Webから工程表を開ける", reason: "組込の登録点が未定"),
             Card("t07", "公開契約の裁定", "ready", "bot-trony", 1, "公開契約が確定する", authored: "root"),
             Card("t08", "部品の実装", "pending", "bot-flora", 2, "契約どおりに動き、席から工程表を読める", "Lattice部品の本体をつくる。公開の入口は裁定済みの契約だけに限り、保存はモリーの配置先を使う。", authored: "kiro"),
-            Card("t09", scene == "authored" ? "iPhone/Mac画面の工程表と、待ちの流れの横めくり" : "iPhone/Mac画面", "pending", scene == "unknown" ? "bot-ghost" : "bot-rapi", 3, "実画面で承認される", authored: "anis"),
+            Card("t09", scene == "authored" ? "iPhone/Mac画面の工程表と、接続パネルの横めくり" : "iPhone/Mac画面", "pending", scene == "unknown" ? "bot-ghost" : "bot-rapi", 3, "実画面で承認される", authored: "anis"),
             Card("t10", "Web画面", "pending", "bot-flora", 3, "Webで工程表が開く", authored: "kiro"),
             Card("t11", "受け取り確認", "pending", scene is "owner" or "owner-lanes" ? "owner" : null, 4, "3画面を実画面で承認"),
         ];
@@ -51,26 +60,16 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         var cards = Cards(); var json = JsonSerializer.SerializeToElement(cards);
         var byId = json.EnumerateArray().ToDictionary(card => card.GetProperty("taskId").GetString()!);
         bool Finished(string id) => byId[id].GetProperty("state").GetString() is "done" or "retired";
-        string? Producer(string id) => byId[id].GetProperty("producer").GetString();
-        var waits = Edges.Where(edge => !Finished(edge[0]) && !Finished(edge[1]))
-            .Select(edge => new { waiter = Producer(edge[1]), waitingCard = $"p1/{edge[1]}", forCard = $"p1/{edge[0]}", producer = Producer(edge[0]), producerState = byId[edge[0]].GetProperty("state").GetString(), since = Ago(Since.GetValueOrDefault(edge[0], 1)) })
-            .ToList();
-        // Predecessors on another chart (externals[], edge external, wait forCard = the external id): drawn as text only.
-        var externals = scene.StartsWith("external", StringComparison.Ordinal)
-            ? new[] { new { id = "call-bridge:cb/release", projectId = "call-bridge", cardId = "cb/release", chartName = (string?)"通話ブリッジの刷新", title = (string?)"橋の新しい版を出す", state = (string?)"in-progress", finished = false, producer = (string?)"bot-kiro" },
-                      new { id = "guide:g/intro", projectId = "guide", cardId = "g/intro", chartName = (string?)null, title = (string?)null, state = (string?)null, finished = false, producer = (string?)null } }
-            : [];
-        foreach (var ext in externals) waits.Add(new { waiter = Producer("t10"), waitingCard = "p1/t10", forCard = ext.id, producer = ext.producer, producerState = ext.state, since = Ago(ext.producer is null ? 1 : 2) });
-        waits = waits.OrderBy(wait => wait.since, StringComparer.Ordinal).ToList();
-        var referenced = byId.Values.Select(card => card.GetProperty("producer").GetString()).Concat(waits.Select(wait => wait.waiter)).ToHashSet();
-        var name = Names.GetValueOrDefault(projectId);
+        // externals[]: the other chart's facts for each open `task` connection (drawn as text only).
+        var externals = new[] { new { id = "call-bridge:cb/release", projectId = "call-bridge", cardId = "cb/release", chartName = (string?)"通話ブリッジの刷新", title = (string?)"橋の新しい版を出す", state = (string?)"in-progress", finished = false, producer = (string?)"bot-kiro" },
+                                new { id = "guide:g/intro", projectId = "guide", cardId = "g/intro", chartName = (string?)null, title = (string?)null, state = (string?)null, finished = false, producer = (string?)(scene == "unknown" ? "bot-ghost" : null) } };
+        var referenced = byId.Values.Select(card => card.GetProperty("producer").GetString()).Concat(externals.Select(ext => ext.producer)).Append("bot-rapi").ToHashSet();        var name = Names.GetValueOrDefault(projectId);
         return new
         {
             schema = "bellteam.lattice-chart.v1", epoch = "fixture", version = 1, at = Ago(0), projectId, name = name.Name, createdBy = name.CreatedBy, coordinator = projectId == "lattice",
             state = State, verifiedAt = Ago(State == "last_verified" ? 46 : 0), degraded = scene == "degraded" ? new[] { "lattice-read", "members" } : [],
             members = Members.Where(member => referenced.Contains(member.Id)).Select(member => new { botId = member.Id, name = member.Name, color = member.Color, avatarVersion = "" }),
-            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]), external = false })
-                .Concat(externals.Select(ext => new { from = ext.id, to = "p1/t10", waiting = true, external = true })), waits, externals
+            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), externals
         };
     }
     private static readonly Dictionary<string, (string? Name, string CreatedBy)> Names = new()
@@ -84,10 +83,10 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         Summary("web-polish", false, 11, 9, 1, 0, 0, ["bot-admi", "bot-flora"], 63),
         Summary("guide", false, 9, 4, 1, 2, 0, ["bot-flora", "bot-ghost", "bot-trony"], 14 * 60),
         // list-many (a87, as the Apple fixture's many=1): 30 more charts after the five, so 一覧 runs past the window's bottom.
-        .. scene == "list-many" ? Enumerable.Range(1, 30).Select(index => (object)new { projectId = $"extra-{index:00}", name = $"追加の工程表 {index:00}", coordinator = false, createdBy = "bot-rapi", counts = new { total = 6, done = index % 6, working = 1, waiting = 0, blocked = 0 }, activeMembers = new[] { "bot-rapi" }, updatedAt = Ago(20 * (index + 1)), state = "verified" }) : [],
+        .. scene == "list-many" ? Enumerable.Range(1, 30).Select(index => (object)new { projectId = $"extra-{index:00}", name = $"追加の工程表 {index:00}", coordinator = false, createdBy = "bot-rapi", counts = new { total = 6, done = index % 6, working = 1, blocked = 0, connections = 0 }, activeMembers = new[] { "bot-rapi" }, updatedAt = Ago(20 * (index + 1)), state = "verified" }) : [],
     ];
-    private object Summary(string id, bool coordinator, int total, int done, int working, int waiting, int blocked, string[] active, double updated)
-        => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
+    private object Summary(string id, bool coordinator, int total, int done, int working, int connections, int blocked, string[] active, double updated)
+        => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, blocked, connections }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
 
     private object Blockers()
     {

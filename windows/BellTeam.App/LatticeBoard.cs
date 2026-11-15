@@ -9,8 +9,8 @@ using static BellTeam.App.LatticeLook;
 namespace BellTeam.App;
 
 /// <summary>
-/// The swimlanes: one lane per owner (producer, else the authored lane text, else 担当なし), cards in columns by depth, edges as smooth curves under them. Waiting edges carry an accent gradient and particles flowing to the
-/// waiter (one per 600 ms, 1.4 s travel) and a 「◯◯が待っています」 chip. The lane names stay at the left edge while the board scrolls sideways (cards pass under them).
+/// The swimlanes: one lane per owner (producer, else the authored lane text, else 担当なし), cards in columns by depth, edges as smooth curves under them. Edges to a card still being made carry an accent gradient and particles flowing to the
+/// later card (one per 600 ms, 1.4 s travel) and a 「前工程：◯◯」 chip. A 接続 is never an edge: it is only the chip 「接続 N」 on its card (a161). The lane names stay at the left edge while the board scrolls sideways (cards pass under them).
 /// Holds no state of its own beyond the drawing: the window gives it each snapshot.
 /// </summary>
 internal sealed class LatticeBoard : Canvas
@@ -20,7 +20,7 @@ internal sealed class LatticeBoard : Canvas
     public bool Flowing { get; set; } = true;
     internal Func<double> Clock { get; set; } = () => Environment.TickCount64;
     private LatticeSnapshot? snapshot;
-    private (HashSet<string> Cards, HashSet<string> Waits)? highlight;
+    private (HashSet<string> Cards, HashSet<string> Connections)? highlight;
     private readonly EdgeLayer edges;
     private readonly Canvas labels = new();
     private readonly TranslateTransform labelShift = new();
@@ -71,7 +71,7 @@ internal sealed class LatticeBoard : Canvas
                 var (x, y) = LatticeChart.PointOnCurve(curve, t); var rect = new Rect(x - size.Width / 2, y - size.Height / 2, size.Width, size.Height);
                 if (!taken.Any(other => other.IntersectsWith(rect))) { spot = rect; break; }
             }
-            if (spot is not { } place) continue;   // no free place: the curve and its particles still show the wait, and 待ちの流れ names it
+            if (spot is not { } place) continue;   // no free place: the curve and its particles still show it
             taken.Add(place); SetLeft(chip, place.X); SetTop(chip, place.Y); chip.Tag = edge; Children.Add(chip);
         }
         var ownerOf = LatticeChart.Owner(next);
@@ -119,11 +119,13 @@ internal sealed class LatticeBoard : Canvas
         highlight = botId is null || snapshot is null ? null : LatticeChart.Highlight(snapshot, botId);
         ApplyHighlight();
     }
+    // A line is lit when either end is a highlighted member's card (screen-spec 強調).
+    private static bool Lit((HashSet<string> Cards, HashSet<string> Connections) on, LatticeEdge edge) => on.Cards.Contains(edge.From) || on.Cards.Contains(edge.To);
     private void ApplyHighlight()
     {
         foreach (var (id, card) in cards) card.Opacity = highlight is { } on && !on.Cards.Contains(id) ? .28 : 1;
         foreach (var chip in Children.OfType<Border>().Where(chip => chip.Tag is LatticeEdge))
-            chip.Opacity = highlight is { } on && !on.Waits.Contains($"{((LatticeEdge)chip.Tag).To}>{((LatticeEdge)chip.Tag).From}") ? .25 : 1;
+            chip.Opacity = highlight is { } on && !Lit(on, (LatticeEdge)chip.Tag) ? .25 : 1;
         edges.InvalidateVisual();
     }
 
@@ -173,13 +175,20 @@ internal sealed class LatticeBoard : Canvas
         }
         stack.Children.Add(top);
         stack.Children.Add(new TextBlock { Text = LatticeChart.Title(card), FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Brush(Ink), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 18, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, MaxHeight = 36 });
-        var note = LatticeChart.CardNote(card, producer);
-        if (note.Length > 0) { var line = Text(note, 11, card.State == "blocked" ? Red : Muted); line.TextTrimming = TextTrimming.CharacterEllipsis; line.Margin = new Thickness(0, 3, 0, 0); stack.Children.Add(line); }
+        // The note line, with the chip 「接続 N」 at its right end when the card has open 接続 (link glyph + count).
+        var note = LatticeChart.CardNote(card, producer); var open = LatticeChart.OpenConnections(card).Count();
+        if (note.Length > 0 || open > 0)
+        {
+            var bottom = new DockPanel { Margin = new Thickness(0, 3, 0, 0) };
+            if (open > 0) { var chip = Row(Shape(LinkGeometry, 11, Violet), Spaced(Text($"接続 {open}", 10.5, Violet, FontWeights.Bold), 3)); chip.Margin = new Thickness(6, 0, 0, 0); DockPanel.SetDock(chip, Dock.Right); bottom.Children.Add(chip); }
+            var line = Text(note, 11, card.State == "blocked" ? Red : Muted); line.TextTrimming = TextTrimming.CharacterEllipsis; bottom.Children.Add(line);
+            stack.Children.Add(bottom);
+        }
         shell.Child = stack;
         return grid;
     }
 
-    /// <summary>Edges under the cards: satisfied ones thin and faint, waiting ones a thicker accent gradient with particles flowing toward the waiter.</summary>
+    /// <summary>Edges under the cards: satisfied ones thin and faint, 前工程 still being made a thicker accent gradient with particles flowing toward the later card.</summary>
     private sealed class EdgeLayer(LatticeBoard board) : FrameworkElement
     {
         protected override void OnRender(DrawingContext context)
@@ -193,7 +202,7 @@ internal sealed class LatticeBoard : Canvas
                 var curve = LatticeChart.EdgeCurve(from, to);
                 var figure = new PathFigure { StartPoint = new Point(curve.X0, curve.Y0) }; figure.Segments.Add(new BezierSegment(new Point(curve.X1, curve.Y1), new Point(curve.X2, curve.Y2), new Point(curve.X3, curve.Y3), true));
                 var geometry = new PathGeometry([figure]);
-                var dim = board.highlight is { } on && !on.Waits.Contains($"{edge.To}>{edge.From}") && !(on.Cards.Contains(edge.From) && on.Cards.Contains(edge.To));
+                var dim = board.highlight is { } on && !Lit(on, edge);
                 if (!edge.Waiting) { context.DrawGeometry(null, new Pen(Brush(Muted, dim ? (byte)0x1A : (byte)0x40), 1.2), geometry); continue; }
                 var color = ownerOf(producers.GetValueOrDefault(edge.From)) is { Known: true } person ? Accent(person.Color) : Violet;
                 var opacity = dim ? .22 : 1;

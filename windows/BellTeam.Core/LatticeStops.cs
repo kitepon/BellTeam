@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace BellTeam.Core;
 
-// 止め一覧 (docs/architecture/modules/lattice/README.md "Stops (blockers)"; screen in screen-spec.md "止め一覧").
+// ブロック一覧 (docs/architecture/modules/lattice/README.md "Stops (blockers)"; screen in screen-spec.md "ブロック一覧").
 // The calculations are a port of the pure part of web/lattice-stops.js.
 
 public sealed record LatticeBlockers
@@ -35,8 +35,8 @@ public sealed record LatticeUnblockOutcome(LatticeUnblockKind Kind, string Reaso
 public static partial class LatticeStops
 {
     public const string Schema = "bellteam.lattice-blockers.v1";
-    public const string Loading = "止めを読んでいます…", Empty = "止まっている工程はありません。", Retry = "止め一覧を読み直しています…", Old = "このサーバーではまだ止め一覧を使えません。",
-        Unread = "一部の工程表を読めませんでした。読めた分だけ表示しています。", Ask = "この止めを外しますか？", Later = "いまは外せませんでした。少し待ってからもう一度お試しください。";
+    public const string Loading = "ブロックを読んでいます…", Empty = "ブロックされている工程はありません。", Retry = "ブロック一覧を読み直しています…", Old = "このサーバーではまだブロック一覧を使えません。",
+        Unread = "一部の工程表を読めませんでした。読めた分だけ表示しています。", Ask = "このブロックを外しますか？", Later = "いまは外せませんでした。少し待ってからもう一度お試しください。";
     public static string Refused(string reason) => reason.Length > 0 ? $"外せませんでした: {reason}" : "外せませんでした";
 
     private static readonly TimeZoneInfo Jst = TimeZoneInfo.CreateCustomTimeZone("JST", TimeSpan.FromHours(9), "JST", "JST");
@@ -51,7 +51,7 @@ public static partial class LatticeStops
     }
 
     [GeneratedRegex("^bot-[0-9a-z]+$")] private static partial Regex BotId();
-    /// <summary>担当・止めた人: a roster Bot id -> the member, another Bot id -> 名簿にないメンバー, "owner" -> the Owner, other text as written, null -> null (担当なし).</summary>
+    /// <summary>担当・ブロックした人: a roster Bot id -> the member, another Bot id -> 名簿にないメンバー, "owner" -> the Owner, other text as written, null -> null (担当なし).</summary>
     public static Func<string?, LatticePerson?> Face(Func<string, LatticePerson?> roster, string? ownerName, string ownerAvatarVersion)
     {
         var owner = new LatticePerson(LatticeChart.OwnerId, ownerName is { Length: > 0 } ? ownerName : LatticeChart.OwnerFallback, "amber", ownerAvatarVersion, true, IsOwner: true);
@@ -69,7 +69,7 @@ public static partial class LatticeStops
             {
                 var title = stop.Title ?? ""; var chart = LatticeChart.ChartName(stop.ChartName, stop.ChartCreatedBy, id => roster(id)?.Name); var reason = stop.Reason ?? "";
                 var lane = face(stop.Lane); var by = face(stop.BlockedBy); var time = StopTime(stop.BlockedAt, now);
-                var label = $"止まり、{title}、{chart}、{(lane is null ? LatticeChart.Unassigned : $"担当 {lane.Name}")}{(reason.Length > 0 ? $"、理由 {reason}" : "")}、{LatticeChart.NameOf(by)}が{(time.Length > 0 ? $"{time}に" : "")}止めました";
+                var label = $"ブロック、{title}、{chart}、{(lane is null ? LatticeChart.Unassigned : $"担当 {lane.Name}")}{(reason.Length > 0 ? $"、理由 {reason}" : "")}、{LatticeChart.NameOf(by)}が{(time.Length > 0 ? $"{time}に" : "")}ブロックしました";
                 return new LatticeStopRow(stop.StopId!, stop.ProjectId!, stop.CardId, title, chart, lane, reason, by, time, label);
             }).ToList();
     }

@@ -9,7 +9,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Tests;
 
-// 止め一覧 (docs/architecture/modules/lattice/screen-spec.md "止め一覧"; contract README "Stops (blockers)"): the rows ported from web/lattice-stops.js and the page's states.
+// ブロック一覧 (docs/architecture/modules/lattice/screen-spec.md "ブロック一覧"; contract README "Stops (blockers)"): the rows ported from web/lattice-stops.js and the page's states.
 public sealed class LatticeStopsTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 13, 3, 0, 0, TimeSpan.Zero);   // 12:00 JST
@@ -35,8 +35,8 @@ public sealed class LatticeStopsTests
         Assert.Equal(("kiro", true), (rows[2].Lane!.Name, rows[2].Lane!.Authored));
         Assert.Equal((LatticeChart.UnknownMember, false), (rows[2].By!.Name, rows[2].By!.Known));
         Assert.Null(rows[3].Lane);
-        Assert.Equal("止まり、新しい、アドミの工程表、担当 アドミ、理由 CI is red、クオが今日 09:30に止めました", rows[0].Label);
-        Assert.Equal("止まり、時刻なし、名前のない工程表、担当なし、担当なしが止めました", rows[3].Label);
+        Assert.Equal("ブロック、新しい、アドミの工程表、担当 アドミ、理由 CI is red、クオが今日 09:30にブロックしました", rows[0].Label);
+        Assert.Equal("ブロック、時刻なし、名前のない工程表、担当なし、担当なしがブロックしました", rows[3].Label);
     }
 
     [Theory]
@@ -75,7 +75,7 @@ public sealed class LatticeStopsTests
         Assert.Equal(5, stops.Rows.Count);
         var texts = Texts(window);
         Assert.Contains(LatticeStops.Unread, texts);
-        Assert.Contains("止め一覧", texts);
+        Assert.Contains("ブロック一覧", texts);
         Assert.DoesNotContain(texts, text => text.Contains("bot-", StringComparison.Ordinal) || text.Contains("p1/", StringComparison.Ordinal) || text.Contains("LATTICE_", StringComparison.Ordinal) || text == "guide" || text.Contains("0a1b2c", StringComparison.Ordinal));
         Assert.Equal(5, LogicalTree.Find<FrameworkElement>(window.Content).Count(element => System.Windows.Automation.AutomationProperties.GetAutomationId(element) == "lattice-stop"));
         Close(workspace, window);

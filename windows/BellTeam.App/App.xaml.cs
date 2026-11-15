@@ -333,8 +333,8 @@ public partial class App : Application
                 if (model.ConnectionError is { } latticeFailure) throw new BellApiException(latticeFailure);
                 var lattice = new LatticeWindow(model, _ => Task.CompletedTask) { Rendering = true, Clock = () => 2300 };
                 LatticeChartPage.View = latticeScene switch { "tree" or "tree-detail" or "owner" or "stops-open" => "tree", "history" => "history", _ => "lanes" };
-                // 待ちの流れ is folded by default; "waits" draws the lanes with it open, the scenes that show a wait row's content keep it open too.
-                LatticeChartPage.WaitsOpen = latticeScene is "waits" or "external";
+                // The 接続 panel is folded by default; "connections" draws the lanes with it open (its top), "connections-end" scrolled to the last rows.
+                LatticeChartPage.WaitsOpen = latticeScene is "connections" or "connections-end";
                 const int latticeWidth = 1360, latticeHeight = 860;
                 var latticeRoot = (FrameworkElement)lattice.Content;
                 async Task Until(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
@@ -344,16 +344,16 @@ public partial class App : Application
                 if (latticeScene == "list-many") { latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout(); lattice.ScrollListToEnd(); }
                 else if (latticeScene.StartsWith("stops", StringComparison.Ordinal))
                 {
-                    // 止め一覧 from 一覧. stops-confirm: the first row asks; stops-refused: the first row's 外す was refused; stops-open: the first row opened its chart and 詳細.
+                    // ブロック一覧 from 一覧. stops-confirm: the first row asks; stops-refused: the first row's 外す was refused; stops-open: the first row opened its chart and 詳細.
                     await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
                     lattice.ShowStops(); var stops = lattice.Stops!;
-                    await Until(() => stops.State != LatticeStopsPage.Phase.Loading, "止め一覧を読めませんでした。");
+                    await Until(() => stops.State != LatticeStopsPage.Phase.Loading, "ブロック一覧を読めませんでした。");
                     if (latticeScene == "stops-confirm") stops.Ask(stops.Rows[0].StopId);
                     if (latticeScene == "stops-refused") { await stops.RemoveAsync(stops.Rows[0]); await stops.Reading; }
                     if (latticeScene == "stops-open")
                     {
                         var first = stops.Rows[0]; lattice.OpenCard(first.ProjectId, first.CardId);
-                        await Until(() => lattice.Chart!.SelectedCard is not null, "止め一覧から工程を開けませんでした。");
+                        await Until(() => lattice.Chart!.SelectedCard is not null, "ブロック一覧から工程を開けませんでした。");
                     }
                 }
                 else if (latticeScene == "list-back")
@@ -370,8 +370,7 @@ public partial class App : Application
                     latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout();
                     if (latticeScene is "detail" or "tree-detail") chart.OpenDetail("p1/t04", morph: false);
                     if (latticeScene == "owner") { chart.OpenDetail("p1/t11", morph: false); await Until(() => chart.Decisions.GetValueOrDefault("p1/t11") is not null, "決裁を読めませんでした。"); }
-                    if (latticeScene == "external-detail") chart.OpenDetail("p1/t10", morph: false);
-                    if (latticeScene == "external") chart.ScrollWaitsToEnd();
+                    if (latticeScene == "connections-end") chart.ScrollWaitsToEnd();
                     if (latticeScene == "owner-lanes") { chart.ScrollBoard(chart.Board.CardRect("p1/t09").X, chart.Board.CardRect("p1/t11").Y - 120); chart.ScrollWaitsToEnd(); }
                     if (latticeScene == "highlight") chart.Highlight("bot-flora");
                     if (latticeScene == "unknown") chart.ScrollWaitsToEnd();

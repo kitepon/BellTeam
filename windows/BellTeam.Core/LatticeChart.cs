@@ -19,7 +19,7 @@ public sealed record LatticeChartSummary
     public DateTimeOffset? UpdatedAt { get; init; }
     public string? State { get; init; }
 }
-public sealed record LatticeCounts(int Total, int Done, int Working, int Waiting, int Blocked);
+public sealed record LatticeCounts(int Total, int Done, int Working, int Blocked, int Connections);
 public sealed record LatticeSnapshot
 {
     public string? Epoch { get; init; }
@@ -35,8 +35,7 @@ public sealed record LatticeSnapshot
     public LatticeCard[] Cards { get; init; } = [];
     public LatticePhase[] Phases { get; init; } = [];
     public LatticeEdge[] Edges { get; init; } = [];
-    public LatticeWait[] Waits { get; init; } = [];
-    /// <summary>Predecessors on another chart (task a60): named by an edge `from` / a wait `forCard`, never a card; drawn as text, never on the canvas or tree.</summary>
+    /// <summary>The other chart's facts for each open `task` 接続 (a161): named by a connection `ref`, never a card; drawn as text, never on the canvas or tree.</summary>
     public LatticeExternal[] Externals { get; init; } = [];
     /// <summary>The app's Owner profile put on the snapshot by the window (not on the wire): names the reserved owner value. Null while unknown.</summary>
     public string? OwnerName { get; init; }
@@ -66,16 +65,19 @@ public sealed record LatticeCard
     /// <summary>In the progress fractions: its tree is not fully finished (a96, server rule). Null (an older child) = not archived.</summary>
     public bool? Counted { get; init; }
     public bool IsCounted => Counted ?? !Archived;
+    /// <summary>Open 接続 (a161, Lattice 0.104.0; missing = none, an older server): a task of another chart, a schedule or a 優先接続. Never an edge; read through LatticeChart.OpenConnections.</summary>
+    public LatticeConnectionEntry[] Connections { get; init; } = [];
 }
+/// <summary>One 接続 of a card. Kind task (Ref = the externals[] id) | schedule (Ref = its id) | priority (Agent = the Bot that asked); State open or null = open, only those count and draw.</summary>
+public sealed record LatticeConnectionEntry(string? Kind, string? Ref, string? Agent, string? Reason, DateTimeOffset? Since, string? State = "open");
 public sealed record LatticePhase(string Id, string? Title);
-public sealed record LatticeEdge(string From, string To, bool Waiting, bool External = false);
-/// <summary>A task of another chart: Id = "&lt;projectId&gt;:&lt;plan&gt;/&lt;task&gt;", CardId its card id there; State null = Lattice could not read it.</summary>
+public sealed record LatticeEdge(string From, string To, bool Waiting);
+/// <summary>A task of another chart a card connects to: Id = "&lt;projectId&gt;:&lt;plan&gt;/&lt;task&gt;", CardId its card id there; State null = Lattice could not read it.</summary>
 public sealed record LatticeExternal(string Id, string ProjectId, string CardId, string? ChartName, string? Title, string? State, bool Finished, string? Producer);
-/// <summary>Where a 工程へ移動 / 前の工程 on another chart opens: that chart at that card.</summary>
+/// <summary>Where a 工程へ移動 on another chart opens: that chart at that card.</summary>
 public sealed record LatticeCardRef(string ProjectId, string CardId);
 /// <summary>The Approval Box extension's decision for an Owner-lane card (GET /api/approvals/by-task, screen-spec 詳細); Status is a key of LatticeChart.DecisionStates.</summary>
 public sealed record LatticeDecision(string DecisionId, string Status, string Title);
-public sealed record LatticeWait(string? Waiter, string WaitingCard, string ForCard, string? Producer, string? ProducerState, DateTimeOffset? Since);
 
 /// <summary>A member as drawn: the roster entry, or 名簿にないメンバー (Known false, drawn as 「?」 and never opened as a chat).
 /// Authored: the plan's written lane text with no member behind it (BotId "", drawn with its initial, never a chat, not in the member rail).
@@ -88,9 +90,10 @@ public sealed record LatticeStateInfo(string Badge, string Tone);
 public sealed record LatticeLane(string? BotId, LatticePerson? Member, double Y, double Height);
 public sealed record LatticePlaced(double X, double Y, double Width, double Height, int Depth, int Lane);
 public sealed record LatticeLayout(IReadOnlyList<LatticeLane> Lanes, IReadOnlyDictionary<string, LatticePlaced> Cards, IReadOnlyList<string> Order, double Width, double Height);
-public sealed record LatticeWaitRow(string Key, LatticePerson? Waiter, LatticePerson? Producer, string Title, string StateText, string ForCard, string WaitingCard, string Headline, string OwnerText, string Length, bool Emphasized, LatticeStateInfo Info, bool CanChat, string Label, string? Chart = null, LatticeCardRef? External = null);
-public sealed record LatticeRailItem(string BotId, LatticePerson Member, bool Working, bool Blocked, int Waiting);
-public sealed record LatticeLink(string Id, string Title, string State, LatticePerson? Producer, string StateText, string? Chart = null, LatticeCardRef? External = null);
+/// <summary>A 接続 panel row (a161): Owner/Headline/OwnerText/Length describe the connected card; Mark says what the entry is; Title, Chart, Producer, StateText, Info and External describe the awaited task (kind task only), Agent the Bot of a 優先接続.</summary>
+public sealed record LatticeConnectionRow(string Key, string Kind, string CardId, LatticePerson? Owner, string Headline, string OwnerText, string Length, string Reason, string Mark, LatticePerson? Agent, string Title, string? Chart, LatticePerson? Producer, string StateText, LatticeStateInfo Info, bool Emphasized, bool CanChat, LatticeCardRef? External, string Label);
+public sealed record LatticeRailItem(string BotId, LatticePerson Member, bool Working, bool Blocked, int Connections);
+public sealed record LatticeLink(string Id, string Title, string State, LatticePerson? Producer, string StateText);
 public sealed record LatticeDetail(LatticeCard Card, LatticePerson? Producer, LatticeStateInfo Info, string StateText, IReadOnlyList<LatticeLink> Previous, IReadOnlyList<LatticeLink> Next, string StartedText);
 public sealed record LatticeBanner(string Tone, string Text, string Next, bool Dim);
 /// <summary>A tree box: Kind root / phase / card. Root and phase carry done/total and the phase tone (blocked, in-progress, done, pending).</summary>
@@ -104,7 +107,7 @@ public sealed record LatticeHistoryGroup(string Heading, IReadOnlyList<LatticeHi
 public sealed record LatticeHistory(int Count, IReadOnlyList<LatticeHistoryGroup> Groups);
 public sealed record LatticeTreeLayout(IReadOnlyList<LatticeTreeNode> Nodes, IReadOnlyList<LatticeTreeLink> Links, IReadOnlyList<LatticeTreeArc> Arcs, IReadOnlyDictionary<string, LatticeTreeNode> Cards, double Width, double Height);
 public sealed record LatticeDiff(bool First, IReadOnlyList<string> AddedCards, IReadOnlyList<string> ChangedCards, IReadOnlyList<string> CompletedCards);
-public sealed record LatticeListItem(string ProjectId, string Name, bool Coordinator, int Done, int Total, int Waiting, IReadOnlyList<LatticePerson> Members, double Fraction, string Updated, string Label);
+public sealed record LatticeListItem(string ProjectId, string Name, bool Coordinator, int Done, int Total, int Connections, IReadOnlyList<LatticePerson> Members, double Fraction, string Updated, string Label);
 
 public static class LatticeChart
 {
@@ -123,7 +126,7 @@ public static class LatticeChart
 
     public static LatticeStateInfo StateInfo(string? state) => state switch
     {
-        "ready" => new("着手可", "ready"), "in-progress" => new("作業中", "working"), "blocked" => new("止まり", "blocked"),
+        "ready" => new("着手可", "ready"), "in-progress" => new("作業中", "working"), "blocked" => new("ブロック", "blocked"),
         "done" => new("完了", "done"), "retired" => new("取り下げ", "retired"), _ => new("未着手", "pending")
     };
     public static bool Finished(string? state) => state is "done" or "retired";
@@ -286,15 +289,19 @@ public static class LatticeChart
     }
     public static double ParticleOpacity(double t) => Math.Max(0, Math.Min(1, Math.Min(t / 0.07, (1 - t) / 0.23)));
 
+    /// <summary>The card's open 接続: an entry with no state counts as open, a settled one or an unknown kind does not (a161).</summary>
+    public static IEnumerable<LatticeConnectionEntry> OpenConnections(LatticeCard card)
+        => (card.Connections ?? []).Where(entry => entry.State is null or "open" && entry.Kind is "task" or "schedule" or "priority");
+
     public static LatticeCounts Counts(LatticeSnapshot snapshot)
     {
-        // Only counted cards (a96); an uncounted card is in a finished tree, so working / waiting / blocked are unchanged.
-        var waiting = snapshot.Edges.Where(edge => edge.Waiting).Select(edge => edge.To).ToHashSet(); var cards = snapshot.Cards.Where(card => card.IsCounted).ToList();
+        // Only counted cards (a96); an uncounted card is in a finished tree, so working / blocked / connections are unchanged. 接続 = the open entries.
+        var cards = snapshot.Cards.Where(card => card.IsCounted).ToList();
         return new(cards.Count, cards.Count(card => Finished(card.State)), cards.Count(card => card.State == "in-progress"),
-            cards.Count(card => waiting.Contains(card.Id)), cards.Count(card => card.State == "blocked"));
+            cards.Count(card => card.State == "blocked"), cards.Sum(card => OpenConnections(card).Count()));
     }
 
-    /// <summary>作業中 N分 / 止まり: 理由 / 未着手: 担当 ◯◯ / 担当なし.</summary>
+    /// <summary>作業中 N分 / ブロック: 理由 / 未着手: 担当 ◯◯ / 担当なし.</summary>
     public static string ProducerStateText(LatticeCard? card, string? state, LatticePerson? member, DateTimeOffset now)
     {
         var info = StateInfo(state);
@@ -306,7 +313,8 @@ public static class LatticeChart
             _ => info.Badge
         };
     }
-    public static string CardLabel(LatticeCard card, LatticePerson? member) => $"{Title(card)}、{StateInfo(card.State).Badge}、つくっている {NameOf(member)}";
+    public static string CardLabel(LatticeCard card, LatticePerson? member)
+        => $"{Title(card)}、{StateInfo(card.State).Badge}、つくっている {NameOf(member)}{(OpenConnections(card).Any() ? $"、接続 {OpenConnections(card).Count()}" : "")}";
     public static string Title(LatticeCard? card) => card?.Title is { Length: > 0 } title ? title : "名前のない工程";
     /// <summary>The line under a card: the reason when blocked, the producer when not started, who is making it while in progress.</summary>
     public static string CardNote(LatticeCard card, LatticePerson? member) => card.State switch
@@ -317,7 +325,7 @@ public static class LatticeChart
         _ => ""
     };
 
-    // 別の工程表の前の工程 (externals[], screen-spec 待ちの流れ / 詳細): title and chart name fall back to words, an unread state reads 読めていません.
+    // 別の工程表の工程につながる接続 (externals[], screen-spec 接続 and ブロック): title and chart name fall back to words, an unread state reads 読めていません.
     public const string ExternalUnread = "読めていません";
     private static Dictionary<string, LatticeExternal> Externals(LatticeSnapshot snapshot) => (snapshot.Externals ?? []).GroupBy(ext => ext.Id).ToDictionary(group => group.Key, group => group.First());
     public static string ExternalTitle(LatticeExternal ext) => ext.Title is { Length: > 0 } title ? title : "ほかの工程表の工程";
@@ -325,49 +333,56 @@ public static class LatticeChart
     // A task of another chart carries no start time, so 作業中 has no minutes.
     private static string ExternalState(LatticeExternal ext, LatticePerson? producer, DateTimeOffset now)
         => ext.State is null ? ExternalUnread : ext.State == "in-progress" ? StateInfo(ext.State).Badge : ProducerStateText(null, ext.State, producer, now);
+    private static string ConnectionKey(LatticeCard card, LatticeConnectionEntry entry) => $"{card.Id}>{entry.Kind}:{entry.Ref ?? entry.Agent ?? ""}";
+    private static IEnumerable<(LatticeCard Card, LatticeConnectionEntry Entry)> OpenEntries(LatticeSnapshot snapshot) => snapshot.Cards.SelectMany(card => OpenConnections(card).Select(entry => (card, entry)));
 
-    public static IReadOnlyList<LatticeWaitRow> WaitRows(LatticeSnapshot snapshot, DateTimeOffset now)
+    /// <summary>The 接続 panel rows (a161): every open entry of every card, oldest since first. Fed only by card connections, never by edges; a connection is never a line.</summary>
+    public static IReadOnlyList<LatticeConnectionRow> ConnectionRows(LatticeSnapshot snapshot, DateTimeOffset now)
     {
-        var lookup = Lookup(snapshot); var ownerOf = Owner(snapshot); var cards = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First()); var externals = Externals(snapshot);
-        return snapshot.Waits.OrderBy(wait => wait.Since ?? DateTimeOffset.MaxValue).Select(wait =>
+        var lookup = Lookup(snapshot); var ownerOf = Owner(snapshot); var externals = Externals(snapshot);
+        return OpenEntries(snapshot).OrderBy(item => item.Entry.Since ?? DateTimeOffset.MaxValue).ThenBy(item => item.Card.Id, StringComparer.Ordinal).Select(item =>
         {
-            cards.TryGetValue(wait.ForCard, out var awaited); cards.TryGetValue(wait.WaitingCard, out var waiting); externals.TryGetValue(wait.ForCard, out var ext);
-            var waiter = wait.Waiter is { Length: > 0 } ? lookup(wait.Waiter) : ownerOf(waiting); var producer = wait.Producer is { Length: > 0 } ? lookup(wait.Producer) : ext is null ? ownerOf(awaited) : null;
-            var state = wait.ProducerState ?? (ext is null ? awaited?.State : ext.State);
-            var title = ext is null ? Title(awaited) : ExternalTitle(ext); var chart = ext is null ? null : ExternalChart(ext);
-            var stateText = ext is null ? ProducerStateText(awaited, state, producer, now) : ExternalState(ext, producer, now);
-            // The row reads on its own (screen-spec 待ちの流れ): the waiting card and its owner first, then what it waits for and who makes that.
-            var waitingTitle = Title(waiting); var ownerText = waiter is null ? Unassigned : $"担当 {waiter.Name}";
-            return new LatticeWaitRow($"{wait.WaitingCard}>{wait.ForCard}", waiter, producer, title, stateText, wait.ForCard, wait.WaitingCard, waitingTitle, ownerText,
-                SinceText(wait.Since, now), state == "blocked", StateInfo(state), producer?.CanChat == true, $"「{waitingTitle}」（{ownerText}）は、「{title}」{(chart is null ? "" : $"（{chart}）")}が終わるのを待っています。つくっているのは{NameOf(producer)}、{stateText}",
-                chart, ext is null ? null : new(ext.ProjectId, ext.CardId));
+            var (card, entry) = item; var owner = ownerOf(card); var ownerText = owner is null ? Unassigned : $"担当 {owner.Name}"; var headline = Title(card); var who = $"「{headline}」（{ownerText}）は、";
+            LatticeConnectionRow Row(string mark, string label, LatticePerson? agent = null, string title = "", string? chart = null, LatticePerson? producer = null, string stateText = "", LatticeStateInfo? info = null, bool emphasized = false, LatticeCardRef? external = null)
+                => new(ConnectionKey(card, entry), entry.Kind!, card.Id, owner, headline, ownerText, SinceText(entry.Since, now), entry.Reason ?? "", mark, agent, title, chart, producer, stateText, info ?? StateInfo(null), emphasized, producer?.CanChat == true, external, label);
+            if (entry.Kind == "schedule") return Row("予定の結果が条件になっています", $"{who}予定の結果が条件になっています");
+            if (entry.Kind == "priority")
+            {
+                var agent = lookup(entry.Agent); var mark = $"{NameOf(agent)}が、着手できるようになったらすぐ動きたいと伝えています";
+                return Row(mark, who + mark, agent);
+            }
+            var id = entry.Ref ?? ""; var colon = id.IndexOf(':');
+            var ext = externals.GetValueOrDefault(id) ?? new LatticeExternal(id, colon < 0 ? id : id[..colon], colon < 0 ? "" : id[(colon + 1)..], null, null, null, false, null);
+            var producer = ext.Producer is { Length: > 0 } maker ? lookup(maker) : null; var title = ExternalTitle(ext); var chart = ExternalChart(ext); var state = ExternalState(ext, producer, now);
+            return Row("この工程の完了が条件になっています", $"{who}「{title}」（{chart}）の完了が条件になっています。つくっているのは{NameOf(producer)}、{state}", null, title, chart, producer, state, StateInfo(ext.State), ext.State == "blocked", new(ext.ProjectId, ext.CardId));
         }).ToList();
     }
-    /// <summary>The chip on a waiting edge: 「◯◯が待っています」, the waiter being the owner of the later card; 次の工程が待っています when it has no owner.</summary>
+    /// <summary>The chip on a line to a card still being made: 「前工程：◯◯」, ◯◯ = the owner of the card the edge starts from, 担当なし when it has none.</summary>
     public static string EdgeChip(LatticeSnapshot snapshot, LatticeEdge edge)
-        => Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.To)) is { } owner ? $"{owner.Name}が待っています" : "次の工程が待っています";
-
+        => $"前工程：{Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.From))?.Name ?? Unassigned}";
     public static IReadOnlyList<LatticeRailItem> Rail(LatticeSnapshot snapshot, LatticeLayout layout)
         => layout.Lanes.Where(lane => lane.BotId is not null && lane.Member?.IsOwner != true).Select(lane => new LatticeRailItem(lane.BotId!, lane.Member!,
             snapshot.Cards.Any(card => card.Producer == lane.BotId && card.State == "in-progress"), snapshot.Cards.Any(card => card.Producer == lane.BotId && card.State == "blocked"),
-            snapshot.Waits.Count(wait => wait.Waiter == lane.BotId))).ToList();
+            snapshot.Cards.Count(card => card.Producer == lane.BotId && OpenConnections(card).Any()))).ToList();
 
-    /// <summary>The member's cards and the waits they are part of; everything else dims.</summary>
-    public static (HashSet<string> Cards, HashSet<string> Waits) Highlight(LatticeSnapshot snapshot, string botId)
-        => (snapshot.Cards.Where(card => card.Producer == botId).Select(card => card.Id).ToHashSet(),
-            snapshot.Waits.Where(wait => wait.Waiter == botId || wait.Producer == botId).Select(wait => $"{wait.WaitingCard}>{wait.ForCard}").ToHashSet());
+    /// <summary>The member's cards and their 接続 (the card's owner, who makes the awaited task, or who asked for a 優先接続); everything else dims.</summary>
+    public static (HashSet<string> Cards, HashSet<string> Connections) Highlight(LatticeSnapshot snapshot, string botId)
+    {
+        var makers = Externals(snapshot).ToDictionary(pair => pair.Key, pair => pair.Value.Producer);
+        return (snapshot.Cards.Where(card => card.Producer == botId).Select(card => card.Id).ToHashSet(),
+            OpenEntries(snapshot).Where(item => item.Card.Producer == botId || item.Entry.Agent == botId || item.Entry.Ref is { } id && makers.GetValueOrDefault(id) == botId).Select(item => ConnectionKey(item.Card, item.Entry)).ToHashSet());
+    }
 
     public static LatticeDetail? Detail(LatticeSnapshot snapshot, string cardId, DateTimeOffset now)
     {
         var cards = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
         if (!cards.TryGetValue(cardId, out var card)) return null;
-        var ownerOf = Owner(snapshot); var externals = Externals(snapshot); var lookup = Lookup(snapshot);
-        LatticeLink? Link(string id) => externals.TryGetValue(id, out var ext) ? ExternalLink(ext, ext.Producer is { Length: > 0 } producer ? lookup(producer) : null) : cards.TryGetValue(id, out var other) ? new(id, Title(other), other.State, ownerOf(other), ProducerStateText(other, other.State, ownerOf(other), now)) : null;
+        var ownerOf = Owner(snapshot);
+        LatticeLink? Link(string id) => cards.TryGetValue(id, out var other) ? new(id, Title(other), other.State, ownerOf(other), ProducerStateText(other, other.State, ownerOf(other), now)) : null;
         return new(card, ownerOf(card), StateInfo(card.State), ProducerStateText(card, card.State, ownerOf(card), now),
             snapshot.Edges.Where(edge => edge.To == cardId).Select(edge => Link(edge.From)).OfType<LatticeLink>().ToList(),
             snapshot.Edges.Where(edge => edge.From == cardId).Select(edge => Link(edge.To)).OfType<LatticeLink>().ToList(),
             card.StartedAt is { } started ? $"着手 {FormatJst(started)} JST" : "まだ着手されていません");
-        LatticeLink ExternalLink(LatticeExternal ext, LatticePerson? producer) => new(ext.Id, ExternalTitle(ext), ext.State ?? "pending", producer, ExternalState(ext, producer, now), ExternalChart(ext), new(ext.ProjectId, ext.CardId));
     }
 
     public static LatticeBanner? Banner(LatticeSnapshot snapshot) => snapshot.State switch
@@ -401,9 +416,9 @@ public static class LatticeChart
             var members = chart.ActiveMembers.Take(4).Select(id => roster(id) ?? new LatticePerson(id, UnknownMember, null, "", false)).ToList();
             var counts = chart.Counts ?? new(0, 0, 0, 0, 0);
             var name = ChartName(chart.Name, chart.CreatedBy, id => roster(id)?.Name);
-            return new LatticeListItem(chart.ProjectId, name, chart.Coordinator, counts.Done, counts.Total, counts.Waiting, members,
+            return new LatticeListItem(chart.ProjectId, name, chart.Coordinator, counts.Done, counts.Total, counts.Connections, members,
                 counts.Total > 0 ? Math.Min(1, (double)counts.Done / counts.Total) : 0, chart.UpdatedAt is { } at ? $"更新 {FormatJst(at)}" : "",
-                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、待ち {counts.Waiting}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}");
+                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、接続 {counts.Connections}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}");
         }).ToList();
     public static string? CoordinatorBotId(LatticeChartList list) => list.Charts.FirstOrDefault(chart => chart.Coordinator && chart.CreatedBy is { Length: > 0 })?.CreatedBy;
 }

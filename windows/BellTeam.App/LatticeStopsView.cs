@@ -10,7 +10,7 @@ using static BellTeam.App.LatticeLook;
 namespace BellTeam.App;
 
 /// <summary>
-/// 止め一覧 (screen-spec.md "止め一覧", state diagram there): every chart's stops, newest first, and one 外す per stop, confirmed in the row.
+/// ブロック一覧 (screen-spec.md "ブロック一覧", state diagram there): every chart's stops, newest first, and one 外す per stop, confirmed in the row.
 /// Reads on open, 読み直す / F5, after every 外す answer and when the window comes back to the foreground; only an unreadable answer (503, network, bad JSON)
 /// re-reads on a timer, 1, 2, 4 … 30 s while shown. Saves nothing.
 /// </summary>
@@ -51,7 +51,7 @@ internal sealed class LatticeStopsPage : Grid
 
     public void Run(BellApi api, CancellationToken connection) { this.api = api; run = CancellationTokenSource.CreateLinkedTokenSource(connection); Read(); }
     public void Stop() { wait?.Cancel(); wait = null; run?.Cancel(); run?.Dispose(); run = null; generation++; }
-    /// <summary>Back to the foreground: read again unless this server has no 止め一覧.</summary>
+    /// <summary>Back to the foreground: read again unless this server has no ブロック一覧.</summary>
     public void Foreground() { if (Running && State != Phase.Old) Read(); }
 
     /// <summary>Reads now: cancels a waiting retry; an older read still in flight is ignored when it answers.</summary>
@@ -123,7 +123,7 @@ internal sealed class LatticeStopsPage : Grid
         System.Windows.Automation.AutomationProperties.SetAutomationId(back, "lattice-stops-back"); header.Children.Add(back);
         var reload = Action("読み直す", ""); reload.Margin = new Thickness(12, 0, 0, 0); reload.VerticalAlignment = VerticalAlignment.Center; reload.Click += (_, _) => Read(); DockPanel.SetDock(reload, Dock.Right);
         System.Windows.Automation.AutomationProperties.SetAutomationId(reload, "lattice-stops-reload"); header.Children.Add(reload);
-        header.Children.Add(Text("止め一覧", 28, Ink, FontWeights.Bold));
+        header.Children.Add(Text("ブロック一覧", 28, Ink, FontWeights.Bold));
         page.Children.Add(header);
         if (State == Phase.Ready && unread) page.Children.Add(Line(LatticeStops.Unread));
         if (State == Phase.Retry)
@@ -163,7 +163,7 @@ internal sealed class LatticeStopsPage : Grid
         var reason = Text(row.Reason, 13, Ink, null, TextWrapping.Wrap); reason.TextTrimming = TextTrimming.CharacterEllipsis; reason.MaxHeight = 13 * 1.34 * 3;
         info.Children.Add(Field("理由", reason));
         var by = Person(row.By); if (row.Time.Length > 0) by.Children.Add(Spaced(Text(row.Time, 12.5, Muted), 10));
-        info.Children.Add(Field("止めた人", by));
+        info.Children.Add(Field("ブロックした人", by));
         var open = Plain(main, $"{row.Title}を開く"); open.HorizontalContentAlignment = HorizontalAlignment.Stretch; open.Click += (_, _) => window.OpenCard(row.ProjectId, row.CardId);
         System.Windows.Automation.AutomationProperties.SetAutomationId(open, "lattice-stop-open");
 
@@ -206,7 +206,7 @@ internal sealed class LatticeStopsPage : Grid
     private static DockPanel Field(string label, UIElement value)
     {
         var dock = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-        var name = Text(label, 11.5, Muted); name.Width = 56; name.VerticalAlignment = VerticalAlignment.Top; name.Margin = new Thickness(0, 1, 0, 0); DockPanel.SetDock(name, Dock.Left); dock.Children.Add(name);
+        var name = Text(label, 11.5, Muted); name.Width = 84; name.VerticalAlignment = VerticalAlignment.Top; name.Margin = new Thickness(0, 1, 0, 0); DockPanel.SetDock(name, Dock.Left); dock.Children.Add(name);
         dock.Children.Add(value);
         return dock;
     }
