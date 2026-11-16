@@ -151,7 +151,7 @@ test('snapshot commit holds control completion after RPC metadata and disconnect
   assert.equal(f.projection.auth(), null)
 })
 
-test('configured accepted roots retain their real completions and the overflow is rejected before issue', async t => {
+test('configured accepted roots retain their real completions and the overflow waits unissued for a slot', async t => {
   const entered = deferred(), release = deferred()
   const f = await fixture(t, { effect: method => { if (method === 'settings.changed') { entered.resolve(); return release.promise } } }); await f.initialize()
   const lease = f.admission.enter(), token = f.authority.capture('settings.update', owner)
@@ -159,8 +159,10 @@ test('configured accepted roots retain their real completions and the overflow i
   const calls = Array.from({ length: MODULE_CONCURRENCY }, () => f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, options))
   await entered.promise
   assert.equal(f.parent.snapshot().root, MODULE_CONCURRENCY)
-  await assert.rejects(f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, options), { code: 'USAGE_IPC_CAPACITY', outcome: 'not_accepted' })
-  release.resolve(null); await Promise.all(calls); f.authority.release(token); f.admission.finish(lease)
+  const overflow = f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, options)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(f.parent.snapshot().root, MODULE_CONCURRENCY)
+  release.resolve(null); await Promise.all([...calls, overflow]); f.authority.release(token); f.admission.finish(lease)
   assert.equal(f.parent.snapshot().root, 0)
   await f.parent.control('quiesce'); await f.parent.control('exit')
 })

@@ -33,13 +33,17 @@ test('read pin gets a real channel completion while all configured AI leases sta
   leases.forEach(lease => { f.gate.assertLease(lease); f.gate.finish(lease) })
 })
 
-test('read pins keep the existing shared IPC root limit at configured', async t => {
+test('read pins keep 64 roots in flight and the 65th waits for a slot instead of failing (BugHub ef83d4ee)', async t => {
   const f = fixture(t), pins = Array.from({ length: MODULE_CONCURRENCY + 1 }, () => f.gate.enterReadPin('profiles.read'))
   const requests = pins.slice(0, MODULE_CONCURRENCY).map(pin => f.channel.request('profiles.read', {}, { membersReadPin: pin }))
-  await assert.rejects(f.channel.request('profiles.read', {}, { membersReadPin: pins[MODULE_CONCURRENCY] }), { code: 'MEMBERS_IPC_CAPACITY' })
+  const waiting = f.channel.request('profiles.read', {}, { membersReadPin: pins[MODULE_CONCURRENCY] })
+  await tick()
   assert.equal(f.sent.length, MODULE_CONCURRENCY)
-  for (const message of f.sent) { f.accepted(message); f.result(message, { revision: 1 }) }
-  await Promise.all(requests)
+  const first = f.sent[0]; f.accepted(first); f.result(first, { revision: 1 })
+  await tick()
+  assert.equal(f.sent.length, MODULE_CONCURRENCY + 1)
+  for (const message of f.sent.slice(1)) { f.accepted(message); f.result(message, { revision: 1 }) }
+  await Promise.all([...requests, waiting])
   pins.forEach(pin => f.gate.finishReadPin(pin))
 })
 

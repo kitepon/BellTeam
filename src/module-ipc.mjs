@@ -22,7 +22,7 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
   const membersError = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code.replace(/^MEMBERS/u, errorPrefix)), { code: code.replace(/^MEMBERS/u, errorPrefix), outcome, status })
   const check = (value, code = 'MEMBERS_IPC_INVALID') => { if (!value) throw membersError(code, 'not_accepted') }
   let sequence = 0, incoming = 0, dead = false, queued = 0, controlQueued = 0
-  const pending = new Map(), running = new Set(), settling = new Set()
+  const pending = new Map(), running = new Set(), settling = new Set(), waiting = []
   const safeWireError = (error, outcome) => { const value = safeError(error, outcome); if (value.code === 'MODULE_OPERATION_FAILED') value.code = `${errorPrefix}_OPERATION_FAILED`; if (statusCodes && !statusCodes.includes(value.status)) value.status = 503; return value }
   const counts = { root: 0, effect: 0, callback: 0, projection: 0, diagnostic: 0, control: 0 }
   const reserve = (kind, bytes) => {
@@ -46,10 +46,15 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
   const fail = () => {
     if (dead) return
     dead = true
+    for (const entry of waiting.splice(0)) entry.reject(membersError('MEMBERS_IPC_DISCONNECTED', 'not_accepted'))
     for (const task of pending.values()) task.reject(membersError('MEMBERS_IPC_DISCONNECTED'))
     onDisconnect?.()
   }
   const protocolFailure = () => { fail(); if (endpoint.connected) endpoint.disconnect() }
+  // root calls beyond MODULE_CONCURRENCY wait in FIFO order for a slot instead of failing; every exit that frees a slot pumps the next one.
+  const pump = () => { while (waiting.length && counts.root < MODULE_CONCURRENCY && !dead) waiting.shift().start() }
+  // The next waiter is issued one turn later so the peer has also freed the slot it just answered from.
+  const freeSlot = kind => { counts[kind]--; if (kind === 'root' && waiting.length) setImmediate(pump) }
   const call = (kind, method, params, context, { timeout = 60000, beforeSend } = {}) => {
     let complete, incomplete, resolve, reject
     const completion = new Promise((yes, no) => { complete = yes; incomplete = no }); completion.catch(() => {})
@@ -57,9 +62,13 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
     Object.defineProperty(result, 'completion', { value: completion })
     const limit = business(kind) ? kind === 'projection' ? 1 : MODULE_CONCURRENCY : 16
     let id, task
-    try {
+    const admissible = () => {
       check(lanes.has(kind) && !dead && endpoint.connected, 'MEMBERS_IPC_DISCONNECTED')
       check(object(params) && size(params) <= (business(kind) ? MEMBERS_PAYLOAD_LIMIT : MEMBERS_ENVELOPE_LIMIT), 'MEMBERS_IPC_MESSAGE_LIMIT')
+    }
+    const issue = remaining => {
+    try {
+      admissible()
       check(counts[kind] < limit, 'MEMBERS_IPC_CAPACITY')
       check(sequence < Number.MAX_SAFE_INTEGER, 'MEMBERS_IPC_SEQUENCE')
       id = ++sequence
@@ -71,13 +80,22 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
       task = { id, kind, method, context, accepted: false, resolve, reject, complete, incomplete }
       counts[kind]++; pending.set(id, task)
       task.ack = setTimeout(() => reject(membersError('MEMBERS_IPC_ACK_TIMEOUT')), 5000)
-      task.deadline = setTimeout(() => reject(membersError('MEMBERS_IPC_TIMEOUT')), timeout)
+      task.deadline = setTimeout(() => reject(membersError('MEMBERS_IPC_TIMEOUT')), remaining)
       beforeSend?.(completion, context)
       void send(message).catch(error => reject(membersError(error.code)))
     } catch (error) {
-      if (task) { clearTimeout(task.ack); clearTimeout(task.deadline); pending.delete(id); counts[kind]-- }
+      if (task) { clearTimeout(task.ack); clearTimeout(task.deadline); pending.delete(id); freeSlot(kind) }
       reject(error); incomplete(error)
     }
+    }
+    if (kind !== 'root' || !waiting.length && counts.root < limit) { issue(timeout); return result }
+    try { admissible() } catch (error) { reject(error); incomplete(error); return result }
+    // The caller's deadline counts from this call, so a long wait shortens the time left once issued; a call still waiting at the deadline never reached the peer.
+    const deadline = Date.now() + timeout
+    const entry = { start: () => { clearTimeout(entry.timer); issue(Math.max(1, deadline - Date.now())) },
+      reject: error => { clearTimeout(entry.timer); reject(error); incomplete(error) } }
+    entry.timer = setTimeout(() => { waiting.splice(waiting.indexOf(entry), 1); entry.reject(membersError('MEMBERS_IPC_TIMEOUT', 'not_accepted')) }, timeout)
+    waiting.push(entry)
     return result
   }
   endpoint.on('message', message => {
@@ -103,7 +121,7 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
         task.resultSeen = true
         const finish = error => {
           if (!pending.delete(message.id)) return
-          counts[task.kind]--
+          freeSlot(task.kind)
           if (error) task.incomplete(error); else task.complete(message.value)
         }
         if (message.ok) {
