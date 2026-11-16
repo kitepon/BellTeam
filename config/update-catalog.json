@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T04:36:59Z",
-  "expiresAt": "2026-11-23T04:36:59Z",
+  "publishedAt": "2026-11-16T04:57:26Z",
+  "expiresAt": "2026-11-23T04:57:26Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
-      "versionId": "7f84a8ee040b776aac48bef417cdbd7f0a387cb30590701d9570000c09535853",
+      "sourceCommit": "3c028aa7c5ac7896b9b19ec702c51bb136990bba",
+      "versionId": "2b83198808a386acc6d39ee3f46e42d434532a3954bbecab7c5a742fa8bfe31f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-amd64.tar.gz",
-          "bytes": 4588073,
-          "sha256": "7f84a8ee040b776aac48bef417cdbd7f0a387cb30590701d9570000c09535853"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T045705Z/members-3c028aa7c5ac7896b9b19ec702c51bb136990bba-linux-amd64.tar.gz",
+          "bytes": 4588226,
+          "sha256": "2b83198808a386acc6d39ee3f46e42d434532a3954bbecab7c5a742fa8bfe31f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11098,
-          "sha256": "881bf8064c966b0610a7200f49548fed22d7bfba6ab90b88200504f9a87d41e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T045705Z/members-3c028aa7c5ac7896b9b19ec702c51bb136990bba-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "1c38f4d2a7525e6f08aec34398c5c2ace53561c67a109e32ed10d308dd6f6a3a"
         },
-        "signerCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e"
+        "signerCommit": "3c028aa7c5ac7896b9b19ec702c51bb136990bba"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "衝突の判定に関する共通ルールを、工程を作ったらすぐ申告する形に改め、コードグラフのルールの名前を整理しました。"
+        "共通ルールに、コードグラフの使い方を定めたルール「lattice.code-graph」を加えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
-      "versionId": "3d7f0a458d53108b0ad13eb29e5e3087a6430cf0db5838125084fdbc9767e46c",
+      "sourceCommit": "3c028aa7c5ac7896b9b19ec702c51bb136990bba",
+      "versionId": "1df546f18e9a1f15e834fef8c4edec0563e668238706b532f81c1c9a8c0376c8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-arm64.tar.gz",
-          "bytes": 4588077,
-          "sha256": "3d7f0a458d53108b0ad13eb29e5e3087a6430cf0db5838125084fdbc9767e46c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T045705Z/members-3c028aa7c5ac7896b9b19ec702c51bb136990bba-linux-arm64.tar.gz",
+          "bytes": 4588230,
+          "sha256": "1df546f18e9a1f15e834fef8c4edec0563e668238706b532f81c1c9a8c0376c8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11098,
-          "sha256": "7f9a14494cdb986cca20cd6c46baf024b2607627ad7ff7a06a652548d89847d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T045705Z/members-3c028aa7c5ac7896b9b19ec702c51bb136990bba-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "f9db14ca97b007011dcfdb6f7c00f799f4b61741a1eacd78cccd8da37d3f0f99"
         },
-        "signerCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e"
+        "signerCommit": "3c028aa7c5ac7896b9b19ec702c51bb136990bba"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "衝突の判定に関する共通ルールを、工程を作ったらすぐ申告する形に改め、コードグラフのルールの名前を整理しました。"
+        "共通ルールに、コードグラフの使い方を定めたルール「lattice.code-graph」を加えました。"
       ]
     },
     {
