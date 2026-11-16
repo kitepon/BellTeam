@@ -189,6 +189,50 @@ flowchart LR
 
 - 失敗の扱い：理由を表示する。接続の失敗（起動の失敗の画面と新着のSSE）は、Mac・Webと同じ段階で自動に再接続する。新着は、切れた時（「更新の接続が切れました。再接続しています。」）と、つながらない・429・5xx（「更新へ接続できません。再接続しています。」）で続け、30秒を超えて保てた接続の後は段階を最初に戻す。止めるのは認証が必要・取り消し・ログアウトの時だけで、形式の異常など想定外の失敗も理由を添えて再接続を続ける。その他の操作の失敗（送信など）は自動で繰り返さない。例外はMac版と同じ定期の読み取り（Botの画面と許可の確認は1秒ごと、AIの認証待ちは3秒ごと）で、表示している間だけ動かす。
 
+## 返信（選んだメッセージ・選んだ範囲への返信。a271）
+
+契約は[conversation reply.md](architecture/modules/conversation/reply.md)（N102。範囲の引用は「Quoting a selected part」）。直接会話とルームで同じ。Windowsが持つのは、選ぶ・引用を描く・飛ぶ・`reply_to`を送る、の4つだけで、引用の文はサーバーが保存した`reply_to`の写しだけから描く（読み込み済みの行から作らない）。
+
+```mermaid
+flowchart TD
+  subgraph App[BellTeam.App]
+    Btn[MessageCard: 行の「返信」ボタン・右クリックの「返信」「引用して返信」<br/>「引用して返信」は本文の選択があるときだけ有効で、選んだ文を QuoteSelection として渡す<br/>押下 = Workspace.StartQuote(行, 選択)]
+    Draw[MessageCard: 吹き出しの上端に引用<br/>送り主名・本文（範囲なら選んだ部分。切れていれば…）・画像のみは「（画像）」<br/>available=false は固定の一行「元のメッセージを表示できません」で押せない（範囲の返信は保存された抜粋の下にその一行）]
+    Bar[MainWindow 入力欄の上の引用の帯<br/>送り主名への返信・本文の1行・×でCancelQuote]
+    Jump[MainWindow.ScrollToMessageRow<br/>行を縦の中央へ置き、MessageCard.Flashで光らせる<br/>範囲なら選んだ文を表示中の本文から探して3秒だけ塗る（見つからなければ塗らず、移動だけ）]
+  end
+  subgraph Core[BellTeam.Core]
+    Quote[Workspace.Quote = 下書きの選択<br/>ConversationDraft.Quote・Selection 会話ごと・送信開始で空・失敗で戻る]
+    Send[Workspace.SendAsync → BellApi.SendAsync replyTo・selection<br/>replyToが無い時は鍵を送らない。reply_quote {text} は選択がある時だけ（startは描画後の本文から生の位置が分からないので送らない）]
+    Echo[PendingSend.ReplyTo 仮の吹き出しの引用<br/>ReplyReference.Local 300字で切る]
+    Read[TimelineMessage.ReplyTo ← ReplyReferenceReader<br/>part・range{start,end}も読む。型違い・idなしは返信ではない扱いで行を落とさない]
+    JumpTo[Workspace.JumpToAsync quote<br/>読込済みならScrollToMessage、なければ before で古い順に読み、has_more が偽になれば「元のメッセージは見つかりません」]
+  end
+  Server[(本体 POST .../messages {message, reply_to}<br/>GET .../messages の行 reply_to)]
+  Btn --> Quote --> Bar
+  Quote --> Send --> Server
+  Send --> Echo --> Draw
+  Server --> Read --> Draw
+  Draw -->|引用を押す| JumpTo --> Jump
+```
+
+```mermaid
+flowchart LR
+  Pick[選んだ行 TimelineMessage] -->|StartQuote: 引用できる行だけ| Draft[ConversationDraft.Quote・Selection 会話ごと]
+  Draft -->|送信開始 DraftContent.Quote・Selection| Body[POST本文 reply_to = Quote.Id<br/>reply_quote = 選んだ全文（あれば）]
+  Draft -->|同じ写し| Echo[仮の吹き出し]
+  Body --> Server[本体が写しを保存]
+  Server -->|履歴の行 reply_to| Row[TimelineMessage.ReplyTo]
+  Row --> Card[MessageCard の引用]
+  Echo -.->|受理IDの行が届くと置き換わる| Row
+  Draft -.->|送信の失敗| Draft
+```
+
+- 引用できる行：種別が`message`・`interim`・`schedule`で、秘密・問いのカードと仮の吹き出しは除く。ルームの「返信者」（`ReplyMembers`・誰が答えるか）とは別物で、名前も分ける（`Quote`・`StartQuote`）。
+- 範囲の返信：選んだ文は入力欄の帯・仮の吹き出しに300字で切って出し、送るのは全文（1〜10000字）。履歴の`reply_to.text`は本体が切って保存した選択部分で、`range`は生の本文の位置なので描画済みの本文では使わず、文を探して塗る（Mac・Webと同じ決まり）。元が消えた範囲の返信は保存された抜粋に固定の一行を添える。
+- 古い本体は`reply_to`を知らない。履歴に鍵が無ければ引用は出ず、送った鍵は無視される（契約のCompatibility）。
+- Coreの公開名を変えたのでlinux/BellTeam.Linuxもビルドして確かめる。LinuxのUI（a272）はこのCoreの上に載る。
+
 ## 変更時の手順
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。

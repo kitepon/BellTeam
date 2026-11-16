@@ -2,7 +2,7 @@ namespace BellTeam.Core;
 
 // Mac ConversationTimelineState.PendingSend: the owner's own message shown from the moment the send starts.
 // The server history stays the source of truth: the echo is only an overlay and is dropped once the accepted id shows up in it.
-public sealed record PendingSend(string Id, string Body, int ImageCount, DateTimeOffset At, string? AcceptedId = null)
+public sealed record PendingSend(string Id, string Body, int ImageCount, DateTimeOffset At, string? AcceptedId = null, ReplyReference? ReplyTo = null)
 {
     public const string IdPrefix = "local-pending-";
     public static string NewId() => IdPrefix + Guid.NewGuid().ToString("D").ToUpperInvariant();
@@ -13,7 +13,7 @@ public sealed record PendingSend(string Id, string Body, int ImageCount, DateTim
     {
         Id = Id, At = At, Kind = "message", Direction = "outgoing", Message = Body,
         Image = ImageCount > 0 ? true : null, ImageCount = ImageCount > 0 ? ImageCount : null,
-        Delivery = AcceptedId is null ? "submitting" : "accepted"
+        Delivery = AcceptedId is null ? "submitting" : "accepted", ReplyTo = ReplyTo
     };
 
     // Mac visibleMessages: the received history, then every echo whose accepted id the history does not have yet.

@@ -203,11 +203,14 @@ public partial class App : Application
                 if (scene == "draft") { model.AttachClipboardImage(Swatch(0x0A, 0x84, 0xFF)); model.AttachClipboardImage(Swatch(0xE8, 0x6B, 0x94)); model.DraftText = "この画像も見てほしい。"; }
                 if (scene == "stop-notice") model.StopResult = StopNotice.Sent;
                 if (scene == "echo") { model.ShowEchoForRender("続きはあとで確認するね。", accepted: true); model.ShowEchoForRender("ありがとう、助かったよ。", accepted: false); }
+                if (scene == "reply-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c5"));
+                if (scene == "reply-part-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c3"), new QuoteSelection("午後はBellTeamの確認です。"));
                 if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
                 var conversationHeight = scene == "states" ? 1300 : scene == "stack" ? 1500 : 820;
                 var conversationRoot = (FrameworkElement)window.Content;
                 conversationRoot.Measure(new Size(1280, conversationHeight)); conversationRoot.Arrange(new Rect(0, 0, 1280, conversationHeight)); conversationRoot.UpdateLayout();
-                await window.PrepareRenderAsync(readingOlder: scene == "scrolled");
+                if (scene is "reply-jump" or "reply-part-jump") { await model.JumpToAsync(scene == "reply-jump" ? new ReplyReference("c1-0", true) : new ReplyReference("c3-0", true, "ユキ", "BellTeamの確認です。", Part: true)); await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); }
+                await window.PrepareRenderAsync(readingOlder: scene is "scrolled" or "reply-jump" or "reply-part-jump");
                 WritePng(window, 1280, conversationHeight, conversationOutput);
                 model.Dispose(); Shutdown(0); return;
             }

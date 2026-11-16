@@ -7,14 +7,19 @@ public sealed class ConversationDraft
     public bool Sending { get; private set; }
     public bool Attaching { get; set; }
     public string[] Targets { get; set; } = [];
+    // The message picked for the next send (reply.md); sent as reply_to, cleared when the send starts.
+    public ReplyReference? Quote { get; set; }
+    // The selected text of a part reply (full, for the request; Quote.Text is cut for display).
+    public QuoteSelection? Selection { get; set; }
     public List<ImageAttachment> Attachments { get; } = [];
     public bool HasContent => !string.IsNullOrWhiteSpace(Text) || Attachments.Count != 0;
     public string BeginSend() => BeginSendContent().Text;
     public DraftContent BeginSendContent()
     {
         if (Sending || Attaching || !HasContent) throw new InvalidOperationException("送信する本文・画像がありません。あるいは送信・読込中です。");
-        var sent = new DraftContent(Text.Trim(), Attachments.ToArray(), Targets.ToArray());
+        var sent = new DraftContent(Text.Trim(), Attachments.ToArray(), Targets.ToArray(), Quote, Selection);
         Text = "";
+        Quote = null; Selection = null;
         Attachments.Clear();
         Error = null;
         Sending = true;
@@ -32,6 +37,7 @@ public sealed class ConversationDraft
     public void FailSend(DraftContent sent, string error)
     {
         Attachments.InsertRange(0, sent.Images);
+        if (Quote is null) { Quote = sent.Quote; Selection = sent.Selection; }
         FailSend(sent.Text, error);
     }
 }

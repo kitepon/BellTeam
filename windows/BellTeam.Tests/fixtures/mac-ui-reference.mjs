@@ -63,6 +63,29 @@ const peerScene = [
 ]
 let conversationScene = 'default'
 const sceneMessages = { secret: { 'bot-one': [memberScene[5], statesScene[9], statesScene[11]] }, echo: { 'bot-one': memberScene.slice(3) }, member: { 'bot-one': memberScene }, states: { 'bot-one': statesScene }, room: { planning: roomScene }, stack: { 'bot-two': stackScene }, 'peer-sheet': { 'bot-one': peerScene }, draft: { 'bot-two': memberScene.slice(0, 3) }, stop: { planning: roomScene.slice(0, 3) }, 'stop-notice': { planning: roomScene.slice(0, 3) }, 'stop-member': { 'bot-one': memberScene.slice(0, 3) }, empty: {} }
+// Reply scenes (a271): `reply_to` snapshots as the server saves them; the unavailable one carries only its id. reply-pick and reply-jump are driven by the render seam.
+const replied = (id, at, message, replyTo) => outgoing(id, at, message, { delivery: 'delivered', reply_to: replyTo })
+sceneMessages.reply = { 'bot-one': [
+  incoming('c5', ago(40), '**画像・カードの表示確認です。**\n\n- 箇条書きの一行目\n- 二行目 `code`'),
+  replied('r1', ago(30), 'その二行目だけ直してほしい。', { id: 'c5', available: true, sender: { id: 'bot-one', name: 'ユキ' }, at: ago(40), text: '画像・カードの表示確認です。\n\n- 箇条書きの一行目\n- 二行目 code' }),
+  incoming('c7', ago(25), '直しました。続きの長い説明です。' + '説明が続きます。'.repeat(40)),
+  replied('r2', ago(10), 'さっきの長い説明のところ、確認した。', { id: 'c7', available: true, sender: { id: 'bot-one', name: 'ユキ' }, at: ago(25), text: ('直しました。続きの長い説明です。' + '説明が続きます。'.repeat(40)).slice(0, 300), truncated: true }),
+  incoming('c8', ago(8), '画像を送りました。', { image: true, image_count: 1 }),
+  replied('r3', ago(5), 'この画像は大丈夫？', { id: 'c8', available: true, sender: { id: 'bot-one', name: 'ユキ' }, at: ago(8), text: '', image: true }),
+  replied('r4', ago(2), 'これは消えた発言への返信です。', { id: 'gone-1', available: false })
+] }
+// Part replies (reply.md "Quoting a selected part"): found in the original (range), not found (no range: jump without highlight), original gone (excerpt kept).
+const partOf = (id, at, message, replyTo) => replied(id, at, message, { sender: { id: 'bot-one', name: 'ユキ' }, available: true, part: true, ...replyTo })
+sceneMessages['reply-part'] = { 'bot-one': [
+  incoming('c5', ago(40), '午前は打ち合わせ、午後はBellTeamの確認です。資料は明日までに共有します。'),
+  partOf('p1', ago(30), 'その共有は金曜までにしてほしい。', { id: 'c5', at: ago(40), text: '資料は明日までに共有します。', range: { start: 21, end: 35 } }),
+  partOf('p2', ago(20), '前の説明と違う気がする。', { id: 'c5', at: ago(40), text: '一度だけ聞いた別の言い回し' }),
+  replied('p3', ago(2), 'この部分はもう元が見つからない。', { id: 'gone-2', available: false, part: true, text: '消えた発言の一部だけが保存されている。' })
+] }
+sceneMessages['reply-part-pick'] = { 'bot-one': memberScene }
+sceneMessages['reply-part-jump'] = { 'bot-one': [...Array.from({ length: 3 }, (_, round) => memberScene.map(item => ({ ...item, id: `${item.id}-${round}` }))).flat(), partOf('j3', ago(1), 'この資料の件、了解です。', { id: 'c3-0', at: longAgo, text: 'BellTeamの確認です。', range: { start: 17, end: 28 } })] }
+sceneMessages['reply-pick'] = { 'bot-one': memberScene }
+sceneMessages['reply-jump'] = { 'bot-one': [...Array.from({ length: 3 }, (_, round) => memberScene.map(item => ({ ...item, id: `${item.id}-${round}` }))).flat(), replied('j2', ago(1), '一番上の最初の挨拶について。', { id: 'c1-0', available: true, sender: { id: 'bot-one', name: 'ユキ' }, at: longAgo, text: 'おはようございます。今朝の準備を整えました。' })] }
 // An owner question with a long choice (Mac PR 1116): choices stack full width and the long one wraps in full.
 sceneMessages.scrolled = { 'bot-one': Array.from({ length: 4 }, (_, round) => memberScene.map(item => ({ ...item, id: `${item.id}-${round}` }))).flat() }
 sceneMessages['long-choices'] = { 'bot-three': [{ id: 'ql', kind: 'message', direction: 'incoming', sender: bots['bot-three'], at: ago(6), owner_question: { id: 'oql', botId: 'bot-three', question: '資料の公開範囲を決めてほしいです。', options: ['チームだけ', '全員に公開', '社外の協力者にも、確認が終わった章から順に読めるようにして、未確認の章は伏せておく'], allowOther: true, status: 'open' } }] }
@@ -338,7 +361,7 @@ server.listen(0, '127.0.0.1', async () => {
     // Same three summaries as ios/BellBot/BellBotTests/SummaryLayoutTests.swift.
     if (process.argv[4] === 'summary') ['認証まわりの再試行処理を見直し、通知の表示崩れと画像の読み込み失敗も合わせて直す', 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ', 'abcdefghij'.repeat(8)].forEach((summary, index) => { if (fixture.bots[index]) fixture.bots[index].currentWork = { state: 'working', summary, summaryStatus: 'current' } })
     // [file, scene, conversation id]: each renders the conversation in one named state.
-    const conversationFrames = [['conversation-member.png', 'member', 'bot-one'], ['conversation-room.png', 'room', 'planning'], ['conversation-states.png', 'states', 'bot-one'], ['conversation-stop-room.png', 'stop', 'planning'], ['conversation-stop-notice.png', 'stop-notice', 'planning'], ['conversation-stop-member.png', 'stop-member', 'bot-one'], ['conversation-draft.png', 'draft', 'bot-two'], ['conversation-peer-sheet.png', 'peer-sheet', 'bot-one'], ['conversation-stack.png', 'stack', 'bot-two'], ['conversation-long-choices.png', 'long-choices', 'bot-three'], ['conversation-scrolled.png', 'scrolled', 'bot-one'], ['conversation-empty.png', 'empty', 'bot-three'], ['conversation-failed.png', 'failed', 'bot-three']]
+    const conversationFrames = [['conversation-member.png', 'member', 'bot-one'], ['conversation-room.png', 'room', 'planning'], ['conversation-states.png', 'states', 'bot-one'], ['conversation-stop-room.png', 'stop', 'planning'], ['conversation-stop-notice.png', 'stop-notice', 'planning'], ['conversation-stop-member.png', 'stop-member', 'bot-one'], ['conversation-draft.png', 'draft', 'bot-two'], ['conversation-peer-sheet.png', 'peer-sheet', 'bot-one'], ['conversation-stack.png', 'stack', 'bot-two'], ['conversation-long-choices.png', 'long-choices', 'bot-three'], ['conversation-scrolled.png', 'scrolled', 'bot-one'], ['conversation-empty.png', 'empty', 'bot-three'], ['conversation-failed.png', 'failed', 'bot-three'], ['conversation-reply.png', 'reply', 'bot-one'], ['conversation-reply-pick.png', 'reply-pick', 'bot-one'], ['conversation-reply-jump.png', 'reply-jump', 'bot-one'], ['conversation-reply-part.png', 'reply-part', 'bot-one'], ['conversation-reply-part-pick.png', 'reply-part-pick', 'bot-one'], ['conversation-reply-part-jump.png', 'reply-part-jump', 'bot-one']]
     // [file, scene, conversation id]: the inspector in each state; every scene name starts with "inspector" for the mock.
     const inspectorFrames = [['inspector-member-large.png', 'member', 'bot-one'], ['inspector-member-small-only.png', 'member', 'bot-three'], ['inspector-member-no-image.png', 'member', 'bot-two'], ['inspector-room.png', 'room', 'planning'], ['inspector-sheet-small.png', 'sheet-small', 'bot-one'], ['inspector-sheet-large.png', 'sheet-large', 'bot-one'], ['inspector-sheet-unsupported.png', 'sheet-unsupported', 'bot-three'], ['inspector-pending.png', 'pending', 'bot-one'], ['inspector-pending-sheet.png', 'pending-sheet', 'bot-one']]
     // [file, scene]: the Bot screen of bot-one; every scene name starts with "screen-" for the mock.

@@ -204,8 +204,8 @@ public sealed class MemberStateTests
             bool Badge(MessageCard card) => Texts(card.Content).Single(text => text.Text == "分身" && System.Windows.Automation.AutomationProperties.GetName(text) == "分身") is { } label && Shown(label);
             Assert.True(Badge(Card(Fork))); Assert.True(Badge(Card(",'direction':'outgoing'" + Fork)));
             Assert.False(Badge(Card(",'seat':'fork'"))); Assert.False(Badge(Card("")));
-            // The capsule is the first part of the time line row, before the time and status text.
-            var row = Texts(Card(Fork).Content).Select(text => LogicalTreeHelper.GetParent(text)).OfType<StackPanel>().First(panel => panel.Children.Count == 2 && panel.Children[1] is TextBlock { FontSize: 14 } && panel.Children[0] is Border);
+            // The capsule is the first part of the time line row, before the time and status text and the 返信 button.
+            var row = Texts(Card(Fork).Content).Select(text => LogicalTreeHelper.GetParent(text)).OfType<StackPanel>().First(panel => panel.Children.Count == 3 && panel.Children[1] is TextBlock { FontSize: 14 } && panel.Children[2] is Button && panel.Children[0] is Border);
             Assert.Equal(Orientation.Horizontal, row.Orientation);
             Await(workspace.SelectAsync(workspace.Entries.Single(entry => entry.Target.IsRoom)));
             Assert.False(Badge(Card(Fork)), "a room's rows carry no seat label");

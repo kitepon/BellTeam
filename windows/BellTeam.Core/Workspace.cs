@@ -183,6 +183,34 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public string SendLabel => Draft?.Attaching == true ? "画像を読込中…" : Draft?.Sending == true ? "送信中…" : "送信";
     public bool CanSend => api is not null && selected is not null && !Loading && Draft is { Sending: false, Attaching: false, HasContent: true };
     public ObservableCollection<MemberChoice> ReplyMembers { get; } = [];
+    // Reply to a chosen message (conversation reply.md). Not the room's 返信者 (ReplyMembers): that picks who answers, this picks what is answered.
+    public ReplyReference? Quote => Draft?.Quote;
+    // selection: the part of the text the Owner selected (引用して返信); null replies to the whole message.
+    public void StartQuote(TimelineMessage message, QuoteSelection? selection = null)
+    {
+        if (Draft is not { } draft || !Timeline.IsQuotable(message) || selection is { Text: var text } && string.IsNullOrWhiteSpace(text)) return;
+        draft.Quote = ReplyReference.Local(message, message.IsOutgoing ? OwnerName : message.Sender?.Title ?? selected?.Name ?? "", selection);
+        draft.Selection = selection;
+        Changed(nameof(Quote));
+    }
+    public void CancelQuote() { if (Draft is { } draft) { draft.Quote = null; draft.Selection = null; Changed(nameof(Quote)); } }
+    // Raised with the id of a loaded row the view should scroll to; the quote tells the view which part to highlight.
+    public event Action<string, ReplyReference?>? ScrollToMessage;
+    // Tap on a quote: scroll to the original when it is loaded, else load older pages until it appears or there are no more (reply.md "Jump").
+    public async Task JumpToAsync(ReplyReference quote)
+    {
+        if (selection?.Token is not { } token) return;
+        ActionError = null; var id = quote.Id;
+        while (!Messages.Any(item => item.Message.Id == id) && HasMore && !Loading && !token.IsCancellationRequested && ConnectionError is null)
+        {
+            var before = Messages.Count;
+            await LoadOlderAsync();
+            if (Messages.Count == before) break;
+        }
+        if (token.IsCancellationRequested) return;
+        if (Messages.Any(item => item.Message.Id == id)) ScrollToMessage?.Invoke(id, quote);
+        else if (!HasMore && ConnectionError is null) ActionError = Timeline.QuoteNotFound;
+    }
     public string Profile => selected?.Bot is { } bot
         ? $"{bot.DisplayName}\n{(bot.Online ? "オンライン" : "オフライン")}\n\nプロフィール\n\n役職\n{Empty(bot.Position)}\n\n背景・見た目・関係性\n{Empty(bot.ProfileText)}\n\n性格・考え方\n{Empty(bot.Personality)}\n\n口調\n{Empty(bot.SpeechStyle)}\n\n担当する仕事\n{Empty(bot.Role)}\n\nAI\nハーネス: {bot.Harness}\nモデル: {Empty(bot.Model, "既定")}"
         : selected?.Room is { } room ? $"{room.Name}\n\nこの部屋で共有する仕事\n{Empty(room.Purpose)}\n\n参加メンバー\n{string.Join('\n', room.MemberIds.Select(id => all.FirstOrDefault(item => item.Target == new ChatTarget(id, false))?.Name ?? id))}" : "左のメンバーやルームを選んで、会話を始めましょう。";
@@ -195,7 +223,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         if (name == nameof(Selected)) PropertyChanged?.Invoke(this, new(nameof(SelectedFastMode)));
     }
     private void ActivityChanged() { Changed(nameof(ActivityText)); Changed(nameof(HasActivity)); Changed(nameof(ActivityRows)); Changed(nameof(StopEnabled)); Changed(nameof(CurrentBotCanStop)); }
-    private void DraftChanged() { Changed(nameof(DraftText)); Changed(nameof(SendError)); Changed(nameof(SendLabel)); Changed(nameof(CanSend)); Changed(nameof(CanAttach)); Changed(nameof(Attachments)); }
+    private void DraftChanged() { Changed(nameof(Quote)); Changed(nameof(DraftText)); Changed(nameof(SendError)); Changed(nameof(SendLabel)); Changed(nameof(CanSend)); Changed(nameof(CanAttach)); Changed(nameof(Attachments)); }
 
     public async Task ConnectAsync(string address, bool listen = true)
     {
@@ -493,12 +521,12 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         var content = draft.BeginSendContent(); DraftChanged();
         var token = connection!.Token;
         // Mac send(): the message is on screen as 受付確認中 before the server answers; a failure takes it away again and gives the text back.
-        var key = (Server, target); var echo = new PendingSend(PendingSend.NewId(), content.Text, content.Images.Length, DateTimeOffset.Now);
+        var key = (Server, target); var echo = new PendingSend(PendingSend.NewId(), content.Text, content.Images.Length, DateTimeOffset.Now, ReplyTo: content.Quote);
         ChangePending(key, null, echo);
         if (selected?.Target == target) ScrollToBottom?.Invoke(true);
         try
         {
-            var acceptedId = await current.SendAsync(target, content.Text, content.Images, target.IsRoom && content.Targets.Length != 0 ? content.Targets : null, token);
+            var acceptedId = await current.SendAsync(target, content.Text, content.Images, target.IsRoom && content.Targets.Length != 0 ? content.Targets : null, token, content.Quote?.Id, content.Selection);
             foreach (var image in content.Images) attachmentPreviews.Remove(image);
             if (api == current) ChangePending(key, echo, echo with { AcceptedId = acceptedId });
             draft.CompleteSend(); DraftChanged();

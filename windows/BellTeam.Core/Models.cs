@@ -93,6 +93,8 @@ public sealed record TimelineMessage
     // A row of the read-only fork inquiry: `seat.kind == "fork"`. A seat of another type or kind is a normal row.
     [JsonConverter(typeof(MessageSeatReader))] public MessageSeat? Seat { get; init; }
     public bool IsFork => Seat?.Kind == "fork";
+    // Reply to one earlier message (conversation reply.md): the snapshot saved when the reply was accepted. Absent = not a reply.
+    [JsonPropertyName("reply_to"), JsonConverter(typeof(ReplyReferenceReader))] public ReplyReference? ReplyTo { get; init; }
     public bool? Image { get; init; }
     [JsonPropertyName("image_count")] public int? ImageCount { get; init; }
     [JsonPropertyName("image_url")] public string? ImageUrl { get; init; }
@@ -101,6 +103,41 @@ public sealed record TimelineMessage
     [JsonPropertyName("owner_question")] public OwnerQuestion? OwnerQuestion { get; init; }
     public string[] DisplayedImageUrls => ImageUrls ?? (ImageUrl is { } url ? [url] : []);
     public bool IsOutgoing => Direction == "outgoing" || Sender?.Id == "user";
+}
+// `reply_to` of a history row. Available false: the original could not be found, so only the fixed line is drawn.
+public sealed record ReplyReference(string Id, bool Available, string? SenderName = null, string Text = "", bool Truncated = false, bool Image = false, bool Part = false, int? RangeStart = null, int? RangeEnd = null)
+{
+    public const int TextLimit = 300;
+    // The quote the client shows from the moment it picks a message, built like the server snapshot (reply.md: 300 code points, CRLF to LF).
+    // A picked selection (reply.md "Quoting a selected part") replaces the text; the range is the server's to locate, so none is claimed here.
+    public static ReplyReference Local(TimelineMessage original, string senderName, QuoteSelection? selection = null)
+    {
+        var runes = TextContent.Normalize(selection?.Text ?? original.Message ?? "").EnumerateRunes().ToArray();
+        return new(original.Id, true, senderName, string.Concat(runes.Take(TextLimit)), runes.Length > TextLimit, selection is null && (original.Image == true || original.DisplayedImageUrls.Length != 0), selection is not null);
+    }
+}
+// The part of a message the Owner selected: `reply_quote` of the request. Start is the raw-text offset in code points, sent only when the client knows it.
+public sealed record QuoteSelection(string Text, int? Start = null);
+public sealed class ReplyReferenceReader : JsonConverter<ReplyReference?>
+{
+    // A malformed value reads as "not a reply" so a bad row never breaks the history.
+    public override ReplyReference? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader);
+        var e = document.RootElement;
+        if (e.ValueKind != JsonValueKind.Object || !e.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String || id.GetString() is not { Length: > 0 } key) return null;
+        static bool Flag(JsonElement o, string name) => o.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+        var part = Flag(e, "part");
+        string text = e.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()! : "";
+        // An unavailable original keeps the Owner's own excerpt when the reply was a part (nothing of the original is in it).
+        if (!Flag(e, "available")) return new(key, false, null, part ? text : "", part && Flag(e, "truncated"), false, part);
+        int? from = null, to = null;
+        if (e.TryGetProperty("range", out var range) && range.ValueKind == JsonValueKind.Object && range.TryGetProperty("start", out var rs) && rs.TryGetInt32(out var start) && range.TryGetProperty("end", out var re) && re.TryGetInt32(out var end) && start >= 0 && end >= start) (from, to) = (start, end);
+        string? sender = null;
+        if (e.TryGetProperty("sender", out var s) && s.ValueKind == JsonValueKind.Object) sender = (s.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null) ?? (s.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() : null);
+        return new(key, true, sender, text, Flag(e, "truncated"), Flag(e, "image"), part, from, to);
+    }
+    public override void Write(Utf8JsonWriter writer, ReplyReference? value, JsonSerializerOptions options) => throw new NotSupportedException();
 }
 public sealed record SecretRequest
 {
@@ -143,7 +180,7 @@ public sealed record QuestionResponse { public required OwnerQuestion Question {
 public sealed record ScreenResponse { public required bool Online { get; init; } public required string Screen { get; init; } }
 public sealed record ImageAttachment(string Name, string Mime, byte[] Bytes);
 public sealed record ImagePayload(string Mime, string Data);
-public sealed record DraftContent(string Text, ImageAttachment[] Images, string[] Targets);
+public sealed record DraftContent(string Text, ImageAttachment[] Images, string[] Targets, ReplyReference? Quote = null, QuoteSelection? Selection = null);
 public sealed record MessagePage
 {
     public required TimelineMessage[] Items { get; init; }

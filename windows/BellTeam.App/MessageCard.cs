@@ -30,6 +30,10 @@ public sealed class MessageCard : ContentControl
     private StackPanel? imagePlaceholder;
     private TextBlock? imageLabel;
     private TextBlock? replyLabel;
+    // Reply (conversation reply.md): the quote above the text, tap = jump; the 返信 button of the time line and the right-click menu.
+    private Button? quoteButton;
+    private TextBlock? quoteName, quoteText, quoteNote;
+    private readonly Button replyButton = new() { Content = "返信", FontSize = 14, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(0), Opacity = 0, Cursor = System.Windows.Input.Cursors.Hand };
     private SecretCard? secret;
     private QuestionCard? question;
     private Border? bubble;
@@ -50,7 +54,13 @@ public sealed class MessageCard : ContentControl
     }
     public MessageCard()
     {
-        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery);
+        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton);
+        replyButton.SetResourceReference(StyleProperty, "QuietButton"); replyButton.Padding = new Thickness(0); replyButton.Margin = new Thickness(10, 0, 0, 0); replyButton.Foreground = Frozen(Color.FromRgb(0x61, 0x47, 0xD4));
+        System.Windows.Automation.AutomationProperties.SetName(replyButton, "このメッセージに返信");
+        replyButton.Click += (_, _) => Workspace.StartQuote(Message);
+        // Shown while the pointer or the keyboard is on the row; it stays focusable so the keyboard can reach it.
+        MouseEnter += (_, _) => replyButton.Opacity = 1; MouseLeave += (_, _) => replyButton.Opacity = replyButton.IsKeyboardFocusWithin ? 1 : 0;
+        replyButton.GotKeyboardFocus += (_, _) => replyButton.Opacity = 1; replyButton.LostKeyboardFocus += (_, _) => replyButton.Opacity = IsMouseOver ? 1 : 0;
         Loaded += (_, _) =>
         {
             if (entered || Workspace is null || DataContext is not MessageItem item) return;
@@ -137,7 +147,22 @@ public sealed class MessageCard : ContentControl
         imageLabel.Margin = new Thickness(7, 0, 0, 0);
         body = new MarkdownView { FontSize = 18 };
         replyLabel = new TextBlock { FontSize = 11, Foreground = Muted };
-        stack = new StackPanel { Children = { heading, images, imagePlaceholder, body, replyLabel } };
+        quoteName = new TextBlock { FontSize = 13, FontWeight = FontWeights.Bold, Foreground = Frozen(Color.FromRgb(0x61, 0x47, 0xD4)), TextTrimming = TextTrimming.CharacterEllipsis };
+        quoteText = new TextBlock { FontSize = 14, FontWeight = FontWeights.Normal, Foreground = Muted, TextWrapping = TextWrapping.Wrap, MaxHeight = 40, TextTrimming = TextTrimming.CharacterEllipsis };
+        quoteNote = new TextBlock { FontSize = 13, FontWeight = FontWeights.Normal, Foreground = Muted, Margin = new Thickness(0, 3, 0, 0) };
+        var quoteBox = new Border { BorderBrush = Frozen(Color.FromRgb(0x61, 0x47, 0xD4)), BorderThickness = new Thickness(3, 0, 0, 0), Background = Frozen(Color.FromArgb(40, 0x61, 0x47, 0xD4)), Padding = new Thickness(10, 6, 10, 6), Child = new StackPanel { Children = { quoteName, quoteText, quoteNote } } };
+        quoteButton = new Button { Content = quoteBox, Padding = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch, Cursor = System.Windows.Input.Cursors.Hand };
+        quoteButton.SetResourceReference(StyleProperty, "QuietButton"); quoteButton.Padding = new Thickness(0); quoteButton.Margin = new Thickness(0);
+        quoteButton.Click += (_, _) => { if (Message.ReplyTo is { Available: true } quote) _ = Workspace.JumpToAsync(quote); };
+        var menu = new ContextMenu();
+        var reply = new MenuItem { Header = "返信" }; reply.Click += (_, _) => Workspace.StartQuote(Message);
+        // 引用して返信: only the selected part of this message's text is quoted (reply.md "Quoting a selected part"). The text is rendered markup, so no raw offset is known and none is sent.
+        var part = new MenuItem { Header = "引用して返信" };
+        part.Click += (_, _) => Workspace.StartQuote(Message, new QuoteSelection(body.Selection.Text));
+        menu.Items.Add(part); menu.Items.Add(reply); menu.Items.Add(new MenuItem { Header = "コピー", Command = System.Windows.Input.ApplicationCommands.Copy, CommandTarget = body });
+        menu.Opened += (_, _) => { reply.IsEnabled = Timeline.IsQuotable(Message); part.IsEnabled = reply.IsEnabled && !body.Selection.IsEmpty && !string.IsNullOrWhiteSpace(body.Selection.Text); };
+        body.ContextMenu = menu;
+        stack = new StackPanel { Children = { quoteButton, heading, images, imagePlaceholder, body, replyLabel } };
         bubble = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1) };
         accentName = null;
         timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
@@ -156,6 +181,31 @@ public sealed class MessageCard : ContentControl
         Content = new CappedRow { Child = layout, HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left }; // fills the width like a Mac bubble, up to a cap, at the sender's side
     }
 
+    // The jump target is pulsed so the eye finds it, and the quoted part is painted for a moment when it can be found in the shown text.
+    public void Flash(ReplyReference? quote = null)
+    {
+        BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0.6, 1, TimeSpan.FromMilliseconds(900)));
+        if (quote is not { Available: true, Part: true } || body is null) return;
+        // shortcut: the part is found by its first and last line inside single text runs of the rendered text (reply.md: the raw range cannot be mapped); a part that crosses markup is not highlighted, the jump still works.
+        var lines = quote.Text.Split('\n').Select(line => line.Trim()).Where(line => line.Length != 0).ToArray();
+        if (lines.Length == 0 || Find(body.Document.ContentStart, lines[0]) is not { } first || (lines.Length == 1 ? first : Find(first.End, lines[^1])) is not { } last) return;
+        new System.Windows.Documents.TextRange(first.Start, last.End).ApplyPropertyValue(System.Windows.Documents.TextElement.BackgroundProperty, Frozen(Color.FromArgb(150, 0xB9, 0xA6, 0xFF)));
+        // Back to the plain rendering after a moment: building the document again also restores any code-span backgrounds the paint covered.
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        timer.Tick += (_, _) => { timer.Stop(); var source = body.Source; body.Source = ""; body.Source = source; };
+        timer.Start();
+    }
+    private static System.Windows.Documents.TextRange? Find(System.Windows.Documents.TextPointer from, string needle)
+    {
+        for (var at = from; at is not null; at = at.GetNextContextPosition(System.Windows.Documents.LogicalDirection.Forward))
+        {
+            if (at.GetPointerContext(System.Windows.Documents.LogicalDirection.Forward) != System.Windows.Documents.TextPointerContext.Text) continue;
+            var index = at.GetTextInRun(System.Windows.Documents.LogicalDirection.Forward).IndexOf(needle, StringComparison.Ordinal);
+            if (index >= 0) return new System.Windows.Documents.TextRange(at.GetPositionAtOffset(index)!, at.GetPositionAtOffset(index + needle.Length)!);
+        }
+        return null;
+    }
+
     private void UpdateRow(TimelineMessage message)
     {
         var outgoing = message.IsOutgoing; var urls = message.DisplayedImageUrls; var isRoom = Workspace.IsRoom;
@@ -163,7 +213,8 @@ public sealed class MessageCard : ContentControl
         var hasStack = urls.Length > 1;
         var text = message.Message ?? "";
         var reply = Timeline.ReplyLabel(message, isRoom, Workspace.MemberName);
-        var hasBubble = !hasStack || text.Length != 0 || reply is not null;
+        var quote = message.ReplyTo;
+        var hasBubble = !hasStack || text.Length != 0 || reply is not null || quote is not null;
         if (avatar is not null && message.Sender is { } sender)
         {
             var entry = Workspace.MemberEntry(sender.Id) ?? new ConversationEntry(new(sender.Id, false), sender.Title, "", DateTimeOffset.MinValue, null, null);
@@ -182,6 +233,17 @@ public sealed class MessageCard : ContentControl
         catch (NotSupportedException error) { body!.Document = new System.Windows.Documents.FlowDocument(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(error.Message))); }
         body!.Visibility = text.Length != 0 ? Visibility.Visible : Visibility.Collapsed;
         replyLabel!.Text = reply ?? ""; replyLabel.Visibility = reply is null ? Visibility.Collapsed : Visibility.Visible;
+        quoteButton!.Visibility = quote is null ? Visibility.Collapsed : Visibility.Visible;
+        if (quote is not null)
+        {
+            // An unavailable original draws only the fixed line and is not tappable (reply.md "Original not available").
+            quoteName!.Text = quote.Available ? quote.SenderName ?? "" : ""; quoteName.Visibility = quoteName.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            quoteText!.Text = Timeline.QuoteBody(quote);
+            quoteNote!.Text = Timeline.QuoteNote(quote) ?? ""; quoteNote.Visibility = quoteNote.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
+            System.Windows.Automation.AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
+        }
+        replyButton.Visibility = Timeline.IsQuotable(message) ? Visibility.Visible : Visibility.Collapsed;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
         foreach (UIElement part in stack!.Children) { if (part.Visibility == Visibility.Collapsed) continue; ((FrameworkElement)part).Margin = new Thickness(part == body ? -5 : 0, first ? 0 : 8, part == body ? -5 : 0, 0); first = false; } // the rich text box insets its text by 5

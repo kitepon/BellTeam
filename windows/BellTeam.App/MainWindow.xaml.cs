@@ -67,8 +67,10 @@ public partial class MainWindow : Window, IInspectorHost
                 Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
             else { unreadNew = true; ShowLatestButton(); }
         };
+        model.ScrollToMessage += (id, quote) => Dispatcher.BeginInvoke(() => ScrollToMessageRow(id, quote), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         model.PropertyChanged += (_, args) =>
         {
+            if (args.PropertyName == nameof(Workspace.Quote)) UpdateQuoteBar();
             // Mac requireLogin: whenever the server asks for a login, the login screen takes the window.
             if (args.PropertyName == nameof(Workspace.NeedsLogin) && model.NeedsLogin && !connecting) { if (Dispatcher.CheckAccess()) RouteToLogin(); else Dispatcher.BeginInvoke(RouteToLogin); }
             if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } }
@@ -367,6 +369,26 @@ public partial class MainWindow : Window, IInspectorHost
         StopNoticeText.Foreground = notice?.IsError == true ? new SolidColorBrush(Color.FromRgb(255, 59, 48)) : (Brush)FindResource("Violet");
     }
     // Mac: 「新着メッセージ」 once something new arrived while reading older messages, else 「最新へ」 (an arrow icon, no arrow character); the band is hidden at the bottom.
+    private ReplyReference? shownQuote;
+    private void UpdateQuoteBar()
+    {
+        var quote = model.Quote;
+        QuoteBar.Visibility = quote is null ? Visibility.Collapsed : Visibility.Visible;
+        if (quote is null) { shownQuote = null; return; }
+        QuoteBarName.Text = (quote.SenderName ?? "") + (quote.Part ? "の発言の一部への返信" : "への返信"); QuoteBarText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
+        if (shownQuote?.Id != quote.Id) Composer.Focus();
+        shownQuote = quote;
+    }
+    private void CancelQuote_Click(object sender, RoutedEventArgs e) { model.CancelQuote(); Composer.Focus(); }
+    // A quote tap: the original is loaded (JumpToAsync pages older rows first), so centre its row and pulse it.
+    private void ScrollToMessageRow(string id, ReplyReference? quote)
+    {
+        if (model.Messages.FirstOrDefault(item => item.Message.Id == id) is not { } item || MessageList.ItemContainerGenerator.ContainerFromItem(item) is not FrameworkElement row) return;
+        MessageScroll.UpdateLayout();
+        var top = row.TransformToAncestor((Visual)MessageScroll.Content).Transform(new Point(0, 0)).Y;
+        MessageScroll.ScrollToVerticalOffset(Math.Max(0, top - (MessageScroll.ViewportHeight - row.ActualHeight) / 2));
+        if (VisualTreeHelper.GetChildrenCount(row) > 0 && VisualTreeHelper.GetChild(row, 0) is MessageCard card) card.Flash(quote);
+    }
     private void ShowLatestButton()
     {
         var atBottom = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80;
