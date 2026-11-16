@@ -4,6 +4,11 @@ import { createApprovalBoxExtensionEffects, APPROVAL_BOX_SESSION_SCOPE } from '.
 import { createApprovalsFacade } from '../src/approval-box-parent-facade.mjs'
 import { createApprovalBoxExtensionProcess } from '../src/approval-box-parent-process.mjs'
 import { validateApprovalsEffectResult } from '../src/approval-box-extension-protocol.mjs'
+import { createUsageAssembly } from '../src/usage-assembly.mjs'
+import { createUsageServices } from '../src/usage/services.mjs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 test('effects: refusal is told apart, session uses the fixed scope, put/erase absent means unavailable', async () => {
   const seen = []
@@ -59,4 +64,39 @@ test('facade: loop fans events out, keeps child codes, hides other failures', as
 
 test('process: builds for the new component', () => {
   assert.equal(typeof createApprovalBoxExtensionProcess({ root: '/tmp/x', onEffect: async () => null, spawnProcess() {} }).start, 'function')
+})
+
+// The session effects over the real usageAssembly.credentials, with the real usage services behind the process port (R7, a199b).
+async function realSession(t) {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-abx-session-'))
+  const bots = new Map(), rooms = new Map(); rooms.refresh = async () => {}
+  const onePassword = { available: false, async refresh() {}, close() {}, watch: () => () => {}, setToken() {}, async resolve() { throw new Error('unused') }, async listSshKeys() { return [] }, async listPasswords() { return [] } }
+  const services = createUsageServices({ root, bots, rooms, onePassword, effect: async () => {}, onProjection() {} })
+  await services.initializeSettings(); await services.initialize()
+  let assembly
+  assembly = createUsageAssembly({ root, getServices: () => ({ bots }), onEffect() {}, createProcess: value => ({
+    request(method, params, context) { const result = services.request(method, params, value.authorizeActor(method, context.capturedAuthorization)); Object.defineProperty(result, 'completion', { value: result }); return result }, close() {} }) })
+  t.after(async () => { assembly.close(); await services.quiesce(); services.close(); await rm(root, { recursive: true, force: true }) })
+  const effects = createApprovalBoxExtensionEffects({ lattice: {}, bots: {}, credentials: assembly.credentials })
+  return { root, effects, credentials: assembly.credentials }
+}
+
+test('effects over the real usage credentials: put then get returns the value, erase then get returns null', async t => {
+  const { effects } = await realSession(t)
+  assert.equal(await effects('session.get', {}), null)
+  const value = JSON.stringify({ token: 'synthetic-token', expiresAt: '2099-01-01T00:00:00Z' })
+  assert.deepEqual(await effects('session.put', { value }), { ok: true })
+  assert.deepEqual(await effects('session.get', {}), { value })
+  assert.deepEqual(await effects('session.erase', {}), { ok: true })
+  assert.equal(await effects('session.get', {}), null)
+})
+
+test('effects over the real usage credentials: a lost value file erases the stale handle and reads as not connected', async t => {
+  const { root, effects, credentials } = await realSession(t)
+  await effects('session.put', { value: 'v1' })
+  const dir = join(root, 'state/secret-module-values')
+  const { readdir, rm: remove } = await import('node:fs/promises')
+  for (const name of await readdir(dir)) await remove(join(dir, name))
+  assert.equal(await effects('session.get', {}), null)
+  assert.equal(await credentials.current(APPROVAL_BOX_SESSION_SCOPE), null)
 })
