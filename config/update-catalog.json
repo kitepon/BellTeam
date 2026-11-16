@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-15T22:59:33Z",
-  "expiresAt": "2026-11-22T22:59:33Z",
+  "publishedAt": "2026-11-16T00:05:43Z",
+  "expiresAt": "2026-11-23T00:05:43Z",
   "releases": [
     {
       "componentId": "usage",
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b",
-      "versionId": "sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74",
+      "sourceCommit": "085f4aea1099324b47a0bcf593139d76edb87751",
+      "versionId": "sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,21 +728,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱拡張を部品として更新できるようにしました。",
-        "席の道具の説明に、予定の接続と決裁箱の担当の使い方を書きました。"
+        "決裁箱の拡張が、工程表の工程に決裁を結び付けられるようになりました。回答すると、その工程が閉じます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b539e67fb2a86db4bbdb4d7a5e2e6a4f3a5a7e4b",
-      "versionId": "sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74",
+      "sourceCommit": "085f4aea1099324b47a0bcf593139d76edb87751",
+      "versionId": "sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d349a879d73637b02d35e63c79c6aabacb3ed9e295b48e84478873254b021d74"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,8 +750,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱拡張を部品として更新できるようにしました。",
-        "席の道具の説明に、予定の接続と決裁箱の担当の使い方を書きました。"
+        "決裁箱の拡張が、工程表の工程に決裁を結び付けられるようになりました。回答すると、その工程が閉じます。"
       ]
     },
     {
