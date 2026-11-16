@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T09:08:34Z",
-  "expiresAt": "2026-11-23T09:08:34Z",
+  "publishedAt": "2026-11-16T10:28:10Z",
+  "expiresAt": "2026-11-23T10:28:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
-      "versionId": "sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5",
+      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
+      "versionId": "sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,21 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）が、作業用クローンの .lattice/ を書き換えないようにしました。",
-        "同梱するLatticeの実行ファイルを0.108.0へ上げました。"
+        "席に同梱するLatticeの実行ファイルを0.109.0へ上げました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
-      "versionId": "sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5",
+      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
+      "versionId": "sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,14 +748,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）が、作業用クローンの .lattice/ を書き換えないようにしました。",
-        "同梱するLatticeの実行ファイルを0.108.0へ上げました。"
+        "席に同梱するLatticeの実行ファイルを0.109.0へ上げました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
-      "versionId": "baf07409c5e8cf905f31e9cf7554bc1ffed4b799e1976efb1dcea1ac5ac0e617",
+      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
+      "versionId": "b75a7fc1b6cb74fd715de29ec036f3f92417d2219a8c39595c67873fba58eaa8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-amd64.tar.gz",
-          "bytes": 15307250,
-          "sha256": "baf07409c5e8cf905f31e9cf7554bc1ffed4b799e1976efb1dcea1ac5ac0e617"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-amd64.tar.gz",
+          "bytes": 15335414,
+          "sha256": "b75a7fc1b6cb74fd715de29ec036f3f92417d2219a8c39595c67873fba58eaa8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "fedd52c192c80bd4c181fecc388c054b5f7dd497fd70eec9b150645850745cf8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11051,
+          "sha256": "5a00b674facddd9fe77b62eac01686a8dc4d75a4370a23d7f75b9e77b764ee30"
         },
-        "signerCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0"
+        "signerCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,14 +783,14 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.108.0へ上げました。工程を直したあとも、申告した作業範囲の記録が残ります。",
-        "BellTeamのコード用の工程表で、決裁箱の工程をコードを触らない担当として扱うようにしました。"
+        "工程表の道具（Lattice）を0.109.0へ上げました。工程の作業範囲を、ファイルだけでなく関数まで申告できるようになります。",
+        "コードグラフ（段階A）の関数単位の解決が使えるようになります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
-      "versionId": "b9cb1198b3a398feef80ffa1ebd7ca547268111310776eb7a6c849be0cb0d4ec",
+      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
+      "versionId": "d5f435ec77c12bb00583df8f6e87c7c9d15caafd15ed3abca5289618e23d9d0d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -800,16 +798,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-arm64.tar.gz",
-          "bytes": 15307230,
-          "sha256": "b9cb1198b3a398feef80ffa1ebd7ca547268111310776eb7a6c849be0cb0d4ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-arm64.tar.gz",
+          "bytes": 15335395,
+          "sha256": "d5f435ec77c12bb00583df8f6e87c7c9d15caafd15ed3abca5289618e23d9d0d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11043,
-          "sha256": "efc4791329912c242c8de756cacdf32e23a67162a3d88865136512ba804c32ae"
+          "sha256": "46e2ba0c910806bb1745a74db50d634c9a012efb05771a2b1aabaaacde90bcc6"
         },
-        "signerCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0"
+        "signerCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -821,8 +819,8 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.108.0へ上げました。工程を直したあとも、申告した作業範囲の記録が残ります。",
-        "BellTeamのコード用の工程表で、決裁箱の工程をコードを触らない担当として扱うようにしました。"
+        "工程表の道具（Lattice）を0.109.0へ上げました。工程の作業範囲を、ファイルだけでなく関数まで申告できるようになります。",
+        "コードグラフ（段階A）の関数単位の解決が使えるようになります。"
       ]
     },
     {
