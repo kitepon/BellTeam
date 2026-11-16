@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
-import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
+import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations, sendText, imagePaths, plainLine } from './execution-transport.mjs'
 import { sendSessionStop, confirmedSessionClosure } from './session-interruption.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
@@ -196,7 +196,7 @@ export class AitermTransport {
       session: bot => this.session(bot),
       observe: bot => this.observe(bot),
       wake: (bot, options) => this.wake(bot, options),
-      imageFiles: images => this.imageFiles(images),
+      imageFiles: (images, files) => this.imageFiles(images, files),
       removeTemporaryImages: files => this.removeTemporaryImages(files),
     }
     // Compatibility references share the components' actual state, never copies.
@@ -860,8 +860,8 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
   }
 
-  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease, conversationDelivery, summaryAuthority } = {}) {
-    return this.submit(bot, message, { summaryAuthority, images, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease, conversationDelivery })
+  turn(bot, message, { images = [], files = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease, conversationDelivery, summaryAuthority } = {}) {
+    return this.submit(bot, message, { summaryAuthority, images, files, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease, conversationDelivery })
   }
 
   // BellTeamが追っているターンの合間の言葉を、完了まで数秒おきにAitermから受け取る。
@@ -931,9 +931,9 @@ export class AitermTransport {
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
   notify(bot, message, options = {}) { return this.#notify(bot, message, options) }
 
-  async #notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck, summaryAuthority } = {}, report = false) {
+  async #notify(bot, message, { images = [], files = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck, summaryAuthority } = {}, report = false) {
     const claim = await this.claimContinuation(bot, message, queue)
-    const completion = this.submit(bot, message, { summaryAuthority, images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
+    const completion = this.submit(bot, message, { summaryAuthority, images, files, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     if (claim) {
       completion.then(() => {}, () => {}).finally(() => this.continuationClaims.delete(claim.deliveryId))
@@ -981,14 +981,14 @@ export class AitermTransport {
 
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
+  submit(bot, message, { images = [], files = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
     const job = new DeliveryJob({
       id: this.activeId(), bot, startedAt: this.now(),
       executionSource: executionSource ? structuredClone(executionSource) : null,
-      info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) },
+      info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}), ...(files.length ? { file_count: files.length } : {}) },
       stopping: () => this.executionStopping,
     })
     let conversationCallbacks = null
@@ -1050,7 +1050,7 @@ export class AitermTransport {
         dispatchStarted = true
         // harness-accounts.md "later turn, durable": taken before the input is typed, so this turn's own limit end is after it.
         const inputFrom = this.claudeAccountBot(bot) ? new Date(this.accounts.now()).toISOString() : null
-        delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
+        delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease, files })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
         // harness-accounts.md "later turn, durable": survives the seat's row (a closed seat has none).
@@ -1783,7 +1783,7 @@ export class AitermTransport {
     return observed
   }
 
-  async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease } = {}) {
+  async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease, files = [] } = {}) {
     const check = checkAdmission
     bot = this.resolveBot?.(bot.id) ?? bot
     if (this.executionBridge) {
@@ -1791,11 +1791,11 @@ export class AitermTransport {
       if (!observed) throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
       if (!executionJob.execution) await reserveExecution(this.seat, executionJob, observed)
       if (executionJob) executionJob.deliveryStage = observed.exists ? 'BOT_SEND_FAILED' : 'BOT_LAUNCH_FAILED'
-      const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check, membersLease })
+      const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check, membersLease, files })
       return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }
     }
     check()
-    const imageFiles = await this.imageFiles(images)
+    const imageFiles = await this.imageFiles(images, files)
     try {
       check()
       let session = this.session(bot)
@@ -1921,9 +1921,9 @@ export class AitermTransport {
     try {
       const result = await client.call('pty_send', {
         session_id: session,
-        text: message,
+        text: sendText(message, imageFiles),
         require_agent: true,
-        ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}),
+        ...(imagePaths(imageFiles).length ? { image: imagePaths(imageFiles) } : {}),
       }, { meta: CALLER_META, ...(admissionCheck || job ? { admissionCheck: issue } : {}) })
       if (job) job.inputMayHaveStarted = true
       return result
@@ -1937,10 +1937,12 @@ export class AitermTransport {
     return this.sessionState.session(bot)
   }
 
-  async imageFiles(images) {
+  // images then files share one temporary list, so retention and cleanup treat both alike (delivery-details.md).
+  async imageFiles(images, attachments = []) {
     const files = []
     try {
       for (const image of images) files.push(await this.imageFile(image))
+      for (const attachment of attachments) files.push(await this.attachmentFile(attachment))
       return files
     } catch (error) {
       await this.removeTemporaryImages(files)
@@ -1954,6 +1956,16 @@ export class AitermTransport {
     const path = join(this.tempRoot, `bellteam-image-${randomUUID()}.${imageExtension(image.mime)}`)
     await this.writeTemporaryImage(path, Buffer.from(image.data, 'base64'))
     return { path, temporary: true }
+  }
+
+  // A non-image file: 0600 temporary copy named by a safe extension only; the seat reads it by the path in the message text.
+  async attachmentFile(file) {
+    if (typeof file?.name !== 'string' || !file.name || typeof file.data !== 'string') throw new Error('FILE_INVALID')
+    const extension = /\.([a-z0-9]{1,10})$/iu.exec(file.name)?.[1].toLowerCase()
+    const path = join(this.tempRoot, `bellteam-file-${randomUUID()}${extension ? `.${extension}` : ''}`)
+    const bytes = Buffer.from(file.data, 'base64')
+    await this.writeTemporaryImage(path, bytes)
+    return { path, temporary: true, attachment: { name: plainLine(file.name, 200), mime: plainLine(file.mime, 100), size: bytes.length } }
   }
 
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。

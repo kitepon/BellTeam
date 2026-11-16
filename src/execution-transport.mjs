@@ -63,9 +63,19 @@ export async function reserveExecution({ observe, session, executionBridge }, jo
   job.executionWasPresent = observed.exists
 }
 
-export async function dispatchExecution(seat, job, bot, message, images, { setupTest, check, membersLease }) {
+// One temporary list holds images and attached files; only images go to Aiterm's `image`, files reach the seat as paths in the text.
+export const imagePaths = files => files.filter(file => !file.attachment).map(file => file.path)
+export const plainLine = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, max)
+export function sendText(message, files) {
+  const attached = files.filter(file => file.attachment)
+  if (!attached.length) return message
+  const lines = attached.map(({ path, attachment: { name, mime, size } }) => `- ${name}（${mime || '種類不明'}、${size}バイト）: ${path}`)
+  return `${message}\n\n添付ファイル（次のパスで読めます。今回のやりとりのあとで消えます）:\n${lines.join('\n')}`
+}
+
+export async function dispatchExecution(seat, job, bot, message, images, { setupTest, check, membersLease, files = [] }) {
   check()
-  const imageFiles = await seat.imageFiles(images)
+  const imageFiles = await seat.imageFiles(images, files)
   try {
     check()
     const execution = job.execution
@@ -74,8 +84,8 @@ export async function dispatchExecution(seat, job, bot, message, images, { setup
     job.deliveryStage = 'BOT_SEND_FAILED'
     check()
     job.nativeSession = session
-    const result = await execution.invoke('pty_send', { session_id: session, text: message, require_agent: true,
-      ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })
+    const result = await execution.invoke('pty_send', { session_id: session, text: sendText(message, imageFiles), require_agent: true,
+      ...(imagePaths(imageFiles).length ? { image: imagePaths(imageFiles) } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })
     const receipt = result.structuredContent
     if (receipt?.mode !== 'agent_steer'
       && (receipt?.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process))
