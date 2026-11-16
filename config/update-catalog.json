@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T04:04:54Z",
-  "expiresAt": "2026-11-23T04:04:54Z",
+  "publishedAt": "2026-11-16T04:21:28Z",
+  "expiresAt": "2026-11-23T04:21:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "e903b98deb9ca01a62241062c60e9433e6cb486f",
-      "versionId": "65b16a6a293e7589f66d514d371f63c4eaf3d4be6b6c3cafdb31cb5e8fc3b9cf",
+      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
+      "versionId": "7f84a8ee040b776aac48bef417cdbd7f0a387cb30590701d9570000c09535853",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T040433Z/members-e903b98deb9ca01a62241062c60e9433e6cb486f-linux-amd64.tar.gz",
-          "bytes": 4587958,
-          "sha256": "65b16a6a293e7589f66d514d371f63c4eaf3d4be6b6c3cafdb31cb5e8fc3b9cf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-amd64.tar.gz",
+          "bytes": 4588073,
+          "sha256": "7f84a8ee040b776aac48bef417cdbd7f0a387cb30590701d9570000c09535853"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T040433Z/members-e903b98deb9ca01a62241062c60e9433e6cb486f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "09faafb537051fa852ae9277ac2ddfa9f6fc0d511c859f47b22154163e75724c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11098,
+          "sha256": "881bf8064c966b0610a7200f49548fed22d7bfba6ab90b88200504f9a87d41e6"
         },
-        "signerCommit": "e903b98deb9ca01a62241062c60e9433e6cb486f"
+        "signerCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "保存場所と環境に関する共通ルールを一つにまとめ、不要になったプロフィールのルールを削除しました。"
+        "衝突の判定に関する共通ルールを、工程を作ったらすぐ申告する形に改め、コードグラフのルールの名前を整理しました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "e903b98deb9ca01a62241062c60e9433e6cb486f",
-      "versionId": "250229fe299787affbb3564a0a173c3419616190337d9a03290f1fa3ce2b1de9",
+      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
+      "versionId": "3d7f0a458d53108b0ad13eb29e5e3087a6430cf0db5838125084fdbc9767e46c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T040433Z/members-e903b98deb9ca01a62241062c60e9433e6cb486f-linux-arm64.tar.gz",
-          "bytes": 4587959,
-          "sha256": "250229fe299787affbb3564a0a173c3419616190337d9a03290f1fa3ce2b1de9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-arm64.tar.gz",
+          "bytes": 4588077,
+          "sha256": "3d7f0a458d53108b0ad13eb29e5e3087a6430cf0db5838125084fdbc9767e46c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T040433Z/members-e903b98deb9ca01a62241062c60e9433e6cb486f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10933,
-          "sha256": "4b3fcbf2d55ce9892c98cec7ae5f87eddfa4990ad85d3256ea21d5055fb88996"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T042049Z/members-6d67c52deca39f2c280d582aa3da677bc7b7e46e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11098,
+          "sha256": "7f9a14494cdb986cca20cd6c46baf024b2607627ad7ff7a06a652548d89847d7"
         },
-        "signerCommit": "e903b98deb9ca01a62241062c60e9433e6cb486f"
+        "signerCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "保存場所と環境に関する共通ルールを一つにまとめ、不要になったプロフィールのルールを削除しました。"
+        "衝突の判定に関する共通ルールを、工程を作ったらすぐ申告する形に改め、コードグラフのルールの名前を整理しました。"
       ]
     },
     {
