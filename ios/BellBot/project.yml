@@ -58,6 +58,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するためにローカルネットワークを使います。
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
@@ -102,12 +103,18 @@ targets:
         com.apple.security.application-groups:
           - group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         com.apple.developer.usernotifications.communication: true
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
     dependencies:
       - package: ChatLayout
         product: ChatLayout
       - package: EnrichedMarkdown
         product: EnrichedMarkdown
       - target: NotificationService
+        embed: true
+        link: false
+        codeSign: true
+      - target: ShareExtension
         embed: true
         link: false
         codeSign: true
@@ -154,6 +161,48 @@ targets:
     dependencies:
       - sdk: Intents.framework
       - sdk: UserNotifications.framework
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+      - path: Shared/ShareCredentials.swift
+      - path: Shared/ShareClient.swift
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: BellTeam
+        CFBundleShortVersionString: '1.0.6'
+        CFBundleVersion: '154'
+        BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 5
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BELLTEAM_APP_BUNDLE_IDENTIFIER).ShareExtension
+        TARGETED_DEVICE_FAMILY: "1,2"
+        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": '6'
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": ShareExtension/ShareExtension-Mac.entitlements
+        "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    entitlements:
+      path: ShareExtension/ShareExtension.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
   BellBotTests:
     type: bundle.unit-test
     platform: iOS
