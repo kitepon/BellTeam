@@ -117,7 +117,7 @@ test('JSONの符号化は小さな断片を枠の上限までまとめ、行数�
   assert.ok(chunks.length <= Math.ceil(body.length / (256 * 1024)) + 1, `${chunks.length} chunks`)
 })
 
-test('shared business lanes admit 64 each, reject overflow, and retain completion independently of control', async t => {
+test('shared business lanes admit 64 each, root overflow waits and the others reject, and retain completion independently of control', async t => {
   const [parent, child] = pair(), held = Promise.withResolvers()
   const a = createModuleEndpoint(parent, { validateResult: () => true, onRequest: () => assert.fail() })
   const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: () => () => held.promise })
@@ -125,9 +125,62 @@ test('shared business lanes admit 64 each, reject overflow, and retain completio
   const calls = []
   for (const [kind, limit] of [['root', MODULE_CONCURRENCY], ['effect', MODULE_CONCURRENCY], ['callback', MODULE_CONCURRENCY], ['projection', 1], ['control', 16]]) {
     calls.push(...Array.from({ length: limit }, () => a.call(kind, 'fixture', {}, kind === 'control' ? null : {})))
-    await assert.rejects(a.call(kind, 'overflow', {}, kind === 'control' ? null : {}), { code: 'MODULE_IPC_CAPACITY', outcome: 'not_accepted' })
+    if (kind === 'root') calls.push(a.call(kind, 'overflow', {}, {}))
+    else await assert.rejects(a.call(kind, 'overflow', {}, kind === 'control' ? null : {}), { code: 'MODULE_IPC_CAPACITY', outcome: 'not_accepted' })
     assert.equal(a.snapshot()[kind], limit)
   }
   held.resolve({}); await Promise.all(calls.map(call => call.completion))
   for (const kind of ['root', 'effect', 'callback', 'projection', 'control']) assert.equal(a.snapshot()[kind], 0)
+})
+
+// BugHub ef83d4ee: 123 avatar reads at once must wait for the 64 slots, not fail with 503.
+test('root calls beyond 64 wait in order, all resolve, and the in-flight count never passes 64', async t => {
+  const [parent, child] = pair(); let live = 0, peak = 0; const release = []
+  const a = createModuleEndpoint(parent, { validateResult: () => true, onRequest: () => assert.fail() })
+  const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: () => () => { peak = Math.max(peak, ++live); return new Promise(resolve => release.push(() => { live--; resolve({}) })) } })
+  t.after(() => { a.reaped(); b.reaped() })
+  const order = [], calls = Array.from({ length: 130 }, (_, index) => a.call('root', 'read', { index }, {}).then(() => order.push(index)))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(a.snapshot().root, MODULE_CONCURRENCY); assert.equal(release.length, MODULE_CONCURRENCY)
+  while (order.length < 130) { release.splice(0).forEach(done => done()); await new Promise(resolve => setImmediate(resolve)) }
+  await Promise.all(calls)
+  assert.equal(peak, MODULE_CONCURRENCY); assert.equal(a.snapshot().root, 0)
+  assert.deepEqual([...order].sort((x, y) => x - y), Array.from({ length: 130 }, (_, index) => index))
+})
+
+test('a root waiter past its own timeout fails not_accepted without being sent, and leaves the queue', async t => {
+  const [parent, child] = pair(), sent = []
+  const a = createModuleEndpoint(parent, { validateResult: () => true, onRequest: () => assert.fail() })
+  const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: message => { sent.push(message.params.index); return () => new Promise(() => {}) } })
+  t.after(() => { a.reaped(); b.reaped() })
+  Array.from({ length: MODULE_CONCURRENCY }, (_, index) => a.call('root', 'read', { index }, {}, { timeout: 5000 }).catch(() => {}))
+  const late = a.call('root', 'read', { index: 'late' }, {}, { timeout: 30 })
+  await assert.rejects(late, { code: 'MODULE_IPC_TIMEOUT', outcome: 'not_accepted' })
+  assert.equal(sent.includes('late'), false); assert.equal(a.snapshot().root, MODULE_CONCURRENCY)
+})
+
+test('a slot held by an in-flight call that already timed out still reaches the next waiter when its result arrives', async t => {
+  const [parent, child] = pair(), gates = []
+  const a = createModuleEndpoint(parent, { validateResult: () => true, onRequest: () => assert.fail() })
+  const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: () => () => new Promise(resolve => gates.push(resolve)) })
+  t.after(() => { a.reaped(); b.reaped() })
+  const first = a.call('root', 'read', {}, {}, { timeout: 20 })
+  const rest = Array.from({ length: MODULE_CONCURRENCY - 1 }, () => a.call('root', 'read', {}, {}))
+  await assert.rejects(first, { code: 'MODULE_IPC_TIMEOUT' })
+  const waiter = a.call('root', 'read', {}, {})
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(gates.length, MODULE_CONCURRENCY)
+  gates[0]({}); await first.completion
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(gates.length, MODULE_CONCURRENCY + 1)
+  gates.slice(1).forEach(done => done({})); await Promise.all([waiter, ...rest])
+})
+
+test('a lost connection drains every waiting root call as not_accepted', async t => {
+  const [parent, child] = pair()
+  const a = createModuleEndpoint(parent, { validateResult: () => true, onRequest: () => assert.fail() })
+  const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: () => () => new Promise(() => {}) })
+  t.after(() => { a.reaped(); b.reaped() })
+  Array.from({ length: MODULE_CONCURRENCY }, () => a.call('root', 'read', {}, {}).catch(() => {}))
+  const waiter = a.call('root', 'read', {}, {})
+  a.fail()
+  await assert.rejects(waiter, { code: 'MODULE_IPC_DISCONNECTED', outcome: 'not_accepted' })
 })
