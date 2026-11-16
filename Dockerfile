@@ -77,6 +77,9 @@ RUN mkdir /tmp/lattice-deps && cp distribution/lattice/package.json distribution
   && npm ci --omit=dev --cache /root/.npm --prefix /tmp/lattice-deps \
   && mv /tmp/lattice-deps/node_modules src/lattice/node_modules && rm -rf /tmp/lattice-deps \
   && node -e 'console.log(require("module").createRequire("/app/src/lattice/cli.mjs").resolve("@quolu/lattice/bin/lattice.mjs"))'
+# Seats reach the code graph through these two (E1 lattice, config/lattice-harness-entries.json): lattice-mcp is registered for every CLI, lattice-sensor-init indexes the member's own clone.
+RUN ln -s /app/src/lattice/node_modules/@quolu/lattice/bin/lattice-mcp.mjs /usr/local/bin/lattice-mcp \
+  && install -o root -g root -m 0755 scripts/lattice-sensor-init /usr/local/bin/lattice-sensor-init
 RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor
 RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && /usr/sbin/useradd -u 1001 -g 1001 -d /run/bellteam-server -M -s /usr/sbin/nologin bellteam-server \
