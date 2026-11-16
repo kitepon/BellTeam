@@ -1,4 +1,4 @@
-import test from 'node:test'
+import test, { mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { createConversationAssembly } from '../src/conversation-assembly.mjs'
 import { createConversationFacade } from '../src/conversation-facade.mjs'
@@ -13,17 +13,17 @@ const row = id => ({ id: `row-${id}`, kind: 'message', at: '2026-11-04T08:00:00+
 const room = id => ({ id, name: id, memberIds: [] })
 function harness() {
   const calls = [], admission = new MembersAdmission()
-  let active = 0, maximum = 0
+  let active = 0, maximum = 0, state
   const assembly = createConversationAssembly({ root: '/unused-artificial-root', membersAdmission: admission,
     getServices: () => ({ aiControl: { assertEnabled() {} }, bots: {} }), onExecution() {},
-    createProcess: () => ({ request(method, params) {
+    createProcess: options => (state = options.onState, { request(method, params) {
       calls.push({ method, params }); maximum = Math.max(maximum, ++active)
       const result = Promise.resolve(method === 'rooms.list' ? { rooms: ids.map(room) }
         : { async *[Symbol.asyncIterator]() { yield row(params.botId ?? params.roomId) } })
       result.completion = new Promise(resolve => setImmediate(() => { active--; resolve() }))
       return result
     } }) })
-  return { assembly, calls, admission, maximum: () => maximum }
+  return { assembly, calls, admission, maximum: () => maximum, exchange: exchanging => state({ exchanging }) }
 }
 function roomRequest(rooms, sources) {
   const response = { writeHead(status) { this.status = status }, end(body) { this.body = JSON.parse(body) } }
@@ -133,4 +133,46 @@ test('a fresh facade call during a members exchange waits for resume instead of 
   // Open admission keeps the synchronous start (no extra await before the request is issued).
   h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
   assert.equal(h.calls.length, 2)
+})
+
+test('a fresh facade call during the conversation module exchange waits for its end instead of CONVERSATION_IPC_INVALID (a296, BugHub ef83d4ee)', async () => {
+  const h = harness()
+  h.exchange(true)
+  const refreshed = h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
+  await tick()
+  assert.equal(h.calls.length, 0) // held, not refused
+  h.exchange(false)
+  const rooms = await refreshed
+  await refreshed.completion
+  assert.equal(rooms.size, ids.length)
+  assert.deepEqual(h.calls.map(call => call.method), ['rooms.list'])
+  // Open again: the synchronous start is kept.
+  h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
+  assert.equal(h.calls.length, 2)
+})
+
+test('a conversation exchange that never ends refuses the held call at the existing 60 s exit, effect not started (a296)', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] })
+  try {
+    const h = harness()
+    h.exchange(true)
+    const refreshed = h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
+    mock.timers.tick(60000)
+    await assert.rejects(refreshed, { code: 'CONVERSATION_NOT_ACCEPTED', outcome: 'not_accepted', effect: 'not_started' })
+    assert.equal(h.calls.length, 0)
+  } finally { mock.timers.reset() }
+})
+
+test('a call released by a members resume does not start inside a conversation exchange that began meanwhile (a296)', async () => {
+  const h = harness()
+  const ticket = h.admission.close()
+  h.exchange(true)
+  const refreshed = h.assembly.run({ kind: 'owner' }, () => h.assembly.facade.rooms.refresh())
+  h.exchange(false); await tick() // waits inside members whenOpen now
+  h.exchange(true)
+  h.admission.adopt(ticket, 'next-generation'); h.admission.resume(ticket); await tick()
+  assert.equal(h.calls.length, 0)
+  h.exchange(false)
+  await refreshed; await refreshed.completion
+  assert.deepEqual(h.calls.map(call => call.method), ['rooms.list'])
 })
