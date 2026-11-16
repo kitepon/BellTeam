@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T16:44:46Z",
-  "expiresAt": "2026-11-23T16:44:46Z",
+  "publishedAt": "2026-11-16T20:41:11Z",
+  "expiresAt": "2026-11-23T20:41:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
-      "versionId": "fa32bd9257d3d4a36b7cd7fe10abc796852977675471485f3bac093deb1a80a0",
+      "sourceCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd",
+      "versionId": "a214d1c6becac92fbe2ddc1f3fa29892406aa4112e1d462a3fc648b69fba1233",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz",
-          "bytes": 5450332,
-          "sha256": "fa32bd9257d3d4a36b7cd7fe10abc796852977675471485f3bac093deb1a80a0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-amd64.tar.gz",
+          "bytes": 5451263,
+          "sha256": "a214d1c6becac92fbe2ddc1f3fa29892406aa4112e1d462a3fc648b69fba1233"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10970,
-          "sha256": "a094f2b72ccc4cdbb4d07b8f47974d7b43d38030c81edd76f4ae9ad26daaca34"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "cb8edadb8fd234f4f304276703cffff3f851483b764ece4eb5f445bc11e608c0"
         },
-        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
+        "signerCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,14 +456,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web画面で、メッセージを転送できるようになりました。ドロップして共有することもできます。",
-        "Web画面で、画像を全画面で開き、拡大・ダウンロード・共有できるようになりました。"
+        "Webアプリで、メッセージの吹き出しの右下に、返信・転送・コピーの小さなアイコンを常に表示するようにしました。これまでの、マウスを乗せた時だけ出る「返信」「転送」の文字ボタンは、このアイコンに置き換わります。",
+        "スマホなど、マウスを使わない端末でも同じ操作ができます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
-      "versionId": "a82873e27e9e8a42a356ce7e6693c610d54bd5247bb5df63c75b0dcab7d1933a",
+      "sourceCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd",
+      "versionId": "1def83da58c2e64584bd98dc87300e8e424a0125ef3a196e9a643640b89a37fa",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -471,16 +471,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz",
-          "bytes": 5450332,
-          "sha256": "a82873e27e9e8a42a356ce7e6693c610d54bd5247bb5df63c75b0dcab7d1933a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-arm64.tar.gz",
+          "bytes": 5451263,
+          "sha256": "1def83da58c2e64584bd98dc87300e8e424a0125ef3a196e9a643640b89a37fa"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11252,
-          "sha256": "15d6104badd78eb36310de49edc953dad759d94791e31d3c553153cd7b3dec3d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11099,
+          "sha256": "2727197017812bdb8c2925f197079cf91eef81e2123e2852b9c2bad64e946715"
         },
-        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
+        "signerCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -489,8 +489,8 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web画面で、メッセージを転送できるようになりました。ドロップして共有することもできます。",
-        "Web画面で、画像を全画面で開き、拡大・ダウンロード・共有できるようになりました。"
+        "Webアプリで、メッセージの吹き出しの右下に、返信・転送・コピーの小さなアイコンを常に表示するようにしました。これまでの、マウスを乗せた時だけ出る「返信」「転送」の文字ボタンは、このアイコンに置き換わります。",
+        "スマホなど、マウスを使わない端末でも同じ操作ができます。"
       ]
     },
     {
