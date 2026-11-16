@@ -1,0 +1,14 @@
+{
+  "schema": "bellteam.harness-entries.v1",
+  "product": "lattice",
+  "version": "1",
+  "mcpServers": {
+    "lattice-code-graph": {
+      "claude": { "type": "stdio", "command": "/usr/local/bin/lattice-mcp", "args": [] },
+      "codex": { "command": "/usr/local/bin/lattice-mcp", "args": [] },
+      "grok": { "command": "/usr/local/bin/lattice-mcp", "args": [], "enabled": true },
+      "cursor": { "command": "/usr/local/bin/lattice-mcp", "args": [] },
+      "gemini": { "command": "/usr/local/bin/lattice-mcp", "args": [] }
+    }
+  }
+}

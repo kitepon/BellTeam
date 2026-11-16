@@ -1,0 +1,10 @@
+#!/bin/sh
+# Seat entry for Lattice's code graph: index the member's own clone once (lattice-mcp answers "not indexed" until then).
+# Runs as the member, so .lattice/ is theirs; the seat tool refuses `sensor` because it would run as the server uid.
+set -eu
+dir=$(git -C "${1:-.}" rev-parse --show-toplevel)
+exclude=$(git -C "$dir" rev-parse --path-format=absolute --git-path info/exclude)
+# shortcut: Lattice g2 (sensor init adds .lattice/ to info/exclude itself) is not released; drop these two lines when it ships.
+mkdir -p "$(dirname "$exclude")"
+grep -qxF '.lattice/' "$exclude" 2>/dev/null || echo '.lattice/' >> "$exclude"
+exec node /app/src/lattice/node_modules/@quolu/lattice/bin/lattice.mjs sensor init "$dir" --json
