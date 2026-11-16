@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T06:12:55Z",
-  "expiresAt": "2026-11-23T06:12:55Z",
+  "publishedAt": "2026-11-16T06:23:18Z",
+  "expiresAt": "2026-11-23T06:23:18Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
-      "versionId": "sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7",
+      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
+      "versionId": "sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "すべてのCLIの席で、コードグラフ用のLattice MCPを使えるようにしました。",
-        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）を同梱しました。"
+        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）が、作業用クローンの .lattice/ を書き換えないようにしました。",
+        "同梱するLatticeの実行ファイルを0.108.0へ上げました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
-      "versionId": "sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7",
+      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
+      "versionId": "sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bbb4f24c28728bf74e6ae8bbf11c7a8ce56ba98ad782f19e896c1a81bf09fba5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "すべてのCLIの席で、コードグラフ用のLattice MCPを使えるようにしました。",
-        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）を同梱しました。"
+        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）が、作業用クローンの .lattice/ を書き換えないようにしました。",
+        "同梱するLatticeの実行ファイルを0.108.0へ上げました。"
       ]
     },
     {
