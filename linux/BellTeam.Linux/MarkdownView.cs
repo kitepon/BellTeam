@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Markdig;
 using Markdig.Extensions.EmphasisExtras;
@@ -24,13 +25,35 @@ public sealed class MarkdownView : ContentControl
     public static Action<string>? LinkFailed { get; set; }
     private string source = "";
     // Throws NotSupportedException for a Markdown element the view cannot draw; the caller shows that text instead.
-    public string Source { get => source; set { if (source == value) return; source = value; Content = Build(value, FontSize); } }
+    public string Source { get => source; set { if (source == value) return; source = value; Content = Build(value, FontSize); Decorate(); } }
+    // The menu every paragraph of this text shows on a right click (the text block's own copy menu is replaced).
+    public Func<MenuFlyout>? Menu { get; set; }
+    private void Decorate() { if (Menu is { } menu) foreach (var block in (Content as Control)?.GetLogicalDescendants().OfType<SelectableTextBlock>() ?? []) block.ContextFlyout = menu(); }
+    // The part the Owner selected in one paragraph (a selection cannot span paragraphs: each is its own text block).
+    public string SelectedText => (Content as Control)?.GetLogicalDescendants().OfType<SelectableTextBlock>().Select(block => block.SelectedText).FirstOrDefault(text => !string.IsNullOrEmpty(text)) ?? "";
+    // The jump to a quoted part paints it as a selection. shortcut: the part is found by its first and last line inside one paragraph's shown text (the raw range cannot be mapped); a part that crosses paragraphs is not highlighted, the jump still works.
+    public bool Highlight(string part)
+    {
+        var lines = part.Split('\n').Select(line => line.Trim()).Where(line => line.Length != 0).ToArray();
+        if (lines.Length == 0) return false;
+        foreach (var block in (Content as Control)?.GetLogicalDescendants().OfType<SelectableTextBlock>() ?? [])
+        {
+            var text = block.Inlines?.Text ?? block.Text ?? "";
+            var first = text.IndexOf(lines[0], StringComparison.Ordinal);
+            if (first < 0) continue;
+            var last = lines.Length == 1 ? first : text.IndexOf(lines[^1], first, StringComparison.Ordinal);
+            if (last < 0) continue;
+            block.SelectionBrush = new SolidColorBrush(Color.FromArgb(150, 0xB9, 0xA6, 0xFF)); block.SelectionStart = first; block.SelectionEnd = last + lines[^1].Length; return true;
+        }
+        return false;
+    }
+    public void ClearHighlight() { foreach (var block in (Content as Control)?.GetLogicalDescendants().OfType<SelectableTextBlock>() ?? []) block.ClearSelection(); }
     public MarkdownView() { Foreground = BellTheme.Ink; }
     public void ShowText(string text) { source = text; Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }; }
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == FontSizeProperty && source.Length != 0) Content = Build(source, FontSize);
+        if (change.Property == FontSizeProperty && source.Length != 0) { Content = Build(source, FontSize); Decorate(); }
     }
     public static Control Build(string markdown, double fontSize)
     {
