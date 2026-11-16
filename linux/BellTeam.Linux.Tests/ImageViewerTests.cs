@@ -65,7 +65,9 @@ public sealed class ImageViewerTests
         await ImageActions.OpenWithAsync("viewer-test.png", Png, file => { opened = file; return Task.FromResult(0); });
         Assert.Equal(Png, await File.ReadAllBytesAsync(opened!));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => ImageActions.OpenWithAsync("viewer-test.png", Png, _ => Task.FromResult(3)));
-        Assert.Contains("3", error.Message);
+        Assert.Equal(ImageActions.OpenWithMissing, error.Message);   // exit code 3: no app for the type; the tool name and the code stay out of the words
+        Assert.DoesNotContain("xdg-open", error.Message);
+        Assert.Equal(ImageActions.OpenWithFailed, (await Assert.ThrowsAsync<InvalidOperationException>(() => ImageActions.OpenWithAsync("viewer-test.png", Png, _ => Task.FromResult(4)))).Message);
     }
 
     [Fact]

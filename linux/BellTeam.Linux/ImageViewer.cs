@@ -117,18 +117,24 @@ public static class ImageActions
         return file.Name;
     }
 
-    // The default app for the type opens a copy under the temp folder; xdg-open's exit code is the only answer there is.
+    // The default app for the type opens a copy under the temp folder. The Owner reads plain words and the next step; the opener's name and exit code go to the log only.
     public static async Task OpenWithAsync(string name, byte[] bytes, Func<string, Task<int>>? open = null)
     {
         var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "bellteam-images")).FullName;
         var file = Path.Combine(folder, name); await File.WriteAllBytesAsync(file, bytes);
-        var code = await (open ?? XdgOpen)(file);
-        if (code != 0) throw new InvalidOperationException($"ほかのアプリで開けませんでした（xdg-open が {code} で終了しました）。");
+        int code;
+        try { code = await (open ?? XdgOpen)(file); }
+        catch (System.ComponentModel.Win32Exception error) { Console.Error.WriteLine("xdg-open を起動できませんでした: " + error.Message); code = 127; }
+        if (code == 0) return;
+        Console.Error.WriteLine($"xdg-open が {code} で終了しました: {file}");
+        throw new InvalidOperationException(code is 3 or 127 ? OpenWithMissing : OpenWithFailed);
     }
+    public const string OpenWithMissing = "ほかのアプリで開けませんでした。この画像を開けるアプリが見つかりません。ダウンロードして、保存した画像を開いてください。";
+    public const string OpenWithFailed = "ほかのアプリで開けませんでした。ダウンロードして、保存した画像を開いてください。";
     private static async Task<int> XdgOpen(string file)
     {
         var info = new ProcessStartInfo("xdg-open") { UseShellExecute = false }; info.ArgumentList.Add(file);
-        using var process = Process.Start(info) ?? throw new InvalidOperationException("xdg-open を起動できませんでした。");
+        using var process = Process.Start(info) ?? throw new InvalidOperationException(OpenWithFailed);
         await process.WaitForExitAsync(); return process.ExitCode;
     }
 

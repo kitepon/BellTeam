@@ -116,7 +116,7 @@ internal static partial class Launcher
             case "fit": break;
             case "zoomed": gallery.Pane!.ZoomBy(3); break;
             case "saved": gallery.SayForRender("画像.png を保存しました", false); break;
-            case "failed": gallery.SayForRender("ほかのアプリで開けませんでした（xdg-open が 3 で終了しました）。", true); break;
+            case "failed": gallery.SayForRender(ImageActions.OpenWithMissing, true); break;
             default: throw new ArgumentException("未対応のビューアの場面です。" + Usage);
         }
         WritePng(window, output);
