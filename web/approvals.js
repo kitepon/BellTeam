@@ -66,11 +66,12 @@ export function createApprovalsEntry(button, { feed, open }) {
     const view = entryView(feed.summary, feed.status)
     button.classList.toggle('is-pending', view.pending > 0)
     button.setAttribute('aria-label', view.label)
-    button.replaceChildren(
+    // replaceChildren は false を「false」の文字にするので、出さない部品は渡さない（a306）。
+    button.replaceChildren(...[
       h('span', { class: 'approvals-tile', 'aria-hidden': 'true' }, glyph('inbox')),
       h('span', { class: 'approvals-entry-text' }, h('b', { text: '決裁箱' }), h('small', { text: view.sub })),
       view.urgent && h('span', { class: 'approvals-bolt', 'aria-hidden': 'true' }, glyph('bolt')),
-      view.pending > 0 && h('span', { class: 'approvals-count', 'aria-hidden': 'true', text: String(view.pending) }))
+      view.pending > 0 && h('span', { class: 'approvals-count', 'aria-hidden': 'true', text: String(view.pending) })].filter(Boolean))
   }
   button.addEventListener('click', () => open())
   feed.on(event => { if (event.type === 'summary' || event.type === 'status') paint() })
