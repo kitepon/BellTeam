@@ -830,7 +830,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
 
     private void WindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (Gallery is { } gallery) { if (e.KeyModifiers == KeyModifiers.None && gallery.HandleKey(e.Key)) e.Handled = true; return; }
+        if (Gallery is { } gallery) { if (gallery.HandleKey(e.Key, e.KeyModifiers)) e.Handled = true; return; }
         if (cropSheet.IsVisible) { if (e.Key == Key.Escape) { CloseCropSheet(null); e.Handled = true; } return; }
         if (sheet.IsVisible) { if (e.Key == Key.Escape) { EscapeSheet(); e.Handled = true; } return; }
         if (startupHost.IsVisible) return;

@@ -55,6 +55,10 @@ public sealed class RemoteImage : Grid
     private readonly Image image;
     private readonly TextBlock status = new() { Text = "画像を読込中…", TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     public Task LoadTask { get; private set; } = Task.CompletedTask;
+    // The original bytes and their decoded picture once loaded (the viewer saves, opens and copies from them).
+    public byte[]? Bytes { get; private set; }
+    public Bitmap? Bitmap { get; private set; }
+    public string Path => path;
     public RemoteImage(LinuxWorkspace workspace, string path, bool cover = false)
     {
         this.workspace = workspace; this.path = path;
@@ -77,7 +81,7 @@ public sealed class RemoteImage : Grid
         {
             var bytes = await workspace.ImageAsync(path, token);
             var bitmap = await AvaloniaImageCodec.Instance.DecodeAsync(bytes);
-            token.ThrowIfCancellationRequested(); image.Source = bitmap; status.IsVisible = false; MinHeight = 0;
+            token.ThrowIfCancellationRequested(); Bytes = bytes; Bitmap = bitmap; image.Source = bitmap; status.IsVisible = false; MinHeight = 0;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { if (!token.IsCancellationRequested) { status.Text = "画像を読み込めません"; status.Foreground = Brushes.Firebrick; ToolTip.SetTip(this, error.Message); } }
@@ -85,6 +89,7 @@ public sealed class RemoteImage : Grid
 }
 
 // Mac MessageImageGallery as a full-window dark cover inside the main window: × and "n / N" on top, the picture, then ‹ ›.
+// Top right: ダウンロード (file dialog), ほかのアプリで開く, コピー. The picture zooms with the wheel or a pinch and pans by dragging.
 // shortcut: no thumbnail strip, upgrade with the Windows ImageGallery strip when many-image messages need it.
 public sealed class ImageGallery : Grid
 {
@@ -93,15 +98,27 @@ public sealed class ImageGallery : Grid
     private readonly Action close;
     private readonly ContentControl content = new();
     private readonly TextBlock position = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, FontSize = 18, Foreground = Brushes.White };
+    private readonly TextBlock notice = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 20), Padding = new Thickness(14, 8), FontSize = 14, Foreground = Brushes.White, IsVisible = false };
+    private readonly Border noticeBack;
     public int Selected { get; private set; }
+    public ZoomPane? Pane => content.Content as ZoomPane;
+    public string Notice => notice.Text ?? "";
     public ImageGallery(LinuxWorkspace workspace, string[] paths, int initial, Action close)
     {
         this.workspace = workspace; this.paths = paths; this.close = close; Background = Brushes.Black;
         RowDefinitions = new RowDefinitions("Auto,*");
-        var header = new Grid { Margin = new Thickness(16, 16, 16, 0), ColumnDefinitions = new ColumnDefinitions("44,*,44") };
+        var header = new Grid { Margin = new Thickness(16, 16, 16, 0), ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         header.Children.Add(Control(Icons.Close, "閉じる", "閉じる（Esc）", close));
-        SetColumn(position, 1); header.Children.Add(position); Children.Add(header);
-        SetRow(content, 1); content.Margin = new Thickness(16); Children.Add(content);
+        SetColumn(position, 1); header.Children.Add(position);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        actions.Children.Add(Control(Icons.Download, "ダウンロード", "ダウンロード（Ctrl+S）", () => _ = RunAsync(SaveAsync)));
+        actions.Children.Add(Control(Icons.Export, "ほかのアプリで開く", "ほかのアプリで開く（Ctrl+O）", () => _ = RunAsync(OpenWithAsync)));
+        actions.Children.Add(Control(Icons.Copy, "画像をコピー", "画像をコピー（Ctrl+C）", () => _ = RunAsync(CopyAsync)));
+        SetColumn(actions, 2); header.Children.Add(actions); Children.Add(header);
+        SetRow(content, 1); content.Margin = new Thickness(16); content.HorizontalContentAlignment = HorizontalAlignment.Stretch; content.VerticalContentAlignment = VerticalAlignment.Stretch; Children.Add(content);
+        noticeBack = new Border { Child = notice, Background = new SolidColorBrush(Color.Parse("#CC202020")), CornerRadius = new CornerRadius(12), IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 24) };
+        notice.Margin = default; notice.VerticalAlignment = VerticalAlignment.Center; notice.HorizontalAlignment = HorizontalAlignment.Center; notice.IsVisible = true;
+        SetRow(noticeBack, 1); Children.Add(noticeBack);
         if (paths.Length > 1)
         {
             var previous = Control(Icons.ChevronRight, "前の画像", "前の画像（←）", () => Move(-1)); previous.RenderTransform = new ScaleTransform(-1, 1); previous.RenderTransformOrigin = RelativePoint.Center;
@@ -118,11 +135,41 @@ public sealed class ImageGallery : Grid
     }
     // Mac: ← and → wrap around the pictures, Esc closes.
     public void Move(int change) => Show((Selected + paths.Length + change) % paths.Length);
-    public bool HandleKey(Key key)
+    public bool HandleKey(Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
+        if (modifiers == KeyModifiers.Control)
+        {
+            switch (key) { case Key.S: _ = RunAsync(SaveAsync); return true; case Key.O: _ = RunAsync(OpenWithAsync); return true; case Key.C: _ = RunAsync(CopyAsync); return true; }
+            return false;
+        }
+        if (modifiers != KeyModifiers.None && modifiers != KeyModifiers.Shift) return false;
         if (key == Key.Escape) { close(); return true; }
         if (paths.Length > 1 && key is Key.Left or Key.Right) { Move(key == Key.Left ? -1 : 1); return true; }
+        if (key is Key.OemPlus or Key.Add) { Pane?.ZoomBy(1.4); return true; }
+        if (key is Key.OemMinus or Key.Subtract) { Pane?.ZoomBy(1 / 1.4); return true; }
+        if (key is Key.D0 or Key.NumPad0) { Pane?.Reset(); return true; }
         return false;
     }
-    private void Show(int index) { Selected = index; content.Content = new RemoteImage(workspace, paths[index]); position.Text = $"{index + 1} / {paths.Length}"; }
+    private void Show(int index) { Selected = index; content.Content = new ZoomPane(workspace, paths[index]); position.Text = $"{index + 1} / {paths.Length}"; Say(null); }
+
+    internal void SayForRender(string text, bool error) => Say(text, error);
+    private void Say(string? text, bool error = false) { notice.Text = text; notice.Foreground = error ? new SolidColorBrush(Color.Parse("#FF9C9C")) : Brushes.White; noticeBack.IsVisible = !string.IsNullOrEmpty(text); }
+    private async Task RunAsync(Func<ZoomPane, Task<string?>> action)
+    {
+        if (Pane is not { } pane) return;
+        try
+        {
+            await pane.Image.LoadTask;
+            if (pane.Image.Bytes is null) { Say("画像を読み込めていません。", true); return; }
+            Say(await action(pane));
+        }
+        catch (Exception error) { Say(error.Message, true); }
+    }
+    private async Task<string?> SaveAsync(ZoomPane pane)
+    {
+        var bytes = pane.Image.Bytes!; var saved = await ImageActions.SaveAsync(TopLevel.GetTopLevel(this) ?? throw new InvalidOperationException("ウィンドウがありません。"), ImageActions.FileName(pane.Image.Path, bytes), bytes);
+        return saved is null ? null : $"{saved} を保存しました";
+    }
+    private async Task<string?> OpenWithAsync(ZoomPane pane) { await ImageActions.OpenWithAsync(ImageActions.FileName(pane.Image.Path, pane.Image.Bytes!), pane.Image.Bytes!); return "ほかのアプリで開きました"; }
+    private async Task<string?> CopyAsync(ZoomPane pane) { await ImageActions.CopyAsync(TopLevel.GetTopLevel(this) ?? throw new InvalidOperationException("ウィンドウがありません。"), pane.Image.Bitmap!); return "画像をコピーしました"; }
 }
