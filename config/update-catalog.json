@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T00:51:57Z",
-  "expiresAt": "2026-11-23T00:51:57Z",
+  "publishedAt": "2026-11-16T01:16:52Z",
+  "expiresAt": "2026-11-23T01:16:52Z",
   "releases": [
     {
       "componentId": "usage",
@@ -355,8 +355,8 @@
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
-      "versionId": "59e0afd669ed5e05a061f129b76e6aa3986914cfc60f1afc2cfcb894b1747e89",
+      "sourceCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c",
+      "versionId": "1e2ef951f3534256684733f16e13ad607d9a701bcb51a77bd565701993431cc0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -364,16 +364,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-amd64.tar.gz",
-          "bytes": 3834343,
-          "sha256": "59e0afd669ed5e05a061f129b76e6aa3986914cfc60f1afc2cfcb894b1747e89"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011602Z/diagnostics-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-amd64.tar.gz",
+          "bytes": 3834922,
+          "sha256": "1e2ef951f3534256684733f16e13ad607d9a701bcb51a77bd565701993431cc0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11115,
-          "sha256": "ad564c3f2559f99575d82a617a2f142b746aa98535ff91d3d8d96502fba64a69"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011602Z/diagnostics-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10923,
+          "sha256": "525be51b37c6fec58e842eabbf252908c7c133c03601a44d7c53a817d9d9e039"
         },
-        "signerCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2"
+        "signerCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -386,13 +386,13 @@
         }
       },
       "changes": [
-        "APIの要求が60秒以上かかったときや、応答前に相手が切ったときの記録を受け付けるようにしました。"
+        "エラーが一度に大量に起きても、診断の記録を取りこぼさず全件保存するようにしました。"
       ]
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2",
-      "versionId": "4f620db9fde1974fc88359efa131a8371ebe2a8eea5f2b441048793de3d58c50",
+      "sourceCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c",
+      "versionId": "7820460052c59b41fcfc754f75ebd0b2f2f954964a27ce19671f7080a9509e08",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -400,16 +400,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-arm64.tar.gz",
-          "bytes": 3834342,
-          "sha256": "4f620db9fde1974fc88359efa131a8371ebe2a8eea5f2b441048793de3d58c50"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011602Z/diagnostics-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-arm64.tar.gz",
+          "bytes": 3834922,
+          "sha256": "7820460052c59b41fcfc754f75ebd0b2f2f954964a27ce19671f7080a9509e08"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T004607Z/diagnostics-0f13921ee07945dd6d6008c082755e3f8a5b04f2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "91d61c001964b55df578cf33ca084a3de931f92ba44b12a877eed94cc435714e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011602Z/diagnostics-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10829,
+          "sha256": "1ad716c6239058f9e544c4a607ac74d13ca29d73ffc2caf679ca224280b75865"
         },
-        "signerCommit": "0f13921ee07945dd6d6008c082755e3f8a5b04f2"
+        "signerCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -422,13 +422,13 @@
         }
       },
       "changes": [
-        "APIの要求が60秒以上かかったときや、応答前に相手が切ったときの記録を受け付けるようにしました。"
+        "エラーが一度に大量に起きても、診断の記録を取りこぼさず全件保存するようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
-      "versionId": "e29742d5a6e333c707c3a420906cf672a9660dd0952de82e4238a1c110f4d819",
+      "sourceCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c",
+      "versionId": "305efe84613ba2d2073114076f50a9d2494487621e71c380306bd1a272d1ca19",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-amd64.tar.gz",
-          "bytes": 5425679,
-          "sha256": "e29742d5a6e333c707c3a420906cf672a9660dd0952de82e4238a1c110f4d819"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-amd64.tar.gz",
+          "bytes": 5426668,
+          "sha256": "305efe84613ba2d2073114076f50a9d2494487621e71c380306bd1a272d1ca19"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11021,
-          "sha256": "eda3074620aa9e3c25c6e6e9804530a1529fa88642fe4b7a5ba7a281e7cbb52a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10782,
+          "sha256": "b35bdf1588e8447ecafe50c291b58d76090b915c3ae872b26d8896ed58d65347"
         },
-        "signerCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a"
+        "signerCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "一覧画面でアバターを一度に大量に読み込んでも、順番に待って全部表示できるようにしました。"
+        "エラーが一度に大量に起きても、診断の記録を取りこぼさず全件保存するようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
-      "versionId": "fc5c76d7886b3bbc4a5c7ff953d8e747a680014e0eb53638cd998d870e97c905",
+      "sourceCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c",
+      "versionId": "d8d7c78cad5e12888f6a99598494509bd504d943111dcb1dfd6e375f5bfd80a4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-arm64.tar.gz",
-          "bytes": 5425679,
-          "sha256": "fc5c76d7886b3bbc4a5c7ff953d8e747a680014e0eb53638cd998d870e97c905"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-arm64.tar.gz",
+          "bytes": 5426668,
+          "sha256": "d8d7c78cad5e12888f6a99598494509bd504d943111dcb1dfd6e375f5bfd80a4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11017,
-          "sha256": "8a8efacc9148f55c370bec5d563762c41421b6f6e7f142556131ad942206297a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10782,
+          "sha256": "fa5568f3fc220aa5bad3649be2fe00e1ae619e798a52044273c9e69dbc16ecd8"
         },
-        "signerCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a"
+        "signerCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "一覧画面でアバターを一度に大量に読み込んでも、順番に待って全部表示できるようにしました。"
+        "エラーが一度に大量に起きても、診断の記録を取りこぼさず全件保存するようにしました。"
       ]
     },
     {
