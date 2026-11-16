@@ -1921,3 +1921,23 @@ button.approvals-cn:focus-visible { outline: 2px solid var(--l-violet); outline-
   #owner-dialog .settings-card, #owner-dialog .owner-profile-fields { padding: 16px; }
   #owner-dialog .settings-save { margin: 16px -16px -16px; padding: 12px 16px; }
 }
+
+/* 返信（a269）：引用は吹き出しの上端、返信ボタンは行の下（hover / focus、タッチでは常時） */
+.reply-quote { display: block; width: 100%; margin: 0 0 8px; padding: 5px 10px; border: 0; border-left: 3px solid currentColor; border-radius: 6px; background: rgba(0, 0, 0, .06); color: inherit; font: inherit; font-size: 13px; line-height: 1.4; text-align: left; white-space: normal; }
+button.reply-quote { cursor: pointer; }
+.message.outgoing .reply-quote { background: rgba(255, 255, 255, .16); }
+.reply-quote strong { display: block; font-size: 12px; opacity: .8; }
+.reply-quote span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; opacity: .85; overflow-wrap: anywhere; }
+.reply-quote.is-gone { border-left-style: dashed; opacity: .7; font-size: 12px; }
+.reply-quote-note { display: block; margin: -4px 0 8px; color: var(--muted); font-size: 11px; }
+.message-reply { margin: 2px 7px 0; padding: 0 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; opacity: 0; cursor: pointer; }
+.message:hover .message-reply, .message-reply:focus-visible { opacity: 1; }
+@media (hover: none) { .message-reply { opacity: .75; } }
+.reply-jumped .message-bubble { animation: reply-jumped 2s ease-out; }
+@keyframes reply-jumped { 0%, 60% { box-shadow: 0 0 0 3px #87779c; } 100% { box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { .reply-jumped .message-bubble { animation: none; box-shadow: 0 0 0 3px #87779c; } }
+.reply-bar { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 6px 8px 6px 12px; border-left: 3px solid #87779c; border-radius: 8px; background: var(--bubble); font-size: 13px; }
+.reply-bar[hidden] { display: none; }
+.reply-bar strong { flex: none; font-size: 12px; }
+.reply-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55555b; }
+.reply-bar button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 12px; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }

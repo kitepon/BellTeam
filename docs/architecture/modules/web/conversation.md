@@ -254,6 +254,36 @@ appの`refreshFromEvent`はsettings/setup/Goal処理と一覧・必要履歴を�
 
 `application.connectEvents`は`client.watchEvents`へ通知と停止表示のcallbackを登録する。`client.watchEvents`の通信側はTypeError/429/5xxで既存の1.5秒再接続、Abortは終了、その他は接続停止を表示する。正常EOFは戻る分岐で、自動再接続があるとは扱わない。要求の取消と保留中の再接続timerは返却する解除関数が所有し、pagehideのpersisted=falseで終了する。persisted=trueでは維持する。
 
+### Reply to a message (a269, Web client of N102's `reply_to`)
+
+Contract and owner: [conversation/reply.md](../conversation/reply.md) (N102). The Web only draws the saved snapshot and sends the id of a picked item; it never builds a quote from loaded items. Additive: an older body returns no `reply_to`, so no quote is drawn; a body that ignores the sent field still delivers the message.
+
+```mermaid
+flowchart TD
+  Item["history item (direct message / interim, room message)<br/>renderItemElement: 返信 button on every plain message bubble"] -->|"click"| Pick["timeline onReply({id: item.id, sender, text: first line or （画像）})"]
+  Pick --> Draft["composer setReply(reply): the open conversation's draft.reply<br/>reply bar above the input: 返信先 sender + first line + ×"]
+  Draft -->|"× / send accepted"| Clear["draft.reply = null (the draft is replaced after send)"]
+  Draft -->|"send: POST /api/bots|rooms/:id/messages {message, images, targets?, reply_to: id}"| Server["N102 saves the snapshot (reply.md)"]
+  Server -->|"history item.reply_to = {id, available, sender:{id,name}, at, text, truncated?, image?}"| Quote["renderItemElement: small quote at the top of the bubble<br/>(sender あなた / name, text, … when truncated, （画像） when image-only)"]
+  Quote -->|"available: false"| Gone["fixed line 「元のメッセージを表示できません」, not tappable"]
+  Quote -->|"click"| Jump["timeline jumpToMessage(id)"]
+  Jump -->|"id in timelineMap"| Show["scrollIntoView center + highlight 2 s"]
+  Jump -->|"not loaded and has_more"| Older["readHistory(loadOlderMessages) until the id appears or has_more is false"] --> Show
+  Older -->|"has_more false, id absent"| Missing["note under the quote: 元のメッセージは見つかりません (no jump)"]
+  Room["roomTimelineItem passes record.reply_to unchanged"] --> Quote
+```
+
+| Function | Contract |
+| --- | --- |
+| `renderItemElement` (conversation-timeline.js) | message bubble: `item.reply_to` -> quote button (`available`) or the fixed gone line; a 返信 button on plain message / interim bubbles. Peer rows, secret / question cards, queue cards and the thinking bubble get neither |
+| `roomTimelineItem` | adds `reply_to: record.reply_to` (undefined when absent) |
+| `jumpToMessage(id)` | single read path of a jump: finds the row in the loaded map, else pages older with the existing `before` cursor (`readHistory(loadOlderMessages)`, waits while another older read is running), no cap other than `has_more`; a failed page read shows the existing inline retry and stops the jump |
+| `setReply(reply)` / reply bar (conversation-composer.js) | per-conversation `draft.reply`; shown above the input with ×; kept with the draft when a send fails or the conversation changes; the send body gets `reply_to` only from it; not counted as input (a reply alone cannot be sent) |
+
+Data ownership: the reply target lives only in the composer's draft (memory, per conversation); the quote lives only in the history item. No storage, no id on screen. Failure handling: a failed send keeps the draft with its reply; an unavailable original is drawn as the fixed line and the message stays normal. No guard is added: no new refusal, lock or timeout.
+
+Source reach: `web/conversation-timeline.js`, `web/conversation-composer.js`, `web/application.js` (wiring), `web/index.html` (`#reply-bar`), `web/styles.css`, `test/conversation-composer.test.mjs`, `test/timeline-open-queue.test.mjs`.
+
 ## 操作の接続と確認範囲
 
 `stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](../../web-final-gaps.md)に記録する。

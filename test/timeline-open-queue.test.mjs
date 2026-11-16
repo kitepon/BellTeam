@@ -7,7 +7,8 @@ const settle = () => new Promise(resolve => setImmediate(resolve))
 class Element {
   children = []; dataset = {}; style = {}; listeners = {}; scrollTop = 0; clientHeight = 100
   classes = new Set()
-  classList = { add: name => this.classes.add(name), toggle() {} }
+  classList = { add: name => this.classes.add(name), remove: name => this.classes.delete(name), toggle() {} }
+  scrollIntoView(options) { this.scrolledTo = options }
   get scrollHeight() { return this.children.reduce((sum, child) => sum + 100 + child.scrollHeight, 0) }
   get firstChild() { return this.children[0] }
   addEventListener(name, listener) { this.listeners[name] = listener }
@@ -26,7 +27,7 @@ class Element {
   }
 }
 const saved = { document: globalThis.document, ResizeObserver: globalThis.ResizeObserver, CSS: globalThis.CSS }
-function fixture(t, history) {
+function fixture(t, history, extra = {}) {
   globalThis.document = { createElement: () => new Element(), querySelectorAll: () => [] }
   globalThis.ResizeObserver = class { observe() {} }
   globalThis.CSS = { escape: value => value }
@@ -37,7 +38,7 @@ function fixture(t, history) {
       requests.push(path)
       if (path.endsWith('/queue')) { const pending = deferred(); queues.push(pending); return pending.promise }
       return history ? history(path, options) : { items: [{ id: path.split('/')[3] + '-message', message: 'hello', direction: 'incoming' }], has_more: false }
-    }, messageImages: { load() {}, get() {}, failed() {} }, getBot() {}, avatarColor: async () => '', isStopping: () => false, onStop() {}, onQueueChange() {},
+    }, messageImages: { load() {}, get() {}, failed() {} }, getBot() {}, avatarColor: async () => '', isStopping: () => false, onStop() {}, onQueueChange() {}, ...extra,
   })
   const open = (id, type = 'bot') => view.open({ type, id, name: id })
   const ids = () => timeline.children[0].children.map(row => row.dataset.id).filter(Boolean)
@@ -338,4 +339,68 @@ test('an older page that fails and then succeeds by scrolling clears its error; 
   olderFails = false
   f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
   assert.doesNotMatch(f.text(), /会話を読み込めませんでした/)
+})
+
+// ---- reply (a269): the quote is drawn only from item.reply_to; tapping it jumps by id ----
+const everyNode = node => [node, ...node.children.flatMap(everyNode)]
+const quotes = timeline => everyNode(timeline).filter(node => String(node.className).startsWith('reply-quote') && !String(node.className).startsWith('reply-quote-note'))
+const snapshot = (id, extra = {}) => ({ id, available: true, sender: { id: 'bot-a', name: 'A' }, at: '2026-11-16T00:00:00Z', text: '元の1行目', ...extra })
+const msg = (id, extra = {}) => ({ id, at: '2026-11-16T00:00:00Z', message: `text ${id}`, direction: 'incoming', sender: 'A', ...extra })
+
+test('reply: a quote is drawn from reply_to (sender, text, ellipsis, image-only), an unavailable original is a fixed untappable line, items without it are unchanged', async t => {
+  const f = fixture(t, () => ({ has_more: false, items: [
+    msg('plain'),
+    msg('r1', { direction: 'outgoing', reply_to: snapshot('o1', { sender: { id: 'user', name: 'オーナー' }, truncated: true }) }),
+    msg('r2', { direction: 'outgoing', reply_to: snapshot('o2', { text: '', image: true }) }),
+    msg('r3', { direction: 'outgoing', reply_to: { id: 'gone', available: false } }),
+  ] }))
+  await f.open('a'); await settle()
+  const drawn = quotes(f.timeline)
+  assert.equal(drawn.length, 3)
+  assert.equal(f.text().includes('あなた'), true); assert.equal(f.text().includes('元の1行目…'), true, 'truncated shows the ellipsis')
+  assert.equal(f.text().includes('（画像）'), true)
+  const gone = drawn.find(node => String(node.className).includes('is-gone'))
+  assert.equal(gone.textContent, '元のメッセージを表示できません'); assert.equal(gone.listeners.click, undefined, 'not tappable')
+  assert.equal(drawn.filter(node => node.listeners.click).length, 2)
+})
+
+test('reply: 返信 on a message hands {id, sender, first line} to the composer; an image-only message reads （画像）', async t => {
+  const picked = []
+  const f = fixture(t, () => ({ has_more: false, items: [msg('m1', { message: '一行目\n二行目' }), msg('m2', { direction: 'outgoing', message: '', image: true })] }), { onReply: reply => picked.push(reply) })
+  await f.open('a'); await settle()
+  const buttons = everyNode(f.timeline).filter(node => node.className === 'message-reply')
+  assert.equal(buttons.length, 2)
+  buttons[0].listeners.click(); buttons[1].listeners.click()
+  assert.deepEqual(picked, [{ id: 'm1', sender: 'A', text: '一行目' }, { id: 'm2', sender: 'あなた', text: '（画像）' }])
+})
+
+test('reply: tapping the quote scrolls to a loaded original and highlights it', async t => {
+  const f = fixture(t, () => ({ has_more: false, items: [msg('o1'), msg('r1', { direction: 'outgoing', reply_to: snapshot('o1') })] }))
+  await f.open('a'); await settle()
+  quotes(f.timeline)[0].listeners.click(); await settle()
+  const original = f.timeline.children[0].children.find(row => row.dataset.id === 'o1')
+  assert.deepEqual(original.scrolledTo, { block: 'center' }); assert.equal(original.classes.has('reply-jumped'), true)
+})
+
+test('reply: an original on an older page is loaded with the before cursor until it appears; one that never appears shows a note and does not jump', async t => {
+  const f = fixture(t, path => {
+    if (path.includes('before=m3')) return { has_more: true, items: [msg('m2')] }
+    if (path.includes('before=m2')) return { has_more: false, items: [msg('m1')] }
+    return { has_more: true, items: [msg('m3', { direction: 'outgoing', reply_to: snapshot('m1') }), msg('m4', { direction: 'outgoing', reply_to: snapshot('nowhere') })] }
+  })
+  await f.open('a'); await settle()
+  const [far, never] = quotes(f.timeline)
+  far.listeners.click(); await settle(); await settle()
+  assert.equal(f.requests.filter(path => path.includes('before=')).length, 2, 'paged older twice')
+  assert.deepEqual(f.timeline.children[0].children.find(row => row.dataset.id === 'm1').scrolledTo, { block: 'center' })
+  never.listeners.click(); await settle(); await settle()
+  assert.equal(everyNode(f.timeline).filter(node => node.className === 'reply-quote-note' && node.textContent === '元のメッセージは見つかりません').length, 1)
+  never.listeners.click(); await settle(); await settle()
+  assert.equal(everyNode(f.timeline).filter(node => node.className === 'reply-quote-note').length, 1, 'one note only')
+})
+
+test('reply: a room record passes reply_to through to its quote', async t => {
+  const f = fixture(t, () => ({ has_more: false, items: [{ id: 'rm1', at: '2026-11-16T00:00:00Z', message: 'hi', sender: { id: 'user', name: 'オーナー' }, room: { members: [] }, reply_to: snapshot('rm0') }] }))
+  await f.open('room1', 'room'); await settle()
+  assert.equal(quotes(f.timeline).length, 1); assert.equal(f.text().includes('元の1行目'), true)
 })

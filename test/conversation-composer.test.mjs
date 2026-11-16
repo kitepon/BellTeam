@@ -176,3 +176,35 @@ test('deletion pending disables sends while keeping drafts; a forced submit cann
  f.composer.select(f.b);f.composer.select(f.a);assert.equal(f.input.value,'未送信の入力')
  assert.match(f.error.textContent,/未確認/)
 })
+
+test('reply: the picked reply is sent as reply_to from that conversation only, is not input by itself, is kept when the send fails and is gone once accepted', async t => {
+  const bar = new Element()
+  let fail = true
+  const f = fixture(t, { replyBar: bar, api: async (path, request) => {
+    f.calls.push({ path, body: JSON.parse(request.body) })
+    if (fail) { fail = false; throw Object.assign(new Error('x'), { status: 503 }) }
+    return { id: 'accepted' }
+  } })
+  f.composer.setReply({ id: 'orig-1', sender: 'A', text: '元の発言' })
+  assert.equal(bar.hidden, false); assert.equal(bar.children[0].textContent, 'Aへの返信'); assert.equal(bar.children[1].textContent, '元の発言')
+  assert.equal(f.sendButton.disabled, true, 'a reply alone is not sendable')
+  f.input.value = '返事'; f.composer.update()
+  f.composer.select(f.b); assert.equal(bar.hidden, true, 'another conversation has no reply'); f.composer.select(f.a); assert.equal(bar.hidden, false, 'kept with its draft')
+  f.input.value = '返事'
+  await f.composer.send()
+  assert.deepEqual(f.calls[0].body.reply_to, 'orig-1'); assert.equal(bar.hidden, false, 'a failed send keeps the reply')
+  await f.composer.send()
+  assert.equal(f.calls[1].body.reply_to, 'orig-1'); assert.equal(bar.hidden, true, 'accepted: the reply is gone')
+  f.input.value = '次'; await f.composer.send()
+  assert.equal('reply_to' in f.calls[2].body, false, 'no reply_to unless one was picked')
+})
+
+test('reply: × cancels the reply and the next send has no reply_to', async t => {
+  const bar = new Element()
+  const f = fixture(t, { replyBar: bar })
+  f.composer.setReply({ id: 'orig-2', sender: 'A', text: 't' })
+  bar.children[2].listeners.click()
+  assert.equal(bar.hidden, true)
+  f.input.value = 'x'; await f.composer.send()
+  assert.equal('reply_to' in f.calls[0].body, false)
+})

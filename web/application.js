@@ -122,7 +122,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   })
 
   const conversationComposer = createConversationComposer({
-    input: messageInput, attachments: attachmentPreview, error: composerError, sendButton,
+    input: messageInput, attachments: attachmentPreview, error: composerError, sendButton, replyBar: document.querySelector('#reply-bar'),
     recovery: document.querySelector('#retained-inputs'), api, readImage,
     getTargets: target => target.type === 'room' ? selectedTargets(target.id) : null,
     setTargets: (target, targets) => {
@@ -797,7 +797,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const conversationTimeline = createConversationTimeline({ timeline, latestButton, api, messageImages,
     getBot: id => state.bots.find(bot => bot.id === id),
-    isStopping: id => stoppingMembers.has(id), onStop: stopMember, onQueueChange: updateSendButton,
+    isStopping: id => stoppingMembers.has(id), onStop: stopMember, onQueueChange: updateSendButton, onReply: reply => conversationComposer.setReply(reply),
   })
 
   async function loadMessages(preserveScroll = true) {
