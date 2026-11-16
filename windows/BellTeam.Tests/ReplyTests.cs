@@ -64,4 +64,44 @@ public sealed class ReplyTests
         Assert.Equal(expected, json.RootElement.TryGetProperty("reply_to", out var value) && value.GetString() == replyTo);
         Assert.Equal(expected, json.RootElement.TryGetProperty("reply_to", out _));
     }
+
+    [Fact]
+    public void APartReplyReadsItsRangeAndAnUnavailablePartKeepsTheExcerptUnderTheFixedLine()
+    {
+        var part = Row("""{"id":"r1","at":"2026-11-16T12:00:00Z","reply_to":{"id":"m1","available":true,"sender":{"id":"u","name":"あなた"},"text":"選んだ部分","part":true,"range":{"start":12,"end":17}}}""").ReplyTo!;
+        Assert.Equal(new ReplyReference("m1", true, "あなた", "選んだ部分", false, false, true, 12, 17), part);
+        Assert.Null(Timeline.QuoteNote(part));
+        Assert.Null(Row("""{"id":"r1","at":"2026-11-16T12:00:00Z","reply_to":{"id":"m1","available":true,"text":"x","part":true,"range":{"start":5,"end":2}}}""").ReplyTo!.RangeStart);
+        var gone = Row("""{"id":"r2","at":"2026-11-16T12:00:00Z","reply_to":{"id":"m9","available":false,"part":true,"text":"残った抜粋","truncated":true}}""").ReplyTo!;
+        Assert.Equal(("残った抜粋…", Timeline.UnavailableQuote), (Timeline.QuoteBody(gone), Timeline.QuoteNote(gone)));
+        Assert.False(gone.Available);
+    }
+
+    [Fact]
+    public void ASelectionBecomesTheLocalQuoteAndTravelsWithTheSend()
+    {
+        var local = ReplyReference.Local(Plain("m1", "前置き。ここだけ。後ろ。"), "ベル", new QuoteSelection("ここだけ。"));
+        Assert.Equal(("ここだけ。", true, false), (local.Text, local.Part, local.Image));
+        var draft = new ConversationDraft { Text = "賛成" };
+        var selection = new QuoteSelection("ここだけ。");
+        draft.Quote = local; draft.Selection = selection;
+        var sent = draft.BeginSendContent();
+        Assert.Equal((selection, null), (sent.Selection, draft.Selection));
+        draft.FailSend(sent, "失敗");
+        Assert.Equal((local, selection), (draft.Quote, draft.Selection));
+    }
+
+    [Theory]
+    [InlineData("m1", true, true)]
+    [InlineData(null, true, false)]
+    [InlineData("m1", false, false)]
+    public async Task ReplyQuoteIsSentOnlyWithReplyToAndASelection(string? replyTo, bool withSelection, bool expected)
+    {
+        string? body = null;
+        var api = new BellApi(new Uri("http://localhost"), new StubHandler(async (request, _) => { body = await request.Content!.ReadAsStringAsync(); return StubHandler.Json("""{"delivery_id":"d1"}"""); }));
+        await api.SendAsync(new ChatTarget("bot-one", false), "賛成", [], null, default, replyTo, withSelection ? new QuoteSelection("a\r\nb") : null);
+        using var json = JsonDocument.Parse(body!);
+        Assert.Equal(expected, json.RootElement.TryGetProperty("reply_quote", out var quote));
+        if (expected) { Assert.Equal("a\nb", quote.GetProperty("text").GetString()); Assert.False(quote.TryGetProperty("start", out _)); }
+    }
 }

@@ -185,20 +185,22 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public ObservableCollection<MemberChoice> ReplyMembers { get; } = [];
     // Reply to a chosen message (conversation reply.md). Not the room's 返信者 (ReplyMembers): that picks who answers, this picks what is answered.
     public ReplyReference? Quote => Draft?.Quote;
-    public void StartQuote(TimelineMessage message)
+    // selection: the part of the text the Owner selected (引用して返信); null replies to the whole message.
+    public void StartQuote(TimelineMessage message, QuoteSelection? selection = null)
     {
-        if (Draft is not { } draft || !Timeline.IsQuotable(message)) return;
-        draft.Quote = ReplyReference.Local(message, message.IsOutgoing ? OwnerName : message.Sender?.Title ?? selected?.Name ?? "");
+        if (Draft is not { } draft || !Timeline.IsQuotable(message) || selection is { Text: var text } && string.IsNullOrWhiteSpace(text)) return;
+        draft.Quote = ReplyReference.Local(message, message.IsOutgoing ? OwnerName : message.Sender?.Title ?? selected?.Name ?? "", selection);
+        draft.Selection = selection;
         Changed(nameof(Quote));
     }
-    public void CancelQuote() { if (Draft is { } draft) { draft.Quote = null; Changed(nameof(Quote)); } }
-    // Raised with the id of a loaded row the view should scroll to.
-    public event Action<string>? ScrollToMessage;
+    public void CancelQuote() { if (Draft is { } draft) { draft.Quote = null; draft.Selection = null; Changed(nameof(Quote)); } }
+    // Raised with the id of a loaded row the view should scroll to; the quote tells the view which part to highlight.
+    public event Action<string, ReplyReference?>? ScrollToMessage;
     // Tap on a quote: scroll to the original when it is loaded, else load older pages until it appears or there are no more (reply.md "Jump").
-    public async Task JumpToAsync(string id)
+    public async Task JumpToAsync(ReplyReference quote)
     {
         if (selection?.Token is not { } token) return;
-        ActionError = null;
+        ActionError = null; var id = quote.Id;
         while (!Messages.Any(item => item.Message.Id == id) && HasMore && !Loading && !token.IsCancellationRequested && ConnectionError is null)
         {
             var before = Messages.Count;
@@ -206,7 +208,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             if (Messages.Count == before) break;
         }
         if (token.IsCancellationRequested) return;
-        if (Messages.Any(item => item.Message.Id == id)) ScrollToMessage?.Invoke(id);
+        if (Messages.Any(item => item.Message.Id == id)) ScrollToMessage?.Invoke(id, quote);
         else if (!HasMore && ConnectionError is null) ActionError = Timeline.QuoteNotFound;
     }
     public string Profile => selected?.Bot is { } bot
@@ -524,7 +526,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         if (selected?.Target == target) ScrollToBottom?.Invoke(true);
         try
         {
-            var acceptedId = await current.SendAsync(target, content.Text, content.Images, target.IsRoom && content.Targets.Length != 0 ? content.Targets : null, token, content.Quote?.Id);
+            var acceptedId = await current.SendAsync(target, content.Text, content.Images, target.IsRoom && content.Targets.Length != 0 ? content.Targets : null, token, content.Quote?.Id, content.Selection);
             foreach (var image in content.Images) attachmentPreviews.Remove(image);
             if (api == current) ChangePending(key, echo, echo with { AcceptedId = acceptedId });
             draft.CompleteSend(); DraftChanged();
