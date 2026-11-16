@@ -56,6 +56,17 @@ final class ConversationReplyUITests: XCTestCase {
         attach("4-jumped")
     }
 
+    /// 左へスワイプすると、長押しメニューと同じ返信の帯が出る（a300）。右へのスワイプと短い左スワイプでは出ない。
+    func testSwipeLeftOpensReplyBar() throws {
+        text("m058").swipeRight()
+        XCTAssertFalse(app.otherElements["reply-bar"].waitForExistence(timeout: 1.5), "右へは返信にならない")
+        text("m058").swipeLeft()
+        XCTAssertTrue(app.otherElements["reply-bar"].waitForExistence(timeout: 3))
+        attach("0-swipe-reply-bar")
+        app.buttons["reply-cancel"].tap()
+        XCTAssertFalse(app.otherElements["reply-bar"].exists)
+    }
+
     /// 選んだ部分の引用：長押しで文字を選び、メニューの「引用して返信」から送る。
     func testQuoteSelectedPart() throws {
         XCTAssertTrue(app.descendants(matching: .any)["reply-quote-unavailable-part"].exists, "元が無い部分引用は文章と固定の一行")

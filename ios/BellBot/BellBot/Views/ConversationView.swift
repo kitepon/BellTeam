@@ -958,6 +958,51 @@ private final class ConversationCardStates {
     }
 }
 
+/// 行を左へスワイプして返信（a300）。横が縦の1.5倍超の左ドラッグだけを拾うので、縦スクロール・文字選択・左端の戻るスワイプと競合しない。
+/// Macはマウスのドラッグが文字選択なので付けない。
+private struct ReplySwipe: ViewModifier {
+    let onReply: () -> Void
+    private static let commit: CGFloat = 56
+    @State private var shift: CGFloat = 0
+    @State private var armed = false
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: shift)
+            .overlay(alignment: .trailing) {
+                Image(systemName: "arrowshape.turn.up.left.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(BellTheme.muted)
+                    .opacity(min(1, -shift / 24))
+                    .scaleEffect(armed ? 1.2 : 0.9)
+                    .offset(x: 28)
+                    .accessibilityHidden(true)
+            }
+            .simultaneousGesture(DragGesture(minimumDistance: 16)
+                .onChanged { drag in
+                    guard drag.translation.width < 0, abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else { return }
+                    shift = max(drag.translation.width * 0.6, -48)
+                    armed = -drag.translation.width >= Self.commit
+                }
+                .onEnded { _ in
+                    if armed { onReply() }
+                    armed = false
+                    withAnimation(.spring(duration: 0.25)) { shift = 0 }
+                })
+            .sensoryFeedback(.impact, trigger: armed) { _, new in new }
+    }
+}
+
+private extension View {
+    @ViewBuilder func replySwipe(_ onReply: (() -> Void)?) -> some View {
+        #if targetEnvironment(macCatalyst)
+        self
+        #else
+        if let onReply { modifier(ReplySwipe(onReply: onReply)) } else { self }
+        #endif
+    }
+}
+
 private struct MessageRow: View, Equatable {
     let message: TimelineMessage
     let isRoom: Bool
@@ -1083,6 +1128,7 @@ private struct MessageRow: View, Equatable {
                 }
                 if !message.isOutgoing { Spacer(minLength: 45) }
             }
+            .replySwipe(onReply)
         }
     }
 
