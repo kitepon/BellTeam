@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T21:19:11Z",
-  "expiresAt": "2026-11-23T21:19:11Z",
+  "publishedAt": "2026-11-16T21:59:56Z",
+  "expiresAt": "2026-11-23T21:59:56Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745",
-      "versionId": "724d32b1d074adc9d05965fffbf1bdf6df69f7dd4d4ad1c047fe9d75feb66ba0",
+      "sourceCommit": "92531f7f9d6e504390a957a620551e55c9abcd76",
+      "versionId": "2f688cab18d21e2c4f09ed0ba2db2d4ee019656ffdc1e0a999a0673088cc3b77",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-amd64.tar.gz",
-          "bytes": 5451293,
-          "sha256": "724d32b1d074adc9d05965fffbf1bdf6df69f7dd4d4ad1c047fe9d75feb66ba0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-amd64.tar.gz",
+          "bytes": 5451368,
+          "sha256": "2f688cab18d21e2c4f09ed0ba2db2d4ee019656ffdc1e0a999a0673088cc3b77"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11193,
-          "sha256": "e805d488860cf855fb02208edb975a37a19bb5bcbd6271d5db376388e18b9f7c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11052,
+          "sha256": "c2691fecbc4a5b2a6d54719227ff9fc17cbe6653c7e7d6ca81bdc5408c4a5c65"
         },
-        "signerCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745"
+        "signerCommit": "92531f7f9d6e504390a957a620551e55c9abcd76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webアプリの決裁箱のカードに、「false」と表示されてしまう不具合を直しました。"
+        "Webアプリで、吹き出しの下の転送アイコンを、箱から上向きの矢印が出る形に変えました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745",
-      "versionId": "77ea37bc466c04bffa4953032b65bdb4d1edb2e66ab18089db142ae5dbc127ae",
+      "sourceCommit": "92531f7f9d6e504390a957a620551e55c9abcd76",
+      "versionId": "9fa2230fc80271a11bb8dc79187385b7e99498e17d23bad2a2c23869dc28d7d3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-arm64.tar.gz",
-          "bytes": 5451293,
-          "sha256": "77ea37bc466c04bffa4953032b65bdb4d1edb2e66ab18089db142ae5dbc127ae"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-arm64.tar.gz",
+          "bytes": 5451368,
+          "sha256": "9fa2230fc80271a11bb8dc79187385b7e99498e17d23bad2a2c23869dc28d7d3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "4d2c57f760daa97cb9860e71ef33e7cde9cc96629fdcc71232f5618d853b936c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11099,
+          "sha256": "88a6b11fc62bd137cc63c901ffc769274f4766635a58150b1baca0f92bdf9bc5"
         },
-        "signerCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745"
+        "signerCommit": "92531f7f9d6e504390a957a620551e55c9abcd76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webアプリの決裁箱のカードに、「false」と表示されてしまう不具合を直しました。"
+        "Webアプリで、吹き出しの下の転送アイコンを、箱から上向きの矢印が出る形に変えました。"
       ]
     },
     {
