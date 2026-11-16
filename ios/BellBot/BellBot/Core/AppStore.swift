@@ -1045,11 +1045,14 @@ final class AppStore: ObservableObject {
         do {
             guard let url = serverURL else { try ShareCredentials.clear(); return }
             let cookies = api.cookieStorage.cookies(for: url)?.filter { $0.name == "CF_Authorization" && !$0.isExpired } ?? []
-            try ShareCredentials.save(.init(
+            let snapshot = ShareCredentials.Snapshot(
                 serverURL: url.absoluteString,
                 cookieHeader: cookies.isEmpty ? nil : HTTPCookie.requestHeaderFields(with: cookies)["Cookie"],
                 cookieExpiresAt: cookies.compactMap(\.expiresDate).min(),
-                entitledUntil: billing.entitlement?.validUntil))
+                entitledUntil: billing.entitlement?.validUntil)
+            // 同じ内容は書き直さない（書き直しは消してから足すので、読む側に一瞬の空白ができる）。
+            if try ShareCredentials.load() == snapshot { return }
+            try ShareCredentials.save(snapshot)
         } catch {
             api.diagnostics.report(error, path: "share-credentials", method: nil, observation: .write)
         }
