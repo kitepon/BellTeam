@@ -156,7 +156,7 @@ flowchart TD
 | composer | `addImages/paint/send/renderRecovery`。FileとURLは下書き→送信→回収へ移す。受付・破棄・添付削除で解放。失敗した旧画像と新入力の画像を混ぜない |
 | messageImages | `remember/read/load/close`。同IDのfetchを共有し、複数画像の途中失敗も全完了を集めて不要URLを解放。旧fetchは新data previewを上書きしない |
 | timeline | `loadStoredMessageImages/rerenderItem`。cacheを読むだけ、同tokenのDOMだけ更新。`avatarColor/rgbToHsl`は局所の色cacheで、台帳を更新しない |
-| [image-gallery.js](../../../../web/image-gallery.js) | `renderImageStack/openImageViewer/stepIndex`。URL配列と現在index、矢印/swipe/alt。closeでsrcを外すがURLの生成者ではない |
+| [image-gallery.js](../../../../web/image-gallery.js) | `renderImageStack/openImageViewer/stepIndex`と、zoom/pan/共有の純関数`zoomAt/clampView/pinchView/fileNameOf/shareKind`（[conversation.md](conversation.md)の「Image viewer」）。URL配列と現在index、矢印/swipe/alt、拡大・ダウンロード・共有/コピー。closeでsrcを外すがURLの生成者ではない |
 | [rich-text.js](../../../../web/rich-text.js) | `richTextHtml/renderBlocks/renderList/renderTable/inlineHtml`。本文をescapeし対応Markdownと既linkifyだけをHTML化 |
 | [view-format.js](../../../../web/view-format.js) | `applyAvatar/dayLabel/initials/memberDisplay/formatTime/formatDateTime/escapeClass/escapeHtml`。表示値の変換を共通化。台帳・選択・APIを読まない |
 
