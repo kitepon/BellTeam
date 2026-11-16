@@ -99,6 +99,21 @@ test('parent attachment uses shared deletion gate without child admission and su
   await assert.rejects(f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message: 'closed image', image: { mime: 'image/png', data: png.toString('base64') } })), { message: 'IMAGE_BOT_REMOVAL_PENDING' })
 })
 
+test('direct assets save files and copy forwarded images under the same lease; a Owner post with files is saved', async t => {
+  const f = await fixture(t), png = Buffer.from([137,80,78,71,13,10,26,10]), assets = f.conversation.directAssets
+  const [source] = await assets.saveAll({ owner: 'bot-peer', id: 'src-1', images: [{ mime: 'image/png', data: png.toString('base64') }] })
+  const copied = await assets.copyAll({ owner: 'user', id: 'fwd-1', sources: [{ owner: source.owner, file: source.file }] })
+  assert.equal(copied.assets.length, 1); assert.equal(copied.images[0].data, png.toString('base64'))
+  assert.deepEqual(await readFile(join(assets.directory('user'), copied.assets[0].file)), png)
+  const [saved] = await assets.saveFiles({ owner: 'user', id: 'file-1', files: [{ name: 'a.txt', mime: 'text/plain', data: Buffer.from('hello').toString('base64') }] })
+  assert.equal(saved.size, 5); assert.deepEqual(await readFile(join(assets.directory('user'), saved.file)), Buffer.from('hello'))
+  f.conversation.admission.close()
+  const receipt = await f.conversation.run({ kind: 'owner' }, () => f.direct.messenger.enqueueUserTurn({ target: 'bot-quincy', message: 'with a file',
+    files: [{ name: 'b.txt', mime: 'text/plain', data: Buffer.from('world').toString('base64') }] }))
+  const record = (await f.direct.receipts.store.records()).find(row => row.delivery_id === receipt.delivery_id)
+  assert.equal(record.file_assets.length, 1)
+})
+
 test('proven pre-input refusal remains queued without a self-loop and resumes on a later normal event', async t => {
   const f = await fixture(t); let reads = 0, available = false
   f.bots.readMember = async () => { reads++; if (!available) throw Object.assign(Error('not ready'), { code: 'MEMBERS_NOT_ACCEPTED' }) }

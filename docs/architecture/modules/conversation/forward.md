@@ -145,6 +145,10 @@ The Owner's direct post is accepted in the **body** by `DurableMessageReceipts.r
 
 Z74 lab (Centi) found this path missing; the check that would have caught it is a test through `DurableMessageReceipts.receive` (`test/durable-forward.test.mjs`).
 
+### Direct path assets (parent assembly)
+
+The direct (Owner to Bot) receive path runs in the body: `DurableMessageReceipts.receive` saves through the parent assembly's `directAssets`, which exposes `saveAll` (images), `saveFiles` (files) and `copyAll` (forwarded images) over the parent's own `MessageAssets`. All three take the same members lease and deletion-gate save lease (`membersAdmission.withLease` + `gate.beginSave/endSave`); a forwarded image is read by the parent directly (no `assets.read`, that effect is for the conversation child). A missing method must never surface as a 500: the Z75 lab found `copyAll` and `saveFiles` absent (a285 lab, 2026-11-16).
+
 ### Compatibility and release order
 
 - Additive. A released client ignores `origin` and shows `message`, which already reads as a normal message with the content in it. A new client against an older server sends `forward` / `share`, which the server ignores: the post would arrive as a plain message with only the comment, so a client must not offer forward or share-in until the server reports the feature (the history items it later sees carry `origin`; the clients' task decides how it detects support).
