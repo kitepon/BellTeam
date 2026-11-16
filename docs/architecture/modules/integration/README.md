@@ -533,7 +533,9 @@ get_selfだけ既bot.currentWorkBindingを読取側の互換欄として返し�
 ```mermaid
 flowchart LR
   Caller[削除・予定・跨module保存の固定caller] --> Reserve[module-operation-context: 同期reserve]
-  FreshFacade[会話facadeの新しい呼び出し（引き継ぎなし）] -->|members交換中| WhenOpen[MembersAdmission.whenOpen / resume直後・60秒の出口] --> Reserve
+  FreshFacade[会話facadeの新しい呼び出し（引き継ぎなし）] -->|会話module交換中（a296）| ConvHold[会話交換のresume待ち / 60秒の出口] --> WhenOpen
+  FreshFacade -->|members交換中| WhenOpen[MembersAdmission.whenOpen / resume直後・60秒の出口] --> Reserve
+  WhenOpen -->|開始の瞬間に会話交換中| ConvHold
   FreshFacade -->|開いている| Reserve
   Reserve --> Members[同membersAdmission.enter]
   Reserve --> Conversation[同conversationAdmission.enter]

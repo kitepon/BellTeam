@@ -13,7 +13,9 @@ import { checkObserverProjects } from './observer-check.mjs'
 import { readObserverTurns } from './self-turns.mjs'
 import { createConversationExecutionEffects } from './conversation-execution-effects.mjs'
 import { createConversationFacade } from './conversation-facade.mjs'
+import { MEMBERS_EXCHANGE_HOLD_MS } from './members-admission.mjs'
 
+const notAccepted = () => Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, outcome: 'not_accepted', effect: 'not_started' })
 const denied = () => Object.assign(new Error('CONVERSATION_CONTEXT_REQUIRED'), { code: 'CONVERSATION_CONTEXT_REQUIRED', status: 403, outcome: 'not_accepted', effect: 'not_started' })
 
 // One parent graph owns admission/authority; direct writes share its durable writer.
@@ -23,6 +25,18 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
   const admission = new ConversationLifetimes(), authority = createConversationAuthority()
   const moduleOperations = createModuleOperationContext({ membersAdmission, conversationAdmission: admission })
   const scope = new AsyncLocalStorage(), owned = new WeakMap(), listeners = new Set(), memberParents = new WeakMap()
+  // a296: the module's own replace (quiesce to the new child's resume) is "exchanging"; every exit of it reports through onState.
+  let exchanging = false
+  const exchangeWaiters = new Set()
+  const trackState = state => {
+    exchanging = state?.exchanging === true
+    if (!exchanging) { for (const wake of exchangeWaiters) wake(); exchangeWaiters.clear() }
+  }
+  const whenConversationOpen = () => !exchanging ? Promise.resolve() : new Promise((resolve, reject) => {
+    const wake = () => { clearTimeout(timer); resolve() }
+    const timer = setTimeout(() => { exchangeWaiters.delete(wake); reject(notAccepted()) }, MEMBERS_EXCHANGE_HOLD_MS); timer.unref?.()
+    exchangeWaiters.add(wake)
+  })
   const executionEffects = onExecution ?? createConversationExecutionEffects({ getServices, getController: () => controller, admission })
   const getBots = () => getServices().bots
   const receiptAssetContexts = new WeakSet()
@@ -74,7 +88,7 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
       ...(displayName === undefined ? {} : { displayName }), ...(position === undefined ? {} : { position }), ...(role === undefined ? {} : { role }) })) },
     onEffect: (method, params, context) => scope.run({ actor: context.actor, parent: context }, () => effects(method, params, context)),
     onEvent: async change => { await Promise.all([...listeners].map(listener => listener(change))) },
-    onDiagnostic, onState, ...(prepareRelease ? { prepareRelease } : {}), ...(spawnProcess ? { spawnProcess } : {}),
+    onDiagnostic, onState: state => { trackState(state); onState?.(state) }, ...(prepareRelease ? { prepareRelease } : {}), ...(spawnProcess ? { spawnProcess } : {}),
   })
   const inheritedContext = (input, current) => input.operationContext ?? (input.membersLease && input.conversationLease ? input : current?.parent?.operationContext)
   const context = (method, input = {}) => {
@@ -109,11 +123,18 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
   }
   // members-admission.md (a127): a fresh call reserves (synchronous members enter) right after a members exchange,
   // in the caller's scope, instead of being refused during it; same whenOpen and 60 s exit as the AT7 scheduler.
+  // a296: it also waits out this module's own exchange (conversation/process.md), re-checked at the instant it starts.
   const admit = (method, input = {}, start) => {
     const current = scope.getStore()
-    if (inheritedContext(input, current) || !membersAdmission.exchanging) return start()
+    if (inheritedContext(input, current) || !membersAdmission.exchanging && !exchanging) return start()
     let started
-    const opened = membersAdmission.whenOpen(() => { started = scope.run(current, start) })
+    const begin = async () => {
+      for (;;) {
+        await whenConversationOpen()
+        if (await membersAdmission.whenOpen(() => exchanging ? false : (started = scope.run(current, start), true))) return
+      }
+    }
+    const opened = begin()
     const result = opened.then(() => started)
     result.completion = opened.then(() => started?.completion ?? started)
     if (method === 'user.turn') result.accepted = opened.then(() => started?.accepted ?? started)
