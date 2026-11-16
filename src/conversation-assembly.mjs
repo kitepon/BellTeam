@@ -30,13 +30,16 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     assertContext: context => receiptAssetContexts.has(context) ? membersAdmission.assertLease(context.membersLease) : moduleOperations.assert(context) })
   const receiptAssets = new MessageAssets({ root, botsAssetsRoot: join(root, 'state/bots'),
     ...(getServices().seatRuntime ? { readImage: (image, maxBytes) => getServices().seatRuntime.readImage(image, maxBytes) } : {}) })
+  // Every direct-path write (images, files, forwarded images) takes the same members lease and deletion-gate save lease.
+  const leased = write => input => membersAdmission.withLease(async membersLease => {
+    const context = { membersLease }; receiptAssetContexts.add(context)
+    const lease = await gate.beginSave(input.owner, context)
+    try { return await write(input) }
+    finally { await gate.endSave(lease); receiptAssetContexts.delete(context) }
+  })
   const directAssets = { directory: owner => receiptAssets.directory(owner),
-    saveAll: input => membersAdmission.withLease(async membersLease => {
-      const context = { membersLease }; receiptAssetContexts.add(context)
-      const lease = await gate.beginSave(input.owner, context)
-      try { return await receiptAssets.saveAll(input) }
-      finally { await gate.endSave(lease); receiptAssetContexts.delete(context) }
-    }) }
+    saveAll: leased(input => receiptAssets.saveAll(input)), saveFiles: leased(input => receiptAssets.saveFiles(input)),
+    copyAll: leased(input => receiptAssets.copyAll(input)) }
 
   const observerEffects = createConversationObserverParentEffects({
     snapshot: async context => { await getBots().refresh(context.operationContext); return [...getBots().values()] },
