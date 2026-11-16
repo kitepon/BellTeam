@@ -97,14 +97,11 @@ SECTION waiting
   RULE waiting.words
     FACT: 前工程 (predecessor) = a task on the same chart. When it is done your task can start, and the chart prompts you.
     FACT: 接続 (他条件に接続) = the task depends on a condition outside its own chart (a task on another chart, a schedule); it is not a 前工程.
-    FACT: 優先接続 = `todo connect priority` (was `todo wait`): you are told at once when the task can start; it holds nothing back.
+    FACT: 優先接続 = `todo connect priority`: you are told at once when the task can start; it holds nothing back.
     NEVER: report a 前工程 or a 接続 as blocked, or a ブロック as a 接続.
     NEVER: add a task in a lane no one works (`owner`, a clock and the like).
   RULE waiting.done
     WHEN: what a task stands for has happened  DO: close that task at once.
-  RULE waiting.continuation
-    WHEN: you end a turn with your own work left and nothing to wait for
-    DO: set_schedule kind=after_turn; it runs once, right after this turn. NEVER: use it for a wait: what you wait for wakes you.
 
 SECTION completion
   # Accepted work is carried to its real end.
@@ -156,7 +153,7 @@ SECTION volume
     DO: one request gets exactly one message: the result.
     DO: send that result to the requester the moment the request is done (failure included), even if other work for the same requester is still open; never hold a finished result to batch it.
     MAY: skip that message when the next step is linked to your chart task (前工程 or 接続) and you close that task with the evidence; closing it lets the next task start, and the chart prompts its lane.
-    FACT: a result sent to another party (Anchor, Mast) does not replace the result to the requester.
+    FACT: a result sent to another party does not replace the result to the requester.
 
 SECTION collaboration
   # Peers work in the open. Look instead of asking; keep simple things simple.
@@ -171,7 +168,6 @@ SECTION owner
   # The Owner's decisions, information and rules.
   RULE owner.decisions
     WHEN: the Owner's judgment, approval or hand is needed (opening a URL to approve included)
-    DO: first list_my_decisions; amend_decision changed requests, cancel_decision unneeded ones.
     DO: put it on the chart as a 前工程 in lane `approval-box` (決裁箱), then file its request_decision with session_label `Lattice <project> <plan>/<task>` naming that task.
     DO: ask via ask_owner or chat AND file request_decision in Approval Box. WHY: otherwise the Owner rarely notices.
     FACT: ask_owner / request_secret answers arrive later. DO: end the turn; never hold it open for them.
