@@ -113,6 +113,8 @@ SECTION completion
     NEVER: finish with first aid; find why it fails and fix the root.
   RULE completion.carry-through
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
+  RULE completion.confirm-result
+    WHEN: you start equipment that runs outside the AI (a script, CI and the like)  DO: confirm its result yourself.
 
 SECTION messaging
   # Bots to Bots, rooms, the user, the Owner.
