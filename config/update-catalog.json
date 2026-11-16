@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T03:30:21Z",
-  "expiresAt": "2026-11-23T03:30:21Z",
+  "publishedAt": "2026-11-16T03:34:25Z",
+  "expiresAt": "2026-11-23T03:34:25Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "933393dc7512998ebdf590b044106d3e38e0a59b",
-      "versionId": "b5d007832e1afd35340051d3ec9dc7b5eb0190c32894643538a5166bff6f4df6",
+      "sourceCommit": "7fa44173950864d73ef6c4ca15c9a7749b1f2a55",
+      "versionId": "535ee2fcc725dbe343504446f01d4488d93dc881be3c1ee2ded9beb878a57266",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T032959Z/members-933393dc7512998ebdf590b044106d3e38e0a59b-linux-amd64.tar.gz",
-          "bytes": 4588406,
-          "sha256": "b5d007832e1afd35340051d3ec9dc7b5eb0190c32894643538a5166bff6f4df6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T033403Z/members-7fa44173950864d73ef6c4ca15c9a7749b1f2a55-linux-amd64.tar.gz",
+          "bytes": 4588253,
+          "sha256": "535ee2fcc725dbe343504446f01d4488d93dc881be3c1ee2ded9beb878a57266"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T032959Z/members-933393dc7512998ebdf590b044106d3e38e0a59b-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T033403Z/members-7fa44173950864d73ef6c4ca15c9a7749b1f2a55-linux-amd64.tar.gz.sigstore.json",
           "bytes": 10949,
-          "sha256": "79239c75b567821d77ef28f5e1d8659830c4b5dbcb062a3b011740f763d8b6db"
+          "sha256": "f8ba6c77543e7ce2afb54b0e4472e51df644c6fef765c72eb08fb66f2e8ac14b"
         },
-        "signerCommit": "933393dc7512998ebdf590b044106d3e38e0a59b"
+        "signerCommit": "7fa44173950864d73ef6c4ca15c9a7749b1f2a55"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "共通ルールの並びを整理しました。ルールの内容は減らしていません。"
+        "共通ルールの並びを整理し、オーナーが承認した不要なルールを削除しました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "933393dc7512998ebdf590b044106d3e38e0a59b",
-      "versionId": "0fc0c20f0e542b802681646342e670d10136eefac0e0f17995c73a51e753a35e",
+      "sourceCommit": "7fa44173950864d73ef6c4ca15c9a7749b1f2a55",
+      "versionId": "9c8df8f1ec12bf0f9f59fa6ad7b97c0ea7c550eb77c54d4c497b1fcdf581aaca",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T032959Z/members-933393dc7512998ebdf590b044106d3e38e0a59b-linux-arm64.tar.gz",
-          "bytes": 4588405,
-          "sha256": "0fc0c20f0e542b802681646342e670d10136eefac0e0f17995c73a51e753a35e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T033403Z/members-7fa44173950864d73ef6c4ca15c9a7749b1f2a55-linux-arm64.tar.gz",
+          "bytes": 4588252,
+          "sha256": "9c8df8f1ec12bf0f9f59fa6ad7b97c0ea7c550eb77c54d4c497b1fcdf581aaca"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T032959Z/members-933393dc7512998ebdf590b044106d3e38e0a59b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "4753a0d04cf60696465c9b0e02c8d6721e290cec3ed0cca5a252b54a87fa8df7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T033403Z/members-7fa44173950864d73ef6c4ca15c9a7749b1f2a55-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10718,
+          "sha256": "4fa17eec6d2740eb9251fbf88b42c2025a9c7633ff0071c4c6ad5229debd816e"
         },
-        "signerCommit": "933393dc7512998ebdf590b044106d3e38e0a59b"
+        "signerCommit": "7fa44173950864d73ef6c4ca15c9a7749b1f2a55"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "共通ルールの並びを整理しました。ルールの内容は減らしていません。"
+        "共通ルールの並びを整理し、オーナーが承認した不要なルールを削除しました。"
       ]
     },
     {
