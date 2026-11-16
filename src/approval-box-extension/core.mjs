@@ -23,7 +23,7 @@ const sameJstDay = (iso, now) => typeof iso === 'string' && Math.floor((Date.par
 const existsAlready = result => /EXIST|ALREADY|UNCHANGED/iu.test(result?.code ?? '')
 
 export function createApprovalBoxExtensionCore({ client = createApprovalBoxClient(), now = Date.now, stateDir = STATE_DIR, files = fileOps, streamBackoffMs = 1000 } = {}) {
-  let session, rows = null, pairing = null, connectState = 'not_connected', entitlement = null, entitlementAt = 0, roster = null, rosterAt = 0
+  let session, unsaved = false, rows = null, pairing = null, connectState = 'not_connected', entitlement = null, entitlementAt = 0, roster = null, rosterAt = 0
   let seq = 0, ring = [], dirty = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
   const rowsPath = join(stateDir, 'links.json')
 
@@ -48,17 +48,22 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     const claimed = pairing.claimed
     pairing = null
     session = { token: claimed.session, expiresAt: claimed.expires_at ?? null }
-    await effect('session.put', { value: JSON.stringify(session) })
     connectState = 'connected'; entitlement = null; entitlementAt = 0; sessionInvalid = false; caughtUp = false
+    unsaved = true; await saveSession(effect) // a failed put never loses the one-time session: it stays in memory and is saved again on every later root
+  }
+  // shortcut: one extra effect per root while the store refuses, not a backoff; upgrade if the store gets slow (a198)
+  const saveSession = async effect => {
+    if (!unsaved || !session) return
+    try { await effect('session.put', { value: JSON.stringify(session) }); unsaved = false } catch { /* keep unsaved, retry next root */ }
   }
   const dropSession = async effect => {
     stopStream()
     const had = session
-    session = null; entitlement = null; sessionInvalid = false
+    session = null; unsaved = false; entitlement = null; sessionInvalid = false
     connectState = nextConnect(had ? 'connected' : connectState, { type: 'unauthorized' }).state
     await effect('session.erase', {}).catch(() => {})
   }
-  const ready = async effect => { await loadSession(effect); await adoptPairing(effect); if (sessionInvalid) await dropSession(effect) }
+  const ready = async effect => { await loadSession(effect); await adoptPairing(effect); await saveSession(effect); if (sessionInvalid) await dropSession(effect) }
 
   const abx = async (effect, method, path, options) => {
     const response = await client.call(session.token, method, path, options)
@@ -257,7 +262,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     async cancelConnect(params, effect) { pairing = null; connectState = nextConnect(connectState, { type: 'cancel' }).state; return connection(effect) },
     async disconnect(params, effect) {
       await ready(effect)
-      pairing = null; stopStream(); session = null; entitlement = null; connectState = 'not_connected'
+      pairing = null; stopStream(); session = null; unsaved = false; entitlement = null; connectState = 'not_connected'
       await effect('session.erase', {})
       return connection(effect)
     },
