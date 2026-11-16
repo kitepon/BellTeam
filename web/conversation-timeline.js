@@ -44,7 +44,8 @@ export function splitOrigin(message = '', start = null) {
 const icon = path => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`
 const ACTION_ICONS = {
   reply: icon('<path d="M10 7L4.5 12l5.5 5"/><path d="M4.5 12H14a5.5 5.5 0 0 1 5.5 5.5V19"/>'),
-  forward: icon('<path d="M14 7l5.5 5-5.5 5"/><path d="M19.5 12H10A5.5 5.5 0 0 0 4.5 17.5V19"/>'),
+  // 転送：箱から真上へ出る矢印（返信の矢印と向きが似ないように。a308）
+  forward: icon('<path d="M12 15V3.5"/><path d="M8 7.5l4-4 4 4"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6.5a2 2 0 0 0-2-2h-1.5"/>'),
   copy: icon('<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>'),
   done: icon('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
 }
