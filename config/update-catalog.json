@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T15:23:28Z",
-  "expiresAt": "2026-11-23T15:23:28Z",
+  "publishedAt": "2026-11-16T15:51:04Z",
+  "expiresAt": "2026-11-23T15:51:04Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e8019132b27197fcf68b3b1286fa9ed0ff132eec",
-      "versionId": "sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034",
+      "sourceCommit": "e48ddea5bd15b6f220b22986ef14cd484f46cad7",
+      "versionId": "sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ボットとの会話で、転送・共有・ファイルを付けた送信を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
+        "ボットとの会話で、転送・共有・ファイルを付けた送信と、画像つきメッセージの転送を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e8019132b27197fcf68b3b1286fa9ed0ff132eec",
-      "versionId": "sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034",
+      "sourceCommit": "e48ddea5bd15b6f220b22986ef14cd484f46cad7",
+      "versionId": "sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ボットとの会話で、転送・共有・ファイルを付けた送信を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
+        "ボットとの会話で、転送・共有・ファイルを付けた送信と、画像つきメッセージの転送を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
       ]
     },
     {
