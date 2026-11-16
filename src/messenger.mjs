@@ -8,11 +8,12 @@ import { ConversationWriter } from './conversation-writer.mjs'
 import { normalizeConversationCallbackError } from './conversation/callbacks.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { jst, replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
+import { originNotice, resolveOrigin } from './origin-reference.mjs'
 
-export function directEnvelope(from, message, { fork = false, replyTo = null } = {}) {
+export function directEnvelope(from, message, { fork = false, replyTo = null, origin = null } = {}) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
   const name = identity.id === 'user' ? 'オーナー' : identity.name
-  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${replyNotice(replyTo)}${message}`
+  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${origin ? originNotice(origin, message) : `${replyNotice(replyTo)}${message}`}`
 }
 
 // fork-inquiry.md "Inquiry row and fork input": the fork answers in its last reply, which is relayed; a sendmessage would be a 2nd message.
@@ -25,19 +26,20 @@ function forkSeatLabel(seat) {
   return seat?.kind === 'fork' && typeof seat.forkId === 'string' && seat.forkId ? { kind: 'fork', fork_id: seat.forkId } : null
 }
 
-export function userEnvelope(from, message, { replyTo = null } = {}) {
-  return directEnvelope(from, message, { replyTo })
+export function userEnvelope(from, message, { replyTo = null, origin = null } = {}) {
+  return directEnvelope(from, message, { replyTo, origin })
 }
 
 export class BellTeamMessenger extends ConversationWriter {
   // onTurnEndは、Botのターンが終わった時にオーナーへの報告漏れを確かめる処理（turn-reports.mjs）を呼ぶ。
-  constructor({ bots, transport, logPath, store = new ConversationStore({ logPath }), assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID, failureFields }) {
+  constructor({ bots, transport, logPath, store = new ConversationStore({ logPath }), assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID, failureFields, forwardSource = async () => null }) {
     super({ logPath, now, id: deliveryId, onMessage, failureFields })
     this.bots = bots
     this.transport = transport
     this.assets = assets
     this.onTurnEnd = onTurnEnd
     this.requireAccess = requireAccess
+    this.forwardSource = forwardSource
     this.admitWork = admitWork
     this.store = store
     // fork-inquiry.md "Owed notice": inquiries whose ONE notice this process holds (live) or still owes (owed).
@@ -351,14 +353,17 @@ export class BellTeamMessenger extends ConversationWriter {
     return completion
   }
 
-  async prepareUserTurn({ target, message, images = [], recordUser = true, replyTo, replyQuote }) {
+  async prepareUserTurn({ target, message: comment, images = [], recordUser = true, replyTo, replyQuote, forward, share }) {
     const check = this.admitWork()
     await this.bots.refresh?.()
     const bot = this.bots.get(target)
     if (!bot) throw new Error(`BOT_NOT_FOUND: ${target}`)
     await this.requireAccess({ from: 'user', target })
-    if (typeof message !== 'string' || (message.length === 0 && !images.length)) throw new Error('MESSAGE_REQUIRED')
+    if (typeof comment !== 'string') throw new Error('MESSAGE_REQUIRED')
     images.forEach(validateImage)
+    const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
+    const message = origin ? origin.message : comment
+    if (message.length === 0 && !images.length) throw new Error('MESSAGE_REQUIRED')
     if (replyQuote !== undefined && replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 })
     const reply = replyTo === undefined ? null : await this.replyReference(target, replyTo, replyQuote)
     const deliveryId = this.deliveryId()
@@ -367,15 +372,15 @@ export class BellTeamMessenger extends ConversationWriter {
       // 送った画像を会話の記録に残す。Botへ渡す一時ファイルはターンが終われば消える。
       const imageAssets = images.length && this.assets ? await this.assets.saveAll({ owner: 'user', id: deliveryId, images }) : []
       await this.append(this.record({
-        deliveryId, from: 'user', target, message, images, imageAssets, delivery: 'running', replyTo: reply,
+        deliveryId, from: 'user', target, message, images, imageAssets, delivery: 'running', replyTo: reply, origin: origin?.origin,
       }))
     }
-    return { target, message, images, bot, deliveryId, startedAt, check, replyTo: reply }
+    return { target, message, images, bot, deliveryId, startedAt, check, replyTo: reply, origin: origin?.origin }
   }
 
   startUserTurn(prepared) {
     const { target, message, images, bot, deliveryId } = prepared
-    return this.transport.turn(bot, userEnvelope(memberIdentity(this.bots, 'user'), message, { replyTo: prepared.replyTo }), {
+    return this.transport.turn(bot, userEnvelope(memberIdentity(this.bots, 'user'), message, { replyTo: prepared.replyTo, origin: prepared.origin }), {
       admissionCheck: prepared.check,
       images,
       queue: {
@@ -415,7 +420,7 @@ export class BellTeamMessenger extends ConversationWriter {
     return snapshotReply(id, source, quote)
   }
 
-  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null, replyTo = null }) {
+  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null, replyTo = null, origin = null }) {
     return {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: memberIdentity(this.bots, from), target_identity: memberIdentity(this.bots, target),
@@ -423,6 +428,7 @@ export class BellTeamMessenger extends ConversationWriter {
       ...(imageAsset ? { image_asset: imageAsset } : {}),
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(origin ? { origin } : {}),
       ...(label ?? {}),
     }
   }
