@@ -480,3 +480,26 @@ test('reply part: a selection inside one message text shows 引用して返信 a
   selection = selecting('   '); handlers.selectionchange(); assert.equal(button.hidden, true, 'whitespace only')
   selection = null; handlers.selectionchange(); assert.equal(button.hidden, true)
 })
+
+test('reply part (touch): the browser may clear the selection when the button is pressed; the button stays for the press and still sends the picked text', async t => {
+  const body = new Element(), handlers = {}, picked = []
+  globalThis.document = { createElement: () => new Element(), querySelectorAll: () => [], body, addEventListener: (name, fn) => { handlers[name] = fn } }
+  globalThis.ResizeObserver = class { observe() {} }; globalThis.CSS = { escape: value => value }
+  let selection = null
+  globalThis.getSelection = () => selection ?? { isCollapsed: true, removeAllRanges() {} }
+  t.after(() => { Object.assign(globalThis, saved); delete globalThis.getSelection })
+  const timeline = new Element()
+  const view = createConversationTimeline({ timeline, latestButton: new Element(), api: async path => path.endsWith('/queue') ? { items: [] } : { items: [msg('m1', { message: '選ぶ文章' })], has_more: false }, messageImages: { load() {}, get() {}, failed() {} }, getBot() {}, isStopping: () => false, onStop() {}, onQueueChange() {}, onReply: reply => picked.push(reply) })
+  await view.open({ type: 'bot', id: 'a', name: 'A' }); await settle()
+  const button = body.children.find(node => node.className === 'reply-selection')
+  const holder = { className: 'message-text', closest: sel => sel === '.message-text' ? holder : sel === '[data-id]' ? { dataset: { id: 'm1' } } : null }
+  const node = { nodeType: 3, parentElement: holder }
+  selection = { isCollapsed: false, toString: () => '選ぶ文章', getRangeAt: () => ({ startContainer: node, endContainer: node, getBoundingClientRect: () => ({ left: 10, bottom: 50 }) }), removeAllRanges() {} }
+  handlers.selectionchange(); assert.equal(button.hidden, false)
+  button.listeners.pointerdown()
+  selection = null; handlers.selectionchange() // the touch collapsed the selection
+  assert.equal(button.hidden, false, 'kept while it is pressed')
+  button.listeners.click()
+  assert.deepEqual(picked, [{ id: 'm1', sender: 'A', text: '選ぶ文章', quote: { text: '選ぶ文章' } }])
+  timeline.listeners.scroll?.()
+})

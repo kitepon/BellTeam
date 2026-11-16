@@ -286,7 +286,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   timeline.addEventListener('scroll', () => {
     state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
     latestButton.hidden = !target || state.stickToBottom
-    selectionButton.hidden = true // 位置が合わなくなる
+    if (selectionPick) onSelectionChange() // 選択は残る：位置だけ追う（タッチでは下に固定）
     if (timeline.scrollTop < 240) void readHistory(loadOlderMessages)
   })
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)
@@ -474,8 +474,13 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   selectionButton.textContent = '引用して返信'
   selectionButton.hidden = true
   selectionButton.addEventListener('mousedown', event => event.preventDefault())
+  // 触って押す時、ブラウザは押した瞬間に選択を外すことがある。押している間は消さず、選んだ文章は selectionPick が持つ。
+  let pressing = false
+  selectionButton.addEventListener('pointerdown', () => { pressing = true })
+  for (const name of ['pointerup', 'pointercancel']) selectionButton.addEventListener(name, () => { setTimeout(() => { pressing = false }, 400) })
   selectionButton.addEventListener('click', () => {
     const picked = selectionPick
+    pressing = false
     selectionButton.hidden = true; selectionPick = null
     globalThis.getSelection?.()?.removeAllRanges()
     if (picked) onReply(picked)
@@ -490,6 +495,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     return { ...replySender(item), text: text.replace(/\s+/gu, ' ').trim(), quote: { text } }
   }
   function onSelectionChange() {
+    if (pressing) return
     const selection = globalThis.getSelection?.()
     selectionPick = selection && !selection.isCollapsed ? quoteOfSelection(selection) : null
     selectionButton.hidden = !selectionPick
