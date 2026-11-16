@@ -532,10 +532,16 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     private void ImagesDragOver(object? sender, DragEventArgs e)
     {
         if (e.DataTransfer.Contains(DataFormat.File)) { e.DragEffects = model.CanAttach ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
+        // Text or a link dragged in from another app over the conversation becomes a 共有 (the composer keeps taking text as text).
+        else if (sender == messageScroll && e.DataTransfer.Contains(DataFormat.Text)) { e.DragEffects = model.Connected ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
     }
     private async void ImagesDrop(object? sender, DragEventArgs e)
     {
-        if (e.DataTransfer.TryGetFiles() is not { } files) return;
+        if (e.DataTransfer.TryGetFiles() is not { } files)
+        {
+            if (sender == messageScroll && model.Connected && e.DataTransfer.TryGetText() is { } dropped && ShareDrop.Parse(dropped) is { } content) { e.Handled = true; ShowShareSheet(content, [], 0); }
+            return;
+        }
         e.Handled = true; await model.AttachFilesAsync(files.Select(file => file.TryGetLocalPath()).OfType<string>().ToArray());
     }
     private void ComposerKeyDown(object? sender, KeyEventArgs e)
@@ -813,6 +819,10 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     }
     public void CloseSheet() { AfterSheetCloses(); sheetContent = null; sheetHost.Content = null; sheet.IsVisible = false; }
     // Mac PeerMessageSheet in the shared in-window sheet.
+    // 転送 (forward.md): the sheet that opens from a message's 転送 button or menu.
+    public DestinationSheet ShowForwardSheet(TimelineMessage message) { CloseSheet(); var view = DestinationSheet.Forward(model, message, CloseSheet); OpenSheet("転送", view); return view; }
+    // 共有: what another app dragged into the conversation (Linux has no share sheet); the open conversation is the default destination.
+    public DestinationSheet ShowShareSheet(ShareContent content, ImageAttachment[] images, int skipped) { CloseSheet(); var view = DestinationSheet.Share(model, content, images, skipped, CloseSheet); OpenSheet("共有", view); return view; }
     public void ShowPeerSheet(TimelineMessage message) { CloseSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message)); }
     // The sidebar Update badge (and an update notification) opens the Update sheet over the window, as on the Mac. It reads again every time it opens.
     private UpdateContent? sheetContent;
