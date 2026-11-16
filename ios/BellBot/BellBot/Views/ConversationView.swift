@@ -80,6 +80,7 @@ private struct ConversationContent: View {
     @State private var selectedTargets: Set<String> = []
     /// 返信の相手。送信で空にし、送信が確認できなかった時は戻す。
     @State private var replyingTo: ReplyReference?
+    @State private var forwarding: TimelineMessage?
     @State private var jumpRequest = ConversationJump(id: nil, revision: 0)
     /// 引用した部分を元の行で光らせる指示。数秒で外し、行が作り直されても再び光らせない。
     @State private var jumpHighlight: (id: String, highlight: MarkdownHighlight)?
@@ -184,6 +185,11 @@ private struct ConversationContent: View {
                 SecretInputSheet(request: request) { state.result = $0 }
                     .environmentObject(store)
             }
+        }
+        .sheet(item: $forwarding) { message in
+            ForwardSheet(message: message, source: target,
+                         senderName: message.isOutgoing ? "あなた" : (message.sender?.title ?? bot?.displayName ?? title))
+                .environmentObject(store)
         }
         .fullScreenCover(item: $presentedGallery) { gallery in
             MessageImageGallery(paths: gallery.paths, api: store.api)
@@ -299,6 +305,7 @@ private struct ConversationContent: View {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
                            onReply: message.isQuotable ? { startReply(to: message, senderBot: senderBot) } : nil,
+                           onForward: message.isForwardable ? { forwarding = message } : nil,
                            onQuote: message.isQuotable ? { startReply(to: message, senderBot: senderBot, selection: $0) } : nil,
                            highlight: jumpHighlight?.id == message.id ? jumpHighlight?.highlight : nil,
                            onJump: { reply in Task { await jump(to: reply) } },
@@ -959,6 +966,7 @@ private struct MessageRow: View, Equatable {
     let replyLabel: String?
     let api: BellAPI
     let onReply: (() -> Void)?
+    let onForward: (() -> Void)?
     let onQuote: ((String) -> Void)?
     let highlight: MarkdownHighlight?
     let onJump: (ReplyReference) -> Void
@@ -972,7 +980,8 @@ private struct MessageRow: View, Equatable {
             && lhs.senderBot?.id == rhs.senderBot?.id && lhs.senderBot?.color == rhs.senderBot?.color
             && lhs.senderBot?.avatar == rhs.senderBot?.avatar
             && lhs.replyLabel == rhs.replyLabel && lhs.api === rhs.api
-            && (lhs.onReply == nil) == (rhs.onReply == nil) && lhs.highlight == rhs.highlight
+            && (lhs.onReply == nil) == (rhs.onReply == nil) && (lhs.onForward == nil) == (rhs.onForward == nil)
+            && lhs.highlight == rhs.highlight
     }
 
     private var senderName: String? {
@@ -1035,9 +1044,13 @@ private struct MessageRow: View, Equatable {
                                     .font(.subheadline)
                             }
                             if let text = message.message, !text.isEmpty {
-                                MessageText(source: text, accessibilityIdentifier: "message-text-\(message.id)",
-                                            onReply: onReply, onQuote: onQuote, highlight: highlight)
-                                    .equatable()
+                                if let origin = message.origin, origin.isForward || origin.isShare {
+                                    originBody(origin, text: text)
+                                } else {
+                                    MessageText(source: text, accessibilityIdentifier: "message-text-\(message.id)",
+                                                onReply: onReply, onForward: onForward, onQuote: onQuote, highlight: highlight)
+                                        .equatable()
+                                }
                             }
                             if let replyLabel {
                                 Text(replyLabel)
@@ -1054,8 +1067,9 @@ private struct MessageRow: View, Equatable {
                             message.isOutgoing ? BellTheme.line : bubbleAccent.opacity(0.35)))
                         // 本文のある吹き出しは長押しで文字を選ぶ。返信は選択メニュー（MessageText）にある。
                         .contextMenu {
-                            if message.message?.isEmpty != false, let onReply {
-                                Button("返信", systemImage: "arrowshape.turn.up.left", action: onReply)
+                            if message.message?.isEmpty != false {
+                                if let onReply { Button("返信", systemImage: "arrowshape.turn.up.left", action: onReply) }
+                                if let onForward { Button("転送", systemImage: "arrowshape.turn.up.right", action: onForward) }
                             }
                         }
                     }
@@ -1068,6 +1082,36 @@ private struct MessageRow: View, Equatable {
                     .padding(.horizontal, 5)
                 }
                 if !message.isOutgoing { Spacer(minLength: 45) }
+            }
+        }
+    }
+
+    /// 転送・共有の行：小さな印、オーナー自身のコメント、内容は引用ブロック（conversation forward.md）。
+    private func originBody(_ origin: MessageOrigin, text: String) -> some View {
+        let parts = origin.split(text)
+        return VStack(alignment: .leading, spacing: 6) {
+            Label(origin.isForward ? "転送" : (origin.app.map { "共有（\($0)）" } ?? "共有"),
+                  systemImage: origin.isForward ? "arrowshape.turn.up.right" : "square.and.arrow.down")
+                .font(.system(size: BellTheme.conversationLabelFontSize, weight: .bold))
+                .foregroundStyle(BellTheme.muted)
+                .accessibilityIdentifier("origin-mark-\(message.id)")
+            if origin.isForward, let name = origin.fromName {
+                Text([name, origin.at.map(BellDate.short)].compactMap { $0 }.joined(separator: "・"))
+                    .font(.system(size: 11)).foregroundStyle(BellTheme.muted)
+            }
+            if !parts.comment.isEmpty {
+                MessageText(source: parts.comment, accessibilityIdentifier: "message-comment-\(message.id)",
+                            onReply: onReply, onForward: onForward, highlight: nil)
+                    .equatable()
+            }
+            if !parts.content.isEmpty {
+                HStack(alignment: .top, spacing: 8) {
+                    ReplyQuoteBar(accent: bubbleAccent)
+                    MessageText(source: parts.content, accessibilityIdentifier: "message-text-\(message.id)",
+                                onReply: onReply, onForward: onForward, onQuote: onQuote, highlight: highlight)
+                        .equatable()
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

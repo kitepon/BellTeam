@@ -218,6 +218,31 @@ flowchart TD
 
 試験：`BellBotTests/ImageViewerPartsTests`、`BellBotUITests/ConversationImageViewerUITests`（拡大→写真へ保存→ダウンロード→共有。fixtureは`test/helpers/conversation-images-server.mjs`、環境変数`BELLTEAM_IMAGE_SMOKE_URL`）。
 
+## 転送（forward）
+
+契約は[forward](../conversation/forward.md)。クライアントは「どの発言か」の識別子だけを送り、本文はサーバーが元の発言から組む。他のアプリからの共有拡張（`share`）は別の節（未実装）。
+
+```mermaid
+flowchart TD
+  Pick["本文を長押しして選ぶ → 選択メニューの「転送」（行全体）<br/>画像だけの行はバブルのcontextMenu<br/>MessageText.customActions ← TimelineMessage.isForwardable"] --> Sheet["ForwardSheet（.sheet）<br/>プレビュー・転送先（Bot→部屋、8件超は検索）・コメント（任意）"]
+  Sheet --> Send["SendMessageBody{message: コメント, forward:{source:{kind,id}, message_id}}<br/>POST 転送先 T/messages（authorizeAIUse → BellAPI.sendMessage）<br/>部屋で返信者の自動選択が無い時は targets を選ばせる"]
+  Send -->|"成功"| Done["「転送しました（転送先）。」"]
+  Send -->|"404 / 415 / 400 / その他"| Words["ForwardSheet.failureMessage: 言葉で出す（サーバーの文言は出さない）"]
+  Server["本体: 元の発言を引いて message と origin を保存"] --> History["GET T/messages の行に origin"]
+  History --> Row["TimelineMessage.origin: MessageOrigin<br/>MessageRow.originBody: 「転送」/「共有」の印・転送元と時刻・コメント・内容（引用ブロック）"]
+```
+
+| 項目 | 規則 |
+| --- | --- |
+| 対象 | `isForwardable`: kindが無い/message/interim/peer/schedule。カード・受付前の仮行（`local-pending-`）は不可 |
+| 送る内容 | `forward.source.kind`はbot/room（今開いている会話）、`message_id`は行の`id`。コメントは`message`（空でもよい）。画像・元の本文は送らない |
+| 失敗の言葉 | 404「転送する発言が見つかりません。会話を読み直してから、もう一度お試しください。」415「画像やファイルを含む発言は、まだ転送できません。」（a291まで）400「転送できませんでした。内容を確かめてください。」 |
+| 行の表示 | `origin.contentStart`（Unicodeスカラー数）で`message`をコメントと内容に分ける。`origin`が無い行は従来どおり。`MessageOrigin.init(from:)`は型違い・欠落でも行を落とさない |
+| サーバー対応 | 検知しない（Web・Linuxと同じ）。古いサーバーではコメントだけの通常メッセージになるので、配布は転送のサーバーが本番に出た後 |
+| 対象外 | 共有拡張（別PR、承認待ち）、返信との併用、ファイルを含む発言の転送（サーバーが415） |
+
+試験：`BellBotTests/ForwardTests`（origin復号・分割・送信本文のキー・失敗文言）、`BellBotUITests/ConversationReplyUITests`の転送2本（シート→識別子だけ送る、転送された行の印）。fixtureは`test/helpers/conversation-reply-server.mjs`。
+
 ## 個別停止・再起動・端末画面・書出し
 
 | 操作 | 受付・完了・失敗・後始末 |

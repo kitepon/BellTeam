@@ -9,6 +9,7 @@ struct MessageText: View, Equatable {
     /// Adds 返信 (the whole message) and 引用して返信 (the selected text) to the selection menu.
     /// A long press on the text selects it, so the bubble itself cannot also own the long press.
     var onReply: (() -> Void)?
+    var onForward: (() -> Void)?
     var onQuote: ((String) -> Void)?
     var highlight: MarkdownHighlight?
     @Environment(\.openURL) private var openURL
@@ -17,7 +18,8 @@ struct MessageText: View, Equatable {
         lhs.source == rhs.source && lhs.fontSize == rhs.fontSize
             && lhs.lineSpacing == rhs.lineSpacing
             && lhs.accessibilityIdentifier == rhs.accessibilityIdentifier
-            && (lhs.onReply == nil) == (rhs.onReply == nil) && (lhs.onQuote == nil) == (rhs.onQuote == nil)
+            && (lhs.onReply == nil) == (rhs.onReply == nil) && (lhs.onForward == nil) == (rhs.onForward == nil)
+            && (lhs.onQuote == nil) == (rhs.onQuote == nil)
             && lhs.highlight == rhs.highlight
     }
 
@@ -25,6 +27,9 @@ struct MessageText: View, Equatable {
         var actions: [MarkdownSelectionMenuAction] = []
         if let onReply {
             actions.append(MarkdownSelectionMenuAction(title: "返信", systemImageName: "arrowshape.turn.up.left") { _ in onReply() })
+        }
+        if let onForward {
+            actions.append(MarkdownSelectionMenuAction(title: "転送", systemImageName: "arrowshape.turn.up.right") { _ in onForward() })
         }
         if let onQuote {
             actions.append(MarkdownSelectionMenuAction(title: "引用して返信", systemImageName: "text.quote") { selected in

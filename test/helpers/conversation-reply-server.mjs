@@ -17,6 +17,9 @@ const history = Array.from({ length: 60 }, (_, index) => {
 history[56].message = 'm057 今日は晴れです。明日は雨になりそうです。週末は未定です。'
 // m056は、元が無い部分引用。
 history[55].reply_to = { id: 'gone-2', available: false, part: true, text: '選んだ文章' }
+// m055は、ハルの発言をコメント付きで転送した行（content_startはコメント「これお願い\n\n」の7字）。
+history[54].message = 'これお願い\n\n午前は打ち合わせ。'
+history[54].origin = { kind: 'forward', from: { id: 'bot-two', name: 'ハル' }, at: at(1), content_start: 7 }
 // m060は古いm003への返信、m059は元が読めない返信。
 history[59].reply_to = { id: 'm003', available: true, sender: { id: 'bot-one', name: 'ユキ' }, at: at(2), text: 'm003 短い返事です。' }
 history[58].reply_to = { id: 'gone-1', available: false }
@@ -52,6 +55,13 @@ const server = createServer((request, response) => {
   if (path === '/api/owner') return json({ owner: fixture.owner })
   if (path.includes('/queue')) return json({ items: [] })
   if (path === '/api/bots/bot-one/messages' && request.method === 'GET') return json(pageItems(url))
+  const postTo = path.match(/^\/api\/(bots|rooms)\/([^/]+)\/messages$/u)
+  if (postTo && postTo[2] !== 'bot-one' && request.method === 'POST') {
+    let body = ''
+    request.on('data', chunk => { body += chunk })
+    request.on('end', () => { posts.push({ ...JSON.parse(body), _to: `${postTo[1]}/${postTo[2]}` }); json({ id: 'fwd-1', delivery_id: 'fwd-1', message_id: 'fwd-1', status: 'accepted' }) })
+    return
+  }
   if (path === '/api/bots/bot-one/messages' && request.method === 'POST') {
     let body = ''
     request.on('data', chunk => { body += chunk })
