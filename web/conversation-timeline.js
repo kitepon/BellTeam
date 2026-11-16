@@ -40,6 +40,15 @@ export function splitOrigin(message = '', start = null) {
   return { comment: chars.slice(0, start).join('').trim(), content: chars.slice(start).join('') }
 }
 
+// 吹き出しの下の三つの操作（a302）。固定の線画だけ。画面のデータは入れない。
+const icon = path => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`
+const ACTION_ICONS = {
+  reply: icon('<path d="M10 7L4.5 12l5.5 5"/><path d="M4.5 12H14a5.5 5.5 0 0 1 5.5 5.5V19"/>'),
+  forward: icon('<path d="M14 7l5.5 5-5.5 5"/><path d="M19.5 12H10A5.5 5.5 0 0 0 4.5 17.5V19"/>'),
+  copy: icon('<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>'),
+  done: icon('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+}
+
 export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange, onReply = () => {}, onForward = () => {} }) {
   let target = null
   const avatarColors = new Map()
@@ -451,7 +460,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (item.id) {
       const actions = document.createElement('div')
       actions.className = 'message-actions'
-      actions.append(replyButton(item), forwardButton(item))
+      actions.append(replyButton(item), forwardButton(item), ...(item.message?.trim() ? [copyButton(item)] : []))
       column.append(actions)
     }
     wrapper.append(column)
@@ -490,7 +499,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'message-reply message-forward'
-    button.textContent = '転送'
+    button.innerHTML = ACTION_ICONS.forward
     button.setAttribute('aria-label', 'このメッセージを転送')
     button.addEventListener('click', () => onForward({
       source: { kind: target?.type === 'room' ? 'room' : 'bot', id: target?.id }, messageId: item.id,
@@ -502,9 +511,24 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'message-reply'
-    button.textContent = '返信'
+    button.innerHTML = ACTION_ICONS.reply
     button.setAttribute('aria-label', 'このメッセージに返信')
     button.addEventListener('click', () => onReply({ ...replySender(item), text: item.message?.trim().split('\n')[0] || (item.image ? '（画像）' : '') }))
+    return button
+  }
+  // コピー：本文（転送・共有はコメントと内容をそのまま）。押すと一瞬だけチェックに替わる。書き込めない時は替えない。
+  // shortcut: navigator.clipboard だけ（https / localhost）。古い環境の代替は付けない。
+  function copyButton(item) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'message-reply message-copy'
+    button.innerHTML = ACTION_ICONS.copy
+    button.setAttribute('aria-label', 'このメッセージをコピー')
+    button.addEventListener('click', async () => {
+      try { await globalThis.navigator.clipboard.writeText(item.message) } catch { return }
+      button.innerHTML = ACTION_ICONS.done; button.setAttribute('aria-label', 'コピーしました')
+      setTimeout(() => { button.innerHTML = ACTION_ICONS.copy; button.setAttribute('aria-label', 'このメッセージをコピー') }, 1500)
+    })
     return button
   }
   const replySender = item => ({ id: item.id, sender: item.direction === 'outgoing' ? 'あなた' : item.sender || target?.name || '' })

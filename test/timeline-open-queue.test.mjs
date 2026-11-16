@@ -12,7 +12,8 @@ class Element {
   get scrollHeight() { return this.children.reduce((sum, child) => sum + 100 + child.scrollHeight, 0) }
   get firstChild() { return this.children[0] }
   addEventListener(name, listener) { this.listeners[name] = listener }
-  setAttribute() {}
+  attrs = {}
+  setAttribute(name, value) { this.attrs[name] = value }
   append(...rows) { for (const row of rows) { row.parent = this; this.children.push(row) } }
   replaceChildren(...rows) { this.children = []; this.append(...rows) }
   replaceWith(row) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i, 1, row); row.parent = this.parent }
@@ -373,6 +374,20 @@ test('reply: 返信 on a message hands {id, sender, first line} to the composer;
   assert.equal(buttons.length, 2)
   buttons[0].listeners.click(); buttons[1].listeners.click()
   assert.deepEqual(picked, [{ id: 'm1', sender: 'A', text: '一行目' }, { id: 'm2', sender: 'あなた', text: '（画像）' }])
+})
+
+test('actions: every message row shows reply, forward and copy icons; copy writes the message text, an image-only row has no copy', async t => {
+  const f = fixture(t, () => ({ has_more: false, items: [msg('m1', { message: '一行目\n二行目' }), msg('m2', { direction: 'outgoing', message: '', image: true })] }))
+  await f.open('a'); await settle()
+  const rows = everyNode(f.timeline).filter(node => node.className === 'message-actions')
+  assert.deepEqual(rows.map(row => row.children.map(button => button.attrs['aria-label'])), [['このメッセージに返信', 'このメッセージを転送', 'このメッセージをコピー'], ['このメッセージに返信', 'このメッセージを転送']])
+  assert.equal(rows[0].children.every(button => button.innerHTML.startsWith('<svg') && !button.textContent), true, 'icons only, no text')
+  const written = []
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText: async text => { written.push(text) } } }, configurable: true })
+  t.after(() => saved ? Object.defineProperty(globalThis, 'navigator', saved) : delete globalThis.navigator)
+  await rows[0].children[2].listeners.click()
+  assert.deepEqual(written, ['一行目\n二行目'])
 })
 
 test('reply: tapping the quote scrolls to a loaded original and highlights it', async t => {
