@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T06:33:36Z",
-  "expiresAt": "2026-11-23T06:33:36Z",
+  "publishedAt": "2026-11-16T09:08:34Z",
+  "expiresAt": "2026-11-23T09:08:34Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb",
-      "versionId": "c863a95f8cf57a2b0e70b69e3b90cbc851b8fe817c50fbc9be629a855d000975",
+      "sourceCommit": "093d5304132421f64088f6629ceb78eaaf42e91e",
+      "versionId": "fb644f2e8cfd3520f35be26a073031f22f7f90bfcfeafb6fa6d91e457ea16efa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T062955Z/members-f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb-linux-amd64.tar.gz",
-          "bytes": 4588366,
-          "sha256": "c863a95f8cf57a2b0e70b69e3b90cbc851b8fe817c50fbc9be629a855d000975"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-amd64.tar.gz",
+          "bytes": 4588421,
+          "sha256": "fb644f2e8cfd3520f35be26a073031f22f7f90bfcfeafb6fa6d91e457ea16efa"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T062955Z/members-f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "050f380eed97143fcfd56d90809fb18aa4a10dcad2b2217b52e9666cf6101030"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10855,
+          "sha256": "b34211cc5791f221aab8585d06bc232bfacf6a27613c2f4361ac7de0a11f9122"
         },
-        "signerCommit": "f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb"
+        "signerCommit": "093d5304132421f64088f6629ceb78eaaf42e91e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,14 @@
         }
       },
       "changes": [
-        "共通ルールの「lattice.conflicts」で、申告していない工程は衝突の判定に入らないこと、強制の工程表では着手を断ることを、Lattice 0.108.0に合わせて正しく書き直しました。"
+        "共通ルールの「completion.carry-through」に、AIの外で動く装置を自分で始めた時は、その結果を自分で確かめる、という決まりを加えました。",
+        "共通ルールの「waiting.script」の最初の条件を、自分で始めた装置の結果を待つ時、という言い方にそろえました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb",
-      "versionId": "1a0e1841cf1cc9e39de1ee029de932ea2181d7ba4f79876f66c20d7c1c290826",
+      "sourceCommit": "093d5304132421f64088f6629ceb78eaaf42e91e",
+      "versionId": "a471918544a0d5b68c165be99a052edfa2a5071f020c4b2aaeab3bd6769ae0ec",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +607,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T062955Z/members-f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb-linux-arm64.tar.gz",
-          "bytes": 4588372,
-          "sha256": "1a0e1841cf1cc9e39de1ee029de932ea2181d7ba4f79876f66c20d7c1c290826"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-arm64.tar.gz",
+          "bytes": 4588423,
+          "sha256": "a471918544a0d5b68c165be99a052edfa2a5071f020c4b2aaeab3bd6769ae0ec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T062955Z/members-f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "3793a2e066af1b8c0bb8fb41006e727a97a4d0ffabeb8af46b7d7cfed9725cb0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "30ae41e0e960b6c461bf6d7a96614a61c971a82d9dae3a0a7ddb48f6851cbbe6"
         },
-        "signerCommit": "f19086fbe7fa4d61f7f9d51a7048a72d7be68ebb"
+        "signerCommit": "093d5304132421f64088f6629ceb78eaaf42e91e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +633,8 @@
         }
       },
       "changes": [
-        "共通ルールの「lattice.conflicts」で、申告していない工程は衝突の判定に入らないこと、強制の工程表では着手を断ることを、Lattice 0.108.0に合わせて正しく書き直しました。"
+        "共通ルールの「completion.carry-through」に、AIの外で動く装置を自分で始めた時は、その結果を自分で確かめる、という決まりを加えました。",
+        "共通ルールの「waiting.script」の最初の条件を、自分で始めた装置の結果を待つ時、という言い方にそろえました。"
       ]
     },
     {
