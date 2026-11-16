@@ -30,12 +30,15 @@ public sealed class MessageCard : ContentControl
     private StackPanel? imagePlaceholder;
     private TextBlock? imageLabel;
     private TextBlock? replyLabel;
-    // Reply (conversation reply.md): the quote above the text (tap = jump), the 返信 button of the time line (shown while the pointer is on the row) and the right-click menu.
+    // Reply (conversation reply.md): the quote above the text (tap = jump), the reply icon of the action row under the bubble and the right-click menu.
     private Button? quoteButton;
     private TextBlock? quoteName, quoteText, quoteNote;
-    private readonly Button replyButton = ReplyButton();
-    // Forward (conversation forward.md): the 転送 button next to 返信, and the mark / quoted content of a forwarded or shared row.
-    private readonly Button forwardButton = ReplyButton("転送", "このメッセージを転送");
+    private readonly Button replyButton = ActionButton(Icons.Reply, "このメッセージに返信");
+    // Forward (conversation forward.md): the forward icon next to reply, and the mark / quoted content of a forwarded or shared row.
+    private readonly Button forwardButton = ActionButton(Icons.Forward, "このメッセージを転送");
+    private readonly Button copyButton = ActionButton(Icons.Copy, "このメッセージをコピー");
+    // Owner 11/17 (a304): three small always-visible icons under the bubble, at its bottom right, the same on every platform.
+    private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     private TextBlock? originMark;
     private Border? contentBorder;
     private MarkdownView? contentBody;
@@ -50,10 +53,11 @@ public sealed class MessageCard : ContentControl
     // Mac MessageRow time line: HStack(spacing 6) { ForkSeatBadge, time and status }, padded 5 on both sides.
     private readonly Border forkBadge = ForkBadge();
     private readonly StackPanel timeLine = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(5, 0, 5, 0) };
+    private Grid? actionRow;
     private bool entered;
-    private static Button ReplyButton(string label = "返信", string name = "このメッセージに返信")
+    private static Button ActionButton(string icon, string name)
     {
-        var button = new Button { Classes = { "plain" }, Content = label, FontSize = 14, Foreground = BellTheme.Violet, Background = Brushes.Transparent, Padding = default, Margin = new Thickness(10, 0, 0, 0), Opacity = 0, VerticalAlignment = VerticalAlignment.Center };
+        var button = new Button { Classes = { "plain" }, Content = Icons.Draw(icon, 16, BellTheme.Muted, thickness: 1.8), Width = 28, Height = 24, Background = Brushes.Transparent, Padding = default, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
         AutomationProperties.SetName(button, name); return button;
     }
     // What Workspace.Opening was when this card loaded (the staggered opening or the short arrival animation).
@@ -74,13 +78,16 @@ public sealed class MessageCard : ContentControl
     {
         this.item = item; this.workspace = workspace;
         Padding = default; Margin = new Thickness(0, 0, 0, 17);
-        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton); timeLine.Children.Add(forwardButton);
+        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery);
+        actions.Children.Add(replyButton); actions.Children.Add(forwardButton); actions.Children.Add(copyButton);
         replyButton.Click += (_, _) => workspace.StartQuote(Message);
         forwardButton.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowForwardSheet(Message);
-        // Shown while the pointer or the keyboard is on the row; it stays focusable so the keyboard can reach it.
-        PointerEntered += (_, _) => { replyButton.Opacity = 1; forwardButton.Opacity = 1; }; PointerExited += (_, _) => { replyButton.Opacity = replyButton.IsKeyboardFocusWithin ? 1 : 0; forwardButton.Opacity = forwardButton.IsKeyboardFocusWithin ? 1 : 0; };
-        replyButton.GotFocus += (_, _) => replyButton.Opacity = 1; replyButton.LostFocus += (_, _) => replyButton.Opacity = IsPointerOver ? 1 : 0;
-        forwardButton.GotFocus += (_, _) => forwardButton.Opacity = 1; forwardButton.LostFocus += (_, _) => forwardButton.Opacity = IsPointerOver ? 1 : 0;
+        copyButton.Click += async (_, _) =>
+        {
+            if (Message.Message is not { Length: > 0 } text || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            await clipboard.SetTextAsync(text);
+            copyButton.Content = Icons.Draw(Icons.Check, 16, BellTheme.Violet, thickness: 2); await Task.Delay(1200); copyButton.Content = Icons.Draw(Icons.Copy, 16, BellTheme.Muted, thickness: 1.8);
+        };
         Loaded += (_, _) =>
         {
             if (entered) return;
@@ -177,8 +184,10 @@ public sealed class MessageCard : ContentControl
         bubble = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1) };
         accentName = null;
         timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-        (timeLine.Parent as Panel)?.Children.Remove(timeLine);
-        var column = new StackPanel { Children = { stackName, stackImages, bubble, timeLine } };
+        actionRow?.Children.Clear();
+        // The time stays at the sender's side; the icons sit at the right end, under the bubble's bottom right.
+        actionRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { timeLine, actions } }; Grid.SetColumn(actions, 1);
+        var column = new StackPanel { Children = { stackName, stackImages, bubble, actionRow } };
         // Mac: a room shows the sender's 30 avatar beside incoming rows; the free 45 on the opposite side is the Spacer(minLength: 45).
         layout = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Margin = outgoing ? new Thickness(45, 0, 0, 0) : new Thickness(0, 0, 45, 0) };
         if (workspace.IsRoom && !outgoing)
@@ -255,7 +264,8 @@ public sealed class MessageCard : ContentControl
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
             AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
         }
-        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message);
+        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message); copyButton.IsVisible = forwardButton.IsVisible && !string.IsNullOrEmpty(message.Message);
+        actions.IsVisible = replyButton.IsVisible || forwardButton.IsVisible || copyButton.IsVisible;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
         foreach (var part in stack!.Children) { if (!part.IsVisible) continue; part.Margin = new Thickness(0, first ? 0 : 8, 0, 0); first = false; }
@@ -266,7 +276,8 @@ public sealed class MessageCard : ContentControl
         // Only a member's own conversation labels fork rows (a room's rows carry no seat).
         var fork = !isRoom && message.IsFork;
         forkBadge.IsVisible = fork;
-        timeLine.IsVisible = delivery.Text.Length != 0 || fork || replyButton.IsVisible || forwardButton.IsVisible;
-        timeLine.Margin = new Thickness(5, hasBubble ? 5 : 0, 5, 0);
+        timeLine.IsVisible = delivery.Text.Length != 0 || fork;
+        actionRow!.IsVisible = timeLine.IsVisible || actions.IsVisible;
+        actionRow.Margin = new Thickness(0, hasBubble ? 3 : 0, 0, 0); timeLine.Margin = new Thickness(5, 0, 5, 0); actions.Margin = new Thickness(0, 0, 3, 0);
     }
 }

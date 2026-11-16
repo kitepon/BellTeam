@@ -37,6 +37,8 @@ public static class Icons
     public const string Send = "M12,20 V5 M5.5,11.5 L12,5 L18.5,11.5";
     public const string Download = "M12,3.5 V15 M7.5,10.5 L12,15 L16.5,10.5 M5,13 V20 H19 V13";
     public const string Copy = "M9,9 H20 V20 H9 Z M5,15 V4 H15";
+    public const string Reply = "M10,6 L4,12 L10,18 M4,12 H14 a6,6 0 0 1 6,6 V19";
+    public const string Forward = "M14,6 L20,12 L14,18 M20,12 H10 a6,6 0 0 0 -6,6 V19";
     public const string Close = "M6,6 L18,18 M18,6 L6,18";
     public const string Export = "M12,15 V3.5 M7.5,8 L12,3.5 L16.5,8 M5,12 V20 H19 V12";
     public const string Warning = "M12,3.5 L22,20.5 H2 Z M12,10 V15 M12,17.6 V18";
