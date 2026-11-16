@@ -323,7 +323,7 @@ flowchart LR
   Content --> Post[POST message=コメント, share, images] --> Row[履歴の行 origin kind share]
 ```
 
-- 共有の起動は、識別（疎パッケージ）が無いと起きない。登録していない端末では共有シートにBellTeamは出ず、通常の起動は何も変わらない。登録の解除は`-Unregister`。
+- 共有の起動は、識別（疎パッケージ）が無いと起きない。登録していない端末では共有シートにBellTeamは出ず、通常の起動は何も変わらない。登録の解除は`-Unregister`で、パッケージと一緒に端末の信頼（`Cert:\LocalMachine\TrustedPeople`のCN=BellTeam）も外す（管理者の確認がもう一度出る）。証明書の鍵は利用者の保管庫に残るため、信頼を残すと、その鍵で署名されたパッケージを端末が信頼し続けてしまう。
 - 窓の接続先とサインインは主窓と同じ保存場所（`SettingsStore`・`DesktopAccess`）から読む。接続先が無い・接続できない時は理由を出す。
 - Windows SDK（makeappx・signtool）が要る。無い端末では登録スクリプトが入れ方を言って止まる。
 - Coreの追加は`ShareContent`・`BellApi.SendAsync(share)`・`Workspace.ShareAsync`・`Timeline.ShareRefusal`。LinuxにWindowsの共有先に当たるものは無い（a284は別の方式）。

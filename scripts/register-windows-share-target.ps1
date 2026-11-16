@@ -6,7 +6,7 @@
   The install folder stays as it is. This builds a sparse package (windows/Packaging/AppxManifest.xml) that points at it, signs it with a
   self-signed certificate (CN=BellTeam, created once in the current user's store), trusts that certificate once for this PC (the one step that needs
   administrator: a UAC prompt) and registers the package with -ExternalLocation. Afterwards BellTeam appears in the Windows share sheet.
-  Needs the Windows SDK (makeappx.exe and signtool.exe). Run it again after moving the install folder; -Unregister removes the package.
+  Needs the Windows SDK (makeappx.exe and signtool.exe). Run it again after moving the install folder; -Unregister removes the package and the certificate's trust on this PC (one more administrator prompt).
 #>
 [CmdletBinding()]
 param(
@@ -15,7 +15,16 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $packageName = 'BellTeam.Windows'; $subject = 'CN=BellTeam'
-if ($Unregister) { Get-AppxPackage -Name $packageName | Remove-AppxPackage; Write-Host 'BellTeam is no longer a share target.'; return }
+if ($Unregister) {
+  Get-AppxPackage -Name $packageName | Remove-AppxPackage
+  # The certificate's private key stays in your user store, so its trust on this PC goes too (the same single administrator prompt).
+  $trusted = Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq $subject
+  foreach ($entry in $trusted) {
+    Start-Process pwsh -Verb RunAs -Wait -ArgumentList '-NoProfile', '-Command', "Remove-Item 'Cert:\LocalMachine\TrustedPeople\$($entry.Thumbprint)'"
+    if (Test-Path "Cert:\LocalMachine\TrustedPeople\$($entry.Thumbprint)") { throw 'The package is removed, but the certificate is still trusted on this PC (the administrator prompt was declined). Run -Unregister again.' }
+  }
+  Write-Host 'BellTeam is no longer a share target, and its certificate is no longer trusted on this PC.'; return
+}
 if (-not (Test-Path (Join-Path $InstallDir 'BellTeam.exe'))) { throw "BellTeam is not installed in $InstallDir. Run scripts/install-windows.ps1 first." }
 
 $repo = Split-Path -Parent $PSScriptRoot
