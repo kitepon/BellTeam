@@ -54,6 +54,10 @@ SECTION lattice
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
+  RULE lattice.code-graph
+    WHEN: you are about to change code
+    DO: index your clone (`lattice-sensor-init <clone>`), then ask the code graph before you declare or edit: `lattice_sensor_explore` shows how the code works, `lattice_sensor_impact` and `lattice_sensor_callers` show what a symbol reaches (projectPath = your clone).
+    WHY: what it shows is what you declare and what your change can break.
   RULE lattice.conflicts
     WHEN: you add a task to a plan whose coordination mode is witness or enforced (session-context shows the mode)
     DO: declare it at once with `todo independence witness declare`: `--owns` the files it will edit, `--reads` the files it depends on; no flags when it touches no code.
