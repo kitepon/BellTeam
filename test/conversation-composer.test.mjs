@@ -208,3 +208,14 @@ test('reply: × cancels the reply and the next send has no reply_to', async t =>
   f.input.value = 'x'; await f.composer.send()
   assert.equal('reply_to' in f.calls[0].body, false)
 })
+
+test('reply part: a quoted selection is sent as reply_quote next to reply_to and the bar says 一部への返信', async t => {
+  const bar = new Element()
+  const f = fixture(t, { replyBar: bar })
+  f.composer.setReply({ id: 'orig-3', sender: 'A', text: '選んだ部分', quote: { text: '選んだ部分' } })
+  assert.equal(bar.children[0].textContent, 'Aの一部への返信'); assert.equal(bar.children[1].textContent, '選んだ部分')
+  f.input.value = '賛成です'; await f.composer.send()
+  assert.deepEqual([f.calls[0].body.reply_to, f.calls[0].body.reply_quote], ['orig-3', { text: '選んだ部分' }])
+  f.composer.setReply({ id: 'orig-4', sender: 'A', text: 't' }); f.input.value = '全体'; await f.composer.send()
+  assert.equal(f.calls[1].body.reply_to, 'orig-4'); assert.equal('reply_quote' in f.calls[1].body, false, 'whole-message reply has no reply_quote')
+})

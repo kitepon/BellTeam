@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { createConversationTimeline } from '../web/conversation-timeline.js'
+import { createConversationTimeline, locateQuotePart } from '../web/conversation-timeline.js'
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 class Element {
@@ -18,10 +18,11 @@ class Element {
   replaceWith(row) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i, 1, row); row.parent = this.parent }
   after(...rows) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i + 1, 0, ...rows); for (const row of rows) row.parent = this.parent }
   scrollTo({ top }) { this.scrollTop = top }
+  contains() { return true }
   querySelector(selector) { return this.querySelectorAll(selector)[0] }
   querySelectorAll(selector) {
     return this.children.flatMap(child => {
-      const match = selector.startsWith('[data-id=') ? child.dataset.id === selector.slice(10, -2) : selector === '[data-stop-bot-id]' && child.dataset.stopBotId
+      const match = selector.startsWith('[data-id=') ? child.dataset.id === selector.slice(10, -2) : selector === '.message-text' ? child.className === 'message-text' : selector === '[data-stop-bot-id]' && child.dataset.stopBotId
       return [...(match ? [child] : []), ...child.querySelectorAll(selector)]
     })
   }
@@ -343,7 +344,7 @@ test('an older page that fails and then succeeds by scrolling clears its error; 
 
 // ---- reply (a269): the quote is drawn only from item.reply_to; tapping it jumps by id ----
 const everyNode = node => [node, ...node.children.flatMap(everyNode)]
-const quotes = timeline => everyNode(timeline).filter(node => String(node.className).startsWith('reply-quote') && !String(node.className).startsWith('reply-quote-note'))
+const quotes = timeline => everyNode(timeline).filter(node => /^reply-quote( is-gone)?$/u.test(String(node.className)))
 const snapshot = (id, extra = {}) => ({ id, available: true, sender: { id: 'bot-a', name: 'A' }, at: '2026-11-16T00:00:00Z', text: '元の1行目', ...extra })
 const msg = (id, extra = {}) => ({ id, at: '2026-11-16T00:00:00Z', message: `text ${id}`, direction: 'incoming', sender: 'A', ...extra })
 
@@ -403,4 +404,79 @@ test('reply: a room record passes reply_to through to its quote', async t => {
   const f = fixture(t, () => ({ has_more: false, items: [{ id: 'rm1', at: '2026-11-16T00:00:00Z', message: 'hi', sender: { id: 'user', name: 'オーナー' }, room: { members: [] }, reply_to: snapshot('rm0') }] }))
   await f.open('room1', 'room'); await settle()
   assert.equal(quotes(f.timeline).length, 1); assert.equal(f.text().includes('元の1行目'), true)
+})
+
+// ---- reply to a selected part (a269r) ----
+test('locateQuotePart: first hit at or after from, else the first hit, across text nodes; none -> null', () => {
+  const n = ['前の', '文章です。そして', '文章です。'].map(textContent => ({ textContent }))
+  assert.deepEqual(locateQuotePart([n[1]], 'そして', 0), { startNode: n[1], startOffset: 5, endNode: n[1], endOffset: 8 })
+  const first = locateQuotePart(n, '文章です。', 0), later = locateQuotePart(n, '文章です。', 5)
+  assert.deepEqual([first.startNode === n[1], first.startOffset], [true, 0]); assert.deepEqual([later.startNode === n[2], later.startOffset], [true, 0], 'the hit at or after from')
+  assert.equal(locateQuotePart(n, '文章です。', 99).startNode, n[1], 'nothing at or after from: the first hit')
+  const across = locateQuotePart(n, 'の文章', 0); assert.deepEqual([across.startNode === n[0], across.startOffset, across.endNode === n[1], across.endOffset], [true, 1, true, 2])
+  assert.equal(locateQuotePart(n, '無い', 0), null); assert.equal(locateQuotePart(n, '', 0), null)
+})
+
+test('reply part: the quote draws the saved part; an unavailable original keeps the excerpt with the fixed line and is not tappable', async t => {
+  const f = fixture(t, () => ({ has_more: false, items: [
+    msg('p1', { direction: 'outgoing', reply_to: snapshot('o1', { text: '選んだ部分', part: true, range: { start: 3, end: 8 } }) }),
+    msg('p2', { direction: 'outgoing', reply_to: { id: 'lost', available: false, part: true, text: '消えた元の抜粋', truncated: true } }),
+  ] }))
+  await f.open('a'); await settle()
+  const [ok, gone] = quotes(f.timeline)
+  assert.equal(ok.listeners.click !== undefined, true); assert.equal(f.text().includes('選んだ部分'), true)
+  assert.equal(gone.listeners.click, undefined); const flat = node => [node.textContent ?? '', ...node.children.map(flat)].join(''); assert.equal(flat(gone), '消えた元の抜粋…元のメッセージを表示できません')
+})
+
+test('reply part: tapping a part quote highlights that text in the original (first hit at or after range.start); without the API only the row is marked', async t => {
+  const highlights = new Map(), made = []
+  globalThis.Highlight = class { constructor(range) { this.range = range; made.push(this) } }
+  globalThis.Range = class { setStart(node, offset) { this.start = [node, offset] } setEnd(node, offset) { this.end = [node, offset] } }
+  globalThis.CSS = { escape: value => value, highlights: { set: (name, value) => highlights.set(name, value), delete: name => highlights.delete(name) } }
+  t.after(() => { delete globalThis.Highlight; delete globalThis.Range })
+  const f = fixture(t, () => ({ has_more: false, items: [msg('o1', { message: '前置き。大事な点。後ろ。大事な点。' }), msg('r1', { direction: 'outgoing', reply_to: snapshot('o1', { text: '大事な点。', part: true, range: { start: 10, end: 15 } }) })] }))
+  globalThis.CSS = { escape: value => value, highlights: { set: (name, value) => highlights.set(name, value), delete: name => highlights.delete(name) } }
+  await f.open('a'); await settle()
+  const original = f.timeline.children[0].children.find(row => row.dataset.id === 'o1')
+  const holder = everyNode(original).find(node => node.className === 'message-text'); const text = { textContent: '前置き。大事な点。後ろ。大事な点。', children: [], dataset: {}, querySelectorAll: () => [] }; holder.children = [text]
+  document.createTreeWalker = root => { const list = [...root.children]; return { nextNode: () => list.shift() ?? null } }
+  quotes(f.timeline)[0].listeners.click(); await settle()
+  const range = highlights.get('reply-part').range
+  assert.deepEqual([range.start[0] === text, range.start[1], range.end[1]], [true, 12, 17], 'the second hit, at or after range.start (10)')
+  assert.equal(original.classes.has('reply-jumped'), true)
+  highlights.clear(); delete globalThis.Highlight
+  quotes(f.timeline)[0].listeners.click(); await settle()
+  assert.equal(highlights.size, 0, 'no Highlight API: no throw, row mark only')
+})
+
+test('reply part: a selection inside one message text shows 引用して返信 and hands {id, sender, text, quote} to the composer; other selections hide it', async t => {
+  const body = new Element(), handlers = {}, picked = []
+  globalThis.document = { ...globalThis.document, body, addEventListener: (name, fn) => { handlers[name] = fn }, createElement: () => new Element(), querySelectorAll: () => [] }
+  let removed = 0, selection = null
+  globalThis.getSelection = () => selection ?? { isCollapsed: true, removeAllRanges() { removed++ } }
+  t.after(() => { delete globalThis.getSelection })
+  const f = fixture(t, () => ({ has_more: false, items: [msg('m1', { message: '一行目の文章\n二行目' })] }), { onReply: reply => picked.push(reply) })
+  document.body = body; handlers.selectionchange = undefined
+  // fixture installs its own document; rebuild the timeline with the body present
+  globalThis.document.body = body
+  const view = (await import('../web/conversation-timeline.js')).createConversationTimeline
+  const requests = [], timeline = new Element(), latestButton = new Element()
+  globalThis.document.addEventListener = (name, fn) => { handlers[name] = fn }
+  const v = view({ timeline, latestButton, api: async path => path.endsWith('/queue') ? { items: [] } : { items: [msg('m1', { message: '一行目の文章\n二行目' })], has_more: false }, messageImages: { load() {}, get() {}, failed() {} }, getBot() {}, isStopping: () => false, onStop() {}, onQueueChange() {}, onReply: reply => picked.push(reply) })
+  await v.open({ type: 'bot', id: 'a', name: 'A' }); await settle()
+  const button = body.children.find(node => node.className === 'reply-selection')
+  assert.equal(button.hidden, true)
+  const holder = { className: 'message-text', closest: sel => sel === '.message-text' ? holder : sel === '[data-id]' ? { dataset: { id: 'm1' } } : null }
+  const node = { nodeType: 3, parentElement: holder }
+  const selecting = text => ({ isCollapsed: false, toString: () => text, getRangeAt: () => ({ startContainer: node, endContainer: node, getBoundingClientRect: () => ({ left: 40, bottom: 100 }) }), removeAllRanges() { removed++ } })
+  selection = selecting(' 一行目の文章\n二行目 '); handlers.selectionchange()
+  assert.equal(button.hidden, false); assert.equal(button.style.top, '106px')
+  assert.equal(button.listeners.mousedown({ preventDefault() { this.stopped = true } }) ?? true, true)
+  button.listeners.click()
+  assert.deepEqual(picked, [{ id: 'm1', sender: 'A', text: '一行目の文章 二行目', quote: { text: '一行目の文章\n二行目' } }]); assert.equal(button.hidden, true); assert.equal(removed, 1)
+  const other = { className: 'message-text', closest: () => null }
+  selection = { ...selecting('x'), getRangeAt: () => ({ startContainer: node, endContainer: { nodeType: 3, parentElement: other }, getBoundingClientRect: () => ({ left: 0, bottom: 0 }) }) }
+  handlers.selectionchange(); assert.equal(button.hidden, true, 'a selection across bubbles is not offered')
+  selection = selecting('   '); handlers.selectionchange(); assert.equal(button.hidden, true, 'whitespace only')
+  selection = null; handlers.selectionchange(); assert.equal(button.hidden, true)
 })

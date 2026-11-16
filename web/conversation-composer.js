@@ -60,7 +60,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
     replyBar.hidden = !draft.reply
     if (!draft.reply) { replyBar.replaceChildren(); return }
     const label = document.createElement('strong')
-    label.textContent = `${draft.reply.sender || '発言'}への返信`
+    label.textContent = draft.reply.quote ? `${draft.reply.sender || '発言'}の一部への返信` : `${draft.reply.sender || '発言'}への返信`
     const text = document.createElement('span')
     text.textContent = draft.reply.text
     const cancel = document.createElement('button')
@@ -165,7 +165,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
       const kind = destination.type === 'room' ? 'rooms' : 'bots'
       result = await api(`/api/${kind}/${destination.id}/messages`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}), ...(snapshot.reply ? { reply_to: snapshot.reply.id } : {}) }),
+        body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}), ...(snapshot.reply ? { reply_to: snapshot.reply.id, ...(snapshot.reply.quote ? { reply_quote: snapshot.reply.quote } : {}) } : {}) }),
       })
     } catch (cause) {
       capture()

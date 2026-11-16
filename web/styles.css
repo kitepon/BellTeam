@@ -1941,3 +1941,9 @@ button.reply-quote { cursor: pointer; }
 .reply-bar strong { flex: none; font-size: 12px; }
 .reply-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55555b; }
 .reply-bar button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 12px; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+/* 選んだ文章への返信（a269r） */
+.reply-selection { position: fixed; z-index: 30; padding: 6px 12px; border: 0; border-radius: 16px; background: #101012; color: #fff; font: inherit; font-size: 13px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); cursor: pointer; }
+.reply-selection[hidden] { display: none; }
+::highlight(reply-part) { background: #ffe58a; color: #111113; }
+.reply-quote.is-gone .reply-quote-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; opacity: .9; font-size: 13px; overflow-wrap: anywhere; }
+.reply-quote.is-gone small { display: block; margin-top: 3px; font-size: 11px; opacity: .75; }

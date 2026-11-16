@@ -284,6 +284,31 @@ Data ownership: the reply target lives only in the composer's draft (memory, per
 
 Source reach: `web/conversation-timeline.js`, `web/conversation-composer.js`, `web/application.js` (wiring), `web/index.html` (`#reply-bar`), `web/styles.css`, `test/conversation-composer.test.mjs`, `test/timeline-open-queue.test.mjs`.
 
+#### Quoting a selected part (a269r, wire shape: reply.md "Quoting a selected part")
+
+```mermaid
+flowchart TD
+  Select["Owner selects text inside one message bubble's .message-text<br/>(document selectionchange; same bubble only; the quote area and other rows are excluded)"] --> Btn["floating 引用して返信 button by the selection (mousedown keeps the selection)"]
+  Btn -->|"click"| Pick["timeline onReply({id, sender, text: selection, quote: {text: selection, no start}})"]
+  Pick --> Draft["composer draft.reply with quote; reply bar 「<sender>の一部への返信」 + the selected text + ×"]
+  Draft -->|"POST {message, reply_to: id, reply_quote: {text}}"| Server["N102 saves reply_to {text: the part, part: true, range?}"]
+  Server --> Quote["renderReplyQuote: draws reply_to.text (the part), not the whole original"]
+  Quote -->|"available, tap"| Jump["jumpToMessage(id, quote, part)"]
+  Jump --> Show["scroll + row highlight (as whole-message reply)"]
+  Show -->|"part and the row's .message-text contains the text"| Mark["locateQuotePart: first hit at or after range.start (else first hit) -> CSS Custom Highlight 'reply-part' for 2 s"]
+  Show -->|"part, no hit or no Highlight API"| Row["row highlight only (contract: jump, no highlight)"]
+  Quote -->|"available false + part"| Gone["excerpt text + fixed line 「元のメッセージを表示できません」, not tappable"]
+```
+
+| Function | Contract |
+| --- | --- |
+| selection handler (conversation-timeline.js) | on `selectionchange`: a non-collapsed selection whose start and end are in the same `.message-text` of a plain message row in this timeline -> remember `{id, sender, text}` and place the button; anything else hides it. The text is the rendered selection (markup stripped), cut to 10000 characters; `start` is never sent (the bubble shows rendered markup, reply.md says to omit it) |
+| `renderReplyQuote` | `part` -> the quote shows `reply_to.text` (already the part); `available: false` + `part` -> the excerpt plus the fixed line; no `part` as the whole-message reply |
+| `locateQuotePart(texts, text, from)` (exported, pure) | searches the rendered text nodes for `text`: first hit at or after `from` (= `range.start`), else the first hit; returns `{startNode, startOffset, endNode, endOffset}` or `null` |
+| composer | `setReply(reply)` keeps `reply.quote`; the send body adds `reply_quote: {text}` next to `reply_to` only when the reply has one |
+
+Failure handling: nothing found -> row highlight only; Highlight API missing -> row highlight only; the selection button never blocks the whole-message 返信 button. No guard, no storage; the selection text lives in the draft only.
+
 ## 操作の接続と確認範囲
 
 `stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](../../web-final-gaps.md)に記録する。
