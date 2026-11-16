@@ -43,15 +43,16 @@ enum ShareCredentials {
         return query
     }
 
+    /// 書き直す時は消してから足す。`SecItemUpdate`は保護クラスを変えられないので、項目は常に「この端末だけ」で作り直す
+    /// （クッキーを暗号化バックアップで別の端末へ渡さない）。
     static func save(_ snapshot: Snapshot) throws {
         let data = try JSONEncoder().encode(snapshot)
         let base = try query()
-        let update = SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if update == errSecSuccess { return }
-        guard update == errSecItemNotFound else { throw Failure.keychain(update) }
+        let removed = SecItemDelete(base as CFDictionary)
+        guard removed == errSecSuccess || removed == errSecItemNotFound else { throw Failure.keychain(removed) }
         var add = base
         add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw Failure.keychain(status) }
     }
