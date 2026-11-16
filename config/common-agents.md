@@ -55,11 +55,13 @@ SECTION lattice
     DO: record decisions and milestones with todo note in plain words the Owner can read.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
   RULE lattice.conflicts
-    WHEN: your task changes source in a plan the coordinator set to witness  DO: keep your task's owns/reads/writes declared.
-    WHEN: the advisory lists conflicts_with_active  DO: settle it with that task's owner or the coordinator before editing the shared files.
+    WHEN: you add a task to a plan whose coordination mode is witness or enforced (session-context shows the mode)
+    DO: declare it at once with `todo independence witness declare`: `--owns` the files it will edit, `--reads` the files it depends on; no flags when it touches no code.
+    FACT: Lattice judges conflicts only once every task that can start is declared; one undeclared task leaves the whole plan unjudged.
+    WHEN: todo start lists conflicts_with_active  DO: before editing the shared files, make that task your 前工程 or settle it with its owner or the coordinator.
     FACT: coverage missing or stale means not judged, never safe.
-  RULE lattice.code-graph
-    WHEN: the plan uses the code graph and your PR is adopted  DO: structure realize before todo done.
+  RULE lattice.structure
+    WHEN: the plan has structure checking on (`todo structure`) and your PR is adopted  DO: structure realize before todo done.
   RULE lattice.warnings
     NEVER: skip a Lattice warning or next_action; act on it or record why it does not apply.
 
