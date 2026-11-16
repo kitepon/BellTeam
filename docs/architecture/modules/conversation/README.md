@@ -19,6 +19,7 @@
 - [読み取り専用の分身への問い合わせ ask_readonly](fork-inquiry.md)
 - [選んだ発言への返信 reply_to](reply.md)（契約と図。実装はa265）
 - [会話画像の原寸取得・保存・共有 image-original](image-original.md)（契約と図。実装は`Content-Disposition`の追加だけ）
+- [転送と他アプリからの共有 forward/share](forward.md)（契約と図。実装は別工程）
 
 旧conversation-flow/delivery-details/observation-details/registry-details/boundary-detailsの担当章は上の正本への参照にした。実行の詳細とidleの判断は[実行担当](../execution/README.md)に残る。
 
