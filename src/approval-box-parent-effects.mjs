@@ -21,10 +21,11 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
         const current = await credentials.current(scope)
         if (!current) return null
         if (!current.available) throw unavailable()
+        // The value file is lost (usage SECRET_SOURCE_UNAVAILABLE): erase the stale handle and answer not connected, so a new connect is possible.
         return credentials.withResolved(current.handle, { ...scope, memberId: null }, value => ({ value }))
+          .catch(async error => { if (error?.code !== 'SECRET_SOURCE_UNAVAILABLE') throw error; await credentials.erase(scope); return null })
       }
       case 'session.put':
-        // shortcut: put/erase are Mika's system-only usage methods (R7); until they land the port is absent and the effect answers unavailable.
         if (typeof credentials?.put !== 'function') throw unavailable()
         await credentials.put(scope, params.value)
         return { ok: true }
