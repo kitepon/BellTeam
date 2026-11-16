@@ -62,6 +62,8 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       },
       watchCredentials(listener) { events.on('credential', listener); return () => events.off('credential', listener) },
       watchRecovery(listener) { events.on('credentialRecovery', listener); return () => events.off('credentialRecovery', listener) },
+      putCredential: (scope, value, context) => call('secrets.put', { scope, value }, context),
+      eraseCredential: (scope, context) => call('secrets.erase', { scope }, context),
       refreshCredentials: context => call('secrets.refresh', {}, context),
       cancel: (id, context) => call('secrets.cancel', { id }, context),
       withdraw: (id, botId, context) => call('secrets.withdraw', { id }, context),

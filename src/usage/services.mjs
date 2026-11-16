@@ -171,6 +171,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'secrets.credential': ({ handle, context }) => secretRequests.credential(handle, context),
     'secrets.resolve': ({ handle, context }) => secretRequests.withResolved(handle, context, value => value),
     'secrets.replace': ({ handle, id, context }) => secretRequests.replaceCredential(handle, id, context),
+    'secrets.put': ({ scope, value }) => secretRequests.putCredential(scope, value),
+    'secrets.erase': ({ scope }) => secretRequests.eraseCredential(scope),
     'secrets.refresh': async () => {
       const result = await secretRequests.credentials.refreshAvailability()
       if ((syncOnePassword() | (!onePasswordItem().connection && await onePasswordConnection())) && initialized) publish(settingsProjection())

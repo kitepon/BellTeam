@@ -64,7 +64,7 @@ HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・pref
 | Onboarding | 通常shared/onboarding.json、seatRuntimeではstate/onboarding.json。案内段階・authSession |
 | HarnessAuth | sessions/receipts Map。資格情報本体は公式CLI |
 | FeatureSettings | shared/tools/bellteam-settings/settings.json、適用errorsとpending Promise、親インスタンス内routingEpoch（永続化/公開listへ追加しない） |
-| SecretRequests | state/secret-requests/*.json、state/secret-values/<toolId>/secrets/<id>（0600、新規作成）、private secret-sources/secret-credentials、parent-only secret-native-credentials、busy、表示索引 |
+| SecretRequests | state/secret-requests/*.json、state/secret-values/<toolId>/secrets/<id>（0600、新規作成）、private secret-sources/secret-credentials、state/secret-module-values/<handle>（0600、module-written。R7）、parent-only secret-native-credentials、busy、表示索引 |
 | OwnerQuestions | state/owner-questions/*.json、busy、表示索引。通知例外でも回答済み状態は残る |
 | PushNotifications | state/push-devices.json、provider/inflight/設定エラー。APNs設定を読み、鍵ごとに`.p8`ファイルか1Password参照から得る（[notification-process](notification-process.md#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故)） |
 | Subscriptions | 通常shared/subscription.json、seatRuntimeではstate/subscription.json。検証結果/期限/保存失敗 |

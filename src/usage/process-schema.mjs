@@ -53,6 +53,8 @@ export const usageMethods = {
   'secrets.credential': spec(shape({ handle: id, context: credentialContextValid }), kinds.system),
   'secrets.resolve': spec(shape({ handle: id, context: credentialContextValid }), kinds.system),
   'secrets.replace': spec(shape({ handle: id, id, context: credentialContextValid }), kinds.system),
+  'secrets.put': spec(shape({ scope: credentialScopeValid, value: text }), kinds.system),
+  'secrets.erase': spec(shape({ scope: credentialScopeValid }), kinds.system),
   'secrets.refresh': spec(none, kinds.system),
   'secrets.cancel': spec(shape({ id }), kinds.owner),
   'secrets.withdraw': spec(shape({ id }), kinds.bot),

@@ -7,14 +7,54 @@ Owner: Mika. Consumer: terminals (Crust), existing settings/auth consumers, Latt
 | Component | Responsibility and public interface |
 | --- | --- |
 | SecretRequests | All request_secret slots except `oneTime` (see below) accept legacy stored string or `{source:'onepassword',reference:'op://<vault id>/<item id>/<field>'}`. Public request metadata never contains reference/source/value. Pending input options prefer 1Password when connected, with stored input as fallback. |
-| SecretCredentials | Own private request source records, opaque terminal-scoped handles, revisions, value resolution and availability. `bind(requestId,{terminalId,purpose})` returns `{handle,revision,available}`. The parent exports `usageAssembly.credentials = {requestTerminalKey,bind,current,unbind,credential,withResolved,replace,refresh,watch,watchRecovery}` and captures system authority internally. `credential(handle,context)` and `withResolved(handle,{terminalId,memberId,purpose},consume)` require a parent-authorized context; consumer callback receives only the value. `replace(handle,requestId,context)` increments revision. |
+| SecretCredentials | Own private request source records, opaque terminal-scoped handles, revisions, value resolution and availability. `bind(requestId,{terminalId,purpose})` returns `{handle,revision,available}`. The parent exports `usageAssembly.credentials = {requestTerminalKey,bind,current,unbind,credential,withResolved,replace,put,erase,refresh,watch,watchRecovery}` and captures system authority internally. `credential(handle,context)` and `withResolved(handle,{terminalId,memberId,purpose},consume)` require a parent-authorized context; consumer callback receives only the value. `replace(handle,requestId,context)` increments revision. |
 | OnePasswordSource | Fixed executable, argument-array `op read --no-newline` with captured stdout only. No shell, value argv, stderr/error forwarding, value cache or value file. `available`, `refresh()`, `watch(listener)`, `close()`; private refresh is invoked by a parent-owned helper after provider availability/recovery, never AI polling. Server op or a terminal-local provider uses the same private interface. |
 | Private fixed providers | Parent registers provider capabilities under opaque private IDs. Configuration and key paths stay with secret input/provider owner, not terminal DTOs. No caller-supplied path/command. P1 existing Owner Mac key remains native-held for `owner-macbook` / `terminal.ssh`; authorized parent supplies only the native status/use capability described below. |
-| Usage private IPC | System-only bind/resolve/credential/replace/refresh methods; facade captures value only inside trusted callback. No public HTTP/MCP value endpoint. Context DTO is validation data, never authority; authority is the parent-captured token. |
+| Usage private IPC | System-only bind/resolve/credential/replace/put/erase/refresh methods; facade captures value only inside trusted callback. No public HTTP/MCP value endpoint. Context DTO is validation data, never authority; authority is the parent-captured token. |
+
+Module-written values (`put` / `erase`, R7) are described in the section after the Lattice consumer note below.
 
 Terminal handles bind terminalId and purpose (`terminal.ssh` / `terminal.sudo`). The authenticated parent/terminal owner authorizes each memberId (bot-ID for seat operations; null for Owner maintenance), so a handle may serve multiple authorized members without copying a secret. Wrong terminal/purpose is rejected before any read. Generic request resolution validates requester/tool/submitted state before reading and keeps existing downstream authorization/one-shot claims.
 
 Lattice consumer (Flora, contract agreed by Mika 2026-11-13): the body's Lattice effects `decisions.file` / `decisions.read` (`src/lattice-approval.mjs`, lattice README L18-L19) use the scope `{terminalId:'lattice', purpose:'approval-box.connector'}`. The value is Flora's `request_secret` (tool id `lattice-approval-box`, not oneTime) holding the body's own Approval Box connector token. The parent binds once: `credentials.current(scope)` is null -> the newest card with `botId` = Flora, `toolId` = `lattice-approval-box`, `status` = `submitted` from the public secret timeline -> `credentials.bind(requestId, scope)` (the parent is the authority on which request enters this scope). Per call: `current(scope)` -> `withResolved(handle, {terminalId:'lattice', memberId:null, purpose:'approval-box.connector'}, consume)`; the token lives only inside `consume` as the Bearer header. `available:false` or no binding -> `LATTICE_DECISIONS_UNAVAILABLE`, the Lattice child retries next minute.
+
+### Module-written secret: `put` / `erase` (R7, Mika; asked by Delta, a199; 2026-11-16)
+
+Consumer: the Approval Box extension module child (Delta). Parent composition of the effects `session.put` / `session.get` / `session.erase`: Molly (a199b). Design record: bot-203444ca `docs/abx-session-secret-r7-20261115.md`.
+
+Fact: until now a value entered usage only through an Owner `secrets.submit` on a request. A module that receives its own credential (the extension's scoped Approval Box session, an opaque small JSON string such as `{token,expiresAt[,refreshToken]}`; usage never parses it) had no way in, so `session.put` answered unavailable and every body or child restart dropped the Owner's connection.
+
+| Function | Contract |
+| --- | --- |
+| `credentials.put(scope, value)` | Parent, system-only (`secrets.put {scope, value}`). Returns the handle DTO `{handle,revision,available}`. Scope must be one of `MODULE_SCOPES` = `{terminalId:'approval-box-extension', purpose:'approval-box.session'}`; any other scope (terminal keys, `lattice`) is `SECRET_CREDENTIAL_FORBIDDEN` before anything is written. Value: non-empty string, at most 16384 bytes, no NUL (`SECRET_VALUE_INVALID`). |
+| SecretCredentials.put | Serialized. Writes the value to a private 0600 file `state/secret-module-values/<handle>` (temp file + rename), then saves the handle record `{handle, requestId:'module-<handle>', terminalId, purpose, revision, bindingOrder, module:true}` (new handle at revision 1, or the scope's live handle at revision n+1), then emits the usual credential event (`bound` / `revision`). No request card, timeline row, notification or public projection exists; the event and the private credential projection carry only the handle DTO, scope, requestId and reason, like any handle. |
+| `credentials.erase(scope)` | Parent, system-only (`secrets.erase {scope}`). Returns null. Calls the child, then clears the parent selection with a tombstone (same as scope delete). |
+| SecretCredentials.erase | Serialized. For every module handle of the scope: revoke if live (revision n+1, `unbound` event), then delete its value file (missing is fine). Nothing live and nothing to delete is also success, so a retry after a partial failure finishes the erase and an erase of an absent scope is a no-op. |
+| Read | Unchanged for consumers: `current(scope)` then `withResolved(handle, {terminalId, memberId:null, purpose}, consume)`. For a `module` handle `resolve` reads its value file instead of a request source; a missing or unreadable file is the fixed `SECRET_SOURCE_UNAVAILABLE` (no availability event: the module's own 401 / unavailable path erases and reconnects). |
+
+```mermaid
+flowchart LR
+  Child[module child: Approval Box extension] -->|session.put / get / erase effect| Molly[parent effects, a199b]
+  Molly -->|credentials.put / current+withResolved / erase| Cred[usageAssembly.credentials]
+  Cred -->|secrets.put / resolve / erase, system-only| Usage[usage child SecretCredentials]
+  Usage -->|temp+rename 0600| Value[(state/secret-module-values/handle)]
+  Usage -->|handle record, module:true| Handles[(state/secret-credentials)]
+  Usage -->|bound / revision / unbound: handle DTO only| Sel[parent selection index]
+  Value -->|memory only, inside consume| Molly
+```
+
+State and protection:
+
+| State / transition | Meaning and self-exit |
+| --- | --- |
+| none -> live (put) | New handle, revision 1. Persist value, then record, then event. A failed record save removes the new value file. |
+| live -> live revision n+1 (put) | Same handle, new value, the previous value is replaced atomically. The consumer reads the new value at its next `withResolved`. |
+| live -> revoked, value deleted (erase) | Handle revoked (`unbound`), file deleted. A later `put` creates a new handle (revoked handles never revive), so the module reconnects without any Owner action. |
+| value file missing / unreadable while live | `withResolved` fails with `SECRET_SOURCE_UNAVAILABLE`; the module treats it like a 401: `erase`, then connect again. Not a lock. |
+
+Protection named: secret exposure (the value lives only in a 0600 file under BellTeam state and inside the consumer callback; never in DTOs, events, diagnostics, logs, projections or requests) and overwriting existing state (the scope allowlist keeps a module write from replacing an Owner terminal key or the Lattice connector). Self-exit: erase (401 / unlink) and `put` after a new grant. The local erase never waits on a remote revoke; the module may call the remote revoke first, best effort.
+
+State compatibility: `secretEncoding` stays `stored-or-private-reference-v2`. A usage child without this feature rejects the unknown methods (the module keeps answering unavailable, as before) and never reads a `module` record as anything it can resolve, so no earlier state is reinterpreted.
 
 ## Data flow and private storage
 

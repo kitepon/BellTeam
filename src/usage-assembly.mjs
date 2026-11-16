@@ -122,6 +122,19 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       return nativeCredentials.owns(handle) ? nativeCredentials.replace(handle, source, target)
         : facade.secretRequests.replaceCredential(handle, source, target, systemContext('secrets.replace'))
     },
+    async put(target, value) {
+      target = normalizeCredentialScope(target)
+      await nativeCredentials.ready()
+      return facade.secretRequests.putCredential(target, value, systemContext('secrets.put'))
+    },
+    async erase(target) {
+      target = normalizeCredentialScope(target)
+      await nativeCredentials.ready()
+      const captured = await nativeCredentials.captureSelection(target)
+      await facade.secretRequests.eraseCredential(target, systemContext('secrets.erase'))
+      await nativeCredentials.clearSelection(target, captured.token)
+      return null
+    },
     async refresh() {
       const results = await Promise.allSettled([nativeCredentials.refresh(), facade.secretRequests.refreshCredentials(systemContext('secrets.refresh'))])
       const failed = results.find(result => result.status === 'rejected')
