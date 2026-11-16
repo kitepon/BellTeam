@@ -307,6 +307,8 @@ flowchart TD
 | `locateQuotePart(texts, text, from)` (exported, pure) | searches the rendered text nodes for `text`: first hit at or after `from` (= `range.start`), else the first hit; returns `{startNode, startOffset, endNode, endOffset}` or `null` |
 | composer | `setReply(reply)` keeps `reply.quote`; the send body adds `reply_quote: {text}` next to `reply_to` only when the reply has one |
 
+Touch (a269t): on `(pointer: coarse)` the button is docked above the composer (CSS, not at the selection) so it never sits on the browser's own selection menu or the drag handles below the selection ends; while it is pressed (`pointerdown` until `pointerup` + 0.4 s) a selection cleared by the touch does not hide it, and the picked text is the one remembered at selection time; scrolling repositions it instead of hiding it (a handle drag near the edge scrolls the list). Native long-press selection and the handles cannot be emulated headless; what was checked is the Selection API path they feed (`selectionchange`) in a 390 px touch-emulated viewport.
+
 Failure handling: nothing found -> row highlight only; Highlight API missing -> row highlight only; the selection button never blocks the whole-message 返信 button. No guard, no storage; the selection text lives in the draft only.
 
 ## 操作の接続と確認範囲
