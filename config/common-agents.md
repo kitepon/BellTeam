@@ -66,6 +66,14 @@ SECTION lattice
     FACT: an undeclared task is not judged, and an enforced plan refuses its start; the declared tasks are judged without it.
     WHEN: todo start lists conflicts_with_active  DO: before editing the shared code, make that task your 前工程 or settle it with its owner or the coordinator.
     FACT: coverage missing or stale means not judged, never safe.
+  RULE lattice.function-split
+    FACT: in a witness or enforced plan, when you start a task that changes a function a task in progress in another lane also changes, Lattice holds yours and adds a 関数分割 task (`split-<hex>`) in that lane as the 前工程 of both. A task labelled 分割待ち is under such a split: it cannot start, or close if in progress, until the split is done or withdrawn.
+    WHEN: todo start answers status pending with splits  DO: wait; the chart offers the task again.  NEVER: start it again or pass --override-reason to get past it.  WHY: whether to split is the in-progress worker's decision.
+    WHEN: a 関数分割 task is in your lane  DO: start it, read its cut_cost and decide.
+    WHEN: you split  DO: cut the function on a branch from main, then `todo function-split verify --plan P --task S --commit <sha> --map <task>=<path#fn>,...` (for each task, the function it changes after the cut), then merge the PR to main and `todo done` S.
+    WHEN: the function cannot be cut or the cut is too heavy  DO: `todo function-split decline --plan P --task S --reason <why>`.
+    FACT: verify passes only when exports and references are kept, a node-runnable test that reaches the function passes, every mapped function exists at the commit, and the mapped tasks no longer overlap; only JS/TS files can pass.
+    FACT: a decline or a failed verify withdraws the split and puts the other tasks after the one started first. A verify input error (dirty source, unknown commit, empty diff) changes nothing: follow its next_action and run it again.
   RULE lattice.structure
     WHEN: the plan has structure checking on (`todo structure`) and your PR is adopted  DO: structure realize before todo done.
   RULE lattice.warnings
