@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T14:50:05Z",
-  "expiresAt": "2026-11-23T14:50:05Z",
+  "publishedAt": "2026-11-16T15:23:28Z",
+  "expiresAt": "2026-11-23T15:23:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
-      "versionId": "1ded54f897a003f9514445b5822b39dc9095656442bbd01172bfdb3798e787e1",
+      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
+      "versionId": "69d43773be6f0a2123b3b08a492102f95f1e940e0fabeeec28ff1a3cfc9c4ffc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz",
-          "bytes": 3922671,
-          "sha256": "1ded54f897a003f9514445b5822b39dc9095656442bbd01172bfdb3798e787e1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz",
+          "bytes": 3922972,
+          "sha256": "69d43773be6f0a2123b3b08a492102f95f1e940e0fabeeec28ff1a3cfc9c4ffc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "e75286ceeea7e1c00909c4e272fef110e55fbc08f919c402d18a4dbbb031a7c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11221,
+          "sha256": "a96e40136f400ab8f44a0f285d5f8f649f5799c0b15d010e37264b8e23bb0131"
         },
-        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
+        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -238,8 +238,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
-      "versionId": "c2a2d4a973584aa9e3fdeedfddd9f5959229da547772dcfeeaa44c3cc4bce69a",
+      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
+      "versionId": "d42b65a2663572006ab2db5dee9bfaa2ea1760b29a59e5de84a0ebcff9b5975e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -247,16 +247,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz",
-          "bytes": 3922671,
-          "sha256": "c2a2d4a973584aa9e3fdeedfddd9f5959229da547772dcfeeaa44c3cc4bce69a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz",
+          "bytes": 3922972,
+          "sha256": "d42b65a2663572006ab2db5dee9bfaa2ea1760b29a59e5de84a0ebcff9b5975e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "ae813085bad3f47071bfbd67272fb57c13e4efeb080f3c24cbb4cf20c8c37652"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11233,
+          "sha256": "834dda29b2c7b570b78a132aee347014ddb4c2b7dffc83350473abceb66aba9e"
         },
-        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
+        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
-      "versionId": "bfc8a69599c69b6e6501bca176cd93ff21d71ac3ab6b2f4531b897f77e7c4a88",
+      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
+      "versionId": "fa32bd9257d3d4a36b7cd7fe10abc796852977675471485f3bac093deb1a80a0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz",
-          "bytes": 5449425,
-          "sha256": "bfc8a69599c69b6e6501bca176cd93ff21d71ac3ab6b2f4531b897f77e7c4a88"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz",
+          "bytes": 5450332,
+          "sha256": "fa32bd9257d3d4a36b7cd7fe10abc796852977675471485f3bac093deb1a80a0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11209,
-          "sha256": "ef542a9606ff792159775710a3ccdfb8ea9ac96ee2531e5724dddafaf7260388"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10970,
+          "sha256": "a094f2b72ccc4cdbb4d07b8f47974d7b43d38030c81edd76f4ae9ad26daaca34"
         },
-        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
+        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -462,8 +462,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
-      "versionId": "d55aed2ed26325ccb3337cb5ddf097c55858156fa2e90cbcb78817fe91d88de9",
+      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
+      "versionId": "a82873e27e9e8a42a356ce7e6693c610d54bd5247bb5df63c75b0dcab7d1933a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -471,16 +471,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz",
-          "bytes": 5449425,
-          "sha256": "d55aed2ed26325ccb3337cb5ddf097c55858156fa2e90cbcb78817fe91d88de9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz",
+          "bytes": 5450332,
+          "sha256": "a82873e27e9e8a42a356ce7e6693c610d54bd5247bb5df63c75b0dcab7d1933a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151708Z/web-gateway-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11252,
-          "sha256": "596a1f57918ca02c812a1dc872568853b0f580db470df2e9f53ae2c461f41fa0"
+          "sha256": "15d6104badd78eb36310de49edc953dad759d94791e31d3c553153cd7b3dec3d"
         },
-        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
+        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4ee25fb47a434c02d7c215656c58db8cfb4b4377",
-      "versionId": "sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67",
+      "sourceCommit": "e8019132b27197fcf68b3b1286fa9ed0ff132eec",
+      "versionId": "sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,21 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表への書き込みが順番待ちのまま時間切れになっても、失敗にせず「受け付け済み」と返すようにしました。再送しなくても書き込みは実行されます。",
-        "メッセージの転送で画像やファイルを扱うための、本体側の受け口を入れました。"
+        "ボットとの会話で、転送・共有・ファイルを付けた送信を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4ee25fb47a434c02d7c215656c58db8cfb4b4377",
-      "versionId": "sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67",
+      "sourceCommit": "e8019132b27197fcf68b3b1286fa9ed0ff132eec",
+      "versionId": "sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1240942cb78e3514479326e648a067b3592d7ce3537323b0c19084618f5c7034"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -753,8 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表への書き込みが順番待ちのまま時間切れになっても、失敗にせず「受け付け済み」と返すようにしました。再送しなくても書き込みは実行されます。",
-        "メッセージの転送で画像やファイルを扱うための、本体側の受け口を入れました。"
+        "ボットとの会話で、転送・共有・ファイルを付けた送信を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
       ]
     },
     {
