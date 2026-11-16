@@ -23,6 +23,12 @@ struct ConversationRowContext: Hashable {
     }
 }
 
+/// 引用の元へ移る依頼。revisionが変わった時だけ動き、行がまだ入っていなければ入った後に動く。
+struct ConversationJump: Equatable {
+    let id: String?
+    let revision: Int
+}
+
 /// 会話を開いた時の見せ方。比較のための切替で、決まったら片方だけ残す。
 enum ConversationOpening: String, CaseIterable {
     case rise, fade
@@ -42,6 +48,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
     let bottomInset: CGFloat
     let opening: ConversationOpening
     let scrollToBottomRevision: Int
+    let jump: ConversationJump
     let onLoadOlder: () -> Void
     let onRefresh: () async -> Void
     let onAtBottomChange: (Bool) -> Void
@@ -98,6 +105,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
             coordinator.scrollToBottom(animated: true)
         }
+        coordinator.requestJump(jump)
     }
 
     final class Coordinator: NSObject, UICollectionViewDelegate, ChatLayoutDelegate {
@@ -111,6 +119,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var loadingOlder = false
         var fillRequested = false
         var scrollToBottomRevision = 0
+        private var jumpRevision = 0
+        private var pendingJump: String?
         private weak var view: ConversationCollectionView?
         private weak var layout: CollectionViewChatLayout?
         private var dataSource: ChatLayoutDiffableDataSource<Int, ConversationRow>?
@@ -233,6 +243,35 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 fillRequested = false
             }
             report()
+            performPendingJump()
+        }
+
+        func requestJump(_ jump: ConversationJump) {
+            if jump.revision != jumpRevision {
+                jumpRevision = jump.revision
+                pendingJump = jump.id
+            }
+            performPendingJump()
+        }
+
+        /// 行が入っていれば中央へ移し、少し光らせる。
+        private func performPendingJump() {
+            guard let id = pendingJump, let view, let dataSource,
+                  let indexPath = dataSource.indexPath(for: .message(id)) else { return }
+            pendingJump = nil
+            view.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.flash(.message(id)) }
+        }
+
+        private func flash(_ row: ConversationRow) {
+            guard let view, let indexPath = dataSource?.indexPath(for: row),
+                  let cell = view.cellForItem(at: indexPath) else { return }
+            let mark = cell.contentView
+            mark.layer.cornerRadius = 14
+            mark.backgroundColor = UIColor(BellTheme.violet).withAlphaComponent(0.22)
+            UIView.animate(withDuration: 1.2, delay: 0.6, options: .curveEaseOut) {
+                mark.backgroundColor = .clear
+            }
         }
 
         func scrollToBottom(animated: Bool) {

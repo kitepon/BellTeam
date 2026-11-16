@@ -77,6 +77,9 @@ private struct ConversationContent: View {
         }
     }
     @State private var selectedTargets: Set<String> = []
+    /// 返信の相手。送信で空にし、送信が確認できなかった時は戻す。
+    @State private var replyingTo: ReplyReference?
+    @State private var jumpRequest = ConversationJump(id: nil, revision: 0)
     @State private var errorText: String?
     @State private var initialLoadFailed = false
     #if !targetEnvironment(macCatalyst)
@@ -121,7 +124,7 @@ private struct ConversationContent: View {
                 ConversationList(messages: messages, queue: queue, rowContext: rowContext,
                                  hasMore: hasMore, loading: loading, loadingOlder: loadingOlder,
                                  bottomInset: 18 + (attachments.isEmpty ? 0 : attachmentStripHeight),
-                                 opening: opening, scrollToBottomRevision: scrollToBottomRevision,
+                                 opening: opening, scrollToBottomRevision: scrollToBottomRevision, jump: jumpRequest,
                                  onLoadOlder: { olderTask = Task { await loadOlder() } },
                                  onRefresh: { await load() },
                                  onAtBottomChange: { atBottom in
@@ -292,6 +295,8 @@ private struct ConversationContent: View {
             } else {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
+                           onReply: message.isQuotable ? { startReply(to: message, senderBot: senderBot) } : nil,
+                           onJump: { id in Task { await jump(to: id) } },
                            onOpenPeer: { presentedSheet = .peer(message) },
                            onOpenImages: { presentedGallery = ConversationGallery(paths: $0) })
                     .equatable()
@@ -309,6 +314,25 @@ private struct ConversationContent: View {
             return "返信: \(names.isEmpty ? "なし" : names.joined(separator: "、"))"
         default: return nil
         }
+    }
+
+    private func startReply(to message: TimelineMessage, senderBot: Bot?) {
+        let name = message.isOutgoing ? "あなた" : (message.sender?.title ?? senderBot?.displayName ?? title)
+        replyingTo = ReplyReference(quoting: message, senderName: name)
+    }
+
+    /// 引用の元へ飛ぶ。読込済みに無ければ、見つかるか履歴の先頭に着くまで過去を読む。
+    private func jump(to id: String) async {
+        while !messages.contains(where: { $0.id == id }) {
+            guard hasMore, let oldest = messages.first?.id else { break }
+            await loadOlder()
+            if messages.first?.id == oldest { break }
+        }
+        guard messages.contains(where: { $0.id == id }) else {
+            errorText = "元のメッセージは見つかりません。"
+            return
+        }
+        jumpRequest = ConversationJump(id: id, revision: jumpRequest.revision + 1)
     }
 
     private func exportConversation() async {
@@ -446,6 +470,7 @@ private struct ConversationContent: View {
         VStack(spacing: 8) {
             if let room { targetPicker(room) }
             if case .bot(let id) = target { ChatGoalBar(botId: id) }
+            if let replyingTo { replyBar(replyingTo) }
             ConversationInput(draft: store.draft(for: target), sending: sending, hasAttachments: !attachments.isEmpty,
                               onSend: { Task { await send() } },
                               canStop: currentBotCanStop, stopping: stoppingBotID != nil,
@@ -501,6 +526,31 @@ private struct ConversationContent: View {
             }
             .alignmentGuide(.top) { $0[.bottom] }
         }
+    }
+
+    private func replyBar(_ reply: ReplyReference) -> some View {
+        HStack(spacing: 10) {
+            ReplyQuoteBar(accent: accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(reply.senderName ?? "メンバー")への返信")
+                    .font(.system(size: BellTheme.conversationLabelFontSize, weight: .bold))
+                    .foregroundStyle(accent)
+                Text(reply.quotedText)
+                    .font(BellTheme.messageHelperFont)
+                    .foregroundStyle(BellTheme.muted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button { replyingTo = nil } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(BellTheme.muted)
+            }
+            .accessibilityLabel("返信をやめる")
+            .accessibilityIdentifier("reply-cancel")
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 8)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("reply-bar")
     }
 
     private var attachmentStrip: some View {
@@ -751,8 +801,9 @@ private struct ConversationContent: View {
         }
     }
 
-    private func restoreUnconfirmedSend(id: String, message: String, images: [PendingImage]) {
+    private func restoreUnconfirmedSend(id: String, message: String, images: [PendingImage], reply: ReplyReference?) {
         timeline.rejectSend(id: id)
+        if replyingTo == nil { replyingTo = reply }
         // 送信中に書き始めた続きは消さず、元の本文の後ろへ残す。
         draft = [message, draft].filter { !$0.isEmpty }.joined(separator: "\n")
         attachments = images + attachments
@@ -771,23 +822,25 @@ private struct ConversationContent: View {
         let sent = attachments
         let selected = target.isRoom && !selectedTargets.isEmpty ? Array(selectedTargets) : nil
         let pendingID = "local-pending-\(UUID().uuidString)"
+        let reply = replyingTo
         draft = ""
         attachments = []
+        replyingTo = nil
         errorText = nil
         awaitingSendResponse = true
-        timeline.beginSend(id: pendingID, body: message, imageCount: sent.count, at: Date().ISO8601Format())
+        timeline.beginSend(id: pendingID, body: message, imageCount: sent.count, at: Date().ISO8601Format(), replyTo: reply)
         hasUnreadMessages = false
         scrollToBottomRevision += 1
         do { try await store.authorizeAIUse(target: target) }
         catch let error where BellAPIError.isAuthenticationError(error) {
             awaitingSendResponse = false
-            restoreUnconfirmedSend(id: pendingID, message: message, images: sent)
+            restoreUnconfirmedSend(id: pendingID, message: message, images: sent, reply: reply)
             store.requireLogin(for: error)
             return
         }
         catch {
             awaitingSendResponse = false
-            restoreUnconfirmedSend(id: pendingID, message: message, images: sent)
+            restoreUnconfirmedSend(id: pendingID, message: message, images: sent, reply: reply)
             if appIsActive { await load() }
             errorText = error.localizedDescription
             store.api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .read(error, retainedData: true))
@@ -796,7 +849,8 @@ private struct ConversationContent: View {
         let body = SendMessageBody(
             message: message,
             images: sent.map { ImagePayload(mime: "image/jpeg", data: $0.data.base64EncodedString()) },
-            targets: selected
+            targets: selected,
+            replyTo: reply?.id
         )
         do {
             let acknowledgement = try await store.api.sendMessage(target.path + "/messages", body: body)
@@ -809,7 +863,7 @@ private struct ConversationContent: View {
             }
         } catch {
             awaitingSendResponse = false
-            restoreUnconfirmedSend(id: pendingID, message: message, images: sent)
+            restoreUnconfirmedSend(id: pendingID, message: message, images: sent, reply: reply)
             let reconcile = await SendFailureReconcileObservation.observe(error: error,
                 appActive: appIsActive) { await load() }
             if BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
@@ -890,6 +944,8 @@ private struct MessageRow: View, Equatable {
     let senderBot: Bot?
     let replyLabel: String?
     let api: BellAPI
+    let onReply: (() -> Void)?
+    let onJump: (String) -> Void
     let onOpenPeer: () -> Void
     let onOpenImages: ([String]) -> Void
 
@@ -900,6 +956,7 @@ private struct MessageRow: View, Equatable {
             && lhs.senderBot?.id == rhs.senderBot?.id && lhs.senderBot?.color == rhs.senderBot?.color
             && lhs.senderBot?.avatar == rhs.senderBot?.avatar
             && lhs.replyLabel == rhs.replyLabel && lhs.api === rhs.api
+            && (lhs.onReply == nil) == (rhs.onReply == nil)
     }
 
     private var senderName: String? {
@@ -910,7 +967,7 @@ private struct MessageRow: View, Equatable {
     private var bubbleAccent: Color { AvatarTone.accent(for: isRoom ? senderBot : bot) }
     private var hasImageStack: Bool { message.displayedImageURLs.count > 1 }
     private var hasBubbleContent: Bool {
-        !hasImageStack || message.message?.isEmpty == false || replyLabel != nil
+        message.replyTo != nil || !hasImageStack || message.message?.isEmpty == false || replyLabel != nil
     }
 
     var body: some View {
@@ -953,6 +1010,7 @@ private struct MessageRow: View, Equatable {
                                     .font(.system(size: BellTheme.conversationLabelFontSize, weight: .bold))
                                     .foregroundStyle(message.isOutgoing ? BellTheme.muted : bubbleAccent)
                             }
+                            if let reply = message.replyTo { ReplyQuote(reply: reply, accent: bubbleAccent, onJump: onJump) }
                             if !hasImageStack && !message.displayedImageURLs.isEmpty {
                                 MessageImages(paths: message.displayedImageURLs, messageID: message.id,
                                               outgoing: message.isOutgoing, api: api, onOpen: onOpenImages)
@@ -977,6 +1035,9 @@ private struct MessageRow: View, Equatable {
                                     in: RoundedRectangle(cornerRadius: 21, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 21).strokeBorder(
                             message.isOutgoing ? BellTheme.line : bubbleAccent.opacity(0.35)))
+                        .contextMenu {
+                            if let onReply { Button("返信", systemImage: "arrowshape.turn.up.left", action: onReply) }
+                        }
                     }
                     HStack(spacing: 6) {
                         if message.isFork { ForkSeatBadge() }
@@ -1003,6 +1064,50 @@ private struct MessageRow: View, Equatable {
         case "failed": message.completionUnknown ? (isRoom ? "完了未確認の宛先あり" : "受付済み・完了未確認") : "配達失敗"
         default: ""
         }
+    }
+}
+
+/// 吹き出しの中の引用。元が読めない時は固定の一行で、押せない。
+private struct ReplyQuote: View {
+    let reply: ReplyReference
+    let accent: Color
+    let onJump: (String) -> Void
+
+    var body: some View {
+        if reply.available {
+            Button { onJump(reply.id) } label: {
+                HStack(spacing: 8) {
+                    ReplyQuoteBar(accent: accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(reply.senderID == "user" ? "あなた" : (reply.senderName ?? "メンバー"))
+                            .font(.system(size: BellTheme.conversationLabelFontSize, weight: .bold))
+                            .foregroundStyle(accent)
+                        Text(reply.quotedText)
+                            .font(BellTheme.messageHelperFont)
+                            .foregroundStyle(BellTheme.muted)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返信元: \(reply.quotedText)")
+            .accessibilityHint("元のメッセージへ移動")
+            .accessibilityIdentifier("reply-quote-\(reply.id)")
+        } else {
+            Text("元のメッセージを表示できません")
+                .font(BellTheme.messageHelperFont)
+                .foregroundStyle(BellTheme.muted)
+                .accessibilityIdentifier("reply-quote-unavailable")
+        }
+    }
+}
+
+private struct ReplyQuoteBar: View {
+    let accent: Color
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1.5).fill(accent.opacity(0.7)).frame(width: 3)
     }
 }
 
