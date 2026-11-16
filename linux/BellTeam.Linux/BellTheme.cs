@@ -35,6 +35,8 @@ public static class Icons
     public const string Target = "M12,3 a9,9 0 1 0 0.01,0 Z M12,7 a5,5 0 1 0 0.01,0 Z M12,11 a1,1 0 1 0 0.01,0 Z";
     public const string Paperclip = "M20,11.5 L12,19.5 a5,5 0 0 1 -7.1,-7.1 L13,4.3 a3.3,3.3 0 0 1 4.7,4.7 L9.7,17 a1.6,1.6 0 0 1 -2.3,-2.3 L14.5,7.6";
     public const string Send = "M12,20 V5 M5.5,11.5 L12,5 L18.5,11.5";
+    public const string Download = "M12,3.5 V15 M7.5,10.5 L12,15 L16.5,10.5 M5,13 V20 H19 V13";
+    public const string Copy = "M9,9 H20 V20 H9 Z M5,15 V4 H15";
     public const string Close = "M6,6 L18,18 M18,6 L6,18";
     public const string Export = "M12,15 V3.5 M7.5,8 L12,3.5 L16.5,8 M5,12 V20 H19 V12";
     public const string Warning = "M12,3.5 L22,20.5 H2 Z M12,10 V15 M12,17.6 V18";

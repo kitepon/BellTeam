@@ -11,8 +11,8 @@ namespace BellTeam.Linux;
 // What windows/BellTeam.App/App.xaml.cs OnStartup does: the render modes, otherwise the single window.
 internal static partial class Launcher
 {
-    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login> <PNG>、--render-startup <onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-page <updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-inspector <場面> <URL> <会話ID> <PNG>、--render-screen <場面> <URL> <会話ID> <PNG>、--render-editors <場面> <URL> <会話ID> <PNG>、--render-editor member <URL> <メンバーID> <PNG>、--render-approvals <main|answer|write|external|unknown|held|done|empty|not-connected|waiting|not-entitled|expired|old> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found|narrow|connections|connections-end> <PNG>、--render-workgraph <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|terminals|features|notifications|connection|display|billing|update|about|stop>|onepassword-<not-linked|checking|success|failure>> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-editor <settings|profile|feature|authentication> <URL> <ID> <PNG>" + RequestsRender.Usage + " のいずれかです。";
-    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] or ["--render-startup", _, _, _] or ["--render-page", _, _, _] or ["--render-inspector", _, _, _, _] or ["--render-screen", _, _, _, _] or ["--render-editors", _, _, _, _] or ["--render-editor", _, _, _, _] or ["--render-lattice", _, _] or ["--render-approvals", _, _] or ["--render-workgraph", _, _] or ["--render-terminals", _, _, _] || RequestsRender.IsKnown(args);
+    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login> <PNG>、--render-startup <onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-page <updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-inspector <場面> <URL> <会話ID> <PNG>、--render-screen <場面> <URL> <会話ID> <PNG>、--render-editors <場面> <URL> <会話ID> <PNG>、--render-editor member <URL> <メンバーID> <PNG>、--render-approvals <main|answer|write|external|unknown|held|done|empty|not-connected|waiting|not-entitled|expired|old> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found|narrow|connections|connections-end> <PNG>、--render-gallery <fit|zoomed|saved|failed> <URL> <会話ID> <PNG>、--render-workgraph <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|terminals|features|notifications|connection|display|billing|update|about|stop>|onepassword-<not-linked|checking|success|failure>> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-editor <settings|profile|feature|authentication> <URL> <ID> <PNG>" + RequestsRender.Usage + " のいずれかです。";
+    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] or ["--render-startup", _, _, _] or ["--render-page", _, _, _] or ["--render-inspector", _, _, _, _] or ["--render-screen", _, _, _, _] or ["--render-editors", _, _, _, _] or ["--render-editor", _, _, _, _] or ["--render-lattice", _, _] or ["--render-approvals", _, _] or ["--render-workgraph", _, _] or ["--render-gallery", _, _, _, _] or ["--render-terminals", _, _, _] || RequestsRender.IsKnown(args);
     public static bool IsRender(string[] args) => args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal));
 
     public static void Start(IClassicDesktopStyleApplicationLifetime desktop)
@@ -48,6 +48,7 @@ internal static partial class Launcher
                 case ["--render-editor", var kind, var address, var id, var output]: await SettingsRender.EditorAsync(kind, address, id, output); break;
                 case ["--render-lattice", var scene, var output]: await LatticeRender.LatticeAsync(scene, output); break;
                 case ["--render-approvals", var scene, var output]: await LatticeRender.ApprovalsAsync(scene, output); break;
+                case ["--render-gallery", var scene, var address, var id, var output]: await RenderGalleryAsync(scene, address, id, output); break;
                 case ["--render-workgraph", var address, var output]: await LatticeRender.WorkGraphAsync(address, output); break;
                 case []: await RunWindowAsync(desktop); return;
                 default: throw new ArgumentException(Usage);
@@ -95,6 +96,29 @@ internal static partial class Launcher
         if (first is not null) await model.SelectAsync(first);
         if (model.ConnectionError is { } renderError) throw new BellApiException(renderError);
         await window.PrepareRenderAsync();
+        WritePng(window, output);
+    }
+
+    // The first picture of the conversation in the viewer: fit, zoomed (3x, panned), or with the notice that follows a save or a failure.
+    private static async Task RenderGalleryAsync(string scene, string address, string conversationId, string output)
+    {
+        using var model = new LinuxWorkspace();
+        var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false };
+        window.Show();
+        await model.ConnectAsync(address, listen: false);
+        await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == conversationId) ?? throw new BellApiException("指定した会話がありません。"));
+        if (model.ConnectionError is { } renderError) throw new BellApiException(renderError);
+        var urls = model.Messages.Select(item => item.Message.DisplayedImageUrls).FirstOrDefault(found => found.Length != 0) ?? throw new BellApiException("画像のある発言がありません。");
+        var gallery = window.ShowGallery(urls, 0);
+        await window.PrepareRenderAsync();
+        switch (scene)
+        {
+            case "fit": break;
+            case "zoomed": gallery.Pane!.ZoomBy(3); break;
+            case "saved": gallery.SayForRender("画像.png を保存しました", false); break;
+            case "failed": gallery.SayForRender("ほかのアプリで開けませんでした（xdg-open が 3 で終了しました）。", true); break;
+            default: throw new ArgumentException("未対応のビューアの場面です。" + Usage);
+        }
         WritePng(window, output);
     }
 
