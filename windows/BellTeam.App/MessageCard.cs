@@ -39,7 +39,7 @@ public sealed class MessageCard : ContentControl
     private MarkdownView? contentBody;
     // Bubble actions (a303, the same row on every platform): three small icons at the bubble's bottom right, always visible. Reply and forward act as the right-click menu does; copy puts the message text on the clipboard.
     private readonly Button replyButton = ActionIcon("", "返信", "このメッセージに返信");
-    private readonly Button forwardButton = ActionIcon("", "転送", "このメッセージを転送");
+    private readonly Button forwardButton = ActionIcon("", "転送", "このメッセージを転送");
     private readonly Button copyButton = ActionIcon("", "コピー", "このメッセージをコピー");
     private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
     private Grid? footer;
