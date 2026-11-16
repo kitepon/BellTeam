@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 const ID = /^[a-z0-9][a-z0-9-]{0,127}$/u
-const FILE = /^[a-z0-9][a-z0-9-]{0,127}\.(png|jpg|webp|gif)$/u
-const MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }
+const FILE = /^[a-z0-9][a-z0-9-]{0,127}\.(png|jpg|webp|gif|dat)$/u
+const MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', dat: 'application/octet-stream' }
 const fail = code => { throw Object.assign(new Error(code), { code }) }
 const ownerValid = owner => typeof owner === 'string' && ID.test(owner)
 const botValid = bot => ownerValid(bot) && bot !== 'user'

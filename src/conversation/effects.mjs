@@ -86,7 +86,8 @@ export function validateConversationEffect(method, params, capturedContext) {
       fields(params, { deliveryId: identity, target: id, message: text, queue,
         kinds: array(value => CONVERSATION_CALLBACK_METHODS.includes(value)),
         ...(report ? { sourceDeliveryId: identity, reason: oneOf('missing', 'content') } : { images: array(image) }),
-      }, method === 'execution.notify' ? { recoveryId: identity } : {})
+      }, { ...(report ? {} : { files: array(value => fields(value, { name: nonempty, mime: text, data: text })) }),
+        ...(method === 'execution.notify' ? { recoveryId: identity } : {}) })
       if (params.queue.groupId !== params.deliveryId || params.queue.target !== params.target
         || new Set(params.kinds).size !== params.kinds.length) invalid()
       if (report) {

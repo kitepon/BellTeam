@@ -23,7 +23,7 @@ export class RoomHistory {
   async forwardSource(id) {
     const records = (await this.snapshot()).byId.get(id), record = records?.length === 1 ? records[0] : null
     return record?.schema === 'bellteam.room-message.v1' && typeof record.sender?.id === 'string' && typeof record.message === 'string'
-      ? { sender: { id: record.sender.id, name: record.sender.name }, at: record.at, text: contentOf(record), imageAssets: record.image_assets ?? (record.image_asset ? [record.image_asset] : []), origin: record.origin } : null
+      ? { sender: { id: record.sender.id, name: record.sender.name }, at: record.at, text: contentOf(record), imageAssets: record.image_assets ?? (record.image_asset ? [record.image_asset] : []), fileAssets: record.file_assets ?? [], origin: record.origin } : null
   }
   // reply.md: any message of this room can be quoted; status and routing rows are not messages.
   async quoteSource(id) {

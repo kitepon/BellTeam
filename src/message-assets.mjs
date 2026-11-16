@@ -4,8 +4,10 @@ import { mkdir, open, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const SAFE_ID = /^[a-z0-9][a-z0-9-]{0,127}$/u
-const ASSET_FILE = /^([a-z0-9][a-z0-9-]{0,127})\.(png|jpg|webp|gif)$/u
+const ASSET_FILE = /^([a-z0-9][a-z0-9-]{0,127})\.(png|jpg|webp|gif|dat)$/u
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024
+// forward.md "Files": 20 MiB per file; the parent holds the bytes in memory (INC-OOM 2026-11-10).
+export const MAX_FILE_BYTES = 20 * 1024 * 1024
 
 const MIME_EXTENSION = new Map([
   ['image/png', 'png'],
@@ -13,7 +15,7 @@ const MIME_EXTENSION = new Map([
   ['image/webp', 'webp'],
   ['image/gif', 'gif'],
 ])
-const EXTENSION_MIME = new Map([...MIME_EXTENSION].map(([mime, extension]) => [extension, mime]))
+const EXTENSION_MIME = new Map([...MIME_EXTENSION].map(([mime, extension]) => [extension, mime]).concat([['dat', 'application/octet-stream']]))
 
 export class MessageAssets {
   #removals = new Map()
@@ -101,6 +103,27 @@ export class MessageAssets {
       if (error.code === 'ELOOP') throw new Error('IMAGE_ASSET_INVALID')
       throw error
     }
+  }
+
+  // Saves files that are not images as `{id}-d-{n}.dat` under `owner` (forward.md "Files"); the name and type are display data only.
+  // files: [{name, mime, data (base64)}], already checked by requireFiles.
+  async saveFiles({ owner, id, files }) {
+    validateId(owner)
+    return this.#trackSave(owner, async () => {
+      const saved = []
+      for (const [index, file] of files.entries()) {
+        const fileId = `${id}-d-${index + 1}`
+        validateId(fileId)
+        const bytes = Buffer.from(file.data, 'base64')
+        if (!bytes.length || bytes.length > MAX_FILE_BYTES) throw new Error('FILE_INVALID')
+        const directory = this.directory(owner)
+        await mkdir(directory, { recursive: true })
+        try { await writeFile(join(directory, `${fileId}.dat`), bytes, { flag: 'wx', mode: 0o600 }) }
+        catch (error) { throw error.code === 'EEXIST' ? new Error('IMAGE_ASSET_DUPLICATE') : error }
+        saved.push(Object.freeze({ owner, file: `${fileId}.dat`, name: file.name, mime: file.mime, size: bytes.length }))
+      }
+      return saved
+    })
   }
 
   // Copies existing saved images (a forward) into new ones under `owner`; returns the saved descriptors and the bytes for delivery.

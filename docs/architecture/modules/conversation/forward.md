@@ -9,7 +9,7 @@ Base read: `main` f8467a44 — `src/messenger.mjs` (`prepareUserTurn`, `record`,
 ## Scope
 
 - In: the Owner's posts to a Bot (direct conversation) or a room. Content: text, URLs, images. A forward copies a message from any conversation the Owner can read; a share carries content the OS share sheet hands to the app.
-- Out of this version: forwarding or sharing **files that are not images** (see [Files](#files-not-images-follow-up-after-execution-adds-files)); a Bot forwarding through `sendmessage` / `sendroommessage` (those tools keep their closed input); combining a forward or share with a reply (`reply_to`); editing a sent message.
+- Out of this version: **forwarding a message that has non-image files** (sharing in and sending files work, see [Files](#files-not-images)); a Bot forwarding through `sendmessage` / `sendroommessage` (those tools keep their closed input); combining a forward or share with a reply (`reply_to`); editing a sent message.
 - The prompt text is assembled here (`userEnvelope`, `directEnvelope`, `roomEnvelope`) and handed to execution as one opaque string, as for replies. Images reach execution through the existing `images` option. No execution change is needed for text, URLs and images.
 
 ## Names (do not mix)
@@ -122,14 +122,18 @@ The conversation module process cannot read a saved image directly: `MessageAsse
 - A message with an image and no text forwards with an empty comment; a source with neither text nor a readable image is `FORWARD_SOURCE_NOT_FOUND`.
 - Release order: `assets.read` is a BODY change (train Z73). The CONVERSATION module that reads through it must not go live before that body, otherwise the read is refused and the forward fails with the effect error, nothing saved or delivered.
 
-### Files (not images): follow-up after execution adds `files`
+### Files (not images)
 
-The conversation stores and serves images only. A file (PDF, document, audio, anything not detected as an image) cannot reach a Bot today: execution turns attached images into temporary files for the seat, and has no path for other files; the seat's project belongs to members/runtime, which the conversation must not write into. So for this version:
+Implemented by `a289` on top of Kiro's `files` option (`a288`, main 585cb68a). A file is any attachment that is not an image: PDF, document, audio, anything else.
 
-- A forward of a message that has no text and no image (a file-only message does not exist today), and a share with a non-image file, are refused with HTTP 415 `FILE_NOT_SUPPORTED`, nothing saved. The shared sheet's other items (text, URLs, images) are accepted when the Owner removes the file; clients tell the Owner plainly.
-- Wire shape reserved for when it is agreed: `files` next to `images`, each `{name, mime, data}` or `{path}`, saved under the same owner directories with their own limits, listed in history as `file_urls`, served like images with `Content-Disposition`. Not implemented, not promised.
-- Execution (Kiro, confirmed feasible): a turn/notify option `files: [{name, mime, data}]` reusing the temporary-file and cleanup path of `images`; the seat receives the path in the message text. Chart: `a288-kiro-turn-files` (execution), then `a289-n102-forward-files` (this module's file part, after `a280-n102-forward-impl`). Until `a289` is merged and live, the refusal above is the contract. The refusal protects the Owner from believing a Bot received a file it cannot read.
-- Limits (Owner/Trony ruling 2026-11-16): **20 MiB per file, 5 files per message**; images keep their own cap. Protection: the body parent holds the bytes in memory, and a parent out-of-memory restarts the whole container and loses every seat's in-flight work (INC-OOM 2026-11-10). Self-exit: the refusal names the limit in plain words, and the sender sends a smaller file or splits it. A file over the limit → HTTP 413 `FILE_TOO_LARGE`, more than five → HTTP 413 `TOO_MANY_FILES`; both before anything is saved, with a message such as 「ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。」 These two errors apply from `a289`; before it every non-image file is 415.
+- **Request**: `files: [{name, mime, data}]` next to `images` on `POST /api/bots/{id}/messages` and `POST /api/rooms/{id}/messages` (Owner posts only; a Bot post with `files` is refused `ORIGIN_NOT_ALLOWED`). `data` is base64. A share may bring only files; any post may carry files. The whole request keeps the existing 96 MiB cap, so five files near the per-file limit may not fit in one request: the sender sends fewer or smaller files.
+- **Limits** (Owner/Trony ruling 2026-11-16): **20 MiB per file, 5 files per message**; images keep their own cap. Protection: the body parent holds the bytes in memory and an out-of-memory restart loses every seat's in-flight work (INC-OOM 2026-11-10). Over the limit → HTTP 413 `FILE_TOO_LARGE` or `TOO_MANY_FILES`, with `message` set to 「ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。」, before anything is saved. Other bad input (not an array, a file without `data`, empty file, data that is not base64, unknown keys) → 400 `FILES_INVALID`.
+- **Saved**: each file is saved by `MessageAssets.saveFiles` as `{id}-d-{n}.dat` in the sender's asset directory (same lease and Bot-removal rules as images), bytes unchanged. The row gets `file_assets: [{owner, file, name, mime, size}]` and `file_count`. `name` is display data: control characters and slashes become `_`, at most 255 characters; `mime` is the sender's type when it looks like `type/subtype`, else `application/octet-stream`. Neither is trusted for anything but display.
+- **History**: items with files carry `files: [{name, mime, size, url}]` (never the stored path); `url` is `/api/message-files/{owner}/{file}`.
+- **Download**: `GET /api/message-files/{owner}/{file}.dat` always returns `Content-Type: application/octet-stream`, `Content-Disposition: attachment; filename="{file}"` (the stored ASCII name; clients name the saved file from `files[i].name`), `X-Content-Type-Options: nosniff`, never inline. The image route does not serve `.dat`.
+- **The Bot**: the conversation passes `files: [{name, mime, data}]` to execution next to `images`; the seat receives name, type, size and path in the message text (Kiro). A file never appears in the text this module builds. `files` is sent only when there are files, so rows and calls without files are exactly as before.
+- **Forwarding a message that has files** is refused with HTTP 415 `FILE_NOT_SUPPORTED`, nothing saved: the child would need `assets.read` for `.dat` files (the effect accepts images only). Follow-up when the Owner asks for it. Sharing in files and sending files in an ordinary post work.
+- **Release order**: execution with `files` (`a288`) must be live before the CONVERSATION module that sends files; an older execution ignores `files` silently and the Bot would be told nothing about the file. The BODY validator (`file_assets`, `file_count` in `validateDirectLogRecord`, and the `files` parameter of the execution effect) goes before or with the module and the clients, as above.
 
 ### Compatibility and release order
 
@@ -147,7 +151,7 @@ flowchart TD
     Draw["draw 転送 / 共有 mark, comment, content"]
   end
   subgraph Http["http-conversation-api / http-room-api"]
-    Val["CHANGED validate forward | share shape -> 400 ORIGIN_INVALID, files -> 415 FILE_NOT_SUPPORTED"]
+    Val["CHANGED validate forward | share shape -> 400 ORIGIN_INVALID; files -> 400 FILES_INVALID, 413 FILE_TOO_LARGE / TOO_MANY_FILES"]
   end
   subgraph Ipc["conversation facade / child"]
     Fac["CHANGED facade user() and room post pick forward, share"]
@@ -192,7 +196,7 @@ flowchart TD
   Val --> Valid
 ```
 
-Public surface after the change: the two HTTP POST bodies gain `forward` and `share`; history items gain `origin`; two new errors `ORIGIN_INVALID`, `FORWARD_SOURCE_NOT_FOUND` and one reserved `FILE_NOT_SUPPORTED`, and from `a289` `FILE_TOO_LARGE` and `TOO_MANY_FILES`. No MCP tool, SSE event, queue field, status or execution port changes.
+Public surface after the change: the two HTTP POST bodies gain `forward` and `share`; history items gain `origin`; and the POST bodies gain `files`; new errors `ORIGIN_INVALID`, `FORWARD_SOURCE_NOT_FOUND`, `FILES_INVALID`, `FILE_TOO_LARGE`, `TOO_MANY_FILES`, `FILE_NOT_SUPPORTED`; `GET /api/message-files/...` is new. No MCP tool, SSE event, queue field, status or execution port changes.
 
 ## Data flow
 
@@ -227,8 +231,9 @@ The row is the only copy of the forwarded content; nothing resolves the source a
 | --- | --- |
 | malformed `forward` / `share`, both, with `reply_to`, `share` without content | 400 `ORIGIN_INVALID`, nothing saved |
 | forward source not found or not forwardable | 404 `FORWARD_SOURCE_NOT_FOUND`, nothing saved |
-| non-image file in a share or forward, until `a289` is live | 415 `FILE_NOT_SUPPORTED`, nothing saved (see [Files](#files-not-images-follow-up-after-execution-adds-files)) |
-| from `a289`: a file over 20 MiB, or more than 5 files | 413 `FILE_TOO_LARGE` / `TOO_MANY_FILES` with the limit in plain words, nothing saved; the sender sends a smaller file or splits it (protects the body parent from out-of-memory, INC-OOM 2026-11-10) |
+| a file over 20 MiB, or more than 5 files | 413 `FILE_TOO_LARGE` / `TOO_MANY_FILES` with the limit in plain words, nothing saved; the sender sends a smaller file or splits it (protects the body parent from out-of-memory, INC-OOM 2026-11-10) |
+| malformed `files` | 400 `FILES_INVALID`, nothing saved |
+| forward of a message that has files | 415 `FILE_NOT_SUPPORTED`, nothing saved (follow-up, see [Files](#files-not-images)) |
 | source readable, reading or copying an image fails (including `assets.read` not yet live in the body) | the post fails with the existing image error, nothing delivered; rows already saved by `saveAll` follow its existing no-rollback rule |
 | process stops after save, before dispatch | re-dispatch rebuilds the envelope from the saved row, same text |
 | `BOT_UPDATE_HOLD` / queued delivery | unchanged; the saved row is dispatched later |
@@ -244,7 +249,8 @@ Touch only: `src/origin-reference.mjs` (new; also listed in `scripts/web_gateway
 2. forward with and without comment; forward of a forward names the original author.
 3. forwarded images are copied (new file under the Owner, bytes delivered to the Bot; the original removable without breaking the forward); an image-only original forwards with an empty comment.
 4. share with text, with URLs, with images only, with a comment; `app` omitted.
-5. refusals: both objects, with `reply_to`, empty share, bad URL scheme, too many URLs → 400 `ORIGIN_INVALID`; unknown source → 404; a non-image file → 415; nothing saved in each case.
+5. refusals: both objects, with `reply_to`, empty share, bad URL scheme, too many URLs → 400 `ORIGIN_INVALID`; unknown source → 404; a forward of a message that has files → 415; nothing saved in each case.
+8. files: saved as `.dat` with the row fields, listed in history without the stored path, handed to the Bot and every room member; 413 over 20 MiB / 5 files with the plain-words message; 400 for malformed `files`; the download route is attachment-only; a Bot post with `files` is refused.
 6. re-dispatch of a saved queued row yields the same envelope.
 7. rows without `origin`: existing tests unchanged.
 

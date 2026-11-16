@@ -20,7 +20,7 @@ test('validators, composition and the Bot notice follow forward.md', () => {
   for (const bad of [null, {}, fwd(''), { ...fwd('m1'), extra: 1 }, { source: { kind: 'x', id: 'a' }, message_id: 'm' }, fwd('m'.repeat(201))]) assert.equal(validForward(bad), false)
   assert.ok(validShare({ text: 'a' }) && validShare({ app: 'LINE', urls: ['https://example.com/a'] }) && validShare({}))
   for (const bad of [{ urls: ['ftp://x'] }, { urls: Array(21).fill('https://a.b') }, { app: 'a'.repeat(65) }, { text: 1 }, { extra: 1 }]) assert.equal(validShare(bad), false)
-  assert.deepEqual(readOrigin({ files: [{}] }, []), { status: 415, error: 'FILE_NOT_SUPPORTED' })
+  assert.deepEqual(readOrigin({ files: [{}] }, []), { status: 400, error: 'FILES_INVALID', message: undefined })
   for (const body of [{ forward: fwd('m'), share: {} }, { forward: fwd('m'), reply_to: 'x' }, { share: {} }, { share: { urls: ['x'] } }])
     assert.deepEqual(readOrigin(body, []), { status: 400, error: 'ORIGIN_INVALID' })
   assert.deepEqual(readOrigin({ share: {} }, [{}]).fields, { share: {} })

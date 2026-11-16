@@ -40,6 +40,9 @@ const schedule = value => fields(value, { kind: oneOf('once', 'cron', 'interval_
 })
 const launch = value => fields(value, { session_id: nonempty, launch_id: value => text(value) && /^[a-f0-9]{32}$/u.test(value) })
 const post = { message: text, images: array(image) }
+// The module re-checks sizes and names (requireFiles); the request edge only fixes the shape.
+const validFilesShape = value => Array.isArray(value) && value.length <= 5
+  && value.every(file => plain(file) && Object.keys(file).every(key => ['name', 'mime', 'data'].includes(key)) && text(file.name) && text(file.mime) && text(file.data))
 // Bound by the parent seat MCP from the resolved fork seat only (fork-inquiry B1/B2).
 const askerSeat = value => fields(value, { kind: oneOf('fork'), forkId: identity })
 
@@ -90,7 +93,7 @@ export function validateConversationInput(method, params, actor) {
     case 'direct.post': return fields(params, { from: id, target: id, ...post }, { askerSeat })
     case 'fork.ask': return fields(params, { from: id, target: id, message: text }, { askerSeat })
     case 'user.post': case 'user.turn':
-      fields(params, { target: id, ...post }, { recordUser: bool, replyTo: validReplyTo, replyQuote: validReplyQuote, forward: validForward, share: validShare })
+      fields(params, { target: id, ...post }, { recordUser: bool, replyTo: validReplyTo, replyQuote: validReplyQuote, forward: validForward, share: validShare, files: validFilesShape })
       if (params.recordUser === false && actor.kind !== 'onboarding') invalid()
       return true
     case 'display.words':
@@ -98,7 +101,7 @@ export function validateConversationInput(method, params, actor) {
       validateConversationCallback('delivery.words', { words: params.words })
       return true
     case 'room.post': return fields(params, { from: id, room: roomId, ...post }, {
-      targets: nullable(array(id)), kind: oneOf('message', 'schedule'), replyTo: validReplyTo, replyQuote: validReplyQuote, forward: validForward, share: validShare,
+      targets: nullable(array(id)), kind: oneOf('message', 'schedule'), replyTo: validReplyTo, replyQuote: validReplyQuote, forward: validForward, share: validShare, files: validFilesShape,
       schedule: nullable(value => fields(value, { id: nonempty, name: text })),
     })
     case 'room.reply': return fields(params, { roomId, messageId: nonempty, ...post }, { targets: nullable(array(id)) })
