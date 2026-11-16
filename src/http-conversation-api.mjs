@@ -2,7 +2,7 @@ import { pipeline } from 'node:stream'
 import { json, readJson } from './http-response.mjs'
 import { webMessage, messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 import { validReplyQuote, validReplyTo } from './reply-reference.mjs'
-import { readOrigin } from './origin-reference.mjs'
+import { originFailure, readOrigin } from './origin-reference.mjs'
 
 export function createConversationApi({ bots, rooms, timeline }) {
   return async (request, response, url) => {
@@ -51,7 +51,13 @@ export function createBotConversationApi({ bots, transport, messagePage, messeng
           return json(response, 400, { error: 'MESSAGE_REQUIRED' })
         if (body.reply_to != null && !validReplyTo(body.reply_to)) return json(response, 400, { error: 'REPLY_TO_INVALID' })
         if (body.reply_quote != null && (body.reply_to == null || !validReplyQuote(body.reply_quote))) return json(response, 400, { error: 'REPLY_QUOTE_INVALID' })
-        const result = await messenger.enqueueUserTurn({ target: botId, message, images, ...(body.reply_to != null ? { replyTo: body.reply_to } : {}), ...(body.reply_quote != null ? { replyQuote: body.reply_quote } : {}), ...origin.fields })
+        let result
+        try { result = await messenger.enqueueUserTurn({ target: botId, message, images, ...(body.reply_to != null ? { replyTo: body.reply_to } : {}), ...(body.reply_quote != null ? { replyQuote: body.reply_quote } : {}), ...origin.fields }) }
+        catch (error) {
+          const refusal = originFailure(error)
+          if (!refusal) throw error
+          return json(response, refusal.status, { error: refusal.error, ...(refusal.message ? { message: refusal.message } : {}) })
+        }
         return json(response, 200, result)
       }
     }

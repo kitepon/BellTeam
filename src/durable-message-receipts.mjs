@@ -1,10 +1,11 @@
-import { open } from 'node:fs/promises'
+import { open, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { BellTeamMessenger } from './messenger.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { memberIdentity } from './member-identity.mjs'
 import { returnedExecutionError } from './execution-error.mjs'
 import { readImageBytes } from './message-assets.mjs'
+import { requireFiles, resolveOrigin } from './origin-reference.mjs'
 
 const fail = code => { throw Object.assign(new Error(code), { code }) }
 
@@ -50,25 +51,36 @@ export class DurableMessageReceipts extends BellTeamMessenger {
   }
 
   async receive(input, { membersLease } = {}) {
-    const allowed = ['from', 'target', 'message', 'image', 'images', 'executionSource', 'askerSeat', 'replyTo', 'replyQuote']
+    const allowed = ['from', 'target', 'message', 'image', 'images', 'executionSource', 'askerSeat', 'replyTo', 'replyQuote', 'forward', 'share', 'files']
     if (!input || Object.keys(input).some(key => !allowed.includes(key))) fail('MESSAGE_INPUT_INVALID')
-    const { from, target, message, images = input.image ? [input.image] : [], replyTo, replyQuote } = input
+    const { from, target, message: comment, images: sent = input.image ? [input.image] : [], replyTo, replyQuote, forward, share, files: sentFiles } = input
     await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) fail('SENDER_NOT_FOUND')
     if (target === 'user' && from === 'user') fail('USER_TO_USER_NOT_ALLOWED')
     if (target !== 'user' && !this.bots.has(target)) fail('BOT_NOT_FOUND')
-    if (typeof message !== 'string' || !Array.isArray(images) || (!message.length && !images.length)) fail('MESSAGE_REQUIRED')
+    if (typeof comment !== 'string' || !Array.isArray(sent)) fail('MESSAGE_REQUIRED')
     if (target !== 'user') await this.requireAccess({ from, target })
     if ((replyTo !== undefined || replyQuote !== undefined) && (from !== 'user' || target === 'user' || replyTo === undefined)) fail('MESSAGE_INPUT_INVALID')
+    if ((forward !== undefined || share !== undefined || sentFiles !== undefined) && (from !== 'user' || target === 'user')) fail('MESSAGE_INPUT_INVALID')
+    // forward.md: the same origin and file handling as Messenger.prepareUserTurn; refusals carry a 4xx status.
+    let images = sent
+    const files = sentFiles === undefined ? [] : requireFiles(sentFiles)
+    const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
+    const message = origin ? origin.message : comment
+    if (!message.length && !images.length && !origin?.copy.length && !files.length) fail('MESSAGE_REQUIRED')
     const reply = replyTo === undefined ? null : await this.replyReference(target, replyTo, replyQuote)
     const deliveryId = this.deliveryId()
     if (images.length && !this.assets) fail('IMAGE_STORAGE_REQUIRED')
+    if ((origin?.copy.length || files.length) && !this.assets) fail('IMAGE_STORAGE_REQUIRED')
     const imageAssets = images.length ? await this.assets.saveAll({ owner: from, id: deliveryId, images }) : []
+    const fileAssets = files.length ? await this.assets.saveFiles({ owner: from, id: deliveryId, files }) : []
+    const copied = origin?.copy.length ? await this.assets.copyAll({ owner: from, id: deliveryId, sources: origin.copy }) : null
+    if (copied) images = [...images, ...copied.images]
     // askerSeat is bound by the seat MCP (SK08); the saved from_seat makes the dispatch envelope read 「（分身）」.
     const fromSeat = input.askerSeat?.kind === 'fork' && typeof input.askerSeat.forkId === 'string' && input.askerSeat.forkId
       ? { from_seat: { kind: 'fork', fork_id: input.askerSeat.forkId } } : null
-    const record = { ...this.record({ deliveryId, from, target, message, images, imageAssets,
-      delivery: target === 'user' ? 'delivered' : 'queued', label: fromSeat, replyTo: reply }), durable_receipt: true }
+    const record = { ...this.record({ deliveryId, from, target, message, images, imageAssets: [...imageAssets, ...(copied?.assets ?? [])], fileAssets,
+      delivery: target === 'user' ? 'delivered' : 'queued', label: fromSeat, replyTo: reply, origin: origin?.origin }), durable_receipt: true }
     if (input.executionSource) this.executionSources.set(deliveryId, input.executionSource)
     try { return await this.saveReceipt(record) }
     catch (error) { this.executionSources.delete(deliveryId); throw error }
@@ -149,6 +161,8 @@ export class DurableMessageReceipts extends BellTeamMessenger {
         // Saved assets are private to UID1001; execution creates its own seat-readable temporary copy.
         images: await Promise.all((record.image_assets ?? []).map(async asset => ({ mime: asset.mime,
           data: (await readImageBytes({ path: join(this.assets.directory(asset.owner), asset.file) }, this.assets.maxBytes)).toString('base64') }))),
+        files: await Promise.all((record.file_assets ?? []).map(async asset => ({ name: asset.name, mime: asset.mime,
+          data: (await readFile(join(this.assets.directory(asset.owner), asset.file))).toString('base64') }))),
         queue: { context: 'direct', contextId: record.target, groupId: deliveryId, from: record.from,
           fromName: record.from_identity?.name ?? record.from, target: record.target, message: record.message,
           ...(record.session_id ? { call: { sessionId: record.session_id, event: record.call_event, seq: record.call_seq } } : {}) },
