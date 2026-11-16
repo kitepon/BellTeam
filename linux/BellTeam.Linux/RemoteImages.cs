@@ -98,7 +98,7 @@ public sealed class ImageGallery : Grid
     private readonly Action close;
     private readonly ContentControl content = new();
     private readonly TextBlock position = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, FontSize = 18, Foreground = Brushes.White };
-    private readonly TextBlock notice = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 20), Padding = new Thickness(14, 8), FontSize = 14, Foreground = Brushes.White, IsVisible = false };
+    private readonly TextBlock notice = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 20), Padding = new Thickness(14, 8), FontSize = 14, Foreground = Brushes.White, IsVisible = false, TextWrapping = TextWrapping.Wrap };
     private readonly Border noticeBack;
     public int Selected { get; private set; }
     public ZoomPane? Pane => content.Content as ZoomPane;
@@ -116,7 +116,7 @@ public sealed class ImageGallery : Grid
         actions.Children.Add(Control(Icons.Copy, "画像をコピー", "画像をコピー（Ctrl+C）", () => _ = RunAsync(CopyAsync)));
         SetColumn(actions, 2); header.Children.Add(actions); Children.Add(header);
         SetRow(content, 1); content.Margin = new Thickness(16); content.HorizontalContentAlignment = HorizontalAlignment.Stretch; content.VerticalContentAlignment = VerticalAlignment.Stretch; Children.Add(content);
-        noticeBack = new Border { Child = notice, Background = new SolidColorBrush(Color.Parse("#CC202020")), CornerRadius = new CornerRadius(12), IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 24) };
+        noticeBack = new Border { Child = notice, Background = new SolidColorBrush(Color.Parse("#CC202020")), CornerRadius = new CornerRadius(12), IsVisible = false, MaxWidth = 720, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 24) };
         notice.Margin = default; notice.VerticalAlignment = VerticalAlignment.Center; notice.HorizontalAlignment = HorizontalAlignment.Center; notice.IsVisible = true;
         SetRow(noticeBack, 1); Children.Add(noticeBack);
         if (paths.Length > 1)
