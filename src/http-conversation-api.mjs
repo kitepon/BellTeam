@@ -75,6 +75,8 @@ export function createConversationAssetsApi({ events, assets }) {
         'content-length': asset.size,
         'cache-control': 'private, max-age=31536000, immutable',
         'x-content-type-options': 'nosniff',
+        // image-original.md: the saved file name for "save as"; ?download=1 asks the browser to save instead of show.
+        'content-disposition': `${url.searchParams.get('download') === '1' ? 'attachment' : 'inline'}; filename="${imageAssetMatch[2]}"`,
       })
       // A disconnected response must also close the source FileHandle.
       return pipeline(asset.stream, response, () => {})

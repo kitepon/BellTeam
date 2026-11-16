@@ -31,6 +31,7 @@ test('画像GETは完了・途中切断・応答エラー・取得待ち中の�
         assert.equal(status, 200)
         assert.equal(headers['content-length'], image.length)
         assert.equal(headers['content-type'], 'image/jpeg')
+        assert.equal(headers['content-disposition'], `${ending === 'finish' ? 'attachment' : 'inline'}; filename="image-1.jpg"`)
       }
       // The response error itself is observed even against the old pipe-only handler.
       response.on('error', () => {})
@@ -46,7 +47,7 @@ test('画像GETは完了・途中切断・応答エラー・取得待ち中の�
           return asset
         },
       } })
-      await api({ method: 'GET' }, response, new URL('http://localhost/api/message-images/user/image-1.jpg'))
+      await api({ method: 'GET' }, response, new URL(`http://localhost/api/message-images/user/image-1.jpg${ending === 'finish' ? '?download=1' : ''}`))
       await closed
       assert.equal(stream.closed, true)
       assert.throws(() => fstatSync(fd), { code: 'EBADF' })
