@@ -14,11 +14,15 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
     private readonly Func<ChatTarget, string, Task<string?>> send;
     private readonly Action close;
     private readonly string label, busyLabel;
-    private readonly ListBox destinations = new() { Background = Brushes.Transparent, MaxHeight = 260, FontSize = 16 };
+    // The destinations are the sidebar's own rows (avatar, name, summary) under its ルーム / メンバー headers; the chosen one takes the sidebar's selected look.
+    private readonly StackPanel destinations = new();
+    private readonly Dictionary<ChatTarget, ConversationRow> rows = [];
+    private ConversationEntry? chosen;
     private readonly TextBox comment = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 64, MaxHeight = 160, Padding = new Thickness(10, 8), FontSize = 16 };
     private readonly TextBlock error = new() { Foreground = BellTheme.Red, FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), IsVisible = false };
+    private readonly ConversationEntry[] entries;
     private bool sending;
-    public bool CanSave => !sending && destinations.SelectedItem is not null;
+    public bool CanSave => !sending && chosen is not null;
     public event Action? CanSaveChanged;
     string ISheetSave.CloseLabel => "キャンセル";
     string ISheetSave.SaveLabel => sending ? busyLabel + "中…" : label;
@@ -27,7 +31,7 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
     // Render seam: what a person would have picked and typed, and a refusal.
     public void SetForRender(int destination, string text, string? failure = null)
     {
-        destinations.SelectedIndex = destination; comment.Text = text;
+        Choose(entries[destination]); comment.Text = text;
         if (failure is not null) { error.Text = failure; error.IsVisible = true; }
     }
 
@@ -39,19 +43,26 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
         form.Children.Add(Header(previewHeader)); form.Children.Add(preview);
         if (note is not null) form.Children.Add(new TextBlock { Text = note, FontSize = 14, Foreground = BellTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
         form.Children.Add(Header(destinationHeader));
-        destinations.ItemsSource = workspace.Entries; destinations.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<ConversationEntry>((entry, _) => new TextBlock { Text = entry.Name, Padding = new Thickness(4, 6) });
+        entries = workspace.Entries.ToArray();
+        foreach (var group in entries.GroupBy(entry => entry.Group))
+        {
+            destinations.Children.Add(new TextBlock { Text = group.Key, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Muted, Margin = new Thickness(8, 12, 0, 4) });
+            foreach (var entry in group) { var row = new ConversationRow(workspace, entry, Choose); rows[entry.Target] = row; destinations.Children.Add(row); }
+        }
         AutomationProperties.SetName(destinations, destinationHeader);
-        if (preselect is not null) destinations.SelectedItem = workspace.Entries.FirstOrDefault(entry => entry.Target == preselect.Target);
-        destinations.SelectionChanged += (_, _) => CanSaveChanged?.Invoke();
-        form.Children.Add(destinations);
+        if (preselect is not null) chosen = entries.FirstOrDefault(entry => entry.Target == preselect.Target);
+        UpdateRows();
+        form.Children.Add(new ScrollViewer { Content = destinations, MaxHeight = 230, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
         form.Children.Add(Header("コメント（任意）")); AutomationProperties.SetName(comment, "コメント"); form.Children.Add(comment); form.Children.Add(error);
         Content = form;
     }
+    private void Choose(ConversationEntry entry) { chosen = entry; UpdateRows(); CanSaveChanged?.Invoke(); }
+    private void UpdateRows() { foreach (var (target, row) in rows) row.Classes.Set("selected", chosen?.Target == target); }
     private static TextBlock Header(string text) => new() { Text = text, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Muted, Margin = new Thickness(0, 16, 0, 6) };
 
     public async Task SaveAsync()
     {
-        if (!CanSave || destinations.SelectedItem is not ConversationEntry destination) return;
+        if (!CanSave || chosen is not { } destination) return;
         sending = true; error.IsVisible = false; CanSaveChanged?.Invoke();
         try
         {
@@ -68,7 +79,10 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
     public static DestinationSheet Forward(LinuxWorkspace workspace, TimelineMessage message, Action close)
     {
         var text = message.Message ?? ""; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
-        var preview = Quote(new TextBlock { Text = text, FontSize = 15, Foreground = BellTheme.Muted, TextWrapping = TextWrapping.Wrap, MaxHeight = 90, TextTrimming = TextTrimming.CharacterEllipsis }, BellTheme.Violet);
+        // Drawn the way the conversation draws the message (no literal ** or - marks), clipped to a few lines.
+        var body = new MarkdownView { FontSize = 15, Foreground = BellTheme.Muted };
+        try { body.Source = text; } catch (NotSupportedException) { body.ShowText(text); }
+        var preview = Quote(new Border { Child = body, MaxHeight = 96, ClipToBounds = true }, BellTheme.Violet);
         return new DestinationSheet(workspace, "転送する発言", preview, "転送先", "転送", "転送", (target, comment) => workspace.ForwardAsync(message, target, comment), close);
     }
 
