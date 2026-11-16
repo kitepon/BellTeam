@@ -60,9 +60,11 @@ SECTION lattice
     WHY: what it shows is what you declare and what your change can break.
   RULE lattice.conflicts
     WHEN: you add a task to a plan whose coordination mode is witness or enforced (session-context shows the mode)
-    DO: declare it at once with `todo independence witness declare`: `--owns` the files it will edit, `--reads` the files it depends on; no flags when it touches no code.
+    DO: declare it on the `todo add` itself, by function: `--owns src/a.mjs#fn,src/a.mjs#Cls.method` for what it will change, `--reads src/b.mjs#g` for what it depends on (plan input: `tasks[].touches`); `todo independence witness declare` with no flags when it touches no code.
+    FACT: a path without `#` claims the whole file, so every task that changes that file conflicts with yours. The add result lists the conflicts with every unfinished task (declaration.conflicts); Lattice never refuses the add.
+    WHEN: you gave functions and the add result has declaration.written false  FACT: the task is added; its functions are not recorded.  DO: correct the names (declaration.unresolved gives the nearest ones) and give the same flags to `todo independence witness declare`.  NEVER: add the task again.
     FACT: an undeclared task is not judged, and an enforced plan refuses its start; the declared tasks are judged without it.
-    WHEN: todo start lists conflicts_with_active  DO: before editing the shared files, make that task your 前工程 or settle it with its owner or the coordinator.
+    WHEN: todo start lists conflicts_with_active  DO: before editing the shared code, make that task your 前工程 or settle it with its owner or the coordinator.
     FACT: coverage missing or stale means not judged, never safe.
   RULE lattice.structure
     WHEN: the plan has structure checking on (`todo structure`) and your PR is adopted  DO: structure realize before todo done.
