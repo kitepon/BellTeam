@@ -88,6 +88,14 @@ public static class Timeline
         "ORIGIN_INVALID" => "転送の内容を受け付けられませんでした。",
         _ => error.Message
     };
+    // Plain words for the refusals of a share-in (forward.md "Failure handling"); anything else keeps the server's own message.
+    public static string ShareRefusal(BellApiException error) => error.Code switch
+    {
+        "FILE_NOT_SUPPORTED" => "画像ではないファイルはまだ共有できません。ファイルを外して、文章・URL・画像だけを送ってください。",
+        "FILE_TOO_LARGE" or "TOO_MANY_FILES" => "ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。",
+        "ORIGIN_INVALID" => "共有の内容を受け付けられませんでした。文章は2万字まで、URLは20個までです。",
+        _ => error.Message
+    };
     public const string UnavailableQuote = "元のメッセージを表示できません";
     public const string QuoteNotFound = "元のメッセージは見つかりません";
     // reply.md "What the client draws": an unavailable part shows its saved excerpt and the fixed line under it; an unavailable whole-message reply shows only the fixed line.

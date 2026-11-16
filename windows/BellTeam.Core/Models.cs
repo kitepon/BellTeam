@@ -127,6 +127,15 @@ public sealed class MessageOriginReader : LenientObjectReader<MessageOrigin>
 }
 // Which message the Owner forwards (forward.md "Request"): the conversation it is in and its id; the server copies the content.
 public sealed record ForwardSource(string Kind, string Id, string MessageId);
+// Content another app shared into BellTeam (forward.md "Share-in"): the sender's app name, text and URLs; shared images travel as the request's images.
+public sealed record ShareContent(string? App, string? Text, string[] Urls)
+{
+    public const int TextLimit = 20000, UrlLimit = 20, UrlLength = 2000;
+    // At least one of text, a URL or an image (the caller counts images) is needed; the server enforces the same.
+    public bool HasContent(int images) => !string.IsNullOrWhiteSpace(Text) || Urls.Length != 0 || images != 0;
+    // Only http(s) links are shared as URLs (the server refuses other schemes), at most 20 of at most 2000 characters.
+    public static string[] WebLinks(IEnumerable<string> candidates) => candidates.Where(url => url.Length <= UrlLength && Uri.TryCreate(url, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https").Distinct().Take(UrlLimit).ToArray();
+}
 // `reply_to` of a history row. Available false: the original could not be found, so only the fixed line is drawn.
 public sealed record ReplyReference(string Id, bool Available, string? SenderName = null, string Text = "", bool Truncated = false, bool Image = false, bool Part = false, int? RangeStart = null, int? RangeEnd = null)
 {

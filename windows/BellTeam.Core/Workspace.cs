@@ -523,6 +523,20 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         return null;
     }
 
+    // Share content from another app to a chosen Bot or room with an optional comment. Returns null when accepted, else the refusal in plain words.
+    // It needs no open conversation (the share window has none); an open destination is read again.
+    public async Task<string?> ShareAsync(ChatTarget destination, string comment, ShareContent content, ImageAttachment[] images)
+    {
+        if (api is null || connection is null) return "BellTeamに接続していません。BellTeamを開いて接続してから、もう一度共有してください。";
+        if (!content.HasContent(images.Length)) return "共有する内容がありません。";
+        var current = api; var token = connection.Token;
+        try { await current.SendAsync(destination, comment.Trim(), images, null, token, share: content); }
+        catch (BellApiException error) when (error.Status is not null) { return Timeline.ShareRefusal(error); }
+        catch (Exception error) { return (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message; }
+        if (api == current && selected?.Target == destination) { try { await RefreshAsync(current, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception error) { if (api == current) ConnectionError = "共有は受け付けられました。会話の更新に失敗しました。" + error.Message; } }
+        return null;
+    }
+
     public async Task SendAsync()
     {
         if (!CanSend) return;
