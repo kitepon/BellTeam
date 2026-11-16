@@ -20,8 +20,10 @@ export function createConversationServices({ root, bots, transport, notification
     botsAssetsRoot: join(root, 'state/bots'),
     readImage: (image, maxBytes) => seatRuntime.readImage(image, maxBytes),
   } : {}) })
+  let sourceRooms = null
+  const forwardSource = ({ kind, id, messageId }) => kind === 'bot' ? store.forwardSource(id, messageId) : sourceRooms?.forwardSource(id, messageId)
   const messenger = new BellTeamMessenger({
-    bots, transport, logPath, store, assets,
+    bots, transport, logPath, store, assets, forwardSource,
     admitWork: () => aiControl.admit(),
     requireAccess: () => aiControl.assertEnabled(),
     onMessage: record => notifications.direct(record),
@@ -52,8 +54,9 @@ export function createConversationServices({ root, bots, transport, notification
     }) : null
     const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
     await rooms.initialize()
+    sourceRooms = rooms
     const roomMessenger = new RoomMessenger({
-      rooms, bots, transport, assets,
+      rooms, bots, transport, assets, forwardSource,
       admitWork: () => aiControl.admit(),
       requireAccess: () => aiControl.assertEnabled(),
       automaticRouting: () => settings.configuration('routing').enabled,

@@ -9,7 +9,7 @@ Base read: `main` f8467a44 — `src/messenger.mjs` (`prepareUserTurn`, `record`,
 ## Scope
 
 - In: the Owner's posts to a Bot (direct conversation) or a room. Content: text, URLs, images. A forward copies a message from any conversation the Owner can read; a share carries content the OS share sheet hands to the app.
-- Out of this version: forwarding or sharing **files that are not images** (see [Files](#files-not-images-follow-up-after-execution-adds-files)); a Bot forwarding through `sendmessage` / `sendroommessage` (those tools keep their closed input); combining a forward or share with a reply (`reply_to`); editing a sent message.
+- Out of this version: forwarding **images of an existing message** until `a290`/`a291` ([Forwarded images](#forwarded-images-need-a-parent-read)); forwarding or sharing **files that are not images** (see [Files](#files-not-images-follow-up-after-execution-adds-files)); a Bot forwarding through `sendmessage` / `sendroommessage` (those tools keep their closed input); combining a forward or share with a reply (`reply_to`); editing a sent message.
 - The prompt text is assembled here (`userEnvelope`, `directEnvelope`, `roomEnvelope`) and handed to execution as one opaque string, as for replies. Images reach execution through the existing `images` option. No execution change is needed for text, URLs and images.
 
 ## Names (do not mix)
@@ -68,7 +68,7 @@ origin := { kind: "forward", from: {id, name}, at, content_start }
 | `origin.content_start` | offset in Unicode code points where the content starts inside `message`; `0` when there is no comment. A client that knows `origin` draws `message[0, content_start)` as the comment and `message[content_start…]` as the forwarded or shared content |
 | `origin.from`, `origin.at` | forward only: sender and time of the original. When the original is itself a forward, these name the **original author** it came from, not the Owner |
 | `origin.app`, `origin.urls` | share only, as sent (`urls` repeated so clients can make them tappable without parsing) |
-| images | forwarded images are **copied** into new saved images of the destination row, so the forward survives the original's Bot being removed; shared images are saved like any attached image. Both use the usual `image`, `image_count`, `image_asset(s)` fields and the [image original](image-original.md) URLs |
+| images | forwarded images are **copied** into new saved images of the destination row, so the forward survives the original's Bot being removed (needs the parent read in [Forwarded images](#forwarded-images-need-a-parent-read); until it is live a forward of a message with images is refused); shared images are saved like any attached image. Both use the usual `image`, `image_count`, `image_asset(s)` fields and the [image original](image-original.md) URLs |
 
 `origin` never appears on a row that was not forwarded or shared. The direct-record validator in the parent (`validateDirectLogRecord`) learns `origin` in the same train as for [`reply_to`](reply.md#compatibility).
 
@@ -113,6 +113,13 @@ Share:
 - With no comment the 「オーナーのコメント」 lines are omitted. Time is JST. Quoted lines start with `> `. Images follow in the existing way (`images`).
 - The text is built only from the saved row (`message`, `origin`), so a re-dispatch after a restart or `BOT_UPDATE_HOLD` repeats it.
 - Room: the same block after the `「オーナー」からあなたへ…` line; the `silent` suffix is unchanged.
+
+### Forwarded images need a parent read
+
+The conversation module process cannot read a saved image: `MessageAssets.open` is parent-only (`IMAGE_ASSET_READ_PARENT_ONLY`) so image reads stay inside the parent's removal and lease rules, and the bytes of an image attached to a new post come from the request itself. A forward has no such bytes; the child must get them from the parent, both to save the copy and to hand the image to the destination Bot (`images` of `execution.turn` / `notify`).
+
+- Needed: a parent effect `assets.read {owner, file, leaseId}` → `{data}` (base64), the same shape as `runtime.image.read`, valid inside an `assets.beginSave` lease. Owner of that change: the common effects (Epinel) with the parent assembly (Molly); the conversation side uses it through `MessageAssets` with an image descriptor `{asset: {owner, file}}`. Chart: `a290-epinel-assets-read`, then `a291-n102-forward-images` (this module).
+- Until `a290` and `a291` are live, a forward whose original has images is refused with HTTP 415 `FILE_NOT_SUPPORTED`, nothing saved; forwarding the text of such a message is done by the Owner sending it as a normal message. Text forwards and every share (shared images arrive in the request) are not affected.
 
 ### Files (not images): follow-up after execution adds `files`
 
@@ -161,7 +168,7 @@ flowchart TD
   subgraph Lookup["lookup of the original (read only)"]
     FS["NEW ConversationStore.forwardSource(botId, id)"]
     RS["NEW RoomRegistry.forwardSource(roomId, id)"]
-    Copy["MessageAssets.open + saveAll: copy forwarded images to the new row"]
+    Copy["LATER (a290/a291): assets.read effect + saveAll copy forwarded images to the new row"]
   end
   subgraph Read["history projection"]
     MI["CHANGED messageItem: origin"]
@@ -221,7 +228,8 @@ The row is the only copy of the forwarded content; nothing resolves the source a
 | forward source not found or not forwardable | 404 `FORWARD_SOURCE_NOT_FOUND`, nothing saved |
 | non-image file in a share or forward, until `a289` is live | 415 `FILE_NOT_SUPPORTED`, nothing saved (see [Files](#files-not-images-follow-up-after-execution-adds-files)) |
 | from `a289`: a file over 20 MiB, or more than 5 files | 413 `FILE_TOO_LARGE` / `TOO_MANY_FILES` with the limit in plain words, nothing saved; the sender sends a smaller file or splits it (protects the body parent from out-of-memory, INC-OOM 2026-11-10) |
-| source readable, copying an image fails | the post fails with the existing image error, nothing delivered; rows already saved by `saveAll` follow its existing no-rollback rule |
+| forward of a message with images before `a290`/`a291` are live | 415 `FILE_NOT_SUPPORTED`, nothing saved |
+| source readable, copying an image fails (from `a291`) | the post fails with the existing image error, nothing delivered; rows already saved by `saveAll` follow its existing no-rollback rule |
 | process stops after save, before dispatch | re-dispatch rebuilds the envelope from the saved row, same text |
 | `BOT_UPDATE_HOLD` / queued delivery | unchanged; the saved row is dispatched later |
 | parent without the new `validateDirectLogRecord` receives a direct row with `origin` | refused `DIRECT_LOG_RECORD_INVALID`; prevented by the release order, not by a guard in the child |
@@ -234,7 +242,7 @@ Touch only: `src/origin-reference.mjs` (new; also listed in `scripts/web_gateway
 
 1. forward from a direct row, an interim row, a peer row and a room message to a Bot and to a room: composed `message`, `origin.from/at`, `content_start`, the envelope block, history item with `origin`.
 2. forward with and without comment; forward of a forward names the original author.
-3. forwarded images are copied (new file under the destination owner; the original removable without breaking the forward).
+3. forward of a message with images is refused 415 until `a291`; from `a291`: forwarded images are copied (new file under the destination owner; the original removable without breaking the forward).
 4. share with text, with URLs, with images only, with a comment; `app` omitted.
 5. refusals: both objects, with `reply_to`, empty share, bad URL scheme, too many URLs → 400 `ORIGIN_INVALID`; unknown source → 404; a non-image file → 415; nothing saved in each case.
 6. re-dispatch of a saved queued row yields the same envelope.

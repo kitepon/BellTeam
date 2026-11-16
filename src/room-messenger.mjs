@@ -5,9 +5,10 @@ import { memberIdentity } from './member-identity.mjs'
 import { chooseRoomResponder, roomTurnsFromThroughline } from './room-routing.mjs'
 import { deliveryFailureFields } from './conversation-writer.mjs'
 import { replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
+import { originNotice, resolveOrigin } from './origin-reference.mjs'
 
 export class RoomMessenger {
-  constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder, failureFields = deliveryFailureFields }) {
+  constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, forwardSource = async () => null, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder, failureFields = deliveryFailureFields }) {
     this.rooms = rooms
     this.bots = bots
     this.transport = transport
@@ -22,6 +23,7 @@ export class RoomMessenger {
     this.roomTurns = roomTurns
     this.chooseResponder = chooseResponder
     this.automaticRouting = automaticRouting
+    this.forwardSource = forwardSource
     this.roomTasks = new Map()
     this.failureFields = failureFields
   }
@@ -43,12 +45,12 @@ export class RoomMessenger {
   }
 
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
-  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, executionSource }, check = () => {}, { membersLease } = {}) {
+  async sendRoomMessageInOrder({ from, room: roomId, message: comment, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, forward, share, executionSource }, check = () => {}, { membersLease } = {}) {
     check()
     await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })])
     const room = this.rooms.get(roomId)
     if (!room) throw new Error(`ROOM_NOT_FOUND: ${roomId}`)
-    if (typeof message !== 'string' || (!message.length && !images.length)) throw new Error('MESSAGE_REQUIRED')
+    if (typeof comment !== 'string') throw new Error('MESSAGE_REQUIRED')
     if (!['user', 'scheduler'].includes(from) && !room.memberIds.includes(from)) throw new Error(`ROOM_SENDER_INVALID: ${from}`)
     const manualResponders = targets?.length ? [...new Set(targets)] : null
     if (manualResponders?.some(id => !room.memberIds.includes(id))) throw new Error('ROOM_TARGET_INVALID')
@@ -57,6 +59,10 @@ export class RoomMessenger {
     if (replyTo !== undefined && from !== 'user') throw new Error('REPLY_TO_NOT_ALLOWED')
     if (replyTo !== undefined) requireReplyTo(replyTo)
     if (replyQuote !== undefined) { if (replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 }); requireReplyQuote(replyQuote) }
+    if ((forward !== undefined || share !== undefined) && from !== 'user') throw new Error('ORIGIN_NOT_ALLOWED')
+    const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
+    const message = origin ? origin.message : comment
+    if (!message.length && !images.length) throw new Error('MESSAGE_REQUIRED')
     if (responseTo) {
       const posted = (await this.rooms.messages(room.id)).find(item => item.responseTo === responseTo && item.sender.id === from)
       if (posted) return { id: posted.id, room: room.id, targets: posted.routing?.responders ?? [], delivery: 'already_posted' }
@@ -81,6 +87,7 @@ export class RoomMessenger {
       sender, room: snapshot, targets: manualResponders?.map(id => memberIdentity(this.bots, id)) ?? [],
       message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}), schedule, ...(responseTo ? { responseTo } : {}),
       ...(replyTo !== undefined ? { reply_to: snapshotReply(replyTo, source, replyQuote) } : {}),
+      ...(origin ? { origin: origin.origin } : {}),
       routing: { status: 'pending', responders: [] },
       deliveries: deliveryTargets.map(target => ({ target, delivery: 'running' })),
       ...(imageAsset ? { image_asset: imageAsset } : {}),
@@ -163,6 +170,6 @@ export function roomEnvelope(record, { silent = false } = {}) {
     .map(name => `「${name}」`).join('、')
   const sender = record.sender.id === 'user' ? 'オーナー' : record.sender.name
   const purpose = record.room.purpose || '未設定'
-  const message = `${members}が参加する「${record.room.name}」です。\n\nこの部屋の目的は、\n「${purpose}」\nです。\n\nメッセージID: ${record.id}\n「${sender}」からあなたへ次のメッセージが届いています。\n\n${replyNotice(record.reply_to)}${record.message}`
+  const message = `${members}が参加する「${record.room.name}」です。\n\nこの部屋の目的は、\n「${purpose}」\nです。\n\nメッセージID: ${record.id}\n「${sender}」からあなたへ次のメッセージが届いています。\n\n${record.origin ? originNotice(record.origin, record.message) : `${replyNotice(record.reply_to)}${record.message}`}`
   return silent ? `${message}\n\nこの発言を読んで部屋の流れを把握し、respond_to_room(action="silent", messageId="${record.id}")だけを呼んでターンを終えてください。部屋や個別チャットへ返答を送らないでください。` : message
 }

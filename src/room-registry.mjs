@@ -133,6 +133,12 @@ export class RoomRegistry extends Map {
     return this.histories.get(id).messages()
   }
 
+  async forwardSource(roomId, id) {
+    this.require(roomId)
+    if (!this.histories.has(roomId)) this.histories.set(roomId, new RoomHistory(join(this.roomPath(roomId), 'messages.jsonl')))
+    return this.histories.get(roomId).forwardSource(id)
+  }
+
   async quoteSource(roomId, id) {
     this.require(roomId)
     if (!this.histories.has(roomId)) this.histories.set(roomId, new RoomHistory(join(this.roomPath(roomId), 'messages.jsonl')))

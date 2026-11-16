@@ -4,6 +4,7 @@ import { watch } from 'node:fs'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname, basename } from 'node:path'
 import { TimelineIndex } from './timeline-index.mjs'
+import { contentOf } from './origin-reference.mjs'
 
 export class ConversationStore {
   constructor({ logPath, onCorruption = logCorruption }) {
@@ -48,6 +49,16 @@ export class ConversationStore {
       return { sender: { id: row.from, ...(row.from_identity?.name ? { name: row.from_identity.name } : {}) }, at: row.at, text: row.message, image: row.image === true }
     const word = state.byBot.get(botId)?.find(record => record.schema === 'bellteam.interim-word.v1' && record.id === id)
     return word ? { sender: { id: botId }, at: word.at, text: word.text, image: false } : null
+  }
+  // forward.md "What can be forwarded": a row of this Bot's conversation (Owner, Bot, peer) or the Bot's in-turn words.
+  async forwardSource(botId, id) {
+    const state = await this.snapshot()
+    const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
+    if (row && (row.from === botId || row.target === botId))
+      return { sender: { id: row.from, ...(row.from_identity?.name ? { name: row.from_identity.name } : {}) }, at: row.at,
+        text: contentOf(row), hasImages: row.image === true, origin: row.origin }
+    const word = state.byBot.get(botId)?.find(record => record.schema === 'bellteam.interim-word.v1' && record.id === id)
+    return word ? { sender: { id: botId }, at: word.at, text: word.text, hasImages: false } : null
   }
   async entries() {
     const state = await this.snapshot()
@@ -162,6 +173,7 @@ function messageItem(record, direction) {
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
     ...(record.steered === true ? { steered: true } : {}),
     ...(record.reply_to ? { reply_to: record.reply_to } : {}),
+    ...(record.origin ? { origin: record.origin } : {}),
   }
 }
 

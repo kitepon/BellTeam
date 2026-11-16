@@ -115,7 +115,8 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     task.catch(reportFailure).catch(() => {})
     return task
   }
-  const messenger = new BellTeamMessenger({ bots, transport: native, logPath, store, assets,
+  const forwardSource = ({ kind, id, messageId }) => kind === 'bot' ? store.forwardSource(id, messageId) : rooms.forwardSource(id, messageId)
+  const messenger = new BellTeamMessenger({ bots, transport: native, logPath, store, assets, forwardSource,
     failureFields: conversationCallbackFailureFields,
     admitWork: () => () => {}, requireAccess: access, onMessage: record => emit(record), onTurnEnd: afterTurn })
   forwardConversationWriter(messenger, record => invoke('direct.log.append', { record }))
@@ -133,7 +134,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     },
     judge: value => routing.withRouting(current().context, config => judgeOwnerReport({ ...value, apiKey: config.apiKey, fetcher: config.fetcher })),
   })
-  const roomMessenger = new RoomMessenger({ rooms, bots, transport: native, assets,
+  const roomMessenger = new RoomMessenger({ rooms, bots, transport: native, assets, forwardSource,
     failureFields: conversationCallbackFailureFields, admitWork: () => () => {}, requireAccess: access,
     automaticRouting: () => routing.withRouting(current().context, value => value.enabled),
     chooseResponder: value => routing.withRouting(current().context, config => chooseRoomResponder({ ...value, apiKey: config.apiKey, fetcher: config.fetcher })),

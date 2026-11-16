@@ -15,6 +15,9 @@ const asset = value => object(value, { owner: id, file: id, mime: text })
 const replyTo = value => object(value, { id, available: flag => typeof flag === 'boolean' },
   { sender: sender => object(sender, { id, name: text }), at: id, text, truncated: flag => flag === true, image: flag => flag === true,
     part: flag => flag === true, range: range => object(range, { start: Number.isSafeInteger, end: Number.isSafeInteger }) })
+const origin = value => value?.kind === 'forward'
+  ? object(value, { kind: kind => kind === 'forward', from: from => object(from, { id, name: text }), at: id, content_start: Number.isSafeInteger })
+  : object(value, { kind: kind => kind === 'share', content_start: Number.isSafeInteger }, { app: text, urls: urls => Array.isArray(urls) && urls.every(text) })
 const forkSeat = value => object(value, { kind: kind => kind === 'fork', fork_id: id })
 
 export function validateDirectLogRecord(record) {
@@ -26,7 +29,7 @@ export function validateDirectLogRecord(record) {
     image_assets: value => Array.isArray(value) && value.every(asset), durable_receipt: value => value === true,
     session_id: id, call_event: value => ['session.message', 'session.reply'].includes(value),
     call_seq: value => value === null || Number.isFinite(value), call_reply_required: value => typeof value === 'boolean',
-    seat: forkSeat, from_seat: forkSeat, in_reply_to: id, reply_to: replyTo })
+    seat: forkSeat, from_seat: forkSeat, in_reply_to: id, reply_to: replyTo, origin })
   if (record?.schema === 'bellteam.interim-word.v1') return object(record, {
     schema: value => value === 'bellteam.interim-word.v1', id, at: id, bot: id, group_id: id, text,
   }, { kind: value => ['error', 'answer'].includes(value), written_at: text, seat: forkSeat })

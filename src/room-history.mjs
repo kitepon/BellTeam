@@ -2,6 +2,7 @@ import { deliveryError } from './conversation-writer.mjs'
 import { deliveryTracking } from './delivery-tracking.mjs'
 import { open } from 'node:fs/promises'
 import { TimelineIndex } from './timeline-index.mjs'
+import { contentOf } from './origin-reference.mjs'
 
 export class RoomHistory {
   constructor(path) {
@@ -18,6 +19,12 @@ export class RoomHistory {
     return state.visible ??= state.messages.map(message => state.index.get(message))
   }
   async view() { return (await this.snapshot()).index }
+  // forward.md: any message of this room can be forwarded; status and routing rows are not messages.
+  async forwardSource(id) {
+    const records = (await this.snapshot()).byId.get(id), record = records?.length === 1 ? records[0] : null
+    return record?.schema === 'bellteam.room-message.v1' && typeof record.sender?.id === 'string' && typeof record.message === 'string'
+      ? { sender: { id: record.sender.id, name: record.sender.name }, at: record.at, text: contentOf(record), hasImages: record.image === true, origin: record.origin } : null
+  }
   // reply.md: any message of this room can be quoted; status and routing rows are not messages.
   async quoteSource(id) {
     const records = (await this.snapshot()).byId.get(id), record = records?.length === 1 ? records[0] : null
