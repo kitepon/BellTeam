@@ -3,6 +3,7 @@ import { json, readJson } from './http-response.mjs'
 import { recentTimeline } from './timeline-index.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
 import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
+import { validReplyQuote, validReplyTo } from './reply-reference.mjs'
 
 export function createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }) {
   return async (request, response, url) => {
@@ -66,8 +67,11 @@ export function createRoomApi({ bots, rooms, transport, sources, messagePage, ro
         const message = typeof body.message === 'string' ? body.message.trim() : ''
         const images = messageImages(body)
         if (!message && !images.length) return json(response, 400, { error: 'MESSAGE_REQUIRED' })
+        if (body.reply_to != null && !validReplyTo(body.reply_to)) return json(response, 400, { error: 'REPLY_TO_INVALID' })
+        if (body.reply_quote != null && (body.reply_to == null || !validReplyQuote(body.reply_quote))) return json(response, 400, { error: 'REPLY_QUOTE_INVALID' })
         return json(response, 200, await roomMessenger.sendroommessage({
           from: 'user', room: roomId, message, images, targets: body.targets ?? null,
+          ...(body.reply_to != null ? { replyTo: body.reply_to } : {}), ...(body.reply_quote != null ? { replyQuote: body.reply_quote } : {}),
         }))
       }
     }

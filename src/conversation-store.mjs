@@ -40,6 +40,15 @@ export class ConversationStore {
     return { ...input, text: [...record.message].slice(0, 4000).join(''),
       progress: ['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status) ? status : '' }
   }
+  // reply.md "What can be quoted": an Owner<->Bot row or the Bot's in-turn words of this one conversation; anything else is null.
+  async quoteSource(botId, id) {
+    const state = await this.snapshot()
+    const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
+    if (row && ((row.from === 'user' && row.target === botId) || (row.from === botId && row.target === 'user')))
+      return { sender: { id: row.from, ...(row.from_identity?.name ? { name: row.from_identity.name } : {}) }, at: row.at, text: row.message, image: row.image === true }
+    const word = state.byBot.get(botId)?.find(record => record.schema === 'bellteam.interim-word.v1' && record.id === id)
+    return word ? { sender: { id: botId }, at: word.at, text: word.text, image: false } : null
+  }
   async entries() {
     const state = await this.snapshot()
     return state.resolved ??= state.entries.map(record => record.schema === 'bellteam.direct-message.v1' && state.statuses.has(record.delivery_id)
@@ -152,6 +161,7 @@ function messageItem(record, direction) {
     ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
     ...(record.steered === true ? { steered: true } : {}),
+    ...(record.reply_to ? { reply_to: record.reply_to } : {}),
   }
 }
 

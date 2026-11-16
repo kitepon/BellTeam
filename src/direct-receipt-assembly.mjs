@@ -101,7 +101,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
           ...(executionSource ? { executionSource } : {}) }
         if (record.from === 'user') {
           invoked = true
-          const completion = transport.turn(bot, userEnvelope(record.from_identity ?? record.from, record.message), options)
+          const completion = transport.turn(bot, userEnvelope(record.from_identity ?? record.from, record.message, { replyTo: record.reply_to }), options)
           const saved = Promise.resolve(completion).then(onUserComplete)
           completions.add(saved)
           saved.then(() => completions.delete(saved), error => { completions.delete(saved); reportOnce(error, 'completion') })

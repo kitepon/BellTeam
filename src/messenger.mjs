@@ -7,11 +7,12 @@ import { deliveryExecutionRef } from './execution-bridge.mjs'
 import { ConversationWriter } from './conversation-writer.mjs'
 import { normalizeConversationCallbackError } from './conversation/callbacks.mjs'
 import { readImageBytes } from './message-assets.mjs'
+import { jst, replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
 
-export function directEnvelope(from, message, { fork = false } = {}) {
+export function directEnvelope(from, message, { fork = false, replyTo = null } = {}) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
   const name = identity.id === 'user' ? 'オーナー' : identity.name
-  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${message}`
+  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${replyNotice(replyTo)}${message}`
 }
 
 // fork-inquiry.md "Inquiry row and fork input": the fork answers in its last reply, which is relayed; a sendmessage would be a 2nd message.
@@ -24,8 +25,8 @@ function forkSeatLabel(seat) {
   return seat?.kind === 'fork' && typeof seat.forkId === 'string' && seat.forkId ? { kind: 'fork', fork_id: seat.forkId } : null
 }
 
-export function userEnvelope(from, message) {
-  return directEnvelope(from, message)
+export function userEnvelope(from, message, { replyTo = null } = {}) {
+  return directEnvelope(from, message, { replyTo })
 }
 
 export class BellTeamMessenger extends ConversationWriter {
@@ -350,7 +351,7 @@ export class BellTeamMessenger extends ConversationWriter {
     return completion
   }
 
-  async prepareUserTurn({ target, message, images = [], recordUser = true }) {
+  async prepareUserTurn({ target, message, images = [], recordUser = true, replyTo, replyQuote }) {
     const check = this.admitWork()
     await this.bots.refresh?.()
     const bot = this.bots.get(target)
@@ -358,21 +359,23 @@ export class BellTeamMessenger extends ConversationWriter {
     await this.requireAccess({ from: 'user', target })
     if (typeof message !== 'string' || (message.length === 0 && !images.length)) throw new Error('MESSAGE_REQUIRED')
     images.forEach(validateImage)
+    if (replyQuote !== undefined && replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 })
+    const reply = replyTo === undefined ? null : await this.replyReference(target, replyTo, replyQuote)
     const deliveryId = this.deliveryId()
     const startedAt = this.now()
     if (recordUser) {
       // 送った画像を会話の記録に残す。Botへ渡す一時ファイルはターンが終われば消える。
       const imageAssets = images.length && this.assets ? await this.assets.saveAll({ owner: 'user', id: deliveryId, images }) : []
       await this.append(this.record({
-        deliveryId, from: 'user', target, message, images, imageAssets, delivery: 'running',
+        deliveryId, from: 'user', target, message, images, imageAssets, delivery: 'running', replyTo: reply,
       }))
     }
-    return { target, message, images, bot, deliveryId, startedAt, check }
+    return { target, message, images, bot, deliveryId, startedAt, check, replyTo: reply }
   }
 
   startUserTurn(prepared) {
     const { target, message, images, bot, deliveryId } = prepared
-    return this.transport.turn(bot, userEnvelope(memberIdentity(this.bots, 'user'), message), {
+    return this.transport.turn(bot, userEnvelope(memberIdentity(this.bots, 'user'), message, { replyTo: prepared.replyTo }), {
       admissionCheck: prepared.check,
       images,
       queue: {
@@ -402,13 +405,24 @@ export class BellTeamMessenger extends ConversationWriter {
     return { delivery: 'delivered', delivery_id: deliveryId, reply_id: replyId, from: target, target: 'user', reply }
   }
 
-  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null }) {
+  // The Owner's reply to one earlier row of the same conversation: a saved snapshot, never an error for an unusable original (reply.md).
+  async replyReference(botId, id, quote) {
+    requireReplyTo(id)
+    if (quote !== undefined) requireReplyQuote(quote)
+    let source = null
+    try { source = await this.store.quoteSource(botId, id) } catch { /* an unreadable original leaves the reply unavailable, not refused */ }
+    if (source && !source.sender.name) source = { ...source, sender: { ...source.sender, name: memberIdentity(this.bots, source.sender.id).name } }
+    return snapshotReply(id, source, quote)
+  }
+
+  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null, replyTo = null }) {
     return {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: memberIdentity(this.bots, from), target_identity: memberIdentity(this.bots, target),
       message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}), delivery,
       ...(imageAsset ? { image_asset: imageAsset } : {}),
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),
+      ...(replyTo ? { reply_to: replyTo } : {}),
       ...(label ?? {}),
     }
   }
@@ -434,10 +448,6 @@ export function lateForkNotice({ message, askedAt, answeredAt }, now) {
   const age = Math.max(0, Math.round((Date.parse(now) - Date.parse(answeredAt ?? askedAt)) / 60000))
   const later = age >= 60 ? `${Math.floor(age / 60)}h${String(age % 60).padStart(2, '0')}m` : `${age}m`
   return `FORK_LATE: asked ${jst(askedAt)}, answered ${answeredAt ? jst(answeredAt) : 'never'}, relayed ${later} later. It shows the target's state at that time, not now.\n\n${message}`
-}
-
-function jst(iso) {
-  return `${new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ')} JST`
 }
 
 // An inquiry with a main asker and no relay row owes its notice. A post-accept failure saved its text as a fork

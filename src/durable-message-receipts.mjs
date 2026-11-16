@@ -50,15 +50,17 @@ export class DurableMessageReceipts extends BellTeamMessenger {
   }
 
   async receive(input, { membersLease } = {}) {
-    const allowed = ['from', 'target', 'message', 'image', 'images', 'executionSource', 'askerSeat']
+    const allowed = ['from', 'target', 'message', 'image', 'images', 'executionSource', 'askerSeat', 'replyTo', 'replyQuote']
     if (!input || Object.keys(input).some(key => !allowed.includes(key))) fail('MESSAGE_INPUT_INVALID')
-    const { from, target, message, images = input.image ? [input.image] : [] } = input
+    const { from, target, message, images = input.image ? [input.image] : [], replyTo, replyQuote } = input
     await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) fail('SENDER_NOT_FOUND')
     if (target === 'user' && from === 'user') fail('USER_TO_USER_NOT_ALLOWED')
     if (target !== 'user' && !this.bots.has(target)) fail('BOT_NOT_FOUND')
     if (typeof message !== 'string' || !Array.isArray(images) || (!message.length && !images.length)) fail('MESSAGE_REQUIRED')
     if (target !== 'user') await this.requireAccess({ from, target })
+    if ((replyTo !== undefined || replyQuote !== undefined) && (from !== 'user' || target === 'user' || replyTo === undefined)) fail('MESSAGE_INPUT_INVALID')
+    const reply = replyTo === undefined ? null : await this.replyReference(target, replyTo, replyQuote)
     const deliveryId = this.deliveryId()
     if (images.length && !this.assets) fail('IMAGE_STORAGE_REQUIRED')
     const imageAssets = images.length ? await this.assets.saveAll({ owner: from, id: deliveryId, images }) : []
@@ -66,7 +68,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     const fromSeat = input.askerSeat?.kind === 'fork' && typeof input.askerSeat.forkId === 'string' && input.askerSeat.forkId
       ? { from_seat: { kind: 'fork', fork_id: input.askerSeat.forkId } } : null
     const record = { ...this.record({ deliveryId, from, target, message, images, imageAssets,
-      delivery: target === 'user' ? 'delivered' : 'queued', label: fromSeat }), durable_receipt: true }
+      delivery: target === 'user' ? 'delivered' : 'queued', label: fromSeat, replyTo: reply }), durable_receipt: true }
     if (input.executionSource) this.executionSources.set(deliveryId, input.executionSource)
     try { return await this.saveReceipt(record) }
     catch (error) { this.executionSources.delete(deliveryId); throw error }

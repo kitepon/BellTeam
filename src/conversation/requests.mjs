@@ -1,5 +1,6 @@
 import { assertConversationRootAuthority } from './authority.mjs'
 import { CONVERSATION_CALLBACK_METHODS, validateConversationCallback } from './callbacks.mjs'
+import { validReplyQuote, validReplyTo } from '../reply-reference.mjs'
 
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_REQUEST_INVALID'), {
   code: 'CONVERSATION_REQUEST_INVALID', status: 400, outcome: 'not_accepted',
@@ -88,7 +89,7 @@ export function validateConversationInput(method, params, actor) {
     case 'direct.post': return fields(params, { from: id, target: id, ...post }, { askerSeat })
     case 'fork.ask': return fields(params, { from: id, target: id, message: text }, { askerSeat })
     case 'user.post': case 'user.turn':
-      fields(params, { target: id, ...post }, { recordUser: bool })
+      fields(params, { target: id, ...post }, { recordUser: bool, replyTo: validReplyTo, replyQuote: validReplyQuote })
       if (params.recordUser === false && actor.kind !== 'onboarding') invalid()
       return true
     case 'display.words':
@@ -96,7 +97,7 @@ export function validateConversationInput(method, params, actor) {
       validateConversationCallback('delivery.words', { words: params.words })
       return true
     case 'room.post': return fields(params, { from: id, room: roomId, ...post }, {
-      targets: nullable(array(id)), kind: oneOf('message', 'schedule'),
+      targets: nullable(array(id)), kind: oneOf('message', 'schedule'), replyTo: validReplyTo, replyQuote: validReplyQuote,
       schedule: nullable(value => fields(value, { id: nonempty, name: text })),
     })
     case 'room.reply': return fields(params, { roomId, messageId: nonempty, ...post }, { targets: nullable(array(id)) })
