@@ -8,6 +8,8 @@
 
 `appendMessage`が`messages.jsonl`のwriter。`messages/messageView`は同じRoomHistoryを使用する。`watch`はroom/schedule/messagesのstat差分をtopicへ変換する。履歴初出・inode置換・縮小・同サイズ書換えは全体通知へ、通常追記は対象roomへ。Macで親名しか来ない時は既存fileのstatで確認し、名前から対象を推定しない。監視で失敗した時も未知の変更を無視せずallを通知する。
 
+Ownerの部屋投稿は任意`reply_to`（同じ部屋の発言1件のid）を持てる。`sendRoomMessageInOrder`が同じ部屋の履歴から原本を引き、引用snapshot（送信者・時刻・本文300文字）を`bellteam.room-message.v1`行へ一度だけ保存する。見つからない時も投稿は受け付け、`available:false`で保存する。`responseTo`（返信者の冪等キー）とは別物。契約・図は[reply.md](reply.md)。
+
 ## 部屋予定の消化保存
 
 ```mermaid

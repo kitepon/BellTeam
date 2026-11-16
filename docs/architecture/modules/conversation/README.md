@@ -17,6 +17,7 @@
 - [自主回答と報告](observation.md)
 - [通話の本体受付](calls.md)
 - [読み取り専用の分身への問い合わせ ask_readonly](fork-inquiry.md)
+- [選んだ発言への返信 reply_to](reply.md)（契約と図。実装はa265）
 
 旧conversation-flow/delivery-details/observation-details/registry-details/boundary-detailsの担当章は上の正本への参照にした。実行の詳細とidleの判断は[実行担当](../execution/README.md)に残る。
 
@@ -24,7 +25,7 @@
 
 | 窓口 | 入力 | 出力と保存責任 | 実装 |
 | --- | --- | --- | --- |
-| messages | from/target/message/image(s)、room/targets/responseTo、Bridge event | 受付deliveryと既存ID。直接/部屋の発言を保存後にtransportへ渡す。running/steeredを完了へ読み替えない | BellTeamMessenger、RoomMessenger、createCallBridgeServer |
+| messages | from/target/message/image(s)、room/targets/responseTo、Owner投稿の任意`reply_to`（[reply.md](reply.md)）、Bridge event | 受付deliveryと既存ID。直接/部屋の発言を保存後にtransportへ渡す。running/steeredを完了へ読み替えない | BellTeamMessenger、RoomMessenger、createCallBridgeServer |
 | history | Bot/room、limit/before/after、表示カード | 履歴ページ/export、画像取得URL、SSE topic/対象ID。画像bytesと本文をSSEへ載せない | ConversationStore、RoomHistory、TimelineIndex、createMessageViews/createMessageEvents |
 | membership-cleanup | removeBot(botId) | 部屋参加者/代表/予定targetsから除く。投稿履歴は保持。Bot本体の削除完了を決めない | RoomRegistry.removeBot |
 | fork-inquiry | MCP `ask_readonly {target,message}`、内部HTTP `POST /api/deliveries/fork` | 受付`{delivery,delivery_id,fork_id,from,target,seat:'fork'}`。宛先の直接JSONLへ`seat`付きで保存し、分身の回答か`FORK_FAILED`を質問者へ一通だけ中継。本体の列・報告確認へ入れない。詳細は[fork-inquiry.md](fork-inquiry.md) | BellTeamMessenger.askReadonly/relayForkAnswer（prepareDirect/notifyDirectをsendmessageと共有） |
