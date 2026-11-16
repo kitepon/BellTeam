@@ -11,9 +11,9 @@ import { createLatticeCore } from '../src/lattice/core.mjs'
 test('code chart: bind once per child, sync at most every 120 s, a non-current status is one log line, never throws', async () => {
   const calls = [], logs = [], clock = { now: 0 }
   let next = { status: 'synced' }
-  const cli = { repoBind: async (id, url, branch) => { calls.push(['bind', id, url, branch]); return { status: 'bound' } },
+  const cli = { setNoCodeLanes: async (id, lanes) => { calls.push(['lanes', id, lanes]); return { no_code_lanes: lanes } }, repoBind: async (id, url, branch) => { calls.push(['bind', id, url, branch]); return { status: 'bound' } },
     repoSync: async id => { calls.push(['sync', id]); if (next instanceof Error) throw next; return next } }
-  const codes = createCodeCharts({ cli, charts: { code: { url: 'u', branch: 'main' } }, now: () => clock.now, log: line => logs.push(line) })
+  const codes = createCodeCharts({ cli, charts: { code: { url: 'u', branch: 'main', noCodeLanes: ['approval-box'] } }, now: () => clock.now, log: line => logs.push(line) })
   assert.equal(await codes.maintain('other'), null, 'not a code chart')
   assert.equal(await codes.maintain('code'), 'synced')
   assert.equal(await codes.maintain('code'), null, 'not due yet')
@@ -21,7 +21,7 @@ test('code chart: bind once per child, sync at most every 120 s, a non-current s
   assert.equal(await codes.maintain('code'), 'diverged')
   clock.now += 120000; next = Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' })
   assert.equal(await codes.maintain('code'), 'failed')
-  assert.deepEqual(calls, [['bind', 'code', 'u', 'main'], ['sync', 'code'], ['sync', 'code'], ['sync', 'code']])
+  assert.deepEqual(calls, [['bind', 'code', 'u', 'main'], ['lanes', 'code', ['approval-box']], ['sync', 'code'], ['sync', 'code'], ['sync', 'code']])
   assert.deepEqual(logs, ['lattice-code code diverged fast-forward', 'lattice-code code LATTICE_UNAVAILABLE'])
 })
 

@@ -1,6 +1,6 @@
 // Code charts: a chart bound to its product repo, so Lattice's conflict check and code graph read real source
 // (docs/architecture/modules/lattice/README.md, Code charts, K7). The repo checkout, its git and the sensor are Lattice's (a102).
-export const CODE_CHARTS = Object.freeze({ bellteam: Object.freeze({ url: 'https://github.com/kitepon/BellTeam.git', branch: 'main' }) })
+export const CODE_CHARTS = Object.freeze({ bellteam: Object.freeze({ url: 'https://github.com/kitepon/BellTeam.git', branch: 'main', noCodeLanes: Object.freeze(['approval-box']) }) })
 const DUE_MS = 120000
 
 // Lattice fast-forwards only from the last accepted tip, never resets or forces (K7). Self-exit: a failed sync logs one line
@@ -14,7 +14,8 @@ export function createCodeCharts({ cli, charts = CODE_CHARTS, now = () => Date.n
       if (!Object.hasOwn(charts, id) || now() - (last.get(id) ?? -Infinity) < dueMs) return null
       last.set(id, now())
       try {
-        if (!bound.has(id)) { await cli.repoBind(id, charts[id].url, charts[id].branch); bound.add(id) }
+        // The Owner-wait lane touches no code, so enforced start gates 1-3 skip it (a234). Same child as the 0.107.0 pin: an older Lattice cannot read the key.
+        if (!bound.has(id)) { await cli.repoBind(id, charts[id].url, charts[id].branch); await cli.setNoCodeLanes(id, charts[id].noCodeLanes); bound.add(id) }
         const result = await cli.repoSync(id)
         const status = typeof result?.status === 'string' ? result.status : 'failed'
         if (!['current', 'synced'].includes(status)) log(`lattice-code ${id} ${status}${result?.failure?.step ? ` ${result.failure.step}` : ''}`)
