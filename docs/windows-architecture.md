@@ -261,6 +261,44 @@ flowchart LR
 - 共有の一時ファイルは名前を固定して上書きする（残りは`%TEMP%`が掃除する）。共有シートは窓の外のWindowsの部品で、画面の確認は実機で行う。
 - Coreの追加は`ImageZoom`（拡大の計算だけ）。Linuxは同じ計算を使ってよい（a278）。
 
+## 転送（選んだ発言を別の担当・ルームへ。a283の前半）
+
+契約は[conversation forward.md](architecture/modules/conversation/forward.md)（N102）。Windowsが持つのは、転送する発言と転送先を選ぶ・`forward`を送る・履歴の`origin`を描く、の3つだけで、中身の複写はサーバーがする。共有先（他のアプリからBellTeamへ共有）は後半で、方式の裁定（決裁箱 K-TRQYQF）を待つ。
+
+```mermaid
+flowchart TD
+  subgraph App[BellTeam.App]
+    Btn[MessageCard: 行の「転送」ボタン・右クリックの「転送」<br/>押下 = MainWindow.ShowForwardSheet]
+    Sheet[ForwardView（シート ISheetSave） 転送する発言の抜粋・転送先の一覧（全メンバーとルーム）・コメント（任意）<br/>転送ボタンで ForwardAsync・断られたら理由を赤で出して閉じない]
+    Draw[MessageCard: originのある行<br/>吹き出しの上端に「転送 · 送り主 · 時刻」または「共有 · アプリ名」<br/>コメントは通常の本文・内容は左線の引用ブロック（content_startで分ける）]
+  end
+  subgraph Core[BellTeam.Core]
+    Fwd[Workspace.ForwardAsync 開いている会話の発言だけ<br/>BellApi.SendAsync forward = {source{kind,id}, message_id}<br/>転送先が開いていれば読み直す]
+    Read[TimelineMessage.Origin ← MessageOriginReader kind forward・share以外や型違いは普通のメッセージ]
+    Words[Timeline.ForwardRefusal 415 FILE_NOT_SUPPORTED = 画像つきはまだ転送できない ・404 FORWARD_SOURCE_NOT_FOUND ・413 ・400]
+    Parts[Timeline.OriginParts / OriginMark / IsForwardable]
+  end
+  Server[(本体 POST .../messages {message=コメント, forward}<br/>GET .../messages の行 origin)]
+  Btn --> Sheet --> Fwd --> Server
+  Server --> Read --> Draw
+  Fwd --> Words --> Sheet
+  Draw --> Parts
+```
+
+```mermaid
+flowchart LR
+  Pick[選んだ発言 TimelineMessage の id と会話] -->|ForwardSource kind id messageId| Req[POST本文 forward]
+  Comment[コメント] -->|message| Req
+  Req --> Server[本体が複写し message = コメント + 空行 + 内容 と origin を保存]
+  Server -->|履歴の行 origin・content_start| Row[TimelineMessage.Origin]
+  Row --> Split[OriginParts: コメントと内容に分ける]
+  Split --> Card[MessageCard の本文と引用ブロック]
+```
+
+- 転送できる行：種別が`message`・`interim`・`peer`・`schedule`で、秘密・問いのカードと仮の吹き出しは除く。サーバーが画像つきの発言の転送を断る間（a290/a291まで）は、415を「画像つきの発言はまだ転送できません。本文だけを新しいメッセージとして送ってください。」と言い換えて出す。
+- 古い本体は`forward`を知らず無視する（コメントだけの普通のメッセージになる）。転送を見せる条件は、サーバーの公開後にこのアプリを配ることで守る（契約の公開順）。
+- Coreの公開名の追加なのでlinux/BellTeam.Linuxもビルドして確かめる。LinuxのUI（a284）は同じCoreの上に載る。
+
 ## 変更時の手順
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。

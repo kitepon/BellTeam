@@ -93,6 +93,8 @@ public sealed record TimelineMessage
     // A row of the read-only fork inquiry: `seat.kind == "fork"`. A seat of another type or kind is a normal row.
     [JsonConverter(typeof(MessageSeatReader))] public MessageSeat? Seat { get; init; }
     public bool IsFork => Seat?.Kind == "fork";
+    // A message that came from elsewhere (conversation forward.md): a forward of another message or content shared in from another app. Absent = a normal message.
+    [JsonConverter(typeof(MessageOriginReader))] public MessageOrigin? Origin { get; init; }
     // Reply to one earlier message (conversation reply.md): the snapshot saved when the reply was accepted. Absent = not a reply.
     [JsonPropertyName("reply_to"), JsonConverter(typeof(ReplyReferenceReader))] public ReplyReference? ReplyTo { get; init; }
     public bool? Image { get; init; }
@@ -104,6 +106,27 @@ public sealed record TimelineMessage
     public string[] DisplayedImageUrls => ImageUrls ?? (ImageUrl is { } url ? [url] : []);
     public bool IsOutgoing => Direction == "outgoing" || Sender?.Id == "user";
 }
+// `origin` of a history row. Message holds the Owner's comment then the content; ContentStart is where the content starts, in Unicode code points.
+public sealed record MessageOrigin(string Kind, string? FromName = null, DateTimeOffset? At = null, int ContentStart = 0, string? App = null)
+{
+    public bool IsForward => Kind == "forward";
+}
+public sealed class MessageOriginReader : LenientObjectReader<MessageOrigin>
+{
+    // A kind other than forward / share, or a malformed value, reads as a normal message.
+    protected override MessageOrigin From(JsonElement element)
+    {
+        var kind = Text(element, "kind");
+        if (kind is not ("forward" or "share")) return new("");
+        string? from = null; DateTimeOffset? at = null;
+        if (element.TryGetProperty("from", out var who) && who.ValueKind == JsonValueKind.Object) from = Text(who, "name") ?? Text(who, "id");
+        if (Text(element, "at") is { } stamp && DateTimeOffset.TryParse(stamp, out var parsed)) at = parsed;
+        var start = element.TryGetProperty("content_start", out var offset) && offset.TryGetInt32(out var value) && value >= 0 ? value : 0;
+        return new(kind, from, at, start, Text(element, "app"));
+    }
+}
+// Which message the Owner forwards (forward.md "Request"): the conversation it is in and its id; the server copies the content.
+public sealed record ForwardSource(string Kind, string Id, string MessageId);
 // `reply_to` of a history row. Available false: the original could not be found, so only the fixed line is drawn.
 public sealed record ReplyReference(string Id, bool Available, string? SenderName = null, string Text = "", bool Truncated = false, bool Image = false, bool Part = false, int? RangeStart = null, int? RangeEnd = null)
 {

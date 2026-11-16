@@ -209,6 +209,12 @@ public partial class App : Application
                 if (scene == "echo") { model.ShowEchoForRender("続きはあとで確認するね。", accepted: true); model.ShowEchoForRender("ありがとう、助かったよ。", accepted: false); }
                 if (scene == "reply-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c5"));
                 if (scene == "reply-part-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c3"), new QuoteSelection("午後はBellTeamの確認です。"));
+                if (scene is "forward-sheet" or "forward-failed")
+                {
+                    var forwarding = window.ShowForwardSheet(model.Messages.Select(item => item.Message).First(item => item.Id == "c5"));
+                    forwarding.SetForRender(1, "これお願い");
+                    if (scene == "forward-failed") forwarding.FailForRender(Timeline.ForwardRefusal(new BellApiException("x", System.Net.HttpStatusCode.UnsupportedMediaType, "FILE_NOT_SUPPORTED")));
+                }
                 if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
                 var conversationHeight = scene == "states" ? 1300 : scene == "stack" ? 1500 : 820;
                 var conversationRoot = (FrameworkElement)window.Content;

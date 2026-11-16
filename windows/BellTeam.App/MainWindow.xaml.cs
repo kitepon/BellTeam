@@ -188,6 +188,11 @@ public partial class MainWindow : Window, IInspectorHost
     {
         CloseUpdateSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message));
     }
+    // 転送: the sheet that picks a destination for one message of this conversation.
+    public ForwardView ShowForwardSheet(TimelineMessage message)
+    {
+        CloseUpdateSheet(); var view = new ForwardView(model, message, CloseUpdateSheet); OpenSheet("転送", view); return view;
+    }
     private ISheetSave? sheetSave;
     private void SheetSaveChanged()
     {
