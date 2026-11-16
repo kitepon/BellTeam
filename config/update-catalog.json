@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T04:21:28Z",
-  "expiresAt": "2026-11-23T04:21:28Z",
+  "publishedAt": "2026-11-16T04:36:59Z",
+  "expiresAt": "2026-11-23T04:36:59Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
-      "versionId": "sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39",
+      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
+      "versionId": "sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。保存した値が失われた時は、つなぎ直せる状態に戻ります。"
+        "すべてのCLIの席で、コードグラフ用のLattice MCPを使えるようにしました。",
+        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）を同梱しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
-      "versionId": "sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39",
+      "sourceCommit": "6d67c52deca39f2c280d582aa3da677bc7b7e46e",
+      "versionId": "sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb2c73ce8109af33f8437b27e53f31857c97f7612f3211b85b28b15909afbb7"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。保存した値が失われた時は、つなぎ直せる状態に戻ります。"
+        "すべてのCLIの席で、コードグラフ用のLattice MCPを使えるようにしました。",
+        "コードグラフ用センサーの初期化スクリプト（lattice-sensor-init）を同梱しました。"
       ]
     },
     {
