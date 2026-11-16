@@ -58,6 +58,8 @@ pwsh -NoProfile -File scripts/install-windows.ps1 -ServerUrl 'http://サーバ�
 
 管理者権限は不要。`%LOCALAPPDATA%\Programs\BellTeam`へ導入し、スタートメニューとWindowsの「インストールされているアプリ」へ登録する。`-NoLaunch`を外すと導入後に起動する。接続先を省略すると既存の設定を保持し、初回起動時に入力する。
 
+導入の最後に、他のアプリの「共有」にBellTeamを出す登録（疎パッケージ）も行う。必要なのはWindows SDK（`winget install Microsoft.WindowsSDK.10.0.26100`）で、無ければ警告だけ出して登録しない（導入は成功）。登録のために、このPCで自己署名の証明書（CN=BellTeam）を信頼する管理者の確認が一回出る。署名の鍵は署名の直後に消し、アンインストールで信頼も外す。共有先が要らない時は`-SkipShareTarget`を付ける。登録だけをやり直す時は`pwsh -NoProfile -File scripts/register-windows-share-target.ps1`（外すのは`-Unregister`）。
+
 入れ直す時はBellTeamを閉じ、同じコマンドを実行する。設定はアプリ本体とは別の場所に保持する。アプリは現時点では未署名。ソースからビルドする導入方法であり、一般向けinstallerの配布はこの段階に含めない。
 
 削除はWindowsのアプリ一覧、または次の入口から行う。

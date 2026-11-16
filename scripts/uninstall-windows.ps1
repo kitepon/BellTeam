@@ -8,6 +8,8 @@ $taskExpectedParent = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Progr
 if ([IO.Path]::GetDirectoryName($taskInstall) -ne $taskExpectedParent -or [IO.Path]::GetFileName($taskInstall) -ne 'BellTeam') { throw 'BellTeamの導入先を特定できません。' }
 $taskExe = Join-Path $taskInstall 'BellTeam.exe'
 if (Get-CimInstance Win32_Process -Filter "Name='BellTeam.exe'" | Where-Object { $_.ExecutablePath -eq $taskExe }) { throw 'BellTeamを閉じてからアンインストールしてください。' }
+$taskShare = Join-Path $taskInstall 'register-windows-share-target.ps1'
+if (Test-Path -LiteralPath $taskShare) { & $taskShare -Unregister }
 $taskMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'BellTeam.lnk'
 if (Test-Path -LiteralPath $taskMenu) { Remove-Item -LiteralPath $taskMenu }
 $taskRegistry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam'
