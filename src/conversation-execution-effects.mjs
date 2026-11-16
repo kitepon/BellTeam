@@ -85,7 +85,7 @@ export function createConversationExecutionEffects({ getServices, getController,
           const summaryAuthority = ['owner', 'bot', 'scheduler'].includes(context.actor?.kind)
             && ['user.post', 'user.turn', 'direct.post', 'room.post', 'room.reply'].includes(context.rootMethod)
             ? { context, assertCurrent: check } : null
-          const options = { summaryAuthority, images: params.images ?? [], queue: params.queue, conversationDelivery: context.conversationDelivery,
+          const options = { summaryAuthority, images: params.images ?? [], files: params.files ?? [], queue: params.queue, conversationDelivery: context.conversationDelivery,
             membersLease: membersContext.membersLease, admissionCheck: context.admissionCheck,
             conversationLease: context.conversationLease, operationContext: context.operationContext, actualCompletion: context.actualCompletion,
             ...(context.capturedAuthority ? { capturedAuthority: context.capturedAuthority } : {}),

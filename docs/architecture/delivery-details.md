@@ -27,7 +27,7 @@ flowchart TD
   Original --> StatusOnly["配送状態だけを記録<br/>終了callbackは呼ばない"]
   Parent --> StatusOnly
   StatusOnly --> Images
-  Done --> Images["通常は一時画像を削除<br/>追えない差し込みだけ条件付き保持"]
+  Done --> Images["通常は一時画像と添付fileを削除<br/>追えない差し込みだけ条件付き保持"]
 ```
 
 | 実関数/状態所有 | 正確な役割 |
@@ -39,8 +39,9 @@ flowchart TD
 | `waitForTurnCompletion/followInterim` | nativeのwait processとevent cursorから待つ。途中経過は既存followerがあれば重ねて出さない。最後にも一度読む。途中経過の読取失敗はそのpollだけを止めstderrへ |
 | `waitUntilDone` | timeout/runningは同じwaitを継続。error/rate_limited/stopped等は終了異常。これは本文の再送ではない |
 | `readTurnAnswer → transcriptText` | typed transcriptはturn_idを照合。不一致を別ターンの回答として保存しない。通知の表示読取失敗はstderrに残し配送完了を維持、利用者のtranscript取得失敗はcompletion失敗 |
-| `imageFiles/imageFile` | 既存pathは借用し削除しない。data画像だけ0600/wxの一時file。席分離構成の作成と削除はSeatRuntimeのUID1000へ渡す。作成途中/dispatch途中の失敗も作成済み分を削除 |
-| `submit`のfinally → `retainUntrackedImages` / `retainedImages` | 未停止・追跡情報なしのsteer・開始時の親jobなしの場合だけ一時画像を保持。他は削除。保持分は後の新規dispatch、明示close/restart、idle closeで除く。finallyの片付け失敗もPromiseの失敗になり得る |
+| `imageFiles/imageFile` | 既存pathは借用し削除しない。data画像だけ0600/wxの一時file。席分離構成の作成と削除はSeatRuntimeのUID1000へ渡す。作成途中/dispatch途中の失敗も作成済み分を削除。借用pathはUID1000が読めるものに限る |
+| `imageFiles/attachmentFile`（turn/notifyの`files: [{name, mime, data}]`、a288） | 画像以外のfile。`images`と同じ一時file経路（0600/wx、UID1000、作成と削除はSeatRuntime、名前は`bellteam-file-<uuid>[.拡張子]`）で、一覧は画像の後ろに続けて一つにまとめる。画像だけAitermの`image`へ渡し、fileは本文末尾の「添付ファイル」節に名前・種類・大きさ・pathを書いて席へ渡す（`sendText`/`imagePaths`）。保持・削除は画像と同じ。名前・種類の制御文字は空白にし、名前なし/data不正は`FILE_INVALID`で、作成済み分を削除して何も送らない。1つ20MiB・5つまでの上限は会話側が超過を断ってから呼ぶ（Trony裁定、execution側で数えない） |
+| `submit`のfinally → `retainUntrackedImages` / `retainedImages` | 未停止・追跡情報なしのsteer・開始時の親jobなしの場合だけ一時画像と添付fileを保持。他は削除。保持分は後の新規dispatch、明示close/restart、idle closeで除く。finallyの片付け失敗もPromiseの失敗になり得る |
 
 `DeliveryJob.checkpoint/failure`は停止結論の所有者。受理済みreceiptがある時と、まだ入力を発行していない時を区別する。`finishExecution`の追跡記録失敗は`executionFinishUnconfirmed`に保持し、native受付済みの文を再送しない。
 

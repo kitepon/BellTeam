@@ -114,7 +114,7 @@ child用instanceではreadRemovalStates/prepare/cancel/openを使わず親専用
 
 private effect/返値の閉schema正本は`src/conversation/effects.mjs`。members.profiles.readは親fresh ACK/revision採用後の表示5fieldのみ、usageの3effectはMika本人factoryへ、席画像/observer/room-contextはruntime既口へ、native/背景派生はKiroの同親gateへ接続する。ready context operationId:nullからのeffectは全拒否。型検証とは別に親は同捕捉operationとopaque/live context、root method、登録済source、画像leaseを照合し、任意RPC/path/資格proxyにしない。
 
-execution.notify/turnはdeliveryId/target/message/images/queue/kinds。親はqueue.groupId=deliveryIdを固定してnative前registerDelivery、claimNativeはtransport内で一回だけ。turnの返値delivery=running/steeredはacceptedだけ、user.complete保存と最終replyは別のcallback/実lifetime。reportはsourceDeliveryId/target/deliveryId/reason/message/queue/kindsから同operationのdeliveryFor→一回deriveReport→notifyReport。report queue/context/targetは親も固定し、turn.end/user.completeの再帰を拒否する。
+execution.notify/turnはdeliveryId/target/message/images/queue/kinds（a288: 親は任意の`files`を`images`と同じく転送する。会話側が送り出すのはa289以降）。親はqueue.groupId=deliveryIdを固定してnative前registerDelivery、claimNativeはtransport内で一回だけ。turnの返値delivery=running/steeredはacceptedだけ、user.complete保存と最終replyは別のcallback/実lifetime。reportはsourceDeliveryId/target/deliveryId/reason/message/queue/kindsから同operationのdeliveryFor→一回deriveReport→notifyReport。report queue/context/targetは親も固定し、turn.end/user.completeの再帰を拒否する。
 
 execution.forkはroot `fork.ask`（bot actorのみ）からだけ出るdelivery effect。deliveryId/target/forkId/message/queue/kinds（status/words/answerの部分集合、turn.end/user.complete/画像/recoveryIdなし）、返値はdelivery=running（任意forkIdは同値）。親はnotifyと同じregisterDelivery/release ACKで扱う。正本は[fork-inquiry B1–B8](fork-inquiry.md#module-child-boundary-production-defect-2026-11-11)。
 

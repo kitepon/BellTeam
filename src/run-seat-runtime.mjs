@@ -13,7 +13,7 @@ import { migrateThroughlineStorage } from './runtime-home.mjs'
 
 function temporaryImagePath(path) {
   if (typeof path !== 'string' || !isAbsolute(path)
-    || !/^bellteam-image-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp|gif)$/u.test(basename(path)))
+    || !/^bellteam-(?:image-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp|gif)|file-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[a-z0-9]{1,10})?)$/u.test(basename(path)))
     throw new Error('SEAT_IMAGE_PATH_INVALID')
   return path
 }
