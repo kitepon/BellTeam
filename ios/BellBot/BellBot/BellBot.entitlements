@@ -10,5 +10,9 @@
 	<array>
 		<string>group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share</string>
+	</array>
 </dict>
 </plist>

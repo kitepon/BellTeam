@@ -193,6 +193,7 @@ final class AppStore: ObservableObject {
         billing.onEntitlementChange = { [weak self] in
             guard let self else { return }
             await BellNotifications.shared.updateSignedTransaction(self.billing.notificationSignedTransaction)
+            self.publishShareCredentials()
         }
         api.diagnostics.configure(serverURL: url)
         BellNotifications.shared.onOpen = { [weak self] route in
@@ -230,6 +231,7 @@ final class AppStore: ObservableObject {
         api.baseURL = url
         api.diagnostics.configure(serverURL: url)
         UserDefaults.standard.set(url.absoluteString, forKey: "bellbot.serverURL")
+        publishShareCredentials()
         phase = .checking
         await bootstrap()
     }
@@ -934,6 +936,7 @@ final class AppStore: ObservableObject {
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
         let store = webDataStore.httpCookieStore
         for cookie in await store.allCookies() { await store.deleteCookie(cookie) }
+        publishShareCredentials()
         if authMode == "cloudflare" { phase = .signIn } else { phase = .setup }
     }
 
@@ -1032,6 +1035,23 @@ final class AppStore: ObservableObject {
         }
         for cookie in cookies where cookie.name == "CF_Authorization" && !cookie.isExpired && cookieBelongsToServer(cookie) {
             api.cookieStorage.setCookie(cookie)
+        }
+        publishShareCredentials()
+    }
+
+    /// 共有拡張が使う接続先・クッキー・購読の期限を、共有Keychainへ書く（拡張は自分でログインしない）。
+    /// 接続先が無い・ログアウト後は消す。書けなければ診断へ出す（拡張は「アプリを開いてログインし直してください」と案内する）。
+    func publishShareCredentials() {
+        do {
+            guard let url = serverURL else { try ShareCredentials.clear(); return }
+            let cookies = api.cookieStorage.cookies(for: url)?.filter { $0.name == "CF_Authorization" && !$0.isExpired } ?? []
+            try ShareCredentials.save(.init(
+                serverURL: url.absoluteString,
+                cookieHeader: cookies.isEmpty ? nil : HTTPCookie.requestHeaderFields(with: cookies)["Cookie"],
+                cookieExpiresAt: cookies.compactMap(\.expiresDate).min(),
+                entitledUntil: billing.entitlement?.validUntil))
+        } catch {
+            api.diagnostics.report(error, path: "share-credentials", method: nil, observation: .write)
         }
     }
 
