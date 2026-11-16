@@ -8,9 +8,9 @@ namespace BellTeam.Linux;
 internal static class RequestsRender
 {
     public const string Usage = "、--render-page <schedules|goals> <URL> <PNG>、--render-schedules <list|empty|failed|delete|editor-member|editor-room|editor-weekly-error|editor-interval> <URL> <PNG>"
-        + "、--render-goals <pill|pill-open|editor-create|editor-edit> <URL> <会話ID> <PNG>、--render-conversation <secret|peer-sheet> <URL> <会話ID> <PNG>、--render-secret <シーン> <URL> <PNG>";
+        + "、--render-goals <pill|pill-open|editor-create|editor-edit> <URL> <会話ID> <PNG>、--render-conversation <secret|peer-sheet|reply|reply-pick|reply-jump|reply-part|reply-part-pick|reply-part-jump> <URL> <会話ID> <PNG>、--render-secret <シーン> <URL> <PNG>";
 
-    public static bool IsKnown(string[] args) => args is ["--render-page", "schedules" or "goals", _, _] or ["--render-schedules", _, _, _] or ["--render-goals", _, _, _, _] or ["--render-conversation", "secret" or "peer-sheet", _, _, _] or ["--render-secret", _, _, _];
+    public static bool IsKnown(string[] args) => args is ["--render-page", "schedules" or "goals", _, _] or ["--render-schedules", _, _, _] or ["--render-goals", _, _, _, _] or ["--render-conversation", "secret" or "reply" or "reply-pick" or "reply-jump" or "reply-part" or "reply-part-pick" or "reply-part-jump" or "peer-sheet", _, _, _] or ["--render-secret", _, _, _];
 
     // False when the arguments are not one of these modes.
     public static async Task<bool> TryRunAsync(string[] args)
@@ -20,7 +20,7 @@ internal static class RequestsRender
             case ["--render-page", var kind and ("schedules" or "goals"), var address, var output]: await PageAsync(kind, address, output); return true;
             case ["--render-schedules", var scene, var address, var output]: await SchedulesAsync(scene, address, output); return true;
             case ["--render-goals", var scene, var address, var botId, var output]: await GoalsAsync(scene, address, botId, output); return true;
-            case ["--render-conversation", var scene and ("secret" or "peer-sheet"), var address, var id, var output]: await ConversationAsync(scene, address, id, output); return true;
+            case ["--render-conversation", var scene and ("secret" or "peer-sheet" or "reply" or "reply-pick" or "reply-jump" or "reply-part" or "reply-part-pick" or "reply-part-jump"), var address, var id, var output]: await ConversationAsync(scene, address, id, output); return true;
             case ["--render-secret", var scene, var address, var output]: await SecretAsync(scene, address, output); return true;
             default: return false;
         }
@@ -96,7 +96,14 @@ internal static class RequestsRender
         using (model)
         {
             if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
-            await window.PrepareRenderAsync(); Launcher.WritePng(window, output);
+            if (scene.StartsWith("reply", StringComparison.Ordinal)) window.HideInspectorForRender();
+            // Reply scenes (same ids and quotes as the Windows scenes): the pick and the jump go through the workspace like a click.
+            TimelineMessage Row(string messageId) => model.Messages.Select(item => item.Message).First(item => item.Id == messageId);
+            if (scene == "reply-pick") model.StartQuote(Row("c5"));
+            if (scene == "reply-part-pick") model.StartQuote(Row("c3"), new QuoteSelection("午後はBellTeamの確認です。"));
+            if (scene == "reply-jump") await model.JumpToAsync(new ReplyReference("c1-0", true));
+            if (scene == "reply-part-jump") await model.JumpToAsync(new ReplyReference("c3-0", true, "ユキ", "BellTeamの確認です。", Part: true));
+            await window.PrepareRenderAsync(readingOlder: scene is "reply-jump" or "reply-part-jump"); Launcher.WritePng(window, output);
         }
     }
 

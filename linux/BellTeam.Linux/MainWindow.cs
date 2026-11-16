@@ -75,6 +75,11 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     private readonly StackPanel attachments = new() { Orientation = Orientation.Horizontal };
     private readonly ScrollViewer attachmentScroll;
     private readonly Button replyTarget;
+    // Reply (conversation reply.md): the message picked for the next send; × drops it.
+    private readonly TextBlock quoteBarName = new() { FontSize = 13, FontWeight = FontWeight.Bold, Foreground = BellTheme.Violet, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock quoteBarText = new() { FontSize = 14, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Border quoteBar = new() { Background = new SolidColorBrush(Color.FromArgb(166, 0xE8, 0xE0, 0xFF)), CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 6, 6, 6), Margin = new Thickness(0, 0, 0, 8), IsVisible = false };
+    private string? shownQuoteId;
     private readonly TextBlock replyLabel = new() { FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Violet, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 18, Margin = new Thickness(0, 8), PlaceholderText = "メッセージを入力…" };
     private readonly Button attach, stopCurrent, send;
@@ -278,6 +283,12 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
             if (force || messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80) Dispatcher.UIThread.Post(() => messageScroll.ScrollToEnd());
             else { unreadNew = true; ShowLatestButton(); }
         };
+        model.ScrollToMessage += (id, quote) => Dispatcher.UIThread.Post(() => ScrollToMessageRow(stack, id, quote), DispatcherPriority.Background);
+        var cancelQuote = new Button { Classes = { "plain" }, Width = 32, Height = 32, Padding = default, CornerRadius = new CornerRadius(16), Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Content = Icons.Draw(Icons.Close, 12, BellTheme.Muted, thickness: 2.2) };
+        AutomationProperties.SetName(cancelQuote, "返信をやめる"); ToolTip.SetTip(cancelQuote, "返信をやめる"); cancelQuote.Click += (_, _) => { model.CancelQuote(); composer.Focus(); };
+        Grid.SetColumn(cancelQuote, 1);
+        quoteBar.Child = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { quoteBarName, quoteBarText } }, cancelQuote } };
+        AutomationProperties.SetName(quoteBar, "返信先");
         DragDrop.SetAllowDrop(messageScroll, true); messageScroll.AddHandler(DragDrop.DragOverEvent, ImagesDragOver); messageScroll.AddHandler(DragDrop.DropEvent, ImagesDrop);
 
         welcome.Children.Add(Icons.Draw(Icons.Chat, 56, BellTheme.Violet, thickness: 1.4)); ((Control)welcome.Children[0]).HorizontalAlignment = HorizontalAlignment.Center; ((Control)welcome.Children[0]).Margin = new Thickness(0, 0, 0, 18);
@@ -305,7 +316,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         Grid.SetColumn(composer, 1); Grid.SetColumn(stopCurrent, 2); Grid.SetColumn(send, 3); stopCurrent.Margin = new Thickness(0, 0, 12, 1);
         input.Children.Add(attach); input.Children.Add(composer); input.Children.Add(stopCurrent); input.Children.Add(send);
         var pill = new Border { Background = BellTheme.Canvas, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(24), Padding = new Thickness(8, 5), Child = input };
-        var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(15, 11, 15, 8), Children = { stopNoticeBox, sendError, attachmentScroll, replyTarget, goalPill, pill } } };
+        var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(15, 11, 15, 8), Children = { stopNoticeBox, sendError, attachmentScroll, replyTarget, quoteBar, goalPill, pill } } };
         Grid.SetRow(band, 2);
         conversationArea.Children.Add(seatLaunchBar); conversationArea.Children.Add(messageScroll); conversationArea.Children.Add(welcome); conversationArea.Children.Add(loadingSpinner); conversationArea.Children.Add(emptyConversation); conversationArea.Children.Add(failedConversation); conversationArea.Children.Add(latest); conversationArea.Children.Add(band);
     }
@@ -341,7 +352,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
             case nameof(LinuxWorkspace.CurrentBotCanStop): UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.StopResult): ShowStopResult(); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): UpdateStrip(); break;
-            case nameof(LinuxWorkspace.DraftText) or nameof(LinuxWorkspace.SendError) or nameof(LinuxWorkspace.CanSend) or nameof(LinuxWorkspace.SendLabel) or nameof(LinuxWorkspace.CanAttach) or nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.ReplyTargetLabel): UpdateComposerBand(); break;
+            case nameof(LinuxWorkspace.DraftText) or nameof(LinuxWorkspace.SendError) or nameof(LinuxWorkspace.CanSend) or nameof(LinuxWorkspace.SendLabel) or nameof(LinuxWorkspace.CanAttach) or nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.ReplyTargetLabel) or nameof(LinuxWorkspace.Quote): UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.OwnerName) or nameof(LinuxWorkspace.OnlineSummary) or nameof(LinuxWorkspace.AccountsBanner): UpdateSidebarTexts(); break;
             case nameof(LinuxWorkspace.HasMore): older.IsVisible = model.HasMore; break;
         }
@@ -444,6 +455,24 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         errorStrip.IsVisible = model.ConnectionError is not null || model.ActionError is not null;
         reconnect.IsVisible = model.ConnectionError is not null && model.Server.Length != 0; changeServer.IsVisible = model.ConnectionError is not null;
     }
+    private void UpdateQuoteBar()
+    {
+        var quote = model.Quote;
+        quoteBar.IsVisible = quote is not null;
+        if (quote is null) { shownQuoteId = null; return; }
+        quoteBarName.Text = (quote.SenderName ?? "") + (quote.Part ? "の発言の一部への返信" : "への返信"); quoteBarText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
+        if (shownQuoteId != quote.Id) composer.Focus();
+        shownQuoteId = quote.Id;
+    }
+    // A quote tap: the original is loaded (JumpToAsync pages older rows first), so centre its row and pulse it.
+    private void ScrollToMessageRow(Control column, string id, ReplyReference? quote)
+    {
+        if (column.GetVisualDescendants().OfType<MessageCard>().FirstOrDefault(card => card.MessageId == id) is not { } card || messageScroll.Content is not Visual content) return;
+        messageScroll.UpdateLayout();
+        if (card.TranslatePoint(default, content) is not { } at) return;
+        messageScroll.Offset = new Vector(0, Math.Max(0, at.Y - (messageScroll.Viewport.Height - card.Bounds.Height) / 2));
+        card.Flash(quote);
+    }
     private void UpdateComposerBand()
     {
         if ((composer.Text ?? "") != model.DraftText && !syncingComposer)
@@ -455,6 +484,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         send.IsEnabled = model.CanSend; attach.IsEnabled = model.CanAttach; stopCurrent.IsEnabled = model.StopEnabled; stopCurrent.IsVisible = model.CurrentBotCanStop;
         AutomationProperties.SetName(send, model.SendLabel);
         replyTarget.IsVisible = model.IsRoom; replyLabel.Text = model.ReplyTargetLabel;
+        UpdateQuoteBar();
         var previews = model.Attachments; var key = string.Join('|', previews.Select(item => item.Data.GetHashCode()));
         attachmentScroll.IsVisible = previews.Length != 0;
         if (key == attachmentKey) return;
@@ -866,7 +896,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     }
 
     // Waits for the avatars and images that were just asked for, then lays the screen out.
-    public async Task PrepareRenderAsync(bool bottomOfPage = false)
+    public async Task PrepareRenderAsync(bool bottomOfPage = false, bool readingOlder = false)
     {
         for (var round = 0; round < 3; round++)
         {
@@ -875,7 +905,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
             await Task.WhenAll(loads); await Task.Yield();
         }
         UpdateLayout();
-        if (conversationArea.IsVisible) { messageScroll.ScrollToEnd(); UpdateLayout(); } // images that finished loading changed the height
+        if (conversationArea.IsVisible && !readingOlder) { messageScroll.ScrollToEnd(); UpdateLayout(); } // images that finished loading changed the height
         if (bottomOfPage && settingsPage is { } open) { open.ScrollToEndForRender(); UpdateLayout(); }
     }
 }
