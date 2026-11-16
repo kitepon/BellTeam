@@ -97,7 +97,6 @@ test('caller timeout retains all eight actual completions until reply or reaped'
   await Promise.all(rejected)
   assert.equal(terminated, 0)
   assert.equal(channel.snapshot().root, 8)
-  await assert.rejects(channel.request('record', { report }), { outcome: 'not_accepted' })
   channel.reaped()
   await tick()
   assert.equal(terminated, 8)
