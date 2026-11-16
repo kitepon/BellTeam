@@ -67,6 +67,23 @@ final class ConversationReplyUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["reply-bar"].exists)
     }
 
+    /// 吹き出しの右下の3つのアイコン（a301）：返信で帯、転送でシート、コピーでチェック。
+    func testBubbleActionIcons() throws {
+        let reply = app.buttons["message-reply-m058"], forward = app.buttons["message-forward-m058"], copy = app.buttons["message-copy-m058"]
+        XCTAssertTrue(reply.waitForExistence(timeout: 3) && forward.exists && copy.exists)
+        attach("0-icon-row")
+        copy.tap()
+        XCTAssertTrue(app.buttons["message-copy-m058"].label == "コピーしました" || app.buttons["コピーしました"].waitForExistence(timeout: 1), "コピー直後はチェックに変わる")
+        attach("0b-copied")
+        reply.tap()
+        XCTAssertTrue(app.otherElements["reply-bar"].waitForExistence(timeout: 3))
+        attach("0c-reply-bar")
+        app.buttons["reply-cancel"].tap()
+        forward.tap()
+        XCTAssertTrue(app.buttons["forward-dest-bot-two"].waitForExistence(timeout: 5))
+        attach("0d-forward-sheet")
+    }
+
     /// 選んだ部分の引用：長押しで文字を選び、メニューの「引用して返信」から送る。
     func testQuoteSelectedPart() throws {
         XCTAssertTrue(app.descendants(matching: .any)["reply-quote-unavailable-part"].exists, "元が無い部分引用は文章と固定の一行")
@@ -121,9 +138,9 @@ final class ConversationReplyUITests: XCTestCase {
 
     /// 長押しで文字を選び、選択メニューの項目を押す。幅に入らない項目は「進む」で次の頁へ。
     private func chooseFromSelectionMenu(of id: String, item: String, shot: String? = nil) {
-        text(id).press(forDuration: 1.2)
+        text(id).coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.25)).press(forDuration: 1.2)
         // メニューの項目は頁1ではMenuItem、頁2ではButton。同名の画像（SF Symbol）は除く。
-        let match = NSPredicate(format: "label == %@", item)
+        let match = NSPredicate(format: "label == %@ AND NOT identifier BEGINSWITH 'message-'", item) // 吹き出しのアイコン（a301）を除く
         let menuItem = app.menuItems.matching(match).firstMatch
         let listButton = app.buttons.matching(match).firstMatch
         var target: XCUIElement { menuItem.exists ? menuItem : listButton }
