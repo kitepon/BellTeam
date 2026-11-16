@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T13:13:14Z",
-  "expiresAt": "2026-11-23T13:13:14Z",
+  "publishedAt": "2026-11-16T14:19:27Z",
+  "expiresAt": "2026-11-23T14:19:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c789435332feb0fa3cad7bfb868b267769d9ac3e",
-      "versionId": "sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825",
+      "sourceCommit": "4ee25fb47a434c02d7c215656c58db8cfb4b4377",
+      "versionId": "sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "返信の情報（元の発言の引用）を、会話の記録として受け付けられるようにしました。"
+        "工程表への書き込みが順番待ちのまま時間切れになっても、失敗にせず「受け付け済み」と返すようにしました。再送しなくても書き込みは実行されます。",
+        "メッセージの転送で画像やファイルを扱うための、本体側の受け口を入れました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c789435332feb0fa3cad7bfb868b267769d9ac3e",
-      "versionId": "sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825",
+      "sourceCommit": "4ee25fb47a434c02d7c215656c58db8cfb4b4377",
+      "versionId": "sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:90fd6509c1d2330d9d818fa830cc9653af48d7baa1ea0a9c1d4f479389dd6d67"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +753,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "返信の情報（元の発言の引用）を、会話の記録として受け付けられるようにしました。"
+        "工程表への書き込みが順番待ちのまま時間切れになっても、失敗にせず「受け付け済み」と返すようにしました。再送しなくても書き込みは実行されます。",
+        "メッセージの転送で画像やファイルを扱うための、本体側の受け口を入れました。"
       ]
     },
     {
