@@ -381,7 +381,7 @@ flowchart LR
 |---|---|
 | `renderItemElement` | the row holds `replyButton`, `forwardButton` and (text only) `copyButton`; image-only rows have no コピー |
 | `copyButton(item)` | new: copies `item.message` as stored (a forward / share row copies comment + content); no storage, no request |
-| `replyButton` / `forwardButton` | same handlers; the label is now a fixed line icon with the same `aria-label` |
+| `replyButton` / `forwardButton` | same handlers; the label is now a fixed line icon with the same `aria-label`; 転送 is the box with an arrow straight up out of it (a308), so it does not mirror the 返信 arrow |
 
 Data ownership: unchanged (the clipboard write is the only new effect; the page keeps nothing). Failure handling: a refused clipboard write leaves the icon as it was. The selection button 引用して返信 is untouched. Source reach: `web/conversation-timeline.js`, `web/styles.css`, `test/timeline-open-queue.test.mjs`.
 
