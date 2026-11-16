@@ -72,7 +72,7 @@ SECTION lattice
     WHEN: a 関数分割 task is in your lane  DO: start it, read its cut_cost and decide.
     WHEN: you split  DO: cut the function on a branch from main, then `todo function-split verify --plan P --task S --commit <sha> --map <task>=<path#fn>,...` (for each task, the function it changes after the cut), then merge the PR to main and `todo done` S (refused until the chart's repository has the merge; run it again then).
     WHEN: the function cannot be cut, the cut is too heavy, or it cannot pass verify  DO: `todo function-split decline --plan P --task S --reason <why>`.
-    FACT: verify passes only when the changed code files are JS/TS and keep their exports and references, every test that reaches the function and node can run (.js, .mjs, .cjs) passes and there is at least one, every mapped function exists at the commit, and the mapped tasks no longer overlap and fewer of them must run one after another.
+    FACT: verify passes only when the changed code files are JS/TS and keep their exports and references, every test node can run (.js, .mjs, .cjs) that statically imports a file the cut changes passes and there is at least one (add one in the cut commit if none does), every mapped function exists at the commit, and the mapped tasks no longer overlap and fewer of them must run one after another.
     FACT: a decline or a failed verify withdraws the split and puts the other tasks after the in-progress one started first; a failed verify cannot be run again. A verify input error (it answers an error with a next_action) changes nothing: follow it and run verify again.
   RULE lattice.structure
     WHEN: the plan has structure checking on (`todo structure`) and your PR is adopted  DO: structure realize before todo done.
