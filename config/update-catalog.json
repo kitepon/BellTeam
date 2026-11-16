@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T01:16:52Z",
-  "expiresAt": "2026-11-23T01:16:52Z",
+  "publishedAt": "2026-11-16T02:38:25Z",
+  "expiresAt": "2026-11-23T02:38:25Z",
   "releases": [
     {
       "componentId": "usage",
@@ -825,8 +825,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
-      "versionId": "8f963a5846db3e480eacc6f829056b69ef8ffa997b8956d4b9fb5c6b839c33b2",
+      "sourceCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c",
+      "versionId": "10c8f66a50b5b39b68a13aae60a8fe2f9bba85379fb16a5ffb563ea8a4380fcd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -834,16 +834,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz",
-          "bytes": 3837312,
-          "sha256": "8f963a5846db3e480eacc6f829056b69ef8ffa997b8956d4b9fb5c6b839c33b2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-amd64.tar.gz",
+          "bytes": 3837362,
+          "sha256": "10c8f66a50b5b39b68a13aae60a8fe2f9bba85379fb16a5ffb563ea8a4380fcd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "9efb0128ab8ea7089d1fb007dd33c3f0055485e5d2d490046c74f7d2abc6928f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11233,
+          "sha256": "1ad7188741f305037df2034481550f2714cc31349bc7a019a59eea88c698fc3b"
         },
-        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
+        "signerCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -855,13 +855,13 @@
         }
       },
       "changes": [
-        "決裁箱へのつなぎ情報の保存に失敗しても、つながったまま使え、あとで保存し直すようにしました。"
+        "課金が免除されたアカウントを、有効期限がなくても有料として扱うようにしました。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
-      "versionId": "76d50e549d435b80ce55debad612a42e349afba5b95b4e99282444d2b2f5b8be",
+      "sourceCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c",
+      "versionId": "9986a31451468862032407875614fd703dc8029002853e4d431204e1b4143342",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -869,16 +869,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz",
-          "bytes": 3837312,
-          "sha256": "76d50e549d435b80ce55debad612a42e349afba5b95b4e99282444d2b2f5b8be"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-arm64.tar.gz",
+          "bytes": 3837362,
+          "sha256": "9986a31451468862032407875614fd703dc8029002853e4d431204e1b4143342"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "01cd6ee1ae4657cc3159ca5598d9a4836060bec5de1ca39614a65cf3016ac9eb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11233,
+          "sha256": "5636428e28ee86958884db7439abcd488e3be539622490279860d1ce9a1c5c23"
         },
-        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
+        "signerCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -890,7 +890,7 @@
         }
       },
       "changes": [
-        "決裁箱へのつなぎ情報の保存に失敗しても、つながったまま使え、あとで保存し直すようにしました。"
+        "課金が免除されたアカウントを、有効期限がなくても有料として扱うようにしました。"
       ]
     }
   ],
