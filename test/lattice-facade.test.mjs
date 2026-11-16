@@ -83,7 +83,7 @@ test('a write queued past the wait bound is never sent; the next write is sent a
 })
 
 // a162: the seat gets a definite answer before Claude Code aborts the MCP call at 60 s; the write slot follows the child, not the caller.
-function slowChild() {
+function slowChild(now = Date.now) {
   const sent = [], finish = [], timers = []
   const controller = { request: (method, params) => {
     sent.push(params.args?.[1] ?? method)
@@ -94,7 +94,7 @@ function slowChild() {
     finish.push(end)
     return result
   } }
-  const facade = createLatticeFacade({ controller, setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
+  const facade = createLatticeFacade({ controller, now, setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const bounds = () => timers.filter(timer => timer.ms === SEAT_ANSWER_MS)
   return { facade, sent, finish, bounds }
 }
@@ -116,19 +116,23 @@ test('a sent seat write unanswered at the answer bound resolves PENDING; the slo
   assert.equal((await second).method, 'run')
 })
 
-test('a queued seat write unanswered at the answer bound fails LATTICE_WRITE_NOT_SENT and is never sent', async () => {
-  const f = slowChild()
-  const first = writeRun(f, 'note'), dropped = writeRun(f, 'start'), kept = writeRun(f, 'done')
+// a292: a queued seat write at the answer bound is answered PENDING and stays queued, so it still lands (it used to be dropped as LATTICE_WRITE_NOT_SENT).
+test('a queued seat write unanswered at the answer bound resolves PENDING, stays queued past the wait bound and is sent in order', async () => {
+  let clock = 0
+  const f = slowChild(() => clock)
+  const first = writeRun(f, 'note'), queued = writeRun(f, 'start'), last = writeRun(f, 'done')
   await tick()
-  f.bounds()[1].run()
-  await assert.rejects(dropped, { code: 'LATTICE_WRITE_NOT_SENT', status: 503 })
+  f.bounds()[1].run(); f.bounds()[2].run()
+  for (const value of await Promise.all([queued, last])) assert.deepEqual([value.exitCode, value.result.code], [null, 'LATTICE_WRITE_PENDING'])
+  clock = QUEUE_WAIT_MS + 1
   f.finish[0]()
   assert.equal((await first).method, 'run')
   await tick(); await tick()
-  assert.deepEqual(f.sent, ['note', 'done'], 'the dropped write never reached the child')
+  assert.deepEqual(f.sent, ['note', 'start'], 'the pending write is sent, not dropped by the wait bound')
   f.finish[1]()
-  assert.equal((await kept).method, 'run')
-  assert.ok(f.bounds().every(timer => timer.cleared || timer === f.bounds()[1]), 'answered writes clear their timers')
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['note', 'start', 'done'])
+  f.finish[2]()
 })
 
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {

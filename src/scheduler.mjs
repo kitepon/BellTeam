@@ -271,7 +271,7 @@ export class BotScheduler {
       if (!facade) return { ok: false, reason: 'LATTICE_UNAVAILABLE' }
       const value = await facade.run({ from, projectId, args })
       const code = value?.result?.code
-      if (value?.exitCode === 0 && code !== 'LATTICE_WRITE_PENDING' && code !== 'LATTICE_WRITE_NOT_SENT') return { ok: true, value }
+      if (value?.exitCode === 0 && code !== 'LATTICE_WRITE_PENDING') return { ok: true, value }
       return { ok: false, reason: code ?? `exit ${value?.exitCode}`, value }
     } catch (error) { return { ok: false, reason: error.code ?? error.message } }
   }
