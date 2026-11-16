@@ -1,7 +1,7 @@
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
-import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
+import { fileNameOf, openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { applyAvatar, dayLabel, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 
 const deliveryFailureMessages = new Map([
@@ -389,7 +389,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       const previews = messageImages.get(item.id)
       if (previews) {
         const alt = item.direction === 'incoming' ? 'Botが提示した画像' : '送信した画像'
-        const open = index => openImageViewer(previews, index, alt)
+        const names = (item.image_urls?.length ? item.image_urls : [item.image_url]).map(fileNameOf) // 保存名（image-original.md）：ダウンロード・共有の名前
+        const open = index => openImageViewer(previews, index, alt, { names })
         if (previews.length > 1) {
           imageStack = renderImageStack(previews, { alt, onOpen: open })
         } else {

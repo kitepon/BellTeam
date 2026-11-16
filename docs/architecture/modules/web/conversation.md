@@ -311,6 +311,29 @@ Touch (a269t): on `(pointer: coarse)` the button is docked above the composer (C
 
 Failure handling: nothing found -> row highlight only; Highlight API missing -> row highlight only; the selection button never blocks the whole-message 返信 button. No guard, no storage; the selection text lives in the draft only.
 
+### Image viewer: zoom, pan, download, share (a276, Web client of [image-original.md](../conversation/image-original.md))
+
+The bytes are already the originals: `image_urls[i]` serves the saved file unchanged (`messageImages` fetches it once into a Blob URL, as before). The viewer only adds what the Owner asked for; nothing new is requested from the server and nothing is stored.
+
+```mermaid
+flowchart TD
+  Open["timeline renderItemElement: tap an image / image stack<br/>openImageViewer(previews, index, alt, {names: file names from item.image_urls})"] --> Viewer["image-gallery.js viewer dialog (full screen, as before: step, thumbs, close)"]
+  Viewer --> Zoom["zoom: wheel / pinch / double tap / + - 0 / buttons<br/>pan: drag when scale > 1 (clamped to the image); swipe to step only at scale 1"]
+  Viewer --> Down["ダウンロード: <a download=file name> on the Blob URL (original bytes)"]
+  Viewer --> Share["共有: navigator.share({files}) when canShare(files) (phones)<br/>else 画像をコピー: clipboard.write PNG (non-PNG converted) when available<br/>else the button is hidden"]
+  Share -->|"result"| Note["small status line in the viewer: 共有しました / コピーしました / できませんでした"]
+```
+
+| Function (image-gallery.js, pure ones exported) | Contract |
+| --- | --- |
+| `zoomAt(view, scale, point)` / `clampView(view, size)` | `view = {scale, x, y}` (pixels from the stage centre). Zoom keeps the point under the pointer fixed; scale 1..8; the offset is clamped so the image never leaves the stage (an image smaller than the stage stays centred) |
+| `pinchView(start, now)` | two pointers: scale by the distance ratio, pan by the centre movement |
+| `fileNameOf(url)` | last path segment of an image URL, query dropped; `''` for none. Names come from the saved file name (contract: ASCII `{id}.{ext}`) |
+| `shareKind(nav)` | `'share'` when `navigator.canShare` accepts a file, else `'copy'` when `clipboard.write` and `ClipboardItem` exist, else `null` |
+| viewer | `show(index)` resets the view to scale 1; download name = `names[index]` else `image` + the Blob's type extension; share / copy read the current Blob URL |
+
+`approvals.js` and `bot-editor.js` call `openImageViewer(urls, index, alt)` without names and get the same viewer (download name falls back). Failure handling: a failed share (`AbortError` = the Owner closed the sheet) is silent; any other error and a failed clipboard write show 「共有できませんでした」 / 「コピーできませんでした」 in the status line; the image stays. No guard, no timeout other than the 2 s status line. Source reach: `web/image-gallery.js`, `web/conversation-timeline.js` (names), `web/styles.css`, `test/image-gallery.test.mjs`, this page and `management.md` (the image-gallery row).
+
 ## 操作の接続と確認範囲
 
 `stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](../../web-final-gaps.md)に記録する。

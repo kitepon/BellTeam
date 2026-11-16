@@ -1952,3 +1952,20 @@ button.reply-quote { cursor: pointer; }
 @media (pointer: coarse) {
   .reply-selection { left: 50% !important; top: auto !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); transform: translateX(-50%); padding: 10px 18px; font-size: 14px; }
 }
+/* 画像ビューア（a276）：拡大・ダウンロード・共有 */
+.image-viewer-bar { gap: 10px; }
+.image-viewer-counter { margin-right: auto; }
+.image-viewer-tools { display: flex; align-items: center; gap: 8px; }
+.image-viewer-pill { display: inline-flex; align-items: center; gap: 6px; height: 46px; padding: 0 16px; border: 0; border-radius: 23px; background: rgba(255, 255, 255, .14); color: #fff; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.image-viewer-pill svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.image-viewer-pill[hidden] { display: none; }
+.image-viewer-note { position: absolute; z-index: 3; top: max(72px, calc(env(safe-area-inset-top) + 62px)); left: 50%; margin: 0; padding: 7px 14px; transform: translateX(-50%); border-radius: 16px; background: rgba(255, 255, 255, .92); color: #111; font-size: 13px; font-weight: 600; }
+.image-viewer-note[hidden] { display: none; }
+.image-viewer-stage { touch-action: none; overflow: hidden; }
+.image-viewer-image { transform-origin: center; will-change: transform; touch-action: none; cursor: zoom-in; }
+.image-viewer.zoomed .image-viewer-image { cursor: grab; }
+@media (max-width: 560px) {
+  .image-viewer-pill span { display: none; }
+  .image-viewer-pill { width: 46px; padding: 0; justify-content: center; }
+  .image-viewer-tools { gap: 6px; }
+}
