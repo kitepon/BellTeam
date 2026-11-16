@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T16:23:42Z",
-  "expiresAt": "2026-11-23T16:23:42Z",
+  "publishedAt": "2026-11-16T16:44:46Z",
+  "expiresAt": "2026-11-23T16:44:46Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0a96b6dc0048d5e5578e2acd2f3fa84f70330a9c",
-      "versionId": "sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b",
+      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
+      "versionId": "sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,21 @@
         "containerUpdate": 1
       },
       "changes": [
+        "席に同梱するLatticeの実行ファイルを0.110.1へ上げました。",
         "会話の部品を入れ替えている最中に画面や工程が会話を呼んでも、エラーにせず、入れ替えが終わるまで待ってから処理するようにしました。待つのは最長60秒です。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0a96b6dc0048d5e5578e2acd2f3fa84f70330a9c",
-      "versionId": "sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b",
+      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
+      "versionId": "sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,13 +753,14 @@
         "containerUpdate": 1
       },
       "changes": [
+        "席に同梱するLatticeの実行ファイルを0.110.1へ上げました。",
         "会話の部品を入れ替えている最中に画面や工程が会話を呼んでも、エラーにせず、入れ替えが終わるまで待ってから処理するようにしました。待つのは最長60秒です。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
-      "versionId": "b75a7fc1b6cb74fd715de29ec036f3f92417d2219a8c39595c67873fba58eaa8",
+      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
+      "versionId": "9a430af0f4446351477dbc14954e890aa360d90d6868d891a1ec0c057e629fc5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +768,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-amd64.tar.gz",
-          "bytes": 15335414,
-          "sha256": "b75a7fc1b6cb74fd715de29ec036f3f92417d2219a8c39595c67873fba58eaa8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-amd64.tar.gz",
+          "bytes": 15359736,
+          "sha256": "9a430af0f4446351477dbc14954e890aa360d90d6868d891a1ec0c057e629fc5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11051,
-          "sha256": "5a00b674facddd9fe77b62eac01686a8dc4d75a4370a23d7f75b9e77b764ee30"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "79473b3d713421df7495b9ac5f5e4de5522b10247e817766c1c5fe5d778f7385"
         },
-        "signerCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5"
+        "signerCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,14 +789,14 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.109.0へ上げました。工程の作業範囲を、ファイルだけでなく関数まで申告できるようになります。",
-        "コードグラフ（段階A）の関数単位の解決が使えるようになります。"
+        "工程表の道具（Lattice）を0.110.1へ上げました。同じ関数を二人が変える時、後から始める工程で関数を分けられるようになります。",
+        "工程表の読み書きが速くなりました（メモの追加が約2倍、状態の確認が約2倍、工程の追加が約3倍速い）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
-      "versionId": "d5f435ec77c12bb00583df8f6e87c7c9d15caafd15ed3abca5289618e23d9d0d",
+      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
+      "versionId": "fa22a9375603b7b6f0e81463c7ad07745d6b57bdb59365a6ae4dab6a8363c8a4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -802,16 +804,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-arm64.tar.gz",
-          "bytes": 15335395,
-          "sha256": "d5f435ec77c12bb00583df8f6e87c7c9d15caafd15ed3abca5289618e23d9d0d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-arm64.tar.gz",
+          "bytes": 15359733,
+          "sha256": "fa22a9375603b7b6f0e81463c7ad07745d6b57bdb59365a6ae4dab6a8363c8a4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T102602Z/lattice-3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "46e2ba0c910806bb1745a74db50d634c9a012efb05771a2b1aabaaacde90bcc6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11145,
+          "sha256": "7648ad026554a6851cc10ed5a4574fa7bd7aca5d1ede39b336dce445ed547787"
         },
-        "signerCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5"
+        "signerCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -823,8 +825,8 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.109.0へ上げました。工程の作業範囲を、ファイルだけでなく関数まで申告できるようになります。",
-        "コードグラフ（段階A）の関数単位の解決が使えるようになります。"
+        "工程表の道具（Lattice）を0.110.1へ上げました。同じ関数を二人が変える時、後から始める工程で関数を分けられるようになります。",
+        "工程表の読み書きが速くなりました（メモの追加が約2倍、状態の確認が約2倍、工程の追加が約3倍速い）。"
       ]
     },
     {
