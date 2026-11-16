@@ -958,6 +958,65 @@ private final class ConversationCardStates {
     }
 }
 
+/// 吹き出しの右下の小さな3つ：返信・転送・コピー（a301）。動作が無い行（受付前の仮行・カード）はその項目を出さない。
+private struct BubbleActions: View {
+    let id: String
+    let text: String?
+    let onReply: (() -> Void)?
+    let onForward: (() -> Void)?
+    @State private var copied = false
+
+    static func shows(text: String?, onReply: (() -> Void)?, onForward: (() -> Void)?) -> Bool {
+        onReply != nil || onForward != nil || text?.isEmpty == false
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            if let onReply { icon("arrowshape.turn.up.left", "返信", "message-reply-\(id)", onReply) }
+            if let onForward { icon("arrowshape.turn.up.right", "転送", "message-forward-\(id)", onForward) }
+            if let text, !text.isEmpty {
+                icon(copied ? "checkmark" : "doc.on.doc", copied ? "コピーしました" : "コピー", "message-copy-\(id)") {
+                    UIPasteboard.general.string = text
+                    copied = true
+                    Task { try? await Task.sleep(for: .seconds(2)); copied = false }
+                }
+            }
+        }
+    }
+
+    private func icon(_ name: String, _ label: String, _ identifier: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.system(size: 13))
+                .foregroundStyle(BellTheme.muted)
+                .frame(width: 26, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// 吹き出し（画像だけの行は画像）の下に、右端をそろえて3つのアイコンを並べる（overlayで重ねるとChatLayoutの高さ計算が乱れ、過去へ引くと位置が飛ぶ）。
+private struct ActionsOverlay: ViewModifier {
+    let enabled: Bool
+    let outgoing: Bool
+    let id: String
+    let text: String?
+    let onReply: (() -> Void)?
+    let onForward: (() -> Void)?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            VStack(alignment: .trailing, spacing: 2) {
+                content.frame(minWidth: 84, alignment: outgoing ? .trailing : .leading)
+                BubbleActions(id: id, text: text, onReply: onReply, onForward: onForward)
+            }
+        } else { content }
+    }
+}
+
 /// 行を左へスワイプして返信（a300）。横が縦の1.5倍超の左ドラッグだけを拾うので、縦スクロール・文字選択・左端の戻るスワイプと競合しない。
 /// Macはマウスのドラッグが文字選択なので付けない。
 private struct ReplySwipe: ViewModifier {
@@ -1040,6 +1099,13 @@ private struct MessageRow: View, Equatable {
         message.replyTo != nil || !hasImageStack || message.message?.isEmpty == false || replyLabel != nil
     }
 
+    private var showsActions: Bool { BubbleActions.shows(text: message.message, onReply: onReply, onForward: onForward) }
+
+    private func actionsOverlay(_ on: Bool) -> ActionsOverlay {
+        ActionsOverlay(enabled: on && showsActions, outgoing: message.isOutgoing, id: message.id, text: message.message,
+                       onReply: onReply, onForward: onForward)
+    }
+
     var body: some View {
         if message.isPeer {
             Button(action: onOpenPeer) {
@@ -1071,7 +1137,8 @@ private struct MessageRow: View, Equatable {
                         }
                         MessageImages(paths: message.displayedImageURLs, messageID: message.id,
                                       outgoing: message.isOutgoing, api: api, onOpen: onOpenImages)
-                            .padding(.bottom, 8)
+                            .padding(.bottom, hasBubbleContent ? 8 : 0)
+                            .modifier(actionsOverlay(!hasBubbleContent))
                     }
                     if hasBubbleContent {
                         VStack(alignment: .leading, spacing: 8) {
@@ -1117,6 +1184,7 @@ private struct MessageRow: View, Equatable {
                                 if let onForward { Button("転送", systemImage: "arrowshape.turn.up.right", action: onForward) }
                             }
                         }
+                        .modifier(actionsOverlay(true))
                     }
                     HStack(spacing: 6) {
                         if message.isFork { ForkSeatBadge() }
