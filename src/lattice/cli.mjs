@@ -84,6 +84,8 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     // K4: the chart's display name; the creator is Lattice's (the seat whose run created the store).
     async setName(id, name, from) { return host(id, ['chart', 'set', '--name', name, '--json'], { LATTICE_SEAT_ID: from }) },
     // K7: a code chart bound to its repo, kept current on request (fast-forward only; Lattice's own git and sensor).
+    // K4 (0.107.0): lanes whose tasks skip the enforced start gates 1-3; the same value again answers `unchanged`.
+    setNoCodeLanes: (id, lanes) => host(id, ['chart', 'set', '--no-code-lane', lanes.join(','), '--json']),
     repoBind: (id, url, branch) => host(id, ['chart', 'repo', 'bind', '--url', url, '--branch', branch, '--json']),
     repoSync: id => host(id, ['chart', 'repo', 'sync', '--json'], {}, 120000),
     // Owner-lane filing record (README L18): one JSON object. Missing = {}.

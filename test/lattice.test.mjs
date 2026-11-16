@@ -537,6 +537,7 @@ test('cli: host calls go through the contract only (K1 list, K2 sources, K4 char
     'charts source --project alpha --project nope --json': { charts: { alpha: 's1', nope: null } },
     'charts source --project alpha --json': { charts: { alpha: 's1' } },
     'chart set --name 新しい名前 --json': { project_id: 'alpha', name: '新しい名前', created_by: 'bot-a' },
+    'chart set --no-code-lane approval-box,x --json': { no_code_lanes: ['approval-box', 'x'], unchanged: false },
     'chart repo bind --url u --branch main --json': { status: 'bound' }, 'chart repo sync --json': { status: 'synced', tip: 't' } }
   const spawned = fakeSpawn(child => {
     const key = spawned.calls.at(-1).args.slice(1).join(' ')
@@ -551,6 +552,7 @@ test('cli: host calls go through the contract only (K1 list, K2 sources, K4 char
   const named = spawned.calls.find(call => call.args.includes('set'))
   assert.deepEqual([named.options.env.LATTICE_PROJECT_ID, named.options.env.LATTICE_SEAT_ID, named.options.cwd], ['alpha', 'bot-b', home])
   assert.deepEqual([(await cli.repoBind('bellteam', 'u', 'main')).status, (await cli.repoSync('bellteam')).status], ['bound', 'synced'])
+  assert.deepEqual((await cli.setNoCodeLanes('bellteam', ['approval-box', 'x'])).no_code_lanes, ['approval-box', 'x'])
   await assert.rejects(cli.repoSync('nochart').then(() => cli.setName('alpha', 'x', 'y')), { code: 'LATTICE_UNAVAILABLE' })
   assert.equal(spawned.calls.every(call => call.options.env.LATTICE_CHARTS_ROOT === '/charts' && !('cwd' in call.options && call.options.cwd.startsWith('/charts'))), true)
 })
