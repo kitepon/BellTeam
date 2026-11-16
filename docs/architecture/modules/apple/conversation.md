@@ -220,7 +220,7 @@ flowchart TD
 
 ## 転送（forward）
 
-契約は[forward](../conversation/forward.md)。クライアントは「どの発言か」の識別子だけを送り、本文はサーバーが元の発言から組む。他のアプリからの共有拡張（`share`）は別の節（未実装）。
+契約は[forward](../conversation/forward.md)。クライアントは「どの発言か」の識別子だけを送り、本文はサーバーが元の発言から組む。他のアプリからの共有拡張（`share`）は次の節。
 
 ```mermaid
 flowchart TD
@@ -242,6 +242,35 @@ flowchart TD
 | 対象外 | 共有拡張（別PR、承認待ち）、返信との併用、ファイルを含む発言の転送（サーバーが415） |
 
 試験：`BellBotTests/ForwardTests`（origin復号・分割・送信本文のキー・失敗文言）、`BellBotUITests/ConversationReplyUITests`の転送2本（シート→識別子だけ送る、転送された行の印）。fixtureは`test/helpers/conversation-reply-server.mjs`。
+
+## 共有拡張（BellTeamへ共有）
+
+他のアプリの共有シートに「BellTeam」を出す（テキスト・URL・画像）。契約は[forward](../conversation/forward.md)の`share`。拡張は別プロセスなので、アプリの接続先とログインを、共有Keychainの1項目で受け取る（オーナー承認済み。標準のApp Group/共有Keychain方式で、中身はCloudflare Accessのクッキーと接続先URL）。拡張からはログインしない。
+
+```mermaid
+flowchart TD
+  App["BellTeamアプリ: AppStore.publishShareCredentials<br/>接続先設定・ログイン（syncCookies）・購読の変化・ログアウトで呼ぶ"] -->|"ShareCredentials.save: JSON 1項目（serverURL, Cookieヘッダー, クッキー期限, 購読期限）<br/>kSecAttrAccessGroup = BellTeamKeychainGroup"| Keychain["共有Keychain（同じチーム・同じアプリ）"]
+  App -->|"接続先なし・ログアウト"| Clear["ShareCredentials.clear"]
+  Other["他のアプリの共有シート: テキスト・URL・画像"] --> Ext["ShareExtension: ShareViewController → ShareView"]
+  Ext --> Load["ShareLoader.load: NSItemProviderからテキスト/URL(http・https)/画像を1つずつ読む<br/>画像10枚・合計40MiBまで。ファイルは「まだ共有できません」（本体の対応が本番に出るまで）"]
+  Keychain -->|"ShareCredentials.load"| Client["ShareClient(credentials)"]
+  Ext --> Client
+  Client -->|"validate: クッキー期限切れ→案内して止まる"| Dest["GET /api/bots・/api/rooms → 送り先（Bot→部屋）"]
+  Client -->|"requireAccess: GET /api/subscription が developer か、購読の期限が有効"| Post["POST 送り先 T/messages<br/>{message: コメント, share:{text,urls}, images:[{mime,data}]}"]
+  Post --> Done["「送りました（送り先）。」"]
+  Client -->|"別ホストが応答・401・403"| Expired["「ログインの期限が切れています。BellTeamのアプリを開いて、ログインし直してください。」"]
+```
+
+| 項目 | 規則 |
+| --- | --- |
+| 書く側 | アプリだけ。`publishShareCredentials`が`CF_Authorization`クッキー（期限切れを除く）・接続先・購読期限を書く。書けなければ診断へ報告（拡張は案内して止まる）。`BellTeamKeychainGroup`は`$(AppIdentifierPrefix)<アプリID>.share`（Info.plistとentitlementsの`keychain-access-groups`）。Mac(Catalyst)はdata protection keychain |
+| 読む側 | 拡張だけ。未ログイン・Keychainを読めない・クッキー期限切れは、アプリを開いてログインし直す案内。拡張はクッキーの更新も購読の確認もしない |
+| 購読 | アプリの`authorizeAIUse`と同じ規則（サーバーが開発者モード、またはAppleの購読が有効な期限）。期限はアプリが書いた値 |
+| 送らないもの | `share.app`（iOSは送信元アプリ名を渡さない）、ファイル（a289が本番に出るまで。20MiB/5個の上限は本体） |
+| 部屋 | 返信者の自動選択が無い部屋の`targets`は拡張では選ばせない（アプリから送る） |
+| 追加の権限 | 新Bundle ID `<アプリID>.ShareExtension`、Keychain共有（署名時に作られる） |
+
+試験：`BellBotTests/ShareClientTests`（本文・期限・購読・別ホスト・送り先・言葉。URLProtocolで）。未確認：拡張の通し動作（共有シートに出る・送る）と署名後のKeychain共有、Mac(Catalyst)の共有メニュー、実機。
 
 ## 個別停止・再起動・端末画面・書出し
 
