@@ -56,7 +56,7 @@ export class ConversationStore {
     const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
     if (row && (row.from === botId || row.target === botId))
       return { sender: { id: row.from, ...(row.from_identity?.name ? { name: row.from_identity.name } : {}) }, at: row.at,
-        text: contentOf(row), imageAssets: row.image_assets ?? (row.image_asset ? [row.image_asset] : []), origin: row.origin }
+        text: contentOf(row), imageAssets: row.image_assets ?? (row.image_asset ? [row.image_asset] : []), fileAssets: row.file_assets ?? [], origin: row.origin }
     const word = state.byBot.get(botId)?.find(record => record.schema === 'bellteam.interim-word.v1' && record.id === id)
     return word ? { sender: { id: botId }, at: word.at, text: word.text, imageAssets: [] } : null
   }
@@ -174,6 +174,7 @@ function messageItem(record, direction) {
     ...(record.steered === true ? { steered: true } : {}),
     ...(record.reply_to ? { reply_to: record.reply_to } : {}),
     ...(record.origin ? { origin: record.origin } : {}),
+    ...(record.file_assets ? { file_assets: record.file_assets, file_count: record.file_assets.length } : {}),
   }
 }
 

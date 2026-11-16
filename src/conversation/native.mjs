@@ -31,7 +31,7 @@ export class ConversationNative {
     this.#deliveries.set(key(binding), entry)
     const params = { deliveryId: binding.deliveryId, target: binding.target, message, queue, kinds,
       ...(kind === 'report' ? { sourceDeliveryId: state.source?.deliveryId, reason }
-        : kind === 'fork' ? { forkId: options.forkId } : { images: options.images ?? [] }),
+        : kind === 'fork' ? { forkId: options.forkId } : { images: options.images ?? [], ...(options.files?.length ? { files: options.files } : {}) }),
       ...(options.recoveredExecution ? { recoveryId: options.recoveredExecution.recoveryId } : {}),
     }
     const accepted = this.invoke(`execution.${kind}`, params, state.context)

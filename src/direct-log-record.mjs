@@ -29,7 +29,9 @@ export function validateDirectLogRecord(record) {
     image_assets: value => Array.isArray(value) && value.every(asset), durable_receipt: value => value === true,
     session_id: id, call_event: value => ['session.message', 'session.reply'].includes(value),
     call_seq: value => value === null || Number.isFinite(value), call_reply_required: value => typeof value === 'boolean',
-    seat: forkSeat, from_seat: forkSeat, in_reply_to: id, reply_to: replyTo, origin })
+    seat: forkSeat, from_seat: forkSeat, in_reply_to: id, reply_to: replyTo, origin,
+    file_assets: files => Array.isArray(files) && files.every(file => object(file, { owner: id, file: id, name: text, mime: text, size: Number.isSafeInteger })),
+    file_count: Number.isSafeInteger })
   if (record?.schema === 'bellteam.interim-word.v1') return object(record, {
     schema: value => value === 'bellteam.interim-word.v1', id, at: id, bot: id, group_id: id, text,
   }, { kind: value => ['error', 'answer'].includes(value), written_at: text, seat: forkSeat })

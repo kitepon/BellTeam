@@ -5,7 +5,7 @@ import { memberIdentity } from './member-identity.mjs'
 import { chooseRoomResponder, roomTurnsFromThroughline } from './room-routing.mjs'
 import { deliveryFailureFields } from './conversation-writer.mjs'
 import { replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
-import { originNotice, resolveOrigin } from './origin-reference.mjs'
+import { originNotice, requireFiles, resolveOrigin } from './origin-reference.mjs'
 
 export class RoomMessenger {
   constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, forwardSource = async () => null, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder, failureFields = deliveryFailureFields }) {
@@ -45,7 +45,7 @@ export class RoomMessenger {
   }
 
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
-  async sendRoomMessageInOrder({ from, room: roomId, message: comment, image = null, images: sent = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, forward, share, executionSource }, check = () => {}, { membersLease } = {}) {
+  async sendRoomMessageInOrder({ from, room: roomId, message: comment, image = null, images: sent = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, forward, share, files: sentFiles, executionSource }, check = () => {}, { membersLease } = {}) {
     check()
     await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })])
     const room = this.rooms.get(roomId)
@@ -61,9 +61,11 @@ export class RoomMessenger {
     if (replyQuote !== undefined) { if (replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 }); requireReplyQuote(replyQuote) }
     if ((forward !== undefined || share !== undefined) && from !== 'user') throw new Error('ORIGIN_NOT_ALLOWED')
     let images = sent
+    if (sentFiles !== undefined && from !== 'user') throw new Error('ORIGIN_NOT_ALLOWED')
+    const files = sentFiles === undefined ? [] : requireFiles(sentFiles)
     const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
     const message = origin ? origin.message : comment
-    if (!message.length && !images.length && !origin?.copy.length) throw new Error('MESSAGE_REQUIRED')
+    if (!message.length && !images.length && !origin?.copy.length && !files.length) throw new Error('MESSAGE_REQUIRED')
     if (responseTo) {
       const posted = (await this.rooms.messages(room.id)).find(item => item.responseTo === responseTo && item.sender.id === from)
       if (posted) return { id: posted.id, room: room.id, targets: posted.routing?.responders ?? [], delivery: 'already_posted' }
@@ -84,6 +86,7 @@ export class RoomMessenger {
       : null
     let imageAssets = images.length && from === 'user' && this.assets ? await this.assets.saveAll({ owner: 'user', id, images }) : []
     // A forward copies the original's images into new saved images and hands the same bytes to every Bot.
+    const fileAssets = files.length && this.assets ? await this.assets.saveFiles({ owner: 'user', id, files }) : []
     const copied = origin?.copy.length && this.assets ? await this.assets.copyAll({ owner: 'user', id, sources: origin.copy }) : null
     if (copied) { imageAssets = [...imageAssets, ...copied.assets]; images = [...images, ...copied.images] }
     const record = {
@@ -96,6 +99,7 @@ export class RoomMessenger {
       deliveries: deliveryTargets.map(target => ({ target, delivery: 'running' })),
       ...(imageAsset ? { image_asset: imageAsset } : {}),
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),
+      ...(fileAssets.length ? { file_assets: fileAssets, file_count: fileAssets.length } : {}),
     }
     await this.rooms.appendMessage(room.id, record)
     await this.onMessage(record)
@@ -139,6 +143,7 @@ export class RoomMessenger {
           ...(membersLease === undefined ? {} : { membersLease }),
           ...(executionSource ? { executionSource } : {}),
           images,
+          ...(files.length ? { files } : {}),
           queue: {
             context: 'room', contextId: room.id, groupId: record.id,
             from, fromName: sender.name, target: id, message,

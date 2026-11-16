@@ -68,7 +68,7 @@ export function createRoomApi({ bots, rooms, transport, sources, messagePage, ro
         const message = typeof body.message === 'string' ? body.message.trim() : ''
         const images = messageImages(body)
         const origin = readOrigin(body, images)
-        if (origin.error) return json(response, origin.status, { error: origin.error })
+        if (origin.error) return json(response, origin.status, { error: origin.error, ...(origin.message ? { message: origin.message } : {}) })
         if (!message && !images.length && !Object.keys(origin.fields).length) return json(response, 400, { error: 'MESSAGE_REQUIRED' })
         if (body.reply_to != null && !validReplyTo(body.reply_to)) return json(response, 400, { error: 'REPLY_TO_INVALID' })
         if (body.reply_quote != null && (body.reply_to == null || !validReplyQuote(body.reply_quote))) return json(response, 400, { error: 'REPLY_QUOTE_INVALID' })

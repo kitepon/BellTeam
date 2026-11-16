@@ -8,7 +8,7 @@ import { ConversationWriter } from './conversation-writer.mjs'
 import { normalizeConversationCallbackError } from './conversation/callbacks.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { jst, replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
-import { originNotice, resolveOrigin } from './origin-reference.mjs'
+import { originNotice, requireFiles, resolveOrigin } from './origin-reference.mjs'
 
 export function directEnvelope(from, message, { fork = false, replyTo = null, origin = null } = {}) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
@@ -353,7 +353,7 @@ export class BellTeamMessenger extends ConversationWriter {
     return completion
   }
 
-  async prepareUserTurn({ target, message: comment, images: sent = [], recordUser = true, replyTo, replyQuote, forward, share }) {
+  async prepareUserTurn({ target, message: comment, images: sent = [], files: sentFiles, recordUser = true, replyTo, replyQuote, forward, share }) {
     const check = this.admitWork()
     await this.bots.refresh?.()
     const bot = this.bots.get(target)
@@ -362,9 +362,10 @@ export class BellTeamMessenger extends ConversationWriter {
     if (typeof comment !== 'string') throw new Error('MESSAGE_REQUIRED')
     let images = sent
     images.forEach(validateImage)
+    const files = sentFiles === undefined ? [] : requireFiles(sentFiles)
     const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
     const message = origin ? origin.message : comment
-    if (message.length === 0 && !images.length && !origin?.copy.length) throw new Error('MESSAGE_REQUIRED')
+    if (message.length === 0 && !images.length && !origin?.copy.length && !files.length) throw new Error('MESSAGE_REQUIRED')
     if (replyQuote !== undefined && replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 })
     const reply = replyTo === undefined ? null : await this.replyReference(target, replyTo, replyQuote)
     const deliveryId = this.deliveryId()
@@ -372,21 +373,23 @@ export class BellTeamMessenger extends ConversationWriter {
     if (recordUser) {
       // 送った画像を会話の記録に残す。Botへ渡す一時ファイルはターンが終われば消える。
       const imageAssets = images.length && this.assets ? await this.assets.saveAll({ owner: 'user', id: deliveryId, images }) : []
+      const fileAssets = files.length && this.assets ? await this.assets.saveFiles({ owner: 'user', id: deliveryId, files }) : []
       // A forward copies the original's images into new saved images and hands the same bytes to the Bot.
       const copied = origin?.copy.length && this.assets ? await this.assets.copyAll({ owner: 'user', id: deliveryId, sources: origin.copy }) : null
       if (copied) images = [...images, ...copied.images]
       await this.append(this.record({
-        deliveryId, from: 'user', target, message, images, imageAssets: [...imageAssets, ...(copied?.assets ?? [])], delivery: 'running', replyTo: reply, origin: origin?.origin,
+        deliveryId, from: 'user', target, message, images, imageAssets: [...imageAssets, ...(copied?.assets ?? [])], fileAssets, delivery: 'running', replyTo: reply, origin: origin?.origin,
       }))
     }
-    return { target, message, images, bot, deliveryId, startedAt, check, replyTo: reply, origin: origin?.origin }
+    return { target, message, images, files, bot, deliveryId, startedAt, check, replyTo: reply, origin: origin?.origin }
   }
 
   startUserTurn(prepared) {
-    const { target, message, images, bot, deliveryId } = prepared
+    const { target, message, images, files = [], bot, deliveryId } = prepared
     return this.transport.turn(bot, userEnvelope(memberIdentity(this.bots, 'user'), message, { replyTo: prepared.replyTo, origin: prepared.origin }), {
       admissionCheck: prepared.check,
       images,
+      ...(files.length ? { files } : {}),
       queue: {
         context: 'direct', contextId: target, groupId: deliveryId,
         from: 'user', fromName: 'ユーザー', target, message,
@@ -424,7 +427,7 @@ export class BellTeamMessenger extends ConversationWriter {
     return snapshotReply(id, source, quote)
   }
 
-  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null, replyTo = null, origin = null }) {
+  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null, replyTo = null, origin = null, fileAssets = [] }) {
     return {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: memberIdentity(this.bots, from), target_identity: memberIdentity(this.bots, target),
@@ -433,6 +436,7 @@ export class BellTeamMessenger extends ConversationWriter {
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),
       ...(replyTo ? { reply_to: replyTo } : {}),
       ...(origin ? { origin } : {}),
+      ...(fileAssets.length ? { file_assets: fileAssets, file_count: fileAssets.length } : {}),
       ...(label ?? {}),
     }
   }

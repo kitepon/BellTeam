@@ -28,13 +28,44 @@ export function requireOrigin({ forward, share, replyTo, images = [] }) {
 
 // The HTTP edge: the request's forward / share / reserved files field -> fields to pass on, or the refusal to return.
 export function readOrigin(body, images) {
-  if (body.files != null) return { status: 415, error: 'FILE_NOT_SUPPORTED' }
+  let files = []
+  if (body.files != null) {
+    try { files = requireFiles(body.files) } catch (error) { return { status: error.status, error: error.code, message: error.message === error.code ? undefined : error.message } }
+  }
   const fields = {
+    ...(files.length ? { files } : {}),
     ...(body.forward != null ? { forward: body.forward } : {}),
     ...(body.share != null ? { share: body.share } : {}),
   }
-  try { requireOrigin({ ...fields, replyTo: body.reply_to ?? undefined, images }) } catch { return { status: 400, error: 'ORIGIN_INVALID' } }
+  try { requireOrigin({ forward: fields.forward, share: fields.share, replyTo: body.reply_to ?? undefined, images: [...images, ...files] }) } catch { return { status: 400, error: 'ORIGIN_INVALID' } }
   return { fields }
+}
+
+// Files that are not images (forward.md "Files"): { name, mime, data (base64) }, 20 MiB each, 5 per message.
+export const FILES_MAX = 5
+export const FILE_BYTES_MAX = 20 * 1024 * 1024
+const LIMIT_WORDS = 'ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。'
+const filesError = (code, status, message = code) => Object.assign(new Error(message), { code, status })
+const decodedBytes = data => Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0)
+
+// Returns the files normalized (safe display name, a plain type, base64 data), or throws FILES_INVALID / FILE_TOO_LARGE / TOO_MANY_FILES.
+export function requireFiles(files) {
+  if (!Array.isArray(files)) throw filesError('FILES_INVALID', 400)
+  if (files.length > FILES_MAX) throw filesError('TOO_MANY_FILES', 413, LIMIT_WORDS)
+  return files.map(file => {
+    if (!keys(file, ['name', 'mime', 'data']) || !text(file.name) || !text(file.data) || !/^[A-Za-z0-9+/]*={0,2}$/u.test(file.data)
+      || (file.mime !== undefined && !text(file.mime))) throw filesError('FILES_INVALID', 400)
+    const size = decodedBytes(file.data)
+    if (size <= 0) throw filesError('FILES_INVALID', 400)
+    if (size > FILE_BYTES_MAX) throw filesError('FILE_TOO_LARGE', 413, LIMIT_WORDS)
+    // eslint-disable-next-line no-control-regex
+    const name = file.name.replace(/[\u0000-\u001f\u007f/\\]/gu, '_').trim().slice(0, 255) || 'file'
+    return { name, mime: /^[\w.+-]{1,64}\/[\w.+-]{1,63}$/u.test(file.mime ?? '') ? file.mime : 'application/octet-stream', data: file.data }
+  })
+}
+
+export function filesNotSupported() {
+  return Object.assign(new Error('FILE_NOT_SUPPORTED'), { code: 'FILE_NOT_SUPPORTED', status: 415 })
 }
 
 export function notFound() {
@@ -52,7 +83,9 @@ export async function resolveOrigin({ message, forward, share, replyTo, images, 
   let source = null
   if (forward) {
     try { source = await forwardSource({ kind: forward.source.kind, id: forward.source.id, messageId: forward.message_id }) } catch { source = null }
-    if (!source || (!source.text && !source.imageAssets?.length)) throw notFound()
+    if (!source || (!source.text && !source.imageAssets?.length && !source.fileAssets?.length)) throw notFound()
+    // Forwarding a message that has files needs assets.read for them (a later task): refused, nothing saved.
+    if (source.fileAssets?.length) throw filesNotSupported()
     if (!source.sender.name) source = { ...source, sender: { ...source.sender, name: nameOf(source.sender.id) } }
   }
   return { ...composeOrigin({ comment: message, forward, share, source }), copy: source?.imageAssets ?? [] }

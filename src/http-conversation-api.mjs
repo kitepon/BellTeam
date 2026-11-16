@@ -46,7 +46,7 @@ export function createBotConversationApi({ bots, transport, messagePage, messeng
         const message = typeof body.message === 'string' ? body.message.trim() : ''
         const images = messageImages(body)
         const origin = readOrigin(body, images)
-        if (origin.error) return json(response, origin.status, { error: origin.error })
+        if (origin.error) return json(response, origin.status, { error: origin.error, ...(origin.message ? { message: origin.message } : {}) })
         if (!message && !images.length && !Object.keys(origin.fields).length)
           return json(response, 400, { error: 'MESSAGE_REQUIRED' })
         if (body.reply_to != null && !validReplyTo(body.reply_to)) return json(response, 400, { error: 'REPLY_TO_INVALID' })
@@ -82,6 +82,24 @@ export function createConversationAssetsApi({ events, assets }) {
         'content-disposition': `${url.searchParams.get('download') === '1' ? 'attachment' : 'inline'}; filename="${imageAssetMatch[2]}"`,
       })
       // A disconnected response must also close the source FileHandle.
+      return pipeline(asset.stream, response, () => {})
+    }
+    const fileAssetMatch = url.pathname.match(/^\/api\/message-files\/([a-z0-9-]+)\/([a-z0-9-]+\.dat)$/u)
+    if (request.method === 'GET' && fileAssetMatch) {
+      if (!assets) return json(response, 404, { error: 'FILE_ASSET_NOT_FOUND' })
+      const asset = await assets.open(fileAssetMatch[1], fileAssetMatch[2])
+      if (response.destroyed || response.writableEnded) {
+        asset.stream.destroy()
+        return response
+      }
+      // A file is never shown inline: always a download of opaque bytes, under the stored (ASCII) name.
+      response.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-length': asset.size,
+        'cache-control': 'private, max-age=31536000, immutable',
+        'x-content-type-options': 'nosniff',
+        'content-disposition': `attachment; filename="${fileAssetMatch[2]}"`,
+      })
       return pipeline(asset.stream, response, () => {})
     }
     return false

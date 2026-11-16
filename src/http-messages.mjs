@@ -59,7 +59,15 @@ export function pageItems(items, url) {
 }
 
 // 画像の保存先は記録に残し、画面へは取得用のURLだけを渡す。`image_url` は1枚しか読まない古いアプリ向けに1枚目を入れる。
+// forward.md "Files": the saved files of a message are listed with a name, a type, a size and a download URL (never the stored path).
 export function webMessage(item) {
+  const { file_assets: fileAssets = [], ...rest } = item
+  const message = imageMessage(rest)
+  return fileAssets.length ? { ...message, files: fileAssets.map(file => ({ name: file.name, mime: file.mime, size: file.size,
+    url: `/api/message-files/${encodeURIComponent(file.owner)}/${encodeURIComponent(file.file)}` })) } : message
+}
+
+function imageMessage(item) {
   const imageAsset = item.imageAsset ?? item.image_asset ?? null
   const { imageAsset: _camelAsset, image_asset: _snakeAsset, imageAssets: camelAssets, image_assets: snakeAssets, ...visible } = item
   const imageAssets = camelAssets ?? snakeAssets ?? []
