@@ -510,6 +510,19 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         finally { if (!token.IsCancellationRequested) Loading = false; }
     }
 
+    // Forward one message of the open conversation to another Bot or room, with an optional comment of the Owner's own. Returns null when it was accepted,
+    // else the refusal in plain words (nothing was sent then). The destination's own screen is read again when it is the one open.
+    public async Task<string?> ForwardAsync(TimelineMessage message, ChatTarget destination, string comment)
+    {
+        if (api is null || connection is null || selected is null || !Timeline.IsForwardable(message)) return "転送できる状態ではありません。";
+        var current = api; var token = connection.Token; var from = selected.Target;
+        try { await current.SendAsync(destination, comment.Trim(), [], null, token, forward: new ForwardSource(from.IsRoom ? "room" : "bot", from.Id, message.Id)); }
+        catch (BellApiException error) when (error.Status is not null) { return Timeline.ForwardRefusal(error); }
+        catch (Exception error) { return (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message; }
+        if (api == current && selected?.Target == destination) { try { await RefreshAsync(current, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception error) { if (api == current) ConnectionError = "転送は受け付けられました。会話の更新に失敗しました。" + error.Message; } }
+        return null;
+    }
+
     public async Task SendAsync()
     {
         if (!CanSend) return;

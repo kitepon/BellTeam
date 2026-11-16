@@ -33,6 +33,11 @@ public sealed class MessageCard : ContentControl
     // Reply (conversation reply.md): the quote above the text, tap = jump; the 返信 button of the time line and the right-click menu.
     private Button? quoteButton;
     private TextBlock? quoteName, quoteText, quoteNote;
+    // Forward (forward.md): the origin mark above a forwarded or shared row, and its content as a quoted block under the Owner's comment.
+    private TextBlock? originMark;
+    private Border? contentBorder;
+    private MarkdownView? contentBody;
+    private readonly Button forwardButton = new() { Content = "転送", FontSize = 14, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(0), Opacity = 0, Cursor = System.Windows.Input.Cursors.Hand };
     private readonly Button replyButton = new() { Content = "返信", FontSize = 14, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(0), Opacity = 0, Cursor = System.Windows.Input.Cursors.Hand };
     private SecretCard? secret;
     private QuestionCard? question;
@@ -54,13 +59,19 @@ public sealed class MessageCard : ContentControl
     }
     public MessageCard()
     {
-        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton);
+        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton); timeLine.Children.Add(forwardButton);
         replyButton.SetResourceReference(StyleProperty, "QuietButton"); replyButton.Padding = new Thickness(0); replyButton.Margin = new Thickness(10, 0, 0, 0); replyButton.Foreground = Frozen(Color.FromRgb(0x61, 0x47, 0xD4));
         System.Windows.Automation.AutomationProperties.SetName(replyButton, "このメッセージに返信");
         replyButton.Click += (_, _) => Workspace.StartQuote(Message);
         // Shown while the pointer or the keyboard is on the row; it stays focusable so the keyboard can reach it.
-        MouseEnter += (_, _) => replyButton.Opacity = 1; MouseLeave += (_, _) => replyButton.Opacity = replyButton.IsKeyboardFocusWithin ? 1 : 0;
-        replyButton.GotKeyboardFocus += (_, _) => replyButton.Opacity = 1; replyButton.LostKeyboardFocus += (_, _) => replyButton.Opacity = IsMouseOver ? 1 : 0;
+        forwardButton.SetResourceReference(StyleProperty, "QuietButton"); forwardButton.Padding = new Thickness(0); forwardButton.Margin = new Thickness(10, 0, 0, 0); forwardButton.Foreground = replyButton.Foreground;
+        System.Windows.Automation.AutomationProperties.SetName(forwardButton, "このメッセージを転送");
+        forwardButton.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.ShowForwardSheet(Message);
+        foreach (var action in new[] { replyButton, forwardButton })
+        {
+            MouseEnter += (_, _) => action.Opacity = 1; MouseLeave += (_, _) => action.Opacity = action.IsKeyboardFocusWithin ? 1 : 0;
+            action.GotKeyboardFocus += (_, _) => action.Opacity = 1; action.LostKeyboardFocus += (_, _) => action.Opacity = IsMouseOver ? 1 : 0;
+        }
         Loaded += (_, _) =>
         {
             if (entered || Workspace is null || DataContext is not MessageItem item) return;
@@ -162,7 +173,12 @@ public sealed class MessageCard : ContentControl
         menu.Items.Add(part); menu.Items.Add(reply); menu.Items.Add(new MenuItem { Header = "コピー", Command = System.Windows.Input.ApplicationCommands.Copy, CommandTarget = body });
         menu.Opened += (_, _) => { reply.IsEnabled = Timeline.IsQuotable(Message); part.IsEnabled = reply.IsEnabled && !body.Selection.IsEmpty && !string.IsNullOrWhiteSpace(body.Selection.Text); };
         body.ContextMenu = menu;
-        stack = new StackPanel { Children = { quoteButton, heading, images, imagePlaceholder, body, replyLabel } };
+        var forward = new MenuItem { Header = "転送" }; forward.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.ShowForwardSheet(Message);
+        menu.Items.Insert(2, forward); menu.Opened += (_, _) => forward.IsEnabled = Timeline.IsForwardable(Message);
+        originMark = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Frozen(Color.FromRgb(0x61, 0x47, 0xD4)) };
+        contentBody = new MarkdownView { FontSize = 18, Margin = new Thickness(-5, 0, -5, 0), ContextMenu = menu };
+        contentBorder = new Border { BorderBrush = Muted, BorderThickness = new Thickness(3, 0, 0, 0), Padding = new Thickness(10, 2, 0, 2), Child = contentBody };
+        stack = new StackPanel { Children = { quoteButton, originMark, heading, images, imagePlaceholder, body, contentBorder, replyLabel } };
         bubble = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1) };
         accentName = null;
         timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
@@ -229,9 +245,15 @@ public sealed class MessageCard : ContentControl
         var count = message.ImageCount ?? 1;
         imageLabel!.Text = count > 1 ? $"画像{count}枚" : "画像";
         imagePlaceholder!.Visibility = message.Image == true && urls.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-        try { body!.Source = text; }
+        // A forwarded or shared row: the Owner's comment in the bubble's own text, the content as a quoted block (forward.md "History").
+        var origin = message.Origin is { Kind.Length: > 0 } known ? known : null;
+        var (comment, content) = origin is null ? (text, "") : Timeline.OriginParts(message);
+        try { body!.Source = comment; contentBody!.Source = content; }
         catch (NotSupportedException error) { body!.Document = new System.Windows.Documents.FlowDocument(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(error.Message))); }
-        body!.Visibility = text.Length != 0 ? Visibility.Visible : Visibility.Collapsed;
+        body!.Visibility = comment.Length != 0 ? Visibility.Visible : Visibility.Collapsed;
+        contentBorder!.Visibility = content.Length != 0 ? Visibility.Visible : Visibility.Collapsed;
+        originMark!.Text = origin is null ? "" : string.Join(" · ", new[] { Timeline.OriginMark(origin), origin.IsForward ? origin.FromName : null, origin.IsForward && origin.At is { } at ? Timeline.ShortTime(at, DateTimeOffset.Now) : null }.Where(part => !string.IsNullOrEmpty(part)));
+        originMark.Visibility = originMark.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         replyLabel!.Text = reply ?? ""; replyLabel.Visibility = reply is null ? Visibility.Collapsed : Visibility.Visible;
         quoteButton!.Visibility = quote is null ? Visibility.Collapsed : Visibility.Visible;
         if (quote is not null)
@@ -244,6 +266,7 @@ public sealed class MessageCard : ContentControl
             System.Windows.Automation.AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
         }
         replyButton.Visibility = Timeline.IsQuotable(message) ? Visibility.Visible : Visibility.Collapsed;
+        forwardButton.Visibility = Timeline.IsForwardable(message) ? Visibility.Visible : Visibility.Collapsed;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
         foreach (UIElement part in stack!.Children) { if (part.Visibility == Visibility.Collapsed) continue; ((FrameworkElement)part).Margin = new Thickness(part == body ? -5 : 0, first ? 0 : 8, part == body ? -5 : 0, 0); first = false; } // the rich text box insets its text by 5

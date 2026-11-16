@@ -67,6 +67,27 @@ public static class Timeline
 
     // Reply (conversation reply.md "What can be quoted"): conversation rows only; a pending echo, a request card and a Bot-to-Bot row are not.
     public static bool IsQuotable(TimelineMessage message) => !PendingSend.IsLocal(message.Id) && message.SecretRequest is null && message.OwnerQuestion is null && message.Kind is null or "message" or "interim" or "schedule";
+    // Forward (forward.md "What can be forwarded"): the same rows as a reply plus Bot-to-Bot rows.
+    public static bool IsForwardable(TimelineMessage message) => IsQuotable(message) || !PendingSend.IsLocal(message.Id) && message.Kind == "peer";
+    // The comment and the content of a forwarded or shared row; a row without origin (or with an unknown kind) is all comment-less content.
+    public static (string Comment, string Content) OriginParts(TimelineMessage message)
+    {
+        var text = message.Message ?? "";
+        if (message.Origin is not { Kind.Length: > 0 } origin || origin.ContentStart == 0) return ("", text);
+        var runes = text.EnumerateRunes().ToArray();
+        if (origin.ContentStart >= runes.Length) return (text.TrimEnd(), "");
+        return (string.Concat(runes.Take(origin.ContentStart)).TrimEnd(), string.Concat(runes.Skip(origin.ContentStart)));
+    }
+    public static string? OriginMark(MessageOrigin origin) => origin.Kind switch { "forward" => "転送", "share" => origin.App is { Length: > 0 } app ? "共有 · " + app : "共有", _ => null };
+    // Plain words for the refusals of a forward (forward.md "Failure handling"); anything else keeps the server's own message.
+    public static string ForwardRefusal(BellApiException error) => error.Code switch
+    {
+        "FILE_NOT_SUPPORTED" => "画像つきの発言はまだ転送できません。本文だけを新しいメッセージとして送ってください。",
+        "FORWARD_SOURCE_NOT_FOUND" => "転送する発言が見つかりません。画面を更新してから、もう一度お試しください。",
+        "FILE_TOO_LARGE" or "TOO_MANY_FILES" => "ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。",
+        "ORIGIN_INVALID" => "転送の内容を受け付けられませんでした。",
+        _ => error.Message
+    };
     public const string UnavailableQuote = "元のメッセージを表示できません";
     public const string QuoteNotFound = "元のメッセージは見つかりません";
     // reply.md "What the client draws": an unavailable part shows its saved excerpt and the fixed line under it; an unavailable whole-message reply shows only the fixed line.
