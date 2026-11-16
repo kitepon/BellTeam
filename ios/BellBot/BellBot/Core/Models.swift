@@ -271,9 +271,16 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     var deliveryTracking: DeliveryTracking? = nil
     /// conversation reply.md. Absent when the row is not a reply and on old bodies.
     var replyTo: ReplyReference? = nil
+    /// conversation forward.md. Present only on a forwarded or shared row.
+    var origin: MessageOrigin? = nil
 
     var isOutgoing: Bool { direction == "outgoing" || sender?.id == "user" }
     var isFork: Bool { seat?.kind == "fork" }
+    /// conversation forward.md "What can be forwarded": message / interim / peer rows and room messages. Not cards, not a row the server has not saved.
+    var isForwardable: Bool {
+        guard secretRequest == nil, ownerQuestion == nil, !id.hasPrefix("local-pending-") else { return false }
+        return kind == nil || ["message", "interim", "peer", "schedule"].contains(kind!)
+    }
     /// conversation reply.md "What can be quoted": message / interim rows and room posts that the server already holds.
     var isQuotable: Bool {
         guard !isPeer, secretRequest == nil, ownerQuestion == nil, !id.hasPrefix("local-pending-") else { return false }
@@ -298,6 +305,42 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
         if let delivery { return delivery == "failed" && deliveryTracking?.isAcceptedCompletionUnknown == true }
         let failures = deliveries?.filter { $0.delivery == "failed" } ?? []
         return !failures.isEmpty && failures.allSatisfy { $0.deliveryTracking?.isAcceptedCompletionUnknown == true }
+    }
+}
+
+/// 転送・共有された行の印（conversation forward.md）。`message`はコメント＋内容で、`contentStart`（Unicodeスカラー数）で分ける。
+struct MessageOrigin: Decodable, Equatable {
+    let kind: String
+    let fromName: String?
+    let at: String?
+    let contentStart: Int
+    let app: String?
+    let urls: [String]
+
+    private enum CodingKeys: String, CodingKey { case kind, from, at, contentStart, app, urls }
+    private struct From: Decodable { let name: String? }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(String.self, forKey: .kind)) ?? ""
+        fromName = (try? c.decode(From.self, forKey: .from))?.name
+        at = try? c.decode(String.self, forKey: .at)
+        contentStart = max(0, (try? c.decode(Int.self, forKey: .contentStart)) ?? 0)
+        app = try? c.decode(String.self, forKey: .app)
+        urls = (try? c.decode([String].self, forKey: .urls)) ?? []
+    }
+
+    var isForward: Bool { kind == "forward" }
+    var isShare: Bool { kind == "share" }
+
+    /// コメント（オーナー自身の言葉）と内容に分ける。
+    func split(_ text: String) -> (comment: String, content: String) {
+        let scalars = Array(text.unicodeScalars)
+        let at = min(contentStart, scalars.count)
+        func string(_ slice: ArraySlice<Unicode.Scalar>) -> String {
+            String(String.UnicodeScalarView(slice)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return (string(scalars[..<at]), string(scalars[at...]))
     }
 }
 
@@ -921,11 +964,21 @@ struct SendMessageBody: Encodable {
     var replyTo: String? = nil
     /// conversation reply.md "Quoting a selected part": the selected text as shown. The offset hint is omitted because the text is rendered Markdown.
     var replyQuote: ReplyQuoteBody? = nil
+    /// conversation forward.md: which existing message to copy. The server builds the text; the client sends only where it is.
+    var forward: ForwardBody? = nil
 
     private enum CodingKeys: String, CodingKey {
-        case message, images, targets
+        case message, images, targets, forward
         case replyTo = "reply_to", replyQuote = "reply_quote"
     }
+}
+
+struct ForwardBody: Encodable, Equatable {
+    struct Source: Encodable, Equatable { let kind: String; let id: String }
+    let source: Source
+    let messageID: String
+
+    private enum CodingKeys: String, CodingKey { case source; case messageID = "message_id" }
 }
 
 struct ReplyQuoteBody: Encodable, Equatable {

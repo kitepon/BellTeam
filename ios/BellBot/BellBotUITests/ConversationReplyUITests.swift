@@ -78,14 +78,48 @@ final class ConversationReplyUITests: XCTestCase {
         attach("8-jumped-highlight")
     }
 
+    /// 転送：転送先とコメントを選び、識別子だけを送る（本文は送らない）。
+    func testForwardSheetSendsOnlyTheIdentifiers() throws {
+        chooseFromSelectionMenu(of: "m058", item: "転送")
+        XCTAssertTrue(app.buttons["forward-dest-bot-two"].waitForExistence(timeout: 5))
+        attach("10-forward-sheet")
+        app.buttons["forward-dest-bot-two"].tap()
+        let comment = app.textFields["forward-comment"]
+        comment.tap()
+        comment.typeText("これお願い")
+        app.buttons["forward-send"].tap()
+        XCTAssertTrue(app.staticTexts["forward-done"].waitForExistence(timeout: 8))
+        attach("11-forwarded")
+        let post = try XCTUnwrap(try posts().last)
+        XCTAssertEqual(post["_to"] as? String, "bots/bot-two")
+        XCTAssertEqual(post["message"] as? String, "これお願い")
+        let forward = try XCTUnwrap(post["forward"] as? [String: Any])
+        XCTAssertEqual(forward["message_id"] as? String, "m058")
+        XCTAssertEqual((forward["source"] as? [String: Any])?["id"] as? String, "bot-one")
+        XCTAssertEqual((forward["source"] as? [String: Any])?["kind"] as? String, "bot")
+        XCTAssertEqual((post["images"] as? [Any])?.count ?? 0, 0, "画像は送らない")
+    }
+
+    /// 転送された行は、印・転送元・コメント・内容を出す。
+    func testForwardedRowShowsItsMarkAndContent() throws {
+        for _ in 0..<3 where !app.staticTexts["origin-mark-m055"].exists { app.collectionViews["conversation-messages"].swipeDown() }
+        XCTAssertTrue(app.staticTexts["origin-mark-m055"].waitForExistence(timeout: 5))
+        XCTAssertTrue(text("m055").exists)
+        attach("12-forwarded-row")
+    }
+
     /// 長押しで文字を選び、選択メニューの項目を押す。幅に入らない項目は「進む」で次の頁へ。
     private func chooseFromSelectionMenu(of id: String, item: String, shot: String? = nil) {
         text(id).press(forDuration: 1.2)
-        let target = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", item)).firstMatch
+        // メニューの項目は頁1ではMenuItem、頁2ではButton。同名の画像（SF Symbol）は除く。
+        let match = NSPredicate(format: "label == %@", item)
+        let menuItem = app.menuItems.matching(match).firstMatch
+        let listButton = app.buttons.matching(match).firstMatch
+        var target: XCUIElement { menuItem.exists ? menuItem : listButton }
         XCTAssertTrue(app.descendants(matching: .any)["Markdownとしてコピー"].firstMatch.waitForExistence(timeout: 5), "長押しで文字が選ばれ、選択メニューが出る")
         if let shot { attach(shot) }
-        if !target.waitForExistence(timeout: 1) { app.buttons["進む"].tap() }
-        XCTAssertTrue(target.waitForExistence(timeout: 3), "選択メニューに\(item)がある")
+        if !(menuItem.waitForExistence(timeout: 1) || listButton.exists) { app.buttons["進む"].tap() }
+        XCTAssertTrue(menuItem.waitForExistence(timeout: 3) || listButton.waitForExistence(timeout: 3), "選択メニューに\(item)がある")
         target.tap()
     }
 
