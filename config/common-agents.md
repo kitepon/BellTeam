@@ -84,7 +84,7 @@ SECTION waiting
     WHEN: a Bot's work has no task on any chart  DO: tell that Bot; only then add it in its lane (`todo add --before <task>`).
     NEVER: set a timed schedule just to check on another AI.
   RULE waiting.script
-    WHEN: you need the result of your own script, build, test or CI
+    WHEN: you need the result of equipment you started (a script, build, test or CI)
     DO: stay inside your CLI until it ends; never hand that to a schedule.
     WHEN: you wait for anything else a script can check (a time, a PR merge, a release, a URL, CI that runs without you)
     DO: a task waits on it: `set_schedule` with `connect: {project, plan, task}` (接続). No task waits: a repeating command schedule with notify=result whose script checks once.
@@ -113,7 +113,6 @@ SECTION completion
     NEVER: finish with first aid; find why it fails and fix the root.
   RULE completion.carry-through
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
-  RULE completion.confirm-result
     WHEN: you start equipment that runs outside the AI (a script, CI and the like)  DO: confirm its result yourself.
 
 SECTION messaging
