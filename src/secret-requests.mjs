@@ -209,6 +209,8 @@ export class SecretRequests {
   }
   bindCredential(id, scope) { return this.credentials.bind(id, scope) }
   credential(handle, context) { return this.credentials.credential(handle, context) }
+  putCredential(scope, value) { return this.credentials.put(scope, value) }
+  eraseCredential(scope) { return this.credentials.erase(scope) }
   replaceCredential(handle, id, context) { return this.credentials.replace(handle, id, context) }
   withResolved(handle, context, consume) { return this.credentials.withResolved(handle, context, consume) }
   watchCredentials(listener) { this.events.on('credential', listener); return () => this.events.off('credential', listener) }

@@ -326,3 +326,77 @@ test('terminal.login is paste-only, kept in memory, resolved exactly once and go
   assert.equal(restarted.credentials.current(login), null)
   assert.equal(await restarted.currentCredential(login), null)
 })
+
+const moduleScope = { terminalId: 'approval-box-extension', purpose: 'approval-box.session' }
+const moduleContext = { ...moduleScope, memberId: null }
+const session = JSON.stringify({ token: 'synthetic-session-token', expiresAt: '2027-02-14T00:00:00Z' })
+
+test('module-written secret (R7): put persists privately, revises in place, survives a restart and erase deletes the value', async t => {
+  const { root, bots, rooms, source, service, visible } = await fixture(t)
+  const events = []; service.watchCredentials(event => events.push(event))
+  const dto = await service.putCredential(moduleScope, session)
+  assert.deepEqual(Object.keys(dto).sort(), ['available', 'handle', 'revision'])
+  assert.equal(dto.revision, 1)
+  const file = join(root, 'state/secret-module-values', dto.handle)
+  assert.equal((await stat(file)).mode & 0o777, 0o600)
+  assert.equal(await readFile(file, 'utf8'), session)
+  assert.equal(service.credentials.current(moduleScope).handle, dto.handle)
+  assert.equal(await service.withResolved(dto.handle, moduleContext, value => value), session)
+  // A second put is revision n+1 of the same handle with the new value.
+  const next = JSON.stringify({ token: 'synthetic-second-token', expiresAt: '2027-05-14T00:00:00Z' })
+  assert.deepEqual(await service.putCredential(moduleScope, next), { ...dto, revision: 2 })
+  assert.equal(await service.withResolved(dto.handle, moduleContext, value => value), next)
+  // Nothing public: no request card, no event or notification carries the value.
+  assert.equal(visible.length, 0); assert.equal(service.items.size, 0)
+  assert.deepEqual(events.map(event => event.reason), ['bound', 'revision'])
+  assert.ok(!JSON.stringify(events).includes('synthetic-'))
+  // A usage restart keeps the handle and its value.
+  service.close()
+  const again = new SecretRequests({ root, bots, rooms, onePassword: source, credentialRetryMs: 0, notify() {} })
+  t.after(() => again.close())
+  await again.initialize()
+  assert.equal(await again.withResolved(dto.handle, moduleContext, value => value), next)
+  const unbound = []; again.watchCredentials(event => unbound.push(event.reason))
+  assert.equal(await again.eraseCredential(moduleScope), null)
+  assert.deepEqual(unbound, ['unbound'])
+  await assert.rejects(stat(file), { code: 'ENOENT' })
+  assert.equal(again.credentials.current(moduleScope), null)
+  await assert.rejects(again.withResolved(dto.handle, moduleContext, () => {}), /SECRET_CREDENTIAL_REVOKED/u)
+  // Erase is retry-safe, also when the value is already gone or nothing was ever written.
+  assert.equal(await again.eraseCredential(moduleScope), null)
+  // After erase a new put reconnects with a new handle.
+  const fresh = await again.putCredential(moduleScope, session)
+  assert.notEqual(fresh.handle, dto.handle); assert.equal(again.credentials.current(moduleScope).handle, fresh.handle)
+})
+
+test('module-written secret (R7) refuses other scopes and bad values before writing, and an erase retry finishes a leftover value', async t => {
+  const { root, service } = await fixture(t)
+  for (const other of [scope, { terminalId: 'lattice', purpose: 'approval-box.connector' }])
+    await assert.rejects(service.putCredential(other, session), /SECRET_CREDENTIAL_FORBIDDEN/u)
+  for (const value of ['', 'a\0b', 'x'.repeat(16385), 1]) await assert.rejects(service.putCredential(moduleScope, value), /SECRET_VALUE_INVALID/u)
+  await assert.rejects(stat(join(root, 'state/secret-module-values')), { code: 'ENOENT' })
+  const dto = await service.putCredential(moduleScope, session)
+  const file = join(root, 'state/secret-module-values', dto.handle)
+  // The consumer's own 401 path: the value file is lost while the handle is live.
+  await rm(file)
+  await assert.rejects(service.withResolved(dto.handle, moduleContext, () => {}), /SECRET_SOURCE_UNAVAILABLE/u)
+  await service.eraseCredential(moduleScope)
+  assert.equal(service.credentials.current(moduleScope), null)
+})
+
+test('module-written secret (R7) is system-only on the usage IPC and its results are handle DTOs or null', async t => {
+  const { root, bots, rooms, source } = await fixture(t)
+  const rows = [], service = createUsageServices({ root, bots, rooms, onePassword: source, effect: async () => {}, onProjection: row => rows.push(row) })
+  await service.initializeSettings(); await service.initialize()
+  t.after(async () => { await service.quiesce(); service.close() })
+  for (const actor of [owner, bot]) for (const [method, params] of [['secrets.put', { scope: moduleScope, value: session }], ['secrets.erase', { scope: moduleScope }]])
+    await assert.rejects(service.request(method, params, actor), { code: 'USAGE_ACTOR_FORBIDDEN' })
+  const dto = await service.request('secrets.put', { scope: moduleScope, value: session }, system)
+  assert.equal(usageResultValid('secrets.put', dto), true)
+  assert.equal(usageResultValid('secrets.put', { ...dto, value: session }), false)
+  assert.equal(await service.request('secrets.erase', { scope: moduleScope }, system), null)
+  assert.equal(usageResultValid('secrets.erase', null), true); assert.equal(usageResultValid('secrets.erase', dto), false)
+  await service.quiesce()
+  assert.ok(!JSON.stringify([rows, service.exportState()]).includes('synthetic-session-token'))
+  service.resume()
+})

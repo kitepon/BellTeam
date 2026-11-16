@@ -11,6 +11,9 @@ export function normalizeCredentialScope(value) {
   if (!credentialScopeValid(value)) throw error('SECRET_CREDENTIAL_INVALID')
   return { terminalId: value.terminalId, purpose: ({ 'ssh-key': 'terminal.ssh', 'sudo-key': 'terminal.sudo' })[value.purpose] ?? value.purpose }
 }
+// shortcut: one fixed scope for module-written values; add an entry when another module needs put/erase (R7).
+export const MODULE_SCOPES = Object.freeze([{ terminalId: 'approval-box-extension', purpose: 'approval-box.session' }])
+const moduleScope = scope => MODULE_SCOPES.some(row => row.terminalId === scope.terminalId && row.purpose === scope.purpose)
 export const credentialScopeValid = value => value && Object.keys(value).sort().join(',') === 'purpose,terminalId'
   && id(value.terminalId) && id(value.purpose)
 export const credentialContextValid = value => value && Object.keys(value).every(key => ['memberId', 'purpose', 'terminalId', 'expectedRevision'].includes(key))
@@ -55,6 +58,7 @@ export class SecretCredentials {
     this.sourceDirectory = join(root, 'state/secret-sources')
     this.directory = join(root, 'state/secret-credentials')
     this.toolsDirectory = join(root, 'state/secret-values')
+    this.moduleDirectory = join(root, 'state/secret-module-values')
     this.getRequest = getRequest
     this.onePassword = onePassword
     this.retryMs = retryMs
@@ -76,7 +80,7 @@ export class SecretCredentials {
           else if (record.kind !== 'provider' || !id(record.providerId)) throw error('SECRET_STORAGE_INVALID', 503)
         } else if (record.handle !== key || !credentialScopeValid({ terminalId: record.terminalId, purpose: record.purpose })
           || !id(record.requestId) || !Number.isSafeInteger(record.revision) || record.revision < 1
-          || record.revoked !== undefined && typeof record.revoked !== 'boolean'
+          || record.revoked !== undefined && typeof record.revoked !== 'boolean' || record.module !== undefined && record.module !== true
           || record.bindingOrder !== undefined && (!Number.isSafeInteger(record.bindingOrder) || record.bindingOrder < 1)) throw error('SECRET_STORAGE_INVALID', 503)
         // A restart lost the one-shot login value held in memory, so its handle can never resolve again.
         items.set(key, items === this.#handles && record.purpose === 'terminal.login' ? { ...record, revoked: true } : record)
@@ -225,6 +229,43 @@ export class SecretCredentials {
       this.#publishRecovery()
     })
   }
+  // Module-written value (R7): the value file is persisted first, then the handle record, then the event.
+  put(scope, value) {
+    return this.#serialize(async () => {
+      scope = normalizeCredentialScope(scope)
+      if (!moduleScope(scope)) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+      if (typeof value !== 'string' || !value.length || Buffer.byteLength(value) > 16384 || value.includes('\0')) throw error('SECRET_VALUE_INVALID')
+      const live = [...this.#handles.values()].find(row => row.module && !row.revoked && row.terminalId === scope.terminalId && row.purpose === scope.purpose)
+      const handle = live?.handle ?? randomUUID()
+      const path = join(this.moduleDirectory, handle)
+      await mkdir(this.moduleDirectory, { recursive: true, mode: 0o700 })
+      await writeFile(path + '.tmp', value, { mode: 0o600 })
+      await rename(path + '.tmp', path)
+      const record = live ? { ...live, revision: live.revision + 1, bindingOrder: ++this.#bindingOrder }
+        : { handle, requestId: 'module-' + handle, ...scope, revision: 1, bindingOrder: ++this.#bindingOrder, module: true }
+      try { await this.#save(record, !live) } catch (failure) { if (!live) await rm(path, { force: true }); throw failure }
+      this.#events.emit('change', this.#event(record, live ? 'revision' : 'bound'))
+      this.#announced.add(handle)
+      return this.#dto(record)
+    })
+  }
+  // Revoke the scope's module handles, then delete their values. Missing is fine, so a retry finishes a partial erase.
+  erase(scope) {
+    return this.#serialize(async () => {
+      scope = normalizeCredentialScope(scope)
+      if (!moduleScope(scope)) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+      for (const record of [...this.#handles.values()]) if (record.module && record.terminalId === scope.terminalId && record.purpose === scope.purpose) {
+        if (!record.revoked) {
+          const next = { ...record, revoked: true, revision: record.revision + 1 }
+          await this.#save(next)
+          this.#events.emit('change', this.#event(next, 'unbound'))
+        }
+        await rm(join(this.moduleDirectory, record.handle), { force: true })
+      }
+      this.#publishRecovery()
+      return null
+    })
+  }
   replace(handle, requestId, context) {
     return this.#serialize(async () => {
       const record = this.#record(handle, context)
@@ -281,6 +322,9 @@ export class SecretCredentials {
       throw error('SECRET_SOURCE_UNAVAILABLE', 503)
     }
   }
+  async #readModule(record) {
+    try { return await readPrivateSecret(join(this.moduleDirectory, record.handle)) } catch { throw error('SECRET_SOURCE_UNAVAILABLE', 503) }
+  }
   async withResolved(handle, context, consume) {
     if (typeof consume !== 'function') throw error('SECRET_CREDENTIAL_INVALID')
     const record = this.#record(handle, context)
@@ -291,7 +335,7 @@ export class SecretCredentials {
       if (!value) throw error('SECRET_REQUEST_CLOSED', 409)
       try { return await consume(value) } finally { value = null }
     }
-    let value = await this.resolveRequest(record.requestId)
+    let value = record.module ? await this.#readModule(record) : await this.resolveRequest(record.requestId)
     try {
       if (this.#handles.get(handle) !== record) throw error('SECRET_CREDENTIAL_STALE', 409)
       return await consume(value)

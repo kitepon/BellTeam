@@ -182,3 +182,24 @@ test('a fresh usage call during a usage exchange enters after resume instead of 
   assert.equal(await held.completion, 'ok')
   assert.deepEqual(calls, ['settings.update'])
 })
+
+test('credentials.put / erase reach the child as system-only secrets.put / secrets.erase and erase clears the selection', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-module-secret-assembly-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const calls = [], dto = { handle: 'module-handle', revision: 1, available: true }
+  const assembly = createUsageAssembly({ root, getServices: () => ({ bots: new Map() }), onEffect() {},
+    createProcess(value) {
+      return { request(method, params, context) {
+        assert.deepEqual(value.authorizeActor(method, context.capturedAuthorization), { kind: 'system', botId: null })
+        calls.push({ method, params })
+        const result = Promise.resolve(method === 'secrets.put' ? dto : null)
+        Object.defineProperty(result, 'completion', { value: result }); return result
+      }, close() {} }
+    } })
+  t.after(() => assembly.close())
+  const scope = { terminalId: 'approval-box-extension', purpose: 'approval-box.session' }
+  assert.deepEqual(await assembly.credentials.put(scope, '{"token":"t"}'), dto)
+  assert.deepEqual(calls.at(-1), { method: 'secrets.put', params: { scope, value: '{"token":"t"}' } })
+  assert.equal(await assembly.credentials.erase(scope), null)
+  assert.deepEqual(calls.at(-1), { method: 'secrets.erase', params: { scope } })
+})
