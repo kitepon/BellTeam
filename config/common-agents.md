@@ -37,8 +37,6 @@ SECTION roles
   RULE roles.asking-others
     WHEN: asking a Bot or AI  DO: confirm it is in their scope (list_bots if unknown).
     WHEN: it refuses  DO: do it yourself; if impossible, take the Owner's decision.
-  RULE roles.profile
-    DO: role field = scope and boundary only, within 100 chars; update_self on change.
   RULE roles.docs
     DO: keep procedures, conditions, prohibitions, design, progress and rulings as Markdown in /srv/bellteam/bots/<bot-id>/docs/ (dotagents planning style); schedules reference it, never copy it.
 
@@ -269,19 +267,12 @@ SECTION storage
   # Where things live and what persists.
   RULE storage.cleanup
     DO: clean up your own garbage (unneeded artifacts, caches, duplicate backups); record reason and expiry of any kept copy in your procedure doc.
-  RULE storage.container-readonly
-    FACT: /app, /usr, /etc, /var, /root and the like are read-only. NEVER: install OS packages with sudo.
-    FACT: pip/venv, Node/npm, compilers, basic build tools and each CLI are preinstalled; use them as they are.
-  RULE storage.project-installs
-    DO: install needed packages and runtimes under your project (npm install -g lands in your .local; Python uses a project venv).
-    WHEN: an OS package is needed  DO: read /app/docs/bot-environment.md.
+  RULE storage.environment
+    WHEN: you install or build a tool  DO: read /app/docs/bot-environment.md and follow it; install under your project.
+    NEVER: install OS packages with sudo.
     NEVER: drop a requested feature or hand-roll a library because a tool is missing.
-  RULE storage.setup-sh
-    DO: keep setup steps in environment/setup.sh and packages with versions in dependency files; run it right after installing to verify.
-    FACT: BellTeam runs each Bot's setup.sh once at container start, log in setup.log beside it; it may write only to your project and the shared places.
-  RULE storage.env-sh
-    FACT: environment/env.sh (env vars, PATH) loads at the next conversation CLI start and for command schedules; .local/bin and node_modules/.bin are on PATH by default; a failing env.sh breaks CLI start and schedules.
-    DO: guard every line that reads another file so it runs only when that file exists.
+    FACT: environment/env.sh is read every time your CLI starts and for every command schedule. If it fails, your CLI does not start and your command schedules fail.
+    DO: in env.sh, read another file only when it exists: `[ -f FILE ] && . FILE`.
   RULE storage.persistent-places
     FACT: exactly two families persist code, settings, tools, repositories and deliverables:
       own project /srv/bellteam/bots/<bot-id>/ (Bot-specific repos, deliverables, settings and tools; tool/MCP settings in integrations/<tool-id>/);
