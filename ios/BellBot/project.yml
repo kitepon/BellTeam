@@ -79,6 +79,7 @@ targets:
             "fe80::/10":
               NSExceptionAllowsInsecureHTTPLoads: true
         NSPhotoLibraryUsageDescription: 会話へ添付する画像を選ぶために写真を使います。
+        NSPhotoLibraryAddUsageDescription: 会話の画像を写真に保存するために使います。
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BELLTEAM_APP_BUNDLE_IDENTIFIER)

@@ -186,12 +186,37 @@ flowchart TD
 | 部品 | 処理と返却先 |
 | --- | --- |
 | MessageRow / MessageImages | displayedImageURLs（複数形式優先、旧imageUrlも利用）を受ける。1枚は本文の吹き出し内、複数は先頭3枚を重ね全枚数を表示。URL無しでimage=trueなら枚数label。peer行は連絡sheetへ |
-| MessageImageGallery | 会話の根またはpeer sheetからfullScreenCover。paths全件、選択index、原寸表示・192px thumbnail、前後循環ボタン/矢印キー・page swipe・閉じる操作を所有 |
+| MessageImageGallery | 会話の根またはpeer sheetからfullScreenCover。paths全件、選択index、原寸表示・192px thumbnail、前後循環ボタン/矢印キー・page swipe・閉じる操作を所有。拡大・保存・共有は下の「画像ビューア」 |
 | AuthenticatedImage | originとpathをtask IDにしてcacheから取得。待機/画像/失敗labelを表示。catchでfailedと診断。認証失敗・取消もこのcatchを通り、この部品からrequireLoginは呼ばない |
 | ConversationImageCache actor | origin＋pathでDataと進行中Taskを共有し、origin＋path＋maxPixelSizeでUIImageをcache。各NSCacheは64MiB。Data取得成功後cacheへ、失敗は進行中辞書を消してthrow。ImageIOの復号はdetached task。表示側の取消から共有取得taskをcancelする処理はない |
 | 表示寸法 | 単独画像/gallery本文はnil（元画像最大辺）、重ね表示は1024、thumbnailは192。復号画像のcostはbytesPerRow×height |
 
 メンバープロフィールの大画像とvariant編集は[設定・プロフィール](settings-and-profile.md#メンバー画像の共通部品)を参照。会話の画像cacheとは別の状態である。
+
+## 画像ビューア
+
+契約は[image-original](../conversation/image-original.md)。履歴の`image_urls[i]`が原寸のバイト列で、保存名は`{id}.{ext}`（URLの末尾）、型は拡張子から決める。新しい保存や取得の経路は持たず、表示で取得済みのバイト列（`ConversationImageCache`）を使う。
+
+```mermaid
+flowchart TD
+  Tap["吹き出しの画像を押す → MessageImageGallery（全画面・黒）"] --> Page["ZoomableAuthenticatedImage<br/>原寸を復号して ZoomableImage（UIScrollView）に載せる"]
+  Page --> Zoom["ピンチ・ダブルタップ（1x↔3x、押した点を固定）・拡大中のドラッグで移動、1x〜8x<br/>Macは「−」「＋」ボタン（1.5倍ずつ）。拡大していない間の横スワイプは頁送り"]
+  Tap --> Bar["上の帯: 閉じる・n/m・ダウンロード・保存（iPhone/iPadのみ）・共有"]
+  Bar -->|"ダウンロード"| File["fileExporter: ImageFileDocument（保存名・型）→ ファイルへ"]
+  Bar -->|"保存"| Photos["PHPhotoLibrary.performChanges: 原寸のまま追加（追加だけの許可 NSPhotoLibraryAddUsageDescription）"]
+  Bar -->|"共有"| Share["一時ファイル（保存名のまま）→ UIActivityViewController（LINE・メールなど）"]
+  File & Photos & Share --> Status["結果の一行を2秒: ダウンロードしました / 写真に保存しました / 共有しました / できませんでした（取り消しは何も出さない）"]
+```
+
+| 項目 | 規則 |
+| --- | --- |
+| 保存名・型 | `ImageFileInfo.name(forPath:)`はURL末尾（クエリを除く）。`contentType(forName:)`は拡張子から。契約外の拡張子・拡張子なしはjpeg扱い |
+| 原寸のバイト列 | `ConversationImageCache.data(path:origin:api:)`。表示と同じ取得を共有し、取得済みなら取り直さない。失敗は`できませんでした`と診断 |
+| 操作中 | 帯のボタンは操作が終わるまで無効（二重実行しない） |
+| 一覧の識別子 | `image-gallery-image-N`は画像本体（`UIImageView`）に付く。読み込み失敗の表示にも同じ識別子 |
+| 対象外 | 画像の寸法は履歴に無く、復号した画像から読む。画像でないファイルの転送は[a279/a281](../conversation/image-original.md) |
+
+試験：`BellBotTests/ImageViewerPartsTests`、`BellBotUITests/ConversationImageViewerUITests`（拡大→写真へ保存→ダウンロード→共有。fixtureは`test/helpers/conversation-images-server.mjs`、環境変数`BELLTEAM_IMAGE_SMOKE_URL`）。
 
 ## 個別停止・再起動・端末画面・書出し
 
