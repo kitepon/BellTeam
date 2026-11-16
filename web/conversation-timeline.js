@@ -13,7 +13,7 @@ const deliveryFailureMessages = new Map([
   ['BOT_SESSION_UNCONFIRMED', '席の状態を確認できず、送信できませんでした。席を再起動してください。'],
 ])
 
-export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange }) {
+export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange, onReply = () => {} }) {
   let target = null
   const avatarColors = new Map()
   const cardSnapshots = new WeakMap()
@@ -361,6 +361,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       audience.textContent = item.audience
       bubble.append(audience)
     }
+    const quote = renderReplyQuote(item.reply_to)
+    if (quote) bubble.append(quote)
     // 2枚以上の束は吹き出しの外に置き、枠に囲まずに見せる。
     let imageStack = null
     if (item.image) {
@@ -406,8 +408,58 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (!imageStack || bubble.childElementCount) column.append(bubble)
     column.append(time)
     if (queued.length) column.append(renderQueueStatus(queued))
+    if (item.id) column.append(replyButton(item))
     wrapper.append(column)
     return wrapper
+  }
+
+  // 返信（a269）。引用は保存された item.reply_to だけから描く。読み込んだ行から組み立てない。
+  function renderReplyQuote(reply) {
+    if (!reply?.id) return null
+    if (!reply.available) return Object.assign(document.createElement('div'), { className: 'reply-quote is-gone', textContent: '元のメッセージを表示できません' })
+    const who = reply.sender?.id === 'user' ? 'あなた' : reply.sender?.name ?? ''
+    const quote = document.createElement('button')
+    quote.type = 'button'
+    quote.className = 'reply-quote'
+    quote.setAttribute('aria-label', `${who || '元'}のメッセージへ移動`)
+    const sender = Object.assign(document.createElement('strong'), { textContent: who })
+    const text = Object.assign(document.createElement('span'), { textContent: reply.text ? `${reply.text}${reply.truncated ? '…' : ''}` : reply.image ? '（画像）' : '' })
+    quote.append(sender, text)
+    quote.addEventListener('click', () => { void jumpToMessage(reply.id, quote) })
+    return quote
+  }
+  function replyButton(item) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'message-reply'
+    button.textContent = '返信'
+    button.setAttribute('aria-label', 'このメッセージに返信')
+    button.addEventListener('click', () => onReply({
+      id: item.id,
+      sender: item.direction === 'outgoing' ? 'あなた' : item.sender || target?.name || '',
+      text: item.message?.trim().split('\n')[0] || (item.image ? '（画像）' : ''),
+    }))
+    return button
+  }
+  // 引用を押す：読み込み済みの行へ、なければ before で遡って（has_more が尽きるまで）移る。無ければ動かず、その旨を引用の下に出す。
+  async function jumpToMessage(id, quote) {
+    const token = state.timelineToken
+    while (token === state.timelineToken && !state.timelineMap.has(id) && state.timelineHasMore) {
+      if (state.timelineLoadingOlder) { await new Promise(resolve => setTimeout(resolve, 50)); continue }
+      const oldest = state.timelineOldestId
+      if (!await readHistory(loadOlderMessages)) return // 読めない時は末尾の「もう一度読み込む」が出口
+      if (oldest === state.timelineOldestId) break
+    }
+    if (token !== state.timelineToken) return
+    const row = state.timelineMap.has(id) ? timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`) : null
+    if (!row) {
+      if (!quote.dataset.missing) { quote.dataset.missing = '1'; quote.after(Object.assign(document.createElement('small'), { className: 'reply-quote-note', textContent: '元のメッセージは見つかりません' })) }
+      return
+    }
+    state.stickToBottom = false
+    row.scrollIntoView({ block: 'center' })
+    row.classList.add('reply-jumped')
+    setTimeout(() => row.classList.remove('reply-jumped'), 2000)
   }
 
   // 読み取り専用の分身の行（fork inquiry "Records and display"）。seat の無い行は本体。
@@ -492,6 +544,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       audienceTone: routing?.status === 'pending' ? 'pending' : routing?.status === 'failed' ? 'failed' : '',
       at: record.at,
       message: record.message,
+      reply_to: record.reply_to,
       image: record.image,
       image_count: record.image_count,
       image_url: record.image_url,

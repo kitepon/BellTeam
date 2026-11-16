@@ -1,14 +1,14 @@
 import { claimMessageSend, installMessageInputSizing, sendFailureText } from './chat-input.js?v=__ASSET_VERSION__'
 
 export function createConversationComposer({ input, attachments, error, sendButton, recovery,
-  api, readImage, getTargets, setTargets, findTarget, onSelect, onAccepted }) {
+  api, readImage, getTargets, setTargets, findTarget, onSelect, onAccepted, replyBar = null }) {
   const drafts = new Map()
   const sending = new Set()
   const retained = []
   const resize = installMessageInputSizing(input)
   let target = null
   const key = value => `${value.type}:${value.id}`
-  const empty = () => ({ message: '', pendingImages: [], targets: null, error: '' })
+  const empty = () => ({ message: '', pendingImages: [], targets: null, error: '', reply: null })
   const draftFor = value => {
     if (!drafts.has(key(value))) drafts.set(key(value), empty())
     return drafts.get(key(value))
@@ -51,7 +51,31 @@ export function createConversationComposer({ input, attachments, error, sendButt
       return preview
     }))
     attachments.hidden = !draft.pendingImages.length
+    paintReply(draft)
     update()
+  }
+  // 返信先（a269）：その会話の下書きが持つ。送ると下書きごと空になる。
+  function paintReply(draft) {
+    if (!replyBar) return
+    replyBar.hidden = !draft.reply
+    if (!draft.reply) { replyBar.replaceChildren(); return }
+    const label = document.createElement('strong')
+    label.textContent = `${draft.reply.sender || '発言'}への返信`
+    const text = document.createElement('span')
+    text.textContent = draft.reply.text
+    const cancel = document.createElement('button')
+    cancel.type = 'button'
+    cancel.textContent = '×'
+    cancel.setAttribute('aria-label', '返信をやめる')
+    cancel.addEventListener('click', () => { draft.reply = null; paint(); input.focus?.() })
+    replyBar.replaceChildren(label, text, cancel)
+  }
+  function setReply(reply) {
+    if (!target) return
+    capture()
+    draftFor(target).reply = reply
+    paint()
+    input.focus?.()
   }
   const deleting = value => value?.type === 'bot' && (findTarget?.(value)?.deleting || findTarget?.(value)?.deletionRequested)
   function update() {
@@ -130,7 +154,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
     const current = draftFor(destination)
     const claimed = claimMessageSend({ sending }, key(destination), current.message, current.pendingImages)
     if (!claimed) return
-    const snapshot = { ...claimed, targets: current.targets ? [...current.targets] : null, error: '' }
+    const snapshot = { ...claimed, targets: current.targets ? [...current.targets] : null, error: '', reply: current.reply }
     drafts.set(key(destination), empty())
     paint()
     let images, result
@@ -141,7 +165,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
       const kind = destination.type === 'room' ? 'rooms' : 'bots'
       result = await api(`/api/${kind}/${destination.id}/messages`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}) }),
+        body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}), ...(snapshot.reply ? { reply_to: snapshot.reply.id } : {}) }),
       })
     } catch (cause) {
       capture()
@@ -164,6 +188,6 @@ export function createConversationComposer({ input, attachments, error, sendButt
     }
   }
   input.addEventListener('input', update)
-  return { select, clear: () => select(null), addImages, send, update,
+  return { select, clear: () => select(null), addImages, send, update, setReply,
     showError: message => { if (target) showError(target, message) } }
 }
