@@ -34,7 +34,7 @@ export function directFailureReport(error, context) {
 
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
-  exchangeMutex, executionReady = () => true, environmentReady = null, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
+  exchangeMutex, executionReady = () => true, environmentReady = null, forwardSource = async () => null, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
   let started = false, closed = false, requested = false, draining = null, unwatchQueue = null
   const completions = new Set(), drains = new Set()
   const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
@@ -64,7 +64,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       }
     }
   }
-  const dispatch = async ({ record, images, queue, callbacks, executionSource }) => {
+  const dispatch = async ({ record, images, files = [], queue, callbacks, executionSource }) => {
     let invoked = false, reported = false
     const reportOnce = (error, stage) => {
       if (reported) return
@@ -93,7 +93,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         const actor = record.from === 'user' ? { kind: 'owner' } : record.from === 'scheduler' ? { kind: 'scheduler' } : { kind: 'bot', botId: record.from }
         const summaryAuthority = record.session_id ? null
           : { context: Object.freeze({ actor: Object.freeze(actor), rootMethod: record.from === 'user' ? 'user.post' : 'direct.post' }), assertCurrent: () => true }
-        const options = { images, queue, summaryAuthority, ...notificationCallbacks,
+        const options = { images, ...(files.length ? { files } : {}), queue, summaryAuthority, ...notificationCallbacks,
           onStatus(status, error, tracking, mark) {
             if (status === 'failed' && error) reportOnce(error, 'status')
             return notificationCallbacks.onStatus(status, error, tracking, mark)
@@ -130,7 +130,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
     }
   }
-  const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, onMessage, onTurnEnd,
+  const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, forwardSource, onMessage, onTurnEnd,
     onPending: requestDrain, onError: report, onLogCorruption })
   const capture = (method, input) => conversation?.captureReceipt(method, input)
   const messenger = Object.assign(Object.create(legacy), {

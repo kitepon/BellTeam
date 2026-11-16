@@ -75,6 +75,7 @@ import { HarnessAuth } from './harness-auth.mjs'
 import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { createRemoteSeatListener, remoteSeatPort } from './remote-seat-port.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
+import { roomForwardSource } from './origin-reference.mjs'
 
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
 export const conversationDiagnosticPort = diagnostics => report => Promise.resolve()
@@ -387,6 +388,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   let directTurnReports
   directMessages = createDirectReceiptAssembly({ root, bots, assets: conversationAssembly?.directAssets ?? conversation.assets,
     legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex, environmentReady: botEnvironments?.ready,
+    // forward.md: a forward's original is read from the direct log or the room's saved messages (rooms is assigned below).
+    forwardSource: async ({ kind, id, messageId }) => kind === 'bot' ? directMessages.receipts.store.forwardSource(id, messageId)
+      : roomForwardSource((await rooms.messages(id)).find(row => row.id === messageId)),
     executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available && !execution.hold?.held,
     onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
     onError: (error, context) => diagnostics.record(directFailureReport(error, context)),

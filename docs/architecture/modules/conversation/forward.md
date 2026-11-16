@@ -135,9 +135,20 @@ Implemented by `a289` on top of Kiro's `files` option (`a288`, main 585cb68a). A
 - **Forwarding a message that has files** is refused with HTTP 415 `FILE_NOT_SUPPORTED`, nothing saved: the child would need `assets.read` for `.dat` files (the effect accepts images only). Follow-up when the Owner asks for it. Sharing in files and sending files in an ordinary post work.
 - **Release order**: execution with `files` (`a288`) must be live before the CONVERSATION module that sends files; an older execution ignores `files` silently and the Bot would be told nothing about the file. The BODY validator (`file_assets`, `file_count` in `validateDirectLogRecord`, and the `files` parameter of the execution effect) goes before or with the module and the clients, as above.
 
+### Where the direct post is accepted
+
+The Owner's direct post is accepted in the **body** by `DurableMessageReceipts.receive` (`src/durable-message-receipts.mjs`), not only by `Messenger.prepareUserTurn` in the module child; the module-child path serves the module's own callers and rooms. Both resolve the origin with the same `resolveOrigin`, `requireFiles`, `MessageAssets.copyAll` and `saveFiles`, so a forward, a share and files are saved identically. `receive` therefore:
+
+- allows `forward`, `share` and `files` (Owner posts to a Bot only; any other sender → `MESSAGE_INPUT_INVALID`), and reads the original through a `forwardSource` the assembly provides (the direct log for a Bot conversation, the room's saved messages for a room);
+- saves `origin`, `file_assets` and the copied images on the row before the receipt is durable, and `runSaved` rebuilds the dispatch input from the saved row (`images` from `image_assets`, `files` from `file_assets`), so a re-dispatch after a restart or `BOT_UPDATE_HOLD` sends the same content;
+- throws the refusals with their `code` and `status`; the HTTP edge (`originFailure`) answers them as 4xx with the code (`ORIGIN_INVALID` 400, `FORWARD_SOURCE_NOT_FOUND` 404, `FILES_INVALID` 400, `FILE_TOO_LARGE` / `TOO_MANY_FILES` 413, `FILE_NOT_SUPPORTED` 415) and never as 500. The room post is answered the same way.
+
+Z74 lab (Centi) found this path missing; the check that would have caught it is a test through `DurableMessageReceipts.receive` (`test/durable-forward.test.mjs`).
+
 ### Compatibility and release order
 
 - Additive. A released client ignores `origin` and shows `message`, which already reads as a normal message with the content in it. A new client against an older server sends `forward` / `share`, which the server ignores: the post would arrive as a plain message with only the comment, so a client must not offer forward or share-in until the server reports the feature (the history items it later sees carry `origin`; the clients' task decides how it detects support).
+- The direct receive path is BODY-resident: the BODY row carries `durable-message-receipts.mjs`, `direct-receipt-assembly.mjs` and `application-services.mjs`, so a module row alone does not carry the direct path.
 - Release order, same reason as [reply.md](reply.md#compatibility): the BODY carrying the new `validateDirectLogRecord` must be live in the same train as, or before, the CONVERSATION module and the clients; otherwise an Owner post with `origin` is refused `DIRECT_LOG_RECORD_INVALID`.
 - Nothing else changes: statuses, queue items (the queue `message` is the row's `message`), push notifications, SSE and execution ports.
 
@@ -231,6 +242,7 @@ The row is the only copy of the forwarded content; nothing resolves the source a
 | --- | --- |
 | malformed `forward` / `share`, both, with `reply_to`, `share` without content | 400 `ORIGIN_INVALID`, nothing saved |
 | forward source not found or not forwardable | 404 `FORWARD_SOURCE_NOT_FOUND`, nothing saved |
+| a refusal above on the direct path | thrown by `DurableMessageReceipts.receive` with `code` and `status`, answered as that 4xx by the HTTP edge (not a 500), nothing saved |
 | a file over 20 MiB, or more than 5 files | 413 `FILE_TOO_LARGE` / `TOO_MANY_FILES` with the limit in plain words, nothing saved; the sender sends a smaller file or splits it (protects the body parent from out-of-memory, INC-OOM 2026-11-10) |
 | malformed `files` | 400 `FILES_INVALID`, nothing saved |
 | forward of a message that has files | 415 `FILE_NOT_SUPPORTED`, nothing saved (follow-up, see [Files](#files-not-images)) |

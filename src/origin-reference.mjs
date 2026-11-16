@@ -68,6 +68,20 @@ export function filesNotSupported() {
   return Object.assign(new Error('FILE_NOT_SUPPORTED'), { code: 'FILE_NOT_SUPPORTED', status: 415 })
 }
 
+// A room message row as the source of a forward (the module's RoomHistory and the body's room facade share this).
+export const roomForwardSource = record => record != null && typeof record.sender?.id === 'string' && typeof record.message === 'string'
+  && (record.schema === undefined || record.schema === 'bellteam.room-message.v1')
+  ? { sender: { id: record.sender.id, name: record.sender.name }, at: record.at, text: contentOf(record),
+    imageAssets: record.image_assets ?? (record.image_asset ? [record.image_asset] : []), fileAssets: record.file_assets ?? [], origin: record.origin } : null
+
+const ORIGIN_CODES = ['ORIGIN_INVALID', 'FORWARD_SOURCE_NOT_FOUND', 'FILE_NOT_SUPPORTED', 'FILES_INVALID', 'FILE_TOO_LARGE', 'TOO_MANY_FILES',
+  'REPLY_TO_INVALID', 'REPLY_QUOTE_INVALID']
+// The HTTP edge: a refusal of forward / share / files / reply is a 4xx with its code (never a 500), or null for anything else.
+export function originFailure(error) {
+  return ORIGIN_CODES.includes(error?.code) && Number.isInteger(error.status)
+    ? { status: error.status, error: error.code, ...(error.message !== error.code ? { message: error.message } : {}) } : null
+}
+
 export function notFound() {
   return Object.assign(new Error('FORWARD_SOURCE_NOT_FOUND'), { code: 'FORWARD_SOURCE_NOT_FOUND', status: 404 })
 }
