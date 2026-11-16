@@ -78,6 +78,8 @@ SECTION lattice
     WHEN: a turn starts  DO: run session-context.
     WHEN: you take on any work other than a simple reply
     DO: put it on a chart as a task before you start (the coordinator's chart when it belongs there, otherwise your own); found bugs included.
+    DO: put what you intend to do on the chart too, down to the work that causes it.
+    WHY: a wait on something no task causes looks valid and never moves (2026-11-16).
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
     WHEN: a task cannot move until something else happens  NEVER: leave it stalled.
