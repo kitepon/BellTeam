@@ -35,7 +35,7 @@ public sealed class MessageCard : ContentControl
     private TextBlock? quoteName, quoteText, quoteNote;
     private readonly Button replyButton = ActionButton(Icons.Reply, "このメッセージに返信");
     // Forward (conversation forward.md): the forward icon next to reply, and the mark / quoted content of a forwarded or shared row.
-    private readonly Button forwardButton = ActionButton(Icons.Forward, "このメッセージを転送");
+    private readonly Button forwardButton = ActionButton(Icons.Export, "このメッセージを転送");
     private readonly Button copyButton = ActionButton(Icons.Copy, "このメッセージをコピー");
     // Owner 11/17 (a304): three small always-visible icons under the bubble, at its bottom right, the same on every platform.
     private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
