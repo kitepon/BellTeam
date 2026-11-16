@@ -1930,9 +1930,8 @@ button.reply-quote { cursor: pointer; }
 .reply-quote span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; opacity: .85; overflow-wrap: anywhere; }
 .reply-quote.is-gone { border-left-style: dashed; opacity: .7; font-size: 12px; }
 .reply-quote-note { display: block; margin: -4px 0 8px; color: var(--muted); font-size: 11px; }
-.message-reply { margin: 2px 7px 0; padding: 0 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; opacity: 0; cursor: pointer; }
-.message:hover .message-reply, .message-reply:focus-visible { opacity: 1; }
-@media (hover: none) { .message-reply { opacity: .75; } }
+.message-reply { display: inline-grid; place-items: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; }
+.message-reply:hover, .message-reply:focus-visible { background: rgba(0, 0, 0, .06); color: inherit; }
 .reply-jumped .message-bubble { animation: reply-jumped 2s ease-out; }
 @keyframes reply-jumped { 0%, 60% { box-shadow: 0 0 0 3px #87779c; } 100% { box-shadow: 0 0 0 3px transparent; } }
 @media (prefers-reduced-motion: reduce) { .reply-jumped .message-bubble { animation: none; box-shadow: 0 0 0 3px #87779c; } }
@@ -1942,8 +1941,8 @@ button.reply-quote { cursor: pointer; }
 .reply-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55555b; }
 .reply-bar button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 12px; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
 /* 転送・共有（a282） */
-.message-actions { display: flex; gap: 2px; margin: 2px 3px 0; }
-.message-actions .message-reply { margin: 0; }
+/* 吹き出しの下・右寄せに、常に見える小さな三つ（返信・転送・コピー）。 */
+.message-actions { display: flex; align-self: stretch; justify-content: flex-end; gap: 2px; margin: 0 -4px 0 0; }
 .origin-mark { display: block; margin-bottom: 5px; font-size: 11px; font-weight: 600; opacity: .75; }
 .origin-content { margin: 4px 0; padding: 4px 0 4px 10px; border-left: 3px solid currentColor; opacity: .92; font-size: 15px; }
 .origin-content a { color: #2f6fdb; text-decoration: underline; overflow-wrap: anywhere; }

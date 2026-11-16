@@ -260,7 +260,7 @@ Contract and owner: [conversation/reply.md](../conversation/reply.md) (N102). Th
 
 ```mermaid
 flowchart TD
-  Item["history item (direct message / interim, room message)<br/>renderItemElement: 返信 button on every plain message bubble"] -->|"click"| Pick["timeline onReply({id: item.id, sender, text: first line or （画像）})"]
+  Item["history item (direct message / interim, room message)<br/>renderItemElement: 返信 icon in the a302 action row on every plain message bubble"] -->|"click"| Pick["timeline onReply({id: item.id, sender, text: first line or （画像）})"]
   Pick --> Draft["composer setReply(reply): the open conversation's draft.reply<br/>reply bar above the input: 返信先 sender + first line + ×"]
   Draft -->|"× / send accepted"| Clear["draft.reply = null (the draft is replaced after send)"]
   Draft -->|"send: POST /api/bots|rooms/:id/messages {message, images, targets?, reply_to: id}"| Server["N102 saves the snapshot (reply.md)"]
@@ -275,7 +275,7 @@ flowchart TD
 
 | Function | Contract |
 | --- | --- |
-| `renderItemElement` (conversation-timeline.js) | message bubble: `item.reply_to` -> quote button (`available`) or the fixed gone line; a 返信 button on plain message / interim bubbles. Peer rows, secret / question cards, queue cards and the thinking bubble get neither |
+| `renderItemElement` (conversation-timeline.js) | message bubble: `item.reply_to` -> quote button (`available`) or the fixed gone line; the a302 action row (返信 / 転送 / コピー icons) on plain message / interim bubbles. Peer rows, secret / question cards, queue cards and the thinking bubble get neither |
 | `roomTimelineItem` | adds `reply_to: record.reply_to` (undefined when absent) |
 | `jumpToMessage(id)` | single read path of a jump: finds the row in the loaded map, else pages older with the existing `before` cursor (`readHistory(loadOlderMessages)`, waits while another older read is running), no cap other than `has_more`; a failed page read shows the existing inline retry and stops the jump |
 | `setReply(reply)` / reply bar (conversation-composer.js) | per-conversation `draft.reply`; shown above the input with ×; kept with the draft when a send fails or the conversation changes; the send body gets `reply_to` only from it; not counted as input (a reply alone cannot be sent) |
@@ -340,7 +340,7 @@ The Web sends only the identifiers of the item the Owner picked (`forward`) or t
 
 ```mermaid
 flowchart TD
-  Msg["history item (message / interim / room message / peer detail)<br/>renderItemElement: 転送 button next to 返信"] -->|"click"| Open["timeline onForward({source:{kind: bot|room, id}, messageId: item.id, preview})"]
+  Msg["history item (message / interim / room message / peer detail)<br/>renderItemElement: 転送 icon in the a302 action row next to 返信"] -->|"click"| Open["timeline onForward({source:{kind: bot|room, id}, messageId: item.id, preview})"]
   Open --> Dialog["forward-dialog.js (sheet): preview, destination list (Bots and rooms, search over 8),<br/>comment, rooms without auto responders also ask who should answer"]
   Dialog -->|"POST /api/bots|rooms/:id/messages {message: comment, images: [], forward:{source,message_id}, targets?}"| Server["N102 (forward.md): composes message + origin, copies images"]
   Server -->|"201 -> 転送しました + その会話を開く"| Done["application selectBot / selectRoom"]
@@ -363,6 +363,27 @@ flowchart TD
 | composer `setShare` / context bar | one of reply or share per draft; shared content alone is sendable (comment optional); the send body adds `share` and never `reply_to` with it; kept on a failed send like the reply |
 
 Paste: pasting text or an image into the input stays a normal message (unchanged); the marked 共有 comes from dropping on the conversation. Data ownership: the dialog keeps the pick and the comment in memory until it closes; the share content lives in the draft. Failure handling: a failed forward keeps the dialog and its input; a failed share keeps the draft; images-in-forward and file refusals are shown in plain words (415 until N102's image copy and the files task are live). No guard, no timer. Source reach: `web/forward-dialog.js` (new, registered in `web/assets.mjs`), `web/conversation-timeline.js`, `web/conversation-composer.js`, `web/application.js`, `web/index.html`, `web/styles.css`, tests `forward-dialog`, `conversation-composer`, `timeline-open-queue`.
+
+### Message action icons (a302, client UI only; reply.md / forward.md unchanged)
+
+Owner spec (same on every platform): under every message bubble, at its right edge, one row of three small icons that are always visible (touch too): 返信, 転送, コピー. They replace the hover-only 返信 / 転送 text buttons.
+
+```mermaid
+flowchart LR
+  Row["renderItemElement: .message-actions under the bubble (item.id present)"] --> Reply["返信 icon -> onReply (as a269, unchanged)"]
+  Row --> Fwd["転送 icon -> onForward (as a282, unchanged)"]
+  Row -->|"item.message has text"| Copy["コピー icon -> navigator.clipboard.writeText(item.message)"]
+  Copy -->|"written"| Done["icon shows a check for 1.5 s"]
+  Copy -->|"write refused / no clipboard"| Stay["icon unchanged; nothing else happens"]
+```
+
+| Function | Change |
+|---|---|
+| `renderItemElement` | the row holds `replyButton`, `forwardButton` and (text only) `copyButton`; image-only rows have no コピー |
+| `copyButton(item)` | new: copies `item.message` as stored (a forward / share row copies comment + content); no storage, no request |
+| `replyButton` / `forwardButton` | same handlers; the label is now a fixed line icon with the same `aria-label` |
+
+Data ownership: unchanged (the clipboard write is the only new effect; the page keeps nothing). Failure handling: a refused clipboard write leaves the icon as it was. The selection button 引用して返信 is untouched. Source reach: `web/conversation-timeline.js`, `web/styles.css`, `test/timeline-open-queue.test.mjs`.
 
 ## 操作の接続と確認範囲
 
