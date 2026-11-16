@@ -34,7 +34,7 @@ public partial class App : Application
             {
                 DesktopShortcut.Create(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "BellTeam.lnk"), Environment.ProcessPath!); Shutdown(0); return;
             }
-            if (e.Args is ["--render-gallery", var galleryAddress, var galleryId, var galleryOutput])
+            if (e.Args is [("--render-gallery" or "--render-gallery-zoomed" or "--render-gallery-saved" or "--render-gallery-failed") and var galleryFlag, var galleryAddress, var galleryId, var galleryOutput])
             {
                 using var galleryWorkspace = new Workspace(); await galleryWorkspace.ConnectAsync(galleryAddress,listen:false);
                 if (galleryWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
@@ -42,6 +42,10 @@ public partial class App : Application
                 var paths = galleryWorkspace.Messages.SelectMany(item=>item.Message.DisplayedImageUrls).Distinct().ToArray();
                 if (paths.Length==0) throw new BellApiException("表示する画像がありません。");
                 var galleryWindow = new MainWindow(galleryWorkspace, persistPlacement: false); var gallery = galleryWindow.ShowGallery(paths, 0); await gallery.ReadyTask;
+                // The viewer states (a277): zoomed in, and the saved / failed notices of the 保存 button (set through render seams; nothing is written).
+                if (galleryFlag == "--render-gallery-zoomed") gallery.ZoomForRender(3);
+                if (galleryFlag == "--render-gallery-saved") gallery.Notify("保存しました: " + System.IO.Path.GetFileName(paths[0]));
+                if (galleryFlag == "--render-gallery-failed") gallery.Notify("保存できませんでした。ディスクがいっぱいです。", error: true);
                 WritePng(galleryWindow, 1280, 820, galleryOutput); galleryWindow.Close(); Shutdown(0); return;
             }
             if (e.Args is ["--render-editor", var editorKind, var editorAddress, var editorId, var editorOutput])

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Input;
+using BellTeam.Core;
 
 namespace BellTeam.App;
 
@@ -55,6 +56,7 @@ public sealed class RemoteImage : Grid
     private readonly Image image = new() { Stretch = Stretch.Uniform };
     private readonly TextBlock status = new() { Text = "画像を読込中…", TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     public Task LoadTask { get; }
+    public ImageSource? Source => image.Source;
     public RemoteImage(Workspace workspace, string path, int? maximumDimension = null)
     {
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(workspace.ViewToken);
@@ -89,18 +91,28 @@ public sealed class ImageGallery : Grid
     private readonly List<Button> thumbnails = [];
     private readonly Workspace workspace;
     private readonly Action close;
+    private readonly Border notice = new() { Background = new SolidColorBrush(Color.FromArgb(220, 40, 40, 48)), CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 9, 16, 9), Margin = new Thickness(0, 0, 0, 24), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Child = new TextBlock { FontSize = 15, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap } };
+    private readonly System.Windows.Threading.DispatcherTimer noticeTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+    private ZoomPane? pane;
     public int Selected { get; private set; }
+    public string? NoticeText => notice.Visibility == Visibility.Visible ? ((TextBlock)notice.Child).Text : null;
     public Task ReadyTask => Task.WhenAll(imageLoads);
     public ImageGallery(Workspace workspace, string[] paths, int initial, Action close)
     {
         this.workspace = workspace; this.paths = paths; this.close = close; Background = Brushes.Black;
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); RowDefinitions.Add(new RowDefinition()); RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var header = new Grid { Margin = new Thickness(16, 16, 16, 0) };
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) }); header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
-        var closeButton = Control("", "GalleryCircleButton", "閉じる", "閉じる（Esc）", close);
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) }); header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+        var closeButton = Control("", "GalleryCircleButton", "閉じる", "閉じる（Esc）", close); closeButton.HorizontalAlignment = HorizontalAlignment.Left;
         header.Children.Add(closeButton); Grid.SetColumn(position, 1); header.Children.Add(position);
+        // The original bytes of the shown picture (image-original.md): 保存 writes them to a file the Owner picks, 共有 hands them to the Windows share sheet.
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        actions.Children.Add(Control("\uE896", "GalleryCircleButton", "保存", "画像を保存", () => _ = SaveAsync()));
+        var share = Control("\uE72D", "GalleryCircleButton", "共有", "画像を共有", () => _ = ShareAsync()); share.Margin = new Thickness(8, 0, 0, 0); actions.Children.Add(share);
+        Grid.SetColumn(actions, 2); header.Children.Add(actions);
         Children.Add(header);
         SetRow(content, 1); content.Margin = new Thickness(16, 16, 16, 8); Children.Add(content);
+        notice.Visibility = Visibility.Collapsed; SetRow(notice, 1); Children.Add(notice);
         if (paths.Length > 1)
         {
             var controls = new DockPanel { Margin = new Thickness(16, 0, 16, 16) };
@@ -129,12 +141,44 @@ public sealed class ImageGallery : Grid
     {
         if (key == Key.Escape) { close(); return true; }
         if (paths.Length > 1 && key is Key.Left or Key.Right) { Move(key == Key.Left ? -1 : 1); return true; }
+        // + - 0: zoom about the centre and back to fit (the wheel and a pinch zoom about the pointer in ZoomPane).
+        if (key is Key.OemPlus or Key.Add) { pane?.ZoomBy(ImageZoom.Step); return true; }
+        if (key is Key.OemMinus or Key.Subtract) { pane?.ZoomBy(1 / ImageZoom.Step); return true; }
+        if (key is Key.D0 or Key.NumPad0) { pane?.ResetZoom(); return true; }
         return false;
+    }
+    internal void ZoomForRender(double factor) => pane?.ZoomBy(factor);
+    internal void Notify(string text, bool error = false)
+    {
+        var label = (TextBlock)notice.Child; label.Text = text; label.Foreground = error ? new SolidColorBrush(Color.FromRgb(255, 140, 130)) : Brushes.White; notice.Visibility = Visibility.Visible;
+        noticeTimer.Stop(); noticeTimer.Tick -= HideNotice; noticeTimer.Tick += HideNotice; noticeTimer.Start();
+    }
+    private void HideNotice(object? sender, EventArgs args) { noticeTimer.Stop(); notice.Visibility = Visibility.Collapsed; }
+    // The saved file name is the one the server gave the picture (the last segment of its URL, ASCII, extension matches the type).
+    private string FileName() => System.IO.Path.GetFileName(paths[Selected].Split('?')[0]);
+    private async Task SaveAsync()
+    {
+        var name = FileName(); var extension = System.IO.Path.GetExtension(name);
+        var dialog = new Microsoft.Win32.SaveFileDialog { FileName = name, DefaultExt = extension, Filter = $"画像 (*{extension})|*{extension}|すべてのファイル (*.*)|*.*" };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try { await System.IO.File.WriteAllBytesAsync(dialog.FileName, await workspace.ImageAsync(paths[Selected], workspace.ViewToken)); Notify("保存しました: " + System.IO.Path.GetFileName(dialog.FileName)); }
+        catch (Exception error) { Notify("保存できませんでした。" + error.Message, error: true); }
+    }
+    private async Task ShareAsync()
+    {
+        try
+        {
+            var name = FileName(); var folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "BellTeam", "share"); System.IO.Directory.CreateDirectory(folder);
+            var file = System.IO.Path.Combine(folder, name);
+            await System.IO.File.WriteAllBytesAsync(file, await workspace.ImageAsync(paths[Selected], workspace.ViewToken));
+            await WindowsShare.ShowFileAsync(new System.Windows.Interop.WindowInteropHelper(Window.GetWindow(this)).Handle, name, file);
+        }
+        catch (Exception error) { Notify("共有できませんでした。" + error.Message, error: true); }
     }
     private void Show(int index)
     {
         Selected = index;
-        var image = new RemoteImage(workspace, paths[index]); imageLoads.Add(image.LoadTask); content.Content = image; position.Text = $"{index + 1} / {paths.Length}";
+        var image = new RemoteImage(workspace, paths[index]); imageLoads.Add(image.LoadTask); pane = new ZoomPane(image); content.Content = pane; position.Text = $"{index + 1} / {paths.Length}";
         for (var at = 0; at < thumbnails.Count; at++) { thumbnails[at].Opacity = at == index ? 1 : .5; thumbnails[at].BorderBrush = at == index ? Brushes.White : Brushes.Transparent; }
         if (thumbnails.Count != 0) thumbnails[index].BringIntoView();
     }
