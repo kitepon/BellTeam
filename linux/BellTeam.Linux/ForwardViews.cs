@@ -52,8 +52,10 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
         AutomationProperties.SetName(destinations, destinationHeader);
         if (preselect is not null) chosen = entries.FirstOrDefault(entry => entry.Target == preselect.Target);
         UpdateRows();
-        form.Children.Add(new ScrollViewer { Content = destinations, MaxHeight = 230, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
-        form.Children.Add(Header("コメント（任意）")); AutomationProperties.SetName(comment, "コメント"); form.Children.Add(comment); form.Children.Add(error);
+        form.Children.Add(new ScrollViewer { Content = destinations, MaxHeight = 330, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
+        // The refusal sits under the list, above the comment, so it stays on screen when the sheet is tall.
+        error.Margin = new Thickness(0, 10, 0, 0); form.Children.Add(error);
+        form.Children.Add(Header("コメント（任意）")); AutomationProperties.SetName(comment, "コメント"); form.Children.Add(comment);
         Content = form;
     }
     private void Choose(ConversationEntry entry) { chosen = entry; UpdateRows(); CanSaveChanged?.Invoke(); }
