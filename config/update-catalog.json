@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T10:28:10Z",
-  "expiresAt": "2026-11-23T10:28:10Z",
+  "publishedAt": "2026-11-16T10:49:51Z",
+  "expiresAt": "2026-11-23T10:49:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "093d5304132421f64088f6629ceb78eaaf42e91e",
-      "versionId": "fb644f2e8cfd3520f35be26a073031f22f7f90bfcfeafb6fa6d91e457ea16efa",
+      "sourceCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302",
+      "versionId": "c04ef3a7c2fc8d96b31aa6f5fbb77db668ee3f591478b284bd8aae1a9fc57085",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-amd64.tar.gz",
-          "bytes": 4588421,
-          "sha256": "fb644f2e8cfd3520f35be26a073031f22f7f90bfcfeafb6fa6d91e457ea16efa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-amd64.tar.gz",
+          "bytes": 4588704,
+          "sha256": "c04ef3a7c2fc8d96b31aa6f5fbb77db668ee3f591478b284bd8aae1a9fc57085"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "b34211cc5791f221aab8585d06bc232bfacf6a27613c2f4361ac7de0a11f9122"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11141,
+          "sha256": "a4b2aeae2a9248d24afd3e46dce9be0f77e7e08cbb4f22d3b1397cc65e58ef26"
         },
-        "signerCommit": "093d5304132421f64088f6629ceb78eaaf42e91e"
+        "signerCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,14 +592,14 @@
         }
       },
       "changes": [
-        "共通ルールの「completion.carry-through」に、AIの外で動く装置を自分で始めた時は、その結果を自分で確かめる、という決まりを加えました。",
-        "共通ルールの「waiting.script」の最初の条件を、自分で始めた装置の結果を待つ時、という言い方にそろえました。"
+        "共通ルールの「lattice.conflicts」を改め、工程を足す時（todo add）に、触る範囲を関数単位（path#関数名）で申告するようにしました。",
+        "ファイル全体を指すと、そのファイルを変える工程すべてと競合として扱われる点と、競合・未解決の結果の読み方を加えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "093d5304132421f64088f6629ceb78eaaf42e91e",
-      "versionId": "a471918544a0d5b68c165be99a052edfa2a5071f020c4b2aaeab3bd6769ae0ec",
+      "sourceCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302",
+      "versionId": "c74d127fad1b1e9a14f680d09cb4b73c37acae5a7819d63bf2295245a05dc681",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -607,16 +607,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-arm64.tar.gz",
-          "bytes": 4588423,
-          "sha256": "a471918544a0d5b68c165be99a052edfa2a5071f020c4b2aaeab3bd6769ae0ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-arm64.tar.gz",
+          "bytes": 4588706,
+          "sha256": "c74d127fad1b1e9a14f680d09cb4b73c37acae5a7819d63bf2295245a05dc681"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T090747Z/members-093d5304132421f64088f6629ceb78eaaf42e91e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10808,
-          "sha256": "30ae41e0e960b6c461bf6d7a96614a61c971a82d9dae3a0a7ddb48f6851cbbe6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11168,
+          "sha256": "dd1ec235b53dc8f5247a7b2e407497868b71bd981558c72cf45fbb155de6a3ea"
         },
-        "signerCommit": "093d5304132421f64088f6629ceb78eaaf42e91e"
+        "signerCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -633,8 +633,8 @@
         }
       },
       "changes": [
-        "共通ルールの「completion.carry-through」に、AIの外で動く装置を自分で始めた時は、その結果を自分で確かめる、という決まりを加えました。",
-        "共通ルールの「waiting.script」の最初の条件を、自分で始めた装置の結果を待つ時、という言い方にそろえました。"
+        "共通ルールの「lattice.conflicts」を改め、工程を足す時（todo add）に、触る範囲を関数単位（path#関数名）で申告するようにしました。",
+        "ファイル全体を指すと、そのファイルを変える工程すべてと競合として扱われる点と、競合・未解決の結果の読み方を加えました。"
       ]
     },
     {
