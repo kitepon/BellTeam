@@ -299,6 +299,35 @@ flowchart LR
 - 古い本体は`forward`を知らず無視する（コメントだけの普通のメッセージになる）。転送を見せる条件は、サーバーの公開後にこのアプリを配ることで守る（契約の公開順）。
 - Coreの公開名の追加なのでlinux/BellTeam.Linuxもビルドして確かめる。LinuxのUI（a284）は同じCoreの上に載る。
 
+## 共有先（他のアプリからBellTeamへ共有。a283の後半）
+
+契約は[conversation forward.md](architecture/modules/conversation/forward.md)「Share-in」。方式はオーナーの裁定（決裁箱 K-TRQYQF、2026-11-16）で**疎パッケージ**：導入フォルダ（`%LOCALAPPDATA%\Programs\BellTeam`）はそのままに、識別だけを持つ小さなパッケージを登録してWindowsの共有シートへBellTeamを出す。受け取るのはテキスト・URL・画像で、画像ではないファイルは本体が断る間（a289まで）は外して知らせる。
+
+```mermaid
+flowchart TD
+  Reg[scripts/register-windows-share-target.ps1 利用者が一度実行<br/>自己署名の証明書 CN=BellTeam を作る → 管理者の確認で端末の信頼へ入れる（この1回だけ管理者）<br/>windows/Packaging/AppxManifest.xml を makeappx で固め signtool で署名 → Add-AppxPackage -ExternalLocation 導入フォルダ]
+  Reg --> Pkg[(疎パッケージ BellTeam.Windows 識別だけ・windows.shareTarget Text/URI/Bitmap/StorageItems)]
+  Other[他のアプリの「共有」] --> Sheet[Windowsの共有シート] -->|BellTeamを選ぶ| Pkg
+  Pkg -->|BellTeam.exe を共有の起動で開く| Start[App.OnStartup<br/>ShareActivation.ReadAsync AppInstance.GetActivatedEventArgs<br/>識別が無い通常の起動は例外 → null で何も変わらない]
+  Start -->|共有の起動だけ| Win[ShareWindow 内容の抜粋・共有先の一覧・コメント（任意）・共有<br/>主窓も単一起動の引き継ぎも使わず、窓を閉じるとプロセスも終わる]
+  Win --> Core[Core Workspace.ShareAsync → BellApi.SendAsync share{app,text,urls} と images]
+  Core --> Server[(本体 POST .../messages)]
+  Win -.->|断られたら理由を赤で出して閉じない| Win
+```
+
+```mermaid
+flowchart LR
+  Data[DataPackageView<br/>Text・WebLink・StorageItems・Bitmap・ApplicationName] --> Read[ShareActivation<br/>文章・http(s)のURL（20個まで）・画像（png/jpeg/webp/gif・20MiBまで）]
+  Read -->|読めない・画像ではない| Skip[数えて外す → 窓に「Nつ外しました」]
+  Read --> Content[ShareContent + ImageAttachment[]]
+  Content --> Post[POST message=コメント, share, images] --> Row[履歴の行 origin kind share]
+```
+
+- 共有の起動は、識別（疎パッケージ）が無いと起きない。登録していない端末では共有シートにBellTeamは出ず、通常の起動は何も変わらない。登録の解除は`-Unregister`。
+- 窓の接続先とサインインは主窓と同じ保存場所（`SettingsStore`・`DesktopAccess`）から読む。接続先が無い・接続できない時は理由を出す。
+- Windows SDK（makeappx・signtool）が要る。無い端末では登録スクリプトが入れ方を言って止まる。
+- Coreの追加は`ShareContent`・`BellApi.SendAsync(share)`・`Workspace.ShareAsync`・`Timeline.ShareRefusal`。LinuxにWindowsの共有先に当たるものは無い（a284は別の方式）。
+
 ## 変更時の手順
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。

@@ -54,11 +54,19 @@ public sealed class BellApi : IDisposable
         => SendAsync(target, text, [], targets, token);
     // Returns the id the history will carry for this message (Mac messageID(for:)): a room answers "id", a member "delivery_id"
     // (src/conversation/results.mjs user.post; the Mac reads it through convertFromSnakeCase).
-    public async Task<string> SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default, string? replyTo = null, QuoteSelection? selection = null, ForwardSource? forward = null)
+    public async Task<string> SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default, string? replyTo = null, QuoteSelection? selection = null, ForwardSource? forward = null, ShareContent? share = null)
     {
         // reply_to is left out unless set: the server refuses anything that is not a non-empty string (reply.md "Request").
         var body = new Dictionary<string, object?> { ["message"] = TextContent.Normalize(text), ["images"] = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), ["targets"] = targets };
         if (replyTo is not null) body["reply_to"] = replyTo;
+        if (share is not null)
+        {
+            var shared = new Dictionary<string, object?>();
+            if (!string.IsNullOrEmpty(share.App)) shared["app"] = share.App;
+            if (!string.IsNullOrEmpty(share.Text)) shared["text"] = TextContent.Normalize(share.Text);
+            if (share.Urls.Length != 0) shared["urls"] = share.Urls;
+            body["share"] = shared;
+        }
         if (forward is not null) body["forward"] = new { source = new { kind = forward.Kind, id = forward.Id }, message_id = forward.MessageId };
         if (replyTo is not null && selection is not null) body["reply_quote"] = selection.Start is { } start ? new { text = TextContent.Normalize(selection.Text), start } : new { text = TextContent.Normalize(selection.Text) };
         using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages") { Content = JsonContent.Create(body, options: Json) };
