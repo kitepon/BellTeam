@@ -6,7 +6,7 @@ import {
   parseHash, decisionHash, ageText, MESSAGES, connectView, connectOutcome,
 } from '../web/approvals-model.js'
 import { createApprovalsFeed } from '../web/approvals-feed.js'
-import { createApprovalsView } from '../web/approvals.js'
+import { createApprovalsEntry, createApprovalsView } from '../web/approvals.js'
 
 const fx = async name => JSON.parse(await readFile(new URL(`./fixtures/approvals/${name}`, import.meta.url), 'utf8'))
 const [bellteam, external, unknown, answered, list, summary, errors] = await Promise.all(['view-decision.bellteam-pending.json', 'view-decision.external-pending.json', 'view-decision.unknown-origin.json',
@@ -232,6 +232,17 @@ const baseRoutes = () => ({
   '/api/approvals?status=answered,cancelled': ok({ items: [answered] }),
 })
 const cardTitles = body => byClass(body, 'approvals-card').map(el => el.children.find(c => c.className === 'ti')?.textContent)
+
+test('入口の行：急ぎも待ちも無い時は、部品だけを出す（false の文字を出さない）。待ちがあれば数、急ぎがあれば稲妻（a306）', t => {
+  const { feed, emit } = viewHarness(t)
+  const button = new El('button'), entry = { status: 'live', summary: { pending: 0, urgent: 0 }, on: feed.on }
+  createApprovalsEntry(button, { feed: entry, open() {} })
+  assert.equal(button.children.length, 2); assert.equal(button.textContent.includes('false'), false)
+  entry.summary = { pending: 3, urgent: 0 }; emit({ type: 'summary' })
+  assert.equal(button.children.length, 3); assert.equal(button.textContent.includes('false'), false); assert.equal(button.textContent.endsWith('3'), true)
+  entry.summary = { pending: 3, urgent: 1 }; emit({ type: 'summary' })
+  assert.equal(button.children.length, 4)
+})
 
 test('view 開く：待ちの札が並び、保留は区切りの下。出どころの絞り込みは既定で何も隠さない', async t => {
   const h = viewHarness(t, { routes: baseRoutes() })
