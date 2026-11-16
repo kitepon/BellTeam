@@ -9,7 +9,7 @@ Base read: `main` f8467a44 — `src/messenger.mjs` (`prepareUserTurn`, `record`,
 ## Scope
 
 - In: the Owner's posts to a Bot (direct conversation) or a room. Content: text, URLs, images. A forward copies a message from any conversation the Owner can read; a share carries content the OS share sheet hands to the app.
-- Out of this version: forwarding or sharing **files that are not images** (see [Files](#files-not-images-open-needs-execution)); a Bot forwarding through `sendmessage` / `sendroommessage` (those tools keep their closed input); combining a forward or share with a reply (`reply_to`); editing a sent message.
+- Out of this version: forwarding or sharing **files that are not images** (see [Files](#files-not-images-follow-up-after-execution-adds-files)); a Bot forwarding through `sendmessage` / `sendroommessage` (those tools keep their closed input); combining a forward or share with a reply (`reply_to`); editing a sent message.
 - The prompt text is assembled here (`userEnvelope`, `directEnvelope`, `roomEnvelope`) and handed to execution as one opaque string, as for replies. Images reach execution through the existing `images` option. No execution change is needed for text, URLs and images.
 
 ## Names (do not mix)
@@ -114,13 +114,14 @@ Share:
 - The text is built only from the saved row (`message`, `origin`), so a re-dispatch after a restart or `BOT_UPDATE_HOLD` repeats it.
 - Room: the same block after the `「オーナー」からあなたへ…` line; the `silent` suffix is unchanged.
 
-### Files (not images): open, needs execution
+### Files (not images): follow-up after execution adds `files`
 
 The conversation stores and serves images only. A file (PDF, document, audio, anything not detected as an image) cannot reach a Bot today: execution turns attached images into temporary files for the seat, and has no path for other files; the seat's project belongs to members/runtime, which the conversation must not write into. So for this version:
 
 - A forward of a message that has no text and no image (a file-only message does not exist today), and a share with a non-image file, are refused with HTTP 415 `FILE_NOT_SUPPORTED`, nothing saved. The shared sheet's other items (text, URLs, images) are accepted when the Owner removes the file; clients tell the Owner plainly.
 - Wire shape reserved for when it is agreed: `files` next to `images`, each `{name, mime, data}` or `{path}`, saved under the same owner directories with their own limits, listed in history as `file_urls`, served like images with `Content-Disposition`. Not implemented, not promised.
-- Open question to execution (Kiro): a turn option `files` that yields a readable temporary path in the seat the way `images` does. If Kiro accepts it, this section becomes a follow-up task; until then the refusal above is the contract. The refusal protects the Owner from believing a Bot received a file it cannot read.
+- Execution (Kiro, confirmed feasible): a turn/notify option `files: [{name, mime, data}]` reusing the temporary-file and cleanup path of `images`; the seat receives the path in the message text. Chart: `a288-kiro-turn-files` (execution), then `a289-n102-forward-files` (this module's file part, after `a280-n102-forward-impl`). Until `a289` is merged and live, the refusal above is the contract. The refusal protects the Owner from believing a Bot received a file it cannot read.
+- Limits (Owner/Trony ruling 2026-11-16): **20 MiB per file, 5 files per message**; images keep their own cap. Protection: the body parent holds the bytes in memory, and a parent out-of-memory restarts the whole container and loses every seat's in-flight work (INC-OOM 2026-11-10). Self-exit: the refusal names the limit in plain words, and the sender sends a smaller file or splits it. A file over the limit → HTTP 413 `FILE_TOO_LARGE`, more than five → HTTP 413 `TOO_MANY_FILES`; both before anything is saved, with a message such as 「ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。」 These two errors apply from `a289`; before it every non-image file is 415.
 
 ### Compatibility and release order
 
@@ -183,7 +184,7 @@ flowchart TD
   Val --> Valid
 ```
 
-Public surface after the change: the two HTTP POST bodies gain `forward` and `share`; history items gain `origin`; two new errors `ORIGIN_INVALID`, `FORWARD_SOURCE_NOT_FOUND` and one reserved `FILE_NOT_SUPPORTED`. No MCP tool, SSE event, queue field, status or execution port changes.
+Public surface after the change: the two HTTP POST bodies gain `forward` and `share`; history items gain `origin`; two new errors `ORIGIN_INVALID`, `FORWARD_SOURCE_NOT_FOUND` and one reserved `FILE_NOT_SUPPORTED`, and from `a289` `FILE_TOO_LARGE` and `TOO_MANY_FILES`. No MCP tool, SSE event, queue field, status or execution port changes.
 
 ## Data flow
 
@@ -218,7 +219,8 @@ The row is the only copy of the forwarded content; nothing resolves the source a
 | --- | --- |
 | malformed `forward` / `share`, both, with `reply_to`, `share` without content | 400 `ORIGIN_INVALID`, nothing saved |
 | forward source not found or not forwardable | 404 `FORWARD_SOURCE_NOT_FOUND`, nothing saved |
-| non-image file in a share | 415 `FILE_NOT_SUPPORTED`, nothing saved (see [Files](#files-not-images-open-needs-execution)) |
+| non-image file in a share or forward, until `a289` is live | 415 `FILE_NOT_SUPPORTED`, nothing saved (see [Files](#files-not-images-follow-up-after-execution-adds-files)) |
+| from `a289`: a file over 20 MiB, or more than 5 files | 413 `FILE_TOO_LARGE` / `TOO_MANY_FILES` with the limit in plain words, nothing saved; the sender sends a smaller file or splits it (protects the body parent from out-of-memory, INC-OOM 2026-11-10) |
 | source readable, copying an image fails | the post fails with the existing image error, nothing delivered; rows already saved by `saveAll` follow its existing no-rollback rule |
 | process stops after save, before dispatch | re-dispatch rebuilds the envelope from the saved row, same text |
 | `BOT_UPDATE_HOLD` / queued delivery | unchanged; the saved row is dispatched later |
