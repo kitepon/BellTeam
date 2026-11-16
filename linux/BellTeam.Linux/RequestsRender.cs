@@ -8,9 +8,9 @@ namespace BellTeam.Linux;
 internal static class RequestsRender
 {
     public const string Usage = "、--render-page <schedules|goals> <URL> <PNG>、--render-schedules <list|empty|failed|delete|editor-member|editor-room|editor-weekly-error|editor-interval> <URL> <PNG>"
-        + "、--render-goals <pill|pill-open|editor-create|editor-edit> <URL> <会話ID> <PNG>、--render-conversation <secret|peer-sheet|reply|reply-pick|reply-jump|reply-part|reply-part-pick|reply-part-jump> <URL> <会話ID> <PNG>、--render-secret <シーン> <URL> <PNG>";
+        + "、--render-goals <pill|pill-open|editor-create|editor-edit> <URL> <会話ID> <PNG>、--render-conversation <secret|peer-sheet|forward|forward-sheet|forward-failed|share-sheet|share-skipped|reply|reply-pick|reply-jump|reply-part|reply-part-pick|reply-part-jump> <URL> <会話ID> <PNG>、--render-secret <シーン> <URL> <PNG>";
 
-    public static bool IsKnown(string[] args) => args is ["--render-page", "schedules" or "goals", _, _] or ["--render-schedules", _, _, _] or ["--render-goals", _, _, _, _] or ["--render-conversation", "secret" or "reply" or "reply-pick" or "reply-jump" or "reply-part" or "reply-part-pick" or "reply-part-jump" or "peer-sheet", _, _, _] or ["--render-secret", _, _, _];
+    public static bool IsKnown(string[] args) => args is ["--render-page", "schedules" or "goals", _, _] or ["--render-schedules", _, _, _] or ["--render-goals", _, _, _, _] or ["--render-conversation", "secret" or "forward" or "forward-sheet" or "forward-failed" or "share-sheet" or "share-skipped" or "reply" or "reply-pick" or "reply-jump" or "reply-part" or "reply-part-pick" or "reply-part-jump" or "peer-sheet", _, _, _] or ["--render-secret", _, _, _];
 
     // False when the arguments are not one of these modes.
     public static async Task<bool> TryRunAsync(string[] args)
@@ -20,7 +20,7 @@ internal static class RequestsRender
             case ["--render-page", var kind and ("schedules" or "goals"), var address, var output]: await PageAsync(kind, address, output); return true;
             case ["--render-schedules", var scene, var address, var output]: await SchedulesAsync(scene, address, output); return true;
             case ["--render-goals", var scene, var address, var botId, var output]: await GoalsAsync(scene, address, botId, output); return true;
-            case ["--render-conversation", var scene and ("secret" or "peer-sheet" or "reply" or "reply-pick" or "reply-jump" or "reply-part" or "reply-part-pick" or "reply-part-jump"), var address, var id, var output]: await ConversationAsync(scene, address, id, output); return true;
+            case ["--render-conversation", var scene and ("secret" or "peer-sheet" or "forward" or "forward-sheet" or "forward-failed" or "share-sheet" or "share-skipped" or "reply" or "reply-pick" or "reply-jump" or "reply-part" or "reply-part-pick" or "reply-part-jump"), var address, var id, var output]: await ConversationAsync(scene, address, id, output); return true;
             case ["--render-secret", var scene, var address, var output]: await SecretAsync(scene, address, output); return true;
             default: return false;
         }
@@ -96,7 +96,19 @@ internal static class RequestsRender
         using (model)
         {
             if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
-            if (scene.StartsWith("reply", StringComparison.Ordinal)) window.HideInspectorForRender();
+            if (scene.StartsWith("reply", StringComparison.Ordinal) || scene.StartsWith("forward", StringComparison.Ordinal) || scene.StartsWith("share", StringComparison.Ordinal)) window.HideInspectorForRender();
+            // Forward and share scenes (same ids as the Windows scenes): the sheet over a plain conversation, with what a person would pick and type.
+            if (scene is "forward-sheet" or "forward-failed")
+            {
+                var forwarding = window.ShowForwardSheet(model.Messages.Select(item => item.Message).First(item => item.Id == "c5"));
+                forwarding.SetForRender(1, "これお願い", scene == "forward-failed" ? Timeline.ForwardRefusal(new BellApiException("x", System.Net.HttpStatusCode.UnsupportedMediaType, "FILE_NOT_SUPPORTED")) : null);
+            }
+            if (scene is "share-sheet" or "share-skipped")
+            {
+                var picture = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGN4NG3L/wzo++79GWQAEiAOAHBCDKn+NWaYAAAAAElFTkSuQmCC");
+                var sharing = window.ShowShareSheet(new ShareContent(null, "この記事、明日の打ち合わせで見てほしい。", ["https://example.com/articles/42"]), [new ImageAttachment("shared.png", "image/png", picture)], scene == "share-skipped" ? 2 : 0);
+                sharing.SetForRender(1, "");
+            }
             // Reply scenes (same ids and quotes as the Windows scenes): the pick and the jump go through the workspace like a click.
             TimelineMessage Row(string messageId) => model.Messages.Select(item => item.Message).First(item => item.Id == messageId);
             if (scene == "reply-pick") model.StartQuote(Row("c5"));

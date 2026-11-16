@@ -34,6 +34,11 @@ public sealed class MessageCard : ContentControl
     private Button? quoteButton;
     private TextBlock? quoteName, quoteText, quoteNote;
     private readonly Button replyButton = ReplyButton();
+    // Forward (conversation forward.md): the 転送 button next to 返信, and the mark / quoted content of a forwarded or shared row.
+    private readonly Button forwardButton = ReplyButton("転送", "このメッセージを転送");
+    private TextBlock? originMark;
+    private Border? contentBorder;
+    private MarkdownView? contentBody;
     private CancellationTokenSource? flash;
     public string? MessageId => messageId;
     private TextBlock? peerLabel;
@@ -46,10 +51,10 @@ public sealed class MessageCard : ContentControl
     private readonly Border forkBadge = ForkBadge();
     private readonly StackPanel timeLine = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(5, 0, 5, 0) };
     private bool entered;
-    private static Button ReplyButton()
+    private static Button ReplyButton(string label = "返信", string name = "このメッセージに返信")
     {
-        var button = new Button { Classes = { "plain" }, Content = "返信", FontSize = 14, Foreground = BellTheme.Violet, Background = Brushes.Transparent, Padding = default, Margin = new Thickness(10, 0, 0, 0), Opacity = 0, VerticalAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetName(button, "このメッセージに返信"); return button;
+        var button = new Button { Classes = { "plain" }, Content = label, FontSize = 14, Foreground = BellTheme.Violet, Background = Brushes.Transparent, Padding = default, Margin = new Thickness(10, 0, 0, 0), Opacity = 0, VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(button, name); return button;
     }
     // What Workspace.Opening was when this card loaded (the staggered opening or the short arrival animation).
     internal bool? EnteredAsOpening { get; private set; }
@@ -69,11 +74,13 @@ public sealed class MessageCard : ContentControl
     {
         this.item = item; this.workspace = workspace;
         Padding = default; Margin = new Thickness(0, 0, 0, 17);
-        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton);
+        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton); timeLine.Children.Add(forwardButton);
         replyButton.Click += (_, _) => workspace.StartQuote(Message);
+        forwardButton.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowForwardSheet(Message);
         // Shown while the pointer or the keyboard is on the row; it stays focusable so the keyboard can reach it.
-        PointerEntered += (_, _) => replyButton.Opacity = 1; PointerExited += (_, _) => replyButton.Opacity = replyButton.IsKeyboardFocusWithin ? 1 : 0;
+        PointerEntered += (_, _) => { replyButton.Opacity = 1; forwardButton.Opacity = 1; }; PointerExited += (_, _) => { replyButton.Opacity = replyButton.IsKeyboardFocusWithin ? 1 : 0; forwardButton.Opacity = forwardButton.IsKeyboardFocusWithin ? 1 : 0; };
         replyButton.GotFocus += (_, _) => replyButton.Opacity = 1; replyButton.LostFocus += (_, _) => replyButton.Opacity = IsPointerOver ? 1 : 0;
+        forwardButton.GotFocus += (_, _) => forwardButton.Opacity = 1; forwardButton.LostFocus += (_, _) => forwardButton.Opacity = IsPointerOver ? 1 : 0;
         Loaded += (_, _) =>
         {
             if (entered) return;
@@ -163,7 +170,10 @@ public sealed class MessageCard : ContentControl
         quoteButton.Click += (_, _) => { if (Message.ReplyTo is { Available: true } quote) _ = workspace.JumpToAsync(quote); };
         // 引用して返信: only the selected part of this message's text is quoted (reply.md "Quoting a selected part"). The shown text is rendered markup, so no raw offset is known and none is sent.
         body.Menu = ReplyMenu;
-        stack = new StackPanel { Children = { quoteButton, heading, images, imagePlaceholder, body, replyLabel } };
+        originMark = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis };
+        contentBody = new MarkdownView { FontSize = 16 };
+        contentBorder = new Border { BorderBrush = BellTheme.Muted, BorderThickness = new Thickness(3, 0, 0, 0), Padding = new Thickness(12, 2, 0, 0), Child = contentBody };
+        stack = new StackPanel { Children = { quoteButton, originMark, heading, images, imagePlaceholder, body, contentBorder, replyLabel } };
         bubble = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1) };
         accentName = null;
         timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
@@ -187,8 +197,9 @@ public sealed class MessageCard : ContentControl
         part.Click += (_, _) => { if (body!.SelectedText is { Length: > 0 } text) workspace.StartQuote(Message, new QuoteSelection(text)); };
         whole.Click += (_, _) => workspace.StartQuote(Message);
         copy.Click += async (_, _) => { if (body!.SelectedText is { Length: > 0 } text && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(text); };
-        var flyout = new MenuFlyout { Items = { part, whole, copy } };
-        flyout.Opening += (_, _) => { whole.IsEnabled = Timeline.IsQuotable(Message); var selected = !string.IsNullOrWhiteSpace(body!.SelectedText); part.IsEnabled = whole.IsEnabled && selected; copy.IsEnabled = selected; };
+        var forward = new MenuItem { Header = "転送" }; forward.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowForwardSheet(Message);
+        var flyout = new MenuFlyout { Items = { part, whole, forward, copy } };
+        flyout.Opening += (_, _) => { forward.IsEnabled = Timeline.IsForwardable(Message); whole.IsEnabled = Timeline.IsQuotable(Message); var selected = !string.IsNullOrWhiteSpace(body!.SelectedText); part.IsEnabled = whole.IsEnabled && selected; copy.IsEnabled = selected; };
         return flyout;
     }
 
@@ -207,10 +218,12 @@ public sealed class MessageCard : ContentControl
         var outgoing = message.IsOutgoing; var urls = message.DisplayedImageUrls; var isRoom = workspace.IsRoom;
         var senderName = message.Kind == "peer" ? message.PeerName : isRoom && !outgoing ? message.Sender?.Title : null;
         var hasStack = urls.Length > 1;
-        var text = message.Message ?? "";
+        // A forwarded or shared row: the Owner's comment in the bubble's own text, the content as a quoted block (forward.md "History").
+        var origin = message.Origin is { Kind.Length: > 0 } known ? known : null;
+        var (text, content) = origin is null ? (message.Message ?? "", "") : Timeline.OriginParts(message);
         var reply = Timeline.ReplyLabel(message, isRoom, workspace.MemberName);
         var quote = message.ReplyTo;
-        var hasBubble = !hasStack || text.Length != 0 || reply is not null || quote is not null;
+        var hasBubble = !hasStack || text.Length != 0 || content.Length != 0 || reply is not null || quote is not null || origin is not null;
         if (avatar is not null && message.Sender is { } sender)
         {
             var entry = workspace.MemberEntry(sender.Id) ?? new ConversationEntry(new(sender.Id, false), sender.Title, "", DateTimeOffset.MinValue, null, null);
@@ -225,9 +238,12 @@ public sealed class MessageCard : ContentControl
         var count = message.ImageCount ?? 1;
         imageLabel!.Text = count > 1 ? $"画像{count}枚" : "画像";
         imagePlaceholder!.IsVisible = message.Image == true && urls.Length == 0;
-        try { body!.Source = text; }
+        try { body!.Source = text; contentBody!.Source = content; }
         catch (NotSupportedException error) { body!.ShowText(error.Message); }
         body!.IsVisible = text.Length != 0;
+        contentBorder!.IsVisible = content.Length != 0;
+        originMark!.Text = origin is null ? "" : string.Join(" · ", new[] { Timeline.OriginMark(origin), origin.IsForward ? origin.FromName : null, origin.IsForward && origin.At is { } at ? Timeline.ShortTime(at, DateTimeOffset.Now) : null }.Where(part => !string.IsNullOrEmpty(part)));
+        originMark.IsVisible = originMark.Text.Length != 0;
         replyLabel!.Text = reply ?? ""; replyLabel.IsVisible = reply is not null;
         quoteButton!.IsVisible = quote is not null;
         if (quote is not null)
@@ -239,7 +255,7 @@ public sealed class MessageCard : ContentControl
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
             AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
         }
-        replyButton.IsVisible = Timeline.IsQuotable(message);
+        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message);
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
         foreach (var part in stack!.Children) { if (!part.IsVisible) continue; part.Margin = new Thickness(0, first ? 0 : 8, 0, 0); first = false; }
@@ -250,7 +266,7 @@ public sealed class MessageCard : ContentControl
         // Only a member's own conversation labels fork rows (a room's rows carry no seat).
         var fork = !isRoom && message.IsFork;
         forkBadge.IsVisible = fork;
-        timeLine.IsVisible = delivery.Text.Length != 0 || fork || replyButton.IsVisible;
+        timeLine.IsVisible = delivery.Text.Length != 0 || fork || replyButton.IsVisible || forwardButton.IsVisible;
         timeLine.Margin = new Thickness(5, hasBubble ? 5 : 0, 5, 0);
     }
 }
