@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T00:05:43Z",
-  "expiresAt": "2026-11-23T00:05:43Z",
+  "publishedAt": "2026-11-16T00:25:52Z",
+  "expiresAt": "2026-11-23T00:25:52Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
-      "versionId": "5eb7607dace1d331d10913b9b7133aa423cce34d07b26989cc2f781dd3d1c079",
+      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
+      "versionId": "e29742d5a6e333c707c3a420906cf672a9660dd0952de82e4238a1c110f4d819",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz",
-          "bytes": 5425125,
-          "sha256": "5eb7607dace1d331d10913b9b7133aa423cce34d07b26989cc2f781dd3d1c079"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-amd64.tar.gz",
+          "bytes": 5425679,
+          "sha256": "e29742d5a6e333c707c3a420906cf672a9660dd0952de82e4238a1c110f4d819"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "7b094bae9e3b519eb5d25e5900152920686689ebbe1c01d662400a35094f159d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11021,
+          "sha256": "eda3074620aa9e3c25c6e6e9804530a1529fa88642fe4b7a5ba7a281e7cbb52a"
         },
-        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+        "signerCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,14 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの決裁箱の画面に「決裁箱につなぐ」ボタンを付けました。",
-        "工程表の「次の工程」から、取り下げた後続の工程を除くようにしました。"
+        "一覧画面でアバターを一度に大量に読み込んでも、順番に待って全部表示できるようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
-      "versionId": "5d467061305eb2133b6d22b2e133e3cf0d8f22e6ab326adeef7344ceae7b62b8",
+      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
+      "versionId": "fc5c76d7886b3bbc4a5c7ff953d8e747a680014e0eb53638cd998d870e97c905",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -469,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz",
-          "bytes": 5425125,
-          "sha256": "5d467061305eb2133b6d22b2e133e3cf0d8f22e6ab326adeef7344ceae7b62b8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-arm64.tar.gz",
+          "bytes": 5425679,
+          "sha256": "fc5c76d7886b3bbc4a5c7ff953d8e747a680014e0eb53638cd998d870e97c905"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223838Z/web-gateway-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11146,
-          "sha256": "7b652a80afa665837324998d356890707b54864ce920529444b5a8bcf8c75b63"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T001709Z/web-gateway-b2be90df5de86428be6236db340d6ee4401c6a3a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "8a8efacc9148f55c370bec5d563762c41421b6f6e7f142556131ad942206297a"
         },
-        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+        "signerCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -487,8 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの決裁箱の画面に「決裁箱につなぐ」ボタンを付けました。",
-        "工程表の「次の工程」から、取り下げた後続の工程を除くようにしました。"
+        "一覧画面でアバターを一度に大量に読み込んでも、順番に待って全部表示できるようにしました。"
       ]
     },
     {
@@ -711,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "085f4aea1099324b47a0bcf593139d76edb87751",
-      "versionId": "sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e",
+      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
+      "versionId": "sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱の拡張が、工程表の工程に決裁を結び付けられるようになりました。回答すると、その工程が閉じます。"
+        "一覧画面でアバターを一度に大量に読み込むと、一部が503で失敗していたのを直しました。同時に処理できる64件を超えた分は、断らずに順番を待ちます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "085f4aea1099324b47a0bcf593139d76edb87751",
-      "versionId": "sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e",
+      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
+      "versionId": "sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:98d3d07b3d403dc6a2ae4d64a161ade4054e6dcca9d1413222dc184ddf9b261e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱の拡張が、工程表の工程に決裁を結び付けられるようになりました。回答すると、その工程が閉じます。"
+        "一覧画面でアバターを一度に大量に読み込むと、一部が503で失敗していたのを直しました。同時に処理できる64件を超えた分は、断らずに順番を待ちます。"
       ]
     },
     {
