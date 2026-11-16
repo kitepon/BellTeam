@@ -53,8 +53,8 @@ struct ConversationTimelineState {
         return additions.count
     }
 
-    mutating func beginSend(id: String, body: String, imageCount: Int, at: String) {
-        pendingSends.append(PendingSend(id: id, body: body, imageCount: imageCount, at: at, acceptedID: nil))
+    mutating func beginSend(id: String, body: String, imageCount: Int, at: String, replyTo: ReplyReference? = nil) {
+        pendingSends.append(PendingSend(id: id, body: body, imageCount: imageCount, at: at, replyTo: replyTo, acceptedID: nil))
     }
 
     mutating func acceptSend(id: String, serverID: String) {
@@ -81,6 +81,7 @@ private struct PendingSend {
     let body: String
     let imageCount: Int
     let at: String
+    let replyTo: ReplyReference?
     var acceptedID: String?
 
     var message: TimelineMessage {
@@ -88,6 +89,7 @@ private struct PendingSend {
                         at: at, message: body, image: imageCount > 0,
                         imageCount: imageCount > 0 ? imageCount : nil, imageUrl: nil, imageUrls: nil,
                         delivery: acceptedID == nil ? "submitting" : "accepted", deliveries: nil,
-                        routing: nil, peerName: nil, peerPosition: nil, secretRequest: nil, ownerQuestion: nil)
+                        routing: nil, peerName: nil, peerPosition: nil, secretRequest: nil, ownerQuestion: nil,
+                        replyTo: replyTo)
     }
 }

@@ -6,12 +6,32 @@ struct MessageText: View, Equatable {
     var fontSize: CGFloat = BellTheme.messageFontSize
     var lineSpacing: CGFloat = 4
     var accessibilityIdentifier: String?
+    /// Adds 返信 (the whole message) and 引用して返信 (the selected text) to the selection menu.
+    /// A long press on the text selects it, so the bubble itself cannot also own the long press.
+    var onReply: (() -> Void)?
+    var onQuote: ((String) -> Void)?
+    var highlight: MarkdownHighlight?
     @Environment(\.openURL) private var openURL
 
     static func == (lhs: MessageText, rhs: MessageText) -> Bool {
         lhs.source == rhs.source && lhs.fontSize == rhs.fontSize
             && lhs.lineSpacing == rhs.lineSpacing
             && lhs.accessibilityIdentifier == rhs.accessibilityIdentifier
+            && (lhs.onReply == nil) == (rhs.onReply == nil) && (lhs.onQuote == nil) == (rhs.onQuote == nil)
+            && lhs.highlight == rhs.highlight
+    }
+
+    private var quoteActions: [MarkdownSelectionMenuAction] {
+        var actions: [MarkdownSelectionMenuAction] = []
+        if let onReply {
+            actions.append(MarkdownSelectionMenuAction(title: "返信", systemImageName: "arrowshape.turn.up.left") { _ in onReply() })
+        }
+        if let onQuote {
+            actions.append(MarkdownSelectionMenuAction(title: "引用して返信", systemImageName: "text.quote") { selected in
+                if !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { onQuote(selected) }
+            })
+        }
+        return actions
     }
 
     private static let flags = Md4cFlags(hardSoftBreaks: true)
@@ -42,7 +62,8 @@ struct MessageText: View, Equatable {
             .markdownTheme(Self.theme(fontSize: fontSize, lineSpacing: lineSpacing))
             .markdownSelectable(true)
             .markdownSelectionColor(BellTheme.violet)
-            .markdownSelectionMenu(.init(copyAsMarkdownLabel: "Markdownとしてコピー"))
+            .markdownSelectionMenu(.init(copyAsMarkdownLabel: "Markdownとしてコピー", customActions: quoteActions))
+            .markdownHighlight(highlight)
             .markdownTaskListItemToggleEnabled(false)
             .onLinkPress { openURL($0) }
             .accessibilityIdentifier(accessibilityIdentifier ?? "")

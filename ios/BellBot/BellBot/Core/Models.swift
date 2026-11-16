@@ -269,9 +269,16 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     var seat: MessageSeat? = nil
     /// Direct rows only. A room row never reads a top-level value; its evidence is `deliveries[i].deliveryTracking`.
     var deliveryTracking: DeliveryTracking? = nil
+    /// conversation reply.md. Absent when the row is not a reply and on old bodies.
+    var replyTo: ReplyReference? = nil
 
     var isOutgoing: Bool { direction == "outgoing" || sender?.id == "user" }
     var isFork: Bool { seat?.kind == "fork" }
+    /// conversation reply.md "What can be quoted": message / interim rows and room posts that the server already holds.
+    var isQuotable: Bool {
+        guard !isPeer, secretRequest == nil, ownerQuestion == nil, !id.hasPrefix("local-pending-") else { return false }
+        return kind == nil || ["message", "interim", "schedule"].contains(kind!)
+    }
     var isPeer: Bool { kind == "peer" }
     var displayedImageURLs: [String] { imageUrls ?? imageUrl.map { [$0] } ?? [] }
     var status: String? {
@@ -291,6 +298,66 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
         if let delivery { return delivery == "failed" && deliveryTracking?.isAcceptedCompletionUnknown == true }
         let failures = deliveries?.filter { $0.delivery == "failed" } ?? []
         return !failures.isEmpty && failures.allSatisfy { $0.deliveryTracking?.isAcceptedCompletionUnknown == true }
+    }
+}
+
+/// The quote a reply carries (conversation reply.md "Saved record"). The client draws the quote only from this snapshot.
+struct ReplyReference: Decodable, Equatable {
+    static let textLimit = 300
+
+    let id: String
+    let available: Bool
+    let senderID: String?
+    let senderName: String?
+    let text: String
+    let truncated: Bool
+    let image: Bool
+    /// true when the Owner quoted a selected part; `text` is then that part (reply.md "Quoting a selected part").
+    let part: Bool
+    /// Code-point range of the part in the original's saved text, when the server located it. Only a hint for the highlight.
+    let rangeStart: Int?
+    /// The full selection a new reply will send. nil for a reference decoded from history.
+    let selection: String?
+
+    private enum CodingKeys: String, CodingKey { case id, available, sender, text, truncated, image, part, range }
+    private struct Sender: Decodable { let id: String?; let name: String? }
+    private struct Range: Decodable { let start: Int? }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        available = (try? c.decode(Bool.self, forKey: .available)) ?? false
+        let sender = try? c.decode(Sender.self, forKey: .sender)
+        senderID = sender?.id
+        senderName = sender?.name
+        text = (try? c.decode(String.self, forKey: .text)) ?? ""
+        truncated = (try? c.decode(Bool.self, forKey: .truncated)) ?? false
+        image = (try? c.decode(Bool.self, forKey: .image)) ?? false
+        part = (try? c.decode(Bool.self, forKey: .part)) ?? false
+        rangeStart = (try? c.decode(Range.self, forKey: .range))?.start
+        selection = nil
+    }
+
+    /// The same snapshot the server will save, for the composer bar and the pending row until the history item arrives.
+    init(quoting message: TimelineMessage, senderName: String, selection: String? = nil) {
+        let source = (selection ?? message.message ?? "").replacingOccurrences(of: "\r\n", with: "\n")
+        let scalars = source.unicodeScalars
+        id = message.id
+        available = true
+        senderID = message.sender?.id
+        self.senderName = senderName
+        truncated = scalars.count > Self.textLimit
+        text = truncated ? String(String.UnicodeScalarView(scalars.prefix(Self.textLimit))) : source
+        image = selection == nil && (message.image == true || message.displayedImageURLs.count > 0)
+        part = selection != nil
+        rangeStart = nil
+        self.selection = selection
+    }
+
+    /// Quote line shown in a bubble and in the composer.
+    var quotedText: String {
+        if text.isEmpty { return image ? "（画像）" : "" }
+        return truncated ? text + "…" : text
     }
 }
 
@@ -850,6 +917,19 @@ struct SendMessageBody: Encodable {
     let message: String
     let images: [ImagePayload]
     let targets: [String]?
+    /// conversation reply.md: the id of the picked item of this conversation. Omitted when the send is not a reply.
+    var replyTo: String? = nil
+    /// conversation reply.md "Quoting a selected part": the selected text as shown. The offset hint is omitted because the text is rendered Markdown.
+    var replyQuote: ReplyQuoteBody? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case message, images, targets
+        case replyTo = "reply_to", replyQuote = "reply_quote"
+    }
+}
+
+struct ReplyQuoteBody: Encodable, Equatable {
+    let text: String
 }
 
 struct SecretRequest: Decodable, Identifiable, Equatable {

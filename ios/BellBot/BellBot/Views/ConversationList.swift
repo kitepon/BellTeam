@@ -23,6 +23,14 @@ struct ConversationRowContext: Hashable {
     }
 }
 
+/// 引用の元へ移る依頼。revisionが変わった時だけ動き、行がまだ入っていなければ入った後に動く。
+struct ConversationJump: Equatable {
+    let id: String?
+    let revision: Int
+    /// 部分を引用した返信は本文の該当部分を光らせるので、吹き出し全体は光らせない。
+    var flashesBubble = true
+}
+
 /// 会話を開いた時の見せ方。比較のための切替で、決まったら片方だけ残す。
 enum ConversationOpening: String, CaseIterable {
     case rise, fade
@@ -42,6 +50,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
     let bottomInset: CGFloat
     let opening: ConversationOpening
     let scrollToBottomRevision: Int
+    let jump: ConversationJump
     let onLoadOlder: () -> Void
     let onRefresh: () async -> Void
     let onAtBottomChange: (Bool) -> Void
@@ -98,6 +107,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
             coordinator.scrollToBottom(animated: true)
         }
+        coordinator.requestJump(jump)
     }
 
     final class Coordinator: NSObject, UICollectionViewDelegate, ChatLayoutDelegate {
@@ -111,6 +121,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var loadingOlder = false
         var fillRequested = false
         var scrollToBottomRevision = 0
+        private var jumpRevision = 0
+        private var pendingJump: String?
+        private var pendingFlash = true
         private weak var view: ConversationCollectionView?
         private weak var layout: CollectionViewChatLayout?
         private var dataSource: ChatLayoutDiffableDataSource<Int, ConversationRow>?
@@ -233,6 +246,40 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 fillRequested = false
             }
             report()
+            performPendingJump()
+        }
+
+        func requestJump(_ jump: ConversationJump) {
+            if jump.revision != jumpRevision {
+                jumpRevision = jump.revision
+                pendingJump = jump.id
+                pendingFlash = jump.flashesBubble
+            }
+            performPendingJump()
+        }
+
+        /// 行が入っていれば中央へ移し、少し光らせる。
+        private func performPendingJump() {
+            guard let id = pendingJump, let view, let dataSource,
+                  let indexPath = dataSource.indexPath(for: .message(id)) else { return }
+            pendingJump = nil
+            view.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
+            let flashes = pendingFlash
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reveal(.message(id), flash: flashes) }
+        }
+
+        /// 元の行を作り直して（本文の該当部分の強調はここで入る）、必要なら吹き出し全体を光らせる。
+        private func reveal(_ row: ConversationRow, flash flashes: Bool) {
+            guard let view, let indexPath = dataSource?.indexPath(for: row),
+                  let cell = view.cellForItem(at: indexPath) as? ConversationCell else { return }
+            configure(cell, row: row)
+            guard flashes else { return }
+            let mark = cell.contentView
+            mark.layer.cornerRadius = 14
+            mark.backgroundColor = UIColor(BellTheme.violet).withAlphaComponent(0.22)
+            UIView.animate(withDuration: 1.2, delay: 0.6, options: .curveEaseOut) {
+                mark.backgroundColor = .clear
+            }
         }
 
         func scrollToBottom(animated: Bool) {
