@@ -187,23 +187,14 @@ test('owner filing: an Owner task retired or done on its chart cancels its still
   assert.deepEqual(down.calls.map(([method]) => method), ['decisions.read', 'decisions.cancel'])
 })
 
-test('owner reminder a145: a handed-over Owner task still open reminds its creator at most once an hour, ONE message per creator, not while it is working', async () => {
-  const old = new Date(Date.now() - 2 * 3600e3).toISOString(), recent = new Date(Date.now() - 10 * 60e3).toISOString()
-  const asked = (taskId, extra = {}) => [`alpha/p1/${taskId}`, { projectId: 'alpha', plan: 'p1', taskId, title: `Task ${taskId}`, status: 'asked', askedAt: old, ...extra }]
-  const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'ready'), card('t2', 'in-progress'), card('t3', 'ready'), card('t4', 'done')] }]
-  const record = Object.fromEntries([asked('t1'), asked('t2'), asked('t3', { remindedAt: recent }), asked('t4')])
-  const x = rig({ charts, record })
+test('owner reminder a211: a handed-over Owner task that stays open is never reminded, however old (no timed wake)', async () => {
+  const old = new Date(Date.now() - 48 * 3600e3).toISOString()
+  const asked = taskId => [`alpha/p1/${taskId}`, { projectId: 'alpha', plan: 'p1', taskId, title: `Task ${taskId}`, status: 'asked', askedAt: old, remindedAt: old }]
+  const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'ready'), card('t2', 'in-progress')] }]
+  const x = rig({ charts, record: Object.fromEntries([asked('t1'), asked('t2')]) })
   await x.go()
-  const sends = x.calls.filter(([method]) => method === 'messages.send')
-  assert.equal(sends.length, 1, 'one message for the creator')
-  const text = sends[0][1].message
-  assert.equal(sends[0][1].target, 'bot-c')
-  assert.ok(text.includes('list_my_decisions') && text.includes('p1/t1 「Task t1」') && text.includes('p1/t2 「Task t2」'))
-  assert.ok(!text.includes('p1/t3') && !text.includes('p1/t4'), 'reminded within the hour, or done: not listed')
-  assert.ok(x.stored()['alpha/p1/t1'].remindedAt && x.stored()['alpha/p1/t2'].remindedAt && x.stored()['alpha/p1/t3'].remindedAt === recent)
-  const again = rig({ charts, record: x.stored() })
-  await again.go()
-  assert.equal(again.calls.filter(([method]) => method === 'messages.send').length, 0, 'not again within the hour')
+  assert.deepEqual(x.calls, [], 'no send, no turns.read')
+  assert.equal(x.stored()['alpha/p1/t1'].remindedAt, old, 'a legacy remindedAt is kept untouched')
 })
 
 test('owner hand-over a145: the request names the task in its session_label', async () => {
