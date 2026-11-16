@@ -61,7 +61,7 @@ SECTION lattice
   RULE lattice.conflicts
     WHEN: you add a task to a plan whose coordination mode is witness or enforced (session-context shows the mode)
     DO: declare it at once with `todo independence witness declare`: `--owns` the files it will edit, `--reads` the files it depends on; no flags when it touches no code.
-    FACT: Lattice judges conflicts only once every task that can start is declared; one undeclared task leaves the whole plan unjudged.
+    FACT: an undeclared task is not judged, and an enforced plan refuses its start; the declared tasks are judged without it.
     WHEN: todo start lists conflicts_with_active  DO: before editing the shared files, make that task your 前工程 or settle it with its owner or the coordinator.
     FACT: coverage missing or stale means not judged, never safe.
   RULE lattice.structure
