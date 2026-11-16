@@ -13,6 +13,25 @@ const deliveryFailureMessages = new Map([
   ['BOT_SESSION_UNCONFIRMED', '席の状態を確認できず、送信できませんでした。席を再起動してください。'],
 ])
 
+// 引用した部分（reply.md「Quoting a selected part」）を、画面に出ている本文の text node から探す。
+// from 以降の最初の一致、なければ最初の一致。見つからなければ null（行の強調だけで済ませる）。
+export function locateQuotePart(nodes, text, from = 0) {
+  if (!text) return null
+  const hay = nodes.map(node => node.textContent).join('')
+  let at = hay.indexOf(text, from)
+  if (at < 0) at = hay.indexOf(text)
+  if (at < 0) return null
+  const end = at + text.length
+  let used = 0, startNode, startOffset, endNode, endOffset
+  for (const node of nodes) {
+    const length = node.textContent.length
+    if (startNode === undefined && at < used + length) { startNode = node; startOffset = at - used }
+    if (startNode !== undefined && end > used && end <= used + length) { endNode = node; endOffset = end - used; break }
+    used += length
+  }
+  return startNode && endNode ? { startNode, startOffset, endNode, endOffset } : null
+}
+
 export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange, onReply = () => {} }) {
   let target = null
   const avatarColors = new Map()
@@ -267,6 +286,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   timeline.addEventListener('scroll', () => {
     state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
     latestButton.hidden = !target || state.stickToBottom
+    selectionButton.hidden = true // 位置が合わなくなる
     if (timeline.scrollTop < 240) void readHistory(loadOlderMessages)
   })
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)
@@ -416,16 +436,23 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   // 返信（a269）。引用は保存された item.reply_to だけから描く。読み込んだ行から組み立てない。
   function renderReplyQuote(reply) {
     if (!reply?.id) return null
-    if (!reply.available) return Object.assign(document.createElement('div'), { className: 'reply-quote is-gone', textContent: '元のメッセージを表示できません' })
+    const excerpt = reply.text ? `${reply.text}${reply.truncated ? '…' : ''}` : reply.image ? '（画像）' : ''
+    if (!reply.available) {
+      const gone = Object.assign(document.createElement('div'), { className: 'reply-quote is-gone' })
+      // 部分の引用は、選んだ文章（本人の選択）を残して、元が無いことを固定の一行で言う。
+      if (reply.part && reply.text) gone.append(Object.assign(document.createElement('span'), { className: 'reply-quote-excerpt', textContent: excerpt }), Object.assign(document.createElement('small'), { textContent: '元のメッセージを表示できません' }))
+      else gone.textContent = '元のメッセージを表示できません'
+      return gone
+    }
     const who = reply.sender?.id === 'user' ? 'あなた' : reply.sender?.name ?? ''
     const quote = document.createElement('button')
     quote.type = 'button'
     quote.className = 'reply-quote'
     quote.setAttribute('aria-label', `${who || '元'}のメッセージへ移動`)
     const sender = Object.assign(document.createElement('strong'), { textContent: who })
-    const text = Object.assign(document.createElement('span'), { textContent: reply.text ? `${reply.text}${reply.truncated ? '…' : ''}` : reply.image ? '（画像）' : '' })
+    const text = Object.assign(document.createElement('span'), { textContent: excerpt })
     quote.append(sender, text)
-    quote.addEventListener('click', () => { void jumpToMessage(reply.id, quote) })
+    quote.addEventListener('click', () => { void jumpToMessage(reply.id, quote, reply.part ? { text: reply.text, from: reply.range?.start ?? 0 } : null) })
     return quote
   }
   function replyButton(item) {
@@ -434,15 +461,46 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     button.className = 'message-reply'
     button.textContent = '返信'
     button.setAttribute('aria-label', 'このメッセージに返信')
-    button.addEventListener('click', () => onReply({
-      id: item.id,
-      sender: item.direction === 'outgoing' ? 'あなた' : item.sender || target?.name || '',
-      text: item.message?.trim().split('\n')[0] || (item.image ? '（画像）' : ''),
-    }))
+    button.addEventListener('click', () => onReply({ ...replySender(item), text: item.message?.trim().split('\n')[0] || (item.image ? '（画像）' : '') }))
     return button
   }
+  const replySender = item => ({ id: item.id, sender: item.direction === 'outgoing' ? 'あなた' : item.sender || target?.name || '' })
+
+  // 選んだ文章への返信（a269r）。同じ吹き出しの .message-text の中だけ。ボタンは選択の下に出し、押しても選択を外さない。
+  let selectionPick = null
+  const selectionButton = document.createElement('button')
+  selectionButton.type = 'button'
+  selectionButton.className = 'reply-selection'
+  selectionButton.textContent = '引用して返信'
+  selectionButton.hidden = true
+  selectionButton.addEventListener('mousedown', event => event.preventDefault())
+  selectionButton.addEventListener('click', () => {
+    const picked = selectionPick
+    selectionButton.hidden = true; selectionPick = null
+    globalThis.getSelection?.()?.removeAllRanges()
+    if (picked) onReply(picked)
+  })
+  const holderOf = node => (node?.nodeType === 3 ? node.parentElement : node)?.closest?.('.message-text') ?? null
+  function quoteOfSelection(selection) {
+    const range = selection.getRangeAt(0), holder = holderOf(range.startContainer)
+    if (!holder || holder !== holderOf(range.endContainer) || !timelineItems.contains(holder)) return null
+    const item = state.timelineMap.get(holder.closest('[data-id]')?.dataset.id)
+    const text = selection.toString().trim().slice(0, 10000) // reply.md: 1..10000 characters; start is omitted (the bubble shows rendered markup)
+    if (!item || !text.trim()) return null
+    return { ...replySender(item), text: text.replace(/\s+/gu, ' ').trim(), quote: { text } }
+  }
+  function onSelectionChange() {
+    const selection = globalThis.getSelection?.()
+    selectionPick = selection && !selection.isCollapsed ? quoteOfSelection(selection) : null
+    selectionButton.hidden = !selectionPick
+    if (!selectionPick) return
+    const box = selection.getRangeAt(0).getBoundingClientRect()
+    selectionButton.style.left = `${Math.max(8, Math.min(box.left, (globalThis.innerWidth ?? 9999) - 140))}px`
+    selectionButton.style.top = `${box.bottom + 6}px`
+  }
+  if (document.body) { document.body.append(selectionButton); document.addEventListener('selectionchange', onSelectionChange) }
   // 引用を押す：読み込み済みの行へ、なければ before で遡って（has_more が尽きるまで）移る。無ければ動かず、その旨を引用の下に出す。
-  async function jumpToMessage(id, quote) {
+  async function jumpToMessage(id, quote, part = null) {
     const token = state.timelineToken
     while (token === state.timelineToken && !state.timelineMap.has(id) && state.timelineHasMore) {
       if (state.timelineLoadingOlder) { await new Promise(resolve => setTimeout(resolve, 50)); continue }
@@ -460,6 +518,20 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     row.scrollIntoView({ block: 'center' })
     row.classList.add('reply-jumped')
     setTimeout(() => row.classList.remove('reply-jumped'), 2000)
+    if (part) highlightPart(row, part)
+  }
+  // 部分の強調：本文の text node から探し、CSS Custom Highlight で 2.5 秒。見つからない、APIが無い時は行の強調だけ。
+  function highlightPart(row, part) {
+    const holder = row.querySelector?.('.message-text')
+    if (!holder || !globalThis.Highlight || !globalThis.CSS?.highlights) return
+    const nodes = [], walker = document.createTreeWalker(holder, 4)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node)
+    const hit = locateQuotePart(nodes, part.text, part.from)
+    if (!hit) return
+    const range = new Range()
+    range.setStart(hit.startNode, hit.startOffset); range.setEnd(hit.endNode, hit.endOffset)
+    CSS.highlights.set('reply-part', new Highlight(range))
+    setTimeout(() => globalThis.CSS?.highlights?.delete('reply-part'), 2500)
   }
 
   // 読み取り専用の分身の行（fork inquiry "Records and display"）。seat の無い行は本体。
