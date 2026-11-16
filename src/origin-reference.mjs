@@ -41,10 +41,6 @@ export function notFound() {
   return Object.assign(new Error('FORWARD_SOURCE_NOT_FOUND'), { code: 'FORWARD_SOURCE_NOT_FOUND', status: 404 })
 }
 
-export function imagesNotSupported() {
-  return Object.assign(new Error('FILE_NOT_SUPPORTED'), { code: 'FILE_NOT_SUPPORTED', status: 415 })
-}
-
 // The content part of a saved row: what a forward carries (never the Owner's comment of an earlier forward).
 export const contentOf = row => row.origin ? [...row.message].slice(row.origin.content_start).join('') : row.message
 
@@ -56,12 +52,10 @@ export async function resolveOrigin({ message, forward, share, replyTo, images, 
   let source = null
   if (forward) {
     try { source = await forwardSource({ kind: forward.source.kind, id: forward.source.id, messageId: forward.message_id }) } catch { source = null }
-    if (!source || (!source.text && !source.hasImages)) throw notFound()
-    // Images of an existing message need the parent read (forward.md "Forwarded images"): refused until it is live.
-    if (source.hasImages) throw imagesNotSupported()
+    if (!source || (!source.text && !source.imageAssets?.length)) throw notFound()
     if (!source.sender.name) source = { ...source, sender: { ...source.sender, name: nameOf(source.sender.id) } }
   }
-  return composeOrigin({ comment: message, forward, share, source })
+  return { ...composeOrigin({ comment: message, forward, share, source }), copy: source?.imageAssets ?? [] }
 }
 
 // source: { sender: {id, name}, at, text (the content part), origin? } read from the source conversation.

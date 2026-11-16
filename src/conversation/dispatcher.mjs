@@ -81,6 +81,8 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
   const assets = new MessageAssets({ root, botsAssetsRoot: join(root, 'state/bots'),
     readImage: async (image, _maxBytes, leaseId) => Buffer.from((await invoke('runtime.image.read', { image, leaseId })).data, 'base64'),
+    // forward.md "Forwarded images": an existing saved image is read by the parent inside the same save lease.
+    readAsset: async ({ owner, file }, leaseId) => Buffer.from((await invoke('assets.read', { owner, file, leaseId })).data, 'base64'),
     saveAdmission: {
       beginSave: async owner => (await invoke('assets.beginSave', { owner })).leaseId,
       endSave: leaseId => invoke('assets.endSave', { leaseId }),
