@@ -251,13 +251,17 @@ flowchart TD
   RPC --> Track[begin ACK前にgate.trackCompletion]
   Begin --> Track
   Track --> Read[同gate・同RPC handle / 既SeatRuntime.readImage 25MiB]
+  Track --> ReadAsset[NEW assets.read / 同gate・同RPC handle / 親の既conversationAssetReader 25MiB]
   Read --> End[endSaveはrequestedだけを返す]
+  ReadAsset --> End
   End --> Drain[同RPC実completion・実readの終端後だけgate解放]
 ```
 
-親`getServices()`は`bots`、`conversationUsage`、`conversationAssetGate`、`conversationCompletion(context)`、`seatRuntime`、`roomsRoot`を同実体で供給する。membersはfresh ACK後の同期表示snapshotからid/name/displayName/position/roleだけを射影する。usage/observer/onExecutionへは元enriched contextをそのまま渡す。任意methodやroomのprojectPath/CLI/envは閉DTOで拒否し、roomのprojectPathには親固定roomsRootだけを補う。実room-context runnerとその失敗意味は既公開helperが持つ。
+親`getServices()`は`bots`、`conversationUsage`、`conversationAssetGate`、`conversationCompletion(context)`、`seatRuntime`、`conversationAssetOpen`（assets.readが使う親の既`createConversationAssetReader`、HTTP配信と同一実体）、`roomsRoot`を同実体で供給する。membersはfresh ACK後の同期表示snapshotからid/name/displayName/position/roleだけを射影する。usage/observer/onExecutionへは元enriched contextをそのまま渡す。任意methodやroomのprojectPath/CLI/envは閉DTOで拒否し、roomのprojectPathには親固定roomsRootだけを補う。実room-context runnerとその失敗意味は既公開helperが持つ。
 
 channelのattachは送信試行前に受け取った実`completion`をrecord.actualCompletionへ保存し、同Promiseを親enriched context.actualCompletionへ渡す。wire root4field/callback5fieldは変更しない。共通assemblyのconversationCompletionはその親fieldをPromise検査して返し、欠測はbegin作用前に拒否する。同leaseの別RPC、caller返却Promise、end ACK、新deferredへ代用しない。
+
+`assets.read {owner,file,leaseId}→{data}`（base64）は転送（forward.md）が既存メッセージの保存画像を子へ渡すための親effectで、`runtime.image.read`と同形・同lease照合（同enriched context identity、assertSave、ending後は拒否）の下で、親の既`conversationAssetOpen(owner,file)`（owner/file検証、O_NOFOLLOW、25MiB上限）が返すstreamを読み切って返す。実readの実Promiseは読む前にgateへ登録する。ownerはlease（保存先）と別の読取元でよいが、検証は既reader（`ownerValid`/`FILE`）に従い、新しい拒否・lock・timeoutは足さない。子はMessageAssets.openを使えない（親専用）ままである。
 
 画像wire handleは同enriched context identityへ束縛し、その時点のgate/runtimeを保持する。clone/別RPC/別generationはlookup後の実gate assert前にも拒否する。readの実Promiseも実read開始前にgateへ登録する。endSaveの実終端PromiseはACKでawaitせず、成功終端後にhandleを破棄する。子がendSaveを送れなかった場合も同RPC実completionのsettleだけを契機に終了要請し、切断や期限から成功resolveを作らない。gateの実pending/削除drain/OS終端契約は変更しない。
 

@@ -76,6 +76,19 @@ export function createConversationParentEffects({ getServices, observerEffects, 
         result = { data: (await read).toString('base64') }
         break
       }
+      case 'assets.read': {
+        const entry = saved(params.leaseId, context)
+        if (entry.ending) fail('IMAGE_SAVE_LEASE_INVALID')
+        if (typeof services.conversationAssetOpen !== 'function') unavailable()
+        const read = Promise.resolve().then(async () => {
+          const chunks = []
+          for await (const chunk of (await services.conversationAssetOpen(params.owner, params.file)).stream) chunks.push(chunk)
+          return Buffer.concat(chunks)
+        })
+        entry.gate.trackCompletion(entry.lease, read)
+        result = { data: (await read).toString('base64') }
+        break
+      }
       case 'runtime.room.context':
         if (typeof services.roomsRoot !== 'string' || !services.roomsRoot) unavailable()
         result = { turns: await roomTurnsFromThroughline({ projectPath: services.roomsRoot, ...params }) }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { PassThrough, Writable } from 'node:stream'
+import { PassThrough, Readable, Writable } from 'node:stream'
 import { syncBuiltinESMExports } from 'node:module'
 import { createConversationParentEffects } from '../src/conversation-parent-effects.mjs'
 import { createConversationObserverParentEffects } from '../src/conversation/observer-parent.mjs'
@@ -84,6 +84,28 @@ test('save handles retain their original parent gate/runtime and track real root
   actual.reject(new Error('child reaped')); await tick(); assert.equal(endCalls, 1)
   gateDone.resolve(); await tick()
   await assert.rejects(adapter('assets.endSave', handle, ctx), { code: 'IMAGE_SAVE_LEASE_INVALID' })
+})
+
+test('assets.read reads a saved image through the parent reader inside the save lease, tracked before the read', async () => {
+  const ctx = context(), actual = Promise.withResolvers(), lease = {}, tracked = [], opened = []
+  ctx.actualCompletion = actual.promise
+  const gate = { beginSave: async () => lease, trackCompletion: (value, task) => { assert.equal(value, lease); tracked.push(task) },
+    assertSave: () => {}, endSave: async () => {} }
+  const services = { conversationAssetGate: gate, conversationCompletion: () => actual.promise,
+    conversationAssetOpen: async (owner, file) => { assert.equal(tracked.length, 2); opened.push([owner, file]); return { stream: Readable.from([Buffer.from('im'), Buffer.from('age')]) } } }
+  const adapter = createConversationParentEffects({ getServices: () => services })
+  const handle = await adapter('assets.beginSave', { owner: 'bot-b' }, ctx)
+  const params = { owner: 'bot-a', file: 'message-a-1.png', ...handle }
+  await assert.rejects(adapter('assets.read', params, { ...ctx }), { code: 'IMAGE_SAVE_LEASE_INVALID' })
+  assert.deepEqual(await adapter('assets.read', params, ctx), { data: Buffer.from('image').toString('base64') })
+  assert.deepEqual(opened, [['bot-a', 'message-a-1.png']])
+  await assert.rejects(adapter('assets.read', { ...params, file: '../x.png' }, ctx), { code: 'CONVERSATION_EFFECT_INVALID' })
+  await adapter('assets.endSave', handle, ctx)
+  await assert.rejects(adapter('assets.read', params, ctx), { code: 'IMAGE_SAVE_LEASE_INVALID' })
+  const none = createConversationParentEffects({ getServices: () => ({ ...services, conversationAssetOpen: undefined }) })
+  const h2 = await none('assets.beginSave', { owner: 'bot-b' }, ctx)
+  await assert.rejects(none('assets.read', { ...params, ...h2 }, ctx), { code: 'CONVERSATION_EFFECT_UNAVAILABLE' })
+  actual.resolve()
 })
 
 test('missing completion and invalid DTOs refuse before effects; upstream failures retain their identity', async () => {

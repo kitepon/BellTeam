@@ -44,7 +44,8 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     check: (request, context) => checkObserverProjects(request, { root, seatCommands: Boolean(getServices().seatRuntime), signal: context.signal }),
     read: (request, context) => readObserverTurns(request, { seatCommands: Boolean(getServices().seatRuntime), signal: context.signal }),
   })
-  const effects = createConversationParentEffects({ getServices: () => ({ ...getServices(), conversationAssetGate: gate,
+  const openAsset = createConversationAssetReader({ root })
+  const effects = createConversationParentEffects({ getServices: () => ({ ...getServices(), conversationAssetGate: gate, conversationAssetOpen: openAsset,
     conversationCompletion: context => {
       admission.assertLease(context.conversationLease)
       if (!(context.actualCompletion instanceof Promise)) throw denied()
@@ -131,7 +132,7 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
         throw Object.assign(new Error('CONVERSATION_TARGET_FORBIDDEN'), { code: 'CONVERSATION_TARGET_FORBIDDEN', status: 403 })
       return current.parent?.executionSource
     },
-    assets: { ...facade.assets, open: createConversationAssetReader({ root }), initialize: () => gate.initialize(),
+    assets: { ...facade.assets, open: openAsset, initialize: () => gate.initialize(),
       prepareBotAssetRemoval: (...args) => gate.prepareBotAssetRemoval(...args), cancelBotAssetRemoval: (...args) => gate.cancelBotAssetRemoval(...args) },
     run: (actor, operation, parent) => scope.run({ actor, parent }, operation),
     memberRequest(method, params, options, request) {
