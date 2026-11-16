@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T14:19:27Z",
-  "expiresAt": "2026-11-23T14:19:27Z",
+  "publishedAt": "2026-11-16T14:50:05Z",
+  "expiresAt": "2026-11-23T14:50:05Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
-      "versionId": "fa6cb9ed8e77f226a4b3806e3f9ae79fdacc3a0fd141d603f009b77e4caa4daa",
+      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
+      "versionId": "1ded54f897a003f9514445b5822b39dc9095656442bbd01172bfdb3798e787e1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz",
-          "bytes": 3917895,
-          "sha256": "fa6cb9ed8e77f226a4b3806e3f9ae79fdacc3a0fd141d603f009b77e4caa4daa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz",
+          "bytes": 3922671,
+          "sha256": "1ded54f897a003f9514445b5822b39dc9095656442bbd01172bfdb3798e787e1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "2c9abdfad754b1b631709fce7a5e7539c102b6d87c72220ef3c14ceb197aa9e2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "e75286ceeea7e1c00909c4e272fef110e55fbc08f919c402d18a4dbbb031a7c0"
         },
-        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
+        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,14 +232,14 @@
         }
       },
       "changes": [
-        "メッセージを選んで返信できるようになりました。返信には元の発言の引用が付きます。",
-        "発言の一部だけを選んで「引用して返信」できるようになりました。"
+        "メッセージを、ほかのBotや部屋へ転送できるようになりました。転送した発言には、転送元が分かる印が付きます。",
+        "転送では、元の発言の画像もいっしょに送れます。ほかのアプリから共有された文章・画像・ファイルも受け取れます。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
-      "versionId": "c2dab38e4fc9a71638da94a4c38c4babf7b0a58cc328aa850b836e70c75038ef",
+      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
+      "versionId": "c2a2d4a973584aa9e3fdeedfddd9f5959229da547772dcfeeaa44c3cc4bce69a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -247,16 +247,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz",
-          "bytes": 3917897,
-          "sha256": "c2dab38e4fc9a71638da94a4c38c4babf7b0a58cc328aa850b836e70c75038ef"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz",
+          "bytes": 3922671,
+          "sha256": "c2a2d4a973584aa9e3fdeedfddd9f5959229da547772dcfeeaa44c3cc4bce69a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11268,
-          "sha256": "7959280d9b38f1b806b999d7925d5e45d87661b4b5e840f298d7b3cdcaef7f85"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144829Z/conversation-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "ae813085bad3f47071bfbd67272fb57c13e4efeb080f3c24cbb4cf20c8c37652"
         },
-        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
+        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -287,8 +287,8 @@
         }
       },
       "changes": [
-        "メッセージを選んで返信できるようになりました。返信には元の発言の引用が付きます。",
-        "発言の一部だけを選んで「引用して返信」できるようになりました。"
+        "メッセージを、ほかのBotや部屋へ転送できるようになりました。転送した発言には、転送元が分かる印が付きます。",
+        "転送では、元の発言の画像もいっしょに送れます。ほかのアプリから共有された文章・画像・ファイルも受け取れます。"
       ]
     },
     {
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
-      "versionId": "d3ed2453ab43aed7aeb237ee471f8c32b8b76a38cd47c0df19cfafdf69ab63b1",
+      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
+      "versionId": "bfc8a69599c69b6e6501bca176cd93ff21d71ac3ab6b2f4531b897f77e7c4a88",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz",
-          "bytes": 5433592,
-          "sha256": "d3ed2453ab43aed7aeb237ee471f8c32b8b76a38cd47c0df19cfafdf69ab63b1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz",
+          "bytes": 5449425,
+          "sha256": "bfc8a69599c69b6e6501bca176cd93ff21d71ac3ab6b2f4531b897f77e7c4a88"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11205,
-          "sha256": "8b2b953312a88772e26239519893177e7862bb83f17ab20391fa26381169289f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11209,
+          "sha256": "ef542a9606ff792159775710a3ccdfb8ea9ac96ee2531e5724dddafaf7260388"
         },
-        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
+        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,14 +456,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web画面で、メッセージを選んで返信し、引用を押すと元の発言へ飛べるようになりました。",
-        "Web画面で、発言の一部を選んで「引用して返信」でき、引用した部分が強調して表示されます。"
+        "Web画面で、メッセージを転送できるようになりました。ドロップして共有することもできます。",
+        "Web画面で、画像を全画面で開き、拡大・ダウンロード・共有できるようになりました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
-      "versionId": "cbca57705ae7cc743d0f9cb2eb4c4fc76a2b74540a0efd8dbf07666f0c1e8c34",
+      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
+      "versionId": "d55aed2ed26325ccb3337cb5ddf097c55858156fa2e90cbcb78817fe91d88de9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -471,16 +471,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz",
-          "bytes": 5433592,
-          "sha256": "cbca57705ae7cc743d0f9cb2eb4c4fc76a2b74540a0efd8dbf07666f0c1e8c34"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz",
+          "bytes": 5449425,
+          "sha256": "d55aed2ed26325ccb3337cb5ddf097c55858156fa2e90cbcb78817fe91d88de9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11162,
-          "sha256": "383f7bded9ede332eac15914201a23c93b111a5989e0011987965321e304384f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144838Z/web-gateway-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11252,
+          "sha256": "596a1f57918ca02c812a1dc872568853b0f580db470df2e9f53ae2c461f41fa0"
         },
-        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
+        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -489,14 +489,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "Web画面で、メッセージを選んで返信し、引用を押すと元の発言へ飛べるようになりました。",
-        "Web画面で、発言の一部を選んで「引用して返信」でき、引用した部分が強調して表示されます。"
+        "Web画面で、メッセージを転送できるようになりました。ドロップして共有することもできます。",
+        "Web画面で、画像を全画面で開き、拡大・ダウンロード・共有できるようになりました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
-      "versionId": "cf16ccca5adf5bea98705038ffa74b2818f9f8bf1017454d0349442653d6baa5",
+      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
+      "versionId": "140ede7e3dd452baee4c6b18f707464414d21db840368384b8d6d33a46e1e56e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -504,16 +504,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz",
-          "bytes": 3980786,
-          "sha256": "cf16ccca5adf5bea98705038ffa74b2818f9f8bf1017454d0349442653d6baa5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz",
+          "bytes": 3983439,
+          "sha256": "140ede7e3dd452baee4c6b18f707464414d21db840368384b8d6d33a46e1e56e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "8d3b0dabd0bc0b7001bbf5ee45e3442542ea1f1a3ab31f639b0ce543ccc80bde"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "1ab74b868e877bb6014a37b7e4c8ba17f5a8a890cbf1064a2d3519f757c81ecc"
         },
-        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
+        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -523,13 +523,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
+        "Botへ送るメッセージに、画像だけでなくファイルも添えられるようになりました。Botにはファイルの場所が伝わります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476",
-      "versionId": "e33b1114138637f7b205226f6fe11f4b56ebb67cd6e674e86b6030eabe491f07",
+      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
+      "versionId": "a6af55d8a8784b97f0f33eb8f73835ee14c29f127fb112f962c2e0292f7a99cb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -537,16 +537,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz",
-          "bytes": 3980786,
-          "sha256": "e33b1114138637f7b205226f6fe11f4b56ebb67cd6e674e86b6030eabe491f07"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz",
+          "bytes": 3983440,
+          "sha256": "a6af55d8a8784b97f0f33eb8f73835ee14c29f127fb112f962c2e0292f7a99cb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T125444Z/execution-a1841ecc7bce9e4e1ecd69c4a3a44518eb677476-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "d08ab0c3aa816bfb211c9dfb2797e3eaed14dd378e9ba77a46c2dd41a1c47414"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11228,
+          "sha256": "75d885fbfbfedfc694dde46f59cff58b85676651a91641852524dc680bb8be61"
         },
-        "signerCommit": "a1841ecc7bce9e4e1ecd69c4a3a44518eb677476"
+        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -556,7 +556,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "モデルや強さの切り替えが、実行中のターンの途中でも効くようにしました。"
+        "Botへ送るメッセージに、画像だけでなくファイルも添えられるようになりました。Botにはファイルの場所が伝わります。"
       ]
     },
     {
