@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T10:49:51Z",
-  "expiresAt": "2026-11-23T10:49:51Z",
+  "publishedAt": "2026-11-16T13:13:14Z",
+  "expiresAt": "2026-11-23T13:13:14Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e",
-      "versionId": "63036faf14e9bae9347981c25f92d898ec6bee8de505e1d9b8ba6368b918fa19",
+      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
+      "versionId": "fa6cb9ed8e77f226a4b3806e3f9ae79fdacc3a0fd141d603f009b77e4caa4daa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T051546Z/conversation-8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e-linux-amd64.tar.gz",
-          "bytes": 3913288,
-          "sha256": "63036faf14e9bae9347981c25f92d898ec6bee8de505e1d9b8ba6368b918fa19"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz",
+          "bytes": 3917895,
+          "sha256": "fa6cb9ed8e77f226a4b3806e3f9ae79fdacc3a0fd141d603f009b77e4caa4daa"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T051546Z/conversation-8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11174,
-          "sha256": "211c51d9432c354d4a9e37c756383d473852b3cd371f2e371d25aceb554f6c8b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "2c9abdfad754b1b631709fce7a5e7539c102b6d87c72220ef3c14ceb197aa9e2"
         },
-        "signerCommit": "8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e"
+        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,14 @@
         }
       },
       "changes": [
-        "ターンの最後の答えが、会話の記録に必ず残るようにしました。"
+        "メッセージを選んで返信できるようになりました。返信には元の発言の引用が付きます。",
+        "発言の一部だけを選んで「引用して返信」できるようになりました。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e",
-      "versionId": "00d41fabd17430f2dd015b714eca5cf7a85677a7dde3001ddc2601978106279e",
+      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
+      "versionId": "c2dab38e4fc9a71638da94a4c38c4babf7b0a58cc328aa850b836e70c75038ef",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +247,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T051546Z/conversation-8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e-linux-arm64.tar.gz",
-          "bytes": 3913288,
-          "sha256": "00d41fabd17430f2dd015b714eca5cf7a85677a7dde3001ddc2601978106279e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz",
+          "bytes": 3917897,
+          "sha256": "c2dab38e4fc9a71638da94a4c38c4babf7b0a58cc328aa850b836e70c75038ef"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T051546Z/conversation-8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "d19262e4b79f36a96902a291b6ab63bc5b5670211f9e68c26af879e8ac25d763"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130344Z/conversation-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11268,
+          "sha256": "7959280d9b38f1b806b999d7925d5e45d87661b4b5e840f298d7b3cdcaef7f85"
         },
-        "signerCommit": "8d8b2b943fd3e3c54c0483b4b996dc8f3a696a9e"
+        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +287,8 @@
         }
       },
       "changes": [
-        "ターンの最後の答えが、会話の記録に必ず残るようにしました。"
+        "メッセージを選んで返信できるようになりました。返信には元の発言の引用が付きます。",
+        "発言の一部だけを選んで「引用して返信」できるようになりました。"
       ]
     },
     {
@@ -427,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c",
-      "versionId": "305efe84613ba2d2073114076f50a9d2494487621e71c380306bd1a272d1ca19",
+      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
+      "versionId": "d3ed2453ab43aed7aeb237ee471f8c32b8b76a38cd47c0df19cfafdf69ab63b1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-amd64.tar.gz",
-          "bytes": 5426668,
-          "sha256": "305efe84613ba2d2073114076f50a9d2494487621e71c380306bd1a272d1ca19"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz",
+          "bytes": 5433592,
+          "sha256": "d3ed2453ab43aed7aeb237ee471f8c32b8b76a38cd47c0df19cfafdf69ab63b1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10782,
-          "sha256": "b35bdf1588e8447ecafe50c291b58d76090b915c3ae872b26d8896ed58d65347"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "8b2b953312a88772e26239519893177e7862bb83f17ab20391fa26381169289f"
         },
-        "signerCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c"
+        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +456,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "エラーが一度に大量に起きても、診断の記録を取りこぼさず全件保存するようにしました。"
+        "Web画面で、メッセージを選んで返信し、引用を押すと元の発言へ飛べるようになりました。",
+        "Web画面で、発言の一部を選んで「引用して返信」でき、引用した部分が強調して表示されます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c",
-      "versionId": "d8d7c78cad5e12888f6a99598494509bd504d943111dcb1dfd6e375f5bfd80a4",
+      "sourceCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e",
+      "versionId": "cbca57705ae7cc743d0f9cb2eb4c4fc76a2b74540a0efd8dbf07666f0c1e8c34",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +471,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-arm64.tar.gz",
-          "bytes": 5426668,
-          "sha256": "d8d7c78cad5e12888f6a99598494509bd504d943111dcb1dfd6e375f5bfd80a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz",
+          "bytes": 5433592,
+          "sha256": "cbca57705ae7cc743d0f9cb2eb4c4fc76a2b74540a0efd8dbf07666f0c1e8c34"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T011617Z/web-gateway-4c695bd85265a77fb37cff04f6273ea94c87478c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10782,
-          "sha256": "fa5568f3fc220aa5bad3649be2fe00e1ae619e798a52044273c9e69dbc16ecd8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T130352Z/web-gateway-42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11162,
+          "sha256": "383f7bded9ede332eac15914201a23c93b111a5989e0011987965321e304384f"
         },
-        "signerCommit": "4c695bd85265a77fb37cff04f6273ea94c87478c"
+        "signerCommit": "42f4e0178354ab9fabe924e9f8c436b6fdd3ca3e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +489,8 @@
         "containerUpdate": null
       },
       "changes": [
-        "エラーが一度に大量に起きても、診断の記録を取りこぼさず全件保存するようにしました。"
+        "Web画面で、メッセージを選んで返信し、引用を押すと元の発言へ飛べるようになりました。",
+        "Web画面で、発言の一部を選んで「引用して返信」でき、引用した部分が強調して表示されます。"
       ]
     },
     {
@@ -709,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
-      "versionId": "sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba",
+      "sourceCommit": "c789435332feb0fa3cad7bfb868b267769d9ac3e",
+      "versionId": "sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に同梱するLatticeの実行ファイルを0.109.0へ上げました。"
+        "返信の情報（元の発言の引用）を、会話の記録として受け付けられるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3cb17d4d41fcb5ef0fff64ebdfa0f86f5c01b2a5",
-      "versionId": "sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba",
+      "sourceCommit": "c789435332feb0fa3cad7bfb868b267769d9ac3e",
+      "versionId": "sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cef913ed6209f4ca510b04a94e5f1e779cdcee487e414c7b76fab72fe88d30ba"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fc7e51b082de30356feb11430df8ce621852057f62a77679d07b2f3ec1f77825"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に同梱するLatticeの実行ファイルを0.109.0へ上げました。"
+        "返信の情報（元の発言の引用）を、会話の記録として受け付けられるようにしました。"
       ]
     },
     {
