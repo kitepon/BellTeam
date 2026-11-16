@@ -193,7 +193,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       ownerTaskCheck(args, input, (plan, task) => record[`${projectId}/${plan}/${task}`]?.status === 'linked')
       return locked(projectId, () => runOnce({ from: 'owner', sender: 'scheduler', projectId, args, input }, effect))
     },
-    // Marks a card decision-driven (L20): the Owner-lane hand-over and the hourly reminder skip it. A card that is not a decision task must exist in lane owner.
+    // Marks a card decision-driven (L20): the Owner-lane hand-over skips it. A card that is not a decision task must exist in lane owner.
     link: async ({ projectId, plan, taskId }, effect) => {
       if (!decisionTask(plan, taskId)) {
         await mustExist(projectId)

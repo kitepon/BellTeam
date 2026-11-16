@@ -72,7 +72,7 @@ test('owner task protocol: link and ownerTask requests and results, the refusal 
   assert.deepEqual(latticeWireError({ code: 'LATTICE_OWNER_TASK_REFUSED' }, 'not_accepted'), { code: 'LATTICE_OWNER_TASK_REFUSED', status: 403, outcome: 'not_accepted' })
 })
 
-test('owner hand-over a145/R3: a linked card is neither handed over nor reminded, and an asked one stops being reminded once linked', async () => {
+test('owner hand-over a145/R3: a linked card is not handed over', async () => {
   const members = [{ id: 'bot-c', name: 'Cee', deleting: false }]
   const old = new Date(Date.now() - 2 * 3600e3).toISOString()
   const cards = ['t1', 't2'].map(taskId => ({ plan: 'p1', taskId, title: taskId, state: 'ready', lane: 'owner' }))
@@ -81,7 +81,7 @@ test('owner hand-over a145/R3: a linked card is neither handed over nor reminded
   const stored = { 'alpha/p1/t1': { projectId: 'alpha', plan: 'p1', taskId: 't1', status: 'linked', linkedAt: old } }
   const records = { read: async () => structuredClone(stored), write: async () => assert.fail('nothing to write') }
   await ownerDecisions([{ projectId: 'alpha', name: 'A', createdBy: 'bot-c', cards: cards.slice(0, 1) }], { laneOf: laneResolver(members), names: new Map(), bots: new Set(['bot-c']), records, effect, log: () => {} })
-  assert.equal(sent.length, 0, 'linked: not handed over, not reminded')
+  assert.equal(sent.length, 0, 'linked: not handed over')
 })
 
 const bin = new URL('../distribution/lattice/node_modules/@quolu/lattice/bin/lattice.mjs', import.meta.url).pathname

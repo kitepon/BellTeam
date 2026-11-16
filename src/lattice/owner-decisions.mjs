@@ -23,17 +23,6 @@ function askMessage(chart, card) {
     + `No Approval Box extension drives this card, so you close it on his answer. A card the extension drives is closed by the extension itself (it is skipped here), and a hand close of it shows as diverged.`
 }
 
-// Task a145 (Owner 2026-11-15; Ink K-HME3YU: the answer reached Ink's conversation at 10:45 JST, the task stayed open ~2.5 h): Lattice cannot see a
-// Bot's own request (Nayuta: per-connection scope), so a handed-over task still open reminds its creator, at most once an hour while it is not running.
-const REMIND_MS = 60 * 60 * 1000
-function remindMessage(entries) {
-  return `Lattice: these Owner-lane tasks on charts you created are still open. Check your Approval Box request for each (list_my_decisions / resume_decision).\n`
-    + `If the Owner has answered, record it now: \`lattice todo start --plan <P> --task <T>\` (skip if in progress), then \`lattice todo done --plan <P> --task <T> --message "<the Owner's answer>"\`, or \`lattice todo note\` if the answer is not "done". `
-    + `If no request exists, file it as the hand-over said. If he has not answered yet, do nothing; this reminder comes again in an hour while the task is open.\n`
-    + `You close these cards: no Approval Box extension drives them (a card it drives is closed by the extension and is not listed here).\n`
-    + entries.map(({ chart, card }) => `- chart ${chart.projectId} (lattice tool, project ${chart.projectId}): ${card.plan}/${card.taskId} 「${card.title}」`).join('\n')
-}
-
 function answerMessage(chart, item, answer) {
   const option = OPTIONS.find(entry => entry.id === answer?.optionId)
   return `Lattice: the Owner answered the Approval Box request for an Owner-lane task on your chart ${chart.projectId}`
@@ -98,13 +87,10 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     await records.write(record)
     out.routed++
   }
-  const due = new Map()
   for (const chart of charts) for (const card of chart.cards) {
     if (!OPEN.has(card.state) || laneOf(card.lane) !== 'owner') continue
     const key = keyOf(chart.projectId, card)
     // shortcut: at most once per task, even after the answer; a reopened Owner task is not handed over again. Upgrade if the Owner asks for it.
-    if (record[key]?.status === 'asked' && bots.has(chart.createdBy) && Date.now() - Date.parse(record[key].remindedAt ?? record[key].askedAt) >= REMIND_MS)
-      due.set(chart.createdBy, [...due.get(chart.createdBy) ?? [], { chart, card, key }])
     if (record[key]) continue
     if (!bots.has(chart.createdBy)) { log(`lattice-owner-ask ${chart.projectId} no-creator`); continue }
     const sent = await effect('messages.send', { from: 'scheduler', target: chart.createdBy, message: askMessage(chart, card) }).catch(() => null)
@@ -112,19 +98,6 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     record[key] = { projectId: chart.projectId, plan: card.plan, taskId: card.taskId, title: card.title, status: 'asked', askedAt: new Date().toISOString() }
     await records.write(record)
     out.filed++
-  }
-  if (!due.size) return out
-  // As the nudge (L15): only 'working' proves a Bot is running; unknown or a failed read is reminded.
-  const turns = await effect('turns.read', { botIds: [...due.keys()] }).then(value => value.turns, () => ({}))
-  for (const [creator, all] of due) {
-    if (turns[creator] === 'working') continue
-    // shortcut: 20 tasks per message keep it under the 4000-char send limit with short titles; the rest wait for the next tick. Upgrade if titles grow long.
-    const entries = all.slice(0, 20)
-    const sent = await effect('messages.send', { from: 'scheduler', target: creator, message: remindMessage(entries) }).catch(() => null)
-    if (!SENT.includes(sent?.delivery)) { log(`lattice-owner-remind ${creator} not accepted`); continue }
-    const at = new Date().toISOString()
-    for (const { key } of entries) record[key] = { ...record[key], remindedAt: at }
-    await records.write(record)
   }
   return out
 }
