@@ -3,6 +3,7 @@
 param(
     [string]$ServerUrl,
     [switch]$NoLaunch,
+    [switch]$SkipShareTarget,
     [switch]$Uninstall
 )
 $ErrorActionPreference = 'Stop'
@@ -32,7 +33,8 @@ if ($ServerUrl) {
 New-Item -ItemType Directory -Force -Path $taskInstall | Out-Null
 Get-ChildItem -LiteralPath $taskPublish | Copy-Item -Destination $taskInstall -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall-windows.ps1') -Destination (Join-Path $taskInstall 'uninstall-windows.ps1') -Force
-$taskShortcutInstall = Start-Process -FilePath $taskExe -ArgumentList '--install-shortcut' -WindowStyle Hidden -Wait -PassThru
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'register-windows-share-target.ps1') -Destination (Join-Path $taskInstall 'register-windows-share-target.ps1') -Force
+$taskShortcutInstall =Start-Process -FilePath $taskExe -ArgumentList '--install-shortcut' -WindowStyle Hidden -Wait -PassThru
 if ($taskShortcutInstall.ExitCode -ne 0) { throw 'BellTeamのスタートメニュー登録に失敗しました。' }
 
 $taskRegistry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam'
@@ -50,4 +52,12 @@ foreach ($taskValue in $taskValues.GetEnumerator()) { New-ItemProperty -Path $ta
 New-ItemProperty -Path $taskRegistry -Name NoModify -Value 1 -PropertyType DWord -Force | Out-Null
 New-ItemProperty -Path $taskRegistry -Name NoRepair -Value 1 -PropertyType DWord -Force | Out-Null
 Write-Output "BellTeamを導入しました: $taskInstall"
+if (!$SkipShareTarget) {
+    # Share-in (a283): the one UAC prompt trusts the signing certificate. Without the Windows SDK nothing is registered, and the message says how to add it.
+    if (Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\*\x64\makeappx.exe') -ErrorAction SilentlyContinue) {
+        & (Join-Path $PSScriptRoot 'register-windows-share-target.ps1') -InstallDir $taskInstall
+    } else {
+        Write-Warning '他のアプリからの「共有」先には登録していません: Windows SDKがありません。winget install Microsoft.WindowsSDK.10.0.26100 のあと、もう一度この導入を実行してください。共有先が要らない場合は -SkipShareTarget を付けます。'
+    }
+}
 if (!$NoLaunch) { Start-Process -FilePath $taskExe -WindowStyle Normal }
