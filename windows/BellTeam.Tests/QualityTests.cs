@@ -82,6 +82,34 @@ public sealed class QualityTests
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
     [Fact]
+    public void BubbleShowsReplyForwardAndCopyIconsWithoutHover()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
+                {
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => JsonSerializer.Serialize(new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } }), "/api/owner" => ApiTests.Owner, "/api/rooms" => "{\"rooms\":[]}", "/api/queue" => ApiTests.EmptyQueue, _ => ApiTests.Page
+                })))));
+                workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult(); workspace.SelectAsync(workspace.Entries.Single()).GetAwaiter().GetResult();
+                System.Windows.Controls.Button Icon(MessageCard card, string name) => LogicalTree.Find<System.Windows.Controls.Button>(card.Content).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name);
+                var card = new MessageCard { Workspace = workspace, Message = new() { Id = "example", At = DateTimeOffset.Now, Direction = "incoming", Message = "コピーする本文" } };
+                foreach (var name in new[] { "このメッセージに返信", "このメッセージを転送", "このメッセージをコピー" }) { var icon = Icon(card, name); Assert.Equal(System.Windows.Visibility.Visible, icon.Visibility); Assert.Equal(1, icon.Opacity); }
+                Icon(card, "このメッセージをコピー").RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal("コピーする本文", System.Windows.Clipboard.GetText());
+                // A row with no text has nothing to copy.
+                var empty = new MessageCard { Workspace = workspace, Message = new() { Id = "empty", At = DateTimeOffset.Now, Direction = "incoming", Message = "" } };
+                Assert.Equal(System.Windows.Visibility.Collapsed, Icon(empty, "このメッセージをコピー").Visibility);
+            }
+            catch (Exception error) { failure = error; }
+            finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
     public void EditedThemeUpdatesExistingBubbleWithoutReplacingSelectableText()
     {
         Exception? failure = null;
@@ -96,7 +124,7 @@ public sealed class QualityTests
                 })))));
                 workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult(); workspace.SelectAsync(workspace.Entries.Single()).GetAwaiter().GetResult();
                 var card = new MessageCard { Workspace = workspace, Message = new() { Id = "example", At = DateTimeOffset.Now, Direction = "incoming", Message = "選択できる本文" } };
-                var bubble = LogicalTree.Find<System.Windows.Controls.Border>(card.Content).Single(border => border.CornerRadius == new System.Windows.CornerRadius(21)); var body = LogicalTree.Find<MarkdownView>(card.Content).Single(); var document = body.Document;
+                var bubble = LogicalTree.Find<System.Windows.Controls.Border>(card.Content).Single(border => border.CornerRadius == new System.Windows.CornerRadius(21)); var body = LogicalTree.Find<MarkdownView>(card.Content).First(); var document = body.Document; // the first is the comment; a forwarded row adds a second one for its content
                 color = "rose"; workspace.RefreshManagementAsync().GetAwaiter().GetResult();
                 Assert.Equal(System.Windows.Media.Color.FromArgb(46, 232, 107, 148), Assert.IsType<System.Windows.Media.SolidColorBrush>(bubble.Background).Color); Assert.Same(document, body.Document);
             }

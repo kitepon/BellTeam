@@ -30,15 +30,19 @@ public sealed class MessageCard : ContentControl
     private StackPanel? imagePlaceholder;
     private TextBlock? imageLabel;
     private TextBlock? replyLabel;
-    // Reply (conversation reply.md): the quote above the text, tap = jump; the 返信 button of the time line and the right-click menu.
+    // Reply (conversation reply.md): the quote above the text, tap = jump; the reply icon under the bubble and the right-click menu.
     private Button? quoteButton;
     private TextBlock? quoteName, quoteText, quoteNote;
     // Forward (forward.md): the origin mark above a forwarded or shared row, and its content as a quoted block under the Owner's comment.
     private TextBlock? originMark;
     private Border? contentBorder;
     private MarkdownView? contentBody;
-    private readonly Button forwardButton = new() { Content = "転送", FontSize = 14, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(0), Opacity = 0, Cursor = System.Windows.Input.Cursors.Hand };
-    private readonly Button replyButton = new() { Content = "返信", FontSize = 14, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(0), Opacity = 0, Cursor = System.Windows.Input.Cursors.Hand };
+    // Bubble actions (a303, the same row on every platform): three small icons at the bubble's bottom right, always visible. Reply and forward act as the right-click menu does; copy puts the message text on the clipboard.
+    private readonly Button replyButton = ActionIcon("", "返信", "このメッセージに返信");
+    private readonly Button forwardButton = ActionIcon("", "転送", "このメッセージを転送");
+    private readonly Button copyButton = ActionIcon("", "コピー", "このメッセージをコピー");
+    private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+    private Grid? footer;
     private SecretCard? secret;
     private QuestionCard? question;
     private Border? bubble;
@@ -59,24 +63,32 @@ public sealed class MessageCard : ContentControl
     }
     public MessageCard()
     {
-        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery); timeLine.Children.Add(replyButton); timeLine.Children.Add(forwardButton);
-        replyButton.SetResourceReference(StyleProperty, "QuietButton"); replyButton.Padding = new Thickness(0); replyButton.Margin = new Thickness(10, 0, 0, 0); replyButton.Foreground = Frozen(Color.FromRgb(0x61, 0x47, 0xD4));
-        System.Windows.Automation.AutomationProperties.SetName(replyButton, "このメッセージに返信");
+        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery);
+        actions.Children.Add(replyButton); actions.Children.Add(forwardButton); actions.Children.Add(copyButton);
         replyButton.Click += (_, _) => Workspace.StartQuote(Message);
-        // Shown while the pointer or the keyboard is on the row; it stays focusable so the keyboard can reach it.
-        forwardButton.SetResourceReference(StyleProperty, "QuietButton"); forwardButton.Padding = new Thickness(0); forwardButton.Margin = new Thickness(10, 0, 0, 0); forwardButton.Foreground = replyButton.Foreground;
-        System.Windows.Automation.AutomationProperties.SetName(forwardButton, "このメッセージを転送");
         forwardButton.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.ShowForwardSheet(Message);
-        foreach (var action in new[] { replyButton, forwardButton })
-        {
-            MouseEnter += (_, _) => action.Opacity = 1; MouseLeave += (_, _) => action.Opacity = action.IsKeyboardFocusWithin ? 1 : 0;
-            action.GotKeyboardFocus += (_, _) => action.Opacity = 1; action.LostKeyboardFocus += (_, _) => action.Opacity = IsMouseOver ? 1 : 0;
-        }
+        copyButton.Click += (_, _) => CopyText();
         Loaded += (_, _) =>
         {
             if (entered || Workspace is null || DataContext is not MessageItem item) return;
             entered = true; MessageEntrance.Play(this, Workspace.Messages.Count - 1 - Math.Max(0, Workspace.Messages.IndexOf(item)), Workspace.Opening);
         };
+    }
+    private static Button ActionIcon(string glyph, string tip, string name)
+    {
+        var button = new Button { Content = Glyph(glyph, 15, Frozen(Color.FromRgb(0x61, 0x47, 0xD4))), ToolTip = tip, Cursor = System.Windows.Input.Cursors.Hand };
+        button.SetResourceReference(StyleProperty, "QuietButton"); button.Padding = new Thickness(7, 4, 7, 4); button.Margin = new Thickness(0);
+        System.Windows.Automation.AutomationProperties.SetName(button, name);
+        return button;
+    }
+    // The text the row shows (a forwarded row: its comment and the forwarded content). A clipboard another program holds is transient: the icon stays as it was, and the check mark shows only a copy that went through.
+    private void CopyText()
+    {
+        try { Clipboard.SetDataObject(Message.Message ?? "", true); } catch (System.Runtime.InteropServices.ExternalException) { return; }
+        var icon = (TextBlock)copyButton.Content; icon.Text = "";
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        timer.Tick += (_, _) => { timer.Stop(); icon.Text = ""; };
+        timer.Start();
     }
     private static void Changed(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
@@ -181,9 +193,13 @@ public sealed class MessageCard : ContentControl
         stack = new StackPanel { Children = { quoteButton, originMark, heading, images, imagePlaceholder, body, contentBorder, replyLabel } };
         bubble = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1) };
         accentName = null;
-        timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        // The time line sits at the sender's side of the bubble, the action icons at its bottom right.
+        timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left; timeLine.VerticalAlignment = VerticalAlignment.Center;
         if (timeLine.Parent is Panel previousParent) previousParent.Children.Remove(timeLine);
-        var column = new StackPanel { Children = { stackName, stackImages, bubble, timeLine } };
+        if (actions.Parent is Panel previousActions) previousActions.Children.Remove(actions);
+        footer = new Grid(); footer.ColumnDefinitions.Add(new ColumnDefinition()); footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(timeLine, 0); Grid.SetColumn(actions, 1); footer.Children.Add(timeLine); footer.Children.Add(actions);
+        var column = new StackPanel { Children = { stackName, stackImages, bubble, footer } };
         // Mac: a room shows the sender's 30 avatar beside incoming rows; the free 45 on the opposite side is the Spacer(minLength: 45).
         layout = new Grid { Margin = outgoing ? new Thickness(45, 0, 0, 0) : new Thickness(0, 0, 45, 0) };
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); layout.ColumnDefinitions.Add(new ColumnDefinition());
@@ -267,6 +283,7 @@ public sealed class MessageCard : ContentControl
         }
         replyButton.Visibility = Timeline.IsQuotable(message) ? Visibility.Visible : Visibility.Collapsed;
         forwardButton.Visibility = Timeline.IsForwardable(message) ? Visibility.Visible : Visibility.Collapsed;
+        copyButton.Visibility = string.IsNullOrEmpty(message.Message) ? Visibility.Collapsed : Visibility.Visible;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
         foreach (UIElement part in stack!.Children) { if (part.Visibility == Visibility.Collapsed) continue; ((FrameworkElement)part).Margin = new Thickness(part == body ? -5 : 0, first ? 0 : 8, part == body ? -5 : 0, 0); first = false; } // the rich text box insets its text by 5
@@ -278,6 +295,9 @@ public sealed class MessageCard : ContentControl
         var fork = !isRoom && message.IsFork;
         forkBadge.Visibility = fork ? Visibility.Visible : Visibility.Collapsed;
         timeLine.Visibility = delivery.Text.Length == 0 && !fork ? Visibility.Collapsed : Visibility.Visible;
-        timeLine.Margin = new Thickness(5, hasBubble ? 5 : 0, 5, 0);
+        var anyAction = actions.Children.Cast<UIElement>().Any(button => button.Visibility == Visibility.Visible);
+        actions.Visibility = anyAction ? Visibility.Visible : Visibility.Collapsed;
+        footer!.Visibility = timeLine.Visibility == Visibility.Visible || anyAction ? Visibility.Visible : Visibility.Collapsed;
+        timeLine.Margin = new Thickness(5, 0, 5, 0); footer.Margin = new Thickness(0, hasBubble ? 3 : 0, 0, 0);
     }
 }
