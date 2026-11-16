@@ -45,7 +45,7 @@ export class RoomMessenger {
   }
 
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
-  async sendRoomMessageInOrder({ from, room: roomId, message: comment, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, forward, share, executionSource }, check = () => {}, { membersLease } = {}) {
+  async sendRoomMessageInOrder({ from, room: roomId, message: comment, image = null, images: sent = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, forward, share, executionSource }, check = () => {}, { membersLease } = {}) {
     check()
     await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })])
     const room = this.rooms.get(roomId)
@@ -60,9 +60,10 @@ export class RoomMessenger {
     if (replyTo !== undefined) requireReplyTo(replyTo)
     if (replyQuote !== undefined) { if (replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 }); requireReplyQuote(replyQuote) }
     if ((forward !== undefined || share !== undefined) && from !== 'user') throw new Error('ORIGIN_NOT_ALLOWED')
+    let images = sent
     const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
     const message = origin ? origin.message : comment
-    if (!message.length && !images.length) throw new Error('MESSAGE_REQUIRED')
+    if (!message.length && !images.length && !origin?.copy.length) throw new Error('MESSAGE_REQUIRED')
     if (responseTo) {
       const posted = (await this.rooms.messages(room.id)).find(item => item.responseTo === responseTo && item.sender.id === from)
       if (posted) return { id: posted.id, room: room.id, targets: posted.routing?.responders ?? [], delivery: 'already_posted' }
@@ -81,7 +82,10 @@ export class RoomMessenger {
     const imageAsset = images.length && !['user', 'scheduler'].includes(from) && this.assets
       ? await this.assets.save({ owner: from, id, image: images[0] })
       : null
-    const imageAssets = images.length && from === 'user' && this.assets ? await this.assets.saveAll({ owner: 'user', id, images }) : []
+    let imageAssets = images.length && from === 'user' && this.assets ? await this.assets.saveAll({ owner: 'user', id, images }) : []
+    // A forward copies the original's images into new saved images and hands the same bytes to every Bot.
+    const copied = origin?.copy.length && this.assets ? await this.assets.copyAll({ owner: 'user', id, sources: origin.copy }) : null
+    if (copied) { imageAssets = [...imageAssets, ...copied.assets]; images = [...images, ...copied.images] }
     const record = {
       schema: 'bellteam.room-message.v1', id, at: this.now(), kind,
       sender, room: snapshot, targets: manualResponders?.map(id => memberIdentity(this.bots, id)) ?? [],

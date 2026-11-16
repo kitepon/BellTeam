@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 
 import { validateConversationRequest } from '../src/conversation/requests.mjs'
 import { validateDirectLogRecord } from '../src/direct-log-record.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
+import { MessageAssets } from '../src/message-assets.mjs'
 import { composeOrigin, contentOf, originNotice, readOrigin, validForward, validShare } from '../src/origin-reference.mjs'
 import { RoomHistory } from '../src/room-history.mjs'
 import { RoomMessenger } from '../src/room-messenger.mjs'
@@ -81,17 +82,35 @@ test('direct: forward a Bot row, an Owner row and an interim row; share with and
   assert.equal(rows.filter(row => row.schema === 'bellteam.direct-message.v1' && row.from === 'user').length, 6)
 })
 
-test('forwarding a message that has images is refused until the parent read exists; shared images are fine', async t => {
+test('forwarding a message that has images copies them and hands the bytes to the Bot', async t => {
   const root = await mkdtemp(join(tmpdir(), 'origin-images-')); t.after(() => rm(root, { recursive: true, force: true }))
-  const bots = new Map([['bot-a', { id: 'bot-a', name: 'あかり' }]])
+  const bots = new Map([['bot-a', { id: 'bot-a', name: 'あかり' }], ['bot-b', { id: 'bot-b', name: 'ゆず' }]])
   const logPath = join(root, 'direct.jsonl')
-  await writeFile(logPath, `${JSON.stringify({ schema: 'bellteam.direct-message.v1', delivery_id: 'img-1', at, from: 'user', target: 'bot-a',
-    from_identity: { id: 'user', name: 'ユーザー', position: '', role: 'オーナー' }, target_identity: { id: 'bot-a', name: 'あかり', position: '', role: '' },
-    message: '写真です', image: true, image_count: 1, delivery: 'delivered' })}\n`)
-  const messenger = new BellTeamMessenger({ bots, logPath, deliveryId: () => 'id-new', now: () => at,
-    transport: { async turn() { return 'ok' } }, forwardSource: ({ id, messageId }) => messenger.store.forwardSource(id, messageId) })
-  await assert.rejects(messenger.userTurn({ target: 'bot-a', message: '', forward: fwd('img-1') }), { code: 'FILE_NOT_SUPPORTED', status: 415 })
-  assert.equal((await readFile(logPath, 'utf8')).trim().split('\n').length, 1)
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 7)])
+  const assets = new MessageAssets({ root })
+  const original = await assets.saveAll({ owner: 'bot-a', id: 'img-1', images: [{ data: png.toString('base64') }] })
+  await mkdir(dirname(logPath), { recursive: true })
+  await writeFile(logPath, `${JSON.stringify({ schema: 'bellteam.direct-message.v1', delivery_id: 'img-1', at, from: 'bot-a', target: 'user',
+    from_identity: { id: 'bot-a', name: 'あかり', position: '', role: '' }, target_identity: { id: 'user', name: 'ユーザー', position: '', role: 'オーナー' },
+    message: '', image: true, image_count: 1, image_assets: original, delivery: 'delivered' })}\n`)
+  const delivered = []
+  const messenger = new BellTeamMessenger({ bots, logPath, assets, deliveryId: () => 'id-new', now: () => at,
+    transport: { async turn(bot, text, options) { delivered.push([bot.id, text, options.images]); return 'ok' } },
+    forwardSource: ({ id, messageId }) => messenger.store.forwardSource(id, messageId) })
+  // an image-only original forwards with an empty comment; the copy is a new saved file under the Owner
+  await messenger.userTurn({ target: 'bot-b', message: '', forward: fwd('img-1', 'bot', 'bot-a') })
+  const rows = (await readFile(logPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  rows.forEach(validateDirectLogRecord)
+  const copy = rows.at(-2)
+  assert.deepEqual([copy.message, copy.image, copy.image_count, copy.origin.kind], ['', true, 1, 'forward'])
+  assert.deepEqual([copy.image_assets[0].owner, copy.image_assets[0].file, copy.image_assets[0].mime], ['user', 'id-new-f-1.png', 'image/png'])
+  assert.deepEqual(await readFile(join(root, 'owner/messages/assets/id-new-f-1.png')), png)
+  assert.deepEqual(delivered[0][2], [{ mime: 'image/png', data: png.toString('base64') }])
+  // the original can be removed without breaking the forward
+  await rm(join(root, 'bots/bot-a/messages/assets/img-1-1.png'))
+  assert.deepEqual(await readFile(join(root, 'owner/messages/assets/id-new-f-1.png')), png)
+  // an original whose image is gone and that has no text is not found
+  await assert.rejects(messenger.userTurn({ target: 'bot-b', message: '', forward: fwd('none', 'bot', 'bot-a') }), { code: 'FORWARD_SOURCE_NOT_FOUND' })
 })
 
 test('room: forward from a room and a Bot conversation, share with images only, Bots cannot forward', async t => {

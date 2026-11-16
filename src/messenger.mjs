@@ -353,17 +353,18 @@ export class BellTeamMessenger extends ConversationWriter {
     return completion
   }
 
-  async prepareUserTurn({ target, message: comment, images = [], recordUser = true, replyTo, replyQuote, forward, share }) {
+  async prepareUserTurn({ target, message: comment, images: sent = [], recordUser = true, replyTo, replyQuote, forward, share }) {
     const check = this.admitWork()
     await this.bots.refresh?.()
     const bot = this.bots.get(target)
     if (!bot) throw new Error(`BOT_NOT_FOUND: ${target}`)
     await this.requireAccess({ from: 'user', target })
     if (typeof comment !== 'string') throw new Error('MESSAGE_REQUIRED')
+    let images = sent
     images.forEach(validateImage)
     const origin = await resolveOrigin({ message: comment, forward, share, replyTo, images, forwardSource: this.forwardSource, nameOf: id => memberIdentity(this.bots, id).name })
     const message = origin ? origin.message : comment
-    if (message.length === 0 && !images.length) throw new Error('MESSAGE_REQUIRED')
+    if (message.length === 0 && !images.length && !origin?.copy.length) throw new Error('MESSAGE_REQUIRED')
     if (replyQuote !== undefined && replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 })
     const reply = replyTo === undefined ? null : await this.replyReference(target, replyTo, replyQuote)
     const deliveryId = this.deliveryId()
@@ -371,8 +372,11 @@ export class BellTeamMessenger extends ConversationWriter {
     if (recordUser) {
       // 送った画像を会話の記録に残す。Botへ渡す一時ファイルはターンが終われば消える。
       const imageAssets = images.length && this.assets ? await this.assets.saveAll({ owner: 'user', id: deliveryId, images }) : []
+      // A forward copies the original's images into new saved images and hands the same bytes to the Bot.
+      const copied = origin?.copy.length && this.assets ? await this.assets.copyAll({ owner: 'user', id: deliveryId, sources: origin.copy }) : null
+      if (copied) images = [...images, ...copied.images]
       await this.append(this.record({
-        deliveryId, from: 'user', target, message, images, imageAssets, delivery: 'running', replyTo: reply, origin: origin?.origin,
+        deliveryId, from: 'user', target, message, images, imageAssets: [...imageAssets, ...(copied?.assets ?? [])], delivery: 'running', replyTo: reply, origin: origin?.origin,
       }))
     }
     return { target, message, images, bot, deliveryId, startedAt, check, replyTo: reply, origin: origin?.origin }

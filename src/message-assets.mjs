@@ -21,13 +21,19 @@ export class MessageAssets {
   #ready
   #restored
 
-  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes, readRemovalStates = null, saveAdmission = null }) {
+  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes, readAsset = null, readRemovalStates = null, saveAdmission = null }) {
     if (saveAdmission && (readRemovalStates !== null || typeof saveAdmission.beginSave !== 'function'
       || typeof saveAdmission.endSave !== 'function')) throw new Error('IMAGE_ASSET_ADMISSION_INVALID')
     this.root = root
     this.maxBytes = maxBytes
     this.botsAssetsRoot = botsAssetsRoot
     this.readImage = readImage
+    // forward.md "Forwarded images": the module child reads an existing saved image through the parent effect assets.read.
+    this.readAsset = readAsset ?? (async source => {
+      const chunks = []
+      for await (const chunk of (await this.open(source.owner, source.file)).stream) chunks.push(chunk)
+      return Buffer.concat(chunks)
+    })
     this.saveAdmission = saveAdmission
     this.#restored = readRemovalStates === null
     this.#ready = readRemovalStates === null ? Promise.resolve() : Promise.resolve().then(async () => {
@@ -58,7 +64,10 @@ export class MessageAssets {
   }
 
   async #save({ owner, id, image, lease }) {
-    const bytes = await this.readImage(image, this.maxBytes, lease)
+    return this.#write({ owner, id, bytes: await this.readImage(image, this.maxBytes, lease) })
+  }
+
+  async #write({ owner, id, bytes }) {
     const mime = detectMime(bytes)
     if (!mime) throw new Error('IMAGE_FILE_INVALID')
     const extension = MIME_EXTENSION.get(mime)
@@ -92,6 +101,23 @@ export class MessageAssets {
       if (error.code === 'ELOOP') throw new Error('IMAGE_ASSET_INVALID')
       throw error
     }
+  }
+
+  // Copies existing saved images (a forward) into new ones under `owner`; returns the saved descriptors and the bytes for delivery.
+  async copyAll({ owner, id, sources }) {
+    validateId(owner)
+    return this.#trackSave(owner, async lease => {
+      const assets = [], images = []
+      for (const [index, source] of sources.entries()) {
+        const imageId = `${id}-f-${index + 1}`
+        validateId(imageId)
+        const bytes = await this.readAsset(source, lease)
+        const saved = await this.#write({ owner, id: imageId, bytes })
+        assets.push(saved)
+        images.push({ mime: saved.mime, data: bytes.toString('base64') })
+      }
+      return { assets, images }
+    })
   }
 
   // オーナーが送った画像は、Botのプロジェクトではなくオーナーの場所に置く。
