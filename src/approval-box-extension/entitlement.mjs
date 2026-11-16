@@ -9,7 +9,8 @@ export function entitlementFrom(me, { now = Date.now(), reachable = true, creden
   if (!reachable) return previous ?? out('unknown', true, null, now) // never known: true, nothing can be read then anyway
   if (me?.billing === 'off') return out('paid', true, me, now)
   const future = me?.expires_at && Date.parse(me.expires_at) > now
-  if (me?.plan === 'active') return future ? out('paid', true, me, now) : out('unknown', previous?.entitled ?? true, me, now)
+  // plan active with no expires_at is the billing-exempt account (api v0.39 /me omits expires_at and store for it): usable, nothing to expire.
+  if (me?.plan === 'active') return future || !me.expires_at ? out('paid', true, me, now) : out('unknown', previous?.entitled ?? true, me, now)
   if (me?.plan === 'expired') return future ? out('revoked', false, me, now) : out('expired', false, me, now)
   if (me?.plan === 'trial') return out('trial', true, me, now)
   return out('none', false, me, now)

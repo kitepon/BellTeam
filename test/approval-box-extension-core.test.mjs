@@ -41,7 +41,8 @@ test('entitlement: trial and billing-off are entitled (Owner decision d); expire
   const known = at({ plan: 'active', expires_at: future })
   assert.equal(at(null, { reachable: false, previous: known }), known)
   assert.equal(at(null, { reachable: false }).entitled, true)
-  assert.equal(at({ plan: 'active', billing: 'store' }, { previous: known }).state, 'unknown')
+  assert.equal(at({ plan: 'active', billing: 'store' }).state, 'paid') // billing-exempt account: no expires_at, no store
+  assert.equal(at({ plan: 'active', expires_at: past, billing: 'store' }, { previous: known }).state, 'unknown')
   assert.equal(cacheMillis(known), 300_000); assert.equal(cacheMillis(at({})), 60_000)
 })
 
