@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T20:41:11Z",
-  "expiresAt": "2026-11-23T20:41:11Z",
+  "publishedAt": "2026-11-16T21:19:11Z",
+  "expiresAt": "2026-11-23T21:19:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd",
-      "versionId": "a214d1c6becac92fbe2ddc1f3fa29892406aa4112e1d462a3fc648b69fba1233",
+      "sourceCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745",
+      "versionId": "724d32b1d074adc9d05965fffbf1bdf6df69f7dd4d4ad1c047fe9d75feb66ba0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-amd64.tar.gz",
-          "bytes": 5451263,
-          "sha256": "a214d1c6becac92fbe2ddc1f3fa29892406aa4112e1d462a3fc648b69fba1233"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-amd64.tar.gz",
+          "bytes": 5451293,
+          "sha256": "724d32b1d074adc9d05965fffbf1bdf6df69f7dd4d4ad1c047fe9d75feb66ba0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "cb8edadb8fd234f4f304276703cffff3f851483b764ece4eb5f445bc11e608c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11193,
+          "sha256": "e805d488860cf855fb02208edb975a37a19bb5bcbd6271d5db376388e18b9f7c"
         },
-        "signerCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd"
+        "signerCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,14 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webアプリで、メッセージの吹き出しの右下に、返信・転送・コピーの小さなアイコンを常に表示するようにしました。これまでの、マウスを乗せた時だけ出る「返信」「転送」の文字ボタンは、このアイコンに置き換わります。",
-        "スマホなど、マウスを使わない端末でも同じ操作ができます。"
+        "Webアプリの決裁箱のカードに、「false」と表示されてしまう不具合を直しました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd",
-      "versionId": "1def83da58c2e64584bd98dc87300e8e424a0125ef3a196e9a643640b89a37fa",
+      "sourceCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745",
+      "versionId": "77ea37bc466c04bffa4953032b65bdb4d1edb2e66ab18089db142ae5dbc127ae",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -471,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-arm64.tar.gz",
-          "bytes": 5451263,
-          "sha256": "1def83da58c2e64584bd98dc87300e8e424a0125ef3a196e9a643640b89a37fa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-arm64.tar.gz",
+          "bytes": 5451293,
+          "sha256": "77ea37bc466c04bffa4953032b65bdb4d1edb2e66ab18089db142ae5dbc127ae"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T204027Z/web-gateway-e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11099,
-          "sha256": "2727197017812bdb8c2925f197079cf91eef81e2123e2852b9c2bad64e946715"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T211846Z/web-gateway-f2f9c446f31a4d1c3ed8f75c722983f355a66745-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "4d2c57f760daa97cb9860e71ef33e7cde9cc96629fdcc71232f5618d853b936c"
         },
-        "signerCommit": "e9cf061a22a6fb8d4ff1cda042cc7cbcf5e1e8bd"
+        "signerCommit": "f2f9c446f31a4d1c3ed8f75c722983f355a66745"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -489,8 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webアプリで、メッセージの吹き出しの右下に、返信・転送・コピーの小さなアイコンを常に表示するようにしました。これまでの、マウスを乗せた時だけ出る「返信」「転送」の文字ボタンは、このアイコンに置き換わります。",
-        "スマホなど、マウスを使わない端末でも同じ操作ができます。"
+        "Webアプリの決裁箱のカードに、「false」と表示されてしまう不具合を直しました。"
       ]
     },
     {
