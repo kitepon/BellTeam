@@ -37,7 +37,7 @@ flowchart LR
     F4["F4 Link record<br/>decisionId ↔ project/plan/task + handled version<br/>(ids and state only)"]
     F5["F5 App contract /api/approvals/*<br/>summary, list, one, answer, hold, events, by-task"]
     F6["F6 Entitlement gate (contract R4, Bready)<br/>in-process: Approval Box /me through F7 → {entitled,state,validUntil,…}<br/>gate reads only entitled; unknown = keep last known, never lock; cache 5 min"]
-    F7["F7 Connection holder<br/>device-authorization connect (no redirect to the user's server): request code → hosted consent page → child polls → scoped session, 90 days<br/>(kept as usage secret, R7 agreed; never in logs)"]
+    F7["F7 Connection holder<br/>device-authorization connect (no redirect to the user's server): request code → hosted consent page → child polls → scoped session, 90 days<br/>(kept as usage secret, R7: usage `secrets.put/erase` not shipped yet, task a199; until then it lives in this process only, and a refused put is retried on every later root; never in logs)"]
   end
   subgraph LAT["Lattice module (Flora) — unchanged contract + R3"]
     LPORT["public port<br/>owner-task: add / start / done / retire / note / find"]

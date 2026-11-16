@@ -125,6 +125,17 @@ test('connect: the request code opens the hosted page, the poll hands over the s
   assert.equal(h.stored(), null)
 })
 
+test('connect: a refused session.put keeps the session in memory and saves it again on a later root (a198)', async () => {
+  const h = harness({ session: null, decisions: [], pairing: { status: 'claimed', session: 'kss_new', expires_at: '2099-02-01T00:00:00Z' } })
+  let refuse = true
+  const effect = (method, params) => method === 'session.put' && refuse ? Promise.reject(new Error('unavailable')) : h.effect(method, params)
+  await h.core.connect({}, effect)
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal((await h.core.connection({}, effect)).state, 'connected'); assert.equal(h.stored(), null) // works in memory, nothing stored yet
+  refuse = false
+  assert.equal((await h.core.connection({}, effect)).state, 'connected'); assert.match(h.stored(), /kss_new/u) // the next root saves it
+})
+
 test('byTask: a linked task answers its decision; anything else (or any failure) answers null', async () => {
   const h = harness({ decisions: [raw('K-AAAA')] })
   assert.equal(await h.core.byTask({ project: 'bellteam', plan: 'approval-box', task: 'dec-k-aaaa' }, h.effect), null)
