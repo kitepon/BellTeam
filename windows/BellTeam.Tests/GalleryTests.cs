@@ -55,7 +55,7 @@ public sealed class GalleryTests
         using var workspace=CreateWorkspace(); var closed=false;
         var gallery=new ImageGallery(workspace,["/one.png"],0,()=>closed=true); Layout(gallery); Await(gallery.ReadyTask);
         var names=Find<Button>(gallery).Select(button=>System.Windows.Automation.AutomationProperties.GetName(button)).ToArray();
-        Assert.Equal(["閉じる"],names); Assert.False(gallery.HandleKey(Key.Right)); Assert.Contains(Find<TextBlock>(gallery),text=>text.Text=="1 / 1");
+        Assert.Equal(["閉じる","保存","共有"],names); Assert.False(gallery.HandleKey(Key.Right)); Assert.Contains(Find<TextBlock>(gallery),text=>text.Text=="1 / 1");
         Assert.True(gallery.HandleKey(Key.Escape)); Assert.True(closed);
     });
     private static Workspace CreateWorkspace()
@@ -69,7 +69,7 @@ public sealed class GalleryTests
         Await(workspace.ConnectAsync("http://localhost",listen:false)); return workspace;
     }
     private static byte[] Picture(int width,int height) => ImageCodec.Png(BitmapSource.Create(width,height,96,96,PixelFormats.Bgra32,null,new byte[checked(width*height*4)],width*4));
-    private static BitmapSource MainImage(ImageGallery gallery) => (BitmapSource)Assert.IsType<RemoteImage>(Find<ContentControl>(gallery).Single(control=>control.GetType()==typeof(ContentControl)).Content).Children.OfType<Image>().Single().Source;
+    private static BitmapSource MainImage(ImageGallery gallery) => (BitmapSource)Assert.IsType<RemoteImage>(Assert.IsType<ZoomPane>(Find<ContentControl>(gallery).Single(control=>control.GetType()==typeof(ContentControl)).Content).Child).Children.OfType<Image>().Single().Source;
     [DllImport("user32.dll")] [return:MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(IntPtr handle);
     private static void Layout(FrameworkElement root) { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); }
     private static void Press(Window window,PresentationSource source,Key key) => window.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,source,0,key) { RoutedEvent=Keyboard.PreviewKeyDownEvent });

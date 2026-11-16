@@ -233,6 +233,34 @@ flowchart LR
 - 古い本体は`reply_to`を知らない。履歴に鍵が無ければ引用は出ず、送った鍵は無視される（契約のCompatibility）。
 - Coreの公開名を変えたのでlinux/BellTeam.Linuxもビルドして確かめる。LinuxのUI（a272）はこのCoreの上に載る。
 
+## 画像ビューア（拡大・保存・共有。a271の後のa277）
+
+契約は[conversation image-original.md](architecture/modules/conversation/image-original.md)（N102）。サーバーは何も増やさず、履歴の`image_urls[i]`が元のバイトをそのまま返す（`Content-Disposition`に保存名）。Windowsは既存の全面ギャラリー（`ImageGallery`）へ、拡大・移動・保存・共有だけを足す。
+
+```mermaid
+flowchart TD
+  Msg[会話の画像 RemoteImages<br/>押す = MainWindow.ShowGallery] --> Gal[ImageGallery 全面の黒い覆い<br/>× ・ n / N ・ 保存 ・ 共有 ・ 前へ次へ ・ サムネイルの列]
+  Gal --> Pane[ZoomPane 表示中の1枚<br/>ホイール／ピンチ = ポインタを中心に拡大 ・ 拡大中のドラッグ／タッチ = 移動 ・ ダブルクリック = 全体と2.5倍の切替<br/>キー + − 0 = 中心で拡大・縮小・全体]
+  Pane --> Zoom[Core ImageZoom 倍率1〜8・移動量は画像のはみ出しの範囲に収める]
+  Gal -->|保存| Save[SaveFileDialog 名前は画像のURLの最後の部分 → 元のバイトを書く → 結果の帯]
+  Gal -->|共有| Share[元のバイトを一時ファイルへ → WindowsShare（DataTransferManagerの窓用入口）→ Windowsの共有シート]
+  Gal --> Bytes[Workspace.ImageAsync path<br/>GET /api/message-images/owner/file 元のバイト]
+  Save --> Bytes
+  Share --> Bytes
+```
+
+```mermaid
+flowchart LR
+  Server[(本体 画像ファイル<br/>元のバイト・Content-Type・保存名)] -->|GET image_urls i| Bytes[Workspace.ImageAsync]
+  Bytes --> Decode[ImageCodec 全寸法で復号] --> Pane[ZoomPane 表示]
+  Bytes --> Disk[保存先 利用者が選んだファイル]
+  Bytes --> Temp[一時 %TEMP%\BellTeam\share\保存名] --> Sheet[Windowsの共有シート]
+```
+
+- 保存・共有の失敗は理由を帯に出す（赤）。保存の取消（ダイアログを閉じる）は何も出さない。保存名の拡張子は画像の種類のまま変えない。
+- 共有の一時ファイルは名前を固定して上書きする（残りは`%TEMP%`が掃除する）。共有シートは窓の外のWindowsの部品で、画面の確認は実機で行う。
+- Coreの追加は`ImageZoom`（拡大の計算だけ）。Linuxは同じ計算を使ってよい（a278）。
+
 ## 変更時の手順
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。
