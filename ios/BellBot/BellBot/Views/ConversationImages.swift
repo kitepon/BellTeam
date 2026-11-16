@@ -60,11 +60,66 @@ struct MessageImageGallery: View {
     let paths: [String]
     let api: BellAPI
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var selection = 0
+    @State private var step = ZoomStep()
+    @State private var status: String?
+    @State private var working = false
+    @State private var exportDocument: ImageFileDocument?
+    @State private var exportName = "image.jpg"
+    @State private var exporting = false
+    @State private var shareURL: URL?
+    @State private var statusTask: Task<Void, Never>?
+
+    private var origin: String { conversationImageOrigin(api.baseURL) }
+    private var currentName: String { ImageFileInfo.name(forPath: paths[min(selection, paths.count - 1)]) }
+
+    /// 押した結果を2秒だけ出す。
+    private func show(_ message: String) {
+        status = message
+        statusTask?.cancel()
+        statusTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled { status = nil }
+        }
+    }
+
+    /// 現在の画像の原寸のバイト列。表示で取得済みなら取り直さない。
+    private func originalBytes() async throws -> Data {
+        try await ConversationImageCache.shared.data(path: paths[selection], origin: origin, api: api)
+    }
+
+    private func perform(_ action: @escaping (Data, String) async throws -> String?) {
+        guard !working else { return }
+        working = true
+        Task {
+            defer { working = false }
+            do {
+                let name = currentName
+                if let done = try await action(try await originalBytes(), name) { show(done) }
+            } catch is CancellationError {
+            } catch {
+                show("できませんでした")
+                api.diagnostics.report(error, path: paths[selection], method: "GET", observation: .read(error, retainedData: false))
+            }
+        }
+    }
+
+    private func actionLabel(_ title: String, _ symbol: String) -> some View {
+        Group {
+            if sizeClass == .compact { Label(title, systemImage: symbol).labelStyle(.iconOnly) }
+            else { Label(title, systemImage: symbol) }
+        }
+        .font(.system(size: 15, weight: .medium))
+        .frame(minWidth: 44, minHeight: 44)
+        .padding(.horizontal, sizeClass == .compact ? 0 : 6)
+        .background(.white.opacity(0.08), in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.10)))
+    }
 
     var body: some View {
         VStack(spacing: 16) {
-            HStack {
+            HStack(spacing: 8) {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").font(.system(size: 18, weight: .medium))
                         .frame(width: 44, height: 44)
@@ -74,18 +129,55 @@ struct MessageImageGallery: View {
                 .accessibilityLabel("閉じる")
                 .accessibilityIdentifier("image-gallery-close")
                 .keyboardShortcut(.cancelAction)
-                Spacer()
+                Spacer(minLength: 4)
                 Text("\(selection + 1) / \(paths.count)")
                     .monospacedDigit()
                     .accessibilityIdentifier("image-gallery-position")
-                Spacer()
-                Color.clear.frame(width: 44, height: 44)
+                Spacer(minLength: 4)
+                #if targetEnvironment(macCatalyst)
+                Button { step = ZoomStep(revision: step.revision + 1, factor: 1 / 1.5) } label: { actionLabel("縮小", "minus.magnifyingglass") }
+                    .accessibilityIdentifier("image-gallery-zoom-out")
+                Button { step = ZoomStep(revision: step.revision + 1, factor: 1.5) } label: { actionLabel("拡大", "plus.magnifyingglass") }
+                    .accessibilityIdentifier("image-gallery-zoom-in")
+                #endif
+                Button {
+                    perform { data, name in
+                        exportDocument = ImageFileDocument(data: data)
+                        exportName = name
+                        exporting = true
+                        return nil
+                    }
+                } label: { actionLabel("ダウンロード", "arrow.down.circle") }
+                    .accessibilityIdentifier("image-gallery-download")
+                #if !targetEnvironment(macCatalyst)
+                Button {
+                    perform { data, name in
+                        try await ImageViewerActions.saveToPhotos(data: data, name: name)
+                        return "写真に保存しました"
+                    }
+                } label: { actionLabel("保存", "photo.badge.plus") }
+                    .accessibilityIdentifier("image-gallery-save")
+                #endif
+                Button {
+                    perform { data, name in
+                        shareURL = try ImageViewerActions.temporaryFile(data: data, name: name)
+                        return nil
+                    }
+                } label: { actionLabel("共有", "square.and.arrow.up") }
+                    .accessibilityIdentifier("image-gallery-share")
+            }
+            .disabled(working)
+            if let status {
+                Text(status)
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, 14).padding(.vertical, 6)
+                    .background(.white.opacity(0.14), in: Capsule())
+                    .accessibilityIdentifier("image-gallery-status")
             }
             TabView(selection: $selection) {
                 ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
-                    AuthenticatedImage(path: path, api: api, maxPixelSize: nil)
-                        .padding(.horizontal, 16)
-                        .accessibilityIdentifier("image-gallery-image-\(index)")
+                    ZoomableAuthenticatedImage(path: path, api: api, step: step, isCurrent: index == selection,
+                                               identifier: "image-gallery-image-\(index)")
                         .tag(index)
                 }
             }
@@ -140,6 +232,57 @@ struct MessageImageGallery: View {
         .buttonStyle(.plain)
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .fileExporter(isPresented: $exporting, document: exportDocument,
+                      contentType: ImageFileInfo.contentType(forName: exportName), defaultFilename: exportName) { result in
+            switch result {
+            case .success: show("ダウンロードしました")
+            case .failure(let error) where (error as? CocoaError)?.code != .userCancelled: show("できませんでした")
+            case .failure: break
+            }
+        }
+        .sheet(isPresented: Binding(get: { shareURL != nil }, set: { if !$0 { shareURL = nil } })) {
+            if let shareURL {
+                ShareSheet(url: shareURL) { completed in
+                    self.shareURL = nil
+                    if completed { show("共有しました") }
+                }
+                .presentationDetents([.medium, .large])
+            }
+        }
+    }
+}
+
+/// 原寸で読み込み、拡大して見せる1枚。読み込み中・失敗の見せ方は一覧の画像と同じ。
+private struct ZoomableAuthenticatedImage: View {
+    let path: String
+    let api: BellAPI
+    let step: ZoomStep
+    let isCurrent: Bool
+    let identifier: String
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                ZoomableImage(image: image, identifier: identifier, step: step, isCurrent: isCurrent)
+            } else if failed {
+                Label("画像を読み込めません", systemImage: "photo.badge.exclamationmark").font(.footnote)
+                    .accessibilityIdentifier(identifier)
+            } else {
+                ProgressView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: "\(conversationImageOrigin(api.baseURL))|\(path)") {
+            do {
+                image = try await ConversationImageCache.shared.image(
+                    path: path, origin: conversationImageOrigin(api.baseURL), maxPixelSize: nil, api: api)
+            } catch {
+                failed = true
+                api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: image != nil))
+            }
+        }
     }
 }
 
@@ -183,7 +326,7 @@ private struct AuthenticatedImage: View {
     }
 }
 
-private func conversationImageOrigin(_ url: URL?) -> String {
+func conversationImageOrigin(_ url: URL?) -> String {
     guard let url, var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
           let scheme = components.scheme?.lowercased(), let host = components.host?.lowercased() else {
         return "unconfigured"
@@ -195,7 +338,7 @@ private func conversationImageOrigin(_ url: URL?) -> String {
 }
 
 /// 認証付き画像の取得をpath単位で共有し、表示サイズごとに縮小復号した結果を保持する。
-private actor ConversationImageCache {
+actor ConversationImageCache {
     static let shared = ConversationImageCache()
 
     private let encodedImages = NSCache<NSString, NSData>()
@@ -207,29 +350,29 @@ private actor ConversationImageCache {
         decodedImages.totalCostLimit = 64 * 1024 * 1024
     }
 
-    func image(path: String, origin: String, maxPixelSize: Int?, api: BellAPI) async throws -> UIImage {
+    /// 原寸のバイト列。保存・共有はこれを使う。
+    func data(path: String, origin: String, api: BellAPI) async throws -> Data {
         let requestKey = RequestKey(origin: origin, path: path)
-        let imageKey = "\(origin)|\(path)#\(maxPixelSize.map(String.init) ?? "original")" as NSString
         let dataKey = "\(origin)|\(path)" as NSString
-        if let cached = decodedImages.object(forKey: imageKey) { return cached }
-
-        let data: Data
-        if let cached = encodedImages.object(forKey: dataKey) {
-            data = cached as Data
-        } else if let request = requests[requestKey] {
-            data = try await request.value
-        } else {
-            let request = Task { try await api.image(path) }
-            requests[requestKey] = request
-            do {
-                data = try await request.value
-                encodedImages.setObject(data as NSData, forKey: dataKey, cost: data.count)
-                requests[requestKey] = nil
-            } catch {
-                requests[requestKey] = nil
-                throw error
-            }
+        if let cached = encodedImages.object(forKey: dataKey) { return cached as Data }
+        if let request = requests[requestKey] { return try await request.value }
+        let request = Task { try await api.image(path) }
+        requests[requestKey] = request
+        do {
+            let data = try await request.value
+            encodedImages.setObject(data as NSData, forKey: dataKey, cost: data.count)
+            requests[requestKey] = nil
+            return data
+        } catch {
+            requests[requestKey] = nil
+            throw error
         }
+    }
+
+    func image(path: String, origin: String, maxPixelSize: Int?, api: BellAPI) async throws -> UIImage {
+        let imageKey = "\(origin)|\(path)#\(maxPixelSize.map(String.init) ?? "original")" as NSString
+        if let cached = decodedImages.object(forKey: imageKey) { return cached }
+        let data = try await data(path: path, origin: origin, api: api)
 
         let image = try await Task.detached(priority: .userInitiated) {
             try Self.decode(data: data, maxPixelSize: maxPixelSize)

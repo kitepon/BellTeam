@@ -78,6 +78,8 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>LAN上のBellTeamへ接続するためにローカルネットワークを使います。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>会話の画像を写真に保存するために使います。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>会話へ添付する画像を選ぶために写真を使います。</string>
 	<key>NSUserActivityTypes</key>
