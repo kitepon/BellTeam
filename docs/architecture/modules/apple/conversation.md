@@ -177,7 +177,7 @@ flowchart TD
 | 選択メニュー | 本文はMarkdown（EnrichedMarkdown）で、長押しは文字の選択に使う。バブルに`contextMenu`を付けると選択が奪われるので付けない（画像だけの行を除く）。項目はフォーク`quolu/enriched-markdown-ios`の`MarkdownSelectionMenuConfig.customActions`（選んだ文字を渡す）。メニューは幅に入らない項目を次ページへ送る |
 | 部分引用の送受 | `ReplyReference.part`/`rangeStart`を読む（`range`は生の本文の位置なので、強調の探索開始の目安にだけ使う）。送る`reply_quote.text`は選んだ文字全体。空白だけの選択は送らない |
 | 強調 | `MarkdownHighlight(text, fromUTF16, token)`をフォークの`markdownHighlight`で渡し、表示中の本文から最初の一致（目安以降を先）を塗る。一致しなければ何もしない。数秒後に`jumpHighlight`を外し、行が作り直されても再び塗らない |
-| 吹き出しのアイコン行（a301） | `BubbleActions`。吹き出し（画像だけの行は画像）の下に、右端をそろえて返信・転送・コピーの小さなアイコンを並べる（重ねる配置はChatLayoutの高さ計算を乱し、過去へ引くと位置が飛ぶので使わない）。返信は`onReply`、転送は`onForward`（既存の`ForwardSheet`）、コピーは本文全体を`UIPasteboard`へ（2秒チェックに変わる）。各項目は動作がある行だけ（`onReply`/`onForward`が無い仮行・カードは出ない、本文が無ければコピーは出ない）。識別子`message-reply-/forward-/copy-<id>`。長押しの選択メニューと「引用して返信」はそのまま |
+| 吹き出しのアイコン行（a301） | `BubbleActions`。吹き出し（画像だけの行は画像）の下に、右端をそろえて返信・転送・コピーの小さなアイコンを並べる（重ねる配置はChatLayoutの高さ計算を乱し、過去へ引くと位置が飛ぶので使わない）。返信は`onReply`、転送は`onForward`（既存の`ForwardSheet`。アイコンは箱から真上に出る矢印`square.and.arrow.up`で、返信の矢印と向きが対称にならない）、コピーは本文全体を`UIPasteboard`へ（2秒チェックに変わる）。各項目は動作がある行だけ（`onReply`/`onForward`が無い仮行・カードは出ない、本文が無ければコピーは出ない）。識別子`message-reply-/forward-/copy-<id>`。長押しの選択メニューと「引用して返信」はそのまま |
 | 左スワイプ（a300） | `MessageRow`の`replySwipe`。`onReply`がある行（`isQuotable`）だけ。横が縦の1.5倍超の左ドラッグだけを拾い（縦スクロール・文字選択・左端の戻るスワイプと競合しない）、行が指に付いて最大約48pt動き、56pt超で離すと`onReply`（長押しメニューの「返信」と同じ`startReply`）を一度呼んで戻る。Mac Catalystには付けない（マウスのドラッグが文字選択になるため） |
 | 対象外 | Botからの返信、Bot間の行への返信、引用の連鎖 |
 

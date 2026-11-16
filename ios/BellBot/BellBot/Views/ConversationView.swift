@@ -973,7 +973,7 @@ private struct BubbleActions: View {
     var body: some View {
         HStack(spacing: 2) {
             if let onReply { icon("arrowshape.turn.up.left", "返信", "message-reply-\(id)", onReply) }
-            if let onForward { icon("arrowshape.turn.up.right", "転送", "message-forward-\(id)", onForward) }
+            if let onForward { icon("square.and.arrow.up", "転送", "message-forward-\(id)", onForward) }
             if let text, !text.isEmpty {
                 icon(copied ? "checkmark" : "doc.on.doc", copied ? "コピーしました" : "コピー", "message-copy-\(id)") {
                     UIPasteboard.general.string = text
