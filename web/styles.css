@@ -1941,6 +1941,25 @@ button.reply-quote { cursor: pointer; }
 .reply-bar strong { flex: none; font-size: 12px; }
 .reply-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55555b; }
 .reply-bar button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 12px; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+/* 転送・共有（a282） */
+.message-actions { display: flex; gap: 2px; margin: 2px 3px 0; }
+.message-actions .message-reply { margin: 0; }
+.origin-mark { display: block; margin-bottom: 5px; font-size: 11px; font-weight: 600; opacity: .75; }
+.origin-content { margin: 4px 0; padding: 4px 0 4px 10px; border-left: 3px solid currentColor; opacity: .92; font-size: 15px; }
+.origin-content a { color: #2f6fdb; text-decoration: underline; overflow-wrap: anywhere; }
+.message.outgoing .origin-content a { color: #9ec1ff; }
+.forward-label { font-size: 12px; font-weight: 650; color: #55555b; }
+.origin-content > :first-child { margin-top: 0; } .origin-content > :last-child { margin-bottom: 0; }
+.chat.is-dropping::after { content: "ここへドロップして、この会話に共有"; position: absolute; inset: 8px; z-index: 40; display: grid; place-items: center; border: 2px dashed #87779c; border-radius: 22px; background: rgba(135, 119, 156, .12); color: #4d3f63; font-size: 16px; font-weight: 650; pointer-events: none; }
+.forward-body { display: grid; gap: 14px; }
+.forward-preview { display: grid; gap: 3px; padding: 10px 14px; border-left: 3px solid #87779c; border-radius: 10px; background: var(--bubble); font-size: 14px; }
+.forward-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55555b; }
+.forward-dests, .forward-members { display: grid; gap: 6px; max-height: 38vh; overflow-y: auto; }
+.forward-dest { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid transparent; border-radius: 14px; background: var(--bubble); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.forward-dest small { margin-left: auto; color: var(--muted); }
+.forward-dest.is-picked { border-color: #87779c; background: #f1edf7; }
+.forward-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.forward-done { margin: 0; font-size: 15px; }
 /* 選んだ文章への返信（a269r） */
 .reply-selection { position: fixed; z-index: 30; padding: 6px 12px; border: 0; border-radius: 16px; background: #101012; color: #fff; font: inherit; font-size: 13px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); cursor: pointer; }
 .reply-selection[hidden] { display: none; }

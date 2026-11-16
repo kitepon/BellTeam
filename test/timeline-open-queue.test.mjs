@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { createConversationTimeline, locateQuotePart } from '../web/conversation-timeline.js'
+import { createConversationTimeline, locateQuotePart, splitOrigin } from '../web/conversation-timeline.js'
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 class Element {
@@ -502,4 +502,42 @@ test('reply part (touch): the browser may clear the selection when the button is
   button.listeners.click()
   assert.deepEqual(picked, [{ id: 'm1', sender: 'A', text: '選ぶ文章', quote: { text: '選ぶ文章' } }])
   timeline.listeners.scroll?.()
+})
+
+// ---- forward / share (a282) ----
+test('splitOrigin splits comment and content at content_start in code points; no origin or no comment are handled', () => {
+  assert.deepEqual(splitOrigin('これお願い\n\n元の発言', 5), { comment: 'これお願い', content: '\n\n元の発言' })
+  assert.deepEqual(splitOrigin('😀🙂コメント\n\n内容', 6), { comment: '😀🙂コメント', content: '\n\n内容' }, 'astral characters count once')
+  assert.deepEqual(splitOrigin('内容だけ', 0), { comment: '', content: '内容だけ' })
+  assert.deepEqual(splitOrigin('ふつうの発言', undefined), { comment: 'ふつうの発言', content: '' })
+})
+
+test('forward / share rows: mark, the comment as the Owner\'s words, the content as a quoted block; rows without origin are unchanged', async t => {
+  const f = fixture(t, () => ({ has_more: false, items: [
+    msg('plain', { message: 'ふつう' }),
+    msg('fw', { direction: 'outgoing', message: 'これお願い\n\n元の発言の文章', origin: { kind: 'forward', from: { id: 'bot-a', name: 'N102' }, at: '2026-11-16T12:20:00Z', content_start: 5 } }),
+    msg('sh', { direction: 'outgoing', message: '共有された文章\nhttps://example.com/a', origin: { kind: 'share', app: 'LINE', urls: ['https://example.com/a'], content_start: 0 } }),
+  ] }))
+  await f.open('a'); await settle()
+  const marks = everyNode(f.timeline).filter(node => String(node.className).startsWith('origin-mark'))
+  assert.equal(marks.length, 2); assert.match(marks[0].textContent, /^転送 · N102 · /u); assert.equal(marks[1].textContent, '共有 · LINE')
+  const blocks = everyNode(f.timeline).filter(node => String(node.className).startsWith('origin-content'))
+  assert.deepEqual(blocks.map(node => node.className), ['origin-content is-forward', 'origin-content is-share'])
+  assert.equal(blocks[0].innerHTML.includes('元の発言の文章'), true); assert.equal(blocks[0].innerHTML.includes('これお願い'), false, 'the comment is not inside the quoted block')
+  const texts = everyNode(f.timeline).filter(node => node.className === 'message-text').map(node => node.innerHTML)
+  assert.equal(texts.some(html => html.includes('これお願い')), true); assert.equal(texts.length, 2, 'plain + forward comment; the share has no comment')
+})
+
+test('forward: 転送 hands the source (conversation + item id) and a preview to the app; a room record passes origin through', async t => {
+  const asked = []
+  const f = fixture(t, () => ({ has_more: false, items: [msg('m1', { message: '一行目\n二行目' })] }), { onForward: request => asked.push(request) })
+  await f.open('a'); await settle()
+  const buttons = everyNode(f.timeline).filter(node => node.className === 'message-reply message-forward')
+  assert.equal(buttons.length, 1); buttons[0].listeners.click()
+  assert.deepEqual(asked, [{ source: { kind: 'bot', id: 'a' }, messageId: 'm1', preview: { sender: 'A', text: '一行目' } }])
+  const room = fixture(t, () => ({ has_more: false, items: [{ id: 'rm1', at: '2026-11-16T00:00:00Z', message: '内容', sender: { id: 'user', name: 'オーナー' }, room: { members: [] }, origin: { kind: 'share', content_start: 0 } }] }), { onForward: request => asked.push(request) })
+  await room.open('room1', 'room'); await settle()
+  assert.equal(everyNode(room.timeline).filter(node => String(node.className).startsWith('origin-mark')).length, 1)
+  everyNode(room.timeline).find(node => node.className === 'message-reply message-forward').listeners.click()
+  assert.deepEqual(asked.at(-1).source, { kind: 'room', id: 'room1' })
 })

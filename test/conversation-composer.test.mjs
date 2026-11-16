@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createConversationComposer } from '../web/conversation-composer.js'
+import { createConversationComposer, installShareDrop, shareFromTransfer } from '../web/conversation-composer.js'
 
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 class Element {
@@ -218,4 +218,53 @@ test('reply part: a quoted selection is sent as reply_quote next to reply_to and
   assert.deepEqual([f.calls[0].body.reply_to, f.calls[0].body.reply_quote], ['orig-3', { text: '選んだ部分' }])
   f.composer.setReply({ id: 'orig-4', sender: 'A', text: 't' }); f.input.value = '全体'; await f.composer.send()
   assert.equal(f.calls[1].body.reply_to, 'orig-4'); assert.equal('reply_quote' in f.calls[1].body, false, 'whole-message reply has no reply_quote')
+})
+
+test('shareFromTransfer: text, links and images from a drop; a lone URL is a url; a dragged link is not duplicated; other files are refused', () => {
+  const transfer = (data, files = []) => ({ files, getData: type => data[type] ?? '' })
+  const png = { type: 'image/png' }, pdf = { type: 'application/pdf' }
+  assert.deepEqual(shareFromTransfer(transfer({ 'text/plain': ' 共有された文章 ' })), { text: '共有された文章', urls: [], images: [], refused: false })
+  assert.deepEqual(shareFromTransfer(transfer({ 'text/plain': 'https://example.com/a' })), { text: '', urls: ['https://example.com/a'], images: [], refused: false })
+  assert.deepEqual(shareFromTransfer(transfer({ 'text/uri-list': '# c\r\nhttps://example.com/a\r\nhttps://example.com/b\r\nftp://x/y', 'text/plain': 'https://example.com/a' })).urls, ['https://example.com/a', 'https://example.com/b'])
+  assert.equal(shareFromTransfer(transfer({ 'text/uri-list': 'https://example.com/a', 'text/plain': 'https://example.com/a' })).text, '')
+  const both = shareFromTransfer(transfer({}, [png, pdf])); assert.deepEqual([both.images, both.refused], [[png], true])
+  assert.equal(shareFromTransfer(transfer({ 'text/plain': 'x'.repeat(30000) })).text.length, 20000)
+  assert.equal(shareFromTransfer(transfer({ 'text/uri-list': Array.from({ length: 30 }, (_, i) => `https://e.com/${i}`).join('\n') })).urls.length, 20)
+  assert.deepEqual(shareFromTransfer(undefined), { text: '', urls: [], images: [], refused: false })
+})
+
+test('share: shared content alone is sendable, goes as share (never with reply_to), replaces a reply, is kept on failure and cleared by ×', async t => {
+  const bar = new Element()
+  let fail = true
+  const f = fixture(t, { replyBar: bar, api: async (path, request) => { f.calls.push({ path, body: JSON.parse(request.body) }); if (fail) { fail = false; throw Object.assign(new Error('x'), { status: 503 }) } return { id: 'ok' } } })
+  f.composer.setReply({ id: 'orig', sender: 'A', text: 't' })
+  f.composer.setShare({ text: '共有された文章', urls: ['https://example.com/a', 'https://example.com/b'] })
+  assert.equal(bar.children[0].textContent, '共有する内容'); assert.equal(bar.children[1].textContent, '共有された文章 / https://example.com/a ほか1件')
+  assert.equal(f.sendButton.disabled, false, 'content alone is enough; the comment is optional')
+  await f.composer.send()
+  assert.deepEqual(f.calls[0].body.share, { text: '共有された文章', urls: ['https://example.com/a', 'https://example.com/b'] }); assert.equal('reply_to' in f.calls[0].body, false); assert.equal(f.calls[0].body.message, '')
+  assert.equal(bar.hidden, false, 'kept after a failed send')
+  await f.composer.send()
+  assert.equal(f.calls.length, 2); assert.equal(bar.hidden, true, 'accepted: gone')
+  f.composer.setShare({ text: 'もう一度' }); bar.children[2].listeners.click()
+  assert.equal(bar.hidden, true); assert.equal(f.sendButton.disabled, true, '× removes the content; nothing left to send')
+  f.input.value = '普通'; await f.composer.send(); assert.equal('share' in f.calls[2].body, false)
+})
+
+test('installShareDrop: a drop on the open conversation becomes a share (text, urls, images); closed conversation and unrelated drags are left alone; other files are refused in words', () => {
+  const handlers = {}, classes = new Set(), calls = []
+  const panel = { addEventListener: (name, fn) => { handlers[name] = fn }, contains: node => node === 'inside', classList: { add: n => classes.add(n), remove: n => classes.delete(n) } }
+  let open = true
+  const composer = { setShare: share => calls.push(['share', share]), addImages: files => calls.push(['images', files.length]), showError: message => calls.push(['error', message]) }
+  installShareDrop(panel, { enabled: () => open, composer })
+  const png = { type: 'image/png' }, pdf = { type: 'application/pdf' }
+  const drag = (types, data = {}, files = []) => ({ dataTransfer: { types, files, getData: type => data[type] ?? '' }, prevented: false, preventDefault() { this.prevented = true } })
+  const over = drag(['text/plain']); handlers.dragover(over); assert.equal(over.prevented, true); assert.equal(classes.has('is-dropping'), true)
+  handlers.dragleave({ relatedTarget: 'inside' }); assert.equal(classes.has('is-dropping'), true, 'moving inside the panel keeps the overlay'); handlers.dragleave({ relatedTarget: null }); assert.equal(classes.has('is-dropping'), false)
+  handlers.drop(drag(['text/plain', 'Files'], { 'text/plain': '共有', 'text/uri-list': 'https://example.com/a' }, [png, pdf]))
+  assert.deepEqual(calls, [['error', '画像以外のファイルは、まだ送れません。画像・文章・URLは共有できます。'], ['share', { text: '共有', urls: ['https://example.com/a'] }], ['images', 1]])
+  calls.length = 0
+  handlers.drop(drag(['Files'], {}, [png])); assert.deepEqual(calls, [['share', {}], ['images', 1]], 'images only: a share with no text')
+  calls.length = 0; const unrelated = drag(['application/x-other']); handlers.drop(unrelated); assert.equal(unrelated.prevented, false); assert.deepEqual(calls, [])
+  open = false; const closed = drag(['text/plain'], { 'text/plain': 'x' }); handlers.dragover(closed); handlers.drop(closed); assert.equal(closed.prevented, false); assert.deepEqual(calls, [])
 })

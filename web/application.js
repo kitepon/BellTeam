@@ -23,7 +23,8 @@ import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js
 import { openOnboarding } from './onboarding.js?v=__ASSET_VERSION__'
 import { claimSingleFlight, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
 import { createMessageImageCache } from './message-images.js?v=__ASSET_VERSION__'
-import { createConversationComposer } from './conversation-composer.js?v=__ASSET_VERSION__'
+import { createConversationComposer, installShareDrop } from './conversation-composer.js?v=__ASSET_VERSION__'
+import { createForwardDialog } from './forward-dialog.js?v=__ASSET_VERSION__'
 import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 import { createWebClient } from './client.js?v=__ASSET_VERSION__'
@@ -795,9 +796,14 @@ export function createWebApp({ client = createWebClient() } = {}) {
   }
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !targetMenu.hidden) { toggleTargetMenu(false); targetButton.focus() } })
 
+  const forwardDialog = createForwardDialog({ dialog: document.querySelector('#forward-dialog'), api, getBots: () => state.bots, getRooms: () => state.rooms, routingEnabled,
+    openConversation: dest => { const item = (dest.type === 'room' ? state.rooms : state.bots).find(entry => entry.id === dest.id); if (item) void (dest.type === 'room' ? selectRoom(item) : selectBot(item)) } })
+  // 他のアプリから、開いている会話へ文章・URL・画像をドロップすると共有になる（a282）。
+  installShareDrop(document.querySelector('#chat'), { enabled: () => Boolean(state.selected), composer: conversationComposer })
+
   const conversationTimeline = createConversationTimeline({ timeline, latestButton, api, messageImages,
     getBot: id => state.bots.find(bot => bot.id === id),
-    isStopping: id => stoppingMembers.has(id), onStop: stopMember, onQueueChange: updateSendButton, onReply: reply => conversationComposer.setReply(reply),
+    isStopping: id => stoppingMembers.has(id), onStop: stopMember, onQueueChange: updateSendButton, onReply: reply => conversationComposer.setReply(reply), onForward: request => forwardDialog.open(request),
   })
 
   async function loadMessages(preserveScroll = true) {

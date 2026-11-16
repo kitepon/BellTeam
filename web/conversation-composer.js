@@ -1,5 +1,34 @@
 import { claimMessageSend, installMessageInputSizing, sendFailureText } from './chat-input.js?v=__ASSET_VERSION__'
 
+// 他のアプリからのドロップ（a282）：文章・URL・画像を、共有の中身へ。画像以外のファイルは断る（forward.md「Files」）。
+export function shareFromTransfer(transfer) {
+  const files = [...(transfer?.files ?? [])]
+  const images = files.filter(file => file.type?.startsWith('image/'))
+  const valid = url => /^https?:\/\//iu.test(url) && url.length <= 2000
+  const listed = (transfer?.getData?.('text/uri-list') ?? '').split(/\r?\n/u).map(line => line.trim()).filter(line => line && !line.startsWith('#'))
+  let text = (transfer?.getData?.('text/plain') ?? '').trim(), urls = listed.filter(valid)
+  if (!urls.length && valid(text) && !/\s/u.test(text)) { urls = [text]; text = '' } // 文章が URL 一つだけ
+  else if (text && urls.includes(text)) text = '' // リンクのドラッグは text/plain に同じ URL が入る
+  return { text: text.slice(0, 20000), urls: [...new Set(urls)].slice(0, 20), images, refused: files.length > images.length }
+}
+
+// 開いている会話の面（panel）への、文章・URL・画像のドロップを共有にする。入力欄への貼り付けは今までどおり。
+export function installShareDrop(panel, { enabled, composer }) {
+  const transferable = event => [...(event.dataTransfer?.types ?? [])].some(type => ['Files', 'text/plain', 'text/uri-list'].includes(type))
+  panel.addEventListener('dragover', event => { if (!enabled() || !transferable(event)) return; event.preventDefault(); panel.classList.add('is-dropping') })
+  panel.addEventListener('dragleave', event => { if (!panel.contains(event.relatedTarget)) panel.classList.remove('is-dropping') })
+  panel.addEventListener('drop', event => {
+    panel.classList.remove('is-dropping')
+    if (!enabled() || !transferable(event)) return
+    event.preventDefault()
+    const shared = shareFromTransfer(event.dataTransfer)
+    if (shared.refused) composer.showError('画像以外のファイルは、まだ送れません。画像・文章・URLは共有できます。')
+    if (!shared.text && !shared.urls.length && !shared.images.length) return
+    composer.setShare({ ...(shared.text ? { text: shared.text } : {}), ...(shared.urls.length ? { urls: shared.urls } : {}) })
+    if (shared.images.length) composer.addImages(shared.images)
+  })
+}
+
 export function createConversationComposer({ input, attachments, error, sendButton, recovery,
   api, readImage, getTargets, setTargets, findTarget, onSelect, onAccepted, replyBar = null }) {
   const drafts = new Map()
@@ -8,12 +37,12 @@ export function createConversationComposer({ input, attachments, error, sendButt
   const resize = installMessageInputSizing(input)
   let target = null
   const key = value => `${value.type}:${value.id}`
-  const empty = () => ({ message: '', pendingImages: [], targets: null, error: '', reply: null })
+  const empty = () => ({ message: '', pendingImages: [], targets: null, error: '', reply: null, share: null })
   const draftFor = value => {
     if (!drafts.has(key(value))) drafts.set(key(value), empty())
     return drafts.get(key(value))
   }
-  const hasInput = draft => Boolean(draft.message.trim() || draft.pendingImages.length)
+  const hasInput = draft => Boolean(draft.message.trim() || draft.pendingImages.length || draft.share)
   const selected = value => target && key(target) === key(value)
   const release = draft => { for (const image of draft.pendingImages) URL.revokeObjectURL(image.url) }
   function capture() {
@@ -57,23 +86,34 @@ export function createConversationComposer({ input, attachments, error, sendButt
   // 返信先（a269）：その会話の下書きが持つ。送ると下書きごと空になる。
   function paintReply(draft) {
     if (!replyBar) return
-    replyBar.hidden = !draft.reply
-    if (!draft.reply) { replyBar.replaceChildren(); return }
+    replyBar.hidden = !(draft.reply || draft.share)
+    if (!draft.reply && !draft.share) { replyBar.replaceChildren(); return }
     const label = document.createElement('strong')
-    label.textContent = draft.reply.quote ? `${draft.reply.sender || '発言'}の一部への返信` : `${draft.reply.sender || '発言'}への返信`
+    label.textContent = draft.share ? '共有する内容' : draft.reply.quote ? `${draft.reply.sender || '発言'}の一部への返信` : `${draft.reply.sender || '発言'}への返信`
     const text = document.createElement('span')
-    text.textContent = draft.reply.text
+    text.textContent = draft.share ? shareSummary(draft.share, draft.pendingImages.length) : draft.reply.text
     const cancel = document.createElement('button')
     cancel.type = 'button'
     cancel.textContent = '×'
-    cancel.setAttribute('aria-label', '返信をやめる')
-    cancel.addEventListener('click', () => { draft.reply = null; paint(); input.focus?.() })
+    cancel.setAttribute('aria-label', draft.share ? '共有をやめる' : '返信をやめる')
+    cancel.addEventListener('click', () => { draft.reply = null; draft.share = null; paint(); input.focus?.() })
     replyBar.replaceChildren(label, text, cancel)
+  }
+  // 共有の中身を一行で。
+  const shareSummary = (share, images) => [share.text?.split('\n')[0], share.urls?.length ? `${share.urls[0]}${share.urls.length > 1 ? ` ほか${share.urls.length - 1}件` : ''}` : '', images ? `画像${images}枚` : ''].filter(Boolean).join(' / ')
+  // 共有は返信と一緒にしない（forward.md）：どちらか一つ。
+  function setShare(share) {
+    if (!target) return
+    capture()
+    const draft = draftFor(target)
+    draft.share = share; draft.reply = null
+    paint()
+    input.focus?.()
   }
   function setReply(reply) {
     if (!target) return
     capture()
-    draftFor(target).reply = reply
+    draftFor(target).reply = reply; draftFor(target).share = null
     paint()
     input.focus?.()
   }
@@ -152,9 +192,10 @@ export function createConversationComposer({ input, attachments, error, sendButt
     capture()
     const destination = { ...target }
     const current = draftFor(destination)
-    const claimed = claimMessageSend({ sending }, key(destination), current.message, current.pendingImages)
+    // 共有の中身だけ（コメントも画像も無し）でも送れる。
+    const claimed = claimMessageSend({ sending }, key(destination), current.message, current.pendingImages) ?? (current.share && !sending.has(key(destination)) ? (sending.add(key(destination)), { message: '', pendingImages: [] }) : null)
     if (!claimed) return
-    const snapshot = { ...claimed, targets: current.targets ? [...current.targets] : null, error: '', reply: current.reply }
+    const snapshot = { ...claimed, targets: current.targets ? [...current.targets] : null, error: '', reply: current.reply, share: current.share }
     drafts.set(key(destination), empty())
     paint()
     let images, result
@@ -165,7 +206,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
       const kind = destination.type === 'room' ? 'rooms' : 'bots'
       result = await api(`/api/${kind}/${destination.id}/messages`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}), ...(snapshot.reply ? { reply_to: snapshot.reply.id, ...(snapshot.reply.quote ? { reply_quote: snapshot.reply.quote } : {}) } : {}) }),
+        body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}), ...(snapshot.share ? { share: snapshot.share } : {}), ...(snapshot.reply ? { reply_to: snapshot.reply.id, ...(snapshot.reply.quote ? { reply_quote: snapshot.reply.quote } : {}) } : {}) }),
       })
     } catch (cause) {
       capture()
@@ -188,6 +229,6 @@ export function createConversationComposer({ input, attachments, error, sendButt
     }
   }
   input.addEventListener('input', update)
-  return { select, clear: () => select(null), addImages, send, update, setReply,
+  return { select, clear: () => select(null), addImages, send, update, setReply, setShare,
     showError: message => { if (target) showError(target, message) } }
 }
