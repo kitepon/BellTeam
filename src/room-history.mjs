@@ -18,6 +18,12 @@ export class RoomHistory {
     return state.visible ??= state.messages.map(message => state.index.get(message))
   }
   async view() { return (await this.snapshot()).index }
+  // reply.md: any message of this room can be quoted; status and routing rows are not messages.
+  async quoteSource(id) {
+    const records = (await this.snapshot()).byId.get(id), record = records?.length === 1 ? records[0] : null
+    return record?.schema === 'bellteam.room-message.v1' && typeof record.sender?.id === 'string' && typeof record.message === 'string'
+      ? { sender: { id: record.sender.id, name: record.sender.name }, at: record.at, text: record.message, image: record.image === true } : null
+  }
   async deliveryAnchor({ deliveryId, target, context, contextId }) {
     await this.snapshot()
     const records = this.read.byId.get(deliveryId), record = records?.length === 1 ? records[0] : null

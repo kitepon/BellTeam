@@ -180,7 +180,7 @@ Original not available: the reply is saved as `{ id, available: false, part: tru
 | --- | --- | --- |
 | `available`, `range` | `text` (the part) | jump to the original, highlight `range` |
 | `available`, no `range` | `text` | jump, no highlight |
-| `available: false`, `part` | `text`, plus the fixed line 「元の発言は表示できません」 | none |
+| `available: false`, `part` | `text`, plus the fixed line 「元のメッセージを表示できません」 | none |
 | `available: false`, no `part` | the fixed line only (whole-message rule above) | none |
 
 `range` counts code points of the raw saved text. A client that shows rendered markup cannot map it and highlights by searching `reply_to.text` in the shown text instead; where the text occurs more than once it highlights the first hit at or after `range.start` when `range` exists.

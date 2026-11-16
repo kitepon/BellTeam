@@ -55,6 +55,7 @@ src/module-streams.mjs
 src/notifications-ipc.mjs
 src/notifications-locks.mjs
 src/observer-check.mjs
+src/reply-reference.mjs
 src/resume-policy.mjs
 src/returned-mcp-error.mjs
 src/room-access.mjs

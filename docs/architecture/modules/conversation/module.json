@@ -62,6 +62,7 @@
   ],
   "source": [
     "src/messenger.mjs",
+    "src/reply-reference.mjs",
     "src/room-messenger.mjs",
     "src/room-registry.mjs",
     "src/conversation-store.mjs",

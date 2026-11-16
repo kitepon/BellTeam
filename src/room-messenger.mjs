@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { memberIdentity } from './member-identity.mjs'
 import { chooseRoomResponder, roomTurnsFromThroughline } from './room-routing.mjs'
 import { deliveryFailureFields } from './conversation-writer.mjs'
+import { replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
 
 export class RoomMessenger {
   constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder, failureFields = deliveryFailureFields }) {
@@ -42,7 +43,7 @@ export class RoomMessenger {
   }
 
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
-  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, executionSource }, check = () => {}, { membersLease } = {}) {
+  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, replyTo, replyQuote, executionSource }, check = () => {}, { membersLease } = {}) {
     check()
     await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })])
     const room = this.rooms.get(roomId)
@@ -53,12 +54,18 @@ export class RoomMessenger {
     if (manualResponders?.some(id => !room.memberIds.includes(id))) throw new Error('ROOM_TARGET_INVALID')
     const automaticRouting = await this.automaticRouting()
     if (!manualResponders && !responseTo && room.memberIds.length && !automaticRouting) throw Object.assign(new Error('返信者の自動選択は未設定です。返信するメンバーを選んでください。'), { code: 'ROOM_AUTOMATIC_ROUTING_DISABLED', status: 409 })
+    if (replyTo !== undefined && from !== 'user') throw new Error('REPLY_TO_NOT_ALLOWED')
+    if (replyTo !== undefined) requireReplyTo(replyTo)
+    if (replyQuote !== undefined) { if (replyTo === undefined) throw Object.assign(new Error('REPLY_QUOTE_INVALID'), { code: 'REPLY_QUOTE_INVALID', status: 400 }); requireReplyQuote(replyQuote) }
     if (responseTo) {
       const posted = (await this.rooms.messages(room.id)).find(item => item.responseTo === responseTo && item.sender.id === from)
       if (posted) return { id: posted.id, room: room.id, targets: posted.routing?.responders ?? [], delivery: 'already_posted' }
     }
     const sender = memberIdentity(this.bots, from)
     await this.requireAccess()
+    // reply.md: an unusable original (other room, unknown, unreadable) never refuses the post.
+    let source = null
+    if (replyTo !== undefined) try { source = await this.rooms.quoteSource(room.id, replyTo) } catch { /* the reply stays unavailable */ }
     check()
     const members = room.memberIds.map(id => memberIdentity(this.bots, id))
     const representative = room.representativeId ? memberIdentity(this.bots, room.representativeId) : null
@@ -73,6 +80,7 @@ export class RoomMessenger {
       schema: 'bellteam.room-message.v1', id, at: this.now(), kind,
       sender, room: snapshot, targets: manualResponders?.map(id => memberIdentity(this.bots, id)) ?? [],
       message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}), schedule, ...(responseTo ? { responseTo } : {}),
+      ...(replyTo !== undefined ? { reply_to: snapshotReply(replyTo, source, replyQuote) } : {}),
       routing: { status: 'pending', responders: [] },
       deliveries: deliveryTargets.map(target => ({ target, delivery: 'running' })),
       ...(imageAsset ? { image_asset: imageAsset } : {}),
@@ -155,6 +163,6 @@ export function roomEnvelope(record, { silent = false } = {}) {
     .map(name => `「${name}」`).join('、')
   const sender = record.sender.id === 'user' ? 'オーナー' : record.sender.name
   const purpose = record.room.purpose || '未設定'
-  const message = `${members}が参加する「${record.room.name}」です。\n\nこの部屋の目的は、\n「${purpose}」\nです。\n\nメッセージID: ${record.id}\n「${sender}」からあなたへ次のメッセージが届いています。\n\n${record.message}`
+  const message = `${members}が参加する「${record.room.name}」です。\n\nこの部屋の目的は、\n「${purpose}」\nです。\n\nメッセージID: ${record.id}\n「${sender}」からあなたへ次のメッセージが届いています。\n\n${replyNotice(record.reply_to)}${record.message}`
   return silent ? `${message}\n\nこの発言を読んで部屋の流れを把握し、respond_to_room(action="silent", messageId="${record.id}")だけを呼んでターンを終えてください。部屋や個別チャットへ返答を送らないでください。` : message
 }

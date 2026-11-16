@@ -108,7 +108,7 @@ export function createConversationFacade({ getController, context, memberScoped 
     },
   }
   const user = (method, input, options) => invoke(method, { target: input.target, message: input.message, images: images(input),
-    ...pick(input, ['recordUser']) }, options)
+    ...pick(input, ['recordUser', 'replyTo', 'replyQuote']) }, options)
   const messenger = {
     enqueueUserTurn: (input, options) => user('user.post', input, options),
     userTurn: (input, options) => user('user.turn', input, options),
@@ -124,7 +124,7 @@ export function createConversationFacade({ getController, context, memberScoped 
   return { rooms, store, messenger,
     roomMessenger: { sendroommessage: (input, options) => input.responseTo
       ? invoke('room.reply', { roomId: input.room, messageId: input.responseTo, message: input.message, images: images(input), ...pick(input, ['targets']) }, options)
-      : invoke('room.post', { from: input.from, room: input.room, message: input.message, images: images(input), ...pick(input, ['targets', 'kind', 'schedule']) }, options) },
+      : invoke('room.post', { from: input.from, room: input.room, message: input.message, images: images(input), ...pick(input, ['targets', 'kind', 'schedule', 'replyTo', 'replyQuote']) }, options) },
     assets: { save: (input, options) => invoke('assets.save', input, options), saveAll: (input, options) => invoke('assets.saveAll', input, options) },
     selfTurns: { poll: options => invoke('observation.poll', {}, options) },
     sweepForks: options => invoke('fork.sweep', {}, options),
