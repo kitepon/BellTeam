@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T04:57:26Z",
-  "expiresAt": "2026-11-23T04:57:26Z",
+  "publishedAt": "2026-11-16T06:00:01Z",
+  "expiresAt": "2026-11-23T06:00:01Z",
   "releases": [
     {
       "componentId": "usage",
@@ -753,8 +753,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "2fd6cbe002f34fcad931209f84b6e200b056273c",
-      "versionId": "4e6ba29de52ee0beec6a790e6d28d1ef0eb25f78dbe0126bf27e23dc700e2aa0",
+      "sourceCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee",
+      "versionId": "5724b25eebe4e7133aa632fceac8107ae21ccabe56c77aef8d375d5e3d3110c4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T030308Z/lattice-2fd6cbe002f34fcad931209f84b6e200b056273c-linux-amd64.tar.gz",
-          "bytes": 15307811,
-          "sha256": "4e6ba29de52ee0beec6a790e6d28d1ef0eb25f78dbe0126bf27e23dc700e2aa0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-amd64.tar.gz",
+          "bytes": 15306021,
+          "sha256": "5724b25eebe4e7133aa632fceac8107ae21ccabe56c77aef8d375d5e3d3110c4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T030308Z/lattice-2fd6cbe002f34fcad931209f84b6e200b056273c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10906,
-          "sha256": "229079baabf188cce942cdfbec3fb2a74d26b435656a2b8abd6b5a689a328c1d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "b308902d2cd0554826e409a07648dec4c426c44dc071d8b9be66ff5e16382261"
         },
-        "signerCommit": "2fd6cbe002f34fcad931209f84b6e200b056273c"
+        "signerCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,14 @@
         }
       },
       "changes": [
-        "オーナー宛ての工程があるだけで、Botを1時間ごとに起こしてしまう催促をやめました。"
+        "工程表の道具（Lattice）を0.107.0へ上げました。",
+        "BellTeamのコード用の工程表で、決裁箱の工程をコードを触らない担当として扱うようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "2fd6cbe002f34fcad931209f84b6e200b056273c",
-      "versionId": "08d72a4b8d03b30c8540a9ef5583f1b7dd0635e800121e85cd258b1b202ded55",
+      "sourceCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee",
+      "versionId": "69a4f0e982c4b154d6b8eb9d24fdd73e2f41b2dd9100c66c2e310ff5f8ed4bf8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +798,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T030308Z/lattice-2fd6cbe002f34fcad931209f84b6e200b056273c-linux-arm64.tar.gz",
-          "bytes": 15307811,
-          "sha256": "08d72a4b8d03b30c8540a9ef5583f1b7dd0635e800121e85cd258b1b202ded55"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-arm64.tar.gz",
+          "bytes": 15306012,
+          "sha256": "69a4f0e982c4b154d6b8eb9d24fdd73e2f41b2dd9100c66c2e310ff5f8ed4bf8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T030308Z/lattice-2fd6cbe002f34fcad931209f84b6e200b056273c-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-arm64.tar.gz.sigstore.json",
           "bytes": 10996,
-          "sha256": "786e445f4ca4ff335356ca8a18a8a60224ebb72aa7953eeaa17afab8884bcdd4"
+          "sha256": "4af975f97c44646f6d6d513eac9faf3f129e6b95a2b9b048ea020d434ed86492"
         },
-        "signerCommit": "2fd6cbe002f34fcad931209f84b6e200b056273c"
+        "signerCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +819,8 @@
         }
       },
       "changes": [
-        "オーナー宛ての工程があるだけで、Botを1時間ごとに起こしてしまう催促をやめました。"
+        "工程表の道具（Lattice）を0.107.0へ上げました。",
+        "BellTeamのコード用の工程表で、決裁箱の工程をコードを触らない担当として扱うようにしました。"
       ]
     },
     {
