@@ -153,7 +153,7 @@ Appleには失敗理由の行がなく、他にfailedを配達失敗として読
 
 ```mermaid
 flowchart TD
-  Pick["本文を長押し（Macはドラッグ）で選ぶ→選択メニューの「返信」（行全体）/「引用して返信」（選んだ文字）<br/>MessageText.customActions ← TimelineMessage.isQuotable<br/>本文の無い行（画像だけ）はバブルのcontextMenu「返信」"] --> Snap["ConversationContent.startReply(selection?)<br/>ReplyReference(quoting:) で送信者・本文（選択ならその文字）300字・画像の有無を写す<br/>replyingTo に保持"]
+  Pick["行を左へスワイプ（iPhone/iPad。指に付いて動き、右に返信の矢印、56pt超で確定→行全体への返信。Macは付けない）<br/>または本文を長押し（Macはドラッグ）で選ぶ→選択メニューの「返信」（行全体）/「引用して返信」（選んだ文字）<br/>MessageRow.replySwipe / MessageText.customActions ← TimelineMessage.isQuotable<br/>本文の無い行（画像だけ）はバブルのcontextMenu「返信」"] --> Snap["ConversationContent.startReply(selection?)<br/>ReplyReference(quoting:) で送信者・本文（選択ならその文字）300字・画像の有無を写す<br/>replyingTo に保持"]
   Snap --> Bar["composerの replyBar「<送信者>への返信」＋1行＋×（取消でreplyingTo=nil）"]
   Bar --> Send["send(): reply を退避→replyingTo=nil<br/>beginSend(replyTo:) の仮行に同じ引用を載せる<br/>SendMessageBody.reply_to = reply.id、選択なら reply_quote.text = 選んだ文字全体（start は送らない）"]
   Send -->|"POST T/messages {message, reply_to}"| Server["本体（契約 reply.md）"]
@@ -177,9 +177,10 @@ flowchart TD
 | 選択メニュー | 本文はMarkdown（EnrichedMarkdown）で、長押しは文字の選択に使う。バブルに`contextMenu`を付けると選択が奪われるので付けない（画像だけの行を除く）。項目はフォーク`quolu/enriched-markdown-ios`の`MarkdownSelectionMenuConfig.customActions`（選んだ文字を渡す）。メニューは幅に入らない項目を次ページへ送る |
 | 部分引用の送受 | `ReplyReference.part`/`rangeStart`を読む（`range`は生の本文の位置なので、強調の探索開始の目安にだけ使う）。送る`reply_quote.text`は選んだ文字全体。空白だけの選択は送らない |
 | 強調 | `MarkdownHighlight(text, fromUTF16, token)`をフォークの`markdownHighlight`で渡し、表示中の本文から最初の一致（目安以降を先）を塗る。一致しなければ何もしない。数秒後に`jumpHighlight`を外し、行が作り直されても再び塗らない |
-| 対象外 | Botからの返信、Bot間の行への返信、引用の連鎖、横スワイプ |
+| 左スワイプ（a300） | `MessageRow`の`replySwipe`。`onReply`がある行（`isQuotable`）だけ。横が縦の1.5倍超の左ドラッグだけを拾い（縦スクロール・文字選択・左端の戻るスワイプと競合しない）、行が指に付いて最大約48pt動き、56pt超で離すと`onReply`（長押しメニューの「返信」と同じ`startReply`）を一度呼んで戻る。Mac Catalystには付けない（マウスのドラッグが文字選択になるため） |
+| 対象外 | Botからの返信、Bot間の行への返信、引用の連鎖 |
 
-試験：`BellBotTests/ReplyReferenceTests`（復号・snapshot・送信本文・仮行）、`BellBotUITests/ConversationReplyUITests`（長押しで選択→メニュー→帯→取消→送信→引用→古い元へ移動、部分引用の送信と強調。fixtureは`test/helpers/conversation-reply-server.mjs`、環境変数`BELLTEAM_REPLY_FIXTURE_URL`）。
+試験：`BellBotTests/ReplyReferenceTests`（復号・snapshot・送信本文・仮行）、`BellBotUITests/ConversationReplyUITests`（左スワイプで帯が出る、長押しで選択→メニュー→帯→取消→送信→引用→古い元へ移動、部分引用の送信と強調。fixtureは`test/helpers/conversation-reply-server.mjs`、環境変数`BELLTEAM_REPLY_FIXTURE_URL`）。
 
 ## 画像・gallery・cache
 
