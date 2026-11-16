@@ -17,7 +17,7 @@ export const latticeTools = [
       '迷ったら ["help"] を呼ぶ。着手は todo start のように、誰が何を作っているかが工程表に残る。' +
       'input は JSON ファイルを受け取るコマンド（plan create / plan revise / plan backchain）に渡す JSON オブジェクト。args に --input を書かない（自動で付く）。工程の lane は担当で、メンバーのBot ID（例: bot-09e6225c）を書くと画面に顔と名前が出る。オーナーの決裁待ちは lane approval-box（決裁箱）の工程にする（lane owner の工程は足さない）。lane は英数字と . _ - だけで、日本語の名前は Lattice に断られる（identifier_invalid）。それ以外の英数字はそのまま担当として出る。' +
       '結果は {exitCode, result, stdout, stderr}。result は Lattice 自身の JSON で、断られた時も通常の結果として code と next_action（次にすること。detail.next_action のこともある）が入るので、その指示に従って呼び直す。result が null の時は stdout の文章を読む。' +
-      '書き込みは数十秒かかることがある。result.code が LATTICE_WRITE_PENDING なら書き込みは続いているので、再送せず todo show や todo note list で確かめる。エラー LATTICE_WRITE_NOT_SENT は送られていないので、一度だけやり直す。',
+      '書き込みは数十秒かかることがある。result.code が LATTICE_WRITE_PENDING なら書き込みは受け付けられていて、実行中か他の書き込みの順番待ちなので、再送せず todo show や todo note list で確かめる。',
     inputSchema: objectSchema({
       project: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,62}$', description: '工程表のID（プロジェクトID）。' },
       name: { type: 'string', minLength: 1, maxLength: 40, description: '画面に出る工程表の名前。省略可。' },

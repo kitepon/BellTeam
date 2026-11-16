@@ -78,7 +78,6 @@ test('a lane that is not a Bot falls back to the schedule owner', async () => {
 test('a resolve that is pending, unsent, thrown or without a facade gives one lane notice and disables', async () => {
   for (const [answer, lattice] of [
     [{ exitCode: null, result: { code: 'LATTICE_WRITE_PENDING' } }, true],
-    [Object.assign(new Error('LATTICE_WRITE_NOT_SENT'), { code: 'LATTICE_WRITE_NOT_SENT' }), true],
     [{ exitCode: 1, result: { code: 'CONNECTION_INVALID' } }, true],
     [undefined, false],
   ]) {

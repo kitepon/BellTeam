@@ -2,12 +2,11 @@
 // Reads go at once; writes one at a time, seat writes first, background after (doc: Call queue; the child runs reads beside writes).
 // While any chart has subscribers, one timer drives a root 'refresh'.
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
-const notSent = () => Object.assign(new Error('LATTICE_WRITE_NOT_SENT'), { code: 'LATTICE_WRITE_NOT_SENT', status: 503 })
-// Not an error: the write was sent and is still running (docs/architecture/modules/runtime/lattice-child.md: Call queue).
+// Not an error: the write was accepted and has not finished, running or queued behind others (docs/architecture/modules/runtime/lattice-child.md: Call queue).
 const pending = () => ({ exitCode: null, result: { schema: 'bellteam.lattice-write-pending.v1', code: 'LATTICE_WRITE_PENDING',
-  next_action: 'The write was sent and is still running. Do not resend: check with `todo show` or `todo note list`.' }, stdout: null, stderr: null })
+  next_action: 'The write was accepted and has not finished (running, or waiting behind other writes). Do not resend: check with `todo show` or `todo note list`.' }, stdout: null, stderr: null })
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
-const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID', 'LATTICE_OWNER_TASK_REFUSED', 'LATTICE_WRITE_NOT_SENT'])
+const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID', 'LATTICE_OWNER_TASK_REFUSED'])
 const SLICE = 50
 // Owner 2026-11-12: 「では、1分で。」 (README L13).
 export const NUDGE_MS = 60_000
@@ -33,7 +32,7 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
     while (!busy) {
       const job = queues.seat.shift() ?? queues.background.shift()
       if (!job || job.answered) { if (job) continue; return }
-      if (now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
+      if (!job.pending && now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
       busy = true; job.sent = true
       let request
       try { request = controller.request(job.method, job.params) } catch (error) { request = Promise.reject(error) }
@@ -49,7 +48,9 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
       resolve: value => { job.answered = true; clearTimer(job.timer); resolve(value) }, reject: error => { job.answered = true; clearTimer(job.timer); reject(error) } }
     if (method === 'run') job.timer = setTimer(() => {
       if (job.answered) return
-      if (job.sent) { job.answered = true; resolve(pending()) } else { queue.splice(queue.indexOf(job), 1); job.reject(notSent()) }
+      // A queued seat write is answered PENDING and stays queued: dropping it made the caller redo it by hand (a292); the answer is the caller's, the write still lands.
+      if (job.sent) job.answered = true; else job.pending = true
+      resolve(pending())
     }, answerMs)
     queue.push(job)
     pump()
