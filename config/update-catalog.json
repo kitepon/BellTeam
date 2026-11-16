@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T06:00:01Z",
-  "expiresAt": "2026-11-23T06:00:01Z",
+  "publishedAt": "2026-11-16T06:12:55Z",
+  "expiresAt": "2026-11-23T06:12:55Z",
   "releases": [
     {
       "componentId": "usage",
@@ -753,8 +753,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee",
-      "versionId": "5724b25eebe4e7133aa632fceac8107ae21ccabe56c77aef8d375d5e3d3110c4",
+      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
+      "versionId": "baf07409c5e8cf905f31e9cf7554bc1ffed4b799e1976efb1dcea1ac5ac0e617",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-amd64.tar.gz",
-          "bytes": 15306021,
-          "sha256": "5724b25eebe4e7133aa632fceac8107ae21ccabe56c77aef8d375d5e3d3110c4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-amd64.tar.gz",
+          "bytes": 15307250,
+          "sha256": "baf07409c5e8cf905f31e9cf7554bc1ffed4b799e1976efb1dcea1ac5ac0e617"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11047,
-          "sha256": "b308902d2cd0554826e409a07648dec4c426c44dc071d8b9be66ff5e16382261"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "fedd52c192c80bd4c181fecc388c054b5f7dd497fd70eec9b150645850745cf8"
         },
-        "signerCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee"
+        "signerCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,14 +783,14 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.107.0へ上げました。",
+        "工程表の道具（Lattice）を0.108.0へ上げました。工程を直したあとも、申告した作業範囲の記録が残ります。",
         "BellTeamのコード用の工程表で、決裁箱の工程をコードを触らない担当として扱うようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee",
-      "versionId": "69a4f0e982c4b154d6b8eb9d24fdd73e2f41b2dd9100c66c2e310ff5f8ed4bf8",
+      "sourceCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0",
+      "versionId": "b9cb1198b3a398feef80ffa1ebd7ca547268111310776eb7a6c849be0cb0d4ec",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -798,16 +798,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-arm64.tar.gz",
-          "bytes": 15306012,
-          "sha256": "69a4f0e982c4b154d6b8eb9d24fdd73e2f41b2dd9100c66c2e310ff5f8ed4bf8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-arm64.tar.gz",
+          "bytes": 15307230,
+          "sha256": "b9cb1198b3a398feef80ffa1ebd7ca547268111310776eb7a6c849be0cb0d4ec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T055925Z/lattice-e6618f7e33f5a0097d0fbb810fe783a38a5f8fee-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "4af975f97c44646f6d6d513eac9faf3f129e6b95a2b9b048ea020d434ed86492"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T061229Z/lattice-ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "efc4791329912c242c8de756cacdf32e23a67162a3d88865136512ba804c32ae"
         },
-        "signerCommit": "e6618f7e33f5a0097d0fbb810fe783a38a5f8fee"
+        "signerCommit": "ae22ee7b28a000dd419aae4a3aeaf1fed5cd9da0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -819,7 +819,7 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.107.0へ上げました。",
+        "工程表の道具（Lattice）を0.108.0へ上げました。工程を直したあとも、申告した作業範囲の記録が残ります。",
         "BellTeamのコード用の工程表で、決裁箱の工程をコードを触らない担当として扱うようにしました。"
       ]
     },
