@@ -27,6 +27,7 @@ const samples = {
   'usage.notify.room': [{ id: 'message-a', sender: { id: 'bot-a', name: 'A' }, room: { id: 'room-a', name: 'Room' } }, { accepted: true }],
   'assets.beginSave': [{ owner: 'user' }, { leaseId: 'lease-a' }],
   'assets.endSave': [{ leaseId: 'lease-a' }, { requested: true }],
+  'assets.read': [{ owner: 'bot-a', file: 'message-a-1.png', leaseId: 'lease-a' }, { data: 'iVBORw0KGgo=' }],
   'runtime.image.read': [{ image: { path: '/parent/validated/image.png' }, leaseId: 'lease-a' }, { data: 'iVBORw0KGgo=' }],
   'runtime.room.context': [{ roomId: 'room-a', messageId: 'message-a', speaker: 'A', text: 'Q' }, { turns: [{ speaker: 'A', text: 'Q' }] }],
   'runtime.observer.snapshot': [{}, { projects: [{ botId: 'bot-a', scope, projectBytes: 20 }] }],

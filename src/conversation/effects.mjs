@@ -7,7 +7,7 @@ import { validateObserverCheckResult } from '../observer-check.mjs'
 
 export const CONVERSATION_EFFECT_METHODS = Object.freeze([
   'direct.log.append', 'members.profiles.read', 'usage.routing.read', 'usage.notify.direct', 'usage.notify.room',
-  'assets.beginSave', 'assets.endSave', 'runtime.image.read', 'runtime.room.context',
+  'assets.beginSave', 'assets.endSave', 'assets.read', 'runtime.image.read', 'runtime.room.context',
   'runtime.observer.snapshot', 'runtime.observer.check', 'runtime.observer.read', 'execution.notify', 'execution.turn', 'execution.fork',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
   'execution.assertAccess', 'execution.reconcile', 'execution.closeLaunch',
@@ -20,6 +20,7 @@ const text = value => typeof value === 'string'
 const nonempty = value => text(value) && value.length > 0 && !value.includes('\0')
 const identity = value => nonempty(value) && value.length <= 128 && !/\s/u.test(value)
 const id = value => text(value) && /^[a-z0-9][a-z0-9-]{0,127}$/u.test(value)
+const assetFile = value => text(value) && /^[a-z0-9][a-z0-9-]{0,127}\.(png|jpg|webp|gif)$/u.test(value)
 const bool = value => typeof value === 'boolean'
 const integer = value => Number.isSafeInteger(value) && value >= 0
 const finite = value => typeof value === 'number' && Number.isFinite(value)
@@ -61,6 +62,7 @@ export function validateConversationEffect(method, params, capturedContext) {
     case 'usage.notify.room': return fields(params, { id: identity, sender: label, room: label })
     case 'assets.beginSave': return fields(params, { owner: id })
     case 'assets.endSave': return fields(params, { leaseId: identity })
+    case 'assets.read': return fields(params, { owner: id, file: assetFile, leaseId: identity })
     case 'runtime.image.read': return fields(params, { image, leaseId: identity })
     case 'runtime.room.context': return fields(params, { roomId: id, messageId: identity, speaker: text, text })
     case 'runtime.observer.check': {
@@ -141,7 +143,7 @@ export function validateConversationEffectResult(method, result, params) {
     case 'usage.notify.direct': case 'usage.notify.room': return fields(result, { accepted: value => value === true })
     case 'assets.beginSave': return fields(result, { leaseId: identity })
     case 'assets.endSave': case 'execution.background.end': return fields(result, { requested: value => value === true })
-    case 'runtime.image.read': return fields(result, { data: text })
+    case 'assets.read': case 'runtime.image.read': return fields(result, { data: text })
     case 'runtime.room.context': return fields(result, { turns: array(value => fields(value, { speaker: text, text })) })
     case 'runtime.observer.snapshot':
       fields(result, { projects: array(value => fields(value, { botId: id, scope: isObserverProjectScope,
