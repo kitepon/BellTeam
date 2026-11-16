@@ -136,7 +136,8 @@ export function createDiagnosticsChildChannel({ dispatcher, event = process, ver
         }
       }
       check(message.kind === 'root' && message.context?.generation === generation)
-      if (!accepting || active.size >= 8) throw failure('DIAGNOSTICS_NOT_ACCEPTED', 'not_accepted')
+      // No count cap here: the sole writer already serialises, and the parent's root lane bounds and queues a burst (a204).
+      if (!accepting) throw failure('DIAGNOSTICS_NOT_ACCEPTED', 'not_accepted')
       dispatcher.validateRequest(message.method, message.params, message.context)
       quiesced = false
       const done = deferred(); active.add(done.promise)

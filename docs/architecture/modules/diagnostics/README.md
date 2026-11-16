@@ -18,7 +18,7 @@ flowchart LR
 | 公開操作 | 入出力 | 状態/失敗と受渡し |
 | --- | --- | --- |
 | initialize/restore | 既fileと注記→利用準備 | read-only restoreからresumeまで作用0、既count/open/unknownを再生成しない |
-| record | 既report→保存ACK後のrow | 固定code/集約と安全field、返却rowのfingerprint/count/timeを親HTTPも使用 |
+| record | 既report→保存ACK後のrow | 固定code/集約と安全field、返却rowのfingerprint/count/timeを親HTTPも使用。同時に届いたrecordは子で件数により断らず、唯一writerの直列保存の順を待つ。同時数は親の共通module-ipcのroot上限64と順番待ち（呼び手の60秒）だけが抑える（2026-11-16 a204: 子の同時8件上限が503集中時の診断を`DIAGNOSTICS_NOT_ACCEPTED`で捨てていた） |
 | list | status/limit→閉row DTO | 旧class同期互換、親facadeはasync可。管理GETがawaitして結果を保持。巨大resultはruntimeの閉stream契約で運ぶ |
 | setStatus/setNote/updateInvestigation | 既指紋/状態/注記→保存後row | 既正本へ同writerで直列保存、不正400/不存在404の既出力を維持 |
 | close/drain | 新入場封鎖→先行要求と実保存終端 | timeout/acceptedを保存完了へ置換しない、親facadeとrunnerの実終端を同世代で結ぶ |

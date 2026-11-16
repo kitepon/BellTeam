@@ -68,3 +68,20 @@ test('actual diagnostics channel keeps same saved records/notes through controll
   await controller.close()
   for (const child of children) assert.equal(child.exitCode, 0)
 })
+
+test('a burst of 123 concurrent records through the actual channel is saved in full (a204)', { timeout: 15000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'diagnostics-burst-'))
+  const controller = createModuleProcess({ component: 'diagnostics', root,
+    createChannel: createDiagnosticsParentChannel, validateReady: validateDiagnosticsReady,
+    prepareRelease: async versionId => ({ versionId, appRoot: '/unused' }),
+    spawnProcess: (entry, args, options) => spawn(process.execPath,
+      [new URL('./fixtures/diagnostics-runtime-child.mjs', import.meta.url).pathname, root, args[0]], options),
+  })
+  t.after(async () => { await controller.close(); await rm(root, { recursive: true, force: true }) })
+  await controller.start()
+  const report = { code: 'SERVER_HTTP_503', module: 'server' }
+  const results = await Promise.allSettled(Array.from({ length: 123 }, () => controller.request('record', { report })))
+  assert.deepEqual(results.filter(result => result.status === 'rejected').map(result => result.reason.code), [])
+  const [row] = await controller.request('list', {})
+  assert.equal(row.occurrence_count, 123)
+})

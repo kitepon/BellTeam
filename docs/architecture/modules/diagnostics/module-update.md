@@ -33,7 +33,7 @@ listは既all/open/resolved、1〜1000件・既500既定、last_seen降順、本
 
 `DIAGNOSTICS_STATE_COMPATIBILITY`は`{diagnostics:'unversioned-rows-array',investigations:'optional-fingerprint-map'}`。これは実保存形式の宣言で、架空schema番号やrawstate引渡しではない。initializeは`{generation,mode:'bootstrap'|'restore'}`、返却は`{stateCompatibility}`。bootstrapだけ既chmod初期化、restoreは同保存先と任意注記を読むだけでmkdir/chmod/write/mtime変更をしない。initialize完了からresumeまでは業務を受付けない。
 
-quiesce/resume/exitは空object。quiesceはvalidateRequestの新受付を閉じる。runnerで既に受付済みの要求はdispatchでacceptingを再検査せず、generation/DTO/初期化/exitだけを再検査する。同期active登録とquiesced無効化を行い、既操作・list消費・pending保存を実終端まで待って`{quiesced:true}`。resumeは未完quiesceを無効にして`{resumed:true}`。exitはdrain済みだけ`{closed:true}`。disconnectは新受付を閉じ、一覧を閉じ、保存実終端を待つ。制御のtimeoutは取消の証明にしない。60秒drain未完なら旧resume・新子0、OS/IPC/pipe close後だけ新restoreという世代交換はruntime所有。
+quiesce/resume/exitは空object。子の業務受付を断るのは受付停止（initialize完了前とquiesce中）だけで、同時数では断らない（a204）。quiesceはvalidateRequestの新受付を閉じる。runnerで既に受付済みの要求はdispatchでacceptingを再検査せず、generation/DTO/初期化/exitだけを再検査する。同期active登録とquiesced無効化を行い、既操作・list消費・pending保存を実終端まで待って`{quiesced:true}`。resumeは未完quiesceを無効にして`{resumed:true}`。exitはdrain済みだけ`{closed:true}`。disconnectは新受付を閉じ、一覧を閉じ、保存実終端を待つ。制御のtimeoutは取消の証明にしない。60秒drain未完なら旧resume・新子0、OS/IPC/pipe close後だけ新restoreという世代交換はruntime所有。
 
 直接fixtureは閉DTO/generation、保存ACK/drainと未終端resume、失敗保存の非成功、read-only restoreのmode/mtime/bytes、同snapshot/16MiB超一覧の逐次消費、独立factoryと管理GET配列を確認する。実署名/native/配布の成立はこの局所試験だけで宣言しない。
 
