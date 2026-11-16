@@ -14,6 +14,9 @@ const history = Array.from({ length: 60 }, (_, index) => {
     at: at(index), message: `${id} 短い返事です。`, delivery: 'delivered',
   }
 })
+history[56].message = 'm057 今日は晴れです。明日は雨になりそうです。週末は未定です。'
+// m056は、元が無い部分引用。
+history[55].reply_to = { id: 'gone-2', available: false, part: true, text: '選んだ文章' }
 // m060は古いm003への返信、m059は元が読めない返信。
 history[59].reply_to = { id: 'm003', available: true, sender: { id: 'bot-one', name: 'ユキ' }, at: at(2), text: 'm003 短い返事です。' }
 history[58].reply_to = { id: 'gone-1', available: false }
@@ -58,7 +61,13 @@ const server = createServer((request, response) => {
       const id = `m${String(messages.length + 1).padStart(3, '0')}`
       const original = messages.find(item => item.id === post.reply_to)
       const row = { id, kind: 'message', direction: 'outgoing', sender: { id: 'user', name: '利用者' }, at: new Date().toISOString(), message: post.message, delivery: 'delivered' }
-      if (post.reply_to) row.reply_to = original
+      const part = post.reply_quote?.text
+      if (post.reply_to && part !== undefined) {
+        const index = original ? original.message.indexOf(part) : -1
+        row.reply_to = original
+          ? { id: original.id, available: true, sender: original.sender, at: original.at, text: part, part: true, ...(index >= 0 ? { range: { start: index, end: index + [...part].length } } : {}) }
+          : { id: post.reply_to, available: false, part: true, text: part }
+      } else if (post.reply_to) row.reply_to = original
         ? { id: original.id, available: true, sender: original.sender, at: original.at, text: original.message }
         : { id: post.reply_to, available: false }
       messages.push(row)

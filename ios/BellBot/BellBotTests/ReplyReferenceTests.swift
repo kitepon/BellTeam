@@ -34,6 +34,24 @@ final class ReplyReferenceTests: XCTestCase {
         XCTAssertFalse(crlf.truncated)
     }
 
+    func testPartQuoteDecodesAndSendsTheFullSelection() throws {
+        let part = try row(#"{"id":"b","at":"t","reply_to":{"id":"a","available":true,"text":"選んだ","part":true,"range":{"start":4,"end":7}}}"#)
+        XCTAssertEqual(part.replyTo?.part, true)
+        XCTAssertEqual(part.replyTo?.rangeStart, 4)
+        let gone = try row(#"{"id":"c","at":"t","reply_to":{"id":"zzz","available":false,"part":true,"text":"残った文章"}}"#)
+        XCTAssertEqual(gone.replyTo?.available, false)
+        XCTAssertEqual(gone.replyTo?.quotedText, "残った文章")
+        let original = try row(#"{"id":"a","at":"t","message":"全文"}"#)
+        let long = String(repeating: "あ", count: 400)
+        let reply = ReplyReference(quoting: original, senderName: "ユキ", selection: long)
+        XCTAssertTrue(reply.part)
+        XCTAssertEqual(reply.text.unicodeScalars.count, 300)
+        XCTAssertEqual(reply.selection, long)
+        let body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            SendMessageBody(message: "a", images: [], targets: nil, replyTo: "a", replyQuote: ReplyQuoteBody(text: long)))) as? [String: Any]
+        XCTAssertEqual((body?["reply_quote"] as? [String: Any])?["text"] as? String, long)
+    }
+
     func testQuotableRows() throws {
         XCTAssertTrue(try row(#"{"id":"a","at":"t","kind":"message"}"#).isQuotable)
         XCTAssertTrue(try row(#"{"id":"a","at":"t","kind":"interim"}"#).isQuotable)

@@ -1,3 +1,4 @@
+import EnrichedMarkdown
 import PhotosUI
 import UniformTypeIdentifiers
 import SwiftUI
@@ -80,6 +81,8 @@ private struct ConversationContent: View {
     /// 返信の相手。送信で空にし、送信が確認できなかった時は戻す。
     @State private var replyingTo: ReplyReference?
     @State private var jumpRequest = ConversationJump(id: nil, revision: 0)
+    /// 引用した部分を元の行で光らせる指示。数秒で外し、行が作り直されても再び光らせない。
+    @State private var jumpHighlight: (id: String, highlight: MarkdownHighlight)?
     @State private var errorText: String?
     @State private var initialLoadFailed = false
     #if !targetEnvironment(macCatalyst)
@@ -296,7 +299,9 @@ private struct ConversationContent: View {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
                            onReply: message.isQuotable ? { startReply(to: message, senderBot: senderBot) } : nil,
-                           onJump: { id in Task { await jump(to: id) } },
+                           onQuote: message.isQuotable ? { startReply(to: message, senderBot: senderBot, selection: $0) } : nil,
+                           highlight: jumpHighlight?.id == message.id ? jumpHighlight?.highlight : nil,
+                           onJump: { reply in Task { await jump(to: reply) } },
                            onOpenPeer: { presentedSheet = .peer(message) },
                            onOpenImages: { presentedGallery = ConversationGallery(paths: $0) })
                     .equatable()
@@ -316,13 +321,14 @@ private struct ConversationContent: View {
         }
     }
 
-    private func startReply(to message: TimelineMessage, senderBot: Bot?) {
+    private func startReply(to message: TimelineMessage, senderBot: Bot?, selection: String? = nil) {
         let name = message.isOutgoing ? "あなた" : (message.sender?.title ?? senderBot?.displayName ?? title)
-        replyingTo = ReplyReference(quoting: message, senderName: name)
+        replyingTo = ReplyReference(quoting: message, senderName: name, selection: selection)
     }
 
     /// 引用の元へ飛ぶ。読込済みに無ければ、見つかるか履歴の先頭に着くまで過去を読む。
-    private func jump(to id: String) async {
+    private func jump(to reply: ReplyReference) async {
+        let id = reply.id
         while !messages.contains(where: { $0.id == id }) {
             guard hasMore, let oldest = messages.first?.id else { break }
             await loadOlder()
@@ -332,7 +338,14 @@ private struct ConversationContent: View {
             errorText = "元のメッセージは見つかりません。"
             return
         }
-        jumpRequest = ConversationJump(id: id, revision: jumpRequest.revision + 1)
+        let revision = jumpRequest.revision + 1
+        let marksPart = reply.part && !reply.text.isEmpty
+        jumpHighlight = marksPart ? (id, MarkdownHighlight(text: reply.text, fromUTF16: reply.rangeStart ?? 0, token: revision)) : nil
+        jumpRequest = ConversationJump(id: id, revision: revision, flashesBubble: !marksPart)
+        if marksPart {
+            try? await Task.sleep(for: .seconds(4))
+            if jumpRequest.revision == revision { jumpHighlight = nil }
+        }
     }
 
     private func exportConversation() async {
@@ -850,7 +863,8 @@ private struct ConversationContent: View {
             message: message,
             images: sent.map { ImagePayload(mime: "image/jpeg", data: $0.data.base64EncodedString()) },
             targets: selected,
-            replyTo: reply?.id
+            replyTo: reply?.id,
+            replyQuote: reply?.selection.map(ReplyQuoteBody.init)
         )
         do {
             let acknowledgement = try await store.api.sendMessage(target.path + "/messages", body: body)
@@ -945,7 +959,9 @@ private struct MessageRow: View, Equatable {
     let replyLabel: String?
     let api: BellAPI
     let onReply: (() -> Void)?
-    let onJump: (String) -> Void
+    let onQuote: ((String) -> Void)?
+    let highlight: MarkdownHighlight?
+    let onJump: (ReplyReference) -> Void
     let onOpenPeer: () -> Void
     let onOpenImages: ([String]) -> Void
 
@@ -956,7 +972,7 @@ private struct MessageRow: View, Equatable {
             && lhs.senderBot?.id == rhs.senderBot?.id && lhs.senderBot?.color == rhs.senderBot?.color
             && lhs.senderBot?.avatar == rhs.senderBot?.avatar
             && lhs.replyLabel == rhs.replyLabel && lhs.api === rhs.api
-            && (lhs.onReply == nil) == (rhs.onReply == nil)
+            && (lhs.onReply == nil) == (rhs.onReply == nil) && lhs.highlight == rhs.highlight
     }
 
     private var senderName: String? {
@@ -1019,7 +1035,8 @@ private struct MessageRow: View, Equatable {
                                     .font(.subheadline)
                             }
                             if let text = message.message, !text.isEmpty {
-                                MessageText(source: text, accessibilityIdentifier: "message-text-\(message.id)")
+                                MessageText(source: text, accessibilityIdentifier: "message-text-\(message.id)",
+                                            onReply: onReply, onQuote: onQuote, highlight: highlight)
                                     .equatable()
                             }
                             if let replyLabel {
@@ -1035,8 +1052,11 @@ private struct MessageRow: View, Equatable {
                                     in: RoundedRectangle(cornerRadius: 21, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 21).strokeBorder(
                             message.isOutgoing ? BellTheme.line : bubbleAccent.opacity(0.35)))
+                        // 本文のある吹き出しは長押しで文字を選ぶ。返信は選択メニュー（MessageText）にある。
                         .contextMenu {
-                            if let onReply { Button("返信", systemImage: "arrowshape.turn.up.left", action: onReply) }
+                            if message.message?.isEmpty != false, let onReply {
+                                Button("返信", systemImage: "arrowshape.turn.up.left", action: onReply)
+                            }
                         }
                     }
                     HStack(spacing: 6) {
@@ -1071,11 +1091,11 @@ private struct MessageRow: View, Equatable {
 private struct ReplyQuote: View {
     let reply: ReplyReference
     let accent: Color
-    let onJump: (String) -> Void
+    let onJump: (ReplyReference) -> Void
 
     var body: some View {
         if reply.available {
-            Button { onJump(reply.id) } label: {
+            Button { onJump(reply) } label: {
                 HStack(spacing: 8) {
                     ReplyQuoteBar(accent: accent)
                     VStack(alignment: .leading, spacing: 2) {
@@ -1095,6 +1115,23 @@ private struct ReplyQuote: View {
             .accessibilityLabel("返信元: \(reply.quotedText)")
             .accessibilityHint("元のメッセージへ移動")
             .accessibilityIdentifier("reply-quote-\(reply.id)")
+        } else if reply.part {
+            // 元が無くても、選んだ文章は残っている。
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    ReplyQuoteBar(accent: accent)
+                    Text(reply.quotedText)
+                        .font(BellTheme.messageHelperFont)
+                        .foregroundStyle(BellTheme.muted)
+                        .lineLimit(2)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                Text("元のメッセージを表示できません")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BellTheme.muted)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("reply-quote-unavailable-part")
         } else {
             Text("元のメッセージを表示できません")
                 .font(BellTheme.messageHelperFont)
