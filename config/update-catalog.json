@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T00:25:52Z",
-  "expiresAt": "2026-11-23T00:25:52Z",
+  "publishedAt": "2026-11-16T00:51:57Z",
+  "expiresAt": "2026-11-23T00:51:57Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
-      "versionId": "713249e3d949cf7b8e1c9f45b03d8caecf1fa36dadd5ce01352a841c8a673806",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "d39133acc87295db2bd949f17c719237e0d03df7a49794779dbf277c46af3543",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-amd64.tar.gz",
-          "bytes": 80537,
-          "sha256": "713249e3d949cf7b8e1c9f45b03d8caecf1fa36dadd5ce01352a841c8a673806"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz",
+          "bytes": 81775,
+          "sha256": "d39133acc87295db2bd949f17c719237e0d03df7a49794779dbf277c46af3543"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10823,
-          "sha256": "8be44226fda8192d0b850075889e52ce1a63c2a7ed79186baad0e31af2dab07f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10729,
+          "sha256": "8b01f3b9fffcf66c4ae084c858726443206d9824548647af6652cbbc6ffda152"
         },
-        "signerCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7"
+        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "送った秘密の入力依頼を取り下げると、保存していた値と出どころの記録が消えるようにしました。"
+        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7",
-      "versionId": "f32cfa0555e93cc344a3304957af40b8643ce3df910a678331204eb765580b7f",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "b7ff4bc7f85a0bbe6c59d4e9efd695a9f919428b4326bbf2b984bbe850682ac9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-arm64.tar.gz",
-          "bytes": 80536,
-          "sha256": "f32cfa0555e93cc344a3304957af40b8643ce3df910a678331204eb765580b7f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz",
+          "bytes": 81775,
+          "sha256": "b7ff4bc7f85a0bbe6c59d4e9efd695a9f919428b4326bbf2b984bbe850682ac9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T183645Z/usage-9c3fc896358e706b8e6e819e16b5c33c50d654c7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10874,
-          "sha256": "0da7da97db9433c4ba26a7b11a0da58be8dfd04c20178163d44ca24de195a89b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10858,
+          "sha256": "1469d703fa36b074f28bb3daafa10dab921c65795f01ec1213251e535d3b0326"
         },
-        "signerCommit": "9c3fc896358e706b8e6e819e16b5c33c50d654c7"
+        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "送った秘密の入力依頼を取り下げると、保存していた値と出どころの記録が消えるようにしました。"
+        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
-      "versionId": "sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "一覧画面でアバターを一度に大量に読み込むと、一部が503で失敗していたのを直しました。同時に処理できる64件を超えた分は、断らずに順番を待ちます。"
+        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。保存した値が失われた時は、つなぎ直せる状態に戻ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b2be90df5de86428be6236db340d6ee4401c6a3a",
-      "versionId": "sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9870c9bd0ece4805b544cd88db973a032f80f876660f71cb67567eb6e07262c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:649744fc89816b9b3b41a9cd09829a099506e835f25216492f3b0da44e782b39"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "一覧画面でアバターを一度に大量に読み込むと、一部が503で失敗していたのを直しました。同時に処理できる64件を超えた分は、断らずに順番を待ちます。"
+        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。保存した値が失われた時は、つなぎ直せる状態に戻ります。"
       ]
     },
     {
@@ -825,8 +825,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
-      "versionId": "d6e84527a489f2d26acfd1b3defd387803433c363d6613d87cf633b03d6ab55c",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "8f963a5846db3e480eacc6f829056b69ef8ffa997b8956d4b9fb5c6b839c33b2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -834,16 +834,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz",
-          "bytes": 3836666,
-          "sha256": "d6e84527a489f2d26acfd1b3defd387803433c363d6613d87cf633b03d6ab55c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz",
+          "bytes": 3837312,
+          "sha256": "8f963a5846db3e480eacc6f829056b69ef8ffa997b8956d4b9fb5c6b839c33b2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11409,
-          "sha256": "7c6806cc5c7019d34cb5e47f2f70591cbd81176a85f74ef33e67695144e18f60"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "9efb0128ab8ea7089d1fb007dd33c3f0055485e5d2d490046c74f7d2abc6928f"
         },
-        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -855,13 +855,13 @@
         }
       },
       "changes": [
-        "決裁箱拡張を追加しました。決裁箱の決裁を工程表の工程につなぎ、アプリの決裁画面へ届けます。"
+        "決裁箱へのつなぎ情報の保存に失敗しても、つながったまま使え、あとで保存し直すようにしました。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "143fededc0202bdccf87828eb57bc65dc390368b",
-      "versionId": "149544a3bf117324566955fb9b5da06a88155eafe635f0dbe38113ec9112ebec",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "76d50e549d435b80ce55debad612a42e349afba5b95b4e99282444d2b2f5b8be",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -869,16 +869,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz",
-          "bytes": 3836666,
-          "sha256": "149544a3bf117324566955fb9b5da06a88155eafe635f0dbe38113ec9112ebec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz",
+          "bytes": 3837312,
+          "sha256": "76d50e549d435b80ce55debad612a42e349afba5b95b4e99282444d2b2f5b8be"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261115T223821Z/approval-box-extension-143fededc0202bdccf87828eb57bc65dc390368b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11358,
-          "sha256": "b251244c49d35cdab342d6b69262342a013d6dd58795fa09b74bf3824d6ed7af"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004043Z/approval-box-extension-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "01cd6ee1ae4657cc3159ca5598d9a4836060bec5de1ca39614a65cf3016ac9eb"
         },
-        "signerCommit": "143fededc0202bdccf87828eb57bc65dc390368b"
+        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -890,7 +890,7 @@
         }
       },
       "changes": [
-        "決裁箱拡張を追加しました。決裁箱の決裁を工程表の工程につなぎ、アプリの決裁画面へ届けます。"
+        "決裁箱へのつなぎ情報の保存に失敗しても、つながったまま使え、あとで保存し直すようにしました。"
       ]
     }
   ],
