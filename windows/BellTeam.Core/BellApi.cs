@@ -54,12 +54,12 @@ public sealed class BellApi : IDisposable
         => SendAsync(target, text, [], targets, token);
     // Returns the id the history will carry for this message (Mac messageID(for:)): a room answers "id", a member "delivery_id"
     // (src/conversation/results.mjs user.post; the Mac reads it through convertFromSnakeCase).
-    public async Task<string> SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default)
+    public async Task<string> SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default, string? replyTo = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages")
-        {
-            Content = JsonContent.Create(new { message = TextContent.Normalize(text), images = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), targets }, options: Json)
-        };
+        // reply_to is left out unless set: the server refuses anything that is not a non-empty string (reply.md "Request").
+        var body = new Dictionary<string, object?> { ["message"] = TextContent.Normalize(text), ["images"] = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), ["targets"] = targets };
+        if (replyTo is not null) body["reply_to"] = replyTo;
+        using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages") { Content = JsonContent.Create(body, options: Json) };
         var result = await JsonAsync<JsonElement>(request, token);
         if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty(target.IsRoom ? "id" : "delivery_id", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } accepted) return accepted;
         throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");

@@ -65,6 +65,12 @@ public static class Timeline
         }
     }
 
+    // Reply (conversation reply.md "What can be quoted"): conversation rows only; a pending echo, a request card and a Bot-to-Bot row are not.
+    public static bool IsQuotable(TimelineMessage message) => !PendingSend.IsLocal(message.Id) && message.SecretRequest is null && message.OwnerQuestion is null && message.Kind is null or "message" or "interim" or "schedule";
+    public const string UnavailableQuote = "元のメッセージを表示できません";
+    public const string QuoteNotFound = "元のメッセージは見つかりません";
+    public static string QuoteBody(ReplyReference quote) => !quote.Available ? UnavailableQuote : quote.Text.Length == 0 ? quote.Image ? "（画像）" : "" : quote.Truncated ? quote.Text + "…" : quote.Text;
+
     // Mac BellDate.short / BellDate.long.
     private static readonly System.Globalization.CultureInfo Japanese = new("ja-JP");
     public static string ShortTime(DateTimeOffset at, DateTimeOffset now)
