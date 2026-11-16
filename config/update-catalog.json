@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T15:51:04Z",
-  "expiresAt": "2026-11-23T15:51:04Z",
+  "publishedAt": "2026-11-16T16:23:42Z",
+  "expiresAt": "2026-11-23T16:23:42Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e48ddea5bd15b6f220b22986ef14cd484f46cad7",
-      "versionId": "sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40",
+      "sourceCommit": "0a96b6dc0048d5e5578e2acd2f3fa84f70330a9c",
+      "versionId": "sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ボットとの会話で、転送・共有・ファイルを付けた送信と、画像つきメッセージの転送を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
+        "会話の部品を入れ替えている最中に画面や工程が会話を呼んでも、エラーにせず、入れ替えが終わるまで待ってから処理するようにしました。待つのは最長60秒です。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e48ddea5bd15b6f220b22986ef14cd484f46cad7",
-      "versionId": "sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40",
+      "sourceCommit": "0a96b6dc0048d5e5578e2acd2f3fa84f70330a9c",
+      "versionId": "sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1820f1f3b9b21d57261c013d6d5737b1ee9ff0ed244e4a9bb44342d251ea7f40"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7b1efb138a41d7eb971a7cd5467f34eb650df33305256f228f83afc530f0a6b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ボットとの会話で、転送・共有・ファイルを付けた送信と、画像つきメッセージの転送を受け付けて保存できるようにしました。受け付けられない時は、エラーではなく理由を返します。"
+        "会話の部品を入れ替えている最中に画面や工程が会話を呼んでも、エラーにせず、入れ替えが終わるまで待ってから処理するようにしました。待つのは最長60秒です。"
       ]
     },
     {
