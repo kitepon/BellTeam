@@ -334,6 +334,36 @@ flowchart TD
 
 `approvals.js` and `bot-editor.js` call `openImageViewer(urls, index, alt)` without names and get the same viewer (download name falls back). Failure handling: a failed share (`AbortError` = the Owner closed the sheet) is silent; any other error and a failed clipboard write show 「共有できませんでした」 / 「コピーできませんでした」 in the status line; the image stays. No guard, no timeout other than the 2 s status line. Source reach: `web/image-gallery.js`, `web/conversation-timeline.js` (names), `web/styles.css`, `test/image-gallery.test.mjs`, this page and `management.md` (the image-gallery row).
 
+### Forward and share-in (a282, Web client of [forward.md](../conversation/forward.md))
+
+The Web sends only the identifiers of the item the Owner picked (`forward`) or the content dropped from another app (`share`); N102 composes `message` + `origin`, the Web draws `origin`. A server without the feature ignores both fields, so the Web ships in the same train as the conversation module (a285, release order in forward.md); nothing is offered conditionally.
+
+```mermaid
+flowchart TD
+  Msg["history item (message / interim / room message / peer detail)<br/>renderItemElement: 転送 button next to 返信"] -->|"click"| Open["timeline onForward({source:{kind: bot|room, id}, messageId: item.id, preview})"]
+  Open --> Dialog["forward-dialog.js (sheet): preview, destination list (Bots and rooms, search over 8),<br/>comment, rooms without auto responders also ask who should answer"]
+  Dialog -->|"POST /api/bots|rooms/:id/messages {message: comment, images: [], forward:{source,message_id}, targets?}"| Server["N102 (forward.md): composes message + origin, copies images"]
+  Server -->|"201 -> 転送しました + その会話を開く"| Done["application selectBot / selectRoom"]
+  Server -->|"404 FORWARD_SOURCE_NOT_FOUND / 415 / 400 / network"| Err["plain line in the dialog, input kept, 送る again"]
+  Drop["drop on the open conversation: text/plain, text/uri-list, image files"] --> Share["composer setShare({text, urls}) + addImages; non-image file -> refused in plain words"]
+  Share --> Bar["context bar (shared with reply: one of them): 共有する内容 + ×"]
+  Bar -->|"send: {message: comment, share:{text?, urls?}, images}"| Server
+  Server -->|"history item.origin = {kind: forward|share, from?, at?, app?, urls?, content_start}"| Draw["renderItemElement: mark 転送 · name · time / 共有 · app,<br/>comment = message[0, content_start), content = quoted block (links), images below"]
+  Room["roomTimelineItem passes record.origin unchanged"] --> Draw
+```
+
+| Function | Contract |
+| --- | --- |
+| `splitOrigin(message, start)` (conversation-timeline.js, exported, pure) | splits at `content_start` counted in Unicode code points: `{comment, content}`; no `origin` -> the whole message is the comment |
+| `forwardPayload({source, messageId, comment, targets})` (forward-dialog.js, exported, pure) | the POST body: `message` = comment, `images: []`, `forward: {source, message_id}`, `targets` only when given; never the text of the original |
+| `forwardError(cause)` (exported, pure) | status -> plain Japanese: 404 転送する発言が見つかりません。会話を読み直してください。; 415 画像やファイルを含む発言は、まだ転送できません。; 400 転送できませんでした。; other -> 送信できませんでした（code） |
+| `destinationsOf(bots, rooms, query)` (exported, pure) | the list the dialog shows: Bots then rooms, filtered by the search text on the name |
+| `shareFromTransfer(dataTransfer)` (conversation-composer.js, exported, pure) | `{text, urls, images, refused}`: `text/uri-list` lines -> `urls` (http / https only, 20, 2000 characters), `text/plain` -> `text` (20000; a lone URL becomes a url), image files -> `images`, any other file -> `refused: true` |
+| `installShareDrop(panel, {enabled, composer})` (conversation-composer.js) | `dragover` / `dragleave` / `drop` on the open conversation: shows 「ここへドロップして、この会話に共有」, turns the drop into `composer.setShare` + `addImages` through `shareFromTransfer`; a closed conversation or an unrelated drag is ignored; a non-image file adds the plain refusal |
+| composer `setShare` / context bar | one of reply or share per draft; shared content alone is sendable (comment optional); the send body adds `share` and never `reply_to` with it; kept on a failed send like the reply |
+
+Paste: pasting text or an image into the input stays a normal message (unchanged); the marked 共有 comes from dropping on the conversation. Data ownership: the dialog keeps the pick and the comment in memory until it closes; the share content lives in the draft. Failure handling: a failed forward keeps the dialog and its input; a failed share keeps the draft; images-in-forward and file refusals are shown in plain words (415 until N102's image copy and the files task are live). No guard, no timer. Source reach: `web/forward-dialog.js` (new, registered in `web/assets.mjs`), `web/conversation-timeline.js`, `web/conversation-composer.js`, `web/application.js`, `web/index.html`, `web/styles.css`, tests `forward-dialog`, `conversation-composer`, `timeline-open-queue`.
+
 ## 操作の接続と確認範囲
 
 `stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](../../web-final-gaps.md)に記録する。

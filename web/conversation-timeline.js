@@ -32,7 +32,15 @@ export function locateQuotePart(nodes, text, from = 0) {
   return startNode && endNode ? { startNode, startOffset, endNode, endOffset } : null
 }
 
-export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange, onReply = () => {} }) {
+// 転送・共有の行（forward.md）：message = コメント + 空行 + 内容。content_start は Unicode のコードポイントで数える。
+export function splitOrigin(message = '', start = null) {
+  if (!Number.isInteger(start) || start < 0) return { comment: message, content: '' }
+  if (start === 0) return { comment: '', content: message }
+  const chars = [...message]
+  return { comment: chars.slice(0, start).join('').trim(), content: chars.slice(start).join('') }
+}
+
+export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange, onReply = () => {}, onForward = () => {} }) {
   let target = null
   const avatarColors = new Map()
   const cardSnapshots = new WeakMap()
@@ -331,6 +339,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       const verb = item.direction === 'sent' ? 'へメッセージを送りました' : 'からメッセージを受け取りました'
       const peer = item.peerPosition ? `${item.peerName} ${item.peerPosition}` : item.peerName
       details.innerHTML = `<summary>${seatLabel(item) ? '<span class="seat-label">分身</span>' : ''}${escapeHtml(peer)}${verb}</summary><div class="peer-detail"><strong>${formatDateTime(item.at)}</strong>${richTextHtml(item.message)}</div>`
+      if (item.id) details.querySelector?.('.peer-detail')?.append(forwardButton(item))
       const failed = item.delivery === 'failed' && !trackingCompletionUnknown(item)
       if (!queued.length && !failed) return details
       const wrapper = document.createElement('div')
@@ -383,6 +392,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     }
     const quote = renderReplyQuote(item.reply_to)
     if (quote) bubble.append(quote)
+    const origin = originMark(item.origin)
+    if (origin) bubble.append(origin)
     // 2枚以上の束は吹き出しの外に置き、枠に囲まずに見せる。
     let imageStack = null
     if (item.image) {
@@ -414,11 +425,19 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
         bubble.append(label)
       }
     }
-    if (item.message?.trim()) {
+    // 転送・共有：コメントは本人の言葉、内容は引用の枠。ない行は今までどおり。
+    const { comment, content } = item.origin ? splitOrigin(item.message, item.origin.content_start) : { comment: item.message, content: '' }
+    if (comment?.trim()) {
       const text = document.createElement('span')
       text.className = 'message-text'
-      text.innerHTML = richTextHtml(item.message)
+      text.innerHTML = richTextHtml(comment)
       bubble.append(text)
+    }
+    if (content?.trim()) {
+      const block = document.createElement('div')
+      block.className = `origin-content is-${item.origin.kind}`
+      block.innerHTML = richTextHtml(content)
+      bubble.append(block)
     }
     const time = document.createElement('div')
     time.className = 'message-time'
@@ -429,7 +448,12 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (!imageStack || bubble.childElementCount) column.append(bubble)
     column.append(time)
     if (queued.length) column.append(renderQueueStatus(queued))
-    if (item.id) column.append(replyButton(item))
+    if (item.id) {
+      const actions = document.createElement('div')
+      actions.className = 'message-actions'
+      actions.append(replyButton(item), forwardButton(item))
+      column.append(actions)
+    }
     wrapper.append(column)
     return wrapper
   }
@@ -455,6 +479,24 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     quote.append(sender, text)
     quote.addEventListener('click', () => { void jumpToMessage(reply.id, quote, reply.part ? { text: reply.text, from: reply.range?.start ?? 0 } : null) })
     return quote
+  }
+  // 転送・共有の印（origin）。画面に出すのは種類・元の発言者・時刻・共有元のアプリだけ。
+  function originMark(origin) {
+    if (!origin?.kind) return null
+    const label = origin.kind === 'forward' ? ['転送', origin.from?.name, origin.at ? formatDateTime(origin.at) : ''] : ['共有', origin.app]
+    return Object.assign(document.createElement('small'), { className: `origin-mark is-${origin.kind}`, textContent: label.filter(Boolean).join(' · ') })
+  }
+  function forwardButton(item) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'message-reply message-forward'
+    button.textContent = '転送'
+    button.setAttribute('aria-label', 'このメッセージを転送')
+    button.addEventListener('click', () => onForward({
+      source: { kind: target?.type === 'room' ? 'room' : 'bot', id: target?.id }, messageId: item.id,
+      preview: { sender: item.direction === 'outgoing' ? 'あなた' : item.sender || target?.name || '', text: item.message?.trim().split('\n')[0] || (item.image ? '（画像）' : '') },
+    }))
+    return button
   }
   function replyButton(item) {
     const button = document.createElement('button')
@@ -624,6 +666,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       at: record.at,
       message: record.message,
       reply_to: record.reply_to,
+      origin: record.origin,
       image: record.image,
       image_count: record.image_count,
       image_url: record.image_url,
