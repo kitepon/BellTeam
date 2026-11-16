@@ -29,6 +29,7 @@ flowchart TD
 | MCP/内部HTTPのBot間送信・予定 | `sendmessage → notificationCallbacks → transport.notify` | direct記録を先に保存。通知の最終回答は送信元へ自動返信せず、宛先BotとOwnerの会話へ表示 |
 | 通話bridge | `receiveCallBridge` | call session/event/seqを記録。失敗時も元記録を残しfailed/stoppedを追記。通話の戻り先は保存metadataで指定 |
 | BotからOwnerへの送信 | `sendmessage`のtarget=user分岐 | native処理なし。画像はこの入口の一枚契約、直接記録と通知で完了 |
+| Ownerの返信（任意`reply_to`） | 直接: `prepareUserTurn`/`receive`、部屋: `sendRoomMessageInOrder`が原本を同じ会話から引いて引用snapshotを行に保存し、`userEnvelope`/`roomEnvelope`が同じsnapshotから本文へ足す | 原本が無くても受付する。契約・図は[reply.md](reply.md) |
 | 部屋 | `RoomMessenger.sendroommessage → sendRoomMessageInOrder` | 発言・参加者・返信者のsnapshotと各配送状態を部屋に保存。下図へ |
 
 `recordUserReply`は、そのターンの空でない最終回答を新しい返信として一度保存する。ターン中にBotがOwnerへ送った行（`sendmessage` target=user、規範承認の通知）は独立した発言で、最終回答を置き換えない。以前の「明示返信を優先」はsend_user_message廃止（a116）で根拠を失い、承認通知が最終回答を消していた（a148、Z26 lab）。空回答を新しい発言にしない。この処理は通知の単なる表示callbackとは責務が違う。

@@ -11,6 +11,7 @@
     "room-access",
     "durable-messages",
     "fork-inquiry",
+    "reply-reference",
     "call-bridge delivery (/v0/directory, /v0/deliver)"
   ],
   "uses": [

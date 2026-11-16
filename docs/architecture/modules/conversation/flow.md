@@ -68,6 +68,8 @@ flowchart LR
 
 ## 履歴を画面へ戻す
 
+返信（`reply_to`）の引用は保存行のsnapshotをそのまま項目へ載せる。表示時に原本を引き直さない。直接は`messageItem`が、部屋は`RoomHistory.project`が運ぶ。契約は[reply.md](reply.md#history-read)。
+
 ```mermaid
 flowchart LR
   Direct["直接会話JSONL / 読取専用"] --> Validate["LF確定行ごとにJSON/schema検証<br/>物理行数とbyte位置を進める"]
