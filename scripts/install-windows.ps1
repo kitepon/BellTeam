@@ -34,7 +34,7 @@ New-Item -ItemType Directory -Force -Path $taskInstall | Out-Null
 Get-ChildItem -LiteralPath $taskPublish | Copy-Item -Destination $taskInstall -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall-windows.ps1') -Destination (Join-Path $taskInstall 'uninstall-windows.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'register-windows-share-target.ps1') -Destination (Join-Path $taskInstall 'register-windows-share-target.ps1') -Force
-$taskShortcutInstall =Start-Process -FilePath $taskExe -ArgumentList '--install-shortcut' -WindowStyle Hidden -Wait -PassThru
+$taskShortcutInstall = Start-Process -FilePath $taskExe -ArgumentList '--install-shortcut' -WindowStyle Hidden -Wait -PassThru
 if ($taskShortcutInstall.ExitCode -ne 0) { throw 'BellTeamのスタートメニュー登録に失敗しました。' }
 
 $taskRegistry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam'
@@ -55,7 +55,8 @@ Write-Output "BellTeamを導入しました: $taskInstall"
 if (!$SkipShareTarget) {
     # Share-in (a283): the one UAC prompt trusts the signing certificate. Without the Windows SDK nothing is registered, and the message says how to add it.
     if (Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\*\x64\makeappx.exe') -ErrorAction SilentlyContinue) {
-        & (Join-Path $PSScriptRoot 'register-windows-share-target.ps1') -InstallDir $taskInstall
+        try { & (Join-Path $PSScriptRoot 'register-windows-share-target.ps1') -InstallDir $taskInstall }
+        catch { Write-Warning "他のアプリからの「共有」先には登録できませんでした（管理者の確認を断った場合を含む）。BellTeam本体は導入済みです。登録だけをやり直すには scripts/register-windows-share-target.ps1 を実行します。理由: $($_.Exception.Message)" }
     } else {
         Write-Warning '他のアプリからの「共有」先には登録していません: Windows SDKがありません。winget install Microsoft.WindowsSDK.10.0.26100 のあと、もう一度この導入を実行してください。共有先が要らない場合は -SkipShareTarget を付けます。'
     }
