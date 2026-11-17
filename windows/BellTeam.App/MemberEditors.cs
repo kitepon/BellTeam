@@ -20,11 +20,15 @@ public sealed class ModelPicker : Border
     private readonly StackPanel configLine = new() { Orientation = Orientation.Horizontal };
     private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) fastRowParts = SettingsUi.SwitchRow("ファストモード");
     private System.Windows.Controls.Primitives.ToggleButton fast => fastRowParts.Switch;
+    private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) lockRowParts = SettingsUi.SwitchRow("固定");
+    private System.Windows.Controls.Primitives.ToggleButton locked => lockRowParts.Switch;
     private readonly TextBlock reason = Text("", 12, Red);
     private bool updating, loading = true;
     private string? loadError;
     public event Action? Edited;
     internal System.Windows.Controls.Primitives.ToggleButton FastToggle => fast;
+    internal System.Windows.Controls.Primitives.ToggleButton LockToggle => locked;
+    internal Border LockRow { get; }
     internal TextBlock FastReason => reason;
     public ModelPicker(BotSettings initial)
     {
@@ -36,8 +40,12 @@ public sealed class ModelPicker : Border
         var spinner = new StackPanel { Orientation = Orientation.Horizontal }; spinner.Children.Add(new Spinner { Width = 16, Height = 16, Stroke = Muted, Margin = new Thickness(0, 0, 8, 0) }); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
         var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
-        foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, configRow }) card.Add(row);
-        card.SetVisible(configRow, false);
+        // a317: the Owner's switch for the AI settings (same position and wording as Linux a318); absent on a BellTeam that predates configurationLocked.
+        LockRow = Row(lockRowParts.Row); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
+        foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, LockRow, lockNote, configRow }) card.Add(row);
+        card.SetVisible(configRow, false); card.SetVisible(LockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
+        locked.IsChecked = initial.ConfigurationLocked == true; System.Windows.Automation.AutomationProperties.SetName(locked, "AI設定の固定");
+        locked.Checked += (_, _) => Edited?.Invoke(); locked.Unchecked += (_, _) => Edited?.Invoke();
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
         fast.IsChecked = initial.FastMode;
         fast.Checked += (_, _) => { RenderFast(); Edited?.Invoke(); }; fast.Unchecked += (_, _) => { RenderFast(); Edited?.Invoke(); };
@@ -105,6 +113,7 @@ public sealed class ModelPicker : Border
         reason.Text = text ?? ""; reason.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible; card.SetVisible(reasonRow, text is not null);
     }
     public void SetSavedFastMode(bool value) => fast.IsChecked = value;
+    public void SetSavedLocked(bool? value) { if (value is not null) locked.IsChecked = value; }
     // The last line of the AI section of an existing member (Web renderBotConfigurationStatus, Mac BotEditor), read from the live roster entry.
     // A new member passes null and gets no line. The icon marks the three recorded states.
     public void ShowConfiguration(Bot? bot)
@@ -125,7 +134,7 @@ public sealed class ModelPicker : Border
     public BotSettings Apply(BotSettings settings)
     {
         if (CustomSelected && string.IsNullOrWhiteSpace(custom.Text)) throw new ArgumentException(EditorText.FastCustomEmpty);
-        return settings with { Harness = selection.Harness, Model = selection.Model, ReasoningEffort = selection.Effort, FastMode = fast.IsChecked == true };
+        return settings with { Harness = selection.Harness, Model = selection.Model, ReasoningEffort = selection.Effort, FastMode = fast.IsChecked == true, ConfigurationLocked = settings.ConfigurationLocked is null ? null : locked.IsChecked == true };
     }
 }
 
@@ -397,7 +406,7 @@ public sealed class MemberEditorView : EditorFormView
             // No answer, or a server error: it may have saved. Read it back (never send again); the read decides what the owner is told.
             catch (Exception error) when (BellApiException.IsResultUnconfirmed(error)) { await ReadBackAsync(api, edited); RenderNotices(); Notify(); return; }
             catch (Exception error) { errorText = SaveRefusal(error) ?? error.Message; RenderNotices(); return; }
-            models.SetSavedFastMode(saved.Bot.FastMode); original = edited with { FastMode = saved.Bot.FastMode };
+            models.SetSavedFastMode(saved.Bot.FastMode); models.SetSavedLocked(saved.Bot.ConfigurationLocked); original = edited with { FastMode = saved.Bot.FastMode, ConfigurationLocked = saved.Bot.ConfigurationLocked ?? edited.ConfigurationLocked };
             await workspace.RefreshManagementAsync();
             if (saved.Applying) { outcome = Outcome.Saved; RenderNotices(); Notify(); return; }
             Close();

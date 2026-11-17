@@ -211,6 +211,24 @@ public sealed class EditorTests
         RunSta(() => { var picker = new ModelPicker(new() { Name = "ベル", Harness = "codex" }); Assert.Equal("モデル候補を読み込んでいます。", picker.FastReason.Text); Assert.False(picker.FastToggle.IsEnabled); });
     }
 
+    // a317: the 固定 switch exists only when the server sent configurationLocked, and travels as the one changed field.
+    [Fact]
+    public void TheLockSwitchIsHiddenWithoutTheFieldAndPatchesOnlyTheLockWhenToggled()
+    {
+        RunSta(() =>
+        {
+            var older = new BotSettings { Name = "ベル", Harness = "codex" };
+            Assert.Equal(System.Windows.Visibility.Collapsed, ((System.Windows.UIElement)new ModelPicker(older).LockRow.Parent).Visibility);
+            Assert.False(new ModelPicker(older).Apply(older).Fields().ContainsKey("configurationLocked"));
+            var current = older with { ConfigurationLocked = false };
+            var picker = new ModelPicker(current);
+            Assert.Equal(System.Windows.Visibility.Visible, ((System.Windows.UIElement)picker.LockRow.Parent).Visibility); Assert.False(picker.LockToggle.IsChecked);
+            picker.LockToggle.IsChecked = true;
+            var changes = picker.Apply(current).ChangesFrom(current);
+            Assert.Equal(true, Assert.Single(changes).Value); Assert.Equal("configurationLocked", changes.Keys.Single());
+        });
+    }
+
     // ---- the room editor ----
     [Fact]
     public void RoomRepresentativeOffersNoneAndTheCheckedMembersOnly()
