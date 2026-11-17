@@ -90,6 +90,10 @@ flowchart TD
   Restore["復元<br/>AppStore.sync → 本人権利確認"] --> Transaction
   Transaction --> Verify["verified・対象商品<br/>権利再確認→POST /api/subscription/verify"]
   Verify --> Finish["応答statusを適用→transaction.finish<br/>応答errorはその後検査"]
+  Server --> Sources["status.billingSources / canPurchase (a389)<br/>課金中の購入元と購入可否"]
+  Sources --> Manage["購入元の行に「購読を管理・解約」<br/>apple/google=各ストアのページを開く<br/>stripe=POST /api/subscription/stripe/manage→url→システムブラウザ"]
+  Manage --> Back["ブラウザから戻る(scenePhase active)<br/>POST /api/subscription/refresh"]
+  Sources --> Gate["canPurchase=falseなら購入ボタンを出さずpurchaseも拒否<br/>(二重請求を起こさない)"]
 ```
 
 根拠：[BillingStore](../../../../ios/BellBot/BellBot/Core/BillingStore.swift#L54)、[AppleSubscriptionAccess](../../../../ios/BellBot/BellBot/Core/AppleSubscriptionAccess.swift#L3)、[SubscriptionContent](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift#L12)。
@@ -103,11 +107,13 @@ flowchart TD
 | AI利用の呼出し | AppStore.authorizeAIUseがBot ID・guide ID・setup.completeを判定。通常は本人権利を再取得してから許可。状態未確認は未確認エラー、権利無しは購読案内 |
 | purchase | checking中は開始しない。商品・非developerを確認、status再読取、setup未完なら案内callback。successはdeliver後の権利で文言、pendingはApple承認待ち、userCancelledは追加文言なし |
 | restore | 非developer・非checkingでsyncPurchases→権利→取引ありならdeliver。取引無しは有効購読無しの文言。deferでoperation解除。失敗はerror/診断 |
+| 管理・解約 (a389) | billingSourcesに含まれる購入元の行に1つだけ「購読を管理・解約」。Appleは自端末の権利が有効でも出す。apple=`apps.apple.com/account/subscriptions`、google=Google Playの購読ページを開く（サーバー呼出し無し）。stripe=`POST /api/subscription/stripe/manage`（本文なし）が返す`url`をシステムブラウザで開き、アプリに戻ったらrecheck。失敗はerror/診断（path `/api/subscription/stripe/manage`）。自動更新停止かつ有効の行は「次回の更新はありません。{期限}まで使えます。」 |
+| 購入可否 (a389) | 購入ボタンはstatus.canPurchaseがtrueの間だけ。statusに無い（旧サーバー・未取得）はfalse。purchaseもstatus再読取後にcanPurchaseを見て、falseならApple画面を開かずerrorを出す |
 | recheck | `POST /api/subscription/refresh`→status適用→権利確認→本体error検査。自動POST再送はない |
 | 通知との接続 | 権利の署名変化/失敗時にonEntitlementChange、AppStoreからBellNotifications.updateSignedTransactionへ。有効権利の時だけJWSを渡す |
 | stop/logout | entitlementTask/updatesTaskをcancelし参照・status/権利/取引/商品/error/messageを消す。Appleの購入取消を行う処理ではない |
 
-SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認、購読管理Linkを接続する。価格は契約の固定文「月980円（税込）・最初の1か月無料」を3店で同じ大きさで並べ、買えない店（Google Play・Stripe）はボタンもリンクも無く「この端末では購入できません」を出す。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
+SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認と、購入元の行ごとの「購読を管理・解約」を接続する（旧フッターの「購読管理」Linkは行のボタンへ移した）。価格は契約の固定文「月980円（税込）・最初の1か月無料」を3店で同じ大きさで並べ、買えない店（Google Play・Stripe）はボタンもリンクも無く「この端末では購入できません」を出す。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
 
 ## 端末保存とlogout
 

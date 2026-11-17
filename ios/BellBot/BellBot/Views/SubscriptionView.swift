@@ -12,6 +12,9 @@ struct SubscriptionCard: View {
 private struct SubscriptionContent: View {
     @ObservedObject var billing: BillingStore
     @Environment(\.purchase) private var purchase
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var openedStripePortal = false
 
     private var appleActive: Bool { billing.entitlement?.isActive(at: Date()) == true }
 
@@ -23,21 +26,30 @@ private struct SubscriptionContent: View {
         return "無料期間中（\(until.formatted(date: .abbreviated, time: .omitted))まで）"
     }
 
+    private func noRenewalLine(_ until: Date) -> String {
+        "次回の更新はありません。\(until.formatted(date: .abbreviated, time: .shortened))まで使えます。"
+    }
+
     private var appleDetail: [String] {
         guard let entitlement = billing.entitlement else { return [] }
         var lines = ["有効期限：\(entitlement.validUntil.formatted(date: .abbreviated, time: .shortened))"]
         if billing.status?.source == "apple", let trial = trialLine { lines.append(trial) }
         if entitlement.gracePeriodExpiresAt != nil { lines.append("Appleの支払い猶予期間中です。購読を管理して支払い方法を確認してください。") }
-        else if !entitlement.autoRenewing { lines.append("自動更新は停止しています。有効期限までは利用できます。") }
+        else if !entitlement.autoRenewing { lines.append(noRenewalLine(entitlement.validUntil)) }
         return lines
     }
 
     private var otherDetail: [String] {
         var lines: [String] = []
-        if let until = Self.date(billing.status?.validUntil) { lines.append("有効期限：\(until.formatted(date: .abbreviated, time: .shortened))") }
+        let until = Self.date(billing.status?.validUntil)
+        if let until { lines.append("有効期限：\(until.formatted(date: .abbreviated, time: .shortened))") }
         if let trial = trialLine { lines.append(trial) }
+        if billing.status?.autoRenewing == false, let until { lines.append(noRenewalLine(until)) }
         return lines
     }
+
+    // a389: the row of every store that still bills this server has one manage button (docs/billing-client-contract.md).
+    private func managed(_ source: String) -> Bool { billing.billingSources.contains(source) }
 
     private static func date(_ text: String?) -> Date? {
         guard let text else { return nil }
@@ -73,17 +85,33 @@ private struct SubscriptionContent: View {
                     }
                 }
                 // One row per store, same size and weight; only the App Store can be bought on this device (docs/billing-client-contract.md).
-                StoreRow(store: "App Store", active: appleActive, activeDetail: appleDetail, buyable: true) {
-                    if !billing.hasPaidAccess, billing.product != nil, billing.status?.setupComplete == true {
+                StoreRow(store: "App Store", active: appleActive, activeDetail: appleDetail, buyable: true, manageable: true) {
+                    if !billing.hasPaidAccess, billing.canPurchase, billing.product != nil, billing.status?.setupComplete == true {
                         SettingsMainButton(title: "購入", identifier: "subscription-purchase") { Task { await billing.purchase(purchase) } }
                     }
                     Button("購入を復元") { Task { await billing.restore() } }
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("subscription-restore")
                         .disabled(billing.checking)
+                    if managed("apple") || appleActive {
+                        ManageLink(store: "App Store", url: Self.appleManageURL)
+                    }
                 }
-                StoreRow(store: "Google Play", active: otherActive("google"), activeDetail: otherDetail, buyable: false) {}
-                StoreRow(store: "Stripe", active: otherActive("stripe"), activeDetail: otherDetail, buyable: false) {}
+                StoreRow(store: "Google Play", active: otherActive("google"), activeDetail: otherDetail, buyable: false, manageable: managed("google")) {
+                    ManageLink(store: "Google Play", url: Self.googleManageURL)
+                }
+                StoreRow(store: "Stripe", active: otherActive("stripe"), activeDetail: otherDetail, buyable: false, manageable: managed("stripe")) {
+                    Button("購読を管理・解約") {
+                        Task {
+                            guard let url = await billing.stripeManageURL() else { return }
+                            openedStripePortal = true
+                            openURL(url)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("subscription-manage-Stripe")
+                    .disabled(billing.checking)
+                }
             }
             if billing.isDeveloper && billing.working { ProgressView(billing.progressText) }
             if let message = billing.message { Text(message).font(BellTheme.secondaryFont) }
@@ -100,9 +128,6 @@ private struct SubscriptionContent: View {
             .disabled(billing.checking)
             // The legal links: one quiet row of plain links.
             HStack(spacing: 16) {
-                if !billing.isDeveloper {
-                    Link("購読を管理", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
-                }
                 Link("利用規約", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
                 Link("プライバシー方針", destination: BillingStore.configuration.privacyPolicyUrl)
                 Link("サポート", destination: BillingStore.configuration.supportUrl)
@@ -116,6 +141,27 @@ private struct SubscriptionContent: View {
         .task {
             await billing.loadSubscription()
         }
+        // Back from Stripe's page: read the cancellation (contract: POST /api/subscription/refresh).
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, openedStripePortal else { return }
+            openedStripePortal = false
+            Task { await billing.recheck() }
+        }
+    }
+
+    private static let appleManageURL = URL(string: "https://apps.apple.com/account/subscriptions")!
+    private static let googleManageURL = URL(string: "https://play.google.com/store/account/subscriptions")!
+}
+
+/// The manage button of a store that opens the store's own subscription page; no server call.
+private struct ManageLink: View {
+    let store: String
+    let url: URL
+
+    var body: some View {
+        Link("購読を管理・解約", destination: url)
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("subscription-manage-\(store)")
     }
 }
 
@@ -125,6 +171,7 @@ private struct StoreRow<Actions: View>: View {
     let active: Bool
     let activeDetail: [String]
     let buyable: Bool
+    let manageable: Bool
     @ViewBuilder let actions: Actions
 
     var body: some View {
@@ -135,7 +182,7 @@ private struct StoreRow<Actions: View>: View {
                 Text("購読中（\(store)）").font(BellTheme.secondaryFont).fontWeight(.semibold)
                 ForEach(activeDetail, id: \.self) { Text($0).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted) }
             }
-            if buyable {
+            if buyable || manageable {
                 actions
             } else if !active {
                 Text("この端末では購入できません。\(store)で購入した購読も、同じサーバーでこのアプリに使えます。")

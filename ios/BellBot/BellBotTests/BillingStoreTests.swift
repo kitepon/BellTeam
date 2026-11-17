@@ -45,6 +45,27 @@ final class BillingStoreTests: XCTestCase {
         do { try await apple.requirePaidAccess(); XCTFail("別のApple Accountの購読では解錠しない") } catch {}
     }
 
+    /// Contract a389: a store that still bills hides the purchase; Stripe's manage button gets the portal URL from the server.
+    func testBilledStoreBlocksPurchaseAndStripeManageReturnsPortalURL() async throws {
+        let scenario = BillingScenario(responses: [.entitled(source: "stripe"), .manage])
+        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
+            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        await billing.connect()
+        XCTAssertEqual(billing.billingSources, ["stripe"])
+        XCTAssertFalse(billing.canPurchase)
+        let url = await billing.stripeManageURL()
+        XCTAssertEqual(url?.host, "billing.stripe.com")
+        XCTAssertEqual(scenario.requests.last.map { $0.method + " " + $0.path }, "POST /api/subscription/stripe/manage")
+
+        let free = BillingStore(api: makeAPI(BillingScenario(responses: [.mode("subscription")])), readAppleEntitlement: {
+            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        await free.connect()
+        XCTAssertTrue(free.canPurchase)
+        XCTAssertEqual(free.billingSources, [])
+    }
+
     func testRetryAfterInitialFailureRecognizesDeveloper() async throws {
         let scenario = BillingScenario(responses: [.failure, .mode("developer")])
         let api = makeAPI(scenario)
@@ -426,7 +447,7 @@ final class BillingStoreTests: XCTestCase {
 
 private final class BillingScenario {
     enum RestartResponse { case success, legacyAccepted, timeout, unauthorized, invalidJSON }
-    enum Response { case failure, mode(String), entitled(source: String), setup(complete: Bool), restart(RestartResponse) }
+    enum Response { case failure, mode(String), entitled(source: String), manage, setup(complete: Bool), restart(RestartResponse) }
     private let lock = NSLock()
     private var responses: [Response]
     private(set) var requests: [(method: String, path: String, body: Data?, timeout: TimeInterval)] = []
@@ -444,12 +465,14 @@ private final class BillingScenario {
         case ("GET", "/api/subscription", .failure): throw URLError(.timedOut)
         case ("GET", "/api/subscription", .mode(let mode)):
             return (200, Data("""
-                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"\(mode)","setup_complete":true,"entitled":false,"state":"inactive","auto_renewing":false}}
+                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"\(mode)","setup_complete":true,"entitled":false,"state":"inactive","auto_renewing":false,"billing_sources":[],"can_purchase":\(mode == "subscription")}}
                 """.utf8))
         case ("GET", "/api/subscription", .entitled(let source)):
             return (200, Data("""
-                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"subscription","setup_complete":true,"entitled":true,"source":"\(source)","is_trial":true,"state":"subscribed","auto_renewing":true}}
+                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"subscription","setup_complete":true,"entitled":true,"source":"\(source)","is_trial":true,"state":"subscribed","auto_renewing":true,"billing_sources":["\(source)"],"can_purchase":false}}
                 """.utf8))
+        case ("POST", "/api/subscription/stripe/manage", .manage):
+            return (200, Data(#"{"url":"https://billing.stripe.com/p/session/test"}"#.utf8))
         case ("GET", "/api/setup", .setup(let complete)):
             return (200, Data("""
                 {"phase":"ready","harnesses":[],"guide_bot_id":"restart-guide","complete":\(complete)}

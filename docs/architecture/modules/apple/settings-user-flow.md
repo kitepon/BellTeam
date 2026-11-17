@@ -61,7 +61,7 @@ flowchart TD
 | 1Password | service account tokenで連携する | `GET /api/settings`の`onePassword` | `PATCH /api/settings/onePassword` | サーバー |
 | 通知 | この端末を通知先にする | `GET /api/settings`（通知の送信が有効か）、端末の通知許可（OS）、`BellNotifications`の登録結果 | `POST /api/notifications/register` | サーバーの機能設定＋この端末 |
 | アップデート | サーバーの部品を最新にする | `GET /api/updates`、保存した要求IDのGET、SSE `updates` | `POST /api/updates/plans`、`POST /api/updates/operations` | サーバー |
-| 利用と課金 | 購読の状態・購入・復元 | `GET /api/subscription`、StoreKit | `POST /api/subscription/verify`、StoreKitの購入 | App Store＋サーバー |
+| 利用と課金 | 購読の状態・購入・復元・管理/解約 | `GET /api/subscription`、StoreKit | `POST /api/subscription/verify`、`POST /api/subscription/stripe/manage`、StoreKitの購入 | App Store＋サーバー |
 | 接続 | 接続先とログイン方法を見る・変える | `store.serverURL`、`store.authMode` | 接続先の破棄（`POST /api/notifications/unregister`→端末の保存を消す） | この端末 |
 | 表示 | 会話の開き方 | 端末のAppStorage | 端末のAppStorage | この端末 |
 | このアプリについて | 版・接続先 | Bundle | — | この端末 |
