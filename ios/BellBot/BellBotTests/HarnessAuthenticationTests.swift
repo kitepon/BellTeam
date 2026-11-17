@@ -18,7 +18,7 @@ final class HarnessAuthenticationTests: XCTestCase {
     func testUnsupportedReloginCapabilityAndOldServerDecode() throws {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let current = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"antigravity","name":"Antigravity","members":1,"start_warning":"公式CLIで認証してください。","relogin_supported":false}"#.utf8))
+        let current = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"fixture","name":"Fixture","members":1,"start_warning":"公式CLIで認証してください。","relogin_supported":false}"#.utf8))
         XCTAssertEqual(current.reloginSupported, false)
         XCTAssertFalse(current.needsStartConfirmation(auth(.authenticated)))
         let old = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"codex","name":"Codex","members":1,"start_warning":"今の認証が消えます。"}"#.utf8))
@@ -27,12 +27,12 @@ final class HarnessAuthenticationTests: XCTestCase {
     }
 
     func testUnsupportedReloginStillAllowsFirstAuthentication() {
-        let antigravity = HarnessAuthenticationOption(id: "antigravity", name: "Antigravity", members: 1,
+        let fixture = HarnessAuthenticationOption(id: "fixture", name: "Fixture", members: 1,
                                                       startWarning: "公式CLIで認証してください。", reloginSupported: false)
-        XCTAssertFalse(antigravity.canStart(nil), "状態を読めない間は始めない")
-        XCTAssertFalse(antigravity.canStart(auth(.authenticated)))
-        XCTAssertTrue(antigravity.canStart(auth(.blocked)))
-        XCTAssertTrue(antigravity.canStart(auth(.failed)))
+        XCTAssertFalse(fixture.canStart(nil), "状態を読めない間は始めない")
+        XCTAssertFalse(fixture.canStart(auth(.authenticated)))
+        XCTAssertTrue(fixture.canStart(auth(.blocked)))
+        XCTAssertTrue(fixture.canStart(auth(.failed)))
         let codex = HarnessAuthenticationOption(id: "codex", name: "Codex", members: 1, startWarning: nil)
         XCTAssertTrue(codex.canStart(nil))
         XCTAssertTrue(codex.canStart(auth(.authenticated)))

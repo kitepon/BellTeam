@@ -453,7 +453,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [ConversationScrollUITests.swift](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | Markdown後の位置、過去取得と失敗、新着、対象更新、最古到達・iPad回転 |
 | [DesktopWorkspaceUITests.swift](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift) | Mac長文/ホイール/過去、inspector、モデル待ち保存、Return、端末画面・編集window、draft |
 | [GoalsUITests.swift](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift) | 一覧/チャットgoal、capability/binding、編集・未確認・再取得、Claude/Grok型、失敗後表示 |
-| [HarnessAuthenticationUITests.swift](../../../../ios/BellBot/BellBotUITests/HarnessAuthenticationUITests.swift) | Antigravityの開始可否、一覧状態、開始確認・取消・通信失敗 |
+| [HarnessAuthenticationUITests.swift](../../../../ios/BellBot/BellBotUITests/HarnessAuthenticationUITests.swift) | 一覧状態、開始確認・取消・通信失敗 |
 | [InstalledConversationUITests.swift](../../../../ios/BellBot/BellBotUITests/InstalledConversationUITests.swift) | 既存メンバー保存中断準備、pull/通知、スクロール/キーボード/詳細 |
 | [MemberDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/MemberDeletionUITests.swift) | 削除範囲確認と失敗保持 |
 | [NetworkLifecycleProbeUITests.swift](../../../../ios/BellBot/BellBotUITests/NetworkLifecycleProbeUITests.swift) | 追加設定初回/後続読取、予定/会話背景とtimeout、SSE、送信復元/受付、停止不明、診断参照、実サーバー対象更新 |

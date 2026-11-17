@@ -52,7 +52,7 @@ struct RunningExclusionEntry: Decodable, Equatable, Identifiable {
     var isProcess: Bool { kind == "process" }
 
     private static let harnessNames = ["claude-code": "Claude Code", "codex-cli": "Codex", "grok-cli": "Grok",
-                                       "cursor-cli": "Cursor", "antigravity-cli": "Antigravity"]
+                                       "cursor-cli": "Cursor"]
 
     /// The same words the work card's reason shows: a process reads as "<exe> <args>".
     var words: String {

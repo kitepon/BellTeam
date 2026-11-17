@@ -1,6 +1,6 @@
 import SwiftUI
 
-let backgroundAgentHarnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor"), ("antigravity", "Antigravity")]
+let backgroundAgentHarnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor")]
 
 /// The effort in plain words for the settings screens (an effort the app does not know is shown as sent).
 enum EffortText {
