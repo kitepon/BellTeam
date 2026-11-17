@@ -242,5 +242,6 @@ test('Stripeの通信失敗・未設定を期限切れへ置き換えずエラ�
   const form = calls[0].init.body
   assert.equal(form.get('subscription_data[trial_period_days]'), '30')
   assert.equal(form.get('line_items[0][price]'), 'price_980')
+  assert.equal(form.has('automatic_tax[enabled]'), false)
   assert.equal(form.get('success_url'), 'https://example.test/return?session_id={CHECKOUT_SESSION_ID}')
 })

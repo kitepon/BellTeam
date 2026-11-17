@@ -26,7 +26,7 @@ AppleアプリはStoreKitで本人の購入・復元・取引の更新を受け�
 
 WindowsとLinuxの利用者はStripeで同じBellTeamの月額購読（月980円、最初の1か月無料）を購入する。Appleの購読があれば、Stripeで買い足さずに使える。Appleの購入と同じく、運営のWorkerが購入元の最新状態を照会し、利用者のサーバーは結果だけを保存する。独自のライセンス・利用者ID・権利の台帳は作らない。
 
-- サーバーの`POST /api/subscription/stripe/checkout`が購入画面のURLを返し、利用者はそこで購入する（最初の1か月は無料、消費税はStripe Taxで計算）。戻り先で得たCheckout Session IDを`POST /api/subscription/stripe/verify`へ送ると、サーバーは購読IDを保存する。
+- サーバーの`POST /api/subscription/stripe/checkout`が購入画面のURLを返し、利用者はそこで購入する（最初の1か月は無料、料金は税込の980円で、Stripe Taxは使わない）。戻り先で得たCheckout Session IDを`POST /api/subscription/stripe/verify`へ送ると、サーバーは購読IDを保存する。
 - 状態は`GET /api/subscription`へApple同様に返し、`source`で購入元、`isTrial`で無料期間中かを示す。AppleとStripeの両方がある時は有効な方を使う。解約しても支払い済みの期間は使える（Appleと同じ）。
 - Appleアプリの画面からStripeへ誘導しない（Appleの審査指針3.1.1・3.1.3）。Stripeの購入画面を開く側はWindowsとLinuxだけ。Webは無料のため購入画面を持たない。
 - Stripeの鍵・価格はWorkerのsecretだけに置く。未設定の間は`SUBSCRIPTION_NOT_CONFIGURED`を返す。実際のStripeとの通信は未検証。
