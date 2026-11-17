@@ -24,7 +24,7 @@ Apple公式クライアントの認証・応答解析は維持し、HTTP通信�
 
 `POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月。料金は税込で、Stripe Taxは使わない）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
 
-設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。実Stripeとの通信は未検証。
+設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`/support`）。
 
 ## 証明書の検証
 
