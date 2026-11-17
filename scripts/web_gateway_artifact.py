@@ -72,6 +72,7 @@ src/schedule-templates.mjs
 src/seat-command.mjs
 src/seat-process.mjs
 src/self-turns.mjs
+src/server-address.mjs
 src/session-interruption.mjs
 src/timeline-index.mjs
 src/turn-reports.mjs
