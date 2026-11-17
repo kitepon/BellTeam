@@ -45,7 +45,7 @@ class ConversationArtifact(unittest.TestCase):
 
     def test_durable_receipt_dependency_and_new_files_are_the_modules_own_decision(self):
         required = CONVERSATION_FILES
-        self.assertEqual(len(required), 61)
+        self.assertEqual(len(required), 62)
         dependency = self.payload / 'src/direct-log-record.mjs'
         dependency.write_bytes((ROOT / 'src/direct-log-record.mjs').read_bytes())
         archive = self.root / 'durable-receipt.tar.gz'
@@ -83,7 +83,7 @@ class ConversationArtifact(unittest.TestCase):
 
     def test_packaging_selection_covers_literal_closure(self):
         required = CONVERSATION_FILES
-        self.assertEqual(len(required), 61)
+        self.assertEqual(len(required), 62)
         for selected in ['payload/src/module-ipc.mjs', 'payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
                         'payload/src/conversation/dispatcher.mjs', 'payload/src/observer-check.mjs',
                         'payload/src/usage/web-push-schema.mjs', 'payload/src/runtime-selection.mjs']:
