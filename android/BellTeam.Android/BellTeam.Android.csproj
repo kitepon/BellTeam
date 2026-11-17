@@ -9,6 +9,8 @@
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- Fast Deployment keeps assemblies outside the APK and breaks after pm clear; embed them so a clean install always starts. -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

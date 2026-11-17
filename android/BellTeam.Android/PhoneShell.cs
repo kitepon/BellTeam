@@ -73,13 +73,24 @@ public sealed class PhoneShell : UserControl
         model.Entries.CollectionChanged += (_, _) => QueueListRebuild();
         model.ScrollToBottom += force => Dispatcher.UIThread.Post(() => messageScroll.ScrollToEnd());
         model.ThisPc = new NoThisPc();
+        // A field that gets focus scrolls into view once the keyboard has taken its space.
+        AddHandler(GotFocusEvent, (_, e) => { if (e.Source is TextBox box) { Dispatcher.UIThread.Post(() => Reveal(box), DispatcherPriority.Background); DispatcherTimer.RunOnce(() => Reveal(box), TimeSpan.FromMilliseconds(350)); } });
         AttachedToVisualTree += (_, _) => Attached();
         Loaded += (_, _) => Begin();
     }
 
+    // The whole field plus some room under it, not only the caret line, so the field and the button below it are not left under the keyboard.
+    private static void Reveal(Control? field) => field?.BringIntoView(new Rect(0, 0, field.Bounds.Width, field.Bounds.Height + 140));
+
     private void Attached()
     {
         if (TopLevel.GetTopLevel(this) is not { } top) return;
+        // The soft keyboard covers the bottom of the page: lift the page by the height it occupies so the focused field stays visible.
+        if (top.InputPane is { } pane) pane.StateChanged += (_, e) =>
+        {
+            root.Margin = new Thickness(0, 0, 0, e.NewState == Avalonia.Controls.Platform.InputPaneState.Open ? e.EndRect.Height : 0);
+            DispatcherTimer.RunOnce(() => Reveal(top.FocusManager?.GetFocusedElement() as Control), TimeSpan.FromMilliseconds(150));
+        };
         top.BackRequested += (_, e) => { if (conversationPage.IsVisible) { ShowList(); e.Handled = true; } };
     }
 
