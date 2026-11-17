@@ -305,6 +305,18 @@ test('新しいエフォートは最新のCLI一覧から受け入れ、取得�
   assert.equal(registry.get('bot-a').reasoningEffort, 'next-effort')
 })
 
+test('configurationLockedは既定false、booleanだけ保存し、他のfieldの保存と台帳の再読込で保たれる', async () => {
+  const { root, registry } = await fixture()
+  assert.equal(registry.get('bot-a').configurationLocked, false)
+  await assert.rejects(registry.update('bot-a', { configurationLocked: 'on' }), /BOT_CONFIGURATION_LOCKED_INVALID/u)
+  assert.equal((await registry.update('bot-a', { configurationLocked: true })).configurationLocked, true)
+  assert.equal(JSON.parse(await readFile(join(root, 'bots/bot-a/bot.json'), 'utf8')).configurationLocked, true)
+  await registry.update('bot-a', { role: '別の変更' })
+  await registry.refresh()
+  assert.equal(registry.get('bot-a').configurationLocked, true)
+  assert.equal((await registry.update('bot-a', { configurationLocked: false })).configurationLocked, false)
+})
+
 test('ファストモードは既定で無効にし、Aitermの一覧が切り替えられると返すモデルだけ有効を保存する', async () => {
   const { root, registry } = await fixture()
   assert.equal(registry.get('bot-a').fastMode, false)

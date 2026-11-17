@@ -34,6 +34,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           model: bot.model ?? '',
           reasoningEffort: bot.reasoningEffort ?? '',
           fastMode: bot.fastMode === true,
+          configurationLocked: bot.configurationLocked === true,
           color: bot.color ?? 'violet',
           profileText: bot.profileText ?? '',
           personality: bot.personality ?? '',
