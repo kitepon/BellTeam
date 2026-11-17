@@ -17,7 +17,7 @@ public sealed class SubscriptionPageTests
     {
         public int Checkouts; public string? Verified; public string? Opened;
         public bool Entitled, Developer; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK;
-        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
+        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, source = Entitled ? "stripe" : null, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
         public SubscriptionApi Api() => new(new BellApi(new("http://localhost/"), new StubHandler(async (request, token) =>
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -41,7 +41,11 @@ public sealed class SubscriptionPageTests
     {
         var server = new Server(); var entry = new PurchaseEntry(server.Api(), url => server.Opened = url, CancellationToken.None);
         Await(entry.LoadAsync());
-        Assert.Equal(0, server.Checkouts); Assert.NotNull(Find(entry, SubscriptionText.Start)); Assert.Contains(SubscriptionText.Caption, Texts(entry)); Assert.Null(Find(entry, SubscriptionText.Verify));
+        Assert.Equal(0, server.Checkouts); Assert.NotNull(Find(entry, SubscriptionText.Start)); Assert.Null(Find(entry, SubscriptionText.Verify));
+        // contract rows: Stripe, App Store, Google Play in this order, each with price and free month; only Stripe has the button, the others the "cannot buy here" line.
+        var texts = Texts(entry); Assert.Equal(["Stripe", "App Store", "Google Play"], texts.Where(SubscriptionText.Stores.Contains).ToArray());
+        Assert.Equal(3, texts.Count(line => line == $"{SubscriptionText.Price}　{SubscriptionText.FreeMonth}"));
+        Assert.Contains(SubscriptionText.Unavailable("App Store"), texts); Assert.Contains(SubscriptionText.Unavailable("Google Play"), texts); Assert.Single(Descendants<Button>(entry), button => System.Windows.Automation.AutomationProperties.GetName(button) == SubscriptionText.Start);
         Click(entry, SubscriptionText.Start); Until(() => server.Opened is not null);
         Assert.Equal(1, server.Checkouts); Assert.Equal("https://checkout.example/pay", server.Opened);
         Until(() => Find(entry, SubscriptionText.Verify) is not null); Assert.NotNull(Find(entry, SubscriptionText.Recheck));
@@ -49,6 +53,7 @@ public sealed class SubscriptionPageTests
         Assert.Equal("cs_test_1", server.Verified);
         Assert.Null(Find(entry, SubscriptionText.Start)); Assert.Null(Find(entry, SubscriptionText.Verify));
         Assert.Contains(Texts(entry), line => line.StartsWith("有効期限：")); Assert.Contains(SubscriptionText.Trial, Texts(entry));
+        Assert.Contains(SubscriptionText.Active("Stripe"), Texts(entry)); Assert.Equal(3, Texts(entry).Count(SubscriptionText.Stores.Contains));
     });
 
     [Fact]
@@ -57,7 +62,7 @@ public sealed class SubscriptionPageTests
         var active = new Server { Entitled = true }; var activeEntry = new PurchaseEntry(active.Api(), _ => { }, CancellationToken.None); Await(activeEntry.LoadAsync());
         Assert.Null(Find(activeEntry, SubscriptionText.Start)); Assert.Equal(0, active.Checkouts);
         var developer = new Server { Developer = true }; var developerEntry = new PurchaseEntry(developer.Api(), _ => { }, CancellationToken.None); Await(developerEntry.LoadAsync());
-        Assert.Null(Find(developerEntry, SubscriptionText.Start));
+        Assert.Null(Find(developerEntry, SubscriptionText.Start)); Assert.DoesNotContain(Texts(developerEntry), SubscriptionText.Stores.Contains);
         var dark = new Server { CheckoutStatus = HttpStatusCode.ServiceUnavailable }; var darkEntry = new PurchaseEntry(dark.Api(), _ => throw new InvalidOperationException("opened"), CancellationToken.None); Await(darkEntry.LoadAsync());
         Click(darkEntry, SubscriptionText.Start); Until(() => !darkEntry.Offering);
         Assert.Null(Find(darkEntry, SubscriptionText.Start)); Assert.Null(Find(darkEntry, SubscriptionText.Recheck));
