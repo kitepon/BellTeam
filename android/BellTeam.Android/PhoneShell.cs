@@ -186,7 +186,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         if (!model.Connected) return null;
         var window = LatticeWindow.Open(model, botId => OpenChatAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"), id => ShowApprovals(id));
-        window.Show(); return window;
+        LatticeWindow.Compact = true; window.Show(); return window;
     }
     private void ShowWorkGraph()
     {
