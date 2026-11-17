@@ -277,7 +277,7 @@ struct BotEditor: View {
                     if initial?.configurationLocked != nil {
                         Toggle("固定", isOn: $configurationLocked)
                             .accessibilityIdentifier("ai-configuration-lock-toggle")
-                        Text("オンにすると、AIからのモデル・エフォートの変更を断ります。ここでの変更はそのまま使えます。")
+                        Text("オンにすると、AIからのCLI・モデル・エフォートの変更を断ります。ここでの変更はそのまま使えます。")
                             .font(.footnote).foregroundStyle(BellTheme.muted)
                     }
                     if let line = ConfigurationApplication.line(for: liveBot) {
