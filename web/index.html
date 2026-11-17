@@ -345,7 +345,7 @@
         <label class="field" id="bot-model-custom-field" hidden><span>モデルID</span><input id="bot-model-custom" name="modelCustom" maxlength="200" placeholder="一覧に無いモデルIDを入力"></label>
         <label class="field"><span>考える深さ</span><select id="bot-reasoning-effort" name="reasoningEffort"></select></label>
         <label class="toggle-field"><input id="bot-fast-mode" name="fastMode" type="checkbox"><span>ファストモード</span></label><p class="field-help" id="bot-fast-status" role="status"></p>
-        <label class="toggle-field"><input id="bot-configuration-locked" name="configurationLocked" type="checkbox"><span>固定</span></label><p class="field-help">オンの間、AIによるAI・モデル・考える深さの変更を断ります。あなた自身は変更できます。</p>
+        <div id="bot-configuration-lock-row" hidden><label class="toggle-field"><input id="bot-configuration-locked" name="configurationLocked" type="checkbox"><span>固定</span></label><p class="field-help">オンにすると、AIからのCLI・モデル・エフォートの変更を断ります。ここでの変更はそのまま使えます。</p></div>
         <p class="form-error" id="bot-model-status" role="status"></p>
         <div class="form-section-heading"><h3>人柄と担当</h3><p>背景・考え方・話し方と、担当する仕事です。</p></div><label class="field"><span>プロフィール</span><textarea id="bot-profile-text" name="profileText" rows="5" maxlength="8000" placeholder="背景・見た目・関係性"></textarea></label>
         <label class="field"><span>性格（考え方）</span><textarea id="bot-personality" name="personality" rows="4" maxlength="8000" placeholder="性格・価値観・好み・判断の傾向"></textarea></label>

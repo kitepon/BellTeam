@@ -22,6 +22,7 @@ test('固定 follows the Bot, is sent only when changed, and never disables the 
   const writes=[],existing={...bot('a'),configurationLocked:true}
   const {f,editor}=setup(t,existing,writes)
   await editor.open(existing)
+  assert.equal(f.get('bot-configuration-lock-row').hidden,false)
   assert.equal(f.get('bot-configuration-locked').checked,true)
   await f.submit('bot-form')
   assert.equal(Object.hasOwn(writes[0],'configurationLocked'),false)
@@ -36,4 +37,20 @@ test('固定 follows the Bot, is sent only when changed, and never disables the 
   g.f.get('bot-configuration-locked').checked=true
   await g.f.submit('bot-form')
   assert.equal(writes.at(-1).configurationLocked,true)
+})
+
+test('the switch is hidden when the server sends no configurationLocked, and nothing is sent', async t => {
+  const writes=[],old=bot('a')
+  const {f,editor}=setup(t,old,writes)
+  await editor.open(old)
+  assert.equal(f.get('bot-configuration-lock-row').hidden,true)
+  await f.submit('bot-form')
+  assert.equal(Object.hasOwn(writes[0],'configurationLocked'),false)
+  await editor.open(null)
+  assert.equal(f.get('bot-configuration-lock-row').hidden,true)
+})
+
+test('the page carries the agreed caption', async () => {
+  const html=await readFile(new URL('../web/index.html',import.meta.url),'utf8')
+  assert.ok(html.includes('オンにすると、AIからのCLI・モデル・エフォートの変更を断ります。ここでの変更はそのまま使えます。'))
 })
