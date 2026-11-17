@@ -68,6 +68,7 @@ export const usageMethods = {
   'subscriptions.install': spec(shape({ signedTransaction: text }), kinds.owner),
   'subscriptions.installStripe': spec(shape({ stripeSessionId: text }), kinds.owner),
   'subscriptions.checkout': spec(none, kinds.owner),
+  'subscriptions.manageStripe': spec(none, kinds.owner),
   'subscriptions.refresh': spec(shape({}, { force: value => typeof value === 'boolean' }), ['owner', 'system']),
   'subscriptions.completeSetup': spec(shape({ botId: id }), kinds.system),
   'subscriptions.runSetupTest': spec(shape({ botId: id }), kinds.owner),

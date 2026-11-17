@@ -46,5 +46,6 @@ export function usageResultValid(method, value, params = {}) {
   if (method.startsWith('questions.')) return record('question', value) && (!params.id || value.id === params.id)
   if (method === 'subscriptions.runSetupTest') return exact(value, ['subscription', 'reply']) && record('subscription', value.subscription) && typeof value.reply === 'string' && value.reply.trim().length > 0
   if (method === 'subscriptions.checkout') return exact(value, ['url', 'sessionId']) && typeof value.url === 'string' && typeof value.sessionId === 'string'
+  if (method === 'subscriptions.manageStripe') return exact(value, ['url']) && typeof value.url === 'string'
   return method.startsWith('subscriptions.') && record('subscription', value)
 }

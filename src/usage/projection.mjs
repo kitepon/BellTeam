@@ -64,8 +64,9 @@ export function usageProjectionRecordValid(row) {
     && ['ready', 'authenticate', 'select_harness'].includes(item.phase) && (item.harness === null || typeof item.harness === 'string') && (item.guideBotId === null || typeof item.guideBotId === 'string')
     && Array.isArray(item.harnesses) && (item.auth === null || keys(item.auth, ['status', 'url', 'user_code', 'input_required', 'message', 'session_id', 'auth_ui']))
   if (row.type === 'auth') return keys(item, ['harnesses']) && Array.isArray(item.harnesses) && item.harnesses.every(harness => keys(harness, ['id', 'name', 'members', 'startWarning', 'reloginSupported']))
-  if (row.type === 'subscription') return keys(item, ['productId', 'environment', 'accessMode', 'setupComplete', 'entitled', 'canUseAI', 'state', 'checkedAt', 'expiresAt', 'validUntil', 'autoRenewing', 'error'], ['source', 'isTrial'])
-    && ['setupComplete', 'entitled', 'canUseAI', 'autoRenewing'].every(key => typeof item[key] === 'boolean')
+  if (row.type === 'subscription') return keys(item, ['productId', 'environment', 'accessMode', 'setupComplete', 'entitled', 'canUseAI', 'state', 'checkedAt', 'expiresAt', 'validUntil', 'autoRenewing', 'billingSources', 'canPurchase', 'error'], ['source', 'isTrial'])
+    && ['setupComplete', 'entitled', 'canUseAI', 'autoRenewing', 'canPurchase'].every(key => typeof item[key] === 'boolean')
+    && Array.isArray(item.billingSources) && item.billingSources.every(source => typeof source === 'string')
   return false
 }
 

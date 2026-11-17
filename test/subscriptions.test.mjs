@@ -266,3 +266,49 @@ test('Stripeの購入を保存し、Appleと両方ある時は有効な方を使
   assert.throws(() => new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).installStripe('cs_1'), { code: 'SUBSCRIPTION_NOT_REQUIRED' })
   assert.equal(new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).proof(), null)
 })
+
+test('課金中の購読がある間はStripeの購入画面を作らず、作った画面は使い回し、管理の入口を返す', async t => {
+  const now = Date.parse('2026-11-17T03:00:00Z')
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-subscription-double-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  let stripeState = 'active', session = { status: 'open', url: 'https://checkout.stripe.test/c/1' }, created = 0, down = false
+  const verdict = state => ({ productId: product.productId, environment: 'Sandbox', source: 'stripe', subscriptionId: 'sub_1', checkedAt: new Date(now).toISOString(),
+    entitled: state === 'active', state, isTrial: false, autoRenewing: false, expiresAt: new Date(now + 3600000).toISOString(), validUntil: state === 'active' ? new Date(now + 3600000).toISOString() : null })
+  const requests = []
+  const subscriptions = new Subscriptions({ path: join(root, 'subscription.json'), environment: 'Sandbox', clock: () => now, fetch: async (url, request) => {
+    const body = JSON.parse(request.body)
+    requests.push({ url, body })
+    if (down) throw new Error('offline')
+    if (url.endsWith('/stripe/portal')) return Response.json({ url: 'https://billing.stripe.test/p/1' })
+    if (url.endsWith('/stripe/checkout')) return body.sessionId ? Response.json({ sessionId: body.sessionId, ...session }) : Response.json({ url: `https://checkout.stripe.test/c/${++created}`, sessionId: `cs_${created}` })
+    return Response.json(verdict(stripeState))
+  } })
+  await subscriptions.initialize()
+  assert.deepEqual([subscriptions.status().canPurchase, subscriptions.status().billingSources], [true, []])
+  assert.throws(() => subscriptions.manageStripe(), { code: 'NO_STRIPE_SUBSCRIPTION' })
+  // 二つの端末が同時に押しても、同じ画面を返し、新しく作らない。
+  const [first, second] = await Promise.all([subscriptions.checkout(), subscriptions.checkout()])
+  assert.deepEqual([first.sessionId, second.sessionId, created], ['cs_1', 'cs_1', 1])
+  // 戻りのSession IDを送らずに支払い済みになっていても、次の購入要求で取り込み、二重に作らない。
+  session = { status: 'complete', url: null }
+  await assert.rejects(subscriptions.checkout(), { code: 'SUBSCRIPTION_ALREADY_ACTIVE' })
+  assert.equal(created, 1)
+  const status = subscriptions.status()
+  assert.deepEqual([status.entitled, status.canPurchase, status.billingSources], [true, false, ['stripe']])
+  assert.deepEqual(await subscriptions.manageStripe(), { url: 'https://billing.stripe.test/p/1' })
+  assert.deepEqual(requests.at(-1).body, { stripeSubscriptionId: 'sub_1' })
+  // 解約予約中でも、期間が終わるまでは新しい購入を受け付けない。
+  await assert.rejects(subscriptions.checkout(), { code: 'SUBSCRIPTION_ALREADY_ACTIVE' })
+  // 支払い再試行中は有効ではないが、まだ課金が続くので受け付けない。
+  stripeState = 'billing_retry'
+  await assert.rejects(subscriptions.checkout(), { code: 'SUBSCRIPTION_ALREADY_ACTIVE' })
+  assert.equal(subscriptions.status().entitled, false)
+  // 確認できない間は作らず、接続が戻れば期限切れの後に作れる。
+  down = true
+  await assert.rejects(subscriptions.checkout(), { code: 'SUBSCRIPTION_CONNECTION_FAILED' })
+  down = false
+  stripeState = 'expired'
+  assert.equal((await subscriptions.checkout()).sessionId, 'cs_2')
+  assert.equal(subscriptions.status().canPurchase, true)
+  assert.throws(() => new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).manageStripe(), { code: 'SUBSCRIPTION_NOT_REQUIRED' })
+})
