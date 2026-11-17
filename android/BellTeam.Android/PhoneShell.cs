@@ -14,7 +14,8 @@ namespace BellTeam.Android;
 // over the same Workspace, startup views, rows and message cards. Sheets, settings and the separate windows arrive as pages in later steps.
 public sealed class PhoneShell : UserControl
 {
-    private readonly LinuxWorkspace model = new();
+    private readonly AccessSession access = new();
+    private readonly LinuxWorkspace model;
     private readonly SettingsStore settings = new(SettingsStore.UserDirectory);
     private readonly Border startupHost = new() { IsVisible = false };
     private readonly Border root = new() { Background = BellTheme.Canvas };
@@ -40,6 +41,7 @@ public sealed class PhoneShell : UserControl
 
     public PhoneShell()
     {
+        model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies), access.PrepareAsync);
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         var back = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
         back.Click += (_, _) => ShowList();
@@ -114,7 +116,7 @@ public sealed class PhoneShell : UserControl
         if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
         EndSettings();
         settingsLife = CancellationTokenSource.CreateLinkedTokenSource(model.ConnectionToken);
-        settingsBody = new SettingsPage(model, () => ShowStartup(StartupPhase.Setup), settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
+        settingsBody = new SettingsPage(model, () => ShowStartup(StartupPhase.Setup), () => { access.SignOut(); ShowList(); model.SignOut(); }, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
         listPage.IsVisible = false; conversationPage.IsVisible = false; settingsPage.IsVisible = true;
     }
     // The page's reads end when it is left.
@@ -161,14 +163,14 @@ public sealed class PhoneShell : UserControl
     {
         phase = next;
         if (next != StartupPhase.Failure) { retry?.Cancel(); retry = null; }
-        (startupHost.Child as IDisposable)?.Dispose();
+        (startupHost.Child as IDisposable)?.Dispose(); (startupHost.Child as AccessLoginPage)?.End();
         startupHost.Child = next switch
         {
             StartupPhase.Ready => null,
             StartupPhase.Checking => new StartupOpeningView(),
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, () => { }, model.Server),
-            StartupPhase.SignIn => new LoginView(() => ShowStartup(StartupPhase.Setup)),
+            StartupPhase.SignIn => new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, async ready => { await model.ReconnectAsync(); await EnterAsync(generation, ready); }, () => ShowStartup(StartupPhase.Setup), model.ConnectionToken)
         };
         startupHost.IsVisible = next != StartupPhase.Ready;

@@ -12,7 +12,7 @@ namespace BellTeam.Android;
 // so the page is written here from the same SettingsUi parts, in the order of the Mac settings list; the other Mac items arrive as pages of their own.
 public sealed class SettingsPage : ScrollViewer
 {
-    public SettingsPage(LinuxWorkspace workspace, Action changeServer, CancellationToken token)
+    public SettingsPage(LinuxWorkspace workspace, Action changeServer, Action signOut, CancellationToken token)
     {
         var column = new StackPanel { Margin = new Thickness(16, 8, 16, 24), Spacing = 14 };
 
@@ -22,6 +22,12 @@ public sealed class SettingsPage : ScrollViewer
         connection.Children.Add(Text(workspace.Server, 15, Ink));
         var change = Capsule("接続先を変更", Fill, Ink, 8, 13, new Thickness(14, 8)); change.FontWeight = FontWeight.Normal; change.HorizontalAlignment = HorizontalAlignment.Left; change.Margin = new Thickness(0, 12, 0, 0); change.Click += (_, _) => changeServer();
         connection.Children.Add(change);
+        // Cloudflare Access servers: the login lives in the WebView and the container, so leaving it is an explicit step (Windows has the same button).
+        if (workspace.AuthMode == "cloudflare")
+        {
+            var leave = Capsule("サインアウト", Fill, Ink, 8, 13, new Thickness(14, 8)); leave.FontWeight = FontWeight.Normal; leave.HorizontalAlignment = HorizontalAlignment.Left; leave.Margin = new Thickness(0, 8, 0, 0); leave.Click += (_, _) => signOut();
+            connection.Children.Add(leave);
+        }
         column.Children.Add(Card(connection));
 
         var billing = new StackPanel();
