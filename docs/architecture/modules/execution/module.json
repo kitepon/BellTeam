@@ -90,6 +90,7 @@
     "src/members-admission.mjs",
     "src/configuration-request.mjs",
     "src/configuration-intents.mjs",
+    "src/configuration-lock.mjs",
     "src/configuration-requests.mjs",
     "src/model-handoff.mjs",
     "src/aiterm-client.mjs",

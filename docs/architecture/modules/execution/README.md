@@ -4,6 +4,7 @@
 
 - [自動設定操作の閉DTO・同期snapshotと同ID読取](automatic-configuration.md)
 - [元MCP invocationへ束縛した設定切替](model-handoff.md)
+- [AI設定の固定（Aitermへ固定を伝える）](configuration-lock.md)
 
 起動・配送実行・完了観測、モデル適用と再開、停止・session・Goal。Aiterm内部は担当外。
 
