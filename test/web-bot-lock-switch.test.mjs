@@ -54,3 +54,16 @@ test('the page carries the agreed caption', async () => {
   const html=await readFile(new URL('../web/index.html',import.meta.url),'utf8')
   assert.ok(html.includes('オンにすると、AIからのCLI・モデル・エフォートの変更を断ります。ここでの変更はそのまま使えます。'))
 })
+
+test('a365: a member on a retired AI shows its notice, stays savable, and never sends the notice back', async t => {
+  const writes=[],existing={...bot('r'),harness:'antigravity',harnessNotice:'このAIは提供を終了しました。別のAIへ変更してください。'}
+  const {f,editor}=setup(t,existing,writes)
+  f.get('bot-harness').children=[...['claude','codex','grok','cursor'].map(value=>({value}))]
+  await editor.open(existing)
+  assert.equal(f.get('bot-configuration-status').textContent,existing.harnessNotice)
+  assert.equal(f.get('bot-harness').value,'antigravity')
+  assert.ok(f.get('bot-harness').children.some(option=>option.value==='antigravity'))
+  await f.submit('bot-form')
+  assert.equal(writes[0].harness,'antigravity')
+  assert.equal(Object.hasOwn(writes[0],'harnessNotice'),false)
+})

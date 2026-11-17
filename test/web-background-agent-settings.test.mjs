@@ -109,3 +109,12 @@ test('reopening discards old save/read completion and latest read preserves unsa
  assert.equal(f.node('harness').value,'grok');assert.equal(f.view.busy(),false)
  select(f);await f.view.refresh();assert.equal(f.node('harness').value,'codex');assert.match(f.node('saved').textContent,/Grok/)
 })
+
+test('a365: a saved Antigravity selection shows the notice and starts an empty form',async t=>{
+ const notice='このAIは提供を終了しました。新しいAIを選んでください。'
+ const f=fixture(t,async path=>path==='/api/models'?{models}:{settings:[],backgroundAgent:{...wire.configured,selection:{...wire.configured.selection,harness:'antigravity'}},backgroundAgentNotice:notice})
+ await f.view.open()
+ assert.equal(f.node('harness').value,'');assert.equal(f.node('save').disabled,true)
+ assert.match(f.node('status').textContent,/提供を終了/)
+ assert.equal(f.node('saved').textContent,'AIを選び直してください')
+})
