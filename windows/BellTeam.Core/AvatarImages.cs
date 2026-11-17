@@ -57,7 +57,7 @@ public static class BotProfileText
     public const string DefaultValue = "CLIの既定";
     public static string OrDefault(string value) => value.Length == 0 ? DefaultValue : value;
     // Mac BotProfileAISection (#1124): the AI's name (an unknown harness shows its id) and one line on what it runs with.
-    public static string HarnessName(string harness) => harness switch { "claude" => "Claude", "codex" => "Codex", "grok" => "Grok", "cursor" => "Cursor", "antigravity" => "Antigravity", _ => harness };
+    public static string HarnessName(string harness) => harness switch { "claude" => "Claude", "codex" => "Codex", "grok" => "Grok", "cursor" => "Cursor", _ => harness };
     public static string AiSummary(string model, string effort) => (model.Length == 0, effort.Length == 0) switch
     {
         (true, true) => "モデルとエフォートはCLIの既定で動きます", (true, false) => "モデルはCLIの既定で動きます",

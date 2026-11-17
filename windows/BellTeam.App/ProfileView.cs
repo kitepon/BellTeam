@@ -308,7 +308,7 @@ public sealed class ProfileView : StackPanel
     private static (string Glyph, Color Tint, bool Symbol) HarnessLook(string harness) => harness switch
     {
         "claude" => ("\u2726", Color.FromRgb(0xFF, 0x95, 0x00), true), "codex" => ("\uE943", Color.FromRgb(0x58, 0x56, 0xD6), false), "grok" => ("\uE945", Color.FromRgb(0x8E, 0x8E, 0x93), false),
-        "cursor" => ("\uE962", Color.FromRgb(0x30, 0xB0, 0xC7), false), "antigravity" => ("\uE909", Color.FromRgb(0x00, 0x7A, 0xFF), false), _ => ("\uE950", Color.FromRgb(0x61, 0x47, 0xD4), false)
+        "cursor" => ("\uE962", Color.FromRgb(0x30, 0xB0, 0xC7), false), _ => ("\uE950", Color.FromRgb(0x61, 0x47, 0xD4), false)
     };
 
     // Mac BotProfileAISection.onRestart: one POST that the server answers after the new seat is up (180 s). Meanwhile the button reads 「再起動しています…」 and is off;

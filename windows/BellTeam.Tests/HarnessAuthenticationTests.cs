@@ -80,7 +80,7 @@ public sealed class HarnessAuthenticationTests
         {
             var stage = "blocked"; var posts = 0;
             var ui = new AuthenticationUi { Schema = "aiterm.auth-ui.v1", Stage = "select", Title = "ログイン方法", Binding = new("owned", null, "meta-1", "native-1", "%3", 4101, "2026-11-08T09:00:00Z", 4102, "2026-11-08T09:00:01Z"), PromptDigest = new string('a', 64), Choices = [new("google", "Googleでログイン")] };
-            string Current() => JsonSerializer.Serialize(new { harness = "antigravity", auth = new AuthenticationState { Status = stage is "blocked" or "authenticated" ? stage : "waiting", AuthUi = stage is "select" or "paste_code" ? ui with { Stage = stage, Input = stage == "paste_code" ? "authorization_code" : null } : null } }, BellApi.Json);
+            string Current() => JsonSerializer.Serialize(new { harness = "cursor", auth = new AuthenticationState { Status = stage is "blocked" or "authenticated" ? stage : "waiting", AuthUi = stage is "select" or "paste_code" ? ui with { Stage = stage, Input = stage == "paste_code" ? "authorization_code" : null } : null } }, BellApi.Json);
             using var workspace = CreateWorkspace(async (request, token) =>
             {
                 if (request.Method == HttpMethod.Post)
@@ -99,7 +99,7 @@ public sealed class HarnessAuthenticationTests
                 }
                 return StubHandler.Json(Current());
             });
-            var option = Option with { Id = "antigravity", Name = "Antigravity", ReloginSupported = false };
+            var option = Option with { Id = "cursor", Name = "Cursor", ReloginSupported = false };
             var window = new HarnessAuthenticationWindow(workspace, option, _ => throw new InvalidOperationException("初回認証で資格の破棄を確認しない"));
             Await(window.InitializeAsync()); Assert.Equal(0, posts);
             Assert.Contains(Find<Button>(window), button => button.Content as string == "認証する");
