@@ -51,7 +51,7 @@ SECTION lattice
     WHY: a wait on something no task causes looks valid and never moves (2026-11-16).
     WHEN: your work belongs on the coordinator's chart but is not on it  DO: ask the coordinator to add it.
     WHEN: your work is closed within your own scope  DO: create your own chart and add it yourself.
-    WHEN: you work on a chart task  DO: todo start it first and read its advisory.
+    WHEN: you work on a chart task  DO: todo start it first (declared before the start, lattice.conflicts) and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
   RULE lattice.code-graph
@@ -59,9 +59,11 @@ SECTION lattice
     DO: index your clone (`lattice-sensor-init <clone>`), then ask the code graph before you declare or edit: `lattice_sensor_explore` shows how the code works, `lattice_sensor_impact` and `lattice_sensor_callers` show what a symbol reaches (projectPath = your clone).
     WHY: what it shows is what you declare and what your change can break.
   RULE lattice.conflicts
-    WHEN: you add a task to a plan whose coordination mode is witness or enforced (session-context shows the mode)
-    DO: declare it on the `todo add` itself, by function: `--owns src/a.mjs#fn,src/a.mjs#Cls.method` for what it will change, `--reads src/b.mjs#g` for what it depends on (plan input: `tasks[].touches`); `todo independence witness declare` with no flags when it touches no code.
-    FACT: a path without `#` claims the whole file, so every task that changes that file conflicts with yours. The add result lists the conflicts with every unfinished task (declaration.conflicts); Lattice never refuses the add.
+    WHEN: you are about to start a task in a plan whose coordination mode is witness or enforced (session-context shows the mode)
+    DO: before `todo start`, read the code the task will change (lattice.code-graph), then declare it by function: `todo independence witness declare --plan P --task T --owns src/a.mjs#fn,src/a.mjs#Cls.method` for what it will change, `--reads src/b.mjs#g` for what it depends on; no flags when it touches no code.
+    EXCEPT: you already declared it yourself from the code.
+    FACT: your declaration replaces an earlier one. A path without `#` claims the whole file, so every task that changes that file conflicts with yours. The result lists the conflicts with every unfinished task (declaration.conflicts); a conflict never refuses a declaration or an add.
+    WHEN: you add a task to such a plan  MAY: declare it on the `todo add` itself with the same `--owns` and `--reads` (plan input: `tasks[].touches`), only when you will do the task yourself or already know its functions.  DO: otherwise leave the declaration to its worker.
     WHEN: you gave functions and the add result has declaration.written false  FACT: the task is added; its functions are not recorded.  DO: correct the names (declaration.unresolved gives the nearest ones) and give the same flags to `todo independence witness declare`.  NEVER: add the task again.
     FACT: an undeclared task is not judged, and an enforced plan refuses its start; the declared tasks are judged without it.
     WHEN: todo start lists conflicts_with_active  DO: before editing the shared code, make that task your 前工程 or settle it with its owner or the coordinator.
