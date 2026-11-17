@@ -34,6 +34,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const botFastMode = dialog.querySelector('#bot-fast-mode')
   const botFastStatus = dialog.querySelector('#bot-fast-status')
   const botConfigurationLocked = dialog.querySelector('#bot-configuration-locked')
+  const botConfigurationLockRow = dialog.querySelector('#bot-configuration-lock-row')
   const botReasoningEffort = dialog.querySelector('#bot-reasoning-effort')
   const botProfileText = dialog.querySelector('#bot-profile-text')
   const botPersonality = dialog.querySelector('#bot-personality')
@@ -140,6 +141,8 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     botFormError.textContent = ''
     botFastMode.checked = bot?.fastMode === true
     botConfigurationLocked.checked = bot?.configurationLocked === true
+    // Servers that predate a311 send no field: hide the switch rather than offer one that cannot save.
+    botConfigurationLockRow.hidden = typeof bot?.configurationLocked !== 'boolean'
     botDialogTitle.textContent = bot ? 'メンバーを編集' : 'メンバーを追加'
     botHarness.disabled = true
     botModel.disabled = true
