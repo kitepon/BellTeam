@@ -16,6 +16,8 @@ public sealed record BotSettings
     public string Model { get; init; } = "";
     public string ReasoningEffort { get; init; } = "";
     public bool FastMode { get; init; }
+    // a311: null = this BellTeam predates the field (never sent, no switch); the Owner's HTTP PATCH is the only writer.
+    public bool? ConfigurationLocked { get; init; }
     // members C1: null = this BellTeam predates the fields (never sent); "" = this BellTeam's own seat.
     public string? TerminalId { get; init; }
     public string? ProjectRoot { get; init; }
@@ -23,6 +25,7 @@ public sealed record BotSettings
     public Dictionary<string, object?> Fields()
     {
         var fields = new Dictionary<string, object?> { ["name"] = Name, ["profileText"] = ProfileText, ["personality"] = Personality, ["speechStyle"] = SpeechStyle, ["position"] = Position, ["role"] = Role, ["avatar"] = Avatar, ["color"] = Color, ["harness"] = Harness, ["model"] = Model, ["reasoningEffort"] = ReasoningEffort, ["fastMode"] = FastMode };
+        if (ConfigurationLocked is not null) fields["configurationLocked"] = ConfigurationLocked;
         if (TerminalId is not null) fields["terminalId"] = TerminalId;
         if (ProjectRoot is not null) fields["projectRoot"] = ProjectRoot;
         return fields;
@@ -89,6 +92,7 @@ public static class EditorText
 {
     public const string LoadingModels = "使えるモデルを確かめています…";
     public const string FastModeNote = "オンにすると利用枠を多く使います。";
+    public const string LockNote = "オンの間、AIによるCLI・モデル・エフォートの変更を断ります。あなた自身は変更できます。";
     public const string FastLoading = "モデル候補を読み込んでいます。";
     public const string FastCustomEmpty = "モデルIDを入力してください。";
     public const string NameRequired = "名前を入力してください。";

@@ -19,11 +19,13 @@ public sealed class ModelPicker : Border
     private readonly Border cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow, configRow;
     private readonly StackPanel configLine = new() { Orientation = Orientation.Horizontal };
     private readonly CheckBox fast = Violetize(new CheckBox { Content = "ファストモード", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
+    private readonly CheckBox locked = Violetize(new CheckBox { Content = "固定", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
     private readonly TextBlock reason = Text("", 12, Red);
     private bool updating, loading = true;
     private string? loadError;
     public event Action? Edited;
     internal CheckBox FastToggle => fast;
+    internal CheckBox LockToggle => locked;
     internal TextBlock FastReason => reason;
     public ModelPicker(BotSettings initial)
     {
@@ -35,8 +37,12 @@ public sealed class ModelPicker : Border
         var spinner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 }; spinner.Children.Add(new Spinner(Muted, 16)); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
         var fastRow = Row(fast); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
-        foreach (var row in new Control[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, configRow }) card.Add(row);
-        card.SetVisible(configRow, false);
+        // a318: the Owner's switch for the AI settings; absent on a BellTeam that predates configurationLocked.
+        var lockRow = Row(locked); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
+        foreach (var row in new Control[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, lockRow, lockNote, configRow }) card.Add(row);
+        card.SetVisible(configRow, false); card.SetVisible(lockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
+        locked.IsChecked = initial.ConfigurationLocked == true; AutomationProperties.SetName(locked, "AI設定の固定");
+        locked.IsCheckedChanged += (_, _) => Edited?.Invoke();
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
         fast.IsChecked = initial.FastMode; AutomationProperties.SetName(fast, "ファストモード");
         fast.IsCheckedChanged += (_, _) => { RenderFast(); Edited?.Invoke(); };
@@ -104,6 +110,7 @@ public sealed class ModelPicker : Border
         reason.Text = text ?? ""; reason.IsVisible = text is not null; card.SetVisible(reasonRow, text is not null);
     }
     public void SetSavedFastMode(bool value) => fast.IsChecked = value;
+    public void SetSavedLocked(bool? value) { if (value is not null) locked.IsChecked = value; }
     // The last line of the AI section of an existing member (Web renderBotConfigurationStatus, Mac BotEditor), read from the live roster entry.
     // A new member passes null and gets no line. The icon marks the three recorded states.
     public void ShowConfiguration(Bot? bot)
@@ -124,7 +131,7 @@ public sealed class ModelPicker : Border
     public BotSettings Apply(BotSettings settings)
     {
         if (CustomSelected && string.IsNullOrWhiteSpace(custom.Text)) throw new ArgumentException(EditorText.FastCustomEmpty);
-        return settings with { Harness = selection.Harness, Model = selection.Model, ReasoningEffort = selection.Effort, FastMode = fast.IsChecked == true };
+        return settings with { Harness = selection.Harness, Model = selection.Model, ReasoningEffort = selection.Effort, FastMode = fast.IsChecked == true, ConfigurationLocked = settings.ConfigurationLocked is null ? null : locked.IsChecked == true };
     }
 }
 
@@ -377,7 +384,7 @@ public sealed class MemberEditorView : EditorFormView
             // No answer, or a server error: it may have saved. Read it back (never send again); the read decides what the owner is told.
             catch (Exception error) when (BellApiException.IsResultUnconfirmed(error)) { await ReadBackAsync(api, edited); RenderNotices(); Notify(); return; }
             catch (Exception error) { errorText = SaveRefusal(error) ?? error.Message; RenderNotices(); return; }
-            models.SetSavedFastMode(saved.Bot.FastMode); original = edited with { FastMode = saved.Bot.FastMode };
+            models.SetSavedFastMode(saved.Bot.FastMode); models.SetSavedLocked(saved.Bot.ConfigurationLocked); original = edited with { FastMode = saved.Bot.FastMode, ConfigurationLocked = saved.Bot.ConfigurationLocked ?? edited.ConfigurationLocked };
             await workspace.RefreshManagementAsync();
             if (saved.Applying) { outcome = Outcome.Saved; RenderNotices(); Notify(); return; }
             Close();
