@@ -144,7 +144,7 @@ export function validateMembersControl(method, params) {
 const version = value => { if (value !== '' && (typeof value !== 'string' || !/^[a-f0-9]{16}$/u.test(value))) fail() }
 const avatarVersions = { avatarVersion: version, avatarLargeVersion: version, avatarSourceVersion: version, avatarLargeSourceVersion: version }
 const bot = (value, metadata = false) => {
-  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool, harnessNotice: text }, ['id', 'name', 'harness', 'session'])
+  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool }, ['id', 'name', 'harness', 'session'])
 }
 const persistedSchedule = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail()
