@@ -22,7 +22,7 @@ Apple公式クライアントの認証・応答解析は維持し、HTTP通信�
 
 同じ`POST /v1/subscriptions/verify`へ`{ "stripeSessionId": "cs_..." }`または`{ "stripeSubscriptionId": "sub_..." }`を送ると、Stripe APIで購読を照会し、Appleと同じ形（`state`・`entitled`・`validUntil`・`autoRenewing`）に加えて`source: "stripe"`・`subscriptionId`・`isTrial`を返す。Session IDは購読IDへ引き当てる。価格が`STRIPE_PRICE_ID`と一致しない購読は`INVALID_PRODUCT`、Stripeとの通信失敗は`STRIPE_API_ERROR`とし、期限切れへ置き換えない。`trialing`・`active`は有効、`past_due`は`billing_retry`、それ以外は`expired`。環境は購読の`livemode`で決める（本番Workerには本番キー、Sandbox Workerにはテストキーを置く）。
 
-`POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月、Stripe Tax）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
+`POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月。料金は税込で、Stripe Taxは使わない）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
 
 設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。実Stripeとの通信は未検証。
 

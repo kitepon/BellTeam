@@ -87,7 +87,7 @@ async function stripeCheckout(env, request) {
   if (!env.STRIPE_RETURN_URL) throw new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのStripe設定が完了していません。')
   const session = await stripeCall(env, request, '/v1/checkout/sessions', {
     mode: 'subscription', 'line_items[0][price]': env.STRIPE_PRICE_ID, 'line_items[0][quantity]': '1',
-    'subscription_data[trial_period_days]': '30', 'automatic_tax[enabled]': 'true',
+    'subscription_data[trial_period_days]': '30',
     success_url: `${env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}`, cancel_url: env.STRIPE_RETURN_URL,
   })
   if (typeof session.url !== 'string' || typeof session.id !== 'string') throw invalidResponse('Stripe')
