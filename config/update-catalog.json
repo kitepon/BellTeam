@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T08:45:23Z",
-  "expiresAt": "2026-11-24T08:45:23Z",
+  "publishedAt": "2026-11-17T09:18:35Z",
+  "expiresAt": "2026-11-24T09:18:35Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "bc6a0faab235906523258a5722254d2045b96c166df08ea46c0c4ce9c3288d8b",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "d39133acc87295db2bd949f17c719237e0d03df7a49794779dbf277c46af3543",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084248Z/usage-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz",
-          "bytes": 83164,
-          "sha256": "bc6a0faab235906523258a5722254d2045b96c166df08ea46c0c4ce9c3288d8b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz",
+          "bytes": 81775,
+          "sha256": "d39133acc87295db2bd949f17c719237e0d03df7a49794779dbf277c46af3543"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084248Z/usage-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11011,
-          "sha256": "d52f5f0812663435cb76935c0e6a06cd901e5e02961f4939d25299b7dfca1176"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10729,
+          "sha256": "8b01f3b9fffcf66c4ae084c858726443206d9824548647af6652cbbc6ffda152"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,14 +48,13 @@
         }
       },
       "changes": [
-        "Antigravityは新しく選べなくなりました。保存に残っている利用者のデータでも、本体は起動し、お知らせを出して別のAIへ切り替えられます。",
-        "Stripeの購読も、Appleと並べて購読の確認に数えるようにしました。"
+        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "2a93e133b6c76299ac9a4b025dae0f46d444e44b0af36cdc636bbe21907da8ac",
+      "sourceCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2",
+      "versionId": "b7ff4bc7f85a0bbe6c59d4e9efd695a9f919428b4326bbf2b984bbe850682ac9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084248Z/usage-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz",
-          "bytes": 83164,
-          "sha256": "2a93e133b6c76299ac9a4b025dae0f46d444e44b0af36cdc636bbe21907da8ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz",
+          "bytes": 81775,
+          "sha256": "b7ff4bc7f85a0bbe6c59d4e9efd695a9f919428b4326bbf2b984bbe850682ac9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084248Z/usage-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11003,
-          "sha256": "a40d065dee9fb3d28d69bb6566e952d41d55df0d5334db4c67c75fda3509f844"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T004031Z/usage-e4c4ef1da981ab322eac490cc959f69532b7d2a2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10858,
+          "sha256": "1469d703fa36b074f28bb3daafa10dab921c65795f01ec1213251e535d3b0326"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "e4c4ef1da981ab322eac490cc959f69532b7d2a2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -97,8 +96,7 @@
         }
       },
       "changes": [
-        "Antigravityは新しく選べなくなりました。保存に残っている利用者のデータでも、本体は起動し、お知らせを出して別のAIへ切り替えられます。",
-        "Stripeの購読も、Appleと並べて購読の確認に数えるようにしました。"
+        "決裁箱のつなぎ情報を、本体の入れ替えの後も残せるようにしました。"
       ]
     },
     {
@@ -497,8 +495,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "b669651c10040a5d18a39d71d52f4725f332f9c216811eff4a22b4fedd528c2c",
+      "sourceCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3",
+      "versionId": "4a8faf5d291df3e71c9d2716632a58528dbbfa44723ce9db553346549c6784dd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -506,16 +504,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084254Z/execution-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz",
-          "bytes": 3986071,
-          "sha256": "b669651c10040a5d18a39d71d52f4725f332f9c216811eff4a22b4fedd528c2c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-amd64.tar.gz",
+          "bytes": 3985667,
+          "sha256": "4a8faf5d291df3e71c9d2716632a58528dbbfa44723ce9db553346549c6784dd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084254Z/execution-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "500881c1be12a55dc21ac11416408b5641992b3bf842b72e51e007745c7f9787"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "6e7bb53157352c265e04e6d95d74652540a19376da7bb7c27b60e46a80018e44"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -525,13 +523,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Antigravityの席は起動せず、別のAIへ切り替えるよう案内します。"
+        "実行の部品で、AIを止めた後に起きる二つの不具合を直しました。止めている最中に完了の合図が送られてしまう問題と、普通の配達を止めるたびに中断のエラーが出てしまう問題です。",
+        "実行の部品を入れ替えたり、新しく起動したりしたときに、動いている固定中の席を、Aiterm側でも固定し直すようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "2594bdd1abe8fdd6e5c9d188687950d090c196bcd77b18f7ba61b1aa46223c34",
+      "sourceCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3",
+      "versionId": "96498a35527dbd2b9fe9c9eec3894b66059c05b560e4106b015a102c5ed9e472",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -539,16 +538,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084254Z/execution-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz",
-          "bytes": 3986071,
-          "sha256": "2594bdd1abe8fdd6e5c9d188687950d090c196bcd77b18f7ba61b1aa46223c34"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-arm64.tar.gz",
+          "bytes": 3985667,
+          "sha256": "96498a35527dbd2b9fe9c9eec3894b66059c05b560e4106b015a102c5ed9e472"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084254Z/execution-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "ce50c63462b515ab3b63f94a6e9cb86d452bc4d2060b20239fb4afe6ac13bacf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10879,
+          "sha256": "ca67487606318a52a75eef7b5ab758d3da3c82746815b3dcc8fc8cf455d4a700"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -558,13 +557,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Antigravityの席は起動せず、別のAIへ切り替えるよう案内します。"
+        "実行の部品で、AIを止めた後に起きる二つの不具合を直しました。止めている最中に完了の合図が送られてしまう問題と、普通の配達を止めるたびに中断のエラーが出てしまう問題です。",
+        "実行の部品を入れ替えたり、新しく起動したりしたときに、動いている固定中の席を、Aiterm側でも固定し直すようにしました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "2fb9d30d6cdb3b5ed2392006da25552d0d207d72ae8af4ce3817c586d4fe33d6",
+      "sourceCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762",
+      "versionId": "af5c903a2fa8fd649ab6a890825bd571987fc3b07ddca513e16c625da36416d5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -572,16 +572,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084301Z/members-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz",
-          "bytes": 4602822,
-          "sha256": "2fb9d30d6cdb3b5ed2392006da25552d0d207d72ae8af4ce3817c586d4fe33d6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-amd64.tar.gz",
+          "bytes": 4603334,
+          "sha256": "af5c903a2fa8fd649ab6a890825bd571987fc3b07ddca513e16c625da36416d5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084301Z/members-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10906,
-          "sha256": "80f8f655bbd507dd00eed404c262ba488037eca434e9e218334354d765fde912"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10859,
+          "sha256": "1a59e5ad8651ff0b2be1357f8721c7a493a540eef3f5dce554ba7f83ad7e3a85"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -598,13 +598,13 @@
         }
       },
       "changes": [
-        "メンバーの設定から、Antigravityを外しました。"
+        "共通ルールから、「申告で関数が記録されなかった時」の一節を消しました。Lattice 0.111.1が席に入ったので、この一節は要らなくなりました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "5e1fab3c9ffb21881a668181efd97b7bb469295c4fc1e29496f906bb98a21c47",
+      "sourceCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762",
+      "versionId": "68927b1be3e34e737051a3ca9b8c5486bf96d01e86845431ca2710a25b0f3426",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -612,16 +612,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084301Z/members-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz",
-          "bytes": 4602827,
-          "sha256": "5e1fab3c9ffb21881a668181efd97b7bb469295c4fc1e29496f906bb98a21c47"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-arm64.tar.gz",
+          "bytes": 4603333,
+          "sha256": "68927b1be3e34e737051a3ca9b8c5486bf96d01e86845431ca2710a25b0f3426"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084301Z/members-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10902,
-          "sha256": "d1921da97c3c28c83c6cee17874db015ec3244c750589847302fa605639aa9a5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "91fa2b79ea91d72018edc62f9c7865d4f1055b47e327a396ae94b459d0eb57de"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -638,7 +638,7 @@
         }
       },
       "changes": [
-        "メンバーの設定から、Antigravityを外しました。"
+        "共通ルールから、「申告で関数が記録されなかった時」の一節を消しました。Lattice 0.111.1が席に入ったので、この一節は要らなくなりました。"
       ]
     },
     {
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "sha256:cf8a2218ca2676345065cb0f873e84792c473a1e78fd3c436e2cb959dc7c5376",
+      "sourceCommit": "191e15071fe356db00456188af303329c687c39a",
+      "versionId": "sha256:59878e05fad024a0cbac0f72acaf75d41501c4ddd712a2898ef6c0c8b07f2427",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cf8a2218ca2676345065cb0f873e84792c473a1e78fd3c436e2cb959dc7c5376"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:59878e05fad024a0cbac0f72acaf75d41501c4ddd712a2898ef6c0c8b07f2427"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeamが選べるAIからAntigravityを外しました。Antigravityの席が残る利用者の本体も、更新後に起動します。"
+        "席に同梱するLatticeの実行ファイルを0.111.1へ上げました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "sha256:cf8a2218ca2676345065cb0f873e84792c473a1e78fd3c436e2cb959dc7c5376",
+      "sourceCommit": "191e15071fe356db00456188af303329c687c39a",
+      "versionId": "sha256:59878e05fad024a0cbac0f72acaf75d41501c4ddd712a2898ef6c0c8b07f2427",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cf8a2218ca2676345065cb0f873e84792c473a1e78fd3c436e2cb959dc7c5376"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:59878e05fad024a0cbac0f72acaf75d41501c4ddd712a2898ef6c0c8b07f2427"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeamが選べるAIからAntigravityを外しました。Antigravityの席が残る利用者の本体も、更新後に起動します。"
+        "席に同梱するLatticeの実行ファイルを0.111.1へ上げました。"
       ]
     },
     {
