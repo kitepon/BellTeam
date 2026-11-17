@@ -13,7 +13,7 @@ export { exists, writeAtomic } from './json-file.mjs'
 import { loadBots } from './bots.mjs'
 import { ProjectFiles } from './project-files.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
-import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
+import { retiredHarness } from './retired-harness.mjs'
 import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './schedule-mutations.mjs'
 
 const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
@@ -806,7 +806,6 @@ function normalizeProfile(value) {
     name,
     displayName: position ? `${name} ${position}` : name,
     harness: value.harness,
-    ...(retiredHarness(value.harness) ? { harnessNotice: RETIRED_HARNESS_NOTICE } : {}),
     model,
     reasoningEffort,
     fastMode: value.fastMode === true,

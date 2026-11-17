@@ -3,6 +3,7 @@ import { readSeatAccount, readSeatLaunch } from '../http-accounts-api.mjs'
 import { json, readJson } from '../http-response.mjs'
 import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, sendAvatar } from '../http-assets.mjs'
+import { harnessNoticeFor } from '../retired-harness.mjs'
 
 export function createMemberProfileApi({ bots, transport, administration, memory, characterSheets, sources, store }) {
   const readMember = id => bots.readMember ? bots.readMember(id) : bots.get(id)
@@ -31,6 +32,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           name: bot.name ?? bot.displayName ?? bot.id,
           displayName: bot.displayName ?? bot.id,
           harness: bot.harness,
+          ...harnessNoticeFor(bot),
           model: bot.model ?? '',
           reasoningEffort: bot.reasoningEffort ?? '',
           fastMode: bot.fastMode === true,
@@ -124,9 +126,12 @@ export function createMemberProfileApi({ bots, transport, administration, memory
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       if (request.method === 'GET') {
         const view = administration.view?.(bot) ?? bot, account = readSeatAccount(transport, botId), seatLaunch = readSeatLaunch(transport, botId)
-        return json(response, 200, { bot: { ...view, ...(account === undefined ? {} : { account }), ...(seatLaunch === undefined ? {} : { seatLaunch }) } })
+        return json(response, 200, { bot: { ...view, ...harnessNoticeFor(bot), ...(account === undefined ? {} : { account }), ...(seatLaunch === undefined ? {} : { seatLaunch }) } })
       }
-      if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
+      if (request.method === 'PATCH') {
+        const updated = await administration.update(botId, await readJson(request))
+        return json(response, 200, updated?.bot ? { ...updated, bot: { ...updated.bot, ...harnessNoticeFor(updated.bot) } } : updated)
+      }
     }
 
     return false

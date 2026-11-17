@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path'
 import { HARNESS, GUIDE_BOT_ID } from '../onboarding.mjs'
 import { usageError, validateUsageActor } from './process-schema.mjs'
 import { usageProjectionRecordValid } from './projection.mjs'
+import { retiredHarness } from '../retired-harness.mjs'
 import { backgroundHarnesses, backgroundRecordValid, backgroundModelsValid } from './background-agent-settings.mjs'
 
 export const object = value => value && typeof value === 'object' && !Array.isArray(value)
@@ -22,7 +23,7 @@ export const ackValid = value => exact(value, 'acknowledged') && value.acknowled
 export const marker = value => exact(value, 'streamed,collection,count') && value.streamed === true && typeof value.collection === 'boolean'
   && Number.isSafeInteger(value.count) && value.count >= 0 && (value.collection || value.count === 1)
 export const publicationValid = value => exact(value, 'phase,row') && ['seed', 'snapshot', 'update'].includes(value.phase) && usageProjectionRecordValid(value.row)
-const metadata = value => exact(value, 'id,name,harness') && typeof value.id === 'string' && typeof value.name === 'string' && (value.harness === null || Object.hasOwn(HARNESS, value.harness))
+const metadata = value => exact(value, 'id,name,harness') && typeof value.id === 'string' && typeof value.name === 'string' && (value.harness === null || Object.hasOwn(HARNESS, value.harness) || retiredHarness(value.harness))
 const text = value => typeof value === 'string'
 const named = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
 const authActions = {

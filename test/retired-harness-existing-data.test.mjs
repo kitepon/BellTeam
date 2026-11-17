@@ -11,6 +11,9 @@ import { readRunningExclusions } from '../src/running-exclusions.mjs'
 import { validateMembersProjection } from '../src/members/protocol.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { RETIRED_HARNESS_NOTICE } from '../src/retired-harness.mjs'
+import { usageEffectResultValid } from '../src/usage/channel-protocol.mjs'
+import { createUsageRegistryPorts } from '../src/usage/registry-ports.mjs'
+import { createMemberProfileApi } from '../src/members/profiles-http.mjs'
 
 // a365: a data dir written while Antigravity was a harness still starts, shows and can be switched; nothing is deleted.
 const models = { forHarness: async () => ({ efforts: ['low', 'high'], models: [] }) }
@@ -28,8 +31,9 @@ test('Antigravityのメンバーが残る保存領域でBot名簿が起動し、
   const registry = new BotRegistry({ seedPath, botsRoot: join(root, 'bots'), models, botId: () => 'bot-new' })
   await registry.initialize()
   assert.equal(registry.get('bot-old').harness, 'antigravity')
-  assert.equal(registry.get('bot-old').harnessNotice, RETIRED_HARNESS_NOTICE)
-  assert.equal((await registry.listForClient()).find(bot => bot.id === 'bot-old').harnessNotice, RETIRED_HARNESS_NOTICE)
+  // a368: the notice never rides inside module IPC records (an older body rejects unknown bot fields); HTTP adds it.
+  assert.equal(Object.hasOwn(registry.get('bot-old'), 'harnessNotice'), false)
+  assert.equal(Object.hasOwn((await registry.listForClient()).find(bot => bot.id === 'bot-old'), 'harnessNotice'), false)
   // Other fields can still be edited; the stored harness is kept (nothing is deleted).
   assert.equal((await registry.update('bot-old', { name: '改名', harness: 'antigravity' })).name, '改名')
   assert.equal(JSON.parse(await readFile(join(root, 'bots/bot-old/bot.json'), 'utf8')).harness, 'antigravity')
@@ -38,11 +42,10 @@ test('Antigravityのメンバーが残る保存領域でBot名簿が起動し、
   await registry.refresh()
   const switched = await registry.update('bot-old', { harness: 'claude' })
   assert.equal(switched.harness, 'claude')
-  assert.equal(Object.hasOwn(switched, 'harnessNotice'), false)
   await assert.rejects(registry.update('bot-old', { harness: 'antigravity' }), /BOT_HARNESS_INVALID/u)
-  // The members worker projection accepts the stored value, with the notice.
+  // The members worker projection accepts the stored value.
   const context = { generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false }
-  validateMembersProjection({ type: 'profile', revision: 1, bot: { id: 'bot-old', name: '旧', harness: 'antigravity', session: 'bot-old', harnessNotice: RETIRED_HARNESS_NOTICE } }, context)
+  validateMembersProjection({ type: 'profile', revision: 1, bot: { id: 'bot-old', name: '旧', harness: 'antigravity', session: 'bot-old' } }, context)
 })
 
 test('初期設定の保存にAntigravityが残っていても読み込める', async t => {
@@ -90,4 +93,28 @@ test('Antigravityの席は起動せず、案内文つきのHARNESS_RETIREDを返
   const transport = new AitermTransport({ client: { call: async name => { if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }; throw new Error('Aitermを起動してはならない') } } })
   await assert.rejects(transport.ensure({ id: 'bot-old', session: 'bot-old', harness: 'antigravity', project: join(tmpdir(), 'bellteam-retired-seat') }),
     { code: 'HARNESS_RETIRED', effect: 'not_started', message: RETIRED_HARNESS_NOTICE })
+})
+
+// a368: the train swaps one component at a time, so each half must accept a member list that still names Antigravity.
+test('Antigravityのメンバーを含む一覧を、本体の結果検査とusageの受け口が受け入れる', async () => {
+  const list = [{ id: 'bot-old', name: '旧', harness: 'antigravity' }, { id: 'bot-new', name: '新', harness: 'claude' }]
+  assert.equal(usageEffectResultValid('members.read', list), true)
+  assert.equal(usageEffectResultValid('members.read', [{ id: 'x', name: 'x', harness: 'gemini' }]), false)
+  const ports = createUsageRegistryPorts({ effect: async () => list, initialMembers: list })
+  assert.equal(ports.bots.get('bot-old').harness, 'antigravity')
+  await ports.bots.refresh()
+  assert.throws(() => createUsageRegistryPorts({ effect: async () => [], initialMembers: [{ id: 'x', name: 'x', harness: 'gemini' }] }), { code: 'USAGE_MEMBERS_INVALID' })
+})
+
+test('案内文はHTTPで付き、モジュールの記録には載らない', async t => {
+  const { root, seedPath } = await dataDir(t)
+  const registry = new BotRegistry({ seedPath, botsRoot: join(root, 'bots'), models })
+  await registry.initialize()
+  // An older body validates module records with exact bot fields; harnessNotice is not one of them.
+  const old = new Set(['id', 'name', 'harness', 'session', 'project', 'displayName', 'model', 'reasoningEffort', 'fastMode', 'configurationLocked', 'color', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'terminalId', 'projectRoot'])
+  for (const key of Object.keys(registry.get('bot-old'))) assert.equal(old.has(key), true, key)
+  const api = createMemberProfileApi({ bots: registry, administration: {}, sources: async () => [], transport: { runningBots: async () => new Set() }, store: { recentViews: async () => new Map() } })
+  const response = { writeHead(status) { this.status = status }, end(body) { this.body = JSON.parse(body) } }
+  await api({ method: 'GET' }, response, new URL('http://fixture/api/bots'))
+  assert.equal(response.body.bots.find(bot => bot.id === 'bot-old').harnessNotice, RETIRED_HARNESS_NOTICE)
 })

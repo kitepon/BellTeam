@@ -1,4 +1,5 @@
 import { HARNESS, GUIDE_BOT_ID } from '../onboarding.mjs'
+import { retiredHarness } from '../retired-harness.mjs'
 import { usageError } from './process-schema.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
@@ -8,7 +9,7 @@ function members(value) {
   const result = new Map()
   for (const item of value) {
     if (!object(item) || Object.keys(item).sort().join(',') !== 'harness,id,name' || !text(item.id) || !text(item.name)
-      || !(item.harness === null || Object.hasOwn(HARNESS, item.harness)) || result.has(item.id)) throw usageError('USAGE_MEMBERS_INVALID')
+      || !(item.harness === null || Object.hasOwn(HARNESS, item.harness) || retiredHarness(item.harness)) || result.has(item.id)) throw usageError('USAGE_MEMBERS_INVALID')
     result.set(item.id, { ...item })
   }
   return result
