@@ -16,7 +16,7 @@ export const bellTeamTools = Object.freeze([
   {
     name: 'list_models',
     description: 'BellTeam内蔵のCLIが今返すモデルとエフォートをAitermから取得する。harness省略時は4種すべて。取得に失敗したCLIはerrorに理由を返す。AIのターンは起こさない。',
-    inputSchema: objectSchema({ harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'] } }),
+    inputSchema: objectSchema({ harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'] } }),
     annotations: { readOnlyHint: true },
   },
   ...usageTools(objectSchema),

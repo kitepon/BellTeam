@@ -23,9 +23,6 @@ flowchart TD
   Data --> Refresh
   Refresh --> Write["Owner情報→個別規範→製品規範<br/>members global.writeInstructions（唯一のwriter、bd14 E4）"]
   Write --> Globals["home下4CLI（.claude/.codex/.grok/.cursor）のAGENTS<br/>全文そのまま。次の通常指示読込から"]
-  Write --> Split["Antigravity（.gemini）だけ行境界で分割<br/>各ファイル≤24,000 B（frontmatter込み）"]
-  Split --> GeminiMain["~/.gemini/AGENTS.md = 第1部"]
-  Split --> GeminiRules["~/.gemini/config/rules/bellteam-global-N.md（N≥2）<br/>frontmatter trigger: always_on + 第N部<br/>余った古い番号は削除"]
   Refresh -->|"失敗"| Failure["生成失敗を返す<br/>既保存は残る"]
   Refresh -->|"世代起動時の失敗"| Diagnostic["初回だけdiagnostic MEMBERS_GLOBAL_INSTRUCTIONS_FAILED<br/>owner.readは成功、次のowner.readで再試行"]
 ```
@@ -56,7 +53,7 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 ### 全文共通指示の有効template
 
-共通規範の正本は`config/common-agents.md`一か所。全文を`renderGlobalInstructions`が各CLIのglobal指示へ組み立て、membersの`global.writeInstructions`（`members-project-files.mjs`）だけが既存5つの指示ファイルへ保存する。Antigravityは1つのrule fileを24,000 B（include展開後）で切り捨てる（https://antigravity.google/docs/rules.md）。そのため`.gemini`だけ、同じ全文を行境界で分ける（できればSECTION行の前で切る）。第1部は`~/.gemini/AGENTS.md`、第2部以降は`~/.gemini/config/rules/bellteam-global-N.md`へ書く。後者は先頭に`---\ntrigger: always_on\ndescription: BellTeam global instructions (part N)\n---\n`を付ける。各ファイルはfrontmatter込みで24,000 B以下で、frontmatterを除いて順に連結すると全文に一致する。全文が縮んで要らなくなった番号のファイルは消す。他の4CLIは全文を1ファイルのまま書く。どれも0600、同じwriter（O_NOFOLLOW・所有者・単一リンクの確認）。未確認: 実CLIが`config/rules/*.md`のalways_onを読むことと、always_on全体で20,000 tokenの予算に収まること（a147、Behemoth）。本体の旧writer（`global-instructions.mjs`のrefresher、bootstrap起動時の書込み、席の`global-instructions`操作）は2026-11-14 bd14 E4で削除した（Belota合意）。モデル運用の規範（旧`SECTION models`）はユーザー規範が持ち（2026-11-15 オーナー裁定）、共通規範には置かない。通常dispatch/steer本文へ規範を再付記しない。通常配送は元の入力本文を維持する。別段落やUserRulesに規範を複製しない。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。既API/handler/DTO/TTLはこの差分では変えない。
+共通規範の正本は`config/common-agents.md`一か所。全文を`renderGlobalInstructions`が各CLIのglobal指示へ組み立て、membersの`global.writeInstructions`（`members-project-files.mjs`）だけが既存4つの指示ファイルへ保存する。Antigravityは2026-11-17のa353でハーネスから外し、`.gemini`は書かない（24,000 B分割は削除。コードは`archive/antigravity-harness-20261117`）。4CLIは全文を1ファイルのまま書く。どれも0600、同じwriter（O_NOFOLLOW・所有者・単一リンクの確認）。本体の旧writer（`global-instructions.mjs`のrefresher、bootstrap起動時の書込み、席の`global-instructions`操作）は2026-11-14 bd14 E4で削除した（Belota合意）。モデル運用の規範（旧`SECTION models`）はユーザー規範が持ち（2026-11-15 オーナー裁定）、共通規範には置かない。通常dispatch/steer本文へ規範を再付記しない。通常配送は元の入力本文を維持する。別段落やUserRulesに規範を複製しない。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。既API/handler/DTO/TTLはこの差分では変えない。
 
 供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configを従来どおり同じSHAへ揃える。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、execution artifactは既署名版との互換性のためassetを保持するが、新しいdispatchでは読み込まない。stateのUserRules更新だけではこのtemplateは変わらない。module導入で配置のtemplateが変わった時は、新世代の初回owner.readでglobal指示へ反映する。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
 

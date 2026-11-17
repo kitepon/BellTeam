@@ -49,7 +49,7 @@ const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 
 // C8 harnesses (Owner via Root 2026-11-10). codex-cli and grok-cli have no Aiterm launch auth preflight (Kiro, 0.70.9).
-const CLI_NAMES = { 'claude-code': 'Claude Code', 'codex-cli': 'Codex CLI', 'grok-cli': 'Grok CLI', 'cursor-cli': 'Cursor CLI', 'antigravity-cli': 'Antigravity CLI' }
+const CLI_NAMES = { 'claude-code': 'Claude Code', 'codex-cli': 'Codex CLI', 'grok-cli': 'Grok CLI', 'cursor-cli': 'Cursor CLI' }
 const NO_LAUNCH_AUTH_CHECK = new Set(['codex-cli', 'grok-cli'])
 // Same shape as Aiterm's own launch refusal, so execution queues it like the other three harnesses' preflight (no execution change).
 function loginRequired(harness, os) {

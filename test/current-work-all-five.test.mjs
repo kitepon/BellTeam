@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 
 // Contracted producer rows; these fixtures do not claim live native acceptance.
-test('all five activity rows preserve parent waits and keep null-start rows observation-only', async t => {
+test('all four activity rows preserve parent waits and keep null-start rows observation-only', async t => {
   let clock = 720_000
   const epoch = 1_800_000_000_000, calls = []
-  const bots = ['codex', 'claude', 'grok', 'cursor', 'antigravity'].map(harness => ({
+  const bots = ['codex', 'claude', 'grok', 'cursor'].map(harness => ({
     id: `bot-${harness}`, session: `bot-${harness}`, harness,
   }))
   const rows = bots.map(bot => ({

@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks'
 
 // READ_MS: a read in flight younger than this holds the 15 s expiry; the read itself settles the row (current-work.md "read hold").
 const NATIVE_MS = 15_000, SUMMARY_MS = 600_000, READ_MS = 60_000
-const HARNESSES = new Set(['codex-cli', 'claude-code', 'grok-cli', 'cursor-cli', 'antigravity-cli'])
+const HARNESSES = new Set(['codex-cli', 'claude-code', 'grok-cli', 'cursor-cli'])
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)
 const launch = value => typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 256

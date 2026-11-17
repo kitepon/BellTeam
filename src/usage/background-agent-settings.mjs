@@ -7,7 +7,7 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const exact = (value, names) => object(value) && Object.keys(value).length === names.length && names.every(key => Object.hasOwn(value, key))
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(value)
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 200 && !value.includes('\0')
-export const backgroundHarnesses = ['claude', 'codex', 'grok', 'cursor', 'antigravity']
+export const backgroundHarnesses = ['claude', 'codex', 'grok', 'cursor']
 const messages = {
   BACKGROUND_AGENT_INPUT_INVALID: '設定変更の形式を確認してください。',
   BACKGROUND_AGENT_HARNESS_INVALID: '使えるハーネスを選んでください。',

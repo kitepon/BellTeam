@@ -33,7 +33,7 @@ Client guidance: show the key bar whenever the screen view is open. Poll GET app
 | Contact | Contract |
 | --- | --- |
 | `transport.screenKey(bot,key)` | Validates the closed set, then calls `pty_key({session_id,key})` on the Bot's current session. Aiterm serializes it with its own native operation lock against concurrent `pty_send`. No BellTeam queue, wait or refusal is added. |
-| `transport.screenApproval(bot,{action,decision?,promptDigest?})` | claude → `claude_approval` (operation_id omitted, which is Aiterm's form for ordinary `pty_send` turns), codex → `agent_approval`. Inspect: a structured result with `status="approval_required"` maps to choices; anything else is `{status:"none"}`. Respond: sends the exact digest; Aiterm rechecks the dialog and refuses if it changed. Grok/Cursor/Antigravity → `SCREEN_APPROVAL_UNSUPPORTED` (their dialogs are answered with keys). |
+| `transport.screenApproval(bot,{action,decision?,promptDigest?})` | claude → `claude_approval` (operation_id omitted, which is Aiterm's form for ordinary `pty_send` turns), codex → `agent_approval`. Inspect: a structured result with `status="approval_required"` maps to choices; anything else is `{status:"none"}`. Respond: sends the exact digest; Aiterm rechecks the dialog and refuses if it changed. Grok/Cursor → `SCREEN_APPROVAL_UNSUPPORTED` (their dialogs are answered with keys). |
 | compatibility | Both methods are execution dispatch methods. An older execution engine rejects them with `EXECUTION_REQUEST_INVALID`, which the HTTP layer maps to `503 SCREEN_INPUT_UNAVAILABLE`. |
 
 No text input is offered (`pty_send` free text stays the delivery path). No secret, transcript or screen text is stored.

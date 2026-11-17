@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises'
+import { lstat, mkdir, open, realpath, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -48,48 +48,15 @@ async function file(path, body, mode, append = false) {
   } finally { await fd.close() }
 }
 
-// Antigravity truncates one rule file at 24,000 B (antigravity.google/docs/rules.md, a147): part 1 is ~/.gemini/AGENTS.md,
-// later parts are always_on rule files. Parts are whole lines (preferably cut before a SECTION line) and rejoin to the body.
-const ANTIGRAVITY_FILE_LIMIT = 24000
-const antigravityFrontmatter = n => `---\ntrigger: always_on\ndescription: BellTeam global instructions (part ${n})\n---\n`
-export function splitAntigravityInstructions(body) {
-  const parts = []
-  let rest = Buffer.from(body)
-  for (;;) {
-    const limit = ANTIGRAVITY_FILE_LIMIT - (parts.length ? Buffer.byteLength(antigravityFrontmatter(parts.length + 1)) : 0)
-    if (rest.length <= limit) { parts.push(rest.toString()); return parts }
-    const window = rest.subarray(0, limit)
-    let cut = window.lastIndexOf('\nSECTION ') + 1
-    if (cut <= limit / 2) cut = window.lastIndexOf(0x0a) + 1
-    // A single line longer than the limit: cut at the last whole UTF-8 character instead.
-    if (cut <= 0) for (cut = limit; (rest[cut] & 0xc0) === 0x80; cut--);
-    parts.push(rest.subarray(0, cut).toString()); rest = rest.subarray(cut)
-  }
-}
-
-async function writeAntigravityInstructions(target, body) {
-  const parts = splitAntigravityInstructions(body), rules = join(target, 'config/rules')
-  await file(join(target, 'AGENTS.md'), parts[0], 0o600)
-  if (parts.length > 1) { await directory(join(target, 'config'), true); await directory(rules, true) }
-  let names = []
-  try { await directory(rules); names = await readdir(rules) } catch (error) { if (error.code !== 'ENOENT') throw error }
-  for (let n = 2; n <= parts.length; n++) await file(join(rules, `bellteam-global-${n}.md`), antigravityFrontmatter(n) + parts[n - 1], 0o600)
-  for (const name of names) {
-    const n = Number(name.match(/^bellteam-global-(\d+)\.md$/u)?.[1])
-    if (n && (n < 2 || n > parts.length)) await rm(join(rules, name))
-  }
-}
-
 // The parent supplies root/home from its fixed SeatRuntime, never from the members DTO.
 export async function operateMembersProject({ root, home }, operation, params) {
   validateMembersProjectRequest(operation, params)
   const botsRoot = join(root, 'bots')
   if (operation === 'global.writeInstructions') {
     await directory(home)
-    for (const cli of ['.claude', '.codex', '.grok', '.cursor', '.gemini']) {
+    for (const cli of ['.claude', '.codex', '.grok', '.cursor']) {
       const target = join(home, cli)
       await directory(target)
-      if (cli === '.gemini') { await writeAntigravityInstructions(target, params.body); continue }
       await file(join(target, 'AGENTS.md'), params.body, 0o600)
       if (cli === '.claude') await file(join(target, 'CLAUDE.md'), '@AGENTS.md\n', 0o600)
     }

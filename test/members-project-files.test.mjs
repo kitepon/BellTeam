@@ -8,7 +8,7 @@ async function fixture(t) {
   const root = await mkdtemp(join(process.cwd(), '.members-files-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const home = join(root, 'home'); await mkdir(home)
-  for (const cli of ['.claude', '.codex', '.grok', '.cursor', '.gemini']) await mkdir(join(home, cli))
+  for (const cli of ['.claude', '.codex', '.grok', '.cursor']) await mkdir(join(home, cli))
   const call = (operation, params = {}) => operateMembersProject({ root, home }, operation, params)
   await call('project.ensureRoot')
   return { root, home, call, project: join(root, 'bots/bot-fixture') }

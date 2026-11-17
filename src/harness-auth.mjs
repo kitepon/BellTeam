@@ -47,7 +47,7 @@ export class HarnessAuth {
 
   list() {
     const members = id => [...this.bots.values()].filter(bot => bot.harness === id).length
-    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null, reloginSupported: id !== 'antigravity' })) }
+    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null, reloginSupported: true })) }
   }
 
   status(harness, options = {}, selected = options) {
@@ -64,10 +64,10 @@ export class HarnessAuth {
       const slot = harnessAuthSlot(harness, selected?.slot), key = harnessAuthKey(harness, slot)
       const previous = this.receipts.get(key)
       if (this.sessions.has(key)) await this.end(harness, slot)
-      // Antigravityは初回認証だけ。他のAIは、認証済みに見える時も公式ログインを始める。
-      const receipt = await this.call(harness, 'start', { relogin: harness !== 'antigravity' }, slot, previous)
+      // 認証済みに見える時も公式ログインを始める。
+      const receipt = await this.call(harness, 'start', { relogin: true }, slot, previous)
       // relogin を知らないAitermは引数を捨て、認証済みなら何も始めずに返す。始まっていない事を、認証済みと取り違えない。
-      if (harness !== 'antigravity' && receipt.status === 'authenticated' && !receipt.session_id)
+      if (receipt.status === 'authenticated' && !receipt.session_id)
         throw new HarnessAuthError('HARNESS_AUTH_RELOGIN_UNSUPPORTED', 409, 'このサーバーのAitermは、認証済みのAIの認証のやり直しに対応していません。BellTeamを更新してください。')
       if (receipt.session_id) this.sessions.set(key, receipt.session_id)
       return this.snapshot(harness, receipt, slot)

@@ -11,7 +11,7 @@ export const runningExclusionTools = Object.freeze([
       kind: { type: 'string', enum: ['process', 'child'] },
       exe: { type: 'string', description: 'kind=process: 実行ファイルの名前（例 node）' },
       args: { type: 'array', maxItems: 2, items: { type: 'string' }, description: 'kind=process: 先頭2つまでの引数（例 ["vite.js","dev"]）。空=その実行ファイルのすべての処理' },
-      harness: { type: 'string', enum: ['claude-code', 'codex-cli', 'grok-cli', 'cursor-cli', 'antigravity-cli'], description: 'kind=child: 子の席のCLI' },
+      harness: { type: 'string', enum: ['claude-code', 'codex-cli', 'grok-cli', 'cursor-cli'], description: 'kind=child: 子の席のCLI' },
       session: { type: 'string', description: 'kind=child: 子の席のsession名' },
       botIds: { type: 'array', minItems: 1, items: { type: 'string' }, description: '対象のBot ID。省略=申請したBot自身' },
       allBots: { type: 'boolean', description: 'trueですべてのBotが対象（botIdsと一緒に使わない）' },
