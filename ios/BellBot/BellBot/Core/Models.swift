@@ -31,6 +31,8 @@ struct Bot: Decodable, Identifiable, Equatable {
     var seatLaunch: SeatLaunch? = nil
     /// execution configuration-requests.md "Application view". nil = no record, an older body, or a malformed value.
     var configurationApplication: ConfigurationApplication? = nil
+    /// Read-only; set only for a member still on a retired harness (a365). Never sent back in a PATCH.
+    var harnessNotice: String? = nil
 }
 
 /// What happened to the last settings change of a running member (`pending` | `accepted` | `failed`). Both fields are optional;
@@ -100,7 +102,7 @@ extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, configurationLocked, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
-        case terminalId, projectRoot, seatLaunch, configurationApplication
+        case terminalId, projectRoot, seatLaunch, configurationApplication, harnessNotice
     }
 
     init(from decoder: Decoder) throws {
@@ -132,6 +134,7 @@ extension Bot {
         // A malformed notice must not break the member list: read it as absent.
         seatLaunch = try? c.decodeIfPresent(SeatLaunch.self, forKey: .seatLaunch)
         configurationApplication = try? c.decodeIfPresent(ConfigurationApplication.self, forKey: .configurationApplication)
+        harnessNotice = try? c.decodeIfPresent(String.self, forKey: .harnessNotice)
     }
 }
 
@@ -731,6 +734,8 @@ struct SetupResponse: Decodable {
     let guideBotId: String?
     let complete: Bool
     let auth: SetupAuthentication?
+    /// a365: the stored AI choice is retired. nil = no notice.
+    var harnessNotice: String? = nil
 }
 struct HarnessSelection: Encodable { let harness: String }
 struct SetupEmptyBody: Encodable {}
@@ -912,6 +917,8 @@ struct FeatureSettingsResponse: Decodable {
     let settings: [FeatureSetting]
     /// 欠けている時は、この版のサーバーが要約のAIの設定を持たない。未設定（revision・selectionともnull）とは別。
     let backgroundAgent: BackgroundAgentRecord?
+    /// a365: the saved background-agent selection is a retired AI. nil = no notice.
+    var backgroundAgentNotice: String? = nil
 }
 /// チーム全体で一人だけ、メンバーの仕事の要約を書くAIの設定。
 struct BackgroundAgentRecord: Decodable, Equatable {

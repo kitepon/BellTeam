@@ -233,6 +233,10 @@ struct BotEditor: View {
                             Text("使えるモデルを確かめています…").foregroundStyle(BellTheme.muted)
                         }
                     } else {
+                        if let notice = liveBot?.harnessNotice, harness == initial?.harness {
+                            Text(notice).font(BellTheme.secondaryFont).foregroundStyle(.orange)
+                                .accessibilityIdentifier("harness-notice")
+                        }
                         Picker("CLI", selection: Binding(get: { harness }, set: { next in
                             harness = next
                             model = ""
@@ -242,6 +246,8 @@ struct BotEditor: View {
                             Text("Claude").tag("claude")
                             Text("Grok").tag("grok")
                             Text("Cursor").tag("cursor")
+                            // A retired AI the member still has: keep it selectable so the picker is valid until the user switches.
+                            if !["codex", "claude", "grok", "cursor"].contains(harness) { Text("\(harness)（終了）").tag(harness) }
                         }
                         Picker("モデル", selection: Binding(get: { model }, set: { next in
                             model = next

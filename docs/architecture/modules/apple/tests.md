@@ -308,6 +308,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testStartConfirmationMatchesTheWebForEveryOfficialState](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift#L8) | 警告付きAIの開始確認をstatus別に照合、blocked/警告無しは不要 |
 | [testUnsupportedReloginCapabilityAndOldServerDecode](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift#L18) | reloginSupported=falseと旧応答のnilをdecodeし開始確認を区別 |
 | [testUnsupportedReloginStillAllowsFirstAuthentication](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift#L29) | 再認証非対応でもblocked/failedの初回開始は可能 |
+| testRetiredHarnessNoticesDecode（HarnessAuthenticationTests.swift） | 終了したharness文字列とBot.harnessNotice・SetupResponse.harnessNotice・backgroundAgentNoticeを読み、無い版のサーバーも読める（a365） |
 | [testViewingTheStateDoesNotStartOrCancelAuthentication](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift#L41) | 状態GETだけではstart/cancel POSTをしない |
 | [testStartResponseAndCompletionUseTheTypedEndpoints](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift#L51) | start/inputのtyped endpointとbinding/digest/responseだけを送る |
 | [testCancelRechecksTheRealStateInsteadOfAssumingTheOldLoginSurvives](../../../../ios/BellBot/BellBotTests/HarnessAuthenticationTests.swift#L74) | cancel POST後GETのblockedを表示し旧認証の残存を仮定しない |

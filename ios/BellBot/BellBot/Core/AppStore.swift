@@ -80,6 +80,7 @@ final class AppStore: ObservableObject {
     @Published var featureSettings: [FeatureSetting] = []
     /// nilは未取得か、サーバーが要約のAIの設定を持たない版。
     @Published var backgroundAgent: BackgroundAgentRecord?
+    @Published var backgroundAgentNotice: String?
     @Published var terminals = TerminalDirectory()
     @Published var authMode = "local"
     var openLoginAutomatically = false
@@ -253,6 +254,7 @@ final class AppStore: ObservableObject {
         setupAuthUpdating = false
         featureSettings = []
         backgroundAgent = nil
+        backgroundAgentNotice = nil
         terminals = TerminalDirectory()
         authMode = "local"
         phase = .setup
@@ -305,6 +307,7 @@ final class AppStore: ObservableObject {
         let response: FeatureSettingsResponse = try await api.get("/api/settings")
         if featureSettings != response.settings { featureSettings = response.settings }
         if backgroundAgent != response.backgroundAgent { backgroundAgent = response.backgroundAgent }
+        if backgroundAgentNotice != response.backgroundAgentNotice { backgroundAgentNotice = response.backgroundAgentNotice }
     }
 
     func refreshAIControl() async {
