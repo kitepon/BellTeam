@@ -53,19 +53,20 @@ HomeViewの並びは`BellDate.parse`で日時へ変換し、欠損・不正日�
 
 | 所有者 | 入力と更新 |
 | --- | --- |
-| BotEditorの@State | name/position/role/profileText/personality/speechStyle、harness/model/customModel/effort/fastMode/color、画像一式、保存結果・エラー、削除結果未確認 |
+| BotEditorの@State | name/position/role/profileText/personality/speechStyle、harness/model/customModel/effort/fastMode/configurationLocked/color、画像一式、保存結果・エラー、削除結果未確認 |
 | 初期値 | initでinitialの保存済みプロフィール・モデル等を代入。既存Botでも候補GETを待たずフォーム値を持つ |
 | 設定の適用状態（`configurationApplication`） | `GET /api/bots`のBot項目`configurationApplication`（`{state: pending \| accepted \| failed, message, …}`。契約は[execution configuration-requests](../execution/configuration-requests.md)の「Application view」）。`state`と`message`だけを省略可で読み、型の違う項目は無いものとして扱い、項目自体が不正でも名簿の読込は壊さない。既存メンバーの編集画面の「AI」節の最後に、Webの`renderBotConfigurationStatus`と同じ文を1行出す（新規メンバーには出さない）：`pending`=「現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。」、`accepted`=「CLIが設定変更を受け付けました。」、`failed`=サーバーの`message`（赤。空なら出さない）。行の頭に状態の印を付ける（トロニー 2026-11-10）：`pending`=時計（灰）、`accepted`=チェック（緑）、`failed`=警告（赤）。記録なし・他の値は印なしの灰、記録なし（旧本体を含む）と他の値=稼働中なら「保存した希望設定です。稼働中のCLIへの適用は未確認です。」・停止中なら「次回の起動に使う希望設定です。」。表示は開いた時のBotでなく`store.bots`の今の項目を読むので、保存後の再取得とSSE topic `bots`の読み直し（既存の`requestRefreshFromEvent`）で書き換わる。新しい取得・状態・保存は無い。純関数は`ConfigurationApplication.line(for:)`と`symbol(for:)` |
 | AppStore.botEditorDrafts | 既存Botだけ、Bot IDをキーにBotEditorDraftを保存。settings変化や画像選択からpersistDraft。loadで復元。新規Botのdraftはこの辞書に書かない |
 | 端末とフォルダ | `terminalId`・`projectRoot`の@State。対応サーバー（端末一覧200かつメンバー応答に項目あり）の時だけ送り、保存前に組の規則を検査する。端末を選ぶとフォルダ欄を`/Users/<端末のユーザー>/BellTeam/<名前のslug>`で埋め、保存の`FOLDER_*`拒否（`{error: code}`だけ）は符号ごとの文とフォームのフォルダで出し、`FOLDER_MISSING`だけ「このフォルダを作って保存」（同じ保存＋`createFolder:true`、保存済みの設定には入れない）を出す。フォルダ欄は選んだパスの読み取り専用表示＋「フォルダを選ぶ」（端末のホームから始まるシートで選ぶ・作る、[S6](terminals.md#フォルダ選びs6crust-887)）で、文字入力は畳んだ「ほかの方法 > パスを入力」の中だけ。フォルダの一覧の経路が無い旧本体は文字入力の欄を最初から出す。詳細は[端末](terminals.md#メンバー編集端末とフォルダ) |
 | モデル候補 | loadで`GET /api/models`、catalogとmodelErrorText。候補に無い保存済みmodelはcustomModelに保持して「その他」へ。Pickerの表示名は`ModelChoice.label`（`display_name`を前後空白除去し、null・欠落・空ならid）。選択値・tag・保存値・customModel判定は常にid |
 | CLI・モデル変更 | CLI変更でmodel/effortを空にする。モデル変更で候補に無いeffortを空にする。保存済みの非候補effortは現在値としてPickerへ追加 |
+| AI設定の固定 | 「固定」Toggle（`ai-configuration-lock-toggle`）はファストモードの下に置き、`Bot.configurationLocked`（一覧DTO。Optional、nil=古い本体が返さない）が非nilの既存メンバーにだけ出す（新規・nilは非表示）。Toggleの値は`BotSettings.configurationLocked`でPATCH/GETする。固定中もオーナーのharness/model/effort操作は止めない（Toggleは他の欄を無効にしない）。固定中のAI変更の断りは本体（a312）が持つ |
 | ファストモード | HarnessModels.fastModeUnavailableReasonがcatalog error、fastUnavailable、既定モデル/選択モデルのfastを参照。未知の非空モデルIDの可否は本体へ渡す。理由は赤字で出すが、モデル候補の読込中は進捗表示だけにして赤字を出さない |
 | 記憶とキャラクターシート | 既存メンバーだけに節「記憶とキャラクターシート」の2行（`MemberToolRows`）。`BotEditor`の`NavigationStack(path: $toolPath)`へ`MemberToolScreen`を積み、`MemberMemoryScreen`・`CharacterSheetScreen`が開く。編集中の入力は残る。削除の受付中・結果不明は2行とも無効（Webと同じ）。詳細は[記憶と知識・キャラクターシート](memory-and-sheets.md) |
 | 画像 | BotEditor内の画像UIは新規作成時に表示。小/大のrender/source/cropと変更flagを持つ。既存Botの画像操作はBotProfileComponentsを使用 |
 | 画像schema状態 | 新規ではappearanceLoaded=true、store.botsにavatarLargeVersion付きBotがいればappearanceSchemaAvailable=true。既存ではappearanceLoadedをdraftから復元する経路がある。loadのHTTPはモデル候補GETであり、Bot画像情報のGETではない |
 
-BotSettingsRequestは小/大画像を変更flagに応じて送る。fastModeはinitial.fastMode（新規はfalse）から変えた時だけ送る。name/position/model/reasoningEffortはnormalizedで前後空白を除く。画像保存の詳細は[設定・プロフィール](settings-and-profile.md#メンバー画像の共通部品)へ接続する。
+BotSettingsRequestは小/大画像を変更flagに応じて送る。fastModeはinitial.fastMode（新規はfalse）から、configurationLockedはinitial.configurationLockedから変えた時だけ送る（nilなら送らない）。確認の読み直し（confirmBotSettings）は、送っていないconfigurationLockedを本体の現在値として比べる。name/position/model/reasoningEffortはnormalizedで前後空白を除く。画像保存の詳細は[設定・プロフィール](settings-and-profile.md#メンバー画像の共通部品)へ接続する。
 
 ## メンバー保存：受付・照合・再取得
 

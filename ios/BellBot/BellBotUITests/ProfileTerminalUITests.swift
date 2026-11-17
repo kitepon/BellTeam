@@ -60,6 +60,47 @@ final class ProfileTerminalUITests: XCTestCase {
         XCTAssertEqual(settled, afterClose, "閉じた画面を更新しない")
     }
 
+    /// 「固定」スイッチ（a316）: 既存メンバーの編集画面に出て、切り替えて保存すると変えた時だけPATCHに載る。
+    func testPhoneConfigurationLockSwitchSavesOnlyWhenChanged() async throws {
+        continueAfterFailure = false
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneのメンバー編集試験です。")
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_MEMBER_EDITOR_SMOKE_URL"],
+                                   "test/helpers/member-editor-server.mjsの起動が必要です。")
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try await URLSession.shared.data(from: base.appending(path: "test/release-models"))
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap()
+        app.buttons["詳細"].tap()
+        app.buttons["メンバーを編集"].tap()
+        let lock = app.switches["ai-configuration-lock-toggle"]
+        for _ in 0..<6 where !lock.exists || lock.frame.midY > app.frame.height * 0.7 { app.swipeUp() }
+        XCTAssertTrue(lock.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(lock.value as? String, "0")
+        let off = XCTAttachment(screenshot: app.screenshot())
+        off.name = "iPhone-固定-オフ"; off.lifetime = .keepAlways; add(off)
+        lock.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "1"), object: lock)], timeout: 5), .completed)
+        let on = XCTAttachment(screenshot: app.screenshot())
+        on.name = "iPhone-固定-オン"; on.lifetime = .keepAlways; add(on)
+        app.buttons["save-member"].tap()
+        XCTAssertTrue(app.buttons["save-member"].waitForNonExistence(timeout: 8))
+        let (data, _) = try await URLSession.shared.data(from: base.appending(path: "test/proof"))
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let body = try XCTUnwrap((proof["saves"] as? [[String: Any]])?.last?["body"] as? [String: Any])
+        XCTAssertEqual(body["configurationLocked"] as? Bool, true)
+        // 保存後に開き直すと、本体の返した値（固定中）で出る。
+        app.buttons["メンバーを編集"].tap()
+        for _ in 0..<6 where !lock.exists || lock.frame.midY > app.frame.height * 0.7 { app.swipeUp() }
+        XCTAssertTrue(lock.waitForExistence(timeout: 5))
+        XCTAssertEqual(lock.value as? String, "1")
+    }
+
     /// 画面の取得が失敗しても毎秒の更新は止まらず、次の200で表示が戻る。
     func testPhoneScreenPollingResumesAfterFailures() async throws {
         continueAfterFailure = false

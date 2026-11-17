@@ -59,6 +59,7 @@ struct BotEditor: View {
     @State private var customModel = ""
     @State private var effort = ""
     @State private var fastMode = false
+    @State private var configurationLocked = false
     @State private var color = "violet"
     @State private var avatar = ""
     @State private var avatarLarge: String?
@@ -97,6 +98,7 @@ struct BotEditor: View {
         _model = State(initialValue: initial?.model ?? "")
         _effort = State(initialValue: initial?.reasoningEffort ?? "")
         _fastMode = State(initialValue: initial?.fastMode ?? false)
+        _configurationLocked = State(initialValue: initial?.configurationLocked ?? false)
         _color = State(initialValue: initial?.color ?? "violet")
         _avatar = State(initialValue: initial?.avatar ?? "")
         _appearanceLoaded = State(initialValue: initial == nil)
@@ -272,6 +274,12 @@ struct BotEditor: View {
                     if let reason = fastModeUnavailableReason, !loadingModels {
                         Text(reason).font(.footnote).foregroundStyle(.red)
                     }
+                    if initial?.configurationLocked != nil {
+                        Toggle("固定", isOn: $configurationLocked)
+                            .accessibilityIdentifier("ai-configuration-lock-toggle")
+                        Text("オンにすると、AIからのモデル・エフォートの変更を断ります。ここでの変更はそのまま使えます。")
+                            .font(.footnote).foregroundStyle(BellTheme.muted)
+                    }
                     if let line = ConfigurationApplication.line(for: liveBot) {
                         let state = liveBot?.configurationApplication?.state
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -429,6 +437,7 @@ struct BotEditor: View {
                 position = saved.position; role = saved.role; avatar = saved.avatar
                 color = saved.color; harness = saved.harness; model = saved.model
                 effort = saved.reasoningEffort; fastMode = saved.fastMode
+                configurationLocked = saved.configurationLocked ?? false
                 avatarLarge = saved.avatarLarge; avatarSource = saved.avatarSource
                 avatarCrop = saved.avatarCrop; avatarLargeSource = saved.avatarLargeSource
                 avatarLargeCrop = saved.avatarLargeCrop
@@ -500,6 +509,7 @@ struct BotEditor: View {
             if let initial {
                 saveResult = try await store.api.saveBotSettings(id: initial.id, settings: request,
                                                                  originalFastMode: initial.fastMode,
+                                                                 originalConfigurationLocked: initial.configurationLocked,
                                                                  smallAvatarChanged: smallAvatarChanged,
                                                                  largeAvatarChanged: largeAvatarChanged,
                                                                  createFolder: createFolder)
@@ -564,7 +574,9 @@ struct BotEditor: View {
                     speechStyle: speechStyle, position: position, role: role, avatar: avatar,
                     color: color, harness: harness,
                     model: model == "__custom__" ? customModel : model, reasoningEffort: effort,
-                    fastMode: fastMode, avatarLarge: avatarLarge, avatarSource: avatarSource,
+                    fastMode: fastMode,
+                    configurationLocked: initial?.configurationLocked == nil ? nil : configurationLocked,
+                    avatarLarge: avatarLarge, avatarSource: avatarSource,
                     avatarCrop: avatarCrop, avatarLargeSource: avatarLargeSource,
                     avatarLargeCrop: avatarLargeCrop,
                     terminalId: bindingAvailable ? terminalId : nil,
