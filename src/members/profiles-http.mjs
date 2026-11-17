@@ -4,7 +4,7 @@ import { json, readJson } from '../http-response.mjs'
 import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, sendAvatar } from '../http-assets.mjs'
 
-export function createMemberProfileApi({ bots, transport, administration, memory, characterSheets, sources, store, internal = false }) {
+export function createMemberProfileApi({ bots, transport, administration, memory, characterSheets, sources, store }) {
   const readMember = id => bots.readMember ? bots.readMember(id) : bots.get(id)
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
@@ -125,7 +125,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         const view = administration.view?.(bot) ?? bot, account = readSeatAccount(transport, botId), seatLaunch = readSeatLaunch(transport, botId)
         return json(response, 200, { bot: { ...view, ...(account === undefined ? {} : { account }), ...(seatLaunch === undefined ? {} : { seatLaunch }) } })
       }
-      if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request), internal ? { actorKind: 'bot' } : {}))
+      if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
     }
 
     return false

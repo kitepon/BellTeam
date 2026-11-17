@@ -69,17 +69,6 @@ test('プロフィールHTTPは実行担当の公開view/update結果をその�
   assert.deepEqual(patch.body, saved)
 })
 
-test('設定のPATCHは、席の内部入口だけ呼び手を席のBotとして渡し、オーナー入口は渡さない（a312）', async () => {
-  const bots = new Map([['bot-a', { id: 'bot-a', name: 'Synthetic' }]])
-  const seen = {}
-  for (const internal of [true, false]) {
-    const api = createMemberProfileApi({ bots, internal, administration: { async update(_id, _changes, options) { seen[internal] = options; return {} } } })
-    const request = Readable.from([Buffer.from('{"model":"candidate"}')]); request.method = 'PATCH'
-    await api(request, response(), new URL('http://synthetic/api/bots/bot-a'))
-  }
-  assert.deepEqual(seen, { true: { actorKind: 'bot' }, false: {} })
-})
-
 test('HTTP profile/avatar and MCP self use fresh full profiles rather than image-free projection', async () => {
   const bot = { id: 'bot-a', name: 'Synthetic', avatar: 'data:image/png;base64,AAAA' }
   const bots = new Map()
