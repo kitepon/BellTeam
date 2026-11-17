@@ -98,3 +98,27 @@ test('削除は席を閉じ、部屋から外し、台帳から消す順で進�
   assert.equal(order.includes('rooms:bot-b'), false)
   assert.equal(logs.some(line => line.includes('CLOSE_FAILED')), true)
 })
+
+test('固定中のBotは、席のBotからのCLI・モデル・エフォート変更を保存前に断り、オーナーと他の項目は通す', async () => {
+  const { bots, saved } = registry({ id: 'bot-a', harness: 'claude', model: 'opus', reasoningEffort: 'high', fastMode: false, configurationLocked: true })
+  const admin = new BotAdministration({ bots, rooms: {}, transport: { async isRunning() { return false } } })
+  for (const changes of [{ model: 'haiku' }, { reasoningEffort: 'low' }, { harness: 'codex' }]) {
+    await assert.rejects(admin.update('bot-a', changes, { actorKind: 'bot' }), error =>
+      error.code === 'BOT_CONFIGURATION_LOCKED' && error.status === 403 && error.effect === 'not_started'
+      && error.message.startsWith('BOT_CONFIGURATION_LOCKED: ') && error.publicMessage.includes('固定中'))
+  }
+  await assert.rejects(admin.configureFromMcp('bot-a', { model: 'haiku' }, { actor: { kind: 'bot', botId: 'bot-b' } }),
+    { code: 'BOT_CONFIGURATION_LOCKED' })
+  assert.deepEqual(saved, [])
+  await admin.update('bot-a', { role: '保守', fastMode: true }, { actorKind: 'bot' })
+  await admin.update('bot-a', { model: 'haiku' })
+  await admin.update('bot-a', { reasoningEffort: 'low' }, { actorKind: 'owner' })
+  assert.deepEqual(saved, [{ role: '保守', fastMode: true }, { model: 'haiku' }, { reasoningEffort: 'low' }])
+})
+
+test('固定されていないBotは、席のBotからの設定変更を従来どおり通す', async () => {
+  const { bots, saved } = registry({ id: 'bot-a', harness: 'claude', model: 'opus', fastMode: false })
+  const admin = new BotAdministration({ bots, rooms: {}, transport: { async isRunning() { return false } } })
+  await admin.update('bot-a', { model: 'haiku' }, { actorKind: 'bot' })
+  assert.deepEqual(saved, [{ model: 'haiku' }])
+})

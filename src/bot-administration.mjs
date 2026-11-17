@@ -5,6 +5,15 @@ import { startMemberRemoval } from './members/deletion.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { automaticConfigurationApplication, automaticConfigurationView, validConfigurationOperationId, configurationOperationError } from './automatic-configuration-application.mjs'
 
+// a312: オーナーが固定したBotの動作設定を、AI（席のBot）の変更で上書きさせない。出口はオーナーが固定を切ること。
+const CONFIGURATION_LOCK_MESSAGE = 'このBotのAI設定（CLI・モデル・エフォート）は固定中です。変更せず、今の設定のまま作業を続けてください。'
+function refuseLockedConfiguration(bot, changes, actorKind) {
+  if (actorKind !== 'bot' || bot?.configurationLocked !== true
+    || !['harness', 'model', 'reasoningEffort'].some(key => Object.hasOwn(changes, key))) return
+  throw Object.assign(new Error(`BOT_CONFIGURATION_LOCKED: ${CONFIGURATION_LOCK_MESSAGE}`),
+    { code: 'BOT_CONFIGURATION_LOCKED', status: 403, effect: 'not_started', publicMessage: CONFIGURATION_LOCK_MESSAGE })
+}
+
 function restartFailure(error) {
   const reason = String(error?.reason ?? error?.message ?? '').split('\n', 1)[0].slice(0, 300) || '理由不明'
   const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 502
@@ -57,8 +66,9 @@ export class BotAdministration {
   }
 
   // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
-  async update(botId, changes, { waitForApplication = false, expected, admissionCheck, handoffIngress } = {}) {
+  async update(botId, changes, { waitForApplication = false, expected, admissionCheck, handoffIngress, actorKind } = {}) {
     const current = this.bots.get(botId)
+    refuseLockedConfiguration(current, changes, actorKind)
     const candidate = await this.bots.previewUpdate(botId, changes)
     const harnessChanged = candidate.harness !== current.harness
     const fastModeChanged = candidate.fastMode !== current.fastMode
@@ -183,7 +193,7 @@ export class BotAdministration {
     context?.signal?.addEventListener?.('abort', cancel, { once: true })
     if (context?.signal?.aborted) cancel()
     try {
-      const value = await this.update(botId, changes, { handoffIngress })
+      const value = await this.update(botId, changes, { handoffIngress, actorKind: context?.actor?.kind })
       if (!value.applying) handoffIngress.resolve(null)
       return { value, handoffMetadata: await metadata }
     } finally { handoffIngress.resolve(null); clearTimeout(timer); context?.signal?.removeEventListener?.('abort', cancel) }

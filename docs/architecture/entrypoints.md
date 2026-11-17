@@ -76,7 +76,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | `sendmessage/sendroommessage` | 宛先名解決・画像path解決→`deliverMessage/deliverRoomMessage` | 実行sourceはHTTP ingressで付与。登録名を新IDへ置換しない |
 | `respond_to_room` | queue/保存投稿から元発言特定→参加/返信資格→room配送 | silentは配送を作らない。assignedがsilentすること、非assignedのreplyを拒否 |
 | `list_bots/get_bot/get_self` | `members.callMemberTool` → registry / botView | MCP共通整形はアバター本体を除く |
-| `create_bot/update_bot/update_self/set_avatar` | `members.callMemberTool` → registry/configure | model/harness/effortは既configure、プロフィールだけはregistry直通。set_avatarは既画像pathを検証して更新 |
+| `create_bot/update_bot/update_self/set_avatar` | `members.callMemberTool` → registry/configure | model/harness/effortは既configure（対象Botが固定中なら`BotAdministration.update`が`BOT_CONFIGURATION_LOCKED`で断る。[control-details](control-details.md)）、プロフィールだけはregistry直通。set_avatarは既画像pathを検証して更新 |
 | `delete_bot` | `members.runDeleteBotTool` → internalApi.remove | [削除の公開契約](modules/members/deletion.md) |
 | `restart_session/set_fast_mode` | executionの既restart/configure | 実行設定と停止・再起動の責任はexecution。restart_sessionはHTTP restartの結果（成功か理由付きの失敗）をそのまま返す |
 | `get_owner_profile/get_user_rules` | `members.callMemberTool` → 各正本service | 読取り |
