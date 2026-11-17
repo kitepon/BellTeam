@@ -33,6 +33,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const botModelCustomField = dialog.querySelector('#bot-model-custom-field')
   const botFastMode = dialog.querySelector('#bot-fast-mode')
   const botFastStatus = dialog.querySelector('#bot-fast-status')
+  const botConfigurationLocked = dialog.querySelector('#bot-configuration-locked')
   const botReasoningEffort = dialog.querySelector('#bot-reasoning-effort')
   const botProfileText = dialog.querySelector('#bot-profile-text')
   const botPersonality = dialog.querySelector('#bot-personality')
@@ -138,6 +139,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     verifyDeletionButton.hidden = true
     botFormError.textContent = ''
     botFastMode.checked = bot?.fastMode === true
+    botConfigurationLocked.checked = bot?.configurationLocked === true
     botDialogTitle.textContent = bot ? 'メンバーを編集' : 'メンバーを追加'
     botHarness.disabled = true
     botModel.disabled = true
@@ -324,6 +326,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       ...(avatar.changed() ? { avatar: avatar.value(), avatarSource:avatar.source(), avatarCrop:avatar.rectangle() } : {}),
       ...(largeAvatar.changed() ? { avatarLarge:largeAvatar.value(), avatarLargeSource:largeAvatar.source(), avatarLargeCrop:largeAvatar.rectangle() } : {}),
       ...((opened.bot?.fastMode === true) !== botFastMode.checked ? { fastMode: botFastMode.checked } : {}),
+      ...((opened.bot?.configurationLocked === true) !== botConfigurationLocked.checked ? { configurationLocked: botConfigurationLocked.checked } : {}),
       color: botColor.value, harness: botHarness.value, model: selectedModel(), reasoningEffort: botReasoningEffort.value,
       ...remote.body,
     }
