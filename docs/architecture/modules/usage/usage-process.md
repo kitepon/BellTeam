@@ -57,7 +57,7 @@ settings先行initializeから始め、subscriptions/members→notifications/tra
 | --- | --- | --- |
 | settings.changed | id, configuration, epoch | null。既onChange/listener/CLI/通知applyの実completionをawait。configurationは当該featureだけprivate |
 | auth.prepareAccount / auth.listAccounts | selected slot / {} | [Slot authentication](harness-accounts.md) owns the closed private execution-root and login-metadata projections; native roots and credential files never enter public account cards. |
-| auth.call | harness(native enum), action、必要session/relogin/binding/digest/response | `{structuredContent,isError?}`だけ。content/log/envは渡さず、同parent client/authOptionsと固定projectからcwdを解決 |
+| auth.call | harness(native enum。外したAI`antigravity-cli`は古い子のために受け、Aitermへ渡さず親が`failed`の受領で答える。a374), action、必要session/relogin/binding/digest/response | `{structuredContent,isError?}`だけ。content/log/envは渡さず、同parent client/authOptionsと固定projectからcwdを解決 |
 | onboarding.prepareStartup | botId, text | null。親はlive contextと正規projectFilesでappend。任意pathなし |
 | onboarding.startConversation | botId, message | null。既recordUser:falseの同messenger受付をawait |
 | secret.created / question.created | item（保存済みmetadataだけ） | null。既notifications facadeへ渡す。秘密値を含めない |

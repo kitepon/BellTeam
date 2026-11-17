@@ -5,7 +5,7 @@ import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
 import { authCodeChallenge } from '../auth-ui.mjs'
 import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
-import { retiredHarness, RETIRED_HARNESS_NOTICE } from '../retired-harness.mjs'
+import { retiredHarness, RETIRED_HARNESS_NOTICE, harnessNoticeFor } from '../retired-harness.mjs'
 
 export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
   const webOrigin = request => {
@@ -15,9 +15,11 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
   const webJson = request => {
     if (!/^application\/json(?:\s*;|$)/iu.test(request.headers['content-type'] ?? '')) throw webPushError('WEB_PUSH_INPUT_INVALID')
   }
+  // a374: the setup record crosses the usage IPC with its six fields; the notice for a retired AI is added here.
+  const withNotice = setup => ({ ...setup, ...harnessNoticeFor(setup) })
   return async (request, response, url) => {
     const context = method => captureUsageContext?.(request, method)
-    if (url.pathname === '/api/setup' && request.method === 'GET') return json(response, 200, onboarding ? await onboarding.status(await context('onboarding.status')) : { phase: 'ready', harness: null, harnesses: [], guideBotId: null, complete: true, auth: null })
+    if (url.pathname === '/api/setup' && request.method === 'GET') return json(response, 200, onboarding ? withNotice(await onboarding.status(await context('onboarding.status'))) : { phase: 'ready', harness: null, harnesses: [], guideBotId: null, complete: true, auth: null })
     if (url.pathname.startsWith('/api/setup/') && request.method === 'POST') {
       if (!onboarding) return json(response, 404, { error: 'NOT_FOUND' })
       if (internal && ['/api/setup/harness', '/api/setup/auth/input'].includes(url.pathname)) return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
@@ -31,7 +33,7 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (!actions[url.pathname]) return json(response, 404, { error: 'NOT_FOUND' })
       const setup = await actions[url.pathname]()
       notify({ type: 'setup' })
-      return json(response, 200, setup)
+      return json(response, 200, withNotice(setup))
     }
     // 初期設定の後に、AIの公式認証をやり直す入口。認証が切れて全員が止まった時も、利用者がここから戻せる。
     const harnessAuthMatch = url.pathname.match(/^\/api\/harness-auth(?:\/([a-z]+)(?:\/(start|input|cancel))?)?$/u)

@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { authUi, authResponse, authReceipt } from './auth-ui.mjs'
 import guide from '../config/setup-guide.json' with { type: 'json' }
-import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
+import { retiredHarness } from './retired-harness.mjs'
 
 export const HARNESS = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
 export const HARNESSES = Object.entries({ claude: 'Claude', codex: 'Codex', grok: 'Grok', cursor: 'Cursor' }).map(([id, name]) => ({ id, name }))
@@ -47,7 +47,7 @@ export class Onboarding {
   snapshot() {
     return {
       phase: this.state.started ? 'ready' : this.state.harness ? 'authenticate' : 'select_harness',
-      harness: this.state.harness, harnesses: HARNESSES, ...(retiredHarness(this.state.harness) ? { harnessNotice: RETIRED_HARNESS_NOTICE } : {}), guideBotId: this.state.guideBotId,
+      harness: this.state.harness, harnesses: HARNESSES, guideBotId: this.state.guideBotId,
       complete: this.state.complete, auth: this.auth && {
         status: this.auth.status, url: this.auth.url ?? null, user_code: this.auth.user_code ?? null,
         input_required: this.auth.input_required === true, message: this.auth.message ?? null,

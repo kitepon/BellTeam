@@ -2,7 +2,7 @@ import { isAbsolute } from 'node:path'
 import { HARNESS, GUIDE_BOT_ID } from '../onboarding.mjs'
 import { usageError, validateUsageActor } from './process-schema.mjs'
 import { usageProjectionRecordValid } from './projection.mjs'
-import { retiredHarness } from '../retired-harness.mjs'
+import { retiredHarness, retiredHarnessKind } from '../retired-harness.mjs'
 import { backgroundHarnesses, backgroundRecordValid, backgroundModelsValid } from './background-agent-settings.mjs'
 
 export const object = value => value && typeof value === 'object' && !Array.isArray(value)
@@ -52,7 +52,7 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
     && Object.hasOwn(params, 'login') === Object.hasOwn(params, 'token_file')
     && (!Object.hasOwn(params, 'login') || params.login === 'oauth_token' && rootParams.harness === 'claude'
       && params.harness === HARNESS.claude && typeof params.token_file === 'string' && isAbsolute(params.token_file) && !params.token_file.includes('\0'))
-    && Object.values(HARNESS).includes(params.harness) && authActions[context.method]?.includes(params.action)
+    && (Object.values(HARNESS).includes(params.harness) || retiredHarnessKind(params.harness)) && authActions[context.method]?.includes(params.action)
     && (!params.session_id || text(params.session_id)) && (!Object.hasOwn(params, 'relogin') || typeof params.relogin === 'boolean')
     && (!Object.hasOwn(params, 'configuration_root') || rootParams.harness === 'claude' && params.harness === HARNESS.claude
       && typeof params.configuration_root === 'string' && isAbsolute(params.configuration_root) && !params.configuration_root.includes('\0'))
