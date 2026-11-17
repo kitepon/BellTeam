@@ -15,9 +15,9 @@ public sealed class SubscriptionPageTests
 {
     private sealed class Server
     {
-        public int Checkouts; public string? Verified; public string? Opened;
+        public int Checkouts, Manages; public string? Verified; public string? Opened; public bool NotRenewing; public string? ManageCode, CheckoutCode = "SUBSCRIPTION_NOT_CONFIGURED";
         public bool Entitled, Developer; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK;
-        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, billingSources = Entitled ? new[] { "stripe" } : Array.Empty<string>(), canPurchase = !Entitled && !Developer, source = Entitled ? "stripe" : null, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
+        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = !NotRenewing, billingSources = Entitled ? new[] { "stripe" } : Array.Empty<string>(), canPurchase = !Entitled && !Developer, source = Entitled ? "stripe" : null, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
         public SubscriptionApi Api() => new(new BellApi(new("http://localhost/"), new StubHandler(async (request, token) =>
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -26,7 +26,12 @@ public sealed class SubscriptionPageTests
             if (path == "/api/subscription/stripe/checkout")
             {
                 Checkouts++;
-                return CheckoutStatus == HttpStatusCode.OK ? StubHandler.Json("""{"url":"https://checkout.example/pay","sessionId":"cs_test_1"}""") : StubHandler.Json("""{"error":"SUBSCRIPTION_NOT_CONFIGURED","message":"Stripeの設定が完了していません。"}""", CheckoutStatus);
+                return CheckoutStatus == HttpStatusCode.OK ? StubHandler.Json("""{"url":"https://checkout.example/pay","sessionId":"cs_test_1"}""") : StubHandler.Json($$"""{"error":"{{CheckoutCode}}","message":"Stripeの設定が完了していません。"}""", CheckoutStatus);
+            }
+            if (path == "/api/subscription/stripe/manage")
+            {
+                Manages++;
+                return ManageCode is null ? StubHandler.Json("""{"url":"https://billing.stripe.com/p/session/test_1"}""") : StubHandler.Json($$"""{"error":"{{ManageCode}}","message":"Stripeの購読がありません。"}""", HttpStatusCode.Conflict);
             }
             if (path == "/api/subscription/stripe/verify")
             {
@@ -68,9 +73,38 @@ public sealed class SubscriptionPageTests
         Assert.Null(Find(darkEntry, SubscriptionText.Start)); Assert.Null(Find(darkEntry, SubscriptionText.Recheck));
     });
 
+    [Fact]
+    public void ManageOpensStripesPageAndShowsTheNonRenewingLineAndNoSecondPurchase() => RunSta(() =>
+    {
+        var server = new Server { Entitled = true, NotRenewing = true }; var entry = new PurchaseEntry(server.Api(), url => server.Opened = url, CancellationToken.None);
+        Await(entry.LoadAsync());
+        var manage = SubscriptionText.Manage + " Stripe";
+        Assert.Single(Descendants<Button>(entry), button => System.Windows.Automation.AutomationProperties.GetName(button).StartsWith(SubscriptionText.Manage));
+        Assert.Null(Find(entry, SubscriptionText.Start)); Assert.Contains(Texts(entry), line => line.StartsWith("次回の更新はありません。") && line.EndsWith("まで使えます。"));
+        Assert.NotNull(Find(entry, SubscriptionText.Recheck));
+        Click(entry, manage); Until(() => server.Opened is not null);
+        Assert.Equal(1, server.Manages); Assert.Equal("https://billing.stripe.com/p/session/test_1", server.Opened); Assert.Equal(0, server.Checkouts);
+    });
+
+    [Fact]
+    public void NoStripeSubscriptionHidesTheStripeManageButton() => RunSta(() =>
+    {
+        var server = new Server { Entitled = true, ManageCode = "NO_STRIPE_SUBSCRIPTION" }; var entry = new PurchaseEntry(server.Api(), _ => throw new InvalidOperationException("opened"), CancellationToken.None);
+        Await(entry.LoadAsync()); Click(entry, SubscriptionText.Manage + " Stripe"); Until(() => Find(entry, SubscriptionText.Manage + " Stripe") is null);
+        Assert.Equal(1, server.Manages);
+    });
+
+    [Fact]
+    public void AnAlreadyActiveCheckoutShowsTheServersWordsAndReadsTheStatusAgain() => RunSta(() =>
+    {
+        var server = new Server { CheckoutStatus = HttpStatusCode.Conflict, CheckoutCode = "SUBSCRIPTION_ALREADY_ACTIVE" }; var entry = new PurchaseEntry(server.Api(), _ => throw new InvalidOperationException("opened"), CancellationToken.None);
+        Await(entry.LoadAsync()); server.Entitled = true; Click(entry, SubscriptionText.Start);
+        Until(() => Texts(entry).Any(line => line.Contains("Stripeの設定が完了していません。"))); Assert.True(entry.State?.Entitled); Assert.Null(Find(entry, SubscriptionText.Start));
+    });
+
     private static Button? Find(DependencyObject root, string name) => Descendants<Button>(root).FirstOrDefault(button => System.Windows.Automation.AutomationProperties.GetName(button) == name);
     private static void Click(DependencyObject root, string name) => Find(root, name)!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-    private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
+    private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text.Length > 0 ? text.Text : string.Concat(text.Inlines.OfType<System.Windows.Documents.Run>().Select(run => run.Text))).ToArray();
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject { if (root is T found) yield return found; foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach (var item in Descendants<T>(child)) yield return item; }
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Until(Func<bool> condition) { var until = DateTime.UtcNow.AddSeconds(5); while (!condition()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }
