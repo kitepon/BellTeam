@@ -169,7 +169,7 @@ public sealed class WorkGraphCanvas : Control
 
     // MARK: Colours and avatars
 
-    private sealed class AvatarSlot { public ImageBrush? Image; public Color? Tone; public bool Failed; }
+    private sealed class AvatarSlot { public Bitmap? Image; public Color? Tone; public bool Failed; }
 
     private AvatarSlot Slot(WorkGraphNode node)
     {
@@ -185,7 +185,7 @@ public sealed class WorkGraphCanvas : Control
         try
         {
             var bitmap = await loadAvatar!(node.BotId, node.AvatarVersion!);
-            slot.Image = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill }; slot.Tone = WorkGraphColors.Representative(bitmap);
+            slot.Image = bitmap; slot.Tone = WorkGraphColors.Representative(bitmap);
         }
         // The connection ended: the next frame asks again.
         catch (OperationCanceledException) { avatars.Remove(key); }
@@ -296,7 +296,10 @@ public sealed class WorkGraphCanvas : Control
                 context.DrawRectangle(gradient, null, tile, corner, corner);
                 if (slot.Image is { } picture)
                 {
-                    context.DrawRectangle(picture, null, tile, corner, corner);
+                    // DrawImage into the rounded clip: an ImageBrush on a rounded rectangle is drawn as a sliver by Skia on Android. UniformToFill: the centre crop of the source.
+                    var scale = Math.Max(tile.Width / picture.Size.Width, tile.Height / picture.Size.Height);
+                    var cropWidth = tile.Width / scale; var cropHeight = tile.Height / scale;
+                    context.DrawImage(picture, new Rect((picture.Size.Width - cropWidth) / 2, (picture.Size.Height - cropHeight) / 2, cropWidth, cropHeight), tile);
                     if (!live) context.DrawRectangle(Solid(Color.FromRgb(0x80, 0x80, 0x80), 0.35), null, tile);
                 }
                 else
