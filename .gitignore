@@ -22,3 +22,4 @@ ios/BellBot/**/xcuserdata/
 # Local configuration of the optional independent Bridge installation.
 bridge.env
 __pycache__/
+android/BellTeam.Android/google-services.json
