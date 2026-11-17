@@ -52,6 +52,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
     private readonly TextBlock sendError = new() { Foreground = BellTheme.Red, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Button older = new() { Classes = { "plain" }, Content = "以前のメッセージを読む", HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.White, IsVisible = false };
+    private readonly Button edit;
     private readonly Button attach = new() { Classes = { "plain" }, Content = Icons.Draw(Icons.Paperclip, 22, BellTheme.Violet), Background = Brushes.Transparent, Width = 44, Height = 44, Padding = default, VerticalAlignment = VerticalAlignment.Bottom };
     private readonly StackPanel attachments = new() { Orientation = Orientation.Horizontal };
     private readonly ScrollViewer attachmentScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, IsVisible = false };
@@ -71,8 +72,11 @@ public sealed class PhoneShell : UserControl, IMessageHost
         ExternalLink.Opener = uri => MainActivity.Current.StartActivity(new global::Android.Content.Intent(global::Android.Content.Intent.ActionView, global::Android.Net.Uri.Parse(uri.AbsoluteUri)));
         var back = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
         back.Click += (_, _) => ShowList();
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { back, title } };
-        Grid.SetColumn(title, 1);
+        // A member's conversation has its edit form (profile, AI, schedules) as a page of the linked Linux screen.
+        edit = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.Gear, 22, BellTheme.Ink), Background = Brushes.Transparent, Width = 52, Height = 52, IsVisible = false };
+        edit.Click += (_, _) => ShowMemberEditor();
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Background = BellTheme.BandFill, Children = { back, title, edit } };
+        Grid.SetColumn(title, 1); Grid.SetColumn(edit, 2);
         Grid.SetRow(header, 0);
         var settingsButton = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.Gear, 22, BellTheme.Ink), Background = Brushes.Transparent, Width = 48, Height = 48 };
         settingsButton.Click += (_, _) => ShowSettings();
@@ -160,6 +164,12 @@ public sealed class PhoneShell : UserControl, IMessageHost
     }
 
     // ---- the pages of the linked screens ----
+    private void ShowMemberEditor()
+    {
+        if (model.Selected is not { IsMember: true } member) return;
+        var window = new MemberEditorWindow(model, member.Target.Id);
+        window.Show(); _ = window.InitializeAsync();
+    }
     private void ShowDetailedSettings()
     {
         if (!model.Connected) return;
@@ -302,7 +312,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         switch (name)
         {
             case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) approvals.Sync(); break;
-            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; break;
+            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
