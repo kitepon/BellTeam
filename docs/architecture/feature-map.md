@@ -111,6 +111,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   m_aiterm["Aiterm/Steer / エレグ"]
+  m_android["Androidアプリ / ネオン"]
   m_apple["Appleアプリ / ベル"]
   m_approval_box["Approval Box / ナユタ"]
   m_approval_box_extension["決裁箱拡張 / デルタ"]
@@ -131,6 +132,7 @@ flowchart LR
   m_throughline["Throughline / リヴァリン"]
   m_usage["利用設定・通知 / ミカ"]
   m_windows["Windowsアプリ / アニス"]
+  m_android -->|"HTTP/SSE"| m_integration
   m_apple -->|"HTTP/SSE"| m_integration
   m_approval_box -->|"Steer delivery (aiterm-steer-delivery)"| m_aiterm
   m_approval_box -->|"HTTP/MCP"| m_integration
@@ -173,6 +175,7 @@ flowchart LR
 | 機能の正本 | 担当 | 公開窓口 |
 | --- | --- | --- |
 | [Aiterm/Steer](modules/aiterm/README.md) | エレグ | MCP tools (stdio) / bin: aiterm-wait, aiterm-transcript-read / bin: aiterm-remote-terminal / exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server / exports: state-compat.json, resume-state-cli / exports: child-result / harness-entries (aiterm-setup) / Steer delivery (aiterm-steer-delivery) |
+| [Androidアプリ](modules/android/README.md) | ネオン | public |
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
 | [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link |
