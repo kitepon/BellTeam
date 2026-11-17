@@ -15,7 +15,7 @@ public sealed class PurchaseEntry : StackPanel
     private SubscriptionState? state;
     private StripeCheckout? checkout;
     private string? failure;
-    private bool busy, nothingToBuy;
+    private bool busy, nothingToBuy, noStripe;
 
     // open is the browser (a test passes its own); a failure to open is shown, never swallowed.
     public PurchaseEntry(SubscriptionApi api, Action<string> open, CancellationToken token)
@@ -34,8 +34,29 @@ public sealed class PurchaseEntry : StackPanel
     {
         try { checkout = await api.CheckoutAsync(token); }
         catch (Exception error) when (SubscriptionApi.NothingToBuy(error)) { nothingToBuy = true; return; }
-        try { open(checkout.Url); }
+        // a389: a store already bills this server, so no second purchase: show the server's words and read the status again.
+        catch (Exception error) when (SubscriptionApi.AlreadyActive(error)) { failure = error.Message; state = await api.GetAsync(token); return; }
+        Open(checkout.Url, "購入画面のアドレスを読めませんでした。");
+    });
+
+    // The address comes from the server's answer or the store's fixed page: only an https page goes to the system browser.
+    private void Open(string address, string unreadable)
+    {
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps) { failure = unreadable; return; }
+        try { open(url.AbsoluteUri); }
         catch (Exception error) { failure = "ページを開けませんでした。" + error.Message; }
+    }
+
+    // a389: Stripe's page comes from the server; the other stores open their own subscription page. The person cancels there; 再確認 reads the result after they come back.
+    private async Task ManageAsync(string store) => await RunAsync(async () =>
+    {
+        var address = SubscriptionText.ManageUrl(store);
+        if (address is null)
+        {
+            try { address = (await api.ManageAsync(token)).Url; }
+            catch (Exception error) when (SubscriptionApi.NoStripeSubscription(error)) { noStripe = true; return; }
+        }
+        Open(address, "管理画面のアドレスを読めませんでした。");
     });
     private async Task VerifyAsync() => await RunAsync(async () => state = checkout is { } pending ? await api.VerifyAsync(pending.SessionId, token) : await api.RefreshAsync(token));
     private async Task RecheckAsync() => await RunAsync(async () => state = await api.RefreshAsync(token));
@@ -56,10 +77,10 @@ public sealed class PurchaseEntry : StackPanel
         Children.Clear();
         if (state is { } now) foreach (var line in SubscriptionText.StateLines(now)) Children.Add(Text(line, 13, Ink, null, new Thickness(0, 0, 0, 4)));
         if (ShowsRows) foreach (var store in SubscriptionText.Stores) Children.Add(StoreRow(store));
-        if (Offering)
+        if (Offering || state is { BillingSources.Length: > 0 })
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
-            if (checkout is not null) row.Children.Add(ActionButton(SubscriptionText.Verify, async () => await VerifyAsync()));
+            if (checkout is not null && Offering) row.Children.Add(ActionButton(SubscriptionText.Verify, async () => await VerifyAsync()));
             row.Children.Add(ActionButton(SubscriptionText.Recheck, async () => await RecheckAsync()));
             Children.Add(row);
         }
@@ -84,6 +105,13 @@ public sealed class PurchaseEntry : StackPanel
             }
         }
         else { var note = Text(SubscriptionText.Unavailable(store), 12, Muted); note.TextWrapping = TextWrapping.Wrap; body.Children.Add(note); }
+        if (state is { Entitled: true, AutoRenewing: false, ValidUntil: { } until } && SubscriptionText.StoreOf(state.Source) == store) body.Children.Add(Text(SubscriptionText.NotRenewingRow(until), 12, Muted, null, new Thickness(0, 6, 0, 0)));
+        // One manage button on the row of every store that still bills this server (contract rule 8); Stripe's drops out when the server says it holds none.
+        if (state is { } now && now.BillingSources.Contains(SubscriptionText.SourceOf(store)) && !(store == "Stripe" && noStripe))
+        {
+            var manage = Capsule(SubscriptionText.Manage, Fill, Ink, 8, 13, new Thickness(14, 6, 14, 6)); manage.HorizontalAlignment = HorizontalAlignment.Left; manage.IsEnabled = !busy; manage.FontWeight = FontWeights.Normal; manage.Margin = new Thickness(0, 8, 0, 0);
+            System.Windows.Automation.AutomationProperties.SetName(manage, SubscriptionText.Manage + " " + store); manage.Click += async (_, _) => await ManageAsync(store); body.Children.Add(manage);
+        }
         return new Border { Child = body, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(14), MinHeight = 96, Margin = new Thickness(0, 0, 0, 8) };
     }
 
