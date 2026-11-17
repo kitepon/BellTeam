@@ -1,5 +1,6 @@
 export { verifyNotificationsLocks } from './notifications-locks.mjs'
 import { validateWebPushParams, webPushStatusValid } from './usage/web-push-schema.mjs'
+import { validateFcmParams, fcmStatusValid } from './usage/fcm-schema.mjs'
 export const NOTIFICATIONS_MESSAGE_LIMIT = 64 * 1024
 export const NOTIFICATIONS_REQUEST_LIMIT = 64
 const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
@@ -33,6 +34,7 @@ const resultValid = (method, params, value, control) => control
     : params.provider === 'apns' && ['status', 'configure'].includes(method) ? statusValid(value)
       : params.provider === 'webPush' && (method === 'configure' || method === 'status' && !Object.hasOwn(params, 'endpoint'))
         ? webPushStatusValid(value)
+        : params.provider === 'fcm' && method === 'status' ? fcmStatusValid(value)
         : keys(value, 'registered') && (method === 'status' ? typeof value.registered === 'boolean' : value.registered === (method === 'register'))
 const validateParams = (method, params, control) => {
   if (control) {
@@ -46,8 +48,11 @@ const validateParams = (method, params, control) => {
     return
   }
   if (method === 'publish') return
-  if (!['apns', 'webPush'].includes(params.provider)) throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
+  if (!['apns', 'webPush', 'fcm'].includes(params.provider)) throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
   if (params.provider === 'webPush') validateWebPushParams(method, params)
+  if (params.provider === 'fcm') {
+    try { validateFcmParams(method, params) } catch (error) { throw notificationError(error.code, 'not_accepted', 400) }
+  }
   if (params.provider === 'apns' && method === 'status') {
     const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu.test(value)
     if (['attemptId', 'before'].some(key => params[key] !== undefined && !uuid(params[key]))
