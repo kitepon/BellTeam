@@ -15,6 +15,8 @@ struct BotSettings: Codable, Equatable {
     let model: String
     let reasoningEffort: String
     let fastMode: Bool
+    /// nil = not sent (older BellTeam, or a member created here).
+    var configurationLocked: Bool? = nil
     var avatarLarge: String? = nil
     var avatarSource: String? = nil
     var avatarCrop: AvatarCropRect? = nil
@@ -32,15 +34,17 @@ struct BotSettings: Codable, Equatable {
              role: role, avatar: avatar, color: color, harness: harness,
              model: model.trimmingCharacters(in: .whitespacesAndNewlines),
              reasoningEffort: reasoningEffort.trimmingCharacters(in: .whitespacesAndNewlines),
-             fastMode: fastMode, avatarLarge: avatarLarge, avatarSource: avatarSource,
+             fastMode: fastMode, configurationLocked: configurationLocked,
+             avatarLarge: avatarLarge, avatarSource: avatarSource,
              avatarCrop: avatarCrop, avatarLargeSource: avatarLargeSource,
              avatarLargeCrop: avatarLargeCrop, terminalId: terminalId, projectRoot: projectRoot)
     }
 
     /// Unsent binding fields compare as the server's current values.
     func withBinding(from current: Self) -> Self {
-        guard terminalId == nil else { return self }
         var value = self
+        if value.configurationLocked == nil { value.configurationLocked = current.configurationLocked }
+        guard terminalId == nil else { return value }
         value.terminalId = current.terminalId
         value.projectRoot = current.projectRoot
         return value
@@ -114,6 +118,7 @@ struct AvatarSelectionDrafts {
 struct BotSettingsRequest: Encodable {
     let settings: BotSettings
     let originalFastMode: Bool
+    var originalConfigurationLocked: Bool? = nil
     var smallAvatarChanged = false
     var largeAvatarChanged = false
     var imageOnlyVariant: AvatarCropVariant? = nil
@@ -122,7 +127,7 @@ struct BotSettingsRequest: Encodable {
 
     private enum CodingKeys: String, CodingKey {
         case createFolder, name, profileText, personality, speechStyle, position, role, avatar, color
-        case harness, model, reasoningEffort, fastMode
+        case harness, model, reasoningEffort, fastMode, configurationLocked
         case avatarLarge, avatarSource, avatarCrop, avatarLargeSource, avatarLargeCrop
         case terminalId, projectRoot
     }
@@ -153,6 +158,9 @@ struct BotSettingsRequest: Encodable {
         try body.encode(value.reasoningEffort, forKey: .reasoningEffort)
         if value.fastMode != originalFastMode {
             try body.encode(value.fastMode, forKey: .fastMode)
+        }
+        if let locked = value.configurationLocked, locked != originalConfigurationLocked {
+            try body.encode(locked, forKey: .configurationLocked)
         }
         try body.encodeIfPresent(value.terminalId, forKey: .terminalId)
         try body.encodeIfPresent(value.projectRoot, forKey: .projectRoot)

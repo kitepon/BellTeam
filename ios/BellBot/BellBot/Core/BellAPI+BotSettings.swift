@@ -41,10 +41,12 @@ extension BellAPI {
     }
 
     func saveBotSettings(id: String, settings: BotSettings, originalFastMode: Bool,
+                         originalConfigurationLocked: Bool? = nil,
                          smallAvatarChanged: Bool = false, largeAvatarChanged: Bool = false,
                          createFolder: Bool = false) async throws -> BotSaveResult {
         do {
             let request = BotSettingsRequest(settings: settings, originalFastMode: originalFastMode,
+                                             originalConfigurationLocked: originalConfigurationLocked,
                                              smallAvatarChanged: smallAvatarChanged,
                                              largeAvatarChanged: largeAvatarChanged, createFolder: createFolder)
             let _: APIAcknowledgement = try await patch("/api/bots/\(id)", body: request)

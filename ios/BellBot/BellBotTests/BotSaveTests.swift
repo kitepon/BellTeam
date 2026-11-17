@@ -276,6 +276,26 @@ final class BotSaveTests: XCTestCase {
         XCTAssertEqual(turnedOff["fastMode"] as? Bool, false)
     }
 
+    func testConfigurationLockedIsSentOnlyWhenChangedAndSkippedWhenAbsent() throws {
+        func body(_ locked: Bool?, original: Bool?) throws -> [String: Any] {
+            var settings = newSettings
+            settings.configurationLocked = locked
+            return try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+                BotSettingsRequest(settings: settings, originalFastMode: false,
+                                   originalConfigurationLocked: original))) as! [String: Any]
+        }
+        XCTAssertNil(try body(nil, original: nil)["configurationLocked"])
+        XCTAssertNil(try body(false, original: false)["configurationLocked"])
+        XCTAssertEqual(try body(true, original: false)["configurationLocked"] as? Bool, true)
+        XCTAssertEqual(try body(false, original: true)["configurationLocked"] as? Bool, false)
+    }
+
+    func testUnsentConfigurationLockedComparesAsServerValueWhenConfirming() {
+        var server = newSettings
+        server.configurationLocked = true
+        XCTAssertEqual(newSettings.normalized.withBinding(from: server), server.normalized.withBinding(from: server))
+    }
+
     func testCreateFolderIsSentOnlyWhenPressedAndNeverEntersTheSavedSettings() throws {
         func body(_ create: Bool?) throws -> [String: Any] {
             let request = create.map { BotSettingsRequest(settings: newSettings, originalFastMode: false, createFolder: $0) }

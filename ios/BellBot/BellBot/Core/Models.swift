@@ -8,6 +8,8 @@ struct Bot: Decodable, Identifiable, Equatable {
     let model: String
     let reasoningEffort: String
     let fastMode: Bool
+    /// nil = this BellTeam predates the lock (a311); the editor then hides the switch.
+    var configurationLocked: Bool? = nil
     let color: String
     let profileText: String
     let personality: String
@@ -96,7 +98,7 @@ extension Bot {
 // 拡張に置き、メンバーごとの初期化子は残す。
 extension Bot {
     private enum CodingKeys: String, CodingKey {
-        case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
+        case id, name, displayName, harness, model, reasoningEffort, fastMode, configurationLocked, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
         case terminalId, projectRoot, seatLaunch, configurationApplication
     }
@@ -110,6 +112,7 @@ extension Bot {
         model = try c.decode(String.self, forKey: .model)
         reasoningEffort = try c.decode(String.self, forKey: .reasoningEffort)
         fastMode = try c.decode(Bool.self, forKey: .fastMode)
+        configurationLocked = try c.decodeIfPresent(Bool.self, forKey: .configurationLocked)
         color = try c.decode(String.self, forKey: .color)
         profileText = try c.decode(String.self, forKey: .profileText)
         personality = try c.decode(String.self, forKey: .personality)
