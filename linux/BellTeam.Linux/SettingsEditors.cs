@@ -11,7 +11,7 @@ using BellTeam.Core;
 namespace BellTeam.Linux;
 
 // The Mac settings: a 300-wide category list on the left, the chosen page on the right. Page bodies live in SettingsPages.cs.
-public sealed partial class SettingsWindow : EditorWindow
+public sealed partial class SettingsWindow : EditorWindow, IPageBack
 {
     private readonly LinuxWorkspace workspace;
     private readonly Action? changeServer;
@@ -32,22 +32,29 @@ public sealed partial class SettingsWindow : EditorWindow
     private EditorWindow? embedded;
     private UpdateContent? updateContent;
     private bool inSubPage;
+    // A phone shows the page list, then one page at a time (the Android shell sets these before Show). HiddenPages are pages the app covers itself.
+    internal bool Compact { get; set; }
+    internal HashSet<SettingsPage> HiddenPages { get; } = [];
+    private bool showingPane, initializing;
+    private Grid? layout; private Control? sidebar, divider, rightPane;
     private AiControl? control;
 
-    public SettingsWindow(LinuxWorkspace workspace, Action? changeServer = null, INotificationSwitch? notifications = null, Action? signOut = null) : base("設定", workspace.ConnectionToken)
+    public SettingsWindow(LinuxWorkspace workspace, Action? changeServer = null, INotificationSwitch? notifications = null, Action? signOut = null, SettingsPage[]? compactHidden = null) : base("設定", workspace.ConnectionToken)
     {
+        // compactHidden != null is the phone shape (see ApplyCompact): the pages in it are drawn by the app itself and left out of the list.
+        if (compactHidden is not null) { Compact = true; foreach (var page in compactHidden) HiddenPages.Add(page); }
         this.workspace = workspace; this.changeServer = changeServer; this.notifications = notifications; this.signOut = signOut;
         profileName.Text = workspace.OwnerName;
-        var layout = new Grid { Background = SettingsUi.Canvas, ColumnDefinitions = new ColumnDefinitions("300,1,*") };
-        layout.Children.Add(BuildSidebar());
-        var divider = new Border { Background = SettingsUi.Hairline }; Grid.SetColumn(divider, 1); layout.Children.Add(divider);
+        layout = new Grid { Background = SettingsUi.Canvas, ColumnDefinitions = new ColumnDefinitions("300,1,*") };
+        sidebar = BuildSidebar(); layout.Children.Add(sidebar);
+        divider = new Border { Background = SettingsUi.Hairline }; Grid.SetColumn(divider, 1); layout.Children.Add(divider);
         var right = new Grid { RowDefinitions = new RowDefinitions("44,*") };
         var bar = new Grid { Margin = new Thickness(12, 0), ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         toolbarTitle.HorizontalAlignment = HorizontalAlignment.Center; toolbarTitle.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(toolbarTitle, 1);
         toolbarRight.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(toolbarRight, 2); toolbarLeft.VerticalAlignment = VerticalAlignment.Center;
         bar.Children.Add(toolbarLeft); bar.Children.Add(toolbarTitle); bar.Children.Add(toolbarRight); right.Children.Add(bar);
-        Grid.SetRow(pane, 1); pane.HorizontalContentAlignment = HorizontalAlignment.Stretch; pane.VerticalContentAlignment = VerticalAlignment.Stretch; right.Children.Add(pane); Grid.SetColumn(right, 2); layout.Children.Add(right);
-        Content = layout;
+        Grid.SetRow(pane, 1); pane.HorizontalContentAlignment = HorizontalAlignment.Stretch; pane.VerticalContentAlignment = VerticalAlignment.Stretch; right.Children.Add(pane); Grid.SetColumn(right, 2); layout.Children.Add(right); rightPane = right;
+        Content = layout; ApplyCompact();
         if (notifications is not null) notifications.PropertyChanged += NotificationsChanged;
         PageClosed += () => { if (notifications is not null) notifications.PropertyChanged -= NotificationsChanged; lifetime?.Cancel(); embedded?.ClosePage(); updateContent?.Dispose(); };
         UpdateNotificationRow();
@@ -58,13 +65,23 @@ public sealed partial class SettingsWindow : EditorWindow
     public override void ScrollToEndForRender() { if (pane.Content is TerminalDetailView detail) { detail.Scroller.UpdateLayout(); detail.Scroller.ScrollToEnd(); detail.Scroller.UpdateLayout(); } else if (pane.Content is ScrollViewer scroller) { scroller.UpdateLayout(); scroller.ScrollToEnd(); scroller.UpdateLayout(); } }
     public SettingsPage Selected => selected;
 
+    // The phone shape: only the page list, or only the chosen page.
+    private void ApplyCompact()
+    {
+        if (!Compact) return;
+        layout!.ColumnDefinitions = new ColumnDefinitions("*"); Grid.SetColumn(sidebar!, 0); Grid.SetColumn(divider!, 0); Grid.SetColumn(rightPane!, 0);
+        sidebar!.IsVisible = !showingPane; divider!.IsVisible = false; rightPane!.IsVisible = showingPane;
+    }
+    // The back key of a phone page: from a page back to the list, then the window closes.
+    public bool GoBack() { if (!Compact || !showingPane) return false; showingPane = false; ApplyCompact(); return true; }
+
     public async Task InitializeAsync(SettingsPage page = SettingsPage.Profile)
     {
         var loads = new List<Task> { LoadControlAsync() };
         // The profile page reads the owner itself and updates the list row from that.
         if (page != SettingsPage.Profile) loads.Add(LoadOwnerAsync());
-        loads.Add(SelectAsync(page));
-        await Task.WhenAll(loads);
+        initializing = true;
+        try { loads.Add(SelectAsync(page)); await Task.WhenAll(loads); } finally { initializing = false; }
     }
 
     public async Task SelectAsync(SettingsPage page)
@@ -72,6 +89,7 @@ public sealed partial class SettingsWindow : EditorWindow
         if (page == selected && !inSubPage && pane.Content is not null) return;
         if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
         lifetime?.Cancel(); lifetime?.Dispose(); embedded?.ClosePage(); embedded = null; updateContent?.Dispose(); updateContent = null; inSubPage = false;
+        if (Compact && !initializing) { showingPane = true; ApplyCompact(); }
         selected = page; Highlight(); SetToolbar(null, null, null);
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(Token); var token = lifetime.Token;
         try
@@ -100,6 +118,7 @@ public sealed partial class SettingsWindow : EditorWindow
             var first = true;
             foreach (var page in group)
             {
+                if (HiddenPages.Contains(page)) continue;
                 var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,Auto") };
                 var tile = SettingsUi.Tile(page, 30); tile.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(tile);
                 var labels = new StackPanel { Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
