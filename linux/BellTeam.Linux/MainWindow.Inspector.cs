@@ -59,15 +59,7 @@ public sealed partial class MainWindow
     public AvatarActionsView? ShowAvatarSheetForRender(AvatarVariant variant) => ProfilePanel.OpenActionsForRender(variant);
 
     // ---- sheet header: the Mac sheet's two pills, 閉じる / キャンセル on the left and 保存 on the right ----
-    internal static Button SheetPill(string text)
-    {
-        var button = new Button
-        {
-            Classes = { "plain" }, Content = text, Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Center
-        };
-        AutomationProperties.SetName(button, text); return button;
-    }
+    internal static Button SheetPill(string text) => SheetButtons.Pill(text);
     private readonly Button sheetClose = Aligned(SheetPill("閉じる"), HorizontalAlignment.Left, new Thickness(12, 0, 0, 0));
     private readonly Button sheetSaveButton = Aligned(SheetPill("保存"), HorizontalAlignment.Right, new Thickness(0, 0, 12, 0), visible: false);
     private static Button Aligned(Button button, HorizontalAlignment alignment, Thickness margin, bool visible = true) { button.HorizontalAlignment = alignment; button.Margin = margin; button.IsVisible = visible; return button; }

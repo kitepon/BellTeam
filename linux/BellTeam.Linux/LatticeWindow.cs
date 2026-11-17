@@ -135,7 +135,7 @@ public sealed class LatticeWindow : Window
     private void RenderList()
     {
         pill.IsVisible = listProblem == LatticeChart.Reconnecting && list is not null; pillText.Text = listProblem ?? "";
-        var body = new StackPanel { Margin = new Thickness(40, 30, 40, 40), MaxWidth = 1180 };
+        var body = new StackPanel { Margin = Compact ? new Thickness(16, 12, 16, 24) : new Thickness(40, 30, 40, 40), MaxWidth = 1180 };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         if (back is not null)
         {
@@ -165,9 +165,11 @@ public sealed class LatticeWindow : Window
     // Render seam: the 一覧 scrolled to its last chart.
     internal void ScrollListToEnd() { if (page.Content is ScrollViewer list) { list.UpdateLayout(); list.ScrollToEnd(); } }
     private static TextBlock Section(string title) { var text = Text(title, 13, Muted, FontWeight.SemiBold); text.Margin = new Thickness(4, 6, 0, 10); return text; }
-    private WrapPanel Cards(IReadOnlyList<LatticeListItem> items, bool wide)
+    // A phone shows one chart card per row at the page's width; the desktop wraps fixed-width cards.
+    internal static bool Compact { get; set; }
+    private Panel Cards(IReadOnlyList<LatticeListItem> items, bool wide)
     {
-        var panel = new WrapPanel { Margin = new Thickness(0, 0, 0, 18) };
+        Panel panel = Compact ? new StackPanel { Margin = new Thickness(0, 0, 0, 18) } : new WrapPanel { Margin = new Thickness(0, 0, 0, 18) };
         foreach (var item in items) panel.Children.Add(ListCard(item, wide));
         return panel;
     }
@@ -185,8 +187,9 @@ public sealed class LatticeWindow : Window
         left.Children.Add(Row(faces, waiting));
         grid.Children.Add(left);
         var ring = new LatticeRing(item.Done, item.Total, wide ? 64 : 52); Grid.SetColumn(ring, 1); ring.Margin = new Thickness(14, 0, 0, 0); grid.Children.Add(ring);
-        var glass = Glass(grid, 20, new Thickness(20, 18, 20, 18)); glass.Width = wide ? 560 : 360; glass.Margin = new Thickness(0, 0, 16, 16);
+        var glass = Glass(grid, 20, new Thickness(20, 18, 20, 18)); glass.Width = Compact ? double.NaN : wide ? 560 : 360; glass.Margin = new Thickness(0, 0, Compact ? 0 : 16, 16);
         var button = Plain(glass, item.Label); button.Click += (_, _) => OpenChart(item.ProjectId);
+        if (Compact) { button.HorizontalAlignment = HorizontalAlignment.Stretch; button.HorizontalContentAlignment = HorizontalAlignment.Stretch; }
         AutomationProperties.SetAutomationId(button, "lattice-chart-card");
         return button;
     }
@@ -195,7 +198,7 @@ public sealed class LatticeWindow : Window
         var body = new StackPanel();
         body.Children.Add(Row(PlusIcon(14, Muted), Spaced(Text("新しい工程表", 16, Muted, FontWeight.SemiBold), 8)));
         var text = Text(LatticeChart.NewChart, 13, Muted, wrap: true); text.Margin = new Thickness(0, 8, 0, 0); body.Children.Add(text);
-        var dashed = new Grid { Width = 360, Margin = new Thickness(0, 0, 16, 16) };
+        var dashed = new Grid { Width = Compact ? double.NaN : 360, Margin = new Thickness(0, 0, Compact ? 0 : 16, 16) };
         dashed.Children.Add(new Rectangle { RadiusX = 20, RadiusY = 20, Stroke = Brush(Muted, 0x80), StrokeThickness = 1.3, StrokeDashArray = [5, 4], Fill = Brush(Colors.White, 0x40) });
         dashed.Children.Add(new Border { Child = body, Padding = new Thickness(20, 18, 20, 18) });
         return new Border { Child = dashed };

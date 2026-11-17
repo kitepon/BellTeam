@@ -37,7 +37,7 @@ public sealed class SecretCard(LinuxWorkspace workspace, string author) : StackP
     private void Open(SecretRequest request)
     {
         var input = CreateInput(request);
-        if (TopLevel.GetTopLevel(this) is Window owner) _ = input.ShowDialog(owner); else input.Show();
+        if (OwnerWindow.Of(this) is { } owner) _ = input.ShowDialog(owner); else input.Show();
     }
     internal static Control CardTitle(string icon, string text)
     {

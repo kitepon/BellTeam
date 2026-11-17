@@ -21,7 +21,7 @@ public class EditorWindow : Window
     protected bool Saved { get; set; }
     protected CancellationToken Token { get; }
     protected readonly List<Task> InitialLoads = [];
-    protected virtual Window? DialogOwner => TopLevel.GetTopLevel(Body) as Window ?? Owner as Window;
+    protected virtual Window? DialogOwner => OwnerWindow.Of(Body) ?? Owner as Window;
     private Action? closePage;
     private bool closeWhileReading;
     public virtual bool CanNavigateAway => !Busy || closeWhileReading;
