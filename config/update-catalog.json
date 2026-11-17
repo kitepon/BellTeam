@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T09:34:54Z",
-  "expiresAt": "2026-11-24T09:34:54Z",
+  "publishedAt": "2026-11-17T10:10:01Z",
+  "expiresAt": "2026-11-24T10:10:01Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "75a73c22153b9f264fe34d963e2cd306228028936f276c5e7fb7b6ed2caad894",
+      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
+      "versionId": "004c0f8bc8bc28f13654f31a9eb2254c132102c3709e5625543e2f62ad3983a9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093244Z/usage-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-amd64.tar.gz",
-          "bytes": 83282,
-          "sha256": "75a73c22153b9f264fe34d963e2cd306228028936f276c5e7fb7b6ed2caad894"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-amd64.tar.gz",
+          "bytes": 83262,
+          "sha256": "004c0f8bc8bc28f13654f31a9eb2254c132102c3709e5625543e2f62ad3983a9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093244Z/usage-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11046,
-          "sha256": "763cdc9f6a773afd0942d3d5934fc6b8d6e753554785d7fcc0b2e8022d200db7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11109,
+          "sha256": "a40e7aff6a46a722adbeea6feda9616699fe319e847b78e8ef6f2be8d86cf8d1"
         },
-        "signerCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7"
+        "signerCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,14 +48,13 @@
         }
       },
       "changes": [
-        "Antigravityは新しく選べなくなりました。保存に残っている利用者のデータでも、本体は起動し、お知らせを出して別のAIへ切り替えられます。",
-        "Stripeの購読も、Appleと並べて購読の確認に数えるようにしました。"
+        "Antigravityの席が残るデータでも、本体と設定の部品のどちらを先に更新しても起動するようにしました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "ba599aa98981e67e79a55c1b988dfcc72506c365207088260aa99eb98eb86144",
+      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
+      "versionId": "64667d82cc35e005b1a6401d0bf4239caa77bd73b68428c8e591678223bf1ade",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093244Z/usage-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-arm64.tar.gz",
-          "bytes": 83282,
-          "sha256": "ba599aa98981e67e79a55c1b988dfcc72506c365207088260aa99eb98eb86144"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-arm64.tar.gz",
+          "bytes": 83262,
+          "sha256": "64667d82cc35e005b1a6401d0bf4239caa77bd73b68428c8e591678223bf1ade"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093244Z/usage-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10952,
-          "sha256": "c66d45b0ffe21f9d9bebaa0aa62b66ddc228044058aefe4dcb1b9ab19745429b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11015,
+          "sha256": "d8f1ca91b8f1222c1d7b105fc6ed31b184bcbc46c09f887479db1f0423a4e586"
         },
-        "signerCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7"
+        "signerCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -97,8 +96,7 @@
         }
       },
       "changes": [
-        "Antigravityは新しく選べなくなりました。保存に残っている利用者のデータでも、本体は起動し、お知らせを出して別のAIへ切り替えられます。",
-        "Stripeの購読も、Appleと並べて購読の確認に数えるようにしました。"
+        "Antigravityの席が残るデータでも、本体と設定の部品のどちらを先に更新しても起動するようにしました。"
       ]
     },
     {
@@ -713,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "sha256:f6c638ba17c1d970c9c4fcf2f40b13b29a8550d1103245075516a910a19ba127",
+      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
+      "versionId": "sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f6c638ba17c1d970c9c4fcf2f40b13b29a8550d1103245075516a910a19ba127"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +728,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeamが選べるAIからAntigravityを外しました。Antigravityの席が残る利用者の本体も、更新後に起動します。"
+        "Antigravityの席が残るデータでも、本体を先に更新して起動するようにしました。初期設定の画面にも、別のAIへ切り替えるお知らせを出します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "sha256:f6c638ba17c1d970c9c4fcf2f40b13b29a8550d1103245075516a910a19ba127",
+      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
+      "versionId": "sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f6c638ba17c1d970c9c4fcf2f40b13b29a8550d1103245075516a910a19ba127"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +750,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeamが選べるAIからAntigravityを外しました。Antigravityの席が残る利用者の本体も、更新後に起動します。"
+        "Antigravityの席が残るデータでも、本体を先に更新して起動するようにしました。初期設定の画面にも、別のAIへ切り替えるお知らせを出します。"
       ]
     },
     {
