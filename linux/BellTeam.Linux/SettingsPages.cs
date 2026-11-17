@@ -245,7 +245,9 @@ public sealed partial class SettingsWindow
             if (loading) { form.Children.Add(Loading("モデル候補を読み込んでいます…")); return; }
             var draft = new BackgroundAgentSelection(harness, model, effort); var problem = BackgroundAgentChoices.Problem(catalog, draft);
             var efforts = BackgroundAgentChoices.Efforts(catalog, harness, model);
-            var cli = Picker("CLI", BackgroundAgentChoices.Harnesses.Select(item => new FormOption(item.Id, item.Label)).ToArray(), harness, value => { harness = value; model = ""; effort = ""; Render(); });
+            if (record.Notice is { } retired) form.Children.Add(Text(retired, 13, Orange, null, new Thickness(20, 0, 20, 4)));
+            var clis = BackgroundAgentChoices.Harnesses.Select(item => new FormOption(item.Id, item.Label)).ToList(); if (harness.Length == 0) clis.Insert(0, new("", "選んでください"));
+            var cli = Picker("CLI", clis.ToArray(), harness, value => { harness = value; model = ""; effort = ""; Render(); });
             var models = new List<FormOption> { new("", "選んでください") }; models.AddRange(BackgroundAgentChoices.Models(catalog, harness).Select(item => new FormOption(item.Id, item.Label)));
             if (model.Length != 0 && models.All(item => item.Id != model)) models.Add(new(model, $"{model}（現在の候補にありません）"));
             var modelPicker = Picker("モデル", models.ToArray(), model, value => { model = value; if (!BackgroundAgentChoices.Efforts(catalog, harness, value).Contains(effort)) effort = ""; Render(); });
@@ -272,7 +274,10 @@ public sealed partial class SettingsWindow
             {
                 var current = await workspace.Planning.BackgroundAgentAsync(token) ?? throw new BellApiException("このサーバーの版では設定できません。");
                 catalog = (await workspace.Management.Api.GetAsync<ModelsResponse>("/api/models", token)).Models; token.ThrowIfCancellationRequested();
-                record = current; if (current.Selection is { } selection) { harness = selection.Harness; model = selection.Model; effort = selection.ReasoningEffort; }
+                record = current;
+                // A retired stored choice starts the form empty so the user picks one of the four; nothing is saved until they do (a366).
+                if (current.Notice is not null) { harness = ""; model = ""; effort = ""; }
+                else if (current.Selection is { } selection) { harness = selection.Harness; model = selection.Model; effort = selection.ReasoningEffort; }
                 errorText = null;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }

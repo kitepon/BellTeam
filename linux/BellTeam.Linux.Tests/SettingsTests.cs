@@ -55,4 +55,18 @@ public sealed class SettingsTests
         window.Close();
         return Task.CompletedTask;
     });
+
+    // a357b (a365/a366 contract): a member that still names the retired Antigravity shows the server's notice in its AI settings and never sends it back.
+    [Fact]
+    public Task ARetiredAiShowsItsNoticeAndIsNeverSent() => Ui.Run(() =>
+    {
+        const string text = "このメンバーのAIは使えなくなりました。ほかのAIへ切り替えてください。";
+        var retired = new BotSettings { Name = "a", Harness = "antigravity", HarnessNotice = text };
+        var picker = new ModelPicker(retired); var window = new Window { Content = picker }; window.Show();
+        Assert.Contains(picker.GetVisualDescendants().OfType<TextBlock>(), line => line.Text == text);
+        Assert.DoesNotContain("harnessNotice", picker.Apply(retired).Fields().Keys);
+        Assert.DoesNotContain(picker.GetVisualDescendants().OfType<TextBlock>(), line => line.Text == "Antigravity");
+        window.Close();
+        return Task.CompletedTask;
+    });
 }
