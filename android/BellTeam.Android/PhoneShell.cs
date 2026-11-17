@@ -44,6 +44,10 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
     private readonly TextBlock sendError = new() { Foreground = BellTheme.Red, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Button older = new() { Classes = { "plain" }, Content = "以前のメッセージを読む", HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.White, IsVisible = false };
+    private readonly Button attach = new() { Classes = { "plain" }, Content = Icons.Draw(Icons.Paperclip, 22, BellTheme.Violet), Background = Brushes.Transparent, Width = 44, Height = 44, Padding = default, VerticalAlignment = VerticalAlignment.Bottom };
+    private readonly StackPanel attachments = new() { Orientation = Orientation.Horizontal };
+    private readonly ScrollViewer attachmentScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, IsVisible = false };
+    private string attachmentKey = "";
     private StartupPhase phase = StartupPhase.Ready;
     private int generation, attempt;
     private CancellationTokenSource? retry;
@@ -72,13 +76,15 @@ public sealed class PhoneShell : UserControl, IMessageHost
         Grid.SetRow(messageScroll, 1);
         composer.TextChanged += (_, _) => { if (syncingComposer) return; syncingComposer = true; try { model.DraftText = composer.Text ?? ""; } finally { syncingComposer = false; } };
         send.Click += (_, _) => _ = model.SendAsync();
-        var input = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { composer, send } };
-        composer.Margin = new Thickness(0, 4, 8, 4); Grid.SetColumn(send, 1); send.VerticalAlignment = VerticalAlignment.Bottom;
+        attachmentScroll.Content = attachments;
+        attach.Click += async (_, _) => await AttachAsync();
+        var input = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Children = { attach, composer, send } };
+        Grid.SetColumn(composer, 1); composer.Margin = new Thickness(0, 4, 8, 4); Grid.SetColumn(send, 2); send.VerticalAlignment = VerticalAlignment.Bottom;
         var pill = new Border { Background = BellTheme.Canvas, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(24), Padding = new Thickness(14, 4, 6, 4), Child = input };
         var cancelQuote = new Button { Classes = { "plain" }, Width = 40, Height = 40, Padding = default, CornerRadius = new CornerRadius(20), Background = Brushes.Transparent, Content = Icons.Draw(Icons.Close, 16, BellTheme.Muted) };
         cancelQuote.Click += (_, _) => model.CancelQuote(); Grid.SetColumn(cancelQuote, 1);
         quoteBar.Child = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { quoteName, quoteText } }, cancelQuote } };
-        var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(12, 8), Children = { sendError, quoteBar, pill } } };
+        var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(12, 8), Children = { sendError, attachmentScroll, quoteBar, pill } } };
         Grid.SetRow(band, 2);
         conversationPage.Children.Add(header); conversationPage.Children.Add(messageScroll); conversationPage.Children.Add(band);
 
@@ -140,6 +146,41 @@ public sealed class PhoneShell : UserControl, IMessageHost
         composer.Focus();
     }
 
+    // The system picker hands over content URIs, not paths: each chosen image is copied to the app's cache and attached from there (Workspace reads files by path).
+    private async Task AttachAsync()
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+        try
+        {
+            var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions { Title = "画像を添付", AllowMultiple = true, FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll] });
+            var paths = new List<string>();
+            foreach (var file in files)
+            {
+                var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}-{file.Name}");
+                await using (var source = await file.OpenReadAsync()) await using (var target = File.Create(path)) await source.CopyToAsync(target);
+                paths.Add(path);
+            }
+            if (paths.Count != 0) await model.AttachFilesAsync(paths.ToArray());
+        }
+        catch (Exception error) { model.ReportDraftError("画像を添付できませんでした。" + error.Message); }
+    }
+
+    private void UpdateAttachments()
+    {
+        attach.IsEnabled = model.CanAttach;
+        var previews = model.Attachments; var key = string.Join('|', previews.Select(item => item.Data.GetHashCode()));
+        attachmentScroll.IsVisible = previews.Length != 0;
+        if (key == attachmentKey) return;
+        attachmentKey = key; attachments.Children.Clear();
+        foreach (var item in previews)
+        {
+            var remove = new Button { Classes = { "plain" }, Width = 24, Height = 24, Padding = default, CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(Color.Parse("#BF21293D")), BorderBrush = Brushes.White, BorderThickness = new Thickness(1.5), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Content = Icons.Draw(Icons.Close, 10, Brushes.White) };
+            var data = item.Data; remove.Click += (_, _) => model.RemoveAttachment(data);
+            var tile = new Border { CornerRadius = new CornerRadius(12), ClipToBounds = true, Width = 64, Height = 64, Child = new Image { Source = item.Preview, Stretch = Stretch.UniformToFill } };
+            attachments.Children.Add(new Grid { Margin = new Thickness(0, 4, 10, 8), Width = 64, Height = 64, Children = { tile, remove } });
+        }
+    }
+
     // ---- IMessageHost: the cards of the conversation ask the shell for these ----
     // A sheet that saves (the forward sheet's 転送) shows its own button label in the header and enables it as the sheet says.
     public void OpenSheet(string heading, Control content)
@@ -183,6 +224,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         {
             case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
+            case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): { var text = model.ActionError ?? model.ConnectionError; status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); break; }
             case nameof(LinuxWorkspace.HasMore): older.IsVisible = model.HasMore; break;
