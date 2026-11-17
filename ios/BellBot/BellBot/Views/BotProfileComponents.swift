@@ -512,7 +512,6 @@ struct BotProfileAISection: View {
         case "codex": ("Codex", "chevron.left.forwardslash.chevron.right", .indigo)
         case "grok": ("Grok", "bolt.fill", .gray)
         case "cursor": ("Cursor", "cursorarrow.rays", .teal)
-        case "antigravity": ("Antigravity", "atom", .blue)
         default: (bot.harness, "cpu", BellTheme.violet)
         }
     }

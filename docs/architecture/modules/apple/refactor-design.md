@@ -131,16 +131,16 @@
 
 | 操作 | 製品の全caller | 直接単体試験（`BotSaveTests`） |
 | --- | --- | --- |
-| `saveBotSettings` | `BotEditor.save`（`ManagementView.swift:408`） | `testLostResponseAfterSavingIsConfirmedWithoutResendingPATCH`、`testAntigravityModelAndEffortSurviveSaveReadback`、`testFailureBeforeSavingReportsDifferentWithoutResendingPATCH`、`testUnavailableReadLeavesResultUnconfirmedWithoutResendingPATCH`、`testConfirmedSaveIsReferenceWithEvidenceAndNoRepeatedWrite`、`testTimedOutWriteAlsoChecksTheSavedContent`、`testTextSavePreservesAnAvatarChangedOnAnotherDevice`、`testExplicitConfirmationAfterReconnectDoesNotWriteAgain`、`testAuthenticationFailureDuringConfirmationStillRequiresLogin` |
+| `saveBotSettings` | `BotEditor.save`（`ManagementView.swift:408`） | `testLostResponseAfterSavingIsConfirmedWithoutResendingPATCH`、`testFailureBeforeSavingReportsDifferentWithoutResendingPATCH`、`testUnavailableReadLeavesResultUnconfirmedWithoutResendingPATCH`、`testConfirmedSaveIsReferenceWithEvidenceAndNoRepeatedWrite`、`testTimedOutWriteAlsoChecksTheSavedContent`、`testTextSavePreservesAnAvatarChangedOnAnotherDevice`、`testExplicitConfirmationAfterReconnectDoesNotWriteAgain`、`testAuthenticationFailureDuringConfirmationStillRequiresLogin` |
 | `confirmBotSettings` | `saveBotSettings:201`、`BotEditor.confirmSave`（`ManagementView.swift:484`） | 上記保存試験が内部呼出し。直接呼出しも行うのは`testExplicitConfirmationAfterReconnectDoesNotWriteAgain` |
 | `saveBotAvatarSelection` | `BotProfileImageState.saveImage`（`BotProfileComponents.swift:57`） | `testSmallImageLostResponseConfirmsOnlySmallTriplet`、`testLargeImageLostResponseConfirmsOnlyLargeTriplet` |
 | `confirmBotAvatarSelection` | `saveBotAvatarSelection:162`、`BotProfileImageState.confirmImageSave`（`BotProfileComponents.swift:93`） | 上記画像保存2試験が内部呼出し。単独での直接呼出し試験は確認していない |
 
 要求の関連試験は同ファイルの`testImageOnlyRequestSendsExactlyTheSelectedTriplet`と`testFastModeIsSentOnlyWhenChanged`。fixtureは`oldSettings`・`newSettings`、`SaveFixture`・`SaveProtocol`・`makeAPI`（`BotSaveTests.swift:279–363`）。PATCHの適用前/後の応答喪失、GET失敗・401、method列を検査しており、この形を維持する。ファイル移動だけを確認する新しい試験は足さない。
 
-UIのcaller経路は、`DesktopWorkspaceUITests.testSaveWithoutAvatarChangesWhileModelsArePending`、`AuthTypedUITests.testTabletAntigravityModelAndEffortReadback`、`ProfileTerminalUITests`の小画像保存・大画像保存・取消、`NetworkLifecycleProbeUITests.testConfirmedSaveReferenceReachesMainReceiver`。`InstalledConversationUITests.testPrepareExistingMemberSaveInterruption`は保存前の画面準備だけで、保存自体を試験しない。`ProfileTerminalUITests`の旧schema試験も保存ボタンの利用可否までである。実装PRの実行対象は直接の単体試験とMac編集画面の確認までで、本体受信の結合試験を定型追加しない。
+UIのcaller経路は、`DesktopWorkspaceUITests.testSaveWithoutAvatarChangesWhileModelsArePending`、`ProfileTerminalUITests`の小画像保存・大画像保存・取消、`NetworkLifecycleProbeUITests.testConfirmedSaveReferenceReachesMainReceiver`。`InstalledConversationUITests.testPrepareExistingMemberSaveInterruption`は保存前の画面準備だけで、保存自体を試験しない。`ProfileTerminalUITests`の旧schema試験も保存ボタンの利用可否までである。実装PRの実行対象は直接の単体試験とMac編集画面の確認までで、本体受信の結合試験を定型追加しない。
 
-関連HTTP fixtureは`test/helpers/member-editor-server.mjs`、`profile-terminal-ui-server.mjs`、`antigravity-editor-server.mjs`と、`BELLTEAM_REPORTING_PROBE_URL`で渡す診断試験環境。前の3ファイルは本文を確認したが、いずれも稼働確認はしていない。今回のファイル移動によるfixture変更はない。`Tests/`2本に直接callerはない。4操作のinternal公開範囲は同じで、Xcodeへの新ファイル登録だけが必要。
+関連HTTP fixtureは`test/helpers/member-editor-server.mjs`、`profile-terminal-ui-server.mjs`と、`BELLTEAM_REPORTING_PROBE_URL`で渡す診断試験環境。前の2ファイルは本文を確認したが、いずれも稼働確認はしていない。今回のファイル移動によるfixture変更はない。`Tests/`2本に直接callerはない。4操作のinternal公開範囲は同じで、Xcodeへの新ファイル登録だけが必要。
 
 ### 維持する契約
 

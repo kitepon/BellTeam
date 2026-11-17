@@ -186,7 +186,6 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testSmallImageLostResponseConfirmsOnlySmallTriplet](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L63) | 小画像保存の応答喪失はPATCH→GETで小3項目だけ照合、大3項目保持 |
 | [testLargeImageLostResponseConfirmsOnlyLargeTriplet](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L85) | 大画像保存の応答喪失はPATCH→GETで大3項目だけ照合、小3項目保持 |
 | [testLostResponseAfterSavingIsConfirmedWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L106) | 保存後切断は読戻し一致でconfirmed、PATCH再送なし |
-| [testAntigravityModelAndEffortSurviveSaveReadback](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L115) | Antigravityの不透明なmodel/effortを保存読戻しで保持 |
 | [testFailureBeforeSavingReportsDifferentWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L130) | 保存前切断はdifferent、元保存値とPATCH1回を確認 |
 | [testUnavailableReadLeavesResultUnconfirmedWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L140) | 保存後GET不能はunconfirmedと元URLError |
 | [testMissingBotReadLeavesDecodingPathUnconfirmedWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L148) | 保存後の照合GETが `bot` を欠くと unconfirmed(DecodingError.keyNotFound)。欠落キー `bot` と空のcoding pathを保持し、method列は PATCH→GET だけ |
@@ -552,12 +551,10 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 
 ### AuthTypedUITests.swift
 
-対象：認証とAntigravity設定。補助型も同じファイルを読んだ。
+対象：認証設定。補助型も同じファイルを読んだ。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| [testAntigravityInitialAuthenticationUsesTypedURLAndCode](../../../../ios/BellBot/BellBotUITests/AuthTypedUITests.swift#L4) | Antigravity初回のdevice code→paste code→認証済み、入力1件とdigest/種別/値 |
-| [testTabletAntigravityModelAndEffortReadback](../../../../ios/BellBot/BellBotUITests/AuthTypedUITests.swift#L35) | id付きAntigravityモデル/effortをiPadで保存しproofと再編集で読戻し |
 | [testTabletDeviceCodeInstructions](../../../../ios/BellBot/BellBotUITests/AuthTypedUITests.swift#L75) | iPadでdevice codeのURL/コードを表示し入力欄無し |
 | [testFourHarnessesUseTypedInstructions](../../../../ios/BellBot/BellBotUITests/AuthTypedUITests.swift#L101) | 4harness別URL/コード/choice/入力を表示し生キーを出さずtyped POST2件 |
 
@@ -864,8 +861,6 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| [testAntigravityShowsOfficialCliWithoutUnsupportedStart](../../../../ios/BellBot/BellBotUITests/HarnessAuthenticationUITests.swift#L4) | 認証済みAntigravityはstart/cancel/input無し、明示GETだけ追加 |
-| [testAntigravityCanStartFirstAuthentication](../../../../ios/BellBot/BellBotUITests/HarnessAuthenticationUITests.swift#L35) | 未認証Antigravityは初回start可能で1POST |
 | [testListShowsEachStateAndActionWithoutStarting](../../../../ios/BellBot/BellBotUITests/HarnessAuthenticationUITests.swift#L61) | 一覧はAI別に認証済み/未認証/確認不能と次の操作、POST無し |
 | [testConfirmationUntypedInputIsHiddenCancelAndCommunicationError](../../../../ios/BellBot/BellBotUITests/HarnessAuthenticationUITests.swift#L88) | 開始警告の取消はPOST無し、開始/取消/再照会、旧input_requiredで入力欄無し、失敗後自動poll停止 |
 
@@ -1089,8 +1084,6 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | 試験の環境・fixture | 本文で確認した人工状態・制御・記録 |
 | --- | --- |
 | `BELLTEAM_AUTH_TYPED_URL` → [auth-ui-server.mjs](../../../../test/helpers/auth-ui-server.mjs) | 4harnessのtyped段階、binding/digest照合、choice→code→complete。setup/harness旧GETを保留・成功/503で解放、入力結果不明502、read/write件数をproofへ |
-| `BELLTEAM_ANTIGRAVITY_ONBOARDING_URL` → [antigravity-onboarding-server.mjs](../../../../test/helpers/antigravity-onboarding-server.mjs) | session local認証、AI選択→device_code→paste_code→complete。固定binding/digestと入力値を検査、入力bodyをproofへ |
-| `BELLTEAM_ANTIGRAVITY_EDITOR_URL` → [antigravity-editor-server.mjs](../../../../test/helpers/antigravity-editor-server.mjs) | PreviewFixturesから名簿を読み、人工model/effort候補、PATCHを名簿へ反映、保存body/モデル要求数をproofへ |
 | `BELLTEAM_AUTH_SMOKE_URL` → [harness-auth-server.mjs](../../../../test/helpers/harness-auth-server.mjs) | 認証済み/blocked/unreadable/次GET500、旧input_required付き待機、start/cancelと要求body記録。公式CLI・実資格情報へ接続しない |
 | `BELLTEAM_MEMBER_EDITOR_SMOKE_URL` → [member-editor-server.mjs](../../../../test/helpers/member-editor-server.mjs) | モデルGETをreleaseまで保留（解放後の候補は必須fast付き）。従来のsaves.body/modelsPendingにmethod/pathを追加し、botListReadsへ一覧GETと応答時のBot値を複製して記録。preview名簿の保存値更新。試行ごとに新規起動 |
 | `BELLTEAM_SCROLL_FIXTURE_URL` → [conversation-scroll-server.mjs](../../../../test/helpers/conversation-scroll-server.mjs) | 60行の混合Markdown/短文、35短文、before/after/limit、旧remaining_before無し、過去GET500、短page。append/対象通知のSSE、要求queryと診断codeをproofへ |
