@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createExecutionDispatcher, EXECUTION_METHODS } from '../src/execution-dispatcher.mjs'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { MembersAdmission } from '../src/members-admission.mjs'
@@ -86,26 +86,23 @@ test('accepted delivery remains live through the real waiter and delayed saved a
   await engine.disconnect(); assert.equal(f.closes(), 0)
 })
 
-test('handoff keeps uncertainty, stop versions, original preparation identity and CurrentWork metadata without recreating missing stage', async t => {
+test('handoff keeps session, stop versions, original request identity and CurrentWork metadata without recreating missing stage', async t => {
   const f = await fixture(t)
   await f.engine.control('quiesce')
   const state = f.engine.exportState(), m = state.metadata
   const original = { binding: { id: 'old-request' } }
   m.sessions.set(bot.id, 'preserved-session'); m.stopVersions.set(bot.id, 9)
-  m.uncertainty.set(bot.id, 'agent_configure'); m.uncertaintyVersions.set(bot.id, { request: original.binding })
   m.requests.pending.set(bot.id, original); m.requests.latest.set(bot.id, { intent: original, receipt: null })
-  m.requests.rejectedPreparations.set(bot.id, { original, preparation: { state: 'not_returned', publication: 'unknown' } })
+  // 02e7f51a: uncertainty is an empty legacy field, never admission state; rejectedPreparations no longer exists.
+  assert.deepEqual([m.uncertainty.size, m.uncertaintyVersions.size, m.requests.rejectedPreparations], [0, 0, undefined])
   await f.engine.disconnect()
   const n = await fixture(t, null, { generation: 'second', handoff: state })
   assert.equal(n.engine.project(request('transport.session', bot)), 'preserved-session')
   await n.engine.control('quiesce')
   const after = n.engine.exportState().metadata
   assert.equal(after.stopVersions.get(bot.id), 9)
-  assert.equal(after.uncertainty.get(bot.id), 'agent_configure')
-  assert.equal(after.requests.pending.get(bot.id), after.requests.rejectedPreparations.get(bot.id).original)
   assert.equal(after.requests.latest.get(bot.id).intent, after.requests.pending.get(bot.id))
   assert.equal(after.requests.latest.get(bot.id).preparation, undefined)
-  assert.equal(after.requests.rejectedPreparations.get(bot.id).preparation.publication, 'unknown')
 })
 
 test('retirement cancels producer timers and old callback handles cannot issue new native work', async t => {
@@ -179,30 +176,31 @@ test('an uninitialized candidate can be discarded once without closing the share
   assert.equal(f.calls.length, 0); assert.equal(f.closes(), 0)
 })
 
-test('a failed real configuration restore candidate can be discarded and does not keep observer timers', async t => {
+// 02e7f51a removed the configuration restore from initialize; the restart-activity read is its first real step now.
+test('a failed real initialization can be discarded and does not keep observer timers', async t => {
   const f = await fixture(t, null, { initialize: false })
-  // A file at the configured directory is a real restore/storage failure.
-  await writeFile(f.ports.configurationStorage.root, 'synthetic invalid storage')
-  await assert.rejects(f.engine.control('initialize'))
+  const { CurrentWork } = await import('../src/current-work.mjs')
+  const original = CurrentWork.prototype.takeRestartActivity
+  t.after(() => { CurrentWork.prototype.takeRestartActivity = original })
+  CurrentWork.prototype.takeRestartActivity = async () => { throw Error('synthetic restart activity failure') }
+  await assert.rejects(f.engine.control('initialize'), /synthetic restart activity failure/)
   const before = f.calls.length
   assert.deepEqual(await f.engine.disconnect(), { closed: true })
   await new Promise(resolve => setTimeout(resolve, 10))
   assert.equal(f.calls.length, before); assert.equal(f.closes(), 0)
 })
 
-test('an initialization still awaiting actual storage cannot be discarded after a caller timeout', async t => {
+test('an initialization still awaiting its real read cannot be discarded after a caller timeout', async t => {
   const f = await fixture(t, null, { initialize: false })
-  const storage = f.ports.configurationStorage.root
-  await mkdir(storage, { mode: 0o700 })
-  // Block the actual directory read without replacing a business factory port.
-  const { ConfigurationIntents } = await import('../src/configuration-intents.mjs')
-  const original = ConfigurationIntents.prototype.pending, read = deferred()
-  t.after(() => { ConfigurationIntents.prototype.pending = original })
-  ConfigurationIntents.prototype.pending = function () { return this.root === storage ? read.promise : original.call(this) }
+  const { CurrentWork } = await import('../src/current-work.mjs')
+  const original = CurrentWork.prototype.takeRestartActivity, read = deferred(), reading = deferred()
+  t.after(() => { CurrentWork.prototype.takeRestartActivity = original })
+  CurrentWork.prototype.takeRestartActivity = () => { reading.resolve(); return read.promise }
   const initializing = f.engine.control('initialize')
+  await reading.promise // reject only once initialize really awaits the read
   await assert.rejects(f.engine.disconnect(), { code: 'EXECUTION_BUSY' })
-  read.reject(Error('synthetic late storage failure'))
-  await assert.rejects(initializing, /synthetic late storage failure/)
+  read.reject(Error('synthetic late read failure'))
+  await assert.rejects(initializing, /synthetic late read failure/)
   assert.deepEqual(await f.engine.disconnect(), { closed: true })
   assert.equal(f.closes(), 0)
 })
