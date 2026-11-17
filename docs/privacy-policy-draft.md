@@ -1,6 +1,6 @@
 # BellTeam プライバシー方針
 
-公開する本文は [public-pages.mjs](../services/subscriptions/public-pages.mjs)、サポート連絡先と公開URLは [product.json](../services/subscriptions/product.json) が正本。この文書は草案作成時の記録。
+公開する本文はkitepon.dev（`/support/`・`/privacy/`・`/terms/`・`/specified-commercial-transactions/`）が正本で、オーナー承認済みの文面。サポート連絡先と公開URLは [product.json](../services/subscriptions/product.json) が正本。運営のWorkerの`/support`・`/privacy`はkitepon.devへ恒久転送するだけで、本文を持たない（a398c）。この文書は草案作成時の記録。
 
 ## 会話とAIの設定
 

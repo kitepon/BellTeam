@@ -3,8 +3,8 @@
   "bundleId": "dev.kitepon.bellbot",
   "productId": "dev.kitepon.bellbot.monthly",
   "supportEmail": "quolu@kitepon.dev",
-  "supportUrl": "https://bellteam-subscriptions.kitepon.workers.dev/support",
+  "supportUrl": "https://kitepon.dev/support/",
   "serverGuideUrl": "https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md",
   "repositoryUrl": "https://github.com/kitepon/BellTeam",
-  "privacyPolicyUrl": "https://bellteam-subscriptions.kitepon.workers.dev/privacy"
+  "privacyPolicyUrl": "https://kitepon.dev/privacy/"
 }
