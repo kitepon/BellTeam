@@ -16,6 +16,8 @@ public sealed record BotSettings
     public string Model { get; init; } = "";
     public string ReasoningEffort { get; init; } = "";
     public bool FastMode { get; init; }
+    // a366: read-only, present only while the member's stored AI is the retired Antigravity; Fields() never sends it (the server refuses an unknown field).
+    public string? HarnessNotice { get; init; }
     // a311: null = this BellTeam predates the field (never sent, no switch); the Owner's HTTP PATCH is the only writer.
     public bool? ConfigurationLocked { get; init; }
     // members C1: null = this BellTeam predates the fields (never sent); "" = this BellTeam's own seat.

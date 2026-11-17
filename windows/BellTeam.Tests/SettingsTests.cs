@@ -94,4 +94,19 @@ public sealed class SettingsTests
         // Windows sells nothing in the app, so 利用と課金 keeps the Windows line.
         Assert.Equal("料金と、サーバーとAIの契約", SettingsPageInfo.Detail(SettingsPage.Billing));
     }
+
+    // a366: a member or the summary AI that still names the retired Antigravity arrives with a read-only notice; nothing of it is ever sent back.
+    [Fact]
+    public void ARetiredAiComesWithItsNoticeAndTheNoticeIsNeverSent()
+    {
+        const string text = "このメンバーのAIは使えなくなりました。ほかのAIへ切り替えてください。";
+        var retired = Record(JsonSerializer.Serialize(new { backgroundAgent = new { revision = "r1", selection = new { harness = "antigravity", model = "m", reasoningEffort = "" } }, backgroundAgentNotice = text }))!;
+        Assert.Equal(text, retired.Notice); Assert.Equal("antigravity", retired.Selection!.Harness);
+        Assert.DoesNotContain("Notice", string.Join(",", retired.UpdateBody(new("claude", "x", "")).Keys));
+        Assert.Null(Record("""{"backgroundAgent":{"revision":"r1","selection":{"harness":"codex","model":"m","reasoningEffort":""}}}""")!.Notice);
+        Assert.Equal("CLIを選んでください。", BackgroundAgentChoices.Problem([], new("", "", "")));
+        var status = SettingsSummary.SummaryAgent(retired); Assert.Equal((text, "要対応", true), (status.Line, status.Badge, status.NeedsAttention));
+        var bot = JsonSerializer.Deserialize<BotSettings>(JsonSerializer.Serialize(new { name = "a", harness = "antigravity", harnessNotice = text }), BellApi.Json)!;
+        Assert.Equal(text, bot.HarnessNotice); Assert.DoesNotContain("harnessNotice", bot.Fields().Keys);
+    }
 }

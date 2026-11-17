@@ -42,6 +42,8 @@ public sealed class ModelPicker : Border
         var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
         // a317: the Owner's switch for the AI settings (same position and wording as Linux a318); absent on a BellTeam that predates configurationLocked.
         LockRow = Row(lockRowParts.Row); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
+        // a366: the server's plain text for a member whose stored AI is the retired Antigravity; the picker still offers the four AIs to switch to.
+        if (initial.HarnessNotice is { } retired) card.Add(Row(Text(retired, 13, Orange)));
         foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, LockRow, lockNote, configRow }) card.Add(row);
         card.SetVisible(configRow, false); card.SetVisible(LockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
         locked.IsChecked = initial.ConfigurationLocked == true; System.Windows.Automation.AutomationProperties.SetName(locked, "AI設定の固定");

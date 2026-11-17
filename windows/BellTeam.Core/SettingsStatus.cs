@@ -249,6 +249,7 @@ public static class SettingsSummary
     {
         if (record is null) return new(SettingsPage.Summary.Detail());
         if (record.Selection is not { } selection) return new("まだ選んでいません", "未設定", SettingsTone.Gray);
+        if (record.Notice is { } notice) return new(notice, "要対応", SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Summary));
         var name = BackgroundAgentChoices.Harnesses.FirstOrDefault(harness => harness.Id == selection.Harness).Label ?? selection.Harness;
         var model = catalog is null ? selection.Model : BackgroundAgentChoices.Models(catalog, selection.Harness).FirstOrDefault(choice => choice.Id == selection.Model)?.Label ?? selection.Model;
         return new(string.Join(" · ", name, model, EffortText.Label(selection.ReasoningEffort)), "設定済み", SettingsTone.Green);
