@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T03:51:50Z",
-  "expiresAt": "2026-11-24T03:51:50Z",
+  "publishedAt": "2026-11-17T04:02:29Z",
+  "expiresAt": "2026-11-24T04:02:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "6be040e700ea02d637dac01f7bc5c62948b0cc94",
-      "versionId": "64791a701af849f51b204d8c53749947bad2282d8aaa78c7b406dfcfeddd26f5",
+      "sourceCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3",
+      "versionId": "4a8faf5d291df3e71c9d2716632a58528dbbfa44723ce9db553346549c6784dd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T035133Z/execution-6be040e700ea02d637dac01f7bc5c62948b0cc94-linux-amd64.tar.gz",
-          "bytes": 3985378,
-          "sha256": "64791a701af849f51b204d8c53749947bad2282d8aaa78c7b406dfcfeddd26f5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-amd64.tar.gz",
+          "bytes": 3985667,
+          "sha256": "4a8faf5d291df3e71c9d2716632a58528dbbfa44723ce9db553346549c6784dd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T035133Z/execution-6be040e700ea02d637dac01f7bc5c62948b0cc94-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "c629a742bec13399ab01577f7eb3af909827367d7ce34b945ec86948a51146c6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "6e7bb53157352c265e04e6d95d74652540a19376da7bb7c27b60e46a80018e44"
         },
-        "signerCommit": "6be040e700ea02d637dac01f7bc5c62948b0cc94"
+        "signerCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "実行の部品で、AIを止めた後に起きる二つの不具合を直しました。止めている最中に完了の合図が送られてしまう問題と、普通の配達を止めるたびに中断のエラーが出てしまう問題です。"
+        "実行の部品で、AIを止めた後に起きる二つの不具合を直しました。止めている最中に完了の合図が送られてしまう問題と、普通の配達を止めるたびに中断のエラーが出てしまう問題です。",
+        "実行の部品を入れ替えたり、新しく起動したりしたときに、動いている固定中の席を、Aiterm側でも固定し直すようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "6be040e700ea02d637dac01f7bc5c62948b0cc94",
-      "versionId": "31daa9c464ed6dc573837b3aeabebd41f2e31d1454f471ee5b5821330db52cc8",
+      "sourceCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3",
+      "versionId": "96498a35527dbd2b9fe9c9eec3894b66059c05b560e4106b015a102c5ed9e472",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +536,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T035133Z/execution-6be040e700ea02d637dac01f7bc5c62948b0cc94-linux-arm64.tar.gz",
-          "bytes": 3985378,
-          "sha256": "31daa9c464ed6dc573837b3aeabebd41f2e31d1454f471ee5b5821330db52cc8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-arm64.tar.gz",
+          "bytes": 3985667,
+          "sha256": "96498a35527dbd2b9fe9c9eec3894b66059c05b560e4106b015a102c5ed9e472"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T035133Z/execution-6be040e700ea02d637dac01f7bc5c62948b0cc94-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11208,
-          "sha256": "a183e0dbe1f5d1531392310774106b3992f69acbb3c2817c635ee1386b3b5151"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T040209Z/execution-0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10879,
+          "sha256": "ca67487606318a52a75eef7b5ab758d3da3c82746815b3dcc8fc8cf455d4a700"
         },
-        "signerCommit": "6be040e700ea02d637dac01f7bc5c62948b0cc94"
+        "signerCommit": "0a7d2594674ac9b0bc2b26e6954ab4d9cf5f7dd3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +555,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "実行の部品で、AIを止めた後に起きる二つの不具合を直しました。止めている最中に完了の合図が送られてしまう問題と、普通の配達を止めるたびに中断のエラーが出てしまう問題です。"
+        "実行の部品で、AIを止めた後に起きる二つの不具合を直しました。止めている最中に完了の合図が送られてしまう問題と、普通の配達を止めるたびに中断のエラーが出てしまう問題です。",
+        "実行の部品を入れ替えたり、新しく起動したりしたときに、動いている固定中の席を、Aiterm側でも固定し直すようにしました。"
       ]
     },
     {
