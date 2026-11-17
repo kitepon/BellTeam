@@ -143,7 +143,13 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       }
       if (url.pathname.startsWith('/api/notifications/android')) {
         if (request.method === 'GET' && url.pathname === '/api/notifications/android') return json(response, 200, await notifications.androidStatus())
-        if (request.method === 'POST' && url.pathname === '/api/notifications/android/devices') return json(response, 200, await notifications.androidRegister(await readJson(request, 8192)))
+        if (request.method === 'POST' && url.pathname === '/api/notifications/android/devices') {
+          const body = await readJson(request, 8192)
+          // The proof is the server's own entitled store proof for the operator relay; a client never supplies it.
+          if (body && typeof body === 'object' && Object.hasOwn(body, 'proof')) throw Object.assign(new Error('PUSH_DEVICE_INVALID'), { code: 'PUSH_DEVICE_INVALID' })
+          const proof = subscriptions?.proof?.() ?? null
+          return json(response, 200, await notifications.androidRegister(proof ? { ...body, proof } : body))
+        }
         if (request.method === 'POST' && url.pathname === '/api/notifications/android/unregister') return json(response, 200, await notifications.androidUnregister(await readJson(request, 4096)))
         return json(response, 404, { error: 'NOT_FOUND' })
       }

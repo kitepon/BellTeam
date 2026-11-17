@@ -3,12 +3,16 @@ import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { APNsProvider, onePasswordKeyReader } from '../../src/push-notifications.mjs'
+import { loadFcmProvider } from '../../src/fcm-notifications.mjs'
 import { createNotificationRelay } from './relay.mjs'
 
 const directory = process.env.BELLTEAM_APNS_DIRECTORY
 if (!directory) throw new Error('APNS_DIRECTORY_REQUIRED')
 const provider = await APNsProvider.create(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')), directory, { readKeys: onePasswordKeyReader(null) })
-const relay = createNotificationRelay({ provider, subscriptionEnvironment: process.env })
+// Optional: the operator's Firebase credential (same config.json format as shared/tools/fcm). Without it the relay answers android:false.
+const fcmDirectory = process.env.BELLTEAM_FCM_DIRECTORY
+const fcmProvider = fcmDirectory ? await loadFcmProvider(fcmDirectory, { readKeys: onePasswordKeyReader(null) }) : null
+const relay = createNotificationRelay({ provider, fcmProvider, subscriptionEnvironment: process.env })
 const server = createServer(async (request, response) => {
   try {
     const input = new Request(new URL(request.url, 'http://notifications.bellteam.local'), {
