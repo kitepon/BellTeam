@@ -460,6 +460,19 @@ export class AitermTransport {
     return session
   }
 
+  // configuration-lock.md (a339): after this engine starts, a seat that was already running keeps no lock the previous body never
+  // sent; lock every running seat whose Bot has the switch on. The same key locks again as a no-op. Failures only log.
+  async relockSeats(bots) {
+    const locked = bots.filter(bot => (this.resolveBot?.(bot.id) ?? bot).configurationLocked === true)
+    if (!locked.length || !this.configurationLock) return 0
+    let count = 0
+    try {
+      const running = await this.runningBots(locked)
+      for (const bot of locked) if (running.has(bot.id) && await this.setConfigurationLock(bot, true)) count++
+    } catch (error) { process.stderr.write(`BellTeam Aiterm: configuration relock not completed: ${error?.code ?? 'failed'}\n`) }
+    return count
+  }
+
   // configuration-lock.md: one lock/unlock call. "Not confirmed" (old terminal, foreign lock, Aiterm down) is logged and means
   // not locked; it never stops the seat or refuses the Owner.
   async setConfigurationLock(bot, locked) {

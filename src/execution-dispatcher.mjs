@@ -388,6 +388,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
         for (const context of deferredRecovery.splice(0)) recover(context)
         // Account moves and recovery send messages through the parent, so they start once this engine accepts work.
         void transport.reviewAccounts()
+        // configuration-lock.md (a339): seats running before this engine started get their Aiterm lock again.
+        track(transport.relockSeats([...ports.bots.values()]))
         return { stateCompatibility: COMPATIBILITY }
       })()
       try { return await initialization }
