@@ -396,7 +396,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellBot/Views/SecretRequestView.swift](../../../../ios/BellBot/BellBot/Views/SecretRequestView.swift) | 秘密要求カード状態、SecretInputSheetの入力方法（1Password参照が先・保存値が代替。SSH鍵・sudoは1Passwordの一覧から検索して選ぶ・旧本体は貼り付け・入力へ）・submit/cancel・値と参照の消去 |
 | [BellBot/Views/SelectableText.swift](../../../../ios/BellBot/BellBot/Views/SelectableText.swift) | 選択可能UITextView、MeasuredTextViewの幅別寸法cache |
 | [BellBot/Views/ServerInstallationGuide.swift](../../../../ios/BellBot/BellBot/Views/ServerInstallationGuide.swift) | 同梱Markdown、依頼文のコピー/共有、導入ガイドへのLink |
-| [BellBot/Views/SubscriptionView.swift](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift) | SubscriptionCard/Content、価格・権利・購入/復元/再確認・リンク |
+| [BellBot/Views/SubscriptionView.swift](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift) | SubscriptionCard/Content、StoreRow（App Store/Google Play/Stripeの同サイズ3行、買えるのはApp Storeだけ）・購入/復元/再確認・リンク |
 | [Shared/BotAvatarCache.swift](../../../../ios/BellBot/Shared/BotAvatarCache.swift) | App Groupのorigin別画像・versionファイル、保存と除去、actor窓口 |
 | [Shared/CommunicationNotification.swift](../../../../ios/BellBot/Shared/CommunicationNotification.swift) | payloadの送り主・roomからINSendMessageIntentを作る |
 | [Shared/ServerOrigin.swift](../../../../ios/BellBot/Shared/ServerOrigin.swift) | HTTPSまたはlocal HTTPの接続先URLとorigin正規化 |

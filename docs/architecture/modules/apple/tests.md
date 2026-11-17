@@ -150,6 +150,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testInitialStatusFailureShowsUnknownAccessAndRetainsDraftWithoutSending](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L6) | 本体購読初回失敗は未確認表示、draft保持、POST0件 |
+| testOtherStoreSubscriptionUnlocksButServerAppleDoesNot（BillingStoreTests.swift） | sourceがstripe/googleのサーバーentitledは解錠し、sourceがappleだけでは解錠しない（a358契約） |
 | [testRetryAfterInitialFailureRecognizesDeveloper](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L30) | 初回失敗後の再確認でdeveloperを認識しAI許可 |
 | [testVerifiedAppleSubscriptionStillWorksWhenInitialStatusFails](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L44) | 本体初回失敗でも有効な本人権利を再取得できればAI許可 |
 | [testRetryAfterInitialFailureFindsActiveSubscription](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L56) | 本体再取得と本人権利でactiveへ回復 |

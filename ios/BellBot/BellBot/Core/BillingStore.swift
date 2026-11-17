@@ -10,6 +10,8 @@ struct SubscriptionStatus: Decodable {
     let accessMode: AccessMode
     let setupComplete: Bool
     let entitled: Bool
+    let source: String?
+    let isTrial: Bool?
     let state: String
     let checkedAt: String?
     let expiresAt: String?
@@ -83,7 +85,9 @@ final class BillingStore: ObservableObject {
         return status == nil ? .unavailable : .inactive
     }
     var isDeveloper: Bool { status?.accessMode == .developer }
-    var hasPaidAccess: Bool { isDeveloper || entitlement?.isActive(at: Date()) == true }
+    /// A Stripe or Google Play subscription the server verified; an Apple one only counts through this Apple Account's own StoreKit entitlement.
+    var otherStoreEntitled: Bool { status?.entitled == true && status?.source != nil && status?.source != "apple" }
+    var hasPaidAccess: Bool { isDeveloper || otherStoreEntitled || entitlement?.isActive(at: Date()) == true }
     var notificationSignedTransaction: String? {
         entitlement?.isActive(at: Date()) == true ? currentTransaction?.jwsRepresentation : nil
     }
@@ -209,7 +213,7 @@ final class BillingStore: ObservableObject {
                 throw error
             }
         }
-        guard AppleSubscriptionAccess.permitsAI(developer: isDeveloper, entitlement: entitlement, initialGuide: initialGuide, now: Date()) else {
+        guard AppleSubscriptionAccess.permitsAI(developer: isDeveloper || otherStoreEntitled, entitlement: entitlement, initialGuide: initialGuide, now: Date()) else {
             if status == nil { throw unconfirmedAccessError }
             throw BellAPIError.server("AppleアプリからのAI利用には月額購読が必要です。設定の「BellTeamの購読」で購入または復元してください。Web版と初期案内、会話の閲覧・書き出しは無料で使えます。")
         }
