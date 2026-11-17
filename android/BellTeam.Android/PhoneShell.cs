@@ -171,13 +171,15 @@ public sealed class PhoneShell : UserControl, IMessageHost
         var window = new MemberEditorWindow(model, member.Target.Id);
         window.Show(); _ = window.InitializeAsync();
     }
-    private void ShowDetailedSettings()
+    private void ShowDetailedSettings() => _ = ShowDetailedSettingsAsync(null);
+    private async Task ShowDetailedSettingsAsync(BellTeam.Linux.SettingsPage? open)
     {
         if (!model.Connected) return;
         var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), async () => { CloseAllPages(); await PushRegistration.UnregisterAsync(model); access.SignOut(); ShowList(); model.SignOut(); },
             // The app draws these itself (Google Play rows, the sign-in, the version); notifications are desktop (freedesktop) only.
             [BellTeam.Linux.SettingsPage.Connection, BellTeam.Linux.SettingsPage.Billing, BellTeam.Linux.SettingsPage.About, BellTeam.Linux.SettingsPage.Notifications]);
-        window.Show(); _ = window.InitializeAsync();
+        window.Show(); await window.InitializeAsync();
+        if (open is { } page) await window.SelectAsync(page);
     }
 
     private void PushPage(Window window)
@@ -307,7 +309,10 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (!model.Connected) return;
         var target = PushRouter.Take();
         if (target is null) return;
-        if (!PushRouter.IsCurrentServer(target.Server) || target.Conversation is not { } conversation) return;
+        if (!PushRouter.IsCurrentServer(target.Server)) return;
+        // The update notice (kind update): the Update page of the settings, nothing is updated by itself.
+        if (target.Kind == "update") { CloseAllPages(); CloseSheet(); await ShowDetailedSettingsAsync(BellTeam.Linux.SettingsPage.Update); return; }
+        if (target.Conversation is not { } conversation) return;
         var entry = model.Conversations.FirstOrDefault(item => item.Target == conversation);
         if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
         CloseAllPages(); CloseSheet(); ShowConversation(); await model.SelectAsync(entry);
