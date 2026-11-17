@@ -234,6 +234,16 @@ test('update_selfは呼出元以外のBot IDを受け付けない', async () => 
   )
 })
 
+test('update_self/update_botは固定の印を設定も解除もできない', async () => {
+  const calls = []
+  const registry = { async refresh() {}, get() { return { id: 'bot-a' } }, async update(...args) { calls.push(args); return { id: 'bot-a' } } }
+  const configure = async (...args) => { calls.push(args); return {} }
+  for (const name of ['update_self', 'update_bot'])
+    for (const changes of [{ configurationLocked: true }, { configurationLocked: false, model: 'opus' }])
+      await assert.rejects(callBellTeamTool({ name, arguments: { ...(name === 'update_bot' ? { botId: 'bot-a' } : {}), ...changes }, from: 'bot-a', registry, configure, messenger: {} }), /TOOL_ARGUMENT_INVALID: configurationLocked/u)
+  assert.deepEqual(calls, [])
+})
+
 test('Bot内MCPのメッセージ配送はメインサーバーへ集約する', async () => {
   const calls = []
   const registry = new Map([

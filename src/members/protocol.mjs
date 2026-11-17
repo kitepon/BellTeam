@@ -23,7 +23,7 @@ const crop = value => {
 }
 const profileFields = {
   name: value => { string(value, 100); if (!value.trim()) fail() }, harness,
-  model: value => string(value, 200), reasoningEffort: text, fastMode: bool,
+  model: value => string(value, 200), reasoningEffort: text, fastMode: bool, configurationLocked: bool,
   profileText: value => string(value, 8000), personality: value => string(value, 8000), speechStyle: value => string(value, 8000),
   position: value => string(value, 100), role: value => string(value, 8000),
   color: value => { if (!['rose', 'indigo', 'violet'].includes(value)) fail() },
