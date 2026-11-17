@@ -1,6 +1,7 @@
 // 設定。ホームの項目の列と、項目ごとのページ（docs/architecture/modules/web/user-paths.md 4）。
 // 値を変えるカードは、それぞれのカードの下の保存だけで保存する。上の見出しに保存は無い。
 import { createWebPushSettings } from './web-push.js?v=__ASSET_VERSION__'
+import { createBillingSettings } from './billing.js?v=__ASSET_VERSION__'
 import { serverDestination } from './server-origin.js?v=__ASSET_VERSION__'
 import { readConversationMotion, conversationMotionKey } from './view-preferences.js?v=__ASSET_VERSION__'
 import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
@@ -65,8 +66,10 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpda
   const home = createSettingsHome(dialog, { canLeave: page => !pageDirty(page) || confirm('入力した内容はまだ保存していません。ほかの項目へ移りますか？'), onShow: page => {
     if (page === 'updates') home.set('updates', updateItem(updateSummary()))
     if (page === 'exclusions') void exclusions.refresh()
+    if (page === 'billing') void billing.open()
   } })
   const webPush = createWebPushSettings(find('web-push-settings'), api, globalThis, { onChange: value => home.set('notifications', value) })
+  const billing = createBillingSettings(find('billing-settings'), api, globalThis, { onChange: value => home.set('billing', value) })
   const aiControl = aiControlView(find('ai-control'), api, { onChange: value => home.set('stop', value) })
   const exclusions = runningExclusionsView(find('running-exclusions'), api, { nameOf: memberName, onChange: value => home.set('exclusions', value) })
   const backgroundAgent = createBackgroundAgentSettings(find('background-agent-form'), api, { onChange: line => home.set('summary', { line }) })

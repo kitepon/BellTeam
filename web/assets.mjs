@@ -11,6 +11,7 @@ export const webAssetFiles = new Map([
   ['/notification-payload.js', 'notification-payload.js'],
   ['/notification-navigation.js', 'notification-navigation.js'],
   ['/web-push.js', 'web-push.js'],
+  ['/billing.js', 'billing.js'],
   ['/onboarding.js', 'onboarding.js'],
   ['/harness-auth.js', 'harness-auth.js'],
   ['/work-graph.js', 'work-graph.js'],
@@ -64,4 +65,4 @@ export const webAssetFiles = new Map([
   ['/icons/icon-512.png', 'icons/icon-512.png'],
 ])
 
-export const versionedWebAssets = new Set(['background-agent-settings.js', 'sw.js', 'notification-worker.js', 'notification-navigation.js', 'current-work.js', 'roster-view.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'forward-dialog.js', 'harness-auth.js', 'work-graph.js', 'lattice-chart.js', 'lattice-stops.js', 'approvals.js', 'approvals-feed.js', 'approvals-model.js', 'harness-accounts.js', 'onboarding.js', 'rich-text.js', 'secret-input.js', 'terminals.js', 'folder-picker.js', 'running-exclusions.js'])
+export const versionedWebAssets = new Set(['background-agent-settings.js', 'sw.js', 'notification-worker.js', 'notification-navigation.js', 'current-work.js', 'roster-view.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'forward-dialog.js', 'harness-auth.js', 'work-graph.js', 'lattice-chart.js', 'lattice-stops.js', 'approvals.js', 'approvals-feed.js', 'approvals-model.js', 'harness-accounts.js', 'onboarding.js', 'rich-text.js', 'secret-input.js', 'terminals.js', 'folder-picker.js', 'running-exclusions.js', 'billing.js'])
