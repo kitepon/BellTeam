@@ -425,11 +425,11 @@ public sealed partial class SettingsWindow
     // ---- 利用と課金 ----
     private Task BillingPage()
     {
-        // a337: the Stripe purchase entry sits under the lead text; it hides itself when there is nothing to buy (active plan, developer server, Stripe not set up).
+        // a337: the three store rows sit under the lead text; the entry hides itself on a developer server and while Stripe is not set up.
         var purchase = new PurchaseEntry(new SubscriptionApi(workspace.Management.Api), url => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }), lifetime!.Token);
         var page = NewPage(SettingsPage.Billing);
         var card = new StackPanel(); card.Children.Add(CardTitle(SettingsIcons.Card, "BellTeamの利用", 17));
-        card.Children.Add(Text("Web版とWindows版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
+        card.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
         card.Children.Add(purchase);
         var notice = new StackPanel();
         card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));

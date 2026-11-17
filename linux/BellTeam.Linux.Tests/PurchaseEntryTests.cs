@@ -9,14 +9,14 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-// a337: the Stripe purchase entry on 利用と課金, against a stub server.
+// a337: the three store rows of the purchase entry on 利用と課金, against a stub server.
 public sealed class PurchaseEntryTests
 {
     private sealed class Server : HttpMessageHandler
     {
         public int Checkouts; public string? Verified, Opened;
-        public bool Entitled, Developer; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK; public string CheckoutUrl = "https://checkout.example/pay";
-        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
+        public bool Entitled, Developer; public string Source = "stripe"; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK; public string CheckoutUrl = "https://checkout.example/pay";
+        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", source = Entitled ? Source : null, accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
@@ -40,7 +40,11 @@ public sealed class PurchaseEntryTests
     {
         var server = new Server(); var entry = server.Entry();
         await entry.LoadAsync();
-        Assert.Equal(0, server.Checkouts); Assert.NotNull(Find(entry, SubscriptionText.Start)); Assert.Contains(SubscriptionText.Caption, Texts(entry)); Assert.Null(Find(entry, SubscriptionText.Verify));
+        Assert.Equal(0, server.Checkouts); Assert.NotNull(Find(entry, SubscriptionText.Start)); Assert.Null(Find(entry, SubscriptionText.Verify));
+        // Contract rows: Stripe first, App Store and Google Play after it, each with the price and the free month; only the two others say they cannot be bought here.
+        Assert.Equal(SubscriptionText.Stores, Texts(entry).Where(SubscriptionText.Stores.Contains).ToArray());
+        Assert.Equal(3, Texts(entry).Count(line => line == $"{SubscriptionText.Price}　{SubscriptionText.FreeMonth}"));
+        Assert.Contains(SubscriptionText.Unavailable("App Store"), Texts(entry)); Assert.Contains(SubscriptionText.Unavailable("Google Play"), Texts(entry)); Assert.DoesNotContain(SubscriptionText.Unavailable("Stripe"), Texts(entry));
         await Click(entry, SubscriptionText.Start, () => server.Opened is not null);
         Assert.Equal(1, server.Checkouts); Assert.Equal("https://checkout.example/pay", server.Opened);
         await Until(() => Find(entry, SubscriptionText.Verify) is not null); Assert.NotNull(Find(entry, SubscriptionText.Recheck));
@@ -48,18 +52,20 @@ public sealed class PurchaseEntryTests
         Assert.Equal("cs_test_1", server.Verified);
         Assert.Null(Find(entry, SubscriptionText.Start)); Assert.Null(Find(entry, SubscriptionText.Verify));
         Assert.Contains(Texts(entry), line => line.StartsWith("有効期限：")); Assert.Contains(SubscriptionText.Trial, Texts(entry));
+        Assert.Contains(SubscriptionText.Active("Stripe"), Texts(entry));
     });
 
     [Fact]
     public Task NothingIsOfferedForAnActivePlanADeveloperServerOrStripeNotSetUp() => Ui.Run(async () =>
     {
-        var active = new Server { Entitled = true }; var activeEntry = active.Entry(); await activeEntry.LoadAsync();
-        Assert.Null(Find(activeEntry, SubscriptionText.Start)); Assert.Equal(0, active.Checkouts);
+        // An App Store plan: its row is marked active, the Stripe row has no button, and no second purchase is offered.
+        var active = new Server { Entitled = true, Source = "apple" }; var activeEntry = active.Entry(); await activeEntry.LoadAsync();
+        Assert.Null(Find(activeEntry, SubscriptionText.Start)); Assert.Equal(0, active.Checkouts); Assert.Contains(SubscriptionText.Active("App Store"), Texts(activeEntry)); Assert.DoesNotContain(SubscriptionText.Unavailable("App Store"), Texts(activeEntry));
         var developer = new Server { Developer = true }; var developerEntry = developer.Entry(); await developerEntry.LoadAsync();
-        Assert.Null(Find(developerEntry, SubscriptionText.Start));
+        Assert.Null(Find(developerEntry, SubscriptionText.Start)); Assert.DoesNotContain("Stripe", Texts(developerEntry));
         var dark = new Server { CheckoutStatus = HttpStatusCode.ServiceUnavailable }; var darkEntry = dark.Entry(); await darkEntry.LoadAsync();
         await Click(darkEntry, SubscriptionText.Start, () => !darkEntry.Offering);
-        Assert.Null(Find(darkEntry, SubscriptionText.Start)); Assert.Null(Find(darkEntry, SubscriptionText.Recheck)); Assert.Null(dark.Opened);
+        Assert.Null(Find(darkEntry, SubscriptionText.Start)); Assert.Null(Find(darkEntry, SubscriptionText.Recheck)); Assert.Null(dark.Opened); Assert.DoesNotContain("Stripe", Texts(darkEntry));
     });
 
     [Fact]
