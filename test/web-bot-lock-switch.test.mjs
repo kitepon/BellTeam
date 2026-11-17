@@ -13,9 +13,9 @@ const setup=(t,existing,writes)=>{
   return {f,editor}
 }
 
-test('the 固定 switch is in the page, after the effort field', async () => {
+test('the 固定 switch is in the page, after the fast mode switch', async () => {
   const html=await readFile(new URL('../web/index.html',import.meta.url),'utf8')
-  assert.ok(html.indexOf('id="bot-reasoning-effort"')<html.indexOf('id="bot-configuration-locked"'))
+  assert.ok(html.indexOf('id="bot-fast-mode"')<html.indexOf('id="bot-configuration-locked"'))
 })
 
 test('固定 follows the Bot, is sent only when changed, and never disables the Owner AI controls', async t => {
