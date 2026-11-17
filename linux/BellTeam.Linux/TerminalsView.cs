@@ -169,7 +169,7 @@ internal sealed class TerminalDetailView : Grid, IDisposable
     public TerminalDetailView(LinuxWorkspace workspace, string id, CancellationToken token, Func<SecretRequest, Action<SecretRequest>, Task>? openSecret = null)
     {
         this.workspace = workspace; model = workspace.Terminals; this.id = id; this.token = token;
-        this.openSecret = openSecret ?? ((request, completed) => TopLevel.GetTopLevel(this) is Window owner ? SecretInputWindow.ShowAsync(owner, request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), completed) : throw new InvalidOperationException("入力欄を開く窓がありません。"));
+        this.openSecret = openSecret ?? ((request, completed) => OwnerWindow.Of(this) is { } owner ? SecretInputWindow.ShowAsync(owner, request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), completed) : throw new InvalidOperationException("入力欄を開く窓がありません。"));
         EditButton = Capsule("編集", Brushes.White, Ink, 16, 13, new Thickness(14, 6)); AutomationProperties.SetName(EditButton, "編集");
         EditButton.Click += (_, _) => { if (model.Find(id) is { } terminal) OpenSheet("端末を編集", new TerminalEditorView(workspace, model, terminal)); };
         var scroller = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };

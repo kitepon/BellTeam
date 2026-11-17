@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using BellTeam.Core;
 using BellTeam.Linux;
+using Window = BellTeam.Linux.Window;
 
 namespace BellTeam.Android;
 
@@ -24,6 +25,13 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly ContentControl sheetBody = new();
     private readonly Button sheetSave = new() { Classes = { "plain" }, Background = BellTheme.ProminentFill, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 12, 0), Padding = new Thickness(16, 6), IsVisible = false };
     private ISheetSave? sheetSaving;
+    // The "windows" of the linked Linux screens (approvals, chart, graph) are pages of this stack: Window.Show pushes one, Window.Close pops it.
+    private readonly Grid pageLayer = new() { Background = BellTheme.Canvas, IsVisible = false, RowDefinitions = new RowDefinitions("52,*") };
+    private readonly TextBlock pageTitle = new() { FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly ContentControl pageBody = new();
+    private readonly List<Window> pages = [];
+    private readonly ApprovalsHub approvals;
+    private readonly Button approvalsEntry = new() { Classes = { "plain" }, Background = Brushes.White, Foreground = BellTheme.Ink, Padding = new Thickness(14, 8) };
     private readonly Grid galleryLayer = new() { Background = Brushes.Black, IsVisible = false };
     private readonly TextBlock quoteName = new() { FontSize = 13, FontWeight = FontWeight.Bold, Foreground = BellTheme.Violet, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock quoteText = new() { FontSize = 14, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -56,6 +64,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
     public PhoneShell()
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies), access.PrepareAsync);
+        approvals = new ApprovalsHub(model); approvals.Changed += UpdateApprovalsEntry;
+        Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
         ExternalLink.Opener = uri => MainActivity.Current.StartActivity(new global::Android.Content.Intent(global::Android.Content.Intent.ActionView, global::Android.Net.Uri.Parse(uri.AbsoluteUri)));
@@ -68,7 +78,12 @@ public sealed class PhoneShell : UserControl, IMessageHost
         settingsButton.Click += (_, _) => ShowSettings();
         var searchBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(12, 8), Children = { new Border { Background = Brushes.White, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 0), Child = search }, settingsButton } };
         Grid.SetColumn(settingsButton, 1);
-        listPage.Children.Add(searchBar); Grid.SetRow(status, 1); listPage.Children.Add(status);
+        approvalsEntry.Click += (_, _) => ShowApprovals();
+        var chart = SettingsUi.Capsule("工程表", Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); chart.Click += (_, _) => ShowLattice();
+        var graph = SettingsUi.Capsule("相関図", Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); graph.Click += (_, _) => ShowWorkGraph();
+        var entries = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(12, 0, 12, 8), Children = { approvalsEntry, chart, graph } };
+        var barAndEntries = new StackPanel { Children = { searchBar, entries } };
+        listPage.Children.Add(barAndEntries); Grid.SetRow(status, 1); listPage.Children.Add(status);
         var scroll = new ScrollViewer { Content = list }; Grid.SetRow(scroll, 2); listPage.Children.Add(scroll);
         search.TextChanged += (_, _) => model.Search = search.Text ?? "";
 
@@ -94,13 +109,17 @@ public sealed class PhoneShell : UserControl, IMessageHost
         settingsBack.Click += (_, _) => ShowList();
         var settingsHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { settingsBack, new TextBlock { Text = "設定", FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center } } };
         Grid.SetColumn(settingsHeader.Children[1], 1); settingsPage.Children.Add(settingsHeader);
-        var pages = new Grid { Children = { listPage, conversationPage, settingsPage } };
-        var column = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Children = { pages } };
+        var pageHost = new Grid { Children = { listPage, conversationPage, settingsPage } };
+        var column = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Children = { pageHost } };
         var closeSheet = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.Close, 20, BellTheme.Ink), Background = Brushes.Transparent, Width = 52, Height = 52, HorizontalAlignment = HorizontalAlignment.Left };
         closeSheet.Click += (_, _) => CloseSheet();
         sheetSave.Click += (_, _) => { if (sheetSaving is { CanSave: true } save) _ = save.SaveAsync(); };
         sheetLayer.Children.Add(new Grid { Background = BellTheme.BandFill, Children = { sheetTitle, closeSheet, sheetSave } }); Grid.SetRow(sheetBody, 1); sheetLayer.Children.Add(sheetBody);
-        root.Child = new Grid { Children = { column, startupHost, sheetLayer, galleryLayer } };
+        var pageBack = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
+        pageBack.Click += (_, _) => GoBackPage();
+        var pageHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { pageBack, pageTitle } }; Grid.SetColumn(pageTitle, 1);
+        pageLayer.Children.Add(pageHeader); Grid.SetRow(pageBody, 1); pageLayer.Children.Add(pageBody);
+        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer } };
         Content = root;
 
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
@@ -129,6 +148,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         {
             if (galleryLayer.IsVisible) { CloseGallery(); e.Handled = true; }
             else if (sheetLayer.IsVisible) { CloseSheet(); e.Handled = true; }
+            else if (pages.Count != 0) { GoBackPage(); e.Handled = true; }
             else if (conversationPage.IsVisible || settingsPage.IsVisible) { ShowList(); e.Handled = true; }
         };
     }
@@ -137,6 +157,54 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         var saved = settings.Load().ServerUrl;
         if (StartupRoute.Initial(saved) == StartupPhase.Setup) ShowStartup(StartupPhase.Setup); else _ = ConnectAsync(saved!);
+    }
+
+    // ---- the pages of the linked screens ----
+    private void PushPage(Window window)
+    {
+        if (pages.Contains(window)) return;
+        // The screens were drawn for a desktop window: here they fill the page.
+        window.Width = window.Height = double.NaN; window.MinWidth = window.MinHeight = 0; window.MaxWidth = window.MaxHeight = double.PositiveInfinity;
+        pages.Add(window); ShowTopPage();
+    }
+    private void PopPage(Window window) { pages.Remove(window); ShowTopPage(); }
+    private void ShowTopPage()
+    {
+        if (pages.Count == 0) { pageBody.Content = null; pageLayer.IsVisible = false; return; }
+        var top = pages[^1]; pageTitle.Text = top.Title ?? ""; pageBody.Content = top; pageLayer.IsVisible = true;
+    }
+    private void GoBackPage() { if (pages.Count == 0) return; var top = pages[^1]; if (top is IPageBack back && back.GoBack()) return; top.Close(); }
+    private void CloseAllPages() { foreach (var window in pages.ToArray()) window.Close(); }
+
+    private void ShowApprovals(string? decisionId = null)
+    {
+        if (!model.Connected) return;
+        var window = ApprovalsWindow.Open(approvals, model, (project, card) => ShowLattice()?.OpenCard(project, card), botId => _ = OpenChatAsync(botId, "決裁のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"));
+        window.Compact = true; window.Show(); if (decisionId is not null) window.Select(decisionId);
+    }
+    private LatticeWindow? ShowLattice()
+    {
+        if (!model.Connected) return null;
+        var window = LatticeWindow.Open(model, botId => OpenChatAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"), id => ShowApprovals(id));
+        window.Show(); return window;
+    }
+    private void ShowWorkGraph()
+    {
+        if (!model.Connected) return;
+        WorkGraphWindow.Open(model, botId => OpenChatAsync(botId, "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")).Show();
+    }
+    // A member's chat opens over the pages, as from a notification.
+    private async Task OpenChatAsync(string botId, string missing)
+    {
+        var entry = model.Conversations.FirstOrDefault(item => item.Target == new ChatTarget(botId, false));
+        if (entry is null) { model.ReportActionError(missing); return; }
+        CloseAllPages(); ShowConversation(); await model.SelectAsync(entry);
+    }
+    private void UpdateApprovalsEntry()
+    {
+        var view = Approvals.EntryView(approvals.Feed?.Summary, approvals.Feed?.Failure);
+        approvalsEntry.Content = view.Pending > 0 ? $"決裁箱 {view.Pending}" : "決裁箱"; approvalsEntry.IsEnabled = model.Connected;
+        Avalonia.Automation.AutomationProperties.SetName(approvalsEntry, view.Label);
     }
 
     private void UpdateQuoteBar()
@@ -224,6 +292,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         switch (name)
         {
+            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) approvals.Sync(); break;
             case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;

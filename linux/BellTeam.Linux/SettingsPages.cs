@@ -16,7 +16,7 @@ public sealed partial class SettingsWindow
     private const string PrivacyPolicyUrl = "https://bellteam-subscriptions.kitepon.workers.dev/privacy";
     private const string SupportUrl = "https://bellteam-subscriptions.kitepon.workers.dev/support";
 
-    protected override Window? DialogOwner => TopLevel.GetTopLevel(pane) as Window;
+    protected override Window? DialogOwner => OwnerWindow.Of(pane);
     private static IBrush Tone(HarnessTone tone) => tone switch { HarnessTone.Good => Green, HarnessTone.Warning => Orange, _ => Muted };
     private static StackPanel CardTitle(string glyph, string title, double size = 13)
     {
@@ -345,7 +345,7 @@ public sealed partial class SettingsWindow
         var editor = new FeatureEditor(workspace, feature.Id, feature.Title); embedded = editor;
         var content = editor.AsPage(Reopen, keepActions: true);
         ShowSubPage(feature.Title, content, Reopen);
-        if (TopLevel.GetTopLevel(pane) is Window host) { EventHandler clear = (_, _) => editor.ClearSecrets(); host.Deactivated += clear; editor.PageClosed += () => host.Deactivated -= clear; }
+        if (OwnerWindow.Of(pane) is { } host) { EventHandler clear = (_, _) => editor.ClearSecrets(); host.Deactivated += clear; editor.PageClosed += () => host.Deactivated -= clear; }
         await editor.InitializeAsync();
     }
 
@@ -356,7 +356,7 @@ public sealed partial class SettingsWindow
         var token = lifetime?.Token ?? Token;
         var form = NewPage(null, scroll: false); ShowSubPage(feature.Title, new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, Reopen);
         var view = onePassword = new OnePasswordView(workspace, feature, form, token, busy => Busy = busy);
-        if (TopLevel.GetTopLevel(pane) is Window host) { EventHandler clear = (_, _) => view.ClearToken(); host.Deactivated += clear; token.Register(() => host.Deactivated -= clear); }
+        if (OwnerWindow.Of(pane) is { } host) { EventHandler clear = (_, _) => view.ClearToken(); host.Deactivated += clear; token.Register(() => host.Deactivated -= clear); }
         await view.Ready;
     }
     // Render seam: opens the page of the mock's onePassword item in a named state ("checking" and "success" need a PATCH the mock never serves).
@@ -457,7 +457,7 @@ public sealed partial class SettingsWindow
     {
         var page = NewPage(SettingsPage.About);
         var host = new Uri(workspace.Server).Host;
-        page.Children.Add(FormSection(null, new GroupCard(Row(LabeledRow("アプリの版", typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "-")), Row(LabeledRow("接続先", host.Length == 0 ? "未設定" : host)))));
+        page.Children.Add(FormSection(null, new GroupCard(Row(LabeledRow("アプリの版", typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "-")), Row(LabeledRow("接続先", host.Length == 0 ? "未設定" : host)))));
         return Task.CompletedTask;
     }
 

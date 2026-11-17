@@ -48,7 +48,8 @@ internal sealed partial class ApprovalsWindow
     // ---- the window
     private void Render()
     {
-        toolbarHost.Content = Toolbar();
+        // A phone's detail view gives the whole page to the detail: no tabs and counters above it.
+        toolbarHost.Content = Compact && Selected is not null && Status == ApprovalFeedStatus.Live ? null : Toolbar();
         body.Content = Status switch
         {
             ApprovalFeedStatus.Old => Gate(Globe, Approvals.Old, [("閉じる", false, Close)]),
@@ -132,6 +133,7 @@ internal sealed partial class ApprovalsWindow
     // ---- three columns
     private Control Columns()
     {
+        if (Compact) return CompactColumns();
         var grid = new Grid { Margin = new Thickness(14, 6, 14, 14) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(500, GridUnitType.Star)) { MinWidth = 360 });
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(520, GridUnitType.Star)) { MinWidth = 380 });
@@ -141,6 +143,16 @@ internal sealed partial class ApprovalsWindow
         grid.Children.Add(list); grid.Children.Add(detail); grid.Children.Add(chain);
         grid.Opacity = Status == ApprovalFeedStatus.Drop || listProblem is not null ? .6 : 1;
         return grid;
+    }
+
+    // A phone shows one column at a time: the list, and after a pick the detail with the chain under it and a way back to the list.
+    internal bool Compact { get; set; }
+    private Control CompactColumns()
+    {
+        if (Selected is not { } decision) return new Border { Margin = new Thickness(10, 6, 10, 10), Child = ListColumn() };
+        var back = Action("一覧へ", null); back.HorizontalAlignment = HorizontalAlignment.Left; back.Margin = new Thickness(4, 0, 0, 8); back.Click += (_, _) => { SelectedId = null; ResetStep(); Render(); };
+        var detail = DetailColumn(decision); var chain = ChainColumn(decision);
+        return new ScrollViewer { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, Content = new StackPanel { Margin = new Thickness(14, 6, 14, 14), Spacing = 12, Children = { back, detail, chain } } };
     }
 
     // ---- list

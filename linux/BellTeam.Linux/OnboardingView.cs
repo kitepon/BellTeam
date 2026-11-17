@@ -37,10 +37,10 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         this.api = api; state = initial; this.ready = ready; this.changeServer = changeServer; this.lifetime = lifetime;
         Children.Add(Scroll(column, 560, new Thickness(28, 56, 28, 28)));
         AutomationProperties.SetName(code, "認証コード"); code.Name = "harness-auth-input";
-        AttachedToVisualTree += (_, _) => { window = TopLevel.GetTopLevel(this) as Window; if (window is not null) window.Deactivated += Deactivated; };
+        AttachedToVisualTree += (_, _) => { window = OwnerWindow.Of(this); if (window is not null) window.Deactivated += Deactivated; };
         DetachedFromVisualTree += (_, _) => { if (window is not null) window.Deactivated -= Deactivated; window = null; code.Clear(); };
         // Mac: polls only while the app is active; the Linux window is the app.
-        timer.Tick += async (_, _) => { if ((TopLevel.GetTopLevel(this) as Window)?.IsActive == true) await PollAsync(); };
+        timer.Tick += async (_, _) => { if (OwnerWindow.Of(this)?.IsActive == true) await PollAsync(); };
         Render(); UpdatePolling();
     }
     // The pasted code leaves the field as soon as the window loses focus.

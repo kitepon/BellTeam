@@ -150,7 +150,7 @@ internal sealed class FolderPickerView : Border
     {
         this.model = model; this.choose = choose;
         // The Mac sheet: a 閉じる pill at the left of the title.
-        CloseButton = MainWindow.SheetPill("閉じる"); CloseButton.HorizontalAlignment = HorizontalAlignment.Left; CloseButton.Margin = new Thickness(12, 0, 0, 0); CloseButton.Click += (_, _) => close();
+        CloseButton = SheetButtons.Pill("閉じる"); CloseButton.HorizontalAlignment = HorizontalAlignment.Left; CloseButton.Margin = new Thickness(12, 0, 0, 0); CloseButton.Click += (_, _) => close();
         var title = Text("フォルダを選ぶ", 15, Ink, FontWeight.SemiBold); title.HorizontalAlignment = HorizontalAlignment.Center; title.VerticalAlignment = VerticalAlignment.Center;
         var header = new Grid { Height = 52, Background = FormCanvas }; header.Children.Add(CloseButton); header.Children.Add(title);
         var dock = new DockPanel();

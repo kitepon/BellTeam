@@ -17,7 +17,7 @@ namespace BellTeam.Linux;
 /// <see cref="ApprovalsHub"/> feed (summary, stream) and its own list reads; saves nothing; closing drops the drawing. State here: the tab, the 出どころ filter, the selected decision, the step of one answer
 /// (with its Idempotency-Key) and the connect request. Every failure view leaves on its own or by one action on the same screen.
 /// </summary>
-internal sealed partial class ApprovalsWindow : Window
+internal sealed partial class ApprovalsWindow : Window, IPageBack
 {
     public static ApprovalsWindow? Current { get; private set; }
     public static ApprovalsWindow Open(ApprovalsHub hub, LinuxWorkspace workspace, Action<string, string> openCard, Action<string> openChat)
@@ -145,6 +145,8 @@ internal sealed partial class ApprovalsWindow : Window
     // ---- navigation
     private void ResetStep() { step = Step.None; chosenId = chosenLabel = key = stepMessage = null; writeText = ""; copied = false; }
     private bool Back() { if (step is Step.Choose or Step.Writing or Step.Confirm) { ResetStep(); Render(); return true; } return false; }
+    // The phone's back key: a step goes back first, then the detail goes back to the list (Compact), then the page closes.
+    public bool GoBack() { if (Back()) return true; if (Compact && SelectedId is not null) { SelectedId = null; Render(); return true; } return false; }
     internal void SetTab(string value) { tab = value; SelectedId = null; ResetStep(); note = null; banner = null; if (value == "done" && !doneRead) _ = ReadDoneAsync(false); Render(); }
     internal void Pick(string id) { if (SelectedId == id) return; SelectedId = id; ResetStep(); note = null; banner = null; Render(); }
 
