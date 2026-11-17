@@ -462,7 +462,8 @@ private final class BillingScenario {
         requests.append((method, path, try body(of: request), request.timeoutInterval))
         guard !responses.isEmpty else { throw URLError(.unsupportedURL) }
         switch (method, path, responses.removeFirst()) {
-        case ("GET", "/api/subscription", .failure): throw URLError(.timedOut)
+        // Not .timedOut: BellAPI retries a fast GET timeout once (dead shared connection), which would consume the next scripted reply.
+        case ("GET", "/api/subscription", .failure): throw URLError(.cannotConnectToHost)
         case ("GET", "/api/subscription", .mode(let mode)):
             return (200, Data("""
                 {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"\(mode)","setup_complete":true,"entitled":false,"state":"inactive","auto_renewing":false,"billing_sources":[],"can_purchase":\(mode == "subscription")}}
