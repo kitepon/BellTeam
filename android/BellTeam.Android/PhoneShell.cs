@@ -45,7 +45,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly Grid listPage = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*"), Background = BellTheme.SidebarFill };
     private readonly Grid conversationPage = new() { RowDefinitions = new RowDefinitions("52,*,Auto"), Background = BellTheme.ConversationBackground, IsVisible = false };
     private readonly Grid settingsPage = new() { RowDefinitions = new RowDefinitions("52,*"), Background = BellTheme.ConversationBackground, IsVisible = false };
-    private SettingsPage? settingsBody;
+    private PhoneSettingsPage? settingsBody;
     private CancellationTokenSource? settingsLife;
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
@@ -160,6 +160,15 @@ public sealed class PhoneShell : UserControl, IMessageHost
     }
 
     // ---- the pages of the linked screens ----
+    private void ShowDetailedSettings()
+    {
+        if (!model.Connected) return;
+        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), () => { CloseAllPages(); access.SignOut(); ShowList(); model.SignOut(); },
+            // The app draws these itself (Google Play rows, the sign-in, the version); notifications are desktop (freedesktop) only.
+            [BellTeam.Linux.SettingsPage.Connection, BellTeam.Linux.SettingsPage.Billing, BellTeam.Linux.SettingsPage.About, BellTeam.Linux.SettingsPage.Notifications]);
+        window.Show(); _ = window.InitializeAsync();
+    }
+
     private void PushPage(Window window)
     {
         if (pages.Contains(window)) return;
@@ -282,7 +291,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
         EndSettings();
         settingsLife = CancellationTokenSource.CreateLinkedTokenSource(model.ConnectionToken);
-        settingsBody = new SettingsPage(model, () => ShowStartup(StartupPhase.Setup), () => { access.SignOut(); ShowList(); model.SignOut(); }, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
+        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), () => { access.SignOut(); ShowList(); model.SignOut(); }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
         listPage.IsVisible = false; conversationPage.IsVisible = false; settingsPage.IsVisible = true;
     }
     // The page's reads end when it is left.

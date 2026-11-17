@@ -10,11 +10,16 @@ namespace BellTeam.Android;
 
 // The phone settings page (docs/android-architecture.md): connection, 利用と課金 with the purchase rows, and the app's version. The Linux SettingsWindow is a Window and cannot be built on Android,
 // so the page is written here from the same SettingsUi parts, in the order of the Mac settings list; the other Mac items arrive as pages of their own.
-public sealed class SettingsPage : ScrollViewer
+public sealed class PhoneSettingsPage : ScrollViewer
 {
-    public SettingsPage(LinuxWorkspace workspace, Action changeServer, Action signOut, CancellationToken token)
+    public PhoneSettingsPage(LinuxWorkspace workspace, Action changeServer, Action signOut, Action openDetails, CancellationToken token)
     {
         var column = new StackPanel { Margin = new Thickness(16, 8, 16, 24), Spacing = 14 };
+
+        // The other Mac settings pages (AI, terminals, features, display, update, stop) are the Linux screens, opened as a page of their own.
+        var details = new Button { Classes = { "plain" }, Background = BellTheme.ProminentFill, Foreground = Brushes.White, Padding = new Thickness(16, 12), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Content = "AI・端末・追加機能などの設定" };
+        details.Click += (_, _) => openDetails();
+        column.Children.Add(details);
 
         var connection = new StackPanel();
         connection.Children.Add(CardTitle(SettingsIcons.Globe, "接続", 17));
