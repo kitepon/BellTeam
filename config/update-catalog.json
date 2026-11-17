@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T23:04:10Z",
-  "expiresAt": "2026-11-24T23:04:10Z",
+  "publishedAt": "2026-11-17T23:37:39Z",
+  "expiresAt": "2026-11-24T23:37:39Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
-      "versionId": "a83738437428d902fd9a75f2eb497dc76931931ea077545778bf38c231728141",
+      "sourceCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8",
+      "versionId": "91250119e006132296df2e42e442192bd07549e56899e19727f1dc7e524361e7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz",
-          "bytes": 85762,
-          "sha256": "a83738437428d902fd9a75f2eb497dc76931931ea077545778bf38c231728141"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-amd64.tar.gz",
+          "bytes": 86062,
+          "sha256": "91250119e006132296df2e42e442192bd07549e56899e19727f1dc7e524361e7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11140,
-          "sha256": "6b38c9a56c7afcc905f6f1c11559fc29dea5611a912c14bde4771ddd7f119dd7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10862,
+          "sha256": "0ddb29e8120bd8c077ef6757ec9ac800ccfaa2a66ff90b978b81b9a646b94aa3"
         },
-        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
+        "signerCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -54,8 +54,8 @@
     },
     {
       "componentId": "usage",
-      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
-      "versionId": "7d9bb69dbf61fb69c450f88118777ac447178fcade3c208f24499471590f333f",
+      "sourceCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8",
+      "versionId": "66a4072960d359f04cae89899e9ffadecef3020b1e99f6c76c66cfd51d5b5eb4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +63,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz",
-          "bytes": 85762,
-          "sha256": "7d9bb69dbf61fb69c450f88118777ac447178fcade3c208f24499471590f333f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-arm64.tar.gz",
+          "bytes": 86062,
+          "sha256": "66a4072960d359f04cae89899e9ffadecef3020b1e99f6c76c66cfd51d5b5eb4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11046,
-          "sha256": "57bd5eed0cdb5504bf0e5ddcbcbb96e814c7b3d343b7ed256b8875c67f2ef249"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10905,
+          "sha256": "a68b5c02053679a43bf45faae5818e9406fe899e1b6616387ecb35ed63cd7d88"
         },
-        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
+        "signerCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -431,8 +431,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
-      "versionId": "330fa4e9ee6ce5a6655c33918febd65fc0b65cc24a52644c0a45640a44c4af4f",
+      "sourceCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8",
+      "versionId": "5bfb3b793f78f0a01d844366a296f0b6483ba8d5b12f752c0aa728a449896071",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -440,16 +440,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz",
-          "bytes": 5460715,
-          "sha256": "330fa4e9ee6ce5a6655c33918febd65fc0b65cc24a52644c0a45640a44c4af4f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233614Z/web-gateway-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-amd64.tar.gz",
+          "bytes": 5461271,
+          "sha256": "5bfb3b793f78f0a01d844366a296f0b6483ba8d5b12f752c0aa728a449896071"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11240,
-          "sha256": "4cc1cecec27839947aaf77a9592b3490208126ffdd49522cf392ea4fc228518a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233614Z/web-gateway-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "2b18a4f9a2bb007e25a2cad686d23d19d67d15e6bc5dec0c775f5ec6758bf63f"
         },
-        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
+        "signerCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -458,13 +458,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "購読の解約・管理の入口（Stripe）と、二重請求を止める確認を、Webの受付でも通すようにしました。"
+        "購読の解約・管理の入口（Stripe）と、二重請求を止める確認を、Webの受付でも通すようにしました。",
+        "Webの課金の設定の文面を、購入の決まりに合わせました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
-      "versionId": "8a3519151fd25a900dbc03900927b9dae8512de395b745be680ce9159302bc88",
+      "sourceCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8",
+      "versionId": "31dfe2e8e26103583d8e0cf91b1edceb30d48416a49003a1d64381b52b83b2af",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -472,16 +473,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz",
-          "bytes": 5460715,
-          "sha256": "8a3519151fd25a900dbc03900927b9dae8512de395b745be680ce9159302bc88"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233614Z/web-gateway-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-arm64.tar.gz",
+          "bytes": 5461271,
+          "sha256": "31dfe2e8e26103583d8e0cf91b1edceb30d48416a49003a1d64381b52b83b2af"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "ed35acdfc94e340a186a85eda821700e079d15fb06693b1bc497537687c42056"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233614Z/web-gateway-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "0cea794b7c9908136dc767ce0a7827226ef7c2f5f8db468dd97abba30a435dec"
         },
-        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
+        "signerCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -490,7 +491,8 @@
         "containerUpdate": null
       },
       "changes": [
-        "購読の解約・管理の入口（Stripe）と、二重請求を止める確認を、Webの受付でも通すようにしました。"
+        "購読の解約・管理の入口（Stripe）と、二重請求を止める確認を、Webの受付でも通すようにしました。",
+        "Webの課金の設定の文面を、購入の決まりに合わせました。"
       ]
     },
     {
@@ -711,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
-      "versionId": "sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810",
+      "sourceCommit": "30d80a5493a87163bb8301483858b5f61b18271b",
+      "versionId": "sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Android向けの通知（FCM）の記録を、本体が読めるようにしました。"
+        "購読の記録に、購入できるかどうかと購読元の項目があっても無くても読めるようにしました。解約・管理の入口を足しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
-      "versionId": "sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810",
+      "sourceCommit": "30d80a5493a87163bb8301483858b5f61b18271b",
+      "versionId": "sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Android向けの通知（FCM）の記録を、本体が読めるようにしました。"
+        "購読の記録に、購入できるかどうかと購読元の項目があっても無くても読めるようにしました。解約・管理の入口を足しました。"
       ]
     },
     {
