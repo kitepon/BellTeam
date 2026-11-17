@@ -5,8 +5,9 @@ import { configurationSettings, configurationDigest, configurationBinding,
 
 // New requests only. Existing IDs are read through reconcile, never applied again.
 export class ConfigurationRequests {
-  constructor({ client, intents }) {
+  constructor({ client, intents, lock = null }) {
     this.client = client
+    this.lock = lock
     this.intents = intents
     this.pending = new Map()
     this.active = new Set()
@@ -31,8 +32,10 @@ export class ConfigurationRequests {
     catch { this.auditWarning(botId, id) }
     const { session_id, ...request } = binding
     let result, refusal = null
+    // configuration-lock.md: BellTeam's own call carries the launcher key, so a locked seat still takes the Owner's change.
+    const lockKey = await this.lock?.key(botId).catch(() => null)
     try {
-      result = await this.client.call('agent_configure', { action: 'apply', session_id, request,
+      result = await this.client.call('agent_configure', { action: 'apply', session_id, request, ...(lockKey ? { configuration_lock_key: lockKey } : {}),
         ...Object.fromEntries(Object.entries(requested).filter(([, value]) => value !== null)) })
     } catch (error) {
       // Aiterm returned its error after recording the terminal result; read that record by the same ID, never apply again.

@@ -231,6 +231,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/capacity-continuation.mjs',
     'src/claude-limit-text.mjs',
     'src/configuration-intents.mjs',
+    'src/configuration-lock.mjs',
     'src/configuration-request.mjs',
     'src/configuration-requests.mjs',
     'src/current-work.mjs',

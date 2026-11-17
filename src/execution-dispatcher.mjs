@@ -3,6 +3,7 @@ import { ModelHandoff } from './model-handoff.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { ConfigurationIntents } from './configuration-intents.mjs'
+import { ConfigurationLock } from './configuration-lock.mjs'
 import { ConfigurationRequests } from './configuration-requests.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
@@ -114,8 +115,10 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   }
   native.close = async () => {} // The host owns the shared SDK and native PTYs.
   const { root, ...storageOptions } = ports.configurationStorage
+  // configuration-lock.md: one key secret beside the other execution state, shared by the requests and the transport.
+  const configurationLock = new ConfigurationLock(join(dirname(root), 'execution-configuration-lock.key'))
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root,
-    storageOptions) })
+    storageOptions), lock: configurationLock })
   // The engine is not the seat user; seat-owned files go through the parent's seat runner (harness-accounts.md "Identity").
   const accounts = new HarnessAccounts({ home: runtimeHome(), statePath: join(dirname(root), 'harness-accounts.json'),
     ...(typeof ports.seat?.waitProcess === 'function' ? { seat: seatFilesOver(ports.seat.waitProcess) } : {}) })
@@ -130,7 +133,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const transport = createManagedTransport({
     ...ports.seat, accounts, remoteSeats,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
-    activityPath: join(dirname(root), 'execution-activity.json'),
+    activityPath: join(dirname(root), 'execution-activity.json'), configurationLock,
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
     runningExclusionsPath: join(dirname(root), 'execution-running-exclusions.json'),
     // No SM10 port (older body): no seen fact, so the route rule stays off instead of resuming every seat (Molly 11/13).

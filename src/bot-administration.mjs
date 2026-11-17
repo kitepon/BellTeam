@@ -82,7 +82,10 @@ export class BotAdministration {
     admissionCheck?.()
     if (expected && ['harness', 'model', 'reasoningEffort', 'fastMode'].some(key => this.bots.get(botId)?.[key] !== expected[key]))
       throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
+    const wasLocked = current.configurationLocked === true
     const bot = await this.bots.update(botId, changes)
+    // configuration-lock.md: the Owner's switch reaches Aiterm now; a failure there never fails the save.
+    if ((bot.configurationLocked === true) !== wasLocked) this.trackCompletion(this.lockSeat(bot))
     const applying = wasRunning ? this.apply(current, candidate, { fastModeChanged, reapply, admissionCheck, handoffIngress }) : null
     if (applying && waitForApplication) {
       await applying
@@ -91,6 +94,11 @@ export class BotAdministration {
     }
     if (!wasRunning && configurationChanged) this.applications.delete(botId)
     return { bot: this.view(bot), harnessChanged, configurationChanged, applying: wasRunning }
+  }
+
+  async lockSeat(bot) {
+    try { if (await this.transport.isRunning(bot)) await this.transport.setConfigurationLock?.(bot, bot.configurationLocked === true) }
+    catch (error) { try { this.writeLog(`BellTeam configuration lock error: ${error?.code ?? 'failed'}\n`) } catch {} }
   }
 
   apply(current, candidate, { fastModeChanged, reapply, admissionCheck, handoffIngress }) {

@@ -113,7 +113,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -121,6 +121,7 @@ export class AitermTransport {
     this.trackCompletion = trackCompletion
     this.resolveBot = resolveBot
     this.configurationRequests = configurationRequests
+    this.configurationLock = configurationLock
     this.membersAdmission = membersAdmission
     this.requireMember = requireMember
     this.client = client
@@ -454,7 +455,24 @@ export class AitermTransport {
     } catch (error) {
       throw error
     }
+    // configuration-lock.md: a new launch has no Aiterm lock; the Owner's switch is read fresh, a failure only logs.
+    if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
     return session
+  }
+
+  // configuration-lock.md: one lock/unlock call. "Not confirmed" (old terminal, foreign lock, Aiterm down) is logged and means
+  // not locked; it never stops the seat or refuses the Owner.
+  async setConfigurationLock(bot, locked) {
+    const key = await this.configurationLock?.key(bot.id).catch(() => null)
+    if (!key) return false
+    try {
+      await this.changeSession(bot, 'agent_configure', { session_id: this.session(bot),
+        configuration_lock: locked ? 'lock' : 'unlock', configuration_lock_key: key })
+      return true
+    } catch (error) {
+      process.stderr.write(`BellTeam Aiterm: configuration ${locked ? 'lock' : 'unlock'} not confirmed: ${bot.id}: ${error?.configureRefusal?.code ?? error?.code ?? 'failed'}\n`)
+      return false
+    }
   }
 
   async resumePreviouslyActive(bot, reference) {
@@ -488,6 +506,7 @@ export class AitermTransport {
         || receipt.startup?.status !== 'ready' || receipt.initial_prompt?.status !== 'not_requested')
         await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
       this.seatHarnesses.set(bot.id, { session: reference.sessionId, harness: reference.harness })
+      if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
       return { sessionId: receipt.session_id, resumedAt: this.now() }
     })
   }
@@ -659,8 +678,18 @@ export class AitermTransport {
         || current.model !== next.model && next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
       if (reapply || (current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
       if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
-      const receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version, requestId)
-        : await this.changeSession(current, 'agent_configure', configuration)
+      let receipt
+      try {
+        const key = this.configurationRequests ? null : await this.configurationLock?.key(next.id).catch(() => null)
+        receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version, requestId)
+          : await this.changeSession(current, 'agent_configure', key ? { ...configuration, configuration_lock_key: key } : configuration)
+      } catch (error) {
+        // configuration-lock.md: a lock BellTeam did not set refuses even the keyed call. The Owner's change must land, so the
+        // relaunch (which drops that lock and starts with the saved model/effort) takes it; the launch locks again if the switch is on.
+        if ((error?.refusal ?? error?.configureRefusal)?.code !== 'AGENT_CONFIGURATION_LOCKED') throw error
+        const session = await this.restartNow(next, version, undefined, membersLease, admissionCheck)
+        return { botId: next.id, session, mode: 'restart' }
+      }
       // A model change keeps the seat; its account follows the new model's limit state at the next idle boundary.
       if (configuration.model !== undefined && this.claudeAccountBot(next) && !this.accountMoves.has(next.id)) this.moveAtBoundary(next.id)
       return { botId: next.id, session: this.session(next), mode: 'configure',
