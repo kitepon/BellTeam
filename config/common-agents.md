@@ -64,7 +64,7 @@ SECTION lattice
     EXCEPT: you already declared it yourself from the code.
     FACT: your declaration replaces an earlier one. A path without `#` claims the whole file, so every task that changes that file conflicts with yours. The result lists the conflicts with every unfinished task (declaration.conflicts); a conflict never refuses a declaration or an add.
     WHEN: you add a task to such a plan  MAY: declare it on the `todo add` itself with the same `--owns` and `--reads` (plan input: `tasks[].touches`), only when you will do the task yourself or already know its functions.  DO: otherwise leave the declaration to its worker.
-    WHEN: you gave functions and the add result has declaration.written false  FACT: the task is added; its functions are not recorded.  DO: correct the names (declaration.unresolved gives the nearest ones) and give the same flags to `todo independence witness declare`.  NEVER: add the task again.
+    WHEN: you gave functions and the add result has declaration.written false  FACT: the task is added; its functions are not recorded.  DO: correct the entries the result could not read (each must be `path#name`) and give the same flags to `todo independence witness declare`.  NEVER: add the task again.
     FACT: an undeclared task is not judged, and an enforced plan refuses its start; the declared tasks are judged without it.
     WHEN: todo start lists conflicts_with_active  DO: before editing the shared code, make that task your 前工程 or settle it with its owner or the coordinator.
     FACT: coverage missing or stale means not judged, never safe.
