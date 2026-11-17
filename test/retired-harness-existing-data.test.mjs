@@ -3,6 +3,8 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { BotRegistry } from '../src/bot-registry.mjs'
 import { loadBots } from '../src/bots.mjs'
 import { Onboarding } from '../src/onboarding.mjs'
@@ -14,6 +16,12 @@ import { RETIRED_HARNESS_NOTICE } from '../src/retired-harness.mjs'
 import { usageEffectResultValid } from '../src/usage/channel-protocol.mjs'
 import { createUsageRegistryPorts } from '../src/usage/registry-ports.mjs'
 import { createMemberProfileApi } from '../src/members/profiles-http.mjs'
+import { usageEffectValid } from '../src/usage/channel-protocol.mjs'
+import { usageResultValid } from '../src/usage/process-results.mjs'
+import { createUsageParentEffects } from '../src/usage-parent-effects.mjs'
+import { createUsageAssembly } from '../src/usage-assembly.mjs'
+import { createUsageApi } from '../src/usage/http-api.mjs'
+import { authReceipt, authUi } from '../src/auth-ui.mjs'
 
 // a365: a data dir written while Antigravity was a harness still starts, shows and can be switched; nothing is deleted.
 const models = { forHarness: async () => ({ efforts: ['low', 'high'], models: [] }) }
@@ -61,7 +69,8 @@ test('初期設定の保存にAntigravityが残っていても読み込める', 
     const snapshot = onboarding.snapshot()
     assert.equal(snapshot.phase, phase)
     assert.equal(snapshot.harness, harness)
-    assert.equal(snapshot.harnessNotice, started ? RETIRED_HARNESS_NOTICE : undefined)
+    // a374: the record keeps its six fields (the body's IPC check is exact); the notice is added at the HTTP edge.
+    assert.deepEqual(Object.keys(snapshot).sort(), ['auth', 'complete', 'guideBotId', 'harness', 'harnesses', 'phase'])
     assert.equal(JSON.parse(await readFile(path, 'utf8')).harness, 'antigravity')
   }
 })
@@ -117,4 +126,70 @@ test('案内文はHTTPで付き、モジュールの記録には載らない', a
   const response = { writeHead(status) { this.status = status }, end(body) { this.body = JSON.parse(body) } }
   await api({ method: 'GET' }, response, new URL('http://fixture/api/bots'))
   assert.equal(response.body.bots.find(bot => bot.id === 'bot-old').harnessNotice, RETIRED_HARNESS_NOTICE)
+})
+
+// a374: body and usage ship separately and each checks the other's records exactly, so these run the real pair.
+const guide = root => ({ id: 'bot-guide', name: '案内役', harness: 'antigravity', project: join(root, 'bots/bot-guide') })
+function bodyServices(root, aiterm) {
+  const bots = new Map([['bot-guide', guide(root)]])
+  bots.refresh = async () => {}
+  bots.update = async (id, changes) => Object.assign(bots.get(id), changes)
+  return { bots, rooms: Object.assign(new Map(), { refresh: async () => {} }), notifications: {}, messenger: {},
+    transport: { client: { call: async (_name, params) => { aiterm.push(`${params.harness}:${params.action}`)
+      return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', harness: params.harness, status: 'waiting', session_id: 's1', url: null, user_code: null, input_required: false, message: null } } } } } }
+}
+
+for (const started of [false, true]) test(`Antigravityが残る保存領域で、実物のusageの部品が本体の組み立てで起動する（初期設定${started ? '開始済み' : '開始前'}）`, { timeout: 60000 }, async t => {
+  const { root } = await dataDir(t)
+  await mkdir(join(root, 'state'), { recursive: true }); await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
+  await writeFile(join(root, 'shared/onboarding.json'), JSON.stringify({ schema: 'bellteam.onboarding.v1', harness: 'antigravity', guideBotId: 'bot-guide', authSession: null, started, complete: false }))
+  const background = { revision: '11111111-1111-4111-8111-111111111111', selection: { harness: 'antigravity', model: 'old-model', reasoningEffort: '' } }
+  await writeFile(join(root, 'shared/tools/bellteam-settings/background-agent.json'), JSON.stringify({ schema: 'bellteam.background-agent-settings.v1', ...background }))
+  const aiterm = [], children = [], services = bodyServices(root, aiterm)
+  const assembly = createUsageAssembly({ root, getServices: () => services, onState: () => {},
+    onEffect: createUsageParentEffects({ getServices: () => services, getFeatures: () => null, seatRuntime: null }),
+    spawnProcess: (_entry, args, options) => {
+      const child = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/usage-runtime-child.mjs', import.meta.url)), root, args[0]], { ...options, stdio: ['ignore', 'ignore', 'inherit', 'ipc'] })
+      children.push(child); return child
+    } })
+  t.after(async () => { await assembly.close().catch(() => {}); for (const child of children) child.kill('SIGKILL') })
+  const owner = method => assembly.capture(method, { kind: 'owner', botId: null })
+  // initializeServices ends with the ready probe (one onboarding.status); a refused record or effect fails it.
+  await assembly.initializeSettings(); await assembly.initializeSubscriptions(); await assembly.initializeServices()
+  const setup = await assembly.facade.onboarding.status(owner('onboarding.status'))
+  assert.deepEqual(Object.keys(setup).sort(), ['auth', 'complete', 'guideBotId', 'harness', 'harnesses', 'phase'])
+  assert.deepEqual([setup.phase, setup.harness], started ? ['ready', 'antigravity'] : ['select_harness', null])
+  assert.deepEqual(setup.harnesses.map(item => item.id), ['claude', 'codex', 'grok', 'cursor'])
+  assert.deepEqual(await assembly.facade.settings.backgroundAgentConfiguration(), background)
+  if (!started) {
+    const chosen = await assembly.facade.onboarding.select('claude', owner('onboarding.select'))
+    assert.deepEqual([chosen.phase, chosen.harness, services.bots.get('bot-guide').harness], ['authenticate', 'claude', 'claude'])
+  }
+  assert.equal(aiterm.some(call => call.startsWith('antigravity')), false)
+  // The body's HTTP edge adds the notice from the stored value.
+  const api = createUsageApi({ onboarding: assembly.facade.onboarding, notify() {}, captureUsageContext: (_request, method) => owner(method) })
+  const response = { writeHead(status) { this.status = status }, end(body) { this.body = JSON.parse(body) } }
+  await api({ method: 'GET', headers: {} }, response, new URL('http://fixture/api/setup'))
+  assert.equal(response.body.harnessNotice, started ? RETIRED_HARNESS_NOTICE : undefined)
+})
+
+test('古いusageの部品が送る形を、新しい本体が受け入れて答える', async () => {
+  const context = { generation: 'g', rootId: '1', kind: 'root', method: 'onboarding.status', mode: null, actor: { kind: 'system', botId: null }, continuation: false }
+  // An older usage child asks sign-in status for a stored Antigravity choice before the guide conversation starts.
+  const params = { harness: 'antigravity-cli', action: 'status' }
+  assert.equal(usageEffectValid('auth.call', params, context), true)
+  assert.equal(usageEffectValid('auth.call', { harness: 'gemini-cli', action: 'status' }, context), false)
+  const aiterm = [], services = bodyServices('/unused', aiterm)
+  const effects = createUsageParentEffects({ getServices: () => services, getFeatures: () => null, seatRuntime: null })
+  const result = await effects('auth.call', params, context)
+  assert.deepEqual(aiterm, [])
+  // The older child reads the answer with these same two functions.
+  const receipt = authReceipt(result, null, () => new Error('invalid'))
+  assert.deepEqual([receipt.status, receipt.message, authUi(receipt, null).stage, authUi(receipt, null).message], ['failed', RETIRED_HARNESS_NOTICE, 'failed', RETIRED_HARNESS_NOTICE])
+  // Its setup record names the stored value and still lists five AIs.
+  const old = { phase: 'authenticate', harness: 'antigravity', harnesses: ['claude', 'codex', 'grok', 'cursor', 'antigravity'].map(id => ({ id, name: id })), guideBotId: 'bot-guide', complete: false,
+    auth: { status: 'failed', url: null, user_code: null, input_required: false, message: RETIRED_HARNESS_NOTICE, session_id: null, auth_ui: authUi(receipt, null) } }
+  assert.equal(usageResultValid('onboarding.status', old), true)
+  // A record with any extra field is refused by both generations: nothing may be added to it.
+  assert.equal(usageResultValid('onboarding.status', { ...old, harnessNotice: RETIRED_HARNESS_NOTICE }), false)
 })

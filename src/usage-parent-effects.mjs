@@ -2,6 +2,7 @@ import { appendFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import guide from '../config/setup-guide.json' with { type: 'json' }
 import { HARNESS, GUIDE_BOT_ID } from './onboarding.mjs'
+import { retiredHarnessKind, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { usageError } from './usage/process-schema.mjs'
 import { usageEffectResultValid } from './usage/channel-protocol.mjs'
@@ -73,7 +74,16 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
       case 'auth.call': {
         const keys = ['harness', 'action', 'session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root', 'login', 'token_file']
         const harness = Object.keys(HARNESS).find(key => HARNESS[key] === params.harness)
-        if (!harness || Object.keys(params).some(key => !keys.includes(key))) throw usageError('USAGE_EFFECT_INVALID')
+        if (!harness && !retiredHarnessKind(params.harness) || Object.keys(params).some(key => !keys.includes(key))) throw usageError('USAGE_EFFECT_INVALID')
+        if (!harness) {
+          // a374: only an older usage child still asks for a retired harness (stored setup choice). Aiterm is not asked;
+          // the child shows this as a failed sign-in with the notice, and the user picks another AI.
+          result = { structuredContent: { schema: 'aiterm.agent-auth-result.v1', harness: params.harness, status: 'failed', session_id: null,
+            url: null, user_code: null, input_required: false, message: RETIRED_HARNESS_NOTICE,
+            auth_ui: { schema: 'aiterm.auth-ui.v1', binding: null, stage: 'failed', title: 'このAIは使えなくなりました', message: RETIRED_HARNESS_NOTICE,
+              url: null, user_code: null, input: null, prompt_digest: null, choices: [] } } }
+          break
+        }
         let bot
         if (context.method.startsWith('onboarding.')) bot = await readMember(bots, GUIDE_BOT_ID, context)
         else {

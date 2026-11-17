@@ -99,7 +99,7 @@ flowchart TD
 
 | 処理 | 実関数 / caller | 所有と境界 |
 | --- | --- | --- |
-| 初回状態 | `Onboarding.initialize/status/snapshot` ← GET setup | `state/onboarding.json`（席分離なしではshared）。既存Botがある導入では案内を再要求しない |
+| 初回状態 | `Onboarding.initialize/status/snapshot` ← GET setup | `state/onboarding.json`（席分離なしではshared）。既存Botがある導入では案内を再要求しない。記録の項目は`phase,harness,harnesses,guideBotId,complete,auth`の6つで固定（親が厳密に見る）。外したAIの案内文`harnessNotice`は親のHTTPの境が付ける（a374） |
 | CLIを選ぶ | `select` → `bots.create/update` → `callAuth(start)` | 旧authSession取消→harness保存→案内Bot準備→認証開始→session保存。途中失敗を一括rollbackしない |
 | 案内を始める | `start` → `callAuth(status/cancel)` → `startConversation` | 認証済みを確認。会話受付後にstartedを保存。`prepareStartup`は未完案内Botの指示だけを追記 |
 | 案内終了 | `complete` → `Subscriptions.completeSetup` → `save` | 内部MCP `complete_setup`はcallerのbotIdを渡し案内Bot一致を検証。publicは既存guideを使用 |
