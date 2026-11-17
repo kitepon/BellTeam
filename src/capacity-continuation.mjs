@@ -79,7 +79,7 @@ export class CapacityContinuation {
     }
     // Another harness only with Aiterm's terminal-failure proof; an account limit alone ends here.
     if (!context.failure) return
-    for (const harness of ['codex', 'claude', 'grok', 'cursor', 'antigravity']) {
+    for (const harness of ['codex', 'claude', 'grok', 'cursor']) {
       if (state.attempted.has(harness)) continue
       state.attempted.add(harness)
       let catalogue

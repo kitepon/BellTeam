@@ -14,7 +14,7 @@ test('U1: each harness file gives names/kinds only; managed, disabled, sse and b
   const home = await mkdtemp(join(tmpdir(), 'user-tools-'))
   t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.codex'), { recursive: true }); await mkdir(join(home, '.grok'), { recursive: true })
-  await mkdir(join(home, '.cursor'), { recursive: true }); await mkdir(join(home, '.gemini/config'), { recursive: true })
+  await mkdir(join(home, '.cursor'), { recursive: true })
   await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: {
     bellteam: { type: 'http', url: 'http://127.0.0.1:4181/mcp' }, aiterm: { command: 'aiterm' },
     meta: { command: 'meta-mcp', env: { META_TOKEN: 'private-canary' } }, xarticle: { type: 'http', url: 'http://lan/mcp', headers: { Authorization: 'Bearer private-canary' } },
@@ -26,13 +26,12 @@ test('U1: each harness file gives names/kinds only; managed, disabled, sse and b
     '[mcp_servers.typesafe]', 'url = "https://docs.example/mcp"', 'bearer_token_env_var = "TS_TOKEN"', ''].join('\n'))
   await writeFile(join(home, '.grok/config.toml'), '[mcp_servers.meta]\ncommand = "meta-mcp"\nenabled = true\n')
   await writeFile(join(home, '.cursor/mcp.json'), JSON.stringify({ mcpServers: { meta: { command: 'meta-mcp' }, web: { url: 'https://x/mcp' } } }))
-  await writeFile(join(home, '.gemini/config/mcp_config.json'), JSON.stringify({ mcpServers: { meta: { command: 'meta-mcp' } } }))
   assert.deepEqual(listUserTools('claude-code', home), [{ name: 'meta', kind: 'stdio' }, { name: 'xarticle', kind: 'http' }])
   assert.deepEqual(listUserTools('codex-cli', home), [{ name: 'meta', kind: 'stdio' }, { name: 'typesafe', kind: 'http' }])
   assert.deepEqual(listUserTools('grok', home), [{ name: 'meta', kind: 'stdio' }])
   assert.deepEqual(listUserTools('cursor', home), [{ name: 'meta', kind: 'stdio' }, { name: 'web', kind: 'http' }])
-  assert.deepEqual(listUserTools('antigravity', home), [{ name: 'meta', kind: 'stdio' }])
-  for (const harness of ['claude', 'codex', 'grok', 'cursor', 'antigravity']) assert.doesNotMatch(JSON.stringify(listUserTools(harness, home)), /private-canary/)
+  assert.throws(() => listUserTools('antigravity', home), { code: 'USER_TOOL_HARNESS_UNSUPPORTED' })
+  for (const harness of ['claude', 'codex', 'grok', 'cursor']) assert.doesNotMatch(JSON.stringify(listUserTools(harness, home)), /private-canary/)
   assert.deepEqual(findUserTool('codex', 'meta', home).spec, { command: 'meta-mcp', args: ['--a', 'b'], env: { META_TOKEN: 'private-canary' } })
   assert.deepEqual(userToolHeaders(findUserTool('codex', 'typesafe', home).spec, { TS_TOKEN: 't' }), { Authorization: 'Bearer t' })
   for (const name of [...MANAGED_MCP_IDS, 'off', 'missing']) assert.throws(() => findUserTool('codex', name, home), { code: 'USER_TOOL_NOT_CONFIGURED' })

@@ -9,7 +9,7 @@ import { writeAtomic } from './json-file.mjs'
 export const RUNNING_EXCLUSIONS_SCHEMA = 'bellteam.running-exclusions.v1'
 const MAX_ENTRIES = 256
 const word = value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\s\u0000-\u001f]/u.test(value)
-const HARNESSES = new Set(['claude-code', 'codex-cli', 'grok-cli', 'cursor-cli', 'antigravity-cli'])
+const HARNESSES = new Set(['claude-code', 'codex-cli', 'grok-cli', 'cursor-cli'])
 
 function valid(entry) {
   if (!entry || typeof entry !== 'object' || !word(entry.id)) return false

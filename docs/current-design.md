@@ -92,19 +92,20 @@ Webとサーバーは無料で、会話・Bot間の配送・予定実行に購�
 
 UI、MCP、メッセージ、Bot管理が扱う操作とデータ形式は、すべてのCLIで共通にする。
 
-CLIごとの起動引数、入力方法、ターン完了の検出、確定回答の取得などの差はハーネスアダプタだけが扱う。共通処理はBot一覧などから得た`harness`をアダプタ選択へ渡すだけとし、CLI固有の操作を持たない。現行の選択肢はClaude、Codex、Grok、Cursor、Antigravityである。新しいCLIへの対応も、共通側へ条件分岐を足さず、ハーネスアダプタを追加して行う。
+CLIごとの起動引数、入力方法、ターン完了の検出、確定回答の取得などの差はハーネスアダプタだけが扱う。共通処理はBot一覧などから得た`harness`をアダプタ選択へ渡すだけとし、CLI固有の操作を持たない。現行の選択肢はClaude、Codex、Grok、Cursorの四つである（Antigravityは2026-11-17のオーナー指示で外した。下の「Antigravityの取り外し」）。新しいCLIへの対応も、共通側へ条件分岐を足さず、ハーネスアダプタを追加して行う。
 
-AntigravityはAitermの`antigravity-cli`を使う。HTTPヘッダの環境変数を展開しないため、BellTeam・通話MCPだけは共通stdio入口から既存の内部HTTP入口へ接続し、起動環境の席とlaunchを渡す。共有設定へ席の値は保存しない。ファスト・強制再認証・native goal adapter・親への自動wakeは未対応であり、完了を補完しない。親は既存のwait_processとtranscriptの契約で回答を回収する。
-
-Antigravityの共通規範は`~/.gemini/AGENTS.md`へ既存4種と同じ本文を書き、プロジェクト規範は既存の`AGENTS.md`を使う。Aitermは起動時に公式SessionStart/Stop hookを登録するが、規範本文の生成は代行しない。ThroughlineのAntigravity会話captureとtestgateのAntigravity hookは未対応である。既存プロジェクトのThroughline記録を読めることを、新しいAntigravity会話の保存成功とは扱わない。RTKの上流pluginをtestgateの代わりに直接登録しない。
-
-Antigravityの規範は公式の1ファイル24,000バイト・globalとalways_on合計20,000tokenの制限を受ける。大きなユーザー規範や短期記憶を含む場合の無制限ロードは保証しない。現共通本文と人工プロフィールでのfile出力を検証し、実CLIでの全path・hook注入との優先順は未検証として扱う。
+**Antigravityの取り外し（a353、オーナー2026-11-17）。** BellTeamがAntigravityを包む使い方は規約に反し、アカウントが止められうるため、利用者が選べるハーネスから外した。コードはGitHubの`archive/antigravity-harness-20261117`（main f17aa773）に残す。サーバーは次の入口でAntigravityを出さず、起動しない。
+- 公開契約: `/api/harness-auth`の一覧と`/api/harness-auth/<AI>`（開始・入力・取消・状態）、初期設定の`select`、`/api/models`と`/api/models?harness=`、Botの作成・更新の`harness`、MCPの`update_bot`・`update_self`・`create_bot`・`list_models`・`propose_running_exclusion`のenumから`antigravity`（および`antigravity-cli`）を外す。`antigravity`を指定した要求は、それぞれの既存の不正値の断り（`HARNESS_AUTH_HARNESS_INVALID`・`SETUP_HARNESS_INVALID`・`MODEL_HARNESS_INVALID`・Botの検証エラー）で断り、Aitermへは問い合わせない。
+- 残す公開項目: 一覧の`reloginSupported`は残し、全種類でtrueを返す。既に公開した版は、このフィールドとハーネス一覧に従って画面を出す。`/api/models`は`antigravity`の項目を返さない。既に公開した版が固定の選択肢に`antigravity`を持っていても、選んだ時にサーバーが上の断りを返すだけで、他の操作は変わらない。クライアントは断りを表示して選択肢を外す（a354〜a357）。
+- 起動・設定・配布: Aitermへの起動の対応表、`~/.gemini`のMCP登録と共通規範の書き出し（24,000バイト分割を含む）、stdio中継`run-seat-mcp.mjs`、利用者道具の`.gemini/config/mcp_config.json`読み取り、背景要約とcapacity continuationの候補、端末接続のCLI名、サーバー画像へのCLI導入、CIのモデル候補確認を外す。
+- 保存データ: 稼働中の保存領域にAntigravityの記録は無い（Sielo bot-f6778e72はClaudeへ移した）。Antigravityの記録が残る古い保存領域は、起動時の検証で`BOT_HARNESS_INVALID`と`SETUP_STATE_INVALID`になる。
+- 残すもの: `native_launch`の受信検証（`vendor_action_required`）は、実行の部品と親の世代差で飛ぶ値を断らないため当面そのまま残す。Antigravityを起動しないので新しくは生まれない。実行の部品の入れ替えが一巡した後に外す（別の工程）。Aitermの`antigravity-cli`とLatticeの席登録の`gemini`項目は、それぞれエレグとLatticeの所有で、このサーバーの契約の外である。
 
 ハーネス固有処理はAitermへ委ねる。BellTeamはAitermの継続セッションへターンを渡し、Aitermが返す完了と確定回答だけを共通形式で扱う。BellTeam独自のtmux操作と`src/harnesses.mjs`はAiterm移行までの既存実装であり、CLI固有処理を追加する場所にはしない。
 
 Webの「AIの認証」一覧は全AIの公式状態を開いた時に一度確認し、認証済み・未認証・認証中・確認失敗を利用人数と区別して、認証操作とともに折り畳まず表示する。確認失敗を未認証と扱わず、認証の開始は明示操作だけで行う。AIの公式認証は、初期設定の後も設定の「AIの認証」からやり直せる（2026-10-05 オーナー裁定、Approval Box K-UTA3UC）。AIの認証が切れると、そのAIを使うメンバーは全員起動できず、入り直しを頼める席も無くなるので、設置した人が自分で戻せる入口を本体に置く。`/api/harness-auth`はAIの種類と使用メンバー数、`/api/harness-auth/<AI>`は公式の状態、`start`・`input`・`cancel`は公式認証の進行を返す。応答の`auth`は初期設定と同じ形にする。`start`はAitermの`agent_auth`へ`relogin`を渡し、認証済みに見えるAIでも公式のログイン画面を起こす。`relogin`を知らないAitermが何も始めなかった時は、認証済みと取り違えずに409で断る。Codexの公式ログインは始めた時点で今の資格情報を消すので、今の認証が消えうるAIには一覧の`startWarning`で知らせの文を渡し、画面は認証が無い・切れていると分かっている時を除いて、始める前に知らせてもう一度押してもらう。状態を見ただけの時の`message`は利用者向けの文に置き換え、公式認証が進行中の時はAitermの案内をそのまま返す。認証の画面の出し方と資格情報はAitermと公式CLIが持ち、BellTeamは進行を中継するだけにする。購読は求めない。
 
-一覧の`reloginSupported`がfalseの種類では、設定画面は開始操作を出さず、`startWarning`の公式CLI案内と状態更新を残す。未提供の旧サーバーでは従来の表示を保つ。初期設定の通常認証とは別の可否であり、現在はAntigravityの再認証だけが非対応である。
+一覧の`reloginSupported`がfalseの種類では、設定画面は開始操作を出さず、`startWarning`の公式CLI案内と状態更新を残す。未提供の旧サーバーでは従来の表示を保つ。初期設定の通常認証とは別の可否であり、Antigravityを外した今（a353）は全種類でtrueを返す。
 
 席を起こせなかった時（認証が切れたAIが起動時の画面で止まった時など）は、Aitermに残った端末をBellTeamが閉じる。残すと席が動いている扱いになり、次の送信から起こし直せず、入力も受け付けない。閉じた後の起こし直しと送り直しはしない。失敗は500として記録し、応答に「認証が切れている可能性」の文を添える。
 
@@ -177,7 +178,7 @@ WebとiPhoneの入力欄ではEnterは改行だけを入力し、送信は送信
 
 Aitermが入力受付状態に入れず「文字列は送信していない」と明示した送信拒否は、HTTP 409と`BOT_INPUT_NOT_READY`を返す。画面では未送信とBotの状態確認を案内し、元のAitermの理由はサーバーログへ残す。配送記録は`failed`とし、強制送信や繰り返し再送はしない。この拒否をサーバーの500診断には記録せず、それ以外の判定できないAiterm障害は従来の500診断を維持する。同じBotへの先の送信が終わるのを待ち切れず、Aitermが打つ前に断った時（`AGENT_SEND_BUSY`、Aiterm 0.52.1以降、待ちは60秒）も同じ扱いにし、HTTP 409と`BOT_SEND_BUSY`を返す。画面では未送信と、少し待ってからの送り直しを案内する。Botが道具（`sendmessage`など）で送って断られた時は、符号に続けて同じ案内文を返す。符号だけでは、文が打たれたかどうかがBotに伝わらないためである。
 
-Antigravityの起動結果が同じharness/sessionに結び付く`aiterm.agent-launch-result.v1`で、`vendor_action_required`によるblocked・初手未要求・turn未開始・cursor/residue無しを返した場合も、本文を渡していない`agent_launch`だけを同じ409へ分類する。作成された端末は既存規則どおり一度閉じ、本文の再送・再起動はしない。個別とルームの既存失敗行へ`native_launch`としてharness、session作成済みの事実、startup/initial_promptの安全なenumだけを残す。これは当時の作成事実であり、現在の端末生存・認証原因・実起動の成功を意味しない。本文・argv・環境・画面・session名はその診断へ含めない。旧認証preflight、他の起動失敗、送信後の受理不明は従来の分類を保つ。
+（a353以後は新しく起きない。受信検証だけ残す。）Antigravityの起動結果が同じharness/sessionに結び付く`aiterm.agent-launch-result.v1`で、`vendor_action_required`によるblocked・初手未要求・turn未開始・cursor/residue無しを返した場合も、本文を渡していない`agent_launch`だけを同じ409へ分類する。作成された端末は既存規則どおり一度閉じ、本文の再送・再起動はしない。個別とルームの既存失敗行へ`native_launch`としてharness、session作成済みの事実、startup/initial_promptの安全なenumだけを残す。これは当時の作成事実であり、現在の端末生存・認証原因・実起動の成功を意味しない。本文・argv・環境・画面・session名はその診断へ含めない。旧認証preflight、他の起動失敗、送信後の受理不明は従来の分類を保つ。
 
 Botがターンの途中で書き、そのあと道具を使った言葉（合間の言葉）は、そのBotとユーザーの会話画面に、Botの発言と同じ吹き出しで時刻順に表示する。ラベルは付けない。対象はユーザー会話、Bot間の直接メッセージ、通話、ルーム、予定実行でBellTeamが始めたターンとする（ルームはオーナー裁定 2026-09-28 で一度棚上げし、同日に揃えた）。ルームがきっかけのターンでは、返信者も黙る指示を受けたメンバーも、それぞれのBotの会話画面に出し、ルームには出さない。BellTeamはターンの完了を待つ間、3秒おきとターン完了後に一度、Aitermの`pty_observe`を`_meta`の`"aiterm/caller": "BellTeam"`付きで呼び、結果の`_meta["aiterm/interim_words"]`から、送信receiptと`event_cursor`が一致するターンの言葉だけを受け取る（Aiterm ADR 0071）。この指定はAitermの説明と引数に出ない。BellTeamが始めていないターンの合間の言葉も、BellTeamがそのターンを追っている間は同じ画面に出す。追うのは、待つ手がかりの付いた差し込みを取ったターンと、Aitermの「席の今のターン」で見つけたターンで、どちらも`_meta`の`"aiterm/interim_from"`にAitermが返した読み始めの位置を渡し、その位置より後の言葉を受け取る（Aiterm ADR 0122。「配送」参照）。見つけたターンでは、言葉に付いた`turn_id`が別のターンの物は出さない。見つけたターンの最後の回答は`src/self-turns.mjs`がThroughlineの記録から出す。Throughlineはターンの文を全部つなげて返すので、そのターンで合間の言葉として出した文が回答の頭に順番どおり全部並んでいる時は、その分を外して出す（2026-10-14、Codexの席で同じ文が2回出た）。1つでも合わない時、追い終えた時刻と記録の終わりが60秒より離れている時、外すと何も残らない時は、回答をそのまま出す。合間の言葉は会話ログへ`bellteam.interim-word.v1`として残す表示だけの記録で、誰にも配送せず、確定回答の候補にもiPhoneへの通知にもならない。依頼したBotやルームへは届かない。思考は表示しない。Claude CodeのAPIエラーとsession limitの知らせ、Codexがターンをエラーで終えた時の本文（利用上限の知らせを含む。Aiterm 0.42.2以降）も合間の言葉として表示し、エラーの本文を記録に書かないハーネスでは、Aitermが返したエラー終了・利用上限の理由を代わりに表示する（オーナー裁定 2026-09-28: 見えていれば直そうと思える）。Cursorは道具が終わってから記録を書くため、道具の前の言葉は道具の終了まで届かないが、そのままとする（同日）。Bot間の直接メッセージ、通話、ルームで始まったターンの最後の回答は誰にも配送されないため、BellTeamはターンの完了後に`pty_read(agent_transcript: true)`で読み、合間の言葉と同じ記録（`kind: "answer"`）としてそのBotの会話画面へ表示する。空の回答は出さず、読めない時も配送は`delivered`とする（オーナー指摘 2026-09-28: エレグの端末にある回答が画面に出ていなかった）。前節の「Botの画面」で採らなかった構造化した出来事の表示（2026-09-03）とは別の決定である。
 

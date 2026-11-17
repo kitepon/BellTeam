@@ -38,12 +38,12 @@ test('AIの種類と、それを使うメンバーの数を返す。公式の状
   const { harnesses } = new HarnessAuth({ bots, client }).list()
   assert.deepEqual(harnesses.map(({ id, name, members }) => ({ id, name, members })), [
     { id: 'claude', name: 'Claude', members: 1 }, { id: 'codex', name: 'Codex', members: 2 },
-    { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 }, { id: 'antigravity', name: 'Antigravity', members: 0 },
+    { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 },
   ])
   // 始めた時点で今の認証が消えるAI（Codex）と、残るかを確かめられていないAI（Grok）には、始める前の知らせを付ける。
   assert.match(harnesses.find(item => item.id === 'codex').startWarning, /始めた時点で今の認証が消えます。途中でやめても元に戻りません。/u)
   assert.match(harnesses.find(item => item.id === 'grok').startWarning, /確かめられていません/u)
-  assert.deepEqual(harnesses.filter(item => item.startWarning === null).map(item => item.id), ['claude', 'cursor', 'antigravity'])
+  assert.deepEqual(harnesses.filter(item => item.startWarning === null).map(item => item.id), ['claude', 'cursor'])
   assert.deepEqual(client.calls, [])
 })
 
@@ -174,24 +174,11 @@ test('認証のやり直しを持たないサーバーでは、その道は無�
 })
 
 
-test('Antigravityは未認証なら初回認証を始め、強制再認証を要求しない', async () => {
-  const client = aiterm({ official: 'blocked' })
-  const auth = new HarnessAuth({ bots, client })
-  assert.equal((await auth.start('antigravity')).auth.status, 'waiting')
-  assert.deepEqual(client.calls.at(-1), ['agent_auth', { harness: 'antigravity-cli', action: 'start', relogin: false }])
-  assert.equal(auth.list().harnesses.find(x => x.id === 'antigravity').reloginSupported, false)
-  assert.ok(auth.list().harnesses.filter(x => x.id !== 'antigravity').every(x => x.reloginSupported === true))
-  await auth.cancel('antigravity')
-  assert.equal(auth.sessions.has('antigravity'), false)
-  const blocked = new HarnessAuth({ bots, client: aiterm({ official: 'blocked' }) })
-  assert.match((await blocked.status('antigravity')).auth.message, /認証する/u)
-  assert.doesNotMatch((await blocked.status('antigravity')).auth.message, /公式CLI/u)
-})
-
-test('Antigravityが既に認証済みなら資格を変えず、その状態を返す', async () => {
+test('選べなくなったAntigravityは認証も状態の取得も受け付けない（a353）', async () => {
   const client = aiterm()
   const auth = new HarnessAuth({ bots, client })
-  assert.equal((await auth.start('antigravity')).auth.status, 'authenticated')
-  assert.equal(auth.sessions.size, 0)
-  assert.equal(client.calls.at(-1)[1].relogin, false)
+  await assert.rejects(auth.start('antigravity'), { code: 'HARNESS_AUTH_HARNESS_INVALID' })
+  await assert.rejects(auth.status('antigravity'), { code: 'HARNESS_AUTH_HARNESS_INVALID' })
+  assert.deepEqual(client.calls, [])
+  assert.ok(auth.list().harnesses.every(x => x.reloginSupported === true))
 })

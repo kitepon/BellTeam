@@ -265,7 +265,7 @@ test('Bot作成後に共通設定を同期する', async () => {
   assert.deepEqual(changes, [['bot-new']])
 })
 
-test('ClaudeとCursorをBotのハーネスに選べる', async () => {
+test('ClaudeとCursorをBotのハーネスに選べる。Antigravityは選べない（a353）', async () => {
   const { registry } = await fixture()
   await registry.create({ name: 'Claude Bot', harness: 'claude' })
   assert.equal(registry.get('bot-b').harness, 'claude')
@@ -273,11 +273,10 @@ test('ClaudeとCursorをBotのハーネスに選べる', async () => {
   await registry.remove('bot-b')
   await registry.create({ name: 'Cursor Bot', harness: 'cursor' })
   assert.equal(registry.get('bot-b').harness, 'cursor')
-  await registry.remove('bot-b')
-  await registry.create({ name: 'Antigravity Bot', harness: 'antigravity' })
-  assert.equal(registry.get('bot-b').harness, 'antigravity')
   await registry.refresh()
-  assert.equal(registry.get('bot-b').harness, 'antigravity')
+  assert.equal(registry.get('bot-b').harness, 'cursor')
+  await assert.rejects(registry.update('bot-b', { harness: 'antigravity' }))
+  assert.equal(registry.get('bot-b').harness, 'cursor')
 })
 
 test('エフォートはCLIごとの候補で検証する', async () => {

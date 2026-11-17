@@ -21,7 +21,7 @@ function configuration(value) {
   if ((value.revision === null) !== (value.selection === null)
     || value.revision !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value.revision)) fail()
   if (value.selection !== null && (!value.revision || !exact(value.selection, ['harness', 'model', 'reasoningEffort'])
-    || !['claude', 'codex', 'grok', 'cursor', 'antigravity'].includes(value.selection.harness)
+    || !['claude', 'codex', 'grok', 'cursor'].includes(value.selection.harness)
     || !id(value.selection.model) || typeof value.selection.reasoningEffort !== 'string' || value.selection.reasoningEffort.length > 256)) fail()
   return structuredClone(value)
 }

@@ -15,9 +15,8 @@ export const USER_TOOL_FILES = Object.freeze({
   codex: { path: '.codex/config.toml', format: 'toml' },
   grok: { path: '.grok/config.toml', format: 'toml' },
   cursor: { path: '.cursor/mcp.json', format: 'json' },
-  antigravity: { path: '.gemini/config/mcp_config.json', format: 'json' },
 })
-const HARNESS_ALIASES = { 'claude-code': 'claude', 'codex-cli': 'codex', 'grok-cli': 'grok', 'cursor-cli': 'cursor', 'antigravity-cli': 'antigravity' }
+const HARNESS_ALIASES = { 'claude-code': 'claude', 'codex-cli': 'codex', 'grok-cli': 'grok', 'cursor-cli': 'cursor' }
 export const userToolHarness = harness => HARNESS_ALIASES[harness] ?? (Object.hasOwn(USER_TOOL_FILES, harness) ? harness : null)
 
 const failure = code => Object.assign(new Error(code), { code })

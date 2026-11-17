@@ -16,7 +16,7 @@ const empty = value => object(value, {})
 const text = value => string(value)
 const body = value => { string(value); if (Buffer.byteLength(value) > 16 * 1024 * 1024) fail() }
 const ids = value => { if (!Array.isArray(value)) fail(); value.forEach(id) }
-const harness = value => { if (!['claude', 'codex', 'grok', 'cursor', 'antigravity'].includes(value)) fail() }
+const harness = value => { if (!['claude', 'codex', 'grok', 'cursor'].includes(value)) fail() }
 const crop = value => {
   if (value === null) return
   object(value, Object.fromEntries(['x', 'y', 'width', 'height'].map(key => [key, number => { if (!Number.isFinite(number)) fail() }])))
