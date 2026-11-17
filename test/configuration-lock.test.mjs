@@ -95,3 +95,23 @@ test('a314: the Owner flipping the switch reaches a running seat; the save never
   await admin.update('bot-a', { configurationLocked: true }); await Promise.all(tracked)
   assert.deepEqual(set, [true, false], 'a seat that is not running gets nothing; the next launch locks it')
 })
+
+test('a339: after the engine starts, only running Bots with the switch on are locked again; failures only log', async () => {
+  const lock = await lockFixture(), calls = []
+  let failFor = null
+  const client = { async call(name, args) { calls.push([name, args]); if (args.session_id === failFor) throw refusal(); return {} } }
+  const bots = [
+    { id: 'bot-a', session: 'bot-a', harness: 'claude', configurationLocked: true },
+    { id: 'bot-b', session: 'bot-b', harness: 'claude', configurationLocked: true },
+    { id: 'bot-c', session: 'bot-c', harness: 'claude', configurationLocked: false },
+    { id: 'bot-d', session: 'bot-d', harness: 'claude', configurationLocked: true },
+  ]
+  const transport = new AitermTransport({ client, handoffContext: noMemory, configurationLock: lock, resolveBot: id => bots.find(bot => bot.id === id) })
+  transport.runningBots = async list => new Set(list.filter(bot => bot.id !== 'bot-b').map(bot => bot.id))
+  failFor = 'bot-d'
+  assert.equal(await transport.relockSeats(bots), 1)
+  assert.deepEqual(calls.map(([name, args]) => [name, args.session_id, args.configuration_lock]), [['agent_configure', 'bot-a', 'lock'], ['agent_configure', 'bot-d', 'lock']])
+  assert.equal(await new AitermTransport({ client, handoffContext: noMemory }).relockSeats(bots), 0, 'no key source = nothing')
+  transport.runningBots = async () => { throw new Error('pty_list down') }
+  assert.equal(await transport.relockSeats(bots), 0, 'a failed read never throws')
+})
