@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
 import { captureMcpError } from '../src/returned-mcp-error.mjs'
-import { launchFailureDetails, launchRefusal } from '../src/agent-launch-error.mjs'
+import { launchRefusal } from '../src/agent-launch-error.mjs'
 
 const secret = 'synthetic-private-value'
 const launch = { cwd: '/synthetic-seat', prompt: secret }
@@ -34,20 +34,6 @@ await import(process.env.TEST_ENTRY);
 
 const preflight = { schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code',
   code: 'CLAUDE_AUTH_NOT_AUTHENTICATED', phase: 'authentication_preflight', effect: 'not_issued', session_created: false }
-
-test('seat launch fields: action-required refusal keeps409 and safe native diagnostics across the fixed boundary', async () => {
-  const native = { schema: 'aiterm.agent-launch-result.v1', harness: 'antigravity-cli', session_id: 'fixture-seat',
-    startup: { status: 'blocked', reason: 'vendor_action_required' },
-    initial_prompt: { status: 'not_requested', reason: 'not_requested', turn_started: false },
-    event_cursor: null, submit_residue: null }
-  const error = { code: 'BOT_INPUT_NOT_READY', status: 409, launchActionRequired: true, launch: native }
-  const value = await crossBoundary(error, { cwd: '/synthetic-seat' })
-  assert.equal(value.code, error.code); assert.equal(value.status, 409)
-  assert.deepEqual(launchFailureDetails(value), { harness: 'antigravity-cli', session_created: true,
-    startup: native.startup, initial_prompt: native.initial_prompt })
-  assert.ok(diagnosticRequestContext({ method: 'POST', url: '/api/bots/fixture-seat/messages' }, [], value)
-    .includes('native_launch='))
-})
 
 test('seat launch fields: validated native preflight survives the fixed boundary into parent diagnostics', async () => {
   const value = await crossBoundary(Object.assign(new Error('synthetic refusal'), {

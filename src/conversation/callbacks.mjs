@@ -17,24 +17,13 @@ function object(value, required, optional = []) {
     || Object.keys(value).some(key => ![...required, ...optional].includes(key))
     || required.some(key => !Object.hasOwn(value, key))) fail()
 }
-function nativeLaunch(value) {
-  return value?.harness === 'antigravity-cli' && value.session_created === true
-    && value.startup?.status === 'blocked' && value.startup.reason === 'vendor_action_required'
-    && value.initial_prompt?.status === 'not_requested' && value.initial_prompt.reason === 'not_requested'
-    && value.initial_prompt.turn_started === false
-    ? { harness: 'antigravity-cli', session_created: true,
-      startup: { status: 'blocked', reason: 'vendor_action_required' },
-      initial_prompt: { status: 'not_requested', reason: 'not_requested', turn_started: false } } : null
-}
-
 export function normalizeConversationCallbackError(error) {
   if (error == null) return null
-  const launch = nativeLaunch(error.native_launch)
   return { code: errorCodes.has(error.code) ? error.code : 'CONVERSATION_CALLBACK_FAILED',
     ...(Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? { status: error.status } : {}),
     ...(['not_accepted', 'unknown'].includes(error.outcome) ? { outcome: error.outcome } : {}),
     ...(error.code === 'FORK_FAILED' && reasonToken(error.reason) ? { reason: error.reason } : {}),
-    ...deliveryFailureFields(error), ...(launch ? { native_launch: launch } : {}) }
+    ...deliveryFailureFields(error) }
 }
 
 export function conversationCallbackFailureFields(error) {
@@ -44,12 +33,13 @@ export function conversationCallbackFailureFields(error) {
   if (Object.hasOwn(error, 'reason') && (error.code !== 'FORK_FAILED' || !reasonToken(error.reason))) fail()
   if (Object.hasOwn(error, 'status') && (!Number.isInteger(error.status) || error.status < 400 || error.status > 599)) fail()
   if (Object.hasOwn(error, 'outcome') && !['not_accepted', 'unknown'].includes(error.outcome)) fail()
-  const mcp = returnedMcpError(error), launch = nativeLaunch(error.native_launch)
+  const mcp = returnedMcpError(error)
   const failure = deliveryError('failed', error.delivery_error)
   if (Object.hasOwn(error, 'delivery_error') && (!failure || !isDeepStrictEqual(failure, error.delivery_error))) fail()
   if (Object.hasOwn(error, 'mcp_error') && (!mcp || !isDeepStrictEqual(mcp, error.mcp_error))) fail()
-  if (Object.hasOwn(error, 'native_launch') && (!launch || !isDeepStrictEqual(launch, error.native_launch))) fail()
-  return { ...deliveryFailureFields(error), ...(launch ? { native_launch: launch } : {}) }
+  // a366: no writer produces native_launch any more; an older execution part or a stored delivery record may still carry one (a plain object), which is accepted and dropped.
+  if (Object.hasOwn(error, 'native_launch') && (!error.native_launch || typeof error.native_launch !== 'object' || Array.isArray(error.native_launch))) fail()
+  return { ...deliveryFailureFields(error) }
 }
 
 export function validateConversationCallback(method, params) {
