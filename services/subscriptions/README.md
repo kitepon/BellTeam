@@ -18,6 +18,14 @@ Appleとの通信失敗・設定不足・署名の不一致は、それぞれエ
 
 Apple公式クライアントの認証・応答解析は維持し、HTTP通信の拡張点だけを標準`fetch`へ置き換える。Workersの`node-fetch`変換では、公式ライブラリのCommonJSの`default`参照が関数にならず、Appleへの通信前に失敗するため。
 
+## Stripe
+
+同じ`POST /v1/subscriptions/verify`へ`{ "stripeSessionId": "cs_..." }`または`{ "stripeSubscriptionId": "sub_..." }`を送ると、Stripe APIで購読を照会し、Appleと同じ形（`state`・`entitled`・`validUntil`・`autoRenewing`）に加えて`source: "stripe"`・`subscriptionId`・`isTrial`を返す。Session IDは購読IDへ引き当てる。価格が`STRIPE_PRICE_ID`と一致しない購読は`INVALID_PRODUCT`、Stripeとの通信失敗は`STRIPE_API_ERROR`とし、期限切れへ置き換えない。`trialing`・`active`は有効、`past_due`は`billing_retry`、それ以外は`expired`。環境は購読の`livemode`で決める（本番Workerには本番キー、Sandbox Workerにはテストキーを置く）。
+
+`POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月、Stripe Tax）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
+
+設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。実Stripeとの通信は未検証。
+
 ## 証明書の検証
 
 `apple-roots.json`はApple公式PKIから取得した実サービス用のルート証明書。署名・証明書チェーン・Appleの拡張OID・アプリ・実行環境を確認する。公式ライブラリのオフライン検証を使い、証明書の有効期間は署名日時で確認する。OCSPによる証明書のオンライン失効照会は行わない。購読の失効・返金はAppleの最新購読状態と検証済みの取引から判定する。
@@ -51,5 +59,7 @@ npm exec --yes --package wrangler@latest -- wrangler deploy --env sandbox
 ```sh
 node --test test/subscription-worker.test.mjs
 ```
+
+Stripeは通信相手だけを試験応答に置き換えて確かめる。
 
 試験専用に生成した公開証明書・鍵を使い、実際の公式検証器を通す。Apple APIの通信相手だけを試験応答に置き換える。実購入・端末からの復元・Apple APIへの実通信はこの試験の範囲外。

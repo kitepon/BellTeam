@@ -12,6 +12,12 @@ export class SubscriptionAccessError extends Error {
   }
 }
 
+// 購入元（store）ごとの照会結果から、有効なものを優先して一つの状態にする。Google Playはここへ足す。
+function combine(verifications) {
+  const rank = item => Date.parse(item.validUntil ?? item.expiresAt)
+  return Object.values(verifications).sort((a, b) => b.entitled - a.entitled || rank(b) - rank(a))[0] ?? null
+}
+
 // 保存先は利用者自身のサーバー。運営のCloudflareには購読情報を保存しない。
 export class Subscriptions {
   constructor({ path, environment = 'Production', accessMode = 'subscription', developerAccessAllowed = profileDeveloperAccessAllowed, fetch: request = fetch, clock = Date.now, checkIntervalMs = 60 * 60 * 1000 }) {
@@ -25,7 +31,7 @@ export class Subscriptions {
     this.request = request
     this.clock = clock
     this.checkIntervalMs = checkIntervalMs
-    this.state = { schema: 'bellteam.subscription.v1', setupComplete: false, signedTransaction: null, verification: null, error: null }
+    this.state = { schema: 'bellteam.subscription.v1', setupComplete: false, signedTransaction: null, stripeSubscriptionId: null, verifications: {}, verification: null, error: null }
     this.pending = Promise.resolve()
   }
 
@@ -37,6 +43,8 @@ export class Subscriptions {
       if (state.verification && state.verification.environment !== this.environment) {
         state.verification = null
         state.signedTransaction = null
+        state.stripeSubscriptionId = null
+        state.verifications = {}
         state.error = { code: 'SUBSCRIPTION_ENVIRONMENT_CHANGED', status: 409, message: '購読確認の実行環境を変更しました。アプリから購入情報を復元してください。' }
         this.state = state
         if (!readOnly) await this.save()
@@ -44,6 +52,9 @@ export class Subscriptions {
       if (state.verification) this.validate(state.verification)
       if (state.error && (typeof state.error.code !== 'string' || typeof state.error.message !== 'string'
         || !Number.isInteger(state.error.status) || state.error.status < 400 || state.error.status > 599)) throw new Error('SUBSCRIPTION_STATE_INVALID')
+      state.stripeSubscriptionId ??= null
+      // 旧い保存形式（Appleだけ）はAppleの結果として読む。
+      state.verifications ??= state.verification && state.signedTransaction ? { apple: state.verification } : {}
       this.state = state
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
@@ -62,6 +73,8 @@ export class Subscriptions {
       // Webと共有サーバーのAI利用は無料。Appleアプリの購入状態はentitledで返す。
       canUseAI: true,
       state: verification?.state ?? 'not_purchased',
+      source: verification?.source ?? null,
+      isTrial: verification?.isTrial ?? false,
       checkedAt: verification?.checkedAt ?? null,
       expiresAt: verification?.expiresAt ?? null,
       validUntil: verification?.validUntil ?? null,
@@ -109,9 +122,10 @@ export class Subscriptions {
     if (typeof signedTransaction !== 'string' || !signedTransaction) throw new SubscriptionAccessError('INVALID_TRANSACTION', 400, 'Appleの署名付き購入情報が必要です。')
     return this.change(async () => {
       try {
-        const verification = await this.verify(signedTransaction)
+        const verification = await this.verify({ signedTransaction })
         this.state.signedTransaction = signedTransaction
-        this.state.verification = verification
+        this.state.verifications = { ...this.state.verifications, apple: verification }
+        this.state.verification = combine(this.state.verifications)
         this.state.error = null
         await this.save()
         return this.status()
@@ -119,10 +133,34 @@ export class Subscriptions {
     })
   }
 
+  installStripe(stripeSessionId) {
+    if (this.accessMode === 'developer') throw new SubscriptionAccessError('SUBSCRIPTION_NOT_REQUIRED', 409, 'このサーバーは開発者用のため、購読の購入・復元は不要です。')
+    if (typeof stripeSessionId !== 'string' || !stripeSessionId) throw new SubscriptionAccessError('INVALID_STRIPE_PROOF', 400, 'StripeのCheckout Session IDが必要です。')
+    return this.change(async () => {
+      try {
+        const verification = await this.verify({ stripeSessionId })
+        this.state.stripeSubscriptionId = verification.subscriptionId
+        this.state.verifications = { ...this.state.verifications, stripe: verification }
+        this.state.verification = combine(this.state.verifications)
+        this.state.error = null
+        await this.save()
+        return this.status()
+      } catch (error) { return this.fail(error) }
+    })
+  }
+
+  // Stripeの購入画面を作る。URLを返すだけで、状態は変えない。
+  checkout() {
+    if (this.accessMode === 'developer') throw new SubscriptionAccessError('SUBSCRIPTION_NOT_REQUIRED', 409, 'このサーバーは開発者用のため、購読の購入・復元は不要です。')
+    return this.post(endpoints[this.environment].replace(/verify$/, 'stripe/checkout'), {}, result => {
+      if (typeof result.url !== 'string' || typeof result.sessionId !== 'string') throw new SubscriptionAccessError('SUBSCRIPTION_RESPONSE_INVALID', 502, '購読確認サービスの応答の形式が一致しません。')
+    })
+  }
+
   refresh({ force = false } = {}) {
     if (this.accessMode === 'developer') return Promise.resolve(this.status())
     return this.change(async () => {
-      if (!this.state.signedTransaction || (this.state.error && !force)) return this.status()
+      if (!(this.state.signedTransaction || this.state.stripeSubscriptionId) || (this.state.error && !force)) return this.status()
       const verification = this.state.verification
       const next = verification ? Math.min(
         Date.parse(verification.checkedAt) + this.checkIntervalMs,
@@ -130,7 +168,12 @@ export class Subscriptions {
       ) : 0
       if (!force && this.clock() < next) return this.status()
       try {
-        this.state.verification = await this.verify(this.state.signedTransaction)
+        // shortcut: 最初の失敗で全体を失敗にする。両方の購入元を持つ利用者は少ない。分けて扱う時はここで購入元ごとに握る。
+        const verifications = { ...this.state.verifications }
+        if (this.state.signedTransaction) verifications.apple = await this.verify({ signedTransaction: this.state.signedTransaction })
+        if (this.state.stripeSubscriptionId) verifications.stripe = await this.verify({ stripeSubscriptionId: this.state.stripeSubscriptionId })
+        this.state.verifications = verifications
+        this.state.verification = combine(verifications)
         this.state.error = null
         await this.save()
         return this.status()
@@ -157,12 +200,16 @@ export class Subscriptions {
     await rename(this.path + '.tmp', this.path)
   }
 
-  async verify(signedTransaction) {
+  async verify(proof) {
+    return this.post(endpoints[this.environment], proof, result => this.validate(result))
+  }
+
+  async post(url, body, check) {
     let response
     try {
-      response = await this.request(endpoints[this.environment], {
+      response = await this.request(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signedTransaction }), signal: AbortSignal.timeout(20000),
+        body: JSON.stringify(body), signal: AbortSignal.timeout(20000),
       })
     } catch {
       throw new SubscriptionAccessError('SUBSCRIPTION_CONNECTION_FAILED', 503, '購読確認サービスへ接続できません。設定から再確認してください。')
@@ -174,7 +221,7 @@ export class Subscriptions {
       if (typeof result?.error?.code !== 'string' || typeof result.error.message !== 'string') throw new SubscriptionAccessError('SUBSCRIPTION_RESPONSE_INVALID', 502, '購読確認サービスのエラー形式が一致しません。')
       throw new SubscriptionAccessError(result.error.code, response.status, result.error.message)
     }
-    this.validate(result)
+    check(result)
     return result
   }
 
@@ -183,6 +230,9 @@ export class Subscriptions {
       || typeof result.entitled !== 'boolean' || typeof result.autoRenewing !== 'boolean'
       || !['active', 'grace', 'expired', 'billing_retry', 'revoked'].includes(result.state)
       || (result.entitled && !['active', 'grace'].includes(result.state))
+      || !(result.source === undefined || ['apple', 'stripe'].includes(result.source))
+      || !(result.isTrial === undefined || typeof result.isTrial === 'boolean')
+      || (result.source === 'stripe' && typeof result.subscriptionId !== 'string')
       || !Number.isFinite(Date.parse(result.checkedAt)) || !Number.isFinite(Date.parse(result.expiresAt))
       || (result.entitled ? !Number.isFinite(Date.parse(result.validUntil)) : result.validUntil !== null)) {
       throw new SubscriptionAccessError('SUBSCRIPTION_RESPONSE_INVALID', 502, '購読確認サービスのアプリ・環境・期限の形式が一致しません。')

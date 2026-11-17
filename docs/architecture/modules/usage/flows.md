@@ -168,7 +168,8 @@ flowchart LR
   Relay --> Result["受付 / エラー / 登録失効"]
   APNs --> Result
   Result --> Diag["通知だけの診断・端末登録更新"]
-  Apple["Apple購入・復元"] --> Verify["Subscriptions<br/>外部検証→結果検証→保存"]
+  Apple["Apple購入・復元"] --> Verify["Subscriptions<br/>外部検証→結果検証→購入元別に保存→有効な方を採用"]
+  Stripe["Stripe購入画面・復元<br/>Checkout作成→戻りSession ID"] --> Verify
   Verify --> Status["購読状態をAppleへ返す<br/>WebのAI利用を止めない"]
 ```
 
@@ -180,11 +181,13 @@ flowchart LR
 | 通知終了 | `configure/close` → inflight待ち→provider.close | providerを変える前に既送信を待つ |
 | 中継 | `NotificationRelayProvider.initialize/send/call` | 環境一覧、signedTransaction、acceptedを検証。30秒timeout、ここで反復再送しない |
 | APNs | `APNsProvider.create/send/close` | 環境別署名Promise・接続を共有。idle接続は閉じ、次の送信で作る。15秒request timeout |
-| 購入/復元 | HTTP verify → `Subscriptions.install/verify/validate/save` | 外部検証のアプリ/環境/期限/状態を検証し、利用者サーバーに保存 |
+| 購入/復元（Apple） | HTTP verify → `Subscriptions.install/verify/validate/save` | 外部検証のアプリ/環境/期限/状態を検証し、利用者サーバーに保存 |
+| 購入/復元（Stripe） | HTTP stripe/checkout → `Subscriptions.checkout/post`、HTTP stripe/verify → `Subscriptions.installStripe/verify/validate/save` | 運営のWorkerがStripeの購読を照会した結果（`source:stripe`・`subscriptionId`・`isTrial`）を同じ形で検証し、購入元別に保存。Checkoutは作るだけで状態を変えない |
+| 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripeそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。購入元を足す時（Google Play）は結果を足すだけ |
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
-購読の外部検証サービス/Apple署名検証内部はこの本体図の境界外。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+購読の外部検証サービス/Apple署名検証/Stripe照会内部はこの本体図の境界外（Stripeの鍵・価格は運営Workerのsecretだけに置く）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
 
 ## 確認範囲
 

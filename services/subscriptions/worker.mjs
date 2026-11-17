@@ -9,8 +9,8 @@ export class SubscriptionError extends Error {
   }
 }
 
-function invalidResponse() {
-  return new SubscriptionError('INVALID_APPLE_RESPONSE', 502, 'Appleの購読情報の形式が一致しません。')
+function invalidResponse(store = 'Apple') {
+  return new SubscriptionError(`INVALID_${store.toUpperCase()}_RESPONSE`, 502, `${store}の購読情報の形式が一致しません。`)
 }
 
 export function subscriptionEntitlement(item, transaction, renewal, now) {
@@ -30,9 +30,74 @@ export function subscriptionEntitlement(item, transaction, renewal, now) {
   }
 }
 
+const stripeIdPattern = /^(cs|sub)_[A-Za-z0-9_]{1,200}$/
+const stripeStates = { active: 'active', trialing: 'active', past_due: 'billing_retry' }
+
+// Stripeの購読を既存の購読確認と同じ形（state・entitled・validUntil）へ写す。
+export function stripeEntitlement(subscription, now) {
+  const periodEnd = (subscription.current_period_end ?? subscription.items?.data?.[0]?.current_period_end) * 1000
+  if (typeof subscription.status !== 'string' || !Number.isFinite(periodEnd) || typeof subscription.livemode !== 'boolean') throw invalidResponse('Stripe')
+  let state = stripeStates[subscription.status] ?? 'expired'
+  const entitled = state === 'active' && periodEnd > now
+  if (!entitled && state === 'active') state = 'expired'
+  return {
+    entitled, state,
+    expiresAt: new Date(periodEnd).toISOString(),
+    validUntil: entitled ? new Date(periodEnd).toISOString() : null,
+    autoRenewing: state === 'active' && !subscription.cancel_at_period_end,
+    isTrial: entitled && subscription.status === 'trialing',
+  }
+}
+
+async function stripeCall(env, request, path, body) {
+  if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) throw new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのStripe設定が完了していません。')
+  let response
+  try {
+    response = await request(`https://api.stripe.com${path}`, {
+      method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
+      body: body && new URLSearchParams(body),
+    })
+  } catch { throw new SubscriptionError('STRIPE_API_ERROR', 502, 'Stripeとの通信に失敗しました。') }
+  if (response.status === 404) throw new SubscriptionError('INVALID_STRIPE_PROOF', 400, 'Stripeの購入情報が見つかりません。')
+  if (!response.ok) throw new SubscriptionError('STRIPE_API_ERROR', 502, `Stripeとの通信・購読照会に失敗しました（HTTP ${response.status}）。`)
+  try { return await response.json() } catch { throw invalidResponse('Stripe') }
+}
+
+async function verifyStripe(env, request, input, now) {
+  const proof = input.stripeSubscriptionId ?? input.stripeSessionId
+  if (typeof proof !== 'string' || !stripeIdPattern.test(proof)) throw new SubscriptionError('INVALID_REQUEST', 400, 'StripeのCheckout Session IDまたは購読IDが必要です。')
+  let subscriptionId = proof
+  if (proof.startsWith('cs_')) {
+    const session = await stripeCall(env, request, `/v1/checkout/sessions/${proof}`)
+    subscriptionId = session.subscription?.id ?? session.subscription
+    if (typeof subscriptionId !== 'string') throw new SubscriptionError('STRIPE_SESSION_UNPAID', 409, 'このCheckout Sessionでは購読が開始されていません。')
+  }
+  const subscription = await stripeCall(env, request, `/v1/subscriptions/${subscriptionId}`)
+  if (subscription.id !== subscriptionId || !subscription.items?.data?.some(item => item.price?.id === env.STRIPE_PRICE_ID)) {
+    throw new SubscriptionError('INVALID_PRODUCT', 400, 'BellTeamの月額購読のStripe購読ではありません。')
+  }
+  return {
+    productId: product.productId, subscriptionId, source: 'stripe',
+    environment: subscription.livemode ? 'Production' : 'Sandbox', checkedAt: new Date(now).toISOString(),
+    ...stripeEntitlement(subscription, now),
+  }
+}
+
+async function stripeCheckout(env, request) {
+  if (!env.STRIPE_RETURN_URL) throw new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのStripe設定が完了していません。')
+  const session = await stripeCall(env, request, '/v1/checkout/sessions', {
+    mode: 'subscription', 'line_items[0][price]': env.STRIPE_PRICE_ID, 'line_items[0][quantity]': '1',
+    'subscription_data[trial_period_days]': '30', 'automatic_tax[enabled]': 'true',
+    success_url: `${env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}`, cancel_url: env.STRIPE_RETURN_URL,
+  })
+  if (typeof session.url !== 'string' || typeof session.id !== 'string') throw invalidResponse('Stripe')
+  return { url: session.url, sessionId: session.id }
+}
+
 export function createSubscriptionWorker({
   rootCertificates = appleRoots.certificates.map(certificate => Buffer.from(certificate.der, 'base64')),
   createAPIClient,
+  stripeFetch = fetch,
   clock = Date.now,
 } = {}) {
   let service
@@ -60,14 +125,19 @@ export function createSubscriptionWorker({
   return {
     async fetch(request, env) {
       const path = new URL(request.url).pathname
-      if (path !== '/v1/subscriptions/verify') return new Response('見つかりません', { status: 404 })
+      if (!['/v1/subscriptions/verify', '/v1/subscriptions/stripe/checkout'].includes(path)) return new Response('見つかりません', { status: 404 })
       if (request.method !== 'POST') return new Response('POSTを使ってください。', { status: 405, headers: { Allow: 'POST' } })
       let configured
       try {
+        if (path.endsWith('/checkout')) return Response.json(await stripeCheckout(env, stripeFetch), { headers: { 'Cache-Control': 'no-store' } })
         let input
         try { input = await request.json() } catch (error) {
           if (!(error instanceof SyntaxError)) throw error
           throw new SubscriptionError('INVALID_REQUEST', 400, '購入情報をJSONで送信してください。')
+        }
+        // 保管庫を増やさず、購入元（store）ごとに公式の照会へ振り分ける。Google Playはここへ分岐を足す。
+        if (input?.stripeSessionId !== undefined || input?.stripeSubscriptionId !== undefined) {
+          return Response.json(await verifyStripe(env, stripeFetch, input, clock()), { headers: { 'Cache-Control': 'no-store' } })
         }
         if (typeof input?.signedTransaction !== 'string' || !input.signedTransaction) {
           throw new SubscriptionError('INVALID_REQUEST', 400, 'Appleの署名付き購入情報が必要です。')
@@ -96,7 +166,7 @@ export function createSubscriptionWorker({
         const now = clock()
         return Response.json({
           productId: product.productId, originalTransactionId: submitted.originalTransactionId,
-          environment: configured.environment, checkedAt: new Date(now).toISOString(),
+          environment: configured.environment, checkedAt: new Date(now).toISOString(), source: 'apple',
           ...subscriptionEntitlement(item, transaction, renewal, now),
         }, { headers: { 'Cache-Control': 'no-store' } })
       } catch (error) {

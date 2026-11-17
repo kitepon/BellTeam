@@ -176,3 +176,71 @@ test('Apple設定が不足する時は未設定を明示する', async () => {
   assert.equal(result.status, 503)
   assert.equal(result.body.error.code, 'SUBSCRIPTION_NOT_CONFIGURED')
 })
+
+// Stripe: 通信相手だけを試験応答に置き換える。実Stripeへは通信しない。
+const stripeEnv = { STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_PRICE_ID: 'price_980', STRIPE_RETURN_URL: 'https://example.test/return' }
+const stripeSubscription = (extra = {}) => ({
+  id: 'sub_1', status: 'active', livemode: false, cancel_at_period_end: false,
+  items: { data: [{ price: { id: 'price_980' }, current_period_end: Math.floor((now + 3600000) / 1000) }] }, ...extra,
+})
+
+function stripeWorker(handler) {
+  const calls = []
+  const service = createSubscriptionWorker({
+    stripeFetch: async (url, init) => { calls.push({ url, init }); return handler(url, init) }, clock: () => now,
+  })
+  const post = (path, body, config = stripeEnv) => service.fetch(new Request(`https://example.test${path}`, { method: 'POST', body: JSON.stringify(body) }), config)
+    .then(async result => ({ status: result.status, body: await result.json() }))
+  return { post, calls }
+}
+
+test('Stripeの状態を購読確認の形へ写し、Appleを呼ばずに無料期間と解約予約を区別する', async () => {
+  for (const [extra, entitled, state, isTrial, autoRenewing] of [
+    [{}, true, 'active', false, true],
+    [{ status: 'trialing' }, true, 'active', true, true],
+    [{ cancel_at_period_end: true }, true, 'active', false, false],
+    [{ status: 'past_due' }, false, 'billing_retry', false, false],
+    [{ status: 'canceled' }, false, 'expired', false, false],
+    [{ items: { data: [{ price: { id: 'price_980' }, current_period_end: Math.floor(now / 1000) }] } }, false, 'expired', false, false],
+  ]) {
+    const { post } = stripeWorker(() => Response.json(stripeSubscription(extra)))
+    const result = await post('/v1/subscriptions/verify', { stripeSubscriptionId: 'sub_1' })
+    assert.equal(result.status, 200)
+    assert.deepEqual([result.body.entitled, result.body.state, result.body.isTrial, result.body.autoRenewing], [entitled, state, isTrial, autoRenewing])
+    assert.equal(result.body.source, 'stripe')
+    assert.equal(result.body.environment, 'Sandbox')
+    assert.equal(result.body.productId, product.productId)
+    assert.equal(result.body.validUntil === null, !entitled)
+  }
+})
+
+test('StripeのCheckout Sessionから購読を引き当て、別の価格・別の購読・不正なIDは拒否する', async () => {
+  const { post, calls } = stripeWorker(url => url.endsWith('/v1/checkout/sessions/cs_1') ? Response.json({ subscription: 'sub_1' }) : Response.json(stripeSubscription()))
+  const ok = await post('/v1/subscriptions/verify', { stripeSessionId: 'cs_1' })
+  assert.equal(ok.body.subscriptionId, 'sub_1')
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer sk_test_x')
+  const other = await stripeWorker(() => Response.json(stripeSubscription({ items: { data: [{ price: { id: 'price_other' }, current_period_end: 1 }] } })))
+    .post('/v1/subscriptions/verify', { stripeSubscriptionId: 'sub_1' })
+  assert.equal(other.body.error.code, 'INVALID_PRODUCT')
+  const swapped = await stripeWorker(() => Response.json(stripeSubscription({ id: 'sub_2' }))).post('/v1/subscriptions/verify', { stripeSubscriptionId: 'sub_1' })
+  assert.equal(swapped.body.error.code, 'INVALID_PRODUCT')
+  const unpaid = await stripeWorker(() => Response.json({ subscription: null })).post('/v1/subscriptions/verify', { stripeSessionId: 'cs_1' })
+  assert.equal(unpaid.body.error.code, 'STRIPE_SESSION_UNPAID')
+  const { post: guarded, calls: guardedCalls } = stripeWorker(() => assert.fail('照会されてはいけません'))
+  assert.equal((await guarded('/v1/subscriptions/verify', { stripeSessionId: 'cs_1/../x' })).body.error.code, 'INVALID_REQUEST')
+  assert.equal(guardedCalls.length, 0)
+})
+
+test('Stripeの通信失敗・未設定を期限切れへ置き換えずエラーで返し、Checkoutは設定の値で作る', async () => {
+  const down = await stripeWorker(() => new Response('', { status: 500 })).post('/v1/subscriptions/verify', { stripeSubscriptionId: 'sub_1' })
+  assert.deepEqual([down.status, down.body.error.code], [502, 'STRIPE_API_ERROR'])
+  const missing = await stripeWorker(() => assert.fail('照会されてはいけません')).post('/v1/subscriptions/verify', { stripeSubscriptionId: 'sub_1' }, {})
+  assert.deepEqual([missing.status, missing.body.error.code], [503, 'SUBSCRIPTION_NOT_CONFIGURED'])
+  const { post, calls } = stripeWorker(() => Response.json({ id: 'cs_1', url: 'https://checkout.stripe.test/c/1' }))
+  const session = await post('/v1/subscriptions/stripe/checkout', {})
+  assert.deepEqual(session.body, { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' })
+  const form = calls[0].init.body
+  assert.equal(form.get('subscription_data[trial_period_days]'), '30')
+  assert.equal(form.get('line_items[0][price]'), 'price_980')
+  assert.equal(form.get('success_url'), 'https://example.test/return?session_id={CHECKOUT_SESSION_ID}')
+})
