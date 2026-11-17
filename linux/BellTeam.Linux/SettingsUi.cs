@@ -81,7 +81,7 @@ internal static class SettingsUi
     // The default browser (xdg-open through the shell execute of .NET on Linux); a failure is said by the caller.
     public static void OpenExternal(string url, Action<string> failed)
     {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+        try { ExternalLink.Launch(new Uri(url)); }
         catch (Exception error) { failed("ページを開けませんでした。" + error.Message); }
     }
 

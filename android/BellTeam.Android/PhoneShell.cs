@@ -57,6 +57,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies), access.PrepareAsync);
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
+        // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
+        ExternalLink.Opener = uri => MainActivity.Current.StartActivity(new global::Android.Content.Intent(global::Android.Content.Intent.ActionView, global::Android.Net.Uri.Parse(uri.AbsoluteUri)));
         var back = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
         back.Click += (_, _) => ShowList();
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { back, title } };
