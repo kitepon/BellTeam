@@ -40,6 +40,8 @@ public sealed record Bot
     public string Role { get; init; } = "";
     public bool Online { get; init; }
     public bool FastMode { get; init; }
+    // a311: absent on a BellTeam that predates it, which reads as false.
+    public bool ConfigurationLocked { get; init; }
     public string Color { get; init; } = "violet";
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";

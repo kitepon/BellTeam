@@ -38,4 +38,21 @@ public sealed class SettingsTests
         editor.Dispose();
         window.Close(); workspace.Dispose();
     });
+
+    // a318: the 固定 switch exists only when the server sent configurationLocked, and travels as the one changed field.
+    [Fact]
+    public Task TheLockSwitchIsHiddenWithoutTheFieldAndPatchesOnlyTheLockWhenToggled() => Ui.Run(() =>
+    {
+        var older = new BotSettings { Name = "ベル", Harness = "codex" };
+        Assert.False(new ModelPicker(older).LockToggle.IsEffectivelyVisible);
+        Assert.False(new ModelPicker(older).Apply(older).Fields().ContainsKey("configurationLocked"));
+        var current = older with { ConfigurationLocked = false };
+        var picker = new ModelPicker(current); var window = new Window { Content = picker }; window.Show();
+        Assert.True(picker.LockToggle.IsEffectivelyVisible); Assert.False(picker.LockToggle.IsChecked);
+        picker.LockToggle.IsChecked = true;
+        var changes = picker.Apply(current).ChangesFrom(current);
+        Assert.Equal(true, Assert.Single(changes).Value); Assert.Equal("configurationLocked", changes.Keys.Single());
+        window.Close();
+        return Task.CompletedTask;
+    });
 }
