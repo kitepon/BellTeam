@@ -66,6 +66,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies), access.PrepareAsync);
         approvals = new ApprovalsHub(model); approvals.Changed += UpdateApprovalsEntry;
+        PushRegistration.Workspace = () => model; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
@@ -173,7 +174,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void ShowDetailedSettings()
     {
         if (!model.Connected) return;
-        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), () => { CloseAllPages(); access.SignOut(); ShowList(); model.SignOut(); },
+        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), async () => { CloseAllPages(); await PushRegistration.UnregisterAsync(model); access.SignOut(); ShowList(); model.SignOut(); },
             // The app draws these itself (Google Play rows, the sign-in, the version); notifications are desktop (freedesktop) only.
             [BellTeam.Linux.SettingsPage.Connection, BellTeam.Linux.SettingsPage.Billing, BellTeam.Linux.SettingsPage.About, BellTeam.Linux.SettingsPage.Notifications]);
         window.Show(); _ = window.InitializeAsync();
@@ -189,6 +190,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void PopPage(Window window) { pages.Remove(window); ShowTopPage(); }
     private void ShowTopPage()
     {
+        UpdateViewing();
         if (pages.Count == 0) { pageBody.Content = null; pageLayer.IsVisible = false; return; }
         var top = pages[^1]; pageTitle.Text = top.Title ?? ""; pageBody.Content = top; pageLayer.IsVisible = true;
     }
@@ -294,14 +296,28 @@ public sealed class PhoneShell : UserControl, IMessageHost
     }
     private void CloseGallery() { galleryLayer.Children.Clear(); galleryLayer.IsVisible = false; }
 
-    private void ShowList() { conversationPage.IsVisible = false; settingsPage.IsVisible = false; listPage.IsVisible = true; EndSettings(); }
-    private void ShowConversation() { listPage.IsVisible = false; settingsPage.IsVisible = false; conversationPage.IsVisible = true; }
+    private void ShowList() { conversationPage.IsVisible = false; settingsPage.IsVisible = false; listPage.IsVisible = true; EndSettings(); UpdateViewing(); }
+    private void ShowConversation() { listPage.IsVisible = false; settingsPage.IsVisible = false; conversationPage.IsVisible = true; UpdateViewing(); }
+    // A notification for the conversation on screen shows no banner (iOS rule); anything over it (a page, a sheet) is not that conversation.
+    private void UpdateViewing() => PushRouter.Viewing = conversationPage.IsVisible && pages.Count == 0 && model.Selected is { } entry ? entry.Target : null;
+
+    // A tap on a notification (or a message that arrived before the connection): open its conversation once connected; another server's message is dropped.
+    private async void RoutePush()
+    {
+        if (!model.Connected) return;
+        var target = PushRouter.Take();
+        if (target is null) return;
+        if (!PushRouter.IsCurrentServer(target.Server) || target.Conversation is not { } conversation) return;
+        var entry = model.Conversations.FirstOrDefault(item => item.Target == conversation);
+        if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
+        CloseAllPages(); CloseSheet(); ShowConversation(); await model.SelectAsync(entry);
+    }
     private void ShowSettings()
     {
         if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
         EndSettings();
         settingsLife = CancellationTokenSource.CreateLinkedTokenSource(model.ConnectionToken);
-        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), () => { access.SignOut(); ShowList(); model.SignOut(); }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
+        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), async () => { await PushRegistration.UnregisterAsync(model); access.SignOut(); ShowList(); model.SignOut(); }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
         listPage.IsVisible = false; conversationPage.IsVisible = false; settingsPage.IsVisible = true;
     }
     // The page's reads end when it is left.
@@ -311,8 +327,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         switch (name)
         {
-            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) approvals.Sync(); break;
-            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; break;
+            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.Sync(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
+            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
@@ -363,10 +379,11 @@ public sealed class PhoneShell : UserControl, IMessageHost
         };
         startupHost.IsVisible = next != StartupPhase.Ready;
     }
-    private void ConnectToAddress(string text)
+    private async void ConnectToAddress(string text)
     {
         var origin = ServerOrigin.Parse(text);
         settings.Save(settings.Load() with { ServerUrl = origin.AbsoluteUri });
+        await PushRegistration.UnregisterAsync(model); // the old server's connection is still open here
         model.SignOut();
         _ = ConnectAsync(origin.AbsoluteUri);
     }
