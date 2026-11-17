@@ -76,6 +76,7 @@ src/session-interruption.mjs
 src/timeline-index.mjs
 src/turn-reports.mjs
 src/usage/web-push-schema.mjs
+src/usage/fcm-schema.mjs
 '''.split())
 
 
@@ -139,6 +140,7 @@ BUSINESS_FILES = {
         'src/usage/services.mjs',
         'src/usage/state-compatibility.mjs',
         'src/usage/web-push-schema.mjs',
+        'src/usage/fcm-schema.mjs',
     )},
     'diagnostics': {'payload/' + name for name in (
         'package-lock.json',

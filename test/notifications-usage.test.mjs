@@ -304,3 +304,32 @@ test('IPCのtyped端末エラーでも既公開HTTPの400/503とbodyを維持す
     assert.deepEqual(await response.json(), { error: code })
   }
 })
+
+test('Android routes reach the notification child as provider fcm and keep the 400/503 bodies', async t => {
+  const calls = []
+  let fail = null
+  const { service } = facadeFixture({ request: async (method, params) => {
+    calls.push([method, params])
+    if (fail) throw Object.assign(new Error(fail), { code: fail, status: 503, outcome: 'not_accepted' })
+    return method === 'status' ? { configured: true } : { registered: method === 'register' }
+  } })
+  const handler = createUsageApi({ notifications: service })
+  const server = createServer((request, response) => {
+    handler(request, response, new URL(request.url, 'http://localhost')).catch(error => respondHttpError(request, response, error))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => { server.closeAllConnections(); server.close() })
+  const call = (path, body) => fetch(`http://127.0.0.1:${server.address().port}${path}`, body === undefined ? undefined
+    : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const token = 'a'.repeat(40)
+  assert.deepEqual(await (await call('/api/notifications/android')).json(), { configured: true })
+  assert.deepEqual(await (await call('/api/notifications/android/devices', { token, server: 'https://bell.example.com' })).json(), { registered: true })
+  assert.deepEqual(await (await call('/api/notifications/android/unregister', { token })).json(), { registered: false })
+  assert.deepEqual(calls, [['status', { provider: 'fcm' }], ['register', { token, server: 'https://bell.example.com', provider: 'fcm' }], ['unregister', { token, provider: 'fcm' }]])
+  assert.equal((await call('/api/notifications/android/other', {})).status, 404)
+  for (const [code, status] of [['PUSH_DEVICE_INVALID', 400], ['PUSH_NOT_CONFIGURED', 503]]) {
+    fail = code
+    const response = await call('/api/notifications/android/devices', { token, server: 'https://bell.example.com' })
+    assert.equal(response.status, status); assert.deepEqual(await response.json(), { error: code })
+  }
+})

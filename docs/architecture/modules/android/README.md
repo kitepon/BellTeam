@@ -6,4 +6,6 @@
 
 本体接続はHTTP APIとSSE。連絡はBellTeamの直接会話を使う。画面・文言・操作の流れはMac版に揃える（Owner 2026-11-17、全プラットフォーム同一仕様）。
 
+アプリを閉じている間の通知はFCMで届く。サーバー側の契約（端末登録API・メッセージの形・チャンネル）は[Android通知（FCM）](../usage/fcm-push.md)。クライアントの実装と図はNeon。
+
 [接続情報](module.json) / [共通の変更手順](../../module-ownership.md)

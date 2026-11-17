@@ -30,6 +30,8 @@ flowchart LR
 - 通知provider/保存は既PushNotificationsを使用。state配列/端末形式の不正は固定PUSH_STATE_INVALIDで初期化失敗とし、空状態へ置換しない。APNs/relayの既exportと外部callerは保持する。
 - 交換中の別設定保存によるFEATURE_APPLY_FAILEDは、後のready applyError=nullで消さない。共通onStateはapplyErrorがある時だけ設定errorへ投影し、clearは既明示設定applyが持つ。
 
+The Android (FCM) provider added beside APNs and Web push (a378) is described in [fcm-push](fcm-push.md); its `register` / `unregister` / `status` use `provider:'fcm'` on the same IPC and `publish` fans the same four events out to it.
+
 ## Kの子終了診断callbackの転送
 
 The 2026-11-08 additive APNs status and saved update-attempt state contract is canonical in [update-push.md](update-push.md#saved-apns-update-attempt-receipts-2026-11-08). The selected notification child owns its new receipt directory and existing inflight/saving drain. The existing parent IPC status validator is closed and MUST be extended compatibly in an authorized body release before this module can expose receipts; authenticated HTTP forwarding needs no new route. Molly owns the parent contact. This supersedes the historical preparation note below that excluded a persistent receipt ledger for update notifications.

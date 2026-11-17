@@ -141,6 +141,12 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
         }
         return json(response, 200, await notifications.status(options))
       }
+      if (url.pathname.startsWith('/api/notifications/android')) {
+        if (request.method === 'GET' && url.pathname === '/api/notifications/android') return json(response, 200, await notifications.androidStatus())
+        if (request.method === 'POST' && url.pathname === '/api/notifications/android/devices') return json(response, 200, await notifications.androidRegister(await readJson(request, 8192)))
+        if (request.method === 'POST' && url.pathname === '/api/notifications/android/unregister') return json(response, 200, await notifications.androidUnregister(await readJson(request, 4096)))
+        return json(response, 404, { error: 'NOT_FOUND' })
+      }
       if (request.method === 'POST' && url.pathname === '/api/notifications/devices')
         return json(response, 200, await notifications.register(await readJson(request, 32768)))
       if (request.method === 'POST' && url.pathname === '/api/notifications/unregister')

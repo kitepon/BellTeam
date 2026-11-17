@@ -42,6 +42,12 @@ Apple Developer の Certificates, Identifiers & Profiles で、署名の前に�
 
 アプリの entitlement は Push Notifications（`aps-environment`。Mac は `com.apple.developer.aps-environment`）、App Groups、Communication Notifications（`com.apple.developer.usernotifications.communication`）。Mac は従来どおり App Sandbox と外向き通信、利用者が選んだファイルの読み書きも含む。拡張の entitlement は App Groups だけ。Mac の拡張は App Sandbox も含む。アプリの Info.plist の `NSUserActivityTypes` に `INSendMessageIntent` を入れる。
 
+## Android（FCM）
+
+Androidアプリ（Neon、`dev.kitepon.bellbot`）へも、アプリを閉じている間の通知をFirebase Cloud Messaging（FCM）で送る。対象の出来事・文言はAPNsと同じ（返信、ルームの新着、秘密情報の入力依頼、選んでほしいこと）。更新の通知はApple専用で、Androidへは送らない。通知の「オン／オフ」設定はAndroidにも効く。
+
+配布者はFirebaseのサービスアカウントの鍵（JSON）を取得し、`/srv/bellteam/shared/tools/fcm/config.json` に `{ "serviceAccount": { "file": "firebase-service-account.json" } }`（鍵は同じ場所の0600のファイル）か `{ "serviceAccount": { "reference": "op://保管庫のID/アイテムのID/フィールド名" } }`（1Password、APNsの鍵参照と同じ連携）を書く。設定がなければAndroid通知は無効で、設定や鍵が不正でもAPNs・Web通知は止まらない。端末の登録は `state/fcm-devices.json` に別に保存する。認証済みAPIは `POST /api/notifications/android/devices`、`POST /api/notifications/android/unregister`、`GET /api/notifications/android`。構成・契約・保護の全文は [fcm-push](architecture/modules/usage/fcm-push.md)。
+
 ## 送信と記録
 
 メッセージ・入力要求の保存時に一度だけ送信する。過去の会話を起動時に再送しない。通知用の待機列や定期ポーリングは持たない。端末登録は`state/push-devices.json`へ保存し、トークン更新・ログアウト・APNsの失効応答で更新する。APNsが`DeviceTokenNotForTopic`（400。別のBundle IDのアプリが登録したトークンで、この設定のTopicには二度と届かない）を返した登録も除き、その1回は`SERVER_PUSH_SEND_FAILED`として診断する。Topicの設定を誤ると全端末がこれで除かれるが、アプリは起動のたびに登録し直すので、設定を直した後の起動で戻る（2026-11-15、開発用ビルドの1台が709回拒まれ続けた）。
