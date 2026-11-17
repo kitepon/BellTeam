@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T10:49:21Z",
-  "expiresAt": "2026-11-24T10:49:21Z",
+  "publishedAt": "2026-11-17T23:04:10Z",
+  "expiresAt": "2026-11-24T23:04:10Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
-      "versionId": "2f2c8a2a016e8112e30abf6892ccb3435e420ad84bb64d7e9f6a626e43e0d3c4",
+      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
+      "versionId": "a83738437428d902fd9a75f2eb497dc76931931ea077545778bf38c231728141",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz",
-          "bytes": 84774,
-          "sha256": "2f2c8a2a016e8112e30abf6892ccb3435e420ad84bb64d7e9f6a626e43e0d3c4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz",
+          "bytes": 85762,
+          "sha256": "a83738437428d902fd9a75f2eb497dc76931931ea077545778bf38c231728141"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10862,
-          "sha256": "1139e228c19dd268a0050f27dbdab48bc573e3f6acfa5be5a73ab4a58dfee4ab"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11140,
+          "sha256": "6b38c9a56c7afcc905f6f1c11559fc29dea5611a912c14bde4771ddd7f119dd7"
         },
-        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
+        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,14 +48,14 @@
         }
       },
       "changes": [
-        "Androidアプリへ通知を送るための受け口（FCM）を足しました。Firebaseの設定が無い間は、未設定と答えるだけで何も変わりません。",
-        "運営の中継が購入の証拠を一つだけ照会できるようにしました。"
+        "Stripeで購読している人が、BellTeamの画面から解約・支払い方法の変更へ進めるようにしました。",
+        "すでに購読している人が、別の方法で二重に購読できないようにしました。購入画面には、購入できるかどうかと、購読元の情報を返します。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
-      "versionId": "80aa8e3eab98aeff624651cfc864573280cfda28b10f829768b77da141f296a1",
+      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
+      "versionId": "7d9bb69dbf61fb69c450f88118777ac447178fcade3c208f24499471590f333f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +63,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz",
-          "bytes": 84774,
-          "sha256": "80aa8e3eab98aeff624651cfc864573280cfda28b10f829768b77da141f296a1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz",
+          "bytes": 85762,
+          "sha256": "7d9bb69dbf61fb69c450f88118777ac447178fcade3c208f24499471590f333f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11105,
-          "sha256": "f0f7ea6fb560f1d621fd4ddf17458067f412eacd26754a9098d781467d8523c5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230327Z/usage-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11046,
+          "sha256": "57bd5eed0cdb5504bf0e5ddcbcbb96e814c7b3d343b7ed256b8875c67f2ef249"
         },
-        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
+        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -97,8 +97,8 @@
         }
       },
       "changes": [
-        "Androidアプリへ通知を送るための受け口（FCM）を足しました。Firebaseの設定が無い間は、未設定と答えるだけで何も変わりません。",
-        "運営の中継が購入の証拠を一つだけ照会できるようにしました。"
+        "Stripeで購読している人が、BellTeamの画面から解約・支払い方法の変更へ進めるようにしました。",
+        "すでに購読している人が、別の方法で二重に購読できないようにしました。購入画面には、購入できるかどうかと、購読元の情報を返します。"
       ]
     },
     {
@@ -431,8 +431,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
-      "versionId": "244aed551ccca235ba5fa95d04016285d03f79b463302694a41c1c9ddf9c67a4",
+      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
+      "versionId": "330fa4e9ee6ce5a6655c33918febd65fc0b65cc24a52644c0a45640a44c4af4f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -440,16 +440,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz",
-          "bytes": 5460308,
-          "sha256": "244aed551ccca235ba5fa95d04016285d03f79b463302694a41c1c9ddf9c67a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz",
+          "bytes": 5460715,
+          "sha256": "330fa4e9ee6ce5a6655c33918febd65fc0b65cc24a52644c0a45640a44c4af4f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11205,
-          "sha256": "4ba806a47f26e90bce6aab05f48b7465f61dea9c8f33c7f517cb8c38ec9f282d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11240,
+          "sha256": "4cc1cecec27839947aaf77a9592b3490208126ffdd49522cf392ea4fc228518a"
         },
-        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
+        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -458,14 +458,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Android向けの通知の登録・状態の確認の入口を足しました。",
-        "Antigravityの席が残る時のお知らせを、Webの入口でも付けるようにしました。"
+        "購読の解約・管理の入口（Stripe）と、二重請求を止める確認を、Webの受付でも通すようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
-      "versionId": "40cb46723ee46dbbb410ef8574f568adab7518c176ccf9e8f3f5d22728aaeb7d",
+      "sourceCommit": "215c041c892af28cfe97a4e54969b058def90ab8",
+      "versionId": "8a3519151fd25a900dbc03900927b9dae8512de395b745be680ce9159302bc88",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -473,16 +472,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz",
-          "bytes": 5460308,
-          "sha256": "40cb46723ee46dbbb410ef8574f568adab7518c176ccf9e8f3f5d22728aaeb7d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz",
+          "bytes": 5460715,
+          "sha256": "8a3519151fd25a900dbc03900927b9dae8512de395b745be680ce9159302bc88"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T230333Z/web-gateway-215c041c892af28cfe97a4e54969b058def90ab8-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11111,
-          "sha256": "9d131fd953a548b060e04da7dad6b3ec53149617802575dbdc27988ad8bc043c"
+          "sha256": "ed35acdfc94e340a186a85eda821700e079d15fb06693b1bc497537687c42056"
         },
-        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
+        "signerCommit": "215c041c892af28cfe97a4e54969b058def90ab8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -491,8 +490,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Android向けの通知の登録・状態の確認の入口を足しました。",
-        "Antigravityの席が残る時のお知らせを、Webの入口でも付けるようにしました。"
+        "購読の解約・管理の入口（Stripe）と、二重請求を止める確認を、Webの受付でも通すようにしました。"
       ]
     },
     {
