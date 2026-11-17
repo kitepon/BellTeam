@@ -58,14 +58,14 @@ public sealed class SettingsPage : ScrollViewer
 
     private static string Version() => MainActivity.Current.PackageManager?.GetPackageInfo(MainActivity.Current.PackageName!, 0)?.VersionName ?? "不明";
 
-    // The system browser through Avalonia's launcher; a failure is shown on the page, never swallowed.
+    // The system browser (ExternalLink.Opener); a failure is shown on the page, never swallowed.
     private Button Link(string label, string key, Panel notice)
     {
         var button = Capsule(label, Fill, Ink, 8, 13, new Thickness(14, 8)); button.FontWeight = FontWeight.Normal; button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 8, 0, 0);
-        button.Click += async (_, _) =>
+        button.Click += (_, _) =>
         {
             notice.Children.Clear();
-            try { if (!await TopLevel.GetTopLevel(this)!.Launcher.LaunchUriAsync(EmbeddedAsset.ProductUrl(key))) notice.Children.Add(Banner("ページを開けませんでした。")); }
+            try { ExternalLink.Launch(EmbeddedAsset.ProductUrl(key)); }
             catch (Exception error) { notice.Children.Add(Banner("ページを開けませんでした。" + error.Message)); }
         };
         return button;

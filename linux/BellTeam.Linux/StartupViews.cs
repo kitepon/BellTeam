@@ -64,7 +64,7 @@ internal static class MacUi
     };
     public static void OpenUrl(Uri address, Action<string> failed)
     {
-        try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); }
+        try { ExternalLink.Launch(address); }
         catch (Exception error) { failed("ブラウザーを開けませんでした。" + error.Message); }
     }
 }

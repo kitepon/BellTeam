@@ -165,7 +165,7 @@ public sealed class MarkdownView : ContentControl
     }
     private static void Open(Uri uri)
     {
-        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
+        try { ExternalLink.Launch(uri); }
         catch (Exception error) { LinkFailed?.Invoke("リンクを開けませんでした。" + error.Message); }
     }
 }
