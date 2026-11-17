@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T05:05:36Z",
-  "expiresAt": "2026-11-24T05:05:36Z",
+  "publishedAt": "2026-11-17T05:27:51Z",
+  "expiresAt": "2026-11-24T05:27:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -561,8 +561,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "10f2d3c095002c263179b51f735c2744d3ad14dd",
-      "versionId": "37a60f6b33e3489e954e83e205c76e374846264f03c90981ae5532c60c76f7c8",
+      "sourceCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762",
+      "versionId": "af5c903a2fa8fd649ab6a890825bd571987fc3b07ddca513e16c625da36416d5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -570,16 +570,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T045356Z/members-10f2d3c095002c263179b51f735c2744d3ad14dd-linux-amd64.tar.gz",
-          "bytes": 4603453,
-          "sha256": "37a60f6b33e3489e954e83e205c76e374846264f03c90981ae5532c60c76f7c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-amd64.tar.gz",
+          "bytes": 4603334,
+          "sha256": "af5c903a2fa8fd649ab6a890825bd571987fc3b07ddca513e16c625da36416d5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T045356Z/members-10f2d3c095002c263179b51f735c2744d3ad14dd-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10933,
-          "sha256": "a9d9a8fcc113f32f044fe3bcd9094da1fbcf872a51f2305ac9e153708f6b9cd3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10859,
+          "sha256": "1a59e5ad8651ff0b2be1357f8721c7a493a540eef3f5dce554ba7f83ad7e3a85"
         },
-        "signerCommit": "10f2d3c095002c263179b51f735c2744d3ad14dd"
+        "signerCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -596,13 +596,13 @@
         }
       },
       "changes": [
-        "共通ルールの「申告で関数が記録されなかった時」の書き方を、Lattice 0.111.0以降に合わせて直しました。読み取れなかった項目を、「パス#名前」の形に直して、同じ申告をやり直します。"
+        "共通ルールから、「申告で関数が記録されなかった時」の一節を消しました。Lattice 0.111.1が席に入ったので、この一節は要らなくなりました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "10f2d3c095002c263179b51f735c2744d3ad14dd",
-      "versionId": "6883719e7ae13a05871019086ae9e3cd12f05099021206078c0d3991030080d0",
+      "sourceCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762",
+      "versionId": "68927b1be3e34e737051a3ca9b8c5486bf96d01e86845431ca2710a25b0f3426",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -610,16 +610,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T045356Z/members-10f2d3c095002c263179b51f735c2744d3ad14dd-linux-arm64.tar.gz",
-          "bytes": 4603450,
-          "sha256": "6883719e7ae13a05871019086ae9e3cd12f05099021206078c0d3991030080d0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-arm64.tar.gz",
+          "bytes": 4603333,
+          "sha256": "68927b1be3e34e737051a3ca9b8c5486bf96d01e86845431ca2710a25b0f3426"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T045356Z/members-10f2d3c095002c263179b51f735c2744d3ad14dd-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T052733Z/members-2d4deedbbbb72432d9c8f0ef7e5a61b16681f762-linux-arm64.tar.gz.sigstore.json",
           "bytes": 10949,
-          "sha256": "73c6e7e973b2309981144cd751cc61c4e77526c260a614f634bd4625a2cecbf7"
+          "sha256": "91fa2b79ea91d72018edc62f9c7865d4f1055b47e327a396ae94b459d0eb57de"
         },
-        "signerCommit": "10f2d3c095002c263179b51f735c2744d3ad14dd"
+        "signerCommit": "2d4deedbbbb72432d9c8f0ef7e5a61b16681f762"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -636,7 +636,7 @@
         }
       },
       "changes": [
-        "共通ルールの「申告で関数が記録されなかった時」の書き方を、Lattice 0.111.0以降に合わせて直しました。読み取れなかった項目を、「パス#名前」の形に直して、同じ申告をやり直します。"
+        "共通ルールから、「申告で関数が記録されなかった時」の一節を消しました。Lattice 0.111.1が席に入ったので、この一節は要らなくなりました。"
       ]
     },
     {
