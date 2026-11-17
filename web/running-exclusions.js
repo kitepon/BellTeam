@@ -2,7 +2,7 @@
 // The Web only reads the list and sends the Owner's own removal; adding is only through Approval Box.
 import { formatDateTime } from './view-format.js?v=__ASSET_VERSION__'
 
-const HARNESS_NAMES = { 'claude-code': 'Claude Code', 'codex-cli': 'Codex', 'grok-cli': 'Grok', 'cursor-cli': 'Cursor', 'antigravity-cli': 'Antigravity' }
+const HARNESS_NAMES = { 'claude-code': 'Claude Code', 'codex-cli': 'Codex', 'grok-cli': 'Grok', 'cursor-cli': 'Cursor' }
 
 // The same words the work card's reason shows: a process reads as "<exe> <args>".
 export function exclusionWords(entry) {

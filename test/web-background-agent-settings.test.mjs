@@ -20,6 +20,7 @@ test('unconfigured has no default; per-model candidates and exact CAS save are r
   return {settings:[],backgroundAgent:record}
  })
  await f.view.open();assert.equal(f.node('harness').value,'');assert.equal(f.node('save').disabled,true)
+ assert.deepEqual(f.node('harness').children.map(option=>option.value),['','claude','codex','grok','cursor'])
  f.choose('harness','codex');f.choose('model',wire.configured.selection.model)
  assert.deepEqual(f.node('effort').children.map(option=>option.value),['','high'])
  f.choose('effort','low');assert.equal(f.node('save').disabled,true)

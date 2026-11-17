@@ -1,12 +1,14 @@
 import { modelChoices } from './view-format.js?v=__ASSET_VERSION__'
-const harnesses = [['claude','Claude'],['codex','Codex'],['grok','Grok'],['cursor','Cursor'],['antigravity','Antigravity']]
+const harnesses = [['claude','Claude'],['codex','Codex'],['grok','Grok'],['cursor','Cursor']]
+// Antigravity is no longer offered; a record saved earlier still reads as valid so the screen does not break (server migrates it, a353).
+const savedHarnessIds = [...harnesses.map(([id]) => id), 'antigravity']
 const exact = (value, keys) => value && typeof value === 'object' && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key))
 function validRecord(value) {
   if (!exact(value,['revision','selection'])) return false
   if (value.revision === null) return value.selection === null
   const choice = value.selection
   return typeof value.revision === 'string' && /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu.test(value.revision)
-    && exact(choice,['harness','model','reasoningEffort']) && harnesses.some(([id]) => id === choice.harness)
+    && exact(choice,['harness','model','reasoningEffort']) && savedHarnessIds.includes(choice.harness)
     && typeof choice.model === 'string' && choice.model.length > 0 && typeof choice.reasoningEffort === 'string'
 }
 // 考える深さ。値は保存のまま、見せる言葉だけを変える。知らない値はそのまま。
