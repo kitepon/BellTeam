@@ -17,12 +17,16 @@ struct SubscriptionStatus: Decodable {
     let expiresAt: String?
     let validUntil: String?
     let autoRenewing: Bool
+    // Since a389. Optional so an older server still decodes; a missing canPurchase means no purchase button (contract rule 6).
+    let billingSources: [String]?
+    let canPurchase: Bool?
     let error: Issue?
 }
 
 private struct SubscriptionResponse: Decodable { let subscription: SubscriptionStatus }
 private struct TransactionRequest: Encodable { let signedTransaction: String }
 private struct EmptyBillingRequest: Encodable {}
+private struct StripeManageResponse: Decodable { let url: URL }
 
 struct SubscriptionProductConfiguration: Decodable {
     let appAppleId: Int
@@ -42,12 +46,13 @@ struct AppleSubscriptionSnapshot {
 enum SubscriptionPresentation { case checking, active, inactive, unavailable }
 private enum EntitlementCheck { case checking, complete, failed }
 private enum BillingOperation {
-    case purchase, restore, check
+    case purchase, restore, check, manage
     var text: String {
         switch self {
         case .purchase: "購入を確認しています"
         case .restore: "購入を復元しています"
         case .check: "購読を確認しています"
+        case .manage: "購読の管理ページを開いています"
         }
     }
 }
@@ -87,6 +92,8 @@ final class BillingStore: ObservableObject {
     var isDeveloper: Bool { status?.accessMode == .developer }
     /// A Stripe or Google Play subscription the server verified; an Apple one only counts through this Apple Account's own StoreKit entitlement.
     var otherStoreEntitled: Bool { status?.entitled == true && status?.source != nil && status?.source != "apple" }
+    var billingSources: [String] { status?.billingSources ?? [] }
+    var canPurchase: Bool { status?.canPurchase == true }
     var hasPaidAccess: Bool { isDeveloper || otherStoreEntitled || entitlement?.isActive(at: Date()) == true }
     var notificationSignedTransaction: String? {
         entitlement?.isActive(at: Date()) == true ? currentTransaction?.jwsRepresentation : nil
@@ -240,6 +247,11 @@ final class BillingStore: ObservableObject {
                 try await onSetupRequired?()
                 return
             }
+            // Another store may still bill this server: refuse before the Apple sheet opens (a389, no double billing).
+            guard canPurchase else {
+                errorText = "すでにBellTeamの購読があります。二重に購入しないよう、新しい購入は受け付けません。"
+                return
+            }
             switch try await action(product, options: []) {
             case .success(let transaction):
                 try await deliver(transaction)
@@ -272,6 +284,22 @@ final class BillingStore: ObservableObject {
         } catch {
             errorText = error.localizedDescription
             api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
+    }
+
+    /// a389: the Stripe customer portal URL (cancel, undo, card, invoices). The caller opens it in the system browser.
+    func stripeManageURL() async -> URL? {
+        guard !checking else { return nil }
+        operation = .manage
+        errorText = nil
+        defer { operation = nil }
+        do {
+            let response: StripeManageResponse = try await api.post("/api/subscription/stripe/manage", body: EmptyBillingRequest())
+            return response.url
+        } catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription/stripe/manage", method: "POST", observation: .subscription)
+            return nil
         }
     }
 
