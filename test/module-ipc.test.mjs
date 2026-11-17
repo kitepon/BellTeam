@@ -184,3 +184,19 @@ test('a lost connection drains every waiting root call as not_accepted', async t
   a.fail()
   await assert.rejects(waiter, { code: 'MODULE_IPC_DISCONNECTED', outcome: 'not_accepted' })
 })
+
+// a399: the two halves ship apart; a result one side cannot read is that call's failure, not the channel's.
+test('a result this side cannot read fails that call only and the channel keeps working', async t => {
+  const [parent, child] = pair(), disconnected = []
+  const a = createModuleEndpoint(parent, { errorPrefix: 'USAGE', onRequest: () => assert.fail(), onDisconnect: () => disconnected.push('parent'),
+    validateResult: (_kind, method, value) => method !== 'newer' && value.ok === true })
+  const b = createModuleEndpoint(child, { errorPrefix: 'USAGE', validateResult: () => true, onDisconnect: () => disconnected.push('child'),
+    onRequest: message => () => message.method === 'newer' ? { ok: true, added: 1 } : { ok: true } })
+  t.after(() => { a.reaped(); b.reaped() })
+  const refused = a.call('root', 'newer', {}, { generation: 'fixture' })
+  await assert.rejects(refused, { code: 'USAGE_RESULT_INVALID', outcome: 'unknown', status: 503 })
+  await assert.rejects(refused.completion, { code: 'USAGE_RESULT_INVALID' })
+  assert.equal(a.snapshot().root, 0)
+  assert.deepEqual(await a.call('root', 'read', {}, { generation: 'fixture' }), { ok: true })
+  assert.deepEqual(disconnected, [])
+})

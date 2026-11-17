@@ -151,6 +151,22 @@ flowchart LR
 ```
 
 
+## A failed candidate leaves nothing behind (2026-11-18, a399)
+
+Seen on the lab (Z89, Z94): a usage candidate the body refused during `initialize` failed the exchange in under a second, and the old usage then stayed in `backoff` until the body container was restarted. Cause: the candidate's first seed row had been accepted, so the parent's private projection (`createUsageProjection`) kept the candidate's generation as the only one allowed to seed; `commit()` was the only reset, and a killed candidate never commits. The rollback child and every 30 s recovery attempt were refused at their first row (`USAGE_PROJECTION_INVALID`).
+
+```mermaid
+stateDiagram-v2
+  running --> exchanging: replace(candidate)
+  exchanging --> running: candidate ready, probe passed, adoption written
+  exchanging --> rollback: candidate refused or dead (killed, nothing adopted)
+  rollback --> running: previous version relaunched; its seed replaces the candidate's uncommitted rows
+  rollback --> backoff: previous version fails too
+  backoff --> running: recovery attempt (1 s doubling to 30 s) succeeds
+```
+
+Rule: one child lives at a time, so a seed from another generation means the earlier one died before its snapshot. Its uncommitted rows and the revisions it raised are dropped and the new generation seeds. A committed generation is still never replayed. `test/usage-process.test.mjs` runs the sequence on the real projection. Which records a body refuses at all is in module-ipc.md, "Records between halves that ship apart".
+
 ## 子だけの自動再生成
 
 成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→await channel.childClosed（提供時）→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。旧admissionではrecover(ticket,old,next)で閉鎖採用し、未resume候補再失敗は同ticketの通常adopt。会話の新しい正式口は次段に従う。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。

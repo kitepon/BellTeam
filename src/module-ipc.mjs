@@ -113,9 +113,12 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
         check(typeof message.ok === 'boolean' && keys(message, message.ok ? 'type,kind,id,ok,value' : 'type,kind,id,ok,error'))
         check(message.ok ? task.accepted : validError(message.error) && (!statusCodes || statusCodes.includes(message.error.status))
           && !(task.accepted && message.error.outcome === 'not_accepted'))
+        let unreadable = null
         if (message.ok) {
           check(size(message.value) <= (business(task.kind) ? MEMBERS_PAYLOAD_LIMIT : MEMBERS_ENVELOPE_LIMIT))
-          check(validateResult(task.kind, task.method, message.value) !== false)
+          // a399: a well-framed result this side cannot read fails that call only; the two halves ship apart, the channel stays.
+          try { if (validateResult(task.kind, task.method, message.value) === false) throw null }
+          catch (error) { unreadable = Object.assign(membersError(error?.code ?? 'MEMBERS_RESULT_INVALID'), { status: error?.status ?? 503 }) }
         }
         clearTimeout(task.ack); clearTimeout(task.deadline)
         task.resultSeen = true
@@ -124,7 +127,8 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
           freeSlot(task.kind)
           if (error) task.incomplete(error); else task.complete(message.value)
         }
-        if (message.ok) {
+        if (unreadable) { task.reject(unreadable); finish(unreadable) }
+        else if (message.ok) {
           const body = afterResult?.(task, message.value)
           task.resolve(message.value)
           if (body === undefined) finish()

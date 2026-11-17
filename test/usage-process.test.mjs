@@ -199,7 +199,10 @@ test('child registry ports allow only metadata and the fixed guide creation effe
   await ports.rooms.refresh(); assert.equal(ports.rooms.get('room-a').memberIds[0], 'bot-guide')
   const item = ports.bots.get('bot-guide'); item.name = 'changed'; assert.equal(ports.bots.get('bot-guide').name, '案内')
   assert.throws(() => ports.bots.update('another', { harness: 'codex' }), { code: 'USAGE_EFFECT_INVALID' })
-  assert.throws(() => createUsageRegistryPorts({ initialMembers: [{ ...guide, project: '/forbidden' }], effect: () => {} }), { code: 'USAGE_MEMBERS_INVALID' })
+  // a399: a field a newer body adds is not refused, and it is not carried either.
+  const newer = createUsageRegistryPorts({ initialMembers: [{ ...guide, project: '/forbidden' }], effect: () => {} })
+  assert.deepEqual(newer.bots.get('bot-guide'), guide)
+  assert.throws(() => createUsageRegistryPorts({ initialMembers: [{ id: 'bot-guide', name: '案内' }], effect: () => {} }), { code: 'USAGE_MEMBERS_INVALID' })
   assert.equal(seen.some(row => JSON.stringify(row).includes('/forbidden')), false)
 })
 
@@ -272,6 +275,29 @@ test('settings and subscriptions can seed the real bootstrap order before member
   await service.initialize()
   projection.begin(0); for (const row of service.snapshot()) projection.accept(row, 0); projection.commit(0)
   assert.equal(projection.list().find(item => item.id === 'notifications').error.code, 'INITIAL_APPLY_FAILURE')
+})
+
+// a399: a candidate child that dies between its first seed and its snapshot must not keep the old child out.
+test('a child generation that never committed does not block the next generation\'s seed', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-usage-reseed-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const bots = new Map(), projection = createUsageProjection({ bots })
+  const service = createUsageServices({ root, bots, rooms: new Map(), effect: () => assert.fail('bootstrap effect'), onProjection: () => {} })
+  const settings = await service.initializeSettings(), subscription = await service.initializeSubscriptions()
+  const live = async generation => { projection.seed(settings, generation); projection.seed(subscription, generation) }
+  await live('running'); await service.initialize()
+  projection.begin('running'); for (const row of service.snapshot()) projection.accept(row, 'running'); projection.commit('running')
+  // The candidate's settings seed is taken, its next row is refused, and the candidate is killed (Z89, Z94 on the lab).
+  projection.seed(settings, 'candidate')
+  assert.throws(() => projection.seed({ ...subscription, revision: -1 }, 'candidate'), { code: 'USAGE_PROJECTION_INVALID' })
+  await live('rollback')
+  projection.begin('rollback'); for (const row of service.snapshot()) projection.accept(row, 'rollback'); projection.commit('rollback')
+  assert.equal(projection.subscription().canUseAI, true)
+  assert.throws(() => projection.seed(settings, 'running'), { code: 'USAGE_PROJECTION_INVALID' })
+  // Before any snapshot (body start): the dead child's higher revision goes with it, so the next child's rows are not old.
+  const early = createUsageProjection({ bots })
+  early.seed({ ...settings, revision: 7 }, 'dead'); early.seed(settings, 'next'); early.seed(subscription, 'next')
+  early.accept({ ...subscription, revision: Math.max(settings.revision, subscription.revision) + 1 }, 'next')
+  assert.equal(early.subscription().canUseAI, true)
 })
 
 
@@ -382,5 +408,11 @@ test('購読の記録は、billingSources・canPurchaseが無い古い形も有�
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: old, revision: 0 }), true)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, canPurchase: 'yes' }, revision: 0 }), false)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, billingSources: [1] }, revision: 0 }), false)
-  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, unknown: 1 }, revision: 0 }), false)
+  // a399: a field a newer usage adds is not refused; a missing required one still is. Rows served as stored with secrets nearby stay closed.
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, unknown: 1 }, revision: 0 }), true)
+  const { entitled, ...short } = old
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: short, revision: 0 }), false)
+  const question = { id: 'q1', botId: 'bot-a', question: '?', options: [], allowOther: false, at: '2026-11-18T00:00:00.000Z', status: 'open' }
+  assert.equal(usageProjectionRecordValid({ type: 'question', value: question, revision: 0 }), true)
+  assert.equal(usageProjectionRecordValid({ type: 'question', value: { ...question, token: 'x' }, revision: 0 }), false)
 })

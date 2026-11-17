@@ -190,6 +190,6 @@ test('古いusageの部品が送る形を、新しい本体が受け入れて答
   const old = { phase: 'authenticate', harness: 'antigravity', harnesses: ['claude', 'codex', 'grok', 'cursor', 'antigravity'].map(id => ({ id, name: id })), guideBotId: 'bot-guide', complete: false,
     auth: { status: 'failed', url: null, user_code: null, input_required: false, message: RETIRED_HARNESS_NOTICE, session_id: null, auth_ui: authUi(receipt, null) } }
   assert.equal(usageResultValid('onboarding.status', old), true)
-  // A record with any extra field is refused by both generations: nothing may be added to it.
-  assert.equal(usageResultValid('onboarding.status', { ...old, harnessNotice: RETIRED_HARNESS_NOTICE }), false)
+  // a399: from this body on an added field is read past (module-ipc.md); bodies before it refused the record, which is why a374 put the notice at the HTTP edge.
+  assert.equal(usageResultValid('onboarding.status', { ...old, harnessNotice: RETIRED_HARNESS_NOTICE }), true)
 })

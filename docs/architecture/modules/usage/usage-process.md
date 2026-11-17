@@ -101,7 +101,7 @@ quiesceは新requestを閉じ、処理中と同root effectの実終端まで待�
 
 ## 実装済みの受渡し上の注意
 
-初回private投影は`projection.seed(initializeSettings返却,generation)`と`seed(initializeSubscriptions返却,generation)`で先行利用し、完全snapshotのcommitまでbootstrap順序を止めない。full ready前に許すのはsystemによるsettings読取/epoch付きerror記録だけ。Owner/Bot業務はready後。
+初回private投影は`projection.seed(initializeSettings返却,generation)`と`seed(initializeSubscriptions返却,generation)`で先行利用し、完全snapshotのcommitまでbootstrap順序を止めない。別の世代のseedが来た時は、commitしていない前の世代（途中で止まった候補）の仮置きと、その世代が進めたrevisionを捨てて受ける（a399。子は同時に一つ。commit済みの世代のやり直しは断る。状態図は`runtime/module-process.md`）。記録の読み方は`runtime/module-ipc.md`の「Records between halves that ship apart」に従う。`subscription`・`onboarding`・`auth`・`event`・`credentialRecovery`の行は、使う項目の有無と型だけを見て、知らない項目を断らない。`secret`・`question`・`settings`・`credential`の行は、親が保存した形のまま返すので、項目の一覧を閉じたままにする（秘密の近くへ余分な値を通さない）。full ready前に許すのはsystemによるsettings読取/epoch付きerror記録だけ。Owner/Bot業務はready後。
 
 `onProjection(record)`はprivate ACK完了までのPromiseを返す。factoryはrevision順に公開し、ACK前の親effect発行と要求成功を抑止する。投影失敗は保存済み状態を巻戻さず、USAGE_PROJECTION_UNAVAILABLEで新入場を閉じる。`usageResultValid(method,result,params)`と`usageProjectionRecordValid`をchannelの成功判定に再利用する。
 

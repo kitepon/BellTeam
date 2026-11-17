@@ -8,9 +8,9 @@ function members(value) {
   if (!Array.isArray(value)) throw usageError('USAGE_MEMBERS_INVALID')
   const result = new Map()
   for (const item of value) {
-    if (!object(item) || Object.keys(item).sort().join(',') !== 'harness,id,name' || !text(item.id) || !text(item.name)
+    if (!object(item) || !Object.hasOwn(item, 'harness') || !text(item.id) || !text(item.name)
       || !(item.harness === null || Object.hasOwn(HARNESS, item.harness) || retiredHarness(item.harness)) || result.has(item.id)) throw usageError('USAGE_MEMBERS_INVALID')
-    result.set(item.id, { ...item })
+    result.set(item.id, { id: item.id, name: item.name, harness: item.harness })
   }
   return result
 }
@@ -45,9 +45,9 @@ export function createUsageRegistryPorts({ effect, initialMembers }) {
         if (!Array.isArray(rows)) throw usageError('USAGE_ROOMS_INVALID')
         const next = new Map()
         for (const room of rows) {
-          if (!object(room) || Object.keys(room).sort().join(',') !== 'id,memberIds' || !text(room.id)
+          if (!object(room) || !text(room.id)
             || !Array.isArray(room.memberIds) || room.memberIds.some(id => !text(id)) || next.has(room.id)) throw usageError('USAGE_ROOMS_INVALID')
-          next.set(room.id, structuredClone(room))
+          next.set(room.id, { id: room.id, memberIds: [...room.memberIds] })
         }
         currentRooms = next
       },
