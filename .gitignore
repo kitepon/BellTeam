@@ -11,6 +11,8 @@ windows/TestResults/
 windows/artifacts/
 linux/**/bin/
 linux/**/obj/
+android/**/bin/
+android/**/obj/
 linux/artifacts/
 ios/BellBot/build/
 ios/BellBot/DerivedData/

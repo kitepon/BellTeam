@@ -1,0 +1,19 @@
+{
+  "title": "Androidアプリ",
+  "owner": "ネオン",
+  "botId": "bot-208dcbab",
+  "scope": "Androidクライアント",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "integration",
+      "port": "HTTP/SSE"
+    }
+  ],
+  "source": [
+    "android/"
+  ]
+}

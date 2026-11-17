@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <!-- Same assembly name as the Windows and Linux apps: BellTeam.Core's InternalsVisibleTo("BellTeam") and avares://BellTeam/ resolve. -->
+    <AssemblyName>BellTeam</AssemblyName>
+    <ApplicationId>dev.kitepon.bellbot</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- Fast Deployment keeps assemblies outside the APK and breaks after pm clear; embed them so a clean install always starts. -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../linux/BellTeam.Linux/*.cs" Exclude="../../linux/BellTeam.Linux/Program.cs;../../linux/BellTeam.Linux/App.cs" LinkBase="LinuxViews" />
+    <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeam.png" />
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
+    <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
+    <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
+    <AvaloniaResource Include="../../linux/BellTeam.Linux/Theme.axaml" Link="Theme.axaml" />
+    <Using Remove="Android.Widget" />
+    <Using Remove="Android.Views" />
+    <PackageReference Include="Markdig" Version="1.4.0" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
+    <PackageReference Include="Xamarin.Android.Google.BillingClient" Version="9.1.0.2" />
+    <PackageReference Include="Avalonia.Android" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+  </ItemGroup>
+</Project>
