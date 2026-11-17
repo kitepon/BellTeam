@@ -26,6 +26,20 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertTrue(old.needsStartConfirmation(auth(.authenticated)), "旧サーバーの表示を維持する")
     }
 
+    /// a365: a retired harness string and its read-only notices decode; a server without them still decodes.
+    func testRetiredHarnessNoticesDecode() throws {
+        let decoder = JSONDecoder()
+        let bot = try decoder.decode(Bot.self, from: Data(#"{"id":"b","name":"n","displayName":"n","harness":"antigravity","model":"","reasoningEffort":"","fastMode":false,"color":"violet","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false,"harnessNotice":"別のAIを選んでください。"}"#.utf8))
+        XCTAssertEqual(bot.harness, "antigravity")
+        XCTAssertEqual(bot.harnessNotice, "別のAIを選んでください。")
+        let plain = try decoder.decode(Bot.self, from: Data(#"{"id":"b","name":"n","displayName":"n","harness":"codex","model":"","reasoningEffort":"","fastMode":false,"color":"violet","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false}"#.utf8))
+        XCTAssertNil(plain.harnessNotice)
+        let setup = try decoder.decode(SetupResponse.self, from: Data(#"{"phase":"ready","harness":"antigravity","harnesses":[],"guideBotId":"g","complete":false,"auth":null,"harnessNotice":"X"}"#.utf8))
+        XCTAssertEqual(setup.harnessNotice, "X")
+        let settings = try decoder.decode(FeatureSettingsResponse.self, from: Data(#"{"settings":[],"backgroundAgent":null,"backgroundAgentNotice":"Y"}"#.utf8))
+        XCTAssertEqual(settings.backgroundAgentNotice, "Y")
+    }
+
     func testUnsupportedReloginStillAllowsFirstAuthentication() {
         let fixture = HarnessAuthenticationOption(id: "fixture", name: "Fixture", members: 1,
                                                       startWarning: "公式CLIで認証してください。", reloginSupported: false)

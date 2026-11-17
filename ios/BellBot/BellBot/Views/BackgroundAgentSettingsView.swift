@@ -71,8 +71,13 @@ struct BackgroundAgentEditor: View {
                 Text("このサーバーの版では設定できません。")
             } else {
                 Section {
+                    if let notice = store.backgroundAgentNotice {
+                        Text(notice).font(BellTheme.secondaryFont).foregroundStyle(.orange)
+                            .accessibilityIdentifier("background-agent-notice")
+                    }
                     Picker("CLI", selection: Binding(get: { harness }, set: { harness = $0; model = ""; effort = "" })) {
                         ForEach(backgroundAgentHarnesses, id: \.0) { Text($0.1).tag($0.0) }
+                        if !backgroundAgentHarnesses.contains(where: { $0.0 == harness }) { Text("\(harness)（終了）").tag(harness) }
                     }
                     Picker("モデル", selection: Binding(get: { model }, set: { next in
                         model = next

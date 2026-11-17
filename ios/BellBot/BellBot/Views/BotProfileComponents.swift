@@ -542,6 +542,9 @@ struct BotProfileAISection: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(look.name).font(.headline).foregroundStyle(BellTheme.ink)
                     Text(summary).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                    if let notice = bot.harnessNotice {
+                        Text(notice).font(BellTheme.secondaryFont).foregroundStyle(.orange)
+                    }
                 }
             }
             .accessibilityElement(children: .combine)

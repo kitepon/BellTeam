@@ -18,6 +18,9 @@ struct OnboardingView: View {
                     Text("最初に使うAIを選んで公式サイトで認証します。設定は、そのあと案内役と会話しながら進められます。")
                         .foregroundStyle(BellTheme.muted)
                     if let setup = store.setup {
+                        if let notice = setup.harnessNotice {
+                            Text(notice).font(.footnote).foregroundStyle(.orange)
+                        }
                         if setup.phase == "select_harness" {
                             ForEach(setup.harnesses) { harness in
                                 Button { perform { try await store.chooseHarness(harness.id) } } label: {
