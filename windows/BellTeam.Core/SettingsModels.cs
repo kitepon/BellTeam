@@ -52,7 +52,7 @@ public sealed record BackgroundAgentResponse { public required BackgroundAgentRe
 
 public static class BackgroundAgentChoices
 {
-    public static readonly (string Id, string Label)[] Harnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor"), ("antigravity", "Antigravity")];
+    public static readonly (string Id, string Label)[] Harnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor")];
     public static ModelChoice[] Models(Dictionary<string, HarnessModels> catalog, string harness) => catalog.TryGetValue(harness, out var listed) ? listed.Models : [];
     public static string[] Efforts(Dictionary<string, HarnessModels> catalog, string harness, string model) => Models(catalog, harness).FirstOrDefault(choice => choice.Id == model)?.Efforts ?? [];
     // Decides saveability from the model catalog alone; a value missing from the catalog is never replaced by another.

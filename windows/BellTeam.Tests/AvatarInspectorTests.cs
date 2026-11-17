@@ -118,7 +118,7 @@ public sealed class AvatarInspectorTests
         // Mac #1124 AI card: one line for the four default combinations, and an unknown harness keeps its id.
         Assert.Equal(["モデルとエフォートはCLIの既定で動きます", "モデルはCLIの既定で動きます", "エフォートはCLIの既定で動きます", "選んだモデルとエフォートで動きます"],
             [BotProfileText.AiSummary("", ""), BotProfileText.AiSummary("", "high"), BotProfileText.AiSummary("opus", ""), BotProfileText.AiSummary("opus", "high")]);
-        Assert.Equal(("Claude", "Antigravity", "kimi"), (BotProfileText.HarnessName("claude"), BotProfileText.HarnessName("antigravity"), BotProfileText.HarnessName("kimi")));
+        Assert.Equal(("Claude", "Cursor", "kimi"), (BotProfileText.HarnessName("claude"), BotProfileText.HarnessName("cursor"), BotProfileText.HarnessName("kimi")));
     }
 
     [Theory]
