@@ -226,7 +226,7 @@ flowchart TD
 | アップデート | Same as the update center title: 「すべて最新です」 / 「1つ更新できます」 / 「前回の更新に失敗しました」 | `GET /api/updates` (update-center) | (update center) | update-center.js |
 | 接続 | 「このサーバー」 / 「Cloudflare Accessでログイン中」 | `GET /api/session`, `location.origin` | none (opens a tab) | owner-editor.js, server-origin.js |
 | 表示 | 「会話は下から浮き上がる」 | localStorage | localStorage | owner-editor.js |
-| 利用と購読 | 「Web版は無料」 / 有効な時は「有効期限：日時」 | `GET /api/subscription`, `POST /api/subscription/refresh` | `POST /api/subscription/stripe/checkout`, `POST /api/subscription/stripe/verify` | billing.js, owner-editor.js |
+| 利用と購読 | static | — | — | index.html |
 
 Notifications are one item (S8): today they are split over 追加機能 › プッシュ通知, 追加機能 › ブラウザーの通知, ブラウザー通知 and 通知. → The 通知 page owns the browser and the Apple-app status; the two server-side sender settings (中継URL, 公開連絡先) stay as 追加機能 cards and the 通知 page links to them directly.
 
