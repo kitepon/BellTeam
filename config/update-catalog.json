@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-16T21:59:56Z",
-  "expiresAt": "2026-11-23T21:59:56Z",
+  "publishedAt": "2026-11-17T02:57:36Z",
+  "expiresAt": "2026-11-24T02:57:36Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "92531f7f9d6e504390a957a620551e55c9abcd76",
-      "versionId": "2f688cab18d21e2c4f09ed0ba2db2d4ee019656ffdc1e0a999a0673088cc3b77",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "14550fa4db5762d93ab019f2d63b187027f86c00f1c65fd23bc5bab13dcc80d0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-amd64.tar.gz",
-          "bytes": 5451368,
-          "sha256": "2f688cab18d21e2c4f09ed0ba2db2d4ee019656ffdc1e0a999a0673088cc3b77"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024731Z/web-gateway-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz",
+          "bytes": 5451946,
+          "sha256": "14550fa4db5762d93ab019f2d63b187027f86c00f1c65fd23bc5bab13dcc80d0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11052,
-          "sha256": "c2691fecbc4a5b2a6d54719227ff9fc17cbe6653c7e7d6ca81bdc5408c4a5c65"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024731Z/web-gateway-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "bbdbd2c5ff16411e0dafe323ef31856c3dcda7f13ea34faa3d23ec09e178fcb8"
         },
-        "signerCommit": "92531f7f9d6e504390a957a620551e55c9abcd76"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webアプリで、吹き出しの下の転送アイコンを、箱から上向きの矢印が出る形に変えました。"
+        "WebのBot設定に、AIの設定を固定するスイッチを加えました。ファストモードの下に並び、文言は他の画面と揃えています。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "92531f7f9d6e504390a957a620551e55c9abcd76",
-      "versionId": "9fa2230fc80271a11bb8dc79187385b7e99498e17d23bad2a2c23869dc28d7d3",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "b9ce5c4867b226f7db200ddb7a7c9e4a7c6cdb900480e594f48eb3a671d23fae",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-arm64.tar.gz",
-          "bytes": 5451368,
-          "sha256": "9fa2230fc80271a11bb8dc79187385b7e99498e17d23bad2a2c23869dc28d7d3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024731Z/web-gateway-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz",
+          "bytes": 5451946,
+          "sha256": "b9ce5c4867b226f7db200ddb7a7c9e4a7c6cdb900480e594f48eb3a671d23fae"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T215932Z/web-gateway-92531f7f9d6e504390a957a620551e55c9abcd76-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11099,
-          "sha256": "88a6b11fc62bd137cc63c901ffc769274f4766635a58150b1baca0f92bdf9bc5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024731Z/web-gateway-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "9937df6e71b9def8dd56abe942a3fb8f73bee0b2f950d45ebdeedc9e18d98c04"
         },
-        "signerCommit": "92531f7f9d6e504390a957a620551e55c9abcd76"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,13 +488,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webアプリで、吹き出しの下の転送アイコンを、箱から上向きの矢印が出る形に変えました。"
+        "WebのBot設定に、AIの設定を固定するスイッチを加えました。ファストモードの下に並び、文言は他の画面と揃えています。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
-      "versionId": "140ede7e3dd452baee4c6b18f707464414d21db840368384b8d6d33a46e1e56e",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "f25e80f83c46639cefcbb602091634c51aaab40be2bb46f1e9f32645dbfd4bc7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz",
-          "bytes": 3983439,
-          "sha256": "140ede7e3dd452baee4c6b18f707464414d21db840368384b8d6d33a46e1e56e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz",
+          "bytes": 3983866,
+          "sha256": "f25e80f83c46639cefcbb602091634c51aaab40be2bb46f1e9f32645dbfd4bc7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11177,
-          "sha256": "1ab74b868e877bb6014a37b7e4c8ba17f5a8a890cbf1064a2d3519f757c81ecc"
+          "sha256": "1117a1d404fd37e2574b2c905b3e258e657bcb9a5bb5f803f394800de9352d9c"
         },
-        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Botへ送るメッセージに、画像だけでなくファイルも添えられるようになりました。Botにはファイルの場所が伝わります。"
+        "固定の印が付いたBotのCLI・モデル・エフォートを、AIが変えようとしたときは断るようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "81633d72d77a7003e738e5330540b367a2b30d67",
-      "versionId": "a6af55d8a8784b97f0f33eb8f73835ee14c29f127fb112f962c2e0292f7a99cb",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "a455367a4015a881241e20d439a73573d5f3f1841934980303889a87c2b85be5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz",
-          "bytes": 3983440,
-          "sha256": "a6af55d8a8784b97f0f33eb8f73835ee14c29f127fb112f962c2e0292f7a99cb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz",
+          "bytes": 3983866,
+          "sha256": "a455367a4015a881241e20d439a73573d5f3f1841934980303889a87c2b85be5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T144847Z/execution-81633d72d77a7003e738e5330540b367a2b30d67-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11228,
-          "sha256": "75d885fbfbfedfc694dde46f59cff58b85676651a91641852524dc680bb8be61"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "ee0324346e81ddfa716394f2cfaba880a7f6afd5b0df2e587ab8761d678c1d89"
         },
-        "signerCommit": "81633d72d77a7003e738e5330540b367a2b30d67"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,13 +554,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Botへ送るメッセージに、画像だけでなくファイルも添えられるようになりました。Botにはファイルの場所が伝わります。"
+        "固定の印が付いたBotのCLI・モデル・エフォートを、AIが変えようとしたときは断るようにしました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302",
-      "versionId": "c04ef3a7c2fc8d96b31aa6f5fbb77db668ee3f591478b284bd8aae1a9fc57085",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "59dfdda7fb1b10655c1fa30145be09f26513737e4bdf716f40eb2f4778057849",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-amd64.tar.gz",
-          "bytes": 4588704,
-          "sha256": "c04ef3a7c2fc8d96b31aa6f5fbb77db668ee3f591478b284bd8aae1a9fc57085"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024659Z/members-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz",
+          "bytes": 4600567,
+          "sha256": "59dfdda7fb1b10655c1fa30145be09f26513737e4bdf716f40eb2f4778057849"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "a4b2aeae2a9248d24afd3e46dce9be0f77e7e08cbb4f22d3b1397cc65e58ef26"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024659Z/members-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "4a4284c6349434de7cbff28d4b9bbd300a13b724e62fcee2333402b17787ce73"
         },
-        "signerCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,14 +594,14 @@
         }
       },
       "changes": [
-        "共通ルールの「lattice.conflicts」を改め、工程を足す時（todo add）に、触る範囲を関数単位（path#関数名）で申告するようにしました。",
-        "ファイル全体を指すと、そのファイルを変える工程すべてと競合として扱われる点と、競合・未解決の結果の読み方を加えました。"
+        "Botごとに「固定」の印を持てるようにしました。印が付いたBotは、CLI・モデル・エフォートをAIが変えられなくなります。印はオーナーの画面操作だけで変わります。",
+        "共通ルールに、工程を始める前に、触る関数を申告する決まりを加えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302",
-      "versionId": "c74d127fad1b1e9a14f680d09cb4b73c37acae5a7819d63bf2295245a05dc681",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "8a261486939ce51494e639b10563d50d41c9f4e67a2e3bc145fdab290c4e684c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -609,16 +609,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-arm64.tar.gz",
-          "bytes": 4588706,
-          "sha256": "c74d127fad1b1e9a14f680d09cb4b73c37acae5a7819d63bf2295245a05dc681"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024659Z/members-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz",
+          "bytes": 4600565,
+          "sha256": "8a261486939ce51494e639b10563d50d41c9f4e67a2e3bc145fdab290c4e684c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T104927Z/members-7a94f020616d2d83a247f637aa2af2a2f4abe302-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11168,
-          "sha256": "dd1ec235b53dc8f5247a7b2e407497868b71bd981558c72cf45fbb155de6a3ea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024659Z/members-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11121,
+          "sha256": "54743e6ecaa3eeb065875500f005062d5ecdce8d6e64a36734415f61ee12f8a5"
         },
-        "signerCommit": "7a94f020616d2d83a247f637aa2af2a2f4abe302"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -635,8 +635,8 @@
         }
       },
       "changes": [
-        "共通ルールの「lattice.conflicts」を改め、工程を足す時（todo add）に、触る範囲を関数単位（path#関数名）で申告するようにしました。",
-        "ファイル全体を指すと、そのファイルを変える工程すべてと競合として扱われる点と、競合・未解決の結果の読み方を加えました。"
+        "Botごとに「固定」の印を持てるようにしました。印が付いたBotは、CLI・モデル・エフォートをAIが変えられなくなります。印はオーナーの画面操作だけで変わります。",
+        "共通ルールに、工程を始める前に、触る関数を申告する決まりを加えました。"
       ]
     },
     {
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
-      "versionId": "sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,21 +728,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に同梱するLatticeの実行ファイルを0.110.1へ上げました。",
-        "会話の部品を入れ替えている最中に画面や工程が会話を呼んでも、エラーにせず、入れ替えが終わるまで待ってから処理するようにしました。待つのは最長60秒です。"
+        "席に同梱するLatticeの実行ファイルを0.110.2へ上げました。",
+        "Botの一覧に、固定の印（configurationLocked）を載せるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
-      "versionId": "sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:50732b111e7cf0b9a8cb1224b76bbcaf0ccf310d2b066e8edfe846ab634bcb44"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,14 +751,14 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に同梱するLatticeの実行ファイルを0.110.1へ上げました。",
-        "会話の部品を入れ替えている最中に画面や工程が会話を呼んでも、エラーにせず、入れ替えが終わるまで待ってから処理するようにしました。待つのは最長60秒です。"
+        "席に同梱するLatticeの実行ファイルを0.110.2へ上げました。",
+        "Botの一覧に、固定の印（configurationLocked）を載せるようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
-      "versionId": "9a430af0f4446351477dbc14954e890aa360d90d6868d891a1ec0c057e629fc5",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "cd651d9f61773b2376e9e32426939afeb68329aa4a4a1534e5bc1bd471482cc2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-amd64.tar.gz",
-          "bytes": 15359736,
-          "sha256": "9a430af0f4446351477dbc14954e890aa360d90d6868d891a1ec0c057e629fc5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz",
+          "bytes": 15359818,
+          "sha256": "cd651d9f61773b2376e9e32426939afeb68329aa4a4a1534e5bc1bd471482cc2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11047,
-          "sha256": "79473b3d713421df7495b9ac5f5e4de5522b10247e817766c1c5fe5d778f7385"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "a302f84ceba528d227b3262e3124dcb99a2e7db0efcda948a1821a7b7e6db0f1"
         },
-        "signerCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,14 +787,14 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.110.1へ上げました。同じ関数を二人が変える時、後から始める工程で関数を分けられるようになります。",
-        "工程表の読み書きが速くなりました（メモの追加が約2倍、状態の確認が約2倍、工程の追加が約3倍速い）。"
+        "工程表の道具（Lattice）を0.110.2へ上げました。メモの追加などの書き込みが少し速くなります。",
+        "席の「lattice」道具の説明で、工程が触る関数の申告例を、関数の書き方で先に示すようにしました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d",
-      "versionId": "fa22a9375603b7b6f0e81463c7ad07745d6b57bdb59365a6ae4dab6a8363c8a4",
+      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
+      "versionId": "5f2d12c97b156208b8cc590224c991a5413d7648873b0867a9dcd84006fa1b5e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -802,16 +802,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-arm64.tar.gz",
-          "bytes": 15359733,
-          "sha256": "fa22a9375603b7b6f0e81463c7ad07745d6b57bdb59365a6ae4dab6a8363c8a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz",
+          "bytes": 15359826,
+          "sha256": "5f2d12c97b156208b8cc590224c991a5413d7648873b0867a9dcd84006fa1b5e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T163555Z/lattice-efca2fb2e39ebb3cb3a203d2c7940e172704449d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11145,
-          "sha256": "7648ad026554a6851cc10ed5a4574fa7bd7aca5d1ede39b336dce445ed547787"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "af7d3065fd8a2defd1c866d1b23db98b47ee172075482fa8d1070419234f9545"
         },
-        "signerCommit": "efca2fb2e39ebb3cb3a203d2c7940e172704449d"
+        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -823,8 +823,8 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.110.1へ上げました。同じ関数を二人が変える時、後から始める工程で関数を分けられるようになります。",
-        "工程表の読み書きが速くなりました（メモの追加が約2倍、状態の確認が約2倍、工程の追加が約3倍速い）。"
+        "工程表の道具（Lattice）を0.110.2へ上げました。メモの追加などの書き込みが少し速くなります。",
+        "席の「lattice」道具の説明で、工程が触る関数の申告例を、関数の書き方で先に示すようにしました。"
       ]
     },
     {
