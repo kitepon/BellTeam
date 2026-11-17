@@ -36,7 +36,8 @@ public sealed record AiControlResponse { public required AiControl Control { get
 
 public sealed record BackgroundAgentSelection(string Harness, string Model, string ReasoningEffort);
 // A missing backgroundAgent key means the server has no such setting; revision/selection null means "not configured yet".
-public sealed record BackgroundAgentRecord(string? Revision, BackgroundAgentSelection? Selection)
+// Notice (a366) is GET /api/settings backgroundAgentNotice: set only while the stored selection is the retired Antigravity; it is never sent back.
+public sealed record BackgroundAgentRecord(string? Revision, BackgroundAgentSelection? Selection, string? Notice = null)
 {
     public static string Describe(BackgroundAgentSelection selection) => string.Join(" · ", selection.Harness, selection.Model, selection.ReasoningEffort.Length == 0 ? "CLIの既定" : selection.ReasoningEffort);
     public string Summary => Selection is null ? "未設定" : Describe(Selection);
@@ -45,7 +46,8 @@ public sealed record BackgroundAgentRecord(string? Revision, BackgroundAgentSele
     public static BackgroundAgentRecord? Read(JsonElement settings)
     {
         if (!settings.TryGetProperty("backgroundAgent", out var value)) return null;
-        return value.Deserialize<BackgroundAgentRecord>(BellApi.Json) ?? throw new BellApiException("要約のAIの設定を読み取れませんでした。");
+        var record = value.Deserialize<BackgroundAgentRecord>(BellApi.Json) ?? throw new BellApiException("要約のAIの設定を読み取れませんでした。");
+        return settings.TryGetProperty("backgroundAgentNotice", out var notice) && notice.ValueKind == JsonValueKind.String ? record with { Notice = notice.GetString() } : record;
     }
 }
 public sealed record BackgroundAgentResponse { public required BackgroundAgentRecord BackgroundAgent { get; init; } }
@@ -58,6 +60,7 @@ public static class BackgroundAgentChoices
     // Decides saveability from the model catalog alone; a value missing from the catalog is never replaced by another.
     public static string? Problem(Dictionary<string, HarnessModels> catalog, BackgroundAgentSelection selection)
     {
+        if (selection.Harness.Length == 0) return "CLIを選んでください。";
         if (!catalog.TryGetValue(selection.Harness, out var listed)) return "モデル候補を読み込めませんでした。";
         if (listed.Error is { } error) return error.Message;
         if (selection.Model.Length == 0) return "モデルを選んでください。";
