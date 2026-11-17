@@ -104,7 +104,7 @@ installerは公開版`linux-app`から、このCPUの`BellTeam-linux-<x64|arm64>
 
 ## 公開
 
-公開は`.github/workflows/publish-linux-app.yml`を既定ブランチで手動実行する（担当はネオン）。Linuxの試験を通してから`scripts/package-linux-app.sh`で2つのCPUの配布物・`SHA256SUMS`・`install-linux.sh`を作り、GitHubの公開版`linux-app`（タグも同名で、公開した版のcommitへ動かす）の中身を置き換える。題名に`linux/BellTeam.Linux`の`Version`を出す。この公開版は「Latest」にしない。「Latest」は本体の更新カタログが使い（`scripts/container-update-host.py`）、カタログの選び方は`updates-`で始まるタグだけを読むため、`linux-app`はカタログに混ざらない。
+公開は`.github/workflows/publish-linux-app.yml`を既定ブランチで手動実行する（担当はネオン）。Linuxの試験を通してから`scripts/package-linux-app.sh`で2つのCPUの配布物・`SHA256SUMS`・`install-linux.sh`を作り、GitHubの公開版`linux-app`（タグも同名で、公開した版のcommitへ動かす）の中身を置き換える。題名に`linux/BellTeam.Linux`の`Version`を出す。版はWindowsと同じく手で上げる：利用者に見える変更を公開する時は同じPRで`Version`を上げ、設定の「アプリの版」が新旧で変わるようにする（0.1.0の再公開を繰り返さない。a324）。導入済みのアプリに新しい版を知らせる仕組み（アプリ自身の更新通知）はWindows・Macにも無い共通の未定仕様で、今は利用者が導入の1行を再実行して取る。ロゴ横の「Update」バッジと設定の「アップデート」はBellTeam本体の更新で、アプリ自身の版は扱わない。この公開版は「Latest」にしない。「Latest」は本体の更新カタログが使い（`scripts/container-update-host.py`）、カタログの選び方は`updates-`で始まるタグだけを読むため、`linux-app`はカタログに混ざらない。
 
 ## まだ無いものと計画
 
