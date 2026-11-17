@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T10:10:01Z",
-  "expiresAt": "2026-11-24T10:10:01Z",
+  "publishedAt": "2026-11-17T10:49:21Z",
+  "expiresAt": "2026-11-24T10:49:21Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
-      "versionId": "004c0f8bc8bc28f13654f31a9eb2254c132102c3709e5625543e2f62ad3983a9",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "2f2c8a2a016e8112e30abf6892ccb3435e420ad84bb64d7e9f6a626e43e0d3c4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-amd64.tar.gz",
-          "bytes": 83262,
-          "sha256": "004c0f8bc8bc28f13654f31a9eb2254c132102c3709e5625543e2f62ad3983a9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz",
+          "bytes": 84774,
+          "sha256": "2f2c8a2a016e8112e30abf6892ccb3435e420ad84bb64d7e9f6a626e43e0d3c4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11109,
-          "sha256": "a40e7aff6a46a722adbeea6feda9616699fe319e847b78e8ef6f2be8d86cf8d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10862,
+          "sha256": "1139e228c19dd268a0050f27dbdab48bc573e3f6acfa5be5a73ab4a58dfee4ab"
         },
-        "signerCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6"
+        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,14 @@
         }
       },
       "changes": [
-        "Antigravityの席が残るデータでも、本体と設定の部品のどちらを先に更新しても起動するようにしました。"
+        "Androidアプリへ通知を送るための受け口（FCM）を足しました。Firebaseの設定が無い間は、未設定と答えるだけで何も変わりません。",
+        "運営の中継が購入の証拠を一つだけ照会できるようにしました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
-      "versionId": "64667d82cc35e005b1a6401d0bf4239caa77bd73b68428c8e591678223bf1ade",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "80aa8e3eab98aeff624651cfc864573280cfda28b10f829768b77da141f296a1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +63,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-arm64.tar.gz",
-          "bytes": 83262,
-          "sha256": "64667d82cc35e005b1a6401d0bf4239caa77bd73b68428c8e591678223bf1ade"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz",
+          "bytes": 84774,
+          "sha256": "80aa8e3eab98aeff624651cfc864573280cfda28b10f829768b77da141f296a1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T100848Z/usage-e9660064b1e8cfb809576ad24d081789ada1d0b6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11015,
-          "sha256": "d8f1ca91b8f1222c1d7b105fc6ed31b184bcbc46c09f887479db1f0423a4e586"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104722Z/usage-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11105,
+          "sha256": "f0f7ea6fb560f1d621fd4ddf17458067f412eacd26754a9098d781467d8523c5"
         },
-        "signerCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6"
+        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +97,8 @@
         }
       },
       "changes": [
-        "Antigravityの席が残るデータでも、本体と設定の部品のどちらを先に更新しても起動するようにしました。"
+        "Androidアプリへ通知を送るための受け口（FCM）を足しました。Firebaseの設定が無い間は、未設定と答えるだけで何も変わりません。",
+        "運営の中継が購入の証拠を一つだけ照会できるようにしました。"
       ]
     },
     {
@@ -293,8 +295,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e",
-      "versionId": "cc9feaef1d51ee1e428e522542c450b92a20f10eb98f2afe0d16878a1ba026db",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "77e569ab69c65ede7c072a69781d59faf61ec55f226b04ee2d0d6b7767a4d9a8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -302,16 +304,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-amd64.tar.gz",
-          "bytes": 4521370,
-          "sha256": "cc9feaef1d51ee1e428e522542c450b92a20f10eb98f2afe0d16878a1ba026db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104728Z/notifications-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz",
+          "bytes": 4595221,
+          "sha256": "77e569ab69c65ede7c072a69781d59faf61ec55f226b04ee2d0d6b7767a4d9a8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11084,
-          "sha256": "407f9fe6906a837c40cfe560a00ad1f3e25d99009fa09fd6d69040fff34e0719"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104728Z/notifications-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11037,
+          "sha256": "3654fcf9c16851f108413603da4a0fd7e98df744200b576642334f10e79012cd"
         },
-        "signerCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e"
+        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -320,13 +322,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "別のアプリ用に登録された端末へ通知を送れなかったときは、その登録を外し、失敗を一度だけ記録するようにしました。"
+        "Android向けの通知（FCM）を、iPhone・Webと並べて送れるようにしました。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e",
-      "versionId": "ef1c39044ed3053355f5eba368e2a3853629567bc84971c4363b3676ab31d65d",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "bdb4b853fe7463ae1a76712978f9e4cfff363826e194c9ad27a9bdc78f01144f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -334,16 +336,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-arm64.tar.gz",
-          "bytes": 4521365,
-          "sha256": "ef1c39044ed3053355f5eba368e2a3853629567bc84971c4363b3676ab31d65d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104728Z/notifications-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz",
+          "bytes": 4595223,
+          "sha256": "bdb4b853fe7463ae1a76712978f9e4cfff363826e194c9ad27a9bdc78f01144f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261114T222158Z/notifications-04f977f02e74e243bbfeb9bfce2d448b85bd7c2e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11119,
-          "sha256": "7165c52140d821c0df480decd9b5e705d54b91d0a8aecea376e746028b2ca331"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104728Z/notifications-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11225,
+          "sha256": "9aade10445a80f74c1bcf49daa9c3cac2c8736342a1e12c7dd79b4f438ab279b"
         },
-        "signerCommit": "04f977f02e74e243bbfeb9bfce2d448b85bd7c2e"
+        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -352,7 +354,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "別のアプリ用に登録された端末へ通知を送れなかったときは、その登録を外し、失敗を一度だけ記録するようにしました。"
+        "Android向けの通知（FCM）を、iPhone・Webと並べて送れるようにしました。"
       ]
     },
     {
@@ -429,8 +431,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "eefe73f52dbf77b7c37e6f8243bd12c49d5ee5f3ef6dd2d4ada436ef31614c0f",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "244aed551ccca235ba5fa95d04016285d03f79b463302694a41c1c9ddf9c67a4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +440,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084307Z/web-gateway-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz",
-          "bytes": 5454047,
-          "sha256": "eefe73f52dbf77b7c37e6f8243bd12c49d5ee5f3ef6dd2d4ada436ef31614c0f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz",
+          "bytes": 5460308,
+          "sha256": "244aed551ccca235ba5fa95d04016285d03f79b463302694a41c1c9ddf9c67a4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084307Z/web-gateway-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11205,
-          "sha256": "b365bff1918ad13a8ecf830d2481b87c8dca647b128b7fc87260394f9437ed14"
+          "sha256": "4ba806a47f26e90bce6aab05f48b7465f61dea9c8f33c7f517cb8c38ec9f282d"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,14 +458,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "WebのAI選択肢からAntigravityを外し、残っている席には別のAIへ切り替えるお知らせを出します。",
-        "Webの購入の入口を外しました。Webは無料のままです。"
+        "Android向けの通知の登録・状態の確認の入口を足しました。",
+        "Antigravityの席が残る時のお知らせを、Webの入口でも付けるようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f",
-      "versionId": "734586953b23ee2bc5ef3f5603177bace0a2dd272a504ffde706df54a45de1e2",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "40cb46723ee46dbbb410ef8574f568adab7518c176ccf9e8f3f5d22728aaeb7d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -471,16 +473,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084307Z/web-gateway-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz",
-          "bytes": 5454047,
-          "sha256": "734586953b23ee2bc5ef3f5603177bace0a2dd272a504ffde706df54a45de1e2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz",
+          "bytes": 5460308,
+          "sha256": "40cb46723ee46dbbb410ef8574f568adab7518c176ccf9e8f3f5d22728aaeb7d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T084307Z/web-gateway-3931cd1e5d2be8d368f6b29ede978001549f751f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10970,
-          "sha256": "3b2fb7b460dd9f8e4968af2fdf15b5020a7a5ac71145402ecee4d5d60b8d43b6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T104735Z/web-gateway-11b71f6e60a9435713487130f76e1f7abd9ab897-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "9d131fd953a548b060e04da7dad6b3ec53149617802575dbdc27988ad8bc043c"
         },
-        "signerCommit": "3931cd1e5d2be8d368f6b29ede978001549f751f"
+        "signerCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -489,8 +491,8 @@
         "containerUpdate": null
       },
       "changes": [
-        "WebのAI選択肢からAntigravityを外し、残っている席には別のAIへ切り替えるお知らせを出します。",
-        "Webの購入の入口を外しました。Webは無料のままです。"
+        "Android向けの通知の登録・状態の確認の入口を足しました。",
+        "Antigravityの席が残る時のお知らせを、Webの入口でも付けるようにしました。"
       ]
     },
     {
@@ -711,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
-      "versionId": "sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravityの席が残るデータでも、本体を先に更新して起動するようにしました。初期設定の画面にも、別のAIへ切り替えるお知らせを出します。"
+        "Android向けの通知（FCM）の記録を、本体が読めるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e9660064b1e8cfb809576ad24d081789ada1d0b6",
-      "versionId": "sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f",
+      "sourceCommit": "11b71f6e60a9435713487130f76e1f7abd9ab897",
+      "versionId": "sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:311b375b695dd31224b24f676a7c12101b70d2afe60b512748e2971580d78a4f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d6ca788ecfcd3de163ce6898109d4b53495675a92ecc31f0007185ca95189810"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Antigravityの席が残るデータでも、本体を先に更新して起動するようにしました。初期設定の画面にも、別のAIへ切り替えるお知らせを出します。"
+        "Android向けの通知（FCM）の記録を、本体が読めるようにしました。"
       ]
     },
     {
