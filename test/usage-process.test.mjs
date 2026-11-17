@@ -330,6 +330,9 @@ test('reply validators reject leaked values and foreign IDs before public succes
   assert.equal(usageResultValid('settings.list', list), false)
   assert.equal(usageResultValid('settings.setError', {}), false)
   assert.equal(usageResultValid('unrecognized', null), false)
+  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' }), true)
+  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1' }), false)
+  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1', extra: 1 }), false)
 })
 
 

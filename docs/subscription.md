@@ -22,6 +22,16 @@ AppleアプリはStoreKitで本人の購入・復元・取引の更新を受け�
 
 検証は無料のDurable Objectsで行う。内部にSQLiteを伴う構成と、無料枠超過時に処理が失敗する動作はオーナーが承認した。ストレージAPIとアラームは使わない。有料プランへは変更していない。配置設定と公開手順は [購読確認サービス](../services/subscriptions/README.md) を参照。
 
+## Stripe（Appleアプリ以外の購入元）
+
+Windows・Linuxなど、Appleの購入を使えない利用者はStripeで同じBellTeamの月額購読を購入する。Appleの購入と同じく、運営のWorkerが購入元の最新状態を照会し、利用者のサーバーは結果だけを保存する。独自のライセンス・利用者ID・権利の台帳は作らない。
+
+- サーバーの`POST /api/subscription/stripe/checkout`が購入画面のURLを返し、利用者はそこで購入する（最初の1か月は無料、消費税はStripe Taxで計算）。戻り先で得たCheckout Session IDを`POST /api/subscription/stripe/verify`へ送ると、サーバーは購読IDを保存する。
+- 状態は`GET /api/subscription`へApple同様に返し、`source`で購入元、`isTrial`で無料期間中かを示す。AppleとStripeの両方がある時は有効な方を使う。解約しても支払い済みの期間は使える（Appleと同じ）。
+- Appleアプリの画面からStripeへ誘導しない（Appleの審査指針3.1.1・3.1.3）。購入画面を出す側はWindows・Linux・Web。
+- Stripeの鍵・価格はWorkerのsecretだけに置く。未設定の間は`SUBSCRIPTION_NOT_CONFIGURED`を返す。実際のStripeとの通信は未検証。
+- `canUseAI`は引き続き常にtrue。¥980で何を止めるかはオーナーの決定を待つ。
+
 ## 利用者のサーバー
 
 `shared/subscription.json`へ初期設定の完了・Appleの署名付き購入情報・照会結果を保存する。案内役は利用者と初期設定の完了に合意した時に`complete_setup`を使う。完了後もWebでは案内役を無料で使える。初回画面・設定API・保存先は [初期設定](onboarding.md) に従う。

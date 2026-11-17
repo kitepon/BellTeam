@@ -45,5 +45,6 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'questions.timeline') return timeline('owner_question', value)
   if (method.startsWith('questions.')) return record('question', value) && (!params.id || value.id === params.id)
   if (method === 'subscriptions.runSetupTest') return exact(value, ['subscription', 'reply']) && record('subscription', value.subscription) && typeof value.reply === 'string' && value.reply.trim().length > 0
+  if (method === 'subscriptions.checkout') return exact(value, ['url', 'sessionId']) && typeof value.url === 'string' && typeof value.sessionId === 'string'
   return method.startsWith('subscriptions.') && record('subscription', value)
 }

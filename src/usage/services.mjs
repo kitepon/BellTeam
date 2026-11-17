@@ -188,6 +188,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'questions.timeline': ({ target }) => ownerQuestions.timeline(target),
     'subscriptions.status': () => subscriptions.status(), 'subscriptions.current': () => subscriptions.current(),
     'subscriptions.install': ({ signedTransaction }) => subscriptions.install(signedTransaction),
+    'subscriptions.installStripe': ({ stripeSessionId }) => subscriptions.installStripe(stripeSessionId),
+    'subscriptions.checkout': () => subscriptions.checkout(),
     'subscriptions.refresh': params => subscriptions.refresh(params),
     'subscriptions.completeSetup': ({ botId }) => subscriptions.completeSetup(botId),
     'subscriptions.runSetupTest': ({ botId }) => subscriptions.runSetupTest(botId, () => callEffect('subscription.setupTest', { botId })),

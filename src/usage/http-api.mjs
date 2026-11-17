@@ -107,6 +107,10 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (request.method === 'GET' && url.pathname === '/api/subscription') return json(response, 200, { subscription: await subscriptions.current(await context('subscriptions.current')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/verify')
         return json(response, 200, { subscription: await subscriptions.install((await readJson(request, 32768)).signedTransaction, await context('subscriptions.install')) })
+      if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/checkout')
+        return json(response, 200, await subscriptions.checkout(await context('subscriptions.checkout')))
+      if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/verify')
+        return json(response, 200, { subscription: await subscriptions.installStripe((await readJson(request, 32768)).stripeSessionId, await context('subscriptions.installStripe')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/refresh')
         return json(response, 200, { subscription: await subscriptions.refresh({ force: true }, await context('subscriptions.refresh')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/setup-test') {

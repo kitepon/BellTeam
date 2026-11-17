@@ -77,6 +77,8 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
     subscriptions: {
       status: () => projection.subscription(), current: context => call('subscriptions.current', {}, context),
       install: (signedTransaction, context) => call('subscriptions.install', { signedTransaction }, context),
+      installStripe: (stripeSessionId, context) => call('subscriptions.installStripe', { stripeSessionId }, context),
+      checkout: context => call('subscriptions.checkout', {}, context),
       refresh: (input = {}, context) => call('subscriptions.refresh', input, context),
       completeSetup: (botId, context) => call('subscriptions.completeSetup', { botId }, context),
       runSetupTest: (botId, run, context) => call('subscriptions.runSetupTest', { botId }, context),

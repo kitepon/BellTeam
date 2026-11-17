@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -216,4 +216,46 @@ test('失効中も認証済みの会話閲覧は使え、購読状態APIは購�
   const status=await (await fetch(base+'/api/subscription')).json()
   assert.equal(status.subscription.entitled,false)
   assert.equal(status.subscription.signedTransaction,undefined)
+})
+
+test('Stripeの購入を保存し、Appleと両方ある時は有効な方を使い、旧い保存形式も読める', async t => {
+  const now = Date.parse('2026-11-17T03:00:00Z')
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-subscription-stripe-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const verdict = (source, entitled, hours) => ({ productId: product.productId, environment: 'Sandbox', source, ...(source === 'stripe' ? { subscriptionId: 'sub_1' } : {}),
+    checkedAt: new Date(now).toISOString(), entitled, state: entitled ? 'active' : 'expired', isTrial: source === 'stripe' && entitled, autoRenewing: true,
+    expiresAt: new Date(now + hours * 3600000).toISOString(), validUntil: entitled ? new Date(now + hours * 3600000).toISOString() : null })
+  const requests = []
+  let apple = verdict('apple', false, -1)
+  const subscriptions = new Subscriptions({ path: join(root, 'subscription.json'), environment: 'Sandbox', clock: () => now, fetch: async (url, request) => {
+    const body = JSON.parse(request.body)
+    requests.push({ url, body })
+    if (url.endsWith('/stripe/checkout')) return Response.json({ url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' })
+    return Response.json(body.signedTransaction ? apple : verdict('stripe', true, 2))
+  } })
+  await subscriptions.initialize()
+  assert.deepEqual(await subscriptions.checkout(), { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' })
+  assert.match(requests[0].url, /\/v1\/subscriptions\/stripe\/checkout$/)
+  await subscriptions.install('signed-purchase')
+  assert.equal(subscriptions.status().entitled, false)
+  const status = await subscriptions.installStripe('cs_1')
+  assert.deepEqual([status.entitled, status.source, status.isTrial, status.canUseAI], [true, 'stripe', true, true])
+  assert.equal(JSON.parse(await readFile(subscriptions.path, 'utf8')).stripeSubscriptionId, 'sub_1')
+  {
+    const later = new Subscriptions({ path: subscriptions.path, environment: 'Sandbox', clock: () => now + 3 * 3600000, fetch: async (url, request) => {
+      const body = JSON.parse(request.body)
+      requests.push({ url, body })
+      return Response.json(body.signedTransaction ? apple : { ...verdict('stripe', false, 2), checkedAt: new Date(now + 3 * 3600000).toISOString() })
+    } })
+    await later.initialize()
+    await later.refresh({ force: true })
+    assert.deepEqual(requests.slice(-2).map(request => Object.keys(request.body)[0]), ['signedTransaction', 'stripeSubscriptionId'])
+    assert.equal(later.status().entitled, false)
+  }
+  const legacy = join(root, 'legacy.json')
+  await writeFile(legacy, JSON.stringify({ schema: 'bellteam.subscription.v1', setupComplete: false, signedTransaction: 'old', verification: verdict('apple', true, 1), error: null }))
+  const old = new Subscriptions({ path: legacy, environment: 'Sandbox', clock: () => now })
+  await old.initialize()
+  assert.deepEqual([old.status().entitled, old.status().source], [true, 'apple'])
+  assert.throws(() => new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).installStripe('cs_1'), { code: 'SUBSCRIPTION_NOT_REQUIRED' })
 })
