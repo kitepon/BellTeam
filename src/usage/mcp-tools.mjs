@@ -20,7 +20,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'complete_setup',
-      description: '案内役が利用者と初期設定の完了に合意した時に呼ぶ。Webは引き続き無料で利用でき、Appleアプリは通常利用の購読を案内する。',
+      description: '案内役が利用者と初期設定の完了に合意した時に呼ぶ。Webは引き続き無料で利用でき、Web以外のアプリは通常利用の購読（どの購入元でも同じサーバーの全アプリで有効）を案内する。',
       inputSchema: objectSchema({}),
     },
     {
