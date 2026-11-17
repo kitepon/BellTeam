@@ -83,6 +83,13 @@ export class Subscriptions {
     }
   }
 
+  // 有効な判定の購入元の証拠を一つだけ返す（運営の中継が照会する用）。無い・開発者モードはnull。
+  proof() {
+    if (this.accessMode === 'developer' || !this.status().entitled) return null
+    if (this.state.verification.source === 'stripe') return this.state.stripeSubscriptionId ? { stripeSubscriptionId: this.state.stripeSubscriptionId } : null
+    return this.state.signedTransaction ? { signedTransaction: this.state.signedTransaction } : null
+  }
+
   async current() {
     if (this.accessMode === 'developer') return this.status()
     try { return await this.refresh() }

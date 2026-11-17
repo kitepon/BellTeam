@@ -183,6 +183,7 @@ flowchart LR
 | APNs | `APNsProvider.create/send/close` | 環境別署名Promise・接続を共有。idle接続は閉じ、次の送信で作る。15秒request timeout |
 | 購入/復元（Apple） | HTTP verify → `Subscriptions.install/verify/validate/save` | 外部検証のアプリ/環境/期限/状態を検証し、利用者サーバーに保存 |
 | 購入/復元（Stripe） | HTTP stripe/checkout → `Subscriptions.checkout/post`、HTTP stripe/verify → `Subscriptions.installStripe/verify/validate/save` | 運営のWorkerがStripeの購読を照会した結果（`source:stripe`・`subscriptionId`・`isTrial`）を同じ形で検証し、購入元別に保存。Checkoutは作るだけで状態を変えない |
+| 購入証拠の取り出し | `Subscriptions.proof` | 同期・通信なし・ログなし。`status()`が有効な時だけ、その購入元の証拠を一つコピーで返す（stripe→`{stripeSubscriptionId}`、apple（旧保存形式はsource無し=apple）→`{signedTransaction}`）。未購入・失効・開発者モードは`null`。StripeのSession IDは返さない。Androidの端末登録（`POST /api/notifications/android/devices`）が登録のたびに呼び、運営の中継へそのまま転送する |
 | 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripeそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。購入元を足す時（Google Play）は結果を足すだけ |
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
