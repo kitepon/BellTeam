@@ -27,6 +27,24 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertEqual(scenario.requests.filter { $0.method == "POST" }.count, 0)
     }
 
+    /// Contract a358: a Stripe or Google Play subscription on the server unlocks this app; an Apple one only counts through this Apple Account's StoreKit.
+    func testOtherStoreSubscriptionUnlocksButServerAppleDoesNot() async throws {
+        let stripe = BillingStore(api: makeAPI(BillingScenario(responses: [.entitled(source: "stripe"), .entitled(source: "stripe")])), readAppleEntitlement: {
+            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        await stripe.connect()
+        XCTAssertTrue(stripe.otherStoreEntitled)
+        XCTAssertEqual(stripe.status?.isTrial, true)
+        try await stripe.requirePaidAccess()
+
+        let apple = BillingStore(api: makeAPI(BillingScenario(responses: [.entitled(source: "apple"), .entitled(source: "apple")])), readAppleEntitlement: {
+            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        await apple.connect()
+        XCTAssertFalse(apple.otherStoreEntitled)
+        do { try await apple.requirePaidAccess(); XCTFail("別のApple Accountの購読では解錠しない") } catch {}
+    }
+
     func testRetryAfterInitialFailureRecognizesDeveloper() async throws {
         let scenario = BillingScenario(responses: [.failure, .mode("developer")])
         let api = makeAPI(scenario)
@@ -408,7 +426,7 @@ final class BillingStoreTests: XCTestCase {
 
 private final class BillingScenario {
     enum RestartResponse { case success, legacyAccepted, timeout, unauthorized, invalidJSON }
-    enum Response { case failure, mode(String), setup(complete: Bool), restart(RestartResponse) }
+    enum Response { case failure, mode(String), entitled(source: String), setup(complete: Bool), restart(RestartResponse) }
     private let lock = NSLock()
     private var responses: [Response]
     private(set) var requests: [(method: String, path: String, body: Data?, timeout: TimeInterval)] = []
@@ -427,6 +445,10 @@ private final class BillingScenario {
         case ("GET", "/api/subscription", .mode(let mode)):
             return (200, Data("""
                 {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"\(mode)","setup_complete":true,"entitled":false,"state":"inactive","auto_renewing":false}}
+                """.utf8))
+        case ("GET", "/api/subscription", .entitled(let source)):
+            return (200, Data("""
+                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"subscription","setup_complete":true,"entitled":true,"source":"\(source)","is_trial":true,"state":"subscribed","auto_renewing":true}}
                 """.utf8))
         case ("GET", "/api/setup", .setup(let complete)):
             return (200, Data("""

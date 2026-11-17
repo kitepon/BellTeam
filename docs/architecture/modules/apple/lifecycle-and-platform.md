@@ -99,7 +99,7 @@ flowchart TD
 | 状態所有 | statusは本体、entitlement/currentTransactionはStoreKit本人権利、productは商品。operationとentitlementCheckは別。checking/active/inactive/unavailableを区別する |
 | connect | 前の取引監視をcancel、status取得。developerは権利/取引/商品を消して通知callback。通常はupdates監視→本人権利取得→既存取引deliver。失敗はfailed/error/診断、監視中のdeliver失敗は監視を終了 |
 | 権利取得 | 同時照会はentitlementTaskへ合流。verifiedで対象商品・purchased・非取消・非upgrade・有効期限/購読groupが必要。group status/renewalの署名を確認しsubscribed/graceだけ採用。失敗は権利/取引を消しfailed。取消後は値を適用しない |
-| 有効判定 | grace期限があればそちら、無ければexpires。期限は現在より後だけ有効。developer/初期guide/本人有効権利のいずれかでpermitsAI。サーバーのentitledだけで本人の購入権利を作らない |
+| 有効判定 | grace期限があればそちら、無ければexpires。期限は現在より後だけ有効。developer/初期guide/本人有効権利/他ストア（source が apple 以外）のサーバーentitledのいずれかでpermitsAI。sourceがappleのサーバーentitledだけで本人の購入権利を作らない（docs/billing-client-contract.md） |
 | AI利用の呼出し | AppStore.authorizeAIUseがBot ID・guide ID・setup.completeを判定。通常は本人権利を再取得してから許可。状態未確認は未確認エラー、権利無しは購読案内 |
 | purchase | checking中は開始しない。商品・非developerを確認、status再読取、setup未完なら案内callback。successはdeliver後の権利で文言、pendingはApple承認待ち、userCancelledは追加文言なし |
 | restore | 非developer・非checkingでsyncPurchases→権利→取引ありならdeliver。取引無しは有効購読無しの文言。deferでoperation解除。失敗はerror/診断 |
@@ -107,7 +107,7 @@ flowchart TD
 | 通知との接続 | 権利の署名変化/失敗時にonEntitlementChange、AppStoreからBellNotifications.updateSignedTransactionへ。有効権利の時だけJWSを渡す |
 | stop/logout | entitlementTask/updatesTaskをcancelし参照・status/権利/取引/商品/error/messageを消す。Appleの購入取消を行う処理ではない |
 
-SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認、購読管理Linkを接続する。価格はProduct.displayPrice。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
+SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認、購読管理Linkを接続する。価格は契約の固定文「月980円（税込）・最初の1か月無料」を3店で同じ大きさで並べ、買えない店（Google Play・Stripe）はボタンもリンクも無く「この端末では購入できません」を出す。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
 
 ## 端末保存とlogout
 

@@ -13,10 +13,44 @@ private struct SubscriptionContent: View {
     @ObservedObject var billing: BillingStore
     @Environment(\.purchase) private var purchase
 
+    private var appleActive: Bool { billing.entitlement?.isActive(at: Date()) == true }
+
+    private func otherActive(_ source: String) -> Bool { billing.otherStoreEntitled && billing.status?.source == source }
+
+    private var trialLine: String? {
+        guard billing.status?.isTrial == true else { return nil }
+        guard let until = Self.date(billing.status?.validUntil) else { return "無料期間中" }
+        return "無料期間中（\(until.formatted(date: .abbreviated, time: .omitted))まで）"
+    }
+
+    private var appleDetail: [String] {
+        guard let entitlement = billing.entitlement else { return [] }
+        var lines = ["有効期限：\(entitlement.validUntil.formatted(date: .abbreviated, time: .shortened))"]
+        if billing.status?.source == "apple", let trial = trialLine { lines.append(trial) }
+        if entitlement.gracePeriodExpiresAt != nil { lines.append("Appleの支払い猶予期間中です。購読を管理して支払い方法を確認してください。") }
+        else if !entitlement.autoRenewing { lines.append("自動更新は停止しています。有効期限までは利用できます。") }
+        return lines
+    }
+
+    private var otherDetail: [String] {
+        var lines: [String] = []
+        if let until = Self.date(billing.status?.validUntil) { lines.append("有効期限：\(until.formatted(date: .abbreviated, time: .shortened))") }
+        if let trial = trialLine { lines.append(trial) }
+        return lines
+    }
+
+    private static func date(_ text: String?) -> Date? {
+        guard let text else { return nil }
+        let plain = ISO8601DateFormatter()
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return plain.date(from: text) ?? fractional.date(from: text)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // The page head already says the state in one badge and one sentence; the card holds the explanation, the details and the actions.
-            Text("Web版は無料です。iPhone・iPad・MacアプリのAI利用は、購入したApple Accountの月額購読で使えます。サーバーとAIはご自身の契約で利用します。")
+            Text("Web版は無料です。BellTeamの購読は、どのストアで購入しても同じサーバーのすべてのアプリで使えます。月980円（税込）で、最初の1か月は無料です。サーバーとAIはご自身の契約で利用します。")
                 .font(.subheadline).foregroundStyle(BellTheme.muted)
             if billing.isDeveloper {
                 Text("このサーバーでは購読の購入は不要です。AIへの送信と予定操作を利用できます。")
@@ -28,16 +62,7 @@ private struct SubscriptionContent: View {
                 Text("購読の状態を確認できませんでした。再確認してください。")
                     .font(.subheadline)
             } else {
-                if billing.hasPaidAccess, let entitlement = billing.entitlement {
-                    Text("有効期限：\(entitlement.validUntil.formatted(date: .abbreviated, time: .shortened))").font(BellTheme.secondaryFont)
-                    if entitlement.gracePeriodExpiresAt != nil {
-                        Text("Appleの支払い猶予期間中です。購読を管理して支払い方法を確認してください。")
-                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-                    } else if !entitlement.autoRenewing {
-                        Text("自動更新は停止しています。有効期限までは利用できます。")
-                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-                    }
-                } else {
+                if !billing.hasPaidAccess {
                     Text("初期案内の会話、保存した会話の閲覧・書き出しは無料です。通常のAI送信と予定の作成・編集・実行は、購読が有効な間に使えます。Webで用意した予定は継続します。")
                         .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     if billing.status?.setupComplete != true {
@@ -46,17 +71,19 @@ private struct SubscriptionContent: View {
                         Button("初期案内を開く") { Task { await billing.openSetupGuide() } }
                             .buttonStyle(.bordered)
                     }
-                    if let product = billing.product {
-                        Text(product.displayName).font(.headline)
-                        Text("\(product.displayPrice)／月 · 自動更新")
-                            .font(.title3).fontWeight(.semibold)
-                        Text("初期案内でサーバーとAIを試し、設定を完了してから購入できます。Appleの購入画面で承認した時に課金が始まります。")
-                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-                        if billing.status?.setupComplete == true {
-                            SettingsMainButton(title: "月額購読を開始", identifier: "subscription-purchase") { Task { await billing.purchase(purchase) } }
-                        }
-                    }
                 }
+                // One row per store, same size and weight; only the App Store can be bought on this device (docs/billing-client-contract.md).
+                StoreRow(store: "App Store", active: appleActive, activeDetail: appleDetail, buyable: true) {
+                    if !billing.hasPaidAccess, billing.product != nil, billing.status?.setupComplete == true {
+                        SettingsMainButton(title: "購入", identifier: "subscription-purchase") { Task { await billing.purchase(purchase) } }
+                    }
+                    Button("購入を復元") { Task { await billing.restore() } }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("subscription-restore")
+                        .disabled(billing.checking)
+                }
+                StoreRow(store: "Google Play", active: otherActive("google"), activeDetail: otherDetail, buyable: false) {}
+                StoreRow(store: "Stripe", active: otherActive("stripe"), activeDetail: otherDetail, buyable: false) {}
             }
             if billing.isDeveloper && billing.working { ProgressView(billing.progressText) }
             if let message = billing.message { Text(message).font(BellTheme.secondaryFont) }
@@ -69,11 +96,6 @@ private struct SubscriptionContent: View {
                     }
                 }
                 .buttonStyle(.bordered)
-                if !billing.isDeveloper {
-                    Button("購入を復元") { Task { await billing.restore() } }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("subscription-restore")
-                }
             }
             .disabled(billing.checking)
             // The legal links: one quiet row of plain links.
@@ -94,5 +116,36 @@ private struct SubscriptionContent: View {
         .task {
             await billing.loadSubscription()
         }
+    }
+}
+
+/// One purchase option. Every store gets the same rows; a store this device cannot buy from has no button or link.
+private struct StoreRow<Actions: View>: View {
+    let store: String
+    let active: Bool
+    let activeDetail: [String]
+    let buyable: Bool
+    @ViewBuilder let actions: Actions
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(store).font(.headline)
+            Text("月980円（税込）・最初の1か月無料").font(.subheadline)
+            if active {
+                Text("購読中（\(store)）").font(BellTheme.secondaryFont).fontWeight(.semibold)
+                ForEach(activeDetail, id: \.self) { Text($0).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted) }
+            }
+            if buyable {
+                actions
+            } else if !active {
+                Text("この端末では購入できません。\(store)で購入した購読も、同じサーバーでこのアプリに使えます。")
+                    .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(BellTheme.muted.opacity(0.3)))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("subscription-store-\(store)")
     }
 }
