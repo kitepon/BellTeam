@@ -31,11 +31,18 @@ public sealed class SubscriptionApi(BellApi api)
     public static bool NothingToBuy(Exception error) => error is BellApiException { Status: System.Net.HttpStatusCode.ServiceUnavailable or System.Net.HttpStatusCode.Conflict, Code: "SUBSCRIPTION_NOT_CONFIGURED" or "SUBSCRIPTION_NOT_REQUIRED" };
 }
 
-// The words of the purchase entry on the 利用と課金 page, the same on Web, Windows and Linux (Owner-side tie-break 2026-11-17: checkout is called when 月額購読を開始 is pressed, because every call makes a Stripe session).
+// The words of the purchase entry on the 利用と課金 page, the same on Web, Windows and Linux (Owner-side tie-break 2026-11-17: checkout is called when 購入 is pressed, because every call makes a Stripe session).
 public static class SubscriptionText
 {
-    public const string Start = "月額購読を開始";
-    public const string Caption = "Stripeの購入画面をブラウザーで開きます。最初の1か月は無料です。";
+    // docs/billing-client-contract.md (a358): Windows and Linux list Stripe first, then the other two stores, as equal rows; only Stripe can be bought here.
+    public static readonly string[] Stores = ["Stripe", "App Store", "Google Play"];
+    public const string Start = "購入";
+    public const string Price = "月980円（税込）";
+    public const string FreeMonth = "最初の1か月無料";
+    public static string Unavailable(string store) => $"この端末では購入できません。{store}で購入した購読も、同じサーバーでこのアプリに使えます。";
+    public static string Active(string store) => $"購読中（{store}）";
+    // The server's subscription source ("apple" | "stripe" | "google") as the store name on a row.
+    public static string? StoreOf(string? source) => source switch { "apple" => "App Store", "stripe" => "Stripe", "google" => "Google Play", _ => null };
     public const string Verify = "購入を確認";
     public const string Recheck = "再確認";
     public const string Trial = "無料期間中です。";

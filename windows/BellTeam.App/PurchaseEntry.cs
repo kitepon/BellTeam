@@ -5,7 +5,7 @@ using static BellTeam.App.SettingsUi;
 
 namespace BellTeam.App;
 
-// The purchase entry on 利用と課金 (a336): 月額購読を開始 opens the server's Stripe checkout in the browser, then 購入を確認 / 再確認 read the plan.
+// The purchase entry on 利用と課金 (a336, a360): three equal store rows (docs/billing-client-contract.md); 購入 on the Stripe row opens the server's Stripe checkout in the browser, then 購入を確認 / 再確認 read the plan.
 // The words and the "who is offered it" rules are Core's (SubscriptionText, SubscriptionApi), the same on Web, Windows and Linux.
 public sealed class PurchaseEntry : StackPanel
 {
@@ -25,6 +25,7 @@ public sealed class PurchaseEntry : StackPanel
     }
 
     internal SubscriptionState? State => state;
+    private bool ShowsRows => state is { AccessMode: not "developer" } && !nothingToBuy;
     internal bool Offering => SubscriptionApi.OffersPurchase(state) && !nothingToBuy;
 
     public Task LoadAsync() => RunAsync(async () => state = await api.GetAsync(token), failedText: "購読の状態を確認できませんでした。再確認してください。");
@@ -54,19 +55,36 @@ public sealed class PurchaseEntry : StackPanel
     {
         Children.Clear();
         if (state is { } now) foreach (var line in SubscriptionText.StateLines(now)) Children.Add(Text(line, 13, Ink, null, new Thickness(0, 0, 0, 4)));
+        if (ShowsRows) foreach (var store in SubscriptionText.Stores) Children.Add(StoreRow(store));
         if (Offering)
         {
-            var start = MainButton(SubscriptionText.Start); start.HorizontalAlignment = HorizontalAlignment.Left; start.IsEnabled = !busy; start.Click += async (_, _) => await StartAsync();
-            System.Windows.Automation.AutomationProperties.SetName(start, SubscriptionText.Start);
-            Children.Add(start);
-            Children.Add(Text(SubscriptionText.Caption, 12, Muted, null, new Thickness(0, 6, 0, 0)));
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
             if (checkout is not null) row.Children.Add(ActionButton(SubscriptionText.Verify, async () => await VerifyAsync()));
             row.Children.Add(ActionButton(SubscriptionText.Recheck, async () => await RecheckAsync()));
             Children.Add(row);
         }
         else if (state is null && failure is not null) Children.Add(ActionButton(SubscriptionText.Recheck, async () => await LoadAsync()));
         if (failure is not null) Children.Add(Banner(failure));
+    }
+
+    // One row per store, same height, font and spacing (contract rule 1); only the last line differs: the buy button, the active mark, or the "cannot buy here" line.
+    private Border StoreRow(string store)
+    {
+        var body = new StackPanel();
+        body.Children.Add(Text(store, 14, Ink, FontWeights.SemiBold));
+        body.Children.Add(Text($"{SubscriptionText.Price}　{SubscriptionText.FreeMonth}", 12, Muted, null, new Thickness(0, 2, 0, 8)));
+        if (state is { Entitled: true } && SubscriptionText.StoreOf(state.Source) == store) body.Children.Add(Text(SubscriptionText.Active(store), 13, Ink, FontWeights.SemiBold));
+        else if (store == "Stripe")
+        {
+            // Stripe is the one source bought on this device; it carries no line while another store already holds the plan (no second purchase).
+            if (Offering)
+            {
+                var start = Capsule(SubscriptionText.Start, Violet, System.Windows.Media.Brushes.White, 8, 13, new Thickness(18, 6, 18, 6)); start.HorizontalAlignment = HorizontalAlignment.Left; start.IsEnabled = !busy;
+                System.Windows.Automation.AutomationProperties.SetName(start, SubscriptionText.Start); start.Click += async (_, _) => await StartAsync(); body.Children.Add(start);
+            }
+        }
+        else { var note = Text(SubscriptionText.Unavailable(store), 12, Muted); note.TextWrapping = TextWrapping.Wrap; body.Children.Add(note); }
+        return new Border { Child = body, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(14), MinHeight = 96, Margin = new Thickness(0, 0, 0, 8) };
     }
 
     private Button ActionButton(string label, Func<Task> run)
