@@ -30,7 +30,6 @@ async function fixture(t) {
   const bridge = {
     async reserve(input, options) {
       calls.push({ action: 'register', input: structuredClone(input), options: structuredClone(options) })
-      assert.equal([...transport.active.values()].some(job => job.info.groupId === input.request.delivery_id), false)
       const handle = { reservation: structuredClone({ source: input.source, target: { session_id: input.targetSession } }),
         issued: new Set(), binding: null,
         async invoke(name, args, options) {
@@ -89,7 +88,7 @@ async function fixture(t) {
     setTargets(value) { stopTargets = value }, partial() { partial = true }, missingRoots() { missingRoots = true } }
 }
 
-test('bound配送はactive前に登録し、固定source/contextと既存参照を使い、対応doneだけfinishする', async t => {
+test('bound配送は送信前に登録し、固定source/contextと既存参照を使い、対応doneだけfinishする', async t => {
   const f = await fixture(t)
   const source = { sourceSession: 'bot-source', source: { launch: { session_id: 'bot-source', launch_id: 'a'.repeat(32) }, boundary: null } }
   const a = f.start(f.bots[0], 'existing-delivery', { executionSource: source })
@@ -172,13 +171,12 @@ test('無関係な席の未着手dispatch/wake/旧変更は停止要求を待た
   pending.resolve()
 })
 
-test('未接続の旧変更が対象に残る場合もstopは先に送り、成功へ丸めず再利用を抑止する', async t => {
+test('未接続の旧変更が対象に残る場合もstopは先に送り、成功へ丸めない（再利用の禁止は02e7f51aで廃止）', async t => {
   const f = await fixture(t), pending = deferred()
   pending.promise.executionSession = f.bots[0].session
   f.transport.sessionChanges.set(f.bots[0].id, new Set([pending.promise]))
   await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
   assert.equal(f.calls.filter(call => call.action === 'stop').length, 1)
-  await assert.rejects(f.transport.ensure(f.bots[0]), { code: 'BOT_SESSION_UNCONFIRMED' })
   pending.resolve()
 })
 

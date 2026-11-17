@@ -1095,11 +1095,14 @@ export class AitermTransport {
         if (followed) {
           job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal).then(async native => {
             job.nativeTerminal = true
-            await job.finishExecution('completion')
+            // a333: a stop in flight decides first; a confirmed stop must not be followed by a completion finish (checkpoint() does the same).
+            await job.stopping()?.catch(() => {})
+            if (!job.stopped) await job.finishExecution('completion')
             if (native.turn_id) this.activity.followedTurns.set(bot.id, native.turn_id)
             return native
           }, error => {
-            job.nativeTerminal = error.turnCompleted === true
+            // a333: our own confirmed stop aborted this wait; the turn is interrupted, not unconfirmed (idle() would throw the abort).
+            job.nativeTerminal = error.turnCompleted === true || job.stopped === true
             if (!job.nativeTerminal) {
               job.nativeUnconfirmed = error
               // control-details.md "受付後の追跡失敗の自己退役": the next valid read showing no turn on this session retires it.
