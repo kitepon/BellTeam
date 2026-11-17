@@ -81,7 +81,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         approvalsEntry.Click += (_, _) => ShowApprovals();
         var chart = SettingsUi.Capsule("工程表", Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); chart.Click += (_, _) => ShowLattice();
         var graph = SettingsUi.Capsule("相関図", Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); graph.Click += (_, _) => ShowWorkGraph();
-        var entries = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(12, 0, 12, 8), Children = { approvalsEntry, chart } }; // 相関図 stays off the phone until its page draws (it opens blank on Android: a350 open item)
+        var entries = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(12, 0, 12, 8), Children = { approvalsEntry, chart, graph } };
         var barAndEntries = new StackPanel { Children = { searchBar, entries } };
         listPage.Children.Add(barAndEntries); Grid.SetRow(status, 1); listPage.Children.Add(status);
         var scroll = new ScrollViewer { Content = list }; Grid.SetRow(scroll, 2); listPage.Children.Add(scroll);
