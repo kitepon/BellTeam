@@ -8,6 +8,8 @@ namespace BellTeam.Linux;
 public class Window : ContentControl
 {
     public static Action<Window>? Pusher, Popper;
+    // Like an Avalonia window, hidden until Show(): the screens start and stop their live reads when IsVisible changes.
+    public Window() { IsVisible = false; }
     public string? Title { get; set; }
     public Window? Owner { get; set; }
     public bool IsActive => IsVisible;
