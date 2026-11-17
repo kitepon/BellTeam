@@ -23,7 +23,7 @@ public sealed class PurchaseEntry : StackPanel
     private readonly string productId;
     private SubscriptionState? state;
     private string? failure;
-    private bool busy;
+    private bool busy, noStripe;
 
     public PurchaseEntry(BellApi api, PlayBilling billing, Func<Activity> activity, CancellationToken token)
     {
@@ -41,6 +41,20 @@ public sealed class PurchaseEntry : StackPanel
     private Task BuyAsync() => RunAsync(async () => await VerifyAllAsync(await billing.BuyAsync(activity(), productId)));
     private Task RestoreAsync() => RunAsync(async () => await VerifyAllAsync(await billing.OwnedAsync()));
     private Task RecheckAsync() => RunAsync(async () => state = await subscription.RefreshAsync(token));
+
+    // a389: Stripe's page comes from the server; Google Play and App Store open their own subscription page. Only an https page goes out; 再確認 reads the result after the person comes back.
+    private Task ManageAsync(string store) => RunAsync(async () =>
+    {
+        var address = SubscriptionText.ManageUrl(store);
+        if (address is null)
+        {
+            try { address = (await subscription.ManageAsync(token)).Url; }
+            catch (Exception error) when (SubscriptionApi.NoStripeSubscription(error)) { noStripe = true; return; }
+        }
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps) { failure = "管理画面のアドレスを読めませんでした。"; return; }
+        try { ExternalLink.Launch(url); }
+        catch (Exception error) { failure = "ページを開けませんでした。" + error.Message; }
+    });
 
     private async Task VerifyAllAsync(IReadOnlyList<Purchase> purchases)
     {
@@ -68,7 +82,7 @@ public sealed class PurchaseEntry : StackPanel
         Children.Clear();
         if (state is { } now) foreach (var line in SubscriptionText.StateLines(now)) Children.Add(Text(line, 13, Ink, null, new Thickness(0, 0, 0, 4)));
         if (ShowsRows) foreach (var store in Stores) Children.Add(StoreRow(store));
-        if (Offering)
+        if (Offering || state is { BillingSources.Length: > 0 })
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0), Spacing = 8 };
             row.Children.Add(ActionButton(SubscriptionText.Recheck, RecheckAsync));
@@ -97,6 +111,14 @@ public sealed class PurchaseEntry : StackPanel
             }
         }
         else body.Children.Add(Text(SubscriptionText.Unavailable(store), 12, Muted));
+        if (state is { Entitled: true, AutoRenewing: false, ValidUntil: { } until } && SubscriptionText.StoreOf(state.Source) == store) body.Children.Add(Text(SubscriptionText.NotRenewingRow(until), 12, Muted, null, new Thickness(0, 6, 0, 0)));
+        // One manage button on the row of every store that still bills this server (contract rule 8); Stripe's drops out when the server says it holds none.
+        if (state is { } now && now.BillingSources.Contains(SubscriptionText.SourceOf(store)) && !(store == "Stripe" && noStripe))
+        {
+            var manage = Capsule(SubscriptionText.Manage, Fill, Ink, 8, 13, new Thickness(14, 8)); manage.HorizontalAlignment = HorizontalAlignment.Left; manage.IsEnabled = !busy; manage.FontWeight = FontWeight.Normal; manage.Margin = new Thickness(0, 8, 0, 0);
+            manage.Click += async (_, _) => await ManageAsync(store);
+            body.Children.Add(manage);
+        }
         return new Border { Child = body, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(14), MinHeight = 96, Margin = new Thickness(0, 0, 0, 8) };
     }
 

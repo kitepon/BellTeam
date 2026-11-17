@@ -14,9 +14,9 @@ public sealed class PurchaseEntryTests
 {
     private sealed class Server : HttpMessageHandler
     {
-        public int Checkouts; public string? Verified, Opened;
-        public bool Entitled, Developer; public string Source = "stripe"; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK; public string CheckoutUrl = "https://checkout.example/pay";
-        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", source = Entitled ? Source : null, accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
+        public int Checkouts, Manages; public string? Verified, Opened;
+        public bool Entitled, Developer, Renewing = true; public HttpStatusCode ManageStatus = HttpStatusCode.OK; public string Source = "stripe"; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK; public string CheckoutUrl = "https://checkout.example/pay";
+        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", source = Entitled ? Source : null, accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = Renewing, billingSources = Entitled ? new[] { Source } : Array.Empty<string>(), canPurchase = !Entitled && !Developer, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
@@ -26,6 +26,9 @@ public sealed class PurchaseEntryTests
                 case "/api/subscription/stripe/checkout":
                     Checkouts++;
                     return CheckoutStatus == HttpStatusCode.OK ? Json($$"""{"url":"{{CheckoutUrl}}","sessionId":"cs_test_1"}""") : Json("""{"error":"SUBSCRIPTION_NOT_CONFIGURED","message":"Stripeの設定が完了していません。"}""", CheckoutStatus);
+                case "/api/subscription/stripe/manage":
+                    Manages++;
+                    return ManageStatus == HttpStatusCode.OK ? Json("""{"url":"https://billing.stripe.com/p/session/x"}""") : Json("""{"error":"NO_STRIPE_SUBSCRIPTION","message":"Stripeで購入した購読がありません。"}""", ManageStatus);
                 case "/api/subscription/stripe/verify":
                     using (var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token))) Verified = body.RootElement.GetProperty("stripeSessionId").GetString();
                     Entitled = true; return Json(State());
@@ -75,6 +78,31 @@ public sealed class PurchaseEntryTests
         await Click(entry, SubscriptionText.Start, () => Texts(entry).Any(line => line.Contains("読めませんでした")));
         Assert.Null(server.Opened);
     });
+
+    [Fact]
+    public Task AStripePlanHasOneManageButtonThatOpensStripesPageAndAStoreWithoutOneDropsOut() => Ui.Run(async () =>
+    {
+        var server = new Server { Entitled = true, Renewing = false }; var entry = server.Entry(); await entry.LoadAsync();
+        Assert.NotNull(Find(entry, SubscriptionText.Manage));
+        Assert.Contains(Texts(entry), line => line.StartsWith("次回の更新はありません。") && line.EndsWith("まで使えます。"));
+        Assert.Null(Find(entry, SubscriptionText.Start));
+        await Click(entry, SubscriptionText.Manage, () => server.Opened is not null);
+        Assert.Equal("https://billing.stripe.com/p/session/x", server.Opened); Assert.Equal(1, server.Manages);
+        var none = new Server { Entitled = true, ManageStatus = HttpStatusCode.Conflict }; var noneEntry = none.Entry(); await noneEntry.LoadAsync();
+        await Click(noneEntry, SubscriptionText.Manage, () => none.Manages == 1 && Find(noneEntry, SubscriptionText.Manage) is null);
+        Assert.Null(Find(noneEntry, SubscriptionText.Manage)); Assert.Null(none.Opened);
+    });
+
+    [Fact]
+    public Task AnAppStorePlanOpensTheStoresOwnPageWithoutAServerCall() => Ui.Run(async () =>
+    {
+        var server = new Server { Entitled = true, Source = "apple" }; var entry = server.Entry(); await entry.LoadAsync();
+        await Click(entry, SubscriptionText.Manage, () => server.Opened is not null);
+        Assert.Equal(SubscriptionText.ManageUrl("App Store"), server.Opened); Assert.Equal(0, server.Manages);
+    });
+
+    [Fact]
+    public void NothingIsOfferedWhenTheServerDoesNotSayCanPurchase() => Assert.False(SubscriptionApi.OffersPurchase(new SubscriptionState { Entitled = false, AccessMode = "subscription" }));
 
     private static Button? Find(Control root, string name) => root.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Content as string == name);
     private static string[] Texts(Control root) => root.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text ?? "").ToArray();

@@ -11,7 +11,8 @@ public sealed class SubscriptionTests
     public void ThePurchaseEntryIsOfferedOnlyToAnInactivePlanOnASubscriptionServer()
     {
         Assert.False(SubscriptionApi.OffersPurchase(null));
-        Assert.True(SubscriptionApi.OffersPurchase(new SubscriptionState { Entitled = false, AccessMode = "subscription" }));
+        Assert.True(SubscriptionApi.OffersPurchase(new SubscriptionState { Entitled = false, AccessMode = "subscription", CanPurchase = true }));
+        Assert.False(SubscriptionApi.OffersPurchase(new SubscriptionState { Entitled = false, AccessMode = "subscription" }));
         Assert.False(SubscriptionApi.OffersPurchase(new SubscriptionState { Entitled = true, AccessMode = "subscription" }));
         Assert.False(SubscriptionApi.OffersPurchase(new SubscriptionState { Entitled = false, AccessMode = "developer" }));
     }
@@ -31,6 +32,6 @@ public sealed class SubscriptionTests
         var until = new DateTimeOffset(2026, 12, 17, 3, 0, 0, TimeSpan.Zero);
         Assert.Empty(SubscriptionText.StateLines(new SubscriptionState { Entitled = false, ValidUntil = until }));
         Assert.Equal([SubscriptionText.ValidUntil(until)], SubscriptionText.StateLines(new SubscriptionState { Entitled = true, ValidUntil = until, AutoRenewing = true }));
-        Assert.Equal([SubscriptionText.ValidUntil(until), SubscriptionText.Trial, SubscriptionText.NotRenewing], SubscriptionText.StateLines(new SubscriptionState { Entitled = true, ValidUntil = until, IsTrial = true }));
+        Assert.Equal([SubscriptionText.ValidUntil(until), SubscriptionText.Trial], SubscriptionText.StateLines(new SubscriptionState { Entitled = true, ValidUntil = until, IsTrial = true }));
     }
 }
