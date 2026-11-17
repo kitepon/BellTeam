@@ -1,6 +1,7 @@
 import { validateAvatar } from '../avatar-value.mjs'
 import { normalizeSchedule, validateScheduleTurn, validConnect } from '../schedule-definition.mjs'
 import { normalizeMembersError } from './errors.mjs'
+import { retiredHarness } from '../retired-harness.mjs'
 
 const fail = () => { throw Object.assign(new Error('MEMBERS_INPUT_INVALID'), { code: 'MEMBERS_INPUT_INVALID', outcome: 'not_accepted', status: 400 }) }
 const string = (value, max = 16 * 1024 * 1024) => { if (typeof value !== 'string' || value.length > max || value.includes('\0')) fail() }
@@ -16,7 +17,8 @@ const empty = value => object(value, {})
 const text = value => string(value)
 const body = value => { string(value); if (Buffer.byteLength(value) > 16 * 1024 * 1024) fail() }
 const ids = value => { if (!Array.isArray(value)) fail(); value.forEach(id) }
-const harness = value => { if (!['claude', 'codex', 'grok', 'cursor'].includes(value)) fail() }
+// a365: a stored retired harness stays valid here (shape only); registry create/update refuse to choose one.
+const harness = value => { if (!['claude', 'codex', 'grok', 'cursor'].includes(value) && !retiredHarness(value)) fail() }
 const crop = value => {
   if (value === null) return
   object(value, Object.fromEntries(['x', 'y', 'width', 'height'].map(key => [key, number => { if (!Number.isFinite(number)) fail() }])))
@@ -142,7 +144,7 @@ export function validateMembersControl(method, params) {
 const version = value => { if (value !== '' && (typeof value !== 'string' || !/^[a-f0-9]{16}$/u.test(value))) fail() }
 const avatarVersions = { avatarVersion: version, avatarLargeVersion: version, avatarSourceVersion: version, avatarLargeSourceVersion: version }
 const bot = (value, metadata = false) => {
-  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool }, ['id', 'name', 'harness', 'session'])
+  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool, harnessNotice: text }, ['id', 'name', 'harness', 'session'])
 }
 const persistedSchedule = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail()

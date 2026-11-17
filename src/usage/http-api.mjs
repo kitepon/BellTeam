@@ -5,6 +5,7 @@ import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
 import { authCodeChallenge } from '../auth-ui.mjs'
 import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
+import { retiredHarness, RETIRED_HARNESS_NOTICE } from '../retired-harness.mjs'
 
 export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
   const webOrigin = request => {
@@ -46,10 +47,14 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness, await context('auth.' + action), options))
       return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
     }
-    if (url.pathname === '/api/settings' && request.method === 'GET') return json(response, 200, {
-      settings: settings?.list() ?? [],
-      ...(settings?.hasBackgroundAgent?.() ? { backgroundAgent: await settings.backgroundAgentConfiguration() } : {}),
-    })
+    if (url.pathname === '/api/settings' && request.method === 'GET') {
+      const backgroundAgent = settings?.hasBackgroundAgent?.() ? await settings.backgroundAgentConfiguration() : null
+      return json(response, 200, {
+        settings: settings?.list() ?? [],
+        ...(backgroundAgent ? { backgroundAgent } : {}),
+        ...(retiredHarness(backgroundAgent?.selection?.harness) ? { backgroundAgentNotice: RETIRED_HARNESS_NOTICE } : {}),
+      })
+    }
     if (url.pathname === '/api/settings/backgroundAgent') {
       if (request.method !== 'PATCH') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
       if (internal) return json(response, 403, { error: 'BACKGROUND_AGENT_OWNER_REQUIRED' })

@@ -252,7 +252,7 @@ test('BotのCLI名を四つのAiterm harnessへ変換する。Antigravityは起�
     assert.equal(launches.at(-1).harness, expected)
   }
   const before = launches.length
-  await assert.rejects(transport.ensure({ id: 'antigravity', session: 'antigravity', harness: 'antigravity', project: join(root, 'antigravity') }), /HARNESS_UNSUPPORTED/u)
+  await assert.rejects(transport.ensure({ id: 'antigravity', session: 'antigravity', harness: 'antigravity', project: join(root, 'antigravity') }), { code: 'HARNESS_RETIRED' })
   assert.equal(launches.length, before)
 })
 

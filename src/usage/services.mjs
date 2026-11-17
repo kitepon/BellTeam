@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { FeatureSettings } from '../feature-settings.mjs'
+import { retiredHarness } from '../retired-harness.mjs'
 import { Onboarding, HARNESS } from '../onboarding.mjs'
 import { HarnessAuth, harnessAuthStateKeyValid } from '../harness-auth.mjs'
 import { SecretRequests, secretCompletionMessage } from '../secret-requests.mjs'
@@ -39,8 +40,8 @@ function volatileState(value) {
   }
   const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
   if (epochs.size !== 7) throw usageError('USAGE_HANDOFF_INVALID')
-  const sessions = map(value.sessions, (key, session) => harnessAuthStateKeyValid(key) && typeof session === 'string' && session.length > 0)
-  const receipts = map(value.receipts, (key, item) => harnessAuthStateKeyValid(key) && item !== null
+  const sessions = map(value.sessions, (key, session) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && typeof session === 'string' && session.length > 0)
+  const receipts = map(value.receipts, (key, item) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && item !== null
     && (item.slot === undefined ? key !== 'claude:2nd' : item.slot === (key === 'claude:2nd' ? '2nd' : '1st')) && Boolean(receipt(item, sessions.get(key))))
   const errors = map(value.errors, (id, code) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].includes(id) && typeof code === 'string' && /^[A-Z_0-9]+$/u.test(code))
   return { epochs, sessions, receipts: new Map([...receipts].map(([h, item]) => [h, receipt(item, sessions.get(h))])), errors, onboardingAuth: receipt(value.onboardingAuth) }
