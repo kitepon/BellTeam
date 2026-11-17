@@ -10,8 +10,8 @@ namespace BellTeam.App;
 // Page bodies of the Mac settings. Each loader catches its own failures and shows them with the reason; nothing is retried.
 public sealed partial class SettingsWindow
 {
-    private const string PrivacyPolicyUrl = "https://bellteam-subscriptions.kitepon.workers.dev/privacy";
-    private const string SupportUrl = "https://bellteam-subscriptions.kitepon.workers.dev/support";
+    private const string PrivacyPolicyUrl = "https://kitepon.dev/privacy/";
+    private const string SupportUrl = "https://kitepon.dev/support/";
 
     private static StackPanel CardTitle(string glyph, string title, double size = 13)
     {
@@ -485,7 +485,7 @@ public sealed partial class SettingsWindow
         var purchase = new PurchaseEntry(new SubscriptionApi(workspace.Management.Api), url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }), lifetime!.Token);
         var page = NewPage(SettingsPage.Billing);
         var card = new StackPanel(); card.Children.Add(CardTitle("", "BellTeamの利用", 17));
-        card.Children.Add(Text("Web版とWindows版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
+        card.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
         card.Children.Add(purchase);
         var notice = new StackPanel();
         card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
