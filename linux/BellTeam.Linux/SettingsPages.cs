@@ -13,8 +13,8 @@ namespace BellTeam.Linux;
 // Page bodies of the Mac settings. Each loader catches its own failures and shows them with the reason; nothing is retried.
 public sealed partial class SettingsWindow
 {
-    private const string PrivacyPolicyUrl = "https://bellteam-subscriptions.kitepon.workers.dev/privacy";
-    private const string SupportUrl = "https://bellteam-subscriptions.kitepon.workers.dev/support";
+    private const string PrivacyPolicyUrl = "https://kitepon.dev/privacy/";
+    private const string SupportUrl = "https://kitepon.dev/support/";
 
     protected override Window? DialogOwner => OwnerWindow.Of(pane);
     private static IBrush Tone(HarnessTone tone) => tone switch { HarnessTone.Good => Green, HarnessTone.Warning => Orange, _ => Muted };
