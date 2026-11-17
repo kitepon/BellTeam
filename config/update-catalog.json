@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T04:02:29Z",
-  "expiresAt": "2026-11-24T04:02:29Z",
+  "publishedAt": "2026-11-17T04:34:43Z",
+  "expiresAt": "2026-11-24T04:34:43Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
-      "versionId": "sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d",
+      "sourceCommit": "2997608a93c5304bd29f550c108458763b8507f6",
+      "versionId": "sha256:cc88b8242eac9382333cb8f800bcf0b6dd88dce567813b1fb0ede9834571008f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cc88b8242eac9382333cb8f800bcf0b6dd88dce567813b1fb0ede9834571008f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,21 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に同梱するLatticeの実行ファイルを0.110.2へ上げました。",
-        "Botの一覧に、固定の印（configurationLocked）を載せるようにしました。"
+        "席に同梱するLatticeの実行ファイルを0.111.0へ上げました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
-      "versionId": "sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d",
+      "sourceCommit": "2997608a93c5304bd29f550c108458763b8507f6",
+      "versionId": "sha256:cc88b8242eac9382333cb8f800bcf0b6dd88dce567813b1fb0ede9834571008f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bcedbd00ab47453c5a124dbdc2959417411e9c5b8c439c672b2ece88c415d80d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cc88b8242eac9382333cb8f800bcf0b6dd88dce567813b1fb0ede9834571008f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -753,14 +752,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に同梱するLatticeの実行ファイルを0.110.2へ上げました。",
-        "Botの一覧に、固定の印（configurationLocked）を載せるようにしました。"
+        "席に同梱するLatticeの実行ファイルを0.111.0へ上げました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
-      "versionId": "cd651d9f61773b2376e9e32426939afeb68329aa4a4a1534e5bc1bd471482cc2",
+      "sourceCommit": "2997608a93c5304bd29f550c108458763b8507f6",
+      "versionId": "ed700a71da89c951c0e49a0aa5b4df68f27a7490e40474e1aa723770020d4780",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -768,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz",
-          "bytes": 15359818,
-          "sha256": "cd651d9f61773b2376e9e32426939afeb68329aa4a4a1534e5bc1bd471482cc2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T043334Z/lattice-2997608a93c5304bd29f550c108458763b8507f6-linux-amd64.tar.gz",
+          "bytes": 15363250,
+          "sha256": "ed700a71da89c951c0e49a0aa5b4df68f27a7490e40474e1aa723770020d4780"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "a302f84ceba528d227b3262e3124dcb99a2e7db0efcda948a1821a7b7e6db0f1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T043334Z/lattice-2997608a93c5304bd29f550c108458763b8507f6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10906,
+          "sha256": "f433d650e268511975b4dd91cafdea4d92eec9d1a1c07fba521e3c657a215fb3"
         },
-        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
+        "signerCommit": "2997608a93c5304bd29f550c108458763b8507f6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -789,14 +787,14 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.110.2へ上げました。メモの追加などの書き込みが少し速くなります。",
-        "席の「lattice」道具の説明で、工程が触る関数の申告例を、関数の書き方で先に示すようにしました。"
+        "工程表の道具（Lattice）を0.111.0へ上げました。申告で、まだ存在しない関数の名前も書けるようになります。",
+        "席の「lattice」道具の説明に、関数名の申告についての一文を加えました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
-      "versionId": "5f2d12c97b156208b8cc590224c991a5413d7648873b0867a9dcd84006fa1b5e",
+      "sourceCommit": "2997608a93c5304bd29f550c108458763b8507f6",
+      "versionId": "94916af841a069bc33b8c3c8909b9dc2f39f4d28347517c31750d27d92a34591",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -804,16 +802,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz",
-          "bytes": 15359826,
-          "sha256": "5f2d12c97b156208b8cc590224c991a5413d7648873b0867a9dcd84006fa1b5e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T043334Z/lattice-2997608a93c5304bd29f550c108458763b8507f6-linux-arm64.tar.gz",
+          "bytes": 15363245,
+          "sha256": "94916af841a069bc33b8c3c8909b9dc2f39f4d28347517c31750d27d92a34591"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024640Z/lattice-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "af7d3065fd8a2defd1c866d1b23db98b47ee172075482fa8d1070419234f9545"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T043334Z/lattice-2997608a93c5304bd29f550c108458763b8507f6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10749,
+          "sha256": "4c78e0231de874224c13a837ca4e58d9da03a5a98f5cd8f16eae2c14ed6661f0"
         },
-        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
+        "signerCommit": "2997608a93c5304bd29f550c108458763b8507f6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -825,8 +823,8 @@
         }
       },
       "changes": [
-        "工程表の道具（Lattice）を0.110.2へ上げました。メモの追加などの書き込みが少し速くなります。",
-        "席の「lattice」道具の説明で、工程が触る関数の申告例を、関数の書き方で先に示すようにしました。"
+        "工程表の道具（Lattice）を0.111.0へ上げました。申告で、まだ存在しない関数の名前も書けるようになります。",
+        "席の「lattice」道具の説明に、関数名の申告についての一文を加えました。"
       ]
     },
     {
