@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
@@ -6,10 +7,19 @@ using Avalonia.Android;
 
 namespace BellTeam.Android;
 
-[Activity(Label = "BellTeam", Theme = "@style/Theme.AppCompat.NoActionBar", MainLauncher = true, WindowSoftInputMode = SoftInput.AdjustResize, ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
+[Activity(Label = "BellTeam", Theme = "@style/Theme.AppCompat.NoActionBar", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, WindowSoftInputMode = SoftInput.AdjustResize, ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public class MainActivity : AvaloniaMainActivity
 {
     // Play Billing's purchase sheet needs the running Activity.
     public static MainActivity Current { get; private set; } = null!;
-    protected override void OnCreate(Bundle? savedInstanceState) { Current = this; base.OnCreate(savedInstanceState); }
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        Current = this; base.OnCreate(savedInstanceState);
+        PushChannel.Ensure(this); PushRouter.Accept(Intent);
+        // Android 13+ asks before showing any notification.
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu && CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications) != Permission.Granted) RequestPermissions([global::Android.Manifest.Permission.PostNotifications], 1);
+    }
+    protected override void OnNewIntent(Intent? intent) { base.OnNewIntent(intent); PushRouter.Accept(intent); }
+    protected override void OnResume() { base.OnResume(); PushRouter.Foreground = true; }
+    protected override void OnPause() { PushRouter.Foreground = false; base.OnPause(); }
 }
