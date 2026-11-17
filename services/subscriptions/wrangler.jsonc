@@ -14,7 +14,7 @@
     "APPLE_ENVIRONMENT": "Production",
     "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
     "STRIPE_PRICE_ID": "price_1UckaILlZAF5ymoyTtNpI5pK",
-    "STRIPE_RETURN_URL": "https://bellteam-subscriptions.kitepon.workers.dev/support"
+    "STRIPE_RETURN_URL": "https://kitepon.dev/support/"
   },
   "env": {
     "sandbox": {

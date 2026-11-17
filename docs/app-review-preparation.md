@@ -142,7 +142,7 @@ mainの別の通知修正を取り込んでpushし、既定ブランチにある
 
 ## 登録物
 
-- 公開サポート連絡先、サポートURL、プライバシー方針のURLは [商品設定](../services/subscriptions/product.json) が正本。公開本文は [public-pages.mjs](../services/subscriptions/public-pages.mjs)。アプリ内の購読画面からもリンクする。
+- 公開サポート連絡先、サポートURL、プライバシー方針のURLは [商品設定](../services/subscriptions/product.json) が正本。公開本文はkitepon.dev（正本）。旧いWorkerのURLは [public-pages.mjs](../services/subscriptions/public-pages.mjs) がそちらへ恒久転送する（a398c）。App Store ConnectのURLは新しいkitepon.devのURLへ変える（ラピ）。アプリ内の購読画面からもリンクする。
 - 年齢申告。公開チャット・自由なWeb閲覧と、利用者のサーバー内のAIとの会話を区別して実際の機能を申告する。18歳以上への上書きだけでは質問票を省略できず、AIが生成する内容も回答に含める。[AppleのAIアプリ向け説明](https://developer.apple.com/news/?id=ks775ehf)を確認し、用途と内容の頻度の根拠を揃えて登録する。
 - iPhoneとMacの実際のアプリ画面、購読画面の審査用画像。
 - 審査用サーバーの接続先、ログイン手順、連絡先、購読確認の操作手順。

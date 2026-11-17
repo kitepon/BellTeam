@@ -26,7 +26,7 @@ Apple公式クライアントの認証・応答解析は維持し、HTTP通信�
 
 `stripe/checkout`へ`{ "sessionId": "cs_..." }`を送ると新しいSessionを作らず、そのSessionの現在の状態`{ sessionId, status: "open"|"complete"|"expired", url }`を返す（`url`は`open`の時だけ）。利用者のサーバーが同じ購入画面を使い回して二重に作らないための照会。`POST /v1/subscriptions/stripe/portal`へ`{ "stripeSubscriptionId": "sub_..." }`を送ると、その購読の価格が`STRIPE_PRICE_ID`と一致することを確かめた上で、購読の顧客のStripe顧客ポータルのURL`{ url }`を返す（利用者が自分で解約・再開・支払い方法の変更をする入口。戻り先は`STRIPE_RETURN_URL`）。制限付きキーにはCustomer portalの書込権限が要る。
 
-設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`/support`）。
+設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`https://kitepon.dev/support/`）。
 
 ## 証明書の検証
 
