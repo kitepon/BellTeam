@@ -41,7 +41,7 @@ const supportBody = `<h1>BellTeam サポート</h1>
 <p>困っている操作、iPhoneまたはMacのOSとアプリの版、表示されたエラーをお知らせください。パスワード、認証コード、APIキー、Appleの購入情報、個人の会話本文をメールへ添付する必要はありません。</p>
 <h2>購読について</h2>
 <p>Webアプリと自分で設置するサーバーは無料です。すべてのメンバーとの会話、メンバー間の配送、予定の実行を購読なしで使えます。AI各社や外部サービスの契約は自分で用意します。</p>
-<p>iPhone・Macアプリからの通常の会話と予定操作は月300円の共通購読を使います。案内役との初期設定の会話、閲覧・書き出し・管理は無料です。Webで使ってからAppleアプリの購入を選べます。Appleの購入画面で承認した時に契約が始まり、台数制限はありません。</p>
+<p>iPhone・Macアプリからの通常の会話と予定操作は月980円（税込）の共通購読を使います。最初の1か月は無料です。App Store・Stripe・Google Playのどの購入元の購読も、同じサーバーに接続したBellTeamの全アプリで使えます。案内役との初期設定の会話、閲覧・書き出し・管理は無料です。Webで使ってからAppleアプリの購入を選べます。Appleの購入画面で承認した時に契約が始まり、台数制限はありません。</p>
 <p>同じApple Accountでアプリにサインインし、設定の「BellTeamの購読」から「購入を復元」を実行できます。期限が切れた後も、Appleアプリで保存済みの会話の閲覧とJSON書き出しを利用でき、Webの会話と設定済みの予定は動き続けます。</p>
 <p>解約や自動更新の停止は、<a href="https://apps.apple.com/account/subscriptions">Appleの購読設定</a>から行ってください。アプリの削除だけでは解約されません。</p>
 <p><a href="${product.privacyPolicyUrl}">プライバシー方針</a> · <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">利用規約（Apple標準）</a></p>`
