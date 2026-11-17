@@ -22,7 +22,7 @@ import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
-import { aitermFailureCause, launchFailureDetails } from './agent-launch-error.mjs'
+import { aitermFailureCause } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
@@ -1204,9 +1204,9 @@ export class AitermTransport {
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
         const stage = job.deliveryStage ?? 'BOT_DELIVERY_FAILED'
         // Same safe fields the conversation writer stores; built here so the execution closure imports no conversation file.
-        const detail = returnedMcpError(error), launch = launchFailureDetails(error)
+        const detail = returnedMcpError(error)
         const statusFailure = { code: stage, delivery_error: { code: stage },
-          ...(detail ? { mcp_error: detail } : {}), ...(launch ? { native_launch: launch } : {}),
+          ...(detail ? { mcp_error: detail } : {}),
           ...(error.turnCompleted === true ? { turnCompleted: true } : {}) }
         if (!job.receipt && !job.stopped) this.activity.recordFailure(job, stage)
         try {

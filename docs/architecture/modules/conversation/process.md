@@ -76,7 +76,7 @@ flowchart LR
 
 ## callback保存の閉DTO
 
-親normalizerはsrc/conversation/callbacks.mjs。元Errorのmessage/stack/cause/任意keyをwireへ写さず、停止判定に必要なBOT_STOPPED/AI_GLOBAL_PAUSED又は固定failure codeと既安全mcp_error/native_launch、HTTP status/known outcomeだけを残す。分身のFORK_FAILEDだけは英数字と_の符号に限るreason（例 readonly_unenforceable）も残し、自由文は親に留める（[fork-inquiry B7](fork-inquiry.md#module-child-boundary-production-defect-2026-11-11)）。これはroot業務Errorの公開意味を変える正規化ではなく、登録済みdelivery callbackの保存用射影。親は元Error/実receiptを保持する。
+親normalizerはsrc/conversation/callbacks.mjs。元Errorのmessage/stack/cause/任意keyをwireへ写さず、停止判定に必要なBOT_STOPPED/AI_GLOBAL_PAUSED又は固定failure codeと既安全mcp_error、HTTP status/known outcomeだけを残す。分身のFORK_FAILEDだけは英数字と_の符号に限るreason（例 readonly_unenforceable）も残し、自由文は親に留める（[fork-inquiry B7](fork-inquiry.md#module-child-boundary-production-defect-2026-11-11)）。これはroot業務Errorの公開意味を変える正規化ではなく、登録済みdelivery callbackの保存用射影。親は元Error/実receiptを保持する。
 
 callback kindはdelivery.status/words/answer/user.complete/turn.endだけ。paramsへdeliveryId/target/世代/lease/任意recordを入れない。別の親登録contextがgeneration/operationId/deliveryId/target/callbackKindを束縛して旧子へ渡す。plain validatorは型の正しさだけで本人性を作らず、channel/Kiroが実登録を確認する。ACK {applied:true}は当該保存/finish/reportの実終端後だけ。turn.endのcheck/一回派生report待ちはRoot保守drainの対象で、通常native accepted/完了返却をその待ちへ置換しない。
 

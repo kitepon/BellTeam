@@ -2,7 +2,6 @@ import { mkdir, open } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { deliveryTracking } from './delivery-tracking.mjs'
-import { launchFailureDetails } from './agent-launch-error.mjs'
 
 export const DELIVERY_ERROR_CODES = Object.freeze(['BOT_OBSERVATION_FAILED', 'BOT_CONFIGURATION_FAILED',
   'BOT_LAUNCH_FAILED', 'BOT_SEND_FAILED', 'BOT_DELIVERY_FAILED', 'BOT_SESSION_UNCONFIRMED'])
@@ -14,11 +13,9 @@ export function deliveryError(delivery, value) {
 // 直接会話と部屋で同じ返却を同じ保存fieldへ写す。配送の結論はtransportが持つ。
 export function deliveryFailureFields(error) {
   const detail = returnedMcpError(error)
-  const launch = launchFailureDetails(error)
   return {
     ...(error == null ? {} : { delivery_error: deliveryError('failed', error.delivery_error ?? error) ?? { code: 'BOT_DELIVERY_FAILED' } }),
     ...(detail ? { mcp_error: detail } : {}),
-    ...(launch ? { native_launch: launch } : {}),
   }
 }
 

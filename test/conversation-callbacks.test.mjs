@@ -12,17 +12,15 @@ test('callback error projection never serializes raw Error text, cause, arbitrar
   assert.doesNotMatch(JSON.stringify(stopped), /secret|private|stack|cause|arbitrary/u)
 })
 
-test('existing safe MCP/native launch fields survive the plain callback roundtrip', () => {
-  const error = { mcp_error: { tool: 'pty_send', message: 'safe failure', truncated: false },
-    launchActionRequired: true, launch: { schema: 'aiterm.agent-launch-result.v1', harness: 'antigravity-cli', session_id: 'session-a',
-      startup: { status: 'blocked', reason: 'vendor_action_required' }, initial_prompt: { status: 'not_requested', reason: 'not_requested', turn_started: false },
-      event_cursor: null, submit_residue: null } }
+test('safe MCP fields survive the plain callback roundtrip; a retired native_launch value is accepted and dropped (a366)', () => {
+  const error = { mcp_error: { tool: 'pty_send', message: 'safe failure', truncated: false } }
   const plain = JSON.parse(JSON.stringify(normalizeConversationCallbackError(error)))
-  const fields = conversationCallbackFailureFields(plain)
-  assert.deepEqual(fields.mcp_error, error.mcp_error)
-  assert.equal(fields.native_launch.session_created, true)
-  assert.doesNotMatch(JSON.stringify(plain), /session-a|session_id|event_cursor|submit_residue/u)
-  assert.throws(() => conversationCallbackFailureFields({ ...plain, native_launch: { ...plain.native_launch, secret: true } }))
+  assert.deepEqual(conversationCallbackFailureFields(plain).mcp_error, error.mcp_error)
+  // Nothing writes native_launch any more; an older execution part or a stored delivery record may still carry one.
+  const old = { harness: 'antigravity-cli', session_created: true, startup: { status: 'blocked', reason: 'vendor_action_required' } }
+  assert.deepEqual(conversationCallbackFailureFields({ ...plain, native_launch: old }), conversationCallbackFailureFields(plain))
+  assert.equal(Object.hasOwn(normalizeConversationCallbackError({ ...error, native_launch: old, launch: old }), 'native_launch'), false)
+  assert.throws(() => conversationCallbackFailureFields({ ...plain, native_launch: 'x' }))
 })
 
 test('callback kind and params are closed, without self asserted binding/lease/record fields', () => {

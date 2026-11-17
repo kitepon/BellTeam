@@ -12,7 +12,7 @@ import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
-import { ERROR_CODE_META, errorCode, LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
+import { ERROR_CODE_META, errorCode, LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, resumeUnavailable } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
@@ -279,13 +279,6 @@ export class AitermClient {
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
       if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1') {
         error.launch = result.structuredContent
-        if (!executionError && unpromptedLaunchActionRequired(error.launch, args)) {
-          error.launchActionRequired = true
-          error.code = 'BOT_INPUT_NOT_READY'
-          error.status = 409
-          error.publicMessage = 'このBotのAIは起動時の確認が必要です。今回のメッセージは送信されませんでした。AIの認証・初期設定を確認してください。'
-          error.message = error.publicMessage
-        }
       }
       if (name === 'pty_send' && ['STEER_NOT_QUEUED', 'STEER_STILL_QUEUED'].some(code =>
         message.startsWith(`aiterm: ${code} vendor=`))) {
