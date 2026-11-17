@@ -5,6 +5,9 @@ import { credentialDtoValid, credentialScopeValid } from './secret-credentials.m
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
+// a399 (module-ipc.md): rows with nothing secret-adjacent are read by the fields this side uses; a field a newer writer adds is not refused.
+// secret, question, settings and credential rows stay closed: they are served as stored, and the key list is what keeps a stray value out.
+const has = (value, required) => object(value) && required.every(key => Object.hasOwn(value, key))
 const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'] }
 const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
@@ -40,7 +43,7 @@ export function usageProjectionRecordValid(row) {
   }
   if (!keys(row, ['type', 'revision', 'value']) || !object(row.value)) return false
   const item = row.value
-  if (row.type === 'credentialRecovery') return keys(item, ['recoveryNeeded']) && typeof item.recoveryNeeded === 'boolean'
+  if (row.type === 'credentialRecovery') return has(item, ['recoveryNeeded']) && typeof item.recoveryNeeded === 'boolean'
   if (row.type === 'credential') return keys(item, ['terminalId', 'purpose', 'handle', 'revision', 'available', 'reason', 'requestId'])
     && credentialScopeValid({ terminalId: item.terminalId, purpose: item.purpose }) && (item.requestId === null || typeof item.requestId === 'string')
     && credentialDtoValid({ handle: item.handle, revision: item.revision, available: item.available }) && ['bound', 'unbound', 'revision', 'availability'].includes(item.reason)
@@ -58,13 +61,13 @@ export function usageProjectionRecordValid(row) {
     && ['id', 'botId', 'question', 'at'].every(key => typeof item[key] === 'string') && typeof item.allowOther === 'boolean' && Array.isArray(item.options) && item.options.every(value => typeof value === 'string')
     && ['open', 'answered'].includes(item.status) && (!Object.hasOwn(item, 'answer') || typeof item.answer === 'string') && (!Object.hasOwn(item, 'answeredAt') || typeof item.answeredAt === 'string')
     && (!Object.hasOwn(item, 'other') || typeof item.other === 'boolean')
-  if (row.type === 'event') return keys(item, ['all', 'topics', 'botIds', 'roomIds']) && typeof item.all === 'boolean'
+  if (row.type === 'event') return has(item, ['all', 'topics', 'botIds', 'roomIds']) && typeof item.all === 'boolean'
     && Array.isArray(item.topics) && item.topics.every(topic => ['requests', 'questions'].includes(topic)) && ['botIds', 'roomIds'].every(key => Array.isArray(item[key]) && item[key].every(value => typeof value === 'string'))
-  if (row.type === 'onboarding') return keys(item, ['phase', 'harness', 'harnesses', 'guideBotId', 'complete', 'auth']) && typeof item.complete === 'boolean'
+  if (row.type === 'onboarding') return has(item, ['phase', 'harness', 'harnesses', 'guideBotId', 'complete', 'auth']) && typeof item.complete === 'boolean'
     && ['ready', 'authenticate', 'select_harness'].includes(item.phase) && (item.harness === null || typeof item.harness === 'string') && (item.guideBotId === null || typeof item.guideBotId === 'string')
-    && Array.isArray(item.harnesses) && (item.auth === null || keys(item.auth, ['status', 'url', 'user_code', 'input_required', 'message', 'session_id', 'auth_ui']))
-  if (row.type === 'auth') return keys(item, ['harnesses']) && Array.isArray(item.harnesses) && item.harnesses.every(harness => keys(harness, ['id', 'name', 'members', 'startWarning', 'reloginSupported']))
-  if (row.type === 'subscription') return keys(item, ['productId', 'environment', 'accessMode', 'setupComplete', 'entitled', 'canUseAI', 'state', 'checkedAt', 'expiresAt', 'validUntil', 'autoRenewing', 'error'], ['source', 'isTrial', 'billingSources', 'canPurchase'])
+    && Array.isArray(item.harnesses) && (item.auth === null || has(item.auth, ['status', 'url', 'user_code', 'input_required', 'message', 'session_id', 'auth_ui']))
+  if (row.type === 'auth') return has(item, ['harnesses']) && Array.isArray(item.harnesses) && item.harnesses.every(harness => has(harness, ['id', 'name', 'members', 'startWarning', 'reloginSupported']))
+  if (row.type === 'subscription') return has(item, ['productId', 'environment', 'accessMode', 'setupComplete', 'entitled', 'canUseAI', 'state', 'checkedAt', 'expiresAt', 'validUntil', 'autoRenewing', 'error'])
     && ['setupComplete', 'entitled', 'canUseAI', 'autoRenewing'].every(key => typeof item[key] === 'boolean')
     // a394f: 新しい項目は任意。古いusageの記録も、新しい本体と部品が受け入れる（本体を先に入れ替える）。
     && (!Object.hasOwn(item, 'canPurchase') || typeof item.canPurchase === 'boolean')
@@ -74,7 +77,7 @@ export function usageProjectionRecordValid(row) {
 
 // This private ACK projection serves synchronous legacy readers, never writer authority.
 export function createUsageProjection({ bots }) {
-  let generation = null, staging = null, current = null, revision = -1, bootstrap = null, bootstrapGeneration = null
+  let generation = null, staging = null, current = null, revision = -1, bootstrap = null, bootstrapGeneration = null, bootstrapBase = -1
   const seenGenerations = new Set()
   const records = new Set(['settings', 'onboarding', 'auth', 'subscription', 'secret', 'question', 'event', 'credential', 'credentialRecovery'])
   const empty = () => ({ settings: null, onboarding: null, auth: null, subscription: null, secrets: new Map(), questions: new Map(),
@@ -109,9 +112,14 @@ export function createUsageProjection({ bots }) {
     },
     hasBackgroundAgent() { const row = state().settings; return Object.hasOwn(row ?? {}, 'backgroundAgent') || Boolean(row?.backgroundAgentError) },
     seed(row, next) {
-      if (!validGeneration(next) || generation === next || seenGenerations.has(next) || bootstrapGeneration !== null && bootstrapGeneration !== next
+      if (!validGeneration(next) || generation === next || seenGenerations.has(next)
         || !['settings', 'subscription'].includes(row?.type) || !usageProjectionRecordValid(row)) throw usageError('USAGE_PROJECTION_INVALID')
-      bootstrap ??= empty(); bootstrapGeneration = next
+      // a399: one child lives at a time, so a seed from another generation means the earlier one died before its snapshot;
+      // its rows and the revisions it raised go, or the next child's rows would be refused as old.
+      if (bootstrapGeneration !== next) {
+        if (bootstrap) revision = bootstrapBase; else bootstrapBase = revision
+        bootstrap = empty(); bootstrapGeneration = next
+      }
       apply(bootstrap, row); revision = Math.max(revision, row.revision)
     },
     begin(next) {

@@ -23,7 +23,8 @@ export const ackValid = value => exact(value, 'acknowledged') && value.acknowled
 export const marker = value => exact(value, 'streamed,collection,count') && value.streamed === true && typeof value.collection === 'boolean'
   && Number.isSafeInteger(value.count) && value.count >= 0 && (value.collection || value.count === 1)
 export const publicationValid = value => exact(value, 'phase,row') && ['seed', 'snapshot', 'update'].includes(value.phase) && usageProjectionRecordValid(value.row)
-const metadata = value => exact(value, 'id,name,harness') && typeof value.id === 'string' && typeof value.name === 'string' && (value.harness === null || Object.hasOwn(HARNESS, value.harness) || retiredHarness(value.harness))
+// a399 (module-ipc.md): effect results are data the other half only reads; a field a newer body adds is not refused.
+const metadata = value => object(value) && Object.hasOwn(value, 'harness') && typeof value.id === 'string' && typeof value.name === 'string' && (value.harness === null || Object.hasOwn(HARNESS, value.harness) || retiredHarness(value.harness))
 const text = value => typeof value === 'string'
 const named = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
 const authActions = {
@@ -75,7 +76,7 @@ export function usageEffectResultValid(method, value) {
   if (method === 'backgroundAgent.models') return backgroundModelsValid(value)
   if (method === 'members.read') return Array.isArray(value) && value.every(metadata)
   if (method === 'onboarding.ensureGuide') return metadata(value) && value.id === GUIDE_BOT_ID
-  if (method === 'rooms.read') return Array.isArray(value) && value.every(room => exact(room, 'id,memberIds') && text(room.id) && Array.isArray(room.memberIds) && room.memberIds.every(text))
+  if (method === 'rooms.read') return Array.isArray(value) && value.every(room => object(room) && text(room.id) && Array.isArray(room.memberIds) && room.memberIds.every(text))
   if (method === 'auth.prepareAccount') return named(value, ['configurationRoot'], ['tokenFile'])
     && [value.configurationRoot, value.tokenFile ?? '/'].every(path => typeof path === 'string' && isAbsolute(path) && !path.includes('\0'))
   if (method === 'auth.listAccounts') return exact(value, 'harnesses') && Array.isArray(value.harnesses) && value.harnesses.length <= 1
