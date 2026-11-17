@@ -44,7 +44,7 @@ Apple Developer の Certificates, Identifiers & Profiles で、署名の前に�
 
 ## Android（FCM）
 
-Androidアプリ（Neon、`dev.kitepon.bellbot`）へも、アプリを閉じている間の通知をFirebase Cloud Messaging（FCM）で送る。対象の出来事・文言はAPNsと同じ（返信、ルームの新着、秘密情報の入力依頼、選んでほしいこと）。更新の通知はApple専用で、Androidへは送らない。通知の「オン／オフ」設定はAndroidにも効く。
+Androidアプリ（Neon、`dev.kitepon.bellbot`）へも、アプリを閉じている間の通知をFirebase Cloud Messaging（FCM）で送る。対象の出来事・文言はAPNsと同じ（返信、ルームの新着、秘密情報の入力依頼、選んでほしいこと）。更新のお知らせもAndroidへ同じ文言で送る（Updateを開く）。通知の「オン／オフ」設定と中継のURLの設定はAndroidにも効く。中継を使うサーバーでは、購読（どの購入元でも）がある時だけ、運営の中継が送る。
 
 配布者はFirebaseのサービスアカウントの鍵（JSON）を取得し、`/srv/bellteam/shared/tools/fcm/config.json` に `{ "serviceAccount": { "file": "firebase-service-account.json" } }`（鍵は同じ場所の0600のファイル）か `{ "serviceAccount": { "reference": "op://保管庫のID/アイテムのID/フィールド名" } }`（1Password、APNsの鍵参照と同じ連携）を書く。設定がなければAndroid通知は無効で、設定や鍵が不正でもAPNs・Web通知は止まらない。端末の登録は `state/fcm-devices.json` に別に保存する。認証済みAPIは `POST /api/notifications/android/devices`、`POST /api/notifications/android/unregister`、`GET /api/notifications/android`。構成・契約・保護の全文は [fcm-push](architecture/modules/usage/fcm-push.md)。
 

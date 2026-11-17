@@ -333,3 +333,27 @@ test('Android routes reach the notification child as provider fcm and keep the 4
     assert.equal(response.status, status); assert.deepEqual(await response.json(), { error: code })
   }
 })
+
+test('Android registration carries the server\'s own subscription proof for the relay and refuses a client-supplied one', async t => {
+  const calls = []
+  let proof = { stripeSubscriptionId: 'sub_synthetic' }
+  const { service } = facadeFixture({ request: async (method, params) => { calls.push([method, params]); return { registered: true } } })
+  const handler = createUsageApi({ notifications: service, subscriptions: { proof: () => proof } })
+  const server = createServer((request, response) => {
+    handler(request, response, new URL(request.url, 'http://localhost')).catch(error => respondHttpError(request, response, error))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => { server.closeAllConnections(); server.close() })
+  const post = body => fetch(`http://127.0.0.1:${server.address().port}/api/notifications/android/devices`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const body = { token: 'a'.repeat(40), server: 'https://bell.example.com' }
+  assert.equal((await post(body)).status, 200)
+  assert.deepEqual(calls.at(-1), ['register', { ...body, proof, provider: 'fcm' }])
+  proof = null
+  assert.equal((await post(body)).status, 200)
+  assert.deepEqual(calls.at(-1), ['register', { ...body, provider: 'fcm' }])
+  const before = calls.length
+  const refused = await post({ ...body, proof: { stripeSubscriptionId: 'sub_forged' } })
+  assert.equal(refused.status, 400); assert.deepEqual(await refused.json(), { error: 'PUSH_DEVICE_INVALID' })
+  assert.equal(calls.length, before)
+})

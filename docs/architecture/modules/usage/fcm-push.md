@@ -7,12 +7,12 @@ Owner rule 2026-11-17: one spec on every platform. The Apple apps get closed-app
 | Question | Decision | Why |
 | --- | --- | --- |
 | Where | The notification child (`createNotificationsDispatcher`) gets a third provider next to `apns` and `webPush`: class `FcmNotifications` in `src/fcm-notifications.mjs`; pure validators in `src/usage/fcm-schema.mjs`. | Same structure as Web push; one process, one drain, one diagnostics writer. |
-| Events | The four closed-app events only: direct reply, room message, secret request, owner question. Titles and bodies come from the one `notificationEvent` mapping the APNs path already uses. | "Same events, same wording": there is no second place that words a notification. |
-| Update notice | Not sent over FCM in v1. | The update notice and its saved attempt receipts are Apple-specific (APNs receipts, `update-push.md`); Android apps update through the store. Revisit when Neon has an Update screen. |
+| Events | The four closed-app events (direct reply, room message, secret request, owner question) and the update notice. Titles and bodies come from the one `notificationEvent` mapping the APNs path already uses. | "Same events, same wording": there is no second place that words a notification. |
+| Update notice | Sent over FCM like APNs (a381): the same `{type:'update', id}` event, the same title and body, data `{server, kind:'update', messageId}`; the app opens its Update screen. No saved receipt rows for Android. | One spec. The receipts ledger (`update-push-attempts`) is an APNs diagnostic (environment, apns-id) whose reader is the Apple status call; nobody reads an Android row, so none is built (add a row type if a reader appears). Same failure rules: one try, no retry, UNREGISTERED removes the device. |
 | Message kind | FCM HTTP v1 `notification` + `data`, `android.priority` HIGH. The system shows title and body while the app is closed; the app needs no code to show it. | Reliable under Doze and OEM limits; mirrors iOS, where title and body appear even if the extension cannot run. Sender avatars are not part of v1 (iOS gets them from its extension); a later additive field can carry them. |
 | Registration | Separate routes under `/api/notifications/android/…`, a separate state file. | Apple routes and `push-devices.json` stay byte-identical, so an older usage/notification child ignores Android entirely and rollback cannot turn Android rows into `PUSH_STATE_INVALID`. |
 | On/off | Follows the existing notification feature setting (`apns.enabled`). When the Owner turns notifications off, Android sends stop too. | One spec. The setting reaches the child already; no new parent field. |
-| Relay | Direct only. The operator relay (`services/notifications/relay.mjs`) is Apple-only. | No Android entitlement exists to gate a relay (Google Play billing is not built). Open item below. |
+| Relay | When the notification setting has a relay URL, Android sends through the operator relay like APNs (a381): `POST /v1/notifications/fcm/send`. Without a relay URL the server sends directly with its own credential. | A user's own server has no Firebase project; the operator's credential sends, gated by the same cross-store subscription rule (below). |
 
 ## Function diagram
 
@@ -46,6 +46,32 @@ flowchart LR
   Send -->|other| Rep[report fixed code; no retry]
 ```
 
+## Operator relay for Android (a381)
+
+Entitlement rule (Owner 2026-11-17): a subscription from any store unlocks every app on the account. The Worker `POST /v1/subscriptions/verify` stays the only verdict source and takes one proof per call (`{signedTransaction}`, `{stripeSessionId}`, `{stripeSubscriptionId}`, later Google Play, a157). The cross-store choice is the user server's `Subscriptions.combine()`; the relay does not choose, it forwards the one proof of the entitled store.
+
+```mermaid
+flowchart LR
+  Neon[Neon registers] --> Http[usage http-api]
+  Subs[Subscriptions.proof: the entitled store's one proof] -->|server side, at registration| Http
+  Http -->|token, server, proof| Fcm[FcmNotifications device row: token, server, proof]
+  Fcm -->|relay URL set: FcmRelayProvider| Relay[operator relay /v1/notifications/fcm/send]
+  Relay -->|proof unchanged| Worker[Worker verify: entitled + validUntil]
+  Worker -->|verdict| Relay
+  Relay -->|closed message check, then post| Google[(FCM with the operator credential)]
+  Fcm -->|no relay URL: FcmProvider| Google
+```
+
+| Piece | Contract |
+| --- | --- |
+| Proof at registration | `POST /api/notifications/android/devices` stays `{token, server, previousToken?}`. The usage HTTP handler adds `proof` from `subscriptions.proof()` (null when not entitled, no proof or developer mode: no key) and the child stores it with the device row. A client-sent `proof` is refused (`PUSH_DEVICE_INVALID`). Every app start registers again, so the row follows a store change. The proof is private (0600 file, never in status, DTOs, diagnostics or logs). |
+| Child provider | `configure({enabled, relayUrl})`: relay URL set -> `FcmRelayProvider` (needs `GET /v1/notifications/status` to say `android:true`, else `FCM_RELAY_UNSUPPORTED`); empty -> the direct credential. A relay outage is the cause APNs already reports, so FCM shows it on its status only. A device without a proof gets `SUBSCRIPTION_REQUIRED` at send (one diagnostic), like an Apple device without a transaction. |
+| Relay request | `{proof, device:{token,server}, id (<=64), message}`. `proof` is opaque: one non-empty string value under one letters-only key, at most 8,192 bytes (no key list, so Google Play needs no relay change). `message` is exactly `{token, data, notification:{title,body}, android:{priority:'HIGH', ttl:'86400s', notification:{channel_id:'bellteam_messages', tag}}}`; `token` and `data.server` must equal `device`, `data` keys are letters-only strings, whole message at most 4,000 bytes. Anything else: 400. |
+| Relay answer | Verify through the Worker unchanged (its errors pass through, e.g. 503 `SUBSCRIPTION_NOT_CONFIGURED`); `entitled` and `validUntil` in the future, else 402 `SUBSCRIPTION_REQUIRED`; then one post. 200 `{accepted:true}`; FCM `UNREGISTERED` -> 410 `FCM_UNREGISTERED` (the child removes the device); other failures 502 with the fixed code. No credential on the relay: 503 `PUSH_NOT_CONFIGURED`. |
+| Relay status | `GET /v1/notifications/status` adds `android:true` only when the relay has a Firebase credential (`BELLTEAM_FCM_DIRECTORY`, same `config.json` format as `shared/tools/fcm`); otherwise the response is unchanged. Apple routes and bodies are untouched. |
+
+Protection named: secret exposure (the proof and the operator's key stay private), privilege escalation (the relay only forwards the closed message to the device's own token after the Worker confirms entitlement; it cannot be used to send arbitrary text to arbitrary tokens), wrong target (`data.server` and `token` must match the device). Self-exit: the app registers again at every start; a missing proof or unentitled account is fixed by buying or restoring in any store, then the next start refreshes the row.
+
 ## Server configuration (distributor)
 
 `/srv/bellteam/shared/tools/fcm/config.json`, next to `apns/`:
@@ -74,7 +100,7 @@ FCM message the server sends (HTTP v1):
 { "message": {
   "token": "<registration token>",
   "notification": { "title": "<same title as APNs>", "body": "<same body as APNs>" },
-  "data": { "server": "https://…", "kind": "reply|secret_request|owner_question", "messageId": "…",
+  "data": { "server": "https://…", "kind": "reply|secret_request|owner_question|update", "messageId": "…",
             "botId": "…", "senderId": "…", "senderName": "…",
             "roomId": "…", "roomName": "…", "requestId": "…" },
   "android": { "priority": "HIGH", "ttl": "86400s",
@@ -82,6 +108,7 @@ FCM message the server sends (HTTP v1):
 ```
 
 - `data` values are strings. `roomId` / `roomName` exist only for room messages (`roomId` also for a secret request that belongs to a room); `requestId` exists only for `secret_request` and equals `messageId`. A missing key means null, the same fields as the APNs `bellteam` object.
+- Update notice: `kind:'update'`, data only `server` and `messageId` (the 64-hex candidate id), title `BellTeam`, body `更新があります。Updateで確認してください。`. Neon opens its Update screen (same rule as iOS: only for the current connection, no automatic update).
 - Titles and bodies: Bot name for a direct reply or card (`返信が届きました。` / `秘密情報の入力が必要です。` / `選んでほしいことがあります。`), `<name> · <room>` and `ルームに新しいメッセージが届きました。` for a room.
 - Tap: Android starts the launcher activity with `data` as intent extras. Neon routes with `kind`, `botId`, `roomId`, `requestId` exactly as iOS routes `bellteam`, and ignores a message whose `server` is not the current connection.
 - Foreground: `onMessageReceived` runs; Neon decides, with the same rule as iOS (no banner for the conversation being viewed).
@@ -102,9 +129,9 @@ Protection named: secret exposure (the service account private key and the OAuth
 
 Compatibility: `state/push-devices.json` and every existing route are unchanged. The IPC adds `provider:'fcm'` for `register` / `unregister` / `status` only; an older notification child answers `PUSH_IPC_ARGUMENTS` (not accepted), so Android registration fails closed while Apple keeps working. Publish needs no IPC change: the child fans every event out to the providers it has. `secretEncoding` and other state interpretation are unchanged.
 
-## Open items (not in v1)
+## Open items
 
-- Android entitlement and an FCM relay for instances without their own Firebase project: needs the Google Play billing design (Owner billing rule: Apple, Stripe and Google Play).
-- Update notice over FCM (see Decisions).
+- Google Play as a proof source: the relay already accepts any opaque proof; it works once a157 adds the Worker's Google verify and `Subscriptions.proof()` returns it.
 - Sender avatar on Android.
+- Android rows in the update receipts (see Decisions).
 - The Firebase service account key itself: Sielo (a379). Until it is placed, `configured:false` is the correct answer.

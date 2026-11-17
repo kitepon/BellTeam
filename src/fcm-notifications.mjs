@@ -3,14 +3,14 @@ import { join } from 'node:path'
 import { importPKCS8, SignJWT } from 'jose'
 import { onePasswordKeyReader } from './push-notifications.mjs'
 import { validateOnePasswordReference } from './usage/onepassword-source.mjs'
-import { fcmError, validateFcmDevice, validateFcmToken } from './usage/fcm-schema.mjs'
+import { NotificationRelayProvider } from './push-notifications.mjs'
+import { FCM_CHANNEL, fcmError, validateFcmDevice, validateFcmToken } from './usage/fcm-schema.mjs'
 
 // Fixed endpoints: nothing in the service account file chooses where the key or the token is sent.
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const SEND_URL = project => `https://fcm.googleapis.com/v1/projects/${project}/messages:send`
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging'
 const STATE_SCHEMA = 'bellteam.fcm-devices.v1'
-export const FCM_CHANNEL = 'bellteam_messages'
 const MESSAGES = {
   FCM_CONFIG_INVALID: 'Android通知の設定（shared/tools/fcm/config.json）の形が正しくありません。',
   FCM_KEY_REFERENCE_INVALID: 'Android通知の鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
@@ -23,6 +23,10 @@ const safe = code => /^[A-Z_0-9]{1,100}$/u.test(code ?? '') ? code : 'PUSH_SEND_
 
 // Same title/body/ids as the APNs payload (event comes from the one notificationEvent mapping); FCM data values are strings.
 export function fcmMessage(event, device) {
+  // The update notice carries no sender; the app opens its Update screen (same wording as APNs).
+  if (event.kind === 'update') return { message: { token: device.token, data: { server: device.server, kind: 'update', messageId: event.id },
+    notification: { title: event.title, body: event.body },
+    android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: FCM_CHANNEL, tag: event.id } } } }
   const build = (name, room) => {
     const data = { server: device.server, kind: event.kind, messageId: event.id, botId: event.botId, senderId: event.sender.id, senderName: name }
     if (event.roomId) data.roomId = event.roomId
@@ -74,17 +78,59 @@ export class FcmProvider {
     return { token: body.access_token, expiresAt: Date.now() + (Number.isFinite(body.expires_in) ? body.expires_in : 3000) * 1000 }
   }
 
-  async send(device, event) {
+  send(device, event) { return this.post(fcmMessage(event, device)) }
+
+  async post(message) {
     const { token } = await this.bearer()
     let response, body
     try {
       response = await this.request(SEND_URL(this.project), { method: 'POST', signal: AbortSignal.timeout(15000),
-        headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(fcmMessage(event, device)) })
+        headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(message) })
       if (response.ok) return
       body = await response.json().catch(() => null)
     } catch { throw fcmError('FCM_CONNECTION_FAILED') }
     const detail = body?.error?.details?.find(row => typeof row?.errorCode === 'string')?.errorCode ?? body?.error?.status
     throw fcmError(`FCM_${/^[A-Z_0-9]{1,60}$/u.test(detail ?? '') ? detail : `HTTP_${response.status}`}`)
+  }
+
+  close() {}
+}
+
+// Direct credential: shared/tools/fcm/config.json -> a service account file or an op:// reference. null when there is no config.json.
+export async function loadFcmProvider(directory, { readKeys, fetch: request = fetch } = {}) {
+  let config
+  try { config = JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')) }
+  catch (error) { if (error.code === 'ENOENT') return null; throw fcmError('FCM_CONFIG_INVALID') }
+  const source = config?.serviceAccount, file = Object.hasOwn(source ?? {}, 'file')
+  if (Object.keys(config ?? {}).join() !== 'serviceAccount' || Object.keys(source ?? {}).length !== 1
+    || file === Object.hasOwn(source ?? {}, 'reference') || (file && !/^[\w.-]+\.json$/u.test(source.file ?? ''))) throw fcmError('FCM_CONFIG_INVALID')
+  let text
+  if (file) text = await readFile(join(directory, source.file), 'utf8').catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })
+  else {
+    try { validateOnePasswordReference(source.reference) } catch { throw fcmError('FCM_KEY_REFERENCE_INVALID') }
+    text = (await readKeys([source.reference]).catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })).get(source.reference)
+  }
+  let account
+  try { account = JSON.parse(text) } catch { throw fcmError('FCM_KEY_INVALID') }
+  return FcmProvider.create(account, { fetch: request })
+}
+
+// Sends through the operator relay: the device's stored subscription proof goes along; the relay verifies it and sends with its own credential.
+export class FcmRelayProvider {
+  static async create(relayUrl, request) {
+    const relay = new NotificationRelayProvider({ relayUrl, fetch: request })
+    const status = await relay.call('/v1/notifications/status', { method: 'GET' })
+    if (status?.android !== true) throw fcmError('FCM_RELAY_UNSUPPORTED')
+    return new FcmRelayProvider(relay)
+  }
+
+  constructor(relay) { this.relay = relay }
+
+  async send(device, event) {
+    if (!device.proof) throw fcmError('SUBSCRIPTION_REQUIRED')
+    const { server, token } = device
+    await this.relay.call('/v1/notifications/fcm/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proof: device.proof, device: { token, server }, id: event.id, message: fcmMessage(event, device).message }) })
   }
 
   close() {}
@@ -99,6 +145,7 @@ export class FcmNotifications {
     this.file = join(root, 'state/fcm-devices.json')
     this.devices = new Map()
     this.enabled = true
+    this.relayUrl = ''
     this.provider = null
     this.error = null
     this.broken = false
@@ -115,44 +162,33 @@ export class FcmNotifications {
         for (const device of state.devices) this.devices.set(device.token, validateFcmDevice(device))
       }
     } catch { this.broken = true; await this.#fail(fcmError('FCM_STATE_INVALID'), 'SERVER_PUSH_UNAVAILABLE'); return }
-    await this.load()
   }
 
+  // relayUrl set = the operator relay carries the send (like APNs); otherwise the credential in shared/tools/fcm.
   async load() {
     this.provider?.close(); this.provider = null
-    const directory = join(this.root, 'shared/tools/fcm')
     try {
-      let config
-      try { config = JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')) }
-      catch (error) { if (error.code === 'ENOENT') { this.error = null; return } throw fcmError('FCM_CONFIG_INVALID') }
-      const source = config?.serviceAccount, file = Object.hasOwn(source ?? {}, 'file')
-      if (Object.keys(config ?? {}).join() !== 'serviceAccount' || Object.keys(source ?? {}).length !== 1
-        || file === Object.hasOwn(source ?? {}, 'reference') || (file && !/^[\w.-]+\.json$/u.test(source.file ?? ''))) throw fcmError('FCM_CONFIG_INVALID')
-      let text
-      if (file) text = await readFile(join(directory, source.file), 'utf8').catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })
-      else {
-        try { validateOnePasswordReference(source.reference) } catch { throw fcmError('FCM_KEY_REFERENCE_INVALID') }
-        text = (await this.readKeys([source.reference]).catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })).get(source.reference)
-      }
-      let account
-      try { account = JSON.parse(text) } catch { throw fcmError('FCM_KEY_INVALID') }
-      this.provider = await FcmProvider.create(account, { fetch: this.request })
+      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request)
+        : await loadFcmProvider(join(this.root, 'shared/tools/fcm'), { readKeys: this.readKeys, fetch: this.request })
       this.error = null
-    } catch (error) { await this.#fail(error, 'SERVER_PUSH_UNAVAILABLE') }
+    // The relay being unreachable is the cause the APNs apply already reports; FCM only shows it on its status.
+    } catch (error) { await this.#fail(error, 'SERVER_PUSH_UNAVAILABLE', !/^PUSH_RELAY_/u.test(error.code ?? '')) }
   }
 
-  // The Owner's notification setting (apns.enabled) is the one on/off for every platform.
-  async configure({ enabled }) {
+  // The Owner's notification setting (apns.enabled) and relay URL are the one setting for every platform.
+  async configure({ enabled, relayUrl = '' }) {
+    const changed = (relayUrl.trim() || null) !== (this.relayUrl || null)
     this.enabled = enabled
-    if (enabled && !this.provider && !this.broken) await this.load()
+    this.relayUrl = relayUrl.trim()
+    if (enabled && !this.broken && (changed || !this.provider)) await this.load()
   }
 
   status() {
     return { configured: this.enabled && Boolean(this.provider) && !this.broken, ...(this.error ? { error: this.error } : {}) }
   }
 
-  async register({ token, server, previousToken }) {
-    const device = validateFcmDevice({ token, server })
+  async register({ token, server, previousToken, proof }) {
+    const device = validateFcmDevice({ token, server, proof })
     if (previousToken !== undefined) validateFcmToken(previousToken)
     if (this.broken) throw fcmError('FCM_STATE_INVALID', 'not_accepted')
     if (!this.provider || !this.enabled) throw fcmError('PUSH_NOT_CONFIGURED')
@@ -170,7 +206,7 @@ export class FcmNotifications {
   }
 
   publish(event) {
-    if (event.kind === 'update' || !this.provider || !this.enabled || this.broken) return
+    if (!this.provider || !this.enabled || this.broken) return
     const provider = this.provider
     let failed = false
     const task = Promise.all([...this.devices.values()].map(async device => {
@@ -187,10 +223,10 @@ export class FcmNotifications {
     void task.finally(() => this.inflight.delete(task))
   }
 
-  async #fail(error, report) {
+  async #fail(error, report, record = true) {
     const code = safe(error.code)
     this.error = { code, message: MESSAGES[code] ?? DEFAULT_MESSAGE }
-    await this.diagnostics.record({ code: report, module: 'notifications', diagnostic_log: code })
+    if (record) await this.diagnostics.record({ code: report, module: 'notifications', diagnostic_log: code })
   }
 
   save() {

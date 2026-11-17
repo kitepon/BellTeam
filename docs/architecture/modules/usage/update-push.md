@@ -39,6 +39,8 @@ APNsの更新分岐は以下。bellteamは3key完全一致。serverは既端末�
 {"aps":{"alert":{"title":"BellTeam","body":"更新があります。Updateで確認してください。"},"sound":"default","thread-id":"https://bellteam.example/updates"},"bellteam":{"server":"https://bellteam.example","kind":"update","messageId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
 ```
 
+Android（FCM、a381）は同じ`{type:'update',id}`から、同じtitle/bodyと`data {server, kind:'update', messageId}`だけのFCMメッセージを作る（[fcm-push](fcm-push.md)）。受領台帳（下記）の対象はAPNsだけで、AndroidはDEVICES行を持たない。
+
 botId/roomId/sender/requestId/mutable-contentは付けず、通知拡張による会話avatar取得を求めない。Appleは現在認証済み接続先とserverの一致を確認してUpdateを開き既GETだけを行う。不一致時は既切替・認証導線へ保留し、自動切替/認証/更新実行をしない。Windowsは起動中の既SSE→GETの候補射影→既標準Toast/通知有効設定とclickを使う。Toast内部のkind/idと既接続先識別を厳密に扱い、同接続先UpdateのGETだけへ案内する。終了中Pushの既transportは無いため未提供。新WNS/WebPush受信/独自pollは追加しない。
 
 ## Saved APNs update-attempt receipts (2026-11-08)
