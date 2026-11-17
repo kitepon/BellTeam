@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T02:57:36Z",
-  "expiresAt": "2026-11-24T02:57:36Z",
+  "publishedAt": "2026-11-17T03:33:27Z",
+  "expiresAt": "2026-11-24T03:33:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
-      "versionId": "f25e80f83c46639cefcbb602091634c51aaab40be2bb46f1e9f32645dbfd4bc7",
+      "sourceCommit": "ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c",
+      "versionId": "f3b8ccc82786ab7f8368742c6d3880bdd2a0e0878cfd0baf4625f399d4899510",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz",
-          "bytes": 3983866,
-          "sha256": "f25e80f83c46639cefcbb602091634c51aaab40be2bb46f1e9f32645dbfd4bc7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T033303Z/execution-ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c-linux-amd64.tar.gz",
+          "bytes": 3985268,
+          "sha256": "f3b8ccc82786ab7f8368742c6d3880bdd2a0e0878cfd0baf4625f399d4899510"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11177,
-          "sha256": "1117a1d404fd37e2574b2c905b3e258e657bcb9a5bb5f803f394800de9352d9c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T033303Z/execution-ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10832,
+          "sha256": "312539bcac21ff09f1f13e29dde89066df37953d7c15570486badb68daeced6a"
         },
-        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
+        "signerCommit": "ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "固定の印が付いたBotのCLI・モデル・エフォートを、AIが変えようとしたときは断るようにしました。"
+        "BellTeamが、固定の印が付いたBotの席をAitermへ伝えるようにしました。席を起こす時と、固定を切り替えた時に伝えます。固定中でも、オーナーの変更は必ず通ります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc",
-      "versionId": "a455367a4015a881241e20d439a73573d5f3f1841934980303889a87c2b85be5",
+      "sourceCommit": "ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c",
+      "versionId": "89108ea0512f584b4a9f85e5e3604e9c795cb3100c3fcc951e1983e8165fb069",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz",
-          "bytes": 3983866,
-          "sha256": "a455367a4015a881241e20d439a73573d5f3f1841934980303889a87c2b85be5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T033303Z/execution-ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c-linux-arm64.tar.gz",
+          "bytes": 3985268,
+          "sha256": "89108ea0512f584b4a9f85e5e3604e9c795cb3100c3fcc951e1983e8165fb069"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T024715Z/execution-b73465573f6b69d9d3774eead883d9fa4978c1fc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "ee0324346e81ddfa716394f2cfaba880a7f6afd5b0df2e587ab8761d678c1d89"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T033303Z/execution-ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10895,
+          "sha256": "847468af231e3b7610be5d357fd5356cde0185f3dc5245aa1afb408b043fd492"
         },
-        "signerCommit": "b73465573f6b69d9d3774eead883d9fa4978c1fc"
+        "signerCommit": "ca9c6b942eb883b3c9c42fc5b3681dcbf56d367c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "固定の印が付いたBotのCLI・モデル・エフォートを、AIが変えようとしたときは断るようにしました。"
+        "BellTeamが、固定の印が付いたBotの席をAitermへ伝えるようにしました。席を起こす時と、固定を切り替えた時に伝えます。固定中でも、オーナーの変更は必ず通ります。"
       ]
     },
     {
