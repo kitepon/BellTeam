@@ -245,3 +245,35 @@ test('Stripeの通信失敗・未設定を期限切れへ置き換えずエラ�
   assert.equal(form.has('automatic_tax[enabled]'), false)
   assert.equal(form.get('success_url'), 'https://example.test/return?session_id={CHECKOUT_SESSION_ID}')
 })
+
+test('開いたままのCheckoutは新しく作らず状態を返し、閉じたものはURLを返さない', async () => {
+  for (const [status, url] of [['open', 'https://checkout.stripe.test/c/1'], ['complete', null], ['expired', null]]) {
+    const { post, calls } = stripeWorker(() => Response.json({ id: 'cs_1', status, url: 'https://checkout.stripe.test/c/1' }))
+    const result = await post('/v1/subscriptions/stripe/checkout', { sessionId: 'cs_1' })
+    assert.deepEqual(result.body, { sessionId: 'cs_1', status, url })
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].init.method, 'GET')
+  }
+  const swapped = await stripeWorker(() => Response.json({ id: 'cs_2', status: 'open' })).post('/v1/subscriptions/stripe/checkout', { sessionId: 'cs_1' })
+  assert.equal(swapped.body.error.code, 'INVALID_STRIPE_RESPONSE')
+  const { post, calls } = stripeWorker(() => assert.fail('照会されてはいけません'))
+  assert.equal((await post('/v1/subscriptions/stripe/checkout', { sessionId: 'cs_1/../x' })).body.error.code, 'INVALID_REQUEST')
+  assert.equal(calls.length, 0)
+})
+
+test('Stripeの顧客ポータルは、BellTeamの価格の購読の顧客にだけ作る', async () => {
+  const handler = url => url.includes('/billing_portal/sessions') ? Response.json({ url: 'https://billing.stripe.test/p/1' }) : Response.json(stripeSubscription({ customer: 'cus_1' }))
+  const { post, calls } = stripeWorker(handler)
+  const ok = await post('/v1/subscriptions/stripe/portal', { stripeSubscriptionId: 'sub_1' })
+  assert.deepEqual(ok.body, { url: 'https://billing.stripe.test/p/1' })
+  const form = calls[1].init.body
+  assert.deepEqual([form.get('customer'), form.get('return_url')], ['cus_1', 'https://example.test/return'])
+  const other = await stripeWorker(() => Response.json(stripeSubscription({ customer: 'cus_1', items: { data: [{ price: { id: 'price_other' } }] } })))
+    .post('/v1/subscriptions/stripe/portal', { stripeSubscriptionId: 'sub_1' })
+  assert.equal(other.body.error.code, 'INVALID_PRODUCT')
+  const bad = await stripeWorker(() => assert.fail('照会されてはいけません')).post('/v1/subscriptions/stripe/portal', { stripeSubscriptionId: 'cs_1' })
+  assert.equal(bad.body.error.code, 'INVALID_REQUEST')
+  const denied = await stripeWorker(url => url.includes('/billing_portal/') ? new Response('', { status: 403 }) : Response.json(stripeSubscription({ customer: 'cus_1' })))
+    .post('/v1/subscriptions/stripe/portal', { stripeSubscriptionId: 'sub_1' })
+  assert.deepEqual([denied.status, denied.body.error.code], [502, 'STRIPE_API_ERROR'])
+})

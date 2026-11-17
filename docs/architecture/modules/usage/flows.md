@@ -169,7 +169,8 @@ flowchart LR
   APNs --> Result
   Result --> Diag["通知だけの診断・端末登録更新"]
   Apple["Apple購入・復元"] --> Verify["Subscriptions<br/>外部検証→結果検証→購入元別に保存→有効な方を採用"]
-  Stripe["Stripe購入画面・復元<br/>Checkout作成→戻りSession ID"] --> Verify
+  Stripe["Stripe購入画面・復元<br/>二重請求の確認→Checkout作成（開いたまま再利用）→戻りSession ID"] --> Verify
+  Manage["Stripe購読の管理・解約<br/>購読ID→Stripe顧客ポータルのURL"] --> Stripe
   Verify --> Status["購読状態をAppleへ返す<br/>WebのAI利用を止めない"]
 ```
 
@@ -184,6 +185,8 @@ flowchart LR
 | 購入/復元（Apple） | HTTP verify → `Subscriptions.install/verify/validate/save` | 外部検証のアプリ/環境/期限/状態を検証し、利用者サーバーに保存 |
 | 購入/復元（Stripe） | HTTP stripe/checkout → `Subscriptions.checkout/post`、HTTP stripe/verify → `Subscriptions.installStripe/verify/validate/save` | 運営のWorkerがStripeの購読を照会した結果（`source:stripe`・`subscriptionId`・`isTrial`）を同じ形で検証し、購入元別に保存。Checkoutは作るだけで状態を変えない |
 | 購入証拠の取り出し | `Subscriptions.proof` | 同期・通信なし・ログなし。`status()`が有効な時だけ、その購入元の証拠を一つコピーで返す（stripe→`{stripeSubscriptionId}`、apple（旧保存形式はsource無し=apple）→`{signedTransaction}`）。未購入・失効・開発者モードは`null`。StripeのSession IDは返さない。Androidの端末登録（`POST /api/notifications/android/devices`）が登録のたびに呼び、運営の中継へそのまま転送する |
+| 二重請求の防止 | HTTP stripe/checkout → `Subscriptions.checkout`（`change`内で`refreshLocked(force)`→`billingSources`→保留Session照会→作成） | 守るもの：同じ人が同じBellTeamの権利に二重に課金されること。購入元のどれかが課金中（`active`・`grace`・`billing_retry`。解約予約中の期間内も含む）ならCheckoutを作らず`SUBSCRIPTION_ALREADY_ACTIVE`（409）。照会できない時は作らず照会のエラーを返す（接続が戻れば再実行でき、自分で抜ける）。作ったCheckout Session IDは`stripePendingSessionId`へ保存し、次の要求では新規作成せず同じSessionが`open`なら同じURLを返し、`complete`なら取り込んで拒否する。`GET /api/subscription`は`canPurchase`（課金中の購入元が無く開発者モードでもない時だけtrue）と`billingSources`（課金中の購入元）を返し、各アプリは`canPurchase:false`の間、購入ボタンを出さない（Apple・Google Playの購入はサーバーが止められないため、この値で止める） |
+| 購読の管理・解約（Stripe） | HTTP stripe/manage → `Subscriptions.manageStripe/post` → Worker `POST /v1/subscriptions/stripe/portal` | 保存済みの`stripeSubscriptionId`を運営のWorkerへ送り、Workerは購読の価格を確かめてStripeの顧客ポータルのURLを作り`{url}`を返す。利用者はそこで解約・再開・支払い方法変更・請求書の確認をする。メールは使わない。解約後もStripe側の期間終了まで`entitled`は続き、反映は次の照会。Stripeの購読が無ければ`NO_STRIPE_SUBSCRIPTION`（409）。URLを返すだけで状態は変えない。Appleの購読の解約はApple、Google Playの購読の解約はGoogle Playで行う |
 | 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripeそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。購入元を足す時（Google Play）は結果を足すだけ |
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |

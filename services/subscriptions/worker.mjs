@@ -83,7 +83,14 @@ async function verifyStripe(env, request, input, now) {
   }
 }
 
-async function stripeCheckout(env, request) {
+// 作ったCheckoutを開いたまま使い回す（二重に作らない）ため、sessionId付きなら新規作成せず現在の状態を返す。
+async function stripeCheckout(env, request, resumeSessionId) {
+  if (resumeSessionId !== undefined) {
+    if (typeof resumeSessionId !== 'string' || !/^cs_[A-Za-z0-9_]{1,200}$/.test(resumeSessionId)) throw new SubscriptionError('INVALID_REQUEST', 400, 'StripeのCheckout Session IDの形式が一致しません。')
+    const session = await stripeCall(env, request, `/v1/checkout/sessions/${resumeSessionId}`)
+    if (session.id !== resumeSessionId || !['open', 'complete', 'expired'].includes(session.status)) throw invalidResponse('Stripe')
+    return { sessionId: session.id, status: session.status, url: session.status === 'open' ? session.url : null }
+  }
   if (!env.STRIPE_RETURN_URL) throw new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのStripe設定が完了していません。')
   const session = await stripeCall(env, request, '/v1/checkout/sessions', {
     mode: 'subscription', 'line_items[0][price]': env.STRIPE_PRICE_ID, 'line_items[0][quantity]': '1',
@@ -92,6 +99,21 @@ async function stripeCheckout(env, request) {
   })
   if (typeof session.url !== 'string' || typeof session.id !== 'string') throw invalidResponse('Stripe')
   return { url: session.url, sessionId: session.id }
+}
+
+// 利用者本人が解約・再開・支払い方法の変更をするStripeの顧客ポータルを開く。購読の価格を確かめてから、その購読の顧客だけへ作る。
+async function stripePortal(env, request, subscriptionId) {
+  if (typeof subscriptionId !== 'string' || !/^sub_[A-Za-z0-9_]{1,200}$/.test(subscriptionId)) throw new SubscriptionError('INVALID_REQUEST', 400, 'Stripeの購読IDが必要です。')
+  if (!env.STRIPE_RETURN_URL) throw new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのStripe設定が完了していません。')
+  const subscription = await stripeCall(env, request, `/v1/subscriptions/${subscriptionId}`)
+  if (subscription.id !== subscriptionId || !subscription.items?.data?.some(item => item.price?.id === env.STRIPE_PRICE_ID)) {
+    throw new SubscriptionError('INVALID_PRODUCT', 400, 'BellTeamの月額購読のStripe購読ではありません。')
+  }
+  const customer = subscription.customer?.id ?? subscription.customer
+  if (typeof customer !== 'string' || !customer) throw invalidResponse('Stripe')
+  const portal = await stripeCall(env, request, '/v1/billing_portal/sessions', { customer, return_url: env.STRIPE_RETURN_URL })
+  if (typeof portal.url !== 'string') throw invalidResponse('Stripe')
+  return { url: portal.url }
 }
 
 export function createSubscriptionWorker({
@@ -125,16 +147,17 @@ export function createSubscriptionWorker({
   return {
     async fetch(request, env) {
       const path = new URL(request.url).pathname
-      if (!['/v1/subscriptions/verify', '/v1/subscriptions/stripe/checkout'].includes(path)) return new Response('見つかりません', { status: 404 })
+      if (!['/v1/subscriptions/verify', '/v1/subscriptions/stripe/checkout', '/v1/subscriptions/stripe/portal'].includes(path)) return new Response('見つかりません', { status: 404 })
       if (request.method !== 'POST') return new Response('POSTを使ってください。', { status: 405, headers: { Allow: 'POST' } })
       let configured
       try {
-        if (path.endsWith('/checkout')) return Response.json(await stripeCheckout(env, stripeFetch), { headers: { 'Cache-Control': 'no-store' } })
         let input
         try { input = await request.json() } catch (error) {
           if (!(error instanceof SyntaxError)) throw error
-          throw new SubscriptionError('INVALID_REQUEST', 400, '購入情報をJSONで送信してください。')
+          if (!path.endsWith('/checkout')) throw new SubscriptionError('INVALID_REQUEST', 400, '購入情報をJSONで送信してください。')
         }
+        if (path.endsWith('/checkout')) return Response.json(await stripeCheckout(env, stripeFetch, input?.sessionId), { headers: { 'Cache-Control': 'no-store' } })
+        if (path.endsWith('/portal')) return Response.json(await stripePortal(env, stripeFetch, input?.stripeSubscriptionId), { headers: { 'Cache-Control': 'no-store' } })
         // 保管庫を増やさず、購入元（store）ごとに公式の照会へ振り分ける。Google Playはここへ分岐を足す。
         if (input?.stripeSessionId !== undefined || input?.stripeSubscriptionId !== undefined) {
           return Response.json(await verifyStripe(env, stripeFetch, input, clock()), { headers: { 'Cache-Control': 'no-store' } })

@@ -116,6 +116,8 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
         return json(response, 200, { subscription: await subscriptions.install((await readJson(request, 32768)).signedTransaction, await context('subscriptions.install')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/checkout')
         return json(response, 200, await subscriptions.checkout(await context('subscriptions.checkout')))
+      if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/manage')
+        return json(response, 200, await subscriptions.manageStripe(await context('subscriptions.manageStripe')))
       if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/verify')
         return json(response, 200, { subscription: await subscriptions.installStripe((await readJson(request, 32768)).stripeSessionId, await context('subscriptions.installStripe')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/refresh')
