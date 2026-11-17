@@ -17,7 +17,7 @@ public sealed class SubscriptionPageTests
     {
         public int Checkouts; public string? Verified; public string? Opened;
         public bool Entitled, Developer; public HttpStatusCode CheckoutStatus = HttpStatusCode.OK;
-        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, source = Entitled ? "stripe" : null, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
+        private string State() => JsonSerializer.Serialize(new { subscription = new { entitled = Entitled, state = Entitled ? "active" : "not_purchased", accessMode = Developer ? "developer" : "subscription", isTrial = Entitled, autoRenewing = true, billingSources = Entitled ? new[] { "stripe" } : Array.Empty<string>(), canPurchase = !Entitled && !Developer, source = Entitled ? "stripe" : null, validUntil = Entitled ? "2026-12-17T03:00:00Z" : null, setupComplete = true } });
         public SubscriptionApi Api() => new(new BellApi(new("http://localhost/"), new StubHandler(async (request, token) =>
         {
             var path = request.RequestUri!.AbsolutePath;
