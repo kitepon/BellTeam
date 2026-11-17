@@ -76,7 +76,7 @@ test('選べなくなったAntigravityは初期設定で選べない（a353）',
   assert.equal(f.bots.has(GUIDE_BOT_ID), false)
 })
 
-test('案内役は購入前に初期設定を完了でき、Web無料とApple購読を案内する', async t => {
+test('案内役は購入前に初期設定を完了でき、Web無料と全ストア共通の購読を案内する', async t => {
   const f = await fixture(t)
   await f.onboarding.select('claude')
   await assert.rejects(f.onboarding.complete(), { code: 'SETUP_GUIDE_REQUIRED' })
@@ -88,7 +88,9 @@ test('案内役は購入前に初期設定を完了でき、Web無料とApple購
   assert.equal(f.subscriptions.status().canUseAI, true)
   assert.equal(f.subscriptions.status().entitled, false)
   assert.match(f.conversations[0].message, /Webアプリ.*無料/u)
-  assert.match(f.conversations[0].message, /初期設定後のAppleアプリからの会話と予定操作には購読が必要/u)
+  assert.match(f.conversations[0].message, /初期設定後の、Web以外のアプリからの会話と予定操作には月額980円（税込・最初の1か月無料）の購読が必要/u)
+  assert.match(f.conversations[0].message, /App Store・Stripe・Google Playのどれで買っても、同じサーバーの全アプリで使えます/u)
+  assert.doesNotMatch(f.conversations[0].message, /Appleアプリの設定から/u)
   const resumed = new Onboarding(f.options)
   await resumed.initialize()
   assert.equal(resumed.snapshot().complete, true)
