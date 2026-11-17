@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { authUi, authResponse, authReceipt } from './auth-ui.mjs'
 import guide from '../config/setup-guide.json' with { type: 'json' }
+import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
 
 export const HARNESS = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
 export const HARNESSES = Object.entries({ claude: 'Claude', codex: 'Codex', grok: 'Grok', cursor: 'Cursor' }).map(([id, name]) => ({ id, name }))
@@ -29,11 +30,12 @@ export class Onboarding {
   async initialize({ readOnly = false } = {}) {
     try {
       const state = JSON.parse(await readFile(this.path, 'utf8'))
-      if (state.schema !== 'bellteam.onboarding.v1' || (state.harness !== null && !Object.hasOwn(HARNESS, state.harness))
+      if (state.schema !== 'bellteam.onboarding.v1' || (state.harness !== null && !Object.hasOwn(HARNESS, state.harness) && !retiredHarness(state.harness))
         || typeof state.started !== 'boolean' || typeof state.complete !== 'boolean'
         || !(state.guideBotId === null || typeof state.guideBotId === 'string')
         || !(state.authSession === null || typeof state.authSession === 'string')) throw new OnboardingError('SETUP_STATE_INVALID', 500, '初期設定の保存内容を読み取れません。')
-      this.state = state
+      // a365: a retired choice before the guide conversation started means no choice yet; the file itself is left as it is.
+      this.state = retiredHarness(state.harness) && !state.started ? { ...state, harness: null, authSession: null } : state
     } catch (error) {
       if (error.code !== 'ENOENT' || readOnly) throw error
       // 既存の利用環境では初回設定を要求せず、現在のメンバーを保持する。
@@ -45,7 +47,7 @@ export class Onboarding {
   snapshot() {
     return {
       phase: this.state.started ? 'ready' : this.state.harness ? 'authenticate' : 'select_harness',
-      harness: this.state.harness, harnesses: HARNESSES, guideBotId: this.state.guideBotId,
+      harness: this.state.harness, harnesses: HARNESSES, ...(retiredHarness(this.state.harness) ? { harnessNotice: RETIRED_HARNESS_NOTICE } : {}), guideBotId: this.state.guideBotId,
       complete: this.state.complete, auth: this.auth && {
         status: this.auth.status, url: this.auth.url ?? null, user_code: this.auth.user_code ?? null,
         input_required: this.auth.input_required === true, message: this.auth.message ?? null,

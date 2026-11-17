@@ -62,6 +62,7 @@
   ],
   "source": [
     "src/onboarding.mjs",
+    "src/retired-harness.mjs",
     "src/harness-auth.mjs",
     "src/auth-ui.mjs",
     "src/feature-settings.mjs",

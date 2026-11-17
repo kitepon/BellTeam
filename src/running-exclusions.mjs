@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
+import { retiredHarnessKind } from './retired-harness.mjs'
 
 // a41 (execution current-work.md "Own work"): the Owner-approved list of what never counts as a Bot's own work.
 // Execution state: the engine only reads it (readRunningExclusions); the body writes it only for an Owner-approved
@@ -11,12 +12,13 @@ const MAX_ENTRIES = 256
 const word = value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\s\u0000-\u001f]/u.test(value)
 const HARNESSES = new Set(['claude-code', 'codex-cli', 'grok-cli', 'cursor-cli'])
 
-function valid(entry) {
+// a365: a stored entry for a retired harness stays valid (inert); a new proposal may not name one.
+function valid(entry, stored = false) {
   if (!entry || typeof entry !== 'object' || !word(entry.id)) return false
   const scope = entry.scope === 'all' || Array.isArray(entry.scope) && entry.scope.length > 0 && entry.scope.every(word)
   if (!scope) return false
   if (entry.kind === 'process') return word(entry.exe) && Array.isArray(entry.args) && entry.args.length <= 2 && entry.args.every(word)
-  if (entry.kind === 'child') return HARNESSES.has(entry.harness) && (entry.session === null || word(entry.session))
+  if (entry.kind === 'child') return (HARNESSES.has(entry.harness) || stored && retiredHarnessKind(entry.harness)) && (entry.session === null || word(entry.session))
   return false
 }
 
@@ -27,7 +29,7 @@ export async function readRunningExclusions(path) {
   let value
   try { value = JSON.parse(await readFile(path, 'utf8')) } catch (error) { return error?.code === 'ENOENT' ? [] : null }
   if (value?.schema !== RUNNING_EXCLUSIONS_SCHEMA || !Array.isArray(value.entries) || value.entries.length > MAX_ENTRIES
-    || !value.entries.every(valid) || new Set(value.entries.map(entry => entry.id)).size !== value.entries.length) return null
+    || !value.entries.every(entry => valid(entry, true)) || new Set(value.entries.map(entry => entry.id)).size !== value.entries.length) return null
   return value.entries
 }
 

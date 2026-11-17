@@ -85,6 +85,7 @@
     "src/remote-seats.mjs",
     "src/current-work.mjs",
     "src/running-exclusions.mjs",
+    "src/retired-harness.mjs",
     "src/running-exclusions-mcp.mjs",
     "src/http-running-exclusions-api.mjs",
     "src/members-admission.mjs",

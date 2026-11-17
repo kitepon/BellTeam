@@ -26,6 +26,7 @@ import { aitermFailureCause, launchFailureDetails } from './agent-launch-error.m
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
+import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
 import { isRemoteBot, seatTarget, KEY_RELOAD, remoteSeatNotStarted } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
@@ -327,7 +328,8 @@ export class AitermTransport {
     await this.requireAccess({ setupTest, botId: bot.id })
     await mkdir(bot.project, { recursive: true })
     const harness = HARNESS.get(bot.harness)
-    if (!harness) throw new Error(`HARNESS_UNSUPPORTED: ${bot.harness}`)
+    if (!harness) throw Object.assign(new Error(retiredHarness(bot.harness) ? RETIRED_HARNESS_NOTICE : `HARNESS_UNSUPPORTED: ${bot.harness}`),
+      { code: retiredHarness(bot.harness) ? 'HARNESS_RETIRED' : 'HARNESS_UNSUPPORTED', effect: 'not_started' })
     const shortTermMemory = isRemoteBot(bot) && this.remoteSeats
       ? await this.remoteSeats.handoffContext(bot.id) : await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory, { membersLease })

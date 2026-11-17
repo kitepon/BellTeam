@@ -13,6 +13,7 @@ export { exists, writeAtomic } from './json-file.mjs'
 import { loadBots } from './bots.mjs'
 import { ProjectFiles } from './project-files.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
+import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
 import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './schedule-mutations.mjs'
 
 const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
@@ -179,6 +180,7 @@ export class BotRegistry extends Map {
     validateId(id)
     if (this.has(id)) throw new Error(`BOT_DUPLICATE: ${id}`)
     const createFolder = input.createFolder === true
+    if (retiredHarness(input.harness)) throw new Error(`BOT_HARNESS_INVALID: ${id}`)
     input = await this.#bindTerminal(input)
     const project = this.projectPath(id)
     const profile = normalizeProfile({
@@ -312,6 +314,7 @@ export class BotRegistry extends Map {
         images[source] = ''; images[crop] = null
       }
     }
+    if (retiredHarness(images.harness) && images.harness !== current.harness) throw new Error(`BOT_HARNESS_INVALID: ${id}`)
     let profile = normalizeProfile(await this.#bindTerminal({ ...current, ...images }, current))
     if (['harness', 'model', 'reasoningEffort'].some(field => profile[field] !== current[field]))
       await this.validateEffort(profile)
@@ -782,7 +785,8 @@ function normalizeProfile(value) {
   const session = typeof value.session === 'string' && value.session.trim() ? value.session.trim() : value.id
   if (!name || name.length > 100) throw new Error('BOT_NAME_INVALID')
   if (position.length > 100) throw new Error('BOT_POSITION_INVALID')
-  if (!HARNESSES.has(value.harness)) throw new Error(`BOT_HARNESS_INVALID: ${value.id}`)
+  // a365: a stored retired harness is read as it is; create/update refuse to choose one (below).
+  if (!HARNESSES.has(value.harness) && !retiredHarness(value.harness)) throw new Error(`BOT_HARNESS_INVALID: ${value.id}`)
   if (model && !MODEL_ID.test(model)) throw new Error('BOT_MODEL_INVALID')
   if (value.harness === 'cursor' && reasoningEffort && !model) throw new Error('BOT_CURSOR_MODEL_REQUIRED_FOR_EFFORT')
   // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。保存が無いプロフィールは false として読む。
@@ -802,6 +806,7 @@ function normalizeProfile(value) {
     name,
     displayName: position ? `${name} ${position}` : name,
     harness: value.harness,
+    ...(retiredHarness(value.harness) ? { harnessNotice: RETIRED_HARNESS_NOTICE } : {}),
     model,
     reasoningEffort,
     fastMode: value.fastMode === true,

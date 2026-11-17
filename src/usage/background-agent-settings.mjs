@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { writeAtomic } from '../json-file.mjs'
+import { retiredHarness } from '../retired-harness.mjs'
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const exact = (value, names) => object(value) && Object.keys(value).length === names.length && names.every(key => Object.hasOwn(value, key))
@@ -22,7 +23,7 @@ const messages = {
 }
 export const backgroundAgentError = (code, status = 400) => Object.assign(new Error(messages[code] ?? code), { code, status })
 export function backgroundSelectionValid(value) {
-  return exact(value, ['harness', 'model', 'reasoningEffort']) && backgroundHarnesses.includes(value.harness)
+  return exact(value, ['harness', 'model', 'reasoningEffort']) && (backgroundHarnesses.includes(value.harness) || retiredHarness(value.harness))
     && text(value.model) && typeof value.reasoningEffort === 'string' && value.reasoningEffort.length <= 50 && !value.reasoningEffort.includes('\0')
 }
 export function backgroundRecordValid(value) {
