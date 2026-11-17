@@ -127,6 +127,7 @@ flowchart LR
 ```
 
 `owner-editor`は専用formのopen/closeと既settings通知を接続する。モデル候補の表示名はBot編集と同じ`modelChoices`で、保存値はid。`background-agent-settings.js`が全体一件のrecord・候補cache・未保存draft・読取世代・保存中を持ち、他Botの設定/要約writerは持たない。全体設定と組合せ検証の正本は[usage](../usage/README.md)、HTTP/モデル一覧は[integration](../integration/README.md)、生成/失効は[execution](../execution/README.md)。公開v1はGET settingsのトップbackgroundAgent、Owner PATCH `/api/settings/backgroundAgent`のexpectedRevision/harness/model/reasoningEffort厳密4key。既FeatureSetting配列へ7項目目を加えない。公開6設定・Ownerプロフィール保存と独立する。
+提供を終えたAI（Antigravity、a365）: Bot項目の読み取り専用`harnessNotice`はメンバー編集の反映行に出し、AI欄は保存済みの値を「提供を終了したAI」として残す。保存する本文へ`harnessNotice`は含めず、他の欄の保存は通り、Claude・Codex・Grok・Cursorへの変更も通る。`/api/settings`の`backgroundAgentNotice`は背景agent設定に出し、保存済みの選択が一覧に無い時はフォームを空にして選び直す。名簿から外さない。
 
 未供給キー/不正record/取得失敗では編集と保存を無効にする。候補はモデル個別effortsだけを使い、空配列だけ空文字のCLI既定を許す。初期未設定は候補を自動選択しない。保存済み候補外値は残し保存不可。選択変更でPATCHを発行しない。候補はopen/手動再取得時だけ読み、settings通知は設定GETだけを行う。
 

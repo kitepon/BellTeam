@@ -110,7 +110,9 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   // W75: one badge next to 「AI」 for the applied state, and one plain sentence.
   function renderBotConfigurationStatus(bot) {
     const application = bot?.configurationApplication
+    // a365: a member still on a retired AI carries a read-only notice (never sent back); it replaces the apply line until the AI is changed.
     const [badge, tone, sentence] = !bot ? ['', '', '使うAI・モデル・考える深さを選びます。']
+      : typeof bot.harnessNotice === 'string' && bot.harnessNotice ? ['AIを変えてください', 'attention', bot.harnessNotice]
       : application?.state === 'failed' ? ['反映できませんでした', 'attention', application.message]
       : application?.state === 'accepted' ? ['反映済み', 'ok', 'いま動いているAIが、この設定を受け付けました。']
       : application?.state === 'pending' || bot.online ? ['反映待ち', 'working', 'いまの作業が終わったら、この設定で動きます。']
@@ -149,8 +151,11 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     botReasoningEffort.disabled = true
     saveBotButton.disabled = true
     botManagementActions.hidden = !bot
+    botHarness.querySelector('[data-retired]')?.remove()
     if (bot) {
       botName.value = bot.name
+      // A harness the picker no longer offers stays selectable as-is so saving other fields keeps working; the user switches it to a listed AI.
+      if (![...botHarness.children].some(option => option.value === bot.harness)) botHarness.append(Object.assign(document.createElement('option'), { value: bot.harness, textContent: '提供を終了したAI', dataset: { retired: '' } }))
       botHarness.value = bot.harness
       botProfileText.value = bot.profileText ?? ''
       botPersonality.value = bot.personality ?? ''

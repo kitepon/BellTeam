@@ -21,6 +21,7 @@ function summaryText(opened) {
   if (!opened?.record) return opened?.failure ? '確認できません' : '確認しています'
   const choice = opened.record.selection
   if (!choice) return 'まだ選んでいません'
+  if (!harnesses.some(([id]) => id === choice.harness)) return 'AIを選び直してください'
   const name = harnesses.find(([id]) => id === choice.harness)?.[1] ?? choice.harness
   const entry = opened.models?.[choice.harness]?.models?.find?.(item => item?.id === choice.model)
   return [name, entry ? (entry.display_name || entry.id) : '', choice.reasoningEffort ? effortLabel(choice.reasoningEffort) : 'AIの標準'].filter(Boolean).join(' · ')
@@ -63,7 +64,7 @@ export function createBackgroundAgentSettings(root, api, { onChange = () => {} }
     modelReload.hidden = !opened.modelsFailure && !unavailable
     saved.textContent = summaryText(opened)
     save.textContent = opened.saving ? '保存しています…' : '保存'
-    status.textContent = opened.saving ? '' : opened.message
+    status.textContent = opened.saving ? '' : [opened.message, opened.notice].filter(Boolean).join(' ')
     error.textContent = [opened.failure,opened.modelsFailure,unavailable,draft.model && !selected && opened.models && !opened.modelsLoading ? '保存したモデルは、いまは選べません。選び直して保存してください。' : ''].filter(Boolean).join(' ')
     onChange(summaryText(opened))
   }
@@ -79,7 +80,10 @@ export function createBackgroundAgentSettings(root, api, { onChange = () => {} }
       }
       if (!validRecord(result.backgroundAgent)) throw Error('INVALID_BACKGROUND_AGENT_SETTINGS')
       opened.record=result.backgroundAgent;opened.known=true;opened.failure=''
-      if (!opened.dirty && !opened.saving) opened.draft={harness:'',model:'',reasoningEffort:'',...opened.record.selection}
+      // a365: a saved Antigravity selection comes with backgroundAgentNotice; the form starts empty so a new AI is chosen.
+      opened.notice=typeof result.backgroundAgentNotice === 'string' ? result.backgroundAgentNotice : ''
+      const retired=opened.record.selection && !harnesses.some(([id]) => id === opened.record.selection.harness)
+      if (!opened.dirty && !opened.saving) opened.draft=retired ? {harness:'',model:'',reasoningEffort:''} : {harness:'',model:'',reasoningEffort:'',...opened.record.selection}
       if (message) opened.message=message
       render()
     } catch {
