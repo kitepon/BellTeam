@@ -65,6 +65,7 @@ flowchart TD
 | 機能 | 関数/caller | 例外と副作用 |
 | --- | --- | --- |
 | 希望値更新 | `BotAdministration.update → BotRegistry.previewUpdate/update` | 保存とnative適用は非transaction。返却の`configurationApplication`はAdministrationのMapから合成し、台帳の永続fieldではない |
+| 固定中のBotへのAI変更の断り（a312） | `BotAdministration.update`の入口。呼び手が席のBot（HTTPは内部入口、`configureFromMcp`は`context.actor.kind==='bot'`）で、対象Botが`configurationLocked===true`、変更に`harness/model/reasoningEffort`を含む時、保存の前に`BOT_CONFIGURATION_LOCKED`（403、`publicMessage`は「このBotのAI設定は固定中です。今の設定のまま作業を続けてください」）で断る | 保存0・適用0・`applications`不変。断りは道具の失敗として返るだけで、席の会話は止めない。守るもの：オーナーが選んだ設定をAIが上書きしないこと。出口：オーナーが画面で固定を切る。オーナー画面のPATCH（外部入口）・fastMode・プロフィール・`CapacityContinuation`（actorなし）は検査しない。起動はBot保存値の`model/reasoning_effort`を明示して渡す（`aiterm-transport.mjs`のlaunchArgs）ので、席の`~/.claude/settings.json`のmodelは次回起動の設定を変えない |
 | 適用結果 | `apply/view` | 新しい更新が同じBotに来た場合、古いPromiseは新しい状態を書き換えない。失敗した同じ値の明示更新はreapply対象 |
 | 同一CLIの変更 | `reconfigure → changeSession(agent_configure)` | model/effort/fastの必要fieldsだけ。Cursorのeffortにはmodelも添付。保存済み値の取得だけで当ターン適用済みと言わない |
 | CLI切替/空へ戻す等 | `reconfigure → restartNow` | harness変更、既model/effortを空へ戻す、reapplyで空指定の場合はclose→wake。開始前に停止世代を再検証 |

@@ -54,11 +54,15 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     captureInstallInspectionOwner: request => captureInstallInspectionOwner(async () => !internal && await authorize(request) === true) })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
+  // a312: the internal entrance is only reached by seat Bots, so every settings change through it is a Bot's (BotAdministration refuses it on a locked Bot).
+  const seatAdministration = internal ? new Proxy(administration, { get: (target, key) => key === 'update'
+    ? (id, changes, options = {}) => target.update(id, changes, { ...options, actorKind: 'bot' })
+    : typeof target[key] === 'function' ? target[key].bind(target) : target[key] }) : administration
   const featureApis = [
     createApplicationApi({ ownerProfile, userRules, events, assets }),
     createMemberDeletionApi({ administration, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : null }),
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
-      administration }),
+      administration: seatAdministration }),
     createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }),
     createDeliveryApi({ messenger, roomMessenger, transport, internal }),
     createScheduleApi({ bots, rooms, scheduler }),
