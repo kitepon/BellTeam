@@ -30,7 +30,7 @@ public sealed class ModelPicker : Border
     public ModelPicker(BotSettings initial)
     {
         selection = new(initial.Harness, initial.Model, initial.ReasoningEffort);
-        var harnesses = new List<FormOption> { new("codex", "Codex"), new("claude", "Claude"), new("grok", "Grok"), new("cursor", "Cursor"), new("antigravity", "Antigravity") };
+        var harnesses = new List<FormOption> { new("codex", "Codex"), new("claude", "Claude"), new("grok", "Grok"), new("cursor", "Cursor") };
         if (!harnesses.Any(option => option.Id == initial.Harness)) harnesses.Add(new(initial.Harness, initial.Harness + "（現在の設定）"));
         harness = Combo("CLI", harnesses); model = Combo("モデル", []); effort = Combo("エフォート", []);
         var customField = Field("モデルID", ""); custom = customField.Box;
