@@ -370,3 +370,17 @@ test('use_secret reads and resolves through the ordinary usage facade with fresh
   await assert.rejects(use(item.id, { botId: 'bot-b', command: 'true' }), { code: 'SECRET_REQUEST_NOT_FOUND' })
   assert.equal(runs.length, 1)
 })
+
+test('購読の記録は、billingSources・canPurchaseが無い古い形も有る新しい形も受け入れ、型の違いは断る', async () => {
+  const { Subscriptions } = await import('../src/subscriptions.mjs')
+  const { usageProjectionRecordValid } = await import('../src/usage/projection.mjs')
+  const subscriptions = new Subscriptions({ path: '/nonexistent/subscription.json', environment: 'Sandbox' })
+  const fresh = subscriptions.status()
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: fresh, revision: 0 }), true)
+  const { billingSources, canPurchase, ...old } = fresh
+  assert.deepEqual([billingSources, canPurchase], [[], true])
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: old, revision: 0 }), true)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, canPurchase: 'yes' }, revision: 0 }), false)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, billingSources: [1] }, revision: 0 }), false)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, unknown: 1 }, revision: 0 }), false)
+})

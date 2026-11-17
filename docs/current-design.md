@@ -103,6 +103,7 @@ CLIごとの起動引数、入力方法、ターン完了の検出、確定回�
 - 入れ替えの順（a368・a374）: 本体と部品は一つずつ入れ替わり、利用者はどちらを先に更新してもよい。新旧どの組み合わせでも、Antigravityが残る保存領域で起動する。本体と部品の間のIPCは、両側が別々に配られる検査で形を厳密に見る。だから次の二つを守る。
   - 値を外す時: 相手の古い版や保存データが送ってくる値は、読む側の検査が受け入れ続ける（選ぶ側だけ断る）。新しい本体は、古いusageの`members.read`結果・`onboarding.ensureGuide`結果のAntigravityのメンバー（a368）と、古いusageが初期設定の開始前に出す`auth.call`（`harness: antigravity-cli`）を受け入れる。この`auth.call`はAitermへ渡さず、本体が`status: failed`と上の文（`auth_ui.stage: failed`）の受領で答える。古いusageはこれを認証の失敗として表示し、利用者は別のAIを選び直せる（a374）。新しいusageは、古い本体の一覧にあるAntigravityのメンバーで初期化できる（a368）。
   - 項目を足す時: IPCの記録（Botの記録、初期設定の記録、投影、結果）には項目を足さない。受け取る側は古い版でも新しい版でも、知らない項目を断る。利用者への文は、本体のHTTPの境で保存済みの値から付ける（Botは`profiles-http.mjs`、初期設定は`usage/http-api.mjs`）。
+  - 任意の項目で足す時（a394f）: 購読の記録の`billingSources`・`canPurchase`は、読む側の検査が有っても無くても受け入れる任意の項目にした。古い本体は知らない項目を断るので、本体を先に入れ替え、次にusage、最後にweb-gatewayの順で配る。`test/usage-process.test.mjs`が古い形・新しい形・型違い・知らない項目を実物の検査に通す。
   - 確かめ方: `test/retired-harness-existing-data.test.mjs`が、実物のusageの部品を本体の組み立て（`usage-assembly`と`usage-parent-effects`）で起動し、Antigravityが残る保存領域（開始前・開始済み、背景agent）で初期化と最初の読み取りが通ることを見る。古い版が送る形は、同じ試験が検査へ直接渡して確かめる。
 - `native_launch`（a366）: Antigravityの起動結果`vendor_action_required`を失敗行へ残す書き手（`agent-launch-error.mjs`の`unpromptedLaunchActionRequired`・`launchFailureDetails`、Aitermクライアントの409分類、配送失敗・診断の写し）と、その中身を調べる受信検証を外した（入れ替えが落ち着いたのはZ92、トロニー確認）。失敗の記録と受け口の`native_launch`は、古い実行の部品が送る値と、利用者の保存済みの配送記録に残る値を断たないため、項目として受け入れ、中身は見ずに捨てる。Aitermの`antigravity-cli`とLatticeの席登録の`gemini`項目は、それぞれエレグとLatticeの所有で、このサーバーの契約の外である。
 
