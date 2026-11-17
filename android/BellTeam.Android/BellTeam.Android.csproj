@@ -5,7 +5,7 @@
     <OutputType>Exe</OutputType>
     <!-- Same assembly name as the Windows and Linux apps: BellTeam.Core's InternalsVisibleTo("BellTeam") and avares://BellTeam/ resolve. -->
     <AssemblyName>BellTeam</AssemblyName>
-    <ApplicationId>dev.kitepon.bellteam</ApplicationId>
+    <ApplicationId>dev.kitepon.bellbot</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
@@ -28,6 +28,7 @@
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
+    <PackageReference Include="Xamarin.Android.Google.BillingClient" Version="9.1.0.2" />
     <PackageReference Include="Avalonia.Android" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
   </ItemGroup>

@@ -15,6 +15,8 @@ flowchart LR
   ws --> core
   core -->|HTTP API・SSE| integration[BellTeam共通入口<br/>モリー]
   core --> local[アプリの私有領域の設定<br/>settings.json]
+  shell --> billing[Google Play課金<br/>PlayBilling]
+  billing -->|購入トークン| core
   shell --> android[Android入口<br/>MainActivity・AvaloniaAndroidApplication<br/>戻る・安全領域・平文http許可]
   release[配布 apk/aab<br/>Google Play 内部テスト] --> device[Android端末]
   integration --> server[BellTeam本体の各機能]
@@ -49,9 +51,12 @@ flowchart TD
 
 ## 現在の範囲と順序
 
-1. 済：接続先の入力・起動の各画面（Mac版と同じ）・会話一覧（アバター・在席・要約）・会話（履歴・返信/転送/コピーの印・送信）・戻る。エミュレーター（API 36）で本番サーバーに接続して確認。
-2. 次：設定（頁）・画像ビューア・添付・通知・工程表と相関図と決裁箱の頁・購読（Google Play Billing。a157はBready）。
-3. 配布：署名鍵・applicationId `dev.kitepon.bellteam`・AABのbuild・Google Play Consoleの内部テストへのアップロード（Play Consoleの操作はオーナーのアカウントが要るため、トロニー経由で申請する）。
+1. 済：接続先の入力・起動の各画面（Mac版と同じ。キーボードの上に持ち上げ、入力欄を表示位置へ送る）・会話一覧（アバター・在席・要約）・会話（履歴・返信/転送/コピーの印・送信）・戻る・設定の頁（接続・利用と課金・アプリの版）。エミュレーター（API 36）で本番サーバーに接続して確認。
+2. 課金（Google Play。契約は[課金クライアント契約](billing-client-contract.md)）：「利用と課金」にGoogle Play・App Store・Stripeの3行を同じ大きさで置き、買えるのはGoogle Playの行だけ。`PlayBilling`（NuGet `Xamarin.Android.Google.BillingClient`）が購入と復元を行い、購入トークンを`POST /api/subscription/google/verify`（`{purchaseToken, productId}`）へ送り、サーバーが`entitled`を返してからPlayへ確認済みを返す。サーバー側（a157）が無い間は404で、平易な文で示して確認済みにしない。商品IDは`services/subscriptions/product.json`の`productId`。
+3. 次：画像ビューア・添付・通知、窓の部品（`EditorWindow`系・`MainWindow`）に載っている画面（工程表・相関図・決裁箱・メンバー設定）の頁化。Avaloniaの`Window`はAndroidで作れない（`NotSupportedException`）ため、それらの画面は窓の継承を外した頁に分けてから載せる。
+4. 配布：署名鍵・AABのbuild・Google Play Consoleの内部テストへのアップロード（Play Consoleの操作はオーナーのアカウントが要るため、トロニー経由で申請する）。
+
+アプリID（`applicationId`）は`dev.kitepon.bellbot`。Appleの`bundleId`と`services/subscriptions/product.json`の名前に揃える。Google Playは公開後にアプリIDを変えられない。
 
 ## 開発の手順
 

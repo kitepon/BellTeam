@@ -25,6 +25,9 @@ public sealed class PhoneShell : UserControl
     private readonly TextBlock status = new() { FontSize = 13, Foreground = BellTheme.Red, TextWrapping = TextWrapping.Wrap, IsVisible = false, Margin = new Thickness(12, 6) };
     private readonly Grid listPage = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*"), Background = BellTheme.SidebarFill };
     private readonly Grid conversationPage = new() { RowDefinitions = new RowDefinitions("52,*,Auto"), Background = BellTheme.ConversationBackground, IsVisible = false };
+    private readonly Grid settingsPage = new() { RowDefinitions = new RowDefinitions("52,*"), Background = BellTheme.ConversationBackground, IsVisible = false };
+    private SettingsPage? settingsBody;
+    private CancellationTokenSource? settingsLife;
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
     private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
@@ -44,7 +47,7 @@ public sealed class PhoneShell : UserControl
         Grid.SetColumn(title, 1);
         Grid.SetRow(header, 0);
         var settingsButton = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.Gear, 22, BellTheme.Ink), Background = Brushes.Transparent, Width = 48, Height = 48 };
-        settingsButton.Click += (_, _) => ShowStartup(StartupPhase.Setup);
+        settingsButton.Click += (_, _) => ShowSettings();
         var searchBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(12, 8), Children = { new Border { Background = Brushes.White, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 0), Child = search }, settingsButton } };
         Grid.SetColumn(settingsButton, 1);
         listPage.Children.Add(searchBar); Grid.SetRow(status, 1); listPage.Children.Add(status);
@@ -64,7 +67,11 @@ public sealed class PhoneShell : UserControl
         Grid.SetRow(band, 2);
         conversationPage.Children.Add(header); conversationPage.Children.Add(messageScroll); conversationPage.Children.Add(band);
 
-        var pages = new Grid { Children = { listPage, conversationPage } };
+        var settingsBack = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
+        settingsBack.Click += (_, _) => ShowList();
+        var settingsHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { settingsBack, new TextBlock { Text = "設定", FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center } } };
+        Grid.SetColumn(settingsHeader.Children[1], 1); settingsPage.Children.Add(settingsHeader);
+        var pages = new Grid { Children = { listPage, conversationPage, settingsPage } };
         var column = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Children = { pages } };
         root.Child = new Grid { Children = { column, startupHost } };
         Content = root;
@@ -91,7 +98,7 @@ public sealed class PhoneShell : UserControl
             root.Margin = new Thickness(0, 0, 0, e.NewState == Avalonia.Controls.Platform.InputPaneState.Open ? e.EndRect.Height : 0);
             DispatcherTimer.RunOnce(() => Reveal(top.FocusManager?.GetFocusedElement() as Control), TimeSpan.FromMilliseconds(150));
         };
-        top.BackRequested += (_, e) => { if (conversationPage.IsVisible) { ShowList(); e.Handled = true; } };
+        top.BackRequested += (_, e) => { if (conversationPage.IsVisible || settingsPage.IsVisible) { ShowList(); e.Handled = true; } };
     }
 
     private void Begin()
@@ -100,8 +107,18 @@ public sealed class PhoneShell : UserControl
         if (StartupRoute.Initial(saved) == StartupPhase.Setup) ShowStartup(StartupPhase.Setup); else _ = ConnectAsync(saved!);
     }
 
-    private void ShowList() { conversationPage.IsVisible = false; listPage.IsVisible = true; }
-    private void ShowConversation() { listPage.IsVisible = false; conversationPage.IsVisible = true; }
+    private void ShowList() { conversationPage.IsVisible = false; settingsPage.IsVisible = false; listPage.IsVisible = true; EndSettings(); }
+    private void ShowConversation() { listPage.IsVisible = false; settingsPage.IsVisible = false; conversationPage.IsVisible = true; }
+    private void ShowSettings()
+    {
+        if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
+        EndSettings();
+        settingsLife = CancellationTokenSource.CreateLinkedTokenSource(model.ConnectionToken);
+        settingsBody = new SettingsPage(model, () => ShowStartup(StartupPhase.Setup), settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
+        listPage.IsVisible = false; conversationPage.IsVisible = false; settingsPage.IsVisible = true;
+    }
+    // The page's reads end when it is left.
+    private void EndSettings() { settingsLife?.Cancel(); settingsLife = null; if (settingsBody is not null) { settingsPage.Children.Remove(settingsBody); settingsBody = null; } }
 
     private void ModelChanged(string? name)
     {
