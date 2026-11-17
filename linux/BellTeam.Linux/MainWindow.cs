@@ -14,7 +14,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
+public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;

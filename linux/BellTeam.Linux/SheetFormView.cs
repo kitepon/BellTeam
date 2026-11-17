@@ -14,6 +14,15 @@ public interface ISheetHost
     void CloseSheet();
 }
 
+// What a message card asks of the screen that shows it: the forward sheet, the peer-message sheet and the image gallery. MainWindow answers on Linux, the phone shell on Android;
+// a card finds its host among its visual ancestors, so no card needs to know which app it is in.
+public interface IMessageHost : ISheetHost
+{
+    DestinationSheet ShowForwardSheet(TimelineMessage message);
+    void ShowPeerSheet(TimelineMessage message);
+    ImageGallery ShowGallery(string[] paths, int initial);
+}
+
 // The shared body of the Mac schedule editor: a scrolling grouped form, the Mac alert, and the busy state that locks everything.
 // The header (キャンセル / 保存) belongs to the host, which reads ISheetSave.
 public abstract class SheetFormView : Grid, ISheetSave, IDisposable

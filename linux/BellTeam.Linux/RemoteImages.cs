@@ -1,5 +1,6 @@
 using Avalonia.Automation;
 using Avalonia;
+using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -22,7 +23,7 @@ public sealed class RemoteImages(LinuxWorkspace workspace) : StackPanel
         if (urls.Length == 0) return;
         var button = new Button { Classes = { "plain" }, Background = Brushes.Transparent, Padding = default, Margin = default, HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left };
         AutomationProperties.SetName(button, urls.Length > 1 ? $"画像{urls.Length}枚を開く" : "画像を開く");
-        button.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowGallery(paths, 0);
+        button.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowGallery(paths, 0);
         if (urls.Length == 1) { button.Content = Round.Clip(new RemoteImage(workspace, urls[0]) { Width = CardWidth }, 13); Children.Add(button); return; }
         // Mac: padding on the side the fan leans away from, 8 above and 22% of the card width below, so the fan stays inside its frame.
         var canvas = new Canvas { Width = CardWidth * 1.2, Height = 8 + CardHeight + CardWidth * .22 };

@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Avalonia.Layout;
 using Avalonia.Media;
 using BellTeam.Core;
@@ -81,7 +82,7 @@ public sealed class MessageCard : ContentControl
         timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery);
         actions.Children.Add(replyButton); actions.Children.Add(forwardButton); actions.Children.Add(copyButton);
         replyButton.Click += (_, _) => workspace.StartQuote(Message);
-        forwardButton.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowForwardSheet(Message);
+        forwardButton.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowForwardSheet(Message);
         copyButton.Click += async (_, _) =>
         {
             if (Message.Message is not { Length: > 0 } text || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
@@ -139,7 +140,7 @@ public sealed class MessageCard : ContentControl
         };
         var button = new Button { Classes = { "plain" }, Content = capsule, Background = Brushes.Transparent, Padding = default, Margin = default, CornerRadius = new CornerRadius(99), HorizontalAlignment = HorizontalAlignment.Center };
         AutomationProperties.SetName(button, label.Text);
-        button.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowPeerSheet(Message);
+        button.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowPeerSheet(Message);
         Content = button; peerLabel = label;
     }
 
@@ -206,7 +207,7 @@ public sealed class MessageCard : ContentControl
         part.Click += (_, _) => { if (body!.SelectedText is { Length: > 0 } text) workspace.StartQuote(Message, new QuoteSelection(text)); };
         whole.Click += (_, _) => workspace.StartQuote(Message);
         copy.Click += async (_, _) => { if (body!.SelectedText is { Length: > 0 } text && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(text); };
-        var forward = new MenuItem { Header = "転送" }; forward.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowForwardSheet(Message);
+        var forward = new MenuItem { Header = "転送" }; forward.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowForwardSheet(Message);
         var flyout = new MenuFlyout { Items = { part, whole, forward, copy } };
         flyout.Opening += (_, _) => { forward.IsEnabled = Timeline.IsForwardable(Message); whole.IsEnabled = Timeline.IsQuotable(Message); var selected = !string.IsNullOrWhiteSpace(body!.SelectedText); part.IsEnabled = whole.IsEnabled && selected; copy.IsEnabled = selected; };
         return flyout;
