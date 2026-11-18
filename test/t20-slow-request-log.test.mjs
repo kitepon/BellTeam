@@ -35,3 +35,26 @@ test('t20: a public API request closed by the client first, or taking 60 s or mo
   assert.equal(slow.ending, 'slow'); assert.equal(slow.http_status, 200); assert.equal(slow.request_route, '/api/bots/:id/messages'); assert.equal(slow.duration_ms, 61_000)
   assert.equal(httpRouteType('/api/bots/bot-a/secret-value?token=x'), '/api/other') // never an id or query
 })
+
+// 8c6f: the real Node server. An event stream opened with writeHead(status, {headers}) is invisible to getHeader(), so the
+// stream a client closes must still not be recorded, while a plain request closed before its answer still is.
+test('t20: an SSE response set by writeHead is not recorded when the client closes it; a hung plain request is', async () => {
+  const { createServer, get } = await import('node:http')
+  const rows = [], diagnostics = { record: async row => rows.push(row) }
+  const server = createServer((request, response) => {
+    recordSlowOrAborted(request, response, diagnostics)
+    if (request.url === '/api/sse') { response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.write(': open\n\n') }
+    else response.writeHead(200, { 'content-type': 'application/json' }), response.write('{')
+  })
+  await new Promise(resolve => server.listen(0, resolve))
+  try {
+    for (const path of ['/api/sse', '/api/hung']) {
+      const client = get({ port: server.address().port, path })
+      await new Promise(resolve => client.once('response', response => response.once('data', () => { client.destroy(); resolve() })))
+      client.on('error', () => {})
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+  } finally { await new Promise(resolve => server.close(resolve)) }
+  assert.deepEqual(rows.map(row => JSON.parse(row.diagnostic_log).request_route), ['/api/other'])
+  assert.equal(JSON.parse(rows[0].diagnostic_log).ending, 'client_closed_first')
+})
