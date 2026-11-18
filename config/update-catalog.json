@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T04:10:11Z",
-  "expiresAt": "2026-11-25T04:10:11Z",
+  "publishedAt": "2026-11-18T04:46:29Z",
+  "expiresAt": "2026-11-25T04:46:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -359,8 +359,8 @@
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "550f0c7d03f38575c266f12bc1d99232c7aaadfc",
-      "versionId": "917996768a04bf1c671212bff484e26a30fd6061468e67d56a5e50895162c675",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "a61fb6dfdc1f02de5a4e64eefea0870c3d5c30e5bc3252ddc2ff6ed8295dc347",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -368,16 +368,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T040008Z/diagnostics-550f0c7d03f38575c266f12bc1d99232c7aaadfc-linux-amd64.tar.gz",
-          "bytes": 3834827,
-          "sha256": "917996768a04bf1c671212bff484e26a30fd6061468e67d56a5e50895162c675"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044259Z/diagnostics-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz",
+          "bytes": 3834863,
+          "sha256": "a61fb6dfdc1f02de5a4e64eefea0870c3d5c30e5bc3252ddc2ff6ed8295dc347"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T040008Z/diagnostics-550f0c7d03f38575c266f12bc1d99232c7aaadfc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11205,
-          "sha256": "28370c6b8d3c755a0363c1f3ceda163ea40cdf243477da0f80f0e5571d062273"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044259Z/diagnostics-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11170,
+          "sha256": "ee6fecb23526e941ff1f6934a195a51f21f129ae5ba5343617e17c979f086644"
         },
-        "signerCommit": "550f0c7d03f38575c266f12bc1d99232c7aaadfc"
+        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -390,13 +390,13 @@
         }
       },
       "changes": [
-        "配信に失敗した時、どの段階で失敗したかを別々の診断コードで記録するようにしました。"
+        "配信に失敗した時の段階別のコードと、再開の失敗のコードを、診断に記録できるようにしました。"
       ]
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "550f0c7d03f38575c266f12bc1d99232c7aaadfc",
-      "versionId": "59134fa6b49a864bf40f57217cbb37d1543047b00c9031c3ca51ced79d4e2f1e",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "bafcc0a915178a0aa3735ca566264b0f73f2ace63fa97468a5d8eb7668eae518",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -404,16 +404,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T040008Z/diagnostics-550f0c7d03f38575c266f12bc1d99232c7aaadfc-linux-arm64.tar.gz",
-          "bytes": 3834827,
-          "sha256": "59134fa6b49a864bf40f57217cbb37d1543047b00c9031c3ca51ced79d4e2f1e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044259Z/diagnostics-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz",
+          "bytes": 3834863,
+          "sha256": "bafcc0a915178a0aa3735ca566264b0f73f2ace63fa97468a5d8eb7668eae518"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T040008Z/diagnostics-550f0c7d03f38575c266f12bc1d99232c7aaadfc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "690e884e5f2fb1d64076dcfa66538edc8ac2dc63dadcd2840b7d609b9d8123ab"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044259Z/diagnostics-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10970,
+          "sha256": "27422eb77b3051e4da7c6a1b67224affa654d27834bd5f0cb6c429fb82793a25"
         },
-        "signerCommit": "550f0c7d03f38575c266f12bc1d99232c7aaadfc"
+        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -426,13 +426,13 @@
         }
       },
       "changes": [
-        "配信に失敗した時、どの段階で失敗したかを別々の診断コードで記録するようにしました。"
+        "配信に失敗した時の段階別のコードと、再開の失敗のコードを、診断に記録できるようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "30e4965bc5422fdd93d31d751639d3c2e8e9b293",
-      "versionId": "d8f3b4bfd7cf05e7a16192deb954b63ad30ec3704110c07473d35b7021a24c96",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "409907a948f1cda611fcd8fc649a2ef221db594ae80df27bf72ad1670ca8c1d5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -440,16 +440,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T035557Z/web-gateway-30e4965bc5422fdd93d31d751639d3c2e8e9b293-linux-amd64.tar.gz",
-          "bytes": 5462271,
-          "sha256": "d8f3b4bfd7cf05e7a16192deb954b63ad30ec3704110c07473d35b7021a24c96"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044327Z/web-gateway-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz",
+          "bytes": 5462411,
+          "sha256": "409907a948f1cda611fcd8fc649a2ef221db594ae80df27bf72ad1670ca8c1d5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T035557Z/web-gateway-30e4965bc5422fdd93d31d751639d3c2e8e9b293-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11052,
-          "sha256": "b592b76601e4318fd7efd419c4b10aa4c7631a4c064ce98f86be4f8d2705c8db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044327Z/web-gateway-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "0f233b9f71548b5c4fad7789ad878141f0a3fb2de3a484c8e0c419d332bce6e6"
         },
-        "signerCommit": "30e4965bc5422fdd93d31d751639d3c2e8e9b293"
+        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -463,8 +463,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "30e4965bc5422fdd93d31d751639d3c2e8e9b293",
-      "versionId": "d0d89cccc780953cb6e8b0c057df0492a577a8ca9d4abaae10ed3ba0f288c205",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "2edfc263f30e2dbc9727abe30a1965db3be93a66f77caa1c346093676f287661",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -472,16 +472,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T035557Z/web-gateway-30e4965bc5422fdd93d31d751639d3c2e8e9b293-linux-arm64.tar.gz",
-          "bytes": 5462271,
-          "sha256": "d0d89cccc780953cb6e8b0c057df0492a577a8ca9d4abaae10ed3ba0f288c205"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044327Z/web-gateway-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz",
+          "bytes": 5462411,
+          "sha256": "2edfc263f30e2dbc9727abe30a1965db3be93a66f77caa1c346093676f287661"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T035557Z/web-gateway-30e4965bc5422fdd93d31d751639d3c2e8e9b293-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10974,
-          "sha256": "a576d9f777e380fdddc100d917ae339cc8d7fce6712f0930c1b61b052444ad0d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044327Z/web-gateway-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "973ca2945225a25b8c263cf40cf1a68e2db009ae401a00883ea718c25cf484f6"
         },
-        "signerCommit": "30e4965bc5422fdd93d31d751639d3c2e8e9b293"
+        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -495,8 +495,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "317e2dc7a442768dfe79635429678f288ff37125b1f125bffa2f964b755d2057",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "30724cb228f51709ee5b702ccb9c3b97a7504fe360d3eceb6e371e072a72fe18",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -504,16 +504,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093249Z/execution-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-amd64.tar.gz",
-          "bytes": 3986175,
-          "sha256": "317e2dc7a442768dfe79635429678f288ff37125b1f125bffa2f964b755d2057"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz",
+          "bytes": 3985934,
+          "sha256": "30724cb228f51709ee5b702ccb9c3b97a7504fe360d3eceb6e371e072a72fe18"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093249Z/execution-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "9537e560acc3b89f32de1aaa09bab193e2ce88809f121180337f545d155b54ea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "d6d1335646dc892a2982b981e4d739c09d7fbd41634da424271073ddf8558d46"
         },
-        "signerCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7"
+        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -523,13 +523,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Antigravityの席は起動せず、別のAIへ切り替えるよう案内します。"
+        "再開に失敗した時に、専用のコードで記録するようにしました。設定の失敗でも、Aitermのエラーコードを残します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "a7d2fd5e1cf072177ef254aa136f34845dae2b6a54f7dc24955f5af5f5ba4256",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "69639a3cefd7dc88b3c241f0680c977855343c3a929b7adc21478b2be5405bcf",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -537,16 +537,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093249Z/execution-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-arm64.tar.gz",
-          "bytes": 3986175,
-          "sha256": "a7d2fd5e1cf072177ef254aa136f34845dae2b6a54f7dc24955f5af5f5ba4256"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz",
+          "bytes": 3985934,
+          "sha256": "69639a3cefd7dc88b3c241f0680c977855343c3a929b7adc21478b2be5405bcf"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093249Z/execution-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "5b9980172f89656bf366de74c20b87662f30f3dc9574136c0f81dfb48ecad2c9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "65fbc173a6b4cae9a9f7fe512516be73d55684a89ab6ee2a9bff46c0971a2e55"
         },
-        "signerCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7"
+        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -556,7 +556,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Antigravityの席は起動せず、別のAIへ切り替えるよう案内します。"
+        "再開に失敗した時に、専用のコードで記録するようにしました。設定の失敗でも、Aitermのエラーコードを残します。"
       ]
     },
     {
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0753c1c96788cec68725573b61e035ca5c2bafbd",
-      "versionId": "sha256:d13430a2e88700862259505c7ead8e595eef9c4baa4a0c09079857b1cb2a4920",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d13430a2e88700862259505c7ead8e595eef9c4baa4a0c09079857b1cb2a4920"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -729,20 +729,22 @@
       },
       "changes": [
         "配信に失敗した時、どの段階で失敗したかを別々の診断コードで記録するようにしました。",
-        "画面が受け取るイベントの流れを閉じた時に、遅い要求として記録しないようにしました。"
+        "画面が受け取るイベントの流れを閉じても、遅い要求として記録しないようにしました。",
+        "再開の失敗を専用のコードで記録し、AIの質問画面が開いている間はキー入力を断るようにしました。",
+        "会話の確認が毎回全部を読み直さず、速く終わるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0753c1c96788cec68725573b61e035ca5c2bafbd",
-      "versionId": "sha256:d13430a2e88700862259505c7ead8e595eef9c4baa4a0c09079857b1cb2a4920",
+      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
+      "versionId": "sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d13430a2e88700862259505c7ead8e595eef9c4baa4a0c09079857b1cb2a4920"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +754,9 @@
       },
       "changes": [
         "配信に失敗した時、どの段階で失敗したかを別々の診断コードで記録するようにしました。",
-        "画面が受け取るイベントの流れを閉じた時に、遅い要求として記録しないようにしました。"
+        "画面が受け取るイベントの流れを閉じても、遅い要求として記録しないようにしました。",
+        "再開の失敗を専用のコードで記録し、AIの質問画面が開いている間はキー入力を断るようにしました。",
+        "会話の確認が毎回全部を読み直さず、速く終わるようにしました。"
       ]
     },
     {
