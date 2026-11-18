@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T10:24:02Z",
-  "expiresAt": "2026-11-25T10:24:02Z",
+  "publishedAt": "2026-11-18T14:07:09Z",
+  "expiresAt": "2026-11-25T14:07:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
-      "versionId": "sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c",
+      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
+      "versionId": "sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,20 +728,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
+        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
-      "versionId": "sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c",
+      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
+      "versionId": "sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,13 +750,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
+        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
-      "versionId": "d9567b34cf63ff5a3e8f0abb37c940be229a7ed3e5f1a55134631e4a1e494128",
+      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
+      "versionId": "389f59e573d1a4b4a43f47f88354179cf822ab48949a8ce2abcfc2cdda962b86",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-amd64.tar.gz",
-          "bytes": 15367138,
-          "sha256": "d9567b34cf63ff5a3e8f0abb37c940be229a7ed3e5f1a55134631e4a1e494128"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-amd64.tar.gz",
+          "bytes": 15339142,
+          "sha256": "389f59e573d1a4b4a43f47f88354179cf822ab48949a8ce2abcfc2cdda962b86"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11184,
-          "sha256": "4c8b286a7a562336cb4bb950680ca6d0fb170f1e60a2d13514919449b4cc38b7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "9c6353f04821f64b21b8dafdf9cd9fa51ad0755ebf815783a5e285a9ec57f9b6"
         },
-        "signerCommit": "1e6500d73923c129bdb5044873c47d75ef978387"
+        "signerCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
+        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
-      "versionId": "abac78b279e2324a9c7e595a5418d31e72ecff132911cb6c54434cba2d6ddea0",
+      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
+      "versionId": "0a28c9be20cba9e317bbf79a165baa4a7e6a409150d6f8d6c7c97187253916d5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-arm64.tar.gz",
-          "bytes": 15367145,
-          "sha256": "abac78b279e2324a9c7e595a5418d31e72ecff132911cb6c54434cba2d6ddea0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-arm64.tar.gz",
+          "bytes": 15339154,
+          "sha256": "0a28c9be20cba9e317bbf79a165baa4a7e6a409150d6f8d6c7c97187253916d5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "de744d406cbf31dc1b1c7a14e903b3f16288fb379de381bd577d3d9b1a89e626"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10906,
+          "sha256": "fe7dfc08c1d9c847cc39176dcf52bc4b114f21305d4dca9ea222aaf998afa5be"
         },
-        "signerCommit": "1e6500d73923c129bdb5044873c47d75ef978387"
+        "signerCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
+        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
       ]
     },
     {
