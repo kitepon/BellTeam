@@ -20,17 +20,17 @@ const failedProcess = () => Object.assign(new Error('synthetic-secret-message'),
   code: 'SEAT_PROCESS_FAILED', exitCode: 3, signal: null, stderr: 'synthetic-secret-stderr', stack: 'synthetic-secret-stack',
 })
 
-function watchFixture(t, waitProcess, reportError = () => {}) {
+function watchFixture(t, waitProcess, reportError = () => {}, configure = () => ({})) {
   const calls = []
   let turn = running('turn-a')
   const transport = new AitermTransport({ waitProcess, reportError,
     client: { async call(name, args) {
       calls.push([name, args])
       if (name === 'pty_list') return { _meta: { 'aiterm/seat_turns': {
-        schema: 'aiterm.seat-turns.v1', seats: [{ session_id: bot.session, turn }],
+        schema: 'aiterm.seat-turns.v1', seats: [{ session_id: bot.session, harness: 'codex-cli', turn }],
       } } }
       assert.equal(name, 'agent_configure')
-      return {}
+      return configure(turn)
     } },
   })
   t.after(() => transport.close())
@@ -64,25 +64,30 @@ test('waiter failures retain watch until native idle before configure', { timeou
 })
 
 test('a replacement running turn stays busy and survives the previous watch finally', { timeout: 10_000 }, async t => {
-  let waits = 0
+  let waits = 0, refused = 0
   const nextDone = deferred()
+  // a53 (configuration-delivery.md): the apply runs at the captured turn's end; Aiterm refuses it unissued while a newer turn runs.
   const f = watchFixture(t, async () => {
     if (++waits === 1) throw failedProcess()
     return nextDone.promise
+  }, () => {}, turn => {
+    if (turn?.state !== 'running') return {}
+    refused++
+    throw Object.assign(new Error('CONFIGURATION_NOT_APPLIED'), { code: 'CONFIGURATION_NOT_APPLIED', effect: 'not_started' })
   })
   t.after(() => nextDone.resolve({ outcome: 'done' }))
   await f.transport.watchSeatTurns([bot]); await tick()
-  const old = f.transport.watches.get(bot.id)
+  const old = f.transport.activity.watches.get(bot.id)
   const configure = f.transport.reconfigure(bot, { ...bot, model: 'next' })
   f.setTurn(running('turn-b')); await f.transport.watchSeatTurns([bot]); await tick()
-  const next = f.transport.watches.get(bot.id)
+  const next = f.transport.activity.watches.get(bot.id)
   assert.notEqual(next, old)
   assert.equal(next.turnId, 'turn-b')
   assert.equal(f.transport.isIdle(bot.id), false)
-  assert.equal(f.calls.some(([name]) => name === 'agent_configure'), false)
-  nextDone.resolve({ outcome: 'done' }); await configure
-  assert.equal(f.transport.watches.size, 0)
-  assert.equal(f.calls.filter(([name]) => name === 'agent_configure').length, 1)
+  f.setTurn(null); nextDone.resolve({ outcome: 'done' }); await configure
+  assert.equal(f.transport.activity.watches.size, 0)
+  assert.equal(refused, 1)
+  assert.equal(f.calls.filter(([name]) => name === 'agent_configure').length, 2)
 })
 
 test('malformed real waiter output records a safe diagnostic and holds until native absence', { timeout: 10_000 }, async t => {
@@ -182,4 +187,16 @@ test('b5159a79: a code bug in the configuration path names only its src file:lin
   assert.equal(JSON.parse(executionFailureReport('bot-a', 'configuration', plain).diagnostic_log).failure.site, undefined)
   const outside = new TypeError('x'); outside.stack = 'TypeError: x\n    at file:///app/node_modules/x/y.js:1:1'
   assert.equal(JSON.parse(executionFailureReport('bot-a', 'configuration', outside).diagnostic_log).failure.site, undefined)
+})
+
+test('b5159a79 (a401): a configuration failure Aiterm returned keeps only its symbolic code, never the text', () => {
+  const failure = error => JSON.parse(executionFailureReport('bot-a', 'configuration', error).diagnostic_log).failure
+  const meta = Object.assign(new Error('aiterm: secret-text'), { aitermResponseReturned: true, aitermErrorCode: 'AGENT_CONFIGURE_TIMEOUT' })
+  assert.equal(failure(meta).aiterm_error_code, 'AGENT_CONFIGURE_TIMEOUT')
+  const text = Object.assign(new Error('aiterm: SESSION_NOT_FOUND: secret-text'), { aitermResponseReturned: true })
+  assert.equal(failure(text).aiterm_error_code, 'SESSION_NOT_FOUND')
+  assert.doesNotMatch(JSON.stringify(failure(text)), /secret-text/u)
+  // Not returned by Aiterm (connection loss, timeout): no code is read from the text.
+  assert.equal(failure(new Error('SESSION_NOT_FOUND: local')).aiterm_error_code, undefined)
+  assert.equal(failure(Object.assign(new Error('plain words'), { aitermResponseReturned: true })).aiterm_error_code, undefined)
 })

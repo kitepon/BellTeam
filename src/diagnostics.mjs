@@ -37,6 +37,7 @@ const reports = {
   REMOTE_SEAT_RESUME_REFUSED: ['warn', '外の席の会話を再開できなかった（理由はdiagnostic_log）'],
   RUNNING_EXCLUSIONS_UNAVAILABLE: ['warn', '稼働中の除外設定を読み取れず、プロセスを稼働中に数えられなかった'],
   RESTART_ACTIVITY_UNAVAILABLE: ['warn', '本体の再起動後の再開に使う作業記録を読み書きできなかった'],
+  RESTART_RESUME_FAILED: ['warn', '本体の再起動前に動いていた席の会話を再開できなかった（理由はdiagnostic_logのcause_code）'],
   RUNTIME_LAUNCH_RECORD_UNAVAILABLE: ['warn', '席を起動した時の実行環境の記録を保存できなかった'],
   // 送信の失敗と設定の反映の失敗を分ける前の記録。保存済みの行のために残し、新しくは記録しない。
   SERVER_PUSH_FAILED: ['high', '端末への通知送信に失敗した'],

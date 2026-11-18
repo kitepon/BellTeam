@@ -17,6 +17,7 @@ test('同じサービス組立てのモデル拒否と追跡失敗が共通診�
   const bots = new Map([[bot.id, bot]])
   bots.previewUpdate = async (id, changes) => ({ ...bots.get(id), ...changes })
   bots.update = async (id, changes) => { const next = { ...bots.get(id), ...changes }; bots.set(id, next); return next }
+  bots.readRemovalStates = async () => ({ removals: [] })
   const services = await createApplicationServices({ createNotificationsProcess: createSyntheticNotificationsProcess, root, bots, environment: {},
     client: { async close() {} }, settings: {}, refreshGlobalInstructions: async () => {} })
   t.after(() => services.notifications.close())

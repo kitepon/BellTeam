@@ -55,7 +55,13 @@ export function executionFailureReport(botId, phase, error, context = {}) {
     }
     const request = mcpRequestContext(error)
     if (request) detail.mcp_request = request
-    if (error?.aitermResponseReturned === true) detail.responseReturned = true
+    if (error?.aitermResponseReturned === true) {
+      detail.responseReturned = true
+      // a401 (b5159a79): Aiterm's own symbolic code is the only cause an untyped Aiterm error carries; the text stays out.
+      const aiterm = token(error.aitermErrorCode) ? error.aitermErrorCode
+        : String(error.message ?? '').match(/^(?:aiterm: )?([A-Z][A-Z0-9_]{2,96}):/u)?.[1]
+      if (aiterm) detail.failure.aiterm_error_code = aiterm
+    }
     const receipt = error?.agentConfigureResult
     if (receipt?.schema === 'aiterm.agent-configure-error.v1'
       && Object.keys(receipt).sort().join(',') === 'effect,outcome,schema,session_id'
