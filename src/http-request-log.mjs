@@ -1,8 +1,9 @@
 import { httpRouteType } from './http-errors.mjs'
 
-// t20 (BugHub 44906d23, 4783ee40, c882af7b): the apps give up after 60 s. A public API request that the client closed before
-// the response finished, or that took 60 s or more, is also kept as a diagnostic (route type only), so app timeouts can be
-// matched with what the server did. Event streams end by closing and are not recorded.
+// t20 (BugHub 44906d23, 4783ee40, c882af7b): the apps give up after 60 s. A public API request that took 60 s or more (finished
+// slow, or closed by the client before the response finished) is kept as a diagnostic (route type only), so app timeouts can be
+// matched with what the server did. a419 (8c6fded6): nobody reads a client cut under 60 s (the BellTeam read/write log lines keep
+// it, with the path), so it is not filed. Event streams end by closing and are not recorded.
 export const SLOW_REQUEST_MS = 60_000
 export function recordSlowOrAborted(request, response, diagnostics, now = Date.now) {
   const path = String(request.url).split('?')[0]
@@ -21,7 +22,7 @@ export function recordSlowOrAborted(request, response, diagnostics, now = Date.n
   }
   response.once('close', () => {
     const duration = now() - started
-    if (finished && duration < SLOW_REQUEST_MS) return
+    if (duration < SLOW_REQUEST_MS) return
     if (eventStream || String(response.getHeader?.('content-type') ?? '').startsWith('text/event-stream')) return
     Promise.resolve().then(() => diagnostics.record({ code: 'SERVER_HTTP_SLOW_OR_ABORTED', module: 'server', diagnostic_log: JSON.stringify({
       schema: 'bellteam.http-slow.v1',

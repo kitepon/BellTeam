@@ -6,7 +6,7 @@ import { httpRouteType } from '../src/http-errors.mjs'
 
 const fakeResponse = (contentType = 'application/json') => Object.assign(new EventEmitter(), { headersSent: false, statusCode: 200, getHeader: () => contentType })
 
-test('t20: a public API request closed by the client first, or taking 60 s or more, is recorded by route type only', async () => {
+test('t20: a public API request taking 60 s or more (finished slow, or closed by the client first) is recorded by route type only', async () => {
   const rows = [], diagnostics = { record: async row => rows.push(row) }
   let clock = 1_000
   const now = () => clock
@@ -14,6 +14,13 @@ test('t20: a public API request closed by the client first, or taking 60 s or mo
   let response = fakeResponse()
   recordSlowOrAborted({ method: 'GET', url: '/api/bots/bot-a/screen?x=1' }, response, diagnostics, now)
   clock += 60_500; response.emit('close'); await new Promise(setImmediate)
+  // a419 (8c6fded6): closed by the client first but under 60 s: not recorded (the read/write log lines keep it).
+  response = fakeResponse()
+  recordSlowOrAborted({ method: 'GET', url: '/api/rooms' }, response, diagnostics, now)
+  clock += 324; response.emit('close'); await new Promise(setImmediate)
+  response = fakeResponse()
+  recordSlowOrAborted({ method: 'GET', url: '/api/other' }, response, diagnostics, now)
+  clock += 59_999; response.emit('close'); await new Promise(setImmediate)
   // Finished in time: not recorded.
   response = fakeResponse()
   recordSlowOrAborted({ method: 'GET', url: '/api/queue' }, response, diagnostics, now)
@@ -41,8 +48,11 @@ test('t20: a public API request closed by the client first, or taking 60 s or mo
 test('t20: an SSE response set by writeHead is not recorded when the client closes it; a hung plain request is', async () => {
   const { createServer, get } = await import('node:http')
   const rows = [], diagnostics = { record: async row => rows.push(row) }
+  // a419: every request here is counted as 61 s long, so only the content-type decides what is filed.
+  let clock = 0
+  const now = () => (clock += 61_000)
   const server = createServer((request, response) => {
-    recordSlowOrAborted(request, response, diagnostics)
+    recordSlowOrAborted(request, response, diagnostics, now)
     if (request.url === '/api/sse') { response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.write(': open\n\n') }
     else response.writeHead(200, { 'content-type': 'application/json' }), response.write('{')
   })
