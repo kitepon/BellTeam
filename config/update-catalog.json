@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T07:15:53Z",
-  "expiresAt": "2026-11-25T07:15:53Z",
+  "publishedAt": "2026-11-18T08:07:52Z",
+  "expiresAt": "2026-11-25T08:07:52Z",
   "releases": [
     {
       "componentId": "usage",
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e1d22f586b4a69fd0267023a07b0aa00194b3759",
-      "versionId": "sha256:f29728dea52816abf65988e310959c120d8e32f3fa512168028eb8ea078a0113",
+      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
+      "versionId": "sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f29728dea52816abf65988e310959c120d8e32f3fa512168028eb8ea078a0113"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,21 +728,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "クライアントが60秒未満で切った要求を、遅い要求として記録しないようにしました。",
-        "質問画面を開いた席への入力を断る時に、専用のエラーコードを返すようにしました。"
+        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e1d22f586b4a69fd0267023a07b0aa00194b3759",
-      "versionId": "sha256:f29728dea52816abf65988e310959c120d8e32f3fa512168028eb8ea078a0113",
+      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
+      "versionId": "sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f29728dea52816abf65988e310959c120d8e32f3fa512168028eb8ea078a0113"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,14 +750,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "クライアントが60秒未満で切った要求を、遅い要求として記録しないようにしました。",
-        "質問画面を開いた席への入力を断る時に、専用のエラーコードを返すようにしました。"
+        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "cd45c1cad007d69c893cace33181e49870d52ef3",
-      "versionId": "f52dd848b3c7450df7ebaad7daef057d86ab4510bbdbf90f2357f1323bb55e4c",
+      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
+      "versionId": "d9567b34cf63ff5a3e8f0abb37c940be229a7ed3e5f1a55134631e4a1e494128",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061106Z/lattice-cd45c1cad007d69c893cace33181e49870d52ef3-linux-amd64.tar.gz",
-          "bytes": 15366849,
-          "sha256": "f52dd848b3c7450df7ebaad7daef057d86ab4510bbdbf90f2357f1323bb55e4c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-amd64.tar.gz",
+          "bytes": 15367138,
+          "sha256": "d9567b34cf63ff5a3e8f0abb37c940be229a7ed3e5f1a55134631e4a1e494128"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061106Z/lattice-cd45c1cad007d69c893cace33181e49870d52ef3-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11074,
-          "sha256": "367369ba9cf87c5c40916f3d277c91255b109296e909408670d6d2c237be2a51"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "4c8b286a7a562336cb4bb950680ca6d0fb170f1e60a2d13514919449b4cc38b7"
         },
-        "signerCommit": "cd45c1cad007d69c893cace33181e49870d52ef3"
+        "signerCommit": "1e6500d73923c129bdb5044873c47d75ef978387"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +785,13 @@
         }
       },
       "changes": [
-        "Latticeを0.111.3にしました。書き込みを禁じたフォルダでも、読み取り専用で起動できます。"
+        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "cd45c1cad007d69c893cace33181e49870d52ef3",
-      "versionId": "0782f6234e8b0e0904269c71e1e2f4d941ba2156ca99ef7c0d11cfc56d464e2e",
+      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
+      "versionId": "abac78b279e2324a9c7e595a5418d31e72ecff132911cb6c54434cba2d6ddea0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061106Z/lattice-cd45c1cad007d69c893cace33181e49870d52ef3-linux-arm64.tar.gz",
-          "bytes": 15366846,
-          "sha256": "0782f6234e8b0e0904269c71e1e2f4d941ba2156ca99ef7c0d11cfc56d464e2e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-arm64.tar.gz",
+          "bytes": 15367145,
+          "sha256": "abac78b279e2324a9c7e595a5418d31e72ecff132911cb6c54434cba2d6ddea0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061106Z/lattice-cd45c1cad007d69c893cace33181e49870d52ef3-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11235,
-          "sha256": "9cb9b57f5e3ad3e7326ec48f97504eedd50406e1872039538c10ebd918cb1a9a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T080516Z/lattice-1e6500d73923c129bdb5044873c47d75ef978387-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "de744d406cbf31dc1b1c7a14e903b3f16288fb379de381bd577d3d9b1a89e626"
         },
-        "signerCommit": "cd45c1cad007d69c893cace33181e49870d52ef3"
+        "signerCommit": "1e6500d73923c129bdb5044873c47d75ef978387"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +820,7 @@
         }
       },
       "changes": [
-        "Latticeを0.111.3にしました。書き込みを禁じたフォルダでも、読み取り専用で起動できます。"
+        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
       ]
     },
     {
