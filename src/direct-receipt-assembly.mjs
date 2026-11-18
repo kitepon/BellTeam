@@ -15,12 +15,22 @@ const directFailureCodes = new Set([...diagnosticCauseCodes,
 ])
 const safeCode = value => directFailureCodes.has(value) ? value : null
 
+// BugHub 95f155b7: one diagnostic code per stage, so a fingerprint (code:module) has one owner and can close.
+// Accepted-then-lost keeps the original code, so its records, counts and history stay.
+function stageCode(error, context) {
+  if (context?.accepted === true) return 'SERVER_TURN_TRACKING_FAILED'
+  if (context?.stage === 'preflight') return 'SERVER_DELIVERY_PREFLIGHT_FAILED'
+  if (error?.code === 'BOT_LAUNCH_FAILED') return 'SERVER_DELIVERY_LAUNCH_FAILED'
+  if (error?.code === 'BOT_SEND_FAILED') return 'SERVER_DELIVERY_SEND_FAILED'
+  return 'SERVER_DELIVERY_FAILED'
+}
+
 export function directFailureReport(error, context) {
   const request = mcpRequestContext(error)
   const pending = normalInputPending(error)
   const execution = returnedExecutionError(error?.executionError)
   const boundPending = pending && context && pending.deliveryId === context.delivery_id && pending.botId === context.target
-  return { code: 'SERVER_TURN_TRACKING_FAILED', module: 'conversation', diagnostic_log: JSON.stringify({
+  return { code: stageCode(error, context), module: 'conversation', diagnostic_log: JSON.stringify({
     delivery_id: /^[a-f0-9-]{36}$/u.test(context?.delivery_id ?? '') ? context.delivery_id : null,
     target: /^bot-[a-z0-9_-]{1,64}$/u.test(context?.target ?? '') ? context.target : null,
     stage: ['status', 'preflight', 'acceptance', 'completion'].includes(context?.stage) ? context.stage : null,
@@ -66,7 +76,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
   }
   const dispatch = async ({ record, images, files = [], queue, callbacks, executionSource }) => {
     let invoked = false, reported = false
-    const reportOnce = (error, stage) => {
+    const reportOnce = (error, stage, accepted = false) => {
       if (reported) return
       reported = true
       // The harness ended a turn the transport followed to its end (wait-contract "Turn-end failure"): not a tracking failure.
@@ -75,7 +85,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (error?.code === 'BOT_STOPPED') return
       // update-hold.md H2: refused before any input, so it stays queued; also covers an Owner turn's completion rejection.
       if (error?.code === 'BOT_UPDATE_HOLD') return
-      report(error, { delivery_id: record.delivery_id, target: record.target, stage })
+      report(error, { delivery_id: record.delivery_id, target: record.target, stage, accepted })
     }
     try {
       // a149c: wait the seat's setup.sh outside the lease, so a cold start's deliveries do not fill the 64 lease slots.
@@ -95,7 +105,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
           : { context: Object.freeze({ actor: Object.freeze(actor), rootMethod: record.from === 'user' ? 'user.post' : 'direct.post' }), assertCurrent: () => true }
         const options = { images, ...(files.length ? { files } : {}), queue, summaryAuthority, ...notificationCallbacks,
           onStatus(status, error, tracking, mark) {
-            if (status === 'failed' && error) reportOnce(error, 'status')
+            if (status === 'failed' && error) reportOnce(error, 'status', Boolean(tracking))
             return notificationCallbacks.onStatus(status, error, tracking, mark)
           }, membersLease, admissionCheck: check,
           ...(executionSource ? { executionSource } : {}) }
@@ -104,7 +114,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
           const completion = transport.turn(bot, userEnvelope(record.from_identity ?? record.from, record.message, { replyTo: record.reply_to, origin: record.origin }), options)
           const saved = Promise.resolve(completion).then(onUserComplete)
           completions.add(saved)
-          saved.then(() => completions.delete(saved), error => { completions.delete(saved); reportOnce(error, 'completion') })
+          saved.then(() => completions.delete(saved), error => { completions.delete(saved); reportOnce(error, 'completion', true) })
           if (!completion?.accepted) throw Object.assign(new Error('DISPATCH_ACCEPTANCE_UNAVAILABLE'), { code: 'DISPATCH_ACCEPTANCE_UNAVAILABLE' })
           return await completion.accepted
         }

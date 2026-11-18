@@ -370,3 +370,23 @@ test('direct receipts hand the work-summary worker who sent them, and a bridge c
     'bot-peer': { actor: { kind: 'bot', botId: 'bot-peer' }, rootMethod: 'direct.post' },
     bridge: null })
 })
+
+test('each failed-delivery stage files under its own code and fingerprint; accepted-then-lost keeps SERVER_TURN_TRACKING_FAILED (BugHub 95f155b7)', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'stage-code-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const base = { delivery_id: '11111111-2222-3333-4444-555555555555', target: 'bot-quincy' }
+  const cases = [
+    [{ code: 'BOT_LAUNCH_FAILED' }, { ...base, stage: 'status' }, 'SERVER_DELIVERY_LAUNCH_FAILED'],
+    [{ code: 'BOT_SEND_FAILED' }, { ...base, stage: 'status' }, 'SERVER_DELIVERY_SEND_FAILED'],
+    [{ code: 'BOT_DELIVERY_FAILED' }, { ...base, stage: 'status' }, 'SERVER_DELIVERY_FAILED'],
+    [{ code: 'BOT_NOT_FOUND' }, { ...base, stage: 'preflight' }, 'SERVER_DELIVERY_PREFLIGHT_FAILED'],
+    [{ code: 'BOT_SEND_FAILED' }, { ...base, stage: 'status', accepted: true }, 'SERVER_TURN_TRACKING_FAILED'],
+    [Error('x'), { ...base, stage: 'completion', accepted: true }, 'SERVER_TURN_TRACKING_FAILED'],
+  ]
+  const diagnostics = new Diagnostics(join(root, 'diagnostics.json')); await diagnostics.initialize()
+  for (const [error, context, code] of cases) {
+    const report = directFailureReport(error, context)
+    assert.equal(report.code, code); assert.equal(report.module, 'conversation')
+    await diagnostics.record(report)
+  }
+  assert.equal((await diagnostics.list()).length, 5)
+})
