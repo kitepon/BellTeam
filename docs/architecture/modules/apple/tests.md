@@ -115,6 +115,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testAppStateRevisionChangesOnlyWhenScenePhaseChanges](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L5) | sceneの値が変わる時だけrevision増加 |
 | [testCrashFieldsKeepTheWatchdogReasonOnOneLine](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L30) | crash診断の先頭行：終了理由を1行にし、例外種別・コード・signalを並べ、無い値はnone |
 | [testGoalTimeoutCarriesCallsiteWithoutPrivateRoute](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L20) | 合成goal timeoutはcaller文脈を保持し私的route/queryを除外 |
+| [testTimeoutThatSpannedASuspensionIsNotReported](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L38) | 裏に回って止められた間のtimedOut・networkConnectionLost・取消(-999)はiPhone・iPadで報告しない、前面のままは報告、Macは通常どおり報告 |
 | [testServerErrorStoresOnlyThisResponsesDiagnosticReference](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L40) | 500応答自身の診断参照のみ採用、欠損/不正はunknown、502には付けない |
 | [testProtectedRequestFailureStoresDiagnosticReferenceWithoutSecretOrID](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L86) | 秘密POST失敗の参照を保持しrequest ID/秘密値を除外 |
 | [testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L114) | 同じofflineでも起動不可と既存値保持を重大度/影響で区別、アプリ欠陥は未確定 |
