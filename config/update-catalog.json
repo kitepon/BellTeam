@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T04:46:29Z",
-  "expiresAt": "2026-11-25T04:46:29Z",
+  "publishedAt": "2026-11-18T05:09:03Z",
+  "expiresAt": "2026-11-25T05:09:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -495,8 +495,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
-      "versionId": "30724cb228f51709ee5b702ccb9c3b97a7504fe360d3eceb6e371e072a72fe18",
+      "sourceCommit": "cb88ff6e7297a8cafc78938d9d5af8883889ed00",
+      "versionId": "d0e567c70bcf196dab27847f863424495a770069769d0cfd2dbac2cdcb0d5fd7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -504,16 +504,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz",
-          "bytes": 3985934,
-          "sha256": "30724cb228f51709ee5b702ccb9c3b97a7504fe360d3eceb6e371e072a72fe18"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T050633Z/execution-cb88ff6e7297a8cafc78938d9d5af8883889ed00-linux-amd64.tar.gz",
+          "bytes": 3986386,
+          "sha256": "d0e567c70bcf196dab27847f863424495a770069769d0cfd2dbac2cdcb0d5fd7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "d6d1335646dc892a2982b981e4d739c09d7fbd41634da424271073ddf8558d46"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T050633Z/execution-cb88ff6e7297a8cafc78938d9d5af8883889ed00-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "a81eca568a4a62eb4805c8a82c7ff5d6e3ffba0cfb94f4177ae2727bb881364d"
         },
-        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
+        "signerCommit": "cb88ff6e7297a8cafc78938d9d5af8883889ed00"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -523,13 +523,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "再開に失敗した時に、専用のコードで記録するようにしました。設定の失敗でも、Aitermのエラーコードを残します。"
+        "再開に失敗した時に、専用のコードで記録するようにしました。設定の失敗でも、Aitermのエラーコードを残します。",
+        "外の席の閉じが時間切れになった時、席の状態を一度読んで確かめてから報告するようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
-      "versionId": "69639a3cefd7dc88b3c241f0680c977855343c3a929b7adc21478b2be5405bcf",
+      "sourceCommit": "cb88ff6e7297a8cafc78938d9d5af8883889ed00",
+      "versionId": "5986df16b0680e3126ae8b05b89e395eaa39176cdc1afa82efd07d891fd87374",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -537,16 +538,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz",
-          "bytes": 3985934,
-          "sha256": "69639a3cefd7dc88b3c241f0680c977855343c3a929b7adc21478b2be5405bcf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T050633Z/execution-cb88ff6e7297a8cafc78938d9d5af8883889ed00-linux-arm64.tar.gz",
+          "bytes": 3986386,
+          "sha256": "5986df16b0680e3126ae8b05b89e395eaa39176cdc1afa82efd07d891fd87374"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T044312Z/execution-57023b684e46b6de7f155ca2c209fcd73be7329d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "65fbc173a6b4cae9a9f7fe512516be73d55684a89ab6ee2a9bff46c0971a2e55"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T050633Z/execution-cb88ff6e7297a8cafc78938d9d5af8883889ed00-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "09f51b73b32a1142fb025a0164c11b4a0c1d41caf87f68f3be20708c57438c92"
         },
-        "signerCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d"
+        "signerCommit": "cb88ff6e7297a8cafc78938d9d5af8883889ed00"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -556,7 +557,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "再開に失敗した時に、専用のコードで記録するようにしました。設定の失敗でも、Aitermのエラーコードを残します。"
+        "再開に失敗した時に、専用のコードで記録するようにしました。設定の失敗でも、Aitermのエラーコードを残します。",
+        "外の席の閉じが時間切れになった時、席の状態を一度読んで確かめてから報告するようにしました。"
       ]
     },
     {
@@ -711,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
-      "versionId": "sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926",
+      "sourceCommit": "cb88ff6e7297a8cafc78938d9d5af8883889ed00",
+      "versionId": "sha256:7b9d8f669484f66512d83b4fc5e5a1e7cb7761af09033951dfaf14fd8059788f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7b9d8f669484f66512d83b4fc5e5a1e7cb7761af09033951dfaf14fd8059788f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -731,20 +733,21 @@
         "配信に失敗した時、どの段階で失敗したかを別々の診断コードで記録するようにしました。",
         "画面が受け取るイベントの流れを閉じても、遅い要求として記録しないようにしました。",
         "再開の失敗を専用のコードで記録し、AIの質問画面が開いている間はキー入力を断るようにしました。",
-        "会話の確認が毎回全部を読み直さず、速く終わるようにしました。"
+        "会話の確認が毎回全部を読み直さず、速く終わるようにしました。",
+        "外の席の閉じが時間切れになった時、席の状態を一度読んで確かめてから報告するようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "57023b684e46b6de7f155ca2c209fcd73be7329d",
-      "versionId": "sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926",
+      "sourceCommit": "cb88ff6e7297a8cafc78938d9d5af8883889ed00",
+      "versionId": "sha256:7b9d8f669484f66512d83b4fc5e5a1e7cb7761af09033951dfaf14fd8059788f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d28d02f6d505b813814422c87b3c03e34bc6087638d64413b4766715b1dea926"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7b9d8f669484f66512d83b4fc5e5a1e7cb7761af09033951dfaf14fd8059788f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -756,7 +759,8 @@
         "配信に失敗した時、どの段階で失敗したかを別々の診断コードで記録するようにしました。",
         "画面が受け取るイベントの流れを閉じても、遅い要求として記録しないようにしました。",
         "再開の失敗を専用のコードで記録し、AIの質問画面が開いている間はキー入力を断るようにしました。",
-        "会話の確認が毎回全部を読み直さず、速く終わるようにしました。"
+        "会話の確認が毎回全部を読み直さず、速く終わるようにしました。",
+        "外の席の閉じが時間切れになった時、席の状態を一度読んで確かめてから報告するようにしました。"
       ]
     },
     {
