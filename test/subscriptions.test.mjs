@@ -312,3 +312,37 @@ test('課金中の購読がある間はStripeの購入画面を作らず、作�
   assert.equal(subscriptions.status().canPurchase, true)
   assert.throws(() => new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).manageStripe(), { code: 'SUBSCRIPTION_NOT_REQUIRED' })
 })
+
+test('Google Playの購入トークンを保存し、課金中は購入元に数え、証拠は一つだけ返し、トークンは状態に出さない', async t => {
+  const now = Date.parse('2026-11-19T00:00:00Z')
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-subscription-google-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  let verdict = { productId: product.productId, environment: 'Sandbox', source: 'google', checkedAt: new Date(now).toISOString(), entitled: true, state: 'active', isTrial: true, autoRenewing: true,
+    expiresAt: new Date(now + 3600000).toISOString(), validUntil: new Date(now + 3600000).toISOString() }
+  const requests = []
+  const open = (clock = () => now) => new Subscriptions({ path: join(root, 'subscription.json'), environment: 'Sandbox', clock, fetch: async (url, request) => {
+    requests.push({ url, body: JSON.parse(request.body) })
+    return Response.json(verdict)
+  } })
+  const subscriptions = open()
+  await subscriptions.initialize()
+  assert.equal(subscriptions.proof(), null)
+  const status = await subscriptions.installGoogle('purchase-token-1')
+  assert.deepEqual([status.entitled, status.source, status.isTrial, status.billingSources, status.canPurchase], [true, 'google', true, ['google'], false])
+  assert.deepEqual(requests[0].body, { googlePurchaseToken: 'purchase-token-1' })
+  assert.deepEqual(subscriptions.proof(), { googlePurchaseToken: 'purchase-token-1' })
+  assert.equal(JSON.stringify(status).includes('purchase-token-1'), false)
+  assert.equal(JSON.parse(await readFile(subscriptions.path, 'utf8')).googlePurchaseToken, 'purchase-token-1')
+  // 保存したトークンで再照会し、期限が切れれば証拠も返さない。
+  verdict = { ...verdict, entitled: false, state: 'expired', validUntil: null, checkedAt: new Date(now + 7200000).toISOString() }
+  const later = open(() => now + 7200000)
+  await later.initialize()
+  await later.refresh({ force: true })
+  assert.deepEqual(requests.at(-1).body, { googlePurchaseToken: 'purchase-token-1' })
+  assert.deepEqual([later.status().entitled, later.status().billingSources, later.status().canPurchase, later.proof()], [false, [], true, null])
+  // Productionの環境と合わない結果は保存しない。
+  verdict = { ...verdict, environment: 'Production', entitled: true, state: 'active', validUntil: new Date(now + 9000000).toISOString() }
+  await assert.rejects(open().installGoogle('purchase-token-2'), { code: 'SUBSCRIPTION_RESPONSE_INVALID' })
+  assert.throws(() => new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).installGoogle('t'), { code: 'SUBSCRIPTION_NOT_REQUIRED' })
+  assert.throws(() => open().installGoogle(''), { code: 'INVALID_GOOGLE_PROOF' })
+})

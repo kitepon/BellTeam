@@ -30,6 +30,7 @@ WindowsとLinuxの利用者はStripeで同じBellTeamの月額購読（月980円
 - 状態は`GET /api/subscription`へApple同様に返し、`source`で購入元、`isTrial`で無料期間中かを示す。AppleとStripeの両方がある時は有効な方を使う。解約しても支払い済みの期間は使える（Appleと同じ）。
 - 二重請求を起こさない：どの購入元でも課金中（解約予約中の支払済み期間・支払い再試行を含む）の間、サーバーはStripeの購入画面を作らず`SUBSCRIPTION_ALREADY_ACTIVE`（409）を返す。作った購入画面は保存し、購入が終わるまで同じ画面を返す。`GET /api/subscription`の`canPurchase`・`billingSources`で、Apple・Google Playのアプリも購入ボタンを止める。別々のサーバーは互いを知らないため、サーバーをまたぐ二重購入はこの仕組みの範囲外（クライアント契約の「同じアカウント」の定義どおり）。
 - メールなしで解約できる：`POST /api/subscription/stripe/manage`がStripeの顧客ポータルのURLを返し、利用者はそこで解約・再開・支払い方法の変更をする。解約しても支払い済みの期間は使える。AppleとGoogle Playの購読の解約は各ストアで行う（[クライアント契約](billing-client-contract.md)）。
+- Google Playで買った購読（Androidアプリ）：アプリが購入トークンを`POST /api/subscription/google/verify`へ送り、運営のWorkerがPlay Developer APIで購読を照会した結果をサーバーが保存する。サーバーが保存するのは購入トークンだけで、返却・ログには出さない。状態は`GET /api/subscription`へ同じ形で返し（`source:google`）、解約はGoogle Playの購読画面で行う。Playが確定前（`PENDING`）と示す購入は保存せず`GOOGLE_PURCHASE_PENDING`（409）。購入の確認済み（acknowledge）はアプリが、サーバーが有効と答えた後に行う。
 - Appleアプリの画面からStripeへ誘導しない（Appleの審査指針3.1.1・3.1.3）。Stripeの購入画面を開く側はWindowsとLinuxだけ。Webは無料のため購入画面を持たない。
 - Stripeの鍵・価格はWorkerのsecretだけに置く。未設定の間は`SUBSCRIPTION_NOT_CONFIGURED`を返す。実際のStripeとの通信は未検証。
 - `canUseAI`は引き続き常にtrue。有料操作の範囲は各アプリが`entitled`で判定する（Appleアプリは本書の「契約と利用権」）。

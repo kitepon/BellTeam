@@ -28,6 +28,12 @@ Apple公式クライアントの認証・応答解析は維持し、HTTP通信�
 
 設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`https://kitepon.dev/support/`）。
 
+## Google Play
+
+同じ`POST /v1/subscriptions/verify`へ`{ "googlePurchaseToken": "..." }`を送ると、Play Developer APIの`purchases.subscriptionsv2.get`（`applications/{product.json の bundleId}/purchases/subscriptionsv2/tokens/{token}`）で購読を照会し、Apple・Stripeと同じ形（`state`・`entitled`・`validUntil`・`autoRenewing`・`isTrial`）に`source: "google"`を足して返す。購入トークンは返さない。商品が`product.json`の`productId`と一致する項目が無ければ`INVALID_PRODUCT`。Googleが無効・不明の購入トークンとして断った時（400・404・410）は`INVALID_GOOGLE_PROOF`、それ以外の通信・応答の失敗は`GOOGLE_API_ERROR`とし、期限切れへ置き換えない。購読の状態は`ACTIVE`→`active`、`CANCELED`で期限が先→`active`（`autoRenewing:false`）、`IN_GRACE_PERIOD`→`grace`、`ON_HOLD`→`billing_retry`（有効にしない）、`EXPIRED`・`PAUSED`・`PENDING_PURCHASE_CANCELED`→`expired`。`SUBSCRIPTION_STATE_PENDING`は購入が確定していないため`GOOGLE_PURCHASE_PENDING`（409）。期限は項目の`expiryTime`。`offerPhase.freeTrial`がある間は`isTrial: true`。環境は`testPurchase`があれば`Sandbox`、無ければ`Production`（ライセンステスターの購入はSandbox。利用者のサーバーの環境と合わない結果は本体が断る）。
+
+認証は`GOOGLE_PLAY_SERVICE_ACCOUNT`（secret。サービスアカウントのJSON）から作る。JWT（RS256、scope `androidpublisher`）をWebCryptoで署名してアクセストークンを得て、期限の手前までWorkerの実行環境内に保持する。保存先・台帳は作らない。未設定なら`SUBSCRIPTION_NOT_CONFIGURED`。サービスアカウントにはPlay Consoleの「財務データ・注文・キャンセルアンケートの回答の表示」の権限が要る。確認済み（acknowledge）はAndroidアプリが行い、Workerは購入を変更しない。
+
 ## 証明書の検証
 
 `apple-roots.json`はApple公式PKIから取得した実サービス用のルート証明書。署名・証明書チェーン・Appleの拡張OID・アプリ・実行環境を確認する。公式ライブラリのオフライン検証を使い、証明書の有効期間は署名日時で確認する。OCSPによる証明書のオンライン失効照会は行わない。購読の失効・返金はAppleの最新購読状態と検証済みの取引から判定する。

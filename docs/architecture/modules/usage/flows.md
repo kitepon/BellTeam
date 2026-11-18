@@ -171,6 +171,7 @@ flowchart LR
   Apple["Apple購入・復元"] --> Verify["Subscriptions<br/>外部検証→結果検証→購入元別に保存→有効な方を採用"]
   Stripe["Stripe購入画面・復元<br/>二重請求の確認→Checkout作成（開いたまま再利用）→戻りSession ID"] --> Verify
   Manage["Stripe購読の管理・解約<br/>購読ID→Stripe顧客ポータルのURL"] --> Stripe
+  Google["Google Play購入・復元<br/>Androidが購入トークンを送る（確認済みにするのはサーバーが有効と答えた後）"] --> Verify
   Verify --> Status["購読状態をAppleへ返す<br/>WebのAI利用を止めない"]
 ```
 
@@ -184,14 +185,15 @@ flowchart LR
 | APNs | `APNsProvider.create/send/close` | 環境別署名Promise・接続を共有。idle接続は閉じ、次の送信で作る。15秒request timeout |
 | 購入/復元（Apple） | HTTP verify → `Subscriptions.install/verify/validate/save` | 外部検証のアプリ/環境/期限/状態を検証し、利用者サーバーに保存 |
 | 購入/復元（Stripe） | HTTP stripe/checkout → `Subscriptions.checkout/post`、HTTP stripe/verify → `Subscriptions.installStripe/verify/validate/save` | 運営のWorkerがStripeの購読を照会した結果（`source:stripe`・`subscriptionId`・`isTrial`）を同じ形で検証し、購入元別に保存。Checkoutは作るだけで状態を変えない |
-| 購入証拠の取り出し | `Subscriptions.proof` | 同期・通信なし・ログなし。`status()`が有効な時だけ、その購入元の証拠を一つコピーで返す（stripe→`{stripeSubscriptionId}`、apple（旧保存形式はsource無し=apple）→`{signedTransaction}`）。未購入・失効・開発者モードは`null`。StripeのSession IDは返さない。Androidの端末登録（`POST /api/notifications/android/devices`）が登録のたびに呼び、運営の中継へそのまま転送する |
+| 購入/復元（Google Play） | HTTP google/verify（`{purchaseToken, productId}`。`productId`は使わず、商品の確認はWorkerが購読の項目で行い`INVALID_PRODUCT`）→ `Subscriptions.installGoogle/verify/validate/save` | 運営のWorkerがPlay Developer APIの`purchases.subscriptionsv2.get`で購読を照会した結果（`source:google`・`isTrial`。環境は`testPurchase`の有無で`Sandbox`/`Production`）を同じ形で検証し、購入元別に保存。購入トークンだけを`googlePurchaseToken`として保存し、返却・ログに出さない。購入が未確定（`PENDING`）なら`GOOGLE_PURCHASE_PENDING`（409）で保存しない。確認済み（acknowledge）はAndroidアプリが、サーバーが有効と答えた後に行う |
+| 購入証拠の取り出し | `Subscriptions.proof` | 同期・通信なし・ログなし。`status()`が有効な時だけ、その購入元の証拠を一つコピーで返す（google→`{googlePurchaseToken}`、stripe→`{stripeSubscriptionId}`、apple（旧保存形式はsource無し=apple）→`{signedTransaction}`）。未購入・失効・開発者モードは`null`。StripeのSession IDは返さない。Androidの端末登録（`POST /api/notifications/android/devices`）が登録のたびに呼び、運営の中継へそのまま転送する |
 | 二重請求の防止 | HTTP stripe/checkout → `Subscriptions.checkout`（`change`内で`refreshLocked(force)`→`billingSources`→保留Session照会→作成） | 守るもの：同じ人が同じBellTeamの権利に二重に課金されること。購入元のどれかが課金中（`active`・`grace`・`billing_retry`。解約予約中の期間内も含む）ならCheckoutを作らず`SUBSCRIPTION_ALREADY_ACTIVE`（409）。照会できない時は作らず照会のエラーを返す（接続が戻れば再実行でき、自分で抜ける）。作ったCheckout Session IDは`stripePendingSessionId`へ保存し、次の要求では新規作成せず同じSessionが`open`なら同じURLを返し、`complete`なら取り込んで拒否する。`GET /api/subscription`は`canPurchase`（課金中の購入元が無く開発者モードでもない時だけtrue）と`billingSources`（課金中の購入元）を返し、各アプリは`canPurchase:false`の間、購入ボタンを出さない（Apple・Google Playの購入はサーバーが止められないため、この値で止める）。この二つはusage↔本体のIPCの購読の記録では**任意の項目**で、読む側（`usageProjectionRecordValid`）は有る時だけ型を見て、無い記録（古いusageの記録）も受け入れる。本体と部品は別々に配られ、古い本体は知らない項目を断るため、入れ替えの順は本体→usage→web-gateway（a394f。他の項目と同じ規則はcurrent-designの「入れ替えの順」）。項目が無い応答（古いサーバー）を読むクライアントは、`canPurchase`を`state`が`not_purchased`・`expired`・`revoked`のどれかの時だけtrue、`billingSources`を空として扱い、失敗にしない |
 | 購読の管理・解約（Stripe） | HTTP stripe/manage → `Subscriptions.manageStripe/post` → Worker `POST /v1/subscriptions/stripe/portal` | 保存済みの`stripeSubscriptionId`を運営のWorkerへ送り、Workerは購読の価格を確かめてStripeの顧客ポータルのURLを作り`{url}`を返す。利用者はそこで解約・再開・支払い方法変更・請求書の確認をする。メールは使わない。解約後もStripe側の期間終了まで`entitled`は続き、反映は次の照会。Stripeの購読が無ければ`NO_STRIPE_SUBSCRIPTION`（409）。URLを返すだけで状態は変えない。Appleの購読の解約はApple、Google Playの購読の解約はGoogle Playで行う |
-| 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripeそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。購入元を足す時（Google Play）は結果を足すだけ |
+| 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripe・Google Playそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。`billingSources`は購入元に依らず同じ規則（`active`・`grace`・`billing_retry`）なので、Google Playの課金中もStripeのCheckoutを止め、`canPurchase:false`を返す |
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
-購読の外部検証サービス/Apple署名検証/Stripe照会内部はこの本体図の境界外（Stripeの鍵・価格は運営Workerのsecretだけに置く）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+購読の外部検証サービス/Apple署名検証/Stripe照会/Google Play照会内部はこの本体図の境界外（Stripeの鍵・価格とGoogle Playのサービスアカウントは運営Workerのsecretだけに置く）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
 
 ## 確認範囲
 

@@ -190,6 +190,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'subscriptions.status': () => subscriptions.status(), 'subscriptions.current': () => subscriptions.current(),
     'subscriptions.install': ({ signedTransaction }) => subscriptions.install(signedTransaction),
     'subscriptions.installStripe': ({ stripeSessionId }) => subscriptions.installStripe(stripeSessionId),
+    'subscriptions.installGoogle': ({ purchaseToken }) => subscriptions.installGoogle(purchaseToken),
     'subscriptions.checkout': () => subscriptions.checkout(),
     'subscriptions.manageStripe': () => subscriptions.manageStripe(),
     'subscriptions.refresh': params => subscriptions.refresh(params),
