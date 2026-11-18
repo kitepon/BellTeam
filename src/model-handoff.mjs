@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { isDeepStrictEqual as same } from 'node:util'
 import { configurationSettings } from './configuration-request.mjs'
 import { automaticConfigurationApplication } from './automatic-configuration-application.mjs'
+import { isRemoteBot } from './remote-seats.mjs'
 
 const ingressKeys = 'actor,budget,expectedLaunch,nativeCall,originalMcpRequestId,schema,signal,toolName'
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === keys
@@ -19,6 +20,8 @@ export class ModelHandoff {
     return exact(input, ingressKeys) && input.schema === 'bellteam.mcp-configuration-ingress.v1'
       && exact(input.actor, 'botId,kind') && input.actor.kind === 'bot' && input.actor.botId === botId
       && input.toolName === 'update_self' && current.harness === 'codex' && candidate.harness === 'codex'
+      // configuration-requests.md "Remote seat": the handoff is a tracked configure, which root Aiterm refuses for a terminal.
+      && !isRemoteBot(current)
       && (typeof input.originalMcpRequestId === 'string' || Number.isSafeInteger(input.originalMcpRequestId))
       && input.signal instanceof AbortSignal && !input.signal.aborted && input.budget === null
       && typeof this.readAnchor === 'function'
