@@ -631,7 +631,16 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testTargetedEventDoesNotReloadAnotherConversation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L105) | 別Botの対象通知は会話GET無し、対象Bot新着は取得表示 |
 | [testWindowCanReachOldestAcrossMultiplePages](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L125) | 60件の最古まで25件ずつ2page取得、最古の位置安定 |
 | [testOlderReadingPositionSurvivesTabletRotation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L140) | iPad回転で幅が変わっても同じ過去行の縦位置を保持 |
-| [testSlantedDragScrollsLogWithReplySwipeRows](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L163) | iPhoneで縦から約59°傾いた左右のドラッグ5回のうち4回以上でログが動く（返信の左スワイプに飲まれない。a424） |
+| [testSlantedDragScrollsLogWithReplySwipeRows](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L163) | iPhoneで縦から約59°傾いた左右のドラッグ5回のうち2回以上でログが動く（OS標準でも7〜8割の境目。DragGesture時は0〜1割。返信の左スワイプに飲まれない。a424） |
+
+### ConversationReplyUITests.swift（抜粋）
+
+対象：返信・転送の行と、過去の行が届く時の読書位置。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| testSlowDragKeepsReadingPositionWhenOlderRowsArrive | 指を載せてゆっくり60pt引く間に過去の行が届いても、読んでいた行は指の分（約50pt）だけ動き、飛ばない（a426） |
+| testForwardedRowShowsItsMarkAndContent | 短い距離を繰り返し引いて転送行m055の印と本文が現れる（swipeDownは数行を飛び越えるので使わない） |
 
 ### DesktopWorkspaceUITests.swift
 

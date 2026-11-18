@@ -134,10 +134,32 @@ final class ConversationReplyUITests: XCTestCase {
 
     /// 転送された行は、印・転送元・コメント・内容を出す。
     func testForwardedRowShowsItsMarkAndContent() throws {
-        for _ in 0..<3 where !app.staticTexts["origin-mark-m055"].exists { app.collectionViews["conversation-messages"].swipeDown() }
+        // 行ごとにアイコン行があり、最初の画面に印は入らない。短い距離を、印が見えるまで指で引く（swipeDownは数行を飛び越える）。
+        for _ in 0..<8 where !app.staticTexts["origin-mark-m055"].exists { dragLog(by: 60) }
         XCTAssertTrue(app.staticTexts["origin-mark-m055"].waitForExistence(timeout: 5))
         XCTAssertTrue(text("m055").exists)
         attach("12-forwarded-row")
+    }
+
+    /// 指を載せたままゆっくり引いている間に過去の行が届いても、読んでいた位置は飛ばず指の分だけ動く（a426）。
+    /// 指の下では位置が毎フレーム指から決め直されるため、足した分の補正が打ち消されて、数十行上へ飛んでいた。
+    func testSlowDragKeepsReadingPositionWhenOlderRowsArrive() throws {
+        let row = text("m058")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let before = row.frame.minY
+        dragLog(by: 60)
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertTrue(row.exists, "読んでいた行が画面に残る")
+        XCTAssertEqual(row.frame.minY - before, 50, accuracy: 15, "指の分（約50pt）だけ動き、過去の行が足されても飛ばない")
+    }
+
+    /// ログを下向きに、指で一定の遅さで引く（指を載せたまま過去の行が届く）。
+    private func dragLog(by distance: CGFloat) {
+        let scroll = app.collectionViews["conversation-messages"]
+        let origin = scroll.coordinate(withNormalizedOffset: .zero)
+        let x = scroll.frame.width / 2
+        origin.withOffset(CGVector(dx: x, dy: 120)).press(forDuration: 0.02, thenDragTo: origin.withOffset(CGVector(dx: x, dy: 120 + distance)), withVelocity: 40, thenHoldForDuration: 0.3)
+        Thread.sleep(forTimeInterval: 1)
     }
 
     /// 長押しで文字を選び、選択メニューの項目を押す。幅に入らない項目は「進む」で次の頁へ。
