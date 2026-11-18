@@ -693,9 +693,11 @@ export class AitermTransport {
       if (reapply || (current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
       if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
       let receipt
+      // configuration-requests.md "Remote seat": root Aiterm refuses a tracked configure to a terminal (REMOTE_UNSUPPORTED).
+      const tracked = this.configurationRequests && !isRemoteBot(current)
       try {
-        const key = this.configurationRequests ? null : await this.configurationLock?.key(next.id).catch(() => null)
-        receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version, requestId)
+        const key = tracked ? null : await this.configurationLock?.key(next.id).catch(() => null)
+        receipt = tracked ? await this.applyConfigurationRequest(current, configuration, version, requestId)
           : await this.changeSession(current, 'agent_configure', key ? { ...configuration, configuration_lock_key: key } : configuration)
       } catch (error) {
         // configuration-lock.md: a lock BellTeam did not set refuses even the keyed call. The Owner's change must land, so the
@@ -707,7 +709,7 @@ export class AitermTransport {
       // A model change keeps the seat; its account follows the new model's limit state at the next idle boundary.
       if (configuration.model !== undefined && this.claudeAccountBot(next) && !this.accountMoves.has(next.id)) this.moveAtBoundary(next.id)
       return { botId: next.id, session: this.session(next), mode: 'configure',
-        ...(this.configurationRequests ? { configurationRequest: receipt } : {}) }
+        ...(tracked ? { configurationRequest: receipt } : {}) }
     }, { expected })
   }
 

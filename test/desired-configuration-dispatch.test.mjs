@@ -293,3 +293,20 @@ test('a Claude in-turn apply that Aiterm refuses while the turn runs is applied 
   assert.equal(f.requests.view(f.bot.id).receipt.outcome, 'applied')
   await first
 })
+
+// a425 (BugHub b515): root Aiterm refuses a tracked configure to a terminal (REMOTE_UNSUPPORTED), so a remote seat gets the untracked call.
+test('a remote seat model change is applied by the untracked configure, a local seat keeps the tracked one', { timeout: 3000 }, async t => {
+  for (const remote of [true, false]) {
+    const f = await fixture(t, true, 'claude')
+    if (remote) Object.assign(f.bot, { terminalId: 'terminal-mac', projectRoot: '/Users/x/p' })
+    f.onConfigure = args => { if (remote && (args.request || args.action)) throw Object.assign(new Error('aiterm: REMOTE_UNSUPPORTED: tracked configuration requires the exact local connection; not issued'), { aitermResponseReturned: true }) }
+    const old = { ...f.bot }
+    f.bot.model = 'opus'
+    const result = await f.transport.reconfigure(old, f.bot)
+    const [call] = f.calls.filter(c => c.name === 'agent_configure')
+    assert.equal(result.mode, 'configure')
+    assert.equal(call.args.model, 'opus')
+    assert.equal(Boolean(call.args.request), !remote)
+    assert.equal(Boolean(result.configurationRequest), !remote)
+  }
+})
