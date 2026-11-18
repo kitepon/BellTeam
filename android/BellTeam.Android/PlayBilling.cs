@@ -35,11 +35,13 @@ public sealed class PlayBilling : Java.Lang.Object, IPurchasesUpdatedListener
     {
         await ConnectAsync();
         var product = QueryProductDetailsParams.Product.NewBuilder().SetProductId(productId).SetProductType(BillingClient.ProductType.Subs).Build();
-        var found = await client.QueryProductDetailsAsync(QueryProductDetailsParams.NewBuilder().SetProductList([product]).Build());
-        Check(found.Result, "Google Playの商品を読めませんでした。");
-        global::Android.Util.Log.Info("BellTeamBilling", $"product query {productId}: code={found.Result.ResponseCode} message={found.Result.DebugMessage} found={found.ProductDetailsList?.Count} unfetched=[{string.Join(", ", found.UnfetchedProductList?.Select(item => $"{item.ProductId}:{item.StatusCodeValue}") ?? [])}]");
-        // The list is null (seen on 0.1.6: ArgumentNullException "source") when Play returns no product details for this account.
-        var detail = found.ProductDetailsList?.FirstOrDefault() ?? throw new InvalidOperationException($"Google Playに購読「{productId}」が登録されていません。");
+        var queried = new TaskCompletionSource<(BillingResult Result, QueryProductDetailsResult Products)>();
+        client.QueryProductDetails(QueryProductDetailsParams.NewBuilder().SetProductList([product]).Build(), new Queried(queried));
+        var (queryResult, products) = await queried.Task;
+        Check(queryResult, "Google Playの商品を読めませんでした。");
+        global::Android.Util.Log.Info("BellTeamBilling", $"product query {productId}: code={queryResult.ResponseCode} found={products.ProductDetailsList.Count} unfetched=[{string.Join(", ", products.UnfetchedProductList.Select(item => $"{item.ProductId}:{item.StatusCodeValue}"))}]");
+        // The Xamarin async wrapper returned a null list for an Ok answer (0.1.6-0.1.8), so the Java listener is called directly.
+        var detail = products.ProductDetailsList.FirstOrDefault() ?? throw new InvalidOperationException($"Google Playに購読「{productId}」が登録されていません。");
         var offer = detail.GetSubscriptionOfferDetails()?.FirstOrDefault() ?? throw new InvalidOperationException("Google Playに購読の料金プランがありません。");
         var item = BillingFlowParams.ProductDetailsParams.NewBuilder().SetProductDetails(detail).SetOfferToken(offer.OfferToken).Build();
         buying = new();
@@ -67,6 +69,10 @@ public sealed class PlayBilling : Java.Lang.Object, IPurchasesUpdatedListener
         else waiting?.TrySetException(new InvalidOperationException(result.DebugMessage is { Length: > 0 } text ? text : "Google Playの購入に失敗しました。"));
     }
 
+    private sealed class Queried(TaskCompletionSource<(BillingResult, QueryProductDetailsResult)> done) : Java.Lang.Object, IProductDetailsResponseListener
+    {
+        public void OnProductDetailsResponse(BillingResult result, QueryProductDetailsResult products) => done.TrySetResult((result, products));
+    }
     private sealed class Setup(TaskCompletionSource done) : Java.Lang.Object, IBillingClientStateListener
     {
         public void OnBillingServiceDisconnected() { }
