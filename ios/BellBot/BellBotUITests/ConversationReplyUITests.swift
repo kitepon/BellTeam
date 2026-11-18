@@ -56,10 +56,14 @@ final class ConversationReplyUITests: XCTestCase {
         attach("4-jumped")
     }
 
-    /// 左へスワイプすると、長押しメニューと同じ返信の帯が出る（a300）。右へのスワイプと短い左スワイプでは出ない。
+    /// 左へスワイプすると、長押しメニューと同じ返信の帯が出る（a300）。右へのスワイプでは出ず、iOS標準の「戻る」で一覧へ戻る（a424）。
     func testSwipeLeftOpensReplyBar() throws {
         text("m058").swipeRight()
         XCTAssertFalse(app.otherElements["reply-bar"].waitForExistence(timeout: 1.5), "右へは返信にならない")
+        let member = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "ユキ")).firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout: 3), "右へのスワイプは会話から一覧へ戻る")
+        member.tap()
+        XCTAssertTrue(text("m058").waitForExistence(timeout: 10))
         text("m058").swipeLeft()
         XCTAssertTrue(app.otherElements["reply-bar"].waitForExistence(timeout: 3))
         attach("0-swipe-reply-bar")

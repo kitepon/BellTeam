@@ -1018,6 +1018,7 @@ private struct ActionsOverlay: ViewModifier {
 }
 
 /// 行を左へスワイプして返信（a300）。横が縦の1.5倍超の左ドラッグだけを拾うので、縦スクロール・文字選択・左端の戻るスワイプと競合しない。
+/// 受けはセルのUIKitのpan（`LeftSwipe`）。SwiftUIのDragGestureを行に付けると、ログの縦スクロールが始まる角度が縦から約50°へ狭まった（a424）。
 /// Macはマウスのドラッグが文字選択なので付けない。
 private struct ReplySwipe: ViewModifier {
     let onReply: () -> Void
@@ -1037,18 +1038,75 @@ private struct ReplySwipe: ViewModifier {
                     .offset(x: 28)
                     .accessibilityHidden(true)
             }
-            .simultaneousGesture(DragGesture(minimumDistance: 16)
-                .onChanged { drag in
-                    guard drag.translation.width < 0, abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else { return }
-                    shift = max(drag.translation.width * 0.6, -48)
-                    armed = -drag.translation.width >= Self.commit
-                }
-                .onEnded { _ in
+            .background(LeftSwipe(
+                onChange: { x in
+                    shift = max(x * 0.6, -48)
+                    armed = -x >= Self.commit
+                },
+                onEnd: {
                     if armed { onReply() }
                     armed = false
                     withAnimation(.spring(duration: 0.25)) { shift = 0 }
-                })
+                }))
             .sensoryFeedback(.impact, trigger: armed) { _, new in new }
+    }
+}
+
+/// 行のセルへ左ドラッグ専用のpanを付ける。縦に近いドラッグでは始まらないので、ログの縦スクロールを妨げない。
+private struct LeftSwipe: UIViewRepresentable {
+    let onChange: (CGFloat) -> Void
+    let onEnd: () -> Void
+
+    func makeUIView(context: Context) -> LeftSwipeView {
+        let view = LeftSwipeView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: LeftSwipeView, context: Context) {
+        view.onChange = onChange
+        view.onEnd = onEnd
+    }
+}
+
+private final class LeftSwipeView: UIView {
+    var onChange: (CGFloat) -> Void = { _ in }
+    var onEnd: () -> Void = {}
+    private lazy var pan: UIPanGestureRecognizer = {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        pan.delegate = Self.gate
+        return pan
+    }()
+
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        pan.view?.removeGestureRecognizer(pan)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil else { return }
+        var ancestor = superview
+        while let view = ancestor, !(view is UICollectionViewCell) { ancestor = view.superview }
+        ancestor?.addGestureRecognizer(pan)
+    }
+
+    private static let gate = LeftSwipeGate()
+
+    private final class LeftSwipeGate: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+            let move = pan.translation(in: pan.view)
+            return move.x < 0 && abs(move.x) > abs(move.y) * 1.5
+        }
+    }
+
+    @objc private func panned(_ pan: UIPanGestureRecognizer) {
+        switch pan.state {
+        case .changed: onChange(pan.translation(in: pan.view).x)
+        case .ended, .cancelled, .failed: onEnd()
+        default: break
+        }
     }
 }
 
