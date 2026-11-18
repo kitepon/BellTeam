@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T14:07:09Z",
-  "expiresAt": "2026-11-25T14:07:09Z",
+  "publishedAt": "2026-11-18T22:58:58Z",
+  "expiresAt": "2026-11-25T22:58:58Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f",
-      "versionId": "96e421fb0e61ddbf3e36a8436b0ab1d030d800486afa70c0024d51ab4ac2becf",
+      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
+      "versionId": "cfa438428f1fffe4f8728c95b2e88b6becb4acb93c75662cb85e6d56b8d58eb6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-amd64.tar.gz",
-          "bytes": 86563,
-          "sha256": "96e421fb0e61ddbf3e36a8436b0ab1d030d800486afa70c0024d51ab4ac2becf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz",
+          "bytes": 86765,
+          "sha256": "cfa438428f1fffe4f8728c95b2e88b6becb4acb93c75662cb85e6d56b8d58eb6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11058,
-          "sha256": "3567cedc586a7600fe1f8e4cf9b0899a74a2d5e833c7d8e99ca58a0185e14a6c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11246,
+          "sha256": "122ebd8793ac0de1f5b17c544bea208068eb86905f4916857b2a26ce0d77c52e"
         },
-        "signerCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f"
+        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,14 +48,13 @@
         }
       },
       "changes": [
-        "本体と設定の部品が、別々に更新されても、お互いの記録を読めるようにしました。足された項目で止まりません。",
-        "入れ替えに失敗した部品が、本体の再起動なしで元に戻れるようにしました。"
+        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f",
-      "versionId": "e61a7d43da47029b0794165987f155df238251a8d3c439200bd8183f6b4d44eb",
+      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
+      "versionId": "f2258045690c90abb525024f8c0196ddebedfc0d1f2741b921b7b7dc64353647",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-arm64.tar.gz",
-          "bytes": 86563,
-          "sha256": "e61a7d43da47029b0794165987f155df238251a8d3c439200bd8183f6b4d44eb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz",
+          "bytes": 86765,
+          "sha256": "f2258045690c90abb525024f8c0196ddebedfc0d1f2741b921b7b7dc64353647"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10956,
-          "sha256": "7e01b7119fe1ca36f0ccde9cba3593ced90b4e670e5576b80648dce919e7b7d9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11152,
+          "sha256": "f320222cccf6d04e3a489cbcb1d4892749b2d234ce2878d45433e6150a3cae1f"
         },
-        "signerCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f"
+        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -97,8 +96,7 @@
         }
       },
       "changes": [
-        "本体と設定の部品が、別々に更新されても、お互いの記録を読めるようにしました。足された項目で止まりません。",
-        "入れ替えに失敗した部品が、本体の再起動なしで元に戻れるようにしました。"
+        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
       ]
     },
     {
@@ -431,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e1d22f586b4a69fd0267023a07b0aa00194b3759",
-      "versionId": "618391a22e551262068ee660a886dbd7eb49d8c67f99cc9d6a45a2ad00229be4",
+      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
+      "versionId": "396150fb74ea3272caeab46e7045b3a693a04bfe11892965eb65f303db28aea3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -440,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T071426Z/web-gateway-e1d22f586b4a69fd0267023a07b0aa00194b3759-linux-amd64.tar.gz",
-          "bytes": 5464092,
-          "sha256": "618391a22e551262068ee660a886dbd7eb49d8c67f99cc9d6a45a2ad00229be4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz",
+          "bytes": 5464736,
+          "sha256": "396150fb74ea3272caeab46e7045b3a693a04bfe11892965eb65f303db28aea3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T071426Z/web-gateway-e1d22f586b4a69fd0267023a07b0aa00194b3759-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11299,
-          "sha256": "3afd7dc9c673893a574487b10278b2f4d11959b7008ea012920acef67ba899ba"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11346,
+          "sha256": "2e9320a80a508f05150ede1efcafbf32c9d909c9a615e6bc3230657b796eff47"
         },
-        "signerCommit": "e1d22f586b4a69fd0267023a07b0aa00194b3759"
+        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -458,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "クライアントが60秒未満で切った要求を、遅い要求として記録しないようにしました。"
+        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e1d22f586b4a69fd0267023a07b0aa00194b3759",
-      "versionId": "b01c4a2ee81a36605123829cc2da57265c36ec07318aac1e6fc9473fdf8ab026",
+      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
+      "versionId": "342e05795159a88ecec3ad48abe99011b0bb4eadad698a0cd9a49134b467a49b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -472,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T071426Z/web-gateway-e1d22f586b4a69fd0267023a07b0aa00194b3759-linux-arm64.tar.gz",
-          "bytes": 5464092,
-          "sha256": "b01c4a2ee81a36605123829cc2da57265c36ec07318aac1e6fc9473fdf8ab026"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz",
+          "bytes": 5464736,
+          "sha256": "342e05795159a88ecec3ad48abe99011b0bb4eadad698a0cd9a49134b467a49b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T071426Z/web-gateway-e1d22f586b4a69fd0267023a07b0aa00194b3759-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11303,
-          "sha256": "4e67203d08163cf4998dc38895ac16666feab9fce8eda9368a282b64d96b7a41"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11252,
+          "sha256": "3889f4138fec605569508cd7b0b0a224957c4b133ad099bc7ec2333b4d5ca548"
         },
-        "signerCommit": "e1d22f586b4a69fd0267023a07b0aa00194b3759"
+        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -490,7 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "クライアントが60秒未満で切った要求を、遅い要求として記録しないようにしました。"
+        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
       ]
     },
     {
@@ -711,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
-      "versionId": "sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2",
+      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
+      "versionId": "sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
+        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
-      "versionId": "sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2",
+      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
+      "versionId": "sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2caf3cdfa3ca121ff740ad8ea73127aec5f6778e9225ca807c4bf423aa8e3aa2"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
+        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
       ]
     },
     {
