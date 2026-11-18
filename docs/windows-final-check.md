@@ -225,3 +225,13 @@ W-MACの追従13〜19（相関図、秘密の入力カード、1Password連携�
 - 導入exeの版は`0.4.6+2a824d5160efea775e741f482ce24af4abe3c6d4`。
 - 導入exeの読み取りsmoke（`--smoke-test`、本番 `http://192.168.1.2:18891/`）は成功した。session local・140メンバー・8ルーム・会話の読み取り・SSE接続を確認した。終了後のBellTeam.exeは0件。
 - 「このPCを確かめる」の本番（本体が信用を書く）は、クラストとセンチが0.4.6で確かめる。画面の本人操作はしていない。
+
+## 0.6.1の導入（2026-11-18）
+
+購読の管理・解約ボタン（a390、#1862）、プライバシー方針とサポートのリンクをkitepon.devへ（a398d、#1870）、「Web版は無料です。」の説明文（#1870）を入れた0.6.1を、アニスがFOXへ導入した。サーバー側（Z95）は本番で稼働している。
+
+- 2026-11-18 09:04 JST、main `5c2a6f9a`から`pwsh -NoProfile -File scripts/install-windows.ps1 -NoLaunch -SkipShareTarget`で導入した。導入前にBellTeam.exeは起動していなかった。
+- 導入exeの版は`0.6.1+5c2a6f9a7065cd08ea9eafd543bf3ddd1df05b77`。
+- 導入exeの読み取りsmoke（`--smoke-test`、本番 `http://192.168.1.2:18891/`）は成功した（`ok: true`）。session local・142メンバー・8ルーム・会話の読み取り・SSE接続を確認した。終了後のBellTeam.exeは0件。
+- 本番の`GET /api/subscription`は`accessMode: developer`・`billingSources: []`・`canPurchase: false`。導入exeの`--render-page settings-billing`は、新しい説明文を出し、購入の入口と管理ボタンを出さない（開発者サーバーの仕様どおり）。
+- 管理ボタンと解約済みの行は、人工データの描画（購入可・購読中・解約済みの3状態）と試験（購読の8件）で確かめた。実際のStripeの管理ページの操作は未確認。
