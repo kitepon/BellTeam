@@ -8,12 +8,21 @@ export function recordSlowOrAborted(request, response, diagnostics, now = Date.n
   const path = String(request.url).split('?')[0]
   if (!diagnostics || !path.startsWith('/api/') || path === '/api/events') return
   const started = now()
-  let finished = false
+  let finished = false, eventStream = false
   response.once('finish', () => { finished = true })
+  // 8c6f: writeHead(status, {headers}) never reaches getHeader(), so read the type there too (the SSE routes all use it).
+  // shortcut: object form of the headers only (every writeHead here passes an object), upgrade if an array form appears.
+  const writeHead = response.writeHead
+  if (typeof writeHead === 'function') response.writeHead = function (...args) {
+    const headers = args.find(arg => arg && typeof arg === 'object' && !Array.isArray(arg))
+    const type = headers && Object.entries(headers).find(([name]) => name.toLowerCase() === 'content-type')?.[1]
+    if (String(type ?? '').startsWith('text/event-stream')) eventStream = true
+    return writeHead.apply(this, args)
+  }
   response.once('close', () => {
     const duration = now() - started
     if (finished && duration < SLOW_REQUEST_MS) return
-    if (String(response.getHeader?.('content-type') ?? '').startsWith('text/event-stream')) return
+    if (eventStream || String(response.getHeader?.('content-type') ?? '').startsWith('text/event-stream')) return
     Promise.resolve().then(() => diagnostics.record({ code: 'SERVER_HTTP_SLOW_OR_ABORTED', module: 'server', diagnostic_log: JSON.stringify({
       schema: 'bellteam.http-slow.v1',
       http_method: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) ? request.method : 'unknown',
