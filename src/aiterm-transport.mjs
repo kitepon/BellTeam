@@ -1481,14 +1481,28 @@ export class AitermTransport {
   // The close stage holds SEAT_REFUSALS until the seat's next turn instead (resumeLostRoutes).
   routeRetryAt(bot, key, error) {
     const code = error?.aitermErrorCode ?? error?.code ?? null
-    if (!this.routeReported.has(key)) {
+    // a401b: a close that timed out and whose seat could not be read proves no failure; asked again at the retry.
+    if (!this.routeReported.has(key) && error?.closeUnconfirmed !== true) {
       this.routeReported.add(key)
       // diagnostics accepts the detail only as diagnostic_log text (src/diagnostics.mjs).
       const message = String(error?.message ?? '').replace(/\s+/gu, ' ').slice(0, 300)
       this.reportError({ code: 'REMOTE_SEAT_RESUME_REFUSED', module: 'execution',
-        diagnostic_log: `bot=${bot.id} stage=${key.endsWith('@wake') ? 'wake' : 'close'} reason=${code ?? 'none'} message=${message || 'none'}` })
+        diagnostic_log: `bot=${bot.id} stage=${key.endsWith('@wake') ? 'wake' : 'close'} reason=${code ?? 'none'}${error?.seatOpen === true ? ' seat=open' : ''} message=${message || 'none'}` })
     }
     return code === 'AGENT_BUSY' ? 0 : Date.now() + RESUME_RETRY_MS
+  }
+
+  // remote-seat.md "Close timeout" (a401b, BugHub 829de1dc): the 60 s MCP limit ends the wait, not Aiterm's close. Read the seat once;
+  // a closed seat is a success (returns), an open seat or an unreadable one rethrows the original error with what the read proved.
+  async seatClosedAfterTimeout(bot, error) {
+    if (error?.code !== -32001 || error.aitermResponseReturned === true) throw error
+    let observation
+    try { observation = await this.observe(bot) } catch { observation = null }
+    const valid = observation?.schema === 'aiterm.pty-observe-result.v1' && observation.session_id === this.session(bot)
+    // Only the lifecycle state proves the close finished: exists:false / pane_alive:false also show while Aiterm is still stopping.
+    if (valid && observation.state === 'hibernated') return
+    const open = valid && observation.exists === true && observation.pane_alive !== false && !['hibernated', 'unknown'].includes(observation.state)
+    throw Object.assign(error, open ? { seatOpen: true } : { closeUnconfirmed: true })
   }
 
   // Hibernate keeps the conversation; the ordinary wake resumes it with a fresh seat credential (Aiterm 0.70.41 E8).
@@ -1497,7 +1511,11 @@ export class AitermTransport {
     if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)
     return this.memberOperation(bot, membersLease => this.activity.configurationChanges.track(bot.id, (async () => {
       let closedAt = null
-      if (!closed) { await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true }); closedAt = Date.now() }
+      if (!closed) {
+        try { await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true }) }
+        catch (error) { await this.seatClosedAfterTimeout(bot, error) }
+        closedAt = Date.now()
+      }
       try { await this.wake(bot, { membersLease }) } catch (error) {
         if (closedAt === null) throw error
         throw Object.assign(new Error(error?.message ?? 'REMOTE_SEAT_WAKE_FAILED', { cause: error }),
