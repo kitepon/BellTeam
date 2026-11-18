@@ -15,24 +15,33 @@ const refusal = "aiterm: agent session 'bot-a' の Codex TUI が入力受付状�
 const busy = "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は別プロセス（pid 4242）の処理中です。60000ms待っても順番が来ませんでした。文字列は送信していません。少し後で再度 pty_send してください。"
 const busyInProcess = "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は先に受け付けた送信の処理中です。60000ms待っても順番が来ませんでした。文字列は送信していません。少し後で再度 pty_send してください。"
 
-for (const [label, failure, status, code, expectedCalls = ['pty_send', 'pty_list']] of [
-  ['0.48の入力受付拒否', refusal, 409, 'BOT_INPUT_NOT_READY'],
-  ['0.49の確認画面による拒否', `${refusal}\nstate=blocked reason=hooks_review`, 409, 'BOT_INPUT_NOT_READY'],
-  ['0.52.1の順番待ちの断り（別プロセス）', busy, 409, 'BOT_SEND_BUSY'],
-  ['0.52.1の順番待ちの断り（同じプロセス）', busyInProcess, 409, 'BOT_SEND_BUSY'],
+// Since wake-first (delivery-details.md, 2026-11-07/08) a refused live seat is not left as it is: it is observed, a not-ready/busy refusal
+// is sent again, then the seat is hibernated and woken and the words are sent again; the original refusal is returned if the woken seat
+// still refuses. Not-ready is repeated up to 3 times per round (1+3+3 = 7 sends), busy once per round (1+1+1 = 3), another failure is not repeated
+// (1+1 = 2). `sends` counts the pty_send calls, `relaunch` whether the seat was woken (agent_launch).
+for (const [label, failure, status, code, { sends, relaunch }] of [
+  ['0.48の入力受付拒否', refusal, 409, 'BOT_INPUT_NOT_READY', { sends: 7, relaunch: true }],
+  ['0.49の確認画面による拒否', `${refusal}\nstate=blocked reason=hooks_review`, 409, 'BOT_INPUT_NOT_READY', { sends: 7, relaunch: true }],
+  ['0.52.1の順番待ちの断り（別プロセス）', busy, 409, 'BOT_SEND_BUSY', { sends: 3, relaunch: true }],
+  ['0.52.1の順番待ちの断り（同じプロセス）', busyInProcess, 409, 'BOT_SEND_BUSY', { sends: 3, relaunch: true }],
   // a413 (Aiterm 0.70.72): a question dialog is open; nothing was typed. The seat waits on its user, so no observe, close or launch follows.
-  ['0.70.72の質問の画面による拒否', "aiterm: CLAUDE_SELECT_MENU_OPEN vendor=claude session=bot-a\nClaude Codeの選ぶ画面が開いています（見出し: 質問）。打った文字は選択の操作として読まれるため、文字列は送信していません。pty_read(screen:true) で画面を確かめてください。", 409, 'BOT_AWAITING_USER', ['pty_send']],
-  ['それ以外のAiterm障害', 'aiterm: PTY_BACKEND_FAILED', 500, 'INTERNAL_ERROR'],
+  ['0.70.72の質問の画面による拒否', "aiterm: CLAUDE_SELECT_MENU_OPEN vendor=claude session=bot-a\nClaude Codeの選ぶ画面が開いています（見出し: 質問）。打った文字は選択の操作として読まれるため、文字列は送信していません。pty_read(screen:true) で画面を確かめてください。", 409, 'BOT_AWAITING_USER', { sends: 1, relaunch: false }],
+  ['それ以外のAiterm障害', 'aiterm: PTY_BACKEND_FAILED', 500, 'INTERNAL_ERROR', { sends: 2, relaunch: true }],
 ]) {
   test(`${label}は未配送を保持し、APIで入力受付拒否とサーバー障害を区別する`, async t => {
     const root = await mkdtemp(join(tmpdir(), 'bellteam-send-rejection-'))
     t.after(() => rm(root, { recursive: true, force: true }))
     const calls = []
-    const client = new AitermClient()
-    client.client = { async callTool({ name }) {
+    // The classification goes through the real AitermClient; a plain-object client keeps wake from starting a real Aiterm (registrationLostClient).
+    const classifier = new AitermClient()
+    const client = { call: (name, args) => classifier.call(name, args) }
+    classifier.client = { async callTool({ name }) {
       calls.push(name)
       if (name === 'pty_send') return { isError: true, content: [{ type: 'text', text: failure }] }
       if (name === 'pty_list') return { content: [{ type: 'text', text: 'bot-a\tcodex' }] }
+      if (name === 'pty_observe') return { structuredContent: { schema: 'aiterm.pty-observe-result.v1', session_id: 'bot-a', exists: true, launch_id: 'a'.repeat(32), state: 'idle', pane_alive: true } }
+      if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
+      if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
       throw new Error(`unexpected tool: ${name}`)
     } }
     const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
@@ -58,7 +67,10 @@ for (const [label, failure, status, code, expectedCalls = ['pty_send', 'pty_list
       assert.match(body.message, /送信されませんでした/u)
       assert.equal(body.message.includes('pty_'), false)
     }
-    assert.deepEqual(calls, expectedCalls)
+    assert.equal(calls.filter(name => name === 'pty_send').length, sends)
+    assert.equal(calls.includes('agent_launch'), relaunch)
+    // a413: a seat waiting on its user is never observed, closed or launched.
+    if (code === 'BOT_AWAITING_USER') assert.equal(calls.includes('pty_observe') || calls.includes('pty_close'), false)
     await transport.idle(bot.id)
     const records = await messenger.store.records()
     assert.equal(records.length, 1)
