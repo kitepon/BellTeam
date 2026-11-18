@@ -295,6 +295,14 @@ export class AitermClient {
         error.status = 409
         error.publicMessage = 'このBotは現在入力を受け付けられず、メッセージは送信されませんでした。Botの画面を確認してください。'
       }
+      // a413: a Claude question dialog is open (Aiterm 0.70.72, nothing typed). The seat waits on its user; it is not dead.
+      if (name === 'pty_send' && message.includes('文字列は送信していません。')
+        && (error.aitermErrorCode === 'CLAUDE_SELECT_MENU_OPEN' || message.startsWith('aiterm: CLAUDE_SELECT_MENU_OPEN vendor='))) {
+        error.code = 'BOT_AWAITING_USER'
+        error.status = 409
+        error.effect = 'not_started'
+        error.publicMessage = 'このBotは質問の画面で答えを待っていて、メッセージは送信されませんでした。答えが済んだ後に届けます。'
+      }
       // 席の登録が無いsessionを、Aitermが打つ前に断った（require_agent、Aiterm 0.52.0）。送っていないので、起こし直して送り直せる。
       if (name === 'pty_send'
         && message.startsWith('aiterm: AGENT_SESSION_REQUIRED:')

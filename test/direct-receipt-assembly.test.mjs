@@ -390,3 +390,29 @@ test('each failed-delivery stage files under its own code and fingerprint; accep
   }
   assert.equal((await diagnostics.list()).length, 5)
 })
+
+// a413 (durable-receipt.md "A seat awaiting its user"): an open question dialog is a seat waiting on its user, not a dead seat.
+test('a seat awaiting its user keeps the saved ID queued without a failed row or a report, is not asked again until its turn ends, then is delivered once', async t => {
+  let awaiting = true, idle = false, notified = 0, listener = () => {}
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => idle, watchQueue: fn => { listener = fn; return () => {} }, async close() {},
+    async notify(_bot, _envelope, options) {
+      notified++
+      if (awaiting) throw Object.assign(new Error('このBotは質問の画面で答えを待っています。'), { code: 'BOT_AWAITING_USER', status: 409, effect: 'not_started' })
+      await options.onStatus('running'); await options.onStatus('delivered'); return { delivery: 'delivered' }
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const status = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery
+  const saved = await f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message: 'while the dialog is open' }))
+  await settled(async () => notified === 1 && await status(saved.delivery_id) === 'queued')
+  // Other drains (any queue change, an explicit request) skip the Bot while it awaits its user.
+  f.direct.requestDrain(); await new Promise(resolve => setTimeout(resolve, 20)); f.direct.requestDrain(); await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(notified, 1)
+  const rows = (await f.direct.receipts.store.records()).filter(row => row.delivery_id === saved.delivery_id).map(row => row.delivery)
+  assert.equal(rows.includes('failed'), false)
+  assert.deepEqual(f.errors, [])
+  // Its turn ended (queue change, Bot idle) and the dialog is gone: the same ID is sent once and delivered.
+  awaiting = false; idle = true
+  listener({ botIds: ['bot-quincy'] })
+  await settled(async () => notified === 2 && await status(saved.delivery_id) === 'delivered')
+  assert.deepEqual(f.errors, [])
+})

@@ -52,6 +52,7 @@ flowchart TD
   Send["Direct pty_send with require_agent"] --> Reply{"Native result"}
   Reply -->|accepted| Accepted["Follow original receipt"]
   Reply -->|"Aiterm says do not resend"| Fail["Return original error; never replay"]
+  Reply -->|"question dialog open (CLAUDE_SELECT_MENU_OPEN, nothing typed): BOT_AWAITING_USER"| Awaiting["seat waiting on its user: no observe, no close, no launch; the saved receipt stays queued (not_started) and is sent after the dialog is gone"]
   Reply -->|"answer lost (RPC error)"| Lost["Matching pty_observe"]
   Lost -->|"pane_alive=false (no terminal behind the record)"| Launch
   Lost -->|"terminal alive / unreadable"| Fail
@@ -77,6 +78,7 @@ flowchart TD
 |---|---|---|
 | Aitermが結果不明と答えた（`BOT_SEND_OUTCOME_UNKNOWN`、「再送しないでください」） | 打った文を二度実行させない | 席には触れない。次の配送は通常どおり進む。この記録はunknownのまま残り、送り手が会話を見て新しく送る |
 | 答えが届かなかった（RPCの失敗）で、観測すると端末が生きている、または観測が読めない | 打った文を二度実行させない | 同上。端末が無い（`pane_alive=false`：記録だけ残った席、休止中の席）と観測できた時は失敗にせず、起こして届ける（休止中の席は閉じずに同じ会話へ再開、記録だけ残った席は閉じてから）。端末が無ければ文は打たれていない |
+| 質問の画面（AskUserQuestionなど）が開いた席がAitermに断られた（`CLAUDE_SELECT_MENU_OPEN`、何も打っていない。a413） | 席の前の質問への答えを、届いた文で代わりに出さない（7681）。作業中のターンを閉じて起動し直さない | `BOT_AWAITING_USER`（409）。席は死んだのではなく利用者の答えを待っているので、観測も閉じも起動もしない。保存済みの受領はqueuedのまま（`not_started`、診断なし、`failed`の履歴も作らない）。画面が閉じるか、60秒ごとの見直しで同じIDをもう一度送る。席のターンの終わりでも見直す |
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
@@ -127,7 +129,7 @@ Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_pr
 
 旧adapterを注入した構成では、`ExecutionBridge.reserve/ExecutionRequest.invoke`がrequest・source・target世代・入力境界を結び、`acceptBinding`が不完全な追跡とnative受付を分離する。明示resumeは元registerを再作成せず、元sendがnot_issuedと確認できる時だけ`reconcileLaunch`→同じ配送IDのnotifyへ進む。closeは元unknown launchの期待世代に対する管理操作であり、元配送のunknown記録は変更しない。通信断やstatus不一致を成功へ補完しない。
 
-`AitermClient.call`がnativeの厳密な未入力拒否を`BOT_INPUT_NOT_READY/BOT_SEND_BUSY/AGENT_SESSION_REQUIRED`へ写す。`BOT_SEND_OUTCOME_UNKNOWN`は起動復旧より先に拒否する。認証/起動はtyped receiptと安全enumだけを残し、`captureMcpError`の通常本文記録の対象外。席側の短命起動でも`run-seat-aiterm-launch`が選別したエラーfieldsを返す。
+`AitermClient.call`がnativeの厳密な未入力拒否を`BOT_INPUT_NOT_READY/BOT_SEND_BUSY/AGENT_SESSION_REQUIRED`へ写す。質問の画面が開いている席への拒否（Aiterm 0.70.72の`CLAUDE_SELECT_MENU_OPEN`、本文に「文字列は送信していません。」。`_meta["aiterm/error_code"]`にこの符号が付く版ではそれも見る）は`BOT_AWAITING_USER`（409、`not_started`）へ写す（a413）。`BOT_SEND_OUTCOME_UNKNOWN`は起動復旧より先に拒否する。認証/起動はtyped receiptと安全enumだけを残し、`captureMcpError`の通常本文記録の対象外。席側の短命起動でも`run-seat-aiterm-launch`が選別したエラーfieldsを返す。
 
 Aiterm 0.63.12 prefixes `AGENT_INPUT_NOT_READY` and `AGENT_INPUT_TARGET_UNAVAILABLE` identify pre-input refusal branches. The client accepts those prefixes alongside the legacy text only for the requested session's `pty_send` and the explicit unsent phrase, preserving the original diagnostic message and existing `BOT_INPUT_NOT_READY` classification. This adds no wait, replay, or structured input-effect certificate.
 

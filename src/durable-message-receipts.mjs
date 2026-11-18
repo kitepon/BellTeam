@@ -21,13 +21,15 @@ export function remoteSeatNotStarted(error, deliveryId, botId) {
 }
 
 export class DurableMessageReceipts extends BellTeamMessenger {
-  constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), onLogCorruption = null, ...options }) {
+  constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), onLogCorruption = null, deferred = () => false, ...options }) {
     const logPath = options.logPath ?? join(root, 'logs/direct-messages.jsonl')
     // log-append.md: the parent's reads report an isolated bad line to diagnostics, not only stderr.
     super({ ...options, logPath, ...(onLogCorruption && !options.store ? { store: new ConversationStore({ logPath, onCorruption: onLogCorruption }) } : {}),
       onMessage: record => { if (!this.childRecords.has(record)) this.report(() => options.onMessage?.(record)) } })
     if (typeof dispatch !== 'function') fail('SAVED_DISPATCH_REQUIRED')
     this.dispatch = dispatch
+    // a413: a target whose seat waits on its user (open question dialog) is not asked again until its owner releases it.
+    this.deferred = deferred
     this.onPending = onPending
     this.onError = onError
     this.claims = new Map()
@@ -209,7 +211,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     // A record saved while the lane was ending is drained by a fresh lane after it, never left queued.
     if (running) return running.then(() => this.drainTarget(target), () => this.drainTarget(target))
     const seen = new Set(), results = []
-    const next = async () => (await this.pending()).find(record => record.target === target && !seen.has(record.delivery_id))
+    const next = async () => this.deferred(target) ? undefined : (await this.pending()).find(record => record.target === target && !seen.has(record.delivery_id))
     const lane = (async () => {
       for (let record = await next(); record; record = await next()) { seen.add(record.delivery_id); results.push(await this.dispatchSaved(record.delivery_id)) }
       return results
@@ -219,7 +221,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
   }
 
   async drain() {
-    const targets = new Set((await this.pending()).map(record => record.target))
+    const targets = new Set((await this.pending()).map(record => record.target).filter(target => !this.deferred(target)))
     return (await Promise.all([...targets].map(target => this.drainTarget(target)))).flat()
   }
 }
