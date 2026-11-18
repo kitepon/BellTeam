@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-17T23:37:39Z",
-  "expiresAt": "2026-11-24T23:37:39Z",
+  "publishedAt": "2026-11-18T00:14:15Z",
+  "expiresAt": "2026-11-25T00:14:15Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8",
-      "versionId": "91250119e006132296df2e42e442192bd07549e56899e19727f1dc7e524361e7",
+      "sourceCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f",
+      "versionId": "96e421fb0e61ddbf3e36a8436b0ab1d030d800486afa70c0024d51ab4ac2becf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-amd64.tar.gz",
-          "bytes": 86062,
-          "sha256": "91250119e006132296df2e42e442192bd07549e56899e19727f1dc7e524361e7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-amd64.tar.gz",
+          "bytes": 86563,
+          "sha256": "96e421fb0e61ddbf3e36a8436b0ab1d030d800486afa70c0024d51ab4ac2becf"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10862,
-          "sha256": "0ddb29e8120bd8c077ef6757ec9ac800ccfaa2a66ff90b978b81b9a646b94aa3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11058,
+          "sha256": "3567cedc586a7600fe1f8e4cf9b0899a74a2d5e833c7d8e99ca58a0185e14a6c"
         },
-        "signerCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8"
+        "signerCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,14 +48,14 @@
         }
       },
       "changes": [
-        "Stripeで購読している人が、BellTeamの画面から解約・支払い方法の変更へ進めるようにしました。",
-        "すでに購読している人が、別の方法で二重に購読できないようにしました。購入画面には、購入できるかどうかと、購読元の情報を返します。"
+        "本体と設定の部品が、別々に更新されても、お互いの記録を読めるようにしました。足された項目で止まりません。",
+        "入れ替えに失敗した部品が、本体の再起動なしで元に戻れるようにしました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8",
-      "versionId": "66a4072960d359f04cae89899e9ffadecef3020b1e99f6c76c66cfd51d5b5eb4",
+      "sourceCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f",
+      "versionId": "e61a7d43da47029b0794165987f155df238251a8d3c439200bd8183f6b4d44eb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +63,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-arm64.tar.gz",
-          "bytes": 86062,
-          "sha256": "66a4072960d359f04cae89899e9ffadecef3020b1e99f6c76c66cfd51d5b5eb4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-arm64.tar.gz",
+          "bytes": 86563,
+          "sha256": "e61a7d43da47029b0794165987f155df238251a8d3c439200bd8183f6b4d44eb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T233608Z/usage-e30b7602be1de532e9caad57e0eb557ed66ce1c8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10905,
-          "sha256": "a68b5c02053679a43bf45faae5818e9406fe899e1b6616387ecb35ed63cd7d88"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T001243Z/usage-d2e09c00cf23ad926e8a742dab0860b2ccdc077f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10956,
+          "sha256": "7e01b7119fe1ca36f0ccde9cba3593ced90b4e670e5576b80648dce919e7b7d9"
         },
-        "signerCommit": "e30b7602be1de532e9caad57e0eb557ed66ce1c8"
+        "signerCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -97,8 +97,8 @@
         }
       },
       "changes": [
-        "Stripeで購読している人が、BellTeamの画面から解約・支払い方法の変更へ進めるようにしました。",
-        "すでに購読している人が、別の方法で二重に購読できないようにしました。購入画面には、購入できるかどうかと、購読元の情報を返します。"
+        "本体と設定の部品が、別々に更新されても、お互いの記録を読めるようにしました。足された項目で止まりません。",
+        "入れ替えに失敗した部品が、本体の再起動なしで元に戻れるようにしました。"
       ]
     },
     {
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "30d80a5493a87163bb8301483858b5f61b18271b",
-      "versionId": "sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c",
+      "sourceCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f",
+      "versionId": "sha256:331eee0880b95e3a2faafa941b572688a17551a2c26ecf8153f7f0a30e229bd0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:331eee0880b95e3a2faafa941b572688a17551a2c26ecf8153f7f0a30e229bd0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "購読の記録に、購入できるかどうかと購読元の項目があっても無くても読めるようにしました。解約・管理の入口を足しました。"
+        "本体と部品の間の記録を、使う項目だけで読むようにしました。読めない結果は、その呼び出しだけが失敗になり、部品は止まりません。",
+        "入れ替えに失敗した部品が、本体の再起動なしで元に戻れるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "30d80a5493a87163bb8301483858b5f61b18271b",
-      "versionId": "sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c",
+      "sourceCommit": "d2e09c00cf23ad926e8a742dab0860b2ccdc077f",
+      "versionId": "sha256:331eee0880b95e3a2faafa941b572688a17551a2c26ecf8153f7f0a30e229bd0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:490b72cfd59dcfb814b34bd2929fa6580a98e3fef92a793ad33b3cf01b05325c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:331eee0880b95e3a2faafa941b572688a17551a2c26ecf8153f7f0a30e229bd0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +753,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "購読の記録に、購入できるかどうかと購読元の項目があっても無くても読めるようにしました。解約・管理の入口を足しました。"
+        "本体と部品の間の記録を、使う項目だけで読むようにしました。読めない結果は、その呼び出しだけが失敗になり、部品は止まりません。",
+        "入れ替えに失敗した部品が、本体の再起動なしで元に戻れるようにしました。"
       ]
     },
     {
