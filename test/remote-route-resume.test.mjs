@@ -106,3 +106,53 @@ test('resumeRemoteSeat: a wake failure after a successful close carries routeClo
 test('no SM10 port (older body): the transport has no seen reader, so #seatTurns never runs the route rule', () => {
   assert.equal(new AitermTransport({ client: { call: async () => ({}) } }).seatMcpSeen, null)
 })
+
+// a401b (BugHub 829de1dc): the 60 s MCP limit on a hibernate close that Aiterm finished 1 s later is not a refusal.
+const timeout = () => Object.assign(new Error('MCP error -32001: Request timed out'), { code: -32001 })
+function closing(observation, { wake = async () => true } = {}) {
+  const calls = [], errors = []
+  const self = { calls, errors, routeReported: new Set(), activity: { configurationChanges: { has: () => false, track: (_id, work) => work } },
+    isIdle: () => true, session: () => 's1', memberOperation: (_bot, work) => work({}),
+    changeSession: async (_bot, tool) => { calls.push(tool); throw timeout() },
+    observe: async () => { if (observation instanceof Error) throw observation; return observation },
+    wake: async () => { calls.push('wake'); return wake() }, reportError: report => errors.push(report), routeRetryAt: AitermTransport.prototype.routeRetryAt }
+  self.seatClosedAfterTimeout = AitermTransport.prototype.seatClosedAfterTimeout
+  return self
+}
+const seat = extra => ({ schema: 'aiterm.pty-observe-result.v1', session_id: 's1', exists: true, pane_alive: true, state: 'running', ...extra })
+
+test('a close that timed out but Aiterm recorded as hibernated goes on to the wake and files nothing', async () => {
+  for (const observation of [seat({ state: 'hibernated', pane_alive: false, reason: 'idle_timeout' }), seat({ state: 'hibernated' })]) {
+    const self = closing(observation)
+    assert.equal(await AitermTransport.prototype.resumeRemoteSeat.call(self, bot), true)
+    assert.deepEqual(self.calls, ['pty_close', 'wake'])
+    assert.deepEqual(self.errors, [])
+  }
+})
+
+test('a close that timed out while the seat stayed open is reported as before, marked seat=open; an unreadable seat proves nothing and files nothing', async () => {
+  const open = closing(seat())
+  const error = await AitermTransport.prototype.resumeRemoteSeat.call(open, bot).catch(value => value)
+  assert.equal(error.code, -32001); assert.equal(error.seatOpen, true)
+  assert.equal(open.calls.includes('wake'), false)
+  AitermTransport.prototype.routeRetryAt.call(open, bot, 's1@r', error)
+  assert.equal(open.errors.length, 1)
+  assert.match(open.errors[0].diagnostic_log, /^bot=b1 stage=close reason=-32001 seat=open message=/u)
+  // exists:false / pane_alive:false / agent_stopping also show while Aiterm is still stopping: not proof either way.
+  for (const observation of [new Error('read failed'), { schema: 'other' }, seat({ session_id: 'other' }), seat({ exists: false }), seat({ pane_alive: false }),
+    seat({ state: 'unknown', reason: 'agent_stopping', pane_alive: false })]) {
+    const unknown = closing(observation)
+    const failure = await AitermTransport.prototype.resumeRemoteSeat.call(unknown, bot).catch(value => value)
+    assert.equal(failure.closeUnconfirmed, true)
+    const retryAt = AitermTransport.prototype.routeRetryAt.call(unknown, bot, 's1@r', failure)
+    assert.deepEqual(unknown.errors, [])
+    assert.ok(retryAt > Date.now() + 50_000)
+  }
+})
+
+test('only a timeout with no Aiterm answer is read; a returned Aiterm refusal or another failure is thrown untouched', async () => {
+  for (const error of [Object.assign(new Error('x'), { code: -32001, aitermResponseReturned: true }), Object.assign(new Error('x'), { aitermErrorCode: 'AGENT_BUSY' }), new Error('x')]) {
+    const self = closing(seat({ state: 'hibernated' })); self.changeSession = async () => { throw error }
+    assert.equal(await AitermTransport.prototype.resumeRemoteSeat.call(self, bot).catch(value => value), error)
+  }
+})
