@@ -113,7 +113,7 @@ flowchart TD
 | 通知との接続 | 権利の署名変化/失敗時にonEntitlementChange、AppStoreからBellNotifications.updateSignedTransactionへ。有効権利の時だけJWSを渡す |
 | stop/logout | entitlementTask/updatesTaskをcancelし参照・status/権利/取引/商品/error/messageを消す。Appleの購入取消を行う処理ではない |
 
-SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認と、購入元の行ごとの「購読を管理・解約」を接続する（旧フッターの「購読管理」Linkは行のボタンへ移した）。価格は契約の固定文「月980円（税込）・最初の1か月無料」を3店で同じ大きさで並べ、買えない店（Google Play・Stripe）はボタンもリンクも無く「この端末では購入できません」を出す。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
+SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認と、購入元の行ごとの「購読を管理・解約」を接続する（旧フッターの「購読管理」Linkは行のボタンへ移した）。価格は契約の固定文「月980円（税込）・最初の1か月無料」を3店で同じ大きさで並べ、買えない店（Google Play・Stripe）はボタンもリンクも無く「この端末では購入できません」を出す。行の説明文（期限・次回の更新なし・購入できません）は省略せず折り返して全文を出す（a392b、実描画で行内の説明文が1行目で切れたため）。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
 
 ## 端末保存とlogout
 

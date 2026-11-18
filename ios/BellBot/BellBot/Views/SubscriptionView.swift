@@ -180,13 +180,14 @@ private struct StoreRow<Actions: View>: View {
             Text("月980円（税込）・最初の1か月無料").font(.subheadline)
             if active {
                 Text("購読中（\(store)）").font(BellTheme.secondaryFont).fontWeight(.semibold)
-                ForEach(activeDetail, id: \.self) { Text($0).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted) }
+                ForEach(activeDetail, id: \.self) { Text($0).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted).fixedSize(horizontal: false, vertical: true) }
             }
             if buyable || manageable {
                 actions
             } else if !active {
                 Text("この端末では購入できません。\(store)で購入した購読も、同じサーバーでこのアプリに使えます。")
                     .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
