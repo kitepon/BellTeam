@@ -158,6 +158,31 @@ final class ConversationScrollUITests: XCTestCase {
 
     #endif
 
+    /// a424: 縦から約59°傾いたドラッグでも、行の左スワイプ（返信）に飲まれずログが指に追従する。
+    /// 行へSwiftUIのDragGestureを付けていた間は、約53°以上の斜めドラッグでログが動かなかった。
+    func testSlantedDragScrollsLogWithReplySwipeRows() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "iPhoneの縦スクロールを確認する試験です。")
+        try openConversation("ユキ", failBefore: false)
+        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 4)
+        let scroll = conversationScroll()
+        let f = scroll.frame
+        let origin = scroll.coordinate(withNormalizedOffset: .zero)
+        var scrolled = 0
+        for (index, y0) in [90, 150, 210, 270, 330].enumerated() {
+            let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'message-text-'")).allElementsBoundByIndex
+                .filter { $0.frame.maxY > f.minY + 50 && $0.frame.minY < f.maxY - 50 }
+            guard let row = rows.first else { continue }
+            let tracked = app.descendants(matching: .any)[row.identifier].firstMatch
+            let before = tracked.frame.minY
+            let dx: CGFloat = index.isMultiple(of: 2) ? 100 : -100
+            origin.withOffset(CGVector(dx: f.width / 2 - dx / 2, dy: CGFloat(y0))).press(forDuration: 0.02, thenDragTo: origin.withOffset(CGVector(dx: f.width / 2 + dx / 2, dy: CGFloat(y0) + 60)), withVelocity: 40, thenHoldForDuration: 0.4)
+            Thread.sleep(forTimeInterval: 1)
+            if tracked.exists, abs(tracked.frame.minY - before) > 30 { scrolled += 1 }
+        }
+        XCTAssertGreaterThanOrEqual(scrolled, 4, "59°傾いたドラッグ5回のうち4回以上でログが動く（実測 \(scrolled)/5）")
+    }
+
     private func scrollUntilOlderRequested() throws {
         let scroll = conversationScroll()
         for _ in 0..<12 where try !requests().contains(where: { $0.contains("before=") }) { scroll.swipeDown() }

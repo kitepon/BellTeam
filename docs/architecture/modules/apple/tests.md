@@ -631,6 +631,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testTargetedEventDoesNotReloadAnotherConversation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L105) | 別Botの対象通知は会話GET無し、対象Bot新着は取得表示 |
 | [testWindowCanReachOldestAcrossMultiplePages](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L125) | 60件の最古まで25件ずつ2page取得、最古の位置安定 |
 | [testOlderReadingPositionSurvivesTabletRotation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L140) | iPad回転で幅が変わっても同じ過去行の縦位置を保持 |
+| [testSlantedDragScrollsLogWithReplySwipeRows](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L163) | iPhoneで縦から約59°傾いた左右のドラッグ5回のうち4回以上でログが動く（返信の左スワイプに飲まれない。a424） |
 
 ### DesktopWorkspaceUITests.swift
 
