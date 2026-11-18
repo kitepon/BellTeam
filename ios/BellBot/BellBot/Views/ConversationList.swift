@@ -136,6 +136,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var shown: Set<ConversationRow> = []
         private var prepared: Set<String> = []
         private var preparing = false
+        private var applyAfterDrag = false
         private var latest: (rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
                              rowContext: [ConversationRowContext])?
         #if targetEnvironment(macCatalyst)
@@ -225,6 +226,11 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self.rowContext = rowContext
             }
             let prepended = previous.first.flatMap { rows.firstIndex(of: $0) }.map { $0 > 0 } ?? false
+            // 指を載せたままのスクロールは、毎フレーム指の位置から位置を決め直す。過去を足してレイアウトが位置を補っても直後に打ち消されて飛ぶので、指を離すまで待つ（a426）。
+            if prepended, view.isTracking {
+                applyAfterDrag = true
+                return
+            }
             if previous.isEmpty {
                 // 最初の行は末尾から見せる。
                 UIView.performWithoutAnimation {
@@ -368,6 +374,12 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool { false }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            guard applyAfterDrag, let latest else { return }
+            applyAfterDrag = false
+            apply(rows: latest.rows, messages: latest.messages, queue: latest.queue, rowContext: latest.rowContext)
+        }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
             #if targetEnvironment(macCatalyst)

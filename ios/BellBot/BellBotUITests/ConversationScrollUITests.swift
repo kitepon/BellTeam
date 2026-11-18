@@ -180,7 +180,8 @@ final class ConversationScrollUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 1)
             if tracked.exists, abs(tracked.frame.minY - before) > 30 { scrolled += 1 }
         }
-        XCTAssertGreaterThanOrEqual(scrolled, 4, "59°傾いたドラッグ5回のうち4回以上でログが動く（実測 \(scrolled)/5）")
+        // この角度はOS標準の縦スクロールの開始の境目で、標準でも動く割合は7〜8割。DragGestureを付けていた間は0〜1割だったので、2回以上で見分ける。
+        XCTAssertGreaterThanOrEqual(scrolled, 2, "59°傾いたドラッグ5回のうち2回以上でログが動く（実測 \(scrolled)/5）")
     }
 
     private func scrollUntilOlderRequested() throws {

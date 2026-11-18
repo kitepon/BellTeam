@@ -56,7 +56,7 @@ flowchart LR
   Model["TimelineMessage / queue"] --> Prepare["Coordinator.present<br/>未先読sourceをMessageText.prerender"]
   Prepare --> Latest["先読中の更新は最新の組だけ保持"]
   Latest --> Apply["ChatLayoutDiffableDataSource<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは一覧に触らない"]
-  Apply --> Position["CollectionViewChatLayoutが位置を保つ<br/>上への追加・上の行の実高変化・幅変更でも表示中の行は動かない<br/>新着は末尾にいる時だけ追従"]
+  Apply --> Position["CollectionViewChatLayoutが位置を保つ<br/>上への追加・上の行の実高変化・幅変更でも表示中の行は動かない<br/>新着は末尾にいる時だけ追従<br/>上への追加は、指を載せたスクロール（isTracking）の間は入れず、指を離した時（scrollViewDidEndDragging）に入れる（a426: 指の下では位置が毎フレーム指から決め直され、レイアウトの補正が打ち消されて数十行上へ飛んだ）"]
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```
 
