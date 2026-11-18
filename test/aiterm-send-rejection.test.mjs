@@ -15,11 +15,13 @@ const refusal = "aiterm: agent session 'bot-a' の Codex TUI が入力受付状�
 const busy = "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は別プロセス（pid 4242）の処理中です。60000ms待っても順番が来ませんでした。文字列は送信していません。少し後で再度 pty_send してください。"
 const busyInProcess = "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は先に受け付けた送信の処理中です。60000ms待っても順番が来ませんでした。文字列は送信していません。少し後で再度 pty_send してください。"
 
-for (const [label, failure, status, code] of [
+for (const [label, failure, status, code, expectedCalls = ['pty_send', 'pty_list']] of [
   ['0.48の入力受付拒否', refusal, 409, 'BOT_INPUT_NOT_READY'],
   ['0.49の確認画面による拒否', `${refusal}\nstate=blocked reason=hooks_review`, 409, 'BOT_INPUT_NOT_READY'],
   ['0.52.1の順番待ちの断り（別プロセス）', busy, 409, 'BOT_SEND_BUSY'],
   ['0.52.1の順番待ちの断り（同じプロセス）', busyInProcess, 409, 'BOT_SEND_BUSY'],
+  // a413 (Aiterm 0.70.72): a question dialog is open; nothing was typed. The seat waits on its user, so no observe, close or launch follows.
+  ['0.70.72の質問の画面による拒否', "aiterm: CLAUDE_SELECT_MENU_OPEN vendor=claude session=bot-a\nClaude Codeの選ぶ画面が開いています（見出し: 質問）。打った文字は選択の操作として読まれるため、文字列は送信していません。pty_read(screen:true) で画面を確かめてください。", 409, 'BOT_AWAITING_USER', ['pty_send']],
   ['それ以外のAiterm障害', 'aiterm: PTY_BACKEND_FAILED', 500, 'INTERNAL_ERROR'],
 ]) {
   test(`${label}は未配送を保持し、APIで入力受付拒否とサーバー障害を区別する`, async t => {
@@ -56,7 +58,7 @@ for (const [label, failure, status, code] of [
       assert.match(body.message, /送信されませんでした/u)
       assert.equal(body.message.includes('pty_'), false)
     }
-    assert.deepEqual(calls, ['pty_send', 'pty_list'])
+    assert.deepEqual(calls, expectedCalls)
     await transport.idle(bot.id)
     const records = await messenger.store.records()
     assert.equal(records.length, 1)

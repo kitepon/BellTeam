@@ -63,7 +63,7 @@ const RESENDABLE = ['BOT_INPUT_NOT_READY', 'BOT_SEND_BUSY']
 const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
   || String(error.message).includes('再送しないでください')
 const explicitlyUnsent = error => !outcomeUnknown(error)
-  && (['AGENT_SESSION_REQUIRED', ...RESENDABLE].includes(error.code) || String(error.message).includes('送信していません'))
+  && (['AGENT_SESSION_REQUIRED', 'BOT_AWAITING_USER', ...RESENDABLE].includes(error.code) || String(error.message).includes('送信していません'))
 // A conversation lease or an execution generation closed under the job (module swap).
 // BOT_UPDATE_HOLD (update-hold.md H2): refused before typing, so the saved receipt waits queued and the release drains it.
 const SWAP_CODES = ['CONVERSATION_NOT_ACCEPTED', 'EXECUTION_GENERATION_RETIRED', 'BOT_UPDATE_HOLD']
@@ -1195,6 +1195,9 @@ export class AitermTransport {
         // requeuing record owner (durable receipts) can deliver the same ID after the swap.
         if (!job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code))
           error.executionError = swapNotStarted()
+        // a413: refused for an open question dialog (nothing typed): not a delivery failure to count or report; the failed status is kept
+        // for every caller, and the durable receipt (parent) turns it back into queued.
+        const awaitingUser = error.code === 'BOT_AWAITING_USER' && !job.receipt && !job.stopped && !job.inputMayHaveStarted
         // remote-seat.md "Remote-seat not-started proof": the launch never reached the CLI, so the receipt may queue the same ID.
         const remoteProof = !job.receipt && !job.stopped && !job.inputMayHaveStarted
           ? remoteSeatNotStarted(this.resolveBot?.(bot.id) ?? bot, info.groupId, error) : null
@@ -1208,11 +1211,11 @@ export class AitermTransport {
         const statusFailure = { code: stage, delivery_error: { code: stage },
           ...(detail ? { mcp_error: detail } : {}),
           ...(error.turnCompleted === true ? { turnCompleted: true } : {}) }
-        if (!job.receipt && !job.stopped) this.activity.recordFailure(job, stage)
+        if (!job.receipt && !job.stopped && !awaitingUser) this.activity.recordFailure(job, stage)
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
           failureStatusSaved = true
-          if (!acknowledged && !job.stopped) await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
+          if (!acknowledged && !job.stopped && !awaitingUser) await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
         } catch (callbackError) { if (!conversationDelivery) throw callbackError }
         finally { if (!acknowledged) rejectAcceptance(error) }
         throw error
@@ -1888,6 +1891,8 @@ export class AitermTransport {
         result = await this.sendToSession(session, message, imageFiles, check, executionJob?.native?.client, executionJob)
       } catch (error) {
         check()
+        // a413: a question dialog is open, so the seat waits on its user. No observe, close or launch; the receipt owner queues the same ID.
+        if (error.code === 'BOT_AWAITING_USER') throw error
         // Wake-first (docs/architecture/delivery-details.md). Kept failures and their exits are listed there.
         // A lost answer (RPC error) says nothing about the seat, so look: with no terminal behind the record no text was typed.
         const lost = mcpRequestContext(error)?.outcome === 'unknown'

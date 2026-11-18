@@ -66,6 +66,25 @@ flowchart LR
   Available --> Lane[Same-ID target lane, ordinary dispatch]
 ```
 
+## A seat awaiting its user (a413, BugHub 7681 follow-up, Trony 2026-11-18)
+
+Aiterm 0.70.72 refuses `pty_send` while a Claude seat has a question dialog open (`CLAUDE_SELECT_MENU_OPEN`, nothing typed). That seat is waiting on its user, not dead: execution maps the refusal to `BOT_AWAITING_USER` (409, `not_started`) and does no wake-first recovery (no observe, no close, no launch; delivery-details.md). The saved receipt stays queued, like `BOT_UPDATE_HOLD`: the dispatch wrapper turns it into `effect: 'not_started'`, no diagnostic, no `failed` status row, and `runSaved` appends `queued` for the same ID.
+
+```mermaid
+flowchart LR
+  Dispatch["dispatchSaved: pty_send"] -->|"BOT_AWAITING_USER"| Mark["assembly: awaiting[target] = now; timer 60 s"]
+  Mark --> Queued["same ID stays queued"]
+  Queued -->|"drain: target awaiting and < 60 s"| Skip["target skipped (no status rows, no pty_send)"]
+  Mark -->|"queue change of that Bot (its turn ended) or the 60 s timer"| Clear["awaiting cleared + requestDrain"]
+  Clear --> Dispatch
+```
+
+| Piece | Contract |
+| --- | --- |
+| `awaiting` (assembly, memory) | Bot ID -> time of the refusal. Only skips draining that target for 60 s; nothing is stored. A body restart empties it and the next drain tries once. |
+| Self-exit | Any queue change of the Bot, or the 60 s timer (`requestDrain`), clears it: the message is asked again when the dialog may be gone. A dialog that stays open keeps the receipt queued (visible as waiting), one `pty_send` refusal per minute, no relaunch. |
+| Not done | The dialog is never answered or closed by BellTeam; Owner/Bot answer it on the seat's screen (screen input). |
+
 Guard kept: "unknown is never replayed" protects against duplicate input. The proof is the remote case's self-exit; a terminal that never becomes available leaves the receipt queued (visible as waiting, with execution's `seatLaunch` notice saying why).
 
 既子 direct append → direct.log.append（既registered effect/lease）→ 同親append → 保存ACK → 子の既emit一回。子はdirect JSONLへ書かない。親の既direct log writer一個をMollyが組み立てgetServices.directReceiptsへ供給する。新口未接続はCONVERSATION_EFFECT_UNAVAILABLEで拒否しローカル第二writerへ退避しない。

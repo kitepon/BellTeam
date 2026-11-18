@@ -14,6 +14,8 @@ const directFailureCodes = new Set([...diagnosticCauseCodes,
   'EXECUTION_UNCONFIRMED', 'AGENT_RESUME_UNAVAILABLE', -32602, -32601, -32603,
 ])
 const safeCode = value => directFailureCodes.has(value) ? value : null
+// a413: how long a Bot whose seat waits on a question dialog is left alone before the saved message is asked again.
+const AWAITING_REVIEW_MS = 60_000
 
 // BugHub 95f155b7: one diagnostic code per stage, so a fingerprint (code:module) has one owner and can close.
 // Accepted-then-lost keeps the original code, so its records, counts and history stay.
@@ -46,9 +48,19 @@ export function directFailureReport(error, context) {
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
   exchangeMutex, executionReady = () => true, environmentReady = null, forwardSource = async () => null, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
   let started = false, closed = false, requested = false, draining = null, unwatchQueue = null
+  // a413 (durable-receipt.md "A seat awaiting its user"): a Bot whose seat refused for an open question dialog is skipped by the drain
+  // until its turn ends (queue change, Bot idle) or AWAITING_REVIEW_MS passes. Memory only; a restart tries once.
+  const awaiting = new Map()
   const completions = new Set(), drains = new Set()
   const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
   const ready = () => !closed && !aiControl.paused && executionReady()
+  const releaseAwaiting = botId => { clearTimeout(awaiting.get(botId)); awaiting.delete(botId) }
+  const awaitUser = botId => {
+    clearTimeout(awaiting.get(botId))
+    const timer = setTimeout(() => { awaiting.delete(botId); requestDrain() }, AWAITING_REVIEW_MS)
+    timer.unref?.()
+    awaiting.set(botId, timer)
+  }
   const requestDrain = () => {
     if (closed) return
     requested = true
@@ -68,14 +80,14 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     if (closed || !Array.isArray(change?.botIds)) return
     for (const botId of change.botIds) {
       try {
-        if (transport.isIdle(botId)) { requestDrain(); return }
+        if (transport.isIdle(botId)) { releaseAwaiting(botId); requestDrain(); return }
       } catch (error) {
         if (error?.code !== 'EXECUTION_NOT_ACCEPTING') report(error)
       }
     }
   }
   const dispatch = async ({ record, images, files = [], queue, callbacks, executionSource }) => {
-    let invoked = false, reported = false
+    let invoked = false, reported = false, held = null
     const reportOnce = (error, stage, accepted = false) => {
       if (reported) return
       reported = true
@@ -84,14 +96,14 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       // A confirmed stop (explicit restart/stop, BOT_STOPPED) is recorded by the 'stopped' status, not a tracking failure (BugHub 95f155b7).
       if (error?.code === 'BOT_STOPPED') return
       // update-hold.md H2: refused before any input, so it stays queued; also covers an Owner turn's completion rejection.
-      if (error?.code === 'BOT_UPDATE_HOLD') return
+      if (error?.code === 'BOT_UPDATE_HOLD' || error?.code === 'BOT_AWAITING_USER') return
       report(error, { delivery_id: record.delivery_id, target: record.target, stage, accepted })
     }
     try {
       // a149c: wait the seat's setup.sh outside the lease, so a cold start's deliveries do not fill the 64 lease slots.
       const project = bots.get(record.target)?.project
       if (project) await environmentReady?.(project)
-      return await transport.membersAdmission.withLease(async membersLease => {
+      const outcome = await transport.membersAdmission.withLease(async membersLease => {
         const check = aiControl.admit()
         if (typeof bots.readMember === 'function') await bots.readMember(record.target, { membersLease })
         else await bots.refresh?.({ membersLease })
@@ -105,7 +117,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
           : { context: Object.freeze({ actor: Object.freeze(actor), rootMethod: record.from === 'user' ? 'user.post' : 'direct.post' }), assertCurrent: () => true }
         const options = { images, ...(files.length ? { files } : {}), queue, summaryAuthority, ...notificationCallbacks,
           onStatus(status, error, tracking, mark) {
-            if (status === 'failed' && error) reportOnce(error, 'status', Boolean(tracking))
+            // a413: a not-accepted failure is reported once the dispatch ends, unless it was a seat awaiting its user (kept queued).
+            if (status === 'failed' && error) { if (tracking) reportOnce(error, 'status', true); else held ??= error }
             return notificationCallbacks.onStatus(status, error, tracking, mark)
           }, membersLease, admissionCheck: check,
           ...(executionSource ? { executionSource } : {}) }
@@ -128,7 +141,16 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         invoked = true
         return await transport.notify(bot, envelope, options)
       })
+      if (held) { const failure = held; held = null; reportOnce(failure, 'status', false) }
+      return outcome
     } catch (error) {
+      // a413: refused before any input because the seat waits on its user; the same ID stays queued and is asked again later.
+      if (error?.code === 'BOT_AWAITING_USER') {
+        held = null
+        awaitUser(record.target)
+        throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
+      }
+      if (held) { const failure = held; held = null; reportOnce(failure, 'status', false) }
       // update-hold.md H2: not_started keeps it queued; the hold release drains it (BugHub 95f155b7).
       if (error?.code === 'BOT_UPDATE_HOLD') throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
       reportOnce(error, invoked ? 'acceptance' : 'preflight')
@@ -140,7 +162,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
     }
   }
-  const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, forwardSource, onMessage, onTurnEnd,
+  const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, forwardSource, onMessage, onTurnEnd, deferred: botId => awaiting.has(botId),
     onPending: requestDrain, onError: report, onLogCorruption })
   const capture = (method, input) => conversation?.captureReceipt(method, input)
   const messenger = Object.assign(Object.create(legacy), {
@@ -169,6 +191,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     start() { if (!started && !closed) { started = true; unwatchQueue = transport.watchQueue(queueChanged); requestDrain() } },
     async close() {
       closed = true
+      for (const botId of [...awaiting.keys()]) releaseAwaiting(botId)
       unwatch()
       try { unwatchQueue?.() } catch (error) { report(error) }
       await draining; await Promise.allSettled([...drains]); await Promise.allSettled([...completions]); await receipts.appendQueue
