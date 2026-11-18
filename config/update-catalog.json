@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T08:07:52Z",
-  "expiresAt": "2026-11-25T08:07:52Z",
+  "publishedAt": "2026-11-18T10:24:02Z",
+  "expiresAt": "2026-11-25T10:24:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -495,8 +495,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "4d0c605c397b184e8a141dd5fd71f39280cbbf7b",
-      "versionId": "cf5b587482c1c184c7620707a2bac237ed3c81f36486b8c148115b7418e3acb4",
+      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
+      "versionId": "410116e5fec46e4b47e92ab8e4c8c9200b60d2236f4edb34839fa69c926fd876",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -504,16 +504,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061122Z/execution-4d0c605c397b184e8a141dd5fd71f39280cbbf7b-linux-amd64.tar.gz",
-          "bytes": 3986771,
-          "sha256": "cf5b587482c1c184c7620707a2bac237ed3c81f36486b8c148115b7418e3acb4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-amd64.tar.gz",
+          "bytes": 3986902,
+          "sha256": "410116e5fec46e4b47e92ab8e4c8c9200b60d2236f4edb34839fa69c926fd876"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061122Z/execution-4d0c605c397b184e8a141dd5fd71f39280cbbf7b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11161,
-          "sha256": "a0f2108fba0cf30b172976a561387b6caa51e86b0726ba6b5b0398b68d7f9b2b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11306,
+          "sha256": "af7b7d6f922976e8c16f522fa5fa764398f8f7c683b3610923da14e45bcbb19f"
         },
-        "signerCommit": "4d0c605c397b184e8a141dd5fd71f39280cbbf7b"
+        "signerCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -523,13 +523,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "質問画面が開いている席に届いたメッセージは、席を起こし直さずに待たせ、画面のあとで届けるようにしました。"
+        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "4d0c605c397b184e8a141dd5fd71f39280cbbf7b",
-      "versionId": "456671a6d327642d59150185c8eb96fc399131d0f6e368ae23e9bc6c9c69bff4",
+      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
+      "versionId": "6490ed580ad61a7e5aa544113fe4b9a6ba292c2faa29b48879fdf21de390c0ce",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -537,16 +537,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061122Z/execution-4d0c605c397b184e8a141dd5fd71f39280cbbf7b-linux-arm64.tar.gz",
-          "bytes": 3986771,
-          "sha256": "456671a6d327642d59150185c8eb96fc399131d0f6e368ae23e9bc6c9c69bff4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-arm64.tar.gz",
+          "bytes": 3986902,
+          "sha256": "6490ed580ad61a7e5aa544113fe4b9a6ba292c2faa29b48879fdf21de390c0ce"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T061122Z/execution-4d0c605c397b184e8a141dd5fd71f39280cbbf7b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "0276db889af1956db99e72c1059104a94149722dce1f1aed3eb07265048abbf7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11259,
+          "sha256": "5d315d44b5692ef29a231cb9c485029c9f98b8270a9830978986879382f776f3"
         },
-        "signerCommit": "4d0c605c397b184e8a141dd5fd71f39280cbbf7b"
+        "signerCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -556,7 +556,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "質問画面が開いている席に届いたメッセージは、席を起こし直さずに待たせ、画面のあとで届けるようにしました。"
+        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
       ]
     },
     {
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
-      "versionId": "sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c",
+      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
+      "versionId": "sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,20 +728,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
+        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "1e6500d73923c129bdb5044873c47d75ef978387",
-      "versionId": "sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c",
+      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
+      "versionId": "sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ba2ed4867de7f297dc91eecc54236936374041494fd5f9ec6ca37fd3f3ec0d2c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d85e776c0b25f85c5ad29d07916932d15ec3fb37f3fbe32a25b5126bfc1ce35c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,7 +750,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Latticeを0.111.4にしました。書き込みを禁じた場所のコードの索引を、読み取り専用で開けます。"
+        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
       ]
     },
     {
