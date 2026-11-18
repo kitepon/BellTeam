@@ -37,7 +37,8 @@ public sealed class PlayBilling : Java.Lang.Object, IPurchasesUpdatedListener
         var product = QueryProductDetailsParams.Product.NewBuilder().SetProductId(productId).SetProductType(BillingClient.ProductType.Subs).Build();
         var found = await client.QueryProductDetailsAsync(QueryProductDetailsParams.NewBuilder().SetProductList([product]).Build());
         Check(found.Result, "Google Playの商品を読めませんでした。");
-        var detail = found.ProductDetailsList.FirstOrDefault() ?? throw new InvalidOperationException($"Google Playに購読「{productId}」が登録されていません。");
+        // The list is null (seen on 0.1.6: ArgumentNullException "source") when Play returns no product details for this account.
+        var detail = found.ProductDetailsList?.FirstOrDefault() ?? throw new InvalidOperationException($"Google Playに購読「{productId}」が登録されていません。");
         var offer = detail.GetSubscriptionOfferDetails()?.FirstOrDefault() ?? throw new InvalidOperationException("Google Playに購読の料金プランがありません。");
         var item = BillingFlowParams.ProductDetailsParams.NewBuilder().SetProductDetails(detail).SetOfferToken(offer.OfferToken).Build();
         buying = new();
