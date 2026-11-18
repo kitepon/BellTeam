@@ -58,7 +58,7 @@ def stage_parent_probe(component='members', created=None):
         created.append(parent)
         shutil.copytree(APP, parent, dirs_exist_ok=True)
         for name in ['src/notifications-ipc.mjs', 'src/notifications-locks.mjs',
-                     'src/usage/web-push-schema.mjs', 'src/members-admission.mjs']:
+                     'src/usage/web-push-schema.mjs', 'src/usage/fcm-schema.mjs', 'src/members-admission.mjs']:
             target = parent / name; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
     directory = parent / 'scripts'
