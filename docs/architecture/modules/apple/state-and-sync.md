@@ -39,7 +39,7 @@ flowchart TD
   Refresh -->|"iPhone・iPadで裏に回った間の時間切れ"| Suspended["エラー表示も診断もしない<br/>前面へ戻った時のsceneForeground再取得が読み直す"]
 ```
 
-`BellDiagnostics.isSuspendedTimeout`：iPhone・iPadで、裏で始まった、または要求の途中に裏へ回った（`BellAppStateSnapshot.backgroundEntries`が開始と終了で違う）`URLError.timedOut`と`URLError.networkConnectionLost`。OSがアプリを止めている間も60秒の計時は進み、戻った時にまとめて切れる。止めている間にOSが接続を閉じれば接続切断になる。どちらも通信の失敗とは扱わない。`refreshFromView`と`refreshResourcesFromEvent`は取消と同じく何も表示せず、`BellDiagnostics.report`も報告しない。Macは裏に回っても止められないので、今までどおり時間切れとして扱う。裏に回った後に届いたSSEの知らせ（`requestRefreshFromEvent`・`requestSideRefresh`）は読み取りを始めず、前面へ戻った時の再取得に任せる。
+`BellDiagnostics.isSuspendedTimeout`：iPhone・iPadで、裏で始まった、または要求の途中に裏へ回った（`BellAppStateSnapshot.backgroundEntries`が開始と終了で違う）`URLError.timedOut`・`URLError.networkConnectionLost`・`URLError.cancelled`。OSがアプリを止めている間も60秒の計時は進み、戻った時にまとめて切れる。止めている間にOSが接続を閉じれば接続切断になる。止められていた要求が戻った直後に取り消されることもある（fe1024fb：裏で始まって12.4秒後、取得開始の7 ms後に-999。Swiftのタスクが取り消されていれば`BellAPI`が`CancellationError`にするので、`URLError.cancelled`のまま届くのはタスクの取消ではない）。いずれも通信の失敗とは扱わない。`refreshFromView`と`refreshResourcesFromEvent`は取消と同じく何も表示せず、`BellDiagnostics.report`も報告しない。Macは裏に回っても止められないので、今までどおり時間切れとして扱う。裏に回った後に届いたSSEの知らせ（`requestRefreshFromEvent`・`requestSideRefresh`）は読み取りを始めず、前面へ戻った時の再取得に任せる。
 
 `refresh`は3応答（bots・rooms・owner）と必要な画像解決が揃うまで共通一覧を書き換えない。Bot cacheの保存は適用後。対象限定の`refreshResourcesFromEvent`は指定資源だけGETし、画像を解決してから適用する。一覧の「仕事中」は`Bot.isWorking`（`currentWork.state == working`）だけで決め、AppStoreは`/api/queue`を読まない。「処理中」の行は会話画面が対象の`/queue`から作る。
 

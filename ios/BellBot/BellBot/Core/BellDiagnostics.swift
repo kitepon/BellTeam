@@ -398,14 +398,14 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     }
 
     /// iPhone・iPadで、裏で始まったか要求の途中に裏へ回り、OSに止められている間に時間切れか接続切断になった要求。
-    /// 60秒の計時は止まっている間も進み、戻った時にまとめて切れる。止めている間にOSが接続を閉じれば接続切断になる。
+    /// 60秒の計時は止まっている間も進み、戻った時にまとめて切れる。止めている間にOSが接続を閉じれば接続切断になる。戻った直後に取り消される要求もある（fe1024fb）。
     /// 通信や利用者への影響ではないので報告しない。
     /// 前面へ戻った時の再取得（`AppStore.sceneChanged`）が読み直す。Macは裏に回っても止められないので対象外。
     static func isSuspendedTimeout(_ error: Error) -> Bool {
         #if targetEnvironment(macCatalyst)
         return false
         #else
-        guard let code = (error as? URLError)?.code, code == .timedOut || code == .networkConnectionLost,
+        guard let code = (error as? URLError)?.code, code == .timedOut || code == .networkConnectionLost || code == .cancelled,
               let attempt = BellRequestTrace.from(error)?.attemptDetails.last else { return false }
         return attempt.appStateAtStart.state == "background"
             || attempt.appStateAtEnd.backgroundEntries > attempt.appStateAtStart.backgroundEntries
