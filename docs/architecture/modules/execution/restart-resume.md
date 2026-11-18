@@ -19,8 +19,8 @@ flowchart LR
   Fresh --> Deliver[parent: one ordinary scheduler delivery]
   Deliver --> Wake[wake-on-delivery: fresh seat + Throughline]
   Wake --> Continue[continue from docs/ and memory]
-  Fresh -->|delivery request failed| Diag[RESTART_RESUME_UNAVAILABLE continuation:failed]
-  Resume -->|uncertain| Uncertain[diagnostic only / next delivery wakes]
+  Fresh -->|delivery request failed| Diag[RESTART_RESUME_FAILED/execution: RESTART_RESUME_UNAVAILABLE continuation:failed]
+  Resume -->|uncertain| Uncertain[RESTART_RESUME_FAILED/execution diagnostic only / next delivery wakes]
   Ref -->|harness without resume / session changed| Fresh
 ```
 

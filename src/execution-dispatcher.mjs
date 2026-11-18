@@ -369,7 +369,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
                 await requestRestartSummary({ botId: bot.id, from: reference.observedAt, to: resumed.resumedAt })
             })())
             const report = (error, continuation = null) => { try { Promise.resolve(ports.diagnostics?.record?.({
-              code: 'SERVER_TURN_TRACKING_FAILED', module: 'conversation', diagnostic_log: JSON.stringify({
+              code: 'RESTART_RESUME_FAILED', module: 'execution', diagnostic_log: JSON.stringify({
                 stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE', botId: bot.id, sessionId: reference.sessionId,
                 cause_code: ['AGENT_RESUME_UNAVAILABLE', 'RESUME_CAPABILITY_UNAVAILABLE', 'RESTART_RESUME_UNCONFIRMED'].includes(error?.code) ? error.code : null,
                 ...(continuation ? { continuation } : {}),

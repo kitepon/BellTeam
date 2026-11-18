@@ -53,7 +53,7 @@ test('cold startup resumes saved active conversations with resume-only launches,
   assert.equal(byBot.grok.resumed, false)
   // Owner 2026-11-08: the refused seat is not left down; one ordinary delivery wakes it fresh (restart-resume.md).
   assert.equal(byBot.unavailable.resumed, false); assert.equal(byBot.unavailable.from, now)
-  assert.equal(reports.some(value => value.code === 'SERVER_TURN_TRACKING_FAILED' && JSON.parse(value.diagnostic_log).code === 'RESTART_RESUME_UNAVAILABLE'), false)
+  assert.equal(reports.some(value => value.code === 'RESTART_RESUME_FAILED'), false)
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).targets, [])
   await start('second')
   assert.equal(launches.length, 2); assert.equal(summaries.length, 3)
@@ -93,6 +93,7 @@ test('cold resume rejection reaches the existing registered diagnostics sink wit
   await dispatcher.control('initialize')
   for (let i = 0; i < 100 && !(await diagnostics.list()).length; i++) await new Promise(resolve => setTimeout(resolve, 1))
   const rows = await diagnostics.list(); assert.equal(called, true); assert.equal(rows.length, 1)
+  assert.deepEqual([rows[0].category, rows[0].module], ['RESTART_RESUME_FAILED', 'execution'])
   assert.deepEqual(JSON.parse(rows[0].diagnostic_log), { stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE',
     botId: 'bot-active', sessionId: 'bot-active', cause_code: 'AGENT_RESUME_UNAVAILABLE' })
   assert.ok(!JSON.stringify(rows).includes('PRIVATE_BODY_STACK'))
