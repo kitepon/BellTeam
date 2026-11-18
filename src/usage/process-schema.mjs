@@ -67,6 +67,7 @@ export const usageMethods = {
   'subscriptions.status': spec(none), 'subscriptions.current': spec(none),
   'subscriptions.install': spec(shape({ signedTransaction: text }), kinds.owner),
   'subscriptions.installStripe': spec(shape({ stripeSessionId: text }), kinds.owner),
+  'subscriptions.installGoogle': spec(shape({ purchaseToken: text }), kinds.owner),
   'subscriptions.checkout': spec(none, kinds.owner),
   'subscriptions.manageStripe': spec(none, kinds.owner),
   'subscriptions.refresh': spec(shape({}, { force: value => typeof value === 'boolean' }), ['owner', 'system']),

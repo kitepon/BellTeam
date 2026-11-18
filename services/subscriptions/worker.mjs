@@ -49,6 +49,86 @@ export function stripeEntitlement(subscription, now) {
   }
 }
 
+const googleProofPattern = /^[\w.-]{1,4096}$/
+const googleStates = { SUBSCRIPTION_STATE_ACTIVE: 'active', SUBSCRIPTION_STATE_CANCELED: 'active', SUBSCRIPTION_STATE_IN_GRACE_PERIOD: 'grace', SUBSCRIPTION_STATE_ON_HOLD: 'billing_retry' }
+
+// Google Playの購読（subscriptionsv2）を既存の購読確認と同じ形へ写す。CANCELEDは解約済みで期限まで使える状態。
+export function googleEntitlement(purchase, now) {
+  const item = purchase.lineItems?.find?.(line => line?.productId === product.productId)
+  if (!item) throw new SubscriptionError('INVALID_PRODUCT', 400, 'BellTeamの月額購読のGoogle Play購読ではありません。')
+  const expiry = Date.parse(item.expiryTime)
+  if (typeof purchase.subscriptionState !== 'string' || !Number.isFinite(expiry)) throw invalidResponse('Google')
+  if (purchase.subscriptionState === 'SUBSCRIPTION_STATE_PENDING') throw new SubscriptionError('GOOGLE_PURCHASE_PENDING', 409, 'Google Playの購入がまだ確定していません。確定してから復元してください。')
+  let state = googleStates[purchase.subscriptionState] ?? 'expired'
+  // 猶予期間の終わりが示されていれば、その期限まで有効にする（Appleの支払い猶予期間と同じ扱い）。
+  const graceEnd = Date.parse(purchase.inGracePeriodStateContext?.gracePeriodEndTime)
+  const validUntil = state === 'grace' && Number.isFinite(graceEnd) ? Math.max(expiry, graceEnd) : expiry
+  const entitled = ['active', 'grace'].includes(state) && validUntil > now
+  if (!entitled && ['active', 'grace'].includes(state)) state = 'expired'
+  return {
+    entitled, state,
+    expiresAt: new Date(expiry).toISOString(),
+    validUntil: entitled ? new Date(validUntil).toISOString() : null,
+    autoRenewing: state === 'active' && item.autoRenewingPlan?.autoRenewEnabled === true,
+    isTrial: entitled && item.offerPhase?.freeTrial !== undefined,
+  }
+}
+
+const base64url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+// サービスアカウントのJWTでアクセストークンを得る。期限の手前まで保持し、保存先・台帳は作らない。
+async function googleAccessToken(env, request, now, cache, force = false) {
+  const notConfigured = () => new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのGoogle Play設定が完了していません。')
+  let account
+  try { account = JSON.parse(env.GOOGLE_PLAY_SERVICE_ACCOUNT) } catch { throw notConfigured() }
+  if (typeof account?.client_email !== 'string' || typeof account.private_key !== 'string') throw notConfigured()
+  if (!force && cache.email === account.client_email && cache.expiresAt > now + 60_000) return cache.token
+  const iat = Math.floor(now / 1000)
+  const encode = value => base64url(new TextEncoder().encode(JSON.stringify(value)))
+  const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({ iss: account.client_email, scope: 'https://www.googleapis.com/auth/androidpublisher', aud: 'https://oauth2.googleapis.com/token', iat, exp: iat + 3600 })}`
+  let assertion
+  try {
+    const der = Uint8Array.from(atob(account.private_key.replace(/-----[A-Z ]+-----|\s/g, '')), char => char.charCodeAt(0))
+    const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'])
+    assertion = `${unsigned}.${base64url(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned)))}`
+  } catch { throw notConfigured() }
+  let response
+  try {
+    response = await request('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
+    })
+  } catch { throw new SubscriptionError('GOOGLE_API_ERROR', 502, 'Googleとの通信に失敗しました。') }
+  if (!response.ok) throw new SubscriptionError('GOOGLE_API_ERROR', 502, `Googleの認証に失敗しました（HTTP ${response.status}）。`)
+  let result
+  try { result = await response.json() } catch { throw invalidResponse('Google') }
+  if (typeof result?.access_token !== 'string' || !Number.isFinite(result.expires_in)) throw invalidResponse('Google')
+  Object.assign(cache, { email: account.client_email, token: result.access_token, expiresAt: now + result.expires_in * 1000 })
+  return cache.token
+}
+
+async function verifyGoogle(env, request, input, now, cache) {
+  const proof = input.googlePurchaseToken
+  if (typeof proof !== 'string' || !googleProofPattern.test(proof)) throw new SubscriptionError('INVALID_REQUEST', 400, 'Google Playの購入トークンが必要です。')
+  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${product.bundleId}/purchases/subscriptionsv2/tokens/${proof}`
+  let response
+  // 認証が古い時（401）だけ、トークンを作り直して一度だけ再実行する。
+  for (const force of [false, true]) {
+    const token = await googleAccessToken(env, request, now, cache, force)
+    try { response = await request(url, { headers: { Authorization: `Bearer ${token}` } }) } catch { throw new SubscriptionError('GOOGLE_API_ERROR', 502, 'Google Playとの通信に失敗しました。') }
+    if (response.status !== 401) break
+  }
+  if ([400, 404, 410].includes(response.status)) throw new SubscriptionError('INVALID_GOOGLE_PROOF', 400, 'Google Playの購入情報が見つかりません。')
+  if (!response.ok) throw new SubscriptionError('GOOGLE_API_ERROR', 502, `Google Playとの通信・購読照会に失敗しました（HTTP ${response.status}）。`)
+  let purchase
+  try { purchase = await response.json() } catch { throw invalidResponse('Google') }
+  return {
+    productId: product.productId, source: 'google',
+    environment: purchase.testPurchase ? 'Sandbox' : 'Production', checkedAt: new Date(now).toISOString(),
+    ...googleEntitlement(purchase, now),
+  }
+}
+
 async function stripeCall(env, request, path, body) {
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) throw new SubscriptionError('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのStripe設定が完了していません。')
   let response
@@ -120,9 +200,11 @@ export function createSubscriptionWorker({
   rootCertificates = appleRoots.certificates.map(certificate => Buffer.from(certificate.der, 'base64')),
   createAPIClient,
   stripeFetch = fetch,
+  googleFetch = fetch,
   clock = Date.now,
 } = {}) {
   let service
+  const googleToken = {}
 
   async function initialize(env) {
     if (!['Production', 'Sandbox'].includes(env.APPLE_ENVIRONMENT) || !env.APPLE_ISSUER_ID || !env.APPLE_KEY_ID || !env.APPLE_PRIVATE_KEY) {
@@ -158,9 +240,12 @@ export function createSubscriptionWorker({
         }
         if (path.endsWith('/checkout')) return Response.json(await stripeCheckout(env, stripeFetch, input?.sessionId), { headers: { 'Cache-Control': 'no-store' } })
         if (path.endsWith('/portal')) return Response.json(await stripePortal(env, stripeFetch, input?.stripeSubscriptionId), { headers: { 'Cache-Control': 'no-store' } })
-        // 保管庫を増やさず、購入元（store）ごとに公式の照会へ振り分ける。Google Playはここへ分岐を足す。
+        // 保管庫を増やさず、購入元（store）ごとに公式の照会へ振り分ける。
         if (input?.stripeSessionId !== undefined || input?.stripeSubscriptionId !== undefined) {
           return Response.json(await verifyStripe(env, stripeFetch, input, clock()), { headers: { 'Cache-Control': 'no-store' } })
+        }
+        if (input?.googlePurchaseToken !== undefined) {
+          return Response.json(await verifyGoogle(env, googleFetch, input, clock(), googleToken), { headers: { 'Cache-Control': 'no-store' } })
         }
         if (typeof input?.signedTransaction !== 'string' || !input.signedTransaction) {
           throw new SubscriptionError('INVALID_REQUEST', 400, 'Appleの署名付き購入情報が必要です。')

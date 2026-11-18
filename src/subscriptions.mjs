@@ -12,7 +12,7 @@ export class SubscriptionAccessError extends Error {
   }
 }
 
-// 購入元（store）ごとの照会結果から、有効なものを優先して一つの状態にする。Google Playはここへ足す。
+// 購入元（store）ごとの照会結果から、有効なものを優先して一つの状態にする。
 function combine(verifications) {
   const rank = item => Date.parse(item.validUntil ?? item.expiresAt)
   return Object.values(verifications).sort((a, b) => b.entitled - a.entitled || rank(b) - rank(a))[0] ?? null
@@ -31,7 +31,7 @@ export class Subscriptions {
     this.request = request
     this.clock = clock
     this.checkIntervalMs = checkIntervalMs
-    this.state = { schema: 'bellteam.subscription.v1', setupComplete: false, signedTransaction: null, stripeSubscriptionId: null, stripePendingSessionId: null, verifications: {}, verification: null, error: null }
+    this.state = { schema: 'bellteam.subscription.v1', setupComplete: false, signedTransaction: null, stripeSubscriptionId: null, googlePurchaseToken: null, stripePendingSessionId: null, verifications: {}, verification: null, error: null }
     this.pending = Promise.resolve()
   }
 
@@ -44,6 +44,7 @@ export class Subscriptions {
         state.verification = null
         state.signedTransaction = null
         state.stripeSubscriptionId = null
+        state.googlePurchaseToken = null
         state.stripePendingSessionId = null
         state.verifications = {}
         state.error = { code: 'SUBSCRIPTION_ENVIRONMENT_CHANGED', status: 409, message: '購読確認の実行環境を変更しました。アプリから購入情報を復元してください。' }
@@ -54,6 +55,7 @@ export class Subscriptions {
       if (state.error && (typeof state.error.code !== 'string' || typeof state.error.message !== 'string'
         || !Number.isInteger(state.error.status) || state.error.status < 400 || state.error.status > 599)) throw new Error('SUBSCRIPTION_STATE_INVALID')
       state.stripeSubscriptionId ??= null
+      state.googlePurchaseToken ??= null
       state.stripePendingSessionId ??= null
       // 旧い保存形式（Appleだけ）はAppleの結果として読む。
       state.verifications ??= state.verification && state.signedTransaction ? { apple: state.verification } : {}
@@ -99,6 +101,7 @@ export class Subscriptions {
   // 有効な判定の購入元の証拠を一つだけ返す（運営の中継が照会する用）。無い・開発者モードはnull。
   proof() {
     if (this.accessMode === 'developer' || !this.status().entitled) return null
+    if (this.state.verification.source === 'google') return this.state.googlePurchaseToken ? { googlePurchaseToken: this.state.googlePurchaseToken } : null
     if (this.state.verification.source === 'stripe') return this.state.stripeSubscriptionId ? { stripeSubscriptionId: this.state.stripeSubscriptionId } : null
     return this.state.signedTransaction ? { signedTransaction: this.state.signedTransaction } : null
   }
@@ -164,6 +167,23 @@ export class Subscriptions {
     })
   }
 
+  // Androidの購入トークンを運営のWorkerで確かめて保存する。トークンは返却・ログに出さない。
+  installGoogle(purchaseToken) {
+    if (this.accessMode === 'developer') throw new SubscriptionAccessError('SUBSCRIPTION_NOT_REQUIRED', 409, 'このサーバーは開発者用のため、購読の購入・復元は不要です。')
+    if (typeof purchaseToken !== 'string' || !purchaseToken) throw new SubscriptionAccessError('INVALID_GOOGLE_PROOF', 400, 'Google Playの購入トークンが必要です。')
+    return this.change(async () => {
+      try {
+        const verification = await this.verify({ googlePurchaseToken: purchaseToken })
+        this.state.googlePurchaseToken = purchaseToken
+        this.state.verifications = { ...this.state.verifications, google: verification }
+        this.state.verification = combine(this.state.verifications)
+        this.state.error = null
+        await this.save()
+        return this.status()
+      } catch (error) { return this.fail(error) }
+    })
+  }
+
   async applyStripe(stripeSessionId) {
     const verification = await this.verify({ stripeSessionId })
     this.state.stripeSubscriptionId = verification.subscriptionId
@@ -218,7 +238,7 @@ export class Subscriptions {
   }
 
   async refreshLocked({ force = false } = {}) {
-    if (!(this.state.signedTransaction || this.state.stripeSubscriptionId) || (this.state.error && !force)) return this.status()
+    if (!(this.state.signedTransaction || this.state.stripeSubscriptionId || this.state.googlePurchaseToken) || (this.state.error && !force)) return this.status()
     const verification = this.state.verification
     const next = verification ? Math.min(
       Date.parse(verification.checkedAt) + this.checkIntervalMs,
@@ -230,6 +250,7 @@ export class Subscriptions {
       const verifications = { ...this.state.verifications }
       if (this.state.signedTransaction) verifications.apple = await this.verify({ signedTransaction: this.state.signedTransaction })
       if (this.state.stripeSubscriptionId) verifications.stripe = await this.verify({ stripeSubscriptionId: this.state.stripeSubscriptionId })
+      if (this.state.googlePurchaseToken) verifications.google = await this.verify({ googlePurchaseToken: this.state.googlePurchaseToken })
       this.state.verifications = verifications
       this.state.verification = combine(verifications)
       this.state.error = null
@@ -287,7 +308,7 @@ export class Subscriptions {
       || typeof result.entitled !== 'boolean' || typeof result.autoRenewing !== 'boolean'
       || !['active', 'grace', 'expired', 'billing_retry', 'revoked'].includes(result.state)
       || (result.entitled && !['active', 'grace'].includes(result.state))
-      || !(result.source === undefined || ['apple', 'stripe'].includes(result.source))
+      || !(result.source === undefined || ['apple', 'stripe', 'google'].includes(result.source))
       || !(result.isTrial === undefined || typeof result.isTrial === 'boolean')
       || (result.source === 'stripe' && typeof result.subscriptionId !== 'string')
       || !Number.isFinite(Date.parse(result.checkedAt)) || !Number.isFinite(Date.parse(result.expiresAt))

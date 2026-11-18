@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createPublicKey, sign, verify as verifySignature } from 'node:crypto'
+import { createPublicKey, generateKeyPairSync, sign, verify as verifySignature } from 'node:crypto'
 import test from 'node:test'
 import fixtures from './fixtures/subscriptions/certificates.json' with { type: 'json' }
 import product from '../services/subscriptions/product.json' with { type: 'json' }
@@ -276,4 +276,92 @@ test('Stripeの顧客ポータルは、BellTeamの価格の購読の顧客にだ
   const denied = await stripeWorker(url => url.includes('/billing_portal/') ? new Response('', { status: 403 }) : Response.json(stripeSubscription({ customer: 'cus_1' })))
     .post('/v1/subscriptions/stripe/portal', { stripeSubscriptionId: 'sub_1' })
   assert.deepEqual([denied.status, denied.body.error.code], [502, 'STRIPE_API_ERROR'])
+})
+
+// Google Play: 通信相手だけを試験応答に置き換える。サービスアカウントの鍵は試験用に生成する。
+const { privateKey: googleKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+const googleEnv = { GOOGLE_PLAY_SERVICE_ACCOUNT: JSON.stringify({ client_email: 'play@test.iam.example', private_key: googleKey.export({ type: 'pkcs8', format: 'pem' }) }) }
+const googlePurchase = (extra = {}, line = {}) => ({
+  subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+  lineItems: [{ productId: product.productId, expiryTime: new Date(now + 3600000).toISOString(), autoRenewingPlan: { autoRenewEnabled: true }, ...line }], ...extra,
+})
+
+function googleWorker(purchase) {
+  const calls = []
+  const service = createSubscriptionWorker({
+    googleFetch: async (url, init) => {
+      calls.push({ url, init })
+      if (url === 'https://oauth2.googleapis.com/token') return Response.json({ access_token: 'ya29.test', expires_in: 3600 })
+      return typeof purchase === 'function' ? purchase(url, init) : Response.json(purchase)
+    }, clock: () => now,
+  })
+  const post = (body, config = googleEnv) => service.fetch(new Request('https://example.test/v1/subscriptions/verify', { method: 'POST', body: JSON.stringify(body) }), config)
+    .then(async result => ({ status: result.status, body: await result.json() }))
+  return { post, calls }
+}
+
+test('Google Playの状態を購読確認の形へ写し、無料期間・解約済み・猶予・保留・期限切れを区別する', async () => {
+  const past = new Date(now - 1000).toISOString()
+  for (const [purchase, entitled, state, isTrial, autoRenewing, environment] of [
+    [googlePurchase(), true, 'active', false, true, 'Production'],
+    [googlePurchase({ testPurchase: {} }, { offerPhase: { freeTrial: {} } }), true, 'active', true, true, 'Sandbox'],
+    [googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_CANCELED' }, { autoRenewingPlan: { autoRenewEnabled: false } }), true, 'active', false, false, 'Production'],
+    [googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_CANCELED' }, { expiryTime: past }), false, 'expired', false, false, 'Production'],
+    [googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', inGracePeriodStateContext: { gracePeriodEndTime: new Date(now + 7200000).toISOString() } }, { expiryTime: past }), true, 'grace', false, false, 'Production'],
+    [googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_ON_HOLD' }, { expiryTime: past }), false, 'billing_retry', false, false, 'Production'],
+    [googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_EXPIRED' }), false, 'expired', false, false, 'Production'],
+    [googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_PAUSED' }), false, 'expired', false, false, 'Production'],
+  ]) {
+    const result = await googleWorker(purchase).post({ googlePurchaseToken: 'token-1' })
+    assert.equal(result.status, 200, JSON.stringify(result.body))
+    assert.deepEqual([result.body.entitled, result.body.state, result.body.isTrial, result.body.autoRenewing, result.body.environment], [entitled, state, isTrial, autoRenewing, environment])
+    assert.deepEqual([result.body.source, result.body.productId, result.body.validUntil === null], ['google', product.productId, !entitled])
+    assert.equal(JSON.stringify(result.body).includes('token-1'), false)
+  }
+})
+
+test('Google Playへは署名したJWTで認証し、購入トークンは商品の購読にだけ使う。トークンは使い回し、401なら一度だけ作り直す', async () => {
+  const { post, calls } = googleWorker(() => Response.json(googlePurchase()))
+  await post({ googlePurchaseToken: 'token-1' })
+  await post({ googlePurchaseToken: 'token-2' })
+  assert.deepEqual(calls.map(call => call.url), [
+    'https://oauth2.googleapis.com/token',
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${product.bundleId}/purchases/subscriptionsv2/tokens/token-1`,
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${product.bundleId}/purchases/subscriptionsv2/tokens/token-2`,
+  ])
+  const assertion = calls[0].init.body.get('assertion')
+  const [header, claims, signature] = assertion.split('.')
+  assert.deepEqual(JSON.parse(Buffer.from(header, 'base64url')), { alg: 'RS256', typ: 'JWT' })
+  assert.equal(JSON.parse(Buffer.from(claims, 'base64url')).scope, 'https://www.googleapis.com/auth/androidpublisher')
+  assert.equal(verifySignature('sha256', Buffer.from(`${header}.${claims}`), createPublicKey(googleKey), Buffer.from(signature, 'base64url')), true)
+  assert.equal(calls[1].init.headers.Authorization, 'Bearer ya29.test')
+  let first = true
+  const retried = googleWorker(() => { const stale = first; first = false; return stale ? new Response('', { status: 401 }) : Response.json(googlePurchase()) })
+  assert.equal((await retried.post({ googlePurchaseToken: 'token-1' })).status, 200)
+  assert.equal(retried.calls.filter(call => call.url === 'https://oauth2.googleapis.com/token').length, 2)
+})
+
+test('Google Playの別商品・無効なトークン・未確定の購入・通信失敗・未設定を期限切れへ置き換えずエラーで返す', async () => {
+  const wrongProduct = await googleWorker(googlePurchase({}, { productId: 'other.product' })).post({ googlePurchaseToken: 't' })
+  assert.deepEqual([wrongProduct.status, wrongProduct.body.error.code], [400, 'INVALID_PRODUCT'])
+  for (const status of [400, 404, 410]) {
+    const rejected = await googleWorker(() => new Response('', { status })).post({ googlePurchaseToken: 't' })
+    assert.deepEqual([rejected.status, rejected.body.error.code], [400, 'INVALID_GOOGLE_PROOF'])
+  }
+  const forbidden = await googleWorker(() => new Response('', { status: 403 })).post({ googlePurchaseToken: 't' })
+  assert.deepEqual([forbidden.status, forbidden.body.error.code], [502, 'GOOGLE_API_ERROR'])
+  const pending = await googleWorker(googlePurchase({ subscriptionState: 'SUBSCRIPTION_STATE_PENDING' })).post({ googlePurchaseToken: 't' })
+  assert.deepEqual([pending.status, pending.body.error.code], [409, 'GOOGLE_PURCHASE_PENDING'])
+  const broken = await googleWorker(() => { throw new Error('offline') }).post({ googlePurchaseToken: 't' })
+  assert.deepEqual([broken.status, broken.body.error.code], [502, 'GOOGLE_API_ERROR'])
+  const malformed = await googleWorker({ subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE', lineItems: [{ productId: product.productId }] }).post({ googlePurchaseToken: 't' })
+  assert.deepEqual([malformed.status, malformed.body.error.code], [502, 'INVALID_GOOGLE_RESPONSE'])
+  for (const config of [{}, { GOOGLE_PLAY_SERVICE_ACCOUNT: 'not json' }, { GOOGLE_PLAY_SERVICE_ACCOUNT: JSON.stringify({ client_email: 'a', private_key: 'bad' }) }]) {
+    const missing = await googleWorker(googlePurchase()).post({ googlePurchaseToken: 't' }, config)
+    assert.deepEqual([missing.status, missing.body.error.code], [503, 'SUBSCRIPTION_NOT_CONFIGURED'])
+  }
+  for (const googlePurchaseToken of ['', 'a/b', 'x'.repeat(5000), 7]) {
+    const invalid = await googleWorker(googlePurchase()).post({ googlePurchaseToken })
+    assert.deepEqual([invalid.status, invalid.body.error.code], [400, 'INVALID_REQUEST'])
+  }
 })
