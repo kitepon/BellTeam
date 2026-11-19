@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T07:20:02Z",
-  "expiresAt": "2026-11-26T07:20:02Z",
+  "publishedAt": "2026-11-19T08:06:30Z",
+  "expiresAt": "2026-11-26T08:06:30Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b",
-      "versionId": "22580228c5b0766fc9bbd21c0cab06b6da16e4001188c86a4f2c6663621929c5",
+      "sourceCommit": "87f14d14fc7b1cc64342603391772ae442e7be43",
+      "versionId": "4678d9d407abc9dec015a82aa18172b4edf380ef1904204415793dd58f8ba318",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-amd64.tar.gz",
-          "bytes": 15339423,
-          "sha256": "22580228c5b0766fc9bbd21c0cab06b6da16e4001188c86a4f2c6663621929c5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T080604Z/lattice-87f14d14fc7b1cc64342603391772ae442e7be43-linux-amd64.tar.gz",
+          "bytes": 15339426,
+          "sha256": "4678d9d407abc9dec015a82aa18172b4edf380ef1904204415793dd58f8ba318"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "9bc4222c94bde4af7a8f9cbd3162a7797a7b3b573f766535a693194803bf3c88"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T080604Z/lattice-87f14d14fc7b1cc64342603391772ae442e7be43-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "0714777fa558ce12cf69e535324637ca2987f078287b930f9b6a7a8b5b781c3f"
         },
-        "signerCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b"
+        "signerCommit": "87f14d14fc7b1cc64342603391772ae442e7be43"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +787,14 @@
         }
       },
       "changes": [
-        "作業の一覧で、Lattice が「始められる」と言っていない工程を、「始められる」と毎分知らせてしまっていたのを直しました。"
+        "作業の一覧で、Lattice が「始められる」と言っていない工程を、「始められる」と毎分知らせてしまっていたのを直しました。",
+        "大きな工程表（出力が 16 MiB を超えるもの）が、画面に出せずに「使えない」となっていたのを、64 MiB まで読めるようにして直しました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b",
-      "versionId": "69ef80d90715481ffd656f76dabbf33c1de2bbf5fa70df19f28d258cfcaa0c1b",
+      "sourceCommit": "87f14d14fc7b1cc64342603391772ae442e7be43",
+      "versionId": "73d9de5bc291d974ce558aa6e8181e834f8a7cdc6ebcdda091d224fa6dbc3c4f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +802,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-arm64.tar.gz",
-          "bytes": 15339442,
-          "sha256": "69ef80d90715481ffd656f76dabbf33c1de2bbf5fa70df19f28d258cfcaa0c1b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T080604Z/lattice-87f14d14fc7b1cc64342603391772ae442e7be43-linux-arm64.tar.gz",
+          "bytes": 15339426,
+          "sha256": "73d9de5bc291d974ce558aa6e8181e834f8a7cdc6ebcdda091d224fa6dbc3c4f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10773,
-          "sha256": "312b973fa9510246f3777eed0da7ef59027446290e73dbfe1edbcd8cd608d8d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T080604Z/lattice-87f14d14fc7b1cc64342603391772ae442e7be43-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "745540b48693ddce6722c29ddb2ada2b45de97b03e5db6fd2241eb5e39559ba5"
         },
-        "signerCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b"
+        "signerCommit": "87f14d14fc7b1cc64342603391772ae442e7be43"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +823,8 @@
         }
       },
       "changes": [
-        "作業の一覧で、Lattice が「始められる」と言っていない工程を、「始められる」と毎分知らせてしまっていたのを直しました。"
+        "作業の一覧で、Lattice が「始められる」と言っていない工程を、「始められる」と毎分知らせてしまっていたのを直しました。",
+        "大きな工程表（出力が 16 MiB を超えるもの）が、画面に出せずに「使えない」となっていたのを、64 MiB まで読めるようにして直しました。"
       ]
     },
     {
