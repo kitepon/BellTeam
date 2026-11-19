@@ -33,6 +33,8 @@ public sealed record LatticeSnapshot
     public string[] Degraded { get; init; } = [];
     public LatticeMember[] Members { get; init; } = [];
     public LatticeCard[] Cards { get; init; } = [];
+    /// <summary>a457: `cards` hold only open trees; Closed counts the finished tasks of closed trees, read on demand from the history route. Null (an older server) = 0.</summary>
+    public LatticeHistoryInfo? History { get; init; }
     public LatticePhase[] Phases { get; init; } = [];
     public LatticeEdge[] Edges { get; init; } = [];
     /// <summary>The other chart's facts for each open `task` 接続 (a161): named by a connection `ref`, never a card; drawn as text, never on the canvas or tree.</summary>
@@ -40,6 +42,16 @@ public sealed record LatticeSnapshot
     /// <summary>The app's Owner profile put on the snapshot by the window (not on the wire): names the reserved owner value. Null while unknown.</summary>
     public string? OwnerName { get; init; }
     public string OwnerAvatarVersion { get; init; } = "";
+}
+public sealed record LatticeHistoryInfo(int Closed);
+/// <summary>One page of GET /api/lattice/charts/:id/history (a457): the finished cards of closed trees, newest first; Next is opaque, null on the last page. A State that is not verified / last_verified carries no cards.</summary>
+public sealed record LatticeHistoryPage
+{
+    public string State { get; init; } = "verified";
+    public int Closed { get; init; }
+    public LatticeMember[] Members { get; init; } = [];
+    public LatticeCard[] Cards { get; init; } = [];
+    public string? Next { get; init; }
 }
 public sealed record LatticeMember(string BotId, string Name, string? Color, string? AvatarVersion);
 public sealed record LatticeCard
@@ -250,6 +262,20 @@ public static class LatticeChart
             return new LatticeTreeArc(edge.From, edge.To, edge.Waiting, x0, Mid(a), bulge, x1 + 6, Mid(b));
         }).ToList();
         return new(nodes, links, arcs, nodes.Where(node => node.Kind == "card").ToDictionary(node => node.Key), reach + 24, TreeTop + Math.Max(1, row) * TreeRow + 16);
+    }
+
+    /// <summary>The 過去ログ switch count (a457): finished cards of the snapshot + the finished tasks of closed trees. Needs no request.</summary>
+    public static int HistoryCount(LatticeSnapshot snapshot) => snapshot.Cards.Count(card => Finished(card.State)) + (snapshot.History?.Closed ?? 0);
+    /// <summary>The snapshot with the loaded history pages' cards and members added for 過去ログ and 詳細 only (the tree and lanes keep the snapshot); a card already in the snapshot wins (a reopened tree), a known member keeps the snapshot's entry.</summary>
+    public static LatticeSnapshot WithHistory(LatticeSnapshot snapshot, IReadOnlyList<LatticeHistoryPage> pages)
+    {
+        if (pages.Count == 0) return snapshot;
+        var ids = snapshot.Cards.Select(card => card.Id).ToHashSet(); var bots = snapshot.Members.Select(member => member.BotId).ToHashSet();
+        return snapshot with
+        {
+            Cards = [.. snapshot.Cards, .. pages.SelectMany(page => page.Cards).Where(card => ids.Add(card.Id))],
+            Members = [.. snapshot.Members, .. pages.SelectMany(page => page.Members).Where(member => bots.Add(member.BotId))]
+        };
     }
 
     /// <summary>過去ログ: every finished card, newest doneAt first, under JST day headings 今日 / 昨日 / M月d日; cards without doneAt last under 日時の分からない工程.</summary>
@@ -477,8 +503,77 @@ public sealed class LatticeChartFeed
     private void Set(LatticeConnection next, bool force = false) { if (!force && next == Connection) return; Connection = next; Changed?.Invoke(); }
 }
 
+/// <summary>The closed trees' finished cards of one open chart (a457). Pages are kept only while 過去ログ is open: the first page when it opens, the next when the list ends, the first again when history.closed changes (Reset), nothing across opens.
+/// A failed page keeps the rows, shows Failed and is asked again after 1, 2, 4 … 30 s or at once by Retry; a 404 (older server) is Unsupported and asks no more until Reset.</summary>
+public sealed class LatticeHistoryFeed
+{
+    private readonly List<LatticeHistoryPage> pages = [];
+    private readonly Func<TimeSpan, CancellationToken, Task> delay;
+    private int generation;
+    private TaskCompletionSource? retry;
+    private (LatticeSnapshot Snapshot, int Pages, int Generation, LatticeSnapshot Result)? merged;
+    public LatticeHistoryFeed(Func<TimeSpan, CancellationToken, Task>? delay = null) { this.delay = delay ?? Task.Delay; }
+    public IReadOnlyList<LatticeHistoryPage> Pages => pages;
+    public string? Next { get; private set; }
+    /// <summary>The first page has been read (or the server has no route).</summary>
+    public bool Opened { get; private set; }
+    public bool Loading { get; private set; }
+    public bool Failed { get; private set; }
+    public bool Unsupported { get; private set; }
+    /// <summary>history.closed the loaded pages were read at; null before the first page.</summary>
+    public int? ClosedAtLoad => pages.Count > 0 ? pages[0].Closed : null;
+    public event Action? Changed;
+    public void Reset()
+    {
+        generation++; pages.Clear(); Next = null; Opened = Loading = Failed = Unsupported = false; merged = null;
+        retry?.TrySetResult(); retry = null;
+    }
+    /// <summary>Asks the page that failed again at once (読み直す).</summary>
+    public void Retry() => retry?.TrySetResult();
+    public LatticeSnapshot With(LatticeSnapshot snapshot)
+    {
+        if (merged is { } cached && ReferenceEquals(cached.Snapshot, snapshot) && cached.Pages == pages.Count && cached.Generation == generation) return cached.Result;
+        var result = LatticeChart.WithHistory(snapshot, pages); merged = (snapshot, pages.Count, generation, result); return result;
+    }
+
+    /// <summary>Reads the first page, or the next one when the first is read; does nothing while a read runs, at the last page or on an older server. Returns when the page is read, the server is older, or the token or Reset ends it.</summary>
+    public async Task LoadAsync(Func<string?, CancellationToken, Task<LatticeHistoryPage>> fetch, CancellationToken token)
+    {
+        if (Loading || Unsupported || (Opened && Next is null)) return;
+        var mine = generation; var attempt = 0; Loading = true;
+        try
+        {
+            while (!token.IsCancellationRequested && mine == generation)
+            {
+                try
+                {
+                    var page = await fetch(Opened ? Next : null, token);
+                    if (mine != generation) return;
+                    pages.Add(page); Opened = true; Failed = false; Next = page.State is "verified" or "last_verified" ? page.Next : null;
+                    return;
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+                catch (BellApiException error) when (error.Status == System.Net.HttpStatusCode.NotFound) { if (mine == generation) { Unsupported = true; Opened = true; } return; }
+                catch (Exception error)
+                {
+                    if (mine != generation) return;
+                    // A refused cursor cannot be asked again: start from the first page; the rows already known stay until it is read.
+                    if (error is BellApiException { Status: System.Net.HttpStatusCode.BadRequest }) { Opened = false; Next = null; }
+                    Failed = true; Changed?.Invoke();
+                    var again = retry = new TaskCompletionSource();
+                    try { await Task.WhenAny(delay(TimeSpan.FromMilliseconds(LatticeChart.BackoffMs(attempt++)), token), again.Task); } catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+                }
+            }
+        }
+        finally { if (mine == generation) { Loading = false; retry = null; Changed?.Invoke(); } }
+    }
+}
+
 public static class LatticeApi
 {
+    /// <summary>One history page (limit 50); before = the previous page's opaque next.</summary>
+    public static Task<LatticeHistoryPage> LatticeHistoryAsync(this BellApi api, string projectId, string? before, CancellationToken token = default)
+        => api.GetAsync<LatticeHistoryPage>($"/api/lattice/charts/{Uri.EscapeDataString(projectId)}/history?limit=50" + (before is null ? "" : "&before=" + Uri.EscapeDataString(before)), token);
     /// <summary>The Approval Box extension's decision for a card. Anything but a well-formed 200 (404 before the extension ships, 401, 503, network, bad JSON) is null: no block, no message, no retry.</summary>
     public static async Task<LatticeDecision?> DecisionAsync(this BellApi api, string projectId, string plan, string taskId, CancellationToken token = default)
     {
