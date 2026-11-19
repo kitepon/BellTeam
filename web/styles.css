@@ -1367,6 +1367,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 .lattice-hrow:hover { box-shadow: var(--l-shadow); }
 .lattice-hrow:focus-visible { outline: 2px solid var(--l-violet); outline-offset: 2px; }
 .lattice-hrow.sel { box-shadow: 0 0 0 2px var(--l-violet); }
+.lattice-hist-more { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 14px 0; color: var(--l-muted); font-size: 13px; }
 .lattice-hist-none { padding: 32px 20px; color: var(--l-muted); }
 
 /* cards */
