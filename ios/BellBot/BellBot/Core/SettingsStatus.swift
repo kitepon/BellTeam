@@ -85,6 +85,7 @@ enum SettingsSummary {
         case .unknown: 5
         case .needsLogin: 6
         case .failed: 7
+        case .notInstalled(let install): install.state == .installing ? 3 : 8
         }
     }
 
@@ -106,10 +107,17 @@ enum SettingsSummary {
         case .unknown: line = "\(worst.name)の状態を確認できません" + more
         case .needsLogin: line = "\(worst.name)のログインが必要です" + more
         case .failed: line = "\(worst.name)の認証に失敗しました" + more
+        case .notInstalled(let install):
+            switch install.state {
+            case .installing: line = "\(worst.name)を入れています" + more
+            case .failed: line = "\(worst.name)を入れられませんでした" + more
+            default: line = "\(worst.name)がまだ入っていません" + more
+            }
         }
         let attention: Bool
         switch worst.progress {
         case .unknown, .needsLogin, .failed: attention = true
+        case .notInstalled(let install): attention = install.state != .installing
         default: attention = false
         }
         return SettingsStatus(line: line, badge: worst.progress.badge, tone: worst.progress.tone, needsAttention: attention,

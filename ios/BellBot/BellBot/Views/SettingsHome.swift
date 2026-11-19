@@ -146,7 +146,8 @@ final class SettingsHomeState: ObservableObject {
             }
             var targets: [Target] = []
             for option in list.harnesses {
-                if option.id == "claude", let claude {
+                // Not installed (the server's own state): one entry for the AI, since the install is per AI and its login cannot run.
+                if option.id == "claude", let claude, option.install?.isMissing != true {
                     for slot in claude.slots {
                         targets.append(Target(option: option, slot: slot.slot == "1st" ? nil : slot.slot,
                                               name: "\(option.name) \(AccountText.slotName(slot.slot))", signedOut: slot.signedOutAt != nil, label: slot.label, limitLine: claude.limitLine(for: slot)))
@@ -159,12 +160,16 @@ final class SettingsHomeState: ObservableObject {
             for target in targets {
                 let path = "/api/harness-auth/\(target.option.id)" + (target.slot == "2nd" ? "?slot=2nd" : "")
                 var progress = AuthenticationProgress.unknown
-                do {
-                    let response: HarnessAuthenticationResponse = try await store.api.get(path)
-                    progress = AuthenticationProgress(response.auth, loaded: true, signedOut: target.signedOut)
-                } catch is CancellationError { throw CancellationError() }
-                catch let error where BellAPIError.isAuthenticationError(error) { throw error }
-                catch { store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: false)) }
+                if let install = target.option.install, install.isMissing {
+                    progress = .notInstalled(install)
+                } else {
+                    do {
+                        let response: HarnessAuthenticationResponse = try await store.api.get(path)
+                        progress = AuthenticationProgress(response.auth, install: target.option.install, loaded: true, signedOut: target.signedOut)
+                    } catch is CancellationError { throw CancellationError() }
+                    catch let error where BellAPIError.isAuthenticationError(error) { throw error }
+                    catch { store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: false)) }
+                }
                 entries.append(AIAuthEntry(harnessID: target.option.id, name: target.name, slot: target.slot, progress: progress,
                                            accountLabel: target.label, limitLine: target.limitLine, signedOut: target.signedOut))
             }

@@ -171,6 +171,29 @@ stateDiagram-v2
 - 進行中の行（waitingSite/waitingCode/confirming）は、行も認証画面も同じ`inProgress`で、画面がactiveの間3秒ごとに読み直す。SSEの`eventRevision`でも読み直す。
 - 認証画面：サーバーの`session_id`がある時は「やめる」を出し（ローカルの`started`と論理和。旧本体は`started`のみ）、開始ボタンの文を「最初からやり直す」にする。`session_id`が無く`stage=unavailable`の時（状態を見ただけ）はAitermの案内（`auth_ui`のtitle/message）を出さず、サーバーの`message`だけを出す。
 
+### AIの本体（CLI）の入れる・入っていない状態（a451）
+
+正本は[usage/harness-cli.md](../usage/harness-cli.md)。Appleは本体の言葉をそのまま出し、入っているかをクライアントで判定しない。`GET /api/harness-auth`の各項目の`install`（`state`・`version`・`source`・`busy`・`lastError`・`message`・`action`・`label`）を`CLIInstall`（`Core/CLIInstall.swift`）が読む。旧本体・読めない形は`install`なし（nil）として扱い、何も出さず何も読まない。
+
+```mermaid
+flowchart TD
+  List["GET /api/harness-auth<br/>各AIのinstall"] --> Row["Row / Claudeカード<br/>HarnessInstallFlow"]
+  Row --> Sec["CLIInstallSection<br/>message そのまま・actionがinstallなら「最新版を入れる」"]
+  Sec -->|押す| Post["POST /api/harness-auth/:id/install<br/>空body、本体が{harness, install}を返す"]
+  Post --> Poll["busy / checking の間 3秒ごと GET .../install"]
+  Row --> Badge["Badge: install.isMissing なら認証GETを送らない<br/>札は未インストール / 入れています / 入れられません"]
+  Poll -->|installed| Auth["認証画面を読む（GET /api/harness-auth/:id）"]
+  Home["設定ホーム loadAI"] -->|isMissing| Attn["要対応に数える（not_installed・failed）<br/>Claudeは1件にまとめる"]
+  Setup["初回 /api/setup<br/>install（選んだAI）"] -->|isMissing or busy| SetupBtn["本体の文と「最新版を入れる」<br/>POST /api/setup/install → setup応答を3秒poll"]
+  Editor["Botエディタ AI欄"] -->|GET /api/harness-auth| Notice["isMissing の時 install.message（保存は止めない）"]
+```
+
+- `state`は`checking | installed | not_installed | installing | failed`。`isMissing`は`not_installed | installing | failed`で、本体はこの間`start`/`status`を409 `HARNESS_NOT_INSTALLED`で断る。Appleは断られる前にログインを読まず、段階は`AuthenticationProgress.notInstalled(CLIInstall)`（札・状態文は`install.message`）で出す。`installed`の更新中（`busy`）や`lastError`は段階を変えず、行の文と「最新版を入れる」だけが変わる。
+- 行・Claudeカード（1回だけ）・各AIの画面（セクション「インストール」）に同じ`CLIInstallSection`を出す。未インストールの画面は、ログインの節の代わりにこのセクションだけを出す。押した結果の失敗は押したボタンの下に出す。押下は自動再送しない。
+- 要対応：`not_installed`と`failed`を数え（行は「<AI>がまだ入っていません」「<AI>を入れられませんでした」、押すとそのAIの画面）、`installing`は数えない。入っていないClaudeはslotごとでなく1件。
+- 初回：`GET /api/setup`の`install`が`isMissing`か`busy`の間、認証の文・入力欄の代わりに本体の文とボタンを出す。`POST /api/setup/install`の応答（setup全体）をそのまま採り、`needsPolling`の間3秒ごとに`GET /api/setup`を読む（ログインは本体が始める）。
+- Botエディタ：`GET /api/harness-auth`の`install`が`isMissing`の時だけ、選んだAIの下にその文と「設定の「AIの認証」で入れられます。」を出す。保存は止めない。読めなくても診断に送るだけで画面は変えない。
+
 ## 整理候補
 
 - **A-R1**：`ios/BellBot/BellBot/Views/SecretRequestView.swift:97,98,105`。AI利用許可判定のcatchはerror表示とreturnで、後続の秘密POSTのcatchだけがrequireLoginへ接続する。

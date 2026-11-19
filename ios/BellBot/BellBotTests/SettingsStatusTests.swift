@@ -29,6 +29,26 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(SettingsSummary.ai([entry("claude", "Claude", .done), entry("codex", "Codex", .done)]).line, "すべて認証済み", "旧本体（404）は1行のClaudeで従来どおり")
     }
 
+    /// a451: a CLI that is not installed counts in 要対応 and opens the AI's own screen; an install that is running does not.
+    func testNotInstalledCountsInTheAttentionBandAndInstallingDoesNot() throws {
+        func install(_ state: String) throws -> CLIInstall {
+            try JSONDecoder().decode(CLIInstall.self, from: Data(#"{"state":"\#(state)","version":null,"source":null,"busy":false,"lastError":null,"message":"m","action":"install","label":"最新版を入れる"}"#.utf8))
+        }
+        let missing = SettingsSummary.ai([entry("claude", "Claude", .done), entry("codex", "Codex", .notInstalled(try install("not_installed")))])
+        XCTAssertEqual(missing.line, "Codexがまだ入っていません")
+        XCTAssertEqual(missing.badge, "未インストール")
+        XCTAssertTrue(missing.needsAttention)
+        XCTAssertEqual(missing.attentionRoute, .authentication(harness: "codex", slot: nil))
+        let failed = SettingsSummary.ai([entry("codex", "Codex", .notInstalled(try install("failed")))])
+        XCTAssertEqual(failed.line, "Codexを入れられませんでした")
+        XCTAssertTrue(failed.needsAttention)
+        let running = SettingsSummary.ai([entry("codex", "Codex", .notInstalled(try install("installing")))])
+        XCTAssertEqual(running.line, "Codexを入れています")
+        XCTAssertFalse(running.needsAttention)
+        let worst = SettingsSummary.ai([entry("codex", "Codex", .needsLogin), entry("cursor", "Cursor", .notInstalled(try install("not_installed")))])
+        XCTAssertEqual(worst.line, "Cursorがまだ入っていません（ほか1件）", "a missing CLI outranks a login that cannot run yet")
+    }
+
     func testAllDoneSaysAllAuthenticatedWithoutAttention() {
         let status = SettingsSummary.ai([entry("claude", "Claude 1つ目のアカウント", .done), entry("codex", "Codex", .done)])
         XCTAssertEqual(status.line, "すべて認証済み")

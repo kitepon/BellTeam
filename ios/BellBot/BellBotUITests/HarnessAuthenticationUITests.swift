@@ -103,6 +103,41 @@ final class HarnessAuthenticationUITests: XCTestCase {
         return try JSONDecoder().decode(Proof.self, from: request(base, "/test/proof")).requests.map { "\($0.method) \($0.path)" }
     }
 
+    /// a451: the server's sentence and 最新版を入れる show for an AI that is not installed; no login is read until the press ends; the row then turns 認証済み.
+    func testNotInstalledShowsServerSentenceAndPressInstalls() throws {
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"])
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try request(base, "/test/reset?installMs=2500")
+        _ = try request(base, "/test/install?harness=codex&state=not_installed")
+        _ = try request(base, "/test/install?harness=grok&state=installed&source=image")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let settings = app.buttons["設定"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+        app.buttons["settings-row-ai"].tap()
+        let message = app.staticTexts["harness-install-message-codex"]
+        for _ in 0..<6 where !message.exists { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        XCTAssertEqual(message.label, "まだ入っていません。「最新版を入れる」で入れてください。")
+        XCTAssertTrue(app.buttons["harness-install-grok"].exists, "the same press updates an AI that works")
+        XCTAssertFalse(try paths(base).contains("GET /api/harness-auth/codex"), "no login is read while the CLI is missing")
+        let press = app.buttons["harness-install-codex"]
+        XCTAssertTrue(press.exists)
+        press.tap()
+        XCTAssertTrue(app.staticTexts["入れています。数分かかることがあります。"].waitForExistence(timeout: 5))
+        let done = NSPredicate(format: "label CONTAINS %@", "認証済み")
+        let row = app.buttons["harness-auth-codex"]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: done, object: row)], timeout: 15), .completed)
+        let log = try paths(base)
+        let post = try XCTUnwrap(log.firstIndex(of: "POST /api/harness-auth/codex/install"))
+        let login = try XCTUnwrap(log.firstIndex(of: "GET /api/harness-auth/codex"))
+        XCTAssertLessThan(post, login, "the login is read only after the install ended")
+    }
+
     private func request(_ base: URL, _ path: String) throws -> Data {
         let finished = expectation(description: path)
         var result: Result<Data, Error>?

@@ -213,6 +213,68 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertTrue(flow.sessionOpen)
     }
 
+    // MARK: a451 install state
+
+    private func install(_ state: String, busy: Bool = false, action: String? = "install", lastError: String = "null", source: String = "null") -> String {
+        #"{"state":"\#(state)","version":null,"source":\#(source),"busy":\#(busy),"lastError":\#(lastError),"message":"文\#(state)","action":\#(action.map { "\"" + $0 + "\"" } ?? "null"),"label":\#(action == nil ? "null" : "\"最新版を入れる\"")}"#
+    }
+
+    func testInstallObjectDecodesAndOldServerAndUnreadableReadAsAbsent() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let option = { (extra: String) in try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"codex","name":"Codex","members":1,"start_warning":null\#(extra)}"#.utf8)) }
+        let current = try XCTUnwrap(option(#","install":\#(install("not_installed"))"#).install)
+        XCTAssertEqual(current.state, .notInstalled)
+        XCTAssertTrue(current.isMissing)
+        XCTAssertTrue(current.canPress)
+        XCTAssertEqual(current.message, "文not_installed", "the server's sentence, as given")
+        XCTAssertNil(try option("").install, "an older server has no install object")
+        XCTAssertNil(try option(#","install":{"state":"from-the-future"}"#).install, "a body this app cannot read must not fail the list")
+        let updating = try XCTUnwrap(option(#","install":\#(install("installed", busy: true, action: nil, lastError: #"{"code":"CLI_INSTALL_NETWORK","message":"x"}"#, source: #""image""#))"#).install)
+        XCTAssertFalse(updating.isMissing, "an update of a CLI that works keeps the login")
+        XCTAssertFalse(updating.canPress)
+        XCTAssertTrue(updating.needsPolling)
+        XCTAssertEqual(updating.lastError?.code, "CLI_INSTALL_NETWORK")
+    }
+
+    func testMissingCLIOverridesTheLoginStageAndNothingElseDoes() throws {
+        let decode = { (state: String) in try JSONDecoder().decode(CLIInstall.self, from: Data(self.install(state).utf8)) }
+        for (state, badge) in [("not_installed", "未インストール"), ("installing", "入れています"), ("failed", "入れられません")] {
+            let progress = AuthenticationProgress(auth(.authenticated), install: try decode(state))
+            XCTAssertEqual(progress.badge, badge)
+            XCTAssertEqual(progress.detail, "文\(state)")
+            XCTAssertNil(progress.action)
+            XCTAssertFalse(progress.inProgress, "the install section polls itself; no login is read")
+        }
+        for state in ["installed", "checking"] {
+            XCTAssertEqual(AuthenticationProgress(auth(.authenticated), install: try decode(state)), .done)
+        }
+    }
+
+    func testPressUsesTheInstallRouteAndTakesTheServersAnswer() async throws {
+        let log = RequestLog()
+        let busy = install("not_installed", busy: true, action: nil)
+        HarnessAuthProtocol.handler = { request in
+            log.append(request, body: Self.body(request))
+            return (200, #"{"harness":"codex","install":\#(busy)}"#)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [HarnessAuthProtocol.self]
+        let session = URLSession(configuration: configuration)
+        addTeardownBlock { session.invalidateAndCancel(); HarnessAuthProtocol.handler = nil }
+        let api = BellAPI(baseURL: URL(string: "https://auth.test.invalid"), session: session, diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
+        let start = try JSONDecoder().decode(CLIInstall.self, from: Data(install("not_installed").utf8))
+        let flow = HarnessInstallFlow(harness: "codex", api: api, install: start)
+        try await flow.press()
+        XCTAssertEqual(flow.install?.busy, true)
+        XCTAssertEqual(flow.install?.canPress, false)
+        try await flow.refresh()
+        XCTAssertEqual(log.paths, ["POST /api/harness-auth/codex/install", "GET /api/harness-auth/codex/install"])
+        let none = HarnessInstallFlow(harness: "codex", api: api, install: nil)
+        try await none.refresh()
+        XCTAssertEqual(log.paths.count, 2, "an older server (no install object) is never asked")
+    }
+
     private func auth(_ status: OfficialAuthenticationStatus) -> SetupAuthentication {
         SetupAuthentication(status: status, url: nil, userCode: nil, inputRequired: false, message: nil, authUi: nil)
     }

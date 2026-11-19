@@ -14,9 +14,9 @@ struct HarnessAuthenticationList: View {
             ForEach(harnesses) { harness in
                 // 1st/2ndアカウントを返す本体ではClaudeを2行で出す。旧本体（/api/accountsが404）は従来の1行。
                 if harness.id == "claude", let accounts {
-                    ClaudeAccountsCard(harness: harness, accounts: accounts)
+                    ClaudeAccountsCard(harness: harness, accounts: accounts, api: store.api)
                 } else {
-                    HarnessAuthenticationRow(harness: harness)
+                    HarnessAuthenticationRow(harness: harness, api: store.api)
                 }
                 if harness.id == "claude", let accountsError {
                     Text(accountsError).font(.footnote).foregroundStyle(.orange)
@@ -85,22 +85,31 @@ struct HarnessAuthenticationList: View {
 private struct HarnessAuthenticationRow: View {
     @EnvironmentObject private var store: AppStore
     let harness: HarnessAuthenticationOption
+    @StateObject private var install: HarnessInstallFlow
+
+    init(harness: HarnessAuthenticationOption, api: BellAPI) {
+        self.harness = harness
+        _install = StateObject(wrappedValue: HarnessInstallFlow(harness: harness.id, api: api, install: harness.install))
+    }
 
     var body: some View {
-        SettingsNavLink(title: harness.name) {
-            HarnessAuthenticationView(harness: harness, api: store.api)
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(harness.name).foregroundStyle(BellTheme.ink)
-                    Text(harness.usageText).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-                }
-                Spacer()
-                AuthenticationBadge(harness: harness, slot: nil, signedOut: false)
-            }.padding(.vertical, 6)
+        VStack(alignment: .leading, spacing: 4) {
+            SettingsNavLink(title: harness.name) {
+                HarnessAuthenticationView(harness: harness, api: store.api)
+            } label: {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(harness.name).foregroundStyle(BellTheme.ink)
+                        Text(harness.usageText).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                    }
+                    Spacer()
+                    AuthenticationBadge(harness: harness, slot: nil, signedOut: false, install: install.install)
+                }.padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("harness-auth-\(harness.id)")
+            CLIInstallSection(flow: install)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("harness-auth-\(harness.id)")
     }
 }
 
@@ -113,10 +122,12 @@ private struct AuthenticationBadge: View {
     /// Claudeのアカウント行は"1st"/"2nd"、他のAIはnil。1stは従来どおりslotを付けずに読む。
     let slot: String?
     let signedOut: Bool
+    /// The AI's install state from the row; while the CLI is missing the login is not read (the server refuses it).
+    var install: CLIInstall?
     @State private var auth: SetupAuthentication?
     @State private var loaded = false
 
-    private var progress: AuthenticationProgress { AuthenticationProgress(auth, loaded: loaded, signedOut: signedOut) }
+    private var progress: AuthenticationProgress { AuthenticationProgress(auth, install: install, loaded: loaded, signedOut: signedOut) }
     private var polling: Bool { scenePhase == .active && progress.inProgress }
     private var identifier: String { slot.map { "\(harness.id)-\($0)" } ?? harness.id }
 
@@ -137,6 +148,7 @@ private struct AuthenticationBadge: View {
         }
         .task { await load() }
         .onChange(of: store.eventRevision) { _, _ in Task { await load() } }
+        .onChange(of: install) { _, _ in Task { await load() } }
         .task(id: polling) {
             while polling && !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(3)) } catch { return }
@@ -146,6 +158,7 @@ private struct AuthenticationBadge: View {
     }
 
     private func load() async {
+        if install?.isMissing == true { auth = nil; loaded = true; return }
         let path = "/api/harness-auth/\(harness.id)" + (slot == "2nd" ? "?slot=2nd" : "")
         do {
             let response: HarnessAuthenticationResponse = try await store.api.get(path)
@@ -188,6 +201,7 @@ struct HarnessAuthenticationView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var flow: HarnessAuthenticationFlow
+    @StateObject private var installFlow: HarnessInstallFlow
     @State private var input = ""
     @State private var confirming = false
     @State private var errorText: String?
@@ -202,6 +216,7 @@ struct HarnessAuthenticationView: View {
     init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil, title: String? = nil, accountLabel: String? = nil,
          limitLine: String? = nil, signedOut: Bool = false) {
         _flow = StateObject(wrappedValue: HarnessAuthenticationFlow(harness: harness, api: api, slot: slot))
+        _installFlow = StateObject(wrappedValue: HarnessInstallFlow(harness: harness.id, api: api, install: harness.install))
         self.title = title ?? harness.name
         self.accountLabel = accountLabel
         self.limitLine = limitLine
@@ -209,9 +224,12 @@ struct HarnessAuthenticationView: View {
     }
 
     private var progress: AuthenticationProgress {
-        flow.auth == nil && errorText != nil ? .unknown
-            : AuthenticationProgress(flow.auth, loaded: flow.auth != nil, signedOut: signedOut && !acted, sending: flow.sendingCode)
+        if let install = installFlow.install, install.isMissing { return .notInstalled(install) }
+        return flow.auth == nil && errorText != nil ? .unknown
+            : AuthenticationProgress(flow.auth, install: installFlow.install, loaded: flow.auth != nil, signedOut: signedOut && !acted, sending: flow.sendingCode)
     }
+
+    private var missing: Bool { if case .notInstalled = progress { true } else { false } }
 
     // 段階と同じ判定で読み直す（status=waitingでもstage=failedは失敗で、読み直さない）。
     private var polling: Bool { scenePhase == .active && progress.inProgress && errorText == nil && !flow.busy }
@@ -225,6 +243,8 @@ struct HarnessAuthenticationView: View {
                 }
             }
             .listRowBackground(Color.clear)
+            // The CLI is missing: the server's sentence and its button below stand in for the login, which cannot run.
+            if !missing {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     if let limitLine {
@@ -246,6 +266,10 @@ struct HarnessAuthenticationView: View {
                 .padding(.vertical, 4)
                 .disabled(flow.busy)
             }
+            }
+            if installFlow.install != nil {
+                Section(header: BellSectionHeader("インストール")) { CLIInstallSection(flow: installFlow).padding(.vertical, 4) }
+            }
         }
         .navigationTitle(title)
         .settingsSubPage()
@@ -253,7 +277,11 @@ struct HarnessAuthenticationView: View {
             Button("始めない", role: .cancel) { }
             Button("今の認証を手放して始める", role: .destructive) { run(.start) { try await flow.start() } }
         } message: { Text(flow.harness.startWarning ?? "") }
-        .task { await perform(method: "GET") { try await flow.refresh() } }
+        .task { if installFlow.install?.isMissing != true { await perform(method: "GET") { try await flow.refresh() } } }
+        // The press ended and the CLI is there: the login can be read now.
+        .onChange(of: installFlow.install) { old, next in
+            if old?.isMissing == true, next?.isMissing == false { Task { await perform(method: "GET") { try await flow.refresh() } } }
+        }
         .task(id: polling) {
             while polling && !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(3)) }
@@ -273,6 +301,8 @@ struct HarnessAuthenticationView: View {
         switch progress {
         case .checking:
             ProgressView()
+        case .notInstalled:
+            EmptyView()
         case .unknown:
             refreshButton
             errorLine
@@ -387,6 +417,13 @@ private struct ClaudeAccountsCard: View {
     @EnvironmentObject private var store: AppStore
     let harness: HarnessAuthenticationOption
     let accounts: HarnessAccounts
+    @StateObject private var install: HarnessInstallFlow
+
+    init(harness: HarnessAuthenticationOption, accounts: HarnessAccounts, api: BellAPI) {
+        self.harness = harness
+        self.accounts = accounts
+        _install = StateObject(wrappedValue: HarnessInstallFlow(harness: harness.id, api: api, install: harness.install))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -395,6 +432,7 @@ private struct ClaudeAccountsCard: View {
                 Spacer()
                 Text(harness.usageText).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             }
+            CLIInstallSection(flow: install)
             ForEach(accounts.allLimited ?? [], id: \.scope) { scope in
                 Label(AccountText.bothLimited(scope), systemImage: "exclamationmark.triangle.fill")
                     .font(BellTheme.secondaryFont).foregroundStyle(.orange)
@@ -435,7 +473,7 @@ private struct ClaudeAccountsCard: View {
             }
             Spacer()
             // 他のAIの行と同じ札。loggedInでなく、そのslotの公式認証の状態から決める（コード待ちを認証済みと見せない）。
-            AuthenticationBadge(harness: harness, slot: slot.slot, signedOut: slot.signedOutAt != nil)
+            AuthenticationBadge(harness: harness, slot: slot.slot, signedOut: slot.signedOutAt != nil, install: install.install)
         }
         .padding(.vertical, 4)
     }
