@@ -72,7 +72,7 @@ export class AitermClient {
       const registration = aitermConnectionRegistration({ command: this.command, args: this.args }, runtime)
       const generation = runtime.generation ?? ''
       const spec = this.seatProject !== null ? seatCommandSpec('/usr/bin/env',
-        [...seatConnectionEnvironment(generation, this.claudeConfigRoots), registration.command, ...registration.args], { project: this.seatProject })
+        ['BELLTEAM_OOM_BIAS=0', ...seatConnectionEnvironment(generation, this.claudeConfigRoots), registration.command, ...registration.args], { project: this.seatProject })
         : { ...registration, env: { ...this.env, BELLTEAM_RUNTIME_GENERATION: generation } }
       const client = this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
       const transport = this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })

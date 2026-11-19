@@ -1,5 +1,6 @@
 // Runs only after seat-exec has dropped all identity slots to the seat UID.
 import { spawn } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { baseBotEnvironment, loadBotEnvironment } from './bot-environment.mjs'
 import { RESUME_STATE_BASE } from './resume-policy.mjs'
@@ -68,6 +69,11 @@ try {
     run: (command, args, options) => run(command, args, options, true),
   })
   if (stopping) throw Error('STOPPED')
+  // execution.md "Body-side Aiterm keeps the kernel default": the parent's own Aiterm marks its launch with this env
+  // assignment (an older wrapper just passes it on); seat-exec set 1000 and a seat UID may lower it. Best effort.
+  let marked = 0
+  if (command === '/usr/bin/env') while (/^\w+=/.test(args[marked] ?? '')) marked++
+  if (args.slice(0, marked).includes('BELLTEAM_OOM_BIAS=0')) try { writeFileSync('/proc/self/oom_score_adj', '0\n') } catch {}
   const result = await run(command, args, { cwd: project, env })
   process.exitCode = result.code ?? 1
   if (result.signal) stopSignal = result.signal
