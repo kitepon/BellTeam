@@ -146,7 +146,7 @@ public static class ClaudeAccountsReads
 }
 
 // One AI login the home reads: every harness, and Claude accounts when the server lists them. AccountLabel (Claude slots) shows only on its own login screen.
-public sealed record AIAuthEntry(string HarnessId, string Name, string? Slot, AuthenticationProgress Progress, string? AccountLabel = null, string? LimitLine = null, bool SignedOut = false);
+public sealed record AIAuthEntry(string HarnessId, string Name, string? Slot, AuthenticationProgress Progress, string? AccountLabel = null, string? LimitLine = null, bool SignedOut = false, HarnessCliInstall? Install = null);
 
 public enum OSNotificationAuthorization { Authorized, Denied, NotDetermined }
 
@@ -174,11 +174,24 @@ public static class SettingsSummary
     public static SettingsStatus Ai(IReadOnlyList<AIAuthEntry>? entries)
     {
         if (entries is null || entries.Count == 0) return Attention("AIの認証の状態を確認できません", "確認できません", SettingsPage.Ai);
+        // a451: an AI that is not installed (or whose install failed) outranks every login stage; installed with a failed update does not count.
+        // An AI being installed or checked moves by itself: no login read, nothing to do, so it never counts. Claude counts once for both accounts.
+        static bool Absent(AIAuthEntry entry) => entry.Install is { NeedsAttention: true };
+        static bool Moving(AIAuthEntry entry) => entry.Install is { CannotRun: true, NeedsAttention: false } or { State: "checking" };
+        static AuthenticationProgress Shown(AIAuthEntry entry) => Moving(entry) && entry.Progress != AuthenticationProgress.Done ? AuthenticationProgress.Checking : entry.Progress;
+        static int Rank(AIAuthEntry entry) => Absent(entry) ? 8 : Severity(Shown(entry));
+        static bool Pending(AIAuthEntry entry) => Absent(entry) || !Moving(entry) && entry.Progress != AuthenticationProgress.Done;
         var worst = entries[0];
-        foreach (var entry in entries) if (Severity(worst.Progress) < Severity(entry.Progress)) worst = entry; // the first of equals wins
-        var others = entries.Count(entry => entry.Progress != AuthenticationProgress.Done) - (worst.Progress == AuthenticationProgress.Done ? 0 : 1);
+        foreach (var entry in entries) if (Rank(worst) < Rank(entry)) worst = entry; // the first of equals wins
+        var others = entries.Where(Pending).Select(entry => Absent(entry) ? "install:" + entry.HarnessId : "login:" + entry.HarnessId + "/" + entry.Slot).Distinct().Count() - (Pending(worst) ? 1 : 0);
         var more = others > 0 ? $"（ほか{others}件）" : "";
-        var line = worst.Progress.Stage switch
+        if (worst.Install is { NeedsAttention: true } install)
+        {
+            var (text, badge) = install.State == "failed" ? ($"{worst.Name}を入れられませんでした", "導入できません") : ($"{worst.Name}がまだ入っていません", "未導入");
+            return new(text + more, badge, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Ai, worst.HarnessId, worst.Slot));
+        }
+        var shown = Shown(worst);
+        var line = shown.Stage switch
         {
             AuthenticationStage.Done => "すべて認証済み",
             AuthenticationStage.Checking => "認証の状態を確認しています",
@@ -189,9 +202,9 @@ public static class SettingsSummary
             AuthenticationStage.NeedsLogin => $"{worst.Name}のログインが必要です" + more,
             _ => $"{worst.Name}の認証に失敗しました" + more
         };
-        var attention = worst.Progress.Stage is AuthenticationStage.Unknown or AuthenticationStage.NeedsLogin or AuthenticationStage.Failed;
+        var attention = shown.Stage is AuthenticationStage.Unknown or AuthenticationStage.NeedsLogin or AuthenticationStage.Failed;
         var route = !attention ? null : worst == ClaudeAccountsReads.UnreadableEntry ? new SettingsRoute(SettingsPage.Ai) : new SettingsRoute(SettingsPage.Ai, worst.HarnessId, worst.Slot);
-        return new(line, worst.Progress.Badge, worst.Progress.Tone, attention, route);
+        return new(line, shown.Badge, shown.Tone, attention, route);
     }
 
     // 1Password. A null setting: the server does not return the item yet (or at all); the old calm line stays.
