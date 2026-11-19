@@ -87,7 +87,8 @@ flowchart TD
   Parent --> Modules["resident module children UID1001<br/>oom_score_adj 0<br/>parent restarts them 1s..30s"]
   Parent --> Sudo["sudo -n (root, small)"]
   Sudo --> SeatExec["bellteam-seat-exec (root)<br/>writes oom_score_adj=1000, then UID1000"]
-  SeatExec --> SeatTree["every seat-side process, inherited across fork/exec/daemonize:<br/>Aiterm execution server, tmux, claude/codex/grok/cursor CLIs,<br/>their tools (rg, tar, chrome), setup.sh, short seat operations"]
+  SeatExec --> SeatTree["every seat-side process, inherited across fork/exec/daemonize:<br/>tmux, claude/codex/grok/cursor CLIs,<br/>their tools (rg, tar, chrome), setup.sh, short seat operations"]
+  SeatExec --> BodyAiterm["the parent's own Aiterm execution server (AitermClient launch marked BELLTEAM_OOM_BIAS=0):<br/>run-seat-command.mjs (already UID1000) writes oom_score_adj 0 before it starts the server"]
   Pressure["host RAM+swap exhausted"] --> Pick{"kernel OOM badness heuristic<br/>(oom_score_adj adjusts it, no fixed order)"}
   Pick -->|"biased toward: seat-side processes (adj 1000)"| SeatTree
   Pick -.->|"not immune: still possible"| Parent
@@ -101,6 +102,7 @@ flowchart TD
 | Body side | Parent and module children keep the kernel default 0. No negative value: the body runs without `CAP_SYS_RESOURCE`, and the Host's own processes keep their order relative to the body. |
 | Effect | A priority bias toward seat processes in the kernel's OOM badness heuristic ([kernel contract](https://docs.kernel.org/6.12/filesystems/proc.html#oom-adj)). It does not guarantee a victim order and does not make the body immune. |
 | Failure | Writing `/proc/self/oom_score_adj` failing is ignored; the seat starts and the prior behavior (inherited value, 0) is retained. Not a guard. |
+| Body-side Aiterm (Molly, 2026-11-20, a466m) | The parent's own Aiterm execution server is one body-owned process that every in-flight Aiterm read of every seat goes through, but it starts through the same seat command as a seat (UID1000, adj 1000). Memcg OOM 2026-11-19/20 took it about 10 times; each kill failed every in-flight read (GET /api/bots 500, pty_observe unknown). `AitermClient.connect` (parent clients, `seatProject` set) puts the env assignment `BELLTEAM_OOM_BIAS=0` first in its `/usr/bin/env` launch; `run-seat-command.mjs` finds it in the leading assignments of a `/usr/bin/env` command and writes `0` to its own `/proc/self/oom_score_adj` before spawning, so the server and its children keep the kernel default like the body. `seat-exec.c` and the sudo rule do not change (a seat UID may lower the value: Docker drops `CAP_SYS_RESOURCE`, so no minimum was recorded). An older wrapper ignores the assignment and an older client sends none, so mixed body/module versions only keep the bias; no refusal. Failing to write is ignored. A seat's own Aiterm MCP children (started by a CLI) and every other seat-side process keep 1000. |
 | No new limit | Turn start and concurrency are unchanged. The box memory bound is the next section (body container owner, Molly, since 2026-11-11). Host swap/OS changes stay Host-owned (Emma). |
 | Not covered | The body can still be chosen. The parent's own ~800MB+ RSS is a separate question, not changed here. |
 

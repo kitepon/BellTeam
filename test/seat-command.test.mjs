@@ -37,3 +37,16 @@ test('席launchは対象projectだけを渡し、server env指定/別tool/不一
     { launchProject: '/synthetic-target' }), { code: 'SEAT_LAUNCH_ARGUMENTS' })
   assert.equal(client.client, null)
 })
+
+test('the body-side Aiterm launch marker resets oom_score_adj to 0; an unmarked seat command keeps the seat bias', async t => {
+  const { execFile } = await import('node:child_process'), { promisify } = await import('node:util'), { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os'), { join } = await import('node:path'), { fileURLToPath } = await import('node:url')
+  const root = await mkdtemp(join(tmpdir(), 'oom-'));t.after(() => rm(root, { recursive: true, force: true }))
+  const wrapper = fileURLToPath(new URL('../src/run-seat-command.mjs', import.meta.url))
+  // start at the seat value (raising is always allowed), then run the post-UID wrapper only, never sudo/C
+  const adj = (...env) => promisify(execFile)('/bin/sh', ['-c', 'echo 1000 > /proc/self/oom_score_adj; exec "$@"', 'sh', process.execPath, wrapper, root,
+    '--base-environment', '--', '/usr/bin/env', ...env, '/bin/cat', '/proc/self/oom_score_adj'], { env: { PATH: '/usr/bin:/bin', HOME: root } }).then(r => r.stdout.trim())
+  if (process.getuid() !== 1000) return t.skip('wrapper requires the seat UID')
+  assert.equal(await adj('BELLTEAM_OOM_BIAS=0', 'X=1'), '0')
+  assert.equal(await adj('X=1'), '1000')
+})
