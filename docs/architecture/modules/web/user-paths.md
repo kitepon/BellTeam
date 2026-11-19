@@ -323,6 +323,26 @@ Priority: an active login (`status=waiting`) wins over a stale `signedOutAt`, wh
 | waitingCode | コード待ち (purple) | code field + 「認証コードを送る」, 「やめる」 |
 | confirming | 確認中 (purple) | none |
 
+#### 4.4a 最新版を入れる (a451, harness-cli.md; Mika's contract, Mac is the visual reference)
+
+The BellTeam image carries no AI CLI; the user installs it here. Same entrance and words on every platform: the Web draws only what the server says (`install` of each `GET /api/harness-auth` item; `GET|POST /api/harness-auth/:id/install`; onboarding `POST /api/setup/install`, snapshot gains `install` at top level and in `harnesses[]`). Nothing is judged in the browser; a body without `install` draws exactly as before.
+
+```mermaid
+stateDiagram-v2
+  [*] --> notInstalled: install.state not_installed (badge 入っていません, attention, counts in the 要対応 band)
+  notInstalled --> installing: 「最新版を入れる」 -> POST install (3 s GET install while busy)
+  installing --> installed: state installed -> the login row is built (GET /api/harness-auth/:id)
+  installing --> installFailed: state failed (badge 入れられません, attention); 「最新版を入れる」 again
+  installed --> installed: the same press is the update; busy + message only, the login row stays
+```
+
+- `install.message` is shown as given in every state, with the button 「最新版を入れる」 (`label`) only when `action` is `install`. `checking` shows the message and no button.
+- While the AI cannot run (not_installed / installing / failed / checking) the row makes **no** login call (start/status answer 409 `HARNESS_NOT_INSTALLED`); it is a head (title + badge) plus the install block. Once `installed` the usual login row appears; Claude keeps its two account rows under one install block.
+- Settings home line: 「<AI>が入っていません」 / 「<AI>を入れられませんでした」 (attention, in the band) or 「<AI>を入れています」 (info).
+- Member editor: under 「AI」 the chosen AI's `<名前>：<message> 設定の「AIの認証」で操作します。` when it is not_installed / installing / failed (read from `GET /api/harness-auth`; nothing when unreadable; saving is never blocked).
+- Onboarding: after choosing an AI that is not installed, the step shows its message and one primary 「最新版を入れる」 instead of the login buttons; it reads `GET /api/setup` every 3 s while `busy`; the server starts the official login after the install, so the next read shows it.
+- Protection: none added (no guard); self-exit of every state is the button or the next read.
+
 - ⚠W43 (S5) While `確認中`, rows already draw 「認証する」 and 「状態を更新」 (disabled), reading as logged out (`harness-auth.js:110-144`). → No buttons in checking.
 - ⚠W44 (S5) Claude 1st shows 「ログイン済み」 + green 「認証済み」 next to red 「Fableのみ上限中 (…)・上限中 (…)」 and a primary 「ログインし直す」; two sources (accounts vs harness-auth) decide two badges (`harness-accounts.js:89-94`). → The login badge comes only from the stage function. The usage limit is separate: ONE line under the badge, 「上限中・11/13 17:00 に戻ります（いまは2つ目で動いています）」 (Root review 2026-11-11, same as Apple). Only ログインが必要 / 失敗 / 途中 rows carry a primary button.
 - ⚠W45 (S5) 「状態を更新」 appears 7 times. → One 「すべて確認し直す」 at the page top; per-row 「確認する」 only in unknown.

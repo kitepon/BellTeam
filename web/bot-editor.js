@@ -4,6 +4,7 @@ import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, modelChoices } from './view-format.js?v=__ASSET_VERSION__'
 import { folderRefusal, folderUncheckedText, memberFolder, osOf, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
 import { createFolderPicker } from './folder-picker.js?v=__ASSET_VERSION__'
+import { installStage } from './auth-flow.js?v=__ASSET_VERSION__'
 
 // Plain reason for a definite save refusal; an unknown code gets the generic sentence, never the code alone.
 const SAVE_REFUSALS = {
@@ -23,7 +24,7 @@ const SAVE_REFUSALS = {
 export const memberSaveRefusal = (error, folder) => folderRefusal(error, folder) ?? SAVE_REFUSALS[error?.code] ?? 'サーバーが入力を受け付けませんでした。入力を見直してから、もう一度保存してください。'
 
 export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus }) {
-  let owner = null, models = {}, modelLoad = null, saving = null, editRevision = 0
+  let owner = null, models = {}, modelLoad = null, saving = null, editRevision = 0, installs = new Map()
   const botForm = dialog.querySelector('#bot-form')
   const botDialogTitle = dialog.querySelector('#bot-dialog-title')
   const botName = dialog.querySelector('#bot-name')
@@ -49,6 +50,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const botColor = dialog.querySelector('#bot-color')
   const botFormError = dialog.querySelector('#bot-form-error')
   const botModelStatus = dialog.querySelector('#bot-model-status')
+  const botInstallStatus = dialog.querySelector('#bot-install-status')
   const botConfigurationStatus = dialog.querySelector('#bot-configuration-status')
   const verifySaveButton = dialog.querySelector('#verify-bot-save')
   const saveBotButton = dialog.querySelector('#save-bot-button')
@@ -178,6 +180,9 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     folderPicker.close()
     if (!dialog.open) dialog.showModal()
     void loadRemote(owner, controller.signal)
+    installs = new Map()
+    renderInstallNote()
+    void loadInstalls(controller.signal)
     try {
       const result = await api('/api/models', { signal: controller.signal })
       if (controller.signal.aborted) return
@@ -307,7 +312,21 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   function selectedModel() {
     return botModel.value === CUSTOM_MODEL ? botModelCustom.value.trim() : botModel.value
   }
-  botHarness.addEventListener('change', () => renderModelOptions(botHarness.value, '', ''))
+  // a451: an AI that is not on this server yet is said plainly here, in the server's own words (read from /api/harness-auth, never judged here). It does not block saving.
+  function renderInstallNote() {
+    const entry = installs.get(botHarness.value)
+    const stage = installStage(entry?.install)
+    botInstallStatus.hidden = !stage || stage === 'checking'
+    botInstallStatus.textContent = botInstallStatus.hidden ? '' : `${entry.name}：${entry.install.message} 設定の「AIの認証」で操作します。`
+  }
+  async function loadInstalls(signal) {
+    try {
+      const { harnesses } = await api('/api/harness-auth', { signal })
+      if (!signal.aborted) installs = new Map(harnesses.map(item => [item.id, item]))
+    } catch { installs = new Map() /* 読めない時は何も言わない */ }
+    if (!signal.aborted) renderInstallNote()
+  }
+  botHarness.addEventListener('change', () => { renderModelOptions(botHarness.value, '', ''); renderInstallNote() })
   botModel.addEventListener('change', () => {
     botModelCustomField.hidden = botModel.value !== CUSTOM_MODEL
     // 選び直したモデルが今のエフォートを受け付けなければ、CLIの既定へ戻す。
