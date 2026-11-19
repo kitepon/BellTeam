@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { checkSeatArgs } from './cli.mjs'
 import { latticeError, latticeRunReads } from '../lattice-protocol.mjs'
-import { laneResolver, projectChart } from './projection.mjs'
+import { laneResolver, projectChart, projectHistory } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
 import { nudgeSweep } from './nudge.mjs'
@@ -85,7 +85,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     let read, meta, ready
     try {
       let status
-      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--compact']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
+      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--open']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
       ready = readyOf(read, status)
     } catch (error) {
       memo.dirty = true
@@ -111,7 +111,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       degraded: rosterBad ? ['members'] : [],
       members: projection.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color,
         avatarVersion: known.get(botId).avatarVersion })),
-      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases, externals: projection.externals })
+      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases, externals: projection.externals, history: { closed: projection.closedTasks } })
     return memo
   }
 
@@ -145,6 +145,20 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       await mustExist(projectId)
       const [memo] = await syncAll([projectId], effect)
       return snapshotOf(projectId, memo)
+    },
+    // One page of the closed trees' finished cards, read from Lattice only now (README L24, a457); nothing is kept, so a closed card never sits in the memo.
+    async history({ projectId, before, limit }, effect) {
+      await mustExist(projectId)
+      await rosterReader(effect)()
+      let result
+      try { result = await lattice(projectId, ['todo', 'display', 'history', '--json', '--limit', String(limit), ...before === null ? [] : ['--before', before]]) } catch (error) {
+        throw error.code === 'LATTICE_CLI_EXIT_2' ? latticeError('LATTICE_INVALID') : latticeError('LATTICE_UNAVAILABLE', 503) // exit 2 = Lattice refused the cursor or the limit
+      }
+      const page = projectHistory({ result, members: roster })
+      const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
+      return { schema: 'bellteam.lattice-history.v1', projectId, at: iso(now()), state: page.state, closed: page.closed,
+        members: page.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color, avatarVersion: known.get(botId).avatarVersion })),
+        cards: page.cards, next: page.next }
     },
     // Returns each chart whose version moved since it was last returned here, so a read by another caller is never lost to subscribers.
     async refresh({ projectIds }, effect) {

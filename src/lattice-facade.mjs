@@ -12,7 +12,7 @@ const SLICE = 50
 export const NUDGE_MS = 60_000
 import { latticeRunReads } from './lattice-protocol.mjs'
 
-const READS = new Set(['charts', 'chart', 'refresh', 'blockers'])
+const READS = new Set(['charts', 'chart', 'history', 'refresh', 'blockers'])
 const BACKGROUND = new Set(['nudge', 'deliver'])
 // Background writes and unblock: a write queued longer is never sent (nobody can read its answer late).
 export const QUEUE_WAIT_MS = 50_000
@@ -97,6 +97,8 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
     // Once per child generation (onGeneration; held until the child is ready). An old child refuses the method: swallowed, like refresh errors.
     deliver: () => call('deliver', {}).catch(() => null),
     chart: projectId => call('chart', { projectId }),
+    // One page of the closed trees' finished cards (README L24, a457); before = a previous page's `next` or null, limit 1-100.
+    history: ({ projectId, before = null, limit = 50 }) => call('history', { projectId, before, limit }),
     async run({ from, projectId, args, input = null, name }) {
       const value = await call('run', { from, projectId, args, input, ...(name !== undefined && { name }) })
       // The run may have written the chart; its subscribers get the new snapshot now, not at the next tick.
