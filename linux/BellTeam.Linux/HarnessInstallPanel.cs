@@ -17,6 +17,7 @@ public sealed class HarnessInstallPanel : StackPanel
     private readonly CancellationToken lifetime;
     private readonly TextBlock message = SettingsUi.Text("", 13, SettingsUi.Muted), problem = SettingsUi.Text("", 12, SettingsUi.Red, null, new Thickness(0, 4, 0, 0));
     private readonly Button press = SettingsUi.Capsule(HarnessCliInstall.DefaultLabel, SettingsUi.Violet, Brushes.White, 8, 13, new Thickness(12, 6));
+    private readonly Control spinner = LatticeLook.Spinner(14);
     private bool pressing, polling, stopped;
     public HarnessCliInstall Install { get; private set; }
     // Raised whenever the server's answer changed what is shown; the owner of the row decides what a change in readiness means.
@@ -29,8 +30,9 @@ public sealed class HarnessInstallPanel : StackPanel
     {
         this.api = api; this.harness = harness; this.name = name; this.lifetime = lifetime; Install = install;
         press.HorizontalAlignment = HorizontalAlignment.Left; press.Margin = new Thickness(0, 8, 0, 0);
+        spinner.HorizontalAlignment = HorizontalAlignment.Left; spinner.Margin = new Thickness(0, 8, 0, 0);
         press.Click += async (_, _) => await PressAsync();
-        Children.Add(message); Children.Add(press); Children.Add(problem); problem.IsVisible = false;
+        Children.Add(message); Children.Add(spinner); Children.Add(press); Children.Add(problem); problem.IsVisible = false;
         Show(); if (Wants) _ = PollAsync();
     }
     // The server's busy flag, or an install of an absent CLI still running, keeps the reading going.
@@ -43,7 +45,11 @@ public sealed class HarnessInstallPanel : StackPanel
     private void Show()
     {
         message.Text = Install.Message; message.Foreground = Install.NeedsAttention ? SettingsUi.Orange : SettingsUi.Muted;
-        press.Content = Install.ButtonLabel; AutomationProperties.SetName(press, name + " " + Install.ButtonLabel);
+        // As the Mac: a spinner while the server installs, the press is the primary button for an AI that cannot run and a quiet one for an AI that runs, and says 始めています… while it is sent.
+        var label = pressing ? "始めています…" : Install.ButtonLabel; var missing = Install.State is "not_installed" or "installing" or "failed";
+        press.Content = label; AutomationProperties.SetName(press, name + " " + label);
+        press.Background = missing ? SettingsUi.Violet : BellTheme.ButtonFill; press.Foreground = missing ? Brushes.White : SettingsUi.Ink;
+        spinner.IsVisible = Install.Busy || Install.State == "installing";
         press.IsVisible = Install.CanPress; press.IsEnabled = !pressing;
     }
     private void Apply(HarnessCliInstall next) { var changed = next != Install; Install = next; Show(); if (changed) Changed?.Invoke(next); }

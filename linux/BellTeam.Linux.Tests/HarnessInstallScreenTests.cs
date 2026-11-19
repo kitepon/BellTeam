@@ -60,6 +60,8 @@ public sealed class HarnessInstallScreenTests
         Assert.DoesNotContain("GET /api/harness-auth/codex", server.Calls); // an AI that cannot run is never asked for its login
         // The settings home band says it with the words every app shares.
         await Until(() => Lines(window).Contains("Codexがまだ入っていません"));
+        // As the Mac: the press is primary for an AI that cannot run, quiet for one that runs.
+        Assert.Same(SettingsUi.Violet, Find(window, "Codex 最新版を入れる").Background); Assert.Same(BellTheme.ButtonFill, Find(window, "Grok 最新版を入れる").Background);
         Find(window, "Codex 最新版を入れる").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
         Assert.Contains("POST /api/harness-auth/codex/install", server.Calls);
         Assert.Contains(Lines(window), line => line == "入れています。数分かかることがあります。");
