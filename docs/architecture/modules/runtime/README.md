@@ -21,6 +21,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [execution親の選択保存ACK](execution-adoption.md)
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
+- [利用者が入れたAI CLIの置き場と、公式インストーラーの実行（a451）](user-cli-place.md)
 - [Runtime hot updates: CLIs/Throughline; Aiterm via body image](runtime-updates.md)（Z-b2、slice Aを実装）
 - [Aiterm generation facade and operation references](aiterm-generation-client.md) (adopted hot-update baseline, Elegg/Kiro/Molly)
 - [箱同梱のmodule導入プログラム](module-installer.md)（実装中、標準Docker方式）

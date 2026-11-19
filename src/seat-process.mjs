@@ -2,6 +2,7 @@
 // wrapper own identity/environment and group cancellation, not this caller.
 import { spawn } from 'node:child_process'
 import { seatCommandSpec } from './seat-command.mjs'
+import { runtimeHome } from './runtime-home.mjs'
 
 const failure = (code, properties = {}) => Object.assign(new Error(code), { code, ...properties })
 
@@ -52,3 +53,9 @@ export function createSeatProcessRunner(project, { environment = 'configured' } 
     })
   }
 }
+
+// The user place (a451, runtime/user-cli-place.md): AI CLIs the user installs live in the container user's /home/bell/.local, one copy
+// for every seat. The privileged entry does not look at `project`, and base mode builds the environment from it, so project = HOME
+// yields the place itself: PATH first /home/bell/.local/bin, npm prefix /home/bell/.local. Same sudo rule, limits and cancel as a seat.
+export const userPlace = (environment = process.env) => `${runtimeHome(environment)}/.local`
+export const createUserPlaceRunner = (environment = process.env) => createSeatProcessRunner(runtimeHome(environment), { environment: 'base' })
