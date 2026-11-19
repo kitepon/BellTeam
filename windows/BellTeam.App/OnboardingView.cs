@@ -55,12 +55,13 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         else
         {
             column.Children.Add(MacUi.Text(state.Harnesses.FirstOrDefault(harness => harness.Id == state.Harness)?.Name ?? "公式認証", 17, MacUi.Ink, FontWeights.Bold, new Thickness(0, 22, 0, 0)));
-            if (state.Auth is { } auth)
+            if (!HarnessCliInstall.Ready(state.Install)) column.Children.Add(InstallPanel(state.Install!));
+            else if (state.Auth is { } auth)
             {
                 column.Children.Add(MacUi.Text(Description(auth), 13, MacUi.Muted, margin: new Thickness(0, 22, 0, 0)));
                 column.Children.Add(Instructions(auth));
             }
-            var start = MacUi.Prominent("認証を確認して始める", () => _ = StartAsync()); start.IsEnabled = !Locked && state.Auth?.Status == "authenticated"; start.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(start);
+            var start = MacUi.Prominent("認証を確認して始める", () => _ = StartAsync()); start.IsEnabled = !Locked && HarnessCliInstall.Ready(state.Install) && state.Auth?.Status == "authenticated"; start.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(start);
             var refresh = MacUi.Bordered("認証の状態を更新", () => _ = RefreshAsync()); refresh.IsEnabled = !busy; refresh.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(refresh);
             var menu = MacUi.Bordered("使うAIを変更", () => { }); menu.IsEnabled = !Locked; menu.Margin = new Thickness(0, 22, 0, 0); ChooseMenu(menu); column.Children.Add(menu);
         }
@@ -76,7 +77,10 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     private Button HarnessCard(HarnessOption harness)
     {
         var row = new DockPanel(); var arrow = MacUi.Glyph("", 14); DockPanel.SetDock(arrow, Dock.Right); row.Children.Add(arrow);
-        row.Children.Add(MacUi.Text(harness.Name, 13, MacUi.Ink, FontWeights.Bold));
+        var names = new StackPanel(); names.Children.Add(MacUi.Text(harness.Name, 13, MacUi.Ink, FontWeights.Bold));
+        // The server's sentence for an AI that is not installed yet; choosing it leads to the install step.
+        if (!HarnessCliInstall.Ready(harness.Install)) names.Children.Add(MacUi.Text(harness.Install!.Message, 11, MacUi.Muted, margin: new Thickness(0, 6, 0, 0)));
+        row.Children.Add(names);
         var button = MacUi.Bare(MacUi.Card(row, new Thickness(22)), () => _ = ChooseAsync(harness.Id), harness.Name); button.IsEnabled = !busy; return button;
     }
     // Mac Menu 「使うAIを変更」: a button that opens the list of AIs.
@@ -134,6 +138,20 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         return panel;
     }
 
+    // harness-cli.md: choose -> install -> login. The sentence is the server's, shown as given; the button installs the chosen AI and the server then starts its login.
+    private UIElement InstallPanel(HarnessCliInstall install)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 22, 0, 0) };
+        var message = MacUi.Text(install.Message, 13, MacUi.Ink); System.Windows.Automation.AutomationProperties.SetAutomationId(message, "harness-install-message"); panel.Children.Add(message);
+        if (install.CanPress)
+        {
+            var press = MacUi.Prominent(install.ButtonLabel, () => _ = InstallAsync()); press.IsEnabled = !Locked; press.Margin = new Thickness(0, 22, 0, 0);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(press, "harness-install"); panel.Children.Add(press);
+        }
+        return panel;
+    }
+    private Task InstallAsync() => PerformAsync(async () => Accept(await api.InstallAsync(lifetime)));
+
     // A message of the app itself (not a server answer): shown as is.
     private sealed class Notice(string message) : Exception(message);
     private static string WriteFailure(Exception error) => error is BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message;
@@ -171,21 +189,23 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         Accept(await api.RespondAsync(ui, response, lifetime));
     }, authReply: true);
 
+    // The official login is pending, or the server is still checking or installing the chosen AI.
+    private bool WantsPolling => state.Auth?.Status == "waiting" || state.Install is { } install && HarnessInstallRunner.Waiting(install);
     private void UpdatePolling()
     {
-        if (!disposed && state.Auth?.Status == "waiting") { if (!timer.IsEnabled) timer.Start(); }
+        if (!disposed && WantsPolling) { if (!timer.IsEnabled) timer.Start(); }
         else timer.Stop();
     }
     // Every three seconds while the official authentication is pending. A failed read is shown and the next success clears it; the polling itself goes on.
     internal async Task PollAsync()
     {
-        if (disposed || busy || needsRefresh || reading || state.Auth?.Status != "waiting") return;
+        if (disposed || busy || needsRefresh || reading || !WantsPolling) return;
         reading = true; var seen = revision;
         try
         {
             var next = await api.StatusAsync(lifetime);
             if (seen != revision || busy || needsRefresh) return;
-            var changed = readError is not null || next.Phase != state.Phase || next.Harness != state.Harness || next.Auth != state.Auth || !next.Harnesses.SequenceEqual(state.Harnesses);
+            var changed = readError is not null || next.Phase != state.Phase || next.Harness != state.Harness || next.Auth != state.Auth || next.Install != state.Install || !next.Harnesses.SequenceEqual(state.Harnesses);
             readError = null; Accept(next); if (changed) Render();
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
