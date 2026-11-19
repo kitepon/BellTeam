@@ -198,14 +198,16 @@ executionは`SERVER_MODEL_CONFIGURATION_FAILED`（bots）と`SERVER_TURN_TRACKIN
 ```mermaid
 flowchart LR
   HTTP["業務HTTP: 認証→control→members refresh→feature"] --> Error["http-errors: 型付き503を選択"]
-  Error --> Safe["大文字定数code（全module・control段階含む）/ HTTP段階 / 型route（/api/schedules含む）/ 時刻"]
+  Error --> Hold{"BOT_UPDATE_HOLD?"}
+  Hold -- "はい（設計どおりの保留。解除が自己脱出）: 記録しない" --> Response
+  Hold -- "いいえ" --> Safe["大文字定数code（全module・control段階含む）/ HTTP段階 / 型route（/api/schedules含む）/ 時刻"]
   Safe --> Writer["既Diagnostics.record / SERVER_HTTP_503"]
   Writer --> Saved["既private診断保存 / 管理GET / BugHub通常取込"]
   Error --> Response["既status・JSON応答"]
   Error --> Text["message: publicMessage → 共通code文表 → error.message"] --> Response
 ```
 
-早期returnしていた型付き503だけを既writerへ記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・既入場上限・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
+早期returnしていた型付き503だけを既writerへ記録する。ただし`BOT_UPDATE_HOLD`（本体入れ替え中の設計どおりの保留。update-hold.md H2、`effect: not_started`、解除が自己脱出）は障害ではないので記録しない（応答の503とJSONは変えない。BugHub ef83d4ee、Tronny ruling a444m）。他の型付き503は従来どおり記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・既入場上限・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
 
 遅い要求と途中で切られた要求（t20、BugHub 44906d23/4783ee40/c882af7b）：公開入口の`/api/`要求のうち、60秒以上かかったもの（応答を返し終えた遅い要求も、60秒以上待った相手が応答前に切ったものも）を`SERVER_HTTP_SLOW_OR_ABORTED`（schema `bellteam.http-slow.v1`）として既Diagnosticsへ記録する（`recordSlowOrAborted`、src/http-request-log.mjs）。項目はmethod・route型（`httpRouteType`、503と共通。IDやqueryは残さない）・開始時刻・所要時間・応答headerを送ったか・応答を返し終えたか・status。`/api/events`とtext/event-streamの応答は閉じて終わるので記録しない（content-typeは`setHeader`でも`writeHead(status, {headers})`でも読む。8c6fded6：`writeHead`で開く他のSSEが`/api/other`として1942回記録されていた）。内部入口（席）は対象外。60秒に満たないうちに相手が切った要求は記録しない（a419、8c6fded6：読む担当がおらず、BugHubの案件を「遅い」だけでなく短い切断でも再開させていた）。その切断は既存の本体ログ行（BellTeam read/write の `aborted Nms`、pathつき）に残り、それはそのまま。
 

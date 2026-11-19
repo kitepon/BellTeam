@@ -28,7 +28,8 @@ export function httpRouteType(url) {
 export async function respondHttpError(request, response, error, diagnostics, context = {}) {
   const unreadable = error.code === 'UNREADABLE' && error.status === 503
   if (typeof error.code === 'string' && Number.isInteger(error.status)) {
-    if (error.status === 503 && diagnostics) {
+    // A designed update hold ends by itself when the swap is released (update-hold.md H2), so it is not a failure to file (a444m).
+    if (error.status === 503 && error.code !== 'BOT_UPDATE_HOLD' && diagnostics) {
       try {
         await diagnostics.record({ code: 'SERVER_HTTP_503', module: 'server', diagnostic_log: JSON.stringify({
           schema: 'bellteam.http-unavailable.v1',
