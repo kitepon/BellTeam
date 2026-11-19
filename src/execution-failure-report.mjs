@@ -21,6 +21,7 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   const code = returnedExecutionError(error?.executionError)?.code ?? error?.code
   if (processCodes.has(code) || Object.hasOwn(constants.errno, code ?? '') || returnedExecutionError(error?.executionError)) detail.errorCode = code
   else if (String(error?.message).startsWith('AITERM_WAIT_INVALID')) detail.errorCode = 'AITERM_WAIT_INVALID'
+  if (detail.errorCode === 'AITERM_WAIT_INVALID' && ['seat_command', 'ssh', 'waiter', 'empty'].includes(error?.waitLayer)) detail.waitLayer = error.waitLayer
   if (Object.hasOwn(error ?? {}, 'exitCode') && (error.exitCode === null || Number.isSafeInteger(error.exitCode))) detail.exitCode = error.exitCode
   if (Object.hasOwn(error ?? {}, 'signal') && (error.signal === null || Object.hasOwn(constants.signals, error.signal))) detail.signal = error.signal
   if (Object.hasOwn(error ?? {}, 'waitOutcome')) detail.waitOutcome = waitOutcomes.has(error.waitOutcome) ? error.waitOutcome : 'unknown'
