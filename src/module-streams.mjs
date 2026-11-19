@@ -182,7 +182,8 @@ export function createConversationStreams(endpoint, { onStream, onOpen = () => t
       && Number.isSafeInteger(frame.seq) && frame.seq >= 0)
     return control(frame)
   }, close: () => {
-    endpoint.off('message', message); endpoint.off('disconnect', disconnected); disconnected()
+    // Keep the 'message' listener: Node's child_process emit throws an uncaught TypeError (channel null) when a read still has queued frames after the last listener left and the channel closed.
+    endpoint.off('disconnect', disconnected); disconnected()
   }, snapshot: () => ({ sending: sending.size, receiving: receiving.size, controlBytes, receivedControlBytes,
     unconsumedBytes: [...receiving.values()].reduce((total, stream) => total + stream.queue.reduce((sum, data) => sum + data.length, 0), 0) }) }
 }
