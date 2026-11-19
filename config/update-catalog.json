@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T14:26:00Z",
-  "expiresAt": "2026-11-26T14:26:00Z",
+  "publishedAt": "2026-11-19T16:30:45Z",
+  "expiresAt": "2026-11-26T16:30:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "27446935b118ad048d40622ff3eee8cdf3e0f5b3",
-      "versionId": "dd802b3faefc3670c4c7a659370722dbce2dffa54913c750b66c6108093c6090",
+      "sourceCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0",
+      "versionId": "18fdc16fa04b5eb58186c7a2a49818a208f8a0e0b54b9af4e8f383cf4458f0e6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T093652Z/lattice-27446935b118ad048d40622ff3eee8cdf3e0f5b3-linux-amd64.tar.gz",
-          "bytes": 15340739,
-          "sha256": "dd802b3faefc3670c4c7a659370722dbce2dffa54913c750b66c6108093c6090"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-amd64.tar.gz",
+          "bytes": 15342339,
+          "sha256": "18fdc16fa04b5eb58186c7a2a49818a208f8a0e0b54b9af4e8f383cf4458f0e6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T093652Z/lattice-27446935b118ad048d40622ff3eee8cdf3e0f5b3-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11231,
-          "sha256": "d81815174b837f5a10a371970f802cda906591f2c5b5b6e9b4017ba7cb337a9b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "150ead7415253088212b1edffa992c03d6203aae986f3bd565765984e138426f"
         },
-        "signerCommit": "27446935b118ad048d40622ff3eee8cdf3e0f5b3"
+        "signerCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,14 +787,13 @@
         }
       },
       "changes": [
-        "工程表を画面に出すとき、全部を読まずに軽い読み方（compact）で読むようにして、大きな工程表でも「使えない」とならないようにしました。",
-        "Lattice を 0.112.0 以上に固定しました。"
+        "Lattice を動かす子が、同時に動かす Lattice の命令を最大 3 つまでに抑えるようにしました。メモリを使いすぎて、席の AI が途中で止められることを減らします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "27446935b118ad048d40622ff3eee8cdf3e0f5b3",
-      "versionId": "ee7f8d4c7918323cee00e09df2836cea7c92c5756e0c29ad53ee2ece0880e82a",
+      "sourceCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0",
+      "versionId": "0ca195c6c44b06daaf80f9a7822b24fd25e5b9988d2738baf46e38be1027bfac",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -802,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T093652Z/lattice-27446935b118ad048d40622ff3eee8cdf3e0f5b3-linux-arm64.tar.gz",
-          "bytes": 15340739,
-          "sha256": "ee7f8d4c7918323cee00e09df2836cea7c92c5756e0c29ad53ee2ece0880e82a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-arm64.tar.gz",
+          "bytes": 15342339,
+          "sha256": "0ca195c6c44b06daaf80f9a7822b24fd25e5b9988d2738baf46e38be1027bfac"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T093652Z/lattice-27446935b118ad048d40622ff3eee8cdf3e0f5b3-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11231,
-          "sha256": "ad1a25f8af1aadea89decb9cf14d677e03b5f4299a0b062020698d81ba65a1f2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "af43fd39d1f3e731362371ecdcf14039d011fd839455d08639e397328e08039d"
         },
-        "signerCommit": "27446935b118ad048d40622ff3eee8cdf3e0f5b3"
+        "signerCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -823,8 +822,7 @@
         }
       },
       "changes": [
-        "工程表を画面に出すとき、全部を読まずに軽い読み方（compact）で読むようにして、大きな工程表でも「使えない」とならないようにしました。",
-        "Lattice を 0.112.0 以上に固定しました。"
+        "Lattice を動かす子が、同時に動かす Lattice の命令を最大 3 つまでに抑えるようにしました。メモリを使いすぎて、席の AI が途中で止められることを減らします。"
       ]
     },
     {
