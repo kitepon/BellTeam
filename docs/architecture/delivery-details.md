@@ -53,6 +53,7 @@ flowchart TD
   Reply -->|accepted| Accepted["Follow original receipt"]
   Reply -->|"Aiterm says do not resend"| Fail["Return original error; never replay"]
   Reply -->|"question dialog open (CLAUDE_SELECT_MENU_OPEN, nothing typed): BOT_AWAITING_USER"| Awaiting["seat waiting on its user: no observe, no close, no launch; the saved receipt stays queued (not_started) and is sent after the dialog is gone"]
+  Reply -->|"image for a remote seat (REMOTE_IMAGE_UNSUPPORTED, nothing typed): BOT_IMAGE_UNSUPPORTED"| ImageRefused["input refused, seat fine: no observe, no close, no launch; delivery ends failed (BOT_SEND_FAILED, typed not_started keeps the receipt failed); no BugHub filing (a463)"]
   Reply -->|"answer lost (RPC error)"| Lost["Matching pty_observe"]
   Lost -->|"pane_alive=false (no terminal behind the record)"| Launch
   Lost -->|"terminal alive / unreadable"| Fail
@@ -80,6 +81,7 @@ flowchart TD
 | 答えが届かなかった（RPCの失敗）で、観測すると端末が生きている、または観測が読めない | 打った文を二度実行させない | 同上。端末が無い（`pane_alive=false`：記録だけ残った席、休止中の席）と観測できた時は失敗にせず、起こして届ける（休止中の席は閉じずに同じ会話へ再開、記録だけ残った席は閉じてから）。端末が無ければ文は打たれていない |
 | 質問の画面（AskUserQuestionなど）が開いた席がAitermに断られた（`CLAUDE_SELECT_MENU_OPEN`、何も打っていない。a413） | 席の前の質問への答えを、届いた文で代わりに出さない（7681）。作業中のターンを閉じて起動し直さない | `BOT_AWAITING_USER`（409）。席は死んだのではなく利用者の答えを待っているので、観測も閉じも起動もしない。保存済みの受領はqueuedのまま（`not_started`、診断なし、`failed`の履歴も作らない）。画面が閉じるか、60秒ごとの見直しで同じIDをもう一度送る。席のターンの終わりでも見直す |
 | 起こす席のAI CLIが入っていない（利用設定の`harnessCli`が`installed`以外。a451、[cli-not-installed.md](modules/execution/cli-not-installed.md)）。端末側の席は対象外 | 入っていないCLIを起動して失敗として記録する（BugHubへ出す）ことと、何も無い所へ文を打つこと | `BOT_AWAITING_USER`（not_started）で起動の前に止め、受信箱は待ち行列に残す。席の表示に「<AI>がまだ入っていません。AIの認証から入れてください」を出す。入れ終わると`watch`が通知し、同じIDが流れる |
+| 別端末の席へ画像を付けた送信がAitermに断られた（`REMOTE_IMAGE_UNSUPPORTED`、何も打っていない。a463） | 断りは入力の話で席は正常。生きている席を閉じて会話を捨てない（以前は閉じて起こし直し、同じ断りでまた失敗した） | `BOT_IMAGE_UNSUPPORTED`（409）。送り手は画像を外して送り直す。画像を別端末の席へ渡す機能はAiterm側の持ち物 |
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
@@ -130,7 +132,8 @@ Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_pr
 
 旧adapterを注入した構成では、`ExecutionBridge.reserve/ExecutionRequest.invoke`がrequest・source・target世代・入力境界を結び、`acceptBinding`が不完全な追跡とnative受付を分離する。明示resumeは元registerを再作成せず、元sendがnot_issuedと確認できる時だけ`reconcileLaunch`→同じ配送IDのnotifyへ進む。closeは元unknown launchの期待世代に対する管理操作であり、元配送のunknown記録は変更しない。通信断やstatus不一致を成功へ補完しない。
 
-`AitermClient.call`がnativeの厳密な未入力拒否を`BOT_INPUT_NOT_READY/BOT_SEND_BUSY/AGENT_SESSION_REQUIRED`へ写す。質問の画面が開いている席への拒否（Aiterm 0.70.72の`CLAUDE_SELECT_MENU_OPEN`、本文に「文字列は送信していません。」。`_meta["aiterm/error_code"]`にこの符号が付く版ではそれも見る）は`BOT_AWAITING_USER`（409、`not_started`）へ写す（a413）。`BOT_SEND_OUTCOME_UNKNOWN`は起動復旧より先に拒否する。認証/起動はtyped receiptと安全enumだけを残し、`captureMcpError`の通常本文記録の対象外。席側の短命起動でも`run-seat-aiterm-launch`が選別したエラーfieldsを返す。
+`AitermClient.call`がnativeの厳密な未入力拒否を`BOT_INPUT_NOT_READY/BOT_SEND_BUSY/AGENT_SESSION_REQUIRED`へ写す。質問の画面が開いている席への拒否（Aiterm 0.70.72の`CLAUDE_SELECT_MENU_OPEN`、本文に「文字列は送信していません。」。`_meta["aiterm/error_code"]`にこの符号が付く版ではそれも見る）は`BOT_AWAITING_USER`（409、`not_started`）へ写す（a413）。別端末の席への画像（Aiterm `sendRemote`の`REMOTE_IMAGE_UNSUPPORTED`、何も打たずに最初に断る）は`BOT_IMAGE_UNSUPPORTED`（409、型付きの`EXECUTION_UNSUPPORTED`/`not_started`付き）へ写す（a463、2026-11-19 20:32 JST、BugHub 3beb1932・7681ba25）。拒否は入力の話で席の不調ではないので、`dispatch`は観測・`pty_close`・起こし直しをせず、そのまま失敗にする（以前は生きている席を閉じて起こし直し、同じ拒否でまた失敗していた）。段階は`BOT_SEND_FAILED`、受領は型付きの未送信により`failed`のまま（`queued`で再配送もせず、`unknown`にもしない）。送り手は失敗の状態と`mcp_error`の文で知る。設計済みの拒否なので`SERVER_DELIVERY_*_FAILED`も`SERVER_TURN_TRACKING_FAILED`も出さない。残る限界: 画像を別端末の席へ渡す機能はAiterm側（エレグ）の持ち物で、BellTeamは断りを正しく返すだけ。
+`BOT_SEND_OUTCOME_UNKNOWN`は起動復旧より先に拒否する。認証/起動はtyped receiptと安全enumだけを残し、`captureMcpError`の通常本文記録の対象外。席側の短命起動でも`run-seat-aiterm-launch`が選別したエラーfieldsを返す。
 
 Aiterm 0.63.12 prefixes `AGENT_INPUT_NOT_READY` and `AGENT_INPUT_TARGET_UNAVAILABLE` identify pre-input refusal branches. The client accepts those prefixes alongside the legacy text only for the requested session's `pty_send` and the explicit unsent phrase, preserving the original diagnostic message and existing `BOT_INPUT_NOT_READY` classification. This adds no wait, replay, or structured input-effect certificate.
 

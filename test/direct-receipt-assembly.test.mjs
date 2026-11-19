@@ -332,6 +332,26 @@ test('a launch refused by the swap files no report: BOT_LAUNCH_FAILED status hel
   await f.direct.close()
 })
 
+test('an image refused for a remote seat ends failed (never queued, never unknown) and files no launch or tracking report (a463, BugHub 3beb1932/7681ba25)', async t => {
+  const proof = { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_UNSUPPORTED', effect: 'not_started', follow_up: 'none' }
+  let seen = 0
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+    async notify(_bot, _envelope, options) {
+      seen++
+      await options.onStatus('failed', { code: 'BOT_SEND_FAILED', delivery_error: { code: 'BOT_SEND_FAILED' } })
+      throw Object.assign(new Error('REMOTE_IMAGE_UNSUPPORTED'), { code: 'BOT_IMAGE_UNSUPPORTED', status: 409, executionError: proof })
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const saved = await f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message: 'with a picture' }))
+  const status = async () => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === saved.delivery_id)?.delivery
+  await settled(async () => seen > 0 && await status() === 'failed')
+  for (let n = 0; n < 20; n++) await tick()
+  assert.equal(await status(), 'failed')
+  assert.equal(seen, 1)
+  assert.deepEqual(f.errors, [])
+  await f.direct.close()
+})
+
 test('an Owner turn refused by the update hold files no report from its completion either, and stays queued', async t => {
   const hold = () => Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503, effect: 'not_started' })
   let called = 0

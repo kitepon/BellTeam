@@ -26,6 +26,8 @@ for (const [label, failure, status, code, { sends, relaunch }] of [
   ['0.52.1の順番待ちの断り（同じプロセス）', busyInProcess, 409, 'BOT_SEND_BUSY', { sends: 3, relaunch: true }],
   // a413 (Aiterm 0.70.72): a question dialog is open; nothing was typed. The seat waits on its user, so no observe, close or launch follows.
   ['0.70.72の質問の画面による拒否', "aiterm: CLAUDE_SELECT_MENU_OPEN vendor=claude session=bot-a\nClaude Codeの選ぶ画面が開いています（見出し: 質問）。打った文字は選択の操作として読まれるため、文字列は送信していません。pty_read(screen:true) で画面を確かめてください。", 409, 'BOT_AWAITING_USER', { sends: 1, relaunch: false }],
+  // a463: an image for a remote seat is refused before anything is typed; the seat is fine, so no observe, close or launch follows and no resend.
+  ['別端末の席への画像の拒否', "aiterm: REMOTE_IMAGE_UNSUPPORTED: 別端末への画像添付には未対応です", 409, 'BOT_IMAGE_UNSUPPORTED', { sends: 1, relaunch: false }],
   ['それ以外のAiterm障害', 'aiterm: PTY_BACKEND_FAILED', 500, 'INTERNAL_ERROR', { sends: 2, relaunch: true }],
 ]) {
   test(`${label}は未配送を保持し、APIで入力受付拒否とサーバー障害を区別する`, async t => {
@@ -70,7 +72,7 @@ for (const [label, failure, status, code, { sends, relaunch }] of [
     assert.equal(calls.filter(name => name === 'pty_send').length, sends)
     assert.equal(calls.includes('agent_launch'), relaunch)
     // a413: a seat waiting on its user is never observed, closed or launched.
-    if (code === 'BOT_AWAITING_USER') assert.equal(calls.includes('pty_observe') || calls.includes('pty_close'), false)
+    if (['BOT_AWAITING_USER', 'BOT_IMAGE_UNSUPPORTED'].includes(code)) assert.equal(calls.includes('pty_observe') || calls.includes('pty_close'), false)
     await transport.idle(bot.id)
     const records = await messenger.store.records()
     assert.equal(records.length, 1)

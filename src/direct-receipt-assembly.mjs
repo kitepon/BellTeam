@@ -103,6 +103,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (error?.code === 'BOT_UPDATE_HOLD' || error?.code === 'BOT_AWAITING_USER') return
       // a447n: a refusal by the swap (BOT_UPDATE_HOLD, or Aiterm's stale-generation frame proving not_started) is on the thrown error, not the status-stage object; durable receipts requeue on the same proof.
       if (!accepted && (evidence?.code === 'BOT_UPDATE_HOLD' || swapNotStarted(evidence))) return
+      // a463: a designed refusal of the input (an image for a remote seat): the sender reads it in the failed status; not a launch or tracking failure.
+      if (!accepted && evidence?.code === 'BOT_IMAGE_UNSUPPORTED') return
       // The status-stage failure object carries no mcp_request; the thrown error does (a444n).
       const unknown = !accepted && stage !== 'preflight' && sendOutcomeUnknown(evidence)
       report(unknown ? evidence : error, { delivery_id: record.delivery_id, target: record.target, stage, accepted, ...(unknown ? { outcome: 'unknown' } : {}) })
