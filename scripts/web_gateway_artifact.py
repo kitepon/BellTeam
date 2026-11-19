@@ -248,6 +248,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/execution-transport.mjs',
     'src/global-instructions.mjs',
     'src/harness-accounts.mjs',
+    'src/harness-cli-wait.mjs',
     'src/http-response.mjs',
     'src/idle-sessions.mjs',
     'src/json-file.mjs',
