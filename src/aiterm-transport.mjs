@@ -417,7 +417,8 @@ export class AitermTransport {
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
       // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
       if (remote) this.remoteSeats.launchFailed(bot, error)
-      if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect))) await remote.revoke()
+      // TERMINAL_UNRESPONSIVE (a443): Aiterm may still have started the seat with this credential, so it is kept.
+      if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect)) && error?.code !== 'TERMINAL_UNRESPONSIVE') await remote.revoke()
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
       // 残った端末を閉じて、次の送信がもう一度起こせるようにする。ここでは起こし直しも送り直しもしない（オーナー裁定 K-UTA3UC）。
