@@ -2,7 +2,7 @@
 
 審査へ提出する前に必要な環境と、実装済みの画面操作を記録する。登録・配布・検証の現在地は [subscription-setup.json](subscription-setup.json) が正本。
 
-審査用サーバーとDexのCA更新では、[既存Composeに受入済みimageを選ぶ手順](../distribution/apple-review/sec021/README.md)を使う。設定・資格情報・DBを元の保存先で維持し、対象ごとの承認と開始条件が揃ってから反映する。この手順の追加は反映済みの記録ではない。
+審査用サーバーとDexのCA更新では、[既存Composeに受入済みimageを選ぶ手順](../distribution/apple-review/sec021/README.md)を使う。設定・資格情報・DBを元の保存先で維持し、対象ごとの承認と開始条件が揃ってから反映する。この手順の追加は反映済みの記録ではない。審査が終わるたびの審査員データの消去は[審査後消去](../distribution/apple-review/wipe/README.md)。
 
 ## 今回の提出の現在地
 
