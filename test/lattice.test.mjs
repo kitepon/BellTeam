@@ -35,7 +35,7 @@ const byId = result => Object.fromEntries(result.cards.map(card => [card.id, car
 const ids = ['bot-a', 'bot-b', 'bot-c']
 
 test('projection: cards, ready, producer (start beats lane), edges, waits, depth, counts', () => {
-  const result = projectChart({ read: readOf([mainPlan()]), members: roster(ids) })
+  const result = projectChart({ read: readOf([mainPlan()]), ready: new Set(['p1/t2']), members: roster(ids) })
   const cards = byId(result)
   assert.equal(result.state, 'verified')
   assert.equal(result.verifiedAt, at(59))
@@ -165,9 +165,9 @@ test('projection: a 接続 (Lattice 0.104.0 connections, a161) is never an edge 
   const external = (status, finished, reason = null) => [{ project_id: 'other', plan_key: 'p1', task_id: 't1', status, finished, reason, trigger: null },
     { project_id: 'gone', plan_key: 'q', task_id: 'x', status: null, finished: false, reason: 'chart_unreadable', trigger: null }]
   const elsewhere = (projectId, cardId) => projectId === 'other' && cardId === 'p1/t1' ? { chartName: 'Other', title: 'Release', producer: 'bot-c' } : null
-  const open = projectChart({ read: readOf([p1], { external_tasks: external('in_progress', false), connections }), members: roster(['bot-b', 'bot-c']), elsewhere })
+  const open = projectChart({ read: readOf([p1], { external_tasks: external('in_progress', false), connections }), ready: new Set(['p1/t1']), members: roster(['bot-b', 'bot-c']), elsewhere })
   const cards = byId(open)
-  assert.deepEqual([cards['p1/t1'].state, cards['p1/t2'].state, cards['p1/t3'].state], ['ready', 'pending', 'pending'], 'a task or schedule 接続 keeps the card pending; a 優先接続 does not')
+  assert.deepEqual([cards['p1/t1'].state, cards['p1/t2'].state, cards['p1/t3'].state], ['ready', 'pending', 'pending'], 'a card is ready only when Lattice lists it: a task or schedule 接続 keeps it pending, a 優先接続 does not')
   assert.deepEqual([open.edges, open.waits], [[], []], 'a 接続 is never an edge or a wait')
   assert.deepEqual(cards['p1/t1'].connections, [{ kind: 'priority', state: 'open', reason: 'urgent', since: at(20), agent: 'bot-b' }])
   assert.deepEqual(cards['p1/t2'].connections, [{ kind: 'task', state: 'open', reason: 'release first', since: at(10), ref: 'other:p1/t1' }])
@@ -179,8 +179,18 @@ test('projection: a 接続 (Lattice 0.104.0 connections, a161) is never an edge 
   assert.ok(open.memberIds.includes('bot-c') && open.memberIds.includes('bot-b'), 'the other chart\'s producer and the Bot that asked are named')
   assert.deepEqual([open.counts.connections, open.counts.waiting], [4, 0])
   assert.equal(cards['p1/t2'].depth, 0, 'the other chart is not walked')
-  const done = byId(projectChart({ read: readOf([p1], { external_tasks: external('done', true), connections }), members: [] }))
+  const done = byId(projectChart({ read: readOf([p1], { external_tasks: external('done', true), connections }), ready: new Set(['p1/t2']), members: [] }))
   assert.deepEqual([done['p1/t2'].state, done['p1/t3'].state], ['ready', 'pending'], 'a finished task 接続 no longer holds; a schedule still does')
+})
+
+test('projection: ready is only Lattice\'s next_ready (a448): an edge the read does not show, a phase gate or no answer never makes a card ready', () => {
+  // t2 has no predecessor in the read (Lattice holds it for a reason the projection cannot see, e.g. an edge from `todo add --before`), t3 is in progress.
+  const plan = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }, { task_id: 't3' }], states: [['t1', 'pending'], ['t2', 'pending'], ['t3', 'in-progress']] })
+  const states = ready => Object.values(byId(projectChart({ read: readOf([plan]), ready, members: [] }))).map(card => card.state)
+  assert.deepEqual(states(new Set(['p1/t1'])), ['ready', 'pending', 'in-progress'], 'only the listed pending card is ready')
+  assert.deepEqual(states(new Set(['p1/t3', 'p9/zz'])), ['pending', 'pending', 'in-progress'], 'a listed card that is not pending keeps its state; an unknown id is ignored')
+  assert.deepEqual(states(null), ['pending', 'pending', 'in-progress'], 'no Lattice answer: nothing is ready')
+  assert.deepEqual(states(undefined), ['pending', 'pending', 'in-progress'])
 })
 
 test('projection: self, unknown-end, duplicate and cycle edges are dropped', () => {
@@ -188,7 +198,7 @@ test('projection: self, unknown-end, duplicate and cycle edges are dropped', () 
     deps: [{ from: ref('p1', 'a'), to: ref('p1', 'b') }, { from: ref('p1', 'b'), to: ref('p1', 'c') }, { from: ref('p1', 'c'), to: ref('p1', 'a') },
       { from: ref('p1', 'a'), to: ref('p1', 'a') }, { from: ref('p1', 'a'), to: ref('p1', 'zzz') }, { from: ref('p1', 'a'), to: ref('p1', 'b') }],
     joins: [{ after: [ref('p1', 'c')], before: ref('p1', 'a') }] })
-  const result = projectChart({ read: readOf([plan]), members: [] })
+  const result = projectChart({ read: readOf([plan]), ready: new Set(['p1/a']), members: [] })
   assert.deepEqual(result.edges.map(edge => edge.from + '>' + edge.to), ['p1/a>p1/b', 'p1/b>p1/c'])
   assert.deepEqual(Object.values(byId(result)).map(card => [card.state, card.depth]), [['ready', 0], ['pending', 1], ['pending', 2]])
 })
@@ -229,7 +239,7 @@ function rig(extra = {}) {
   const clock = { now: Date.parse('2026-11-11T10:00:00.000Z') }
   const reply = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
   // The Lattice contract (README K1-K8): charts list / source, chart set, seat runs addressed by id.
-  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, tokens: { alpha: 1 }, fail: new Set(), calls: [], runs: [], named: [], out: reply({ ok: true }), metas: {}, noStore: false,
+  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, ready: {}, tokens: { alpha: 1 }, fail: new Set(), calls: [], runs: [], named: [], out: reply({ ok: true }), metas: {}, noStore: false,
     async list() {
       cli.calls.push('list')
       if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' })
@@ -242,6 +252,7 @@ function rig(extra = {}) {
     async run({ id, args, env, input }) {
       const key = args.join(' ')
       cli.calls.push(key === READ ? `${key} ${id}` : key)
+      if (key === 'todo status --json') return cli.fail.has('status') ? { exitCode: 1, stdout: '', stderr: 'boom' } : reply({ schema: 'lattice.todo_status_result.v10', next_ready: (cli.ready[id] ?? []).map(task => ({ plan_key: 'p1', task_id: task })) })
       if (key === 'todo display read --json') return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
       cli.runs.push({ id, args, env, input })
       // A store-creating command makes the chart, and Lattice records the creator from LATTICE_SEAT_ID (K5).
@@ -366,11 +377,12 @@ test('core: list syncs up to 16 charts at once as a pool, not batches (productio
   const run = x.cli.run, gates = new Map()
   let active = 0, peak = 0
   x.cli.run = async call => {
-    active++; peak = Math.max(peak, active)
+    const reading = call.args[1] === 'display' // each chart also reads `todo status` (K9) beside it: count charts, not processes
+    if (reading) { active++; peak = Math.max(peak, active) }
     // c0 is slow: with batches the other 15 of its batch and every later batch wait for it.
-    if (call.id === 'c0') await new Promise(resolve => gates.set('c0', resolve))
+    if (call.id === 'c0' && reading) await new Promise(resolve => gates.set('c0', resolve))
     else await new Promise(resolve => setImmediate(resolve))
-    active--
+    if (reading) active--
     return run(call)
   }
   const listing = x.core.charts({}, x.effect)
@@ -414,6 +426,25 @@ test('core: a failed read keeps the snapshot, shows lattice-read, logs one code 
   x.cli.fail.add('json'); x.cli.tokens.alpha = 5
   await x.chart()
   assert.deepEqual(x.logs.at(-1), 'lattice-read alpha LATTICE_CLI_BAD_JSON')
+})
+
+test("core: a card is ready only when Lattice's status lists it (K9, a448); a failed status read of a verified chart is a failed read", async () => {
+  const x = rig()
+  const states = chart => chart.cards.map(card => card.state)
+  // t2 has every predecessor done in the read, but Lattice does not list it (a held edge or phase gate the projection cannot see).
+  x.cli.reads.alpha = chartRead({ status: 'done' })
+  assert.deepEqual(states(await x.chart()), ['done', 'pending'], 'predecessors done is not enough: Lattice decides')
+  x.cli.ready.alpha = ['t2']; x.cli.tokens.alpha = 2
+  assert.deepEqual(states(await x.chart()), ['done', 'ready'], "Lattice's next_ready makes it ready")
+  x.cli.fail.add('status'); x.cli.tokens.alpha = 3
+  const kept = await x.chart()
+  assert.deepEqual([kept.degraded, states(kept), x.logs], [['lattice-read'], ['done', 'ready'], ['lattice-read alpha LATTICE_CLI_EXIT_1']], 'the last good snapshot stays, degraded, one log line')
+  x.cli.fail.clear()
+  const back = await x.chart()
+  assert.deepEqual([back.degraded, states(back)], [[], ['done', 'ready']], 'the next call reads again')
+  // No Lattice answer for a store that is not verified: the status result is not used, nothing is ready.
+  x.cli.reads.alpha = { ...chartRead({ status: 'done' }), state: 'last_verified' }; x.cli.ready.alpha = ['t2']; x.cli.tokens.alpha = 4
+  assert.deepEqual(states(await x.chart()), ['done', 'pending'])
 })
 
 test('core: a chart that was never readable is unavailable, empty and degraded', async () => {

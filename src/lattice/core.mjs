@@ -53,6 +53,12 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     const sources = await sourcesOf(others)
     return others.some(other => (sources.get(other) ?? null) === null) ? null : JSON.stringify([own, ...others.map(other => [other, sources.get(other)])])
   }
+  // Lattice's own answer to which tasks can start (K9 `next_ready`, a448). Only a verified store has one: for any other state no card is ready; a verified chart whose status read failed is a failed read.
+  const readyOf = (read, status) => {
+    if (read?.state !== 'verified') return null
+    if (!Array.isArray(status?.next_ready)) throw status instanceof Error ? status : Object.assign(new Error('read'), { code: 'LATTICE_CLI_BAD_JSON' })
+    return new Set(status.next_ready.map(task => `${task?.plan_key}/${task?.task_id}`))
+  }
   // A chart's name and creator are Lattice's (K1/K4); a caller that already listed passes its row.
   const metaOf = async (id, row) => {
     const found = row && 'name' in row ? row : (await cli.list()).find(item => item.id === id)
@@ -69,22 +75,26 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
 
   async function sync(id, members, row) {
     let memo = memos.get(id)
-    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, meta: null, view: null, dirty: true, logged: null })
+    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, ready: null, meta: null, view: null, dirty: true, logged: null })
     const current = await token(id, memo, row ? row.source : undefined)
     const rosterBad = await members(), viewKey = JSON.stringify([rosterBad, roster, othersOf(memo).map(other => memos.get(other)?.version ?? null)])
     const same = memo.content && !memo.dirty && current !== null && current === memo.token
     if (same && viewKey === memo.view) return memo
     // A roster change or another chart's new memo version only re-projects the kept read; no CLI.
     if (same) return project(id, memo, memo.read, memo.meta, rosterBad, viewKey)
-    let read, meta
-    try { [read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), metaOf(id, row)]) } catch (error) {
+    let read, meta, ready
+    try {
+      let status
+      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
+      ready = readyOf(read, status)
+    } catch (error) {
       memo.dirty = true
       if (memo.logged !== error.code) { memo.logged = error.code; log(`lattice-read ${id} ${error.code ?? 'LATTICE_CLI_FAILED'}`) }
       const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [], phases: [] }
       commit(id, memo, { ...base, degraded: [...new Set([...base.degraded ?? [], 'lattice-read'])].sort() })
       return memo
     }
-    Object.assign(memo, { token: current, dirty: false, logged: null, read, meta })
+    Object.assign(memo, { token: current, dirty: false, logged: null, read, meta, ready })
     return project(id, memo, read, meta, rosterBad, viewKey)
   }
   function project(id, memo, read, meta, rosterBad, viewKey) {
@@ -93,7 +103,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       const other = memos.get(projectId)?.content, card = other?.cards?.find(item => item.id === cardId)
       return other && { chartName: other.name, title: card?.title ?? null, producer: card?.producer ?? null }
     }
-    const projection = projectChart({ read, members: roster, previous: memo.projection, elsewhere })
+    const projection = projectChart({ read, ready: memo.ready, members: roster, previous: memo.projection, elsewhere })
     const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
     Object.assign(memo, { projection, view: viewKey })
     const createdBy = meta.createdBy ?? projection.createdBy

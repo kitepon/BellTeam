@@ -19,7 +19,8 @@ export function laneResolver(members) {
 // Malformed fields drop only the task or edge they belong to. An unverified read has no journal, so producers fall back to the lane.
 // elsewhere(projectId, cardId) -> {chartName, title, producer} | null: the other chart's memo, if the child holds one (core.mjs).
 // A 接続 (Lattice 0.104.0 `connections`: another chart's task, a schedule, a Bot's 優先接続) is never an edge or a wait: it only rides on its card.
-export function projectChart({ read, members = [], previous = null, elsewhere = () => null }) {
+// ready: Set of `plan/task` ids from Lattice's `todo status` `next_ready` (K9), or null when Lattice gave no answer. Whether a task can start is Lattice's fact (a448): this file never works it out from edges.
+export function projectChart({ read, ready = null, members = [], previous = null, elsewhere = () => null }) {
   const state = DISPLAY.includes(read?.state) ? read.state : 'unavailable'
   const raw = state === 'unverified'
   const assigned = laneResolver(members)
@@ -101,9 +102,7 @@ export function projectChart({ read, members = [], previous = null, elsewhere = 
       }
       card.connections.push(item)
     }
-    // A task or schedule condition keeps a card unstartable; a 優先接続 only asks to be told.
-    const held = card.connections.some(entry => entry.kind !== 'priority' && !externals.get(entry.ref)?.finished)
-    if (card.state === 'pending' && !held && (before.get(card.id) ?? []).every(id => finished(cards.get(id)))) card.state = 'ready'
+    if (card.state === 'pending' && ready?.has(card.id)) card.state = 'ready'
   }
   // Trees come from Lattice (display read `trees`, 0.100.0; Owner: BellTeam computes no trees). A card in no tree is a tree of one.
   const treeOf = new Map((read?.store ? read.trees ?? [] : []).flatMap(tree => (tree?.tasks ?? []).map(task => [`${task?.plan_key}/${task?.task_id}`, tree])))

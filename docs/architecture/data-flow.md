@@ -227,7 +227,7 @@ flowchart LR
   F -->|LT14 root blockers / unblock| C
   SCH[P4 body scheduler and registry removal hook] -->|LT15 facade.run: fixed 接続 verbs (condition add / resolve / remove, todo show) as the schedule owner Bot| F
   F -->|LT6 bots.listForClient| P4
-  C <-->|LT7 Lattice CLI only: seat commands, charts list/source, display read, chart set, chart repo (K1-K8)| D11
+  C <-->|LT7 Lattice CLI only: seat commands, charts list/source, display read, todo status (readiness, K9), chart set, chart repo (K1-K9)| D11
   C -->|LT8 run result, chart list, snapshot with name/createdBy/degraded| F
   F -->|LT9 tool result; JSON; SSE snapshot on version change| P1
 ```
@@ -304,7 +304,7 @@ State IDs below identify existing stores; they introduce no new persistence. Rel
 | D7c runtime jobs and install receipts/fences | Updater companion's own atomic storage/installer writer | Existing body clients -> common projection; saved companion source/binding and actual disk error remain visible, separate from parent code version |
 | D8 diagnostics and restart-limit problem records | Diagnostics/Signal serialized writer | Closed diagnostic/problem projection; historical missing fields are not reconstructed |
 | D9 active-only restart references | Execution writer, `state/execution-activity.json` | Cold resume selection and hot handoff; consumed references are not a new queued-input store |
-| D11 Lattice chart stores, names and creators (Lattice's own, under `LATTICE_CHARTS_ROOT=/srv/bellteam/state/lattice`; Lattice HOME `/srv/bellteam/state/lattice-home/`) and BellTeam's Owner-lane filing record (`/srv/bellteam/state/lattice-module/owner-decisions.json`) | P11 lattice child: Lattice writes its store only through its CLI (K1-K8, a102); the child writes only its own record | P11 `charts list` / `charts source` / `todo display read` -> projection -> P1 chart list/snapshot (display name, never the project id, on screens). Not copied into another store |
+| D11 Lattice chart stores, names and creators (Lattice's own, under `LATTICE_CHARTS_ROOT=/srv/bellteam/state/lattice`; Lattice HOME `/srv/bellteam/state/lattice-home/`) and BellTeam's Owner-lane filing record (`/srv/bellteam/state/lattice-module/owner-decisions.json`) | P11 lattice child: Lattice writes its store only through its CLI (K1-K8, a102); the child writes only its own record | P11 `charts list` / `charts source` / `todo display read` + `todo status` (`next_ready`: the only source of a card being startable) -> projection -> P1 chart list/snapshot (display name, never the project id, on screens). Not copied into another store |
 
 ## 親execution境界の詳細対応
 
