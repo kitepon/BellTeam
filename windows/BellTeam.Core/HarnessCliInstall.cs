@@ -1,0 +1,30 @@
+using System.Text.Json.Serialization;
+
+namespace BellTeam.Core;
+
+public sealed record HarnessCliError(string Code, string Message);
+
+// The server's one fact about an AI CLI (harness-cli.md, a451): the apps show Message as given and never judge the state themselves.
+// A server without the field leaves Install null; the app then behaves as before (installed).
+public sealed record HarnessCliInstall
+{
+    // checking | installed | not_installed | installing | failed
+    public required string State { get; init; }
+    public string? Version { get; init; }
+    public string? Source { get; init; }
+    public bool Busy { get; init; }
+    public HarnessCliError? LastError { get; init; }
+    public string Message { get; init; } = "";
+    // "install" when a press is possible; null while busy or checking.
+    public string? Action { get; init; }
+    public string? Label { get; init; }
+    public const string DefaultLabel = "最新版を入れる";
+    [JsonIgnore] public bool CanPress => Action == "install";
+    [JsonIgnore] public string ButtonLabel => string.IsNullOrEmpty(Label) ? DefaultLabel : Label;
+    // 要対応: the CLI is absent (or being put in). checking and installed are not, even when the last update failed.
+    [JsonIgnore] public bool NeedsAttention => State is "not_installed" or "installing" or "failed";
+    // The login buttons are shown only when the AI can run; a server that does not report it (null) is treated as ready.
+    public static bool Ready(HarnessCliInstall? install) => install is null || install.State == "installed";
+}
+
+public sealed record HarnessCliInstallResponse { public required string Harness { get; init; } public required HarnessCliInstall Install { get; init; } }

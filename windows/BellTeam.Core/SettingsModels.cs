@@ -90,5 +90,13 @@ public sealed record HarnessRowState(string Title, HarnessTone Tone, string Acti
         _ => Unavailable
     };
     // One Claude account slot (「1stアカウント」/「2ndアカウント」): the same badge and button wording as the other AI rows (Mac f37b05a4).
+    // a451: an AI that cannot run shows the install state in the row and the install button as its action.
+    public static HarnessRowState FromInstall(HarnessCliInstall install) => install.State switch
+    {
+        "not_installed" => new("未導入", HarnessTone.Warning, install.ButtonLabel),
+        "installing" => new("導入中", HarnessTone.Muted, install.ButtonLabel),
+        "failed" => new("導入できません", HarnessTone.Warning, install.ButtonLabel),
+        _ => Checking
+    };
     public static HarnessRowState FromSlot(string? status) => From(status, reloginSupported: null);
 }

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace BellTeam.Core;
 
-public sealed record HarnessAuthenticationOption(string Id, string Name, int Members, string? StartWarning, bool? ReloginSupported = null)
+public sealed record HarnessAuthenticationOption(string Id, string Name, int Members, string? StartWarning, bool? ReloginSupported = null, HarnessCliInstall? Install = null)
 {
     public string UsageText => Members > 0 ? $"{Members}人が使用" : "使用していません";
     public bool NeedsStartConfirmation(AuthenticationState? auth) => ReloginSupported != false && !string.IsNullOrEmpty(StartWarning) && auth?.Status != "blocked";
@@ -21,6 +21,9 @@ public sealed class HarnessAuthenticationApi(BellApi api)
         => WriteAsync(harness, "input", text is null ? new Dictionary<string, string> { ["key"] = key! } : new Dictionary<string, string> { ["text"] = text }, token, slot);
     public Task<HarnessAuthenticationResponse> RespondAsync(string harness, AuthenticationUi ui, object response, CancellationToken token = default, string? slot = null)
         => WriteAsync(harness, "input", new { binding = ui.Binding, prompt_digest = ui.PromptDigest, response }, token, slot);
+    // a451: GET reads the install state (poll while Busy); POST presses 最新版を入れる (owner only, the same press is the update) and returns the same object.
+    public Task<HarnessCliInstallResponse> InstallStatusAsync(string harness, CancellationToken token = default) => api.GetAsync<HarnessCliInstallResponse>(Path(harness, null, "install"), token);
+    public Task<HarnessCliInstallResponse> InstallAsync(string harness, CancellationToken token = default) => api.PostAsync<HarnessCliInstallResponse>(Path(harness, null, "install"), new { }, token);
     private static string Path(string harness, string? slot, string action = "") => "/api/harness-auth/" + Uri.EscapeDataString(harness) + (action.Length == 0 ? "" : "/" + action) + (slot is null or "1st" ? "" : "?slot=" + Uri.EscapeDataString(slot));
     private async Task<HarnessAuthenticationResponse> WriteAsync(string harness, string action, object body, CancellationToken token, string? slot)
     {

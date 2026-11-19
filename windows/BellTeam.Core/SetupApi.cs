@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace BellTeam.Core;
 
-public sealed record HarnessOption(string Id, string Name);
+public sealed record HarnessOption(string Id, string Name, HarnessCliInstall? Install = null);
 public sealed record AuthenticationState
 {
     public required string Status { get; init; }
@@ -54,6 +54,8 @@ public sealed record SetupState
     public string? GuideBotId { get; init; }
     public required bool Complete { get; init; }
     public AuthenticationState? Auth { get; init; }
+    // The chosen AI's install state (a451); null from a server that does not report it.
+    public HarnessCliInstall? Install { get; init; }
 }
 public sealed class SetupApi(BellApi api)
 {
@@ -62,6 +64,9 @@ public sealed class SetupApi(BellApi api)
     public Task<SetupState> InputAsync(string? text, string? key, CancellationToken token = default) => PostAsync("/api/setup/auth/input", text is null ? new Dictionary<string, string> { ["key"] = key! } : new Dictionary<string, string> { ["text"] = text }, token);
     public Task<SetupState> RespondAsync(AuthenticationUi ui, object response, CancellationToken token = default)
         => PostAsync("/api/setup/auth/input", new { binding = ui.Binding, prompt_digest = ui.PromptDigest, response }, token);
+    // The server mounts onboarding at /api/setup (harness-cli.md calls the module "onboarding"); one constant for the path.
+    public const string InstallPath = "/api/setup/install";
+    public Task<SetupState> InstallAsync(CancellationToken token = default) => api.PostAsync<SetupState>(InstallPath, new { }, token);
     public Task<SetupState> StartAsync(CancellationToken token = default) => api.PostAsync<SetupState>("/api/setup/start", new { }, token);
     private async Task<SetupState> PostAsync(string path, object body, CancellationToken token)
     {
