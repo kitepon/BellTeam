@@ -17,6 +17,14 @@ internal static class OwnerWindow
         return control is null ? null : TopLevel.GetTopLevel(control) as Window;
 #endif
     }
+
+    // Whether the user can see this control's window. Android shows the startup views full screen with no Window above them (found live: the install reading never ran there), so no Window means shown.
+    public static bool IsActive(Visual? control)
+#if ANDROID
+        => Of(control)?.IsActive ?? true;
+#else
+        => Of(control)?.IsActive == true;
+#endif
 }
 
 // The two-pill header buttons of a sheet (Mac sheet: 閉じる / キャンセル on the left, 保存 on the right), shared by the main window and the pages.
