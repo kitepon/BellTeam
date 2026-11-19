@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { RemoteSeats, pieces } from '../src/remote-seats.mjs'
+import { RemoteSeats, pieces, remoteSeatNotStarted } from '../src/remote-seats.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 
 const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/work/app', fastMode: false }
@@ -138,6 +138,20 @@ async function transportFixture(options = {}) {
   return { root, calls, transport, member, remote }
 }
 
+test('a443: a terminal launch that timed out keeps the seat credential (Aiterm may have started the seat) and rejects as not started', async () => {
+  const { root, calls, transport, member, remote } = await transportFixture()
+  try {
+    transport.client.call = async (name, args, callOptions) => {
+      calls.push({ name, args, options: callOptions })
+      if (name === 'agent_launch') throw Object.assign(new Error('MCP error -32001: Request timed out'), { code: -32001, mcp_request: { phase: 'call', tool: 'agent_launch', outcome: 'unknown' } })
+      return { content: [], structuredContent: {} }
+    }
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} }), { code: 'TERMINAL_UNRESPONSIVE', effect: 'not_started' })
+    assert.ok(calls.some(call => call.name === 'agent_launch'))
+    assert.equal(remote.log.some(entry => entry.op === 'revoke'), false, 'the credential of a launch that may be running is kept')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test('one launch path: the same agent_launch with terminal + cwd; the checkpoint reruns after the async preparation', async () => {
   let admitted = true
   const { root, calls, transport, member, remote } = await transportFixture({ onTarget: () => { admitted = false } })
@@ -201,6 +215,46 @@ test('agent_launch terminal codes after a good target: connectivity queues and a
   seats.launchFailed(bot, folder)
   assert.equal(folder.effect, undefined)
   assert.deepEqual([...seats.waiting.get('mac-1')], ['bot-aaaa1111'])
+})
+
+test('a443: a terminal agent_launch that outlived the 60 s MCP request limit stays queued as TERMINAL_UNRESPONSIVE and arms the observer', () => {
+  const { seats } = fixture()
+  const observed = []
+  seats.terminals.connection.observe = terminalId => observed.push(terminalId)
+  // The shape the seat launcher returns for an SDK request timeout (aiterm-client launchProject branch).
+  const timedOut = Object.assign(new Error('MCP error -32001: Request timed out'), { code: -32001, mcp_request: { phase: 'call', tool: 'agent_launch', outcome: 'unknown' } })
+  seats.launchFailed(bot, timedOut)
+  assert.equal(timedOut.code, 'TERMINAL_UNRESPONSIVE')
+  assert.equal(timedOut.effect, 'not_started')
+  assert.deepEqual(observed, ['mac-1'])
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', timedOut).code, 'TERMINAL_UNRESPONSIVE')
+  // A timeout on another tool, or with no request context, is not this case.
+  const other = Object.assign(new Error('MCP error -32001: Request timed out'), { code: -32001, mcp_request: { phase: 'call', tool: 'pty_send', outcome: 'unknown' } })
+  seats.launchFailed(bot, other)
+  assert.equal(other.code, -32001)
+  assert.equal(other.effect, undefined)
+})
+
+test('a443: the terminal answering again clears its reachability notice (a drain may reach a running seat without a launch); other notices stay', () => {
+  const { seats } = fixture()
+  seats.terminals.connection.observe = () => {}
+  seats.launchFailed(bot, code('UNREACHABLE'))
+  assert.equal(seats.launchNotice(bot).code, 'UNREACHABLE')
+  seats.available({ terminalId: 'other-terminal', reachable: true })
+  assert.equal(seats.launchNotice(bot).code, 'UNREACHABLE', 'another terminal leaves it')
+  seats.available({ terminalId: 'mac-1', reachable: true })
+  assert.equal(seats.launchNotice(bot), null)
+  seats.launchFailed(bot, code('HOST_KEY_MISMATCH'))
+  seats.available({ terminalId: 'mac-1', reachable: true })
+  assert.equal(seats.launchNotice(bot).code, 'HOST_KEY_MISMATCH', 'the Owner still has to act on a trust code')
+})
+
+test('a443: turn-failure words in the conversation never show the AITERM_TURN_ code', async () => {
+  const { turnFailureWords } = await import('../src/aiterm-transport.mjs')
+  assert.equal(turnFailureWords('AITERM_TURN_ERROR: API Error: 529 overloaded'), 'API Error: 529 overloaded')
+  assert.equal(turnFailureWords('AITERM_TURN_RATE_LIMITED: limit resets 5pm'), 'limit resets 5pm')
+  assert.equal(turnFailureWords('AITERM_TURN_CLOSED'), '席が閉じられたため、このターンはここで止まりました。')
+  assert.equal(turnFailureWords('AITERM_TURN_TIMEOUT'), 'このターンの終わりを確かめられませんでした。')
 })
 
 const keyed = { ref: 'owner-macbook', target: terminal.target, trustRevision: 't1', credential: { handle: '11111111-2222-4333-8444-555555555555', revision: 3 } }

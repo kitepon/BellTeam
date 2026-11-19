@@ -3,12 +3,13 @@
 // every later call is the same session call as a local seat. This module only adds the launch inputs, the asleep-terminal
 // queue edge, the seat credential and C7 (Throughline) for the transcript that stays on the terminal.
 import { authenticationPreflightCodes, authenticationPreflightFailure, launchRefusal } from './agent-launch-error.mjs'
+import { mcpRequestContext } from './mcp-request-context.mjs'
 
 // Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
 // terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
 // Aiterm on the terminal stays a visible delivery failure unless Aiterm's launch refusal proves nothing started (below).
 const REACHABILITY = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'SEAT_FORWARD_UNAVAILABLE',
-  'TERMINAL_TARGET_CHANGED'])
+  'TERMINAL_TARGET_CHANGED', 'TERMINAL_UNRESPONSIVE'])
 const NOT_STARTED = new Set([...REACHABILITY, 'TARGET_MISMATCH', 'HOST_KEY_MISMATCH', 'TERMINAL_NOT_FOUND',
   'BOT_REMOTE_BINDING_MISSING', 'MEMBERS_EFFECT_UNSUPPORTED', 'SEAT_CREDENTIAL_INVALID', 'TERMINALS_UNAVAILABLE'])
 const reachability = code => REACHABILITY.has(code) || typeof code === 'string' && code.startsWith('CREDENTIAL_')
@@ -243,6 +244,9 @@ export class RemoteSeats {
   // agent_launch (after a successful target) answered a terminal code: queue as not started; a connectivity code also arms
   // terminals' non-AI observer, whose reachable event drains the same IDs.
   launchFailed(bot, error) {
+    // a443: the terminal's agent_launch outlived BellTeam's 60 s MCP request limit (host too slow to answer). The launch is
+    // prompt-free, so nothing was typed: keep the message queued like an unreachable terminal (remote-seat.md).
+    if (error?.code === -32001 && mcpRequestContext(error)?.tool === 'agent_launch') error.code = 'TERMINAL_UNRESPONSIVE'
     if (authNotReady(error)) { notStarted(error); this.notice(bot, { code: error.code, action: loginAction(this.oses.get(bot.terminalId)) }); return }
     const refusal = refused(error)
     if (refusal) { notStarted(error); this.notice(bot, refusal); return }
@@ -273,6 +277,10 @@ export class RemoteSeats {
     if (event?.reachable !== true) return
     const ids = this.waiting.get(event.terminalId) ?? new Set()
     this.waiting.delete(event.terminalId)
+    // a443: the terminal answers again, so a reachability notice for it is over; a drain that fails again sets it again.
+    let cleared = false
+    for (const [botId, notice] of this.notices) if (notice.terminalId === event.terminalId && reachability(notice.code)) { this.notices.delete(botId); cleared = true }
+    if (cleared) this.notify()
     for (const id of ids) this.emitQueue({ bot: { id } })
   }
 
