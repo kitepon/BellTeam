@@ -65,7 +65,9 @@ vendor表（親だけ）：`claude` / `codex` は `npm install --global --prefix
 
 ## コードを呼ぶ側と、CLIを自分で呼ぶ同梱の道具
 
-席・要約・モデル一覧・認証・案内役はAitermが起動する。ほかにCLIを呼ぶ物：`src/rtk-hooks.mjs`（`codex app-server`）、executionの背景要約、host側の `scripts/deploy-host.sh` の版確認、Throughline（リバリンに確認）。CLIが無い時の扱い（失敗にせず、AIの認証を案内して待つ）はキロの a451-launch-not-installed。
+席・要約・モデル一覧・認証・案内役はAitermが起動する。ほかにCLIを呼ぶ物：`src/rtk-hooks.mjs`（`codex app-server`）、executionの背景要約、host側の `scripts/deploy-host.sh` の版確認。
+
+Throughline（リヴァリン確認、0.21.1、2026-11-19）は`codex`と`claude`のCLIを起動する。L1要約（`summarizeToL1`、Stopフックから、1会話で20ターンを超えた後だけ。先に`codex exec`、失敗なら`claude -p`）。**両方無い時は黙って落ちる**：エラーも非0終了も出さず、L1にL2の全文を入れる（圧縮されず、文脈が増える）。ほかに、Codex主の要約・自動引き継ぎ（無ければ`Codex CLI summarizer failed`を投げる）、Claudeの自動引き継ぎ（箱では無効）、`codex app-server`を使うCodex固有のコマンド、Grokの続行（無ければnull）。Cursorは呼ばない。「無い時にはっきり言う」にするには、リヴァリンの製品変更とオーナーの判断が要る（トロニーへ報告済みの論点）。CLIが無い時の扱い（失敗にせず、AIの認証を案内して待つ）はキロの a451-launch-not-installed。
 
 ## 版の順序
 
