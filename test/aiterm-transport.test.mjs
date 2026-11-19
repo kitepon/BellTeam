@@ -319,6 +319,31 @@ test('ファストモードで起こせず通常の速度で起きた席は、�
   assert.deepEqual(updates, [['bot-a', false]])
 })
 
+test('番が動いている席を再開してfastを戻せなかった時は、保存を保ち、番が終わってからfastを渡し直す（a469g）', async () => {
+  const updates = [], configures = []
+  let refused = 2
+  const client = {
+    async call(name, args) {
+      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      if (name === 'agent_launch') return { structuredContent: { session_id: args.session_name, fast: false, startup: { status: 'ready', reason: 'turn_running' },
+        fast_error: { code: 'FAST_MODE_UNCONFIRMED' } } }
+      if (name === 'agent_configure') {
+        configures.push(args)
+        if (refused-- > 0) throw Object.assign(new Error('turn running'), { code: 'CONFIGURATION_NOT_APPLIED', effect: 'not_started' })
+        return {}
+      }
+      throw new Error(`unexpected ${name}`)
+    },
+  }
+  const transport = new AitermTransport({ client, handoffContext: noMemory, refastRetry: 1, updateFastMode: async (id, value) => updates.push([id, value]) })
+  const project = await mkdtemp(join(tmpdir(), 'bellteam-refast-'))
+  await transport.ensure({ id: 'bot-a', session: 'bot-a', harness: 'claude', project, model: 'opus', reasoningEffort: 'high', fastMode: true })
+  for (let i = 0; i < 200 && configures.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 5))
+
+  assert.deepEqual(updates, [])
+  assert.deepEqual(configures, Array(3).fill({ session_id: 'bot-a', fast: true }))
+})
+
 test('ファストモードだけの切り替えは、会話セッションを保ってAitermへ渡す', async () => {
   const calls = []
   const transport = new AitermTransport({
