@@ -73,7 +73,7 @@ public sealed class PurchaseEntry : StackPanel
         busy = true; failure = null; Render();
         try { await work(); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception error) { failure = failedText is null ? error.Message : failedText + error.Message; }
+        catch (Exception error) { global::Android.Util.Log.Error("BellTeamBilling", error.ToString()); failure = failedText is null ? error.Message : failedText + error.Message; }
         busy = false; Render();
     }
 
