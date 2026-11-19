@@ -175,6 +175,8 @@ async function stripeCheckout(env, request, resumeSessionId) {
   const session = await stripeCall(env, request, '/v1/checkout/sessions', {
     mode: 'subscription', 'line_items[0][price]': env.STRIPE_PRICE_ID, 'line_items[0][quantity]': '1',
     'subscription_data[trial_period_days]': '30',
+    // Stripe Taxは本部住所の登録後だけ使える。登録前にtrueにするとCheckoutが作れないため、設定で切り替える。
+    ...(env.STRIPE_AUTOMATIC_TAX === 'true' ? { 'automatic_tax[enabled]': 'true' } : {}),
     success_url: `${env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}`, cancel_url: env.STRIPE_RETURN_URL,
   })
   if (typeof session.url !== 'string' || typeof session.id !== 'string') throw invalidResponse('Stripe')

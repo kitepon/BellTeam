@@ -26,7 +26,7 @@ AppleアプリはStoreKitで本人の購入・復元・取引の更新を受け�
 
 WindowsとLinuxの利用者はStripeで同じBellTeamの月額購読（月980円、最初の1か月無料）を購入する。Appleの購読があれば、Stripeで買い足さずに使える。Appleの購入と同じく、運営のWorkerが購入元の最新状態を照会し、利用者のサーバーは結果だけを保存する。独自のライセンス・利用者ID・権利の台帳は作らない。
 
-- サーバーの`POST /api/subscription/stripe/checkout`が購入画面のURLを返し、利用者はそこで購入する（最初の1か月は無料、料金は税込の980円で、Stripe Taxは使わない）。戻り先で得たCheckout Session IDを`POST /api/subscription/stripe/verify`へ送ると、サーバーは購読IDを保存する。
+- サーバーの`POST /api/subscription/stripe/checkout`が購入画面のURLを返し、利用者はそこで購入する（最初の1か月は無料、料金は税込の980円。Stripe Taxを使い、価格は`tax_behavior=inclusive`で金額は変わらない）。戻り先で得たCheckout Session IDを`POST /api/subscription/stripe/verify`へ送ると、サーバーは購読IDを保存する。
 - 状態は`GET /api/subscription`へApple同様に返し、`source`で購入元、`isTrial`で無料期間中かを示す。AppleとStripeの両方がある時は有効な方を使う。解約しても支払い済みの期間は使える（Appleと同じ）。
 - 二重請求を起こさない：どの購入元でも課金中（解約予約中の支払済み期間・支払い再試行を含む）の間、サーバーはStripeの購入画面を作らず`SUBSCRIPTION_ALREADY_ACTIVE`（409）を返す。作った購入画面は保存し、購入が終わるまで同じ画面を返す。`GET /api/subscription`の`canPurchase`・`billingSources`で、Apple・Google Playのアプリも購入ボタンを止める。別々のサーバーは互いを知らないため、サーバーをまたぐ二重購入はこの仕組みの範囲外（クライアント契約の「同じアカウント」の定義どおり）。
 - メールなしで解約できる：`POST /api/subscription/stripe/manage`がStripeの顧客ポータルのURLを返し、利用者はそこで解約・再開・支払い方法の変更をする。解約しても支払い済みの期間は使える。AppleとGoogle Playの購読の解約は各ストアで行う（[クライアント契約](billing-client-contract.md)）。
