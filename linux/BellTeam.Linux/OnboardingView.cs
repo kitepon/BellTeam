@@ -40,7 +40,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         AttachedToVisualTree += (_, _) => { window = OwnerWindow.Of(this); if (window is not null) window.Deactivated += Deactivated; };
         DetachedFromVisualTree += (_, _) => { if (window is not null) window.Deactivated -= Deactivated; window = null; code.Clear(); };
         // Mac: polls only while the app is active; the Linux window is the app.
-        timer.Tick += async (_, _) => { if (OwnerWindow.Of(this)?.IsActive == true) await PollAsync(); };
+        timer.Tick += async (_, _) => { if (OwnerWindow.IsActive(this)) await PollAsync(); };
         Render(); UpdatePolling();
     }
     // The pasted code leaves the field as soon as the window loses focus.
