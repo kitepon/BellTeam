@@ -39,7 +39,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
-        CFBundleShortVersionString: '1.0.6'
+        CFBundleShortVersionString: '1.0.7'
         CFBundleVersion: '167'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
@@ -132,7 +132,7 @@ targets:
       path: NotificationService/Info.plist
       properties:
         CFBundleDisplayName: BellTeam
-        CFBundleShortVersionString: '1.0.6'
+        CFBundleShortVersionString: '1.0.7'
         CFBundleVersion: '167'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
@@ -175,7 +175,7 @@ targets:
       path: ShareExtension/Info.plist
       properties:
         CFBundleDisplayName: BellTeam
-        CFBundleShortVersionString: '1.0.6'
+        CFBundleShortVersionString: '1.0.7'
         CFBundleVersion: '167'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
