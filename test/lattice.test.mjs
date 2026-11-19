@@ -711,6 +711,29 @@ test('cli: a hung process is killed at the timeout and the next call runs', asyn
   assert.deepEqual((await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
 })
 
+test('cli: at most maxChildren CLI children run at once, the rest wait, and a slot frees on exit, kill or spawn error (a466f)', async t => {
+  const chartsRoot = await chartsWithAlpha(t)
+  const open = []
+  let live = 0, peak = 0
+  const gated = fakeSpawn(child => { live++; peak = Math.max(peak, live); open.push(child) })
+  const cli = createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: gated.impl, maxChildren: 2, timeoutMs: 40 })
+  const finished = []
+  const calls = [1, 2, 3, 4, 5].map(n => cli.run({ id: 'alpha', args: ['status', String(n)] }).then(result => finished.push([n, result.stderr])))
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.deepEqual([gated.calls.length, peak], [2, 2])
+  open[0].emit('close', 0); live--
+  await new Promise(resolve => setTimeout(resolve, 5))
+  assert.equal(gated.calls.length, 3)
+  // The two never closed are killed at the timeout and free their slots; the last two then run.
+  await new Promise(resolve => setTimeout(resolve, 60))
+  assert.deepEqual(gated.calls.map(call => call.args.at(-1)).sort(), ['1', '2', '3', '4', '5'])
+  for (const child of open.slice(3)) child.emit('close', 0)
+  await Promise.all(calls)
+  const broken = fakeSpawn(child => child.emit('error', new Error('ENOENT')))
+  const one = createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: broken.impl, maxChildren: 1 })
+  assert.deepEqual((await Promise.all([1, 2, 3].map(() => one.run({ id: 'alpha', args: ['status'] })))).map(result => result.stderr), Array(3).fill('LATTICE_CLI_SPAWN_FAILED'))
+})
+
 test('cli: stdout keeps the first 64 MiB (a453: a 17.5 MB display read must pass), stderr the last 64 KiB, spawn errors are a result', async t => {
   const chartsRoot = await chartsWithAlpha(t)
   const big = fakeSpawn(child => {

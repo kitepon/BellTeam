@@ -31,7 +31,7 @@ Owner 2026-11-14: 「プロダクト間の繋ぎはしっかりと図で定義�
 flowchart LR
   subgraph BellTeam["BellTeam lattice module (Flora)"]
     Core["core.mjs: memo per chart,<br/>projection, nudge, notices,<br/>Owner-lane filing;<br/>history page on demand (L24)"]
-    Runner["cli.mjs: spawns the bundled<br/>lattice bin; nothing else"]
+    Runner["cli.mjs: spawns the bundled<br/>lattice bin; nothing else;<br/>at most 3 CLI children at once (L3)"]
     Rec["BellTeam state: /srv/bellteam/state/lattice-module/<br/>owner-decisions.json (BellTeam's own record)"]
   end
   subgraph Lattice["Lattice product (Snow White team)"]
@@ -81,7 +81,7 @@ flowchart LR
     CChan["createLatticeChildChannel (Flora)"]
     Disp["lattice-dispatcher (Flora)<br/>charts / chart / refresh / run"]
     Core["core.mjs: per-chart memo, epoch, version,<br/>token (own + external predecessors' charts),<br/>view key (roster + their memo versions)"]
-    Cli["cli.mjs: spawn node on bundled lattice bin with LATTICE_PROJECT_ID (K8)<br/>seat runs (allowlist), host calls: charts list/source,<br/>chart set, chart repo bind/sync, todo status, todo display history (K1, K2, K4, K7, K9, K10); bounded output"]
+    Cli["cli.mjs: spawn node on bundled lattice bin with LATTICE_PROJECT_ID (K8)<br/>seat runs (allowlist), host calls: charts list/source,<br/>chart set, chart repo bind/sync, todo status, todo display history (K1, K2, K4, K7, K9, K10); bounded output;<br/>spawn gate: at most 3 children at once, the rest wait in order"]
     Proj["projection.mjs: cards of open trees, edges, waits, producers;<br/>history cards (projectHistory);<br/>a card is `ready` only when Lattice's next_ready lists it (K9)"]
     Notices["notices.mjs: startable notices<br/>-> waiting Bots only, ack, re-list"]
     Nudge["nudge.mjs: every chart's cards (memo)<br/>-> ONE prompt per lane Bot not running;<br/>a lane that is no Bot -> the chart creator Bot (reassign)"]
@@ -188,6 +188,7 @@ Input schema: `{ project: string, name?: string, args: string[], input?: object 
 - A run whose own `mkdir` created the chart dir (a plain, non-recursive mkdir, so an existing path is never claimed) and that leaves it without a Lattice store (`help`, `--version`, a refused first command) removes that dir again, so no empty, unlisted dirs pile up (Molly 2026-11-12). A dir that existed before the run, with or without `.lattice`, is never removed (Epinel gate 2026-11-12); the older `flora-scratch-check` stays for offline maintenance.
 - Storage boundary (Epinel gate 2026-11-12): since a102 the chart paths are Lattice's (K8); Lattice refuses a symlinked or non-directory chart path with `CHART_PATH_INVALID` before any write, and that refusal reaches the seat as the result. BellTeam writes nothing under the charts root.
 - CLI stdout is kept up to 64 MiB, the size Lattice itself accepts for its display checkpoint (`DISPLAY_CHECKPOINT_MAX_BYTES`); named protection: memory. A larger output reads as `LATTICE_CLI_BAD_JSON` and the chart is degraded until it shrinks. a453 (2026-11-19 16:09 JST): bellteam's display read grew past the old 16 MiB cap (17,502,583 bytes: 1,255 tasks in one plan plus journals), the chart read `unavailable` in every app. The cap was raised (a453) and the module now reads the compact display read (K3, a456), whose size does not follow the journal; the 64 MiB cap stays as the memory protection.
+- At most 3 Lattice CLI children run at once (`LATTICE_CHILDREN_MAX`, a466f; named protection: the box memory bound). One child on bellteam is 451-540 MB resident (Kiro a466, 2026-11-19: up to 8 at once, 3.4 GB, with the box at its 18 GiB bound the kernel killed seat processes, 86 times between 22:19 and 00:56 JST); the module's own bound is 3 x that. Every spawn (seat `run`, the K1-K10 host and read calls, code chart sync) takes a slot first, and the wait is in arrival order. The 60 s / 120 s run bound starts when the child starts, so waiting costs a caller time and never kills a child. Self-exit: a slot is freed when its child ends, is killed at its bound, or fails to spawn; no caller holds a slot while it waits for another spawn, so the gate cannot lock. What one child weighs is Lattice's (Snow White).
 - The CLI run is bounded at 60 s (named protection: a hung CLI would hold the one call chain and stop every chart; self-exit: the process is killed, the result says `LATTICE_CLI_TIMEOUT`, the next call runs).
 - Tool errors (not Lattice results): `LATTICE_PROJECT_INVALID`, `LATTICE_NAME_INVALID`, `LATTICE_INPUT_CONFLICT`, `LATTICE_COMMAND_NOT_SEAT_SURFACE`, `LATTICE_UNAVAILABLE` (child not serving). A write accepted but unanswered after 40 s, whether still queued behind others or already sent, is not an error (a292: a queued write is no longer dropped as `LATTICE_WRITE_NOT_SENT`): the result is `{exitCode: null, result: {code: 'LATTICE_WRITE_PENDING', next_action}}`; it keeps running, never resend, check with `todo show` / `todo note list` (Claude Code aborts the MCP call at 60 s with "The operation timed out.", a162).
 
