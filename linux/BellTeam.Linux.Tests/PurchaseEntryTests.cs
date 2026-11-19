@@ -48,7 +48,7 @@ public sealed class PurchaseEntryTests
         Assert.Equal(SubscriptionText.Stores, Texts(entry).Where(SubscriptionText.Stores.Contains).ToArray());
         Assert.Equal(3, Texts(entry).Count(line => line == $"{SubscriptionText.Price}　{SubscriptionText.FreeMonth}"));
         Assert.Contains(SubscriptionText.Unavailable("App Store"), Texts(entry)); Assert.Contains(SubscriptionText.Unavailable("Google Play"), Texts(entry)); Assert.DoesNotContain(SubscriptionText.Unavailable("Stripe"), Texts(entry));
-        await Click(entry, SubscriptionText.Start, () => server.Opened is not null);
+        await Buy(entry, () => server.Opened is not null);
         Assert.Equal(1, server.Checkouts); Assert.Equal("https://checkout.example/pay", server.Opened);
         await Until(() => Find(entry, SubscriptionText.Verify) is not null); Assert.NotNull(Find(entry, SubscriptionText.Recheck));
         await Click(entry, SubscriptionText.Verify, () => entry.State?.Entitled == true);
@@ -67,15 +67,38 @@ public sealed class PurchaseEntryTests
         var developer = new Server { Developer = true }; var developerEntry = developer.Entry(); await developerEntry.LoadAsync();
         Assert.Null(Find(developerEntry, SubscriptionText.Start)); Assert.DoesNotContain("Stripe", Texts(developerEntry));
         var dark = new Server { CheckoutStatus = HttpStatusCode.ServiceUnavailable }; var darkEntry = dark.Entry(); await darkEntry.LoadAsync();
-        await Click(darkEntry, SubscriptionText.Start, () => !darkEntry.Offering);
+        await Buy(darkEntry, () => !darkEntry.Offering);
         Assert.Null(Find(darkEntry, SubscriptionText.Start)); Assert.Null(Find(darkEntry, SubscriptionText.Recheck)); Assert.Null(dark.Opened); Assert.DoesNotContain("Stripe", Texts(darkEntry));
     });
+
+    [Fact]
+    public Task PressingStartShowsThePoliPanelAndOnlyApplyAsksTheServerForCheckout() => Ui.Run(async () =>
+    {
+        var server = new Server(); var entry = server.Entry(); await entry.LoadAsync();
+        Find(entry, SubscriptionText.Start)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var texts = Texts(entry);
+        // Poli's words, exactly; the one dynamic value is today + 30 days.
+        foreach (var line in new[] { "購入内容の確認", "BellTeamの月額購読（解約するまで毎月自動で更新）", "月額980円（税込）。1年続けた場合の合計の目安：11,760円", "クレジットカード、Apple Pay、Google Pay（Stripe）", SubscriptionText.ConfirmFirstCharge(DateTime.Today), "支払い手続きの完了後、サーバーが契約を確認した時点から使えます（無料期間中も使えます）。", "いつでも「設定 > BellTeamの購読」→「購読を管理・解約」から解約できます。支払い済みの期間の終わりに終了します。無料期間中に解約すれば料金はかかりません。", "デジタルサービスのため、申込み後の返金・撤回はできません。ただし二重請求などは返金します。詳しくは特定商取引法に基づく表記をご覧ください。", "申し込むと、利用規約とBellTeam付属規約に同意したことになります。" }) Assert.Contains(line, texts);
+        Assert.Equal(1, texts.Count(line => line.StartsWith("最初の1か月は無料です。") && line.Contains("に初回の980円を決済し、以後は毎月の更新日に自動で決済します。")));
+        Assert.Null(Find(entry, SubscriptionText.Start)); Assert.Equal(0, server.Checkouts);
+        await Click(entry, "特定商取引法に基づく表記", () => server.Opened is not null); Assert.Equal("https://kitepon.dev/specified-commercial-transactions/#bellteam", server.Opened);
+        await Click(entry, "利用規約", () => server.Opened == "https://kitepon.dev/terms/");
+        await Click(entry, "BellTeam付属規約", () => server.Opened == "https://kitepon.dev/apps/bellteam/terms/");
+        Assert.Equal(0, server.Checkouts);
+        await Click(entry, "戻る", () => Find(entry, SubscriptionText.Start) is not null);
+        Assert.Equal(0, server.Checkouts); Assert.Null(Find(entry, "申し込む（Stripeの支払い画面へ進む）")); Assert.DoesNotContain("購入内容の確認", Texts(entry));
+        await Buy(entry, () => server.Checkouts == 1);
+        Assert.Equal(1, server.Checkouts); Assert.Null(Find(entry, "申し込む（Stripeの支払い画面へ進む）"));
+    });
+
+    [Fact]
+    public void TheFirstChargeDateIsThirtyDaysAfterToday() => Assert.Equal("最初の1か月は無料です。2026年12月20日に初回の980円を決済し、以後は毎月の更新日に自動で決済します。", SubscriptionText.ConfirmFirstCharge(new DateTime(2026, 11, 20)));
 
     [Fact]
     public Task OnlyAnHttpsAddressGoesToTheBrowser() => Ui.Run(async () =>
     {
         var server = new Server { CheckoutUrl = "file:///etc/passwd" }; var entry = server.Entry(); await entry.LoadAsync();
-        await Click(entry, SubscriptionText.Start, () => Texts(entry).Any(line => line.Contains("読めませんでした")));
+        await Buy(entry, () => Texts(entry).Any(line => line.Contains("読めませんでした")));
         Assert.Null(server.Opened);
     });
 
@@ -106,6 +129,8 @@ public sealed class PurchaseEntryTests
 
     private static Button? Find(Control root, string name) => root.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Content as string == name);
     private static string[] Texts(Control root) => root.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text ?? "").ToArray();
+    // 購入 opens the panel, 申し込む asks the server (a460).
+    private static async Task Buy(Control root, Func<bool> done) { await Click(root, SubscriptionText.Start, () => Find(root, SubscriptionText.ConfirmApply) is not null); await Click(root, SubscriptionText.ConfirmApply, done); }
     private static async Task Click(Control root, string name, Func<bool> done) { Find(root, name)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Until(done); }
     private static async Task Until(Func<bool> condition) { var until = DateTime.UtcNow.AddSeconds(5); while (!condition()) { if (DateTime.UtcNow > until) throw new TimeoutException(); await Task.Delay(5); Dispatcher.UIThread.RunJobs(); } }
 }
