@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T22:58:58Z",
-  "expiresAt": "2026-11-25T22:58:58Z",
+  "publishedAt": "2026-11-19T00:38:20Z",
+  "expiresAt": "2026-11-26T00:38:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "396150fb74ea3272caeab46e7045b3a693a04bfe11892965eb65f303db28aea3",
+      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
+      "versionId": "9a0b4ba877f46d11e94b8e9d030350ef487336d53272e08761897d99dd929987",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz",
-          "bytes": 5464736,
-          "sha256": "396150fb74ea3272caeab46e7045b3a693a04bfe11892965eb65f303db28aea3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003715Z/web-gateway-48337e6a67d66864c878a6f606b795d2183107af-linux-amd64.tar.gz",
+          "bytes": 5465529,
+          "sha256": "9a0b4ba877f46d11e94b8e9d030350ef487336d53272e08761897d99dd929987"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11346,
-          "sha256": "2e9320a80a508f05150ede1efcafbf32c9d909c9a615e6bc3230657b796eff47"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003715Z/web-gateway-48337e6a67d66864c878a6f606b795d2183107af-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "1d8769c52c062130a74b41ee9bb31f86ef3a824dd4bda0777e171e10f691bf2d"
         },
-        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
+        "signerCommit": "48337e6a67d66864c878a6f606b795d2183107af"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "342e05795159a88ecec3ad48abe99011b0bb4eadad698a0cd9a49134b467a49b",
+      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
+      "versionId": "7ccd3311be63e761a204e429bc77b48d151269f7c6804cb8afd2afb320b420c0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz",
-          "bytes": 5464736,
-          "sha256": "342e05795159a88ecec3ad48abe99011b0bb4eadad698a0cd9a49134b467a49b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003715Z/web-gateway-48337e6a67d66864c878a6f606b795d2183107af-linux-arm64.tar.gz",
+          "bytes": 5465529,
+          "sha256": "7ccd3311be63e761a204e429bc77b48d151269f7c6804cb8afd2afb320b420c0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11252,
-          "sha256": "3889f4138fec605569508cd7b0b0a224957c4b133ad099bc7ec2333b4d5ca548"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003715Z/web-gateway-48337e6a67d66864c878a6f606b795d2183107af-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11193,
+          "sha256": "2c7229ee46c3d93d5d89f650324ba7aec77b956679c1b942bb8705cc632960ee"
         },
-        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
+        "signerCommit": "48337e6a67d66864c878a6f606b795d2183107af"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,13 +488,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
-      "versionId": "410116e5fec46e4b47e92ab8e4c8c9200b60d2236f4edb34839fa69c926fd876",
+      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
+      "versionId": "f15ab893ad8d7051edb6cfdeb3fef83f85077e1b241961b19446f1e8982294c8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-amd64.tar.gz",
-          "bytes": 3986902,
-          "sha256": "410116e5fec46e4b47e92ab8e4c8c9200b60d2236f4edb34839fa69c926fd876"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-amd64.tar.gz",
+          "bytes": 3987446,
+          "sha256": "f15ab893ad8d7051edb6cfdeb3fef83f85077e1b241961b19446f1e8982294c8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11306,
-          "sha256": "af7b7d6f922976e8c16f522fa5fa764398f8f7c683b3610923da14e45bcbb19f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "70a1e30675f3196bd5c7e317ab5c3a6f411d53826cf89183d10495cb20106f11"
         },
-        "signerCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5"
+        "signerCommit": "48337e6a67d66864c878a6f606b795d2183107af"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
+        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5",
-      "versionId": "6490ed580ad61a7e5aa544113fe4b9a6ba292c2faa29b48879fdf21de390c0ce",
+      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
+      "versionId": "857c879b2ffc72f8969ff7e5aabd8a217766eee40e36edef0f848b0b522aed7b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-arm64.tar.gz",
-          "bytes": 3986902,
-          "sha256": "6490ed580ad61a7e5aa544113fe4b9a6ba292c2faa29b48879fdf21de390c0ce"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-arm64.tar.gz",
+          "bytes": 3987446,
+          "sha256": "857c879b2ffc72f8969ff7e5aabd8a217766eee40e36edef0f848b0b522aed7b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T102320Z/execution-3963d080b1235b247c15c0def87fe7834fbb93f5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11259,
-          "sha256": "5d315d44b5692ef29a231cb9c485029c9f98b8270a9830978986879382f776f3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "ba2c6b9f375233ca6c2cb5afa9a7f6d2076c985d7c18c3612419e0daa68c6082"
         },
-        "signerCommit": "3963d080b1235b247c15c0def87fe7834fbb93f5"
+        "signerCommit": "48337e6a67d66864c878a6f606b795d2183107af"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "外の席（リモート端末の席）のモデル変更を、追跡なしで送るようにしました。ルートのAitermが追跡つきの設定変更を断るため、これまで外の席のモデルを変えられませんでした。"
+        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576",
+      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
+      "versionId": "sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。",
+        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576",
+      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
+      "versionId": "sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +749,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。",
+        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
       ]
     },
     {
