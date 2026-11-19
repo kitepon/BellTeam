@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T02:06:21Z",
-  "expiresAt": "2026-11-26T02:06:21Z",
+  "publishedAt": "2026-11-19T02:51:09Z",
+  "expiresAt": "2026-11-26T02:51:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
-      "versionId": "981d20c95fdfa5814bd62a12895c6cd7c2cc29412049db4dbb9095dd16b02f5b",
+      "sourceCommit": "74f2c4b6e91910007b1515475de47263b0f207ec",
+      "versionId": "1df2546c52061fab22f7d0e26e5aa067838c414ac32c0cc7c72bd8f177cde1fb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-amd64.tar.gz",
-          "bytes": 3987787,
-          "sha256": "981d20c95fdfa5814bd62a12895c6cd7c2cc29412049db4dbb9095dd16b02f5b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T025046Z/execution-74f2c4b6e91910007b1515475de47263b0f207ec-linux-amd64.tar.gz",
+          "bytes": 3988584,
+          "sha256": "1df2546c52061fab22f7d0e26e5aa067838c414ac32c0cc7c72bd8f177cde1fb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "43bf9cc63beea820fcb9ad7996249bce1d8ce8b61e83891f2e00acfea39189dd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T025046Z/execution-74f2c4b6e91910007b1515475de47263b0f207ec-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11255,
+          "sha256": "5600b186be1c4657d9ce2308faecabbc78c08c3c2077e8db9c92a3f579a0cd2b"
         },
-        "signerCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6"
+        "signerCommit": "74f2c4b6e91910007b1515475de47263b0f207ec"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
-      "versionId": "4bb2a06296b51dac9541c475beb67b9095f80ce04d32916cd9066ce912f4989a",
+      "sourceCommit": "74f2c4b6e91910007b1515475de47263b0f207ec",
+      "versionId": "834d839ff26150d2f392def04b163fc71cc1b906bc938e35605fcb3df91374be",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-arm64.tar.gz",
-          "bytes": 3987787,
-          "sha256": "4bb2a06296b51dac9541c475beb67b9095f80ce04d32916cd9066ce912f4989a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T025046Z/execution-74f2c4b6e91910007b1515475de47263b0f207ec-linux-arm64.tar.gz",
+          "bytes": 3988584,
+          "sha256": "834d839ff26150d2f392def04b163fc71cc1b906bc938e35605fcb3df91374be"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "49bd28123fe6567fa96f6d0c6a6aa03d3caf735a87c4b4b8de975bf469ecfe73"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T025046Z/execution-74f2c4b6e91910007b1515475de47263b0f207ec-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11224,
+          "sha256": "c09cf5b0448d877f2ce9d9878e6aefeb97cc82b5a4352141573dc37a3c8070d1"
         },
-        "signerCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6"
+        "signerCommit": "74f2c4b6e91910007b1515475de47263b0f207ec"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "cdd815997fe4765d3dfbf9afa61ea3b6eab6464f",
-      "versionId": "sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466",
+      "sourceCommit": "74f2c4b6e91910007b1515475de47263b0f207ec",
+      "versionId": "sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の起動の部品 aiterm-mcp を 0.70.76 にしました。Claude の起動で settings_env を渡せるようにし、既定のモデルで起動した席も、実際のモデルで再開の手順を記録するようにしました。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "cdd815997fe4765d3dfbf9afa61ea3b6eab6464f",
-      "versionId": "sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466",
+      "sourceCommit": "74f2c4b6e91910007b1515475de47263b0f207ec",
+      "versionId": "sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の起動の部品 aiterm-mcp を 0.70.76 にしました。Claude の起動で settings_env を渡せるようにし、既定のモデルで起動した席も、実際のモデルで再開の手順を記録するようにしました。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
       ]
     },
     {
