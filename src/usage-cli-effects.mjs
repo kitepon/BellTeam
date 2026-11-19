@@ -10,7 +10,8 @@ export const CLI_INSTALL_MS = 600_000
 
 // harness -> the command a seat user would run to find it, and the vendor's official install.
 const VENDORS = Object.freeze({
-  claude: { bin: 'claude', install: place => ['npm', ['install', '--global', '--prefix', place, '@anthropic-ai/claude-code@latest']] },
+  // npm 12 skips install scripts that are not allowed; claude-code's postinstall puts the native binary in place (a451x, Rapi 2026-11-19).
+  claude: { bin: 'claude', install: place => ['npm', ['install', '--global', '--prefix', place, '--allow-scripts=@anthropic-ai/claude-code', '@anthropic-ai/claude-code@latest']] },
   codex: { bin: 'codex', install: place => ['npm', ['install', '--global', '--prefix', place, '@openai/codex@latest']] },
   grok: { bin: 'grok', install: () => ['bash', ['-c', 'set -euo pipefail; curl -fsSL https://x.ai/cli/install.sh | bash; install -d "$HOME/.local/bin"; install -m 0755 "$HOME/.grok/bin/grok" "$HOME/.local/bin/grok"']] },
   cursor: { bin: 'cursor-agent', install: () => ['bash', ['-c', 'set -euo pipefail; curl -fsSL https://cursor.com/install | bash']] },
@@ -43,7 +44,7 @@ export function createCliEffects({ run = createUserPlaceRunner(), place = userPl
   // One install at a time inside the parent, whatever the child does.
   let tail = Promise.resolve()
   const install = async name => {
-    const { install: command } = harness(name)
+    const { bin, install: command } = harness(name)
     const work = tail.then(async () => {
       const [executable, args] = command(place)
       let result
@@ -54,6 +55,8 @@ export function createCliEffects({ run = createUserPlaceRunner(), place = userPl
       }
       if (result.code !== 0 || result.signal) throw fail(NETWORK.test(result.stderr) ? 'CLI_INSTALL_NETWORK' : 'CLI_INSTALL_FAILED')
       const seen = await probe(name)
+      // An install that exited 0 but does not run would shadow a working image CLI (the user place is first on PATH): remove its entry.
+      if (!seen.installed) await run('rm', ['-f', join(place, 'bin', bin)], { acceptNonzero: true, maxBuffer: 65_536 }).catch(() => {})
       if (!seen.installed || seen.source !== 'user') throw fail('CLI_INSTALL_FAILED')
       return { version: seen.version }
     })
