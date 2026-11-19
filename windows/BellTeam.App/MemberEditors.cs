@@ -25,6 +25,7 @@ public sealed class ModelPicker : Border
     private readonly TextBlock reason = Text("", 12, Red);
     // harness-cli.md: the server's own sentence for an AI that is not installed, shown under the CLI row as given.
     private readonly TextBlock installNote = Text("", 13, Orange);
+    private readonly TextBlock installHint = Text("設定の「AIの認証」で入れられます。", 13, Muted);
     private readonly Border installRow;
     private Dictionary<string, HarnessCliInstall> installs = [];
     private bool updating, loading = true;
@@ -43,7 +44,7 @@ public sealed class ModelPicker : Border
         var customField = Field("モデルID", ""); custom = customField.Box; custom.CharacterCasing = CharacterCasing.Normal;
         var spinner = new StackPanel { Orientation = Orientation.Horizontal }; spinner.Children.Add(new Spinner { Width = 16, Height = 16, Stroke = Muted, Margin = new Thickness(0, 0, 8, 0) }); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
-        var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine); installRow = Row(installNote);
+        var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine); installRow = Row(new StackPanel { Children = { installNote, installHint } });
         // a317: the Owner's switch for the AI settings (same position and wording as Linux a318); absent on a BellTeam that predates configurationLocked.
         LockRow = Row(lockRowParts.Row); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
         // a366: the server's plain text for a member whose stored AI is the retired Antigravity; the picker still offers the four AIs to switch to.
@@ -88,7 +89,7 @@ public sealed class ModelPicker : Border
     {
         updating = true;
         harness.SelectedValue = selection.Harness;
-        var missing = installs.GetValueOrDefault(selection.Harness) is { } cli && !HarnessCliInstall.Ready(cli) ? cli : null;
+        var missing = installs.GetValueOrDefault(selection.Harness) is { } cli && cli.CannotRun ? cli : null;
         installNote.Text = missing?.Message ?? ""; card.SetVisible(installRow, missing is not null);
         var catalog = selection.Catalog.GetValueOrDefault(selection.Harness);
         var options = new List<FormOption> { new("", "CLIの既定") };
