@@ -8,6 +8,7 @@ using static BellTeam.Linux.SettingsUi;
 namespace BellTeam.Linux;
 
 // The purchase entry on 利用と課金 (a337, the twin of windows PurchaseEntry): three equal store rows (docs/billing-client-contract.md); 購入 on the Stripe row opens the server's Stripe checkout in the browser, then 購入を確認 / 再確認 read the plan.
+// a460: 購入 shows the confirmation panel (特商法12条の6) inside the row; 申し込む alone calls the checkout.
 // The words and the "who is offered it" rules are Core's (SubscriptionText, SubscriptionApi), the same on Web, Windows and Linux.
 public sealed class PurchaseEntry : StackPanel
 {
@@ -17,7 +18,7 @@ public sealed class PurchaseEntry : StackPanel
     private SubscriptionState? state;
     private StripeCheckout? checkout;
     private string? failure;
-    private bool busy, nothingToBuy, noStripe;
+    private bool busy, nothingToBuy, noStripe, confirming;
 
     // open is the browser (a test passes its own); a failure to open is shown, never swallowed.
     public PurchaseEntry(SubscriptionApi api, Action<string> open, CancellationToken token)
@@ -32,8 +33,12 @@ public sealed class PurchaseEntry : StackPanel
 
     public Task LoadAsync() => RunAsync(async () => state = await api.GetAsync(token), failedText: "購読の状態を確認できませんでした。再確認してください。");
 
+    // a460: 購入 only opens the confirmation panel; the server is asked for the Checkout page by 申し込む alone.
+    private void Confirm(bool on) { confirming = on; Render(); }
+
     private async Task StartAsync() => await RunAsync(async () =>
     {
+        confirming = false;
         try { checkout = await api.CheckoutAsync(token); }
         catch (Exception error) when (SubscriptionApi.NothingToBuy(error)) { nothingToBuy = true; return; }
         // a389: a store already bills this server, so no second purchase: show the server's words and read the status again.
@@ -60,6 +65,31 @@ public sealed class PurchaseEntry : StackPanel
         }
         Open(address, "管理画面のアドレスを読めませんでした。");
     });
+    // A link in the panel: the system browser through the same https gate; a failure is shown on the row.
+    private Button LinkButton(string label, string address)
+    {
+        var link = Capsule(label, Fill, Violet, 8, 12, new Thickness(10, 4)); link.HorizontalAlignment = HorizontalAlignment.Left; link.FontWeight = FontWeight.Normal;
+        link.Click += (_, _) => { failure = null; Open(address, "ページのアドレスを読めませんでした。"); Render(); };
+        return link;
+    }
+
+    private StackPanel ConfirmPanel()
+    {
+        var panel = new StackPanel { Spacing = 4 };
+        panel.Children.Add(Text(SubscriptionText.ConfirmTitle, 13, Ink, FontWeight.SemiBold));
+        foreach (var line in new[] { SubscriptionText.ConfirmPlan, SubscriptionText.ConfirmPrice, SubscriptionText.ConfirmPayment, SubscriptionText.ConfirmFirstCharge(DateTime.Today), SubscriptionText.ConfirmStart, SubscriptionText.ConfirmCancel, SubscriptionText.ConfirmRefund }) panel.Children.Add(Text(line, 12, Ink));
+        panel.Children.Add(LinkButton(SubscriptionText.ConfirmLawLink, SubscriptionText.ConfirmLawUrl));
+        panel.Children.Add(Text(SubscriptionText.ConfirmTerms, 12, Ink));
+        var links = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        links.Children.Add(LinkButton(SubscriptionText.ConfirmTermsLink, SubscriptionText.ConfirmTermsUrl)); links.Children.Add(LinkButton(SubscriptionText.ConfirmAnnexLink, SubscriptionText.ConfirmAnnexUrl));
+        panel.Children.Add(links);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
+        var apply = Capsule(SubscriptionText.ConfirmApply, Violet, Brushes.White, 8, 13, new Thickness(18, 8)); apply.IsEnabled = !busy; apply.Click += async (_, _) => await StartAsync();
+        buttons.Children.Add(apply); buttons.Children.Add(ActionButton(SubscriptionText.ConfirmBack, () => { Confirm(false); return Task.CompletedTask; }));
+        panel.Children.Add(buttons);
+        return panel;
+    }
+
     private async Task VerifyAsync() => await RunAsync(async () => state = checkout is { } pending ? await api.VerifyAsync(pending.SessionId, token) : await api.RefreshAsync(token));
     private async Task RecheckAsync() => await RunAsync(async () => state = await api.RefreshAsync(token));
 
@@ -100,9 +130,10 @@ public sealed class PurchaseEntry : StackPanel
         else if (store == "Stripe")
         {
             // Stripe is the one source bought on this device; it carries no line while another store already holds the plan (no second purchase).
-            if (Offering)
+            if (Offering && confirming) body.Children.Add(ConfirmPanel());
+            else if (Offering)
             {
-                var start = Capsule(SubscriptionText.Start, Violet, Brushes.White, 8, 13, new Thickness(18, 8)); start.HorizontalAlignment = HorizontalAlignment.Left; start.IsEnabled = !busy; start.Click += async (_, _) => await StartAsync();
+                var start = Capsule(SubscriptionText.Start, Violet, Brushes.White, 8, 13, new Thickness(18, 8)); start.HorizontalAlignment = HorizontalAlignment.Left; start.IsEnabled = !busy; start.Click += (_, _) => Confirm(true);
                 body.Children.Add(start);
             }
         }

@@ -61,6 +61,24 @@ public static class SubscriptionText
     public static string? ManageUrl(string store) => store switch { "App Store" => "https://apps.apple.com/account/subscriptions", "Google Play" => "https://play.google.com/store/account/subscriptions", _ => null };
     // Shown on the active row while the subscription is cancelled but paid up to validUntil; it is undone through the manage button, never by a second purchase.
     public static string NotRenewingRow(DateTimeOffset until) => $"次回の更新はありません。{until.ToLocalTime():yyyy年M月d日 H:mm}まで使えます。";
+    // a460 (特商法12条の6): the panel shown on the Stripe row between 購入 and the server's Checkout page (docs/billing-client-contract.md "Confirmation panel before Stripe"). Poli's words; only the date is computed.
+    public const string ConfirmTitle = "購入内容の確認";
+    public const string ConfirmPlan = "BellTeamの月額購読（解約するまで毎月自動で更新）";
+    public const string ConfirmPrice = "月額980円（税込）。1年続けた場合の合計の目安：11,760円";
+    public const string ConfirmPayment = "クレジットカード、Apple Pay、Google Pay（Stripe）";
+    public static string ConfirmFirstCharge(DateTime today) => $"最初の1か月は無料です。{today.AddDays(30):yyyy年M月d日}に初回の980円を決済し、以後は毎月の更新日に自動で決済します。";
+    public const string ConfirmStart = "支払い手続きの完了後、サーバーが契約を確認した時点から使えます（無料期間中も使えます）。";
+    public const string ConfirmCancel = "いつでも「設定 > BellTeamの購読」→「購読を管理・解約」から解約できます。支払い済みの期間の終わりに終了します。無料期間中に解約すれば料金はかかりません。";
+    public const string ConfirmRefund = "デジタルサービスのため、申込み後の返金・撤回はできません。ただし二重請求などは返金します。詳しくは特定商取引法に基づく表記をご覧ください。";
+    public const string ConfirmLawLink = "特定商取引法に基づく表記";
+    public const string ConfirmLawUrl = "https://kitepon.dev/specified-commercial-transactions/#bellteam";
+    public const string ConfirmTerms = "申し込むと、利用規約とBellTeam付属規約に同意したことになります。";
+    public const string ConfirmTermsLink = "利用規約";
+    public const string ConfirmTermsUrl = "https://kitepon.dev/terms/";
+    public const string ConfirmAnnexLink = "BellTeam付属規約";
+    public const string ConfirmAnnexUrl = "https://kitepon.dev/apps/bellteam/terms/";
+    public const string ConfirmApply = "申し込む（Stripeの支払い画面へ進む）";
+    public const string ConfirmBack = "戻る";
     public const string Verify = "購入を確認";
     public const string Recheck = "再確認";
     public const string Trial = "無料期間中です。";
