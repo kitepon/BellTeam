@@ -48,8 +48,8 @@ public sealed class HarnessCliInstallTests
     public void OnlyAnAbsentCliNeedsAttentionAndAFailedUpdateOfAWorkingOneDoesNot()
     {
         static HarnessCliInstall Of(string state) => new() { State = state };
-        Assert.All(new[] { "not_installed", "installing", "failed" }, state => Assert.True(Of(state).NeedsAttention));
-        Assert.All(new[] { "checking", "installed" }, state => Assert.False(Of(state).NeedsAttention));
+        Assert.All(new[] { "not_installed", "failed" }, state => Assert.True(Of(state).NeedsAttention));
+        Assert.All(new[] { "checking", "installing", "installed" }, state => Assert.False(Of(state).NeedsAttention)); // installing moves by itself (Tronie 11/19)
         var lastError = System.Text.Json.JsonSerializer.Deserialize<HarnessCliInstall>(Installed, BellApi.Json)!;
         Assert.Equal("CLI_INSTALL_NETWORK", lastError.LastError!.Code); Assert.False(lastError.NeedsAttention); Assert.True(lastError.CanPress);
         Assert.Equal("最新版を入れる", new HarnessCliInstall { State = "installed", Action = "install" }.ButtonLabel);
@@ -64,9 +64,14 @@ public sealed class HarnessCliInstallTests
         var status = SettingsSummary.Ai([new("claude", "Claude", null, done), new("codex", "Codex", null, AuthenticationProgress.Unknown, Install: absent), new("grok", "Grok", null, AuthenticationProgress.NeedsLogin)]);
         Assert.Equal("Codexがまだ入っていません（ほか1件）", status.Line); Assert.Equal("未導入", status.Badge); Assert.True(status.NeedsAttention);
         Assert.Equal(new SettingsRoute(BellTeam.Core.SettingsPage.Ai, "codex", null), status.AttentionRoute);
-        Assert.Equal("Codexを入れています", SettingsSummary.Ai([new("codex", "Codex", null, AuthenticationProgress.Unknown, Install: absent with { State = "installing" })]).Line);
+        // installing is neither unknown nor 要対応: it moves by itself.
+        var installing = SettingsSummary.Ai([new("codex", "Codex", null, AuthenticationProgress.Unknown, Install: absent with { State = "installing" })]);
+        Assert.Equal("認証の状態を確認しています", installing.Line); Assert.False(installing.NeedsAttention);
+        // Claude counts once for its two accounts.
+        var twin = SettingsSummary.Ai([new("claude", "Claude 1stアカウント", null, AuthenticationProgress.Unknown, Install: absent), new("claude", "Claude 2ndアカウント", "2nd", AuthenticationProgress.Unknown, Install: absent), new("grok", "Grok", null, done)]);
+        Assert.Equal("Claude 1stアカウントがまだ入っていません", twin.Line);
         Assert.Equal("Codexを入れられませんでした", SettingsSummary.Ai([new("codex", "Codex", null, AuthenticationProgress.Unknown, Install: absent with { State = "failed" })]).Line);
         var calm = SettingsSummary.Ai([new("codex", "Codex", null, done, Install: new() { State = "installed", LastError = new("CLI_INSTALL_FAILED", "x") }), new("grok", "Grok", null, done, Install: new() { State = "checking" })]);
-        Assert.Equal("すべて認証済み", calm.Line); Assert.False(calm.NeedsAttention);
+        Assert.Equal("認証の状態を確認しています", calm.Line); Assert.False(calm.NeedsAttention);
     }
 }

@@ -174,10 +174,13 @@ public static class SettingsSummary
     public static SettingsStatus Ai(IReadOnlyList<AIAuthEntry>? entries)
     {
         if (entries is null || entries.Count == 0) return Attention("AIの認証の状態を確認できません", "確認できません", SettingsPage.Ai);
-        // a451: an AI that is not installed (or being installed) outranks every login stage; installed with a failed update does not count.
+        // a451: an AI that is absent or failed outranks every login stage; installed with a failed update does not count. One install is one count: Claude's second account adds none.
+        var seen = new HashSet<string>(); entries = entries.Where(entry => HarnessCliInstall.Ready(entry.Install) || seen.Add(entry.HarnessId)).ToList();
         static bool Absent(AIAuthEntry entry) => entry.Install is { NeedsAttention: true };
-        static int Rank(AIAuthEntry entry) => Absent(entry) ? 8 : Severity(entry.Progress);
-        static bool Pending(AIAuthEntry entry) => Absent(entry) || entry.Progress != AuthenticationProgress.Done;
+        // An AI that is installing or checking has no login to read yet and is moving by itself: it counts as checking, not as unknown.
+        static AuthenticationProgress Login(AIAuthEntry entry) => !HarnessCliInstall.Ready(entry.Install) && !Absent(entry) ? AuthenticationProgress.Checking : entry.Progress;
+        static int Rank(AIAuthEntry entry) => Absent(entry) ? 8 : Severity(Login(entry));
+        static bool Pending(AIAuthEntry entry) => Absent(entry) || Login(entry) != AuthenticationProgress.Done;
         var worst = entries[0];
         foreach (var entry in entries) if (Rank(worst) < Rank(entry)) worst = entry; // the first of equals wins
         var others = entries.Count(Pending) - (Pending(worst) ? 1 : 0);
@@ -186,13 +189,13 @@ public static class SettingsSummary
         {
             var (text, badge) = install.State switch
             {
-                "installing" => ($"{worst.Name}を入れています", "導入中"),
                 "failed" => ($"{worst.Name}を入れられませんでした", "導入できません"),
                 _ => ($"{worst.Name}がまだ入っていません", "未導入")
             };
             return new(text + more, badge, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Ai, worst.HarnessId, worst.Slot));
         }
-        var line = worst.Progress.Stage switch
+        var progress = Login(worst);
+        var line = progress.Stage switch
         {
             AuthenticationStage.Done => "すべて認証済み",
             AuthenticationStage.Checking => "認証の状態を確認しています",
@@ -203,9 +206,9 @@ public static class SettingsSummary
             AuthenticationStage.NeedsLogin => $"{worst.Name}のログインが必要です" + more,
             _ => $"{worst.Name}の認証に失敗しました" + more
         };
-        var attention = worst.Progress.Stage is AuthenticationStage.Unknown or AuthenticationStage.NeedsLogin or AuthenticationStage.Failed;
+        var attention = progress.Stage is AuthenticationStage.Unknown or AuthenticationStage.NeedsLogin or AuthenticationStage.Failed;
         var route = !attention ? null : worst == ClaudeAccountsReads.UnreadableEntry ? new SettingsRoute(SettingsPage.Ai) : new SettingsRoute(SettingsPage.Ai, worst.HarnessId, worst.Slot);
-        return new(line, worst.Progress.Badge, worst.Progress.Tone, attention, route);
+        return new(line, progress.Badge, progress.Tone, attention, route);
     }
 
     // 1Password. A null setting: the server does not return the item yet (or at all); the old calm line stays.

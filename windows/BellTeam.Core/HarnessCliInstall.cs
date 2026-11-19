@@ -21,8 +21,8 @@ public sealed record HarnessCliInstall
     public const string DefaultLabel = "最新版を入れる";
     [JsonIgnore] public bool CanPress => Action == "install";
     [JsonIgnore] public string ButtonLabel => string.IsNullOrEmpty(Label) ? DefaultLabel : Label;
-    // 要対応: the CLI is absent (or being put in). checking and installed are not, even when the last update failed.
-    [JsonIgnore] public bool NeedsAttention => State is "not_installed" or "installing" or "failed";
+    // 要対応 (Tronie 11/19, Mac is the reference): absent or failed. installing moves by itself, checking and installed are not, even when the last update failed.
+    [JsonIgnore] public bool NeedsAttention => State is "not_installed" or "failed";
     // The login buttons are shown only when the AI can run; a server that does not report it (null) is treated as ready.
     public static bool Ready(HarnessCliInstall? install) => install is null || install.State == "installed";
 }
