@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T12:17:20Z",
-  "expiresAt": "2026-11-26T12:17:20Z",
+  "publishedAt": "2026-11-19T13:42:11Z",
+  "expiresAt": "2026-11-26T13:42:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
-      "versionId": "sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613",
+      "sourceCommit": "929338a50cb5e90d47364c1f3aa373c6040d92e9",
+      "versionId": "sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,22 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AIのCLI（Claude Code・Codex・Grok・Cursor）を、本体に同梱しなくなりました。使うAIごとに、AIの認証で「最新版を入れる」を1回押してください。すでに入れてある物と、動いている席は、そのまま続きます。",
-        "CLIがまだ入っていない間は、Codexの親配送のhookを「失敗」と報告せず、入るのを待つようにしました。",
-        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
+        "内部の道具 Aiterm を 0.70.79 に更新しました。別の端末にある席で、待ち処理がその端末自身の Node のパスで届くようになりました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
-      "versionId": "sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613",
+      "sourceCommit": "929338a50cb5e90d47364c1f3aa373c6040d92e9",
+      "versionId": "sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -754,9 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AIのCLI（Claude Code・Codex・Grok・Cursor）を、本体に同梱しなくなりました。使うAIごとに、AIの認証で「最新版を入れる」を1回押してください。すでに入れてある物と、動いている席は、そのまま続きます。",
-        "CLIがまだ入っていない間は、Codexの親配送のhookを「失敗」と報告せず、入るのを待つようにしました。",
-        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
+        "内部の道具 Aiterm を 0.70.79 に更新しました。別の端末にある席で、待ち処理がその端末自身の Node のパスで届くようになりました。"
       ]
     },
     {
