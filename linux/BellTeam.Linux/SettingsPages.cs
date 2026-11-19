@@ -212,6 +212,7 @@ public sealed partial class SettingsWindow
         {
             var bar = Text("⚠ " + text, 12, Orange, null, new Thickness(0, 6, 0, 0)); AutomationProperties.SetName(bar, text); host.Children.Add(bar);
         }
+        var seats = workspace.Bots.Select(bot => bot.Account).ToList();
         var ready = new List<Task>();
         foreach (var slot in claude.Slots)
         {
@@ -220,7 +221,7 @@ public sealed partial class SettingsWindow
             var lines = new List<(string Text, IBrush Color)>();
             if (AccountText.Login(slot) is { } account) lines.Add((account, Muted));
             lines.AddRange(slot.Limits.Select(item => (AccountText.LimitText(item.Scope, item.ResetAt, now), Orange)));
-            if (AccountText.Seats(slot, workspace.MemberName) is { } seats) lines.Add((seats, Muted));
+            if (AccountText.UsersLine(seats, "claude", slot) is { } users) lines.Add((users, Muted));
             // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
             if (slot.History == "separate") lines.Add(("会話の履歴は1stアカウントと分かれています", Muted));
             foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
