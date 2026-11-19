@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T01:32:15Z",
-  "expiresAt": "2026-11-26T01:32:15Z",
+  "publishedAt": "2026-11-19T02:06:21Z",
+  "expiresAt": "2026-11-26T02:06:21Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
-      "versionId": "sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c",
+      "sourceCommit": "cdd815997fe4765d3dfbf9afa61ea3b6eab6464f",
+      "versionId": "sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
+        "席の起動の部品 aiterm-mcp を 0.70.76 にしました。Claude の起動で settings_env を渡せるようにし、既定のモデルで起動した席も、実際のモデルで再開の手順を記録するようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
-      "versionId": "sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c",
+      "sourceCommit": "cdd815997fe4765d3dfbf9afa61ea3b6eab6464f",
+      "versionId": "sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:523e86fa7b0841cd445c6089bf770987320642ee29b8f4ce9a693406df1fb466"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
+        "席の起動の部品 aiterm-mcp を 0.70.76 にしました。Claude の起動で settings_env を渡せるようにし、既定のモデルで起動した席も、実際のモデルで再開の手順を記録するようにしました。"
       ]
     },
     {
