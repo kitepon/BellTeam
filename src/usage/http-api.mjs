@@ -5,6 +5,7 @@ import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
 import { authCodeChallenge } from '../auth-ui.mjs'
 import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
+import { cliNotice } from './harness-cli-notice.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE, harnessNoticeFor } from '../retired-harness.mjs'
 
 export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
@@ -59,9 +60,16 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
         if (!entry().install) throw new HarnessAuthError('CLI_INSTALL_UNSUPPORTED', 409, 'このBellTeamの本体は、入れる機能にまだ対応していません。BellTeamを更新してください。')
         return json(response, 200, { harness, install: entry().install })
       }
-      if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness, await context('auth.status'), options) : harnessAuth.list())
-      if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192), await context('auth.input'), options))
-      if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness, await context('auth.' + action), options))
+      // The module IPC carries only the code, so the parent writes the plain sentence from the state it already holds.
+      const plain = async run => {
+        try { return await run() } catch (error) {
+          if (error?.code === 'HARNESS_NOT_INSTALLED') error.publicMessage = cliNotice(harness, harnessAuth.list().harnesses.find(item => item.id === harness)?.install?.state) ?? error.message
+          throw error
+        }
+      }
+      if (request.method === 'GET' && !action) return json(response, 200, harness ? await plain(async () => harnessAuth.status(harness, await context('auth.status'), options)) : harnessAuth.list())
+      if (request.method === 'POST' && action === 'input') return json(response, 200, await plain(async () => harnessAuth.input(harness, await readJson(request, 8192), await context('auth.input'), options)))
+      if (request.method === 'POST' && action) return json(response, 200, await plain(async () => harnessAuth[action](harness, await context('auth.' + action), options)))
       return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
     }
     if (url.pathname === '/api/settings' && request.method === 'GET') {

@@ -11,6 +11,7 @@ import { Onboarding } from '../src/onboarding.mjs'
 import { Subscriptions } from '../src/subscriptions.mjs'
 import { usageEffectResultValid, usageEffectValid } from '../src/usage/channel-protocol.mjs'
 import { createUsageFacade } from '../src/usage/facade.mjs'
+import { respondHttpError } from '../src/http-errors.mjs'
 import { createUsageApi } from '../src/usage/http-api.mjs'
 import { createUsageProjection } from '../src/usage/projection.mjs'
 import { usageResultValid } from '../src/usage/process-results.mjs'
@@ -212,6 +213,20 @@ test('HTTP: install routes are owner-only, answer once the press has started, an
   assert.equal((await http(internal, '/api/harness-auth/codex/install')).status, 403)
   await assert.rejects(http(api, '/api/harness-auth/nope/install', 'GET'), { code: 'HARNESS_AUTH_HARNESS_INVALID' })
   assert.equal(projection.auth === undefined, false)
+})
+
+test('HTTP: a login for an absent AI answers 409 with the plain sentence, though the module IPC carries only the code', async () => {
+  const cli = new HarnessCli({ probe: box().probe, install: box().install }); await cli.probeAll()
+  const auth = new HarnessAuth({ bots: new Map(), cli, client: {} })
+  const ipcError = () => Object.assign(new Error('HARNESS_NOT_INSTALLED'), { code: 'HARNESS_NOT_INSTALLED', status: 409, outcome: 'not_accepted' })
+  const facade = createUsageFacade({ projection: { auth: () => ({ harnesses: auth.list().harnesses }) }, request: async () => { throw ipcError() } })
+  const api = createUsageApi({ harnessAuth: facade.harnessAuth, captureUsageContext: (_request, method) => ({ method }) })
+  for (const [path, method] of [['/api/harness-auth/codex', 'GET'], ['/api/harness-auth/codex/start', 'POST']]) {
+    const error = await http(api, path, method).then(() => null, e => e)
+    const reply = {}
+    await respondHttpError({ method, url: path }, { writeHead(status) { reply.status = status }, end(body) { reply.body = JSON.parse(body) } }, error)
+    assert.deepEqual(reply, { status: 409, body: { error: 'HARNESS_NOT_INSTALLED', message: 'Codexがまだ入っていません。AIの認証から入れてください' } })
+  }
 })
 
 test('HTTP: POST /api/setup/install answers with the snapshot once the press has started, owner only', async () => {
