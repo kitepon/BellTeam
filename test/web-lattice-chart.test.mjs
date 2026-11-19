@@ -662,3 +662,86 @@ test('決裁箱（a154）：open(projectId, cardId) は一覧の答えを待た�
   assert.equal(sheet.hidden, false); assert.match(textOf(sheet), /部品の実装/u)
   ui.view.close()
 })
+
+// ---- 過去ログ: closed trees from GET .../history (a457) ----
+const past = (id, minutes, producer = MOLLY) => card(id, 'done', producer, 0, { title: `閉じた${id}`, doneAt: minutesAgo(minutes), archived: true, counted: false })
+const page = (cards, next, members = []) => ({ schema: 'bellteam.lattice-history.v1', projectId: 'bellteam', at: minutesAgo(0), state: 'verified', closed: 3, members, cards, next })
+const failure = status => Object.assign(new Error('x'), { status })
+function historySetup(t, answers) {
+  const asked = []
+  const api = async url => {
+    if (url === '/api/lattice/charts') return chartsList('bellteam')
+    asked.push(url.replace('/api/lattice/charts/bellteam/history', ''))
+    const answer = answers.shift()
+    if (answer instanceof Error) throw answer
+    return answer
+  }
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api, fetchImage: net.fetchImage, mode: 'tree' })
+  const snap = closed => fixture({ ...(closed === undefined ? {} : { history: { closed } }), cards: fixture().cards.map(c => ({ ...c, archived: c.id === 'p1/t01', doneAt: c.id === 'p1/t01' ? minutesAgo(5) : null })) })
+  const canvas = () => ui.body.find(el => el.className.includes('lattice-canvas'))[0]
+  const ids = () => byClass(ui.body, 'lattice-hrow').map(el => el.dataset.cardId)
+  const toEnd = () => Object.assign(canvas(), { scrollHeight: 1000, clientHeight: 500, scrollTop: 450 })
+  return { ui, feed, asked, snap, canvas, ids, toEnd }
+}
+
+test('過去ログ：開くまで読まず、開いたら最初の一頁（limit 50）。数は snapshot の完了 + history.closed、同じ id は snapshot の札が勝ち、閉じたツリーの札は前の工程なしで詳細が開く', async t => {
+  const h = historySetup(t, [page([past('c1', 30, FLORA), past('t01', 99), past('c2', 60, 'bot-new00001')], null, [{ botId: 'bot-new00001', name: 'ニュー', color: 'rose', avatarVersion: '' }])])
+  h.ui.view.open(); await flush(); h.feed.snapshot(h.snap(3)); await flush()
+  assert.deepEqual(h.asked, [], '開く前は読まない')
+  const tab = buttonByText(h.ui.body, '過去ログ'); assert.equal(textOf(tab), '過去ログ 5', '完了2 + 閉じたツリー3')
+  tab.click(); await flush()
+  assert.deepEqual(h.asked, ['?limit=50'])
+  assert.deepEqual(h.ids(), ['p1/t01', 'p1/c1', 'p1/c2', 'p1/t06'], '新しい順、日時なしは最後、同じ id は一行')
+  assert.equal(textOf(tab), '過去ログ 5')
+  assert.match(textOf(byClass(h.ui.body, 'lattice-hrow')[2]), /ニュー/u, '頁の members で顔と名前を引く')
+  byClass(h.ui.body, 'lattice-hrow')[1].click(); await flush()
+  const sheet = textOf(byClass(h.ui.body, 'lattice-sheet')[0])
+  assert.match(sheet, /閉じたc1/u); assert.doesNotMatch(sheet, /前の工程/u)
+  tab.click(); buttonByText(h.ui.body, 'ツリー').click(); await flush(); buttonByText(h.ui.body, '過去ログ').click(); await flush()
+  assert.equal(h.asked.length, 2, '離れて開き直すと頁は捨てられ、最初の頁を読み直す')
+})
+
+test('過去ログ：一覧の終わりまで送ると次の頁（before は前の next、一度だけ）。最後の頁（next null）の後は読まない', async t => {
+  const h = historySetup(t, [page([past('c1', 30)], 'h1.a/b'), page([past('c2', 60)], null)])
+  h.ui.view.open(); await flush(); h.feed.snapshot(h.snap(2)); await flush()
+  buttonByText(h.ui.body, '過去ログ').click(); await flush()
+  h.canvas().fire('scroll'); await flush()
+  assert.deepEqual(h.asked, ['?limit=50'], '終わりまで来ていなければ読まない')
+  h.toEnd(); h.canvas().fire('scroll'); await flush()
+  assert.deepEqual(h.asked, ['?limit=50', '?limit=50&before=h1.a%2Fb'])
+  assert.deepEqual(h.ids(), ['p1/t01', 'p1/c1', 'p1/c2', 'p1/t06'])
+  h.canvas().fire('scroll'); await flush()
+  assert.equal(h.asked.length, 2, 'next が null なら読まない')
+})
+
+test('過去ログ：古いサーバー（404）は snapshot の完了だけを出し、そのチャートでは二度と頁を頼まない', async t => {
+  const h = historySetup(t, [failure(404)])
+  h.ui.view.open(); await flush(); h.feed.snapshot(h.snap()); await flush()
+  buttonByText(h.ui.body, '過去ログ').click(); await flush()
+  assert.deepEqual(h.ids(), ['p1/t01', 'p1/t06']); assert.equal(byClass(h.ui.body, 'lattice-hist-more').length, 0, '失敗の行は出さない')
+  h.toEnd(); h.canvas().fire('scroll'); h.feed.snapshot(h.snap()); await flush()
+  assert.equal(h.asked.length, 1)
+})
+
+test('過去ログ：読めなかった頁は一行「続きを読めませんでした。」と読み直す。既に読めた行は残り、読み直すと同じ頁を頼む', async t => {
+  const h = historySetup(t, [page([past('c1', 30)], 'h1.n'), failure(503), page([past('c2', 60)], null)])
+  h.ui.view.open(); await flush(); h.feed.snapshot(h.snap(2)); await flush()
+  buttonByText(h.ui.body, '過去ログ').click(); await flush()
+  h.toEnd(); h.canvas().fire('scroll'); await flush()
+  assert.match(textOf(h.ui.body), /続きを読めませんでした。/u); assert.deepEqual(h.ids(), ['p1/t01', 'p1/c1', 'p1/t06'])
+  buttonByText(h.ui.body, '読み直す').click(); await flush()
+  assert.deepEqual(h.asked, ['?limit=50', '?limit=50&before=h1.n', '?limit=50&before=h1.n'])
+  assert.doesNotMatch(textOf(h.ui.body), /続きを読めませんでした。/u); assert.deepEqual(h.ids(), ['p1/t01', 'p1/c1', 'p1/c2', 'p1/t06'])
+})
+
+test('過去ログ：開いている間に history.closed が変わったら最初の頁を読み直し、古い頁は置き換える', async t => {
+  const h = historySetup(t, [page([past('c1', 30)], null), page([past('c3', 10), past('c1', 30)], null)])
+  h.ui.view.open(); await flush(); h.feed.snapshot(h.snap(1)); await flush()
+  buttonByText(h.ui.body, '過去ログ').click(); await flush()
+  h.feed.snapshot(h.snap(1)); await flush()
+  assert.equal(h.asked.length, 1, '同じ値なら読み直さない')
+  h.feed.snapshot(h.snap(2)); await flush()
+  assert.deepEqual(h.asked, ['?limit=50', '?limit=50']); assert.deepEqual(h.ids(), ['p1/t01', 'p1/c3', 'p1/c1', 'p1/t06'])
+  assert.equal(textOf(buttonByText(h.ui.body, '過去ログ')), '過去ログ 4')
+})

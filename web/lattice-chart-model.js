@@ -3,6 +3,7 @@ export const ACCENTS = { violet: '#6147D4', rose: '#E86B94', indigo: '#4559C2', 
 export const accent = color => ACCENTS[color] ?? ACCENTS.violet
 export const RED = '#E0533D'
 export const SCHEMA = 'bellteam.lattice-chart.v1'
+export const HISTORY_SCHEMA = 'bellteam.lattice-history.v1'
 export const UNKNOWN_MEMBER = '名簿にないメンバー'
 export const UNASSIGNED = '担当なし'
 export const OWNER_ID = 'owner', OWNER_FALLBACK = '指揮官'
@@ -175,10 +176,18 @@ export function layoutTree(snapshot, name = '') {
 // 過去ログ：終わった工程を新しい順に、JSTの日ごと（今日 / 昨日 / M月D日）。
 const JST_DAY = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' })
 const JST_TIME = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-export function historyRows(snapshot, now) {
-  const ownerOf = ownerLookup(snapshot), day = value => JST_DAY.format(new Date(value))
+// a457: the snapshot holds open trees only; the pages of GET .../history add the closed trees' cards. The snapshot's card wins for the same id (a reopened tree).
+export function withHistoryPages(snapshot, pages) {
+  if (!pages?.cards?.length) return snapshot
+  const known = new Set((snapshot.cards ?? []).map(card => card.id)), roster = new Set((snapshot.members ?? []).map(member => member.botId))
+  return { ...snapshot, cards: [...(snapshot.cards ?? []), ...pages.cards.filter(card => !known.has(card.id))],
+    members: [...(snapshot.members ?? []), ...(pages.members ?? []).filter(member => !roster.has(member.botId))] }
+}
+export function historyRows(snapshot, now, pages = null) {
+  const merged = withHistoryPages(snapshot, pages)
+  const ownerOf = ownerLookup(merged), day = value => JST_DAY.format(new Date(value))
   const today = day(now), yesterday = day(now - 86400000)
-  const rows = (snapshot.cards ?? []).filter(card => finished(card.state))
+  const rows = (merged.cards ?? []).filter(card => finished(card.state))
     .toSorted((a, b) => (b.doneAt ? Date.parse(b.doneAt) : -Infinity) - (a.doneAt ? Date.parse(a.doneAt) : -Infinity) || a.id.localeCompare(b.id))
   const groups = []
   for (const card of rows) {
@@ -189,7 +198,8 @@ export function historyRows(snapshot, now) {
     groups.at(-1).rows.push({ id: card.id, title: card.title, owner, info, time,
       label: `${card.title}、${info.badge}${time ? `、${heading} ${time}` : ''}、${nameOf(owner)}` })
   }
-  return { count: rows.length, groups }
+  // The switch count needs no request: finished cards of the snapshot + the closed trees' count.
+  return { count: (snapshot.cards ?? []).filter(card => finished(card.state)).length + (snapshot.history?.closed ?? 0), groups }
 }
 
 // 辺は右中央から左中央への滑らかな曲線。

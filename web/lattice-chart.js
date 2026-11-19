@@ -2,8 +2,8 @@
 import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
-  MESSAGES, SCHEMA, UNASSIGNED, OWNER_ID, DECISION_STATES, decisionOf, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, shownCharts, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, connectionRows, cardLabel, cardNote, minutesSince, RED,
+  MESSAGES, SCHEMA, HISTORY_SCHEMA, UNASSIGNED, OWNER_ID, DECISION_STATES, decisionOf, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
+  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, withHistoryPages, chartName, listItems, shownCharts, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, connectionRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
 
@@ -130,6 +130,9 @@ export function createLatticeChart(dialog, {
   const cardEls = new Map(), treeEls = new Map(), entering = new Set(), avatars = new Map(), timers = new Set()
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
   let stops = null, pendingDetail = null // ブロック一覧の画面、ブロック一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
+  // a457: the closed trees' finished cards, read from GET .../history only while 過去ログ is open (dropped on leaving it or changing chart).
+  const freshPages = () => ({ cards: [], members: [], next: null, done: false, started: false, loading: false, failed: false, retryFirst: false, reload: false, old: false, at: 0, seq: 0 })
+  let pages = freshPages()
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
   let opens = 0 // 開いた回数。閉じて開き直す前の一覧の答えを捨てる。
   let waitsOpen = false // 広い画面の接続の一覧。畳んだ取っ手から始め、ページが生きている間だけ覚える（Owner 2026-11-14）。
@@ -260,7 +263,7 @@ export function createLatticeChart(dialog, {
   }
   function leaveStops() { stops?.close(); stops = null; showList() }
   function openCard(projectId, cardId) { stops?.close(); stops = null; openChart(projectId); pendingDetail = cardId }
-  function clearChart() { decisions.clear(); chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
+  function clearChart() { pages = freshPages(); decisions.clear(); chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
   function openChart(id) {
     clear(listTimer); listToken++
     clearChart(); chartId = id; status = 'connecting'
@@ -300,7 +303,7 @@ export function createLatticeChart(dialog, {
       svg('path', { d: 'M0 0L8 4L0 8z', class: id })))), treeLinks, treeArcs)
     const treeBoxes = h('div', { class: 'lattice-tree-boxes' }), tree = h('div', { class: 'lattice-tree' }, treeSvg, treeBoxes)
     const history = h('div', { class: 'lattice-history' })
-    const canvas = h('div', { class: 'lattice-canvas', on: { click: event => { if (highlight && !event.target.closest?.('.lattice-card, .lattice-tbox')) { highlight = null; applyHighlight(); paintRail() } } } }, plane, tree, history)
+    const canvas = h('div', { class: 'lattice-canvas', on: { scroll: () => nearEnd(), click: event => { if (highlight && !event.target.closest?.('.lattice-card, .lattice-tbox')) { highlight = null; applyHighlight(); paintRail() } } } }, plane, tree, history)
     const modeBtn = (value, label) => h('button', { type: 'button', 'aria-pressed': String(mode === value), dataset: { mode: value, focusKey: `mode:${value}` }, on: { click: () => setMode(value) } }, label)
     const modes = h('div', { class: 'lattice-seg', role: 'group', 'aria-label': '表示' }, modeBtn('tree', 'ツリー'), modeBtn('lanes', '担当'), modeBtn('history', '過去ログ'))
     const all = h('button', { class: 'lattice-btn lattice-all', type: 'button', dataset: { focusKey: 'all' }, on: { click: goList } }, glyph('grid'), 'すべての工程表') // Owner 2026-11-14: the plain way to every chart, top-left
@@ -332,13 +335,13 @@ export function createLatticeChart(dialog, {
     else {
       const layout = layoutChart(snapshot)
       ui.plane.hidden = mode !== 'lanes'; ui.tree.hidden = mode !== 'tree'; ui.history.hidden = mode !== 'history'
-      const past = historyRows(snapshot, now())
+      const past = historyRows(snapshot, now(), pages)
       for (const button of ui.modes.children) {
         button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
         if (button.dataset.mode === 'history') button.textContent = `過去ログ ${past.count}`
       }
       if (mode === 'lanes') paintPlane(layout, diff)
-      else { particles = []; if (mode === 'tree') paintTree(); else paintHistory(past) }
+      else { particles = []; if (mode === 'tree') paintTree(); else { paintHistory(past); syncPages() } }
       paintRail(layout)
       paintWaits()
     }
@@ -350,6 +353,7 @@ export function createLatticeChart(dialog, {
 
   function setMode(value) {
     if (value === mode || !snapshot) return
+    if (mode === 'history') pages = freshPages()
     mode = value
     paintChart({ ...diffSnapshots(snapshot, snapshot), first: true })
   }
@@ -382,7 +386,10 @@ export function createLatticeChart(dialog, {
   // 過去ログ：終わった工程を新しい順に、日ごとの見出しで。タップで詳細。
   function paintHistory(past) {
     treeEls.clear()
-    keepFocus(ui.history, () => fill(ui.history, past.count
+    const more = pages.loading ? h('div', { class: 'lattice-hist-more', role: 'status' }, h('i', { class: 'lattice-spinner', 'aria-hidden': 'true' }), h('span', { class: 'sr-only', text: '読み込んでいます…' }))
+      : pages.failed ? h('p', { class: 'lattice-hist-more' }, h('span', { text: '続きを読めませんでした。' }),
+        h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'h:retry' }, on: { click: () => loadPages(pages.retryFirst) } }, '読み直す')) : null
+    keepFocus(ui.history, () => fill(ui.history, past.groups.length || more
       ? h('div', { class: 'lattice-hist' }, ...past.groups.map(group => h('section', {}, h('h4', { text: group.heading }),
         ...group.rows.map(row => {
           const el = h('button', { class: `lattice-hrow is-${row.info.tone}${detailId === row.id ? ' sel' : ''}`, type: 'button', 'aria-label': row.label, dataset: { cardId: row.id, focusKey: `h:${row.id}` },
@@ -390,8 +397,35 @@ export function createLatticeChart(dialog, {
           glyph(row.info.glyph), h('span', { class: 'ti', text: row.title }), row.owner ? avatar(row.owner, 18) : null, h('span', { class: 'nm', text: row.owner ? row.owner.name : UNASSIGNED }), h('time', { text: row.time }))
           treeEls.set(row.id, el)
           return el
-        }))))
+        }))), more)
       : h('p', { class: 'lattice-hist-none', text: 'まだ終わった工程はありません。' })))
+  }
+  // 過去ログ（a457, Flora's client rules in the lattice README): the first page when it opens, the next at the list's end, the first again when history.closed changes; an older server (404) shows the snapshot's rows only.
+  function syncPages() { if (!pages.started || (pages.at !== (snapshot.history?.closed ?? 0) && !pages.old)) loadPages(true) }
+  function nearEnd() {
+    const canvas = ui?.canvas
+    if (mode === 'history' && canvas && !pages.loading && !pages.failed && !pages.done && !pages.old && pages.started && canvas.scrollHeight - canvas.scrollTop - canvas.clientHeight < 160) loadPages()
+  }
+  function repaintPages() { if (ui && snapshot && mode === 'history') paintHistory(historyRows(snapshot, now(), pages)) }
+  function loadPages(first = false) {
+    if (!snapshot || pages.old || (!first && (pages.loading || pages.done))) return
+    const mine = pages, seq = ++mine.seq, project = chartId, before = first ? null : mine.next
+    if (first) { mine.next = null; mine.done = false; mine.reload = true; mine.at = snapshot.history?.closed ?? 0 }
+    mine.started = true; mine.loading = true; mine.failed = false; mine.retryFirst = false
+    repaintPages()
+    const current = () => pages === mine && seq === mine.seq
+    void Promise.resolve().then(() => api(`/api/lattice/charts/${encodeURIComponent(project)}/history?limit=50${before ? `&before=${encodeURIComponent(before)}` : ''}`)).then(page => {
+      if (!current()) return
+      if (page?.schema !== HISTORY_SCHEMA || !Array.isArray(page.cards)) throw new Error('SCHEMA')
+      const ids = new Set(mine.reload ? [] : mine.cards.map(card => card.id)), roster = new Set(mine.reload ? [] : mine.members.map(member => member.botId))
+      mine.cards = [...(mine.reload ? [] : mine.cards), ...page.cards.filter(card => !ids.has(card.id))]
+      mine.members = [...(mine.reload ? [] : mine.members), ...(page.members ?? []).filter(member => !roster.has(member.botId))]
+      mine.next = page.next ?? null; mine.done = mine.next === null; mine.reload = false
+    }).catch(error => {
+      if (!current()) return
+      if (error?.status === 404) mine.old = true
+      else { mine.failed = true; mine.retryFirst = error?.status === 400 } // a bad cursor: ask again from the first page
+    }).then(() => { if (!current()) return; mine.loading = false; repaintPages(); nearEnd() })
   }
 
   function paintToolbar(counts) {
@@ -534,8 +568,9 @@ export function createLatticeChart(dialog, {
   // 決裁箱拡張（Delta, R3）：Owner の札の詳細を開いた時に一度だけ聞く（スナップショットのたびではない）。
   // 答えが無い・失敗・形違いは、決裁のブロックを出さないだけ（メッセージも再試行も無い）。
   const decisions = new Map()
+  const withPages = () => snapshot && withHistoryPages(snapshot, pages)
   function loadDecision(id) {
-    const found = snapshot?.cards?.find(item => item.id === id)
+    const found = withPages()?.cards?.find(item => item.id === id)
     if (!found || found.producer !== OWNER_ID) return
     const project = chartId, query = `project=${encodeURIComponent(project)}&plan=${encodeURIComponent(found.plan)}&task=${encodeURIComponent(found.taskId)}`
     void Promise.resolve().then(() => api(`/api/approvals/by-task?${query}`)).then(decisionOf, () => null)
@@ -555,7 +590,7 @@ export function createLatticeChart(dialog, {
   function applyCardSelection() { for (const [id, el] of [...cardEls, ...treeEls]) el.classList.toggle('sel', id === detailId) }
   function paintDetail(from) {
     if (!ui) return
-    const detail = detailId && snapshot ? detailOf(snapshot, detailId, now()) : null
+    const detail = detailId && snapshot ? detailOf(withPages(), detailId, now()) : null
     if (detailId && !detail) detailId = null
     ui.sheet.hidden = !detail
     if (!detail) { ui.sheet.replaceChildren(); return }
