@@ -44,6 +44,8 @@ struct BotEditor: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var catalog: [String: HarnessModels] = [:]
+    /// a451: the server's install state per AI (AIの認証 list); empty from a server that does not return it.
+    @State private var installs: [String: CLIInstall] = [:]
     @State private var loadingModels = true
     @State private var saving = false
     @State private var confirmingDeletion = false
@@ -248,6 +250,12 @@ struct BotEditor: View {
                             Text("Cursor").tag("cursor")
                             // A retired AI the member still has: keep it selectable so the picker is valid until the user switches.
                             if !["codex", "claude", "grok", "cursor"].contains(harness) { Text("\(harness)（終了）").tag(harness) }
+                        }
+                        if let install = installs[harness], install.isMissing {
+                            Text(install.message).font(BellTheme.secondaryFont).foregroundStyle(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("harness-install-notice")
+                            Text("設定の「AIの認証」で入れられます。").font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                         }
                         Picker("モデル", selection: Binding(get: { model }, set: { next in
                             model = next
@@ -464,6 +472,14 @@ struct BotEditor: View {
             guard !Task.isCancelled else { return }
             modelErrorText = error.localizedDescription
             store.api.diagnostics.report(error, path: "/api/models", method: "GET", observation: .read(error, retainedData: !catalog.isEmpty))
+        }
+        do {
+            let list: HarnessAuthenticationsResponse = try await store.api.get("/api/harness-auth")
+            installs = Dictionary(list.harnesses.compactMap { option in option.install.map { (option.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            guard !Task.isCancelled else { return }
+            store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: !installs.isEmpty))
         }
         // 候補を読めなかった時も、保存済みのモデルを「CLIの既定」に見せない。
         let configuredModel = model == "__custom__" ? customModel : model

@@ -4,10 +4,14 @@ import SwiftUI
 /// 完了の見た目は`done`だけ。`/api/accounts`の`loggedIn`は使わない（期限切れの旧資格情報でも真を返した）。
 enum AuthenticationProgress: Equatable {
     case checking, unknown, waitingSite, waitingCode, sendingCode, confirming, done, failed(String?), needsLogin
+    /// a451: the AI's CLI is not installed (not_installed / installing / failed). The server refuses its login calls, so none is read.
+    case notInstalled(CLIInstall)
 
     /// - auth: GET/POSTの応答。nilは未取得（`loaded`がfalse）か取得失敗。
     /// - signedOut: Claudeのslotの`signedOutAt`があるか。
-    init(_ auth: SetupAuthentication?, loaded: Bool = true, signedOut: Bool = false, sending: Bool = false) {
+    /// - install: 本体の`install`。入っていない間は、認証の応答より先にこれで決める。
+    init(_ auth: SetupAuthentication?, install: CLIInstall? = nil, loaded: Bool = true, signedOut: Bool = false, sending: Bool = false) {
+        if let install, install.isMissing { self = .notInstalled(install); return }
         if sending { self = .sendingCode; return }
         guard let auth else { self = loaded ? .unknown : .checking; return }
         // 未ログインのslotでは、公式認証が開いていてもstatusはblockedのまま（web/auth-flow.jsと同じ判定）。
@@ -37,6 +41,12 @@ enum AuthenticationProgress: Equatable {
         case .done: "認証済み"
         case .failed: "失敗"
         case .needsLogin: "ログインが必要"
+        case .notInstalled(let install):
+            switch install.state {
+            case .installing: "入れています"
+            case .failed: "入れられません"
+            default: "未インストール"
+            }
         }
     }
 
@@ -44,6 +54,7 @@ enum AuthenticationProgress: Equatable {
         switch self {
         case .done: .green
         case .waitingSite, .waitingCode, .confirming, .sendingCode: .violet
+        case .notInstalled(let install): install.state == .installing ? .violet : .orange
         case .failed, .needsLogin, .unknown: .orange
         case .checking: .gray
         }
@@ -57,7 +68,8 @@ enum AuthenticationProgress: Equatable {
         case .failed: "認証し直す"
         case .needsLogin: "認証する"
         case .waitingSite, .waitingCode: "続ける"
-        case .done, .confirming, .sendingCode, .checking, .unknown: nil
+        // 入れる操作は行の下の「最新版を入れる」（サーバーのaction）だけ。
+        case .done, .confirming, .sendingCode, .checking, .unknown, .notInstalled: nil
         }
     }
 
@@ -72,6 +84,7 @@ enum AuthenticationProgress: Equatable {
         case .done: "認証済みです。"
         case .failed(let reason): "認証できませんでした。理由：\(reason.flatMap { $0.isEmpty ? nil : $0 } ?? "理由は返されませんでした。")"
         case .needsLogin: "ログインし直してください。「認証する」から公式サイトで認証します。"
+        case .notInstalled(let install): install.message
         }
     }
 }

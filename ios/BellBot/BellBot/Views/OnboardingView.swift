@@ -34,7 +34,19 @@ struct OnboardingView: View {
                         } else {
                             Text(setup.harnesses.first { $0.id == setup.harness }?.name ?? "公式認証")
                                 .font(.title2.bold())
-                            if let auth = setup.auth {
+                            if let install = setup.install, install.isMissing || install.busy {
+                                // a451: the AI is not there yet. The server's sentence and its button come before any login.
+                                Text(install.message).foregroundStyle(install.isMissing ? Color.orange : BellTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("setup-install-message")
+                                if install.busy { ProgressView().controlSize(.small) }
+                                if install.canPress {
+                                    Button { perform { try await store.installSetupHarness() } } label: { Text(install.buttonTitle).frame(maxWidth: .infinity) }
+                                        .buttonStyle(.bellPrimary)
+                                        .disabled(busy)
+                                        .accessibilityIdentifier("setup-install")
+                                }
+                            } else if let auth = setup.auth {
                                 Text(authenticationText(auth)).foregroundStyle(BellTheme.muted)
                                 AuthenticationInstructions(auth: auth, code: $input,
                                                            busy: busy || store.setupAuthNeedsRefresh || errorText != nil) { response, ui in
@@ -62,6 +74,21 @@ struct OnboardingView: View {
         }
         .task(id: store.setup?.auth?.status) {
             while store.setup?.auth?.status == .waiting, errorText == nil, !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(3))
+                    guard scenePhase == .active, !busy else { continue }
+                    try await store.refreshSetup()
+                } catch is CancellationError { return }
+                catch {
+                    errorText = error.localizedDescription
+                    store.api.diagnostics.report(error, path: "/api/setup", method: "GET", observation: .read(error, retainedData: store.setup != nil))
+                    return
+                }
+            }
+        }
+        // a451: while an installer runs, read the snapshot until it ends (the server then starts the login).
+        .task(id: store.setup?.install?.needsPolling) {
+            while store.setup?.install?.needsPolling == true, errorText == nil, !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(3))
                     guard scenePhase == .active, !busy else { continue }

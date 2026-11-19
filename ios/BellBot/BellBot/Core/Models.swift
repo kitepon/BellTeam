@@ -594,7 +594,20 @@ struct ScheduleSource: Equatable, Sendable {
 }
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
-struct HarnessOption: Decodable, Identifiable { let id: String; let name: String }
+struct HarnessOption: Decodable, Identifiable {
+    let id: String
+    let name: String
+    /// a451: the AI's install state; nil from a server that does not return it.
+    var install: CLIInstall? = nil
+
+    private enum CodingKeys: String, CodingKey { case id, name, install }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        install = try? c.decodeIfPresent(CLIInstall.self, forKey: .install)
+    }
+}
 enum OfficialAuthenticationStatus: String, Decodable {
     case waiting, authenticated, blocked, failed
 }
@@ -736,6 +749,8 @@ struct SetupResponse: Decodable {
     let auth: SetupAuthentication?
     /// a365: the stored AI choice is retired. nil = no notice.
     var harnessNotice: String? = nil
+    /// a451: the chosen AI's install state; nil from a server that does not return it.
+    var install: CLIInstall? = nil
 }
 struct HarnessSelection: Encodable { let harness: String }
 struct SetupEmptyBody: Encodable {}
@@ -745,13 +760,28 @@ struct HarnessAuthenticationOption: Decodable, Identifiable {
     let members: Int
     let startWarning: String?
     let reloginSupported: Bool?
+    /// a451: nil from a server that does not return it.
+    let install: CLIInstall?
 
-    init(id: String, name: String, members: Int, startWarning: String?, reloginSupported: Bool? = nil) {
+    init(id: String, name: String, members: Int, startWarning: String?, reloginSupported: Bool? = nil, install: CLIInstall? = nil) {
         self.id = id
         self.name = name
         self.members = members
         self.startWarning = startWarning
         self.reloginSupported = reloginSupported
+        self.install = install
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, members, startWarning, reloginSupported, install }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        members = try c.decode(Int.self, forKey: .members)
+        startWarning = try c.decodeIfPresent(String.self, forKey: .startWarning)
+        reloginSupported = try c.decodeIfPresent(Bool.self, forKey: .reloginSupported)
+        // A body this app cannot read reads as absent (an older server), never as a failed list.
+        install = try? c.decodeIfPresent(CLIInstall.self, forKey: .install)
     }
 
     var usageText: String { members > 0 ? "\(members)人が使用" : "使用していません" }

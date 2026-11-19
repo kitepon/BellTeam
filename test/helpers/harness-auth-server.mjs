@@ -36,6 +36,23 @@ const claudeAuth = state => ({
     auth_ui: ui('unavailable', { title: 'ログインの案内を取得できません', message: '認証の手順を確認できませんでした。' }) },
 })[state]
 let inputDelay = 0
+// a451: per-AI install state (harness-cli.md). Absent = an older body without `install`. A press turns busy, then installed after installMs.
+const installs = {}
+let installMs = 3000
+const reasons = { CLI_INSTALL_NETWORK: '通信できませんでした。', CLI_INSTALL_TIMEOUT: '時間内に終わりませんでした。' }
+const installBody = (state, { busy = false, source = null, error = null } = {}) => {
+  const reason = error ? reasons[error] ?? '入れる途中で失敗しました。' : ''
+  const message = busy && state === 'installed' ? '最新版を入れています。今の版はそのまま使えます。'
+    : error && state === 'installed' ? `前回、最新版を入れられませんでした。${reason}今の版はそのまま使えます。`
+    : { checking: '確認しています。', not_installed: 'まだ入っていません。「最新版を入れる」で入れてください。', installing: '入れています。数分かかることがあります。',
+        failed: `入れられませんでした。${reason}もう一度「最新版を入れる」を押してください。`,
+        installed: source === 'image' ? '入っています（バージョン 2.1.0）。BellTeamに最初から入っている物です。「最新版を入れる」で、最新版をあなたの領域へ入れてそちらを使います。'
+          : '入っています（バージョン 2.1.0）。「最新版を入れる」で最新版にできます。' }[state]
+  const pressable = !busy && state !== 'checking'
+  return { state, version: state === 'installed' ? '2.1.0' : null, source, busy, lastError: error ? { code: error, message: reason } : null,
+    message, action: pressable ? 'install' : null, label: pressable ? '最新版を入れる' : null }
+}
+const missing = harness => ['not_installed', 'installing', 'failed'].includes(installs[harness]?.state)
 const auth = harness => {
   const current = harness === blocked ? 'blocked' : status
   return { status: current, url: current === 'waiting' ? 'https://example.com/auth' : null,
@@ -48,6 +65,8 @@ const server = createServer(async (request, response) => {
   const json = value => { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
   if (path === '/test/reset') {
     status = 'authenticated'; failStatus = null; requests = []; claude = {}; inputDelay = 0
+    for (const key of Object.keys(installs)) delete installs[key]
+    installMs = Number(url.searchParams.get('installMs') ?? 3000)
     blocked = url.searchParams.get('blocked'); unreadable = url.searchParams.get('unreadable'); accounts = url.searchParams.get('accounts')
     return json({ ok: true })
   }
@@ -58,8 +77,26 @@ const server = createServer(async (request, response) => {
     inputDelay = Number(url.searchParams.get('delay') ?? inputDelay)
     return json({ ok: true })
   }
+  if (path === '/test/install') {
+    const harness = url.searchParams.get('harness')
+    installs[harness] = { state: url.searchParams.get('state'), busy: url.searchParams.get('busy') === '1', source: url.searchParams.get('source'), error: url.searchParams.get('error') }
+    return json({ ok: true })
+  }
   if (path === '/test/proof') return json({ requests })
-  if (path === '/api/harness-auth') return json({ harnesses })
+  const installRoute = path.match(/^\/api\/harness-auth\/([a-z]+)\/install$/)
+  if (installRoute) {
+    const harness = installRoute[1]
+    requests.push({ path, method: request.method, body: null })
+    const current = installs[harness]
+    if (!current) { response.statusCode = 404; return json({ error: 'NOT_FOUND' }) }
+    if (request.method === 'POST' && !current.busy) {
+      current.busy = true; current.error = null
+      if (current.state !== 'installed') current.state = 'installing'
+      setTimeout(() => { installs[harness] = { state: 'installed', busy: false, source: 'user', error: null } }, installMs)
+    }
+    return json({ harness, install: installBody(current.state, current) })
+  }
+  if (path === '/api/harness-auth') return json({ harnesses: harnesses.map(h => installs[h.id] ? { ...h, install: installBody(installs[h.id].state, installs[h.id]) } : h) })
   if (path === '/api/accounts') {
     if (!accounts) { response.statusCode = 404; return json({ error: 'NOT_FOUND' }) }
     const at = hours => new Date(Date.now() + hours * 3600_000).toISOString()
@@ -75,6 +112,7 @@ const server = createServer(async (request, response) => {
     const body = text ? JSON.parse(text) : null
     requests.push({ path, method: request.method, body })
     const harness = path.split('/')[3]
+    if (missing(harness) && !path.endsWith('/cancel')) { response.statusCode = 409; return json({ error: 'HARNESS_NOT_INSTALLED', message: 'まだ入っていません。AIの認証から入れてください。' }) }
     const slot = url.searchParams.get('slot') ?? '1st'
     if (harness === 'claude' && claude[slot]) {
       if (path.endsWith('/start')) claude[slot] = 'paste'

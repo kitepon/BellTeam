@@ -112,6 +112,7 @@
 		8C09B7052EA7EF57286D12A2 /* ShareModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20227FCE4704C75C93BD9 /* ShareModel.swift */; };
 		8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */; };
 		8CE949E6C3DCFA48F36C0023 /* ShareClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1086F9E0B3BEE6FEE07D172 /* ShareClient.swift */; };
+		8DC6DEEA87BD6E4A7C4EA981 /* CLIInstallSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55F191076F5EBAB5EF9084 /* CLIInstallSection.swift */; };
 		8E48958F4556B7FE2DBE0EE9 /* AvatarCropUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */; };
 		8F591999805F36BF68F0CED4 /* BellAPI+BotSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE7B3B586962D213AB8C784 /* BellAPI+BotSettings.swift */; };
 		8F685CC4CDFC1D70278263F5 /* EnrichedMarkdown in Frameworks */ = {isa = PBXBuildFile; productRef = 87122DBD7ADB5651138F2FD2 /* EnrichedMarkdown */; };
@@ -169,6 +170,7 @@
 		DEFD24E9AA5B34A031FA59A3 /* ConversationAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */; };
 		DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */; };
 		DF42AEC2790886E7ADC17DF9 /* ProfileTerminalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5768EA0588C3BE0F41FF57E7 /* ProfileTerminalUITests.swift */; };
+		E2F4CBC5D736E3B577BC6BB3 /* CLIInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA61C706892EF1E3090C7E6 /* CLIInstall.swift */; };
 		E34F71C9EC0D69A9746DD925 /* RunningExclusionsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A1C06CB19FF2B63144F176 /* RunningExclusionsPage.swift */; };
 		E3F7138C0627831254AEACDC /* MemoryKnowledgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F728A7015A79BCBDB3264B6 /* MemoryKnowledgeTests.swift */; };
 		E418E88290AAD63C35E3A034 /* ManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCD1040205415978F63373C /* ManagementView.swift */; };
@@ -295,6 +297,7 @@
 		4834E37F4B591D8895261770 /* AuthenticationProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationProgress.swift; sourceTree = "<group>"; };
 		490AA0A6D0C276CCC209A2DA /* UpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateView.swift; sourceTree = "<group>"; };
 		4964DCC459F81871D3F0C8F1 /* ImageViewerParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerParts.swift; sourceTree = "<group>"; };
+		4AA61C706892EF1E3090C7E6 /* CLIInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstall.swift; sourceTree = "<group>"; };
 		4BBC8C5C4354549F8CDE70F2 /* WorkGraphTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphTapUITests.swift; sourceTree = "<group>"; };
 		4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundRefreshTests.swift; sourceTree = "<group>"; };
 		4E03B5FA12F194911158CB0A /* SecretInputUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretInputUITests.swift; sourceTree = "<group>"; };
@@ -415,6 +418,7 @@
 		F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6E74214060867B1A516455F /* RunningExclusionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningExclusionsTests.swift; sourceTree = "<group>"; };
 		F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
+		FB55F191076F5EBAB5EF9084 /* CLIInstallSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstallSection.swift; sourceTree = "<group>"; };
 		FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceTests.swift; sourceTree = "<group>"; };
 		FD0578B483DDFB2C9E74B797 /* SSHHostKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostKeyTests.swift; sourceTree = "<group>"; };
 		FD6192EB2C414C2CFE144DCD /* LatticeTabletUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatticeTabletUITests.swift; sourceTree = "<group>"; };
@@ -533,6 +537,7 @@
 				97CBCF3591B5FD4DA9FE6961 /* BillingStore.swift */,
 				219D6D25E6BA0B32D27F3918 /* BotSettings.swift */,
 				0D4B2C43F299A71E7AB0A718 /* CharacterSheets.swift */,
+				4AA61C706892EF1E3090C7E6 /* CLIInstall.swift */,
 				0138E86CF9C413979445F108 /* ConversationDocument.swift */,
 				2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */,
 				C1591BB8E9DBEBF507281786 /* ConversationTimelineState.swift */,
@@ -604,6 +609,7 @@
 				249245C6E0484FEEB193F0E2 /* BotProfileComponents.swift */,
 				70E6B86A44AFB7053F2260B5 /* BotScreenKeyBar.swift */,
 				1A349EE234D1444D7643C961 /* BotScreenView.swift */,
+				FB55F191076F5EBAB5EF9084 /* CLIInstallSection.swift */,
 				3899063BEB68B3C806D39EC8 /* ConversationDetailView.swift */,
 				5AE9528CE84E51C21E27CB68 /* ConversationImages.swift */,
 				EB8A31AFAE33F71271A4D65C /* ConversationInput.swift */,
@@ -1025,6 +1031,8 @@
 				D7F1C971318B3D8F639572B6 /* BotScreenKeyBar.swift in Sources */,
 				01B9F4FC0C70E3B3C7CA7788 /* BotScreenView.swift in Sources */,
 				097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */,
+				E2F4CBC5D736E3B577BC6BB3 /* CLIInstall.swift in Sources */,
+				8DC6DEEA87BD6E4A7C4EA981 /* CLIInstallSection.swift in Sources */,
 				AABB494096042BBD89393792 /* CharacterSheets.swift in Sources */,
 				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
 				A45B8D3EAE0E36A000548D59 /* ConversationDetailView.swift in Sources */,

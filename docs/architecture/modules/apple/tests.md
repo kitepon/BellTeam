@@ -1098,7 +1098,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | 試験の環境・fixture | 本文で確認した人工状態・制御・記録 |
 | --- | --- |
 | `BELLTEAM_AUTH_TYPED_URL` → [auth-ui-server.mjs](../../../../test/helpers/auth-ui-server.mjs) | 4harnessのtyped段階、binding/digest照合、choice→code→complete。setup/harness旧GETを保留・成功/503で解放、入力結果不明502、read/write件数をproofへ |
-| `BELLTEAM_AUTH_SMOKE_URL` → [harness-auth-server.mjs](../../../../test/helpers/harness-auth-server.mjs) | 認証済み/blocked/unreadable/次GET500、旧input_required付き待機、start/cancelと要求body記録。公式CLI・実資格情報へ接続しない |
+| `BELLTEAM_AUTH_SMOKE_URL` → [harness-auth-server.mjs](../../../../test/helpers/harness-auth-server.mjs) | 認証済み/blocked/unreadable/次GET500、旧input_required付き待機、start/cancelと要求body記録。a451：`/test/install`でAIごとのinstall（未インストール・入れている・失敗・installed）、押すとbusy→installed、入っていない間の認証GETは409。公式CLI・実資格情報へ接続しない。直接試験は`HarnessAuthenticationTests`のinstall 3件・`SettingsStatusTests`の要対応1件、UIは`testNotInstalledShowsServerSentenceAndPressInstalls` |
 | `BELLTEAM_MEMBER_EDITOR_SMOKE_URL` → [member-editor-server.mjs](../../../../test/helpers/member-editor-server.mjs) | モデルGETをreleaseまで保留（解放後の候補は必須fast付き）。従来のsaves.body/modelsPendingにmethod/pathを追加し、botListReadsへ一覧GETと応答時のBot値を複製して記録。preview名簿の保存値更新。試行ごとに新規起動 |
 | `BELLTEAM_SCROLL_FIXTURE_URL` → [conversation-scroll-server.mjs](../../../../test/helpers/conversation-scroll-server.mjs) | 60行の混合Markdown/短文、35短文、before/after/limit、旧remaining_before無し、過去GET500、短page。append/対象通知のSSE、要求queryと診断codeをproofへ |
 | `BELLTEAM_GOALS_FIXTURE_URL` → [goals-ui-server.mjs](../../../../test/helpers/goals-ui-server.mjs) | FULL/TAGGED/GROK/GROK_SIGNED_TOKENS/GROK_DETAIL/GROK_CLEAR/GROK_ACTIVE_NO_CLEAR/CHAT/CHAT_LONG（`GOALS_FIXTURE_`接頭辞、値1）で応答を選ぶ。binding/capability/単独項目を検査。unconfirmed/応答破棄/旧一覧保留/GET失敗/field変更、read/writeのproof |

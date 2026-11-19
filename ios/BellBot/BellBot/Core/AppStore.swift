@@ -443,6 +443,14 @@ final class AppStore: ObservableObject {
         setup = try await api.post("/api/setup/harness", body: HarnessSelection(harness: harness))
     }
 
+    /// a451: install the chosen AI (the same press updates it). The snapshot answers busy, then the login once it is there.
+    func installSetupHarness() async throws {
+        setupAuthRevision += 1
+        setupAuthUpdating = true
+        defer { setupAuthUpdating = false; setupAuthRevision += 1 }
+        setup = try await api.post("/api/setup/install", body: SetupEmptyBody())
+    }
+
     func submitAuthResponse(_ response: AuthenticationReply.Response, for ui: AuthenticationUI) async throws {
         guard !setupAuthNeedsRefresh, setup?.auth?.authUi == ui, let reply = ui.reply(response) else {
             throw BellAPIError.server("認証画面が更新されました。状態を確認してから操作してください。")
