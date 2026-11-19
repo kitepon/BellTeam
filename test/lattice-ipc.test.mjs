@@ -198,11 +198,11 @@ const CHILD = base => `import { createLatticeCore } from '${base}/src/lattice/co
 import { createLatticeDispatcher } from '${base}/src/lattice-dispatcher.mjs'
 import { createLatticeChildChannel } from '${base}/src/lattice-ipc.mjs'
 const read = { state: 'verified', verified_at: '2026-11-11T10:00:00.000Z', store: { members: [{ plan: { plan_key: 'p1', tasks: [{ task_id: 't1', title: 'A' }] },
-  tasks: [{ task_id: 't1', status: 'in-progress' }], journal: { events: [{ kind: 'start', task_id: 't1', actor: { agent: 'a' }, recorded_at: '2026-11-11T10:00:00.000Z' }] }, plan_scoped: { events: [] } }] } }
+  tasks: [{ task_id: 't1', status: 'in-progress' }], activity: { first: { at: '2026-11-11T10:00:00.000Z', agent: 'a' }, last_at: '2026-11-11T10:00:00.000Z', tasks: [{ task_id: 't1', changed_at: '2026-11-11T10:00:00.000Z', started: { at: '2026-11-11T10:00:00.000Z', agent: 'a' } }] }, cross_plan_dependencies: [] }] } }
 const ok = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
 const cli = { list: async () => [{ id: 'alpha', name: 'Lattice組込', createdBy: null, source: 's1' }], sources: async ids => new Map(ids.map(id => [id, id === 'alpha' ? 's1' : null])),
   exists: async id => id === 'alpha', setName: async () => {}, migrateLegacy: async () => ({ names: 0, record: false }),
-  run: async ({ args, env }) => args.join(' ') === 'todo display read --json' ? ok(read) : args.join(' ') === 'todo status --json' ? ok({ next_ready: [] })
+  run: async ({ args, env }) => args.join(' ') === 'todo display read --json --compact' ? ok(read) : args.join(' ') === 'todo status --json' ? ok({ next_ready: [] })
     : args[0] === 'todo' && args[1] === 'slow' ? new Promise(resolve => setTimeout(() => resolve(ok({ slow: true })), 800)) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
 createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
 `

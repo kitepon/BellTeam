@@ -24,7 +24,7 @@ export function projectChart({ read, ready = null, members = [], previous = null
   const state = DISPLAY.includes(read?.state) ? read.state : 'unavailable'
   const raw = state === 'unverified'
   const assigned = laneResolver(members)
-  const cards = new Map(), deps = [], cross = [], removed = new Set(), phases = [], parents = new Map()
+  const cards = new Map(), deps = [], cross = [], phases = [], parents = new Map()
   // Facts of a task connected on another chart: external_tasks, keyed `<project>:<plan>/<task>`.
   const outside = new Map(list(read?.external_tasks).filter(item => text(item?.project_id) && ref(item)).map(item => [`${item.project_id}:${ref(item)}`, item]))
   let first = null, updatedAt = null
@@ -37,14 +37,16 @@ export function projectChart({ read, ready = null, members = [], previous = null
       if (id && !phaseIds.has(id)) { phaseIds.add(id); phases.push({ id: `${key}/${id}`, title: text(phase.title) }) }
     }
     const states = new Map(list((raw ? member.snapshot : member)?.tasks).map(task => [task?.task_id, task]))
-    const starts = new Map(), changed = new Map()
-    for (const event of raw ? [] : list(member.journal?.events)) {
-      const at = stamp(event?.recorded_at), agent = text(event?.actor?.agent), id = text(event?.task_id)
-      if (at && (!first || Date.parse(at) < Date.parse(first.at))) first = { at, agent }
-      updatedAt = later(updatedAt, at)
+    // Lattice's compact read (K3): what the journal gives the screens, already reduced. An unverified raw member has none.
+    const starts = new Map(), changed = new Map(), activity = raw ? null : member.activity
+    const firstAt = stamp(activity?.first?.at)
+    if (firstAt && (!first || Date.parse(firstAt) < Date.parse(first.at))) first = { at: firstAt, agent: text(activity.first.agent) }
+    updatedAt = later(updatedAt, stamp(activity?.last_at))
+    for (const item of list(activity?.tasks)) {
+      const id = text(item?.task_id), at = stamp(item?.started?.at), agent = text(item?.started?.agent)
       if (!id) continue
-      changed.set(id, later(changed.get(id) ?? null, at))
-      if (event.kind === 'start' && agent) starts.set(id, { agent, at })
+      changed.set(id, later(changed.get(id) ?? null, stamp(item.changed_at)))
+      if (agent) starts.set(id, { agent, at })
     }
     for (const task of list(plan.tasks)) {
       const taskId = text(task?.task_id), entry = states.get(taskId)
@@ -61,11 +63,10 @@ export function projectChart({ read, ready = null, members = [], previous = null
     }
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
     for (const join of list(plan.joins)) for (const after of list(join?.after)) deps.push([ref(after), ref(join?.before)])
-    for (const event of list(member.plan_scoped?.events)) {
-      const from = event?.payload?.from, to = event?.payload?.to
+    for (const item of list(member.cross_plan_dependencies)) { // live edges only: Lattice drops a removed one
+      const from = item?.from, to = item?.to
       if (text(from?.project_id) && text(to?.project_id) && from.project_id !== to.project_id) continue // another chart's task: a 接続, read from `connections`
-      if (event?.kind === 'cross_plan_dependency') cross.push({ digest: event.event_digest, edge: [ref(from), ref(to)] })
-      else if (event?.kind === 'cross_plan_dependency_removed' && text(event.payload?.target_event_digest)) removed.add(event.payload.target_event_digest)
+      cross.push([ref(from), ref(to)])
     }
   }
   // A parent must exist, differ from the card and not close a cycle; otherwise the card hangs from its phase.
@@ -74,7 +75,7 @@ export function projectChart({ read, ready = null, members = [], previous = null
     while (up && up !== id && cards.has(up)) up = cards.get(up).parent
     if (cards.has(parent) && up !== id) cards.get(id).parent = parent
   }
-  deps.push(...cross.filter(item => !removed.has(item.digest)).map(item => item.edge))
+  deps.push(...cross)
 
   const next = new Map(), before = new Map(), edges = []
   const reaches = (from, to, seen = new Set()) => from === to || !seen.has(from) && seen.add(from) && (next.get(from) ?? []).some(id => reaches(id, to, seen))

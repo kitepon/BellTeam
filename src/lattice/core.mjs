@@ -85,7 +85,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     let read, meta, ready
     try {
       let status
-      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
+      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--compact']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
       ready = readyOf(read, status)
     } catch (error) {
       memo.dirty = true
