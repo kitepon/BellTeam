@@ -215,7 +215,7 @@ const cli = { list: async () => [{ id: 'alpha', name: 'Lattice組込', createdBy
   run: async ({ args, env }) => args.join(' ') === 'todo display read --json --open' ? ok({ ...read, closed: { trees: 1, tasks: 4 } })
     : args[2] === 'history' ? ok({ schema: 'lattice.todo_display_history_result.v1', state: 'verified', closed: { trees: 1, tasks: 4 }, next_cursor: null, tasks: [{ tree_id: 'p1/h', plan_key: 'p1', task_id: 'h', title: 'Old', lane: null, phase_id: 'ph', parent_task_id: null, design_memo: 'm', done_condition: null, status: 'done', done_at: '2026-11-11T09:00:00.000Z', finished_at: '2026-11-11T09:00:00.000Z', activity: { changed_at: '2026-11-11T09:00:00.000Z', started: { at: '2026-11-11T08:00:00.000Z', agent: 'a' } } }] }) : args.join(' ') === 'todo status --json' ? ok({ next_ready: [] })
     : args[0] === 'todo' && args[1] === 'slow' ? new Promise(resolve => setTimeout(() => resolve(ok({ slow: true })), 800)) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
-createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
+createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli, openTrees: true }) }), versionId: null })
 `
 
 test('actual IPC: initialize, ready, resume, charts, chart, refresh, run, errors, quiesce, exit', { timeout: 15000 }, async t => {

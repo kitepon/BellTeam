@@ -227,7 +227,7 @@ flowchart LR
   F -->|LT14 root blockers / unblock| C
   SCH[P4 body scheduler and registry removal hook] -->|LT15 facade.run: fixed 接続 verbs (condition add / resolve / remove, todo show) as the schedule owner Bot| F
   F -->|LT6 bots.listForClient| P4
-  C <-->|LT7 Lattice CLI only: seat commands, charts list/source, display read --open (K3), display history (K10, on demand), todo status (readiness, K9), chart set, chart repo (K1-K9)| D11
+  C <-->|LT7 Lattice CLI only: seat commands, charts list/source, display read --compact (K3; --open and display history (K10) wait for a457-module-restore), todo status (readiness, K9), chart set, chart repo (K1-K9)| D11
   C -->|LT8 run result, chart list, snapshot with name/createdBy/degraded| F
   F -->|LT9 tool result; JSON; SSE snapshot on version change| P1
 ```
