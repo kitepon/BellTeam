@@ -21,6 +21,7 @@ public sealed class HarnessInstallScreenTests
     {
         public readonly List<string> Calls = [];
         public string Codex = Absent;
+        public readonly Dictionary<string, string> Extra = [];
         private readonly HttpMessageInvoker inner = new(new FakeServer());
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -37,6 +38,7 @@ public sealed class HarnessInstallScreenTests
                 case "/api/setup/install": Calls.Add("setup-install"); return Json("""{"phase":"authenticate","harness":"codex","harnesses":[{"id":"codex","name":"Codex"}],"complete":false,"auth":{"status":"blocked","message":"x"},"install":""" + Installing + "}");
                 case "/api/setup": return Json("""{"phase":"authenticate","harness":"codex","harnesses":[{"id":"codex","name":"Codex"}],"complete":false,"auth":{"status":"blocked","message":"x"},"install":""" + Codex + "}");
             }
+            if (Extra.TryGetValue(path, out var extra)) return Json(extra);
             return await inner.SendAsync(request, cancellationToken);
         }
     }
@@ -80,6 +82,28 @@ public sealed class HarnessInstallScreenTests
         await Until(() => server.Calls.Contains("setup-install") && view.State.Install?.Busy == true);
         Assert.True(view.Polling); Assert.Contains(Lines(view), line => line == "入れています。数分かかることがあります。");
         window.Close(); workspace.Dispose();
+    });
+
+    // a452: every item with a live line in its row, and the band counts the items the Mac counts (here the AI, the summary AI, the stop and the rules).
+    [Fact]
+    public Task TheListRowsShowLiveLinesAndTheBandCountsEveryItem() => Ui.Run(async () =>
+    {
+        var server = new Server { Codex = Present };
+        server.Extra["/api/ai-control"] = """{"control":{"paused":true,"state":"stopped","unconfirmedBotIds":[]}}""";
+        server.Extra["/api/settings"] = """{"backgroundAgent":{"revision":"r1","selection":{"harness":"antigravity","model":"m","reasoningEffort":""}},"backgroundAgentNotice":"このAIは使えなくなりました。"}""";
+        server.Extra["/api/user-rules"] = """{"text":""}""";
+        using var workspace = await Connect(server);
+        var window = new SettingsWindow(workspace); window.Show();
+        await window.InitializeAsync(SettingsPage.Profile); Dispatcher.UIThread.RunJobs();
+        await Until(() => Lines(window).Contains("このAIは使えなくなりました。"));
+        // Rows: the stop row says 停止中 in its badge, the connection row says the host, the AI row has its own state.
+        Assert.Contains(Lines(window), line => line == "停止中"); Assert.Contains(Lines(window), line => line == "localhost");
+        Assert.Contains(Lines(window), line => line == "Codexのログインが必要です");
+        // Band: AI (login), the summary AI (notice) and the stop, each once; 設定済み items are not in it.
+        var band = ((SettingsWindow)window).AttentionBand.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text).ToList();
+        Assert.Contains("要対応", band); Assert.Contains("仕事の要約を書くAI", band); Assert.Contains("全体停止", band); Assert.Contains("AIの設定", band);
+        Assert.DoesNotContain("端末", band);
+        window.Close();
     });
 
     [Fact]
