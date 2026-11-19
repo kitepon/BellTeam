@@ -645,15 +645,15 @@ test('cli: a hung process is killed at the timeout and the next call runs', asyn
   assert.deepEqual((await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
 })
 
-test('cli: stdout keeps the first 16 MiB, stderr the last 64 KiB, spawn errors are a result', async t => {
+test('cli: stdout keeps the first 64 MiB (a453: a 17.5 MB display read must pass), stderr the last 64 KiB, spawn errors are a result', async t => {
   const chartsRoot = await chartsWithAlpha(t)
   const big = fakeSpawn(child => {
-    for (let i = 0; i < 24; i++) child.stdout.emit('data', Buffer.alloc(700 * 1024, 'a'))
+    for (let i = 0; i < 100; i++) child.stdout.emit('data', Buffer.alloc(700 * 1024, 'a'))
     child.stderr.emit('data', Buffer.from('x'.repeat(70000))); child.stderr.emit('data', Buffer.from('tail'))
     child.emit('close', 0)
   })
   const result = await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: big.impl }).run({ id: 'alpha', args: ['status'] })
-  assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [16 * 1024 * 1024, 64 * 1024, true])
+  assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [64 * 1024 * 1024, 64 * 1024, true])
   const broken = fakeSpawn(child => child.emit('error', new Error('ENOENT')))
   assert.deepEqual(await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: broken.impl }).run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: '', stderr: 'LATTICE_CLI_SPAWN_FAILED' })
 })
