@@ -178,14 +178,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
 
   function provisionOnce(terminalId, ref) {
     let run = provisions.get(terminalId)
-    if (!run) { run = native.provision({ ref }).finally(() => provisions.delete(terminalId)); provisions.set(terminalId, run) }
+    if (!run) { run = Promise.resolve().then(() => native.provision({ ref })).finally(() => provisions.delete(terminalId)); provisions.set(terminalId, run) }
     return run
   }
 
   // One transient remote process; closed before returning. Classified like a launch would be.
   // `current` is re-checked after every await; a process connected across a registry change or dispose is closed unused.
-  // `aiterm` (C8 only): the terminal's Aiterm is brought to the container's version before the commands run, and this object
-  // receives {before, after, outcome}. A failed provision never vetoes: the terminal is reopened as it was.
+  // `aiterm` (C8 only): an older terminal Aiterm that opened can launch the seat, so it is brought to the container's version in the
+  // background (never awaited: a stalled download must not hold a launch) and this object receives {before, after, outcome, reason?}.
   async function withProcess(target, binding, run, current, aiterm) {
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
@@ -205,16 +205,13 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         session = await open()
       }
       if (aiterm) {
-        const before = session.remoteVersion ?? null
-        if (isOlder(before, session.localVersion) && typeof native.provision === 'function') {
-          await session.close().catch(() => {})
-          try { await provisionOnce(target.terminalId, binding.ref) } catch {}
-          if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-          session = await open()
-        }
-        const after = session.remoteVersion ?? null
-        Object.assign(aiterm, { before, after, outcome: !parseVersion(before) || !parseVersion(session.localVersion) ? 'unknown'
-          : isOlder(after, session.localVersion) ? 'failed' : after === before ? 'current' : 'updated' })
+        const before = session.remoteVersion ?? null, local = session.localVersion
+        const outcome = !parseVersion(before) || !parseVersion(local) ? 'unknown' : !isOlder(before, local) ? 'current' : typeof native.provision === 'function' ? 'updating' : 'failed'
+        Object.assign(aiterm, { before, after: before, outcome })
+        // A run already going on this terminal is joined, never doubled. The run completes this launch's evidence when it ends.
+        if (outcome === 'updating') provisionOnce(target.terminalId, binding.ref).then(
+          result => { const after = typeof result?.version === 'string' ? result.version : null; Object.assign(aiterm, { after, outcome: isOlder(after, local) ? 'failed' : 'updated' }) },
+          error => { Object.assign(aiterm, { outcome: 'failed', ...(typeof error?.code === 'string' && CODE.test(error.code) ? { reason: error.code } : {}) }) })
       }
       // Any open of the current record is a check: a terminal in use never shows an older failure (Trony 11/13).
       if (current()) note(target.terminalId, { reachable: true, reason: null, checkedAt: now().toISOString() })
