@@ -60,6 +60,10 @@ final class LatticeChartModel: ObservableObject {
     var coordinator: String?
     var reduceMotion = false
     private var lastByte = Date()
+    /// 過去ログの頁（a457）。過去ログを開いている間だけ持つ。
+    @Published private(set) var history = LatticeHistoryFeed()
+    private var historyOpen = false
+    private var historyRun = 0
 
     init(projectId: String) { self.projectId = projectId }
 
@@ -113,6 +117,53 @@ final class LatticeChartModel: ObservableObject {
             let wait = min(30, pow(2, Double(attempt))) * Double.random(in: 0.8...1.2)
             attempt += 1
             try? await Task.sleep(for: .seconds(wait))
+        }
+    }
+
+    // MARK: 過去ログの頁（a457、README「Client rules for 過去ログ」）
+
+    func openHistory(api: BellAPI) async {
+        historyOpen = true
+        history = LatticeHistoryFeed()
+        await readHistory(api: api, first: true)
+    }
+
+    /// Leaving 過去ログ (or the chart) drops the pages and forgets an older server's 404 (rules 1, 8).
+    func closeHistory() {
+        historyOpen = false
+        historyRun &+= 1
+        history = LatticeHistoryFeed()
+    }
+
+    func moreHistory(api: BellAPI) async {
+        guard historyOpen, history.canMore else { return }
+        await readHistory(api: api, first: false)
+    }
+
+    func retryHistory(api: BellAPI) async {
+        guard historyOpen else { return }
+        await readHistory(api: api, first: history.retryFirst)
+    }
+
+    /// Rule 5: a new snapshot whose `history.closed` differs from what the pages were read at re-reads the first page.
+    func historyMayHaveChanged(api: BellAPI) async {
+        guard historyOpen, history.phase == .idle, let readAt = history.readAt, (snapshot?.history?.closed ?? 0) != readAt else { return }
+        await readHistory(api: api, first: true)
+    }
+
+    private func readHistory(api: BellAPI, first: Bool) async {
+        if first { historyRun &+= 1 }
+        let run = historyRun
+        let path = LatticeHistoryPage.path(projectId: projectId, before: first ? nil : history.next)
+        history.begin()
+        do {
+            let page: LatticeHistoryPage = try await api.get(path)
+            guard run == historyRun, historyOpen else { return }
+            if page.schema == LatticeHistoryPage.schema { history.receive(page, first: first) } else { history.fail(first: first, status: nil) }
+        } catch is CancellationError {
+        } catch {
+            guard run == historyRun, historyOpen, (error as? URLError)?.code != .cancelled else { return }
+            if case BellAPIError.httpStatus(let status, _, _) = error { history.fail(first: first, status: status) } else { history.fail(first: first, status: nil) }
         }
     }
 

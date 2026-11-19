@@ -6,6 +6,7 @@
 //   &stream=ok|drop (drop answers 503 to every stream) &unknown=1 (a producer that is not in the roster) &degraded=lattice-read,members
 //   &owner=1 (t07 is owned by the Owner: the reserved producer "owner")
 //   &lanes=1 (production today: some unstarted cards carry only an authored lane text such as root / kiro, no producer)
+//   &paged=1 (a457: 120 closed-tree cards only behind GET .../history, 50 per page, the snapshot says history.closed; /test/history-requests lists the asks)
 //   &history=1 (32 more finished, archived cards: 過去ログ 35, a two-digit count on the iPhone switch)
 //   &many=1 (30 more charts after the five: the switcher list runs past the screen edge, Owner iPad 2026-11-14)
 //   &zero=1 (one more chart counting 0/0: the apps leave it out of 一覧 and the switcher, task a107)
@@ -24,7 +25,7 @@ const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString()
 
 let state, subscribers = new Set()
 function reset() {
-  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, many: false, zero: false, history: false, degraded: [] }, version: 1, done: new Set() }
+  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, many: false, zero: false, history: false, paged: false, degraded: [] }, version: 1, done: new Set(), asks: [] }
 }
 reset()
 
@@ -73,7 +74,22 @@ function snapshot(projectId) {
     schema: 'bellteam.lattice-chart.v1', epoch: 'fixture', version: state.version, at: new Date().toISOString(), projectId, ...NAMES[projectId], coordinator: projectId === 'lattice',
     state: state.mode.state, verifiedAt: ago(state.mode.state === 'last_verified' ? 46 : 0), degraded: state.mode.degraded,
     members: MEMBERS.filter(member => referenced.has(member.botId)), phases: PHASES, cards: withConnections, edges, externals,
+    ...(state.mode.paged ? { history: { closed: CLOSED } } : {}),
   }
+}
+
+// a457 paged=1: closed-tree cards c001 (newest) .. c120; the cursor is opaque to the apps ("h" + the next index).
+const CLOSED = 120
+function historyPage(url) {
+  const limit = Number(url.searchParams.get('limit') ?? 50), before = url.searchParams.get('before')
+  const start = before === null ? 0 : Number(before.slice(1))
+  const rows = Array.from({ length: Math.max(0, Math.min(limit, CLOSED - start)) }, (_, offset) => {
+    const number = start + offset + 1, id = `c${String(number).padStart(3, '0')}`
+    return { id: `p1/${id}`, plan: 'p1', taskId: id, title: `閉じたツリーの工程 ${number}`, state: 'done', lane: 'bot-rapi', producer: 'bot-rapi', depth: 0, phase: null, parent: null,
+      doneAt: ago(60 * (number + 2)), archived: true, counted: false, connections: [], doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60 * (number + 2)), blockedReason: null }
+  })
+  const next = start + rows.length < CLOSED ? `h${start + rows.length}` : null
+  return { schema: 'bellteam.lattice-history.v1', projectId: 'lattice', at: new Date().toISOString(), state: 'verified', closed: CLOSED, members: MEMBERS.filter(member => member.botId === 'bot-rapi'), cards: rows, next }
 }
 
 // Display names: two named, one falling back to the creator's roster name, one with an unknown creator (名前のない工程表).
@@ -115,10 +131,12 @@ const server = createServer((request, response) => {
     if (url.searchParams.has('many')) state.mode.many = url.searchParams.get('many') === '1'
     if (url.searchParams.has('zero')) state.mode.zero = url.searchParams.get('zero') === '1'
     if (url.searchParams.has('history')) state.mode.history = url.searchParams.get('history') === '1'
+    if (url.searchParams.has('paged')) state.mode.paged = url.searchParams.get('paged') === '1'
     if (url.searchParams.has('degraded')) state.mode.degraded = url.searchParams.get('degraded').split(',').filter(Boolean)
     if (state.mode.stream === 'drop') { for (const [subscriber] of subscribers) subscriber.end(); subscribers.clear() } else push()
     return send(200, state.mode)
   }
+  if (path === '/test/history-requests') return send(200, { asks: state.asks })
   if (path === '/test/complete') { state.done.add(url.searchParams.get('card')); push(); return send(200, { ok: true }) }
   if (path === '/api/events') { response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' }); response.write('event: ready\ndata: {}\n\n'); return }
   if (path === '/api/bots') return send(200, { bots: [] })
@@ -129,6 +147,8 @@ const server = createServer((request, response) => {
       { stopId: '000000000000000000000001', projectId: 'lattice', chartName: NAMES.lattice.name, chartCreatedBy: 'bot-trony', plan: 'p1', taskId: 't06', cardId: 'p1/t06', title: 'Web画面の組込口', lane: 'bot-admi', reason: '組込の登録点が未定', blockedAt: ago(52), blockedBy: 'owner' },
       { stopId: '000000000000000000000002', projectId: 'nightly-care', chartName: NAMES['nightly-care'].name, chartCreatedBy: 'bot-molly', plan: 'p1', taskId: 't03', cardId: 'p1/t03', title: '夜間の控えの場所', lane: 'bot-molly', reason: '保存先の容量を確認する', blockedAt: ago(60 * 26), blockedBy: 'bot-trony' }] })
   }
+  const historyRoute = /^\/api\/lattice\/charts\/([^/]+)\/history$/u.exec(path)
+  if (historyRoute && state.mode.paged) { state.asks.push(url.search); return send(200, historyPage(url)) }
   const route = /^\/api\/lattice\/charts(?:\/([^/]+?)(\/events)?)?$/u.exec(path)
   if (!route) return send(404, { error: 'NOT_FOUND' })
   if (state.mode.list === 'old') return send(404, { error: 'NOT_FOUND' })

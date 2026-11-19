@@ -123,11 +123,95 @@ struct LatticeChartSnapshot: Decodable, Equatable {
     var edges: [LatticeEdge]?
     var externals: [LatticeExternal]?
     var phases: [LatticePhase]?
+    /// a457: the finished tasks of closed trees, which are not in `cards` (missing = 0; read through the history route).
+    var history: LatticeHistoryInfo?
 
     var cardList: [LatticeCard] { cards ?? [] }
+
+    /// The snapshot plus the loaded history pages, for the 過去ログ rows and 詳細 only (never the tree or lanes). The snapshot's card wins on the same id (a reopened tree).
+    func merged(_ feed: LatticeHistoryFeed) -> LatticeChartSnapshot {
+        guard !feed.cards.isEmpty else { return self }
+        var copy = self
+        let ids = Set(cardList.map(\.id))
+        copy.cards = cardList + feed.cards.filter { !ids.contains($0.id) }
+        let bots = Set((members ?? []).map(\.botId))
+        copy.members = (members ?? []) + feed.members.filter { !bots.contains($0.botId) }
+        return copy
+    }
     var edgeList: [LatticeEdge] { edges ?? [] }
     var externalList: [LatticeExternal] { externals ?? [] }
     var phaseList: [LatticePhase] { phases ?? [] }
+}
+
+struct LatticeHistoryInfo: Decodable, Equatable {
+    var closed: Int?
+}
+
+/// One page of GET /api/lattice/charts/:id/history (a457). Cards are snapshot-shaped; `next` is opaque.
+struct LatticeHistoryPage: Decodable, Equatable {
+    static let schema = "bellteam.lattice-history.v1"
+    static let limit = 50
+    let schema: String
+    let state: String
+    var closed: Int?
+    var members: [LatticeMember]?
+    var cards: [LatticeCard]?
+    var next: String?
+
+    /// A page whose state is not verified / last_verified has no cards (README client rule 6).
+    var usable: Bool { state == "verified" || state == "last_verified" }
+
+    static func path(projectId: String, before: String?) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        let base = "/api/lattice/charts/\(projectId)/history?limit=\(limit)"
+        guard let before else { return base }
+        return base + "&before=" + (before.addingPercentEncoding(withAllowedCharacters: allowed) ?? before)
+    }
+}
+
+/// The pages of 過去ログ read so far (client rules 1, 3, 5, 6, 8 of the history route). Kept only while 過去ログ is open.
+struct LatticeHistoryFeed: Equatable {
+    enum Phase: Equatable { case loading, idle, failed(first: Bool), unsupported }
+
+    private(set) var cards: [LatticeCard] = []
+    private(set) var members: [LatticeMember] = []
+    private(set) var next: String?
+    private(set) var phase = Phase.loading
+    /// `closed` of the first page: the value the loaded pages were read at.
+    private(set) var readAt: Int?
+
+    var canMore: Bool { phase == .idle && next != nil }
+    /// 読み直す asks the same page again; after a 400 (or a failed first page) from the first page.
+    var retryFirst: Bool { if case .failed(let first) = phase { return first }; return true }
+
+    mutating func begin() { phase = .loading }
+
+    /// The first page replaces what was loaded (rows stay until it lands); a later page appends.
+    mutating func receive(_ page: LatticeHistoryPage, first: Bool) {
+        let fresh = page.usable ? (page.cards ?? []) : []
+        if first {
+            cards = fresh
+            members = page.members ?? []
+            readAt = page.closed ?? 0
+        } else {
+            let known = Set(cards.map(\.id))
+            cards += fresh.filter { !known.contains($0.id) }
+            let bots = Set(members.map(\.botId))
+            members += (page.members ?? []).filter { !bots.contains($0.botId) }
+        }
+        next = page.usable ? page.next : nil
+        phase = .idle
+    }
+
+    /// 404 = an older server (rule 1: the snapshot's closed cards stay, no more requests until the next opening).
+    mutating func fail(first: Bool, status: Int?) {
+        if status == 404 {
+            self = LatticeHistoryFeed()
+            phase = .unsupported
+        } else {
+            phase = .failed(first: first || status == 400)
+        }
+    }
 }
 
 struct LatticeChartsList: Decodable {
@@ -935,11 +1019,14 @@ struct LatticeHistory: Equatable {
 
     static let unknownDay = "日時の分からない工程"
     static let empty = "まだ終わった工程はありません。"
+    static let readFailed = "続きを読めませんでした。"
+    static let retry = "読み直す"
 
     let days: [Day]
     var count: Int { days.reduce(0) { $0 + $1.cards.count } }
 
-    static func count(_ snapshot: LatticeChartSnapshot?) -> Int { snapshot?.cardList.filter { $0.status.finished }.count ?? 0 }
+    /// The switch label: finished cards in `cards` + the closed trees' count (a457; no request is needed).
+    static func count(_ snapshot: LatticeChartSnapshot?) -> Int { (snapshot?.cardList.filter { $0.status.finished }.count ?? 0) + (snapshot?.history?.closed ?? 0) }
 
     init(_ snapshot: LatticeChartSnapshot, now: Date) {
         let finished = snapshot.cardList.filter { $0.status.finished }

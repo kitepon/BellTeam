@@ -28,8 +28,9 @@ flowchart LR
   Stops -->|"行を押す（.card を積む）"| Screen
   List -->|"札を押す"| Screen["Views/LatticeChartView.swift<br/>LatticeChartScreen(projectId)<br/>ツリー / 担当 / 過去ログ N の切り替え（@SceneStorage）"]
   Screen -->|"切り替え（選択肢はlistedだけ）・すべての工程表"| Over["一覧を工程表の上へ積む<br/>戻る → 同じ工程表（送りの位置も同じ）"]
-  Screen --> Model["LatticeChartModel（参照型・projectId鍵）<br/>snapshot・layout・connection・completedAt"]
+  Screen --> Model["LatticeChartModel（参照型・projectId鍵）<br/>snapshot・layout・connection・completedAt・history（過去ログの頁。a457）"]
   Model -->|"SSE"| Stream["BellAPI.eventStream(path:)<br/>GET /api/lattice/charts/:id/events<br/>event: snapshot → 図を丸ごと置き換え（差分は動きで見せる）"]
+  Model -->|"過去ログを開いた時だけ（a457）"| History["GET /api/lattice/charts/:id/history?limit=50&before=（前の頁のnext）<br/>bellteam.lattice-history.v1：閉じたツリーの終わった札（snapshotの cards は開いたツリーだけ）<br/>最初の頁＝開いた時、次の頁＝一覧の終わりまで送った時（before＝前の頁のnext。不透明）<br/>snapshotの history.closed が読んだ時と変わったら最初の頁を読み直す／404（旧本体）→ snapshotの札だけ・頁は読まない／503・切断・400 → 「続きを読めませんでした。」＋読み直す"]
   Stream -->|"35秒無通信・切断・503"| Retry["reconnecting：最後の図を薄くして残し<br/>1, 2, 4 … 30秒（±20%）で開いている間ずっと"]
   Stream -->|"404"| Probe["GET /api/lattice/charts/:id で見分ける<br/>LATTICE_CHART_NOT_FOUND → notFound（止める）<br/>それ以外 → unsupported（60秒ごとに確かめ直す）"]
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
@@ -71,6 +72,7 @@ flowchart LR
 | --- | --- | --- |
 | 一覧・統括のBot・一覧の接続 | `LatticeChartsModel`（`LatticeHomeView`の`@StateObject`） | 入口の画面がある間。背景へ回ると止め、戻ると読み直す |
 | 1枚の図（最後に読めたsnapshot）・配置・接続・新しい完了の時刻 | `LatticeChartModel`（`LatticeChartScreen`の`@StateObject`） | その工程表を開いている間。背景へ回ると接続を閉じ、戻ると最新の一枚から描く |
+| 過去ログの頁（閉じたツリーの札・メンバー・次の頁のcursor・読んだ時のclosed・読み取りの状態） | `LatticeChartModel.history`（`LatticeHistoryFeed`） | 過去ログを開いている間だけ。出る・工程表を替える・背景へ回ると捨て、旧本体の404の記憶も忘れる（キャッシュなし） |
 | 詳細の決裁（決裁箱拡張の答え） | `LatticeDetailPanel`の`@State`（札のidごとに1回読む） | その札の詳細を開いている間 |
 | 選んだ札・強調した担当・送り先・iPhoneの並べ方と詳細の高さ・iPhoneのツリーで顔の上に出している札（a98） | `LatticeChartScreen`の`@State`（ツリーと担当で同じものを使う＝切り替えても引き継ぐ） | 画面の間 |
 | ツリー / 担当 / 過去ログ | `LatticeChartScreen`の`@SceneStorage("lattice-center")`（既定はツリー） | アプリ（シーン）を開いている間 |
@@ -82,7 +84,9 @@ flowchart LR
 
 ## 過去ログ
 
-`LatticeHistory`（純粋）：終わった工程（`done` / `retired`、archivedかどうかに関わらず）を`doneAt`の新しい順に、JSTの日の見出し（今日 / 昨日 / M月d日）の下へ。`doneAt`が無い・読めない工程は「日時の分からない工程」として最後。行（`LatticeHistoryView`）：状態の記号・題・担当の顔と名前（owner rule）・HH:mm（JST）。押すと詳細（ツリー・担当と同じ`select`、強調は薄くするだけ引き継ぐ）。空は「まだ終わった工程はありません。」。切り替えの表示は「過去ログ N」（Nは終わった工程の数）。識別子は`lattice-view-history`・`lattice-history-row-<札のid>`・`lattice-history-empty`。
+`LatticeHistory`（純粋）：終わった工程（`done` / `retired`、archivedかどうかに関わらず）を`doneAt`の新しい順に、JSTの日の見出し（今日 / 昨日 / M月d日）の下へ。`doneAt`が無い・読めない工程は「日時の分からない工程」として最後。行（`LatticeHistoryView`）：状態の記号・題・担当の顔と名前（owner rule）・HH:mm（JST）。押すと詳細（ツリー・担当と同じ`select`、強調は薄くするだけ引き継ぐ）。空は「まだ終わった工程はありません。」。切り替えの表示は「過去ログ N」（N＝snapshotの`cards`の終わった工程の数＋`history.closed`。欠けていれば0。要求は要らない）。識別子は`lattice-view-history`・`lattice-history-row-<札のid>`・`lattice-history-empty`。
+
+閉じたツリーの札（a457、サーバーのREADME「Client rules for 過去ログ」）：開いたツリーの札だけがsnapshotの`cards`に載る。`LatticeChartModel.openHistory`は過去ログを開いた時（`.task(id: center == .history && 前面)`）に最初の頁（limit 50）を読み、一覧の終わりの行（`lattice-history-more`、LazyVStackなので終わりまで送ると現れる）が現れたら次の頁（`before`＝前の頁の`next`。URLエンコード。同じ`before`は続けて頼まない）を読む。行・詳細へ渡す札は`LatticeChartSnapshot.merged`（snapshotの札＋頁の札、同じidはsnapshotが勝つ。メンバーも頁の分を足す）で、ツリー・担当・レール・数には混ぜない。並びは`LatticeHistory`の既存の規則（新しい`doneAt`順、無いものは最後でid順）。新しいsnapshotの`history.closed`が頁を読んだ時（最初の頁の`closed`）と違えば、頁を捨てずに最初の頁を読み直して置き換える（時計は使わない）。失敗（503・切断・400）は、読めた行を残して終わりに「続きを読めませんでした。」と「読み直す」（`lattice-history-failed`・`lattice-history-retry`）：同じ頁をもう一度、400の後は最初の頁から。`verified`・`last_verified`でない頁は札を持たず、エラーの行も出さない。旧本体は404：snapshotの`cards`に閉じた札が残っているのでそれだけを出し、その工程表を開いている間は頁を頼まない（過去ログを出て戻ると、もう一度試す）。詳細は頁の札のまま開く（前の工程・接続は無い）。
 
 ## 接続の行と札（a161）
 
@@ -139,7 +143,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## 試験
 
-- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・接続の行（種類ごとの文・古い順・他の工程表の穴埋め・旧本体）と前工程の札の文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
+- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・閉じたツリーの数と頁の合流・頁の追記・失敗・旧本体の404（a457）・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・接続の行（種類ごとの文・古い順・他の工程表の穴埋め・旧本体）と前工程の札の文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
 - `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・接続・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
 - `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、接続が既定で畳まれ、開いて畳めること。
 - Macの写真は使い捨ての自己描画のコピーで撮る（repoに入れない）。

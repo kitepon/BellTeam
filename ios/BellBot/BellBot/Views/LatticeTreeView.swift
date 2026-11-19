@@ -144,30 +144,57 @@ struct LatticeIconMap: View {
 /// 過去ログ：終わった工程を新しい順に、JSTの日の見出しの下へ。押すと詳細（ツリー・担当と同じ`select`）。
 struct LatticeHistoryView: View {
     let snapshot: LatticeChartSnapshot
+    let feed: LatticeHistoryFeed
     let now: Date
     let lookup: (String?) -> LatticePerson?
     let focus: String?
     let selected: String?
     let namespace: Namespace.ID?
     let select: (String?) -> Void
+    let more: () -> Void
+    let retry: () -> Void
 
     var body: some View {
         let history = LatticeHistory(snapshot, now: now)
-        return VStack(alignment: .leading, spacing: 6) {
-            if history.days.isEmpty {
+        // Lazy: the end-of-list row appears only when the list is scrolled to its end (the next page is asked then, rule 3).
+        return LazyVStack(alignment: .leading, spacing: 6) {
+            if history.days.isEmpty && feed.phase != .loading {
+                if case .failed = feed.phase {} else {
                 Text(LatticeHistory.empty).font(.system(size: 13)).foregroundStyle(LatticePalette.muted)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 20)
                     .accessibilityIdentifier("lattice-history-empty")
+                }
             }
             ForEach(history.days) { day in
                 Text(day.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(LatticePalette.muted)
                     .padding(.top, 10).accessibilityAddTraits(.isHeader)
                 ForEach(day.cards) { card in row(card) }
             }
+            tail
         }
         .frame(maxWidth: 680, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("lattice-view-history")
+    }
+
+    /// The end of the list: loading, the failure row (rule 6), or the row whose appearance asks the next page.
+    @ViewBuilder private var tail: some View {
+        switch feed.phase {
+        case .loading:
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.vertical, 12)
+                .accessibilityIdentifier("lattice-history-loading")
+        case .failed:
+            HStack(spacing: 10) {
+                Text(LatticeHistory.readFailed).font(.system(size: 13)).foregroundStyle(LatticePalette.muted)
+                Button(LatticeHistory.retry, action: retry).buttonStyle(.bordered).accessibilityIdentifier("lattice-history-retry")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
+            .accessibilityIdentifier("lattice-history-failed")
+        case .idle where feed.next != nil:
+            Color.clear.frame(height: 1).onAppear(perform: more).accessibilityIdentifier("lattice-history-more")
+        default:
+            EmptyView()
+        }
     }
 
     private func row(_ card: LatticeCard) -> some View {
