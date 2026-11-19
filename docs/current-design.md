@@ -121,7 +121,7 @@ SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新
 
 一般配布imageはmainの配布対象source変更と手動実行で作成する。amd64/arm64のネイティブCIで2fileからの実installer、導入中のregistryタグ変更、初期設定、モデル候補、公式認証入口、個人設定非包含を確認し、両方の成功後だけcommit tag・`latest`・互換の`preview`を公開する。installerは最初のpull後の抽出・準備・起動を`--pull never`にし、導入中の公開タグ変更で別imageを取り直さない。旧公開版は検査失敗時には更新しない。
 
-更新用の`compose.cursor-update.yaml`は本体のcomposeへmergeしない。新しくビルド/取得した本体imageから、root所有の固定入口`/usr/local/bin/bellteam-update-cursor`だけを起こす。渡すのはCursorのnamed volumeだけで、本体のenvironment/env_file、runtime/home、runtime/data、SSH鍵、Docker socket、host PIDは渡さない。HOMEは一時的なtmpfs、root filesystemはread-only、UID/GID1000。固定入口は環境をHOME/PATHだけに組み立て、公式`cursor-agent update`を実行して終了する。volumeは本体composeの正規化された名前を使い、別のCursorコピーは作らない。通常の再起動では更新を実行しない。更新失敗時は本体の入れ替えへ進まないが、公式updaterがvolumeを変更した可能性はあるため、旧processのまま無条件に安全と断定しない。
+（a451の第2列車以後、`bellteam-update-cursor`は何もしない空の入口で、Cursor自体はimageに無い。段の形だけinstallerに残る。）更新用の`compose.cursor-update.yaml`は本体のcomposeへmergeしない。新しくビルド/取得した本体imageから、root所有の固定入口`/usr/local/bin/bellteam-update-cursor`だけを起こす。渡すのはCursorのnamed volumeだけで、本体のenvironment/env_file、runtime/home、runtime/data、SSH鍵、Docker socket、host PIDは渡さない。HOMEは一時的なtmpfs、root filesystemはread-only、UID/GID1000。固定入口は環境をHOME/PATHだけに組み立て、公式`cursor-agent update`を実行して終了する。volumeは本体composeの正規化された名前を使い、別のCursorコピーは作らない。通常の再起動では更新を実行しない。更新失敗時は本体の入れ替えへ進まないが、公式updaterがvolumeを変更した可能性はあるため、旧processのまま無条件に安全と断定しない。
 
 この段は更新への鍵持込みを閉じるためのもの。本体/席のUID分離、鍵file、状態の置き場、稼働中のmoduleの分離は次段に残る。SEC-014全体の完了とはしない。本番反映は試験成功後、動いている席が反映担当だけの時に行い、セシルへ事前に実時刻を伝えてホスト側の同時監査を合わせる。
 

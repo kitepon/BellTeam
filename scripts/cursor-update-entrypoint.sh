@@ -1,6 +1,5 @@
 #!/bin/sh
-# Cursor volumeだけを受け取る使い捨てコンテナの固定入口。
-# 本体と共有するのはvolumeだけ。席から書ける実行ファイルへ環境を渡さない。
+# The image carries no Cursor and the user place has one writer, 最新版を入れる in AIの認証 (runtime/user-cli-place.md): nothing to update here.
+# shortcut: the installer's cursor-update phase stays as a no-op, remove it with its tests in a later cleanup.
 set -eu
-exec /usr/bin/env -i HOME=/home/bell PATH=/home/bell/.local/bin:/usr/local/bin:/usr/bin:/bin \
-  /home/bell/.local/bin/cursor-agent update
+exit 0

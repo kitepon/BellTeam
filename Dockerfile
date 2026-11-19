@@ -23,13 +23,11 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # npm itself too (t20 CVEs): the npm bundled with the Node image carries older undici / brace-expansion / glob / minimatch.
-RUN npm install --global npm@latest corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@latest aiterm-mcp@latest \
-  && npm --version && corepack --version && codex --version && claude --version && throughline --version \
+RUN npm install --global npm@latest corepack@latest throughline@latest aiterm-mcp@latest \
+  && npm --version && corepack --version && throughline --version \
   && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)'
-RUN curl -fsSL https://x.ai/cli/install.sh | bash \
-  && install -m 0755 /root/.grok/bin/grok /usr/local/bin/grok \
-  && grok --version
-# RTK（担当ドリリー）。本家のinstall.shがsha256を照合する。~/.localはcursor-cliのvolumeで隠れるため/usr/local/binへ置く。
+# No AI CLI (Claude Code, Codex, Grok, Cursor) is installed here: the user installs each with 最新版を入れる in AIの認証 into /home/bell/.local (a451, Owner 2026-11-19).
+# RTK（担当ドリリー）。本家のinstall.shがsha256を照合する。~/.localは利用者のCLIの置き場（cursor-cliのvolume）で隠れるため/usr/local/binへ置く。
 # 版を固定する: 最新版の検索はGitHub APIを使い、CIの共有IPでは回数制限で失敗する（2026-11-08）。版の更新はドリリー。
 ARG RTK_VERSION=v1.2.0
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_VERSION=$RTK_VERSION RTK_INSTALL_DIR=/usr/local/bin sh \
@@ -55,8 +53,8 @@ RUN usermod -l bell -d /home/bell -m node \
 USER bell
 ENV HOME=/home/bell \
   PATH=/home/bell/.local/bin:/usr/local/bin:/usr/bin:/bin
-RUN curl https://cursor.com/install -fsS | bash \
-  && cursor-agent --version
+# An empty, bell-owned place: a NEW cursor-cli volume copies its ownership from here, so the seat user (1000) can install into it.
+RUN install -d -m 0755 /home/bell/.local/bin
 
 FROM harnesses AS server
 USER root

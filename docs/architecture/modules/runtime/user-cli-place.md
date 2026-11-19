@@ -31,7 +31,7 @@ flowchart LR
   Runner --> Place[("/home/bell/.local（volume cursor-cli）")]
   Place --> Seats["全席・Aiterm起動: PATH先頭 /home/bell/.local/bin"]
   Cleanup["起動時 removeSeatClaudeCopies: &lt;project&gt;/.local だけ"] -.->|"置き場は消さない"| Place
-  Image["image同梱CLI /usr/local/bin（第2列車で外す）"] -.->|"PATH順で置き場が先"| Seats
+  Image["image: CLIなし（第2列車 2026-11-19）。空の ~/.local/bin だけ（新しいvolumeを席のUID 1000が書けるようにする種）"] -.->|"新しいvolumeの所有を写す"| Place
 ```
 
 ## データの流れ
@@ -62,6 +62,14 @@ sequenceDiagram
 | `cli.install` | `{harness}` | `{version}` かコード | 10分。親が同時に1件だけ受ける。出力は返さない。成功後に親が再probeして版を返す。 |
 
 vendor表（親だけ）：`claude` / `codex` は `npm install --global --prefix /home/bell/.local [--allow-scripts=@anthropic-ai/claude-code] @anthropic-ai/claude-code@latest` / `@openai/codex@latest`（npm 12は許可のないinstallスクリプトを飛ばし、claude-codeのpostinstallが入れる本体が無いまま終了コード0になるため、claudeだけ許可を付ける。a451x、Rapiの実機）。installが終了コード0でも再probeで動かなければ、置き場の `bin/<cli>` を消す（置き場がPATH先頭なので、動かない物が動く同梱CLIを隠さないため）。`grok` はx.aiの公式installスクリプトを実行し、できた `~/.grok/bin/grok` を `~/.local/bin/grok` へ写す。`cursor` はcursor.comの公式installスクリプト（`~/.local/bin/cursor-agent`）。vendorの変更はこの表の1行。
+
+## 第2列車：imageからCLIを外す（a451-image-without-cli、2026-11-19）
+
+- DockerfileはClaude Code・Codex・Grok・Cursorのどれも入れない。`/home/bell/.local/bin` を空のまま（bell所有）置く。新しいnamed volumeはimageの所有を写すので、席のUID 1000が置き場へ書ける（空の `.local` が無いとvolumeはroot所有になり、入れられない）。既存のvolumeは中身をそのまま持つ。
+- `runtime-codex` / `runtime-claude-code` のbuiltin成分は、背景要約などから素の名前（`claude` / `codex`）でPATHを通って置き場へ届く。置き場に無ければ「入っていない」の案内（キロの a451-launch-not-installed）になる。
+- Codexの親配送hook（`src/aiterm-hooks.mjs` の `codexBinary`）：releaseの成分は自分の経路。builtinは、置き場（`<home>/.local/bin/codex`）→ imageの接頭辞（`/usr/local/bin/codex`）の順で実在する最初の物の絶対経路を使う（`aiterm-mcp` の `ensureCodexParentSteer` と native の `codexBinary` は絶対経路が要る）。どこにも無い間は、native登録には置き場の経路（「最新版を入れる」が入れる場所）を渡し、旧登録は何も登録せず待つ（失敗として報告しない）。入れた後の旧登録は、次の configure（本体の起動・E2の適用）で登録する。
+- Cursorの更新入口 `cursor-update-entrypoint.sh` は何もしない。置き場の書き手は「最新版を入れる」だけ（契約2）。installerのcursor-update段は空の動作として残す（後の掃除でinstallerとtestごと外す）。
+- 更新の説明（カタログの変更点）：「AIのCLIは本体に同梱しなくなりました。AIの認証で、使うAIごとに「最新版を入れる」を1回押してください。動いている席は、置き場のCLIで続きます。」
 
 ## コードを呼ぶ側と、CLIを自分で呼ぶ同梱の道具
 
