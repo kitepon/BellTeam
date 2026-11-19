@@ -202,7 +202,7 @@ const read = { state: 'verified', verified_at: '2026-11-11T10:00:00.000Z', store
 const ok = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
 const cli = { list: async () => [{ id: 'alpha', name: 'Lattice組込', createdBy: null, source: 's1' }], sources: async ids => new Map(ids.map(id => [id, id === 'alpha' ? 's1' : null])),
   exists: async id => id === 'alpha', setName: async () => {}, migrateLegacy: async () => ({ names: 0, record: false }),
-  run: async ({ args, env }) => args.join(' ') === 'todo display read --json' ? ok(read)
+  run: async ({ args, env }) => args.join(' ') === 'todo display read --json' ? ok(read) : args.join(' ') === 'todo status --json' ? ok({ next_ready: [] })
     : args[0] === 'todo' && args[1] === 'slow' ? new Promise(resolve => setTimeout(() => resolve(ok({ slow: true })), 800)) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
 createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
 `
