@@ -637,6 +637,8 @@ export class AitermTransport {
     const previousWatch = this.activity.watches.get(bot.id)
     const previousChanges = [...(this.sessionChanges.get(bot.id) ?? [])]
     const previousWake = this.activity.waking.get(bot.id)
+    // a446: the waiter sees our close before pty_close returns; a 'closed' wait from here on is this close, not a tracking failure.
+    for (const job of previousJobs) job.seatClosing = true
     const closed = (closure, closedSession) => {
       if (!confirmedSessionClosure(closure, closedSession)) return
       for (const job of previousJobs) {
@@ -1367,7 +1369,7 @@ export class AitermTransport {
     } catch (error) {
       void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error, {
         jobId: job.id, groupId: job.info?.groupId, stopRequested: job.stopRequested,
-        stopped: job.stopped, waitAborted: job.controller.signal.aborted,
+        stopped: job.stopped, waitAborted: job.controller.signal.aborted, seatClosing: job.seatClosing === true,
       })
       job.waitFailure = error
       const seen = await interim?.stop()

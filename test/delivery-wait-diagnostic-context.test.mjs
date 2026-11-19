@@ -115,3 +115,17 @@ for (const outcome of ['error', 'rate_limited']) test(`accepted turn ending ${ou
   assert.equal(tracking, undefined)
   assert.doesNotMatch(JSON.stringify(failure), /private-canary/)
 })
+
+test('a closed wait during our own restart/delete close is not a tracking failure (a446)', () => {
+  const closed = Object.assign(new Error('AITERM_TURN_CLOSED: private-canary'), { waitOutcome: 'closed' })
+  assert.equal(executionFailureReport(bot.id, 'delivery_wait', closed, { jobId, groupId, stopped: false, seatClosing: true }), null)
+  // Without our close in flight, or another outcome during it, the report stays.
+  assert.ok(executionFailureReport(bot.id, 'delivery_wait', closed, { stopped: false, seatClosing: false }))
+  assert.ok(executionFailureReport(bot.id, 'delivery_wait', Object.assign(new Error('x'), { waitOutcome: 'error' }), { seatClosing: true }))
+  // retireSeatWork marks the seat's jobs when the restart starts, before any close is issued.
+  const transport = new AitermTransport({})
+  const job = { bot, id: jobId }
+  transport.activity.jobs.add(job)
+  transport.retireSeatWork(bot)
+  assert.equal(job.seatClosing, true)
+})
