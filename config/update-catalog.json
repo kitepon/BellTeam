@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T17:37:15Z",
-  "expiresAt": "2026-11-26T17:37:15Z",
+  "publishedAt": "2026-11-19T17:56:07Z",
+  "expiresAt": "2026-11-26T17:56:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -761,8 +761,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b",
-      "versionId": "33815d0515e9f506e6d2324b0f5b6ff1dcc019b3b2886cf0be05f3811a247049",
+      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
+      "versionId": "675493a101383ce3f629e989e8a87f417039c5f2267316d729df80e83c0b8bac",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -770,16 +770,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-amd64.tar.gz",
-          "bytes": 15348100,
-          "sha256": "33815d0515e9f506e6d2324b0f5b6ff1dcc019b3b2886cf0be05f3811a247049"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-amd64.tar.gz",
+          "bytes": 15348591,
+          "sha256": "675493a101383ce3f629e989e8a87f417039c5f2267316d729df80e83c0b8bac"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "ef88ed92534ea6c618767c76f5e27e96652483f1cf45cd7c20af38aec9033fca"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "46d4640c9ba5b228487b8e441606c735f3b179a2e3502543799cf06db2e9e772"
         },
-        "signerCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b"
+        "signerCommit": "b5488e36455317397ac5c9f71927104e9a2f9282"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -791,13 +791,13 @@
         }
       },
       "changes": [
-        "Lattice を動かす子が、Lattice 0.113.1 を使うようにしました。止まっていた bellteam の工程表の記録を、子が読めるようになります。"
+        "Lattice を 0.113.2 にしました。工程表を読む時に使うメモリと時間が減ります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b",
-      "versionId": "a3209bcefd32ef98739878801a5fe002b61a4c63c80a03d7a46fb41351b612f5",
+      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
+      "versionId": "1ff0bf52d572adbf00c7b8a27d2fa48cb133431f4b1f66e44b3a2b979854f147",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -805,16 +805,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-arm64.tar.gz",
-          "bytes": 15348100,
-          "sha256": "a3209bcefd32ef98739878801a5fe002b61a4c63c80a03d7a46fb41351b612f5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-arm64.tar.gz",
+          "bytes": 15348591,
+          "sha256": "1ff0bf52d572adbf00c7b8a27d2fa48cb133431f4b1f66e44b3a2b979854f147"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10953,
-          "sha256": "29b1921c11ee8e1d112f244ec461a1ff3223af1cad6ad0e4997ca313b41a374c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "ff74d1f60ca1ed63246ebcf7338e859f4acef8687ff4fecea095b386eb6f9974"
         },
-        "signerCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b"
+        "signerCommit": "b5488e36455317397ac5c9f71927104e9a2f9282"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -826,7 +826,7 @@
         }
       },
       "changes": [
-        "Lattice を動かす子が、Lattice 0.113.1 を使うようにしました。止まっていた bellteam の工程表の記録を、子が読めるようになります。"
+        "Lattice を 0.113.2 にしました。工程表を読む時に使うメモリと時間が減ります。"
       ]
     },
     {
