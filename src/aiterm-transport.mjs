@@ -82,7 +82,7 @@ const RESENDABLE = ['BOT_INPUT_NOT_READY', 'BOT_SEND_BUSY']
 const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
   || String(error.message).includes('再送しないでください')
 const explicitlyUnsent = error => !outcomeUnknown(error)
-  && (['AGENT_SESSION_REQUIRED', 'BOT_AWAITING_USER', ...RESENDABLE].includes(error.code) || String(error.message).includes('送信していません'))
+  && (['AGENT_SESSION_REQUIRED', 'BOT_AWAITING_USER', 'BOT_IMAGE_UNSUPPORTED', ...RESENDABLE].includes(error.code) || String(error.message).includes('送信していません'))
 // A conversation lease or an execution generation closed under the job (module swap).
 // BOT_UPDATE_HOLD (update-hold.md H2): refused before typing, so the saved receipt waits queued and the release drains it.
 const SWAP_CODES = ['CONVERSATION_NOT_ACCEPTED', 'EXECUTION_GENERATION_RETIRED', 'BOT_UPDATE_HOLD']
@@ -1260,7 +1260,7 @@ export class AitermTransport {
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
           failureStatusSaved = true
-          if (!acknowledged && !job.stopped && !awaitingUser) await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
+          if (!acknowledged && !job.stopped && !awaitingUser && error.code !== 'BOT_IMAGE_UNSUPPORTED') await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
         } catch (callbackError) { if (!conversationDelivery) throw callbackError }
         finally { if (!acknowledged) rejectAcceptance(error) }
         throw error
@@ -1942,6 +1942,8 @@ export class AitermTransport {
         check()
         // a413: a question dialog is open, so the seat waits on its user. No observe, close or launch; the receipt owner queues the same ID.
         if (error.code === 'BOT_AWAITING_USER') throw error
+        // a463: the refusal is about the input (an image for a remote seat), not the seat: nothing typed, no observe, close or relaunch.
+        if (error.code === 'BOT_IMAGE_UNSUPPORTED') throw error
         // Wake-first (docs/architecture/delivery-details.md). Kept failures and their exits are listed there.
         // A lost answer (RPC error) says nothing about the seat, so look: with no terminal behind the record no text was typed.
         const lost = mcpRequestContext(error)?.outcome === 'unknown'

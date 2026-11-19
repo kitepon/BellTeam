@@ -303,6 +303,15 @@ export class AitermClient {
         error.effect = 'not_started'
         error.publicMessage = 'このBotは質問の画面で答えを待っていて、メッセージは送信されませんでした。答えが済んだ後に届けます。'
       }
+      // a463: a remote seat takes no image (Aiterm sendRemote refuses first, nothing typed). The seat is fine and a resend fails alike,
+      // so the delivery ends failed here: no observe, close or launch, and the typed not-started frame keeps the receipt `failed` (not queued).
+      if (name === 'pty_send'
+        && (error.aitermErrorCode === 'REMOTE_IMAGE_UNSUPPORTED' || message.startsWith('aiterm: REMOTE_IMAGE_UNSUPPORTED:'))) {
+        error.code = 'BOT_IMAGE_UNSUPPORTED'
+        error.status = 409
+        error.executionError = { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_UNSUPPORTED', effect: 'not_started', follow_up: 'none' }
+        error.publicMessage = '送り先の席は別の端末にあるため、画像を添付できません。メッセージは送信されませんでした。画像を外して送り直してください。'
+      }
       // 席の登録が無いsessionを、Aitermが打つ前に断った（require_agent、Aiterm 0.52.0）。送っていないので、起こし直して送り直せる。
       if (name === 'pty_send'
         && message.startsWith('aiterm: AGENT_SESSION_REQUIRED:')
