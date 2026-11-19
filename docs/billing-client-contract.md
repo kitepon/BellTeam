@@ -33,6 +33,26 @@ Only the first row of each app can be bought on that device. The other two are i
 7. While `isTrial: true` show `無料期間中`, with the date from `validUntil`.
 8. The row of every source in `billingSources` has one manage button, `購読を管理・解約`, at the same place and size in every app (see Cancel and manage).
 
+## Confirmation panel before Stripe (a460)
+
+Windows and Linux (the Stripe row) show this panel when the person presses 購入, before the app asks the server for the Checkout page (特定商取引法12条の6: the contract terms must be shown on the screen right before the order, in a way the person can check and correct). The wording is Poli's (kitepon.dev legal); the app shows it exactly, with one dynamic date. Rows for the other stores keep the rules above and never show this panel.
+
+| Line | Text |
+| --- | --- |
+| Title | `購入内容の確認` |
+| Plan | `BellTeamの月額購読（解約するまで毎月自動で更新）` |
+| Price | `月額980円（税込）。1年続けた場合の合計の目安：11,760円` |
+| Payment method | `クレジットカード、Apple Pay、Google Pay（Stripe）` |
+| First charge | `最初の1か月は無料です。{date}に初回の980円を決済し、以後は毎月の更新日に自動で決済します。` ({date} = today + 30 days, local date, `yyyy年M月d日`) |
+| Start | `支払い手続きの完了後、サーバーが契約を確認した時点から使えます（無料期間中も使えます）。` |
+| Cancel | `いつでも「設定 > BellTeamの購読」→「購読を管理・解約」から解約できます。支払い済みの期間の終わりに終了します。無料期間中に解約すれば料金はかかりません。` |
+| Refund | `デジタルサービスのため、申込み後の返金・撤回はできません。ただし二重請求などは返金します。詳しくは特定商取引法に基づく表記をご覧ください。` |
+| Link | `特定商取引法に基づく表記` → `https://kitepon.dev/specified-commercial-transactions/#bellteam` (system browser) |
+| Terms notice | `申し込むと、利用規約とBellTeam付属規約に同意したことになります。` with links to `https://kitepon.dev/terms/` and `https://kitepon.dev/apps/bellteam/terms/` |
+| Buttons | `申し込む（Stripeの支払い画面へ進む）` (asks the server for the Checkout page and opens it) and `戻る` (closes the panel, nothing is sent) |
+
+The panel is a step inside the same row, not a second page: `SUBSCRIPTION_ALREADY_ACTIVE` and the other errors are handled as before after 申し込む. The Checkout page (Worker `STRIPE_REQUIRE_TERMS`) asks for the same consent again on Stripe's side.
+
 ## Cancel and manage (a389)
 
 The subscriber cancels from the product, never by email. The button sits on the row of each store in `billingSources`:
