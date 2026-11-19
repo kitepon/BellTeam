@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T05:16:06Z",
-  "expiresAt": "2026-11-26T05:16:06Z",
+  "publishedAt": "2026-11-19T05:36:18Z",
+  "expiresAt": "2026-11-26T05:36:18Z",
   "releases": [
     {
       "componentId": "usage",
@@ -521,7 +521,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
         "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
@@ -555,7 +555,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
         "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
-      "versionId": "sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c",
+      "sourceCommit": "e8bb69d020152d54ad3a57b9275fc74acce18df4",
+      "versionId": "sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -729,21 +729,22 @@
       },
       "changes": [
         "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。",
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。",
+        "席の起動の部品 aiterm-mcp を 0.70.78 にしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
-      "versionId": "sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c",
+      "sourceCommit": "e8bb69d020152d54ad3a57b9275fc74acce18df4",
+      "versionId": "sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -753,8 +754,9 @@
       },
       "changes": [
         "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。",
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。",
+        "席の起動の部品 aiterm-mcp を 0.70.78 にしました。"
       ]
     },
     {
