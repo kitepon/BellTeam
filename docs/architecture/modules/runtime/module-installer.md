@@ -139,6 +139,19 @@ flowchart LR
   Read --> Skip[closed op excluded from pending]
 ```
 
+Termination locks (a114f, 2026-11-19): after the walk the switch takes `worker.lock` without waiting (held = a worker job or a reconciliation inspection/proof is running: refuse `HOST_UPDATE_BUSY`, nothing stopped), then `ledger.lock` **waiting**. Every ledger reader (the module service's job and status reads behind `GET /api/updates`) holds `ledger.lock` exclusively for a few milliseconds, and the switch runs while the old body still serves; a non-blocking take there failed the production Z114 body swap with `HOST_UPDATE_BUSY` although no module job was open. Lock order stays worker → ledger, the same as the module worker and the inspection, so the wait cannot deadlock; the installer's 1800 s deadline bounds it.
+
+```mermaid
+flowchart LR
+  Walk[ledger walk: a non-terminal op that is not unknown+fenced] -->|HOST_UPDATE_BUSY| Refuse[refuse, nothing stopped]
+  Walk --> Worker{worker.lock free?}
+  Worker -- no: job or inspection --> Refuse
+  Worker -- yes --> Ledger[ledger.lock: wait for the short reader]
+  Ledger --> Same{operations unchanged?}
+  Same -- no --> Changed[HOST_MODULE_ORIGINAL_CHANGED]
+  Same -- yes --> Stop[stop and remove the old module-installer]
+```
+
 A durable fence is bound to the original operation raw SHA, requestId and planId (taken from the operation itself), so `read_install_reconciliation_fence` validates it without the saved plan. Plan pruning keeps every plan referenced by a non-terminal (unknown) operation, since reconciliation and the termination bridge read it. Cause: production op 53d582f5 had a fence, but its expired plan 5cd4bfd1 had been pruned by a later module plan. The bridge's fence read then raised an uncoded FileNotFoundError (`HOST_MODULE_TERMINATION_UNCONFIRMED`), which blocked the body swap before any stop.
 
 共通HostUpdaterにoperation_pendingという内部判定点を設け、既Host/本体serviceの挙動は従来どおり、同梱moduleだけ検証済同ID fenceをbusy集計から除外する。原unknown/get/台帳pointerは保持し、別要求/in-flightのbusyは保持する。同IDのstartは既原本を返すだけで、旧workerやwork(entry)を再発行しない。共通公開busy解除は有効fence＋共通終端記録の両方を要求する。runtimeだけのfenceを公開成功にしない。
