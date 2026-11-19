@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T18:11:34Z",
-  "expiresAt": "2026-11-26T18:11:34Z",
+  "publishedAt": "2026-11-19T19:03:10Z",
+  "expiresAt": "2026-11-26T19:03:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -497,8 +497,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b",
-      "versionId": "be055c410780ea4654df5aa4fd5f9d0ff725569260413b4c4eb6b4200e6bd8e9",
+      "sourceCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56",
+      "versionId": "06dd873e98bc7496a7d2806b257908329abbe1669dbdb20e44192559580295d0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -506,16 +506,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-amd64.tar.gz",
-          "bytes": 3992019,
-          "sha256": "be055c410780ea4654df5aa4fd5f9d0ff725569260413b4c4eb6b4200e6bd8e9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T190056Z/execution-132e705fdae4358080ae69f264d7cc6e6a6cfc56-linux-amd64.tar.gz",
+          "bytes": 3992508,
+          "sha256": "06dd873e98bc7496a7d2806b257908329abbe1669dbdb20e44192559580295d0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11114,
-          "sha256": "05391caee99e3edf3c27b00a3ca1f871cba23ff39c1ae04fd99e4b4e20a72350"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T190056Z/execution-132e705fdae4358080ae69f264d7cc6e6a6cfc56-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "f6ef808276af8bf3704c5610b857efb75e0efb3d5891a89991be7f0312db0ee2"
         },
-        "signerCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b"
+        "signerCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -525,13 +525,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "更新の入れ替えで、AI の起動が受け付けられなかった時に、配送の失敗として記録しないようにしました。（その配送は、あとで自動的に届きます。）"
+        "fast mode にしている Bot の席が、ターンの途中で再開されても、ターンが終わったあとで fast mode に戻るようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b",
-      "versionId": "9006f442253d3398041dfc9ff0fc803b1c9cd555c73c441f3a9aeb9ea880d180",
+      "sourceCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56",
+      "versionId": "76547be8f107a9a3b1e91b9b1436e4fc637f9161106881502bfbbef5b87420a3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -539,16 +539,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-arm64.tar.gz",
-          "bytes": 3992019,
-          "sha256": "9006f442253d3398041dfc9ff0fc803b1c9cd555c73c441f3a9aeb9ea880d180"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T190056Z/execution-132e705fdae4358080ae69f264d7cc6e6a6cfc56-linux-arm64.tar.gz",
+          "bytes": 3992508,
+          "sha256": "76547be8f107a9a3b1e91b9b1436e4fc637f9161106881502bfbbef5b87420a3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11087,
-          "sha256": "e5092a4deb30e57b70aec50e1641ad5fc30089d70c9872acd104ce1cc1d311e1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T190056Z/execution-132e705fdae4358080ae69f264d7cc6e6a6cfc56-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11118,
+          "sha256": "21f99fe5aaf962e6ee80c23c1b263148a916f4b20b06e81a73771db8b44b9bd4"
         },
-        "signerCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b"
+        "signerCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -558,7 +558,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "更新の入れ替えで、AI の起動が受け付けられなかった時に、配送の失敗として記録しないようにしました。（その配送は、あとで自動的に届きます。）"
+        "fast mode にしている Bot の席が、ターンの途中で再開されても、ターンが終わったあとで fast mode に戻るようにしました。"
       ]
     },
     {
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
-      "versionId": "sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e",
+      "sourceCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56",
+      "versionId": "sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,21 +730,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "モジュールとの通信を閉じる時に、本体のプロセスが突然止まることがある問題を直しました。",
-        "席から使うコード調査用の lattice-mcp を、Lattice 0.113.2 にしました。"
+        "席の AI に使わせる Aiterm を 0.70.81 にしました。fast mode の Claude の席を、ターンの途中で再開した時の扱いが直ります。",
+        "fast mode にしている Bot の席が、ターンの途中で再開されても、ターンが終わったあとで fast mode に戻るようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
-      "versionId": "sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e",
+      "sourceCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56",
+      "versionId": "sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -753,8 +753,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "モジュールとの通信を閉じる時に、本体のプロセスが突然止まることがある問題を直しました。",
-        "席から使うコード調査用の lattice-mcp を、Lattice 0.113.2 にしました。"
+        "席の AI に使わせる Aiterm を 0.70.81 にしました。fast mode の Claude の席を、ターンの途中で再開した時の扱いが直ります。",
+        "fast mode にしている Bot の席が、ターンの途中で再開されても、ターンが終わったあとで fast mode に戻るようにしました。"
       ]
     },
     {
