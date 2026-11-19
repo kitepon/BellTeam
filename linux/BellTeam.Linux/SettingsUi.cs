@@ -181,6 +181,17 @@ internal static class SettingsUi
         return control;
     }
 
+    public static IBrush ToneBrush(BellTeam.Core.SettingsTone tone) => tone switch { BellTeam.Core.SettingsTone.Green => Green, BellTeam.Core.SettingsTone.Violet => Violet, BellTeam.Core.SettingsTone.Orange => Orange, _ => Muted };
+    // BellBadge: the one state badge of the settings, a tinted capsule; a state word is never a bare coloured word.
+    public static Border Badge(string text, BellTeam.Core.SettingsTone tone)
+    {
+        var color = ((ISolidColorBrush)ToneBrush(tone)).Color;
+        var label = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = ToneBrush(tone), TextWrapping = TextWrapping.NoWrap };
+        var badge = new Border { Child = label, Background = new SolidColorBrush(Color.FromArgb(0x21, color.R, color.G, color.B)), CornerRadius = new CornerRadius(9), Padding = new Thickness(9, 3), VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(badge, text);
+        return badge;
+    }
+
     public static SwitchToggle Switch(string onColor) => new(Color.Parse(onColor));
 
     // Borderless text box whose hint is the field label, as in a Mac Form TextField.

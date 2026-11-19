@@ -21,8 +21,8 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
     private readonly List<(SettingsPage Page, TextBlock Text, IBrush Original)> rowLabels = [];
     private readonly TextBlock profileName = SettingsUi.Text("あなた", 15, SettingsUi.Ink, FontWeight.SemiBold);
     private readonly AvatarTile profileAvatar = new() { Width = 36, Height = 36 };
-    private readonly TextBlock stopRowText = SettingsUi.Text("", 13, SettingsUi.Secondary);
-    private readonly TextBlock notificationRowText = SettingsUi.Text("", 13, SettingsUi.Secondary);
+    // Each list row's live line and badge (Mac SettingsHomeState), drawn from the Core SettingsSummary by RefreshRows.
+    private readonly Dictionary<SettingsPage, (TextBlock Line, ContentControl Badge)> rowStates = [];
     private readonly ContentControl pane = new();
     private readonly ContentControl toolbarLeft = new();
     private readonly ContentControl toolbarRight = new();
@@ -38,8 +38,16 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
     private bool showingPane, initializing;
     private Grid? layout; private Control? sidebar, divider, rightPane;
     private AiControl? control;
-    // The 要対応 band (Mac SettingsHome): on this page list only the AI that is not installed counts (a451); the other items have no live line here.
+    // The 要対応 band (Mac SettingsHome), and what the home knows about every item (a452). Read when settings open, when the window comes back to the front and after a page changed something.
     private readonly StackPanel attentionBand = new();
+    private List<AIAuthEntry>? aiEntries;
+    private bool aiAnswered, controlUnreadable, rulesUnreadable, homeReading, homePending;
+    private FeatureSetting[]? features;
+    private BackgroundAgentRecord? backgroundAgent;
+    private Dictionary<string, HarnessModels> modelCatalog = [];
+    private string? rulesText;
+    private (UpdateKind Kind, string Title)? update;
+    private Window? host;
 
     public SettingsWindow(LinuxWorkspace workspace, Action? changeServer = null, INotificationSwitch? notifications = null, Action? signOut = null, SettingsPage[]? compactHidden = null) : base("設定", workspace.ConnectionToken)
     {
@@ -58,8 +66,16 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         Grid.SetRow(pane, 1); pane.HorizontalContentAlignment = HorizontalAlignment.Stretch; pane.VerticalContentAlignment = VerticalAlignment.Stretch; right.Children.Add(pane); Grid.SetColumn(right, 2); layout.Children.Add(right); rightPane = right;
         Content = layout; ApplyCompact();
         if (notifications is not null) notifications.PropertyChanged += NotificationsChanged;
-        PageClosed += () => { if (notifications is not null) notifications.PropertyChanged -= NotificationsChanged; lifetime?.Cancel(); embedded?.ClosePage(); updateContent?.Dispose(); };
-        UpdateNotificationRow();
+        workspace.UpdatesChanged += UpdatesChanged; workspace.Terminals.Changed += TerminalsChanged;
+        // Coming back to the front re-reads the home, as the Mac does on foreground.
+        AttachedToVisualTree += (_, _) => { if (host is null && OwnerWindow.Of(this) is { } window && window != this) { host = window; host.Activated += HostActivated; } };
+        PageClosed += () =>
+        {
+            if (notifications is not null) notifications.PropertyChanged -= NotificationsChanged;
+            workspace.UpdatesChanged -= UpdatesChanged; workspace.Terminals.Changed -= TerminalsChanged; if (host is not null) host.Activated -= HostActivated;
+            lifetime?.Cancel(); embedded?.ClosePage(); updateContent?.Dispose();
+        };
+        RefreshRows();
     }
 
     // Leaving the page is blocked while a save here is still in progress.
@@ -79,7 +95,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
 
     public async Task InitializeAsync(SettingsPage page = SettingsPage.Profile)
     {
-        var loads = new List<Task> { LoadControlAsync(), LoadAttentionAsync() };
+        var loads = new List<Task> { ReloadHomeAsync() };
         // The profile page reads the owner itself and updates the list row from that.
         if (page != SettingsPage.Profile) loads.Add(LoadOwnerAsync());
         initializing = true;
@@ -92,6 +108,8 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
         lifetime?.Cancel(); lifetime?.Dispose(); embedded?.ClosePage(); embedded = null; updateContent?.Dispose(); updateContent = null; inSubPage = false;
         if (Compact && !initializing) { showingPane = true; ApplyCompact(); }
+        // Leaving a page re-reads what it may have changed (the per-AI login reads wait for the AI page's own events).
+        if (!initializing && pane.Content is not null && page != selected) _ = ReloadHomeAsync(withAi: false);
         selected = page; Highlight(); SetToolbar(null, null, null);
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(Token); var token = lifetime.Token;
         try
@@ -126,11 +144,12 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
                 var tile = SettingsUi.Tile(page, 30); tile.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(tile);
                 var labels = new StackPanel { Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
                 var title = SettingsUi.Text(SettingsPageInfo.Title(page), 14, page == SettingsPage.Stop ? SettingsUi.Red : SettingsUi.Ink, FontWeight.Medium);
-                var detail = SettingsUi.Text(SettingsPageInfo.Detail(page), 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0));
+                // Every row is one title line and one state line, so all rows have the same height.
+                var detail = SettingsUi.Text(SettingsPageInfo.Detail(page), 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)); detail.TextWrapping = TextWrapping.NoWrap; detail.TextTrimming = TextTrimming.CharacterEllipsis;
                 labels.Children.Add(title); labels.Children.Add(detail); Track(page, title, detail);
                 Grid.SetColumn(labels, 1); grid.Children.Add(labels);
-                var trailing = page == SettingsPage.Stop ? stopRowText : page == SettingsPage.Notifications ? notificationRowText : null;
-                if (trailing is not null) { trailing.VerticalAlignment = VerticalAlignment.Center; trailing.TextWrapping = TextWrapping.NoWrap; Grid.SetColumn(trailing, 2); grid.Children.Add(trailing); }
+                var badge = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Focusable = false }; Grid.SetColumn(badge, 2); grid.Children.Add(badge);
+                rowStates[page] = (detail, badge);
                 list.Children.Add(CategoryRow(page, SettingsPageInfo.Title(page), grid, new Thickness(0, first ? 10 : 0, 0, 0))); first = false;
             }
         }
@@ -153,38 +172,158 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         foreach (var (page, text, original) in rowLabels) text.Foreground = page == selected ? Brushes.White : original;
     }
 
-    // a451: an AI that is not installed (or being installed) is 要対応 on the settings home, with the words SettingsSummary.Ai gives every app; opening the row goes to the AI page.
-    private async Task LoadAttentionAsync()
+    // ---- home state ----
+    private static SettingsStatus Calm(SettingsPage page) => new(SettingsPageInfo.Detail(page));
+    // The line and badge of each list row (Mac SettingsHomeState.status(for:)); the profile shows its own value.
+    internal SettingsStatus ItemStatus(SettingsPage page) => page switch
     {
-        try
+        SettingsPage.Ai => aiAnswered ? SettingsSummary.Ai(aiEntries) : Calm(page),
+        SettingsPage.Terminals => SettingsSummary.Terminals(workspace.Terminals.State, workspace.Terminals.Terminals),
+        SettingsPage.Features => features is null ? Calm(page) : SettingsSummary.Features(features),
+        SettingsPage.Notifications => notifications is null ? Calm(page) : SettingsSummary.Notifications(notifications.Enabled ? NotificationState.Registered : NotificationState.Unregistered, failed: notifications.Error is not null),
+        SettingsPage.Connection => new(ServerHost),
+        SettingsPage.Display => new(DisplayChoiceText),
+        SettingsPage.Update => update is { } known ? SettingsSummary.Update(known.Kind, known.Title) : Calm(page),
+        SettingsPage.About => new(VersionText),
+        SettingsPage.Stop => SettingsSummary.Stop(control, controlUnreadable),
+        _ => Calm(page)
+    };
+    private string ServerHost { get { var value = Uri.TryCreate(workspace.Server, UriKind.Absolute, out var uri) ? uri.Host : ""; return value.Length == 0 ? "未設定" : value; } }
+    private static string VersionText => typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "-";
+    private static string DisplayChoiceText { get { try { return new SettingsStore(SettingsStore.UserDirectory).Load().ConversationOpening == ConversationOpening.Fade ? "フェードインだけ" : "下から順に浮き上がる"; } catch (Exception) { return SettingsPageInfo.Detail(SettingsPage.Display); } } }
+
+    private void RefreshRows()
+    {
+        foreach (var (page, (line, badge)) in rowStates)
         {
-            var harnesses = (await new HarnessAuthenticationApi(workspace.Management.Api).ListAsync(Token)).Harnesses;
-            var absent = harnesses.Where(item => item.Install is { NeedsAttention: true }).Select(item => new AIAuthEntry(item.Id, item.Name, null, AuthenticationProgress.Unknown, Install: item.Install)).ToList();
-            ShowAttention(absent.Count == 0 ? null : SettingsSummary.Ai(absent));
+            var status = ItemStatus(page);
+            line.Text = status.Line; badge.Content = status.Badge is { } text ? SettingsUi.Badge(text, status.Tone) : null;
         }
-        catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception) { /* no band when the list cannot be read; the AI page shows the reason */ }
-    }
-    private void ShowAttention(SettingsStatus? status)
-    {
         attentionBand.Children.Clear();
-        if (status is not { NeedsAttention: true }) return;
+        // Every item the Mac counts. The summary AI, 1Password and the rules have no row of their own here: their 要対応 opens the page that holds them.
+        var items = new (string Title, SettingsPage Page, SettingsStatus Status)[]
+        {
+            (SettingsPageInfo.Title(SettingsPage.Ai), SettingsPage.Ai, ItemStatus(SettingsPage.Ai)),
+            ("仕事の要約を書くAI", SettingsPage.Ai, SettingsSummary.SummaryAgent(backgroundAgent, modelCatalog)),
+            (SettingsPageInfo.Title(SettingsPage.Terminals), SettingsPage.Terminals, ItemStatus(SettingsPage.Terminals)),
+            ("1Password", SettingsPage.Features, SettingsSummary.OnePassword(features?.FirstOrDefault(item => item.Id == OnePasswordItem.Id))),
+            (SettingsPageInfo.Title(SettingsPage.Notifications), SettingsPage.Notifications, ItemStatus(SettingsPage.Notifications)),
+            (SettingsPageInfo.Title(SettingsPage.Features), SettingsPage.Features, ItemStatus(SettingsPage.Features)),
+            ("チームの決まり", SettingsPage.Profile, SettingsSummary.Rules(rulesText, rulesUnreadable)),
+            (SettingsPageInfo.Title(SettingsPage.Update), SettingsPage.Update, ItemStatus(SettingsPage.Update)),
+            (SettingsPageInfo.Title(SettingsPage.Stop), SettingsPage.Stop, ItemStatus(SettingsPage.Stop))
+        };
+        var attention = items.Where(item => item.Status.NeedsAttention && !HiddenPages.Contains(item.Page)).ToList();
+        if (attention.Count == 0) return;
         attentionBand.Children.Add(SettingsUi.Text("要対応", 12, SettingsUi.Secondary, FontWeight.SemiBold, new Thickness(20, 12, 0, 4)));
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,Auto") };
-        var tile = SettingsUi.Tile(SettingsPage.Ai, 30); tile.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(tile);
-        var labels = new StackPanel { Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
-        labels.Children.Add(SettingsUi.Text(SettingsPageInfo.Title(SettingsPage.Ai), 14, SettingsUi.Ink, FontWeight.Medium));
-        labels.Children.Add(SettingsUi.Text(status.Line, 12, SettingsUi.Orange, null, new Thickness(0, 2, 0, 0)));
-        Grid.SetColumn(labels, 1); grid.Children.Add(labels);
-        if (status.Badge is { } badge) { var text = SettingsUi.Text(badge, 12, SettingsUi.Orange, FontWeight.SemiBold); text.VerticalAlignment = VerticalAlignment.Center; text.TextWrapping = TextWrapping.NoWrap; Grid.SetColumn(text, 2); grid.Children.Add(text); }
-        var row = new Border { Child = grid, Margin = new Thickness(10, 0, 10, 2), Padding = new Thickness(8, 5, 10, 5), CornerRadius = new CornerRadius(8), Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0x95, 0x00)), Focusable = true, Cursor = SettingsUi.Hand };
-        AutomationProperties.SetName(row, SettingsPageInfo.Title(SettingsPage.Ai) + " " + status.Line); AutomationProperties.SetAutomationId(row, "settings-attention-ai");
-        row.PointerReleased += (_, args) => { if (args.InitialPressMouseButton == MouseButton.Left) _ = SelectAsync(SettingsPage.Ai); };
-        row.KeyDown += (_, args) => { if (args.Key is Key.Enter or Key.Space) { _ = SelectAsync(SettingsPage.Ai); args.Handled = true; } };
-        attentionBand.Children.Add(row);
+        foreach (var (title, page, status) in attention)
+        {
+            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,Auto") };
+            var tile = SettingsUi.Tile(page, 30); tile.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(tile);
+            var labels = new StackPanel { Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            var name = SettingsUi.Text(title, 14, SettingsUi.Ink, FontWeight.Medium); name.TextWrapping = TextWrapping.NoWrap;
+            var line = SettingsUi.Text(status.Line, 12, SettingsUi.Orange, null, new Thickness(0, 2, 0, 0)); line.TextWrapping = TextWrapping.NoWrap; line.TextTrimming = TextTrimming.CharacterEllipsis;
+            labels.Children.Add(name); labels.Children.Add(line); Grid.SetColumn(labels, 1); grid.Children.Add(labels);
+            if (status.Badge is { } text) { var badge = SettingsUi.Badge(text, status.Tone); Grid.SetColumn(badge, 2); grid.Children.Add(badge); }
+            var row = new Border { Child = grid, Margin = new Thickness(10, 0, 10, 2), Padding = new Thickness(8, 5, 10, 5), CornerRadius = new CornerRadius(8), Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0x95, 0x00)), Focusable = true, Cursor = SettingsUi.Hand };
+            AutomationProperties.SetName(row, title + " " + status.Line); AutomationProperties.SetAutomationId(row, "settings-attention-" + title);
+            row.PointerReleased += (_, args) => { if (args.InitialPressMouseButton == MouseButton.Left) _ = SelectAsync(page); };
+            row.KeyDown += (_, args) => { if (args.Key is Key.Enter or Key.Space) { _ = SelectAsync(page); args.Handled = true; } };
+            attentionBand.Children.Add(row);
+        }
         attentionBand.Children.Add(new Border { Height = 1, Background = SettingsUi.Hairline, Margin = new Thickness(20, 8, 20, 4) });
     }
     internal Control AttentionBand => attentionBand;
+
+    // Opening settings and coming back to the front read every item; a read that arrives while one runs is done once more afterwards.
+    // withAi false (leaving a page) skips the per-AI login reads.
+    internal async Task ReloadHomeAsync(bool withAi = true)
+    {
+        if (homeReading) { homePending = true; return; }
+        homeReading = true;
+        try
+        {
+            do
+            {
+                homePending = false;
+                await Task.WhenAll(withAi ? LoadAiAsync() : Task.CompletedTask, LoadSettingsAsync(), LoadModelsAsync(), LoadRulesAsync(), LoadControlAsync(), LoadUpdateAsync(), workspace.Terminals.RefreshAsync(Token));
+                RefreshRows();
+            } while (homePending && !Token.IsCancellationRequested);
+        }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
+        finally { homeReading = false; }
+    }
+    private void HostActivated(object? sender, EventArgs args) => _ = ReloadHomeAsync();
+    private void UpdatesChanged() => Dispatcher.UIThread.Post(async () => { await LoadUpdateAsync(); RefreshRows(); });
+    private void TerminalsChanged() => Dispatcher.UIThread.Post(RefreshRows);
+
+    // Every harness, and Claude's accounts when /api/accounts lists them; each login read with its own GET like the AI page does. An AI that cannot run (a451) is not asked for its login.
+    private async Task LoadAiAsync()
+    {
+        try
+        {
+            var auth = new HarnessAuthenticationApi(workspace.Management.Api);
+            var harnesses = (await auth.ListAsync(Token)).Harnesses;
+            AccountHarness? claude = null; var accounts = ClaudeAccountsRead.Listed;
+            try { claude = (await new HarnessAccountsApi(workspace.Management.Api).ReadAsync(Token))?.Claude; if (claude is null) accounts = ClaudeAccountsRead.OldServer; }
+            catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+            catch (Exception error) { accounts = ClaudeAccountsReads.Failure(error); }
+            var now = DateTimeOffset.Now; var reads = new List<Task<AIAuthEntry>>();
+            foreach (var harness in harnesses)
+            {
+                if (harness.Id == "claude" && claude is not null)
+                    foreach (var slot in claude.Slots) reads.Add(ReadEntryAsync(auth, harness, slot.Slot == "1st" ? null : slot.Slot, harness.Name + " " + AccountText.SlotName(slot.Slot), slot.SignedOutAt is not null, slot.Label, AccountText.LimitLine(claude, slot, now)));
+                else reads.Add(ReadEntryAsync(auth, harness, null, harness.Name, false, null, null));
+            }
+            var entries = (await Task.WhenAll(reads)).ToList();
+            if (accounts == ClaudeAccountsRead.Unreadable && harnesses.Any(item => item.Id == "claude")) entries.Add(ClaudeAccountsReads.UnreadableEntry);
+            aiEntries = entries; aiAnswered = true;
+        }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+        catch (Exception) { aiEntries = null; aiAnswered = true; }
+    }
+    private async Task<AIAuthEntry> ReadEntryAsync(HarnessAuthenticationApi auth, HarnessAuthenticationOption harness, string? slot, string name, bool signedOut, string? label, string? limitLine)
+    {
+        var progress = AuthenticationProgress.From(null, loaded: true);
+        if (HarnessCliInstall.Ready(harness.Install))
+        {
+            try { progress = AuthenticationProgress.From((await auth.StatusAsync(harness.Id, Token, slot)).Auth, loaded: true, signedOut: signedOut); }
+            catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+            catch (Exception) { /* unreadable: the entry says 確認できません */ }
+        }
+        return new AIAuthEntry(harness.Id, name, slot, progress) { AccountLabel = label, LimitLine = limitLine, SignedOut = signedOut, Install = harness.Install };
+    }
+    private async Task LoadSettingsAsync()
+    {
+        try { features = await workspace.Planning.FeaturesAsync(Token); } catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; } catch (Exception) { /* keeps the last list; the page shows the reason */ }
+        try { backgroundAgent = await workspace.Planning.BackgroundAgentAsync(Token); } catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; } catch (Exception) { /* keeps the last value; the page shows the reason */ }
+    }
+    // Only for display names; a failure keeps the last names (the editor reads the list itself and says so).
+    private async Task LoadModelsAsync()
+    {
+        try { modelCatalog = (await workspace.Management.Api.GetAsync<ModelsResponse>("/api/models", Token)).Models; }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+        catch (Exception) { }
+    }
+    private async Task LoadRulesAsync()
+    {
+        try { rulesText = (await workspace.Planning.RulesAsync(Token)).Text; rulesUnreadable = false; }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+        catch (Exception) { rulesUnreadable = rulesText is null; }
+    }
+    private async Task LoadUpdateAsync()
+    {
+        try
+        {
+            var center = new UpdateCenter(workspace.Management.Api, new SettingsStore(SettingsStore.UserDirectory));
+            var inventory = await center.InventoryAsync(Token); var current = UpdateScreen.Current(inventory, center.Requests);
+            var kind = UpdateScreen.Kind(inventory, false, current, UpdateScreen.HasUnreadRequest(center.Requests));
+            update = (kind, UpdateScreen.Hero(kind, inventory, current).Title);
+        }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+        catch (Exception) { update = (UpdateKind.Unreachable, UpdateScreen.Hero(UpdateKind.Unreachable, null, null).Title); }
+    }
+
 
     private ConversationEntry OwnerEntry(OwnerProfile? owner) => new(new("owner", false), owner?.Name ?? workspace.OwnerName, "", DateTimeOffset.MinValue, new Bot { Id = "owner", Name = owner?.Name ?? workspace.OwnerName, DisplayName = owner?.Name ?? workspace.OwnerName, Avatar = owner?.Avatar ?? "" }, null);
     private void UpdateProfileRow(OwnerProfile owner) { profileName.Text = owner.Name; profileAvatar.Entry = OwnerEntry(owner); }
@@ -195,20 +334,13 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         catch (Exception) { /* the row keeps the owner name already known to the workspace; the profile page shows the reason */ }
     }
 
-    private void NotificationsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args) { if (args.PropertyName is nameof(INotificationSwitch.Enabled) or nameof(INotificationSwitch.Error)) Dispatcher.UIThread.Post(UpdateNotificationRow); }
-    private void UpdateNotificationRow() => notificationRowText.Text = notifications is null ? "" : notifications.Enabled ? "オン" : "オフ";
-    private void ShowControl(AiControl? value)
-    {
-        control = value;
-        stopRowText.Text = value?.RowText ?? ""; stopRowText.Foreground = value?.State is AiControlState.Stopped or AiControlState.Stopping or AiControlState.Unconfirmed ? SettingsUi.Red : SettingsUi.Secondary;
-        stopRowText.FontWeight = value?.State is AiControlState.Stopped or AiControlState.Stopping ? FontWeight.SemiBold : FontWeight.Normal;
-    }
-    // The list row shows the live state whichever page is open, so it is read once when settings open.
+    private void NotificationsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args) { if (args.PropertyName is nameof(INotificationSwitch.Enabled) or nameof(INotificationSwitch.Error)) Dispatcher.UIThread.Post(RefreshRows); }
+    private void ShowControl(AiControl? value) { control = value; controlUnreadable = false; RefreshRows(); }
     private async Task LoadControlAsync()
     {
-        try { ShowControl((await workspace.Planning.AiControlAsync(Token)).Control); }
-        catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception) { ShowControl(null); }
+        try { control = (await workspace.Planning.AiControlAsync(Token)).Control; controlUnreadable = false; }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+        catch (Exception) { controlUnreadable = control is null; }
     }
 
     private StackPanel NewPage(SettingsPage? page, bool scroll = true)

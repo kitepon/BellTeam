@@ -149,7 +149,7 @@ public sealed partial class SettingsWindow
     private HarnessInstallPanel InstallPanel(HarnessAuthenticationOption harness, HarnessCliInstall install, HarnessAuthenticationApi api, Func<Task> reload, CancellationToken token)
     {
         var panel = new HarnessInstallPanel(api, harness.Id, harness.Name, install, token); var ready = HarnessCliInstall.Ready(install);
-        panel.Changed += next => { if (HarnessCliInstall.Ready(next) == ready) return; ready = !ready; panel.Stop(); _ = reload(); _ = LoadAttentionAsync(); };
+        panel.Changed += next => { if (HarnessCliInstall.Ready(next) == ready) return; ready = !ready; panel.Stop(); _ = reload(); _ = ReloadHomeAsync(); };
         return panel;
     }
 
@@ -176,7 +176,7 @@ public sealed partial class SettingsWindow
         {
             var dialog = new HarnessAuthenticationWindow(workspace, harness, slot: slot); _ = dialog.InitializeAsync();
             if (DialogOwner is { } owner) await dialog.ShowDialog(owner); else dialog.Show();
-            await (afterDialog?.Invoke() ?? ReadStateAsync());
+            await (afterDialog?.Invoke() ?? ReadStateAsync()); _ = ReloadHomeAsync();
         };
         AutomationProperties.SetName(action, slot is null ? harness.Name : harness.Name + " " + AccountText.SlotTitle(slot));
         var holder = new StackPanel { Margin = new Thickness(0, 10, 0, 0) }; holder.Children.Add(row); row.Margin = default;
