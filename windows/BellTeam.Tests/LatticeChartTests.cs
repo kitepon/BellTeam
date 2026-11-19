@@ -440,6 +440,54 @@ public sealed class LatticeChartTests
         finally { LatticeChartPage.View = "tree"; window.Close(); }
     });
 
+    // a457: 過去ログ reads the closed trees' finished cards from the history route when it is opened (first page), then the next page at the list's end; the count needs no request.
+    [Fact]
+    public void HistoryReadsTheClosedTreesWhenOpenedAndMergesThePagesIntoTheList() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("history")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        try
+        {
+            LatticeChartPage.View = "tree";
+            window.Sync(); Until(() => window.ListSettled);
+            window.OpenChart("lattice"); var chart = window.Chart!;
+            Until(() => chart.Feed.Snapshot is not null);
+            var root = (FrameworkElement)window.Content; root.Measure(new Size(1360, 860)); root.Arrange(new Rect(0, 0, 1360, 860)); root.UpdateLayout();
+            List<string> Texts() => LogicalTree.Find<TextBlock>(window.Content).Select(text => text.Text).ToList();
+            Assert.Contains("過去ログ 6", Texts());   // 3 finished cards of the snapshot + history.closed 3, before any page is read
+            chart.SetView("history");
+            Until(() => { root.UpdateLayout(); return LogicalTree.Find<Button>(window.Content).Count(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-history-row") == 6; });
+            var texts = Texts();
+            Assert.Contains("閉じたツリーの最後の確認", texts); Assert.Contains("旧い組込案の取り下げ", texts);   // pages 1 and 2
+            Assert.DoesNotContain(LogicalTree.Find<FrameworkElement>(window.Content), element => System.Windows.Automation.AutomationProperties.GetAutomationId(element) is "lattice-history-loading" or "lattice-history-failed");
+            chart.Stop();
+        }
+        finally { LatticeChartPage.View = "tree"; window.Close(); }
+    });
+
+    [Fact]
+    public void AFailedFirstHistoryPageKeepsTheSnapshotRowsAndShowsAPlainRetryRow() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("history-failed")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        try
+        {
+            LatticeChartPage.View = "tree";
+            window.Sync(); Until(() => window.ListSettled);
+            window.OpenChart("lattice"); var chart = window.Chart!;
+            Until(() => chart.Feed.Snapshot is not null);
+            var root = (FrameworkElement)window.Content; root.Measure(new Size(1360, 860)); root.Arrange(new Rect(0, 0, 1360, 860)); root.UpdateLayout();
+            chart.SetView("history");
+            Until(() => { root.UpdateLayout(); return LogicalTree.Find<TextBlock>(window.Content).Any(text => text.Text == "続きを読めませんでした。"); });
+            Assert.Equal(3, LogicalTree.Find<Button>(window.Content).Count(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-history-row"));
+            Assert.Contains(LogicalTree.Find<Button>(window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-history-retry");
+            chart.Stop();
+        }
+        finally { LatticeChartPage.View = "tree"; window.Close(); }
+    });
+
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void Until(Func<bool> done) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }

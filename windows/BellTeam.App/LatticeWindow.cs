@@ -298,6 +298,10 @@ internal sealed class LatticeChartPage : Grid
     private readonly StackPanel history = new() { Margin = new Thickness(20, 14, 20, 24), Width = 680, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Dictionary<string, FrameworkElement> historyRows = [];
     private readonly Dictionary<string, Border> historyFrames = [];
+    // a457: the closed trees' finished cards, read only while 過去ログ is open and dropped when it is left (README client rules).
+    private readonly LatticeHistoryFeed past = new();
+    private int? seenClosed;
+    private LatticeSnapshot? Shown => Feed.Snapshot is { } snapshot ? past.With(snapshot) : null;
     private readonly ScrollViewer scroller;
     private readonly Grid stage = new();
     // Wraps: when one line does not fit, the progress ring and counters go to a second row (never cut off at the window's edge).
@@ -338,7 +342,7 @@ internal sealed class LatticeChartPage : Grid
         Tree = new LatticeTreeView(window.Avatar);
         Tree.CardOpened += id => OpenDetail(id);
         scroller = new ScrollViewer { Content = View == "tree" ? Tree : Board, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.Both, Padding = new Thickness(0, 4, 0, 0) };
-        scroller.ScrollChanged += (_, e) => Board.ScrolledTo(e.HorizontalOffset);
+        scroller.ScrollChanged += (_, e) => { Board.ScrolledTo(e.HorizontalOffset); if (View == "history" && scroller.ScrollableHeight - scroller.VerticalOffset <= 40) LoadHistory(); };
         // A click on empty canvas clears the member highlight (screen-spec user path).
         scroller.PreviewMouseLeftButtonDown += (_, e) => { if (e.OriginalSource is ScrollViewer or LatticeBoard or LatticeTreeView or ScrollContentPresenter && HighlightedMember is not null) Highlight(null); };
         board.Children.Add(scroller); board.Children.Add(fade);
@@ -361,7 +365,7 @@ internal sealed class LatticeChartPage : Grid
         overlay.Children.Add(stage); overlay.Children.Add(pills);
         SetColumnSpan(detailHost, 1); board.Children.Add(detailHost);
         SetRow(overlay, 2); Children.Add(overlay);
-        Feed.Changed += Render;
+        Feed.Changed += Render; past.Changed += Render;
         Render();
     }
 
@@ -413,7 +417,7 @@ internal sealed class LatticeChartPage : Grid
             // The lanes are laid out in both views: the rail reads its members from them.
             Board.Show(snapshot, Feed.LastDiff, now); Board.Highlight(HighlightedMember); Board.Select(SelectedCard);
             if (View == "tree") { Tree.Show(snapshot, ChartName); Tree.Highlight(HighlightedMember); Tree.Select(SelectedCard); }
-            if (View == "history") RenderHistory(snapshot, now);
+            if (View == "history") { SyncHistory(snapshot); RenderHistory(past.With(snapshot), now); }
             scroller.Content = View switch { "tree" => Tree, "history" => history, _ => Board };
         }
         var live = Feed.Connection == LatticeConnection.Live;
@@ -421,8 +425,8 @@ internal sealed class LatticeChartPage : Grid
         // Reconnecting keeps the last drawing, dimmed; last_verified is a little dimmed too.
         stage.Opacity = !live ? .5 : LatticeChart.Banner(snapshot) is { Dim: true } ? .78 : 1;
         RenderRail(snapshot); RenderWaits(snapshot, now);
-        if (pendingDetail is { } pending) { pendingDetail = null; if (LatticeChart.Detail(snapshot, pending, now) is not null) OpenDetail(pending, morph: false); }
-        if (SelectedCard is { } selected) { if (LatticeChart.Detail(snapshot, selected, now) is null) CloseDetail(); else ShowDetail(selected, false); }
+        if (pendingDetail is { } pending) { pendingDetail = null; if (LatticeChart.Detail(past.With(snapshot), pending, now) is not null) OpenDetail(pending, morph: false); }
+        if (SelectedCard is { } selected) { if (LatticeChart.Detail(past.With(snapshot), selected, now) is null) CloseDetail(); else ShowDetail(selected, false); }
         RenderPills();
     }
 
@@ -465,7 +469,7 @@ internal sealed class LatticeChartPage : Grid
         var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? Color.FromRgb(0x1F, 0x86, 0x76) : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); toolbar.Children.Add(livePill);
         if (snapshot is null or { State: "unavailable" }) return;
-        toolbar.Children.Add(ViewSwitch(LatticeChart.History(snapshot, window.Now()).Count));
+        toolbar.Children.Add(ViewSwitch(LatticeChart.HistoryCount(snapshot)));
         var counts = LatticeChart.Counts(snapshot);
         var progress = Row(new LatticeRing(counts.Done, counts.Total, 40),
             Spaced(new StackPanel { Children = { Text("完了", 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8),
@@ -494,6 +498,7 @@ internal sealed class LatticeChartPage : Grid
     internal void SetView(string view)
     {
         if (View == view) return;
+        if (View == "history") { past.Reset(); seenClosed = null; }   // nothing is kept across opens (README client rule 8)
         View = view; Render();
         if (SelectedCard is { } selected) { scroller.UpdateLayout(); ScrollToCard(selected); }
     }
@@ -503,7 +508,7 @@ internal sealed class LatticeChartPage : Grid
     {
         history.Children.Clear(); historyRows.Clear(); historyFrames.Clear();
         var log = LatticeChart.History(snapshot, now);
-        if (log.Count == 0) { var none = Text("まだ終わった工程はありません。", 14, Muted); none.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(none); return; }
+        if (log.Count == 0 && !past.Loading && !past.Failed) { var none = Text("まだ終わった工程はありません。", 14, Muted); none.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(none); return; }
         foreach (var group in log.Groups)
         {
             var heading = Text(group.Heading, 12.5, Muted, FontWeights.SemiBold); heading.Margin = new Thickness(4, 10, 0, 8); history.Children.Add(heading);
@@ -522,12 +527,43 @@ internal sealed class LatticeChartPage : Grid
                 historyRows[id] = button; historyFrames[id] = frame; history.Children.Add(button);
             }
         }
+        HistoryFooter();
         ApplyHistory();
+    }
+    /// <summary>The list ends with a spinner row while a page is read, or 「続きを読めませんでした。」 with 読み直す (the feed asks again after 1, 2, 4 … 30 s on its own); the rows above stay.</summary>
+    private void HistoryFooter()
+    {
+        if (past.Failed)
+        {
+            var note = Text("続きを読めませんでした。", 13, Muted); System.Windows.Automation.AutomationProperties.SetAutomationId(note, "lattice-history-failed");
+            var again = Action("読み直す", ""); again.Margin = new Thickness(14, 0, 0, 0); again.Click += (_, _) => past.Retry();
+            System.Windows.Automation.AutomationProperties.SetAutomationId(again, "lattice-history-retry");
+            var soon = Text("しばらくしてまた読み直します。", 12, Muted); soon.Margin = new Thickness(0, 4, 0, 0);
+            history.Children.Add(new StackPanel { Margin = new Thickness(4, 10, 0, 0), Children = { Row(note, again), soon } });
+        }
+        else if (past.Loading)
+        {
+            var loading = Row(Spinner(14), Spaced(Text("読み込んでいます…", 12.5, Muted), 8)); loading.Margin = new Thickness(4, 10, 0, 0);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(loading, "lattice-history-loading"); history.Children.Add(loading);
+        }
+    }
+    /// <summary>Not pushed (README client rule 5): when history.closed changes while 過去ログ is open the pages are dropped and the first one is read again. The first page is asked when 過去ログ is drawn; the next ones when the list scrolls to its end.</summary>
+    private void SyncHistory(LatticeSnapshot snapshot)
+    {
+        var closed = snapshot.History?.Closed ?? 0;
+        if (seenClosed != closed) { if (seenClosed is not null && past.ClosedAtLoad is { } read && read != closed) past.Reset(); seenClosed = closed; }
+        if (!past.Opened) LoadHistory();
+    }
+    // Posted, so a page that answers at once never redraws inside a draw; the feed ignores a call while it reads.
+    private void LoadHistory()
+    {
+        if (api is not { } source || run is not { } running) return;
+        Dispatcher.BeginInvoke(new Action(() => _ = past.LoadAsync((before, token) => source.LatticeHistoryAsync(projectId, before, token), running.Token)));
     }
     /// <summary>The selected card's ring and the member highlight on 過去ログ rows, as the tree and the lanes show them.</summary>
     private void ApplyHistory()
     {
-        var on = HighlightedMember is { } member && Feed.Snapshot is { } snapshot ? LatticeChart.Highlight(snapshot, member).Cards : null;
+        var on = HighlightedMember is { } member && Shown is { } snapshot ? LatticeChart.Highlight(snapshot, member).Cards : null;
         foreach (var (id, row) in historyRows)
         {
             row.Opacity = on is not null && !on.Contains(id) ? .28 : 1;
@@ -707,7 +743,7 @@ internal sealed class LatticeChartPage : Grid
     }
     private void ShowDetail(string cardId, bool morph)
     {
-        if (Feed.Snapshot is not { } snapshot || LatticeChart.Detail(snapshot, cardId, window.Now()) is not { } detail) return;
+        if (Shown is not { } snapshot || LatticeChart.Detail(snapshot, cardId, window.Now()) is not { } detail) return;
         var accent = detail.Producer is { Known: true } ? Accent(detail.Producer.Color) : Violet;
         var body = new StackPanel();
         var head = new DockPanel();

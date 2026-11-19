@@ -21,6 +21,19 @@ namespace BellTeam.App;
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
     private static readonly (string Id, string Name, string Color)[] Members = [("bot-trony", "トロニー", "indigo"), ("bot-molly", "モリー", "mint"), ("bot-kiro", "キロ", "sky"), ("bot-admi", "アドミ", "amber"), ("bot-rapi", "ラピ", "rose"), ("bot-flora", "フローラ", "violet")];
+    // 「history」 scenes (a457): the snapshot says history.closed and GET .../history serves these finished cards of closed trees in pages of two (cursor "h1.2" = the second page); history-failed answers 503 for the first page.
+    private static readonly (string Id, string Title, string Producer, int DaysAgo)[] ClosedCards = [("c01", "閉じたツリーの最後の確認", "bot-flora", 2), ("c02", "古い設計メモの整理", "bot-admi", 3), ("c03", "旧い組込案の取り下げ", "bot-kiro", 9)];
+    private object HistoryPage(string? before, Func<object, HttpStatusCode, HttpResponseMessage> json)
+    {
+        var skip = before == "h1.2" ? 2 : 0; var cards = ClosedCards.Skip(skip).Take(2).ToArray();
+        return new
+        {
+            schema = "bellteam.lattice-history.v1", projectId = "lattice", at = Ago(0), state = "verified", closed = ClosedCards.Length,
+            members = Members.Where(member => cards.Any(card => card.Producer == member.Id)).Select(member => new { botId = member.Id, name = member.Name, color = member.Color, avatarVersion = "" }),
+            cards = cards.Select(card => new { id = $"p0/{card.Id}", plan = "p0", taskId = card.Id, title = card.Title, state = "done", lane = "x", producer = card.Producer, startedAt = Ago(card.DaysAgo * 1440 + 60), changedAt = Ago(card.DaysAgo * 1440), blockedReason = (string?)null, depth = 0, phase = (string?)null, parent = (string?)null, doneAt = Ago(card.DaysAgo * 1440), archived = true, counted = false, connections = Array.Empty<object>() }),
+            next = skip == 0 ? "h1.2" : null
+        };
+    }
     private static readonly string[][] Edges = [["t01", "t07"], ["t02", "t04"], ["t04", "t08"], ["t05", "t08"], ["t07", "t08"], ["t08", "t09"], ["t06", "t10"], ["t09", "t11"], ["t10", "t11"]];
     private static readonly (string Id, string? Title, string[] Tasks)[] Phases = [("ph1", "下調べ", ["t01", "t02", "t03"]), ("ph2", "部品", ["t04", "t05", "t06", "t07", "t08"]), ("ph3", null, ["t09", "t10"])];
     private static readonly Dictionary<string, int> Since = new() { ["t06"] = 52, ["t04"] = 41, ["t07"] = 36, ["t05"] = 24, ["t08"] = 18, ["t09"] = 6, ["t10"] = 3 };
@@ -69,6 +82,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             schema = "bellteam.lattice-chart.v1", epoch = "fixture", version = 1, at = Ago(0), projectId, name = name.Name, createdBy = name.CreatedBy, coordinator = projectId == "lattice",
             state = State, verifiedAt = Ago(State == "last_verified" ? 46 : 0), degraded = scene == "degraded" ? new[] { "lattice-read", "members" } : [],
             members = Members.Where(member => referenced.Contains(member.Id)).Select(member => new { botId = member.Id, name = member.Name, color = member.Color, avatarVersion = "" }),
+            history = scene.StartsWith("history", StringComparison.Ordinal) ? new { closed = ClosedCards.Length } : null,
             cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), externals
         };
     }
@@ -127,6 +141,8 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             "/api/approvals/by-task" when scene == "owner" && request.RequestUri.Query.Contains("task=t11") => Json(new { decisionId = "K-FIXTUR", status = "pending", title = "3画面の受け取りを承認しますか" }),
             "/api/lattice/charts" => Json(new { schema = "bellteam.lattice-charts.v1", at = Ago(0), charts = scene == "single" ? Charts().Take(1) : Charts() }),
             _ when path.EndsWith("/messages", StringComparison.Ordinal) => Json(new { items = Array.Empty<object>(), hasMore = false }),
+            _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/history", StringComparison.Ordinal) && scene.StartsWith("history", StringComparison.Ordinal) =>
+                scene == "history-failed" && !request.RequestUri.Query.Contains("before=") ? Json(new { error = "LATTICE_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable) : Json(HistoryPage(Uri.UnescapeDataString(request.RequestUri.Query).Split("before=") is [_, var cursor] ? cursor : null, Json)),
             _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/events", StringComparison.Ordinal) => Events(Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/events".Length]), Json),
             _ => Json(new { error = "NOT_FOUND" }, HttpStatusCode.NotFound)
         };
