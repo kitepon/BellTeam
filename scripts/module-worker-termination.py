@@ -281,7 +281,8 @@ class Switch:
             self.log('dry_run'); return
         with contextlib.ExitStack() as locks:
             locks.enter_context(h.locked(u.state/'worker.lock'))
-            locks.enter_context(h.locked(u.state/'ledger.lock'))
+            # Ledger readers (job/status reads for GET /api/updates) hold it for milliseconds while the old body serves; wait, never fail the swap on them (a114f).
+            locks.enter_context(h.locked(u.state/'ledger.lock',wait=True))
             h.check(original_operations == {p.name:hashlib.sha256((p/'operation.json').read_bytes()).hexdigest() for p in operations.iterdir()}, 'HOST_MODULE_ORIGINAL_CHANGED',409)
             if not pending:
                 self.service(self.inspect(cid),cid)

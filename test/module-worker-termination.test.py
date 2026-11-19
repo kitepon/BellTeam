@@ -88,6 +88,17 @@ class WorkerBridge(unittest.TestCase):
         self.assertFalse(any(a[:2]==['container','stop'] for a in self.actions))
         self.assertFalse((self.directory/'worker-termination-prepare.json').exists());self.assert_original_untouched()
 
+    def test_bridge_waits_for_a_short_ledger_reader_instead_of_refusing(self):
+        # Production Z114 (a114f): a GET /api/updates ledger read at the same instant failed the whole body swap.
+        import threading,time
+        held,release=threading.Event(),threading.Event()
+        def reader():
+            with host.locked(self.updater.state/'ledger.lock'):held.set();release.wait(5)
+        t=threading.Thread(target=reader);t.start();held.wait(5)
+        threading.Timer(0.3,release.set).start()
+        started=time.monotonic();self.bridge_success()
+        self.assertGreaterEqual(time.monotonic()-started,0.25);t.join(5)
+
     def test_bridge_lost_stop_is_read_only_no_new_prepare_or_stop(self):
         self.fail='stop'
         with self.assertRaises(TimeoutError):self.switch.switch()

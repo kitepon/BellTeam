@@ -64,7 +64,7 @@ Real bundled swap in CI (Trony 2026-11-10; one job, no matrix): `publish-server-
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Terminated: termination helper removes old module-installer
+  [*] --> Terminated: termination helper removes old module-installer (waits for a short module ledger reader, a114f)
   Terminated --> Starting: compose up --wait (target body, deadline 300s)
   Starting --> Healthy: /healthz 200 (boot = Bot setup.sh restore + parent start)
   Starting --> Failed: still starting at 300s (healthcheck start_period covers the same 300s)
