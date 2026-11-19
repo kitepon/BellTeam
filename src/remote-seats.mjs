@@ -277,6 +277,15 @@ export class RemoteSeats {
     return held
   }
 
+  // a442b: the launch fell back to no Code Mode (remote-seat.md "Code Mode for every Claude seat"). Information only: it names the
+  // machine and the one step; the next launch's `launched()` clears it and that launch tries Code Mode again.
+  codeModeSkipped(bot, code) {
+    const action = code === 'REMOTE_AITERM_TOO_OLD'
+      ? `端末 ${bot.terminalId} のAitermを0.70.76以上に更新するとCode Modeで起動します`
+      : `端末 ${bot.terminalId} でClaudeのCode Modeの確認画面に一度答えるとCode Modeで起動します`
+    this.notice(bot, { code: 'CODE_MODE_SKIPPED', action })
+  }
+
   revoke(sessionName) { return Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {}) }
 
   wait({ id, terminalId }) {

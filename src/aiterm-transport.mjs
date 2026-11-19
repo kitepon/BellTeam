@@ -54,6 +54,24 @@ const resumeRefusal = error => {
   const code = error.code ?? /^(?:aiterm: )?([A-Z][A-Z0-9_]+):/u.exec(String(error.message ?? ''))?.[1]
   return RESUME_REFUSALS.has(code) ? code : null
 }
+// a442b (remote-seat.md "Code Mode for every Claude seat"): every claude-code launch asks for Code Mode through Aiterm's settings_env.
+const CODE_MODE_ENV = Object.freeze({ CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' })
+const codeMode = harness => harness === 'claude-code' ? { settings_env: CODE_MODE_ENV } : {}
+// A terminal Aiterm below 0.70.76, or Code Mode's first-start confirm that Aiterm ends by closing the seat it made: the seat starts without it.
+const codeModeRefusal = error => ['REMOTE_AITERM_TOO_OLD', 'AGENT_STARTUP_BLOCKED']
+  .find(name => [error?.code, error?.aitermErrorCode, error?.launchRefusal?.code].includes(name) || String(error?.message ?? '').includes(name)) ?? null
+// One more launch without settings_env, never a loop; `skipped(name)` tells the caller which refusal it was.
+async function launchWithCodeMode(args, call, skipped = () => {}) {
+  try { return await call(args) } catch (error) {
+    const name = args.settings_env ? codeModeRefusal(error) : null
+    if (!name) throw error
+    process.stderr.write(`BellTeam Aiterm: Code Mode refused (${name}), launching without it: ${args.session_name}\n`)
+    const { settings_env, ...plain } = args
+    const launched = await call(plain)
+    skipped(name)
+    return launched
+  }
+}
 const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'unknown', 'vanished'])
 // 起こした直後の席へ同じ文を送る回数の上限（sendToWokenSession）。
 const WOKEN_SEND_ATTEMPTS = 3
@@ -367,6 +385,7 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
+        ...codeMode(harness),
       }
       // remote-seat.md (one launch path): a member bound to a terminal gets the terminal target, its folder, the launch context
       // and the seat MCP config on the same agent_launch; the existing checkpoint reruns after that async preparation.
@@ -382,8 +401,10 @@ export class AitermTransport {
         admissionCheck?.()
       }
       issuedLaunch = true
-      const launchWith = args => this.changeSession(bot, 'agent_launch', args, { ...launchOptions,
-        ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) })
+      let codeModeSkipped = null
+      const launchWith = args => launchWithCodeMode(args, plain => this.changeSession(bot, 'agent_launch', plain, { ...launchOptions,
+        ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) }),
+        name => { codeModeSkipped = name })
       try { launch = await launchWith(launchArgs) } catch (error) {
         // delivery-details.md (a67): a launch that met a hibernated record of the same name whose resume Aiterm refused
         // (it answered) closes that record and starts fresh once; reached by every wake, also when the record was not observed.
@@ -421,6 +442,7 @@ export class AitermTransport {
         }
       }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
+      if (remote && codeModeSkipped) this.remoteSeats.codeModeSkipped(bot, codeModeSkipped)
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
@@ -1766,7 +1788,7 @@ export class AitermTransport {
       // cwd = the main's folder: Aiterm accepts the same real path, the seat launcher requires it.
       // fork.md: the same saved model/effort as a main launch, so an opusplan Bot's fork also runs Opus in plan mode.
       let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId },
-        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}) }
+        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}), ...codeMode(harness) }
       if (isRemoteBot(bot)) {
         if (!this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
         remote = await this.remoteSeats.prepare(bot, args, { shortTermMemory: '', context: {}, slot, harness, kind: 'fork' })
@@ -1775,8 +1797,8 @@ export class AitermTransport {
       }
       check()
       issued = true
-      const launch = await this.client.call('agent_launch', args, { ...launchOptions,
-        ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}) })
+      const launch = await launchWithCodeMode(args, plain => this.client.call('agent_launch', plain, { ...launchOptions,
+        ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}) }))
       receipt = launch?.structuredContent
       // Protects the project folder: only a launch Aiterm proved write-banned counts as a fork.
       if (!receipt?.fork_of?.write_ban || !receipt.wait_process) throw forkUnavailable()
