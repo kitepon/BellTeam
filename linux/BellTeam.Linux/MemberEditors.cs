@@ -76,7 +76,7 @@ public sealed class ModelPicker : Border
     internal string InstallText => installLine.Text ?? "";
     private void ShowInstall()
     {
-        var shown = installs.GetValueOrDefault(selection.Harness) is { NeedsAttention: true } install ? install : null;
+        var shown = installs.GetValueOrDefault(selection.Harness) is { CannotRun: true } install ? install : null;
         installLine.Text = shown?.Message ?? ""; card.SetVisible(installRow, !loading && shown is not null);
     }
     private void ShowRows()
