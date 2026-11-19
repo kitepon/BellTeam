@@ -20,20 +20,22 @@ internal static class SettingsRender
         return model;
     }
 
-    // --render-page <settings|settings-lower|settings-<page>|onepassword-<scene>> <URL> <PNG>
+    // --render-page <settings|settings-<page>|onepassword-<scene>>[-lower] <URL> <PNG>
     public static async Task PageAsync(string kind, string address, string output)
     {
         using var model = await ConnectAsync(address);
         var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false };
         window.Show();
-        if (kind is "settings" or "settings-lower") window.ShowSettings();
+        // "<page>-lower" shows the page scrolled to its end (the AI rows below Claude).
+        var lower = kind.EndsWith("-lower", StringComparison.Ordinal); if (lower) kind = kind[..^"-lower".Length];
+        if (kind is "settings") window.ShowSettings();
         else if (kind.StartsWith("settings-", StringComparison.Ordinal) && Enum.TryParse<SettingsPage>(kind["settings-".Length..], ignoreCase: true, out var page)) window.ShowSettings(page);
         else if (kind.StartsWith("onepassword-", StringComparison.Ordinal)) window.ShowSettings(SettingsPage.Features);
         else throw new ArgumentException("未対応のページです。" + Launcher.Usage);
         await window.PageReady;
         if (kind.StartsWith("onepassword-", StringComparison.Ordinal)) await (window.SettingsPageWindow ?? throw new BellApiException("設定を開けませんでした。")).OpenOnePasswordForRender(kind["onepassword-".Length..]);
         await window.SettingsPageWindow!.ReadyTask;
-        await window.PrepareRenderAsync(bottomOfPage: kind == "settings-lower");
+        await window.PrepareRenderAsync(bottomOfPage: lower);
         Launcher.WritePng(window, output); window.Close();
     }
 
