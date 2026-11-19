@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T17:56:07Z",
-  "expiresAt": "2026-11-26T17:56:07Z",
+  "publishedAt": "2026-11-19T18:11:34Z",
+  "expiresAt": "2026-11-26T18:11:34Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b",
-      "versionId": "sha256:0690dd0f8e82d6b4ec23c7a6af8947f4431afe98226b7a8938263d8507418b91",
+      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
+      "versionId": "sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0690dd0f8e82d6b4ec23c7a6af8947f4431afe98226b7a8938263d8507418b91"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,22 +730,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の AI に使わせる Aiterm を 0.70.80 にしました。すでにターンを動かしている Claude の席を再開しても、正しく再開できます。",
-        "メモリが足りなくなった時に、本体の Aiterm の実行サーバーが真っ先に止められないようにしました。席の AI が応答しなくなることが減ります。",
-        "席から使うコード調査用の lattice-mcp を、Lattice 0.113.1 にしました。"
+        "モジュールとの通信を閉じる時に、本体のプロセスが突然止まることがある問題を直しました。",
+        "席から使うコード調査用の lattice-mcp を、Lattice 0.113.2 にしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b",
-      "versionId": "sha256:0690dd0f8e82d6b4ec23c7a6af8947f4431afe98226b7a8938263d8507418b91",
+      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
+      "versionId": "sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0690dd0f8e82d6b4ec23c7a6af8947f4431afe98226b7a8938263d8507418b91"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89cb71648fd057632f0477332d7c2b0f91d293f1c44a9d6faaf55bfc54387a1e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -754,9 +753,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の AI に使わせる Aiterm を 0.70.80 にしました。すでにターンを動かしている Claude の席を再開しても、正しく再開できます。",
-        "メモリが足りなくなった時に、本体の Aiterm の実行サーバーが真っ先に止められないようにしました。席の AI が応答しなくなることが減ります。",
-        "席から使うコード調査用の lattice-mcp を、Lattice 0.113.1 にしました。"
+        "モジュールとの通信を閉じる時に、本体のプロセスが突然止まることがある問題を直しました。",
+        "席から使うコード調査用の lattice-mcp を、Lattice 0.113.2 にしました。"
       ]
     },
     {
