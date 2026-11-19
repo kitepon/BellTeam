@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T00:38:20Z",
-  "expiresAt": "2026-11-26T00:38:20Z",
+  "publishedAt": "2026-11-19T01:32:15Z",
+  "expiresAt": "2026-11-26T01:32:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
-      "versionId": "f15ab893ad8d7051edb6cfdeb3fef83f85077e1b241961b19446f1e8982294c8",
+      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
+      "versionId": "981d20c95fdfa5814bd62a12895c6cd7c2cc29412049db4dbb9095dd16b02f5b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-amd64.tar.gz",
-          "bytes": 3987446,
-          "sha256": "f15ab893ad8d7051edb6cfdeb3fef83f85077e1b241961b19446f1e8982294c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-amd64.tar.gz",
+          "bytes": 3987787,
+          "sha256": "981d20c95fdfa5814bd62a12895c6cd7c2cc29412049db4dbb9095dd16b02f5b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "70a1e30675f3196bd5c7e317ab5c3a6f411d53826cf89183d10495cb20106f11"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "43bf9cc63beea820fcb9ad7996249bce1d8ce8b61e83891f2e00acfea39189dd"
         },
-        "signerCommit": "48337e6a67d66864c878a6f606b795d2183107af"
+        "signerCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
+        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
-      "versionId": "857c879b2ffc72f8969ff7e5aabd8a217766eee40e36edef0f848b0b522aed7b",
+      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
+      "versionId": "4bb2a06296b51dac9541c475beb67b9095f80ce04d32916cd9066ce912f4989a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-arm64.tar.gz",
-          "bytes": 3987446,
-          "sha256": "857c879b2ffc72f8969ff7e5aabd8a217766eee40e36edef0f848b0b522aed7b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-arm64.tar.gz",
+          "bytes": 3987787,
+          "sha256": "4bb2a06296b51dac9541c475beb67b9095f80ce04d32916cd9066ce912f4989a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T003753Z/execution-48337e6a67d66864c878a6f606b795d2183107af-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "ba2c6b9f375233ca6c2cb5afa9a7f6d2076c985d7c18c3612419e0daa68c6082"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T013156Z/execution-47da434da0fbe5df456a6155fb732108ff77f6b6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "49bd28123fe6567fa96f6d0c6a6aa03d3caf735a87c4b4b8de975bf469ecfe73"
         },
-        "signerCommit": "48337e6a67d66864c878a6f606b795d2183107af"
+        "signerCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
+        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
-      "versionId": "sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b",
+      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
+      "versionId": "sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,21 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。",
-        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
+        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "48337e6a67d66864c878a6f606b795d2183107af",
-      "versionId": "sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b",
+      "sourceCommit": "47da434da0fbe5df456a6155fb732108ff77f6b6",
+      "versionId": "sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3fb70289ad07396f8a7baeb1ead03e47edef385fd96f097b754359f68a851a1b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a208db64fbd01541418b3e8d9224b27220964e18f031033ff78f3b5cd136452c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -749,8 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。",
-        "リモートの端末で agent_launch が 60 秒の上限に当たった時、席を閉じず、認証も残したまま待ち状態（TERMINAL_UNRESPONSIVE）にしました。端末が応答したら到達できないという通知を消します。待ちに失敗した時は、AITERM_TURN_ の記号ではなく、ふつうの文を会話に出します。"
+        "席を使っていない間の外の端末が応答しない時、生きている席を閉じずに残すようにしました（Anchor の NOT_COMPLETE への対応）。"
       ]
     },
     {
