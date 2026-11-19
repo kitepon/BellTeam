@@ -19,6 +19,8 @@ for (const code of [
 for (const code of ['BOT_NOT_FOUND', 'ROOM_NOT_FOUND', 'SCHEDULE_NOT_FOUND', 'TERMINAL_NOT_FOUND']) statuses.set(code, 404)
 // S5 folder refusals (remote-seat.md): the save is refused, the screen offers createFolder.
 for (const code of ['FOLDER_MISSING', 'FOLDER_NOT_DIRECTORY', 'FOLDER_NOT_WRITABLE', 'FOLDER_NOT_PERMITTED']) statuses.set(code, 409)
+// a451: a CLI that is not installed is a plain notice for the user (cli-not-installed.md), not a server fault.
+statuses.set('HARNESS_NOT_INSTALLED', 409)
 for (const code of ['BOT_UPDATE_CONFLICT', 'BOT_UPDATE_RETIRED', 'USER_RULES_CHANGED', 'SCHEDULE_AFTER_TURN_REPLACE_REQUIRED']) statuses.set(code, 409)
 for (const code of ['BOT_PROFILE_INVALID', 'BOT_DELETE_RECORD_INVALID', 'SCHEDULE_FILE_INVALID', 'OWNER_PROFILE_FILE_INVALID',
   'BOT_STATE_UNINITIALIZED', 'BOT_STATE_MIGRATION_REQUIRED', 'BOT_STATE_ROOT_INVALID', 'MODEL_CATALOG_INVALID', 'MODEL_CATALOG_UNAVAILABLE',

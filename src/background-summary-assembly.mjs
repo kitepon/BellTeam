@@ -2,8 +2,8 @@ import { TeamBackgroundSummary } from './team-background-summary.mjs'
 import { createBackgroundSummaryRunner } from './background-summary-runner.mjs'
 
 // The parent retains authority and actual read completion; only the seven input fields cross IPC.
-export function createTeamBackgroundSummary({ project, settings, models, conversation, notify, enabled,
-  run = (...args) => createBackgroundSummaryRunner({ project, models })(...args) }) {
+export function createTeamBackgroundSummary({ project, settings, models, conversation, notify, enabled, harnessCli = null,
+  run = (...args) => createBackgroundSummaryRunner({ project, models, harnessCli })(...args) }) {
   return new TeamBackgroundSummary({
     configuration: () => settings.backgroundAgentConfiguration(),
     readInput: async (input, authority) => {

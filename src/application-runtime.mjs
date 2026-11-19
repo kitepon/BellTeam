@@ -22,7 +22,7 @@ const AFTER_LISTEN_READY_MS = 60_000, SHUTDOWN_SIGNAL_MS = 10_000
 export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client, quiesceSocket = null }) {
   let socketDirectory = null, gateway = null, quiesceEndpoint = null, server
   const builtinSourceCommit = await readServerSourceCommit()
-  const models = bootstrap.models ?? new LiveModelCatalog({ cwd: root })
+  const models = bootstrap.models ?? new LiveModelCatalog({ cwd: root, harnessCli: () => bootstrap.usageAssembly?.harnessCli ?? null })
   const services = await createApplicationServices({ root, ...bootstrap, models, environment, client, gateway: () => gateway, builtinSourceCommit, notify: change => server?.notify(change) })
   const {
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,

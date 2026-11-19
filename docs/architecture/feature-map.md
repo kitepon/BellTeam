@@ -38,6 +38,7 @@ flowchart LR
   m_conversation -->|"fork"| m_execution
   m_diagnostics -->|"module-runner"| m_runtime
   m_distribution -->|"update"| m_runtime
+  m_execution -->|"harnessCli (installed, watch)"| m_usage
   m_execution -->|"diagnostics"| m_integration
   m_execution -->|"registry"| m_members
   m_execution -->|"seat-process"| m_runtime
@@ -198,7 +199,7 @@ flowchart LR
 | [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / trust / folder / privilege / maintenance |
 | [testgate](modules/testgate/README.md) | シラツル | registration v1 (item in RTK harness-entries.json) |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context CLI / storage: THROUGHLINE_HOME, locate, export |
-| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |
+| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets / harnessCli (installed, watch) |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | アニス | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |

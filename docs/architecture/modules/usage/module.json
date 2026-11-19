@@ -8,7 +8,8 @@
     "settings",
     "notify",
     "auth",
-    "secrets"
+    "secrets",
+    "harnessCli (installed, watch)"
   ],
   "uses": [
     {

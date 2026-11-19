@@ -1,26 +1,32 @@
 // ハーネス固有の取得・モデルID・エフォートの変換はAitermが所有する。
 // BellTeamは編集時と設定変更時に実行環境の一覧を取得し、永続化・再試行はしない。
 import { AitermClient } from './aiterm-client.mjs'
+import { harnessCliWait, HARNESS_NOT_INSTALLED } from './harness-cli-wait.mjs'
 
 const HARNESSES = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
 
 export class ModelCatalogError extends Error {
   constructor(code, harness, detail) {
-    super(`${harness}のモデル一覧を取得できません（${detail}）`)
+    super(code === HARNESS_NOT_INSTALLED ? detail : `${harness}のモデル一覧を取得できません（${detail}）`)
     this.code = code
     this.harness = harness
   }
 }
 
 export class LiveModelCatalog {
-  constructor({ client = () => new AitermClient(), cwd = process.env.BELLTEAM_ROOT ?? process.cwd() } = {}) {
+  // harnessCli: usage's window or a function returning it (a451, cli-not-installed.md N6); null reads every CLI as installed.
+  constructor({ client = () => new AitermClient(), cwd = process.env.BELLTEAM_ROOT ?? process.cwd(), harnessCli = null } = {}) {
     this.client = client
+    this.harnessCli = harnessCli
     this.cwd = cwd
   }
 
   async forHarness(harness) {
     const kind = HARNESSES[harness]
     if (!Object.hasOwn(HARNESSES, harness)) throw new ModelCatalogError('MODEL_HARNESS_INVALID', harness, '未対応のCLIです')
+    // a451: 入っていないCLIの一覧は取れない。失敗ではなく、入れる案内を返す（BugHubへ出さない）。
+    const wait = harnessCliWait(typeof this.harnessCli === 'function' ? this.harnessCli() : this.harnessCli, harness)
+    if (wait) throw new ModelCatalogError(HARNESS_NOT_INSTALLED, harness, wait.notice ?? '確かめています')
     // CLIの一覧取得で会話・配送用のMCP接続を待たせないよう、短命の接続を使う。
     const client = this.client()
     try {
