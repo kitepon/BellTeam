@@ -56,7 +56,7 @@ BellTeam本体だけが使う合鍵（`BELLTEAM_BUGHUB_KEY`）は、席の環境
 
 AI CLI（Claude Code・Codex・Grok・Cursor）は、利用者が入れた物を全席で使う（a451、2026-11-19）。置き場はコンテナの `/home/bell/.local`（volume `cursor-cli`、本体・部品の更新で消えず、PATHの先頭）で、AIの認証の「最新版を入れる」だけがそこへ書く。席は入れず、席ごとの `.local` の写しの掃除も置き場には触らない。詳しくは[利用者が入れたAI CLIの置き場](architecture/modules/runtime/user-cli-place.md)。第1の列車の間は、imageにも同梱が残り、置き場の物がPATH順で先に使われる。
 
-Claude Codeはコンテナに入っている物を全席で使う。席の環境には `DISABLE_AUTOUPDATER=1` が入り、Claude Codeは席で自分を更新しない（更新すると `npm install -g` で自分の `.local` に写しが出来て、席ごとに版がずれる）。自分の `.local` に残っているClaude Codeの写し（`lib/node_modules/@anthropic-ai/claude-code` と、それを指す `bin/claude`）は、コンテナ起動時にBellTeamが片付ける。版は、ほかのCLIと同じく反映の時に変わる。
+Claude Codeは、利用者が入れた物（上の置き場）を全席で使う。image（a451の第2列車以後）にはClaude Codeは入っていない。席の環境には `DISABLE_AUTOUPDATER=1` が入り、Claude Codeは席で自分を更新しない（更新すると `npm install -g` で自分の `.local` に写しが出来て、席ごとに版がずれる）。自分の `.local` に残っているClaude Codeの写し（`lib/node_modules/@anthropic-ai/claude-code` と、それを指す `bin/claude`）は、コンテナ起動時にBellTeamが片付ける。版は、ほかのCLIと同じく反映の時に変わる。
 
 追加の設定は `environment/env.sh` に書く。例えば前述のPython環境を使う場合は次のようにする。
 

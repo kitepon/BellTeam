@@ -39,7 +39,7 @@ flowchart TD
 | writer確認 | `assert-state-writers-stopped.sh → stateWriterPlan/Volumes/Sources/assertStateWritersStopped` | 全containerの稼働/restart policyとRW mount、volume実体、canonical pathを比較。Hostユーザーからobserved bind/deviceが不可視なら、同固定imageの短命metadata readerでdaemon rootをRO mountし、全pathをそのroot内で再解決する。絶対symlinkもdaemon root内で辿り、既存observedの欠測/danglingは拒否、plannedだけ未作成末尾を許す。capabilityはDAC_READ_SEARCHだけ、networkなし・rootfs RO・no-new-privileges。Host chmod/sudo/daemon設定変更は要求しない。通常のHost解決が可能なら既経路を使う。Docker socketはreaderへ渡さず、env/資格内容を証拠へ複製しない |
 | writerの限界 | `participates/volumePaths` | stoppedContainerのunless-stoppedだけを特例扱い。未知driver/metadata/aliasは成功へしない。snapshotだけでは保守中の新writerを防げないためlock/data sealと組合せる |
 | maintenance | `compose.state-maintenance.json` | networkなし、固定entry、private rootの排他flock、runtimeとprivate volumeだけ。root処理はこのオフライン保守が所有 |
-| Cursor更新 | `update-cursor.sh → cursor-update-entrypoint.sh` | normalized project/volume名で使い捨てcontainer。空envの固定入口から公式update。BellTeam本体の環境や資格fileを読み出さない |
+| Cursor更新 | `update-cursor.sh → cursor-update-entrypoint.sh` | normalized project/volume名で使い捨てcontainer。a451の第2列車以後、固定入口は何もしない（imageにCursorは無く、置き場の書き手は「最新版を入れる」だけ）。段はinstallerの形のまま残す |
 | cleanup | installerのtrap | 一時staging/probeを除く。停止を試みる段階以後は保存世代を消さない。自動的に別imageを起こすrollbackはない |
 
 同梱moduleのモデル生成・状態所有・能力分離は[同梱プログラム](module-installer.md)が正本。normalのsocket親は同project named volumeのRO、専用serviceだけ同private volumeをRWで使う。通常の保守前に当該serviceを停止・除去し、保守後は通常本体のhealth成立から専用serviceのhealthを待つ。古いimageに同梱entryが無い場合は固定codeを表示し、本体導入を維持する。既Host overlayを明示採用しているmodelはそのsocketを保持する。
