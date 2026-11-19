@@ -1,8 +1,8 @@
 import { DurableMessageReceipts } from './durable-message-receipts.mjs'
 import { directEnvelope, userEnvelope } from './messenger.mjs'
 import { normalInputPending } from './conversation-channel.mjs'
-import { diagnosticCauseCodes } from './diagnostic-report-context.mjs'
-import { mcpRequestContext } from './mcp-request-context.mjs'
+import { diagnosticCauseCodes, failureCode } from './diagnostic-report-context.mjs'
+import { mcpRequestContext, sendOutcomeUnknown } from './mcp-request-context.mjs'
 import { returnedExecutionError } from './execution-error.mjs'
 
 const directFailureCodes = new Set([...diagnosticCauseCodes,
@@ -21,6 +21,8 @@ const AWAITING_REVIEW_MS = 60_000
 // Accepted-then-lost keeps the original code, so its records, counts and history stay.
 function stageCode(error, context) {
   if (context?.accepted === true) return 'SERVER_TURN_TRACKING_FAILED'
+  // a444n (BugHub b740c850): the words may already be in the CLI and the receipt ends unknown, not resent: not a send failure.
+  if (context?.outcome === 'unknown') return 'SERVER_DELIVERY_OUTCOME_UNKNOWN'
   if (context?.stage === 'preflight') return 'SERVER_DELIVERY_PREFLIGHT_FAILED'
   if (error?.code === 'BOT_LAUNCH_FAILED') return 'SERVER_DELIVERY_LAUNCH_FAILED'
   if (error?.code === 'BOT_SEND_FAILED') return 'SERVER_DELIVERY_SEND_FAILED'
@@ -36,7 +38,7 @@ export function directFailureReport(error, context) {
     delivery_id: /^[a-f0-9-]{36}$/u.test(context?.delivery_id ?? '') ? context.delivery_id : null,
     target: /^bot-[a-z0-9_-]{1,64}$/u.test(context?.target ?? '') ? context.target : null,
     stage: ['status', 'preflight', 'acceptance', 'completion'].includes(context?.stage) ? context.stage : null,
-    code: safeCode(error?.code), cause_code: safeCode(error?.cause?.code),
+    code: safeCode(error?.code), cause_code: safeCode(failureCode(error?.cause)) ?? (failureCode(error) === 'MCP_REQUEST_TIMEOUT' ? 'MCP_REQUEST_TIMEOUT' : null),
     returned: typeof error?.aitermResponseReturned === 'boolean' ? error.aitermResponseReturned : null,
     tool: request?.tool ?? null, request_phase: request?.phase ?? null,
     effect: boundPending ? 'not_started' : execution?.effect ?? null,
@@ -88,7 +90,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
   }
   const dispatch = async ({ record, images, files = [], queue, callbacks, executionSource }) => {
     let invoked = false, reported = false, held = null
-    const reportOnce = (error, stage, accepted = false) => {
+    const reportOnce = (error, stage, accepted = false, evidence = error) => {
       if (reported) return
       reported = true
       // The harness ended a turn the transport followed to its end (wait-contract "Turn-end failure"): not a tracking failure.
@@ -97,7 +99,9 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (error?.code === 'BOT_STOPPED') return
       // update-hold.md H2: refused before any input, so it stays queued; also covers an Owner turn's completion rejection.
       if (error?.code === 'BOT_UPDATE_HOLD' || error?.code === 'BOT_AWAITING_USER') return
-      report(error, { delivery_id: record.delivery_id, target: record.target, stage, accepted })
+      // The status-stage failure object carries no mcp_request; the thrown error does (a444n).
+      const unknown = !accepted && stage !== 'preflight' && sendOutcomeUnknown(evidence)
+      report(unknown ? evidence : error, { delivery_id: record.delivery_id, target: record.target, stage, accepted, ...(unknown ? { outcome: 'unknown' } : {}) })
     }
     try {
       // a149c: wait the seat's setup.sh outside the lease, so a cold start's deliveries do not fill the 64 lease slots.
@@ -150,7 +154,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         awaitUser(record.target)
         throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
       }
-      if (held) { const failure = held; held = null; reportOnce(failure, 'status', false) }
+      if (held) { const failure = held; held = null; reportOnce(failure, 'status', false, error) }
       // update-hold.md H2: not_started keeps it queued; the hold release drains it (BugHub 95f155b7).
       if (error?.code === 'BOT_UPDATE_HOLD') throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
       reportOnce(error, invoked ? 'acceptance' : 'preflight')

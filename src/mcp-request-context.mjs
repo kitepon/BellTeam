@@ -20,6 +20,10 @@ export function mcpRequestContext(error) {
   try { return validate(contexts.get(error) ?? error?.mcp_request) } catch { return null }
 }
 
+// The words may already be in the CLI: Aiterm or the RPC could not tell, or Aiterm says not to resend (same rule as the transport's send path).
+export const sendOutcomeUnknown = error => error?.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
+  || String(error?.message).includes('再送しないでください')
+
 export function captureMcpRequest(error, phase, tool) {
   const value = validate({ phase, tool, ...(phase === 'call' ? { outcome: 'unknown' } : {}) })
   if (!value || !error || !['object', 'function'].includes(typeof error)) return

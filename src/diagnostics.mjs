@@ -31,6 +31,7 @@ const reports = {
   SERVER_DELIVERY_PREFLIGHT_FAILED: ['high', 'AIへ送る前の確認で配送を始められなかった'],
   SERVER_DELIVERY_LAUNCH_FAILED: ['high', 'AIの席を起動できず、配送できなかった'],
   SERVER_DELIVERY_SEND_FAILED: ['high', 'AIの席へメッセージを送れなかった'],
+  SERVER_DELIVERY_OUTCOME_UNKNOWN: ['warn', 'AIの席へ送った結果が分からない（再送していない。原因はdiagnostic_logのcause_code）'],
   SERVER_DELIVERY_FAILED: ['high', 'AIへの配送に失敗した（起動・送信・事前確認以外の段階）'],
   SERVER_MODULE_CHILD_EXITED: ['high', 'BellTeamの部品が予期せず終了した'],
   GOAL_OPERATION_UNCONFIRMED: ['warn', 'ゴール操作の結果を確認できなかった'],
