@@ -3,7 +3,7 @@ import { access, mkdir, open, realpath, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { runtimeEnvironment } from './runtime-home.mjs'
+import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { checkResumeEnvironment } from './resume-policy.mjs'
 
@@ -29,6 +29,12 @@ export function baseBotEnvironment(project, inherited = process.env) {
   }
 }
 
+const insideUserPlace = async path => {
+  const place = await realpath(join(runtimeHome(), '.local')).catch(() => null)
+  const target = await realpath(path).catch(() => null)
+  return Boolean(place && target && (target === place || target.startsWith(`${place}/`)))
+}
+
 // 席の `.local` に出来たClaude Codeの写しを片付ける（コンテナ起動ごとに一度、setup.shより前）。
 // 消すのはCLIの写しと、それを指す入口だけ。席のほかの物には触らない。
 // setup.shが自分で入れ直す席は、その席の版を使い続ける。一席の失敗で起動を止めない。
@@ -39,6 +45,8 @@ export async function removeSeatClaudeCopies(bots, { report = message => process
     const copy = join(prefix, 'lib/node_modules/@anthropic-ai/claude-code')
     try {
       if (!await exists(copy)) continue
+      // The user place (/home/bell/.local) holds the one shared copy the user installed (a451); a Bot's own copy never is it.
+      if (await insideUserPlace(copy)) { report(`BellTeam environment ${bot.id}: 利用者の置き場の中なので、Claude Codeを片付けません`); continue }
       const entry = join(prefix, 'bin/claude')
       if (await exists(entry) && (await realpath(entry)).startsWith(`${await realpath(copy)}/`)) await rm(entry)
       await rm(copy, { recursive: true })

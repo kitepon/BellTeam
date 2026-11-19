@@ -6,6 +6,7 @@ import { retiredHarnessKind, RETIRED_HARNESS_NOTICE } from './retired-harness.mj
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { usageError } from './usage/process-schema.mjs'
 import { usageEffectResultValid } from './usage/channel-protocol.mjs'
+import { createCliEffects } from './usage-cli-effects.mjs'
 
 const metadata = ({ id, name, harness }) => ({ id, name, harness: harness ?? null })
 const complete = async attempt => {
@@ -15,7 +16,10 @@ const complete = async attempt => {
 const unavailable = () => { throw usageError('USAGE_EFFECT_UNAVAILABLE') }
 
 // The caller owns validated channel context, actor authority and callback lifetime.
-export function createUsageParentEffects({ getServices, getFeatures, seatRuntime }) {
+export function createUsageParentEffects({ getServices, getFeatures, seatRuntime, cli = null }) {
+  // a451: the parent runs the vendor installers for the usage child (runtime/user-cli-place.md). Built on first use.
+  let cliEffects = cli
+  const cliPort = () => cliEffects ??= createCliEffects()
   const readMember = async (bots, id, context) => {
     if (bots.readMember) return complete(bots.readMember(id, context))
     await complete(bots.refresh(context))
@@ -143,6 +147,8 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
         result = await complete(transport.setupTest(bot))
         break
       }
+      case 'cli.probe': result = await cliPort().probe(params.harness); break
+      case 'cli.install': result = await cliPort().install(params.harness); break
       default: throw usageError('USAGE_EFFECT_UNSUPPORTED')
     }
     if (!usageEffectResultValid(method, result)) throw usageError('USAGE_EFFECT_RESULT_INVALID', 502)

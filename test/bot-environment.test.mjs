@@ -244,3 +244,29 @@ test('setup.shの無いBotは、前のBotのsetupを待たずにすぐ席を起�
   release(); await waitingA; await background.finished
   assert.equal(aReady, true)
 })
+
+test('利用者の置き場（HOMEの.local）の中のClaude Codeは、起動時の席の写しの掃除で消さない（a451）', async t => {
+  const { root, bots, a } = await fixture(t)
+  const home = join(root, 'home')
+  const place = join(home, '.local')
+  const copy = join(place, 'lib/node_modules/@anthropic-ai/claude-code')
+  await mkdir(copy, { recursive: true })
+  await writeFile(join(copy, 'cli.js'), 'shared')
+  await mkdir(join(place, 'bin'), { recursive: true })
+  await symlink('../lib/node_modules/@anthropic-ai/claude-code/cli.js', join(place, 'bin/claude'))
+  // The Bot's own project is a symlink to the home: its `.local` IS the user place.
+  const alias = join(root, 'bot-alias')
+  await symlink(home, alias)
+  bots.set('bot-alias', { id: 'bot-alias', project: alias, harness: 'claude' })
+  // bot-a keeps its own copy, which is still removed.
+  await mkdir(join(a, '.local/lib/node_modules/@anthropic-ai/claude-code'), { recursive: true })
+  await writeFile(join(a, '.local/lib/node_modules/@anthropic-ai/claude-code/cli.js'), 'own')
+  const before = process.env.BELLTEAM_HOME
+  process.env.BELLTEAM_HOME = home
+  t.after(() => { if (before === undefined) delete process.env.BELLTEAM_HOME; else process.env.BELLTEAM_HOME = before })
+  const reports = []
+  assert.deepEqual(await removeSeatClaudeCopies(bots, { report: message => reports.push(message) }), ['bot-a'])
+  assert.equal(await readFile(join(copy, 'cli.js'), 'utf8'), 'shared')
+  assert.equal(await readFile(join(place, 'bin/claude'), 'utf8'), 'shared')
+  assert.ok(reports.some(message => message.includes('bot-alias') && message.includes('置き場')))
+})
