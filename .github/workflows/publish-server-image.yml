@@ -284,6 +284,24 @@ jobs:
             docker inspect --format '{{json .State.Health}}' "$c" 2>&1 | head -c 4000; echo
             docker logs --tail 80 "$c" 2>&1 || true
           done
+      - name: 利用者が「最新版を入れる」で4つのAI CLIを入れる（imageにCLIは無い）
+        run: |
+          docker compose exec -T bellteam node --input-type=module -e '
+          import assert from "node:assert/strict";
+          const base = "http://127.0.0.1:4180";
+          const state = async id => (await (await fetch(base + "/api/harness-auth/" + id + "/install")).json()).install;
+          for (const id of ["claude", "codex", "grok", "cursor"]) {
+            assert.equal((await state(id)).state, "not_installed", id + "は最初は入っていない");
+            const started = await fetch(base + "/api/harness-auth/" + id + "/install", { method: "POST" });
+            assert.equal(started.status, 200, id);
+            const deadline = Date.now() + 600000;
+            let now;
+            do { await new Promise(resolve => setTimeout(resolve, 3000)); now = await state(id); } while (now.state === "installing" && Date.now() < deadline);
+            assert.equal(now.state, "installed", id + ": " + JSON.stringify(now));
+            assert.equal(now.source, "user", id);
+            console.log(id, now.version);
+          }
+          '
       - name: モデル候補の取得と未認証CLIの理由表示を確認
         run: |
           docker compose exec -T bellteam node --input-type=module -e '
