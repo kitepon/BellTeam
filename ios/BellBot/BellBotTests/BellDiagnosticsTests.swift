@@ -63,7 +63,10 @@ final class BellDiagnosticsTests: XCTestCase {
         let lostWhileActive = URLError(.networkConnectionLost, userInfo: stayedActive.userInfo)
         let cancelledInBackground = URLError(.cancelled, userInfo: startedInBackground.userInfo)
         let cancelledWhileActive = URLError(.cancelled, userInfo: stayedActive.userInfo)
+        let offlineInBackground = URLError(.notConnectedToInternet, userInfo: startedInBackground.userInfo)
+        let offlineWhileActive = URLError(.notConnectedToInternet, userInfo: stayedActive.userInfo)
         XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(lostWhileActive))
+        XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(offlineWhileActive), "前面のままの-1009は今までどおり報告する")
         XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(cancelledWhileActive), "前面のままの-999は今までどおり報告する")
         #if targetEnvironment(macCatalyst)
         XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(suspended), "Macは裏に回っても止められないので通常どおり報告")
@@ -72,6 +75,7 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(startedInBackground), "裏で始まった要求の時間切れも同じ（8343d1f5）")
         XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(lostInBackground), "裏で止められた間の接続切断も同じ（2f6b9dae）")
         XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(cancelledInBackground), "裏で止められた後に取り消された要求も同じ（fe1024fb）")
+        XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(offlineInBackground), "裏で始まって復帰の直後に-1009になった要求も同じ（049d8b06）")
         diagnostics.report(suspended, path: "/api/rooms", method: "GET", observation: .read(suspended, retainedData: true))
         XCTAssertEqual(reports, 0, "裏に回って止められた間の時間切れは報告しない")
         #endif
