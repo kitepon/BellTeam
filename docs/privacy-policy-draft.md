@@ -14,7 +14,7 @@ BellTeamは、利用者が設置するサーバーと、その利用者が契約
 
 Appleアプリは端末本人の購入権利をStoreKitで確認します。利用者のサーバーは、Appleの署名付き購入情報をCloudflareで動くBellTeamの購読確認サービスへ送ります。このサービスはAppleから取引ID、商品、更新状態、有効期限などを照会し、Appleアプリの購入と通知の利用権を検証します。Webとサーバーは無料で、購読による利用制限はありません。購読情報を運営のデータベースへ保存しません。利用者のサーバーには復元・利用権の確認に必要な購入情報と確認結果が残ります。
 
-購読確認サービスの稼働確認には、Cloudflareの処理ログと集計情報を使います。購入情報の本文を独自のログへ記録しません。Cloudflareは通信に伴うIPアドレスなどを取り扱います。ログの保管とインフラ上の処理は、[Cloudflareのプライバシー方針](https://www.cloudflare.com/privacypolicy/)と[Workers Logsの方針](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)に従います。
+購読確認サービスは、Cloudflareの実行ログ（Workers Logs）を無効にしています。購入情報の本文を独自のログへ記録しません。Cloudflareは通信の処理に伴いIPアドレスなどを取り扱います。インフラ上の処理は、[Cloudflareのプライバシー方針](https://www.cloudflare.com/privacypolicy/)に従います。
 
 ## 通知と診断
 
