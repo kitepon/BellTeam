@@ -10,6 +10,24 @@ export function authFlowView(auth) {
   return ui
 }
 
+// a451 (harness-cli.md): the server's install state of an AI CLI. Absent on an older body: nothing is judged or shown.
+// A stage name for a CLI that cannot run yet, or null when it is usable (or the body does not say). The client never decides this itself.
+const INSTALL_STAGES = { checking: 'checking', not_installed: 'notInstalled', installing: 'installing', failed: 'installFailed' }
+export const installStage = install => INSTALL_STAGES[install?.state] ?? null
+// The state moves by itself while an installer runs or the first probe is not done: read it again.
+export const installPolling = install => Boolean(install) && (install.busy === true || install.state === 'checking' || install.state === 'installing')
+// The server's one sentence as given (same words in every app) and, when it says so, the button. press is called with no arguments.
+export function renderInstall(install, { busy = false, press, className = 'setup-action' }) {
+  const elements = []
+  if (install?.message) elements.push(Object.assign(node('p', install.message), { className: 'auth-install-text' }))
+  if (install?.action === 'install') {
+    const button = node('button', install.label || '最新版を入れる'); button.type = 'button'; button.className = className; button.disabled = busy
+    button.addEventListener('click', () => void press())
+    elements.push(button)
+  }
+  return elements
+}
+
 // Shared by initial setup and Settings. It renders only named native actions;
 // terminal navigation keys are not a user-facing authentication interface.
 // plain: the caller says the stage in its own words, so the Aiterm title/message are not drawn twice (Settings).

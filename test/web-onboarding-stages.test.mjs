@@ -70,3 +70,22 @@ test('a failed check says so with 「もう一度試す」, which reads again an
   t.mock.timers.tick(3000); await settle()
   assert.equal(reads, 3) // polling resumed
 })
+
+test('a451: an AI that is not installed shows the server sentence and one install button; the press posts /api/setup/install and the next read shows the login', async t => {
+  const missing = { state: 'not_installed', version: null, source: null, busy: false, lastError: null, message: 'まだ入っていません。', action: 'install', label: '最新版を入れる' }
+  const initial = { ...setup({ status: 'blocked', session_id: null, auth_ui: null, message: 'x' }), install: missing }
+  const calls = []
+  let next = { ...initial, install: { ...missing, state: 'installing', busy: true, action: null, message: '入れています。' } }
+  const f = open(t, initial, async (path, options = {}) => { calls.push(`${options.method ?? 'GET'} ${path}`); return path === '/api/setup/install' ? next : next })
+  assert.deepEqual(f.primary(), ['最新版を入れる'])
+  assert.ok(f.nodes().some(node => node.textContent === 'まだ入っていません。'))
+  assert.equal(f.nodes().some(node => node.textContent === 'ログインを始める'), false)
+  f.nodes().find(node => node.textContent === '最新版を入れる').listeners.click[0](); await settle()
+  assert.deepEqual(calls, ['POST /api/setup/install'])
+  assert.ok(f.nodes().some(node => node.textContent === '入れています。'))
+  assert.deepEqual(f.primary(), [])
+  next = { ...initial, install: { ...missing, state: 'installed', message: '入っています。' }, auth: ui('device_code') }
+  t.mock.timers.tick(3000); await settle()
+  assert.equal(calls.at(-1), 'GET /api/setup', 'polls while the installer runs')
+  assert.ok(f.nodes().some(node => node.textContent === 'ABCD-1234'))
+})

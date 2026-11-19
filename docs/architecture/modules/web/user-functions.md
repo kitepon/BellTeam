@@ -75,7 +75,7 @@ flowchart LR
 | Screen panel | chat | `GET /api/bots/:id/screen`, `GET …/screen/approval` | `POST …/screen/key`, `POST …/screen/approval` | execution |
 | Goal | chat chip, goals dialog | `GET /api/bots/:id/goal`, `GET /api/goals` | `POST /api/bots/:id/goal` | goals owner |
 | Owner profile, rules | settings | `GET /api/owner`, `GET /api/user-rules` | `PATCH /api/owner`, `PUT /api/user-rules` | members (owner), rules |
-| AI auth | settings, onboarding | `GET /api/harness-auth[/:h]`, `GET /api/accounts` | `POST /api/harness-auth/:h/{start,input,cancel}[?slot=2nd]`, `POST /api/setup/{harness,start,auth/input}` | usage (HarnessAuth), execution |
+| AI auth | settings, onboarding | `GET /api/harness-auth[/:h]`, `GET /api/accounts` | `GET|POST /api/harness-auth/:h/install` (a451), `POST /api/harness-auth/:h/{start,input,cancel}[?slot=2nd]`, `POST /api/setup/{harness,install,start,auth/input}` | usage (HarnessAuth), execution |
 | Summary AI | settings | `GET /api/settings`, `GET /api/models` | `PATCH /api/settings/backgroundAgent` | settings |
 | Whole stop | settings | `GET /api/ai-control` | `PATCH /api/ai-control` | execution |
 | Processes not counted as working (a63) | settings | `GET /api/running-exclusions`, member names from the list read | `DELETE /api/running-exclusions/:id` | execution ([current work](../execution/current-work.md) "Owner read and remove (a62)") |

@@ -1,4 +1,4 @@
-import { authFlowView, renderAuthFlow } from './auth-flow.js?v=__ASSET_VERSION__'
+import { authFlowView, renderAuthFlow, installStage, installPolling, renderInstall } from './auth-flow.js?v=__ASSET_VERSION__'
 
 export function openOnboarding(initial, { api, onReady, onLater }) {
   const dialog = document.createElement('dialog')
@@ -42,9 +42,11 @@ export function openOnboarding(initial, { api, onReady, onLater }) {
     item.addEventListener('click', () => void perform(action))
     return item
   }
+  // a451: the AI chosen here, as the server reports its install (POST /api/setup/install keeps the snapshot shape).
+  const chosenInstall = () => setup.install ?? setup.harnesses.find(h => h.id === setup.harness)?.install
   function schedule() {
     clearTimeout(timer)
-    if (stopped || document.hidden || errorText || !['open_url', 'device_code', 'paste_code', 'select', 'waiting'].includes(authFlowView(setup.auth).stage)) return
+    if (stopped || document.hidden || errorText || !(installPolling(chosenInstall()) || ['open_url', 'device_code', 'paste_code', 'select', 'waiting'].includes(authFlowView(setup.auth).stage))) return
     timer = setTimeout(async () => {
       if (busy) { schedule(); return }
       const observedRevision = ++revision
@@ -109,7 +111,11 @@ export function openOnboarding(initial, { api, onReady, onLater }) {
     } else {
       content.append(Object.assign(document.createElement('h3'), { textContent: `${name}にログイン` }))
       const restart = () => post('harness', { harness: setup.harness }) // choosing the same AI again starts a new login
-      if (view?.stage === 'complete') {
+      const install = chosenInstall()
+      if (installStage(install)) {
+        // The AI is not on this server yet: its own sentence and the one button; login comes by itself once the server has it.
+        content.append(...renderInstall(install, { busy, className: 'primary-button', press: () => perform(() => post('install')) }))
+      } else if (view?.stage === 'complete') {
         content.append(Object.assign(document.createElement('p'), { textContent: 'ログインできました。「始める」を押すと、案内役との会話が開きます。' }), button('始める', () => post('start'), true))
       } else if (view?.stage === 'not_started') {
         content.append(Object.assign(document.createElement('p'), { textContent: `${name}の公式サイトでログインします。` }), button('ログインを始める', restart, true))

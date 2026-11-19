@@ -1,7 +1,7 @@
 // 設定の「AIの認証」。初期設定の後に、AIの公式認証をやり直す。
 // AIの認証が切れると、そのAIを使うメンバーは起動できず、入り直しを頼める相手も居なくなる。利用者がここから自分で戻す。
 // 段階と札・ボタンはAppleのAuthenticationProgressと同じ（docs/architecture/modules/web/user-paths.md 4.4）。
-import { authFlowView, renderAuthFlow } from './auth-flow.js?v=__ASSET_VERSION__'
+import { authFlowView, renderAuthFlow, installStage, installPolling, renderInstall } from './auth-flow.js?v=__ASSET_VERSION__'
 import { claudeAccounts, renderClaudeAccounts } from './harness-accounts.js?v=__ASSET_VERSION__'
 
 export function harnessAuthTitle(harness) {
@@ -41,6 +41,10 @@ export const STAGES = {
   waitingSite: { badge: '認証の途中', tone: 'info', text: 'まだ終わっていません。公式サイトで認証してください。' },
   waitingCode: { badge: 'コード待ち', tone: 'info', text: 'まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。' },
   confirming: { badge: '確認中', tone: 'info', text: '公式の応答を待っています。' },
+  // a451: the AI itself is not on this server yet. The words under the badge are the server's own (install.message).
+  notInstalled: { badge: '入っていません', tone: 'attention', text: '' },
+  installing: { badge: '入れています', tone: 'info', text: '' },
+  installFailed: { badge: '入れられません', tone: 'attention', text: '' },
 }
 
 // サーバーの文はそのまま、符号だけの文は平易な文にして、符号は閉じた「詳細」へ。
@@ -62,28 +66,98 @@ function failureNode(message) {
 // Claudeは /api/accounts があれば1つ目/2つ目の2行。無い旧本体では従来の1行のまま。
 export async function renderHarnessAuth(container, { api, onSummary = () => {} }) {
   const stops = [], rechecks = [], sections = [], stages = new Map()
+  const itemStops = new Map()
   container.replaceChildren()
   const { harnesses } = await api('/api/harness-auth')
   const accounts = harnesses.some(harness => harness.id === 'claude') ? await api('/api/accounts').catch(() => null) : null
   const report = (key, value) => { stages.set(key, value); onSummary([...stages.values()]) }
   for (const harness of harnesses) {
-    const item = harness.id === 'claude' && claudeAccounts(accounts)
-      ? renderClaudeAccounts(harness, accounts, { api, renderSlotAuth: (target, options) => {
-        const slotItem = harnessAuthItem(target, { api, ...options, onStage: stage => report(`claude:${options.slot}`, { name: harness.name, slot: options.slot, stage }) })
-        rechecks.push(slotItem.recheck)
-        return slotItem
-      } })
-      : harnessAuthItem(harness, { api, onStage: stage => report(harness.id, { name: harness.name, slot: null, stage }) })
-    if (item.recheck) rechecks.push(item.recheck)
-    if (item.refresh) sections.push(item)
-    stops.push(item.stop)
-    container.append(item.element)
+    const entry = Object.assign(document.createElement('div'), { className: 'harness-auth-entry' })
+    const top = document.createElement('div') // the login row, or the head of an AI that is not there yet
+    entry.append(top)
+    container.append(entry)
+    let item = null, head = null
+    const itemRechecks = []
+    // The login row exists only while the AI is usable: asking the server to log in to an AI that is not there answers 409.
+    function mount() {
+      stages.delete(harness.id)
+      head = null
+      item = harness.id === 'claude' && claudeAccounts(accounts)
+        ? renderClaudeAccounts(harness, accounts, { api, renderSlotAuth: (target, options) => {
+          const slotItem = harnessAuthItem(target, { api, ...options, onStage: stage => report(`claude:${options.slot}`, { name: harness.name, slot: options.slot, stage }) })
+          itemRechecks.push(slotItem.recheck)
+          return slotItem
+        } })
+        : harnessAuthItem(harness, { api, onStage: stage => report(harness.id, { name: harness.name, slot: null, stage }) })
+      if (item.recheck) itemRechecks.push(item.recheck)
+      if (item.refresh) sections.push(item)
+      top.replaceChildren(item.element)
+    }
+    function paintHead(stage) {
+      if (!head) { head = Object.assign(document.createElement('section'), { className: 'feature-setting harness-auth' }); top.replaceChildren(head) }
+      const badge = Object.assign(document.createElement('p'), { className: `harness-auth-status ${stage} tone-${STAGES[stage].tone}`, textContent: STAGES[stage].badge })
+      badge.setAttribute('role', 'status')
+      head.replaceChildren(Object.assign(document.createElement('h4'), { textContent: harnessAuthTitle(harness) }), badge)
+      report(harness.id, { name: harness.name, slot: null, stage })
+    }
+    const install = harness.install ? createInstall(harness, { api, onChange: now => {
+      const stage = installStage(now)
+      if (!item && !stage) mount(); else if (!item) paintHead(stage)
+    } }) : null
+    const stage = installStage(harness.install)
+    if (stage) paintHead(stage); else mount()
+    if (install) entry.append(install.element)
+    rechecks.push(() => { if (item) for (const recheck of itemRechecks) void recheck(); void install?.refresh() })
+    stops.push(() => { item?.stop(); install?.stop() })
   }
   return {
     refresh() { for (const section of sections) void section.refresh() },
     recheck() { for (const recheck of rechecks) void recheck(); for (const section of sections) void section.refresh() },
     stop() { for (const stop of stops) stop() },
   }
+}
+
+// a451: 「最新版を入れる」。サーバーの install（状態・文・ボタン）をそのまま出し、入れている間だけ数秒おきに読む。
+// 押しても同じ操作が更新になる（入っていても最新版を入れ直せる）。状態の判断はサーバーのもので、ここでは文と印を写すだけ。
+function createInstall(harness, { api, onChange }) {
+  const element = Object.assign(document.createElement('div'), { className: 'harness-install' })
+  const base = `/api/harness-auth/${encodeURIComponent(harness.id)}/install`
+  let install = harness.install, busy = false, stopped = false, errorText = '', timer
+  function schedule() {
+    clearTimeout(timer)
+    if (stopped || document.hidden || errorText || !installPolling(install)) return
+    timer = setTimeout(() => void read(), 3000)
+  }
+  function set(next) {
+    install = next
+    errorText = ''
+    render()
+    onChange(install)
+    schedule()
+  }
+  async function run(request) {
+    if (busy) return
+    busy = true; clearTimeout(timer); errorText = ''; render()
+    try { set((await request()).install) } catch (error) { if (!stopped) errorText = error.message }
+    finally { busy = false; if (!stopped) { render(); schedule() } }
+  }
+  const read = () => run(() => api(base))
+  const press = () => run(() => api(base, { method: 'POST', redirect: 'error', cache: 'no-store' }))
+  function render() {
+    const nodes = renderInstall(install, { busy, press })
+    if (install?.action === 'install') { const actions = Object.assign(document.createElement('div'), { className: 'secret-actions' }); actions.append(nodes.pop()); nodes.push(actions) }
+    if (errorText) {
+      const retry = Object.assign(document.createElement('button'), { type: 'button', className: 'setup-action', textContent: '確認する' })
+      retry.addEventListener('click', () => void read())
+      nodes.push(failureNode(errorText), retry)
+    }
+    element.replaceChildren(...nodes)
+  }
+  const visibility = () => { if (!document.hidden) schedule(); else clearTimeout(timer) }
+  document.addEventListener('visibilitychange', visibility)
+  render()
+  schedule()
+  return { element, refresh: read, stop() { stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', visibility) } }
 }
 
 // slotがあれば、その枠の公式ログイン。枠は ?slot= だけで渡し、入力の本文は変えない（1つ目は従来と同じ要求）。
@@ -236,10 +310,13 @@ function harnessAuthItem(harness, { api, slot, title, label, signedOutAt = () =>
 export function authSummary(list) {
   const name = item => item.slot ? `${item.name} ${item.slot === '2nd' ? '2つ目' : '1つ目'}` : item.name
   if (!list.length) return { line: '確認しています', badge: '', tone: 'muted' }
-  for (const stage of ['needsLogin', 'failed', 'unknown']) {
+  const lines = { notInstalled: 'が入っていません', installFailed: 'を入れられませんでした', needsLogin: 'のログインが必要', failed: 'の認証に失敗', unknown: 'の状態を確認できません' }
+  for (const stage of ['notInstalled', 'installFailed', 'needsLogin', 'failed', 'unknown']) {
     const hit = list.find(item => item.stage === stage)
-    if (hit) return { line: stage === 'needsLogin' ? `${name(hit)}のログインが必要` : stage === 'failed' ? `${name(hit)}の認証に失敗` : `${name(hit)}の状態を確認できません`, badge: STAGES[stage].badge, tone: 'attention' }
+    if (hit) return { line: `${name(hit)}${lines[stage]}`, badge: STAGES[stage].badge, tone: 'attention' }
   }
+  const installing = list.find(item => item.stage === 'installing')
+  if (installing) return { line: `${name(installing)}を入れています`, badge: '途中', tone: 'info' }
   const waiting = list.find(item => ['waitingSite', 'waitingCode', 'confirming'].includes(item.stage))
   if (waiting) return { line: `${name(waiting)}の認証の途中`, badge: '途中', tone: 'info' }
   if (list.some(item => item.stage === 'checking')) return { line: '確認しています', badge: '', tone: 'muted' }
