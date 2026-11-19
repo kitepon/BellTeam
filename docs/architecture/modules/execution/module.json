@@ -15,6 +15,10 @@
   ],
   "uses": [
     {
+      "module": "usage",
+      "port": "harnessCli (installed, watch)"
+    },
+    {
       "module": "integration",
       "port": "diagnostics"
     },
@@ -112,6 +116,7 @@
     "src/conversation-execution-effects.mjs",
     "src/team-background-summary.mjs",
     "src/background-summary-runner.mjs",
+    "src/harness-cli-wait.mjs",
     "src/http-screen-input-api.mjs"
   ]
 }

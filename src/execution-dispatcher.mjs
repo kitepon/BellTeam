@@ -23,6 +23,8 @@ export const EXECUTION_REMOTE_SEATS = true
 export const EXECUTION_SEAT_MCP_SEEN = true
 // remote-user-tools.md U4: the parent may pass ingress.userTools.list(botId) (names/kinds of the seat's user tools).
 export const EXECUTION_REMOTE_USER_TOOLS = true
+// a451 (cli-not-installed.md): this engine accepts ports.harnessCli ({ installed, watch, recheck }); a parent passes it only when this is true.
+export const EXECUTION_HARNESS_CLI = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
@@ -44,7 +46,7 @@ export const EXECUTION_METHODS = Object.freeze({
   project: Object.freeze(Object.entries(syncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
 })
 const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'moduleOperations', 'bots', 'rooms', 'configurationStorage',
-  'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress']
+  'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress', 'harnessCli']
 
 // This module and every relative engine import belong to the same fixed bundle.
 export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null, requestRestartSummary = null }) {
@@ -60,7 +62,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
-    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'],
+    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'], harnessCli: ['installed', 'watch', 'recheck'],
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')
@@ -131,7 +133,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       seatCommand: ports.seat?.waitProcess ?? null,
       recorded: async session => (await transport.readRuntimeLaunches())[session] ?? null }) : null
   const transport = createManagedTransport({
-    ...ports.seat, accounts, remoteSeats,
+    ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'), configurationLock,
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),

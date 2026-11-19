@@ -72,7 +72,8 @@ export function createExecutionFactoryLoader({ prepareRelease = prepareExecution
       supportsUpdateHold: namespace.EXECUTION_UPDATE_HOLD_GATE === true,
       supportsRemoteSeats: namespace.EXECUTION_REMOTE_SEATS === true,
       supportsSeatMcpSeen: namespace.EXECUTION_SEAT_MCP_SEEN === true,
-      supportsRemoteUserTools: namespace.EXECUTION_REMOTE_USER_TOOLS === true })
+      supportsRemoteUserTools: namespace.EXECUTION_REMOTE_USER_TOOLS === true,
+      supportsHarnessCli: namespace.EXECUTION_HARNESS_CLI === true })
   }
 }
 

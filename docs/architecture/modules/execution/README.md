@@ -31,6 +31,7 @@
 - [Body update hold (Z-c)](update-hold.md)
 - [Aiterm generation pin per operation](aiterm-generation-pin.md)
 - [Harness accounts: 1st/2nd slots, limit failover and return](harness-accounts.md)
+- [AI CLI not installed: wait, notice, continue (a451)](cli-not-installed.md)
 - [Remote seats: lifecycle through terminals, pending while away, capture (C2/C7)](remote-seat.md)
 - [Fork port: forkInquiry / forkSeat (project-write-banned fork of the main seat)](fork.md)
 

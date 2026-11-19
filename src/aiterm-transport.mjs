@@ -23,6 +23,7 @@ import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { aitermFailureCause } from './agent-launch-error.mjs'
+import { harnessCliWait, harnessCliRefusal, HARNESS_NOT_INSTALLED } from './harness-cli-wait.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
@@ -140,7 +141,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -182,6 +183,10 @@ export class AitermTransport {
     // Claude 1st/2nd accounts (harness-accounts.md). Null keeps every launch on the default root.
     this.accounts = accounts
     this.remoteSeats = remoteSeats
+    // a451 (cli-not-installed.md): usage's harnessCli window. cliWaits: botId -> {code, action|null, terminalId, at}, a local Bot refused for a CLI that is not ready.
+    this.harnessCli = harnessCli
+    this.cliWaits = new Map()
+    this.cliUnsubscribe = harnessCli?.watch?.(change => this.cliChanged(change)) ?? null
     // t29 (remote-seat.md "Resume after the route came back"): SM10 last seat-MCP request (ms) and refusals per (session, route).
     this.seatMcpSeen = seatMcpSeen; this.routeResumes = new Map(); this.routeWakes = new Map(); this.routeReported = new Set()
     this.accountMoves = new Map()
@@ -357,6 +362,8 @@ export class AitermTransport {
     const harness = HARNESS.get(bot.harness)
     if (!harness) throw Object.assign(new Error(retiredHarness(bot.harness) ? RETIRED_HARNESS_NOTICE : `HARNESS_UNSUPPORTED: ${bot.harness}`),
       { code: retiredHarness(bot.harness) ? 'HARNESS_RETIRED' : 'HARNESS_UNSUPPORTED', effect: 'not_started' })
+    // a451: a local seat whose CLI is not ready is refused before anything is prepared; remote terminals run their own CLI.
+    if (!isRemoteBot(bot)) this.requireCli(bot)
     const shortTermMemory = isRemoteBot(bot) && this.remoteSeats
       ? await this.remoteSeats.handoffContext(bot.id) : await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory, { membersLease })
@@ -445,6 +452,8 @@ export class AitermTransport {
       if (remote && codeModeSkipped) this.remoteSeats.codeModeSkipped(bot, codeModeSkipped)
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
+      // a451 N5: a local launch Aiterm answered with a failure while usage says installed: the CLI may be gone, so usage looks again once.
+      if (!remote && issuedLaunch && !launch) error = await this.recheckedCliRefusal(bot) ?? error
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
       // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
       if (remote) this.remoteSeats.launchFailed(bot, error)
@@ -2137,7 +2146,42 @@ export class AitermTransport {
 
   // remote-seat.md "Launch notice": the latest not-started remote launch of this member, or null.
   seatLaunch(botId) {
-    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? null
+    const wait = this.cliWaits.get(botId)
+    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? (wait?.action ? { ...wait } : null)
+  }
+
+  // a451 N2/N3: a local Bot whose CLI is not ready waits (BOT_AWAITING_USER, not_started); a ready one clears its notice.
+  requireCli(bot) {
+    const wait = harnessCliWait(this.harnessCli, bot.harness)
+    if (!wait) { this.clearCliWait(bot.id); return }
+    const held = this.cliWaits.get(bot.id)
+    this.cliWaits.set(bot.id, { code: HARNESS_NOT_INSTALLED, action: wait.notice, terminalId: null, at: held?.action === wait.notice ? held.at : new Date().toISOString() })
+    if (held?.action !== wait.notice) this.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] })
+    throw harnessCliRefusal(bot.harness, wait)
+  }
+
+  clearCliWait(botId) {
+    if (this.cliWaits.delete(botId)) this.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] })
+  }
+
+  // a451 N5: only an 'installed' answer reaches here; a recheck that finds it gone becomes the same wait.
+  async recheckedCliRefusal(bot) {
+    if (typeof this.harnessCli?.recheck !== 'function' || harnessCliWait(this.harnessCli, bot.harness)) return null
+    try { await this.harnessCli.recheck(bot.harness) } catch { return null }
+    try { this.requireCli(bot) } catch (refusal) { return refusal }
+    return null
+  }
+
+  // a451 N4: usage's watch. A ready harness drains the same IDs of its waiting Bots through the existing queue edge.
+  cliChanged(change) {
+    for (const botId of [...this.cliWaits.keys()]) {
+      const bot = this.resolveBot?.(botId)
+      if (!bot || bot.harness !== change?.harness) continue
+      const wait = harnessCliWait(this.harnessCli, bot.harness)
+      if (wait) { const held = this.cliWaits.get(botId); this.cliWaits.set(botId, { ...held, action: wait.notice }); this.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] }); continue }
+      this.clearCliWait(botId)
+      this.emitQueue({ bot: { id: botId } })
+    }
   }
 
   seatAccount(botId) {
@@ -2312,6 +2356,7 @@ export class AitermTransport {
   }
 
   async close() {
+    this.cliUnsubscribe?.()
     this.accountsUnsubscribe?.()
     this.accounts?.close()
     const recovery = this.continuation?.close()

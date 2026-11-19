@@ -228,7 +228,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const summaryProject = join(root, 'shared/tools/bellteam-background-agent')
   if (seatRuntime) await createSeatProcessRunner(root, { environment: 'base' })('/usr/bin/mkdir', ['-p', '-m', '700', '--', summaryProject])
   else await mkdir(summaryProject, { recursive: true, mode: 0o700 })
-  backgroundSummary = createTeamBackgroundSummary({ project: summaryProject, settings, models,
+  // a451 (cli-not-installed.md): usage's harnessCli window, read lazily; absent (older usage module) reads every CLI as installed.
+  const harnessCli = () => usageAssembly?.harnessCli ?? null
+  backgroundSummary = createTeamBackgroundSummary({ project: summaryProject, settings, models, harnessCli,
     conversation: () => conversationAssembly, enabled: () => !aiControl.paused,
     notify: () => notify?.({ type: 'bots' }) })
   // Stable native port: one generation until the updater publishes an activated candidate.
@@ -350,6 +352,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       const supported = factory.supportsModelHandoff === true
       executionHandoffSupport.set(factory.versionId, supported)
       // Older engines reject unknown port keys; remote-seat ports go only to engines that declare them.
+      const cli = usageAssembly?.harnessCli
+      const harnessPort = factory.supportsHarnessCli === true && cli && typeof cli.installed === 'function' && typeof cli.watch === 'function'
+        ? { harnessCli: { installed: () => cli.installed(), watch: listener => cli.watch(listener), ...(typeof cli.recheck === 'function' ? { recheck: harness => cli.recheck(harness) } : {}) } } : {}
       const remote = factory.supportsRemoteSeats === true && terminals
         ? { terminals: { connection: terminals.connection, watch: listener => {
           const off = [terminals.watch(listener), remoteSeatListener.watch(listener)]
@@ -358,7 +363,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
           ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}),
           ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor, callerReplace: aitermCallerReplaceSupported() } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
-        input = { ...input, ports: { ...input.ports, ...remote } }
+        input = { ...input, ports: { ...input.ports, ...remote, ...harnessPort } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
           botsRoot: join(root, 'bots'), versionId: factory.versionId, record: report => diagnostics.record(report) })
         if (supported) return factory.createExecutionDispatcher(input)
@@ -371,7 +376,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       watchQueue: listener => { queueListeners.add(listener); return () => queueListeners.delete(listener) },
       onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   }
-  const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient,
+  const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient, harnessCli: usageAssembly?.harnessCli ?? null,
     configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'),
       { trustedAnchor }) }),
     reportError: report => diagnostics.record(report), ...seatPorts, ...storagePorts,
