@@ -34,6 +34,12 @@ test('opens a transient process for C8 commands and closes it', async () => {
   assert.deepEqual(linux.calls[1].args, { ref: 'owner-macbook', target: opened, os: 'linux', trustRevision: revision, credentialRevision: 7 })
   assert.equal(client.closed, true)
 
+  // Versions: the terminal's from the open answer, the container's from the serve process's own server info.
+  const versions = fakeClient({ remote_terminal_status: status, remote_terminal_open: () => json({ opened: true, remoteVersion: '0.70.74', platform: 'darwin' }) })
+  versions.getServerVersion = () => ({ name: 'aiterm-remote-terminal', version: '0.70.77' })
+  const seen = await createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => versions }).connect(request)
+  assert.deepEqual([seen.remoteVersion, seen.localVersion], ['0.70.74', '0.70.77'])
+
   // A secret-key terminal: Mika handle instead of the native revision (Elegg: never both).
   const keyed = fakeClient({ remote_terminal_status: status })
   await createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => keyed }).connect({ ...request, binding: { ref: 'b', credential: { handle: 'h', revision: 2 }, sudoCredential: { handle: 's', revision: 1 } } })
