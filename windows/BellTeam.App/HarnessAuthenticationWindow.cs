@@ -21,6 +21,8 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     private bool readFailed;
     private bool loaded, sending, signedOut;
     private readonly string? accountLabel, limitLine;
+    // 「最新版を入れる」(harness-cli.md): the server's install fact of this AI; the login is shown only while it is installed.
+    private readonly HarnessInstallRunner installer;
     // The main window when this login is shown as a settings page (AsPage); polling and clearing the code follow that window.
     private Window? host;
     public AuthenticationState? Authentication { get; private set; }
@@ -32,12 +34,26 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     {
         api = new(workspace.Management.Api); this.harness = harness; this.slot = slot; title = name ?? (slot is null ? harness.Name : harness.Name + " " + AccountText.SlotName(slot));
         this.accountLabel = accountLabel; this.limitLine = limitLine; this.signedOut = signedOut;
+        installer = new(api, harness.Id, harness.Install, Token); installer.Changed += InstallChanged;
         this.confirm = confirm ?? (warning => new AuthenticationConfirmationWindow(warning) { Owner = host ?? this }.ShowDialog() == true);
         SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Clear(); StopReading(); }; Closed += (_, _) => { input.Clear(); StopReading(); };
         Activated += (_, _) => UpdatePolling(); timer.Tick += async (_, _) => await PollAsync(); Render();
     }
-    public Task InitializeAsync() => PerformAsync(() => api.StatusAsync(harness.Id, Token, slot: slot), clearInput: false);
+    // An AI that is not installed has no login to read (409 HARNESS_NOT_INSTALLED): the page shows the install sentence and button instead, and follows a running install.
+    public Task InitializeAsync()
+    {
+        if (!HarnessCliInstall.Ready(installer.Install)) { Render(); return installer.FollowAsync(); }
+        _ = installer.FollowAsync();
+        return PerformAsync(() => api.StatusAsync(harness.Id, Token, slot: slot), clearInput: false);
+    }
+    private bool wasAbsent;
+    private void InstallChanged()
+    {
+        Render();
+        // It was absent and now runs: read its login once, after the press and its reads have ended.
+        if (wasAbsent && HarnessCliInstall.Ready(installer.Install) && !installer.Running) { wasAbsent = false; _ = InitializeAsync(); }
+    }
     public override FrameworkElement AsPage(Action close, bool keepActions = false)
     {
         var page = base.AsPage(close, keepActions);
@@ -62,8 +78,11 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         var names = new StackPanel { Margin = new Thickness(12, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(SettingsUi.Text(title, 17, SettingsUi.Ink, FontWeights.SemiBold));
         if (!string.IsNullOrEmpty(accountLabel)) names.Children.Add(SettingsUi.Text(accountLabel, 13, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)));
         Grid.SetColumn(names, 1); head.Children.Add(names);
-        var badge = SettingsUi.Badge(progress.Badge, progress.Tone); Grid.SetColumn(badge, 2); head.Children.Add(badge); Body.Children.Add(head);
+        var cli = installer.Install; var absent = !HarnessCliInstall.Ready(cli); wasAbsent |= absent;
+        var absentRow = absent ? HarnessRowState.FromInstall(cli!) : null;
+        var badge = absentRow is not null ? SettingsUi.Badge(absentRow.Title, absentRow.Tone == HarnessTone.Muted ? SettingsTone.Gray : SettingsTone.Orange) : SettingsUi.Badge(progress.Badge, progress.Tone); Grid.SetColumn(badge, 2); head.Children.Add(badge); Body.Children.Add(head);
         var card = new StackPanel();
+        if (absent) { AddInstall(quiet: false); Place(); return; }
         if (limitLine is not null) card.Children.Add(SettingsUi.Text("\u26A0 " + limitLine, 13, SettingsUi.Orange, null, new Thickness(0, 0, 0, 10)));
         var detail = SettingsUi.Text(progress.Detail, 14, progress.Tone == SettingsTone.Green ? SettingsUi.Ink : SettingsUi.ToneBrush(progress.Tone)); System.Windows.Automation.AutomationProperties.SetAutomationId(detail, "harness-auth-status"); card.Children.Add(detail);
         if (progress.Stage == AuthenticationStage.Done)
@@ -85,7 +104,20 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
                 if (blocked) card.Children.Add(Refresh());
                 break;
         }
-        var holder = SettingsUi.Card(card); holder.CornerRadius = new CornerRadius(14); holder.Padding = new Thickness(18); Body.Children.Add(holder);
+        AddInstall(quiet: true); Place();
+
+        void Place() { var holder = SettingsUi.Card(card); holder.CornerRadius = new CornerRadius(14); holder.Padding = new Thickness(18); Body.Children.Add(holder); }
+        // The server's sentence as given, and the one button (the same press installs and updates). Not installed: it is the whole page.
+        void AddInstall(bool quiet)
+        {
+            if (cli is null) return;
+            var text = SettingsUi.Text(installer.Error is { } error ? cli.Message + "\n" + error : cli.Message, quiet ? 13 : 14, quiet ? SettingsUi.Muted : SettingsUi.Ink, null, new Thickness(0, quiet ? 14 : 0, 0, 0));
+            System.Windows.Automation.AutomationProperties.SetAutomationId(text, "harness-install-message"); card.Children.Add(text);
+            if (!cli.CanPress) return;
+            var press = quiet ? SettingsUi.Capsule(cli.ButtonLabel, Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 4, 0, 4)) : SettingsUi.MainButton(cli.ButtonLabel);
+            if (quiet) { press.HorizontalAlignment = HorizontalAlignment.Left; press.Margin = new Thickness(0, 6, 0, 0); press.FontWeight = FontWeights.Normal; } else press.Margin = new Thickness(0, 12, 0, 0);
+            press.IsEnabled = !installer.Running; System.Windows.Automation.AutomationProperties.SetAutomationId(press, "harness-install"); press.Click += async (_, _) => await installer.PressAsync(); card.Children.Add(press);
+        }
 
         void AddStart(string label, bool quiet)
         {

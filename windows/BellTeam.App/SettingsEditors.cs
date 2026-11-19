@@ -274,10 +274,12 @@ public sealed partial class SettingsWindow : EditorWindow
     private async Task<AIAuthEntry> ReadEntryAsync(HarnessAuthenticationApi auth, HarnessAuthenticationOption harness, string? slot, string name, bool signedOut, string? label, string? limitLine)
     {
         var progress = AuthenticationProgress.From(null, loaded: true);
-        try { progress = AuthenticationProgress.From((await auth.StatusAsync(harness.Id, Token, slot)).Auth, loaded: true, signedOut: signedOut); }
-        catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
-        catch (Exception) { /* unreadable: the entry says 確認できません */ }
-        return new AIAuthEntry(harness.Id, name, slot, progress) { AccountLabel = label, LimitLine = limitLine, SignedOut = signedOut };
+        // An AI that is not installed has no login to read (the server answers 409 HARNESS_NOT_INSTALLED); the summary says it from Install.
+        if (HarnessCliInstall.Ready(harness.Install))
+            try { progress = AuthenticationProgress.From((await auth.StatusAsync(harness.Id, Token, slot)).Auth, loaded: true, signedOut: signedOut); }
+            catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+            catch (Exception) { /* unreadable: the entry says 確認できません */ }
+        return new AIAuthEntry(harness.Id, name, slot, progress) { AccountLabel = label, LimitLine = limitLine, SignedOut = signedOut, Install = harness.Install };
     }
     private async Task LoadSettingsAsync()
     {

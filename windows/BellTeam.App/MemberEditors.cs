@@ -23,6 +23,10 @@ public sealed class ModelPicker : Border
     private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) lockRowParts = SettingsUi.SwitchRow("固定");
     private System.Windows.Controls.Primitives.ToggleButton locked => lockRowParts.Switch;
     private readonly TextBlock reason = Text("", 12, Red);
+    // harness-cli.md: the server's own sentence for an AI that is not installed, shown under the CLI row as given.
+    private readonly TextBlock installNote = Text("", 13, Orange);
+    private readonly Border installRow;
+    private Dictionary<string, HarnessCliInstall> installs = [];
     private bool updating, loading = true;
     private string? loadError;
     public event Action? Edited;
@@ -39,13 +43,13 @@ public sealed class ModelPicker : Border
         var customField = Field("モデルID", ""); custom = customField.Box; custom.CharacterCasing = CharacterCasing.Normal;
         var spinner = new StackPanel { Orientation = Orientation.Horizontal }; spinner.Children.Add(new Spinner { Width = 16, Height = 16, Stroke = Muted, Margin = new Thickness(0, 0, 8, 0) }); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
-        var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
+        var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine); installRow = Row(installNote);
         // a317: the Owner's switch for the AI settings (same position and wording as Linux a318); absent on a BellTeam that predates configurationLocked.
         LockRow = Row(lockRowParts.Row); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
         // a366: the server's plain text for a member whose stored AI is the retired Antigravity; the picker still offers the four AIs to switch to.
         if (initial.HarnessNotice is { } retired) card.Add(Row(Text(retired, 13, Orange)));
-        foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, LockRow, lockNote, configRow }) card.Add(row);
-        card.SetVisible(configRow, false); card.SetVisible(LockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
+        foreach (var row in new UIElement[] { loadingRow, cliRow, installRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, LockRow, lockNote, configRow }) card.Add(row);
+        card.SetVisible(installRow, false); card.SetVisible(configRow, false); card.SetVisible(LockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
         locked.IsChecked = initial.ConfigurationLocked == true; System.Windows.Automation.AutomationProperties.SetName(locked, "AI設定の固定");
         locked.Checked += (_, _) => Edited?.Invoke(); locked.Unchecked += (_, _) => Edited?.Invoke();
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
@@ -68,6 +72,10 @@ public sealed class ModelPicker : Border
         try { selection.SetCatalog((await api.Api.GetAsync<ModelsResponse>("/api/models", token)).Models); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception exception) { loadError = exception.Message; }
+        // Unreadable (an older server, a failed read): no sentence, the picker behaves as before.
+        try { installs = (await new HarnessAuthenticationApi(api.Api).ListAsync(token)).Harnesses.Where(item => item.Install is not null).ToDictionary(item => item.Id, item => item.Install!); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception) { installs = []; }
         loading = false; Render();
     }
     private void ShowRows()
@@ -80,6 +88,8 @@ public sealed class ModelPicker : Border
     {
         updating = true;
         harness.SelectedValue = selection.Harness;
+        var missing = installs.GetValueOrDefault(selection.Harness) is { } cli && !HarnessCliInstall.Ready(cli) ? cli : null;
+        installNote.Text = missing?.Message ?? ""; card.SetVisible(installRow, missing is not null);
         var catalog = selection.Catalog.GetValueOrDefault(selection.Harness);
         var options = new List<FormOption> { new("", "CLIの既定") };
         options.AddRange((catalog?.Models ?? []).Select(choice => new FormOption(choice.Id, choice.Label))); options.Add(new(Custom, "その他"));

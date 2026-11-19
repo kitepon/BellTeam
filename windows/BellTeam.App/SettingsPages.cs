@@ -174,7 +174,7 @@ public sealed partial class SettingsWindow
             var states = new List<Task>();
             foreach (var harness in harnesses)
             {
-                if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token)); continue; }
+                if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token, () => _ = LoadHarnessesAsync(list, token))); continue; }
                 var (row, ready) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, api, null, false, null, null, token); list.Children.Add(row); states.Add(ready);
             }
             await Task.WhenAll(states);
@@ -190,42 +190,61 @@ public sealed partial class SettingsWindow
 
     // One AI-authentication row: names and lines | badge | (button) | chevron. slot is the Claude account slot the row reads ("2nd"; the first reads without a slot).
     // The row and its button open the login as a page in the right pane (settings-user-flow B17); label and limit go to its head.
-    private (Grid Row, Task Ready) AuthRow(string name, IReadOnlyList<(string Text, Brush Color)> lines, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, bool signedOut, string? accountLabel, string? limitLine, CancellationToken token)
+    private (Grid Row, Task Ready) AuthRow(string name, IReadOnlyList<(string Text, Brush Color)> lines, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, bool signedOut, string? accountLabel, string? limitLine, CancellationToken token, bool showInstall = true)
     {
         var row = new Grid { Margin = new Thickness(0, 6, 0, 6), Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand };
-        foreach (var width in new[] { new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto }) row.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
+        foreach (var width in new[] { new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto }) row.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(name, 14, Ink, FontWeights.SemiBold));
         foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
+        // harness-cli.md: the server's own sentence about the installed AI, shown as given on every row that has an install state.
+        var installLine = Text("", 12, Muted, null, new Thickness(0, 2, 0, 0)); installLine.Visibility = Visibility.Collapsed; names.Children.Add(installLine);
         var badge = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Focusable = false }; Grid.SetColumn(badge, 1);
-        var action = Capsule("", Violet, Brushes.White); action.VerticalAlignment = VerticalAlignment.Center; action.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(action, 2);
-        var chevron = Glyph("\uE76C", 12, Secondary); chevron.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(chevron, 3);
-        row.Children.Add(names); row.Children.Add(badge); row.Children.Add(action); row.Children.Add(chevron);
+        var install = Capsule(HarnessCliInstall.DefaultLabel, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); install.FontWeight = FontWeights.Normal; install.VerticalAlignment = VerticalAlignment.Center; install.Margin = new Thickness(10, 0, 0, 0); install.Visibility = Visibility.Collapsed; Grid.SetColumn(install, 2);
+        var action = Capsule("", Violet, Brushes.White); action.VerticalAlignment = VerticalAlignment.Center; action.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(action, 3);
+        var chevron = Glyph("\uE76C", 12, Secondary); chevron.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(chevron, 4);
+        row.Children.Add(names); row.Children.Add(badge); row.Children.Add(install); row.Children.Add(action); row.Children.Add(chevron);
         System.Windows.Automation.AutomationProperties.SetName(row, name); System.Windows.Automation.AutomationProperties.SetName(action, name);
+        System.Windows.Automation.AutomationProperties.SetName(install, name + " " + HarnessCliInstall.DefaultLabel); System.Windows.Automation.AutomationProperties.SetAutomationId(install, "harness-install-" + harness.Id);
+        var runner = new HarnessInstallRunner(api, harness.Id, harness.Install, token);
+        var authRead = false;
         void Show(AuthenticationProgress value)
         {
             badge.Content = SettingsUi.Badge(value.Badge, value.Tone);
             action.Content = value.Action; action.Visibility = value.Action is null ? Visibility.Collapsed : Visibility.Visible;
         }
+        // Not installed (or installing): the server refuses the login routes, so the row says so and does not read them.
+        void ShowInstall()
+        {
+            var now = runner.Install;
+            installLine.Text = runner.Error is { } error ? (now?.Message is { } known ? known + "\n" : "") + error : now?.Message ?? ""; installLine.Visibility = installLine.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            install.Visibility = showInstall && now is { CanPress: true } ? Visibility.Visible : Visibility.Collapsed; install.IsEnabled = !runner.Running;
+            if (!HarnessCliInstall.Ready(now)) { authRead = false; var state = HarnessRowState.FromInstall(now!); badge.Content = SettingsUi.Badge(state.Title, state.Tone == HarnessTone.Muted ? SettingsTone.Gray : SettingsTone.Orange); action.Visibility = Visibility.Collapsed; }
+        }
         async Task ReadStateAsync()
         {
+            if (!HarnessCliInstall.Ready(runner.Install)) { ShowInstall(); return; }
             Show(AuthenticationProgress.Checking);
-            try { Show(AuthenticationProgress.From((await api.StatusAsync(harness.Id, token, slot)).Auth, loaded: true, signedOut: signedOut)); }
+            try { Show(AuthenticationProgress.From((await api.StatusAsync(harness.Id, token, slot)).Auth, loaded: true, signedOut: signedOut)); authRead = true; }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception) { Show(AuthenticationProgress.Unknown); }
         }
-        Task OpenAsync() => OpenLoginAsync(harness, slot, harness.Id == "claude" && name != harness.Name ? harness.Name + " " + name : name, accountLabel, limitLine, signedOut);
+        runner.Changed += () => { ShowInstall(); if (!!HarnessCliInstall.Ready(runner.Install) && !authRead && !runner.Running) _ = ReadStateAsync(); };
+        install.Click += async (_, args) => { args.Handled = true; await runner.PressAsync(); };
+        Task OpenAsync() => OpenLoginAsync(harness with { Install = runner.Install }, slot, harness.Id == "claude" && name != harness.Name ? harness.Name + " " + name : name, accountLabel, limitLine, signedOut);
         action.Click += async (_, args) => { args.Handled = true; await OpenAsync(); };
         row.MouseLeftButtonUp += async (_, _) => await OpenAsync();
+        ShowInstall();
+        if (showInstall) _ = runner.FollowAsync();
         return (row, ReadStateAsync());
     }
 
     // Claude: the two account slots when the server lists accounts, the old single row when GET /api/accounts answers 404 (older server),
     // and for any other read failure the reason with 一覧を更新 (never the old row, which would hide that the slots exist).
-    private async Task LoadClaudeAsync(StackPanel host, HarnessAuthenticationOption harness, HarnessAuthenticationApi auth, CancellationToken token)
+    private async Task LoadClaudeAsync(StackPanel host, HarnessAuthenticationOption harness, HarnessAuthenticationApi auth, CancellationToken token, Action reloadAll)
     {
         host.Children.Clear();
         var accounts = new HarnessAccountsApi(workspace.Management.Api);
-        Task Reload() => LoadClaudeAsync(host, harness, auth, token);
+        Task Reload() => LoadClaudeAsync(host, harness, auth, token, reloadAll);
         Button Retry()
         {
             var retry = Capsule("一覧を更新", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
@@ -246,6 +265,7 @@ public sealed partial class SettingsWindow
         var heading = new Grid { Margin = new Thickness(0, 6, 0, 0) }; heading.ColumnDefinitions.Add(new ColumnDefinition()); heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var usage = Text(harness.UsageText, 12, Muted); usage.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(usage, 1);
         heading.Children.Add(Text(harness.Name, 14, Ink)); heading.Children.Add(usage); host.Children.Add(heading);
+        if (harness.Install is not null) host.Children.Add(ClaudeInstall(harness, auth, token, reloadAll));
         foreach (var text in AccountText.CardBannerTexts(list, now))
         {
             var bar = Text("\u26A0 " + text, 12, Orange, null, new Thickness(0, 6, 0, 0)); System.Windows.Automation.AutomationProperties.SetName(bar, text); host.Children.Add(bar);
@@ -261,10 +281,29 @@ public sealed partial class SettingsWindow
             var limit = AccountText.LimitLine(claude, slot, now); if (limit is not null) lines.Add((limit, Orange));
             // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
             if (slot.History == "separate") lines.Add(("会話の履歴は1つ目のアカウントと分かれています", Muted));
-            var (row, state) = AuthRow(AccountText.SlotName(slot.Slot), lines, harness, auth, slot.Slot == "1st" ? null : slot.Slot, slot.SignedOutAt is not null, AccountText.Login(slot), limit, token);
+            var (row, state) = AuthRow(AccountText.SlotName(slot.Slot), lines, harness, auth, slot.Slot == "1st" ? null : slot.Slot, slot.SignedOutAt is not null, AccountText.Login(slot), limit, token, showInstall: false);
             host.Children.Add(row); ready.Add(state);
         }
         await Task.WhenAll(ready);
+    }
+
+    // Claude's two account rows share one install: the sentence and the button sit under the heading; a first install rebuilds the list so the account rows read their login.
+    private UIElement ClaudeInstall(HarnessAuthenticationOption harness, HarnessAuthenticationApi auth, CancellationToken token, Action reloadAll)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var runner = new HarnessInstallRunner(auth, harness.Id, harness.Install, token);
+        var line = Text("", 12, Muted); var button = Capsule(HarnessCliInstall.DefaultLabel, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 6, 0, 0); button.FontWeight = FontWeights.Normal;
+        System.Windows.Automation.AutomationProperties.SetAutomationId(button, "harness-install-claude");
+        panel.Children.Add(line); panel.Children.Add(button);
+        var blocked = !HarnessCliInstall.Ready(harness.Install);
+        void Show()
+        {
+            line.Text = runner.Error is { } error ? (runner.Install?.Message is { } known ? known + "\n" : "") + error : runner.Install?.Message ?? "";
+            button.Visibility = runner.Install is { CanPress: true } ? Visibility.Visible : Visibility.Collapsed; button.IsEnabled = !runner.Running;
+            if (blocked && !runner.Running && !!HarnessCliInstall.Ready(runner.Install)) reloadAll();
+        }
+        runner.Changed += Show; button.Click += async (_, _) => await runner.PressAsync();
+        Show(); _ = runner.FollowAsync(); return panel;
     }
 
     // ---- 仕事の要約を書くAI ----
