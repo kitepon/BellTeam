@@ -55,9 +55,10 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
   // a312: the internal entrance is only reached by seat Bots, so every settings change through it is a Bot's (BotAdministration refuses it on a locked Bot).
-  const seatAdministration = internal ? new Proxy(administration, { get: (target, key) => key === 'update'
-    ? (id, changes, options = {}) => target.update(id, changes, { ...options, actorKind: 'bot' })
-    : typeof target[key] === 'function' ? target[key].bind(target) : target[key] }) : administration
+  // Not a Proxy: production passes the frozen execution facade, and a get trap that returns another value for its
+  // read-only methods throws TypeError, so every seat restart/stop answered BOT_RESTART_FAILED (a442d, 2026-11-19).
+  const seatAdministration = internal ? Object.create(administration, { update: {
+    value: (id, changes, options = {}) => administration.update(id, changes, { ...options, actorKind: 'bot' }) } }) : administration
   const featureApis = [
     createApplicationApi({ ownerProfile, userRules, events, assets }),
     createMemberDeletionApi({ administration, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : null }),
