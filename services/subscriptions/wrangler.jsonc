@@ -16,7 +16,8 @@
     "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
     "STRIPE_PRICE_ID": "price_1UckaILlZAF5ymoyTtNpI5pK",
     "STRIPE_RETURN_URL": "https://kitepon.dev/support/",
-    "STRIPE_AUTOMATIC_TAX": "true"
+    "STRIPE_AUTOMATIC_TAX": "true",
+    "STRIPE_REQUIRE_TERMS": "true"
   },
   "env": {
     "sandbox": {
