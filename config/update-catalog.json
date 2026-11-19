@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T09:38:13Z",
-  "expiresAt": "2026-11-26T09:38:13Z",
+  "publishedAt": "2026-11-19T10:17:36Z",
+  "expiresAt": "2026-11-26T10:17:36Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "cfa438428f1fffe4f8728c95b2e88b6becb4acb93c75662cb85e6d56b8d58eb6",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "4f814efd513c7756edba2b686072567bf105e8e659e17375b3fd1824b4b0906e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz",
-          "bytes": 86765,
-          "sha256": "cfa438428f1fffe4f8728c95b2e88b6becb4acb93c75662cb85e6d56b8d58eb6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100342Z/usage-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz",
+          "bytes": 90582,
+          "sha256": "4f814efd513c7756edba2b686072567bf105e8e659e17375b3fd1824b4b0906e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11246,
-          "sha256": "122ebd8793ac0de1f5b17c544bea208068eb86905f4916857b2a26ce0d77c52e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100342Z/usage-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10964,
+          "sha256": "547b6cd884143b937807824dbdc5b027afcbb80b8c44c045fc8e772423691555"
         },
-        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "AIの認証で、AIごとにCLIが入っているかを示し、「最新版を入れる」ボタンから入れられるようにしました。要対応の帯にも、入っていない状態を数えます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "f2258045690c90abb525024f8c0196ddebedfc0d1f2741b921b7b7dc64353647",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "0fc50c35beba5d6f11607b9dc7ba620bdbf257553268df39c74658f3cfc30893",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz",
-          "bytes": 86765,
-          "sha256": "f2258045690c90abb525024f8c0196ddebedfc0d1f2741b921b7b7dc64353647"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100342Z/usage-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz",
+          "bytes": 90582,
+          "sha256": "0fc50c35beba5d6f11607b9dc7ba620bdbf257553268df39c74658f3cfc30893"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225650Z/usage-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11152,
-          "sha256": "f320222cccf6d04e3a489cbcb1d4892749b2d234ce2878d45433e6150a3cae1f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100342Z/usage-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10999,
+          "sha256": "d906e634675f588188ff96ba97710a833f58fa69a8a55c8feadb644132696d7e"
         },
-        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "AIの認証で、AIごとにCLIが入っているかを示し、「最新版を入れる」ボタンから入れられるようにしました。要対応の帯にも、入っていない状態を数えます。"
       ]
     },
     {
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
-      "versionId": "7d085db5a5946a472bf888b051dde186c385ed45897dc7df16368c543b08d4b4",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "b5bdf1d2dde81cfb29450fbeb77c8c9e8447e155727987a6b6a462496531003c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz",
-          "bytes": 5468994,
-          "sha256": "7d085db5a5946a472bf888b051dde186c385ed45897dc7df16368c543b08d4b4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz",
+          "bytes": 5481568,
+          "sha256": "b5bdf1d2dde81cfb29450fbeb77c8c9e8447e155727987a6b6a462496531003c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11052,
-          "sha256": "a7f1706b2dcb38fd23242207120aaf391158cf695eab34686e299eb23e542e4a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "db14b96b2574c15e998dc5e5a6f2ae1649ac05be4c1b371579e204987317b317"
         },
-        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
+        "Webの「AIの認証」に、入っていないCLIの状態と「最新版を入れる」ボタンを出しました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
-      "versionId": "c9330a4eb0eca7f10f671909b33e2e0f40634ddafca7d00a363392cf60eaa134",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "a2ed3071f2b9d6c165866cb540898046f751f09f2c1a588c5f6ae19c93a4912f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz",
-          "bytes": 5468994,
-          "sha256": "c9330a4eb0eca7f10f671909b33e2e0f40634ddafca7d00a363392cf60eaa134"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz",
+          "bytes": 5481568,
+          "sha256": "a2ed3071f2b9d6c165866cb540898046f751f09f2c1a588c5f6ae19c93a4912f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "27e636e2a4534688096033df5fcefca38444a95fc96b6a6730c304a53a8f74d9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11193,
+          "sha256": "7e2e23aa99855eb1c63ffb881f4ccece0628344f8a8973c8eb6785eef1010f3b"
         },
-        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,13 +488,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
+        "Webの「AIの認証」に、入っていないCLIの状態と「最新版を入れる」ボタンを出しました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
-      "versionId": "470b1bb6d85d4bd95a19484ca42f2a9047349302895bf08051ff93ec7bf7cbf1",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "3fa5675f86efbba2336d7ec6d16922831d5bd6ec9f8664b9e0a9331149881c8a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz",
-          "bytes": 3989164,
-          "sha256": "470b1bb6d85d4bd95a19484ca42f2a9047349302895bf08051ff93ec7bf7cbf1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz",
+          "bytes": 3991286,
+          "sha256": "3fa5675f86efbba2336d7ec6d16922831d5bd6ec9f8664b9e0a9331149881c8a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "ca7d6e29b058e5b9eabd36ee654f6b628f93980badbc097a25462a4c2ff068d0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11161,
+          "sha256": "ed94af6403f928500407b84ff30765e326b95ba0bf3309d2ebad18bb7c06af80"
         },
-        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,14 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
+        "CLIが入っていないAIの席は、失敗にせず、「まだ入っていません。AIの認証から入れてください」と平易に案内して待つようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
-      "versionId": "0e6a281f230d809ee7a68a6c965bc79b78c8d37e313a154d952951139112b448",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "89cffb74d2a67e5c5d3f9029ccea1d30e7cd8dd55ea9a2da7654ab615786125c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -536,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz",
-          "bytes": 3989164,
-          "sha256": "0e6a281f230d809ee7a68a6c965bc79b78c8d37e313a154d952951139112b448"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz",
+          "bytes": 3991286,
+          "sha256": "89cffb74d2a67e5c5d3f9029ccea1d30e7cd8dd55ea9a2da7654ab615786125c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "ceaf3d7e031a0b1df90bafad8229c0b9ced5624276ba21ca051422b341860e16"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "ae6582b8e156e08851e0a337976785041d82624e1de86ca13c99395974ad7545"
         },
-        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -555,14 +554,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
+        "CLIが入っていないAIの席は、失敗にせず、「まだ入っていません。AIの認証から入れてください」と平易に案内して待つようにしました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "c00b0caa01ba2e7eb0ffc1bed643bda46be926119a86e79fde9a01319eb2f100",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "b6641920116073b3292fb57444207706e6b08bb1aebda9a3850ef1813570265a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -570,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093257Z/members-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-amd64.tar.gz",
-          "bytes": 4602979,
-          "sha256": "c00b0caa01ba2e7eb0ffc1bed643bda46be926119a86e79fde9a01319eb2f100"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100426Z/members-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz",
+          "bytes": 4627416,
+          "sha256": "b6641920116073b3292fb57444207706e6b08bb1aebda9a3850ef1813570265a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093257Z/members-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11094,
-          "sha256": "7b5558fb08c235573ea6d51fb3c6584acbc637f04be404dc14d7f5770a5a5551"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100426Z/members-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "9aed80ded11f0d458e84d7cf645d6d6084043c283032e62a31de42f9181e7c83"
         },
-        "signerCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -596,13 +594,13 @@
         }
       },
       "changes": [
-        "メンバーの設定から、Antigravityを外しました。Antigravityが残る席は、お知らせ付きで読めます。"
+        "CLIが入っていないAIの席の起動の案内と、モデルの一覧の読み方を、本体の新しい版に合わせました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7",
-      "versionId": "2a50334ed9a28c1174bf66f603b5eab6a7101b6084beffc16b74bf701e450563",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "22e460bcdd0d3edeab1c678088837847f428fefa135cd9e3bbade67a1e022643",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -610,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093257Z/members-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-arm64.tar.gz",
-          "bytes": 4602980,
-          "sha256": "2a50334ed9a28c1174bf66f603b5eab6a7101b6084beffc16b74bf701e450563"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100426Z/members-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz",
+          "bytes": 4627410,
+          "sha256": "22e460bcdd0d3edeab1c678088837847f428fefa135cd9e3bbade67a1e022643"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261117T093257Z/members-a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "a87848667b579c8368942746af66eaf8e13c5ec8e591827e6f3e5a9e19ff46c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100426Z/members-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "d82cdffacde56fa03a5b3a12f037939729ed6b7c165f1604fffd0f1ff4dac011"
         },
-        "signerCommit": "a4b1dc785897cff29ff8dfdd470ce2c6f6ae8cd7"
+        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -636,7 +634,7 @@
         }
       },
       "changes": [
-        "メンバーの設定から、Antigravityを外しました。Antigravityが残る席は、お知らせ付きで読めます。"
+        "CLIが入っていないAIの席の起動の案内と、モデルの一覧の読み方を、本体の新しい版に合わせました。"
       ]
     },
     {
@@ -711,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0ad5e11897602a630b0b6720ac225a32138cfa13",
-      "versionId": "sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,21 +726,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席へ送る前に入れ替えで断られた配送を、「起動の失敗」として報告しないようにしました（BugHub 3beb1932）。",
-        "本体の入れ替えの手前の「部品の作業員の終了」が、一瞬の読み手のロックで失敗しないよう、待ってから進めるようにしました（Z114 の本番の入れ替えが一度失敗した原因の直し）。"
+        "AIの実行ファイル（CLI）の置き場（利用者の領域）と、最新版を入れる処理を、本体に足しました。本体の入れ替えで消えない場所へ入ります。",
+        "今は本体にまだ4つのCLIを同梱したままです。入っていないCLIは、AIの認証の画面から入れられるようになります。",
+        "Lattice の読み方に、閉じた工程の履歴を別に読む入口を足しました（本体側のみ。使われるのは後の部品の入れ替えからです）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0ad5e11897602a630b0b6720ac225a32138cfa13",
-      "versionId": "sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32",
+      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
+      "versionId": "sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,8 +750,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席へ送る前に入れ替えで断られた配送を、「起動の失敗」として報告しないようにしました（BugHub 3beb1932）。",
-        "本体の入れ替えの手前の「部品の作業員の終了」が、一瞬の読み手のロックで失敗しないよう、待ってから進めるようにしました（Z114 の本番の入れ替えが一度失敗した原因の直し）。"
+        "AIの実行ファイル（CLI）の置き場（利用者の領域）と、最新版を入れる処理を、本体に足しました。本体の入れ替えで消えない場所へ入ります。",
+        "今は本体にまだ4つのCLIを同梱したままです。入っていないCLIは、AIの認証の画面から入れられるようになります。",
+        "Lattice の読み方に、閉じた工程の履歴を別に読む入口を足しました（本体側のみ。使われるのは後の部品の入れ替えからです）。"
       ]
     },
     {
