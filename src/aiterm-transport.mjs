@@ -140,8 +140,12 @@ export function operationLease(client) {
 const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Right', 'C-c', ...'0123456789'])
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
+// a469g: a resume that found a turn running keeps the saved fast switch (Aiterm 0.70.81 does not restore fast then).
+const resumedRunningFastKept = (bot, receipt) => bot.fastMode === true && receipt?.fast === false
+  && receipt.startup?.reason === 'turn_running' && receipt.fast_error?.code === 'FAST_MODE_UNCONFIRMED'
+
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, refastRetry = 30_000 } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -174,6 +178,7 @@ export class AitermTransport {
     this.runtimeLaunches = null
     this.runtimeLaunchQueue = Promise.resolve()
     this.activeId = activeId
+    this.refastRetry = refastRetry
     this.now = now
     this.retainedImages = new Map()
     this.activity = new SeatActivity()
@@ -488,7 +493,8 @@ export class AitermTransport {
       this.membersAdmission.assertLease(membersLease)
       // Aitermは、ファストモードにできなかった席も通常の速度で起こし、実際の状態を返す（利用枠が尽きた時など）。
       // 保存が「有効」のまま実際は通常の速度、という食い違いを残さないよう、保存を実際へ合わせる。
-      if (bot.fastMode === true && launch.structuredContent.fast === false) {
+      if (resumedRunningFastKept(bot, launch.structuredContent)) this.refastAfterResume(bot, session)
+      else if (bot.fastMode === true && launch.structuredContent.fast === false) {
         const reason = launch.structuredContent.fast_error?.code
         process.stderr.write(`BellTeam Aiterm: ファストモードで起こせなかったため、通常の速度で起こしました: ${bot.id}${typeof reason === 'string' ? `（${reason}）` : ''}\n`)
         await this.updateFastMode(bot.id, false, { membersLease })
@@ -500,6 +506,22 @@ export class AitermTransport {
     // configuration-lock.md: a new launch has no Aiterm lock; the Owner's switch is read fresh, a failure only logs.
     if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
     return session
+  }
+
+  // configuration-delivery.md (a469g): Aiterm 0.70.81 resumes a fast seat that already runs a turn without restoring fast. The turn is
+  // not a BellTeam job, so there is nothing to wait on: ask again every REFAST_RETRY_MS while Aiterm refuses for the running turn.
+  // Self-exit: applied, saved fastMode off, session replaced, stop/lease error, or any other failure (logged; the saved value stays).
+  refastAfterResume(bot, session) {
+    void (async () => {
+      for (;;) {
+        const current = this.resolveBot?.(bot.id) ?? bot
+        if (current.fastMode !== true || this.session(current) !== session) return
+        try { return await this.reconfigureNow({ ...current, fastMode: false }, current, {}, false) } catch (error) {
+          if (error?.code !== 'CONFIGURATION_NOT_APPLIED' || error.effect !== 'not_started' || error.refusal) throw error
+          await new Promise(resolve => setTimeout(resolve, this.refastRetry))
+        }
+      }
+    })().catch(error => process.stderr.write(`BellTeam Aiterm: fast mode not restored after resume: ${bot.id}: ${error?.refusal?.code ?? error?.code ?? error?.message ?? 'failed'}\n`))
   }
 
   // configuration-lock.md (a339): after this engine starts, a seat that was already running keeps no lock the previous body never
@@ -561,6 +583,7 @@ export class AitermTransport {
         || receipt.startup?.status !== 'ready' || receipt.initial_prompt?.status !== 'not_requested')
         await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
       this.seatHarnesses.set(bot.id, { session: reference.sessionId, harness: reference.harness })
+      if (resumedRunningFastKept(this.resolveBot?.(bot.id) ?? bot, receipt)) this.refastAfterResume(bot, reference.sessionId)
       if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
       return { sessionId: receipt.session_id, resumedAt: this.now() }
     })
