@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T02:51:09Z",
-  "expiresAt": "2026-11-26T02:51:09Z",
+  "publishedAt": "2026-11-19T03:18:11Z",
+  "expiresAt": "2026-11-26T03:18:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -521,7 +521,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡します）。"
       ]
     },
     {
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡します）。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "74f2c4b6e91910007b1515475de47263b0f207ec",
-      "versionId": "sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf",
+      "sourceCommit": "6afa111178e2ff64d04a779a27a24c389417bb9a",
+      "versionId": "sha256:a91e1cb2bbe8c2a81ccd3e10557418680cdb6a44345adfa51e96600d8b3f0aa0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a91e1cb2bbe8c2a81ccd3e10557418680cdb6a44345adfa51e96600d8b3f0aa0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡します）。",
+        "Code Mode の最初の確認画面に、席の起動の部品（aiterm-mcp 0.70.77）が「有効にする」と答えるようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "74f2c4b6e91910007b1515475de47263b0f207ec",
-      "versionId": "sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf",
+      "sourceCommit": "6afa111178e2ff64d04a779a27a24c389417bb9a",
+      "versionId": "sha256:a91e1cb2bbe8c2a81ccd3e10557418680cdb6a44345adfa51e96600d8b3f0aa0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a5e18e74e9f05ce6da0167f73fead285d59a07711ce1929c8efd4eac3f712bcf"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a91e1cb2bbe8c2a81ccd3e10557418680cdb6a44345adfa51e96600d8b3f0aa0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +749,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡し、通らない時は 1 回だけ別の方法に切り替えます）。"
+        "Claude の席を起動するたびに Code Mode を求めるようにしました（settings_env で渡します）。",
+        "Code Mode の最初の確認画面に、席の起動の部品（aiterm-mcp 0.70.77）が「有効にする」と答えるようにしました。"
       ]
     },
     {
