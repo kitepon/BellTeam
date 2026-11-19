@@ -17,10 +17,25 @@ const at = minute => `2026-11-11T10:${String(minute).padStart(2, '0')}:00.000Z`
 const ev = (kind, task_id, agent, minute, extra = {}) => ({ kind, task_id, actor: { agent }, recorded_at: at(minute), ...extra })
 const roster = ids => ids.map(id => ({ id, name: id.toUpperCase(), color: 'sky', avatarVersion: 'v1', deleting: false }))
 const readOf = (members, extra = {}) => ({ state: 'verified', verified_at: at(59), store: { members }, ...extra })
+// A member as Lattice's compact read sends it (K3, 0.112.0): the journal reduced to `activity`, plan-scoped events to the live `cross_plan_dependencies`.
+const activityOf = events => {
+  const times = events.map(event => event.recorded_at).sort(), byTask = new Map()
+  for (const event of events) {
+    if (!event.task_id) continue
+    const item = byTask.get(event.task_id) ?? { task_id: event.task_id, changed_at: event.recorded_at, started: null }
+    item.changed_at = item.changed_at > event.recorded_at ? item.changed_at : event.recorded_at
+    if (event.kind === 'start') item.started = { at: event.recorded_at, agent: event.actor.agent }
+    byTask.set(event.task_id, item)
+  }
+  const first = events.find(event => event.recorded_at === times[0])
+  return { first: first ? { at: first.recorded_at, agent: first.actor.agent } : null, last_at: times.at(-1) ?? null, tasks: [...byTask.values()] }
+}
 const planMember = ({ plan = 'p1', tasks, states, events = [], scoped = [], deps = [], joins = [] }) => ({
   plan: { plan_key: plan, tasks, hard_dependencies: deps, joins },
   tasks: states.map(([task_id, status, blocked_reason]) => ({ task_id, status, blocked_reason })),
-  journal: { events }, plan_scoped: { events: scoped } })
+  activity: activityOf(events),
+  cross_plan_dependencies: scoped.filter(event => event.kind === 'cross_plan_dependency' && !scoped.some(other => other.payload?.target_event_digest === event.event_digest))
+    .map(event => ({ event_digest: event.event_digest, from: event.payload.from, to: event.payload.to })) })
 
 function mainPlan() {
   return planMember({
@@ -218,7 +233,8 @@ test('projection: malformed pieces drop only themselves; unknown state is unavai
   const bad = { plan: { plan_key: 'p1', tasks: [{ task_id: 'ok' }, { title: 'no id' }, { task_id: 'bad' }, 5, null], hard_dependencies: 'x',
     joins: [{ after: [{ plan_key: 'p1' }, ref('p1', 'ok')], before: null }] },
   tasks: [{ task_id: 'ok', status: 'done' }, { task_id: 'bad', status: 'weird' }],
-  journal: { events: [null, { kind: 'start' }, { kind: 'start', task_id: 'ok', actor: { agent: 'bot-a' }, recorded_at: 'garbage' }] } }
+  activity: { first: { at: 'garbage', agent: 'x' }, last_at: 'garbage', tasks: [null, { changed_at: '2026-11-11T10:00:00.000Z' }, { task_id: 'ok', changed_at: 'garbage', started: { agent: 'bot-a', at: 'garbage' } }] },
+  cross_plan_dependencies: [null, { from: { plan_key: 'p1' }, to: 5 }] }
   const result = projectChart({ read: readOf([null, { plan: {} }, bad]), members: [] })
   assert.deepEqual(result.cards.map(card => [card.id, card.producer, card.startedAt]), [['p1/ok', 'bot-a', null]])
   assert.deepEqual([result.edges, result.waits, result.updatedAt, result.createdBy], [[], [], null, null])
@@ -253,7 +269,7 @@ function rig(extra = {}) {
       const key = args.join(' ')
       cli.calls.push(key === READ ? `${key} ${id}` : key)
       if (key === 'todo status --json') return cli.fail.has('status') ? { exitCode: 1, stdout: '', stderr: 'boom' } : reply({ schema: 'lattice.todo_status_result.v10', next_ready: (cli.ready[id] ?? []).map(task => ({ plan_key: 'p1', task_id: task })) })
-      if (key === 'todo display read --json') return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
+      if (key === READ) return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
       cli.runs.push({ id, args, env, input })
       // A store-creating command makes the chart, and Lattice records the creator from LATTICE_SEAT_ID (K5).
       if (!cli.noStore && !cli.charts.includes(id)) { cli.charts.push(id); cli.metas[id] = { ...cli.metas[id], createdBy: env.LATTICE_SEAT_ID } }
@@ -270,7 +286,7 @@ function chartRead({ agent = 'bot-7b140b27', minute = 1, status = 'in-progress' 
   return readOf([planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', status], ['t2', 'pending']],
     deps: [{ from: ref('p1', 't1'), to: ref('p1', 't2') }], events: [ev('plan', 't1', agent, minute), ev('start', 't1', 'bot-a', minute + 1)] })])
 }
-const READ = 'todo display read --json', SOURCE = 'charts source'
+const READ = 'todo display read --json --compact', SOURCE = 'charts source'
 
 test('core: snapshot shape, members only for producers and waiters, coordinator flag', async () => {
   const x = rig()
