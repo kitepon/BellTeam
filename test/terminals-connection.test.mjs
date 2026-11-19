@@ -374,33 +374,47 @@ test('a connect suspended across a registry change or dispose runs no C8 command
 })
 
 
-test('C8 brings an older terminal Aiterm to the container version once, before the commands; a failed provision never vetoes (Trony 2026-11-19)', async t => {
+test('an older terminal Aiterm that opened launches at once; provision runs in the background and completes the evidence (Trony 2026-11-19 a442j)', async t => {
   const { connection, native } = setup(t)
   Object.assign(native, { remoteVersion: '0.70.74', localVersion: '0.70.77' })
-  const provision = native.provision
-  native.provision = async req => { const result = await provision(req); native.remoteVersion = native.localVersion; return result }
+  const gate = deferred()
+  native.provision = async req => { native.calls.push({ op: 'provision', ...req }); await gate.promise; native.remoteVersion = native.localVersion; return { schema: 'aiterm.remote-provision.v1', result: 'PROVISIONED', version: '0.70.77' } }
 
-  await connection.target(request)
-  assert.deepEqual(native.calls.map(c => c.op === 'command' ? 'command' : c.op).filter(op => ['open', 'close', 'provision', 'command'].includes(op)),
-    ['open', 'close', 'provision', 'open', 'command', 'command', 'command', 'close'], 'older: close, provision once, reopen, then C8')
-  assert.deepEqual(connection.maintenance.last('owner-macbook').aiterm, { before: '0.70.74', after: '0.70.77', outcome: 'updated' })
-
-  native.calls.length = 0
-  await connection.target(request)
-  assert.equal(native.calls.some(c => c.op === 'provision'), false, 'equal: nothing runs')
-  assert.equal(connection.maintenance.last('owner-macbook').aiterm.outcome, 'current')
-
-  // A failed provision keeps the launch: the terminal is reopened as it was, and the next launch retries.
-  Object.assign(native, { remoteVersion: '0.70.74' })
-  native.provision = async req => { native.calls.push({ op: 'provision', ...req }); throw Object.assign(new Error('x'), { code: 'PROVISION_FAILED' }) }
-  native.calls.length = 0
+  // The provision is stalled; the launch still returns, on one open, with no close/reopen around it.
   assert.ok((await connection.target(request)).terminal)
-  assert.deepEqual(connection.maintenance.last('owner-macbook').aiterm, { before: '0.70.74', after: '0.70.74', outcome: 'failed' })
+  const ops = native.calls.map(c => c.op === 'command' ? 'command' : c.op).filter(op => ['open', 'close', 'provision', 'command'].includes(op))
+  assert.deepEqual(ops.filter(op => op !== 'provision'), ['open', 'command', 'command', 'command', 'close'], 'one open, no close and reopen around a provision')
+  assert.equal(ops.filter(op => op === 'provision').length, 1)
+  assert.equal(native.calls.filter(c => c.op === 'open').length, 1)
+  assert.deepEqual(connection.maintenance.last('owner-macbook').aiterm, { before: '0.70.74', after: '0.70.74', outcome: 'updating' })
+
+  // Another harness on the same terminal joins the running provision; no second install, no wait.
+  await connection.target({ ...request, harness: 'codex-cli' })
+  assert.equal(native.calls.filter(c => c.op === 'provision').length, 1, 'one provision per terminal at a time')
+
+  gate.resolve()
+  await wait(10)
+  assert.deepEqual(connection.maintenance.last('owner-macbook').aiterm, { before: '0.70.74', after: '0.70.77', outcome: 'updated' }, 'the run completes the evidence')
+
+  native.calls.length = 0
   await connection.target(request)
+  assert.equal(native.calls.some(c => c.op === 'provision'), false, 'next launch: already the container version')
+  assert.deepEqual(connection.maintenance.last('owner-macbook').aiterm, { before: '0.70.77', after: '0.70.77', outcome: 'current' })
+})
+
+test('a failed background provision never vetoes or holds a launch; the next launch retries (Trony 2026-11-19)', async t => {
+  const { connection, native } = setup(t)
+  Object.assign(native, { remoteVersion: '0.70.74', localVersion: '0.70.77' })
+  native.provision = async req => { native.calls.push({ op: 'provision', ...req }); throw Object.assign(new Error('x'), { code: 'PROVISION_FAILED' }) }
+  assert.ok((await connection.target(request)).terminal)
+  await wait(10)
+  assert.deepEqual(connection.maintenance.last('owner-macbook').aiterm, { before: '0.70.74', after: '0.70.74', outcome: 'failed', reason: 'PROVISION_FAILED' })
+  await connection.target(request)
+  await wait(10)
   assert.equal(native.calls.filter(c => c.op === 'provision').length, 2, 'retried on the next launch')
 })
 
-test('an unreadable or newer terminal version never installs; a check and the folder picker never provision; two harnesses share one provision', async t => {
+test('an unreadable or newer terminal version never installs; a check and the folder picker never provision (Trony 2026-11-19)', async t => {
   const { connection, native } = setup(t)
   await connection.target(request)
   assert.equal(connection.maintenance.last('owner-macbook').aiterm.outcome, 'unknown')
@@ -411,12 +425,4 @@ test('an unreadable or newer terminal version never installs; a check and the fo
   await connection.check('owner-macbook')
   await connection.folders({ terminalId: 'owner-macbook' })
   assert.equal(native.calls.some(c => c.op === 'provision'), false, 'only a launch brings the terminal current')
-
-  const gate = deferred()
-  native.provision = async req => { native.calls.push({ op: 'provision', ...req }); await gate.promise; native.remoteVersion = native.localVersion }
-  const launches = Promise.all([connection.target(request), connection.target({ ...request, harness: 'codex-cli' })])
-  await wait(20)
-  gate.resolve()
-  await launches
-  assert.equal(native.calls.filter(c => c.op === 'provision').length, 1, 'one install per terminal at a time')
 })
