@@ -163,6 +163,8 @@ async function verifyStripe(env, request, input, now) {
   }
 }
 
+const termsConsentText = '申し込むと、[利用規約](https://kitepon.dev/terms/)と[BellTeam付属規約](https://kitepon.dev/apps/bellteam/terms/)に同意したことになります。料金・解約・返金は[特定商取引法に基づく表記](https://kitepon.dev/specified-commercial-transactions/#bellteam)のとおりです。'
+
 // 作ったCheckoutを開いたまま使い回す（二重に作らない）ため、sessionId付きなら新規作成せず現在の状態を返す。
 async function stripeCheckout(env, request, resumeSessionId) {
   if (resumeSessionId !== undefined) {
@@ -177,6 +179,8 @@ async function stripeCheckout(env, request, resumeSessionId) {
     'subscription_data[trial_period_days]': '30',
     // Stripe Taxは本部住所の登録後だけ使える。登録前にtrueにするとCheckoutが作れないため、設定で切り替える。
     ...(env.STRIPE_AUTOMATIC_TAX === 'true' ? { 'automatic_tax[enabled]': 'true' } : {}),
+    // 申込み時に規約への同意を求める。StripeのアカウントにTerms URLを登録した後だけ使えるため、設定で切り替える（Taxと同じ）。
+    ...(env.STRIPE_REQUIRE_TERMS === 'true' ? { 'consent_collection[terms_of_service]': 'required', 'custom_text[terms_of_service_acceptance][message]': termsConsentText } : {}),
     success_url: `${env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}`, cancel_url: env.STRIPE_RETURN_URL,
   })
   if (typeof session.url !== 'string' || typeof session.id !== 'string') throw invalidResponse('Stripe')

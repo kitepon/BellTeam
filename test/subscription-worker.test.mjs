@@ -247,6 +247,13 @@ test('Stripeの通信失敗・未設定を期限切れへ置き換えずエラ�
   await taxed.post('/v1/subscriptions/stripe/checkout', {}, { ...stripeEnv, STRIPE_AUTOMATIC_TAX: 'true' })
   assert.equal(taxed.calls[0].init.body.get('automatic_tax[enabled]'), 'true')
   assert.equal(form.get('success_url'), 'https://example.test/return?session_id={CHECKOUT_SESSION_ID}')
+  assert.equal(form.has('consent_collection[terms_of_service]'), false)
+  const consent = stripeWorker(() => Response.json({ id: 'cs_1', url: 'https://checkout.stripe.test/c/1' }))
+  await consent.post('/v1/subscriptions/stripe/checkout', {}, { ...stripeEnv, STRIPE_REQUIRE_TERMS: 'true' })
+  const consentForm = consent.calls[0].init.body
+  assert.equal(consentForm.get('consent_collection[terms_of_service]'), 'required')
+  const message = consentForm.get('custom_text[terms_of_service_acceptance][message]')
+  assert.ok(message.length <= 1200 && message.includes('kitepon.dev/apps/bellteam/terms/') && message.includes('specified-commercial-transactions/#bellteam'))
 })
 
 test('開いたままのCheckoutは新しく作らず状態を返し、閉じたものはURLを返さない', async () => {
