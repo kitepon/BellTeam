@@ -1072,7 +1072,7 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 #owner-dialog .harness-auth-body p { margin: 0 0 8px; color: var(--s-muted); font-size: 13px; line-height: 1.7; }
 #owner-dialog .harness-auth:last-child { border-bottom: 0; }
 #owner-dialog .harness-install { display: grid; gap: 8px; padding: 0 0 16px; }
-#owner-dialog .harness-install p { margin: 0; color: var(--s-muted); }
+#owner-dialog .harness-install p { margin: 0; color: var(--s-muted); font-size: 13px; line-height: 1.7; }
 
 /* Claude 1st/2nd accounts: member slot badge, both-limited banner, settings slot rows. */
 .accounts-banner { margin: 0 22px 12px; padding: 8px 12px; border-radius: 10px; background: #fbe8e5; color: #8f2a1f; font-size: 13px; line-height: 1.6; }
