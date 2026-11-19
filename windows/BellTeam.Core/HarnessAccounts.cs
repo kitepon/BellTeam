@@ -69,8 +69,6 @@ public static class AccountText
     // Mac AccountText.bothLimited: the card's own banner wording (the member-list banner keeps BannerTexts, same as Web).
     public static string[] CardBannerTexts(AccountsResponse? list, DateTimeOffset now)
         => (list?.Claude?.AllLimited ?? []).Select(item => $"1つ目と2つ目のアカウントがどちらも{(string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? "上限中" : ScopeName(item.Scope) + "が上限中")}です（{(ResetTime(item.EarliestResetAt, now) is { } time ? time + "に解除" : "解除時刻不明")}）").ToArray();
-    // The members' names (Linux settings); Windows says SlotUsersLine / SeatsCount instead (settings-user-flow B20).
-    public static string? Seats(AccountSlot slot, Func<string, string?> name) => slot.Seats.Length == 0 ? null : "使用中: " + string.Join("、", slot.Seats.Select(id => name(id) ?? id));
     // Mac AccountText.slotName / slotUsers / slotUsersLine / seats / limitLine (settings-user-flow B19/B20, #1117).
     public static string SlotName(string slot) => slot == "2nd" ? "2つ目のアカウント" : "1つ目のアカウント";
     // Members running on the slot now, from each bot's own account; null on an older body where no bot has an account (the row then says SeatsCount).
@@ -81,6 +79,9 @@ public static class AccountText
     }
     public static string SlotUsersLine(int count) => count == 0 ? "いまこのアカウントで動いているメンバーはいません" : $"いま{count}人がこのアカウントで動いています";
     public static string SeatsCount(AccountSlot slot) => $"{slot.Seats.Length}人が使用";
+    // The Mac slot row (HarnessAuthenticationView): how many members run on the slot now from the bots' accounts, else how many seats used it on an older body, else nothing. Never names or ids.
+    public static string? UsersLine(IEnumerable<SeatAccount?> accounts, string harness, AccountSlot slot)
+        => SlotUsers(accounts, harness, slot.Slot) is { } count ? SlotUsersLine(count) : slot.Seats.Length > 0 ? SeatsCount(slot) : null;
     private static string ScopeName(string scope) => scope switch { "fable" => "Fable", "opus" => "Opus", "sonnet" => "Sonnet", "haiku" => "Haiku", _ => scope };
     // One limit line apart from the login badge: 「上限中・11/13 17:00に戻ります（いまは2つ目で動いています）」; null without a limit.
     public static string? LimitLine(AccountHarness harness, AccountSlot slot, DateTimeOffset now)
