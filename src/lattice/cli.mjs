@@ -9,6 +9,8 @@ const SEAT_COMMANDS = ['plan', 'todo', 'status', 'session-context', 'help', '--h
 // stderr keeps 64 KiB: Lattice's JSON refusals (lattice.cli_error.v2) list every problem and run past 4 KiB on a 20-task plan.
 // 64 MiB = Lattice's own DISPLAY_CHECKPOINT_MAX_BYTES; bellteam's display read was 17.5 MB on 2026-11-19 (a453, it passed the old 16 MiB cap). A larger output reads as LATTICE_CLI_BAD_JSON (README).
 const STDOUT_LIMIT = 64 * 1024 * 1024, STDERR_LIMIT = 64 * 1024
+// At most this many Lattice CLI children at once (README L3): 3 x 540 MB, against 8 x 430 MB seen on 2026-11-19 (a466).
+const CHILDREN_MAX = 3
 
 // Named protection: Lattice's host commands (setup, hooks, bridge, dashboard, run, sensor, charts, chart) would act as the server uid.
 // The module calls its own host commands (K1, K2, K4, K7) through `host`, never through a seat's args.
@@ -21,7 +23,7 @@ export function checkSeatArgs(args, input = null) {
 export const INPUT_TOKEN = '@input'
 
 export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattice', home = '/srv/bellteam/state/lattice-home',
-  stateDir = '/srv/bellteam/state/lattice-module', spawnImpl = spawn, timeoutMs = 60000 } = {}) {
+  stateDir = '/srv/bellteam/state/lattice-module', spawnImpl = spawn, timeoutMs = 60000, maxChildren = CHILDREN_MAX } = {}) {
   // The package is bundled with the module, not installed in every tree, so it is resolved at first use.
   let resolved = bin
   const binPath = () => {
@@ -33,7 +35,16 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
   // Only a missing path means "nothing yet"; any other I/O error is LATTICE_UNAVAILABLE and nothing is cached.
   const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
 
-  const spawnRun = (args, cwd, env, limitMs = timeoutMs) => new Promise((resolve, reject) => {
+  // Spawn gate (a466f): one child on bellteam is 451-540 MB, and 8 at once pushed the box over its memory bound. A slot is held only while the child runs; waiters go in arrival order.
+  let running = 0
+  const waiting = []
+  const acquire = () => running < maxChildren ? (running++, Promise.resolve()) : new Promise(resolve => waiting.push(resolve))
+  const release = () => { const next = waiting.shift(); if (next) next(); else running-- }
+  const spawnRun = async (args, cwd, env, limitMs = timeoutMs) => {
+    await acquire()
+    try { return await spawnOne(args, cwd, env, limitMs) } finally { release() }
+  }
+  const spawnOne = (args, cwd, env, limitMs) => new Promise((resolve, reject) => {
     const out = [], err = []
     let outBytes = 0, errBytes = 0, done = false
     let child
