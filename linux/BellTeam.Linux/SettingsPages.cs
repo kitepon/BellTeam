@@ -178,7 +178,7 @@ public sealed partial class SettingsWindow
             if (DialogOwner is { } owner) await dialog.ShowDialog(owner); else dialog.Show();
             await (afterDialog?.Invoke() ?? ReadStateAsync()); _ = ReloadHomeAsync();
         };
-        AutomationProperties.SetName(action, slot is null ? harness.Name : harness.Name + " " + AccountText.SlotTitle(slot));
+        AutomationProperties.SetName(action, slot is null ? harness.Name : harness.Name + " " + AccountText.SlotName(slot));
         var holder = new StackPanel { Margin = new Thickness(0, 10, 0, 0) }; holder.Children.Add(row); row.Margin = default;
         if (panel is not null) { panel.Margin = new Thickness(0, 4, 0, 0); panel.MoveTo(holder); }
         return (holder, ReadStateAsync());
@@ -216,14 +216,15 @@ public sealed partial class SettingsWindow
         var ready = new List<Task>();
         foreach (var slot in claude.Slots)
         {
-            if (AccountText.SlotTitle(slot.Slot) is not { } slotTitle) continue;
+            if (slot.Slot is not ("1st" or "2nd")) continue;
+            var slotTitle = AccountText.SlotName(slot.Slot);
             var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(slotTitle, 14, Ink, FontWeight.SemiBold));
             var lines = new List<(string Text, IBrush Color)>();
             if (AccountText.Login(slot) is { } account) lines.Add((account, Muted));
-            lines.AddRange(slot.Limits.Select(item => (AccountText.LimitText(item.Scope, item.ResetAt, now), Orange)));
+            if (AccountText.LimitLine(claude, slot, now) is { } limit) lines.Add((limit, Orange));
             if (AccountText.UsersLine(seats, "claude", slot) is { } users) lines.Add((users, Muted));
             // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
-            if (slot.History == "separate") lines.Add(("会話の履歴は1stアカウントと分かれています", Muted));
+            if (slot.History == "separate") lines.Add(("会話の履歴は1つ目のアカウントと分かれています", Muted));
             foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
             var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0, 8, 0, 0);
             AutomationProperties.SetName(row, slotTitle); host.Children.Add(row); ready.Add(state);

@@ -230,7 +230,7 @@ public sealed class ProfileView : StackPanel
         card.Children.Add(new TextBlock { Text = "AIと操作", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = BellTheme.Muted });
         // The seat's Claude account slot; no row when the server sends none (older body, null, another harness).
         var rows = new List<(string, string)> { ("ハーネス", bot.Harness), ("希望モデル", BotProfileText.OrDefault(bot.Model)), ("希望エフォート", BotProfileText.OrDefault(bot.ReasoningEffort)) };
-        if (AccountText.SeatText(bot.Account) is { } slotText) rows.Add(("アカウント", slotText));
+        if (bot.Account is { Harness: "claude", Slot: { } slot }) rows.Add(("アカウント", AccountText.SlotName(slot)));
         foreach (var (label, value) in rows)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Spacing = 10 };
