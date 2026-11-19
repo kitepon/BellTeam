@@ -29,6 +29,8 @@ function stageCode(error, context) {
   return 'SERVER_DELIVERY_FAILED'
 }
 
+const swapNotStarted = error => { const proof = returnedExecutionError(error?.executionError); return proof?.code === 'EXECUTION_STALE_GENERATION' && proof.effect === 'not_started' }
+
 export function directFailureReport(error, context) {
   const request = mcpRequestContext(error)
   const pending = normalInputPending(error)
@@ -99,6 +101,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (error?.code === 'BOT_STOPPED') return
       // update-hold.md H2: refused before any input, so it stays queued; also covers an Owner turn's completion rejection.
       if (error?.code === 'BOT_UPDATE_HOLD' || error?.code === 'BOT_AWAITING_USER') return
+      // a447n: a refusal by the swap (BOT_UPDATE_HOLD, or Aiterm's stale-generation frame proving not_started) is on the thrown error, not the status-stage object; durable receipts requeue on the same proof.
+      if (!accepted && (evidence?.code === 'BOT_UPDATE_HOLD' || swapNotStarted(evidence))) return
       // The status-stage failure object carries no mcp_request; the thrown error does (a444n).
       const unknown = !accepted && stage !== 'preflight' && sendOutcomeUnknown(evidence)
       report(unknown ? evidence : error, { delivery_id: record.delivery_id, target: record.target, stage, accepted, ...(unknown ? { outcome: 'unknown' } : {}) })
