@@ -308,6 +308,30 @@ test('an update-hold refusal (BOT_UPDATE_HOLD) keeps the receipt queued without 
   await f.direct.close()
 })
 
+test('a launch refused by the swap files no report: BOT_LAUNCH_FAILED status held, thrown BOT_UPDATE_HOLD or stale-generation not_started (a447n, BugHub 3beb1932); other failures still report', async t => {
+  const proof = { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STALE_GENERATION', effect: 'not_started', follow_up: 'none' }
+  const seen = []
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+    async notify(_bot, envelope, options) {
+      seen.push(envelope)
+      const failure = { code: 'BOT_LAUNCH_FAILED', delivery_error: { code: 'BOT_LAUNCH_FAILED' } }
+      await options.onStatus('failed', failure)
+      throw envelope.includes('hold') ? Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503 })
+        : envelope.includes('stale') ? Object.assign(new Error('BOT_LAUNCH_FAILED'), { code: 'BOT_LAUNCH_FAILED', executionError: proof, effect: 'not_started' })
+        : Object.assign(new Error('BOT_LAUNCH_FAILED'), { code: 'BOT_LAUNCH_FAILED', executionError: { ...proof, code: 'EXECUTION_BUSY' } })
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const receive = message => f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message }))
+  const status = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery
+  const held = await receive('hold'), stale = await receive('stale')
+  await settled(async () => await status(held.delivery_id) === 'queued' && await status(stale.delivery_id) === 'queued' && seen.length >= 2)
+  for (let n = 0; n < 20; n++) await tick()
+  assert.deepEqual(f.errors, [])
+  await receive('real failure'); await settled(() => f.errors.length >= 1)
+  assert.equal(f.errors[0].code, 'BOT_LAUNCH_FAILED')
+  await f.direct.close()
+})
+
 test('an Owner turn refused by the update hold files no report from its completion either, and stays queued', async t => {
   const hold = () => Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503, effect: 'not_started' })
   let called = 0
