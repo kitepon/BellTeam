@@ -27,10 +27,10 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     public AuthenticationState? Authentication { get; private set; }
     public bool Started { get; private set; }
     // slot: the Claude account slot this window logs in ("1st"/"2nd"); null is the single login of every other harness.
-    public HarnessAuthenticationWindow(LinuxWorkspace workspace, HarnessAuthenticationOption harness, Func<string, Task<bool>>? confirm = null, string? slot = null) : base(slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot), workspace.ConnectionToken)
+    public HarnessAuthenticationWindow(LinuxWorkspace workspace, HarnessAuthenticationOption harness, Func<string, Task<bool>>? confirm = null, string? slot = null) : base(slot is null ? harness.Name : harness.Name + " " + AccountText.SlotName(slot), workspace.ConnectionToken)
     {
         api = new(workspace.Management.Api); this.harness = harness; this.slot = slot; install = harness.Install;
-        if (install is not null && !HarnessCliInstall.Ready(install)) { panel = new HarnessInstallPanel(api, harness.Id, harness.Name, install, Token); panel.Changed += InstallChanged; } title = slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot);
+        if (install is not null && !HarnessCliInstall.Ready(install)) { panel = new HarnessInstallPanel(api, harness.Id, harness.Name, install, Token); panel.Changed += InstallChanged; } title = slot is null ? harness.Name : harness.Name + " " + AccountText.SlotName(slot);
         this.confirm = confirm ?? (async warning => await new AuthenticationConfirmationWindow(warning).ShowDialog<bool?>(this) == true);
         SaveButton.IsVisible = false; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Text = ""; StopReading(); }; Closed += (_, _) => { input.Text = ""; StopReading(); };
