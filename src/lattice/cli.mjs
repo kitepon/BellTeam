@@ -7,8 +7,8 @@ import { LATTICE_PROJECT_ID, latticeError, validLatticeName } from '../lattice-p
 
 const SEAT_COMMANDS = ['plan', 'todo', 'status', 'session-context', 'help', '--help', '--version']
 // stderr keeps 64 KiB: Lattice's JSON refusals (lattice.cli_error.v2) list every problem and run past 4 KiB on a 20-task plan.
-// 16 MiB: bellteam's display read is 0.84 MB (2026-11-14); a larger output reads as LATTICE_CLI_BAD_JSON (README).
-const STDOUT_LIMIT = 16 * 1024 * 1024, STDERR_LIMIT = 64 * 1024
+// 64 MiB = Lattice's own DISPLAY_CHECKPOINT_MAX_BYTES; bellteam's display read was 17.5 MB on 2026-11-19 (a453, it passed the old 16 MiB cap). A larger output reads as LATTICE_CLI_BAD_JSON (README).
+const STDOUT_LIMIT = 64 * 1024 * 1024, STDERR_LIMIT = 64 * 1024
 
 // Named protection: Lattice's host commands (setup, hooks, bridge, dashboard, run, sensor, charts, chart) would act as the server uid.
 // The module calls its own host commands (K1, K2, K4, K7) through `host`, never through a seat's args.
