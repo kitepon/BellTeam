@@ -22,11 +22,11 @@ Apple公式クライアントの認証・応答解析は維持し、HTTP通信�
 
 同じ`POST /v1/subscriptions/verify`へ`{ "stripeSessionId": "cs_..." }`または`{ "stripeSubscriptionId": "sub_..." }`を送ると、Stripe APIで購読を照会し、Appleと同じ形（`state`・`entitled`・`validUntil`・`autoRenewing`）に加えて`source: "stripe"`・`subscriptionId`・`isTrial`を返す。Session IDは購読IDへ引き当てる。価格が`STRIPE_PRICE_ID`と一致しない購読は`INVALID_PRODUCT`、Stripeとの通信失敗は`STRIPE_API_ERROR`とし、期限切れへ置き換えない。`trialing`・`active`は有効、`past_due`は`billing_retry`、それ以外は`expired`。環境は購読の`livemode`で決める（本番Workerには本番キー、Sandbox Workerにはテストキーを置く）。
 
-`POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月。料金は税込で、Stripe Taxは使わない）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
+`POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月。料金は税込。`STRIPE_AUTOMATIC_TAX`が`true`の時は`automatic_tax[enabled]=true`を送り、Stripe Taxで税を計算する。価格は`tax_behavior=inclusive`で金額は変えない）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
 
 `stripe/checkout`へ`{ "sessionId": "cs_..." }`を送ると新しいSessionを作らず、そのSessionの現在の状態`{ sessionId, status: "open"|"complete"|"expired", url }`を返す（`url`は`open`の時だけ）。利用者のサーバーが同じ購入画面を使い回して二重に作らないための照会。`POST /v1/subscriptions/stripe/portal`へ`{ "stripeSubscriptionId": "sub_..." }`を送ると、その購読の価格が`STRIPE_PRICE_ID`と一致することを確かめた上で、購読の顧客のStripe顧客ポータルのURL`{ url }`を返す（利用者が自分で解約・再開・支払い方法の変更をする入口。戻り先は`STRIPE_RETURN_URL`）。制限付きキーにはCustomer portalの書込権限が要る。
 
-設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）。どれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`https://kitepon.dev/support/`）。
+設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）、任意の`STRIPE_AUTOMATIC_TAX`（var。本部住所をStripeへ登録した後に`true`）。必須のどれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`https://kitepon.dev/support/`）。
 
 ## Google Play
 

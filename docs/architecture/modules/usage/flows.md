@@ -193,7 +193,7 @@ flowchart LR
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
-購読の外部検証サービス/Apple署名検証/Stripe照会/Google Play照会内部はこの本体図の境界外（Stripeの鍵・価格とGoogle Playのサービスアカウントは運営Workerのsecretだけに置く）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+購読の外部検証サービス/Apple署名検証/Stripe照会/Google Play照会内部はこの本体図の境界外（Stripeの鍵・価格とGoogle Playのサービスアカウントは運営Workerのsecretだけに置く。StripeのCheckoutは、Workerの`STRIPE_AUTOMATIC_TAX=true`で`automatic_tax[enabled]=true`を送る）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
 
 ## 確認範囲
 
