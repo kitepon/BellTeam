@@ -15,7 +15,7 @@ public sealed class PurchaseEntry : StackPanel
     private SubscriptionState? state;
     private StripeCheckout? checkout;
     private string? failure;
-    private bool busy, nothingToBuy, noStripe;
+    private bool busy, nothingToBuy, noStripe, confirming;
 
     // open is the browser (a test passes its own); a failure to open is shown, never swallowed.
     public PurchaseEntry(SubscriptionApi api, Action<string> open, CancellationToken token)
@@ -30,8 +30,10 @@ public sealed class PurchaseEntry : StackPanel
 
     public Task LoadAsync() => RunAsync(async () => state = await api.GetAsync(token), failedText: "購読の状態を確認できませんでした。再確認してください。");
 
+    // a460: 購入 only opens the confirmation panel; 申し込む is what asks the server for the Checkout page.
     private async Task StartAsync() => await RunAsync(async () =>
     {
+        confirming = false;
         try { checkout = await api.CheckoutAsync(token); }
         catch (Exception error) when (SubscriptionApi.NothingToBuy(error)) { nothingToBuy = true; return; }
         // a389: a store already bills this server, so no second purchase: show the server's words and read the status again.
@@ -100,8 +102,12 @@ public sealed class PurchaseEntry : StackPanel
             // Stripe is the one source bought on this device; it carries no line while another store already holds the plan (no second purchase).
             if (Offering)
             {
-                var start = Capsule(SubscriptionText.Start, Violet, System.Windows.Media.Brushes.White, 8, 13, new Thickness(18, 6, 18, 6)); start.HorizontalAlignment = HorizontalAlignment.Left; start.IsEnabled = !busy;
-                System.Windows.Automation.AutomationProperties.SetName(start, SubscriptionText.Start); start.Click += async (_, _) => await StartAsync(); body.Children.Add(start);
+                if (confirming) AddConfirmation(body);
+                else
+                {
+                    var start = Capsule(SubscriptionText.Start, Violet, System.Windows.Media.Brushes.White, 8, 13, new Thickness(18, 6, 18, 6)); start.HorizontalAlignment = HorizontalAlignment.Left; start.IsEnabled = !busy;
+                    System.Windows.Automation.AutomationProperties.SetName(start, SubscriptionText.Start); start.Click += (_, _) => { confirming = true; Render(); }; body.Children.Add(start);
+                }
             }
         }
         else { var note = Text(SubscriptionText.Unavailable(store), 12, Muted); note.TextWrapping = TextWrapping.Wrap; body.Children.Add(note); }
@@ -113,6 +119,38 @@ public sealed class PurchaseEntry : StackPanel
             System.Windows.Automation.AutomationProperties.SetName(manage, SubscriptionText.Manage + " " + store); manage.Click += async (_, _) => await ManageAsync(store); body.Children.Add(manage);
         }
         return new Border { Child = body, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(14), MinHeight = 96, Margin = new Thickness(0, 0, 0, 8) };
+    }
+
+    // a460: the contract terms right before the order, inside the same row (not a second page).
+    private void AddConfirmation(StackPanel body)
+    {
+        body.Children.Add(Text(SubscriptionText.ConfirmTitle, 13, Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 4)));
+        foreach (var line in new[] { SubscriptionText.ConfirmPlan, SubscriptionText.ConfirmPrice, SubscriptionText.ConfirmPayment, SubscriptionText.ConfirmFirstCharge(DateTime.Today), SubscriptionText.ConfirmStart, SubscriptionText.ConfirmCancel, SubscriptionText.ConfirmRefund })
+            body.Children.Add(Text(line, 12, Ink, null, new Thickness(0, 0, 0, 4)));
+        body.Children.Add(Links((SubscriptionText.ConfirmLawLink, SubscriptionText.ConfirmLawUrl)));
+        // The sentence is Core's; its two link labels become links in place.
+        var (terms, annex) = (SubscriptionText.ConfirmTerms.IndexOf(SubscriptionText.ConfirmTermsLink, StringComparison.Ordinal), SubscriptionText.ConfirmTerms.IndexOf(SubscriptionText.ConfirmAnnexLink, StringComparison.Ordinal));
+        var sentence = SubscriptionText.ConfirmTerms; var termsEnd = terms + SubscriptionText.ConfirmTermsLink.Length; var annexEnd = annex + SubscriptionText.ConfirmAnnexLink.Length;
+        body.Children.Add(Links((sentence[..terms], null), (SubscriptionText.ConfirmTermsLink, SubscriptionText.ConfirmTermsUrl), (sentence[termsEnd..annex], null), (SubscriptionText.ConfirmAnnexLink, SubscriptionText.ConfirmAnnexUrl), (sentence[annexEnd..], null)));
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        var apply = Capsule(SubscriptionText.ConfirmApply, Violet, System.Windows.Media.Brushes.White, 8, 13, new Thickness(18, 6, 18, 6)); apply.IsEnabled = !busy; apply.Margin = new Thickness(0, 0, 8, 0);
+        System.Windows.Automation.AutomationProperties.SetName(apply, SubscriptionText.ConfirmApply); apply.Click += async (_, _) => await StartAsync();
+        var back = ActionButton(SubscriptionText.ConfirmBack, () => { confirming = false; Render(); return Task.CompletedTask; });
+        buttons.Children.Add(apply); buttons.Children.Add(back); body.Children.Add(buttons);
+    }
+
+    // One wrapped line; a part with an address is a link to the system browser (a failure to open is shown by Open).
+    private TextBlock Links(params (string Text, string? Url)[] parts)
+    {
+        var line = Text("", 12, Ink, null, new Thickness(0, 0, 0, 4));
+        foreach (var (text, url) in parts)
+        {
+            if (url is null) { if (text.Length > 0) line.Inlines.Add(new System.Windows.Documents.Run(text)); continue; }
+            var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(text)) { Foreground = Violet };
+            link.Click += (_, _) => { failure = null; Open(url, "ページのアドレスを読めませんでした。"); Render(); };
+            line.Inlines.Add(link);
+        }
+        return line;
     }
 
     private Button ActionButton(string label, Func<Task> run)
