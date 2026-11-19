@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T05:36:18Z",
-  "expiresAt": "2026-11-26T05:36:18Z",
+  "publishedAt": "2026-11-19T06:36:42Z",
+  "expiresAt": "2026-11-26T06:36:42Z",
   "releases": [
     {
       "componentId": "usage",
@@ -711,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e8bb69d020152d54ad3a57b9275fc74acce18df4",
-      "versionId": "sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3",
+      "sourceCommit": "0ad5e11897602a630b0b6720ac225a32138cfa13",
+      "versionId": "sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -728,23 +728,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。",
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。",
-        "席の起動の部品 aiterm-mcp を 0.70.78 にしました。"
+        "席へ送る前に入れ替えで断られた配送を、「起動の失敗」として報告しないようにしました（BugHub 3beb1932）。",
+        "本体の入れ替えの手前の「部品の作業員の終了」が、一瞬の読み手のロックで失敗しないよう、待ってから進めるようにしました（Z114 の本番の入れ替えが一度失敗した原因の直し）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e8bb69d020152d54ad3a57b9275fc74acce18df4",
-      "versionId": "sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3",
+      "sourceCommit": "0ad5e11897602a630b0b6720ac225a32138cfa13",
+      "versionId": "sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c9f99a6094d779dc1dcbcf22fbe97880bceb7a6fda03d299415f3295b4ce7bb3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dd5f8080187418e037b059097332741423617d50e9ec76aa9b76ee4891210d32"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -753,10 +751,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。",
-        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（Aiterm 0.70.78 が受け取ります）。",
-        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。",
-        "席の起動の部品 aiterm-mcp を 0.70.78 にしました。"
+        "席へ送る前に入れ替えで断られた配送を、「起動の失敗」として報告しないようにしました（BugHub 3beb1932）。",
+        "本体の入れ替えの手前の「部品の作業員の終了」が、一瞬の読み手のロックで失敗しないよう、待ってから進めるようにしました（Z114 の本番の入れ替えが一度失敗した原因の直し）。"
       ]
     },
     {
