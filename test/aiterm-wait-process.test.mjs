@@ -42,7 +42,13 @@ test('wait JSON does not relax runner defaults, malformed output, start, abort o
   await assert.rejects(run(nonzero.executable, nonzero.args), { code: 'SEAT_PROCESS_FAILED', exitCode: 3 })
   for (const project of [null, seatProject])
     await assert.rejects(runWaitProcess(program("process.stdout.write('invalid');process.exitCode=1"), null, { seatProject: project }),
-      { code: 'AITERM_WAIT_INVALID', exitCode: 1, signal: null })
+      { code: 'AITERM_WAIT_INVALID', exitCode: 1, signal: null, waitLayer: 'waiter' })
+  // a444: the layer that ended it, from fixed stderr words and the exit code only
+  for (const project of [null, seatProject]) {
+    await assert.rejects(runWaitProcess(program("process.stderr.write('BELLTEAM_SEAT_COMMAND_FAILED\\n');process.exitCode=1"), null, { seatProject: project }), { waitLayer: 'seat_command' })
+    await assert.rejects(runWaitProcess(program("process.exitCode=255"), null, { seatProject: project }), { waitLayer: 'ssh' })
+    await assert.rejects(runWaitProcess(program("process.exitCode=1"), null, { seatProject: project }), { waitLayer: 'empty' })
+  }
   await assert.rejects(runWaitProcess({ executable: '/synthetic-missing-wait', args: [] }, null, { seatProject }),
     { code: 'SEAT_PROCESS_START_FAILED' })
   const stopped = new AbortController()

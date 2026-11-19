@@ -106,6 +106,7 @@ test('malformed real waiter output records a safe diagnostic and holds until nat
   assert.equal(JSON.parse(row.diagnostic_log).errorCode, 'AITERM_WAIT_INVALID')
   assert.equal(JSON.parse(row.diagnostic_log).exitCode, 1)
   assert.equal(JSON.parse(row.diagnostic_log).signal, null)
+  assert.equal(JSON.parse(row.diagnostic_log).waitLayer, 'waiter')
   assert.doesNotMatch(JSON.stringify(row), /synthetic-secret/u)
   f.setTurn(undefined); await f.transport.watchSeatTurns([bot]); await f.transport.idle(bot.id)
 })

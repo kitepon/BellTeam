@@ -2,10 +2,14 @@ import { spawn } from 'node:child_process'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
 
+// wait-contract.md (a444): which layer ended a waiter without its JSON line; fixed words only, no stderr text.
+const waitLayer = (stdout, stderr, exitCode) => String(stderr).includes('BELLTEAM_SEAT_COMMAND_FAILED') ? 'seat_command'
+  : exitCode === 255 ? 'ssh' : String(stdout).trim() || String(stderr).trim() ? 'waiter' : 'empty'
+
 export function runWaitProcess(waitProcess, signal = null, options = {}) {
   const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
-  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal, acceptNonzero: true }).then(({ stdout, code: exitCode, signal: exitSignal }) => {
-    try { return JSON.parse(stdout.trim()) } catch { throw Object.assign(new Error('AITERM_WAIT_INVALID'), { code: 'AITERM_WAIT_INVALID', exitCode, signal: exitSignal }) }
+  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal, acceptNonzero: true }).then(({ stdout, stderr, code: exitCode, signal: exitSignal }) => {
+    try { return JSON.parse(stdout.trim()) } catch { throw Object.assign(new Error('AITERM_WAIT_INVALID'), { code: 'AITERM_WAIT_INVALID', exitCode, signal: exitSignal, waitLayer: waitLayer(stdout, stderr, exitCode) }) }
   })
   return new Promise((resolve, reject) => {
     const child = spawn(waitProcess.executable, waitProcess.args, {
@@ -20,7 +24,7 @@ export function runWaitProcess(waitProcess, signal = null, options = {}) {
       try {
         resolve(JSON.parse(stdout.trim()))
       } catch {
-        reject(Object.assign(new Error(`AITERM_WAIT_INVALID: ${stderr.trim()}`), { code: 'AITERM_WAIT_INVALID', exitCode, signal: exitSignal }))
+        reject(Object.assign(new Error(`AITERM_WAIT_INVALID: ${stderr.trim()}`), { code: 'AITERM_WAIT_INVALID', exitCode, signal: exitSignal, waitLayer: waitLayer(stdout, stderr, exitCode) }))
       }
     })
   })
