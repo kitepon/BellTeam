@@ -1238,8 +1238,8 @@ export class AitermTransport {
         // Ended by a module swap before any words could reach the CLI: the usual failed status is kept for every
         // caller (each has its exit: explicit resume), and the error carries the typed not-started marker so a
         // requeuing record owner (durable receipts) can deliver the same ID after the swap.
-        if (!job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code))
-          error.executionError = swapNotStarted()
+        const swapped = !job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code)
+        if (swapped) error.executionError = swapNotStarted()
         // a413: refused for an open question dialog (nothing typed): not a delivery failure to count or report; the failed status is kept
         // for every caller, and the durable receipt (parent) turns it back into queued.
         const awaitingUser = error.code === 'BOT_AWAITING_USER' && !job.receipt && !job.stopped && !job.inputMayHaveStarted
@@ -1260,7 +1260,7 @@ export class AitermTransport {
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
           failureStatusSaved = true
-          if (!acknowledged && !job.stopped && !awaitingUser && error.code !== 'BOT_IMAGE_UNSUPPORTED') await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
+          if (!acknowledged && !job.stopped && !awaitingUser && !swapped && error.code !== 'BOT_IMAGE_UNSUPPORTED') await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
         } catch (callbackError) { if (!conversationDelivery) throw callbackError }
         finally { if (!acknowledged) rejectAcceptance(error) }
         throw error
