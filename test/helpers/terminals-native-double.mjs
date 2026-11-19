@@ -25,6 +25,8 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
       let version = 0
       const session = {
         closed: false,
+        remoteVersion: native.remoteVersion ?? null,
+        localVersion: native.localVersion ?? null,
         async command(op, args) {
           calls.push({ op: 'command', command: op, ...(args ? { args } : {}) })
           if (op === 'path_status' || op === 'make_dir') return native.pathResult(op, args)

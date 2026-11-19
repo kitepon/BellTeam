@@ -47,6 +47,13 @@ const trustAction = (target, reason) => APP_ATTESTS.has(target.os) && reason ===
 const REGISTRY_REASONS = new Set(['SSH_KEY_UNSET', 'BINDING_UNSET'])
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
+const parseVersion = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number)
+// Unreadable on either side is not older: an unknown version never starts an install.
+const isOlder = (remote, local) => {
+  const a = parseVersion(remote), b = parseVersion(local)
+  const i = a && b ? a.findIndex((part, k) => part !== b[k]) : -1
+  return i >= 0 && a[i] < b[i]
+}
 
 // C8 harnesses (Owner via Root 2026-11-10). codex-cli and grok-cli have no Aiterm launch auth preflight (Kiro, 0.70.9).
 const CLI_NAMES = { 'claude-code': 'Claude Code', 'codex-cli': 'Codex CLI', 'grok-cli': 'Grok CLI', 'cursor-cli': 'Cursor CLI' }
@@ -82,6 +89,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   const listeners = new Set()
   const generations = new Map() // terminalId -> registry-change count; a target read across a change is stale
   const operations = new Set() // in-flight target/check runs, awaited by dispose
+  const provisions = new Map() // terminalId -> in-flight provision, shared so two launches never install on one terminal at once
   const lastChecks = new Map() // terminalId -> last current-revision check {reachable, reason, action?, checkedAt}; in memory
   let disposed = false
 
@@ -168,9 +176,17 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
   }
 
+  function provisionOnce(terminalId, ref) {
+    let run = provisions.get(terminalId)
+    if (!run) { run = native.provision({ ref }).finally(() => provisions.delete(terminalId)); provisions.set(terminalId, run) }
+    return run
+  }
+
   // One transient remote process; closed before returning. Classified like a launch would be.
   // `current` is re-checked after every await; a process connected across a registry change or dispose is closed unused.
-  async function withProcess(target, binding, run, current) {
+  // `aiterm` (C8 only): the terminal's Aiterm is brought to the container's version before the commands run, and this object
+  // receives {before, after, outcome}. A failed provision never vetoes: the terminal is reopened as it was.
+  async function withProcess(target, binding, run, current, aiterm) {
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
     try {
@@ -184,9 +200,21 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         // The Mac lacks Aiterm's remote side (or it is too old): provision once over the same trusted, keyed SSH, reopen once.
         if (!PROVISION_CODES.has(error?.code) || typeof native.provision !== 'function') throw error
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-        try { await native.provision({ ref: binding.ref }) } catch { throw error }
+        try { await provisionOnce(target.terminalId, binding.ref) } catch { throw error }
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         session = await open()
+      }
+      if (aiterm) {
+        const before = session.remoteVersion ?? null
+        if (isOlder(before, session.localVersion) && typeof native.provision === 'function') {
+          await session.close().catch(() => {})
+          try { await provisionOnce(target.terminalId, binding.ref) } catch {}
+          if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+          session = await open()
+        }
+        const after = session.remoteVersion ?? null
+        Object.assign(aiterm, { before, after, outcome: !parseVersion(before) || !parseVersion(session.localVersion) ? 'unknown'
+          : isOlder(after, session.localVersion) ? 'failed' : after === before ? 'current' : 'updated' })
       }
       // Any open of the current record is a check: a terminal in use never shows an older failure (Trony 11/13).
       if (current()) note(target.terminalId, { reachable: true, reason: null, checkedAt: now().toISOString() })
@@ -204,6 +232,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // is reported as such. claude-code keeps Aiterm's claude_* aliases (any terminal Aiterm); the others need cli_* (>= 0.70.9).
   async function maintain(target, binding, current, harness) {
     const record = { terminalId: target.terminalId, harness, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed', loggedIn: null }
+    const aiterm = {}
     try {
       await withProcess(target, binding, async session => {
         // Each command starts only while current; a stale run stops before its next command (outcome unrecorded).
@@ -219,8 +248,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         } catch {}
         // Aiterm's launch preflight covers the other three; any error or non-boolean stays null and never vetoes.
         if (NO_LAUNCH_AUTH_CHECK.has(harness)) try { const { logged_in } = await command('auth_status'); if (typeof logged_in === 'boolean') record.loggedIn = logged_in } catch {}
-      }, current)
-    } finally { if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
+      }, current, aiterm)
+    } finally { if (Object.keys(aiterm).length) record.aiterm = aiterm; if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
     return record
   }
 

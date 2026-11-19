@@ -33,7 +33,7 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
     let client
     try { client = await connectClient() } catch { throw Object.assign(new Error('Remote terminal process unavailable'), { code: 'REMOTE_AITERM_UNAVAILABLE' }) }
     const tool = async (name, args = {}) => parse(await client.callTool({ name, arguments: args }))
-    return { client, tool }
+    return { client, tool, localVersion: client.getServerVersion?.()?.version ?? null }
   }
 
   async function status(ref) {
@@ -54,7 +54,8 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
     // Transient process for reachability and C8 only; seats run through Aiterm's own agent_launch (Trony ruling 2026-11-09).
     async connect({ target, hostTrust, binding }) {
       if (typeof binding?.ref !== 'string' || !binding.ref) throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
-      const { client, tool } = await start()
+      const { client, tool, localVersion } = await start()
+      let opened
       try {
         const current = await tool('remote_terminal_status', { ref: binding.ref })
         if (current?.trust?.revision !== hostTrust.revision) throw Object.assign(new Error('Host trust revision changed'), { code: 'HOST_TRUST_STALE' })
@@ -63,9 +64,12 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
         // Aiterm's open target is strict {host, user, port}; any other key fails validation (2026-11-10 macbook, Elegg).
         // Elegg 0.70.7: declared `os` is a sibling of target. Sent only for linux/windows, so an older Aiterm (strict input) keeps serving macOS.
         const os = target.os && target.os !== 'macos' ? { os: target.os } : {}
-        await tool('remote_terminal_open', { ref: binding.ref, target: { host: target.host, user: target.user, port: target.port }, ...os, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
+        opened = await tool('remote_terminal_open', { ref: binding.ref, target: { host: target.host, user: target.user, port: target.port }, ...os, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
       } catch (error) { await client.close().catch(() => {}); throw error }
       return {
+        // aiterm-mcp >= 0.65: the open answers the terminal's Aiterm version; the serve process is the container's own Aiterm.
+        remoteVersion: opened?.remoteVersion ?? null,
+        localVersion,
         // Elegg: claude_* take no args; path_status / make_dir take an absolute `path`.
         command: (op, args = {}) => tool('remote_terminal_command', { ...args, op }),
         async close() {
