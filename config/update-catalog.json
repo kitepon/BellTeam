@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T16:30:45Z",
-  "expiresAt": "2026-11-26T16:30:45Z",
+  "publishedAt": "2026-11-19T17:14:24Z",
+  "expiresAt": "2026-11-26T17:14:24Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0",
-      "versionId": "18fdc16fa04b5eb58186c7a2a49818a208f8a0e0b54b9af4e8f383cf4458f0e6",
+      "sourceCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b",
+      "versionId": "33815d0515e9f506e6d2324b0f5b6ff1dcc019b3b2886cf0be05f3811a247049",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-amd64.tar.gz",
-          "bytes": 15342339,
-          "sha256": "18fdc16fa04b5eb58186c7a2a49818a208f8a0e0b54b9af4e8f383cf4458f0e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-amd64.tar.gz",
+          "bytes": 15348100,
+          "sha256": "33815d0515e9f506e6d2324b0f5b6ff1dcc019b3b2886cf0be05f3811a247049"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "150ead7415253088212b1edffa992c03d6203aae986f3bd565765984e138426f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "ef88ed92534ea6c618767c76f5e27e96652483f1cf45cd7c20af38aec9033fca"
         },
-        "signerCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0"
+        "signerCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +787,13 @@
         }
       },
       "changes": [
-        "Lattice を動かす子が、同時に動かす Lattice の命令を最大 3 つまでに抑えるようにしました。メモリを使いすぎて、席の AI が途中で止められることを減らします。"
+        "Lattice を動かす子が、Lattice 0.113.1 を使うようにしました。止まっていた bellteam の工程表の記録を、子が読めるようになります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0",
-      "versionId": "0ca195c6c44b06daaf80f9a7822b24fd25e5b9988d2738baf46e38be1027bfac",
+      "sourceCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b",
+      "versionId": "a3209bcefd32ef98739878801a5fe002b61a4c63c80a03d7a46fb41351b612f5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-arm64.tar.gz",
-          "bytes": 15342339,
-          "sha256": "0ca195c6c44b06daaf80f9a7822b24fd25e5b9988d2738baf46e38be1027bfac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-arm64.tar.gz",
+          "bytes": 15348100,
+          "sha256": "a3209bcefd32ef98739878801a5fe002b61a4c63c80a03d7a46fb41351b612f5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T163016Z/lattice-0909c15224c5cea44a55650d6891208f34cf3cc0-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "af43fd39d1f3e731362371ecdcf14039d011fd839455d08639e397328e08039d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T171354Z/lattice-a841225ee84d18bd96574bc77779e6ba9b89927b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10953,
+          "sha256": "29b1921c11ee8e1d112f244ec461a1ff3223af1cad6ad0e4997ca313b41a374c"
         },
-        "signerCommit": "0909c15224c5cea44a55650d6891208f34cf3cc0"
+        "signerCommit": "a841225ee84d18bd96574bc77779e6ba9b89927b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +822,7 @@
         }
       },
       "changes": [
-        "Lattice を動かす子が、同時に動かす Lattice の命令を最大 3 つまでに抑えるようにしました。メモリを使いすぎて、席の AI が途中で止められることを減らします。"
+        "Lattice を動かす子が、Lattice 0.113.1 を使うようにしました。止まっていた bellteam の工程表の記録を、子が読めるようになります。"
       ]
     },
     {
