@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-18T22:58:58Z",
-  "expiresAt": "2026-11-25T22:58:58Z",
+  "publishedAt": "2026-11-19T00:26:13Z",
+  "expiresAt": "2026-11-26T00:26:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "396150fb74ea3272caeab46e7045b3a693a04bfe11892965eb65f303db28aea3",
+      "sourceCommit": "2171dde260d01b9d11b7e5933fc24cb7937b1631",
+      "versionId": "f37fe607337c06fcb3c483cfde9652a3d9f496aa9ddb1408175e893ec8cea87f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz",
-          "bytes": 5464736,
-          "sha256": "396150fb74ea3272caeab46e7045b3a693a04bfe11892965eb65f303db28aea3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T002544Z/web-gateway-2171dde260d01b9d11b7e5933fc24cb7937b1631-linux-amd64.tar.gz",
+          "bytes": 5464814,
+          "sha256": "f37fe607337c06fcb3c483cfde9652a3d9f496aa9ddb1408175e893ec8cea87f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11346,
-          "sha256": "2e9320a80a508f05150ede1efcafbf32c9d909c9a615e6bc3230657b796eff47"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T002544Z/web-gateway-2171dde260d01b9d11b7e5933fc24cb7937b1631-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11103,
+          "sha256": "140dc509aeae0c9b928e0121772b26b1fdae7d013e73ebf90f7ccfc8bff50374"
         },
-        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
+        "signerCommit": "2171dde260d01b9d11b7e5933fc24cb7937b1631"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "342e05795159a88ecec3ad48abe99011b0bb4eadad698a0cd9a49134b467a49b",
+      "sourceCommit": "2171dde260d01b9d11b7e5933fc24cb7937b1631",
+      "versionId": "55e5fc4a6e3a378534ea85fb11148fae639a5c0efb5d6e6cc7fb6a723ed3a8d8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz",
-          "bytes": 5464736,
-          "sha256": "342e05795159a88ecec3ad48abe99011b0bb4eadad698a0cd9a49134b467a49b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T002544Z/web-gateway-2171dde260d01b9d11b7e5933fc24cb7937b1631-linux-arm64.tar.gz",
+          "bytes": 5464814,
+          "sha256": "55e5fc4a6e3a378534ea85fb11148fae639a5c0efb5d6e6cc7fb6a723ed3a8d8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T225656Z/web-gateway-e3e2fe3c20407695b181b895acbf1d7690110d9e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11252,
-          "sha256": "3889f4138fec605569508cd7b0b0a224957c4b133ad099bc7ec2333b4d5ca548"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T002544Z/web-gateway-2171dde260d01b9d11b7e5933fc24cb7937b1631-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "fe44f5597af37c10521aaca0d38670846cd6a2f7442e9be4e3931a7d874e7792"
         },
-        "signerCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e"
+        "signerCommit": "2171dde260d01b9d11b7e5933fc24cb7937b1631"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576",
+      "sourceCommit": "2171dde260d01b9d11b7e5933fc24cb7937b1631",
+      "versionId": "sha256:3702e1c6b502a6a05dd501f3fd6600dcc4b7deb3f6cb5dc628c138844ce0d26e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3702e1c6b502a6a05dd501f3fd6600dcc4b7deb3f6cb5dc628c138844ce0d26e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e3e2fe3c20407695b181b895acbf1d7690110d9e",
-      "versionId": "sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576",
+      "sourceCommit": "2171dde260d01b9d11b7e5933fc24cb7937b1631",
+      "versionId": "sha256:3702e1c6b502a6a05dd501f3fd6600dcc4b7deb3f6cb5dc628c138844ce0d26e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:14c70a056c1ff47da95aee83d3f5cd56b6b622fee2c366411cb27dfd29ca7576"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3702e1c6b502a6a05dd501f3fd6600dcc4b7deb3f6cb5dc628c138844ce0d26e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Google Playで購読している人を、BellTeamが確認して購読として記録できるようにしました（購入の確認の入口 google/verify）。購読元は Apple・Stripe に加えて Google Play も数えます。"
+        "席の入口（席から BellTeam を呼ぶ口）の再起動 restart_session が、すべての Bot で BOT_RESTART_FAILED になっていたのを直しました。"
       ]
     },
     {
