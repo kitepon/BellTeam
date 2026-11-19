@@ -226,6 +226,16 @@ W-MACの追従13〜19（相関図、秘密の入力カード、1Password連携�
 - 導入exeの読み取りsmoke（`--smoke-test`、本番 `http://192.168.1.2:18891/`）は成功した。session local・140メンバー・8ルーム・会話の読み取り・SSE接続を確認した。終了後のBellTeam.exeは0件。
 - 「このPCを確かめる」の本番（本体が信用を書く）は、クラストとセンチが0.4.6で確かめる。画面の本人操作はしていない。
 
+## 0.6.2の導入（2026-11-19）
+
+AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#1970）を、アニスがFOXへ導入した。サーバー側（Z120）は本番で稼働し、4つのAIとも導入済みだった。
+
+- 2026-11-19 20:42 JST、main `031cddaf`から`pwsh -NoProfile -File scripts/install-windows.ps1 -NoLaunch -SkipShareTarget`で導入した。導入前にBellTeam.exeは起動していなかった。
+- 導入exeの版は`0.6.2+031cddafdb493eb2cad1a56ff43e5fa911b10fd1`。
+- 導入exeの読み取りsmoke（`--smoke-test`、本番 `http://192.168.1.2:18891/`）は成功した（`ok: true`）。session local・144メンバー・8ルーム・会話の読み取り・SSE接続を確認した。
+- 導入exeの`--render-page settings-ai`と`--render-editor authentication claude`を本番へ向けて撮った（FOXの`C:\Users\kite_\BellTeam-shots\a451-windows-0.6.2-installed\`）。導入済みの状態（サーバーの一文・「最新版を入れる」）を確認した。
+- 未確認：導入していない・失敗・導入中・初回設定の画面は本番では出せない。列車2の検証環境（a451-fresh-install-test）で撮る。実際の「最新版を入れる」の押下は本番では行っていない（a451-prod-installの作業）。
+
 ## 0.6.1の導入（2026-11-18）
 
 購読の管理・解約ボタン（a390、#1862）、プライバシー方針とサポートのリンクをkitepon.devへ（a398d、#1870）、「Web版は無料です。」の説明文（#1870）を入れた0.6.1を、アニスがFOXへ導入した。サーバー側（Z95）は本番で稼働している。
