@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T04:24:10Z",
-  "expiresAt": "2026-11-26T04:24:10Z",
+  "publishedAt": "2026-11-19T04:54:10Z",
+  "expiresAt": "2026-11-26T04:54:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -715,15 +715,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed",
-      "versionId": "sha256:18a351d507feb24063df7e8023075ddb241a6e89658a1914d4dff35cd372d052",
+      "sourceCommit": "7672396e49579db6cd6cd0cdd6895ffe1ca47c85",
+      "versionId": "sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18a351d507feb24063df7e8023075ddb241a6e89658a1914d4dff35cd372d052"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,23 +732,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の席の起動の部品（Aiterm）を、起動の前にコンテナの版へそろえるようにしました。",
-        "待ちの失敗が、どの層で起きたかが分かる名前で出るようにしました。",
-        "本体の入れ替え中の設計どおりの保留（BOT_UPDATE_HOLD）を、障害として報告しないようにしました。",
-        "AIの席へ送った結果が分からない時を、重大な送信失敗ではなく、警告の「結果が不明」として原因つきで報告するようにしました。"
+        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。古い Aiterm のまま起動が止まって待たされることがなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed",
-      "versionId": "sha256:18a351d507feb24063df7e8023075ddb241a6e89658a1914d4dff35cd372d052",
+      "sourceCommit": "7672396e49579db6cd6cd0cdd6895ffe1ca47c85",
+      "versionId": "sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18a351d507feb24063df7e8023075ddb241a6e89658a1914d4dff35cd372d052"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -757,10 +754,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の席の起動の部品（Aiterm）を、起動の前にコンテナの版へそろえるようにしました。",
-        "待ちの失敗が、どの層で起きたかが分かる名前で出るようにしました。",
-        "本体の入れ替え中の設計どおりの保留（BOT_UPDATE_HOLD）を、障害として報告しないようにしました。",
-        "AIの席へ送った結果が分からない時を、重大な送信失敗ではなく、警告の「結果が不明」として原因つきで報告するようにしました。"
+        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。古い Aiterm のまま起動が止まって待たされることがなくなります。"
       ]
     },
     {
