@@ -968,10 +968,10 @@ test('別のターンの言葉と、合間の言葉を返さない版のAiterm�
 
 test('利用上限で止まったターンは、Aitermの上限の知らせを理由に残して合間の言葉として出す', async () => {
   const cases = [
-    [{ outcome: 'rate_limited', rate_limit: "You've hit your limit · resets 3pm (UTC)" }, "AITERM_TURN_RATE_LIMITED: You've hit your limit · resets 3pm (UTC)"],
-    [{ outcome: 'rate_limited', rate_limit: null }, 'AITERM_TURN_RATE_LIMITED'],
+    [{ outcome: 'rate_limited', rate_limit: "You've hit your limit · resets 3pm (UTC)" }, "AITERM_TURN_RATE_LIMITED: You've hit your limit · resets 3pm (UTC)", "You've hit your limit · resets 3pm (UTC)"],
+    [{ outcome: 'rate_limited', rate_limit: null }, 'AITERM_TURN_RATE_LIMITED', '利用上限に達したため、このターンはここで止まりました。'],
   ]
-  for (const [result, reason] of cases) {
+  for (const [result, reason, words] of cases) {
     const transport = new AitermTransport({
       client: interimClient({ observe: () => interimWords(40, []) }), handoffContext: noMemory, interimInterval: 5,
       tempRoot: await mkdtemp(join(tmpdir(), 'bellteam-aiterm-')),
@@ -980,7 +980,7 @@ test('利用上限で止まったターンは、Aitermの上限の知らせを�
     const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: await mkdtemp(join(tmpdir(), 'bellteam-bot-')) }
     const received = []
     await assert.rejects(transport.turn(bot, '確認して', { onInterim: async words => received.push(...words) }), error => error.message === reason)
-    assert.deepEqual(received, [{ text: reason, kind: 'error' }])
+    assert.deepEqual(received, [{ text: words, kind: 'error' }])
   }
 })
 
@@ -1027,7 +1027,7 @@ test('合間の言葉を求めない配送ではpty_observeを呼ばない', asy
 test('エラーで終わったターンは、Claudeのエラーの知らせを合間の言葉として出し、無いハーネスではAitermの理由を出す', async () => {
   const cases = [
     [[{ seq: 1, text: 'API Error: 529 Overloaded', kind: 'error', at: null }], [{ text: 'API Error: 529 Overloaded', kind: 'error' }]],
-    [[], [{ text: 'AITERM_TURN_ERROR: turn_ended outcome=error', kind: 'error' }]],
+    [[], [{ text: 'turn_ended outcome=error', kind: 'error' }]],
   ]
   for (const [written, expected] of cases) {
     const transport = new AitermTransport({

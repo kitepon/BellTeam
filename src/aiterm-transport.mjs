@@ -83,6 +83,15 @@ async function writeLocalImage(path, bytes) {
 
 // Ordinary delivery uses Aiterm directly. Execution tracking never gates input.
 // Stop forwarding uses the direct agent_stop control.
+// wait-contract.md (a443): the conversation gets the harness's own reason or a plain sentence, never the AITERM_TURN_ code.
+export function turnFailureWords(message) {
+  const reason = /^AITERM_TURN_(?:ERROR|RATE_LIMITED): (.+)$/su.exec(String(message))?.[1]?.trim()
+  if (reason) return reason
+  if (String(message) === 'AITERM_TURN_CLOSED') return '席が閉じられたため、このターンはここで止まりました。'
+  if (String(message) === 'AITERM_TURN_RATE_LIMITED') return '利用上限に達したため、このターンはここで止まりました。'
+  return 'このターンの終わりを確かめられませんでした。'
+}
+
 export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
   return new AitermTransport({ ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
 }
@@ -1338,7 +1347,7 @@ export class AitermTransport {
       const seen = await interim?.stop()
       // 記録にエラーの知らせが無い時（Grok・Cursor、記録に残らない利用上限）は、Aitermが返した理由を代わりに出す。
       if (interim && !seen.error && String(error.message).startsWith('AITERM_TURN_'))
-        await onInterim([{ text: error.message, kind: 'error' }])
+        await onInterim([{ text: turnFailureWords(error.message), kind: 'error' }])
       throw error
     }
     await interim?.stop()

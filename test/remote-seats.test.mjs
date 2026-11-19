@@ -235,6 +235,28 @@ test('a443: a terminal agent_launch that outlived the 60 s MCP request limit sta
   assert.equal(other.effect, undefined)
 })
 
+test('a443: the terminal answering again clears its reachability notice (a drain may reach a running seat without a launch); other notices stay', () => {
+  const { seats } = fixture()
+  seats.terminals.connection.observe = () => {}
+  seats.launchFailed(bot, code('UNREACHABLE'))
+  assert.equal(seats.launchNotice(bot).code, 'UNREACHABLE')
+  seats.available({ terminalId: 'other-terminal', reachable: true })
+  assert.equal(seats.launchNotice(bot).code, 'UNREACHABLE', 'another terminal leaves it')
+  seats.available({ terminalId: 'mac-1', reachable: true })
+  assert.equal(seats.launchNotice(bot), null)
+  seats.launchFailed(bot, code('HOST_KEY_MISMATCH'))
+  seats.available({ terminalId: 'mac-1', reachable: true })
+  assert.equal(seats.launchNotice(bot).code, 'HOST_KEY_MISMATCH', 'the Owner still has to act on a trust code')
+})
+
+test('a443: turn-failure words in the conversation never show the AITERM_TURN_ code', async () => {
+  const { turnFailureWords } = await import('../src/aiterm-transport.mjs')
+  assert.equal(turnFailureWords('AITERM_TURN_ERROR: API Error: 529 overloaded'), 'API Error: 529 overloaded')
+  assert.equal(turnFailureWords('AITERM_TURN_RATE_LIMITED: limit resets 5pm'), 'limit resets 5pm')
+  assert.equal(turnFailureWords('AITERM_TURN_CLOSED'), '席が閉じられたため、このターンはここで止まりました。')
+  assert.equal(turnFailureWords('AITERM_TURN_TIMEOUT'), 'このターンの終わりを確かめられませんでした。')
+})
+
 const keyed = { ref: 'owner-macbook', target: terminal.target, trustRevision: 't1', credential: { handle: '11111111-2222-4333-8444-555555555555', revision: 3 } }
 
 function keyFixture({ receipt = request => ({ schema: 'aiterm.credential-load.v1', accepted: true, ref: request.ref, handle: request.handle, revision: request.revision }) } = {}) {

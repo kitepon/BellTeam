@@ -277,6 +277,10 @@ export class RemoteSeats {
     if (event?.reachable !== true) return
     const ids = this.waiting.get(event.terminalId) ?? new Set()
     this.waiting.delete(event.terminalId)
+    // a443: the terminal answers again, so a reachability notice for it is over; a drain that fails again sets it again.
+    let cleared = false
+    for (const [botId, notice] of this.notices) if (notice.terminalId === event.terminalId && reachability(notice.code)) { this.notices.delete(botId); cleared = true }
+    if (cleared) this.notify()
     for (const id of ids) this.emitQueue({ bot: { id } })
   }
 
