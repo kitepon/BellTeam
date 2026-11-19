@@ -1922,6 +1922,9 @@ export class AitermTransport {
         if (!result) {
           // Never close a terminal whose turn is running; that turn ends and the next delivery is taken.
           if (turnRunning) throw refusal
+          // a443: a live seat of a terminal that is not answering is kept (RemoteSeats.holdLiveSeat); its turn may only be frozen by the host.
+          const held = live && isRemoteBot(bot) ? this.remoteSeats?.holdLiveSeat(bot, refusal) : null
+          if (held) throw held
           // Close what Aiterm still holds: a live terminal, or a launch record kept after its terminal vanished
           // (2026-11-08 body swap). An unreadable observation closes nothing; agent_launch refuses a live seat.
           const close = live || (observed && refusal.code !== 'AGENT_SESSION_REQUIRED')

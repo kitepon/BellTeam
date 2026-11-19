@@ -249,6 +249,31 @@ test('a443: the terminal answering again clears its reachability notice (a drain
   assert.equal(seats.launchNotice(bot).code, 'HOST_KEY_MISMATCH', 'the Owner still has to act on a trust code')
 })
 
+test('a443: after a timed-out launch, a second delivery to a live idle seat with a failing send does not close it; the terminal answering ends the hold', async () => {
+  const { root, calls, transport, member, remote } = await transportFixture()
+  try {
+    transport.client.call = async (name, args, callOptions) => {
+      calls.push({ name, args, options: callOptions })
+      if (name === 'agent_launch') throw Object.assign(new Error('MCP error -32001: Request timed out'), { code: -32001, mcp_request: { phase: 'call', tool: 'agent_launch', outcome: 'unknown' } })
+      return { content: [], structuredContent: {} }
+    }
+    remote.seats.terminals.connection.observe = () => {}
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} }), { code: 'TERMINAL_UNRESPONSIVE' })
+    transport.observeForDispatch = async () => ({ exists: true, state: 'idle', pane_alive: true })
+    transport.sendToSession = async () => { throw Object.assign(new Error('input not accepted'), { code: 'BOT_SEND_FAILED' }) }
+    let woken = 0
+    transport.wake = async () => { woken++; return 'bot-aaaa1111' }
+    calls.length = 0
+    await assert.rejects(transport.dispatch(member, 'second', []), { code: 'TERMINAL_UNRESPONSIVE', effect: 'not_started' })
+    assert.equal(calls.some(call => call.name === 'pty_close'), false, 'the live seat is not hibernated or closed')
+    assert.equal(woken, 0)
+    assert.ok(remote.seats.waiting.get('mac-1').has(bot.id), 'the same member drains when the terminal answers')
+    remote.seats.available({ terminalId: 'mac-1', reachable: true })
+    await assert.rejects(transport.dispatch(member, 'third', []), () => true)
+    assert.ok(calls.some(call => call.name === 'pty_close'), 'with no notice held the failed send recovers by closing, as before')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test('a443: turn-failure words in the conversation never show the AITERM_TURN_ code', async () => {
   const { turnFailureWords } = await import('../src/aiterm-transport.mjs')
   assert.equal(turnFailureWords('AITERM_TURN_ERROR: API Error: 529 overloaded'), 'API Error: 529 overloaded')
