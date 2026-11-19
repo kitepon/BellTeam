@@ -70,6 +70,22 @@ test('install errors: network, other failure, timeout, and an image copy that di
   await assert.rejects(cli.install('codex'), { code: 'CLI_INSTALL_FAILED' })
 })
 
+test('claude install allows the claude-code install script (npm 12 skips unlisted scripts)', async () => {
+  const { run, calls } = fake([{ stdout: '', stderr: '', code: 0, signal: null }, found(`${place}/bin/claude`, 'claude 2.1.328 (Claude Code)')])
+  assert.deepEqual(await createCliEffects({ run, place }).install('claude'), { version: '2.1.328' })
+  assert.deepEqual(calls[0].args, ['install', '--global', '--prefix', place, '--allow-scripts=@anthropic-ai/claude-code', '@anthropic-ai/claude-code@latest'])
+})
+
+test('an install that exits 0 but does not run is removed from the user place, so it cannot shadow a working image CLI', async () => {
+  for (const name of ['claude', 'codex', 'grok', 'cursor']) {
+    const bin = name === 'cursor' ? 'cursor-agent' : name
+    const { run, calls } = fake([{ stdout: '', stderr: '', code: 0, signal: null }, { stdout: '', stderr: 'native binary not installed', code: 3, signal: null }, { stdout: '', stderr: '', code: 0, signal: null }])
+    await assert.rejects(createCliEffects({ run, place }).install(name), { code: 'CLI_INSTALL_FAILED' })
+    assert.equal(calls[2].command, 'rm')
+    assert.deepEqual(calls[2].args, ['-f', `${place}/bin/${bin}`])
+  }
+})
+
 test('installs run one at a time even when the child asks for two', async () => {
   const order = []
   let release

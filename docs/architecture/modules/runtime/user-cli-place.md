@@ -61,7 +61,7 @@ sequenceDiagram
 | `cli.probe` | `{harness}` | `{installed, version|null, source:'user'|'image'|null}` | 置き場の環境で `command -v`、次に `<cli> --version`（10秒、ネットワークなし）。解決した場所が `/home/bell/.local` の下なら`user`、そうでなければ`image`。経路や生の出力は返さない。 |
 | `cli.install` | `{harness}` | `{version}` かコード | 10分。親が同時に1件だけ受ける。出力は返さない。成功後に親が再probeして版を返す。 |
 
-vendor表（親だけ）：`claude` / `codex` は `npm install --global --prefix /home/bell/.local @anthropic-ai/claude-code@latest` / `@openai/codex@latest`。`grok` はx.aiの公式installスクリプトを実行し、できた `~/.grok/bin/grok` を `~/.local/bin/grok` へ写す。`cursor` はcursor.comの公式installスクリプト（`~/.local/bin/cursor-agent`）。vendorの変更はこの表の1行。
+vendor表（親だけ）：`claude` / `codex` は `npm install --global --prefix /home/bell/.local [--allow-scripts=@anthropic-ai/claude-code] @anthropic-ai/claude-code@latest` / `@openai/codex@latest`（npm 12は許可のないinstallスクリプトを飛ばし、claude-codeのpostinstallが入れる本体が無いまま終了コード0になるため、claudeだけ許可を付ける。a451x、Rapiの実機）。installが終了コード0でも再probeで動かなければ、置き場の `bin/<cli>` を消す（置き場がPATH先頭なので、動かない物が動く同梱CLIを隠さないため）。`grok` はx.aiの公式installスクリプトを実行し、できた `~/.grok/bin/grok` を `~/.local/bin/grok` へ写す。`cursor` はcursor.comの公式installスクリプト（`~/.local/bin/cursor-agent`）。vendorの変更はこの表の1行。
 
 ## コードを呼ぶ側と、CLIを自分で呼ぶ同梱の道具
 
