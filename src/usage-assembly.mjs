@@ -9,6 +9,7 @@ import { createUsageFacade } from './usage/facade.mjs'
 import { createUsageProjection } from './usage/projection.mjs'
 import { NativeSecretCredentials } from './usage/native-secret-credentials.mjs'
 import { normalizeCredentialScope } from './usage/secret-credentials.mjs'
+import { cliNotice } from './usage/harness-cli-notice.mjs'
 
 // Bootstrap owns this one controller before constructing the remaining service graph.
 export function createUsageAssembly({ root, exchangeMutex, environment = {}, seatRuntime = false, getServices,
@@ -186,8 +187,12 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     onSnapshotEnd: context => projection.commit(context.generation),
     onSnapshotAbort: context => projection.discard(context.generation),
   })
+  // a451 (usage/harness-cli.md): the window execution and members read. get/list answer from the copy the usage child pushes;
+  // null means usage cannot tell yet (an older body), and the reader behaves as before.
+  const harnessCli = { ...facade.harnessCli, recheck: harness => facade.harnessCli.recheck(harness, systemContext('harnessCli.recheck')),
+    notice: harness => { const now = facade.harnessCli.get(harness); return now ? cliNotice(harness, now.state) : null } }
   return {
-    controller, facade, credentials,
+    controller, facade, credentials, harnessCli,
     capture(method, actor, parentContext) {
       const token = authority.capture(method, actor)
       if (parentContext) capturedContexts.set(token, parentContext)

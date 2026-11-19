@@ -52,7 +52,7 @@ stateDiagram-v2
 
 `state` is readiness. `installed` whenever a usable CLI exists, whatever an update does. `installing` and `failed` exist only while the CLI is absent. `busy` (an installer is running) and `lastError` (`{code,message}` of the last failed press) overlay any state. Execution treats only `installed` as ready; `checking`, `not_installed`, `installing`, `failed` all mean "wait". Self-exit of every non-ready state: press the button, or install it by hand, then `recheck`/the next probe; nothing is a lock.
 
-Probe triggers: usage start (`checking` until it ends, a few seconds); after every press; `recheck(harness)`; and a lazy refresh when the list is read and the cache is older than 60 s (never blocks the read).
+Probe triggers (all inside a live usage operation, because effects only run there): usage `initialize`, also on a restore after a module exchange (read-only probes, no operation is repeated); every press, after the installer ends; `harnessCli.recheck(harness)` (Kiro's call, or the parent window). A list read does not probe: it is answered from the copy the child pushed on every change. A press runs as one long usage operation (up to the installer's 10 minutes) while the HTTP answer returns once the press has visibly started (busy in the parent copy) or has ended.
 
 ## Public contract: apps (HTTP, all additive)
 
@@ -102,8 +102,8 @@ Screens (all four apps, same entrance; Mac is the reference): in AIの認証 eac
 
 | Call | Result |
 | --- | --- |
-| `get(harness)` | `{harness, state, version, source, busy}` (sync) |
-| `list()` | `{claude, codex, grok, cursor}`, each as above (sync) |
+| `get(harness)` | `{harness, state, version, source, busy}` (sync); `null` when usage cannot tell (an older body cannot probe), and the reader behaves as before |
+| `list()` (alias `installed()`, Kiro's name) | `{claude, codex, grok, cursor}`, each as above (sync) |
 | `watch(listener)` | `listener({harness, state, version, source, busy})` on every change; returns an unsubscribe |
 | `recheck(harness)` | async; forces a probe, returns the new `get` object (Kiro: after a launch ended not-started while `installed`) |
 | `notice(harness)` | the one plain sentence for a member: not_installed 「<AI名>がまだ入っていません。AIの認証から入れてください」, installing 「<AI名>を入れています。終わるまでお待ちください」, failed 「<AI名>を入れられませんでした。AIの認証からもう一度入れてください」; `null` for `installed` and `checking` |

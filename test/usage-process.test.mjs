@@ -21,7 +21,7 @@ async function fixture(t, handler = () => undefined) {
   const bots = new Map([['bot-a', { id: 'bot-a', name: 'A', harness: 'codex', project: '/synthetic-parent-only' }], ['bot-b', { id: 'bot-b', name: 'B' }]])
   const effects = [], rows = []
   const options = { root, bots, rooms: new Map(), effect: async (method, params) => {
-    effects.push({ method, params })
+    if (method !== 'cli.probe') effects.push({ method, params })
     return handler(method, params)
   }, onProjection: row => rows.push(row) }
   const service = createUsageServices(options)
@@ -329,7 +329,7 @@ test('the real settings apply caller does not wait for members\' turn ends and r
 test('private projection ACK precedes parent effects and replies; publication failure keeps saved state and closes admission', async t => {
   const entered = deferred(), ack = deferred(), parent = []
   const f = await fixture(t)
-  const service = createUsageServices({ ...f.options, effect: (method, params) => { parent.push(method) }, onProjection: async row => { entered.resolve(); await ack.promise } })
+  const service = createUsageServices({ ...f.options, effect: (method, params) => { if (method !== 'cli.probe') parent.push(method) }, onProjection: async row => { entered.resolve(); await ack.promise } })
   await service.initializeSettings({ restore: true }); await service.initialize({ restore: true })
   let settled = false
   const update = service.request('settings.update', { id: 'routing', input: { enabled: false } }, owner).then(value => { settled = true; return value })

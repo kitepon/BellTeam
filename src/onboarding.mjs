@@ -15,7 +15,8 @@ export class OnboardingError extends Error {
 }
 
 export class Onboarding {
-  constructor({ root, path = join(root, 'shared/onboarding.json'), bots, client, subscriptions, startConversation, projectFiles = null }) {
+  constructor({ root, path = join(root, 'shared/onboarding.json'), bots, client, subscriptions, startConversation, projectFiles = null, cli = null }) {
+    this.cli = cli
     this.path = path
     this.bots = bots
     this.client = client
@@ -45,9 +46,11 @@ export class Onboarding {
   }
 
   snapshot() {
+    const install = id => this.cli?.view(id) ?? null, chosen = this.state.harness && Object.hasOwn(HARNESS, this.state.harness) ? install(this.state.harness) : null
     return {
       phase: this.state.started ? 'ready' : this.state.harness ? 'authenticate' : 'select_harness',
-      harness: this.state.harness, harnesses: HARNESSES, guideBotId: this.state.guideBotId,
+      harness: this.state.harness, harnesses: HARNESSES.map(item => install(item.id) ? { ...item, install: install(item.id) } : item), guideBotId: this.state.guideBotId,
+      ...(chosen ? { install: chosen } : {}),
       complete: this.state.complete, auth: this.auth && {
         status: this.auth.status, url: this.auth.url ?? null, user_code: this.auth.user_code ?? null,
         input_required: this.auth.input_required === true, message: this.auth.message ?? null,
@@ -59,7 +62,7 @@ export class Onboarding {
 
   status() {
     return this.change(async () => {
-      if (this.state.harness && !this.state.started) await this.callAuth('status')
+      if (this.state.harness && !this.state.started) { if (this.absent()) this.blockAuth(); else await this.callAuth('status') }
       return this.snapshot()
     })
   }
@@ -76,9 +79,34 @@ export class Onboarding {
       const bot = existing ? await this.bots.update(existing.id, { harness }) : await this.bots.create({ ...guide, harness }, { id: GUIDE_BOT_ID })
       this.state.guideBotId = bot.id
       await this.save()
+      // a451: the AI is not on this server yet; the first step is to install it (install()), the login follows.
+      if (this.absent()) { this.blockAuth(); return this.snapshot() }
       await this.callAuth('start')
       this.state.authSession = this.auth.session_id
       await this.save()
+      return this.snapshot()
+    })
+  }
+
+  absent() { return Boolean(this.state.harness && this.cli?.absent(this.state.harness)) }
+  // Same closed shape as an Aiterm receipt, so a client that does not know `install` still shows one plain sentence and no wrong button.
+  blockAuth() { this.auth = { status: 'blocked', url: null, user_code: null, input_required: false, message: this.cli.notice(this.state.harness) } }
+
+  // a451: install the chosen AI (minutes). Not held inside change(): status polls must keep answering while it runs.
+  async install() {
+    if (!this.state.harness) throw new OnboardingError('SETUP_HARNESS_REQUIRED', 409, '最初に使うAIを選んでください。')
+    if (this.state.started) throw new OnboardingError('SETUP_ALREADY_STARTED', 409, '案内役との会話は開始済みです。メンバーの設定からAIを変更してください。')
+    if (!this.cli?.supported) throw new OnboardingError('CLI_INSTALL_UNSUPPORTED', 409, 'このBellTeamの本体は、入れる機能にまだ対応していません。BellTeamを更新してください。')
+    const harness = this.state.harness
+    await this.cli.install(harness)
+    return this.change(async () => {
+      if (this.state.harness !== harness || this.state.started) return this.snapshot()
+      if (this.cli.absent(harness)) this.blockAuth()
+      else if (!this.state.authSession) {
+        await this.callAuth('start')
+        this.state.authSession = this.auth.session_id
+        await this.save()
+      }
       return this.snapshot()
     })
   }

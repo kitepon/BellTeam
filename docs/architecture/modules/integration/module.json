@@ -142,6 +142,8 @@
     "src/module-exchange-mutex.mjs",
     "src/diagnostics-facade.mjs",
     "src/usage-assembly.mjs",
+    "src/harness-cli.mjs",
+    "src/usage/harness-cli-notice.mjs",
     "src/server-source.mjs",
     "src/bootstrap.mjs",
     "src/diagnostics.mjs",

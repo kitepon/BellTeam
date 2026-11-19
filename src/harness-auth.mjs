@@ -35,8 +35,9 @@ export const harnessAuthKey = (harness, slot) => slot === '2nd' ? `${harness}:2n
 export const harnessAuthStateKeyValid = key => Object.hasOwn(HARNESS, key) || key === 'claude:2nd'
 
 export class HarnessAuth {
-  constructor({ bots, client, accounts }) {
+  constructor({ bots, client, accounts, cli = null }) {
     this.bots = bots
+    this.cli = cli
     this.client = client
     this.accounts = accounts
     // 1st keeps the legacy key; only the second Claude slot adds a separate session.
@@ -47,12 +48,14 @@ export class HarnessAuth {
 
   list() {
     const members = id => [...this.bots.values()].filter(bot => bot.harness === id).length
-    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null, reloginSupported: true })) }
+    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null, reloginSupported: true,
+      ...(this.cli?.view(id) ? { install: this.cli.view(id) } : {}) })) }
   }
 
   status(harness, options = {}, selected = options) {
     return this.change(async () => {
       this.require(harness)
+      this.requireInstalled(harness)
       const slot = harnessAuthSlot(harness, selected?.slot)
       return this.observe(harness, slot)
     })
@@ -61,6 +64,7 @@ export class HarnessAuth {
   start(harness, options = {}, selected = options) {
     return this.change(async () => {
       this.require(harness)
+      this.requireInstalled(harness)
       const slot = harnessAuthSlot(harness, selected?.slot), key = harnessAuthKey(harness, slot)
       const previous = this.receipts.get(key)
       if (this.sessions.has(key)) await this.end(harness, slot)
@@ -102,6 +106,11 @@ export class HarnessAuth {
       if (this.sessions.has(key)) await this.end(harness, slot)
       return { harness, ...(harness === 'claude' ? { slot, account_label: null } : {}), auth: null }
     })
+  }
+
+  // a451: an AI that is not on this server cannot log in; say so in the one plain sentence instead of an Aiterm failure.
+  requireInstalled(harness) {
+    if (this.cli?.absent(harness)) throw new HarnessAuthError('HARNESS_NOT_INSTALLED', 409, this.cli.notice(harness))
   }
 
   require(harness) {
