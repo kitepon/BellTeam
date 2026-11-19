@@ -24,7 +24,7 @@ const results = new Map([
   ['background_send_unavailable', '背景送信を開始できない'], ['response_invalid', '応答形式の異常'],
   ['http_500_response_selected', 'HTTP500応答を選択'],
 ])
-const failureCode = error => error instanceof McpError && error.code === ErrorCode.RequestTimeout ? 'MCP_REQUEST_TIMEOUT' : error?.code
+export const failureCode = error => error instanceof McpError && error.code === ErrorCode.RequestTimeout ? 'MCP_REQUEST_TIMEOUT' : error?.code
 
 export function diagnosticFailureDetails(error) {
   const type = error?.constructor?.name

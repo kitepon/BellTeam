@@ -10,6 +10,7 @@ import { MembersAdmission } from '../src/members-admission.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 import { Diagnostics } from '../src/diagnostics.mjs'
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js'
 import { validateConversationResult } from '../src/conversation/results.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
@@ -232,14 +233,25 @@ test('direct first failure reaches registered diagnostics with bound safe fields
   const rows = await diagnostics.list()
   assert.equal(rows.length, 1); assert.equal(reports, 1)
   assert.deepEqual(JSON.parse(rows[0].diagnostic_log), {
-    // The status stage gets execution's delivery-stage failure (aiterm-transport statusFailure), not the original error.
+    // a444n: the status stage gets execution's failure object without mcp_request, so an unknown outcome is read from the thrown error and filed under its own code.
     delivery_id: receipt.delivery_id, target: 'bot-quincy', stage: 'status',
-    code: 'BOT_SEND_FAILED', cause_code: null, returned: null,
-    tool: null, request_phase: null, effect: null, outcome: null,
+    code: 'BOT_SEND_OUTCOME_UNKNOWN', cause_code: null, returned: true,
+    tool: 'pty_send', request_phase: 'call', effect: null, outcome: 'unknown',
   })
+  assert.equal(rows[0].category, 'SERVER_DELIVERY_OUTCOME_UNKNOWN'); assert.equal(rows[0].severity, 'warn')
   assert.ok(!JSON.stringify(rows).includes(secret))
   assert.equal(JSON.parse(directFailureReport(error).diagnostic_log).effect, null)
   f.direct.requestDrain(); await tick(); await tick(); assert.equal(f.sends.length, 1)
+})
+
+test('a lost answer keeps its timeout cause; a failure without unknown-outcome evidence stays a high send failure (a444n, BugHub b740c850)', () => {
+  const lost = Object.assign(Error('x'), { code: 'BOT_SEND_FAILED', cause: new McpError(ErrorCode.RequestTimeout, 'timed out'),
+    mcp_request: { phase: 'call', tool: 'pty_send', outcome: 'unknown' } })
+  const context = { delivery_id: '11111111-2222-3333-4444-555555555555', target: 'bot-quincy', stage: 'status', outcome: 'unknown' }
+  const report = directFailureReport(lost, context)
+  assert.equal(report.code, 'SERVER_DELIVERY_OUTCOME_UNKNOWN')
+  assert.deepEqual([JSON.parse(report.diagnostic_log).cause_code, JSON.parse(report.diagnostic_log).outcome], ['MCP_REQUEST_TIMEOUT', 'unknown'])
+  assert.equal(directFailureReport({ code: 'BOT_SEND_FAILED' }, { ...context, outcome: undefined }).code, 'SERVER_DELIVERY_SEND_FAILED')
 })
 
 test('a failed status the transport followed to its end (turnCompleted) files no tracking-failure report; other failures still do', async t => {
@@ -381,6 +393,7 @@ test('each failed-delivery stage files under its own code and fingerprint; accep
     [{ code: 'BOT_NOT_FOUND' }, { ...base, stage: 'preflight' }, 'SERVER_DELIVERY_PREFLIGHT_FAILED'],
     [{ code: 'BOT_SEND_FAILED' }, { ...base, stage: 'status', accepted: true }, 'SERVER_TURN_TRACKING_FAILED'],
     [Error('x'), { ...base, stage: 'completion', accepted: true }, 'SERVER_TURN_TRACKING_FAILED'],
+    [{ code: 'BOT_SEND_FAILED' }, { ...base, stage: 'status', outcome: 'unknown' }, 'SERVER_DELIVERY_OUTCOME_UNKNOWN'],
   ]
   const diagnostics = new Diagnostics(join(root, 'diagnostics.json')); await diagnostics.initialize()
   for (const [error, context, code] of cases) {
@@ -388,7 +401,7 @@ test('each failed-delivery stage files under its own code and fingerprint; accep
     assert.equal(report.code, code); assert.equal(report.module, 'conversation')
     await diagnostics.record(report)
   }
-  assert.equal((await diagnostics.list()).length, 5)
+  assert.equal((await diagnostics.list()).length, 6)
 })
 
 // a413 (durable-receipt.md "A seat awaiting its user"): an open question dialog is a seat waiting on its user, not a dead seat.
