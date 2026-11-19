@@ -24,6 +24,8 @@ public sealed record HarnessCliInstall
     // 要対応 (Tronie ruling 2026-11-19): only an AI that is not there or whose install failed. installing moves by itself, checking and installed never count, even when the last update failed.
     [JsonIgnore] public bool NeedsAttention => State is "not_installed" or "failed";
     // The CLI cannot run yet and the server has an answer for it (not checking): the screens show the server's sentence and no login.
+    // Mac CLIInstallSection: the sentence is orange and the press is the primary button when the AI cannot run or the last install failed.
+    [JsonIgnore] public bool Warns => CannotRun || LastError is not null;
     [JsonIgnore] public bool CannotRun => State is "not_installed" or "installing" or "failed";
     // The login buttons are shown only when the AI can run; a server that does not report it (null) is treated as ready.
     public static bool Ready(HarnessCliInstall? install) => install is null || install.State == "installed";

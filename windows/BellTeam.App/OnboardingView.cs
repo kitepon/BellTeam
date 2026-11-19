@@ -142,7 +142,8 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     private UIElement InstallPanel(HarnessCliInstall install)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 22, 0, 0) };
-        var message = MacUi.Text(install.Message, 13, MacUi.Ink); System.Windows.Automation.AutomationProperties.SetAutomationId(message, "harness-install-message"); panel.Children.Add(message);
+        var message = MacUi.Text(install.Message, 13, install.Warns ? SettingsUi.Orange : MacUi.Muted); System.Windows.Automation.AutomationProperties.SetAutomationId(message, "harness-install-message"); panel.Children.Add(message);
+        if (install.Busy) { var spin = InstallLook.Spinner(new Thickness(0, 10, 0, 0)); spin.Visibility = Visibility.Visible; panel.Children.Add(spin); }
         if (install.CanPress)
         {
             var press = MacUi.Prominent(install.ButtonLabel, () => _ = InstallAsync()); press.IsEnabled = !Locked; press.Margin = new Thickness(0, 22, 0, 0);

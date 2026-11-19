@@ -198,6 +198,7 @@ public sealed partial class SettingsWindow
         foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
         // harness-cli.md: the server's own sentence about the installed AI, shown as given on every row that has an install state.
         var installLine = Text("", 12, Muted, null, new Thickness(0, 2, 0, 0)); installLine.Visibility = Visibility.Collapsed; names.Children.Add(installLine);
+        var installing = InstallLook.Spinner(new Thickness(0, 4, 0, 0)); names.Children.Add(installing);
         var badge = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Focusable = false }; Grid.SetColumn(badge, 1);
         var install = Capsule(HarnessCliInstall.DefaultLabel, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); install.FontWeight = FontWeights.Normal; install.VerticalAlignment = VerticalAlignment.Center; install.Margin = new Thickness(10, 0, 0, 0); install.Visibility = Visibility.Collapsed; Grid.SetColumn(install, 2);
         var action = Capsule("", Violet, Brushes.White); action.VerticalAlignment = VerticalAlignment.Center; action.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(action, 3);
@@ -217,7 +218,8 @@ public sealed partial class SettingsWindow
         {
             var now = runner.Install;
             installLine.Text = runner.Error is { } error ? (now?.Message is { } known ? known + "\n" : "") + error : now?.Message ?? ""; installLine.Visibility = installLine.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-            install.Visibility = showInstall && now is { CanPress: true } ? Visibility.Visible : Visibility.Collapsed; install.IsEnabled = !runner.Running;
+            install.Visibility = showInstall && now is { CanPress: true } ? Visibility.Visible : Visibility.Collapsed; InstallLook.Style(install, runner);
+            installLine.Foreground = InstallLook.Sentence(now); installing.Visibility = InstallLook.Spinning(now);
             if (!HarnessCliInstall.Ready(now)) { authRead = false; var state = HarnessRowState.FromInstall(now!); badge.Content = SettingsUi.Badge(state.Title, state.Tone == HarnessTone.Muted ? SettingsTone.Gray : SettingsTone.Orange); action.Visibility = Visibility.Collapsed; }
         }
         async Task ReadStateAsync()
@@ -292,14 +294,15 @@ public sealed partial class SettingsWindow
     {
         var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         var runner = new HarnessInstallRunner(auth, harness.Id, harness.Install, token);
-        var line = Text("", 12, Muted); var button = Capsule(HarnessCliInstall.DefaultLabel, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 6, 0, 0); button.FontWeight = FontWeights.Normal;
+        var line = Text("", 12, Muted); var installing = InstallLook.Spinner(new Thickness(0, 4, 0, 0)); var button = Capsule(HarnessCliInstall.DefaultLabel, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 6, 0, 0); button.FontWeight = FontWeights.Normal;
         System.Windows.Automation.AutomationProperties.SetAutomationId(button, "harness-install-claude");
-        panel.Children.Add(line); panel.Children.Add(button);
+        panel.Children.Add(line); panel.Children.Add(installing); panel.Children.Add(button);
         var blocked = !HarnessCliInstall.Ready(harness.Install);
         void Show()
         {
             line.Text = runner.Error is { } error ? (runner.Install?.Message is { } known ? known + "\n" : "") + error : runner.Install?.Message ?? "";
-            button.Visibility = runner.Install is { CanPress: true } ? Visibility.Visible : Visibility.Collapsed; button.IsEnabled = !runner.Running;
+            button.Visibility = runner.Install is { CanPress: true } ? Visibility.Visible : Visibility.Collapsed; InstallLook.Style(button, runner);
+            line.Foreground = InstallLook.Sentence(runner.Install); installing.Visibility = InstallLook.Spinning(runner.Install);
             if (blocked && !runner.Running && !!HarnessCliInstall.Ready(runner.Install)) reloadAll();
         }
         runner.Changed += Show; button.Click += async (_, _) => await runner.PressAsync();

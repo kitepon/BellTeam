@@ -111,10 +111,11 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         void AddInstall(bool quiet)
         {
             if (cli is null) return;
-            var text = SettingsUi.Text(installer.Error is { } error ? cli.Message + "\n" + error : cli.Message, quiet ? 13 : 14, quiet ? SettingsUi.Muted : SettingsUi.Ink, null, new Thickness(0, quiet ? 14 : 0, 0, 0));
+            var text = SettingsUi.Text(installer.Error is { } error ? cli.Message + "\n" + error : cli.Message, quiet ? 13 : 14, InstallLook.Sentence(cli), null, new Thickness(0, quiet ? 14 : 0, 0, 0));
             System.Windows.Automation.AutomationProperties.SetAutomationId(text, "harness-install-message"); card.Children.Add(text);
+            if (cli.Busy) { var spin = InstallLook.Spinner(new Thickness(0, 6, 0, 0)); spin.Visibility = Visibility.Visible; card.Children.Add(spin); }
             if (!cli.CanPress) return;
-            var press = quiet ? SettingsUi.Capsule(cli.ButtonLabel, Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 4, 0, 4)) : SettingsUi.MainButton(cli.ButtonLabel);
+            var press = quiet ? SettingsUi.Capsule(installer.PressLabel, Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 4, 0, 4)) : SettingsUi.MainButton(installer.PressLabel);
             if (quiet) { press.HorizontalAlignment = HorizontalAlignment.Left; press.Margin = new Thickness(0, 6, 0, 0); press.FontWeight = FontWeights.Normal; } else press.Margin = new Thickness(0, 12, 0, 0);
             press.IsEnabled = !installer.Running; System.Windows.Automation.AutomationProperties.SetAutomationId(press, "harness-install"); press.Click += async (_, _) => await installer.PressAsync(); card.Children.Add(press);
         }

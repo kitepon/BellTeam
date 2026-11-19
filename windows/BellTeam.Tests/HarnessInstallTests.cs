@@ -34,6 +34,21 @@ public sealed class HarnessInstallTests
     }
 
     [Fact]
+    public async Task ThePressSaysItIsStartingOnlyWhileThePostIsInFlightAndOnlyAnAiThatCannotRunWarns()
+    {
+        var gate = new TaskCompletionSource<string>(); var labels = new List<string>(); HarnessInstallRunner? runner = null;
+        using var api = new BellApi(new("http://localhost/"), new StubHandler(async (request, _) => StubHandler.Json(await gate.Task)));
+        runner = new HarnessInstallRunner(new HarnessAuthenticationApi(api), "codex", null, CancellationToken.None, TimeSpan.FromMilliseconds(5));
+        runner.Changed += () => labels.Add(runner.PressLabel);
+        var press = runner.PressAsync(); Assert.Equal("始めています…", labels[0]); Assert.True(runner.Pressing);
+        gate.SetResult(Install("installed", false, "入っています。", true)); await press;
+        Assert.False(runner.Pressing); Assert.Equal("最新版を入れる", runner.PressLabel);
+        HarnessCliInstall Of(string state, string? error = null) => new() { State = state, LastError = error is null ? null : new("X", error) };
+        Assert.True(Of("not_installed").Warns); Assert.True(Of("installing").Warns); Assert.True(Of("failed").Warns); Assert.True(Of("installed", "x").Warns);
+        Assert.False(Of("installed").Warns); Assert.False(Of("checking").Warns);
+    }
+
+    [Fact]
     public void ANotInstalledAiShowsTheServerSentenceAndOnlyTheButtonThenReadsItsLoginOnceInstalled()
     {
         RunSta(() =>
@@ -48,7 +63,7 @@ public sealed class HarnessInstallTests
             var window = new HarnessAuthenticationWindow(workspace, new("codex", "Codex", 2, null, Install: missing), _ => true);
             Await(window.InitializeAsync());
             // The login routes answer 409 while it is absent, so nothing is read and no login button is offered.
-            Assert.Empty(calls); Assert.Contains(Descendants<TextBlock>(window), text => text.Text == Missing);
+            Assert.Empty(calls); Assert.Contains(Descendants<TextBlock>(window), text => text.Text == Missing && text.Foreground == SettingsUi.Orange);
             Assert.DoesNotContain(Descendants<Button>(window), button => button.Content as string is "認証する" or "認証し直す");
             Descendants<Button>(window).Single(button => button.Content as string == "最新版を入れる").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var until = DateTime.UtcNow.AddSeconds(5); while (window.Authentication is null) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(2); }

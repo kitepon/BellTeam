@@ -1,3 +1,6 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using BellTeam.Core;
 
 namespace BellTeam.App;
@@ -12,6 +15,9 @@ internal sealed class HarnessInstallRunner(HarnessAuthenticationApi api, string 
     public HarnessCliInstall? Install { get; private set; } = initial;
     public string? Error { get; private set; }
     public bool Running => running;
+    // Mac flow.pressing: the POST is in flight; the press says so until the server answers.
+    public bool Pressing { get; private set; }
+    public string PressLabel => Pressing ? "始めています…" : Install?.ButtonLabel ?? HarnessCliInstall.DefaultLabel;
     public event Action? Changed;
     public Task PressAsync() => RunAsync(post: true);
     // A press is queued or an installer runs (read again until it ends), or the first probe is still running.
@@ -25,10 +31,10 @@ internal sealed class HarnessInstallRunner(HarnessAuthenticationApi api, string 
     private async Task RunAsync(bool post)
     {
         if (running) return;
-        running = true; Error = null; Changed?.Invoke();
+        running = true; Pressing = post; Error = null; Changed?.Invoke();
         try
         {
-            if (post) Apply(await api.InstallAsync(harness, token));
+            if (post) { var first = await api.InstallAsync(harness, token); Pressing = false; Apply(first); }
             var wait = every;
             while (Install is { } now && Waiting(now) && !token.IsCancellationRequested)
             {
@@ -40,6 +46,19 @@ internal sealed class HarnessInstallRunner(HarnessAuthenticationApi api, string 
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception error) { Error = error.Message; }
-        finally { running = false; if (!token.IsCancellationRequested) Changed?.Invoke(); }
+        finally { running = false; Pressing = false; if (!token.IsCancellationRequested) Changed?.Invoke(); }
     }
+}
+
+// Mac CLIInstallSection: the server's sentence is orange for an AI that cannot run (or after a failed install), the press is primary then and quiet otherwise, and a spinner shows while the server installs.
+internal static class InstallLook
+{
+    public static Brush Sentence(HarnessCliInstall? install) => install is { Warns: true } ? SettingsUi.Orange : SettingsUi.Muted;
+    public static void Style(Button press, HarnessInstallRunner runner)
+    {
+        var cannot = runner.Install is { CannotRun: true };
+        press.Content = runner.PressLabel; press.Background = cannot ? SettingsUi.Violet : SettingsUi.Fill; press.Foreground = cannot ? Brushes.White : SettingsUi.Ink; press.IsEnabled = !runner.Running;
+    }
+    public static Spinner Spinner(Thickness margin) => new() { Stroke = SettingsUi.Violet, Margin = margin, HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
+    public static Visibility Spinning(HarnessCliInstall? install) => install is { Busy: true } ? Visibility.Visible : Visibility.Collapsed;
 }
