@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T10:59:54Z",
-  "expiresAt": "2026-11-26T10:59:54Z",
+  "publishedAt": "2026-11-19T12:17:20Z",
+  "expiresAt": "2026-11-26T12:17:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -497,8 +497,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
-      "versionId": "3fa5675f86efbba2336d7ec6d16922831d5bd6ec9f8664b9e0a9331149881c8a",
+      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
+      "versionId": "921023ba8ba149a0a2dbc43c3c5ef68731f05dc24c65be8ba15a5501ca206831",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -506,16 +506,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz",
-          "bytes": 3991286,
-          "sha256": "3fa5675f86efbba2336d7ec6d16922831d5bd6ec9f8664b9e0a9331149881c8a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-amd64.tar.gz",
+          "bytes": 3992002,
+          "sha256": "921023ba8ba149a0a2dbc43c3c5ef68731f05dc24c65be8ba15a5501ca206831"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11161,
-          "sha256": "ed94af6403f928500407b84ff30765e326b95ba0bf3309d2ebad18bb7c06af80"
+          "sha256": "5bd950cf2b432bf1dff9a3ad0b4efeb859c0a423f664c6164510a8108b8f6288"
         },
-        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
+        "signerCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -525,13 +525,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "CLIが入っていないAIの席は、失敗にせず、「まだ入っていません。AIの認証から入れてください」と平易に案内して待つようにしました。"
+        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
-      "versionId": "89cffb74d2a67e5c5d3f9029ccea1d30e7cd8dd55ea9a2da7654ab615786125c",
+      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
+      "versionId": "526f8e160b3d76d71e940f8b3d029fc20628dda7d1f60ddc883e151930324a16",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -539,16 +539,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz",
-          "bytes": 3991286,
-          "sha256": "89cffb74d2a67e5c5d3f9029ccea1d30e7cd8dd55ea9a2da7654ab615786125c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-arm64.tar.gz",
+          "bytes": 3992002,
+          "sha256": "526f8e160b3d76d71e940f8b3d029fc20628dda7d1f60ddc883e151930324a16"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100356Z/execution-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11177,
-          "sha256": "ae6582b8e156e08851e0a337976785041d82624e1de86ca13c99395974ad7545"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11322,
+          "sha256": "f98e762ce3e4c9458189afbe41688de688777c1178a9d92906f583098797c7d3"
         },
-        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
+        "signerCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -558,7 +558,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "CLIが入っていないAIの席は、失敗にせず、「まだ入っていません。AIの認証から入れてください」と平易に案内して待つようにしました。"
+        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
       ]
     },
     {
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e0f378e486544d64495cbad14faae158dc3f147f",
-      "versionId": "sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3",
+      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
+      "versionId": "sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,23 +730,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AIの実行ファイル（CLI）の置き場（利用者の領域）と、最新版を入れる処理を、本体に足しました。本体の入れ替えで消えない場所へ入ります。",
-        "Claudeの「最新版を入れる」で、npmが入れる時のスクリプトを飛ばして動かないClaudeになるのを直しました。入れた後に動かなければ、それを置き場から外し、元から動いていたCLIを隠しません（4つのAIすべて）。",
-        "入っていないAIにログインしようとした時の答えを、コードではなく平易な文にしました。",
-        "Lattice の読み方に、閉じた工程の履歴を別に読む入口を足しました（本体側のみ。使われるのは後の部品の入れ替えからです）。"
+        "AIのCLI（Claude Code・Codex・Grok・Cursor）を、本体に同梱しなくなりました。使うAIごとに、AIの認証で「最新版を入れる」を1回押してください。すでに入れてある物と、動いている席は、そのまま続きます。",
+        "CLIがまだ入っていない間は、Codexの親配送のhookを「失敗」と報告せず、入るのを待つようにしました。",
+        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e0f378e486544d64495cbad14faae158dc3f147f",
-      "versionId": "sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3",
+      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
+      "versionId": "sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9ab16dfb966ca2027b52083d32f7f1cb18136c7234156f2c5978ec97de42c613"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -755,10 +754,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AIの実行ファイル（CLI）の置き場（利用者の領域）と、最新版を入れる処理を、本体に足しました。本体の入れ替えで消えない場所へ入ります。",
-        "Claudeの「最新版を入れる」で、npmが入れる時のスクリプトを飛ばして動かないClaudeになるのを直しました。入れた後に動かなければ、それを置き場から外し、元から動いていたCLIを隠しません（4つのAIすべて）。",
-        "入っていないAIにログインしようとした時の答えを、コードではなく平易な文にしました。",
-        "Lattice の読み方に、閉じた工程の履歴を別に読む入口を足しました（本体側のみ。使われるのは後の部品の入れ替えからです）。"
+        "AIのCLI（Claude Code・Codex・Grok・Cursor）を、本体に同梱しなくなりました。使うAIごとに、AIの認証で「最新版を入れる」を1回押してください。すでに入れてある物と、動いている席は、そのまま続きます。",
+        "CLIがまだ入っていない間は、Codexの親配送のhookを「失敗」と報告せず、入るのを待つようにしました。",
+        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
       ]
     },
     {
