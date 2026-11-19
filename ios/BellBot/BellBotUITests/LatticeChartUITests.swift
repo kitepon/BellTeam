@@ -123,6 +123,26 @@ final class LatticeChartUITests: XCTestCase {
         shot(app, "light-07-pastlog-count")
     }
 
+    /// a457: the closed trees' cards come from GET .../history, a page at a time (50, then the end of the list asks the next).
+    func testPastLogReadsClosedTreesPageByPage() async throws {
+        _ = try await call("/test/mode?paged=1")
+        let app = launch([])
+        defer { app.terminate() }
+        element(app, "lattice-chart-lattice").tap()
+        XCTAssertTrue(element(app, "lattice-wait-row-0").waitForExistence(timeout: 10))
+        let picker = app.segmentedControls["lattice-center-picker"]
+        XCTAssertTrue(scrollTo(picker, in: app))
+        XCTAssertTrue(picker.buttons["過去ログ 123"].exists, "3 finished cards in the snapshot + history.closed 120")
+        selectCenter("過去ログ", in: app)
+        XCTAssertTrue(element(app, "lattice-history-row-p1/c001").waitForExistence(timeout: 5), "the first page")
+        settle()
+        shot(app, "light-10-pastlog-pages")
+        XCTAssertTrue(scrollTo(element(app, "lattice-history-row-p1/c075"), in: app), "scrolling to the end asks the next page")
+        XCTAssertTrue(scrollTo(element(app, "lattice-history-row-p1/c120"), in: app), "and the one after")
+        let asks = try await call("/test/history-requests")["asks"] as? [String]
+        XCTAssertEqual(asks, ["?limit=50", "?limit=50&before=h50", "?limit=50&before=h100"], "one request per page, no page asked twice")
+    }
+
     /// a107 (Owner 2026-11-14): a chart counting 0/0 shows nothing when opened, so 一覧 and the switcher leave it out.
     func testZeroChartIsNotListedNorInTheSwitcher() async throws {
         _ = try await call("/test/mode?zero=1")

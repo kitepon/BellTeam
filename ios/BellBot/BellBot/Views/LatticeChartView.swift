@@ -109,6 +109,11 @@ struct LatticeChartScreen: View {
             await model.run(api: store.api)
         }
         .onChange(of: coordinatorId) { _, id in model.setCoordinator(id) }
+        // a457: 過去ログ reads the closed trees only while it is open; leaving it drops the pages.
+        .task(id: center == .history && scenePhase == .active) {
+            if center == .history && scenePhase == .active { await model.openHistory(api: store.api) } else { model.closeHistory() }
+        }
+        .onChange(of: model.snapshot?.version) { _, _ in Task { await model.historyMayHaveChanged(api: store.api) } }
     }
 
     @ViewBuilder private var content: some View {
@@ -322,7 +327,7 @@ struct LatticeChartScreen: View {
                             LatticeLegend().padding(.horizontal, 14).padding(.vertical, 10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        if let id = selected, let detail = LatticeDetail(snapshot, cardId: id, now: now) {
+                        if let id = selected, let detail = LatticeDetail(snapshot.merged(model.history), cardId: id, now: now) {
                             LatticeDetailPanel(detail: detail, compact: false, close: { select(nil) },
                                                open: { select($0, scroll: true) }, chat: { chat($0) }, loadDecision: loadDecision)
                                 .frame(width: 350)
@@ -389,8 +394,11 @@ struct LatticeChartScreen: View {
     }
 
     private func historyView(_ snapshot: LatticeChartSnapshot, now: Date, namespace: Namespace.ID?) -> some View {
-        LatticeHistoryView(snapshot: snapshot, now: now, lookup: LatticePerson.lookup(snapshot), focus: focus, selected: selected,
-                           namespace: namespace, select: { select($0) })
+        let merged = snapshot.merged(model.history)
+        return LatticeHistoryView(snapshot: merged, feed: model.history, now: now, lookup: LatticePerson.lookup(merged), focus: focus, selected: selected,
+                                  namespace: namespace, select: { select($0) },
+                                  more: { Task { await model.moreHistory(api: store.api) } },
+                                  retry: { Task { await model.retryHistory(api: store.api) } })
     }
 
     /// ツリー。選択・強調・送り先は担当のレーンと同じ（切り替えても引き継ぐ）。
@@ -595,7 +603,7 @@ struct LatticeChartScreen: View {
             }
         }
         .sheet(item: Binding(get: { selected.map(LatticeSelection.init) }, set: { selected = $0?.id })) { selection in
-            if let detail = LatticeDetail(snapshot, cardId: selection.id, now: now) {
+            if let detail = LatticeDetail(snapshot.merged(model.history), cardId: selection.id, now: now) {
                 ScrollView {
                     LatticeDetailPanel(detail: detail, compact: true, close: { selected = nil },
                                        open: { id in selected = id; scrollTarget = id }, chat: { id in selected = nil; chat(id) },

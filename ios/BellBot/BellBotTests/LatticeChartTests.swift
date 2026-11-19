@@ -415,6 +415,62 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(LatticeHistory.empty, "まだ終わった工程はありません。")
     }
 
+    // a457: 過去ログ reads the closed trees through the history route (README "Client rules for 過去ログ").
+    func testHistoryCountsClosedTreesAndMergesPagesWithTheSnapshotWinning() throws {
+        var snapshot = try archivedSnapshot()
+        XCTAssertEqual(LatticeHistory.count(snapshot), 5, "an older server sends no `history`: missing = 0")
+        snapshot.history = LatticeHistoryInfo(closed: 1285)
+        XCTAssertEqual(LatticeHistory.count(snapshot), 5 + 1285, "switch count = finished cards in `cards` + history.closed")
+        let page = try JSONDecoder().decode(LatticeHistoryPage.self, from: Data("""
+        {"schema":"bellteam.lattice-history.v1","projectId":"t","state":"verified","closed":1285,
+         "members":[{"botId":"bot-old","name":"古い","color":"mint"}],
+         "cards":[{"id":"a1","title":"再開した札","state":"done","doneAt":"2026-11-01T00:00:00Z","producer":"bot-old"},
+                  {"id":"h1","title":"H1","state":"done","doneAt":"2026-11-01T00:00:00Z","producer":"bot-old"},
+                  {"id":"h2","title":"H2","state":"retired","producer":"bot-old"}],"next":"h1.AB+/="}
+        """.utf8))
+        var feed = LatticeHistoryFeed()
+        XCTAssertEqual(feed.phase, .loading)
+        feed.receive(page, first: true)
+        XCTAssertTrue(feed.canMore)
+        XCTAssertEqual(feed.readAt, 1285)
+        let merged = snapshot.merged(feed)
+        XCTAssertEqual(merged.cardList.first { $0.id == "a1" }?.title, snapshot.cardList.first { $0.id == "a1" }?.title, "the snapshot's card wins on the same id")
+        XCTAssertTrue((merged.members ?? []).contains { $0.botId == "bot-old" })
+        let noon = LatticeTime.date("2026-11-12T03:00:00Z")!
+        XCTAssertEqual(LatticeHistory(merged, now: noon).days.map { $0.cards.map(\.id) }, [["a1", "b1"], ["a2"], ["b3"], ["h1"], ["b4", "h2"]],
+                       "newest doneAt first, no doneAt last by id")
+        XCTAssertEqual(snapshot.merged(LatticeHistoryFeed()), snapshot, "no pages: the snapshot as it is")
+        XCTAssertEqual(LatticeHistoryPage.path(projectId: "bellteam", before: nil), "/api/lattice/charts/bellteam/history?limit=50")
+        XCTAssertEqual(LatticeHistoryPage.path(projectId: "bellteam", before: "h1.AB+/="), "/api/lattice/charts/bellteam/history?limit=50&before=h1.AB%2B%2F%3D")
+    }
+
+    func testHistoryFeedAppendsFailsAndFallsBackOnAnOlderServer() throws {
+        func page(_ json: String) throws -> LatticeHistoryPage { try JSONDecoder().decode(LatticeHistoryPage.self, from: Data(json.utf8)) }
+        let first = try page(#"{"schema":"bellteam.lattice-history.v1","state":"verified","closed":3,"cards":[{"id":"h1","title":"H1","state":"done"}],"next":"c1"}"#)
+        let second = try page(#"{"schema":"bellteam.lattice-history.v1","state":"last_verified","closed":3,"cards":[{"id":"h1","title":"H1","state":"done"},{"id":"h2","title":"H2","state":"done"}],"next":null}"#)
+        var feed = LatticeHistoryFeed()
+        feed.receive(first, first: true)
+        feed.begin()
+        XCTAssertFalse(feed.canMore, "a page in flight is not asked again")
+        feed.fail(first: false, status: 503)
+        XCTAssertEqual(feed.cards.map(\.id), ["h1"], "the rows already known stay")
+        XCTAssertFalse(feed.retryFirst, "読み直す asks the same page again")
+        feed.fail(first: false, status: 400)
+        XCTAssertTrue(feed.retryFirst, "after a 400 from the first page")
+        feed.receive(second, first: false)
+        XCTAssertEqual(feed.cards.map(\.id), ["h1", "h2"], "a repeated id is not listed twice")
+        XCTAssertFalse(feed.canMore, "next null ends the list")
+        feed.receive(first, first: true)
+        XCTAssertEqual(feed.cards.map(\.id), ["h1"], "the first page replaces what was loaded")
+        let unverified = try page(#"{"schema":"bellteam.lattice-history.v1","state":"unverified","closed":0,"cards":[{"id":"x","title":"X","state":"done"}],"next":"c"}"#)
+        feed.receive(unverified, first: true)
+        XCTAssertTrue(feed.cards.isEmpty)
+        XCTAssertFalse(feed.canMore, "a page that is not verified has no cards and no next")
+        feed.fail(first: true, status: 404)
+        XCTAssertEqual(feed.phase, .unsupported, "an older server: the snapshot's closed cards stay, no more requests")
+        XCTAssertFalse(feed.canMore)
+    }
+
     func testStopRowsNewestFirstWithJSTTimeFacesAndSpokenLabel() throws {
         LatticePerson.ownerName = nil
         let json = """
