@@ -16,6 +16,8 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   if (phase !== 'configuration' && (error?.turnCompleted === true || ['timeout', 'running'].includes(error?.waitOutcome))) return null
   // A confirmed stop (Owner stop, explicit restart, member delete) aborted this wait on purpose: not a tracking failure.
   if (phase === 'delivery_wait' && context?.stopped === true) return null
+  // a446: our own restart/delete close ended it before its close returned (wait-contract.md).
+  if (phase === 'delivery_wait' && context?.seatClosing === true && error?.waitOutcome === 'closed') return null
   const detail = { schema: 'bellteam.execution-failure.v1',
     botId: typeof botId === 'string' && /^bot-[a-z0-9-]{1,100}$/u.test(botId) ? botId : null, phase }
   const code = returnedExecutionError(error?.executionError)?.code ?? error?.code
