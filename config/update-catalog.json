@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T04:54:10Z",
-  "expiresAt": "2026-11-26T04:54:10Z",
+  "publishedAt": "2026-11-19T05:16:06Z",
+  "expiresAt": "2026-11-26T05:16:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed",
-      "versionId": "b768b9d5462eff4cf92ede60869806295034e363552560d4acf94121061306eb",
+      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
+      "versionId": "7d085db5a5946a472bf888b051dde186c385ed45897dc7df16368c543b08d4b4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042339Z/web-gateway-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-amd64.tar.gz",
-          "bytes": 5468506,
-          "sha256": "b768b9d5462eff4cf92ede60869806295034e363552560d4acf94121061306eb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz",
+          "bytes": 5468994,
+          "sha256": "7d085db5a5946a472bf888b051dde186c385ed45897dc7df16368c543b08d4b4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042339Z/web-gateway-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11303,
-          "sha256": "bafcadc94ff7522f6a0027077b502c0ec1853bdc719966b02788fd0507349a39"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11052,
+          "sha256": "a7f1706b2dcb38fd23242207120aaf391158cf695eab34686e299eb23e542e4a"
         },
-        "signerCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed"
+        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,15 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "待ちの失敗が、どの層で起きたかが分かる名前で出るようにしました。",
-        "本体の入れ替え中の設計どおりの保留（BOT_UPDATE_HOLD）を、障害として報告しないようにしました。",
-        "AIの席へ送った結果が分からない時を、重大な送信失敗ではなく、警告の「結果が不明」として原因つきで報告するようにしました。"
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed",
-      "versionId": "b3e1bbae22f2313835218a9a39c8bf1b808fe200267d1ac017bec3ba1f033e06",
+      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
+      "versionId": "c9330a4eb0eca7f10f671909b33e2e0f40634ddafca7d00a363392cf60eaa134",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -472,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042339Z/web-gateway-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-arm64.tar.gz",
-          "bytes": 5468506,
-          "sha256": "b3e1bbae22f2313835218a9a39c8bf1b808fe200267d1ac017bec3ba1f033e06"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz",
+          "bytes": 5468994,
+          "sha256": "c9330a4eb0eca7f10f671909b33e2e0f40634ddafca7d00a363392cf60eaa134"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042339Z/web-gateway-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "0379d915fc9a2c7323568e3804aa6f00df9932b2320b982eff39d1862c90e84d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051539Z/web-gateway-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "27e636e2a4534688096033df5fcefca38444a95fc96b6a6730c304a53a8f74d9"
         },
-        "signerCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed"
+        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -490,15 +488,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "待ちの失敗が、どの層で起きたかが分かる名前で出るようにしました。",
-        "本体の入れ替え中の設計どおりの保留（BOT_UPDATE_HOLD）を、障害として報告しないようにしました。",
-        "AIの席へ送った結果が分からない時を、重大な送信失敗ではなく、警告の「結果が不明」として原因つきで報告するようにしました。"
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed",
-      "versionId": "11c8f16eab417c8007df5ca0731ecfbf9a45b516a048c788480225e50232400a",
+      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
+      "versionId": "470b1bb6d85d4bd95a19484ca42f2a9047349302895bf08051ff93ec7bf7cbf1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -506,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042326Z/execution-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-amd64.tar.gz",
-          "bytes": 3988892,
-          "sha256": "11c8f16eab417c8007df5ca0731ecfbf9a45b516a048c788480225e50232400a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz",
+          "bytes": 3989164,
+          "sha256": "470b1bb6d85d4bd95a19484ca42f2a9047349302895bf08051ff93ec7bf7cbf1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042326Z/execution-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "dca47a69f6bfdc3159b06098617fd04dc9371ef812802085c47f19a49e76ea89"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "ca7d6e29b058e5b9eabd36ee654f6b628f93980badbc097a25462a4c2ff068d0"
         },
-        "signerCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed"
+        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -525,14 +521,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "待ちの失敗が、どの層で起きたかが分かる名前で出るようにしました。",
-        "AIの席へ送った結果が分からない時を、重大な送信失敗ではなく、警告の「結果が不明」として原因つきで報告するようにしました。"
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed",
-      "versionId": "4c789166f161d6c354a30be99c5aaf8bcc96520583d4a2fef99c7b006988a30d",
+      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
+      "versionId": "0e6a281f230d809ee7a68a6c965bc79b78c8d37e313a154d952951139112b448",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -540,16 +536,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042326Z/execution-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-arm64.tar.gz",
-          "bytes": 3988893,
-          "sha256": "4c789166f161d6c354a30be99c5aaf8bcc96520583d4a2fef99c7b006988a30d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz",
+          "bytes": 3989164,
+          "sha256": "0e6a281f230d809ee7a68a6c965bc79b78c8d37e313a154d952951139112b448"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T042326Z/execution-695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11087,
-          "sha256": "1602e23820cf7fd6217baebc055ff2e7db31f522ab10f1ba683d636da980ca07"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T051525Z/execution-edc574dc111c9519b4e41f931646dc87b0aa4304-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "ceaf3d7e031a0b1df90bafad8229c0b9ced5624276ba21ca051422b341860e16"
         },
-        "signerCommit": "695fe1e3704e5f69571dfaac4a2d2a0ca32f91ed"
+        "signerCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -559,8 +555,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "待ちの失敗が、どの層で起きたかが分かる名前で出るようにしました。",
-        "AIの席へ送った結果が分からない時を、重大な送信失敗ではなく、警告の「結果が不明」として原因つきで報告するようにしました。"
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
     {
@@ -715,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7672396e49579db6cd6cd0cdd6895ffe1ca47c85",
-      "versionId": "sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a",
+      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
+      "versionId": "sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,20 +728,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。古い Aiterm のまま起動が止まって待たされることがなくなります。"
+        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。",
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7672396e49579db6cd6cd0cdd6895ffe1ca47c85",
-      "versionId": "sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a",
+      "sourceCommit": "edc574dc111c9519b4e41f931646dc87b0aa4304",
+      "versionId": "sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33c620ab6f21c8307c4346635ab1ae7d91c982ec8b5a13e5586b9a03bbe43a0a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2ef3575dc3f851f1175a5f3ccaf9130703ec6433819f6966df5f1fd1e63e844c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -754,7 +752,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。古い Aiterm のまま起動が止まって待たされることがなくなります。"
+        "外の端末の古い Aiterm を、起動の中ではなく、裏で 1 端末につき 1 つずつ整えるようにしました。",
+        "次のターンを始めた差し込みの答えを、差し込みの番号で読めるようにしました（新しい Aiterm が入るまでは今までどおり）。",
+        "席の再起動や削除で自分が待ちを閉じた時を、追跡の失敗として報告しないようにしました。"
       ]
     },
     {
