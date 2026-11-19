@@ -147,6 +147,21 @@ flowchart LR
 | Harness | grok / cursor have no resume: untouched. |
 | Self-exit | The turn hold (named protection: Aiterm's own refusal to kill background work or a seat it cannot resume; BellTeam does not hammer it) ends when the seat runs a turn (any delivery or its own turn), when any launch moves `capturedAt` past `route_since`, or when the forward is rebuilt (new `route_since` = new key). Otherwise no guard: the resumed launch moves `capturedAt` past `route_since`, so the rule is false on the next poll. The wake record ends when our wake succeeds or when any launch of that session (ordinary wake on a delivery, explicit restart) records a `capturedAt` after `closedAt`. A body restart empties both maps: a seat left hibernated then wakes by the ordinary wake of its next delivery; a seat with a row is judged by the rule again. |
 
+## Code Mode for every Claude seat (a442b, Tronie rulings a442b1 / a442b2, 2026-11-19)
+
+One switch, one place: `AitermTransport.wakeNow` (main seat) and `forkInquiry` (fork seat) add `settings_env: {CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1'}` to the `agent_launch` args when the harness is `claude-code` (Aiterm >= 0.70.76 writes it into the per-launch `claude-settings.json` env on every machine and keeps it in the resume template, so a resume keeps Code Mode). Local and remote seats use the same args; no per-machine or per-seat switch and no hand edit of any settings file. Other harnesses get nothing.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Launch: agent_launch + settings_env
+  Launch --> Seat: accepted (banner shows Code Mode)
+  Launch --> Fallback: REMOTE_AITERM_TOO_OLD (terminal Aiterm < 0.70.76) or AGENT_STARTUP_BLOCKED (Code Mode first-start confirm)
+  Fallback --> Seat: ONE more agent_launch without settings_env (no loop) + launch notice CODE_MODE_SKIPPED
+  Fallback --> Failed: the second launch also refused: the ordinary launch failure
+```
+
+Protects: a remote seat must not stop launching because its terminal lacks the newer Aiterm or has not answered Code Mode's one-time confirm (give-up-is-a-guard). `launchWithCodeMode` is the only place that reads the two refusal names (the error code, `aitermErrorCode`, `launchRefusal.code` or the message). The credential of the first launch is reused: Aiterm refuses before any value is sent (too old) or closed the seat it created itself (blocked). Self-exit: the notice (`RemoteSeats.codeModeSkipped`: names the terminal and the one step, update Aiterm or answer the Code Mode screen once) is cleared by the next successful launch (`RemoteSeats.launched`), and that launch carries `settings_env` again. Elegg's a442h (Aiterm answers exactly that confirm when this `settings_env` was passed) removes the second cause with no change here.
+
 ## Target revision (member terminal/folder change)
 
 Member updates reach the registry by two paths: the HTTP profile PATCH (`administration.update`) and members' MCP `update_bot`/`update_self`, which saves `terminalId`/`projectRoot` straight to the registry without execution. The delivery is the boundary both share, so the move is in `dispatch` (before the send): when the launch record's `target` of the current session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), `dispatch` observes the seat; an idle or absent seat is closed (`pty_close`; a remote close revokes its credential) and woken on the new target through the existing `memberOperation` + `wake`, then the message is sent there. A seat whose turn is running keeps today's delivery (the same rule as the wake-first recovery: never close a running turn); the next delivery moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.

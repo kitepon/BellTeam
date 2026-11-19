@@ -274,6 +274,50 @@ test('a443: after a timed-out launch, a second delivery to a live idle seat with
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('a442b: a Claude launch asks for Code Mode; a too-old terminal or the confirm screen gets one launch without it, never a loop', async () => {
+  for (const refusal of ['REMOTE_AITERM_TOO_OLD', 'AGENT_STARTUP_BLOCKED']) {
+    const { root, calls, transport, member, remote } = await transportFixture()
+    try {
+      let refused = true
+      transport.client.call = async (name, args, callOptions) => {
+        calls.push({ name, args, options: callOptions })
+        if (name === 'agent_launch' && args.settings_env && refused) throw Object.assign(new Error(`aiterm: ${refusal}: x`), { aitermResponseReturned: true })
+        return { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'd'.repeat(32), startup: { status: 'ready' } } }
+      }
+      await transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} })
+      const launches = calls.filter(call => call.name === 'agent_launch').map(call => call.args)
+      assert.equal(launches.length, 2)
+      assert.deepEqual(launches[0].settings_env, { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' })
+      assert.equal('settings_env' in launches[1], false, 'the second launch carries no Code Mode')
+      assert.equal(remote.seats.launchNotice(member).code, 'CODE_MODE_SKIPPED')
+      assert.match(remote.seats.launchNotice(member).action, /mac-1/)
+      // the next launch tries Code Mode again, and the notice ends with it
+      refused = false
+      calls.length = 0
+      await transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} })
+      assert.deepEqual(calls.find(call => call.name === 'agent_launch').args.settings_env, { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' })
+      assert.equal(remote.seats.launchNotice(member), null)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  }
+  // both attempts refused: one fallback only, then the ordinary failure
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    transport.client.call = async (name, args, callOptions) => {
+      calls.push({ name, args, options: callOptions })
+      if (name === 'agent_launch') throw Object.assign(new Error('aiterm: AGENT_STARTUP_BLOCKED: x'), { aitermResponseReturned: true })
+      return { content: [], structuredContent: {} }
+    }
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} }), /AGENT_STARTUP_BLOCKED/)
+    assert.equal(calls.filter(call => call.name === 'agent_launch').length, 2)
+  } finally { await rm(root, { recursive: true, force: true }) }
+  // other harnesses never get it
+  const other = await transportFixture()
+  try {
+    await other.transport.wakeNow({ ...other.member, harness: 'codex' }, { membersLease: 'L', admissionCheck: () => {} })
+    assert.equal('settings_env' in other.calls.find(call => call.name === 'agent_launch').args, false)
+  } finally { await rm(other.root, { recursive: true, force: true }) }
+})
+
 test('a443: turn-failure words in the conversation never show the AITERM_TURN_ code', async () => {
   const { turnFailureWords } = await import('../src/aiterm-transport.mjs')
   assert.equal(turnFailureWords('AITERM_TURN_ERROR: API Error: 529 overloaded'), 'API Error: 529 overloaded')

@@ -506,7 +506,7 @@ test('長期記憶とRAGは起動引数へ渡さない', async () => {
   await transport.ensure({ id: 'bot-a', session: 'bot-a', harness: 'claude', project })
 
   assert.deepEqual(startups, ['前セッションの短期記憶だけ'])
-  assert.deepEqual(launches, [{ harness: 'claude-code', cwd: project, session_name: 'bot-a', trust_project: true, fast: false }])
+  assert.deepEqual(launches, [{ harness: 'claude-code', cwd: project, session_name: 'bot-a', trust_project: true, fast: false, settings_env: { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' } }])
 })
 
 test('ユーザーターンはAitermの完了後に確定回答を回収し、複数の画像一時ファイルを削除する', async () => {
