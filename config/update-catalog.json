@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T10:17:36Z",
-  "expiresAt": "2026-11-26T10:17:36Z",
+  "publishedAt": "2026-11-19T10:59:54Z",
+  "expiresAt": "2026-11-26T10:59:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
-      "versionId": "b5bdf1d2dde81cfb29450fbeb77c8c9e8447e155727987a6b6a462496531003c",
+      "sourceCommit": "e0f378e486544d64495cbad14faae158dc3f147f",
+      "versionId": "d80fc902157244643936a846c66f1f5b4fe845e0b6025b2ca735c183cba46700",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz",
-          "bytes": 5481568,
-          "sha256": "b5bdf1d2dde81cfb29450fbeb77c8c9e8447e155727987a6b6a462496531003c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T104933Z/web-gateway-e0f378e486544d64495cbad14faae158dc3f147f-linux-amd64.tar.gz",
+          "bytes": 5483111,
+          "sha256": "d80fc902157244643936a846c66f1f5b4fe845e0b6025b2ca735c183cba46700"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "db14b96b2574c15e998dc5e5a6f2ae1649ac05be4c1b371579e204987317b317"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T104933Z/web-gateway-e0f378e486544d64495cbad14faae158dc3f147f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "bd03f340365971cc2f2f68c7ddd7af9b917b0dfbc13221ba63844dff00d7ca2c"
         },
-        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
+        "signerCommit": "e0f378e486544d64495cbad14faae158dc3f147f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,15 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの「AIの認証」に、入っていないCLIの状態と「最新版を入れる」ボタンを出しました。"
+        "Webの「AIの認証」に、入っていないCLIの状態と「最新版を入れる」ボタンを出しました。",
+        "入っていないAIにログインしようとした時の答えを、平易な文にしました。",
+        "Webの過去ログが、閉じた工程を新しい履歴の入口から読めるようにしました（入口が無いサーバーでは、今までどおり表示します）。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
-      "versionId": "a2ed3071f2b9d6c165866cb540898046f751f09f2c1a588c5f6ae19c93a4912f",
+      "sourceCommit": "e0f378e486544d64495cbad14faae158dc3f147f",
+      "versionId": "1ec49abd84da961733ad0cc40bd19d6db412f7ae4ad56742e81f057ab6c1bdd9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +472,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz",
-          "bytes": 5481568,
-          "sha256": "a2ed3071f2b9d6c165866cb540898046f751f09f2c1a588c5f6ae19c93a4912f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T104933Z/web-gateway-e0f378e486544d64495cbad14faae158dc3f147f-linux-arm64.tar.gz",
+          "bytes": 5483114,
+          "sha256": "1ec49abd84da961733ad0cc40bd19d6db412f7ae4ad56742e81f057ab6c1bdd9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T100411Z/web-gateway-dac99b2e41480559530c4bcb634731690e5cd73f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11193,
-          "sha256": "7e2e23aa99855eb1c63ffb881f4ccece0628344f8a8973c8eb6785eef1010f3b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T104933Z/web-gateway-e0f378e486544d64495cbad14faae158dc3f147f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "8eb5baf083702dd015e095d15aa34ae760e5767db618b1eaca72f3e2b13556d4"
         },
-        "signerCommit": "dac99b2e41480559530c4bcb634731690e5cd73f"
+        "signerCommit": "e0f378e486544d64495cbad14faae158dc3f147f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +490,9 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの「AIの認証」に、入っていないCLIの状態と「最新版を入れる」ボタンを出しました。"
+        "Webの「AIの認証」に、入っていないCLIの状態と「最新版を入れる」ボタンを出しました。",
+        "入っていないAIにログインしようとした時の答えを、平易な文にしました。",
+        "Webの過去ログが、閉じた工程を新しい履歴の入口から読めるようにしました（入口が無いサーバーでは、今までどおり表示します）。"
       ]
     },
     {
@@ -709,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
-      "versionId": "sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11",
+      "sourceCommit": "e0f378e486544d64495cbad14faae158dc3f147f",
+      "versionId": "sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -727,21 +731,22 @@
       },
       "changes": [
         "AIの実行ファイル（CLI）の置き場（利用者の領域）と、最新版を入れる処理を、本体に足しました。本体の入れ替えで消えない場所へ入ります。",
-        "今は本体にまだ4つのCLIを同梱したままです。入っていないCLIは、AIの認証の画面から入れられるようになります。",
+        "Claudeの「最新版を入れる」で、npmが入れる時のスクリプトを飛ばして動かないClaudeになるのを直しました。入れた後に動かなければ、それを置き場から外し、元から動いていたCLIを隠しません（4つのAIすべて）。",
+        "入っていないAIにログインしようとした時の答えを、コードではなく平易な文にしました。",
         "Lattice の読み方に、閉じた工程の履歴を別に読む入口を足しました（本体側のみ。使われるのは後の部品の入れ替えからです）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "dac99b2e41480559530c4bcb634731690e5cd73f",
-      "versionId": "sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11",
+      "sourceCommit": "e0f378e486544d64495cbad14faae158dc3f147f",
+      "versionId": "sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7d4e9805cdbef9ac879d86e09bc29a3a754c1d0656caa9bc0cdb24b40c475f11"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:588b41a442d70ead1eb73ec6adfb0f1d222e893793412d648eed9982470eb5b3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,7 +756,8 @@
       },
       "changes": [
         "AIの実行ファイル（CLI）の置き場（利用者の領域）と、最新版を入れる処理を、本体に足しました。本体の入れ替えで消えない場所へ入ります。",
-        "今は本体にまだ4つのCLIを同梱したままです。入っていないCLIは、AIの認証の画面から入れられるようになります。",
+        "Claudeの「最新版を入れる」で、npmが入れる時のスクリプトを飛ばして動かないClaudeになるのを直しました。入れた後に動かなければ、それを置き場から外し、元から動いていたCLIを隠しません（4つのAIすべて）。",
+        "入っていないAIにログインしようとした時の答えを、コードではなく平易な文にしました。",
         "Lattice の読み方に、閉じた工程の履歴を別に読む入口を足しました（本体側のみ。使われるのは後の部品の入れ替えからです）。"
       ]
     },
