@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T06:36:42Z",
-  "expiresAt": "2026-11-26T06:36:42Z",
+  "publishedAt": "2026-11-19T07:20:02Z",
+  "expiresAt": "2026-11-26T07:20:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -757,8 +757,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
-      "versionId": "389f59e573d1a4b4a43f47f88354179cf822ab48949a8ce2abcfc2cdda962b86",
+      "sourceCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b",
+      "versionId": "22580228c5b0766fc9bbd21c0cab06b6da16e4001188c86a4f2c6663621929c5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -766,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-amd64.tar.gz",
-          "bytes": 15339142,
-          "sha256": "389f59e573d1a4b4a43f47f88354179cf822ab48949a8ce2abcfc2cdda962b86"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-amd64.tar.gz",
+          "bytes": 15339423,
+          "sha256": "22580228c5b0766fc9bbd21c0cab06b6da16e4001188c86a4f2c6663621929c5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-amd64.tar.gz.sigstore.json",
           "bytes": 10996,
-          "sha256": "9c6353f04821f64b21b8dafdf9cd9fa51ad0755ebf815783a5e285a9ec57f9b6"
+          "sha256": "9bc4222c94bde4af7a8f9cbd3162a7797a7b3b573f766535a693194803bf3c88"
         },
-        "signerCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e"
+        "signerCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -787,13 +787,13 @@
         }
       },
       "changes": [
-        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
+        "作業の一覧で、Lattice が「始められる」と言っていない工程を、「始められる」と毎分知らせてしまっていたのを直しました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e",
-      "versionId": "0a28c9be20cba9e317bbf79a165baa4a7e6a409150d6f8d6c7c97187253916d5",
+      "sourceCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b",
+      "versionId": "69ef80d90715481ffd656f76dabbf33c1de2bbf5fa70df19f28d258cfcaa0c1b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -801,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-arm64.tar.gz",
-          "bytes": 15339154,
-          "sha256": "0a28c9be20cba9e317bbf79a165baa4a7e6a409150d6f8d6c7c97187253916d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-arm64.tar.gz",
+          "bytes": 15339442,
+          "sha256": "69ef80d90715481ffd656f76dabbf33c1de2bbf5fa70df19f28d258cfcaa0c1b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261118T140239Z/lattice-2fc3d55517227ff90098818f0d8c40f33635bd0e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10906,
-          "sha256": "fe7dfc08c1d9c847cc39176dcf52bc4b114f21305d4dca9ea222aaf998afa5be"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T071938Z/lattice-b2fcee0233d48f2b49a91f88496900efa69e598b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10773,
+          "sha256": "312b973fa9510246f3777eed0da7ef59027446290e73dbfe1edbcd8cd608d8d5"
         },
-        "signerCommit": "2fc3d55517227ff90098818f0d8c40f33635bd0e"
+        "signerCommit": "b2fcee0233d48f2b49a91f88496900efa69e598b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -822,7 +822,7 @@
         }
       },
       "changes": [
-        "Latticeを0.111.5にしました。依存から picomatch を外しました（CVE-2026-112366）。"
+        "作業の一覧で、Lattice が「始められる」と言っていない工程を、「始められる」と毎分知らせてしまっていたのを直しました。"
       ]
     },
     {
