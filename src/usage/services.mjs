@@ -4,6 +4,7 @@ import { FeatureSettings } from '../feature-settings.mjs'
 import { retiredHarness } from '../retired-harness.mjs'
 import { Onboarding, HARNESS } from '../onboarding.mjs'
 import { HarnessAuth, harnessAuthStateKeyValid } from '../harness-auth.mjs'
+import { HarnessCli } from '../harness-cli.mjs'
 import { SecretRequests, secretCompletionMessage } from '../secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from '../owner-questions.mjs'
 import { Subscriptions } from '../subscriptions.mjs'
@@ -90,7 +91,10 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     const { cwd, ...auth } = params
     return callEffect('auth.call', auth)
   } }
-  const onboarding = new Onboarding({ root, ...(seatRuntime ? { path: join(root, 'state/onboarding.json') } : {}), bots, client, subscriptions,
+  // a451: the one fact "which AI CLI is installed"; the box answers through parent effects. Rows reach the parent window on every change.
+  const cli = new HarnessCli({ probe: harness => callEffect('cli.probe', { harness }), install: harness => callEffect('cli.install', { harness }),
+    onChange: () => { if (initialized) { void publish({ type: 'auth', value: harnessAuth.list() }); void publish({ type: 'onboarding', value: onboarding.snapshot() }) } } })
+  const onboarding = new Onboarding({ root, cli, ...(seatRuntime ? { path: join(root, 'state/onboarding.json') } : {}), bots, client, subscriptions,
     projectFiles: { appendInstructions: (bot, text) => callEffect('onboarding.prepareStartup', { botId: bot.id, text }) },
     startConversation: (bot, message) => callEffect('onboarding.startConversation', { botId: bot.id, message }) })
   const background = (method, params) => { void callEffect(method, params).catch(() => {}) }
@@ -148,7 +152,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       return settings.setError(id, error)
     },
     'onboarding.snapshot': () => onboarding.snapshot(), 'onboarding.status': () => onboarding.status(),
-    'onboarding.select': ({ harness }) => onboarding.select(harness),
+    'onboarding.select': ({ harness }) => onboarding.select(harness), 'onboarding.install': () => onboarding.install(),
+    'harnessCli.install': ({ harness }) => cli.install(harness), 'harnessCli.recheck': ({ harness }) => cli.recheck(harness),
     'onboarding.input': ({ input }) => onboarding.input(input), 'onboarding.start': () => onboarding.start(),
     'onboarding.complete': (_, actor) => onboarding.complete(actor.kind === 'bot' ? actor.botId : undefined),
     'onboarding.prepareStartup': async ({ botId }) => {
@@ -197,7 +202,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'subscriptions.completeSetup': ({ botId }) => subscriptions.completeSetup(botId),
     'subscriptions.runSetupTest': ({ botId }) => subscriptions.runSetupTest(botId, () => callEffect('subscription.setupTest', { botId })),
   }
-  const harnessAuth = new HarnessAuth({ bots, client, accounts: { prepare: async (harness, slot) => {
+  const harnessAuth = new HarnessAuth({ bots, client, cli, accounts: { prepare: async (harness, slot) => {
     try { return await callEffect('auth.prepareAccount', { harness, slot, tokenFile: true }) }
     // A body older than one-login-per-slot refuses the flag before running it; the root alone keeps that body's login.
     catch (error) { if (error?.code !== 'USAGE_IPC_INVALID' || error.outcome !== 'not_accepted') throw error }
@@ -257,6 +262,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
         harnessAuth.sessions = state.sessions; harnessAuth.receipts = state.receipts; onboarding.auth = receipt(state.onboardingAuth, onboarding.state.authSession)
       }
       syncOnePassword(); await onePasswordConnection()
+      await cli.probeAll()
       initialized = true; accepting = true
     },
     request(method, params, actor) {

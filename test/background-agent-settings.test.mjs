@@ -95,7 +95,7 @@ async function connected(t) {
   const service = createUsageServices({ root, bots, rooms: new Map(), environment: {},
     onProjection: row => { if (active) projection.accept(row, 'new-generation') },
     effect: async (method, params) => {
-      effects.push({ method, params })
+      if (method !== 'cli.probe') effects.push({ method, params })
       if (method === 'backgroundAgent.models') return models
       if (method === 'backgroundAgent.changed') {
         assert.deepEqual(projection.backgroundAgent(), params.configuration)

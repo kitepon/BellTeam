@@ -116,7 +116,7 @@ test('service handoff restores in-flight paste-code binding and private login ev
   t.after(() => rm(root, { recursive: true, force: true }))
   const calls = []
   const options = { root, bots: new Map(), rooms: new Map(), effect: async (method, params) => {
-    calls.push({ method, params })
+    if (method !== 'cli.probe') calls.push({ method, params })
     if (method === 'auth.prepareAccount') return { configurationRoot: '/synthetic/' + params.slot }
     if (method === 'auth.listAccounts') return { harnesses: [{ harness: 'claude', slots: [{ slot: params.slot ?? '2nd', loggedIn: true, label: 'second@example.invalid' }] }] }
     if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', login: 'oauth_token', status: 'blocked', session_id: 'second-session',
@@ -155,7 +155,7 @@ test('usage handoff retains second-slot sessions and native label without replay
   t.after(() => rm(root, { recursive: true, force: true }))
   const calls = []
   const options = { root, bots: new Map(), rooms: new Map(), effect: async (method, params) => {
-    calls.push({ method, params })
+    if (method !== 'cli.probe') calls.push({ method, params })
     if (method === 'auth.prepareAccount') return { configurationRoot: '/synthetic/' + params.slot }
     if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', login: 'oauth_token', status: 'waiting', session_id: 'second-session', account_label: 'second@example.invalid' } }
   } }

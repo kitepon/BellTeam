@@ -13,6 +13,12 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
     timelineView: target => projection.timelineView(kind, target),
     watch(listener) { events.on(kind, listener); return () => events.off(kind, listener) },
   })
+  const cliState = id => {
+    const install = projection.auth()?.harnesses?.find(item => item.id === id)?.install
+    return install ? { harness: id, state: install.state, version: install.version, source: install.source, busy: install.busy } : null
+  }
+  const cliList = () => Object.fromEntries(['claude', 'codex', 'grok', 'cursor'].map(id => [id, cliState(id)]))
+  const cliLast = new Map()
   const facade = {
     settings: {
       list: () => projection.list(), configuration: id => projection.configuration(id),
@@ -28,7 +34,7 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       snapshot: () => projection.onboarding(), status: context => call('onboarding.status', {}, context),
       select: (harness, context) => call('onboarding.select', { harness }, context),
       input: (input, context) => call('onboarding.input', { input }, context),
-      start: context => call('onboarding.start', {}, context),
+      start: context => call('onboarding.start', {}, context), install: context => call('onboarding.install', {}, context),
       complete: (_, context) => call('onboarding.complete', {}, context),
       prepareStartup: (bot, context) => call('onboarding.prepareStartup', { botId: bot.id }, context),
     },
@@ -37,6 +43,13 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       start: (harness, context, options = {}) => call('auth.start', authTarget(harness, options), context),
       input: (harness, input, context, options = {}) => call('auth.input', { ...authTarget(harness, options), input }, context),
       cancel: (harness, context, options = {}) => call('auth.cancel', authTarget(harness, options), context),
+      install: (harness, context) => call('harnessCli.install', { harness }, context),
+    },
+    // a451 (usage/harness-cli.md): the parent window on the AI CLI facts, answered from the copy the child pushes (the `install` of the auth row).
+    harnessCli: {
+      get: id => cliState(id), list: () => cliList(), installed: () => cliList(),
+      watch(listener) { events.on('harnessCli', listener); return () => events.off('harnessCli', listener) },
+      recheck: (harness, context) => call('harnessCli.recheck', { harness }, context),
     },
     secretRequests: {
       ...cards('secret'), toolsDirectory,
@@ -90,6 +103,10 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       const notify = () => {
         if (row.type === 'credential') events.emit('credential', structuredClone(row.value))
         if (row.type === 'credentialRecovery') events.emit('credentialRecovery', structuredClone(row.value))
+        if (row.type === 'auth') for (const { id } of row.value.harnesses) {
+          const next = cliState(id), key = JSON.stringify(next)
+          if (next && cliLast.get(id) !== key) { cliLast.set(id, key); events.emit('harnessCli', next) }
+        }
         if (row.type === 'event') {
           if (row.value.topics.includes('requests')) events.emit('secret', structuredClone(row.value))
           if (row.value.topics.includes('questions')) events.emit('question', structuredClone(row.value))

@@ -114,6 +114,7 @@ BUSINESS_FILES = {
         'src/distribution-profile.mjs',
         'src/feature-settings.mjs',
         'src/harness-auth.mjs',
+        'src/harness-cli.mjs',
         'src/json-file.mjs',
         'src/module-ipc.mjs',
         'src/module-locks.mjs',
@@ -142,6 +143,7 @@ BUSINESS_FILES = {
         'src/usage/state-compatibility.mjs',
         'src/usage/web-push-schema.mjs',
         'src/usage/fcm-schema.mjs',
+        'src/usage/harness-cli-notice.mjs',
     )},
     'diagnostics': {'payload/' + name for name in (
         'package-lock.json',

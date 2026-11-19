@@ -39,6 +39,9 @@ export const usageMethods = {
   'auth.start': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
   'auth.input': spec(shape({ harness, input: object }, { slot: accountSlot }), kinds.owner),
   'auth.cancel': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
+  'harnessCli.install': spec(shape({ harness }), kinds.owner),
+  'harnessCli.recheck': spec(shape({ harness }), ['owner', 'system']),
+  'onboarding.install': spec(none, kinds.owner),
   'secrets.create': spec(shape({ toolId: text, label: text, message: text }, { roomId: value => value === null || id(value), oneTime: value => typeof value === 'boolean' }), kinds.bot),
   'secrets.requestTerminalKey': spec(value => shape({ terminalId: id, purpose: text, label: text }, { os: terminalOs })(value)
     && (!Object.hasOwn(value, 'os') || value.purpose === 'terminal.login'), kinds.system),

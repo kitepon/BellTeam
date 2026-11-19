@@ -27,6 +27,8 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'secrets.requestTerminalKey') return exact(value, ['secretRequest']) && record('secret', value.secretRequest) && value.secretRequest.botId === null
   if (method === 'secrets.current') return value === null || exact(value, ['handle', 'revision', 'available', 'requestId'])
     && credentialDtoValid({ handle: value.handle, revision: value.revision, available: value.available }) && typeof value.requestId === 'string'
+  if (method === 'harnessCli.install') return exact(value, ['state', 'version', 'source', 'busy', 'lastError', 'message', 'action', 'label']) && typeof value.message === 'string'
+  if (method === 'harnessCli.recheck') return exact(value, ['harness', 'state', 'version', 'source', 'busy']) && value.harness === params.harness && typeof value.busy === 'boolean'
   if (method.startsWith('onboarding.')) return record('onboarding', value)
   if (method === 'auth.list') return record('auth', value)
   if (method.startsWith('auth.')) {

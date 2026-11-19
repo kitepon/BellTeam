@@ -16,18 +16,25 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     if (!/^application\/json(?:\s*;|$)/iu.test(request.headers['content-type'] ?? '')) throw webPushError('WEB_PUSH_INPUT_INVALID')
   }
   // a374: the setup record crosses the usage IPC with its six fields; the notice for a retired AI is added here.
+  // a451: an install takes minutes and is one long usage operation. Answer when it has visibly started (the parent copy shows busy) or has ended.
+  const started = pending => {
+    pending.catch(() => {})
+    let timer
+    return Promise.race([pending, new Promise(resolve => { timer = setTimeout(resolve, 1500); timer.unref?.() })]).finally(() => clearTimeout(timer))
+  }
   const withNotice = setup => ({ ...setup, ...harnessNoticeFor(setup) })
   return async (request, response, url) => {
     const context = method => captureUsageContext?.(request, method)
     if (url.pathname === '/api/setup' && request.method === 'GET') return json(response, 200, onboarding ? withNotice(await onboarding.status(await context('onboarding.status'))) : { phase: 'ready', harness: null, harnesses: [], guideBotId: null, complete: true, auth: null })
     if (url.pathname.startsWith('/api/setup/') && request.method === 'POST') {
       if (!onboarding) return json(response, 404, { error: 'NOT_FOUND' })
-      if (internal && ['/api/setup/harness', '/api/setup/auth/input'].includes(url.pathname)) return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
+      if (internal && ['/api/setup/harness', '/api/setup/auth/input', '/api/setup/install'].includes(url.pathname)) return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
       const body = await readJson(request, 8192)
       const actions = {
         '/api/setup/harness': async () => onboarding.select(body.harness, await context('onboarding.select')),
         '/api/setup/auth/input': async () => onboarding.input(body, await context('onboarding.input')),
         '/api/setup/start': async () => onboarding.start(await context('onboarding.start')),
+        '/api/setup/install': async () => { await started(onboarding.install(await context('onboarding.install'))); return onboarding.snapshot() },
         '/api/setup/complete': async () => onboarding.complete(internal ? body.botId : undefined, await context('onboarding.complete')),
       }
       if (!actions[url.pathname]) return json(response, 404, { error: 'NOT_FOUND' })
@@ -36,7 +43,7 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       return json(response, 200, withNotice(setup))
     }
     // 初期設定の後に、AIの公式認証をやり直す入口。認証が切れて全員が止まった時も、利用者がここから戻せる。
-    const harnessAuthMatch = url.pathname.match(/^\/api\/harness-auth(?:\/([a-z]+)(?:\/(start|input|cancel))?)?$/u)
+    const harnessAuthMatch = url.pathname.match(/^\/api\/harness-auth(?:\/([a-z]+)(?:\/(start|input|cancel|install))?)?$/u)
     if (harnessAuthMatch) {
       if (!harnessAuth) return json(response, 404, { error: 'NOT_FOUND' })
       const [, harness, action] = harnessAuthMatch
@@ -44,6 +51,14 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       const slots = url.searchParams.getAll('slot')
       if (slots.length > 1 || slots.length && !harness) throw new HarnessAuthError('HARNESS_AUTH_SLOT_INVALID', 400, '認証するアカウントを選んでください。')
       const options = slots.length ? { slot: harnessAuthSlot(harness, slots[0]) } : {}
+      if (action === 'install') {
+        const entry = () => harnessAuth.list().harnesses.find(item => item.id === harness)
+        if (!entry()) throw new HarnessAuthError('HARNESS_AUTH_HARNESS_INVALID', 400, 'AIの種類を選んでください。')
+        if (request.method === 'POST') await started(harnessAuth.install(harness, await context('harnessCli.install')))
+        else if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        if (!entry().install) throw new HarnessAuthError('CLI_INSTALL_UNSUPPORTED', 409, 'このBellTeamの本体は、入れる機能にまだ対応していません。BellTeamを更新してください。')
+        return json(response, 200, { harness, install: entry().install })
+      }
       if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness, await context('auth.status'), options) : harnessAuth.list())
       if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192), await context('auth.input'), options))
       if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness, await context('auth.' + action), options))

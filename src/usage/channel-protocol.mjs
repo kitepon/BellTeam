@@ -39,8 +39,18 @@ const allowed = {
   'secret.completed': ['secrets.submit', 'secrets.cancel'], 'question.answered': ['questions.answer'],
   'subscription.setupTest': ['subscriptions.runSetupTest'], 'rooms.read': ['secrets.create'],
 }
+const cliIds = ['claude', 'codex', 'grok', 'cursor']
 export function usageEffectValid(method, params, context, rootParams = {}) {
   if (!contextValid(context)) return false
+  // a451 (usage/harness-cli.md): the child names only a harness; the parent owns every installer command.
+  if (method === 'cli.probe' || method === 'cli.install') {
+    if (!exact(params, 'harness') || !cliIds.includes(params.harness)) return false
+    const probing = method === 'cli.probe'
+    if (probing && context.kind === 'control') return context.method === 'initialize' && ['services', 'restore'].includes(context.mode)
+    if (context.kind !== 'root') return false
+    if (context.method === 'onboarding.install') return true
+    return (probing ? ['harnessCli.install', 'harnessCli.recheck'] : ['harnessCli.install']).includes(context.method) && params.harness === rootParams.harness
+  }
   if (method === 'members.read') return exact(params, '') && (context.kind === 'control' && context.method === 'initialize' && ['services', 'restore'].includes(context.mode)
     || context.kind === 'root' && ['secrets.create', 'questions.create', 'onboarding.prepareStartup'].includes(context.method))
   if (context.kind !== 'root') return false
@@ -73,6 +83,9 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
   return exact(params, 'botId,message') && text(params.botId) && text(params.message)
 }
 export function usageEffectResultValid(method, value) {
+  if (method === 'cli.probe') return exact(value, 'installed,version,source') && typeof value.installed === 'boolean'
+    && (value.version === null || text(value.version)) && ['user', 'image', null].includes(value.source)
+  if (method === 'cli.install') return exact(value, 'version') && text(value.version)
   if (method === 'backgroundAgent.models') return backgroundModelsValid(value)
   if (method === 'members.read') return Array.isArray(value) && value.every(metadata)
   if (method === 'onboarding.ensureGuide') return metadata(value) && value.id === GUIDE_BOT_ID

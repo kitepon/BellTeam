@@ -111,7 +111,8 @@ test('restore keeps auth session, saved settings/error and stable projection wit
   await g.parent.ready
   assert.equal(g.projection.configuration('routing').apiKey, 'private-routing')
   assert.equal(g.projection.list().find(item => item.id === 'routing').error.code, 'SYNTHETIC_APPLY')
-  assert.deepEqual(g.effects.map(value => value.method), ['members.read'])
+  // a451: a restore re-reads which AI CLIs are installed (read-only probes); it still repeats no operation.
+  assert.deepEqual(g.effects.map(value => value.method).filter(method => method !== 'cli.probe'), ['members.read'])
   const state = await g.request('auth.status', { harness: 'codex' })
   assert.equal(state.auth.session_id, 'auth-same')
   assert.equal(g.effects.at(-1).params.session_id, 'auth-same')

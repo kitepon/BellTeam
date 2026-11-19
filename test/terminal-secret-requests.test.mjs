@@ -92,7 +92,7 @@ test('parent terminal-key facade captures authority, publishes correlated select
         Object.defineProperty(run, 'completion', { value: run }); return run
       }, async close() { await service.quiesce(); service.close() },
     } } })
-  service = createUsageServices({ root, bots, rooms: new Map(), onePassword: provider(), effect: async (method, params) => effects.push({ method, params }),
+  service = createUsageServices({ root, bots, rooms: new Map(), onePassword: provider(), effect: async (method, params) => { if (method !== 'cli.probe') effects.push({ method, params }) },
     onProjection: async row => { rows.push(row); await ports.onProjection(row, { phase: 'update', generation: 'terminal-test' }) } })
   await service.initializeSettings(); await service.initialize()
   ports.onSnapshotStart({ generation: 'terminal-test' })
