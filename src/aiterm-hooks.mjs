@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { captureRuntime } from './runtime-selection.mjs'
+import { userPlace } from './seat-process.mjs'
 
 export const MCP_LAZY_RELAY = '/usr/local/bin/mcp-lazy'
 export const AITERM_ROOT = '/usr/local/lib/node_modules/aiterm-mcp'
@@ -66,21 +67,33 @@ export function aitermConnectionRegistration(registration, runtime, resolveProvi
   return { ...registration, args }
 }
 
+// The Codex the parent-steer hook runs. A release component carries its own path. The builtin one is the user place first, then the image
+// prefix (the image carries no CLI since a451 train 2, runtime/user-cli-place.md); with neither yet, the user-place path is still the answer
+// (an absolute path, where 最新版を入れる puts it) but nothing can be registered against it: present = false.
+export async function codexBinary(component, place = userPlace()) {
+  if (component.origin !== 'builtin') return { path: component.bin.codex, present: true }
+  const wanted = join(place, 'bin/codex')
+  for (const path of [wanted, component.bin.codex]) if (await access(path, constants.X_OK).then(() => true, () => false)) return { path, present: true }
+  return { path: wanted, present: false }
+}
+
 // The values the E2 `aiterm` command needs (cli-registration.md "Fourth switch"), from the native registration of the same image root.
 export async function aitermEntryVars(registration, { runtimeCapture, root = AITERM_ROOT, load = loadModule } = {}) {
   const { parseNativeExecutionArguments } = await load(aitermEntry(root, 'execution-native-server'))
   const { expectedScope, providerFile } = parseNativeExecutionArguments(registration.args.slice(1))
   return { stateRoot: expectedScope.state_root, socket: expectedScope.multiplexer.key, steerProvider: providerFile,
-    codexBinary: (runtimeCapture ?? await captureRuntime()).components['runtime-codex'].bin.codex }
+    codexBinary: (await codexBinary((runtimeCapture ?? await captureRuntime()).components['runtime-codex'])).path }
 }
 
 // Old (non-native) registration only: with a native one the hooks come from the E2 `aiterm` item (harness-entries.mjs).
 export async function configureAitermHooks(home, { runtimeCapture, root = AITERM_ROOT, load = loadModule, codex, registration } = {}) {
-  codex ??= (runtimeCapture ?? await captureRuntime()).components['runtime-codex'].bin.codex
+  const found = codex === undefined ? await codexBinary((runtimeCapture ?? await captureRuntime()).components['runtime-codex'], join(home, '.local')) : { path: codex, present: true }
   registration ??= await aitermRegistration({ root, load })
   const { mergeClaudeParentHooks, mergeCursorParentHooks, ensureCodexParentSteer } = await load(aitermEntry(root, 'setup-integrations'))
   mergeClaudeParentHooks(join(home, '.claude/settings.json'), registration)
   mergeCursorParentHooks(join(home, '.cursor/hooks.json'), registration)
   if (!ensureCodexParentSteer) return { codex: null }
-  return { codex: await ensureCodexParentSteer(home, { binary: codex }) }
+  // No Codex installed yet is waiting, not a failure: the registration is applied by the next configure after the user installs it.
+  if (!found.present) return { codex: null }
+  return { codex: await ensureCodexParentSteer(home, { binary: found.path }) }
 }

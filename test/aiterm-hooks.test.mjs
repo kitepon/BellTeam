@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { aitermEntry, aitermEntryVars, aitermExecutionRegistration, aitermRegistration, aitermRelay, configureAitermHooks } from '../src/aiterm-hooks.mjs'
+import { aitermEntry, aitermEntryVars, aitermExecutionRegistration, aitermRegistration, aitermRelay, codexBinary, configureAitermHooks } from '../src/aiterm-hooks.mjs'
 
 // A package root whose exports table maps each public entry name to a file that is NOT <name>.js, so a hard-coded path cannot pass.
 const ENTRIES = ['setup-node', 'setup-integrations', 'execution-parent-worker', 'execution-native-setup', 'execution-native-server', 'child-result', 'resume-state-cli']
@@ -113,4 +113,30 @@ test('Codexの親配送hookは、Aitermに入口がある時に、コンテナ�
   })
   assert.deepEqual(calls, [['claude'], ['cursor'], ['codex', home, { binary: '/selected/codex' }]])
   assert.deepEqual(result, { codex: outcome })
+})
+
+// a451 train 2: the image carries no Codex. The builtin component resolves to the user place; nothing installed is a wait, not a failure.
+test('builtin Codex: the user place first, then the image prefix; neither yet answers the user-place path as not present', async () => {
+  const place = await mkdtemp(join(tmpdir(), 'bellteam-codex-place-'))
+  const component = { origin: 'builtin', prefix: '/nonexistent-image', bin: { codex: '/nonexistent-image/bin/codex' } }
+  assert.deepEqual(await codexBinary(component, place), { path: join(place, 'bin/codex'), present: false })
+  await mkdir(join(place, 'bin'))
+  await writeFile(join(place, 'bin/codex'), '#!/bin/sh\n'); await chmod(join(place, 'bin/codex'), 0o755)
+  assert.deepEqual(await codexBinary(component, place), { path: join(place, 'bin/codex'), present: true })
+  assert.deepEqual(await codexBinary({ origin: 'release', bin: { codex: '/selected/codex' } }, place), { path: '/selected/codex', present: true })
+})
+
+test('no Codex anywhere: the parent-steer registration waits (no call, no failure); with Codex in the user place it registers that path', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-codex-wait-'))
+  const root = await aitermRoot(), calls = []
+  const runtimeCapture = { components: { 'runtime-codex': { origin: 'builtin', prefix: '/nonexistent-image', bin: { codex: '/nonexistent-image/bin/codex' } } } }
+  const load = async path => path === at(root, 'setup-node')
+    ? { mcpRegistration: () => ({ command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] }) }
+    : { mergeClaudeParentHooks: () => {}, mergeCursorParentHooks: () => {}, ensureCodexParentSteer: async (...args) => { calls.push(args); return { status: 'ready' } } }
+  assert.deepEqual(await configureAitermHooks(home, { root, runtimeCapture, load }), { codex: null })
+  assert.deepEqual(calls, [])
+  await mkdir(join(home, '.local/bin'), { recursive: true })
+  await writeFile(join(home, '.local/bin/codex'), '#!/bin/sh\n'); await chmod(join(home, '.local/bin/codex'), 0o755)
+  assert.deepEqual(await configureAitermHooks(home, { root, runtimeCapture, load }), { codex: { status: 'ready' } })
+  assert.deepEqual(calls, [[home, { binary: join(home, '.local/bin/codex') }]])
 })

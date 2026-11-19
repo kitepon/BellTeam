@@ -67,6 +67,7 @@ vendor表（親だけ）：`claude` / `codex` は `npm install --global --prefix
 
 - DockerfileはClaude Code・Codex・Grok・Cursorのどれも入れない。`/home/bell/.local/bin` を空のまま（bell所有）置く。新しいnamed volumeはimageの所有を写すので、席のUID 1000が置き場へ書ける（空の `.local` が無いとvolumeはroot所有になり、入れられない）。既存のvolumeは中身をそのまま持つ。
 - `runtime-codex` / `runtime-claude-code` のbuiltin成分は、背景要約などから素の名前（`claude` / `codex`）でPATHを通って置き場へ届く。置き場に無ければ「入っていない」の案内（キロの a451-launch-not-installed）になる。
+- Codexの親配送hook（`src/aiterm-hooks.mjs` の `codexBinary`）：releaseの成分は自分の経路。builtinは、置き場（`<home>/.local/bin/codex`）→ imageの接頭辞（`/usr/local/bin/codex`）の順で実在する最初の物の絶対経路を使う（`aiterm-mcp` の `ensureCodexParentSteer` と native の `codexBinary` は絶対経路が要る）。どこにも無い間は、native登録には置き場の経路（「最新版を入れる」が入れる場所）を渡し、旧登録は何も登録せず待つ（失敗として報告しない）。入れた後の旧登録は、次の configure（本体の起動・E2の適用）で登録する。
 - Cursorの更新入口 `cursor-update-entrypoint.sh` は何もしない。置き場の書き手は「最新版を入れる」だけ（契約2）。installerのcursor-update段は空の動作として残す（後の掃除でinstallerとtestごと外す）。
 - 更新の説明（カタログの変更点）：「AIのCLIは本体に同梱しなくなりました。AIの認証で、使うAIごとに「最新版を入れる」を1回押してください。動いている席は、置き場のCLIで続きます。」
 
