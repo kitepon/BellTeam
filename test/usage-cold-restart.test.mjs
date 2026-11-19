@@ -51,7 +51,8 @@ test('cold staged read-only restart accepts no handoff while hot restore still r
   assert.equal((await cold.request('secrets.get', { id: item.id }, 'owner')).notification, 'sent')
   assert.equal((await cold.request('settings.configuration', { id: 'routing' }, 'system')).apiKey, 'synthetic-cold-key')
   assert.equal(await readFile(submitted.path, 'utf8'), 'synthetic-disk-only-value')
-  assert.deepEqual(cold.effects.map(row => row.method), ['members.read'])
+  // a451: a cold restart still reads which AI CLIs are installed (read-only probes, no operation is repeated).
+  assert.deepEqual(cold.effects.map(row => row.method).filter(method => method !== 'cli.probe'), ['members.read'])
   assert.deepEqual(await disk(root), before)
   await cold.control('quiesce'); const fresh = (await cold.control('export')).handoff
   assert.deepEqual(fresh.sessions, []); assert.deepEqual(fresh.receipts, []); assert.equal(fresh.onboardingAuth, null)

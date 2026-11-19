@@ -38,7 +38,8 @@ test('trusted parent subscription authority survives public payload restore with
   await next.control('initialize', { generation, mode: 'restore', bootstrap: { ...bootstrap, subscription: { ...bootstrap.subscription, developerAccessAllowed: true } }, handoff }, context)
   assert.equal((await next.dispatch('subscriptions.status', {}, context)).accessMode, 'developer')
   assert.deepEqual(await files(data), saved)
-  assert.ok(effects.every(method => method === 'members.read'))
+  // a451: a restore also re-reads which AI CLIs are installed (read-only probes).
+  assert.ok(effects.every(method => ['members.read', 'cli.probe'].includes(method)))
   await restore(createUsageChannelDispatcher, { ...bootstrap.subscription, developerAccessAllowed: true })
   await restore(createPublic, { environment: 'Production', accessMode: 'subscription' })
   assert.deepEqual(await files(data), saved)
