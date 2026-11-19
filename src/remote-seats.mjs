@@ -264,6 +264,19 @@ export class RemoteSeats {
     if (reachability(error.code)) this.terminals.connection.observe?.(bot.terminalId)
   }
 
+  // a443 live-seat gate (remote-seat.md "TERMINAL_UNRESPONSIVE"): a failed send to a live idle seat while this member holds a
+  // reachability notice for its terminal must not close the seat (its host is slow, not the seat gone). Returns the not-started
+  // error to throw, or null when no such notice is held. Exit: terminals' reachable event clears the notice (available()).
+  holdLiveSeat(bot, refusal) {
+    const notice = this.launchNotice(bot)
+    if (!notice || !reachability(notice.code)) return null
+    const held = Object.assign(new Error(`TERMINAL_UNRESPONSIVE: seat kept, its terminal is not answering (${refusal?.code ?? 'send failed'})`), { code: 'TERMINAL_UNRESPONSIVE', cause: refusal })
+    notStarted(held)
+    this.wait(bot)
+    this.terminals.connection.observe?.(bot.terminalId)
+    return held
+  }
+
   revoke(sessionName) { return Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {}) }
 
   wait({ id, terminalId }) {
