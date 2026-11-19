@@ -132,10 +132,31 @@ export function projectChart({ read, ready = null, members = [], previous = null
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
   // Fractions count only what the tree shows: the archived flag above, no second rule (Owner 2026-11-14, task a96).
   const all = [...cards.values()], counted = all.filter(card => card.counted), count = state => counted.filter(card => card.state === state).length
-  return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases, externals: [...externals.values()],
+  // `closed` (Lattice's open read, a457): the finished tasks of closed trees, which this read does not carry.
+  const closedTasks = Number.isInteger(read?.closed?.tasks) && read.closed.tasks >= 0 ? read.closed.tasks : 0
+  return { state, verifiedAt: stamp(read?.verified_at), closedTasks, cards: all, edges, waits, phases, externals: [...externals.values()],
     memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer),
       ...all.flatMap(card => card.connections.map(entry => entry.agent))].filter(id => id && id !== 'owner'))].sort(),
     counts: { total: counted.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
       waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size, connections: counted.reduce((sum, card) => sum + card.connections.length, 0) },
     createdBy: first?.agent ?? previous?.createdBy ?? null, updatedAt: updatedAt ?? previous?.updatedAt ?? null }
+}
+
+// One page of Lattice's closed-tree history (K10, README L24) as snapshot-shaped cards. Pure; a malformed task drops only itself.
+// Only a verified or last_verified store has history: any other state gives no cards and no next page.
+export function projectHistory({ result, members = [] }) {
+  const state = DISPLAY.includes(result?.state) ? result.state : 'unavailable'
+  const assigned = laneResolver(members), has = state === 'verified' || state === 'last_verified'
+  const cards = []
+  for (const task of has ? list(result.tasks) : []) {
+    const plan = text(task?.plan_key), taskId = text(task?.task_id), status = String(task?.status).replace('_', '-')
+    if (!plan || !taskId || (status !== 'done' && status !== 'retired')) continue
+    const lane = task.lane === 'main' ? null : text(task.lane), started = task.activity?.started
+    // A finished card with a lane shows the lane's member, else the Bot that started it (the same rule as projectChart).
+    cards.push({ id: `${plan}/${taskId}`, plan, taskId, title: text(task.title) ?? taskId, doneCondition: text(task.done_condition), designMemo: text(task.design_memo),
+      state: status, lane, producer: lane ? assigned(lane) : text(started?.agent), startedAt: stamp(started?.at), changedAt: stamp(task.activity?.changed_at), blockedReason: null, depth: 0,
+      phase: null, parent: null, doneAt: stamp(task.finished_at) ?? stamp(task.done_at), archived: true, counted: false, connections: [] })
+  }
+  return { state, closed: Number.isInteger(result?.closed?.tasks) && result.closed.tasks >= 0 ? result.closed.tasks : 0, cards,
+    memberIds: [...new Set(cards.map(card => card.producer).filter(id => id && id !== 'owner'))].sort(), next: has ? text(result.next_cursor) : null }
 }

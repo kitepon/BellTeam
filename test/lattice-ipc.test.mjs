@@ -29,6 +29,10 @@ test('protocol: request validators are exact', () => {
   validateLatticeRequest('chart', { projectId: 'a' }, context)
   validateLatticeRequest('chart', { projectId: 'a'.repeat(63) }, context)
   validateLatticeRequest('refresh', { projectIds: ['a', 'b-2'] }, context)
+  validateLatticeRequest('history', { projectId: 'a', before: null, limit: 1 }, context)
+  validateLatticeRequest('history', { projectId: 'a', before: 'h1.' + 'x'.repeat(509), limit: 100 }, context)
+  for (const patch of [{ limit: 0 }, { limit: 101 }, { limit: 1.5 }, { limit: '5' }, { before: '' }, { before: 'x'.repeat(513) }, { before: 5 }, { before: undefined }, { extra: 1 }, { projectId: 'A' }])
+    bad(() => validateLatticeRequest('history', { projectId: 'a', before: null, limit: 5, ...patch }, context), patch.projectId ? 'LATTICE_PROJECT_INVALID' : 'LATTICE_INVALID')
   validateLatticeRequest('run', { from: 'bot-a', projectId: 'p1', args: ['status'], input: null }, context)
   validateLatticeRequest('run', { from: 'bot-a', projectId: 'p1', args: [], input: { a: [1] } }, context)
   bad(() => validateLatticeRequest('charts', { x: 1 }, context), 'LATTICE_INVALID')
@@ -73,6 +77,12 @@ const summary = { projectId: 'alpha', name: null, coordinator: true, createdBy: 
 
 test('protocol: root results are exact', () => {
   validateLatticeResult('chart', snapshot)
+  validateLatticeResult('chart', { ...snapshot, history: { closed: 0 } }) // a457: optional, so a body with this validator takes an older child too
+  for (const history of [{ closed: -1 }, { closed: '3' }, {}, { closed: 1, extra: 1 }, null]) bad(() => validateLatticeResult('chart', { ...snapshot, history }))
+  const page = { schema: 'bellteam.lattice-history.v1', projectId: 'alpha', at: 'x', state: 'verified', closed: 3, members: [{ botId: 'a', name: 'A', color: 'sky', avatarVersion: '' }], cards: [{ ...card, state: 'done', archived: true, counted: false, connections: [] }], next: null }
+  validateLatticeResult('history', page)
+  validateLatticeResult('history', { ...page, next: 'h1.abc', cards: [], members: [] })
+  for (const patch of [{ schema: 'x' }, { state: 'weird' }, { closed: -1 }, { next: 5 }, { cards: [{ ...card, state: 'weird' }] }, { extra: 1 }, { members: [{}] }]) bad(() => validateLatticeResult('history', { ...page, ...patch }))
   validateLatticeResult('chart', { ...snapshot, degraded: ['lattice-read', 'members'], state: 'last_verified', verifiedAt: 'x' })
   validateLatticeResult('charts', { schema: 'bellteam.lattice-charts.v1', at: 'x', charts: [summary] })
   validateLatticeResult('chart', { ...snapshot, phases: [{ id: 'p1/ph1', title: null }], cards: [{ ...card, phase: 'p1/ph1', parent: null, doneAt: null, archived: false }] }) // tree and archive keys are optional
@@ -202,7 +212,8 @@ const read = { state: 'verified', verified_at: '2026-11-11T10:00:00.000Z', store
 const ok = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
 const cli = { list: async () => [{ id: 'alpha', name: 'Lattice組込', createdBy: null, source: 's1' }], sources: async ids => new Map(ids.map(id => [id, id === 'alpha' ? 's1' : null])),
   exists: async id => id === 'alpha', setName: async () => {}, migrateLegacy: async () => ({ names: 0, record: false }),
-  run: async ({ args, env }) => args.join(' ') === 'todo display read --json --compact' ? ok(read) : args.join(' ') === 'todo status --json' ? ok({ next_ready: [] })
+  run: async ({ args, env }) => args.join(' ') === 'todo display read --json --open' ? ok({ ...read, closed: { trees: 1, tasks: 4 } })
+    : args[2] === 'history' ? ok({ schema: 'lattice.todo_display_history_result.v1', state: 'verified', closed: { trees: 1, tasks: 4 }, next_cursor: null, tasks: [{ tree_id: 'p1/h', plan_key: 'p1', task_id: 'h', title: 'Old', lane: null, phase_id: 'ph', parent_task_id: null, design_memo: 'm', done_condition: null, status: 'done', done_at: '2026-11-11T09:00:00.000Z', finished_at: '2026-11-11T09:00:00.000Z', activity: { changed_at: '2026-11-11T09:00:00.000Z', started: { at: '2026-11-11T08:00:00.000Z', agent: 'a' } } }] }) : args.join(' ') === 'todo status --json' ? ok({ next_ready: [] })
     : args[0] === 'todo' && args[1] === 'slow' ? new Promise(resolve => setTimeout(() => resolve(ok({ slow: true })), 800)) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
 createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
 `
@@ -229,6 +240,10 @@ test('actual IPC: initialize, ready, resume, charts, chart, refresh, run, errors
   assert.deepEqual(list.charts.map(chart => [chart.projectId, chart.state, chart.activeMembers]), [['alpha', 'verified', ['a']]])
   const first = await channel.request('chart', { projectId: 'alpha' })
   assert.deepEqual([first.version, first.members.map(member => member.name), first.cards.map(card => card.producer)], [1, ['A'], ['a']])
+  assert.deepEqual(first.history, { closed: 4 }, 'a457: the snapshot counts the closed trees')
+  const page = await channel.request('history', { projectId: 'alpha', before: null, limit: 10 })
+  assert.deepEqual([page.schema, page.closed, page.next, page.cards.map(card => [card.id, card.state, card.producer]), page.members.map(member => member.name)], ['bellteam.lattice-history.v1', 4, null, [['p1/h', 'done', 'a']], ['A']])
+  await assert.rejects(channel.request('history', { projectId: 'alpha', before: null, limit: 101 }), { outcome: 'not_accepted' })
   assert.deepEqual((await channel.request('refresh', { projectIds: ['alpha'] })).snapshots.map(s => s.version), [1])
   assert.deepEqual((await channel.request('refresh', { projectIds: ['alpha'] })).snapshots, [])
   assert.deepEqual(await channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }),

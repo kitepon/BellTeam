@@ -10,7 +10,7 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no }); promise.catch(() => {})
   return { promise, resolve, reject }
 }
-const READS = new Set(['charts', 'chart', 'refresh', 'blockers'])
+const READS = new Set(['charts', 'chart', 'history', 'refresh', 'blockers'])
 const passed = new Map([['LATTICE_DECISIONS_REFUSED', 409], ['LATTICE_DECISIONS_UNAVAILABLE', 503]])
 const acknowledged = value => latticeObject(value, ['acknowledged']) && value.acknowledged === true
 

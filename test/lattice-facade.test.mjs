@@ -27,14 +27,15 @@ test('writes run one at a time in call order; reads go at once beside a write in
   const release = f.hold()
   const writes = [f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
   await tick()
-  const reads = [f.facade.charts(), f.facade.chart('alpha'), f.facade.blockers()]
+  const reads = [f.facade.charts(), f.facade.chart('alpha'), f.facade.blockers(), f.facade.history({ projectId: 'alpha', before: 'h1.a', limit: 20 }), f.facade.history({ projectId: 'alpha' })]
   await tick()
   // The first write is in flight; the reads were sent beside it, the second write waits.
-  assert.deepEqual(f.calls.map(([method]) => method), ['run', 'charts', 'chart', 'blockers'])
+  assert.deepEqual(f.calls.map(([method]) => method), ['run', 'charts', 'chart', 'blockers', 'history', 'history'])
   release()
-  assert.deepEqual((await Promise.all([...writes, ...reads])).map(value => value.method), ['run', 'run', 'charts', 'chart', 'blockers'])
+  assert.deepEqual((await Promise.all([...writes, ...reads])).map(value => value.method), ['run', 'run', 'charts', 'chart', 'blockers', 'history', 'history'])
   assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['run', { from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'], input: null }],
-    ['charts', {}], ['chart', { projectId: 'alpha' }], ['blockers', {}], ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
+    ['charts', {}], ['chart', { projectId: 'alpha' }], ['blockers', {}], ['history', { projectId: 'alpha', before: 'h1.a', limit: 20 }], ['history', { projectId: 'alpha', before: null, limit: 50 }],
+    ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
 })
 
 test('a seat run that writes nothing goes at once beside a write in flight; a write-looking run still queues', async () => {

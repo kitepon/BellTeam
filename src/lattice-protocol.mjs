@@ -1,6 +1,6 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
-export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock', 'link', 'ownerTask'])
+export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'history', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock', 'link', 'ownerTask'])
 export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'decisions.file', 'decisions.read', 'decisions.cancel'])
 // An Approval Box decision id (README L18-L19).
 export const LATTICE_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
@@ -39,6 +39,12 @@ export function validateLatticeRequest(method, params, context) {
   if (['charts', 'deliver', 'nudge', 'blockers'].includes(method)) check(latticeObject(params, []))
   else if (method === 'unblock') { check(latticeObject(params, ['projectId', 'stopId']) && str(params.stopId) && LATTICE_STOP_ID.test(params.stopId)); project(params.projectId) }
   else if (method === 'chart') { check(latticeObject(params, ['projectId'])); project(params.projectId) }
+  // A history page (README L24): `before` is a previous page's opaque `next` or null; a page holds at most 100 cards.
+  else if (method === 'history') {
+    check(latticeObject(params, ['projectId', 'before', 'limit']) && (params.before === null || (str(params.before) && params.before.length >= 1 && params.before.length <= 512))
+      && Number.isInteger(params.limit) && params.limit >= 1 && params.limit <= 100)
+    project(params.projectId)
+  }
   else if (method === 'refresh') {
     check(latticeObject(params, ['projectIds']) && Array.isArray(params.projectIds) && params.projectIds.length >= 1 && params.projectIds.length <= 50
       && new Set(params.projectIds).size === params.projectIds.length)
@@ -143,12 +149,15 @@ const phase = value => latticeObject(value, ['id', 'title']) && str(value.id) &&
 const member = value => latticeObject(value, ['botId', 'name', 'color', 'avatarVersion']) && Object.values(value).every(str)
 const counts = value => latticeObject(value, ['total', 'done', 'working', 'waiting', 'blocked'], ['connections']) && Object.values(value).every(count)
 const snapshot = value => latticeObject(value, ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded',
-  'members', 'cards', 'edges', 'waits'], ['phases', 'externals']) && value.schema === 'bellteam.lattice-chart.v1' && str(value.epoch) && value.epoch.length > 0
+  'members', 'cards', 'edges', 'waits'], ['phases', 'externals', 'history']) && value.schema === 'bellteam.lattice-chart.v1' && str(value.epoch) && value.epoch.length > 0
   && Number.isInteger(value.version) && value.version >= 1 && str(value.at) && validId(value.projectId) && strOrNull(value.name) && strOrNull(value.createdBy)
   && typeof value.coordinator === 'boolean'
   && DISPLAY_STATES.includes(value.state) && strOrNull(value.verifiedAt) && list(value.degraded, item => ['lattice-read', 'members'].includes(item))
   && list(value.members, member) && list(value.cards, card) && list(value.edges, edge) && list(value.waits, wait)
   && (value.phases === undefined || list(value.phases, phase)) && (value.externals === undefined || list(value.externals, external))
+  && (value.history === undefined || (latticeObject(value.history, ['closed']) && count(value.history.closed)))
+const historyPage = value => latticeObject(value, ['schema', 'projectId', 'at', 'state', 'closed', 'members', 'cards', 'next']) && value.schema === 'bellteam.lattice-history.v1'
+  && validId(value.projectId) && str(value.at) && DISPLAY_STATES.includes(value.state) && count(value.closed) && list(value.members, member) && list(value.cards, card) && strOrNull(value.next)
 const stop = value => latticeObject(value, ['stopId', 'projectId', 'chartName', 'chartCreatedBy', 'plan', 'taskId', 'cardId', 'title', 'lane', 'reason', 'blockedAt', 'blockedBy'])
   && str(value.stopId) && LATTICE_STOP_ID.test(value.stopId) && validId(value.projectId) && ['plan', 'taskId', 'cardId'].every(key => str(value[key]))
   && ['chartName', 'chartCreatedBy', 'title', 'lane', 'reason', 'blockedAt', 'blockedBy'].every(key => strOrNull(value[key]))
@@ -160,6 +169,7 @@ export function validateLatticeResult(method, value) {
   if (method === 'charts') need(latticeObject(value, ['schema', 'at', 'charts']) && value.schema === 'bellteam.lattice-charts.v1'
     && str(value.at) && list(value.charts, summary))
   else if (method === 'chart') need(snapshot(value))
+  else if (method === 'history') need(historyPage(value))
   else if (method === 'refresh') need(latticeObject(value, ['snapshots', 'nextRefreshMs']) && list(value.snapshots, snapshot) && count(value.nextRefreshMs))
   else if (method === 'link') need(latticeObject(value, ['schema', 'projectId', 'plan', 'taskId', 'linked']) && value.schema === 'bellteam.lattice-link.v1'
     && validId(value.projectId) && validRef(value.plan) && validRef(value.taskId) && value.linked === true)

@@ -31,6 +31,18 @@ export function createLatticeApi({ facade, internal, heartbeatMs = 15000 }) {
       if (value.outcome !== 'refused') return json(response, 200, value)
       return json(response, 409, { error: 'LATTICE_UNBLOCK_REFUSED', outcome: 'refused', code: value.code, reason: value.reason })
     }
+    // a457 (README L24): one page of the closed trees' finished cards, read only when an app opens 過去ログ.
+    const history = /^\/api\/lattice\/charts\/([^/]+)\/history$/u.exec(url.pathname)
+    if (history) {
+      if (internal) return json(response, 403, { error: 'LATTICE_OWNER_REQUIRED' })
+      if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      if (!LATTICE_PROJECT_ID.test(history[1])) return json(response, 404, { error: 'LATTICE_CHART_NOT_FOUND' })
+      const text = url.searchParams.get('limit'), before = url.searchParams.get('before'), limit = text === null ? 50 : /^[0-9]{1,3}$/u.test(text) ? Number(text) : 0
+      if (limit < 1 || limit > 100 || (before !== null && (before.length < 1 || before.length > 512))) return json(response, 400, { error: 'LATTICE_INVALID' })
+      try { return json(response, 200, await facade.history({ projectId: history[1], before, limit })) } catch (error) {
+        return error?.code === 'LATTICE_INVALID' ? json(response, 400, { error: 'LATTICE_INVALID' }) : failed(response, error)
+      }
+    }
     const match = /^\/api\/lattice\/charts(?:\/([^/]+?)(\/events)?)?$/u.exec(url.pathname)
     if (!match) return false
     if (internal) return json(response, 403, { error: 'LATTICE_OWNER_REQUIRED' })

@@ -10,7 +10,7 @@ import { createLatticeCli } from '../src/lattice/cli.mjs'
 import { createLatticeCore } from '../src/lattice/core.mjs'
 import { createLatticeApi } from '../src/lattice/http-api.mjs'
 import { latticeToolHandlers, latticeTools } from '../src/lattice/mcp.mjs'
-import { projectChart } from '../src/lattice/projection.mjs'
+import { projectChart, projectHistory } from '../src/lattice/projection.mjs'
 
 const ref = (plan, task) => ({ plan_key: plan, task_id: task })
 const at = minute => `2026-11-11T10:${String(minute).padStart(2, '0')}:00.000Z`
@@ -208,6 +208,29 @@ test('projection: ready is only Lattice\'s next_ready (a448): an edge the read d
   assert.deepEqual(states(undefined), ['pending', 'pending', 'in-progress'])
 })
 
+test('projection: the open read carries only open trees and the count of the closed ones (a457)', () => {
+  const plan = planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']] })
+  assert.equal(projectChart({ read: readOf([plan], { closed: { trees: 3, tasks: 40 } }), members: [] }).closedTasks, 40)
+  for (const closed of [undefined, null, {}, { tasks: -1 }, { tasks: 'x' }, { tasks: 1.5 }]) assert.equal(projectChart({ read: readOf([plan], { closed }), members: [] }).closedTasks, 0, JSON.stringify(closed))
+})
+
+test('projectHistory: closed-tree tasks become snapshot-shaped finished cards, a malformed one drops only itself (a457)', () => {
+  const result = historyOf([closedTask('a', 'done', { lane: 'bot-b' }), closedTask('b', 'retired', { done_at: null, finished_at: at(40), lane: 'main' }), closedTask('c', 'done', { lane: 'ghost' }),
+    closedTask('d', 'pending'), { plan_key: 'p1' }, null, closedTask('e', 'done', { activity: null, finished_at: 'garbage' })], { next_cursor: 'h1.xyz' })
+  const page = projectHistory({ result, members: roster(['bot-a', 'bot-b']) })
+  assert.deepEqual(page.cards.map(card => [card.id, card.state, card.lane, card.producer, card.doneAt]),
+    [['p1/a', 'done', 'bot-b', 'bot-b', at(30)], ['p1/b', 'retired', null, 'bot-a', at(40)], ['p1/c', 'done', 'ghost', null, at(30)], ['p1/e', 'done', null, null, at(30)]],
+    'a lane that names a member wins, else the starter; a task that is not finished or has no id is dropped; doneAt is finished_at, else done_at')
+  assert.deepEqual(page.cards[0], { id: 'p1/a', plan: 'p1', taskId: 'a', title: 'T a', doneCondition: null, designMemo: 'memo a', state: 'done', lane: 'bot-b', producer: 'bot-b', startedAt: at(20), changedAt: at(30),
+    blockedReason: null, depth: 0, phase: null, parent: null, doneAt: at(30), archived: true, counted: false, connections: [] })
+  assert.deepEqual([page.next, page.closed, page.memberIds, page.state], ['h1.xyz', 3, ['bot-a', 'bot-b'], 'verified'])
+  for (const state of ['unverified', 'unavailable', 'weird']) {
+    const none = projectHistory({ result: historyOf([closedTask('a', 'done')], { state, next_cursor: 'h1.x' }), members: [] })
+    assert.deepEqual([none.cards, none.next], [[], null], state + ' has no history')
+  }
+  assert.deepEqual(projectHistory({ result: null }).cards, [])
+})
+
 test('projection: self, unknown-end, duplicate and cycle edges are dropped', () => {
   const plan = planMember({ tasks: [{ task_id: 'a' }, { task_id: 'b' }, { task_id: 'c' }], states: [['a', 'pending'], ['b', 'pending'], ['c', 'pending']],
     deps: [{ from: ref('p1', 'a'), to: ref('p1', 'b') }, { from: ref('p1', 'b'), to: ref('p1', 'c') }, { from: ref('p1', 'c'), to: ref('p1', 'a') },
@@ -255,7 +278,7 @@ function rig(extra = {}) {
   const clock = { now: Date.parse('2026-11-11T10:00:00.000Z') }
   const reply = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
   // The Lattice contract (README K1-K8): charts list / source, chart set, seat runs addressed by id.
-  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, ready: {}, tokens: { alpha: 1 }, fail: new Set(), calls: [], runs: [], named: [], out: reply({ ok: true }), metas: {}, noStore: false,
+  const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, ready: {}, historyReply: historyOf([]), historyExit: 1, tokens: { alpha: 1 }, fail: new Set(), calls: [], runs: [], named: [], out: reply({ ok: true }), metas: {}, noStore: false,
     async list() {
       cli.calls.push('list')
       if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' })
@@ -268,6 +291,7 @@ function rig(extra = {}) {
     async run({ id, args, env, input }) {
       const key = args.join(' ')
       cli.calls.push(key === READ ? `${key} ${id}` : key)
+      if (key.startsWith('todo display history --json')) return cli.fail.has('history') ? { exitCode: cli.historyExit, stdout: '', stderr: 'boom' } : reply(cli.historyReply)
       if (key === 'todo status --json') return cli.fail.has('status') ? { exitCode: 1, stdout: '', stderr: 'boom' } : reply({ schema: 'lattice.todo_status_result.v10', next_ready: (cli.ready[id] ?? []).map(task => ({ plan_key: 'p1', task_id: task })) })
       if (key === READ) return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
       cli.runs.push({ id, args, env, input })
@@ -282,17 +306,21 @@ function rig(extra = {}) {
   return { core, cli, world, clock, logs, effect, count: key => cli.calls.filter(call => call === key || call.startsWith(key + ' ')).length,
     chart: (projectId = 'alpha') => core.chart({ projectId }, effect) }
 }
+// A page of Lattice's K10 history answer (README L24).
+const historyOf = (tasks, extra = {}) => ({ schema: 'lattice.todo_display_history_result.v1', state: 'verified', verified_at: at(59), source: {}, inconsistency: null, dropped_members: [], closed: { trees: 2, tasks: 3 }, tasks, next_cursor: null, ...extra })
+const closedTask = (task_id, status, extra = {}) => ({ tree_id: 'p1/' + task_id, plan_key: 'p1', task_id, title: 'T ' + task_id, lane: null, phase_id: 'ph1', parent_task_id: null, design_memo: 'memo ' + task_id, done_condition: null,
+  status, done_at: at(30), finished_at: at(30), activity: { changed_at: at(30), started: { at: at(20), agent: 'bot-a' } }, ...extra })
 function chartRead({ agent = 'bot-7b140b27', minute = 1, status = 'in-progress' } = {}) {
   return readOf([planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', status], ['t2', 'pending']],
     deps: [{ from: ref('p1', 't1'), to: ref('p1', 't2') }], events: [ev('plan', 't1', agent, minute), ev('start', 't1', 'bot-a', minute + 1)] })])
 }
-const READ = 'todo display read --json --compact', SOURCE = 'charts source'
+const READ = 'todo display read --json --open', SOURCE = 'charts source'
 
 test('core: snapshot shape, members only for producers and waiters, coordinator flag', async () => {
   const x = rig()
   x.world.members = roster(['bot-a', 'bot-b', 'bot-z'])
   const snapshot = await x.chart()
-  assert.deepEqual(Object.keys(snapshot), ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded', 'members', 'cards', 'edges', 'waits', 'phases', 'externals'])
+  assert.deepEqual(Object.keys(snapshot), ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded', 'members', 'cards', 'edges', 'waits', 'phases', 'externals', 'history'])
   assert.deepEqual([snapshot.schema, snapshot.epoch, snapshot.version, snapshot.coordinator, snapshot.degraded], ['bellteam.lattice-chart.v1', x.core.epoch, 1, true, []])
   assert.deepEqual(snapshot.members, [{ botId: 'bot-a', name: 'BOT-A', color: 'sky', avatarVersion: 'v1' }])
   assert.equal(snapshot.waits[0].waiter, null)
@@ -461,6 +489,28 @@ test("core: a card is ready only when Lattice's status lists it (K9, a448); a fa
   // No Lattice answer for a store that is not verified: the status result is not used, nothing is ready.
   x.cli.reads.alpha = { ...chartRead({ status: 'done' }), state: 'last_verified' }; x.cli.ready.alpha = ['t2']; x.cli.tokens.alpha = 4
   assert.deepEqual(states(await x.chart()), ['done', 'pending'])
+})
+
+test('core: history reads one page on demand, never keeps it, and tells a refused cursor from a failed read (a457)', async () => {
+  const x = rig()
+  x.cli.reads.alpha = { ...chartRead(), closed: { trees: 2, tasks: 3 } }
+  const snapshot = await x.chart()
+  assert.deepEqual(snapshot.history, { closed: 3 }, 'the snapshot says how many finished cards the closed trees hold; they are not in cards')
+  const before = x.cli.calls.length
+  x.cli.historyReply = historyOf([closedTask('a', 'done', { lane: 'bot-b' }), closedTask('b', 'retired')], { next_cursor: 'h1.abc' })
+  const page = await x.core.history({ projectId: 'alpha', before: null, limit: 2 }, x.effect)
+  assert.deepEqual([page.schema, page.projectId, page.state, page.closed, page.next], ['bellteam.lattice-history.v1', 'alpha', 'verified', 3, 'h1.abc'])
+  assert.deepEqual(page.cards.map(card => [card.id, card.producer, card.archived]), [['p1/a', 'bot-b', true], ['p1/b', 'bot-a', true]])
+  assert.deepEqual(page.members.map(member => member.name), ['BOT-A', 'BOT-B'])
+  await x.core.history({ projectId: 'alpha', before: 'h1.abc', limit: 50 }, x.effect)
+  assert.deepEqual(x.cli.calls.slice(before), ['todo display history --json --limit 2', 'todo display history --json --limit 50 --before h1.abc'], 'the page and the cursor go to Lattice as given')
+  assert.equal(JSON.stringify(await x.chart()).includes('memo a'), false, 'a closed card never sits in the memo')
+  x.cli.fail.add('history'); x.cli.historyExit = 2
+  await assert.rejects(x.core.history({ projectId: 'alpha', before: 'h1.bad', limit: 5 }, x.effect), { code: 'LATTICE_INVALID', status: 400 })
+  x.cli.historyExit = 1
+  await assert.rejects(x.core.history({ projectId: 'alpha', before: null, limit: 5 }, x.effect), { code: 'LATTICE_UNAVAILABLE', status: 503 })
+  x.cli.fail.clear()
+  await assert.rejects(x.core.history({ projectId: 'nope', before: null, limit: 5 }, x.effect), { code: 'LATTICE_CHART_NOT_FOUND' })
 })
 
 test('core: a chart that was never readable is unavailable, empty and degraded', async () => {
@@ -720,6 +770,25 @@ test('http-api: routes, auth and errors', async () => {
   const unavailable = createLatticeApi({ facade: fakeFacade({ charts: async () => { throw failure('LATTICE_UNAVAILABLE') } }) })
   assert.equal((await call(unavailable, '/api/lattice/charts')).response.head[0], 503)
   await assert.rejects(call(createLatticeApi({ facade: fakeFacade({ chart: async () => { throw new Error('boom') } }) }), '/api/lattice/charts/alpha/events'), /boom/u)
+})
+
+test('http-api: the history route is Owner-only, bounds its page, and passes the cursor as given (a457)', async () => {
+  const seen = []
+  const facade = fakeFacade({ history: async params => { seen.push(params); if (params.projectId === 'missing') throw failure('LATTICE_CHART_NOT_FOUND'); if (params.before === 'bad') throw failure('LATTICE_INVALID'); if (params.projectId === 'down') throw failure('LATTICE_UNAVAILABLE'); return { schema: 'bellteam.lattice-history.v1', cards: [], next: null } } })
+  const api = createLatticeApi({ facade })
+  const ok = await call(api, '/api/lattice/charts/alpha/history')
+  assert.deepEqual([ok.response.head[0], JSON.parse(ok.chunks[0]).schema, seen[0]], [200, 'bellteam.lattice-history.v1', { projectId: 'alpha', before: null, limit: 50 }])
+  await call(api, '/api/lattice/charts/alpha/history?limit=100&before=h1.a%2Bb%3D')
+  assert.deepEqual(seen[1], { projectId: 'alpha', before: 'h1.a+b=', limit: 100 }, 'the cursor is URL-decoded once and otherwise untouched')
+  for (const query of ['limit=0', 'limit=101', 'limit=-1', 'limit=x', 'limit=1.5', 'limit=', 'before=', 'before=' + 'x'.repeat(513)]) assert.equal((await call(api, '/api/lattice/charts/alpha/history?' + query)).response.head[0], 400, query)
+  assert.equal(seen.length, 2, 'a refused request never reaches the facade')
+  assert.equal((await call(api, '/api/lattice/charts/alpha/history', 'POST')).response.head[0], 405)
+  assert.deepEqual((await call(createLatticeApi({ facade, internal: true }), '/api/lattice/charts/alpha/history')).response.head[0], 403)
+  for (const [path, status, code] of [['/api/lattice/charts/missing/history', 404, 'LATTICE_CHART_NOT_FOUND'], ['/api/lattice/charts/Bad_ID/history', 404, 'LATTICE_CHART_NOT_FOUND'],
+    ['/api/lattice/charts/down/history', 503, 'LATTICE_UNAVAILABLE'], ['/api/lattice/charts/alpha/history?before=bad', 400, 'LATTICE_INVALID']]) {
+    const result = await call(api, path)
+    assert.deepEqual([result.response.head[0], JSON.parse(result.chunks[0])], [status, { error: code }], path)
+  }
 })
 
 test('http-api: SSE sends the first snapshot, then only newer versions or a new epoch, with heartbeat and cleanup', async () => {
