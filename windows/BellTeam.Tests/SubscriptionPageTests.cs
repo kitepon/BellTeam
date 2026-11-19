@@ -51,7 +51,7 @@ public sealed class SubscriptionPageTests
         var texts = Texts(entry); Assert.Equal(["Stripe", "App Store", "Google Play"], texts.Where(SubscriptionText.Stores.Contains).ToArray());
         Assert.Equal(3, texts.Count(line => line == $"{SubscriptionText.Price}　{SubscriptionText.FreeMonth}"));
         Assert.Contains(SubscriptionText.Unavailable("App Store"), texts); Assert.Contains(SubscriptionText.Unavailable("Google Play"), texts); Assert.Single(Descendants<Button>(entry), button => System.Windows.Automation.AutomationProperties.GetName(button) == SubscriptionText.Start);
-        Click(entry, SubscriptionText.Start); Until(() => server.Opened is not null);
+        Buy(entry); Until(() => server.Opened is not null);
         Assert.Equal(1, server.Checkouts); Assert.Equal("https://checkout.example/pay", server.Opened);
         Until(() => Find(entry, SubscriptionText.Verify) is not null); Assert.NotNull(Find(entry, SubscriptionText.Recheck));
         Click(entry, SubscriptionText.Verify); Until(() => entry.State?.Entitled == true);
@@ -69,7 +69,7 @@ public sealed class SubscriptionPageTests
         var developer = new Server { Developer = true }; var developerEntry = new PurchaseEntry(developer.Api(), _ => { }, CancellationToken.None); Await(developerEntry.LoadAsync());
         Assert.Null(Find(developerEntry, SubscriptionText.Start)); Assert.DoesNotContain(Texts(developerEntry), SubscriptionText.Stores.Contains);
         var dark = new Server { CheckoutStatus = HttpStatusCode.ServiceUnavailable }; var darkEntry = new PurchaseEntry(dark.Api(), _ => throw new InvalidOperationException("opened"), CancellationToken.None); Await(darkEntry.LoadAsync());
-        Click(darkEntry, SubscriptionText.Start); Until(() => !darkEntry.Offering);
+        Buy(darkEntry); Until(() => !darkEntry.Offering);
         Assert.Null(Find(darkEntry, SubscriptionText.Start)); Assert.Null(Find(darkEntry, SubscriptionText.Recheck));
     });
 
@@ -98,13 +98,35 @@ public sealed class SubscriptionPageTests
     public void AnAlreadyActiveCheckoutShowsTheServersWordsAndReadsTheStatusAgain() => RunSta(() =>
     {
         var server = new Server { CheckoutStatus = HttpStatusCode.Conflict, CheckoutCode = "SUBSCRIPTION_ALREADY_ACTIVE" }; var entry = new PurchaseEntry(server.Api(), _ => throw new InvalidOperationException("opened"), CancellationToken.None);
-        Await(entry.LoadAsync()); server.Entitled = true; Click(entry, SubscriptionText.Start);
+        Await(entry.LoadAsync()); server.Entitled = true; Buy(entry);
         Until(() => Texts(entry).Any(line => line.Contains("Stripeの設定が完了していません。"))); Assert.True(entry.State?.Entitled); Assert.Null(Find(entry, SubscriptionText.Start));
     });
 
+    // a460: 購入 only opens the confirmation panel; 申し込む is the press that asks the server for Checkout.
+    [Fact]
+    public void StartShowsTheConfirmationPanelAndOnlyApplyAsksTheServerForCheckout() => RunSta(() =>
+    {
+        var server = new Server(); var entry = new PurchaseEntry(server.Api(), url => server.Opened = url, CancellationToken.None);
+        Await(entry.LoadAsync()); Click(entry, SubscriptionText.Start);
+        var texts = Texts(entry);
+        foreach (var line in new[] { SubscriptionText.ConfirmTitle, SubscriptionText.ConfirmPlan, SubscriptionText.ConfirmPrice, SubscriptionText.ConfirmPayment, SubscriptionText.ConfirmFirstCharge(DateTime.Today), SubscriptionText.ConfirmStart, SubscriptionText.ConfirmCancel, SubscriptionText.ConfirmRefund, SubscriptionText.ConfirmTerms }) Assert.Contains(line, texts);
+        Assert.Contains("に初回の980円を決済し、以後は毎月の更新日に自動で決済します。", string.Concat(texts.Where(line => line.StartsWith("最初の1か月は無料です。"))));
+        Assert.Null(Find(entry, SubscriptionText.Start)); Assert.NotNull(Find(entry, SubscriptionText.ConfirmBack)); Assert.Equal(0, server.Checkouts);
+        foreach (var (label, url) in new[] { (SubscriptionText.ConfirmLawLink, SubscriptionText.ConfirmLawUrl), (SubscriptionText.ConfirmTermsLink, SubscriptionText.ConfirmTermsUrl), (SubscriptionText.ConfirmAnnexLink, SubscriptionText.ConfirmAnnexUrl) })
+        {
+            server.Opened = null; Descendants<System.Windows.Documents.Hyperlink>(entry).Single(link => string.Concat(Descendants<System.Windows.Documents.Run>(link).Select(run => run.Text)) == label).RaiseEvent(new RoutedEventArgs(System.Windows.Documents.Hyperlink.ClickEvent));
+            Assert.Equal(url, server.Opened);
+        }
+        Assert.Equal(0, server.Checkouts);
+        Click(entry, SubscriptionText.ConfirmBack); Until(() => Find(entry, SubscriptionText.Start) is not null);
+        Assert.Equal(0, server.Checkouts); Assert.Null(Find(entry, SubscriptionText.ConfirmApply)); Assert.DoesNotContain(SubscriptionText.ConfirmTitle, Texts(entry));
+        server.Opened = null; Buy(entry); Until(() => server.Opened is not null); Assert.Equal(1, server.Checkouts);
+    });
+
+    private static void Buy(DependencyObject root) { Click(root, SubscriptionText.Start); Click(root, SubscriptionText.ConfirmApply); }
     private static Button? Find(DependencyObject root, string name) => Descendants<Button>(root).FirstOrDefault(button => System.Windows.Automation.AutomationProperties.GetName(button) == name);
     private static void Click(DependencyObject root, string name) => Find(root, name)!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-    private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text.Length > 0 ? text.Text : string.Concat(text.Inlines.OfType<System.Windows.Documents.Run>().Select(run => run.Text))).ToArray();
+    private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text.Length > 0 ? text.Text : string.Concat(Descendants<System.Windows.Documents.Run>(text).Select(run => run.Text))).ToArray();
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject { if (root is T found) yield return found; foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach (var item in Descendants<T>(child)) yield return item; }
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Until(Func<bool> condition) { var until = DateTime.UtcNow.AddSeconds(5); while (!condition()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }
