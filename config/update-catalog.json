@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T13:42:11Z",
-  "expiresAt": "2026-11-26T13:42:11Z",
+  "publishedAt": "2026-11-19T14:26:00Z",
+  "expiresAt": "2026-11-26T14:26:00Z",
   "releases": [
     {
       "componentId": "usage",
@@ -497,8 +497,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
-      "versionId": "921023ba8ba149a0a2dbc43c3c5ef68731f05dc24c65be8ba15a5501ca206831",
+      "sourceCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b",
+      "versionId": "be055c410780ea4654df5aa4fd5f9d0ff725569260413b4c4eb6b4200e6bd8e9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -506,16 +506,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-amd64.tar.gz",
-          "bytes": 3992002,
-          "sha256": "921023ba8ba149a0a2dbc43c3c5ef68731f05dc24c65be8ba15a5501ca206831"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-amd64.tar.gz",
+          "bytes": 3992019,
+          "sha256": "be055c410780ea4654df5aa4fd5f9d0ff725569260413b4c4eb6b4200e6bd8e9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11161,
-          "sha256": "5bd950cf2b432bf1dff9a3ad0b4efeb859c0a423f664c6164510a8108b8f6288"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "05391caee99e3edf3c27b00a3ca1f871cba23ff39c1ae04fd99e4b4e20a72350"
         },
-        "signerCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea"
+        "signerCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -525,13 +525,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
+        "更新の入れ替えで、AI の起動が受け付けられなかった時に、配送の失敗として記録しないようにしました。（その配送は、あとで自動的に届きます。）"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea",
-      "versionId": "526f8e160b3d76d71e940f8b3d029fc20628dda7d1f60ddc883e151930324a16",
+      "sourceCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b",
+      "versionId": "9006f442253d3398041dfc9ff0fc803b1c9cd555c73c441f3a9aeb9ea880d180",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -539,16 +539,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-arm64.tar.gz",
-          "bytes": 3992002,
-          "sha256": "526f8e160b3d76d71e940f8b3d029fc20628dda7d1f60ddc883e151930324a16"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-arm64.tar.gz",
+          "bytes": 3992019,
+          "sha256": "9006f442253d3398041dfc9ff0fc803b1c9cd555c73c441f3a9aeb9ea880d180"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T120853Z/execution-f42c3aa51cda54c91862b28ee4f3dabf6bc780ea-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11322,
-          "sha256": "f98e762ce3e4c9458189afbe41688de688777c1178a9d92906f583098797c7d3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T142456Z/execution-e8dde32fd07e530b0bb1be7efc3852121e44d99b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11087,
+          "sha256": "e5092a4deb30e57b70aec50e1641ad5fc30089d70c9872acd104ce1cc1d311e1"
         },
-        "signerCommit": "f42c3aa51cda54c91862b28ee4f3dabf6bc780ea"
+        "signerCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -558,7 +558,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "リモートの席へ送る時にimageが断られても、その席を閉じないようにしました。"
+        "更新の入れ替えで、AI の起動が受け付けられなかった時に、配送の失敗として記録しないようにしました。（その配送は、あとで自動的に届きます。）"
       ]
     },
     {
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "929338a50cb5e90d47364c1f3aa373c6040d92e9",
-      "versionId": "sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5",
+      "sourceCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b",
+      "versionId": "sha256:545f90a2a98f0a1c377ae68e45da065f0f7424f83200cf3403df4f151a1c4728",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:545f90a2a98f0a1c377ae68e45da065f0f7424f83200cf3403df4f151a1c4728"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "内部の道具 Aiterm を 0.70.79 に更新しました。別の端末にある席で、待ち処理がその端末自身の Node のパスで届くようになりました。"
+        "更新の入れ替えで、AI の起動が受け付けられなかった時に、配送の失敗として記録しないようにしました。（その配送は、あとで自動的に届きます。）"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "929338a50cb5e90d47364c1f3aa373c6040d92e9",
-      "versionId": "sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5",
+      "sourceCommit": "e8dde32fd07e530b0bb1be7efc3852121e44d99b",
+      "versionId": "sha256:545f90a2a98f0a1c377ae68e45da065f0f7424f83200cf3403df4f151a1c4728",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:982814d32fece5cbdb78599ffec7290cceb9df77418165301e55b7b37b9bd1a5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:545f90a2a98f0a1c377ae68e45da065f0f7424f83200cf3403df4f151a1c4728"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -752,7 +752,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "内部の道具 Aiterm を 0.70.79 に更新しました。別の端末にある席で、待ち処理がその端末自身の Node のパスで届くようになりました。"
+        "更新の入れ替えで、AI の起動が受け付けられなかった時に、配送の失敗として記録しないようにしました。（その配送は、あとで自動的に届きます。）"
       ]
     },
     {
