@@ -112,6 +112,21 @@ flowchart LR
 
 Cause (7681ba25 / 95f155b7, bot-d0c6b7d9 14:34 JST): the unbound read means "the seat's latest turn". The Owner's next message started a new Claude turn 0.5 s after the answered turn ended (done 05:34:45.509Z, next input 05:34:45.988Z). Aiterm refused the read because the new turn was still active, although the answer existed. The delivery became BOT_SEND_FAILED. The read now passes the dispatch receipt's `input_id` when it is a 32-hex Claude input ID. Steer and non-Claude receipts carry none and keep today's read (Codex already binds by `turn_id`). The bound read and its codes are an Aiterm public addition requested from Elegg (`AITERM_TRANSCRIPT_INPUT_PENDING`, `AITERM_TRANSCRIPT_INPUT_REPLACED`). An Aiterm without it strips the unknown argument and behaves as before. No retry, wait or new guard is added. Fixture: `test/answer-input-bound.test.mjs`.
 
+### Answer read of a steer that started the next turn (2026-11-19, a445)
+
+```mermaid
+flowchart LR
+  Steer["pty_send agent_steer receipt<br/>_meta aiterm/steer steer_id (no input_id)"] --> SWait["aiterm-wait --steer<br/>placement next_turn"]
+  SWait --> SRead["readTurnAnswer<br/>pty_read agent_transcript + steer_id"]
+  Later["next steered message<br/>already running its own turn"] -.->|"no longer refuses the read"| SRead
+  SRead --> SAnswer["delivered answer"]
+  SRead -->|"aiterm: AITERM_TRANSCRIPT_INPUT_PENDING / _REPLACED / STEER_NOT_FOUND / TRANSCRIPT_*"| SFail["delivery_completion errorCode"]
+```
+
+Cause (BugHub 95f155b7 / 7681ba25, Z111 lab 2026-11-19, Centi): 291 messages to one Claude seat every 0.5 s. Messages that arrived during a running turn were steered. A steer receipt carries no `input_id`, so when the steer started the next turn (`placement: next_turn`) its answer read was unbound, and the next steered message had already started a turn: Aiterm answered `TRANSCRIPT_TURN_ACTIVE`. 61 of 293 accepted deliveries failed at `step answer` and the seat's answer never reached the conversation. The failures ran from 04:33:35Z to 04:36:58Z, well after the execution module swap (04:33:34Z), so the swap is not the cause; single messages never steer and never failed.
+
+`steerFollow` keeps the `steer_id` of the steer reference (16 lowercase hex, else null). `readTurnAnswer` passes it as `steer_id` only on a Claude receipt (`vendor: claude`; Codex and the others already bind by `turn_id`), when there is no `operation_id` and no `input_id`, and when the completion's `steer.placement` is `next_turn` (same_turn and unknown placements never read: the turn's starter delivers the answer). The bound read and its codes are an Aiterm public addition (Kiro's contract, Elegg's implementation, chart a445a): it returns the answer of the turn the steer started and is not refused because a later turn is active. An Aiterm without it strips the unknown argument and reads as before. No retry, wait or new guard is added. Fixture: `test/answer-input-bound.test.mjs`.
+
 `stopped`はBellTeam jobの扱い、`waitAborted`は待機signalの状態であり、nativeの停止完了証明ではない。停止操作の正規返却後に待機をabortすると、その例外も最終job.failureより前にこの診断へ届く。診断のcode・重大度・集約key・保存件数・再送抑止をこの識別追加では変えない。旧診断の原因や操作相関は遡って補完しない。合成の直接fixtureは`test/delivery-wait-diagnostic-context.test.mjs`。
 
 共通code登録・writerとapplication組立ては統合担当が持つ。executionは既共通writerを使う診断公開接点をmodule.jsonへ登録する。新しい常駐処理・再試行loop・入力待ちの追加承認gateは作らない。
