@@ -16,11 +16,12 @@ public sealed class ModelPicker : Border
     private readonly FormGroup card = new();
     private readonly ComboBox harness, model, effort;
     private readonly TextBox custom;
-    private readonly Border cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow, configRow;
+    private readonly Border installRow, cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow, configRow;
     private readonly StackPanel configLine = new() { Orientation = Orientation.Horizontal };
     private readonly CheckBox fast = Violetize(new CheckBox { Content = "ファストモード", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
     private readonly CheckBox locked = Violetize(new CheckBox { Content = "固定", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
-    private readonly TextBlock reason = Text("", 12, Red);
+    private readonly TextBlock reason = Text("", 12, Red), installLine = Text("", 13, Orange);
+    private Dictionary<string, HarnessCliInstall> installs = [];
     private bool updating, loading = true;
     private string? loadError;
     public event Action? Edited;
@@ -41,8 +42,9 @@ public sealed class ModelPicker : Border
         var lockRow = Row(locked); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
         // a366: the server's plain text for a member whose stored AI is the retired Antigravity; the picker still offers the four AIs to switch to.
         if (initial.HarnessNotice is { } retired) card.Add(Row(Text(retired, 13, Orange)));
-        foreach (var row in new Control[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, lockRow, lockNote, configRow }) card.Add(row);
-        card.SetVisible(configRow, false); card.SetVisible(lockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
+        installRow = Row(installLine);
+        foreach (var row in new Control[] { loadingRow, cliRow, installRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, lockRow, lockNote, configRow }) card.Add(row);
+        card.SetVisible(configRow, false); card.SetVisible(installRow, false); card.SetVisible(lockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
         locked.IsChecked = initial.ConfigurationLocked == true; AutomationProperties.SetName(locked, "AI設定の固定");
         locked.IsCheckedChanged += (_, _) => Edited?.Invoke();
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
@@ -65,10 +67,21 @@ public sealed class ModelPicker : Border
         try { selection.SetCatalog((await api.Api.GetAsync<ModelsResponse>("/api/models", token)).Models); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception exception) { loadError = exception.Message; }
+        // a451: the server's own words for an AI that is not installed; a failed read shows nothing here (the client never judges), the AI page says why.
+        try { installs = (await new HarnessAuthenticationApi(api.Api).ListAsync(token)).Harnesses.Where(item => item.Install is not null).ToDictionary(item => item.Id, item => item.Install!); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception) { installs = []; }
         loading = false; Render();
+    }
+    internal string InstallText => installLine.Text ?? "";
+    private void ShowInstall()
+    {
+        var shown = installs.GetValueOrDefault(selection.Harness) is { CannotRun: true } install ? install : null;
+        installLine.Text = shown?.Message ?? ""; card.SetVisible(installRow, !loading && shown is not null);
     }
     private void ShowRows()
     {
+        ShowInstall();
         card.SetVisible(loadingRow, loading);
         foreach (var row in new[] { cliRow, modelRow, effortRow }) card.SetVisible(row, !loading);
         card.SetVisible(customRow, !loading && CustomSelected);

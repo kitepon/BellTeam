@@ -21,18 +21,29 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     private CancellationTokenSource? reading;
     private bool pollingFailed;
     private bool readFailed;
+    // a451: the server's install state; an AI that cannot run shows it (with the button) instead of the login. Null from a server that does not report it.
+    private HarnessCliInstall? install;
+    private HarnessInstallPanel? panel;
     public AuthenticationState? Authentication { get; private set; }
     public bool Started { get; private set; }
     // slot: the Claude account slot this window logs in ("1st"/"2nd"); null is the single login of every other harness.
     public HarnessAuthenticationWindow(LinuxWorkspace workspace, HarnessAuthenticationOption harness, Func<string, Task<bool>>? confirm = null, string? slot = null) : base(slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot), workspace.ConnectionToken)
     {
-        api = new(workspace.Management.Api); this.harness = harness; this.slot = slot; title = slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot);
+        api = new(workspace.Management.Api); this.harness = harness; this.slot = slot; install = harness.Install;
+        if (install is not null && !HarnessCliInstall.Ready(install)) { panel = new HarnessInstallPanel(api, harness.Id, harness.Name, install, Token); panel.Changed += InstallChanged; } title = slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot);
         this.confirm = confirm ?? (async warning => await new AuthenticationConfirmationWindow(warning).ShowDialog<bool?>(this) == true);
         SaveButton.IsVisible = false; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Text = ""; StopReading(); }; Closed += (_, _) => { input.Text = ""; StopReading(); };
         Activated += (_, _) => UpdatePolling(); timer.Tick += async (_, _) => await PollAsync(); Render();
     }
-    public Task InitializeAsync() => PerformAsync(() => api.StatusAsync(harness.Id, Token, slot: slot), clearInput: false);
+    private void InstallChanged(HarnessCliInstall next)
+    {
+        install = next;
+        if (!HarnessCliInstall.Ready(next)) return;
+        // It can run now: the login state is read and the install panel is gone.
+        panel?.Stop(); panel = null; _ = InitializeAsync();
+    }
+    public Task InitializeAsync() => !HarnessCliInstall.Ready(install) ? Task.CompletedTask : PerformAsync(() => api.StatusAsync(harness.Id, Token, slot: slot), clearInput: false);
 
     private static TextBlock CardBody(string text) => new() { Text = text, FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4) };
     private static Button Pill(string label, bool primary = false, bool enabled = true)
@@ -47,6 +58,11 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         Body.Children.Clear();
         Body.Children.Add(new TextBlock { Text = title, FontSize = 30, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 0, 0, 8) });
         Body.Children.Add(new TextBlock { Text = harness.UsageText, Foreground = BellTheme.Muted, Margin = new Thickness(0, 0, 0, 20) });
+        if (panel is not null)
+        {
+            panel.MoveTo(Section("AIの導入"));
+            return;
+        }
         var details = Section("認証の状態");
         details.Children.Add(CardBody(Authentication?.Status switch { "waiting" => "公式サイトでの認証を待っています。", "authenticated" => "認証済みです。", "blocked" => "認証に必要な操作を確認してください。", "failed" => "認証できませんでした。", null => "公式の状態を確認しています。", _ => throw new BellApiException("認証の状態を読み取れませんでした。") }));
         if (Authentication is { } auth)

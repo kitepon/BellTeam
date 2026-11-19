@@ -59,12 +59,18 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         else
         {
             column.Children.Add(MacUi.Text(state.Harnesses.FirstOrDefault(harness => harness.Id == state.Harness)?.Name ?? "公式認証", 17, BellTheme.Ink, FontWeight.Bold, new Thickness(0, 22, 0, 0)));
-            if (state.Auth is { } auth)
+            // a451: an AI that cannot run says so in the server's words and offers the install; the login follows once it can run.
+            if (!HarnessCliInstall.Ready(state.Install))
+            {
+                column.Children.Add(MacUi.Text(state.Install!.Message, 13, BellTheme.Muted, margin: new Thickness(0, 22, 0, 0)));
+                if (state.Install.CanPress) { var install = MacUi.Prominent(state.Install.ButtonLabel, () => _ = InstallAsync()); install.IsEnabled = !Locked; install.Name = "harness-install"; install.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(install); }
+            }
+            else if (state.Auth is { } auth)
             {
                 column.Children.Add(MacUi.Text(Description(auth), 13, BellTheme.Muted, margin: new Thickness(0, 22, 0, 0)));
                 column.Children.Add(Instructions(auth));
             }
-            var start = MacUi.Prominent("認証を確認して始める", () => _ = StartAsync()); start.IsEnabled = !Locked && state.Auth?.Status == "authenticated"; start.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(start);
+            var start = MacUi.Prominent("認証を確認して始める", () => _ = StartAsync()); start.IsEnabled = !Locked && HarnessCliInstall.Ready(state.Install) && state.Auth?.Status == "authenticated"; start.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(start);
             var refresh = MacUi.Bordered("認証の状態を更新", () => _ = RefreshAsync()); refresh.IsEnabled = !busy; refresh.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(refresh);
             var menu = MacUi.Bordered("使うAIを変更", () => { }); menu.IsEnabled = !Locked; menu.Margin = new Thickness(0, 22, 0, 0); ChooseMenu(menu); column.Children.Add(menu);
         }
@@ -159,6 +165,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         state = next;
     }
     private Task ChooseAsync(string harness) => PerformAsync(async () => Accept(await api.SelectAsync(harness, lifetime)));
+    private Task InstallAsync() => PerformAsync(async () => Accept(await api.InstallAsync(lifetime)));
     private Task RefreshAsync() => PerformAsync(async () => Accept(await api.StatusAsync(lifetime)), read: true);
     // Mac startGuide: the server must report ready, then the app leaves onboarding.
     private Task StartAsync() => PerformAsync(async () =>
@@ -174,21 +181,23 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
         Accept(await api.RespondAsync(ui, response, lifetime));
     }, authReply: true);
 
+    // Every three seconds while the official authentication is pending or the server is installing the AI.
+    private bool Pending => state.Auth?.Status == "waiting" || state.Install is { Busy: true } || state.Install?.State == "installing";
     private void UpdatePolling()
     {
-        if (!disposed && state.Auth?.Status == "waiting") { if (!timer.IsEnabled) timer.Start(); }
+        if (!disposed && Pending) { if (!timer.IsEnabled) timer.Start(); }
         else timer.Stop();
     }
-    // Every three seconds while the official authentication is pending. A failed read is shown and the next success clears it; the polling itself goes on.
+    // A failed read is shown and the next success clears it; the polling itself goes on.
     internal async Task PollAsync()
     {
-        if (disposed || busy || needsRefresh || reading || state.Auth?.Status != "waiting") return;
+        if (disposed || busy || needsRefresh || reading || !Pending) return;
         reading = true; var seen = revision;
         try
         {
             var next = await api.StatusAsync(lifetime);
             if (seen != revision || busy || needsRefresh) return;
-            var changed = readError is not null || next.Phase != state.Phase || next.Harness != state.Harness || next.Auth != state.Auth || !next.Harnesses.SequenceEqual(state.Harnesses);
+            var changed = readError is not null || next.Phase != state.Phase || next.Harness != state.Harness || next.Auth != state.Auth || next.Install != state.Install || !next.Harnesses.SequenceEqual(state.Harnesses);
             readError = null; Accept(next); if (changed) Render();
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }

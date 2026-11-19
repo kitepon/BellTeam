@@ -130,9 +130,10 @@ public sealed partial class SettingsWindow
             var states = new List<Task>();
             foreach (var harness in harnesses)
             {
-                if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token)); continue; }
+                var panel = harness.Install is { } install ? InstallPanel(harness, install, api, () => LoadHarnessesAsync(list, token), token) : null;
+                if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token, panel)); continue; }
                 var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(harness.Name, 14, Ink)); names.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0)));
-                var (row, ready) = AuthRow(names, harness, api, null, null, token); list.Children.Add(row); states.Add(ready);
+                var (row, ready) = AuthRow(names, harness, api, null, null, token, panel); list.Children.Add(row); states.Add(ready);
             }
             await Task.WhenAll(states);
         }
@@ -144,10 +145,20 @@ public sealed partial class SettingsWindow
         }
     }
 
+    // a451: the install message and 「最新版を入れる」 of one AI. A change of readiness (installed or not) reloads the whole list from the server, so every row follows the server's state.
+    private HarnessInstallPanel InstallPanel(HarnessAuthenticationOption harness, HarnessCliInstall install, HarnessAuthenticationApi api, Func<Task> reload, CancellationToken token)
+    {
+        var panel = new HarnessInstallPanel(api, harness.Id, harness.Name, install, token); var ready = HarnessCliInstall.Ready(install);
+        panel.Changed += next => { if (HarnessCliInstall.Ready(next) == ready) return; ready = !ready; panel.Stop(); _ = reload(); _ = LoadAttentionAsync(); };
+        return panel;
+    }
+
     // One AI-authentication row: names | state | action. slot is the Claude account slot ("1st"/"2nd") whose login the row reads and starts; null is the single login.
     // afterDialog replaces the row's own state re-read when the login window closes.
-    private (Grid Row, Task Ready) AuthRow(Control names, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, Func<Task>? afterDialog, CancellationToken token)
+    // panel: the install message and button under the row (a451); an AI that cannot run shows its install state instead of a login action.
+    private (StackPanel Row, Task Ready) AuthRow(Control names, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, Func<Task>? afterDialog, CancellationToken token, HarnessInstallPanel? panel = null)
     {
+        var runs = HarnessCliInstall.Ready(harness.Install);
         var row = new Grid { Margin = new Thickness(0, 10, 0, 0), ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
         var state = Text("", 12, Muted, FontWeight.SemiBold, new Thickness(10, 0)); state.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(state, 1);
         var action = Capsule("", Violet, Brushes.White); Grid.SetColumn(action, 2); action.VerticalAlignment = VerticalAlignment.Center;
@@ -155,6 +166,7 @@ public sealed partial class SettingsWindow
         void Show(HarnessRowState value) { state.Text = value.Title; state.Foreground = Tone(value.Tone); action.Content = value.Action; }
         async Task ReadStateAsync()
         {
+            if (!runs) { Show(HarnessRowState.FromInstall(harness.Install!)); action.IsVisible = false; return; }
             Show(HarnessRowState.Checking);
             try { var status = (await api.StatusAsync(harness.Id, token, slot)).Auth?.Status; Show(slot is null ? HarnessRowState.From(status, harness.ReloginSupported) : HarnessRowState.FromSlot(status)); }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -167,16 +179,18 @@ public sealed partial class SettingsWindow
             await (afterDialog?.Invoke() ?? ReadStateAsync());
         };
         AutomationProperties.SetName(action, slot is null ? harness.Name : harness.Name + " " + AccountText.SlotTitle(slot));
-        return (row, ReadStateAsync());
+        var holder = new StackPanel { Margin = new Thickness(0, 10, 0, 0) }; holder.Children.Add(row); row.Margin = default;
+        if (panel is not null) { panel.Margin = new Thickness(0, 4, 0, 0); panel.MoveTo(holder); }
+        return (holder, ReadStateAsync());
     }
 
     // Claude: the two account slots when the server lists accounts, the old single row when GET /api/accounts answers 404 (older server),
     // and for any other read failure the reason with 一覧を更新 (never the old row, which would hide that the slots exist).
-    private async Task LoadClaudeAsync(StackPanel host, HarnessAuthenticationOption harness, HarnessAuthenticationApi auth, CancellationToken token)
+    private async Task LoadClaudeAsync(StackPanel host, HarnessAuthenticationOption harness, HarnessAuthenticationApi auth, CancellationToken token, HarnessInstallPanel? panel = null)
     {
         host.Children.Clear();
         var accounts = new HarnessAccountsApi(workspace.Management.Api);
-        Task Reload() => LoadClaudeAsync(host, harness, auth, token);
+        Task Reload() => LoadClaudeAsync(host, harness, auth, token, panel);
         void Failed(string message) { host.Children.Clear(); host.Children.Add(Text("Claudeのアカウントを確認できませんでした。\n" + message, 13, Red, null, new Thickness(0, 10, 0, 0))); host.Children.Add(QuietButton("一覧を更新", () => _ = Reload(), new Thickness(0, 10, 0, 0))); }
         AccountsResponse? list;
         try { list = await accounts.ReadAsync(token); token.ThrowIfCancellationRequested(); }
@@ -185,7 +199,7 @@ public sealed partial class SettingsWindow
         if (list is null)
         {
             var oldNames = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; oldNames.Children.Add(Text(harness.Name, 14, Ink)); oldNames.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0)));
-            var (single, oldReady) = AuthRow(oldNames, harness, auth, null, null, token); host.Children.Add(single); await oldReady; return;
+            var (single, oldReady) = AuthRow(oldNames, harness, auth, null, null, token, panel); host.Children.Add(single); await oldReady; return;
         }
         if (list.Claude is not { } claude) { Failed("アカウントの一覧にClaudeの項目がありません。"); return; }
         var now = DateTimeOffset.Now;
@@ -193,6 +207,7 @@ public sealed partial class SettingsWindow
         var heading = new Grid { Margin = new Thickness(0, 10, 0, 0), ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         var usage = Text(harness.UsageText, 12, Muted); usage.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(usage, 1);
         heading.Children.Add(Text(harness.Name, 14, Ink)); heading.Children.Add(usage); host.Children.Add(heading);
+        if (panel is not null) { panel.Margin = new Thickness(0, 4, 0, 0); panel.MoveTo(host); }
         foreach (var text in AccountText.CardBannerTexts(list, now))
         {
             var bar = Text("⚠ " + text, 12, Orange, null, new Thickness(0, 6, 0, 0)); AutomationProperties.SetName(bar, text); host.Children.Add(bar);

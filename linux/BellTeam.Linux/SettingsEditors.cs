@@ -38,6 +38,8 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
     private bool showingPane, initializing;
     private Grid? layout; private Control? sidebar, divider, rightPane;
     private AiControl? control;
+    // The 要対応 band (Mac SettingsHome): on this page list only the AI that is not installed counts (a451); the other items have no live line here.
+    private readonly StackPanel attentionBand = new();
 
     public SettingsWindow(LinuxWorkspace workspace, Action? changeServer = null, INotificationSwitch? notifications = null, Action? signOut = null, SettingsPage[]? compactHidden = null) : base("設定", workspace.ConnectionToken)
     {
@@ -77,7 +79,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
 
     public async Task InitializeAsync(SettingsPage page = SettingsPage.Profile)
     {
-        var loads = new List<Task> { LoadControlAsync() };
+        var loads = new List<Task> { LoadControlAsync(), LoadAttentionAsync() };
         // The profile page reads the owner itself and updates the list row from that.
         if (page != SettingsPage.Profile) loads.Add(LoadOwnerAsync());
         initializing = true;
@@ -113,6 +115,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; text.Children.Add(profileName); var profileDetail = SettingsUi.Text("プロフィールとあなたの決まり", 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)); text.Children.Add(profileDetail); Track(SettingsPage.Profile, profileName, profileDetail);
         Grid.SetColumn(text, 1); profile.Children.Add(text);
         list.Children.Add(CategoryRow(SettingsPage.Profile, SettingsPageInfo.Title(SettingsPage.Profile) + " " + workspace.OwnerName, profile, new Thickness(0, 2, 0, 0)));
+        list.Children.Add(attentionBand);
         foreach (var group in SettingsPageInfo.Groups)
         {
             var first = true;
@@ -149,6 +152,39 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         foreach (var (page, row) in rows) row.Background = page == selected ? SettingsUi.Violet : Brushes.Transparent;
         foreach (var (page, text, original) in rowLabels) text.Foreground = page == selected ? Brushes.White : original;
     }
+
+    // a451: an AI that is not installed (or being installed) is 要対応 on the settings home, with the words SettingsSummary.Ai gives every app; opening the row goes to the AI page.
+    private async Task LoadAttentionAsync()
+    {
+        try
+        {
+            var harnesses = (await new HarnessAuthenticationApi(workspace.Management.Api).ListAsync(Token)).Harnesses;
+            var absent = harnesses.Where(item => item.Install is { NeedsAttention: true }).Select(item => new AIAuthEntry(item.Id, item.Name, null, AuthenticationProgress.Unknown, Install: item.Install)).ToList();
+            ShowAttention(absent.Count == 0 ? null : SettingsSummary.Ai(absent));
+        }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
+        catch (Exception) { /* no band when the list cannot be read; the AI page shows the reason */ }
+    }
+    private void ShowAttention(SettingsStatus? status)
+    {
+        attentionBand.Children.Clear();
+        if (status is not { NeedsAttention: true }) return;
+        attentionBand.Children.Add(SettingsUi.Text("要対応", 12, SettingsUi.Secondary, FontWeight.SemiBold, new Thickness(20, 12, 0, 4)));
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,Auto") };
+        var tile = SettingsUi.Tile(SettingsPage.Ai, 30); tile.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(tile);
+        var labels = new StackPanel { Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        labels.Children.Add(SettingsUi.Text(SettingsPageInfo.Title(SettingsPage.Ai), 14, SettingsUi.Ink, FontWeight.Medium));
+        labels.Children.Add(SettingsUi.Text(status.Line, 12, SettingsUi.Orange, null, new Thickness(0, 2, 0, 0)));
+        Grid.SetColumn(labels, 1); grid.Children.Add(labels);
+        if (status.Badge is { } badge) { var text = SettingsUi.Text(badge, 12, SettingsUi.Orange, FontWeight.SemiBold); text.VerticalAlignment = VerticalAlignment.Center; text.TextWrapping = TextWrapping.NoWrap; Grid.SetColumn(text, 2); grid.Children.Add(text); }
+        var row = new Border { Child = grid, Margin = new Thickness(10, 0, 10, 2), Padding = new Thickness(8, 5, 10, 5), CornerRadius = new CornerRadius(8), Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0x95, 0x00)), Focusable = true, Cursor = SettingsUi.Hand };
+        AutomationProperties.SetName(row, SettingsPageInfo.Title(SettingsPage.Ai) + " " + status.Line); AutomationProperties.SetAutomationId(row, "settings-attention-ai");
+        row.PointerReleased += (_, args) => { if (args.InitialPressMouseButton == MouseButton.Left) _ = SelectAsync(SettingsPage.Ai); };
+        row.KeyDown += (_, args) => { if (args.Key is Key.Enter or Key.Space) { _ = SelectAsync(SettingsPage.Ai); args.Handled = true; } };
+        attentionBand.Children.Add(row);
+        attentionBand.Children.Add(new Border { Height = 1, Background = SettingsUi.Hairline, Margin = new Thickness(20, 8, 20, 4) });
+    }
+    internal Control AttentionBand => attentionBand;
 
     private ConversationEntry OwnerEntry(OwnerProfile? owner) => new(new("owner", false), owner?.Name ?? workspace.OwnerName, "", DateTimeOffset.MinValue, new Bot { Id = "owner", Name = owner?.Name ?? workspace.OwnerName, DisplayName = owner?.Name ?? workspace.OwnerName, Avatar = owner?.Avatar ?? "" }, null);
     private void UpdateProfileRow(OwnerProfile owner) { profileName.Text = owner.Name; profileAvatar.Entry = OwnerEntry(owner); }
