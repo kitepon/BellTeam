@@ -98,28 +98,53 @@ public sealed class MachineCardTests
         ["machine_event"] = new Dictionary<string, object?> { ["seq"] = 3, ["view"] = view, ["display"] = display, ["fold_group"] = view, ["title"] = view, ["text"] = text, ["truncated"] = truncated, ["tool"] = tool.Length == 0 ? null : new { id = tool, name = "Bash", summary = "ls" } }
     }), BellApi.Json)!;
 
+    private static TimelineMessage Tool(string id, string view, string tool, int count, string message)
+    {
+        var row = Fold(id, view, "fold", tool);
+        return row with { Message = message, MachineEvent = row.MachineEvent! with { FoldGroup = "tools", FoldCount = count } };
+    }
+
     [Fact]
-    public Task FoldedRowsAreOneOpenableLineAndResultsSitUnderTheirToolUse() => Ui.Run(async () =>
+    public Task FoldedRowsAreOneOpenableLineAndNothingLeavesItsPlaceInTime() => Ui.Run(async () =>
     {
         var server = new Server(); using var workspace = new LinuxWorkspace(origin => new BellApi(origin, server));
         await workspace.ConnectAsync("http://localhost:1/", listen: false);
-        var rows = Timeline.VisibleMachine([Fold("u", "tool_use", "show", "t1"), Fold("r", "tool_result", "fold", "t1"), Fold("h1", "hook", "fold"), Fold("h2", "hook", "fold"), Fold("h3", "hook", "fold", truncated: true)]);
-        Assert.Equal(["u", "h1"], rows.Select(row => row.Id));
-        var use = new MachineEntry(workspace); use.Update(rows[0]);
+        // A shown tool_use (an older body) stays its own line and its result is not pulled up under it.
+        var old = Timeline.VisibleMachine([Fold("u", "tool_use", "show", "t1"), Fold("w", "words", "show"), Fold("r", "tool_result", "fold", "t1"), Fold("h1", "hook", "fold"), Fold("h2", "hook", "fold"), Fold("h3", "hook", "fold", truncated: true)]);
+        Assert.Equal(["u", "w", "r", "h1"], old.Select(row => row.Id));
+        var use = new MachineEntry(workspace); use.Update(old[0]);
         Assert.Contains(use.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Bash: ls");
-        Assert.Single(use.GetVisualDescendants().OfType<Button>());
-        Assert.DoesNotContain(use.GetVisualDescendants().OfType<TextBox>(), _ => true);
-        Find(use, "tool_result r").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Assert.Equal("全文", Assert.Single(use.GetVisualDescendants().OfType<TextBox>()).Text);
-        Find(use, "tool_result r").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Assert.Empty(use.GetVisualDescendants().OfType<TextBox>());
 
-        var hooks = new MachineEntry(workspace); hooks.Update(rows[1]);
+        // A run of one group is one closed line; opened it lists its members, each a closed line that opens to its text.
+        var hooks = new MachineEntry(workspace); hooks.Update(old[3]);
         Find(hooks, "hook ×3").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Assert.Equal(3, hooks.GetVisualDescendants().OfType<TextBox>().Count());
-        // The cut member offers the stored line.
-        Find(hooks, "全文を読み込む").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Empty(hooks.GetVisualDescendants().OfType<TextBox>());
+        Find(hooks, "hook h3").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("全文", Assert.Single(hooks.GetVisualDescendants().OfType<TextBox>()).Text);
+        Find(hooks, "全文を読み込む").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));   // the cut member offers the stored line
         await Task.Delay(300);
         Assert.Contains(hooks.GetVisualDescendants().OfType<TextBox>(), box => box.Text == "RAWLINE");
+        Find(hooks, "hook ×3").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Empty(hooks.GetVisualDescendants().OfType<TextBox>());
+    });
+
+    [Fact]
+    public Task AToolRunIsOneLineWithTheSumOfFoldCountAndOpensToItsMembersInOrder() => Ui.Run(async () =>
+    {
+        var server = new Server(); using var workspace = new LinuxWorkspace(origin => new BellApi(origin, server));
+        await workspace.ConnectAsync("http://localhost:1/", listen: false);
+        TimelineMessage[] run = [Tool("u1", "tool_use", "t1", 1, "Bash"), Tool("h", "hook", "", 0, "hook_started: PreToolUse"), Tool("r1", "tool_result", "t1", 0, "tool_result: ok"), Tool("u2", "tool_use", "t2", 1, "Read"), Tool("r2", "tool_result", "t2", 0, "tool_result: ok")];
+        var two = Timeline.VisibleMachine(run);
+        Assert.Equal(["u1"], two.Select(row => row.Id));
+        Assert.Equal(["h", "r1", "u2", "r2"], two[0].MachineEvent!.Folded.Select(row => row.Id));   // the order of time, nothing pulled under its tool_use
+        var line = new MachineEntry(workspace); line.Update(two[0]);
+        Find(line, "tools ×2").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(["Bash", "hook_started: PreToolUse", "tool_result: ok", "Read", "tool_result: ok"], line.GetVisualDescendants().OfType<Button>().Select(button => AutomationProperties.GetName(button)).Skip(1));
+        Find(line, "Read").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("ls", Assert.Single(line.GetVisualDescendants().OfType<TextBox>()).Text);   // a tool_use opens to its summary
+
+        // One call: the line is the tool's name; a run cut off from its tool_use counts 0 and says how many members it has.
+        Assert.Equal("Bash", Timeline.FoldLabel(Timeline.VisibleMachine(run.Take(3))[0].MachineEvent!.Folded.Prepend(run[0]).ToArray()));
+        Assert.Equal("tools ×2", Timeline.FoldLabel([run[1], run[2]]));
     });
 }

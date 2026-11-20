@@ -503,7 +503,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         {
             var page = await api.GetAsync<MessagePage>(target.Path + "/messages?limit=30&before=" + Uri.EscapeDataString(first.Id), token);
             token.ThrowIfCancellationRequested();
-            // Folded rows are drawn again from the whole list, so a result whose tool_use was paged away moves under it.
+            // Folded rows are drawn again from the whole list, so a run split by the page edge becomes one line.
             var loaded = Received(); var known = loaded.Select(message => message.Id).ToHashSet();
             ShowMessages([.. page.Items.Where(message => !known.Contains(message.Id)), .. loaded]);
             HasMore = page.HasMore;
