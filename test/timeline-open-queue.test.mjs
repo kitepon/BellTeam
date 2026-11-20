@@ -578,3 +578,15 @@ test('first screen: a failed older page stops the fill and shows the retry; a hi
   await hidden.open('a')
   assert.equal(hidden.requests.filter(path => path.includes('before=')).length, 0)
 })
+
+test('turn answer: a words row with bubble:true is an ordinary incoming bubble with Markdown; other words rows stay plain text', async t => {
+  const row = (id, event) => ({ id, kind: 'machine_event', at: '2026-11-21T06:35:00Z', sender: { id: 'a', name: 'テスト席' }, message: event.text, machine_event: { view: 'words', display: 'show', ...event } })
+  const f = fixture(t, () => ({ items: [row('me-1', { text: '途中の発言' }), row('me-2', { text: '**答え**です', bubble: true })], has_more: false }))
+  await f.open('a')
+  const rows = f.timeline.children[0].children.filter(child => child.dataset.id)
+  assert.equal(rows[0].className, 'machine-show view-words')
+  assert.equal(rows[1].className, 'message incoming')
+  const text = rows[1].querySelectorAll('.message-text')[0]
+  assert.match(text.innerHTML, /<strong>答え<\/strong>/)
+  assert.match(f.text(), /テスト席/)
+})
