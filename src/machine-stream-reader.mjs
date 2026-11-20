@@ -19,6 +19,9 @@ export class MachineStreamReaders {
       .finally(() => { if (this.readers.get(session) === reader) this.readers.delete(session) })
   }
 
+  // chat-from-stream: conversation draws this seat's words from the stream, so execution need not relay them (only while a reader runs; a fork or a TUI seat has none).
+  displays(session) { return this.port?.displayFromStream === true && this.readers.has(session) }
+
   stop(session) { const reader = this.readers.get(session); if (reader) reader.stopped = true }
 
   async #run(botId, session, reader) {

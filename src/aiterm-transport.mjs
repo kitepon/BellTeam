@@ -1057,7 +1057,9 @@ export class AitermTransport {
         const words = turnId ? fresh.filter(word => !word.turn_id || word.turn_id === turnId) : fresh
         if (!words.length) return
         if (words.some(word => word.kind === 'error')) seen.error = true
-        await onInterim(words.map(word => ({ text: word.text, kind: word.kind, ...(word.at ? { at: word.at } : {}) })))
+        // chat-from-stream (execution machine-stream.md): while this seat's stream is read, conversation draws its words; only errors stay (limit recording).
+        const relay = this.machineStreams.displays(session) ? words.filter(word => word.kind === 'error') : words
+        if (relay.length) await onInterim(relay.map(word => ({ text: word.text, kind: word.kind, ...(word.at ? { at: word.at } : {}) })))
       } catch (error) {
         broken = true
         process.stderr.write(`BellTeam interim words error: ${error.stack ?? error.message}\n`)
@@ -1297,7 +1299,7 @@ export class AitermTransport {
         const answer = transcript ? await this.readTurnAnswer(delivery, completion, job.native.client) : undefined
         await job.checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
-        if (!transcript && onAnswer) {
+        if (!transcript && onAnswer && !this.machineStreams.displays(delivery.session)) {
           try {
             const text = await this.readTurnAnswer(delivery, completion, job.native.client)
             await job.checkpoint()
@@ -1372,7 +1374,7 @@ export class AitermTransport {
       // submit yields before native work, so all real references exist before issuance.
       this.conversationAdmission.trackCompletion(conversationDelivery, job.completion)
       if (conversationCallbacks.userComplete) {
-        result = completion.then(async reply => { await conversationCallbacks.userComplete(reply); return reply })
+        result = completion.then(async reply => { await conversationCallbacks.userComplete(reply, { stream: this.machineStreams.displays(this.session(bot)) }); return reply })
         this.conversationAdmission.trackCompletion(conversationDelivery, result)
       }
       const finish = () => this.conversationAdmission.finish(conversationDelivery)
@@ -1712,6 +1714,8 @@ export class AitermTransport {
   watchTurn(bot, session, turn, { onInterim, groupId, lease = null }) {
     try { this.assertConversationOccupation(bot.id) } catch { return null }
     const watch = new SeatTurnWatch({ id: this.activeId(), bot, turn, groupId: groupId(), now: this.now() })
+    // The seat's own turn is shown from the stream: conversation's SelfTurns must not draw its answer again (shown.read stream).
+    if (this.machineStreams.displays(session)) watch.shown.stream = true
     // A non-Codex span has no waiter; its readInterim answer carries the token's cursor instead of the null event_cursor.
     const wordsOnly = watch.wordsOnly = turn.codex === false
     const receipt = wordsOnly ? { ...turn, event_cursor: interimStartCursor(turn.interim_from) } : turn

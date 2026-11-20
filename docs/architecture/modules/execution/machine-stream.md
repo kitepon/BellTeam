@@ -22,6 +22,31 @@ flowchart LR
 | `AitermTransport.streamSend(bot, { lines })` | 1..20 JSON objects; Aiterm's result, or its error unchanged | Forwards to `stream_send` on the Bot's session. Owner-only (conversation's route); a Bot never reaches it. An engine without it answers `EXECUTION_REQUEST_INVALID` (503) to the caller |
 | `EXECUTION_SEAT_STREAM` | engine flag | The parent passes `ports.seatStream {cursor, ingest}` only to an engine that exports it (as `EXECUTION_HARNESS_CLI`); an engine with no port has no reader, so a question stays held as today and nothing breaks |
 
+## Display source: the stream only (a471-chat-from-stream)
+
+Owner 2026-11-20 21:1x JST: the chat is drawn from the machine data by conversation, not through Aiterm's tools. Contract: [conversation machine-stream.md](../conversation/machine-stream.md) "Display source for a machine seat" (N102). Execution keeps the mechanics and stops being a display source for a seat whose stream it reads.
+
+```mermaid
+flowchart LR
+  Seat["machine seat (claude -p)"] --> Read["stream_read"] --> Reader["MachineStreamReaders (reader running)"] --> Conv["conversation: machine_event rows (the display)"]
+  Seat --> Words["pty_observe words / transcript"]
+  Words --> Follow["followInterim"]
+  Follow -->|"reader running: kind error only"| Conv2["delivery.words"]
+  Follow -->|"no reader (fork, TUI seat, old conversation): all kinds"| Conv2
+  Words --> Mech["turn end wait, answer relay to asking Bots / forks / rooms, limit recording (unchanged)"]
+```
+
+| Function | Rule |
+| --- | --- |
+| `MachineStreamReaders.displays(session)` | true only when the conversation port says `displayFromStream: true` AND a reader of this session runs. A fork, a seat the old way, a seat whose reader ended (`STREAM_UNSUPPORTED`, exited) is false: its words go on as before. The stream file is durable, so a reader in backoff loses nothing |
+| `followInterim` | when `displays(session)`: only words of kind `error` go to `delivery.words` (the limit recording of a self-started turn depends on them); `interim` and `answer` are read but not relayed |
+| `submit` answer step | when `displays(session)` the display answer (`onAnswer` of a turn nobody asked an answer of) is not read or relayed. The `transcript` answer returned to an asking Bot, fork or room is mechanics and stays |
+| `user.complete` | gains `stream: true` (same condition) so conversation does not draw its saved copy of the answer |
+| `execution.shown.read` | gains `stream: true` for the watch of a machine seat's self-started turn; conversation's SelfTurns then skips the answer and consumes |
+| unchanged | `delivery.status`, `turn.end`, steer receipts, `stream_send` relay, forks |
+
+Version skew: the flag is a key of the `seatStream` port, which an older engine rejects as an unknown key. The parent therefore passes `displayFromStream` only to an engine that exports `EXECUTION_SEAT_STREAM_DISPLAY` (loader `supportsSeatStreamDisplay`), and only from a body whose conversation understands `stream: true`. Old engine with a new body, or new engine with an old body: no flag, the words path is as it was (the chat shows both, as before). No timer, no refusal: the rule is decided turn by turn from the reader that runs.
+
 ## Data flow and ownership
 
 | Datum | Owner | Lifetime |

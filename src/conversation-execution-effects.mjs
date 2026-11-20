@@ -51,7 +51,7 @@ export function createConversationExecutionEffects({ getServices, getController,
         const shown = transport.shownInSelfTurn(params.botId)
         if (!shown) return null
         const prefix = [...shown.words]
-        return { shownId: bind(context, { kind: 'shown', botId: params.botId, shown, prefix }), words: prefix, endedAt: shown.endedAt }
+        return { shownId: bind(context, { kind: 'shown', botId: params.botId, shown, prefix }), words: prefix, endedAt: shown.endedAt, ...(shown.stream ? { stream: true } : {}) }
       }
       case 'execution.shown.consume': {
         if (context.rootMethod !== 'observation.poll') invalid()

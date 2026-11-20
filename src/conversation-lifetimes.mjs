@@ -239,7 +239,7 @@ export class ConversationLifetimes {
       ['onInterim', 'delivery.words', words => this.invoke(lease, 'delivery.words', { words })],
       ['onAnswer', 'delivery.answer', text => this.invoke(lease, 'delivery.answer', { text })],
       ['onTurnEnd', 'turn.end', ({ startedAt, endedAt }) => this.invoke(lease, 'turn.end', { startedAt, endedAt })],
-      ['userComplete', 'user.complete', reply => this.invoke(lease, 'user.complete', { reply })],
+      ['userComplete', 'user.complete', (reply, { stream = false } = {}) => this.invoke(lease, 'user.complete', { reply, ...(stream ? { stream: true } : {}) })],
     ]) if (this.supports(lease, kind)) result[name] = callback
     return result
   }

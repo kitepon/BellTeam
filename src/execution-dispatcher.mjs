@@ -27,6 +27,8 @@ export const EXECUTION_REMOTE_USER_TOOLS = true
 export const EXECUTION_HARNESS_CLI = true
 // a471 (machine-stream.md): this engine accepts ports.seatStream ({ cursor, ingest }) and the dispatch method transport.streamSend; a parent passes the port only when this is true.
 export const EXECUTION_SEAT_STREAM = true
+// a471-chat-from-stream: this engine reads the port flag seatStream.displayFromStream; a parent passes it only to an engine that declares this.
+export const EXECUTION_SEAT_STREAM_DISPLAY = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
@@ -64,7 +66,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
-    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'], harnessCli: ['installed', 'watch', 'recheck'], seatStream: ['cursor', 'ingest'],
+    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'], harnessCli: ['installed', 'watch', 'recheck'], seatStream: ['cursor', 'ingest', 'displayFromStream'],
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')
