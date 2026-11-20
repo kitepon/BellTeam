@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T22:30:28Z",
-  "expiresAt": "2026-11-27T22:30:28Z",
+  "publishedAt": "2026-11-20T22:55:33Z",
+  "expiresAt": "2026-11-27T22:55:33Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "78cf9346ca459d78cde322b4a86796366477061a5aaa6607406d3999d386f02b",
+      "sourceCommit": "6550721f813c6c07286bf74b3904d3ec70295249",
+      "versionId": "1fd6b35bf1a033b21ad98a3b2b021b2b0109da1301008379d13bab5630e5a7e4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz",
-          "bytes": 3925562,
-          "sha256": "78cf9346ca459d78cde322b4a86796366477061a5aaa6607406d3999d386f02b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-amd64.tar.gz",
+          "bytes": 3925561,
+          "sha256": "1fd6b35bf1a033b21ad98a3b2b021b2b0109da1301008379d13bab5630e5a7e4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "8417a7b7a3e0c1a8ccf8821b94c0a16260f879a10a9a2704ddf1cbd4624d79db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11127,
+          "sha256": "d016afec4d05334b3aa79fe0932f624292ed7ad83f096711e3f298ce64b26bd2"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "6550721f813c6c07286bf74b3904d3ec70295249"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "機械の口で動く席の出力の行を、引用や転送の対象にできるようになりました。この席の質問や承認の答えは、答えの行として保存しません。"
+        "機械の席の答えが、保存のときにも「1回だけの答え」の印を付けて残るようにしました。Webで答えが二重に出なくなります。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "ba600012345d84cf1b392be591c704077ca861177c8f9fce9cbf5dd68a2b258f",
+      "sourceCommit": "6550721f813c6c07286bf74b3904d3ec70295249",
+      "versionId": "2430706ae3c80818ecc905e3265341d75f654d67dce6b388eca2314e1433ac98",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz",
-          "bytes": 3925563,
-          "sha256": "ba600012345d84cf1b392be591c704077ca861177c8f9fce9cbf5dd68a2b258f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-arm64.tar.gz",
+          "bytes": 3925562,
+          "sha256": "2430706ae3c80818ecc905e3265341d75f654d67dce6b388eca2314e1433ac98"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "28d8a4586662942ddd49296050c09fbfdefdabe1436322d4c13422d5f7434db9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "9a07c9a1e8faceca327e5637ac95867a3fbf5d93853c0de1df6e90f19d9dde4b"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "6550721f813c6c07286bf74b3904d3ec70295249"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "機械の口で動く席の出力の行を、引用や転送の対象にできるようになりました。この席の質問や承認の答えは、答えの行として保存しません。"
+        "機械の席の答えが、保存のときにも「1回だけの答え」の印を付けて残るようにしました。Webで答えが二重に出なくなります。"
       ]
     },
     {
