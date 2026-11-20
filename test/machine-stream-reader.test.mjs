@@ -77,3 +77,21 @@ test('a471 stream: an unreachable read waits and retries from the same cursor, a
   // no port = no reader
   const none = new MachineStreamReaders({ client, port: null }); none.start({ id: 'bot-a' }, 's3'); assert.equal(none.readers.size, 0)
 })
+
+test('a471 reader-resume: stopAll gives up a reader without ingesting the poll that was running, and start replaces a stopped reader', async () => {
+  const sent = []
+  let readers, calls = 0
+  const client = { async call() {
+    calls++
+    if (calls === 1) { readers.stopAll(); return { structuredContent: { launch_id: 'L', lines: ['late'], cursor: 'L:1', state: idle } } }
+    if (calls === 2) return { structuredContent: { launch_id: 'L', lines: ['again'], cursor: 'L:2', state: idle } }
+    readers.stop('s1'); return { structuredContent: { launch_id: 'L', lines: [], cursor: 'L:2', state: idle } }
+  } }
+  readers = new MachineStreamReaders({ client, port: { cursor: async () => null, ingest: async e => (sent.push(e), { status: 'stored' }) }, sleep: async () => {} })
+  const finished = () => new Promise(resolve => { const del = readers.readers.delete.bind(readers.readers); readers.readers.delete = key => { del(key); resolve() } })
+  let done = finished(); readers.start({ id: 'bot-a' }, 's1'); await done
+  assert.deepEqual(sent, [], 'a stopped reader hands nothing to conversation')
+  readers.start({ id: 'bot-a' }, 's1') // the resumed engine: no stale entry blocks it
+  done = finished(); readers.readers.get('s1') && await done
+  assert.deepEqual(sent.map(e => e.lines), [['again']])
+})

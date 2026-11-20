@@ -12,7 +12,8 @@ export class MachineStreamReaders {
   }
 
   start(bot, session) {
-    if (!this.port || this.readers.has(session)) return
+    // A reader a quiesce stopped may still be draining its last poll: it does not count, a resumed engine gets a fresh one.
+    if (!this.port || this.readers.get(session)?.stopped === false) return
     const reader = { stopped: false }
     this.readers.set(session, reader)
     this.#run(bot.id, session, reader).catch(error => process.stderr.write(`BellTeam machine stream: ${session}: ${error?.stack ?? error}\n`))
@@ -24,6 +25,9 @@ export class MachineStreamReaders {
 
   stop(session) { const reader = this.readers.get(session); if (reader) reader.stopped = true }
 
+  // An engine that quiesces or retires gives up every reader: its native calls are refused from then on, and the successor (or its own resume) starts them again.
+  stopAll() { for (const reader of this.readers.values()) reader.stopped = true }
+
   async #run(botId, session, reader) {
     let cursor = null, sentState = null, delay = 0
     try { const saved = await this.port.cursor(botId); if (saved?.session === session && typeof saved.cursor === 'string') cursor = saved.cursor } catch {}
@@ -32,6 +36,7 @@ export class MachineStreamReaders {
       try {
         read = (await this.client.call('stream_read', { session_id: session, ...(cursor ? { cursor } : {}), max_lines: MAX_LINES, wait_ms: WAIT_MS })).structuredContent
         if (!Array.isArray(read?.lines) || typeof read.cursor !== 'string') throw new Error('STREAM_READ_INVALID')
+        if (reader.stopped) return // stopped while the long poll ran: the lines stay in Aiterm's stream and the next reader reads them from the stored cursor
         const state = JSON.stringify(read.state ?? null)
         if (read.lines.length || state !== sentState) {
           const answer = await this.port.ingest({ botId, session, launch_id: read.launch_id, cursor_from: cursor, cursor_after: read.cursor, lines: read.lines, state: read.state })

@@ -254,6 +254,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     draining = (async () => {
       // Keep completion observation, but stop the producer that can close a seat.
       if (idleStarted) { idleStarted = false; track(idle.stop()) }
+      transport.machineStreams.stopAll()
       const deadline = performance.now() + timeoutMs
       while (!ready()) {
         // Close only: deferred continuation can only run after resume; preserve it and end this drain.
@@ -340,6 +341,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     if (!['created', 'failed', 'quiesced'].includes(phase) || !settled()) throw failure('EXECUTION_BUSY')
     phase = 'discarding'
     try {
+      transport.machineStreams.stopAll()
       await Promise.all([...(observerStarted ? [observer.stop()] : []), ...(idleStarted ? [idle.stop()] : [])])
       observerStarted = false; idleStarted = false
       if (!settled()) throw failure('EXECUTION_BUSY')
