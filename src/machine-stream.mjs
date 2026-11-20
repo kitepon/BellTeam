@@ -55,10 +55,14 @@ export function project(line) {
     }
     case 'system':
       if (/^hook_/u.test(subtype ?? '')) return [part({ view: 'hook', title: subtype, text: str(value.hook_name) ?? '' })]
-      return [part({ view: 'system', title: subtype ?? 'system', text: str(value.message) ?? str(value.error) ?? (subtype === 'init' ? `model=${value.model ?? ''}` : '') })]
-    case 'result':
-      return [part({ view: 'result', title: subtype ?? 'result', text: `turns=${value.num_turns ?? ''} cost=${value.total_cost_usd ?? ''}`, is_error: value.is_error === true || (subtype ?? 'success') !== 'success' })]
-    case 'rate_limit_event': return [part({ view: 'rate_limit', title: 'rate_limit', text: JSON.stringify(value.rate_limit_info ?? {}) })]
+      if (subtype === 'init') return [part({ view: 'system', title: `start: ${value.model ?? '?'}, ${Array.isArray(value.tools) ? value.tools.length : '?'} tools`, text: '' })]
+      return [part({ view: 'system', title: subtype ?? 'system', text: str(value.message) ?? str(value.error) ?? '', is_error: Boolean(value.error) || /error|auth/iu.test(subtype ?? '') })]
+    case 'result': {
+      const normal = (subtype ?? 'success') === 'success' && value.is_error !== true && !/^aborted/u.test(value.terminal_reason ?? '')
+      return [part({ view: 'result', title: normal ? `done: ${Number.isFinite(value.duration_ms) ? `${(value.duration_ms / 1000).toFixed(1)}s` : ''}`.trim() : (subtype ?? 'result'),
+        text: `turns=${value.num_turns ?? ''} cost=${value.total_cost_usd ?? ''}${value.terminal_reason ? ` ${value.terminal_reason}` : ''}`, is_error: !normal })]
+    }
+    case 'rate_limit_event': return [part({ view: 'rate_limit', title: `rate limit: ${value.rate_limit_info?.status ?? '?'}`, status: str(value.rate_limit_info?.status), text: JSON.stringify(value.rate_limit_info ?? {}) })]
     case 'control_request': {
       const request = value.request
       if (request?.subtype !== 'can_use_tool' || !str(value.request_id)) return [part({ view: 'control', title: subtype ?? 'control_request', text: '' })]
@@ -76,7 +80,8 @@ export function project(line) {
 export function displayOf(part, rules = displayRules) {
   if (part.view === 'question' || part.view === 'approval') return 'show'
   const refined = rules.refine?.find(r => r.view === part.view && (r.empty === undefined || r.empty === !part.text.trim())
-    && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title))
+    && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title)
+    && (r.status === undefined || r.status === part.status))
   // 'hide' does not exist (Owner 2026-11-20 21:0x JST: fold is fine, removing is not): anything but 'fold' shows.
   return (refined?.display ?? rules[part.view]) === 'fold' ? 'fold' : 'show'
 }
@@ -151,7 +156,7 @@ export class MachineStream {
     const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
-      title: part.title, text: body, truncated, ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
+      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
     const line = body.split('\n')[0].slice(0, 120)

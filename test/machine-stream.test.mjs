@@ -72,13 +72,47 @@ test('default table shows every kind, folds tool results and empty thinking, hid
     J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a\nb' }] } }), J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'error_during_execution' })]
   await ms.ingest(env(lines, null, 'L1:1'))
   const shown = ms.timeline({ botId: 'bot-d' }).map(r => [r.machine_event.view, r.machine_event.display])
-  assert.deepEqual(shown, [['thinking', 'show'], ['thinking', 'fold'], ['words', 'show'], ['tool_use', 'show'], ['tool_result', 'fold'], ['result', 'show'], ['result', 'show']])
+  assert.deepEqual(shown, [['thinking', 'show'], ['thinking', 'fold'], ['words', 'show'], ['tool_use', 'show'], ['tool_result', 'fold'], ['result', 'fold'], ['result', 'show']])
   assert.equal(ms.timeline({ botId: 'bot-d' })[1].message, 'thinking (no text)') // an empty thinking block is a folded line, never removed
   const before = await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8')
   const hidden = new MachineStream({ root, bots, streamSend: async () => ({}), rules: { ...(await import('../src/machine-display-rules.json', { with: { type: 'json' } })).default, thinking: 'hide', tool_use: 'fold', refine: [] } })
   await hidden.initialize({ readOnly: true })
   assert.deepEqual(hidden.timeline({ botId: 'bot-d' }).slice(0, 4).map(r => r.machine_event.display), ['show', 'show', 'show', 'fold']) // same data, another table; a 'hide' in a table shows (there is no hide)
   assert.equal(await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8'), before)
+})
+
+test("Tronie's default table: what is shown open and what is folded to one line", async t => {
+  const { ms } = await service(t)
+  const cases = [
+    [{ type: 'assistant', message: { content: [{ type: 'text', text: 'hello' }] } }, 'show'],
+    [{ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'why' }] } }, 'show'],
+    [{ type: 'assistant', message: { content: [{ type: 'thinking', thinking: '' }] } }, 'fold', 'thinking (no text)'],
+    [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Bash', input: {} }] } }, 'show'],
+    [{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] } }, 'fold'],
+    [{ type: 'user', message: { content: [{ type: 'text', text: 'replayed bubble' }] } }, 'fold'],
+    [{ type: 'system', subtype: 'init', model: 'claude-x', tools: ['a', 'b', 'c'] }, 'fold', 'start: claude-x, 3 tools'],
+    [{ type: 'system', subtype: 'hook_started', hook_name: 'Stop' }, 'fold'],
+    [{ type: 'system', subtype: 'hook_response' }, 'fold'],
+    [{ type: 'system', subtype: 'api_retry' }, 'fold'],
+    [{ type: 'system', subtype: 'api_error', error: 'overloaded' }, 'show'],
+    [{ type: 'system', subtype: 'command_lifecycle' }, 'fold'],
+    [{ type: 'result', subtype: 'success', duration_ms: 12345 }, 'fold', 'done: 12.3s'],
+    [{ type: 'result', subtype: 'error_during_execution' }, 'show'],
+    [{ type: 'result', subtype: 'success', is_error: true }, 'show'],
+    [{ type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } }, 'fold'],
+    [{ type: 'rate_limit_event', rate_limit_info: { status: 'allowed_warning' } }, 'fold'],
+    [{ type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }, 'show'],
+    [{ type: 'control_response', response: { subtype: 'success', request_id: 'cfg' } }, 'fold'],
+    [{ type: 'control_cancel_request', request_id: 'zz' }, 'fold'],
+    [{ type: 'brand_new_kind' }, 'fold', 'brand_new_kind'],
+    [JSON.parse(ask('q', Q)), 'show'],
+    [{ type: 'control_request', request_id: 'ap', request: { subtype: 'can_use_tool', tool_name: 'ExitPlanMode', input: { plan: 'p' } } }, 'show'],
+  ]
+  await ms.ingest(env(cases.map(([line]) => J(line)), null, 'L1:1', pending('q', 'ap')))
+  const rows = ms.timeline({ botId: 'bot-d' })
+  assert.deepEqual(rows.map(r => r.machine_event.display), cases.map(c => c[1]))
+  cases.forEach(([, , title], i) => { if (title) assert.equal(rows[i].machine_event.title, title) })
+  assert.ok(rows.every(r => r.machine_event.display === 'show' || r.machine_event.fold_group), 'folded rows carry fold_group for optional same-kind grouping')
 })
 
 test('question card: pending, answer builds the control_response, answered only after Aiterm took it', async t => {
