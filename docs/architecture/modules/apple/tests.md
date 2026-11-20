@@ -600,6 +600,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testComposerGrowsWithTypedLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L333) | 4行入力で本文保持と入力高さ増加 |
 | [testComposerGrowsAfterPastingManyLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L365) | 10行貼付けで本文保持と最大5行高さ |
 | [testPastedImagesBecomeAttachmentsAndReturnAfterFailedSend](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L391) | 2画像貼付け→送信失敗で本文/2枚復元、1枚削除 |
+| [MachineEventTests](../../../../ios/BellBot/BellBotTests/MachineEventTests.swift) | 機械席の行（a471）：質問行のdecodeと要求の保持・崩れた行はunknownで履歴を壊さない・hideと対のtool_resultを描かない・回答bodyが経路の契約どおり |
 | [testOwnerQuestionCardShowsOptionsAndReportsSendFailure](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L431) | 質問選択肢を表示し利用許可失敗後カードと操作を保持 |
 | [testMessageLinkOpensInBrowser](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L451) | メッセージのLinkからSafariを前面へ |
 | [testMacImageGetFailureAppearsInMessageAndGallery](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L118) | Mac専用。画像GETを503にし、単画像カードとgalleryの「画像を読み込めません」、1 / 1、画像未表示、閉じた後のカードとURL無し枚数ラベルを確認。proofで対象JPEGのGET失敗と送信ゼロを照合 |

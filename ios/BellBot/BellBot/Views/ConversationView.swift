@@ -100,7 +100,7 @@ private struct ConversationContent: View {
     @State private var presentedGallery: ConversationGallery?
     @AppStorage(ConversationOpening.storageKey) private var opening = ConversationOpening.rise
 
-    private var messages: [TimelineMessage] { timeline.visibleMessages }
+    private var messages: [TimelineMessage] { timeline.visibleMessages.machineDisplayed }
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -301,6 +301,8 @@ private struct ConversationContent: View {
                 SecretRequestCard(request: request, state: state) { presentedSheet = .secret(request, state) }
             } else if let question = message.ownerQuestion {
                 OwnerQuestionCard(question: question, state: cards.questionState(for: message.id))
+            } else if let event = message.machineEvent {
+                MachineEventRow(message: message, event: event, state: event.request.map { cards.machineState(for: $0.requestId) })
             } else {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
@@ -942,11 +944,19 @@ enum ConversationHistoryPage {
 private final class ConversationCardStates {
     private var secretStates: [String: SecretRequestCardState] = [:]
     private var questionStates: [String: OwnerQuestionCardState] = [:]
+    private var machineStates: [String: MachineRequestCardState] = [:]
 
     func secretState(for id: String) -> SecretRequestCardState {
         if let state = secretStates[id] { return state }
         let state = SecretRequestCardState()
         secretStates[id] = state
+        return state
+    }
+
+    func machineState(for requestID: String) -> MachineRequestCardState {
+        if let state = machineStates[requestID] { return state }
+        let state = MachineRequestCardState()
+        machineStates[requestID] = state
         return state
     }
 

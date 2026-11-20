@@ -279,6 +279,8 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     var replyTo: ReplyReference? = nil
     /// conversation forward.md. Present only on a forwarded or shared row.
     var origin: MessageOrigin? = nil
+    /// conversation machine-stream.md. Present only on a machine seat's stream row (`kind: "machine_event"`).
+    var machineEvent: MachineEvent? = nil
 
     var isOutgoing: Bool { direction == "outgoing" || sender?.id == "user" }
     var isFork: Bool { seat?.kind == "fork" }
