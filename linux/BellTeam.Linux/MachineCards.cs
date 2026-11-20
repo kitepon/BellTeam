@@ -1,0 +1,163 @@
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
+using Avalonia.Media;
+using BellTeam.Core;
+
+namespace BellTeam.Linux;
+
+// A machine seat's pending question or tool approval, drawn from the chat-log entry (conversation machine-stream.md). Same card as the Mac OwnerQuestionCard:
+// one choice of a single question answers at once; several questions or multi-select pick first and send with 「送る」. Other is a free text.
+public sealed class MachineRequestCard(LinuxWorkspace workspace, string author) : StackPanel
+{
+    private MachineEvent? current;
+    private string currentAuthor = author;
+    private bool sending;
+    private readonly List<Control> inputs = [];
+    private readonly List<HashSet<int>> picked = [];
+    private readonly List<TextBox?> others = [];
+    private readonly List<List<(int Index, Button Button)>> optionButtons = [];
+    private readonly TextBlock error = SecretCard.CardText("", size: 14, error: true);
+    private TextBlock? title;
+    private Button? send;
+    private MachineRequest Request => current!.Request!;
+    private bool Immediate => current is { Request: { } r } && r.AskedOf().Length == 1 && !r.AskedOf()[0].MultiSelect;
+    internal static bool IsCard(MachineEvent machine) => machine.Request is not null && machine.View is "question" or "approval";
+    internal bool Sending => sending;
+
+    public void Update(MachineEvent machine, string sender)
+    {
+        if (current?.Request is { } old && machine.Request is { } now && old.Key() == now.Key() && old.Fingerprint() == now.Fingerprint() && current.Tool == machine.Tool)
+        {
+            current = machine; currentAuthor = sender; title!.Text = Heading; return;
+        }
+        current = machine; currentAuthor = sender; Children.Clear(); inputs.Clear(); picked.Clear(); others.Clear(); optionButtons.Clear(); send = null;
+        var request = Request;
+        var header = (StackPanel)SecretCard.CardTitle(RequestIcons.List, Heading); title = (TextBlock)header.Children[1];
+        Children.Add(header);
+        if (machine.View == "approval") DrawApproval(machine, request); else DrawQuestions(request);
+        error.IsVisible = (error.Text ?? "").Length != 0;
+        Children.Add(error);
+    }
+    private string Heading => currentAuthor + (current!.View == "approval" ? " · 実行の確認" : " · 選んでほしいこと");
+
+    private void DrawApproval(MachineEvent machine, MachineRequest request)
+    {
+        Children.Add(SecretCard.CardBody(machine.Tool?.Name is { Length: > 0 } name ? name : machine.Title ?? "ツール"));
+        if (machine.Tool?.Summary is { Length: > 0 } summary) Children.Add(SecretCard.CardText(summary, size: 14, muted: true));
+        if (!request.IsPending()) { Closed(request, request.Decision == "allow" ? "許可しました" : request.Decision == "deny" ? "拒否しました" : null); return; }
+        var allow = MacUi.Prominent("許可", () => _ = AnswerAsync(null, "allow")); var deny = MacUi.Bordered("拒否", () => _ = AnswerAsync(null, "deny"));
+        allow.Margin = new Thickness(0, 0, 8, 0); inputs.Add(allow); inputs.Add(deny);
+        Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Children = { allow, deny } });
+    }
+
+    private void DrawQuestions(MachineRequest request)
+    {
+        for (var i = 0; i < request.AskedOf().Length; i++)
+        {
+            var question = request.AskedOf()[i];
+            if (question.Header is { Length: > 0 } head) Children.Add(SecretCard.CardText(head, size: 13, muted: true));
+            Children.Add(SecretCard.CardBody(question.Question));
+            if (request.IsPending()) DrawChoices(i, question); else if (request.AnswerLine(i) is { Length: > 0 } line) Children.Add(SecretCard.CardStatus(Icons.Check, "回答: " + line, strong: true));
+        }
+        if (!request.IsPending()) { Closed(request, null); return; }
+        if (!Immediate)
+        {
+            send = MacUi.Prominent("送る", () => _ = AnswerAsync(Collect(), null)); send.Margin = new Thickness(0, 12, 0, 0); send.IsEnabled = false; inputs.Add(send);
+            Children.Add(send);
+        }
+    }
+
+    private void DrawChoices(int i, MachineQuestion question)
+    {
+        picked.Add([]); optionButtons.Add([]);
+        var choices = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        foreach (var option in question.Options)
+        {
+            var label = new StackPanel { Children = { new TextBlock { Text = option.Label, FontSize = 14, TextWrapping = TextWrapping.Wrap } } };
+            if (option.Description is { Length: > 0 } description) label.Children.Add(new TextBlock { Text = description, FontSize = 12, Foreground = BellTheme.Muted, TextWrapping = TextWrapping.Wrap, MaxWidth = 360 });
+            var button = new Button { Classes = { "plain" }, Content = label, Padding = new Thickness(14, 6), CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 8, 8), HorizontalContentAlignment = HorizontalAlignment.Left };
+            AutomationProperties.SetName(button, option.Label);
+            var index = option.Index;
+            button.Click += (_, _) => Choose(i, question, index);
+            optionButtons[i].Add((index, button)); choices.Children.Add(button); inputs.Add(button);
+        }
+        Children.Add(choices);
+        if (question.AllowOther)
+        {
+            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, FontSize = 14, Padding = new Thickness(8, 6), PlaceholderText = "その他（文章で答える）", PlaceholderForeground = BellTheme.Muted, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
+            ScrollViewer.SetVerticalScrollBarVisibility(other, ScrollBarVisibility.Auto);
+            other.OnText(() => { if (!question.MultiSelect && !string.IsNullOrWhiteSpace(other.Text)) { picked[i].Clear(); Paint(i); } Refresh(); });
+            inputs.Add(other); others.Add(other);
+            if (Immediate)
+            {
+                var sendOther = MacUi.Bordered("送る", () => _ = AnswerAsync(Collect(), null)); sendOther.VerticalAlignment = VerticalAlignment.Bottom; sendOther.IsEnabled = false; sendOther.Margin = new Thickness(8, 0, 0, 0); send = sendOther; inputs.Add(sendOther);
+                DockPanel.SetDock(sendOther, Dock.Right);
+                Children.Add(new DockPanel { Margin = new Thickness(0, 4, 0, 0), Children = { sendOther, other } });
+            }
+            else { other.Margin = new Thickness(0, 4, 0, 0); Children.Add(other); }
+        }
+        else others.Add(null);
+        Paint(i);
+    }
+
+    // Immediate mode answers at the press; otherwise a press only picks (single: replaces, multi: toggles).
+    private void Choose(int i, MachineQuestion question, int index)
+    {
+        if (sending) return;
+        if (Immediate) { picked[i].Clear(); picked[i].Add(index); _ = AnswerAsync(Collect(), null); return; }
+        if (!picked[i].Remove(index)) { if (!question.MultiSelect) { picked[i].Clear(); if (others[i] is { } text) text.Text = ""; } picked[i].Add(index); }
+        Paint(i); Refresh();
+    }
+    private void Paint(int i)
+    {
+        foreach (var (index, button) in optionButtons[i])
+        {
+            var on = picked[i].Contains(index);
+            button.Background = on ? BellTheme.ProminentFill : BellTheme.ButtonFill; button.Foreground = on ? Brushes.White : BellTheme.Ink;
+            if (button.Content is StackPanel panel) foreach (var line in panel.Children.OfType<TextBlock>().Skip(1)) line.Foreground = on ? Brushes.White : BellTheme.Muted;
+        }
+    }
+    private bool Ready => picked.Select((set, i) => set.Count != 0 || !string.IsNullOrWhiteSpace(others[i]?.Text)).All(ok => ok);
+    private void Refresh() { if (send is not null) send.IsEnabled = !sending && Ready; }
+    private MachineAnswer[] Collect() => picked.Select((set, i) => new MachineAnswer { Indexes = set.OrderBy(n => n).ToArray(), Other = string.IsNullOrWhiteSpace(others[i]?.Text) ? null : others[i]!.Text }).ToArray();
+
+    private void Closed(MachineRequest request, string? decision)
+    {
+        if (request.Status == "answered") Children.Add(SecretCard.CardStatus(Icons.Check, decision is null ? "回答しました" : decision, strong: true));
+        else Children.Add(SecretCard.CardStatus(Icons.Close, "メンバーはこの確認を待っていません"));
+    }
+
+    private async Task AnswerAsync(MachineAnswer[]? answers, string? decision)
+    {
+        if (sending) return;
+        sending = true; foreach (var control in inputs) control.IsEnabled = false; error.Text = ""; error.IsVisible = false;
+        try
+        {
+            var reply = await workspace.AnswerSeatRequestAsync(Request.Key(), answers, decision);
+            var done = Request with { Status = reply.Status, Answers = answers ?? [], Decision = decision };
+            Update(current! with { Request = done }, currentAuthor);
+        }
+        catch (BellApiException refused) when (refused.Code is "REQUEST_NOT_PENDING" or "SEAT_REQUEST_CLOSED")
+        {
+            Update(current! with { Request = Request with { Status = "expired" } }, currentAuthor);
+        }
+        catch (Exception exception) { error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + exception.Message; error.IsVisible = true; }
+        finally { sending = false; if (Request.IsPending()) { foreach (var control in inputs) control.IsEnabled = true; Refresh(); } }
+    }
+}
+
+// What the card needs of a request beyond the Core record (Core owns the shape; the row names it request_id, the answer route id).
+internal static class MachineRequestExtensions
+{
+    public static string Key(this MachineRequest request) => request.RequestId ?? request.Id ?? "";
+    public static bool IsPending(this MachineRequest request) => request.Status == "pending";
+    // Arrays compare by reference, so the card compares this to know whether the request changed.
+    public static string Fingerprint(this MachineRequest request) => string.Join("|", request.Status, request.Decision, string.Join(",", (request.Answers ?? []).Select(a => string.Join("+", a.Indexes) + ":" + a.Other)), string.Join(",", request.AskedOf().Select(q => q.Question)));
+    // The labels the Owner chose for question i, then the free text (the card's 「回答」 line).
+    public static string AnswerLine(this MachineRequest request, int i) => request.Answers is { } answers && i < answers.Length && i < request.AskedOf().Length
+        ? string.Join("、", answers[i].Indexes.Select(n => request.AskedOf()[i].Options.FirstOrDefault(o => o.Index == n)?.Label).Append(answers[i].Other).Where(label => !string.IsNullOrEmpty(label))) : "";
+    public static MachineQuestion[] AskedOf(this MachineRequest request) => request.Questions ?? [];
+}

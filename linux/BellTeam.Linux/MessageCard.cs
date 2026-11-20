@@ -48,6 +48,8 @@ public sealed class MessageCard : ContentControl
     private TextBlock? peerLabel;
     private SecretCard? secret;
     private QuestionCard? question;
+    private MachineRequestCard? machineCard;
+    private TextBlock? foldLabel;
     private Border? bubble;
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center };
@@ -121,10 +123,15 @@ public sealed class MessageCard : ContentControl
         {
             messageId = message.Id; layout = null;
             if (message.Kind == "peer") BuildPeer(message);
+            else if (message.MachineEvent is { } card && MachineRequestCard.IsCard(card)) BuildMachineCard();
+            else if (message.MachineEvent is { Display: "fold" }) BuildFold();
             else if (message.SecretRequest is not null || message.OwnerQuestion is not null) BuildRequest(message);
             else BuildRow(message);
         }
+        IsVisible = message.MachineEvent is not { Display: "hide" };
         if (layout is not null) UpdateRow(message);
+        else if (machineCard is not null) machineCard.Update(message.MachineEvent!, MachineName(message));
+        else if (foldLabel is not null) foldLabel.Text = message.Message ?? "";
         else if (secret is not null || question is not null) UpdateRequest(message);
         else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
     }
@@ -143,6 +150,21 @@ public sealed class MessageCard : ContentControl
         button.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowPeerSheet(Message);
         Content = button; peerLabel = label;
     }
+
+    // A machine seat's question or approval (machine-stream.md): the same white card as an owner question, drawn from the entry.
+    private void BuildMachineCard()
+    {
+        var card = new Border { Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20) };
+        machineCard = new MachineRequestCard(workspace, workspace.Title); card.Child = machineCard;
+        Content = new CappedRow { Child = card, HorizontalAlignment = HorizontalAlignment.Left };
+    }
+    // A folded entry (a tool call and its result and the like): one muted line.
+    private void BuildFold()
+    {
+        foldLabel = new TextBlock { FontSize = 13, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        Content = new CappedRow { Child = new Border { Padding = new Thickness(5, 0), Child = foldLabel }, HorizontalAlignment = HorizontalAlignment.Left };
+    }
+    private string MachineName(TimelineMessage message) => message.Sender?.Title ?? workspace.Title;
 
     private void BuildRequest(TimelineMessage message)
     {
@@ -230,7 +252,7 @@ public sealed class MessageCard : ContentControl
         var hasStack = urls.Length > 1;
         // A forwarded or shared row: the Owner's comment in the bubble's own text, the content as a quoted block (forward.md "History").
         var origin = message.Origin is { Kind.Length: > 0 } known ? known : null;
-        var (text, content) = origin is null ? (message.Message ?? "", "") : Timeline.OriginParts(message);
+        var (text, content) = origin is null ? (message.MachineEvent is { Text.Length: > 0 } machine ? machine.Text : message.Message ?? "", "") : Timeline.OriginParts(message);
         var reply = Timeline.ReplyLabel(message, isRoom, workspace.MemberName);
         var quote = message.ReplyTo;
         var hasBubble = !hasStack || text.Length != 0 || content.Length != 0 || reply is not null || quote is not null || origin is not null;
