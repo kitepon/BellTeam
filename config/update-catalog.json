@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T08:10:05Z",
-  "expiresAt": "2026-11-27T08:10:05Z",
+  "publishedAt": "2026-11-20T08:22:45Z",
+  "expiresAt": "2026-11-27T08:22:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
-      "versionId": "69d43773be6f0a2123b3b08a492102f95f1e940e0fabeeec28ff1a3cfc9c4ffc",
+      "sourceCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82",
+      "versionId": "65b4c06f844699ac1b61e2a855254d0be3d5c738cf48450e9383241a9d2b5450",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz",
-          "bytes": 3922972,
-          "sha256": "69d43773be6f0a2123b3b08a492102f95f1e940e0fabeeec28ff1a3cfc9c4ffc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-amd64.tar.gz",
+          "bytes": 3924835,
+          "sha256": "65b4c06f844699ac1b61e2a855254d0be3d5c738cf48450e9383241a9d2b5450"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11221,
-          "sha256": "a96e40136f400ab8f44a0f285d5f8f649f5799c0b15d010e37264b8e23bb0131"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "cdd5947aa60e2d91c78bac57d6c5332bfd083cb77e6119e69db2ca7b654b1427"
         },
-        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
+        "signerCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,14 +232,13 @@
         }
       },
       "changes": [
-        "メッセージを、ほかのBotや部屋へ転送できるようになりました。転送した発言には、転送元が分かる印が付きます。",
-        "転送では、元の発言の画像もいっしょに送れます。ほかのアプリから共有された文章・画像・ファイルも受け取れます。"
+        "ルームへの投稿が、Throughline の会話文脈を読めない時にも失敗しなくなりました。もう一度読み直し、それでも読めなければ、その発言だけを文脈にして続けます。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "959330bdb87d3044f30a5c468db8888b288dd59d",
-      "versionId": "d42b65a2663572006ab2db5dee9bfaa2ea1760b29a59e5de84a0ebcff9b5975e",
+      "sourceCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82",
+      "versionId": "821641860efab5d473cf10d5c09d8be72ce5a8b98504c43ed6afed26b80f259b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -247,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz",
-          "bytes": 3922972,
-          "sha256": "d42b65a2663572006ab2db5dee9bfaa2ea1760b29a59e5de84a0ebcff9b5975e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-arm64.tar.gz",
+          "bytes": 3924835,
+          "sha256": "821641860efab5d473cf10d5c09d8be72ce5a8b98504c43ed6afed26b80f259b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T151658Z/conversation-959330bdb87d3044f30a5c468db8888b288dd59d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "834dda29b2c7b570b78a132aee347014ddb4c2b7dffc83350473abceb66aba9e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11002,
+          "sha256": "246a69e99e1d444708a9abf8e0c2d4ad139d59099d74f6920bc0dbaa6f14023e"
         },
-        "signerCommit": "959330bdb87d3044f30a5c468db8888b288dd59d"
+        "signerCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -287,8 +286,7 @@
         }
       },
       "changes": [
-        "メッセージを、ほかのBotや部屋へ転送できるようになりました。転送した発言には、転送元が分かる印が付きます。",
-        "転送では、元の発言の画像もいっしょに送れます。ほかのアプリから共有された文章・画像・ファイルも受け取れます。"
+        "ルームへの投稿が、Throughline の会話文脈を読めない時にも失敗しなくなりました。もう一度読み直し、それでも読めなければ、その発言だけを文脈にして続けます。"
       ]
     },
     {
