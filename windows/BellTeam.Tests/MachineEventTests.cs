@@ -121,6 +121,26 @@ public sealed class MachineEventTests
         });
     }
 
+    // a471-tune-answer: only a words row the server marked bubble:true is a bubble; the mark arrives later on the same row id, which redraws the card.
+    [Fact]
+    public void AWordsRowMarkedBubbleIsAnOrdinaryBubbleWithMarkdownAndOthersStayPlainLines()
+    {
+        RunSta(() =>
+        {
+            using var workspace = new Workspace();
+            TimelineMessage Words(string mark) => Row("{\"id\":\"me-20-0\",\"kind\":\"machine_event\",\"direction\":\"incoming\",\"at\":\"2026-11-20T11:00:00Z\",\"message\":\"words: **強調**です\",\"sender\":{\"id\":\"bot-a\",\"name\":\"ベル\"},\"machine_event\":{\"seq\":20,\"part\":0,\"view\":\"words\",\"display\":\"show\",\"text\":\"**強調**です\"" + mark + "}}");
+            var card = new MessageCard { Workspace = workspace, Message = Words("") };
+            Assert.Single(LogicalTree.Find<MachineEntry>(card)); Assert.Empty(LogicalTree.Find<MarkdownView>(card));
+            card.Message = Words(",\"bubble\":false");
+            Assert.Single(LogicalTree.Find<MachineEntry>(card));
+            card.Message = Words(",\"bubble\":true");
+            Assert.Empty(LogicalTree.Find<MachineEntry>(card));
+            var document = LogicalTree.Find<MarkdownView>(card).First().Document;
+            var shown = new System.Windows.Documents.TextRange(document.ContentStart, document.ContentEnd).Text;
+            Assert.Contains("強調", shown); Assert.DoesNotContain("**", shown);
+        });
+    }
+
     private static void Press(ToggleButton button) { button.IsChecked = !button.IsChecked; button.RaiseEvent(new System.Windows.RoutedEventArgs(ButtonBase.ClickEvent)); }
 
     private static void RunSta(Action action)
