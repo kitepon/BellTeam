@@ -162,6 +162,15 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     renderTail(items)
     scrollToBottom()
     loadStoredMessageImages(items, item => rerenderItem(item.id, token))
+    await fillViewport(token)
+  }
+
+  // 最新ページが表示領域に収まるとスクロールが起きず前ページが読まれないので、領域が埋まるまで遡る。
+  async function fillViewport(token) {
+    while (token === state.timelineToken && state.timelineHasMore && timeline.clientHeight > 0 && timeline.scrollHeight <= timeline.clientHeight) {
+      const oldest = state.timelineOldestId
+      if (!await readHistory(loadOlderMessages) || oldest === state.timelineOldestId) return
+    }
   }
 
   async function refreshTimelineQueue(token) {
