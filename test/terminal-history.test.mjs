@@ -22,7 +22,7 @@ test('screen reads only its target and logs a failed tick as offline', async t =
   assert.ok(calls.every(c => c.args.session_id === 'fixture'))
   const failure = result = new Error('fixture connection failed')
   const log = t.mock.method(console, 'error', () => {})
-  assert.deepEqual(await transport.screen(bot), { online: false, screen: '' })
+  assert.deepEqual(await transport.screen(bot), { online: false, screen: '', machine: false })
   assert.equal(calls.length, 3)
   assert.deepEqual(log.mock.calls.map(call => call.arguments), [['Screen read failed', failure]])
 })

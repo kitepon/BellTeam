@@ -162,6 +162,29 @@ stateDiagram-v2
 
 Protects: a remote seat must not stop launching because its terminal lacks the newer Aiterm or has not answered Code Mode's one-time confirm (give-up-is-a-guard). `launchWithCodeMode` is the only place that reads the two refusal names (the error code, `aitermErrorCode`, `launchRefusal.code` or the message). The credential of the first launch is reused: Aiterm refuses before any value is sent (too old) or closed the seat it created itself (blocked). Self-exit: the notice (`RemoteSeats.codeModeSkipped`: names the terminal and the one step, update Aiterm or answer the Code Mode screen once) is cleared by the next successful launch (`RemoteSeats.launched`), and that launch carries `settings_env` again. Elegg's a442h (Aiterm answers exactly that confirm when this `settings_env` was passed) removes the second cause with no change here.
 
+## Claude machine mode (a471, Tronie plan contracts 1-3 and ruling, 2026-11-20)
+
+Plan: /srv/bellteam/bots/bot-7b140b27/docs/plan_claude-machine-interface-20261120.md. The unmodified `claude` runs as `claude -p` with JSON lines (Aiterm's Claude adapter, Elegg). BellTeam does not read the stream and adds no second transport: delivery, steer, turn end, wake, hibernate, restart and account failover are the same calls in both modes.
+
+One switch, one place: `claudeLaunch(bot, harness)` in `src/aiterm-transport.mjs`, used by `AitermTransport.wakeNow` (main seat, also every wake and resume) and `forkInquiry` (fork seat). It returns Code Mode's `settings_env` as before (Aiterm ignores its effect for a machine seat and keeps it in the resume recipe, so a later TUI wake still has it) and, for a seat the selector names, `interface: 'machine'` (Elegg's contract: optional enum `terminal | machine`, claude-code only; a wake of a hibernated or vanished seat that passes it takes that mode with the same session id; omitted keeps the saved mode). Step 1 selector: the constant `MACHINE_TEST_SEATS` (the Code Mode test seat bot-f1a21da1): no new screen or setting; step 2 (a471-all-container) deletes it and the key goes on every Claude launch, step 3 covers remote seats by the same call. Local and remote seats use the same args.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Launch: agent_launch + settings_env + interface machine (selector seat only)
+  Launch --> Machine: accepted, receipt says interface machine
+  Launch --> Fallback: REMOTE_AITERM_TOO_OLD (remote layer, before any seat) or AGENT_MACHINE_UNAVAILABLE (CLI did not come up in machine mode, Aiterm closed the half-made session)
+  Launch --> OldAiterm: accepted but the receipt has no interface machine (an Aiterm that strips the unknown key started a TUI seat)
+  Fallback --> Tui: ONE more agent_launch without interface (its own single Code Mode fallback applies) + notice MACHINE_MODE_SKIPPED
+  OldAiterm --> Tui: no relaunch (the seat is up); notice MACHINE_MODE_SKIPPED
+  Fallback --> Failed: the second launch also refused: the ordinary launch failure
+  Machine --> [*]: launch record machine true
+  Tui --> [*]: launch record without machine
+```
+
+Protects: a seat must not stop launching because of the new mode (give-up-is-a-guard). `launchWithMachine` is the only place that reads the two refusal names (error code, `aitermErrorCode`, `launchRefusal.code` or the message). Self-exit: the notice is cleared by the next machine launch that Aiterm confirms (`machineNotices` for a local seat, `RemoteSeats` notices for a terminal seat; both are read by `seatLaunch`), and that launch asks for the machine mode again. The receipt is the truth about the mode: `structuredContent.interface: 'machine'` of the launch result (aiterm-mcp 0.70.82, returned only for a machine seat). The launch record (`runtime-launches.json`) carries `machine: true` only for a seat Aiterm confirmed; the Bot screen view reads it (screen-observation.md). A live or hibernated seat is never closed to change mode (contract 4).
+
+Not in BellTeam: the minimum Aiterm version (`MACHINE_INTERFACE_MINIMUM_VERSION = 0.70.82`, Aiterm's constant: a terminal below it refuses with `REMOTE_AITERM_TOO_OLD`; the container's own Aiterm below it strips `interface` silently, which the missing receipt field shows, so BellTeam keeps no version constant of its own), Code Mode inside machine mode (not available in `-p`: the test seat loses it while it runs machine), usage-limit mapping (`rate_limited` as today), asyncRewake and Stop-hook order (Aiterm).
+
 ## Target revision (member terminal/folder change)
 
 Member updates reach the registry by two paths: the HTTP profile PATCH (`administration.update`) and members' MCP `update_bot`/`update_self`, which saves `terminalId`/`projectRoot` straight to the registry without execution. The delivery is the boundary both share, so the move is in `dispatch` (before the send): when the launch record's `target` of the current session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), `dispatch` observes the seat; an idle or absent seat is closed (`pty_close`; a remote close revokes its credential) and woken on the new target through the existing `memberOperation` + `wake`, then the message is sent there. A seat whose turn is running keeps today's delivery (the same rule as the wake-first recovery: never close a running turn); the next delivery moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.

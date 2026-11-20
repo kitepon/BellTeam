@@ -19,6 +19,8 @@
 | `harness-entries (aiterm-setup)` | CLIの設定へ入れるhookの項目 `bellteam.harness-entries.v1` | runtime（モリー、bd14） |
 | `Steer delivery (aiterm-steer-delivery)` | Approval Boxの回答を席へ届ける。約束はSteerの製品正本 | Approval Box（ナユタ） |
 
+機械の口（a471、2026-11-20、エレグの契約）：`agent_launch` の任意の引数 `interface: "terminal" | "machine"`（claude-codeだけ。席の再開・起こし直しでも渡せ、渡した形が保存される）。拒否は `REMOTE_AITERM_TOO_OLD`（席ができる前）と `AGENT_MACHINE_UNAVAILABLE`（半端な席はAitermが閉じる）。BellTeamの使い方・戻し方・画面の `machine` は [remote-seat.md](../execution/remote-seat.md) 「Claude machine mode」。Aitermの図はエレグの正本。
+
 約束しない物：`model-handoff-*`、状態の置き場の中の並び、入れたpackageの中のファイル一覧、子の結果の文の2行目以降。BellTeamはこれらを読まない。今のコードにある直接読込みは bd05・bd06 の切替で置き換える。図は切替後の姿を先に示す。
 
 従来の説明：起動/送信/観測/close/configure/goal・待機/回答、agent_auth、setup/updateと既setup exportを含む。実行と設定適用時機はキロ、登録/席実行はエピネル、認証案内はミカ、会話/履歴はN102、共通契約はトロニー。native本人性・入力・vendor/Steer内部はエレグ。未送信・結果不明・受付と完了を保ち、保存modelだけで実動を証明しない。
