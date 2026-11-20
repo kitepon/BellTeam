@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Text.Json;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using BellTeam.App;
@@ -12,8 +13,14 @@ public sealed class MachineEventTests
 {
     private const string Question = """{"id":"me-7-0","kind":"machine_event","direction":"incoming","at":"2026-11-20T11:00:00Z","message":"question","sender":{"id":"bot-a","name":"ベル"},"machine_event":{"seq":7,"part":0,"launch_id":"l","type":"control_request","subtype":"can_use_tool","view":"question","display":"show","title":"AskUserQuestion","text":"","truncated":false,"request":{"request_id":"r1","status":"pending","questions":[{"header":"方式","question":"どちらにしますか","multiSelect":false,"allowOther":true,"options":[{"index":1,"label":"A","description":"早い"},{"index":2,"label":"B","description":null}]},{"header":null,"question":"足すものは","multiSelect":true,"allowOther":true,"options":[{"index":1,"label":"X","description":null},{"index":2,"label":"Y","description":null}]}]}}}""";
     private static TimelineMessage Row(string json = Question) => JsonSerializer.Deserialize<TimelineMessage>(json, BellApi.Json)!;
-    private static TimelineMessage Event(string id, string view, string display, string? toolId = null, bool elsewhere = false) =>
-        Row(Question.Replace("\"me-7-0\"", $"\"{id}\"").Replace("\"view\":\"question\",\"display\":\"show\"", $"\"view\":\"{view}\",\"display\":\"{display}\"{(elsewhere ? ",\"shown_elsewhere\":true" : "")}{(toolId is null ? "" : $",\"tool\":{{\"id\":\"{toolId}\"}}")}"));
+    private static TimelineMessage Event(string id, string view, string display, string? toolId = null, string? group = null, bool elsewhere = false, string text = "", bool truncated = false)
+    {
+        var entry = new Dictionary<string, object?> { ["seq"] = 1, ["view"] = view, ["display"] = display, ["title"] = view, ["text"] = text, ["truncated"] = truncated };
+        if (elsewhere) entry["shown_elsewhere"] = true;
+        if (group is not null) entry["fold_group"] = group;
+        if (toolId is not null) entry["tool"] = new { id = toolId };
+        return Row(JsonSerializer.Serialize(new { id, kind = "machine_event", direction = "incoming", at = "2026-11-20T11:00:00Z", message = view + ": " + text, sender = new { id = "bot-a", name = "ベル" }, machine_event = entry }));
+    }
 
     [Fact]
     public void ReadsTheRowAndTheStoredRequestOfTheAnswerRoute()
@@ -27,11 +34,40 @@ public sealed class MachineEventTests
     }
 
     [Fact]
-    public void HiddenEntriesAreNotDrawnShownElsewhereIsOnlyAHintAndAResultFoldsUnderItsToolUse()
+    public void NothingIsHiddenAResultFoldsUnderItsToolUseAndARunOfOneFoldGroupIsOneLine()
     {
-        var rows = new[] { Event("a", "words", "show"), Event("b", "system", "hide"), Event("c", "words", "show", elsewhere: true), Event("d", "tool_use", "fold", "t1"), Event("e", "tool_result", "fold", "t1"), Event("f", "tool_result", "fold", "t2"), Event("g", "tool_result", "show", "t1") };
-        Assert.Equal(["a", "c", "d", "f", "g"], Timeline.VisibleMachine(rows).Select(m => m.Id));
+        var rows = new[] { Event("a", "words", "show"), Event("b", "system", "hide"), Event("c", "words", "show", elsewhere: true), Event("d", "tool_use", "show", "t1"), Event("e", "tool_result", "fold", "t1", "tool_result"), Event("f", "tool_result", "fold", "t2", "tool_result"), Event("g", "tool_result", "show", "t1"),
+            Event("h1", "hook", "fold", group: "hook"), Event("h2", "hook", "fold", group: "hook"), Event("h3", "hook", "fold", group: "hook"), Event("x", "words", "show"), Event("h4", "hook", "fold", group: "hook") };
+        var shown = Timeline.VisibleMachine(rows);
+        // "hide" is no display: it reads as show. shown_elsewhere is a hint only.
+        Assert.Equal(["a", "b", "c", "d", "f", "g", "h1", "x", "h4"], shown.Select(m => m.Id));
+        Assert.Equal(["e"], shown[3].MachineEvent!.Folded.Select(m => m.Id)); Assert.Equal(["h2", "h3"], shown[6].MachineEvent!.Folded.Select(m => m.Id));
+        // A screen's list folds again to the same lines: Expand is the inverse.
+        Assert.Equal(rows.Select(m => m.Id), Timeline.Expand(shown).Select(m => m.Id));
+        Assert.Equal(shown.Select(m => m.Id), Timeline.VisibleMachine(shown).Select(m => m.Id));
         Assert.False(Timeline.IsQuotable(Row()));
+    }
+
+    [Fact]
+    public void AFoldedLineIsClosedUntilPressedThenShowsTheFullTextAndClosesAgain()
+    {
+        RunSta(() =>
+        {
+            using var workspace = new Workspace();
+            var entry = new MachineEntry(workspace);
+            var rows = Timeline.VisibleMachine([Event("d", "tool_use", "show", "t1"), Event("e", "tool_result", "fold", "t1", "tool_result", text: "line one\nline two")]);
+            entry.Update(rows[0], "ベル");
+            var press = LogicalTree.Find<Button>(entry).Single();
+            UIElement Opened() => (UIElement)((FrameworkElement)LogicalTree.Find<TextBox>(entry).Single().Parent).Parent;
+            Assert.Equal(Visibility.Collapsed, Opened().Visibility);
+            press.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.Equal(Visibility.Visible, Opened().Visibility); Assert.Equal("line one\nline two", LogicalTree.Find<TextBox>(entry).Single().Text);
+            // A redraw of the same row keeps it open.
+            entry.Update(rows[0] with { Message = "again" }, "ベル");
+            Assert.Equal(Visibility.Visible, Opened().Visibility);
+            LogicalTree.Find<Button>(entry).Single().RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.Equal(Visibility.Collapsed, Opened().Visibility);
+        });
     }
 
     [Fact]

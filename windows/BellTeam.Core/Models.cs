@@ -220,8 +220,16 @@ public sealed record MachineEvent
     public string Display { get; init; } = "show";
     public string? Title { get; init; }
     public string Text { get; init; } = "";
+    // The row text was cut; the whole stored line is GET /api/bots/:id/machine-events/:seq.
+    public bool Truncated { get; init; }
     [JsonPropertyName("shown_elsewhere")] public bool ShownElsewhere { get; init; }
+    // The group of a folded entry (its view); consecutive folded entries of one group may share a line.
+    [JsonPropertyName("fold_group")] public string? FoldGroup { get; init; }
     public MachineTool? Tool { get; init; }
+    // There is no hide: a display other than "fold" reads as show (machine-stream.md).
+    public bool IsFolded => Display == "fold";
+    // Never on the wire. Made by Timeline.VisibleMachine: the folded tool_result rows drawn under this tool_use, or the other rows of a run of one fold_group drawn as one line with this entry.
+    [JsonIgnore] public TimelineMessage[] Folded { get; init; } = [];
     public MachineRequest? Request { get; init; }
 }
 public sealed record MachineTool { public string? Id { get; init; } public string? Name { get; init; } public string? Summary { get; init; } }
@@ -245,6 +253,8 @@ public sealed record MachineQuestion
 }
 public sealed record MachineOption { public required int Index { get; init; } public required string Label { get; init; } public string? Description { get; init; } }
 public sealed record MachineAnswer { public int[] Indexes { get; init; } = []; public string? Other { get; init; } }
+// GET /api/bots/:id/machine-events/:seq: the stored raw line, for an entry whose text was cut.
+public sealed record MachineLine { public int Seq { get; init; } public string Line { get; init; } = ""; }
 public sealed record SeatRequestResponse { public required MachineRequest Request { get; init; } }
 public sealed record SecretResponse { public required SecretRequest Request { get; init; } }
 public sealed record QuestionResponse { public required OwnerQuestion Question { get; init; } }
