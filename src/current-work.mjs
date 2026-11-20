@@ -4,6 +4,7 @@ import { mkdir, open } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 import { performance } from 'node:perf_hooks'
+import { baseHarness } from './agent-launch-error.mjs'
 
 // READ_MS: a read in flight younger than this holds the 15 s expiry; the read itself settles the row (current-work.md "read hold").
 const NATIVE_MS = 15_000, SUMMARY_MS = 600_000, READ_MS = 60_000
@@ -230,7 +231,8 @@ export class CurrentWork {
           && turn.event_cursor === null && (turn.interim_from === null || interimStartCursor(turn.interim_from) !== null)
           && turn.wait_process === null)
       const idle = turn?.state === 'idle' && Object.keys(turn).length === 1
-      if (!valid || !HARNESSES.has(row?.harness) || row.harness !== (target.harness ?? 'codex-cli')
+      const kind = baseHarness(row?.harness)
+      if (!valid || !HARNESSES.has(kind) || kind !== (target.harness ?? 'codex-cli')
         || !launch(row?.launch_id) || !running && !idle) {
         this.unknown(record)
         // A fresh valid read without the row: the DTO reads idle until it ages (snapshot); any later unknown() clears it.
@@ -255,7 +257,7 @@ export class CurrentWork {
       if (running) {
         if (active?.sessionId === target.sessionId && active.launchId === row.launch_id) {
           active.observedAt = record.observedAt; void this.saveActivity().catch(() => {})
-        } else this.startedActivity(target.botId, row.harness, target.sessionId, { session_id: target.sessionId, launch_id: row.launch_id })
+        } else this.startedActivity(target.botId, kind, target.sessionId, { session_id: target.sessionId, launch_id: row.launch_id })
       } else if (active?.sessionId === target.sessionId) this.finishedActivity(target.botId, active)
       if (changed) this.changed(record)
       this.expire(record)

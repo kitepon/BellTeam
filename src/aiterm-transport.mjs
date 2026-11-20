@@ -22,7 +22,7 @@ import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
-import { aitermFailureCause } from './agent-launch-error.mjs'
+import { aitermFailureCause, baseHarness } from './agent-launch-error.mjs'
 import { harnessCliWait, harnessCliRefusal, HARNESS_NOT_INSTALLED } from './harness-cli-wait.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { MachineStreamReaders } from './machine-stream-reader.mjs'
@@ -77,26 +77,25 @@ async function launchWithCodeMode(args, call, skipped = () => {}) {
 }
 // a471 (remote-seat.md "Claude machine mode"): step 1 asks Aiterm for the machine launch on the test seat only; a471-all-container deletes the set.
 const MACHINE_TEST_SEATS = new Set(['bot-f1a21da1'])
-// Elegg's contract (a471-aiterm-machine): agent_launch `interface: 'machine'`, claude-code only. Aiterm ignores settings_env's Code Mode for a machine seat
-// (no REPL tool in claude -p, a471-rule item 12) and keeps it in the resume recipe, so the args stay as they are plus this key.
-const MACHINE_KEY = 'interface'
-const claudeLaunch = (bot, harness) => ({ ...codeMode(harness), ...(harness === 'claude-code' && MACHINE_TEST_SEATS.has(bot.id) ? { [MACHINE_KEY]: 'machine' } : {}) })
-// REMOTE_AITERM_TOO_OLD (remote layer, before any seat) or AGENT_MACHINE_UNAVAILABLE (the CLI did not come up in machine mode; Aiterm closed the half-made session).
-const machineRefusal = error => refusalName(error, ['REMOTE_AITERM_TOO_OLD', 'AGENT_MACHINE_UNAVAILABLE'])
-// aiterm-mcp >= 0.70.82 (MACHINE_INTERFACE_MINIMUM_VERSION) returns structuredContent.interface:'machine' for a seat that really started that way;
-// an older Aiterm strips the unknown key silently and sends none, so the receipt is the version gate too.
-const machineReceipt = launch => launch?.structuredContent?.interface === 'machine'
-// One more launch without `interface` (the TUI), never a loop; `machineSkipped(name)` tells the caller which refusal it was.
+// a471-switch-harness (Elegg a471-harness-split): machine mode is Aiterm's own harness. The member's harness stays claude (HARNESS maps it to claude-code);
+// only the harness of the launch call changes. settings_env's Code Mode stays in the args (kept in the resume recipe for a later TUI wake).
+const MACHINE_HARNESS = 'claude-machine'
+const claudeLaunch = (bot, harness) => ({ ...codeMode(harness), ...(harness === 'claude-code' && MACHINE_TEST_SEATS.has(bot.id) ? { harness: MACHINE_HARNESS } : {}) })
+const isMachineLaunch = args => args.harness === MACHINE_HARNESS
+// REMOTE_AITERM_TOO_OLD (a terminal below 0.70.85, before anything is sent), AGENT_MACHINE_UNAVAILABLE (the CLI did not come up in machine mode; Aiterm closed the half-made session)
+// or AGENT_HARNESS_UNAVAILABLE (the container's Aiterm does not list the harness: AitermClient's probe, nothing was sent).
+const machineRefusal = error => refusalName(error, ['REMOTE_AITERM_TOO_OLD', 'AGENT_MACHINE_UNAVAILABLE', 'AGENT_HARNESS_UNAVAILABLE'])
+const machineReceipt = launch => launch?.structuredContent?.harness === MACHINE_HARNESS
+// One more launch with the member's own harness (the TUI), never a loop; `machineSkipped(name)` tells the caller which refusal it was.
 // The second launch keeps its own single Code Mode fallback.
 async function launchWithMachine(args, call, codeModeSkipped = () => {}, machineSkipped = () => {}) {
-  if (!(MACHINE_KEY in args)) return launchWithCodeMode(args, call, codeModeSkipped)
-  // The first call keeps a442b's Code Mode fallback (an Aiterm that strips the key can still hit Code Mode's first-start confirm).
+  if (!isMachineLaunch(args)) return launchWithCodeMode(args, call, codeModeSkipped)
+  // The first call keeps a442b's Code Mode fallback (a remote Aiterm can still hit Code Mode's first-start confirm).
   try { return await launchWithCodeMode(args, call, codeModeSkipped) } catch (error) {
     const name = machineRefusal(error)
     if (!name) throw error
     process.stderr.write(`BellTeam Aiterm: machine launch refused (${name}), launching the old way: ${args.session_name}\n`)
-    const { [MACHINE_KEY]: machine, ...plain } = args
-    const launched = await launchWithCodeMode(plain, call, codeModeSkipped)
+    const launched = await launchWithCodeMode({ ...args, harness: 'claude-code' }, call, codeModeSkipped)
     machineSkipped(name)
     return launched
   }
@@ -510,10 +509,10 @@ export class AitermTransport {
       if (remote && codeModeSkipped) this.remoteSeats.codeModeSkipped(bot, codeModeSkipped)
       // remote-seat.md "Claude machine mode": the fallback shows the plain notice; the next machine launch clears it.
       // An Aiterm that strips the unknown key starts a TUI seat and sends no receipt field: the same notice as a too-old terminal.
-      if (MACHINE_KEY in launchArgs && !machineSkipped && !machineReceipt(launch)) machineSkipped = 'REMOTE_AITERM_TOO_OLD'
+      if (isMachineLaunch(launchArgs) && !machineSkipped && !machineReceipt(launch)) machineSkipped = 'REMOTE_AITERM_TOO_OLD'
       if (machineSkipped) this.machineNotice(bot, machineSkipped)
       else this.machineNotices.delete(bot.id)
-      machineLaunched = MACHINE_KEY in launchArgs && !machineSkipped
+      machineLaunched = isMachineLaunch(launchArgs) && !machineSkipped
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
       // a451 N5: a local launch Aiterm answered with a failure while usage says installed: the CLI may be gone, so usage looks again once.
@@ -634,7 +633,9 @@ export class AitermTransport {
       // The seat's login proof follows the token this resume really carries, so a later E6 signs that token out (not 'stale').
       const claudeLogin = reference.harness === 'claude-code' && this.claudeAccountBot(bot) ? this.accounts.seatSlot(bot.id) ?? '1st' : null
       const stamp = claudeLogin ? await this.accounts.stamp('claude', claudeLogin) : null
-      const result = await this.changeSession(bot, 'agent_launch', { harness: reference.harness, cwd: bot.project,
+      // remote-seat.md "Claude machine mode": a restart never changes a seat's mode; the launch record says which harness it woke with.
+      const machine = reference.harness === 'claude-code' && (await this.readRuntimeLaunches())[reference.sessionId]?.machine === true
+      const result = await this.changeSession(bot, 'agent_launch', { harness: machine ? MACHINE_HARNESS : reference.harness, cwd: bot.project,
         session_name: reference.sessionId, require_existing_resume: true }, { ...options, ...(claudeLogin ? { claudeLogin } : {}) })
       if (claudeLogin) await this.accounts.setSeat(bot.id, claudeLogin, stamp).catch(() => {})
       this.membersAdmission.assertLease(membersLease)
@@ -644,6 +645,7 @@ export class AitermTransport {
         || receipt.startup?.status !== 'ready' || receipt.initial_prompt?.status !== 'not_requested')
         await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
       this.seatHarnesses.set(bot.id, { session: reference.sessionId, harness: reference.harness })
+      if (machine) this.machineStreams.start(bot, reference.sessionId)
       if (resumedRunningFastKept(this.resolveBot?.(bot.id) ?? bot, receipt)) this.refastAfterResume(bot, reference.sessionId)
       if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
       return { sessionId: receipt.session_id, resumedAt: this.now() }
@@ -2364,7 +2366,7 @@ export class AitermTransport {
     if (!Array.isArray(listed)) throw Object.assign(new Error('AITERM_SESSIONS_UNAVAILABLE'), { code: 'AITERM_SESSIONS_UNAVAILABLE' })
     const ends = new Map(), suffix = new RegExp(`^(.+)-(?:${ACCOUNT_SLOTS.join('|')})-[a-z0-9]+$`, 'u')
     for (const seat of listed) {
-      if (seat?.harness !== 'claude-code' || typeof seat.session_id !== 'string' || !('limit_end' in seat)) continue
+      if (baseHarness(seat?.harness) !== 'claude-code' || typeof seat.session_id !== 'string' || !('limit_end' in seat)) continue
       const botId = suffix.exec(seat.session_id)?.[1] ?? seat.session_id
       if (!this.claudeAccountBot(this.resolveBot?.(botId))) continue
       ends.set(botId, [...(ends.get(botId) ?? []), { session: seat.session_id, lastInputAt: seat.last_input_at ?? null, end: seat.limit_end ?? null }])
