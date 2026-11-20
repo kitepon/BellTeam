@@ -240,6 +240,22 @@ public sealed class ScreenInputTests
         Assert.Equal(1, seen.Count(path => path.EndsWith("?history=1", StringComparison.Ordinal)));
     }
 
+    [Theory]
+    [InlineData("""{"online":true,"screen":"x","machine":true}""", true)]
+    [InlineData("""{"online":true,"screen":"x","machine":false}""", false)]
+    [InlineData("""{"online":true,"screen":"x"}""", false)]
+    public async Task ScreenMachineFollowsTheAnswerAndAnAnswerWithoutTheFieldIsATerminalSeat(string answer, bool machine)
+    {
+        using var workspace = Screens(request => request.RequestUri!.AbsolutePath.EndsWith("/approval", StringComparison.Ordinal) ? StubHandler.Json("""{"status":"none"}""") : StubHandler.Json(answer), []);
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        await workspace.SelectAsync(workspace.Entries.Single(item => !item.Target.IsRoom));
+        Assert.False(workspace.ScreenMachine);
+        var run = workspace.OpenScreenAsync();
+        await workspace.ScreenFirstRead.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(machine, workspace.ScreenMachine);
+        workspace.ReturnToProfile(); await run;
+    }
+
     [Fact]
     public async Task ApprovalIsReadOnEveryRefreshEvenAfterItFailed()
     {
