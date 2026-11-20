@@ -54,7 +54,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [ImagePayload / SendMessageBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L492) | 本文・画像・ルーム宛先の送信body |
 | [SecretRequest / SecretRequestResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L503) | 秘密入力要求の状態と結果。`botId`はnil可（端末の鍵）、`purpose`・`inputOptions`は省略可。同じ箇所の`SecretInputOptions`（1Passwordを先に開くか）と`SecretSubmission`（保存値 / 1Password参照のbody） |
 | [OwnerQuestion / OwnerAnswerBody / OwnerQuestionResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L516) | 選択質問・回答要求・結果 |
-| [MachineEvent / MachineRequest / MachineQuestion / MachineAnswer / MachineAnswerBody / MachineAnswerResult](../../../../ios/BellBot/BellBot/Core/MachineEvent.swift) | 機械席の行（`TimelineMessage.machineEvent`）・質問/許可の要求・回答body・結果（a471）。アプリは`view`だけで描く |
+| [MachineEvent / MachineRequest / MachineQuestion / MachineAnswer / MachineAnswerBody / MachineAnswerResult / MachineRawLine / `[TimelineMessage].machineFolded`](../../../../ios/BellBot/BellBot/Core/MachineEvent.swift) | 機械席の行（`TimelineMessage.machineEvent`）・質問/許可の要求・回答body・結果（a471）。アプリは`view`だけで描く |
 | [EmptyBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L533) | AppStore.restartConversationの再起動要求の空JSON値 |
 
 ## Core/AppStore.swift
@@ -394,7 +394,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellBot/Views/LoginView.swift](../../../../ios/BellBot/BellBot/Views/LoginView.swift) | ServerSetupView、LoginView、WKWebViewのCloudflareLoginView。URL入力・Web完了通知 |
 | [BellBot/Views/MessageText.swift](../../../../ios/BellBot/BellBot/Views/MessageText.swift) | EnrichedMarkdown本文、prerender、theme、部分選択、リンク、末尾余白 |
 | [BellBot/Views/OnboardingView.swift](../../../../ios/BellBot/BellBot/Views/OnboardingView.swift) | 初回AI選択・typed認証・guide開始・3秒poll |
-| [BellBot/Views/MachineEventView.swift](../../../../ios/BellBot/BellBot/Views/MachineEventView.swift) | MachineEventRow（view別の行）、MachineRequestCardState/Card（質問の選択・許可/拒否・回答POST） |
+| [BellBot/Views/MachineEventView.swift](../../../../ios/BellBot/BellBot/Views/MachineEventView.swift) | MachineEventRow（view別の行）、MachineFoldState/Line（畳み行の1行表示・開閉・全文）、MachineRequestCardState/Card（質問の選択・許可/拒否・回答POST） |
 | [BellBot/Views/OwnerQuestionView.swift](../../../../ios/BellBot/BellBot/Views/OwnerQuestionView.swift) | OwnerQuestionCardState/Card、回答、FlowButtons/FlowLayout |
 | [BellBot/Views/SchedulesView.swift](../../../../ios/BellBot/BellBot/Views/SchedulesView.swift) | ScheduleRefreshState、一覧・対象差分・CRUD/run、ScheduleEditorの頻度/宛先。既存[予定一覧図](schedule-list.md)を再利用 |
 | [BellBot/Views/SecretRequestView.swift](../../../../ios/BellBot/BellBot/Views/SecretRequestView.swift) | 秘密要求カード状態、SecretInputSheetの入力方法（1Password参照が先・保存値が代替。SSH鍵・sudoは1Passwordの一覧から検索して選ぶ・旧本体は貼り付け・入力へ）・submit/cancel・値と参照の消去 |
