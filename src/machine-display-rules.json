@@ -12,7 +12,7 @@
   "rate_limit": "fold",
   "control": "fold",
   "unknown": "fold",
-  "fold_group": { "hook": "background", "rate_limit": "background", "system": "background", "control": "background" },
+  "fold_group": { "hook": "background", "rate_limit": "background", "system": "background", "control": "background", "result": "background", "unknown": "background" },
   "refine": [
     {
       "view": "thinking",

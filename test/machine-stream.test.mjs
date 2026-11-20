@@ -258,13 +258,13 @@ test('an answer in flight is not closed by the envelope the seat sends once it t
   assert.deepEqual([ms.get('r1').status, ms.get('r2').status], ['answered', 'expired'])
 })
 
-test('hook rows and the rate_limit / system / control lines between them share one fold group; other folded kinds keep their own', async t => {
+test('hook rows, the rate_limit / system / control lines between them and the end-of-turn result / unknown lines share one fold group; tool_result keeps its own', async t => {
   const { ms } = await service(t)
   const lines = [{ type: 'system', subtype: 'hook_started', hook_name: 'PreToolUse:AskUserQuestion' }, { type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } },
     { type: 'system', subtype: 'hook_response', hook_name: 'PreToolUse:AskUserQuestion' }, { type: 'system', subtype: 'init', model: 'm', tools: [] }, { type: 'control_response', response: { request_id: 'c' } },
-    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] } }, { type: 'result', subtype: 'success' }, { type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }]
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] } }, { type: 'result', subtype: 'success' }, { type: 'command_lifecycle', phase: 'x' }, { type: 'system', subtype: 'hook_response', hook_name: 'Stop' }, { type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }]
   await ms.ingest(env(lines.map(J), null, 'L1:1'))
   const rows = ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event)
-  assert.deepEqual(rows.map(e => e.fold_group), ['background', 'background', 'background', 'background', 'background', 'tool_result', 'result', undefined]) // a shown rejected limit has no group and breaks the run
+  assert.deepEqual(rows.map(e => e.fold_group), ['background', 'background', 'background', 'background', 'background', 'tool_result', 'background', 'background', 'background', undefined]) // a shown rejected limit has no group and breaks the run
   assert.equal(new MachineStream({ root: '/x', bots, streamSend: async () => ({}), rules: { hook: 'fold' } }).row(ms.bot('bot-d'), 'bot-d', { seq: 1, at: 'a', launch_id: 'L' }, 0, project(J(lines[0]))[0]).machine_event.fold_group, 'hook') // no fold_group in the table: the view itself
 })
