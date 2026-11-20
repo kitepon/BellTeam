@@ -532,10 +532,18 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .machine-option[aria-pressed="true"] .machine-option-label::before { content: '✓ '; }
 .machine-option:disabled, .machine-send:disabled { opacity: .5; cursor: default; }
 .machine-send { margin-top: 12px; padding: 10px 24px; border: 0; border-radius: 12px; background: #5843b7; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-.machine-line { margin: 6px auto; max-width: 620px; color: #929298; font-size: 13px; }
+.machine-line { margin: 4px auto; max-width: 620px; color: #929298; font-size: 13px; }
 .machine-line summary { cursor: pointer; overflow-wrap: anywhere; }
 .machine-line pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 10px; background: #f3f3f5; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
-.machine-thinking { margin: 6px auto; max-width: 620px; color: #929298; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.machine-line pre:empty { display: none; }
+.machine-fold.view-tool_result { margin-top: 0; padding-left: 14px; border-left: 2px solid #e4e4e8; }
+.machine-group > .machine-fold { margin-left: 14px; }
+.machine-more { margin-top: 6px; padding: 6px 12px; border: 0; border-radius: 10px; background: #eee9fb; color: #5843b7; font: inherit; font-weight: 700; cursor: pointer; }
+.machine-use { margin: 8px auto 0; max-width: 620px; display: flex; gap: 8px; align-items: baseline; color: #55555b; font-size: 13px; }
+.machine-use code { min-width: 0; overflow-wrap: anywhere; color: #77777d; font-size: 12px; }
+.machine-show { margin: 8px auto; max-width: 620px; color: #29263b; white-space: pre-wrap; overflow-wrap: anywhere; }
+.machine-note { margin: 6px auto; max-width: 620px; color: #77777d; font-size: 13px; overflow-wrap: anywhere; }
+.machine-thinking { margin: 6px auto; max-width: 620px; color: #929298; font-size: 13px; font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere; }
 .secret-request { max-width: 460px; padding: 20px; border: 1px solid #d6d0ee; border-radius: 20px; background: #faf8ff; color: #29263b; }
 .secret-request p, .secret-dialog p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .secret-label, .secret-note { font-size: 13px; color: #676076; }
