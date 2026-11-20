@@ -29,13 +29,20 @@ final class MachineEventTests: XCTestCase {
         XCTAssertFalse(message.isForwardable)
     }
 
+    func testBubbleIsReadFromTheFieldOnlyAndOnlyForWords() throws {
+        func words(_ extra: [String: Any]) -> [String: Any] { ["seq": 1, "view": "words", "display": "show", "text": "**全文**", "truncated": false].merging(extra) { $1 } }
+        let rows = try decode([row("a", words(["bubble": true])), row("b", words([:])), row("c", words(["bubble": "yes"])),
+                               row("d", words(["bubble": true, "view": "tool_use"]))])
+        XCTAssertEqual(rows.map { $0.machineEvent?.isBubble }, [true, false, false, false])
+    }
+
     func testMalformedEventShowsAsUnknownAndDoesNotBreakTheRow() throws {
         let message = try decode([row("me-2-0", ["view": 5, "request": ["status": "pending"]])])[0]
         XCTAssertEqual(message.machineEvent?.view, "unknown")
         XCTAssertNil(message.machineEvent?.request)
     }
 
-    func testFoldedRowsJoinTheirToolUseAndConsecutiveGroups() throws {
+    func testFoldedRowsJoinOnlyNeighboursOfOneGroupAndNothingMoves() throws {
         func fold(_ id: String, _ view: String, tool: String? = nil, display: String = "fold") -> [String: Any] {
             row(id, ["seq": 1, "view": view, "display": display, "fold_group": view, "title": view, "text": "全文", "truncated": false] .merging(tool.map { ["tool": ["id": $0]] } ?? [:]) { a, _ in a })
         }
@@ -50,14 +57,24 @@ final class MachineEventTests: XCTestCase {
             fold("u2", "tool_use", tool: "t2", display: "show"),
             fold("e", "tool_result", tool: "t2", display: "show"),
         ]).machineFolded
-        // 先頭のhookが3行を束ね、tool_use(t1)の下にr1、sはgroupが違うので別の行、r9とr10は結果の相手が無く束ねる
-        XCTAssertEqual(rows.map(\.id), ["w", "h1", "u1", "s", "r9", "u2", "e"])
+        // 隣り合うgroupだけ束ねる。結果をtool_useの下へ引き上げない（時系列を崩さない）。
+        XCTAssertEqual(rows.map(\.id), ["w", "h1", "u1", "s", "r1", "u2", "e"])
         XCTAssertEqual(rows[1].machineEvent?.attached.map(\.id), ["h2", "h3"])
-        XCTAssertEqual(rows[2].machineEvent?.attached.map(\.id), ["r1"])
-        XCTAssertEqual(rows[4].machineEvent?.attached.map(\.id), ["r10"])
-        XCTAssertEqual(rows[5].machineEvent?.attached.map(\.id), [])
+        XCTAssertEqual(rows[4].machineEvent?.attached.map(\.id), ["r9", "r10"])
         let plain = try decode([["id": "x", "at": "2026-11-20T11:00:00Z", "message": "hi"]])
         XCTAssertEqual(plain.machineFolded.map(\.id), ["x"])
+    }
+
+    func testToolRunIsOneLineAndTheSumOfFoldCountDecodes() throws {
+        func tools(_ id: String, _ view: String, count: Int?) -> [String: Any] {
+            row(id, ["seq": 1, "view": view, "display": "fold", "fold_group": "tools", "text": "t", "truncated": false].merging(count.map { ["fold_count": $0] } ?? [:]) { a, _ in a })
+        }
+        let rows = try decode([tools("u1", "tool_use", count: 1), tools("h", "hook", count: 0), tools("r1", "tool_result", count: 0), tools("u2", "tool_use", count: 1),
+                               row("w", ["view": "words", "display": "show", "text": "答え", "bubble": true]), tools("u3", "tool_use", count: nil)])
+        XCTAssertEqual(rows.map { $0.machineEvent?.foldCount }, [1, 0, 0, 1, nil, nil])
+        let folded = rows.machineFolded
+        XCTAssertEqual(folded.map(\.id), ["u1", "w", "u3"]) // wは吹き出しで群を切り、位置を動かさない
+        XCTAssertEqual(folded[0].machineEvent?.attached.map(\.id), ["h", "r1", "u2"])
     }
 
     func testOnlyFoldIsFoldedAndAnythingElseIsShown() throws {

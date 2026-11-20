@@ -11,6 +11,8 @@ final class MachineRequestCardState: ObservableObject {
 /// 畳み行の開閉と全文。アプリの状態で保存しない。ConversationCardStatesが行id別に保持し、行の再利用をまたぐ。
 final class MachineFoldState: ObservableObject {
     @Published var open = false
+    /// 束ねた行の中の、開いている仲間のid。
+    @Published var openMembers: Set<String> = []
     @Published var raw: [Int: String] = [:]
     @Published var loadingSeq: Int?
     @Published var errorText: String?
@@ -29,13 +31,7 @@ struct MachineEventRow: View {
         } else if event.display == "fold", let fold {
             MachineFoldLine(botId: message.sender?.id, members: [message] + event.attached, state: fold)
         } else {
-            VStack(alignment: .leading, spacing: 4) {
-                shown
-                // tool_useの下に、結果の畳み行を少し字下げして置く。
-                if !event.attached.isEmpty, let fold {
-                    MachineFoldLine(botId: message.sender?.id, members: event.attached, state: fold).padding(.leading, 18)
-                }
-            }
+            shown
         }
     }
 
@@ -80,9 +76,12 @@ struct MachineFoldLine: View {
     @ObservedObject var state: MachineFoldState
     @EnvironmentObject private var store: AppStore
 
+    /// n = fold_countの合計（無ければ1）。n>1は「group ×n」、n==1は道具1件の行（仲間が複数ならfold_count 1の仲間のmessage）、n==0は「group ×仲間の数」。
     private var summary: String {
-        guard members.count > 1 else { return members[0].message ?? members[0].machineEvent?.text ?? "" }
-        return "\(members[0].machineEvent?.foldGroup ?? "") ×\(members.count)"
+        let n = members.reduce(0) { $0 + ($1.machineEvent?.foldCount ?? 1) }
+        if n > 1 || (n == 0 && members.count > 1) { return "\(members[0].machineEvent?.foldGroup ?? "") ×\(n > 1 ? n : members.count)" }
+        let one = members.first { ($0.machineEvent?.foldCount ?? 1) == 1 } ?? members[0]
+        return one.message ?? one.machineEvent?.text ?? ""
     }
 
     var body: some View {
@@ -101,16 +100,25 @@ struct MachineFoldLine: View {
             .accessibilityIdentifier("machine-fold-\(members[0].id)")
             if state.open {
                 ForEach(members) { member in
-                    VStack(alignment: .leading, spacing: 4) {
-                        if members.count > 1 || member.machineEvent?.title != nil, let title = member.message?.split(separator: "\n").first {
-                            Text(title).font(.caption.weight(.semibold)).foregroundStyle(BellTheme.muted).lineLimit(1)
-                        }
-                        let seq = member.machineEvent?.seq ?? 0
-                        SelectableText(state.raw[seq] ?? member.machineEvent?.text ?? "",
-                                       font: .monospacedSystemFont(ofSize: 12, weight: .regular), color: BellTheme.ink.opacity(0.8))
-                        if member.machineEvent?.truncated == true, state.raw[seq] == nil {
-                            Button(state.loadingSeq == seq ? "読み込み中…" : "全文を読み込む") { Task { await loadRaw(seq) } }
-                                .font(.footnote).disabled(state.loadingSeq != nil)
+                    if members.count == 1 {
+                        memberBody(member)
+                    } else {
+                        // 仲間は時系列の順に、それぞれ閉じた1行で並べ、押すと本文が開く。
+                        VStack(alignment: .leading, spacing: 4) {
+                            Button {
+                                if !state.openMembers.insert(member.id).inserted { state.openMembers.remove(member.id) }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: state.openMembers.contains(member.id) ? "chevron.down" : "chevron.right").font(.caption2.weight(.bold))
+                                    Text(member.message?.split(separator: "\n").first.map(String.init) ?? "").lineLimit(1)
+                                    Spacer(minLength: 0)
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BellTheme.muted)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            if state.openMembers.contains(member.id) { memberBody(member) }
                         }
                     }
                 }
@@ -119,6 +127,18 @@ struct MachineFoldLine: View {
         }
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 本文。tool_useは`tool.summary`。
+    @ViewBuilder private func memberBody(_ member: TimelineMessage) -> some View {
+        let seq = member.machineEvent?.seq ?? 0
+        let event = member.machineEvent
+        let text = event?.view == "tool_use" ? (event?.tool?.summary ?? event?.text ?? "") : (event?.text ?? "")
+        SelectableText(state.raw[seq] ?? text, font: .monospacedSystemFont(ofSize: 12, weight: .regular), color: BellTheme.ink.opacity(0.8))
+        if event?.truncated == true, state.raw[seq] == nil {
+            Button(state.loadingSeq == seq ? "読み込み中…" : "全文を読み込む") { Task { await loadRaw(seq) } }
+                .font(.footnote).disabled(state.loadingSeq != nil)
+        }
     }
 
     private func loadRaw(_ seq: Int) async {

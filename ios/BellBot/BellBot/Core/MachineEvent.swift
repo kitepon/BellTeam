@@ -23,15 +23,19 @@ struct MachineEvent: Decodable, Equatable {
     /// show | fold。表の値がfoldでなければshow（hideは無い）。サーバーの表示規則表が決める。
     let display: String
     let foldGroup: String
+    /// 道具の連なり（fold_group tools）を数える。tool_useが1、他の仲間は0。無ければ1として数える（machine-stream.md「Tool calls fold」）。
+    let foldCount: Int?
     let title: String?
     let text: String
     let truncated: Bool
     let tool: Tool?
     let request: MachineRequest?
-    /// `machineFolded`が付ける。fold行の後続の行（束ねた行・tool_useの下の結果）。サーバーからは来ない。
+    /// machine-stream.md「Turn answer bubble」。`words`でtrueなら、終わったターンの最後の言葉（吹き出しで出す）。アプリは「最後」を決めずこの値だけを読む。
+    let bubble: Bool
+    /// `machineFolded`が付ける。fold行の後ろに隣り合う同じfoldGroupの行。サーバーからは来ない。
     var attached: [TimelineMessage] = []
 
-    private enum CodingKeys: String, CodingKey { case seq, view, display, foldGroup, title, text, truncated, tool, request }
+    private enum CodingKeys: String, CodingKey { case seq, view, display, foldGroup, foldCount, title, text, truncated, tool, request, bubble }
 
     init(from decoder: Decoder) {
         let c = try? decoder.container(keyedBy: CodingKeys.self)
@@ -39,14 +43,17 @@ struct MachineEvent: Decodable, Equatable {
         view = (try? c?.decodeIfPresent(String.self, forKey: .view)) ?? "unknown"
         display = (try? c?.decodeIfPresent(String.self, forKey: .display)) == "fold" ? "fold" : "show"
         foldGroup = (try? c?.decodeIfPresent(String.self, forKey: .foldGroup)) ?? view
+        foldCount = (try? c?.decodeIfPresent(Int.self, forKey: .foldCount)) ?? nil
         title = (try? c?.decodeIfPresent(String.self, forKey: .title)) ?? nil
         text = (try? c?.decodeIfPresent(String.self, forKey: .text)) ?? ""
         truncated = (try? c?.decodeIfPresent(Bool.self, forKey: .truncated)) ?? false
         tool = (try? c?.decodeIfPresent(Tool.self, forKey: .tool)) ?? nil
         request = (try? c?.decodeIfPresent(MachineRequest.self, forKey: .request)) ?? nil
+        bubble = (try? c?.decodeIfPresent(Bool.self, forKey: .bubble)) ?? false
     }
 
     var isThinking: Bool { view == "words" && title == "thinking" }
+    var isBubble: Bool { view == "words" && bubble }
 }
 
 /// 席が答えを待つ要求。`questions`があれば質問カード、無ければ許可カード。
@@ -118,22 +125,21 @@ struct MachineAnswerResult: Decodable, Equatable {
 /// `GET /api/bots/:id/machine-events/:seq`。保存済みの行をそのまま返す。
 struct MachineRawLine: Decodable { let seq: Int; let line: String }
 
+extension TimelineMessage {
+    func replacingText(_ text: String) -> TimelineMessage { var copy = self; copy.message = text; return copy }
+}
+
 extension Array where Element == TimelineMessage {
-    /// machine-stream.md「Fold view」。`fold`の`tool_result`は同じ`tool.id`の`tool_use`の行の下へ、連続する`fold`行は
-    /// `fold_group`が同じ間だけ先頭の行へ束ねる。別のgroup・`show`の行・機械席以外の行が群を切る。消す行は無い。
+    /// machine-stream.md「Fold view」「Tool calls fold and the order rule」。連続する`fold`行は`fold_group`が同じ間だけ先頭の行へ束ねる。
+    /// 別のgroup・`show`の行・機械席以外の行が群を切る。行は時系列の位置から動かさず、消す行も無い。
     var machineFolded: [TimelineMessage] {
         guard contains(where: { $0.machineEvent != nil }) else { return self }
         var rows: [TimelineMessage] = []
-        var useRow: [String: Int] = [:]
         for message in self {
-            guard let event = message.machineEvent else { rows.append(message); continue }
-            if event.display == "fold", event.view == "tool_result", let id = event.tool?.id, let at = useRow[id] {
-                rows[at].machineEvent?.attached.append(message)
-            } else if event.display == "fold", let last = rows.last?.machineEvent, last.display == "fold", last.foldGroup == event.foldGroup {
+            if let event = message.machineEvent, event.display == "fold", let last = rows.last?.machineEvent, last.display == "fold", last.foldGroup == event.foldGroup {
                 rows[rows.count - 1].machineEvent?.attached.append(message)
             } else {
                 rows.append(message)
-                if event.view == "tool_use", event.display == "show", let id = event.tool?.id { useRow[id] = rows.count - 1 }
             }
         }
         return rows
