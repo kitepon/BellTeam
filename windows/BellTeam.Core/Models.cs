@@ -227,10 +227,12 @@ public sealed record MachineEvent
     public bool Bubble { get; init; }
     // The group of a folded entry (its view); consecutive folded entries of one group may share a line.
     [JsonPropertyName("fold_group")] public string? FoldGroup { get; init; }
+    // What this entry adds to its line's count (1 on a tool_use of a tool run, 0 on the other members of the run); absent counts 1.
+    [JsonPropertyName("fold_count")] public int? FoldCount { get; init; }
     public MachineTool? Tool { get; init; }
     // There is no hide: a display other than "fold" reads as show (machine-stream.md).
     public bool IsFolded => Display == "fold";
-    // Never on the wire. Made by Timeline.VisibleMachine: the folded tool_result rows drawn under this tool_use, or the other rows of a run of one fold_group drawn as one line with this entry.
+    // Never on the wire. Made by Timeline.VisibleMachine: the other rows of a run of one fold_group drawn as one line with this entry.
     [JsonIgnore] public TimelineMessage[] Folded { get; init; } = [];
     public MachineRequest? Request { get; init; }
 }

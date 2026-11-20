@@ -34,14 +34,14 @@ public sealed class MachineEventTests
     }
 
     [Fact]
-    public void NothingIsHiddenAResultFoldsUnderItsToolUseAndARunOfOneFoldGroupIsOneLine()
+    public void NothingIsHiddenNothingLeavesItsPlaceAndARunOfOneFoldGroupIsOneLine()
     {
         var rows = new[] { Event("a", "words", "show"), Event("b", "system", "hide"), Event("c", "words", "show", elsewhere: true), Event("d", "tool_use", "show", "t1"), Event("e", "tool_result", "fold", "t1", "tool_result"), Event("f", "tool_result", "fold", "t2", "tool_result"), Event("g", "tool_result", "show", "t1"),
             Event("h1", "hook", "fold", group: "hook"), Event("h2", "hook", "fold", group: "hook"), Event("h3", "hook", "fold", group: "hook"), Event("x", "words", "show"), Event("h4", "hook", "fold", group: "hook") };
         var shown = Timeline.VisibleMachine(rows);
         // "hide" is no display: it reads as show. shown_elsewhere is a hint only.
-        Assert.Equal(["a", "b", "c", "d", "f", "g", "h1", "x", "h4"], shown.Select(m => m.Id));
-        Assert.Equal(["e"], shown[3].MachineEvent!.Folded.Select(m => m.Id)); Assert.Equal(["h2", "h3"], shown[6].MachineEvent!.Folded.Select(m => m.Id));
+        Assert.Equal(["a", "b", "c", "d", "e", "f", "g", "h1", "x", "h4"], shown.Select(m => m.Id));   // a result is not pulled up under its tool_use; entries without a fold_group stay single lines
+        Assert.Empty(shown[3].MachineEvent!.Folded); Assert.Equal(["h2", "h3"], shown[7].MachineEvent!.Folded.Select(m => m.Id));
         // A screen's list folds again to the same lines: Expand is the inverse.
         Assert.Equal(rows.Select(m => m.Id), Timeline.Expand(shown).Select(m => m.Id));
         Assert.Equal(shown.Select(m => m.Id), Timeline.VisibleMachine(shown).Select(m => m.Id));
@@ -55,7 +55,7 @@ public sealed class MachineEventTests
         {
             using var workspace = new Workspace();
             var entry = new MachineEntry(workspace);
-            var rows = Timeline.VisibleMachine([Event("d", "tool_use", "show", "t1"), Event("e", "tool_result", "fold", "t1", "tool_result", text: "line one\nline two")]);
+            var rows = Timeline.VisibleMachine([Event("e", "tool_result", "fold", "t1", "tool_result", text: "line one\nline two")]);
             entry.Update(rows[0], "ベル");
             var press = LogicalTree.Find<Button>(entry).Single();
             UIElement Opened() => (UIElement)((FrameworkElement)LogicalTree.Find<TextBox>(entry).Single().Parent).Parent;

@@ -162,8 +162,9 @@ internal static class MachineRequestExtensions
     public static MachineQuestion[] AskedOf(this MachineRequest request) => request.Questions ?? [];
 }
 
-// A machine seat's tool_use or folded entry in the chat log (a471; conversation machine-stream.md "Fold view"). Nothing is hidden: a folded entry is one collapsed line that opens to its full text,
-// a tool_use is one line with its folded results under it, and a run of one fold_group is one line "group ×n". Same look and behaviour as the Windows MachineEntry.
+// A machine seat's folded entry or shown tool_use in the chat log (a471; conversation machine-stream.md "Fold view" and "Tool calls fold and the order rule"). Nothing is hidden and nothing leaves its place
+// in time: neighbours of one fold_group are one closed line (Timeline.FoldLabel: "tools ×2", "background ×9", or the tool name for one call) that opens to its members in their own order, each a closed line
+// that opens to its text. Same look and behaviour as the Windows MachineEntry.
 public sealed class MachineEntry(LinuxWorkspace workspace) : Decorator
 {
     // Open or closed is the app's own and is not stored; it survives a redraw of the same row.
@@ -176,15 +177,8 @@ public sealed class MachineEntry(LinuxWorkspace workspace) : Decorator
     public void Update(TimelineMessage message)
     {
         last = message; var entry = message.MachineEvent!;
-        var stack = new StackPanel();
-        if (entry.IsFolded) stack.Children.Add(Fold(message, [message, .. entry.Folded]));
-        else
-        {
-            stack.Children.Add(ToolUse(message, entry));
-            // A tool_use's results hang under it, each a collapsed line, a little indented.
-            foreach (var result in entry.Folded) { var line = Fold(result, [result]); line.Margin = new Thickness(18, 0, 0, 0); stack.Children.Add(line); }
-        }
-        Child = new CappedRow { Child = stack, HorizontalAlignment = HorizontalAlignment.Left };
+        Control line = entry.IsFolded ? Fold(message, [message, .. entry.Folded]) : ToolUse(message, entry);
+        Child = new CappedRow { Child = line, HorizontalAlignment = HorizontalAlignment.Left };
     }
 
     private static Control ToolUse(TimelineMessage message, MachineEvent entry)
@@ -193,27 +187,35 @@ public sealed class MachineEntry(LinuxWorkspace workspace) : Decorator
         return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(5, 2), Children = { Icons.Draw(Icons.Branch, 13, BellTheme.Muted, thickness: 1.6), new TextBlock { Text = text, FontSize = 13, Foreground = BellTheme.Muted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center } } };
     }
 
-    // One collapsed line (a run of one fold_group is one line "group ×n"); a click opens it to the full text and closes it again.
-    private StackPanel Fold(TimelineMessage head, TimelineMessage[] members)
+    // One closed line; a click opens it and closes it again. The body is built only while open.
+    private StackPanel Line(string key, string label, Func<Control> body)
     {
-        var key = head.Id; var isOpen = open.Contains(key);
-        var label = members.Length > 1 ? $"{head.MachineEvent!.FoldGroup} ×{members.Length}" : head.Message ?? "";
+        var isOpen = open.Contains(key);
         var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { Icons.Draw(isOpen ? Icons.ChevronDown : Icons.ChevronRight, 10, BellTheme.Muted, thickness: 2.4), new TextBlock { Text = label, FontSize = 13, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 700, VerticalAlignment = VerticalAlignment.Center } } };
         var button = new Button { Classes = { "plain" }, Content = line, Background = Brushes.Transparent, Padding = new Thickness(5, 2), HorizontalAlignment = HorizontalAlignment.Left };
         AutomationProperties.SetName(button, label);
         button.Click += (_, _) => { if (!open.Remove(key)) open.Add(key); Update(last!); };
         var panel = new StackPanel { Children = { button } };
-        if (isOpen) { var body = new StackPanel { Margin = new Thickness(26, 0, 8, 6) }; foreach (var member in members) body.Children.Add(Opened(member, members.Length > 1)); panel.Children.Add(body); }
+        if (isOpen) panel.Children.Add(body());
         return panel;
     }
 
-    // The full text of one folded entry; when it was cut, a button reads the whole stored line.
-    private Control Opened(TimelineMessage member, bool titled)
+    // A run of one fold_group is one line; one entry opens to its text, several to a closed line per member.
+    private StackPanel Fold(TimelineMessage head, TimelineMessage[] members) => Line(head.Id, Timeline.FoldLabel(members), () =>
+    {
+        var body = new StackPanel { Margin = new Thickness(26, 0, 8, 6) };
+        if (members.Length == 1) body.Children.Add(Opened(members[0]));
+        else foreach (var member in members) body.Children.Add(Line("member:" + member.Id, member.Message ?? "", () => Opened(member)));
+        return body;
+    });
+
+    // The full text of one entry (a tool_use's is its summary); when it was cut, a button reads the whole stored line.
+    private Control Opened(TimelineMessage member)
     {
         var entry = member.MachineEvent!; var id = member.Id;
+        var text = entry.View == "tool_use" && entry.Tool?.Summary is { Length: > 0 } summary ? summary : entry.Text;
         var panel = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
-        if (titled && !string.IsNullOrWhiteSpace(entry.Title)) panel.Children.Add(new TextBlock { Text = entry.Title, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Muted });
-        var box = new TextBox { Text = raw.GetValueOrDefault(id) ?? entry.Text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 13, FontFamily = BellTheme.Mono, Foreground = BellTheme.Ink, BorderThickness = default, Background = new SolidColorBrush(Color.FromArgb(20, 97, 71, 212)), Padding = new Thickness(8, 6), MaxHeight = 320 };
+        var box = new TextBox { Text = raw.GetValueOrDefault(id) ?? text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 13, FontFamily = BellTheme.Mono, Foreground = BellTheme.Ink, BorderThickness = default, Background = new SolidColorBrush(Color.FromArgb(20, 97, 71, 212)), Padding = new Thickness(8, 6), MaxHeight = 320 };
         ScrollViewer.SetVerticalScrollBarVisibility(box, ScrollBarVisibility.Auto);
         panel.Children.Add(box);
         if (entry.Truncated && !raw.ContainsKey(id) && member.Sender?.Id is { } botId)
