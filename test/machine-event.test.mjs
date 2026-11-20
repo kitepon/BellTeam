@@ -82,7 +82,7 @@ test('an approval card allows or denies by request id', async () => {
 
 const row = (id, view, display, extra = {}, request) => {
   const entry = { id: 'me-' + id + '-0', kind: 'machine_event', sender: { id: 'b', name: 'A' }, message: extra.message ?? view,
-    machine_event: { seq: id, view, display, title: extra.title ?? null, text: extra.text ?? '', truncated: extra.truncated === true, fold_group: display === 'fold' ? view : undefined, tool: extra.tool } }
+    machine_event: { seq: id, view, display, title: extra.title ?? null, text: extra.text ?? '', truncated: extra.truncated === true, fold_group: display === 'fold' ? (extra.fold_group ?? view) : undefined, fold_count: extra.fold_count, tool: extra.tool } }
   return entry
 }
 const draw = (entry, open = false) => { const el = renderMachineEvent(entry, { ...ctx([]), open, onOpen() {}, readRaw: async seq => '{"raw":' + seq + '}' }); el.dataset.id = entry.id; return el }
@@ -97,7 +97,9 @@ test('a fold row is one closed line (open only when the app opened it); show row
   const odd = draw(row(3, 'hook', 'hide', { text: 'x' }))
   assert.equal(odd.hidden, false); assert.equal(odd.dataset.fold, undefined)
   const use = draw(row(4, 'tool_use', 'show', { tool: { id: 'u1', name: 'Bash', summary: 'ls' } }))
-  assert.match(words(use), /Bash/); assert.equal(use.dataset.toolId, 'u1')
+  assert.match(words(use), /Bash/)
+  const folded = draw(row(6, 'tool_use', 'fold', { message: 'Bash', tool: { name: 'Bash', summary: 'ls -la' } }))
+  assert.equal(folded.tag, 'details'); assert.match(words(folded), /ls -la/)
 })
 
 test('a truncated fold row reads the whole stored line on request', async () => {
@@ -106,26 +108,31 @@ test('a truncated fold row reads the whole stored line on request', async () => 
   assert.equal(all(line, node => node.tag === 'pre')[0].textContent, '{"raw":7}'); assert.equal(more.hidden, true)
 })
 
-test('arrange: a result sits under its tool use, same-group runs share one line, shows and other groups break a run; idempotent', () => {
+test('arrange: neighbours of one fold_group share one line labelled by the sum of fold_count; nothing moves out of its place; idempotent', () => {
   const container = new Element('div'), open = new Set()
+  const tools = (id, view, count, extra = {}) => row(id, view, 'fold', { fold_group: 'tools', fold_count: count, ...extra })
   const rows = [
-    row(1, 'tool_use', 'show', { tool: { id: 'a', name: 'Bash', summary: 'ls' } }), row(2, 'tool_use', 'show', { tool: { id: 'b', name: 'Read', summary: 'x' } }),
-    row(3, 'hook', 'fold'), row(4, 'hook', 'fold'), row(5, 'hook', 'fold'), row(6, 'system', 'fold'),
-    row(7, 'tool_result', 'fold', { tool: { id: 'a' } }), row(8, 'tool_result', 'fold', { tool: { id: 'b' } }), row(9, 'tool_result', 'fold', { tool: { id: 'gone' } }),
-    row(10, 'words', 'show', { text: 'done' }), row(11, 'tool_result', 'fold', { tool: { id: 'gone2' } }), row(12, 'tool_result', 'fold', { tool: { id: 'gone3' } }),
+    tools(1, 'tool_use', 1, { message: 'Bash' }), tools(2, 'hook', 0), tools(3, 'tool_result', 0), tools(4, 'hook', 0), tools(5, 'tool_use', 1, { message: 'Read' }), tools(6, 'tool_result', 0),
+    row(7, 'words', 'show', { text: 'done' }),
+    tools(8, 'tool_use', 1, { message: 'Grep' }), tools(9, 'tool_result', 0),
+    row(10, 'hook', 'fold'), row(11, 'hook', 'fold'),
+    row(12, 'words', 'show', { text: 'again' }),
+    tools(13, 'tool_result', 0), tools(14, 'hook', 0),
+    row(15, 'words', 'show', { text: 'last' }), tools(16, 'tool_result', 0),
   ]
   container.append(...rows.map(entry => draw(entry)))
   arrangeMachineRows(container, open)
-  const expected = ['me-1-0', 'me-7-0', 'me-2-0', 'me-8-0', '[me-3-0,me-4-0,me-5-0]', 'me-6-0', 'me-9-0', 'me-10-0', '[me-11-0,me-12-0]']
+  const expected = ['[me-1-0,me-2-0,me-3-0,me-4-0,me-5-0,me-6-0]', 'me-7-0', '[me-8-0,me-9-0]', '[me-10-0,me-11-0]', 'me-12-0', '[me-13-0,me-14-0]', 'me-15-0', 'me-16-0']
   assert.deepEqual(order(container), expected)
-  const group = container.children[4]; assert.match(words(group), /hook ×3/)
+  const labels = container.children.filter(child => child.dataset.machineGroup).map(group => group.children[0].textContent)
+  assert.deepEqual(labels, ['tools ×2', 'Grep', 'hook ×2', 'tools ×2'])
   arrangeMachineRows(container, open); assert.deepEqual(order(container), expected)
-  // opening the group opens its members and is remembered for the next arrangement
-  group.open = true; group.listeners.toggle()
+  // opening the group is remembered for the next arrangement; the members stay closed lines
+  const group = container.children[0]; group.open = true; group.listeners.toggle()
   arrangeMachineRows(container, open)
-  assert.equal(container.children[4].open, true); assert.ok(container.children[4].children.filter(c => c.dataset.machineView).every(c => c.open))
-  // a late tool use pulls an orphan result under it (older page arrives)
-  const late = draw(row(0, 'tool_use', 'show', { tool: { id: 'gone', name: 'Grep', summary: '' } }))
-  container.insertBefore(late, container.children[0]); arrangeMachineRows(container, open)
-  assert.deepEqual(order(container).slice(0, 3), ['me-0-0', 'me-9-0', 'me-1-0'])
+  assert.equal(container.children[0].open, true); assert.ok(container.children[0].children.filter(c => c.dataset.machineView).every(c => !c.open))
+  // a tool_use that arrives later (older page) never pulls a result out of its place
+  container.insertBefore(draw(tools(0, 'tool_use', 1, { message: 'Glob' })), container.children[0]); arrangeMachineRows(container, open)
+  assert.deepEqual(order(container).slice(-4), expected.slice(-4))
+  assert.equal(order(container)[0], '[me-0-0,me-1-0,me-2-0,me-3-0,me-4-0,me-5-0,me-6-0]')
 })

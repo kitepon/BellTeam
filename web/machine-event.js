@@ -168,47 +168,47 @@ export function renderMachineEvent(item, context) {
   else element = node('p', `machine-note view-${event.view}`, item.message)
   // arrangeMachineRows reads these.
   element.dataset.machineView = event.view
-  if (event.tool?.id) element.dataset.toolId = event.tool.id
-  if (event.display === 'fold') element.dataset.fold = event.fold_group ?? event.view
+  if (event.display === 'fold') {
+    element.dataset.fold = event.fold_group ?? event.view
+    element.dataset.foldMessage = item.message ?? ''
+    if (event.fold_count != null) element.dataset.foldCount = String(event.fold_count)
+  }
   return element
 }
 
-// Lays the machine rows of one timeline container out as the fold view (machine-stream.md):
-// a tool_result's line sits directly under its tool_use line, and consecutive folded rows of one fold_group share one line.
+// Lays the machine rows of one timeline container out as the fold view (machine-stream.md "Tool calls fold and the order rule"):
+// consecutive folded rows of one fold_group share one line. Nothing moves out of its place in time (Owner: 「時系列をくずすな」).
 // Idempotent: groups are taken apart and rebuilt, so rows added or replaced later land correctly. `openKeys` keeps what the Owner opened.
+const foldCount = row => row.dataset.foldCount === undefined ? 1 : Number(row.dataset.foldCount)
+// n = sum of fold_count: n>1 "<group> ×n"; n=1 the message of the member that counts 1 (the tool name); n=0 "<group> ×<members>".
+function groupLabel(run) {
+  const name = run[0].dataset.fold, n = run.reduce((sum, row) => sum + foldCount(row), 0)
+  if (n > 1) return `${name} ×${n}`
+  return n === 1 ? run.find(row => foldCount(row) === 1).dataset.foldMessage : `${name} ×${run.length}`
+}
 export function arrangeMachineRows(container, openKeys) {
   const rows = () => [...container.children]
   for (const group of rows().filter(child => child.dataset?.machineGroup)) {
     for (const member of [...group.children].filter(child => child.dataset?.machineView !== undefined)) container.insertBefore(member, group)
     group.remove()
   }
-  for (const result of rows().filter(child => child.dataset?.machineView === 'tool_result' && child.dataset.toolId)) {
-    const list = rows(), use = list.find(child => child.dataset?.machineView === 'tool_use' && child.dataset.toolId === result.dataset.toolId)
-    delete result.dataset.attached
-    if (!use) continue
-    result.dataset.attached = '1'
-    const next = list[list.indexOf(use) + 1]
-    if (next !== result) container.insertBefore(result, next ?? null)
-  }
   let run = []
   const flush = () => {
     if (run.length > 1) {
-      const key = `group:${run[0].dataset.id}`, name = run[0].dataset.fold
+      const key = `group:${run[0].dataset.id}`
       const group = node('details', 'machine-line machine-group')
       group.dataset.machineGroup = key
-      group.append(node('summary', '', `${name} ×${run.length}`))
+      group.append(node('summary', '', groupLabel(run)))
       container.insertBefore(group, run[0])
-      const members = run
       group.open = openKeys.has(key)
-      group.addEventListener('toggle', () => { if (group.open) { openKeys.add(key); members.forEach(member => { member.open = true }) } else openKeys.delete(key) })
+      group.addEventListener('toggle', () => { if (group.open) openKeys.add(key); else openKeys.delete(key) })
       for (const member of run) group.append(member)
-      if (group.open) run.forEach(member => { member.open = true })
     }
     run = []
   }
   for (const child of rows()) {
     const name = child.dataset?.fold
-    if (!name || child.dataset.attached) { flush(); continue }
+    if (!name) { flush(); continue }
     if (run.length && run[0].dataset.fold !== name) flush()
     run.push(child)
   }
