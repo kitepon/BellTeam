@@ -223,6 +223,8 @@ public sealed record MachineEvent
     // The row text was cut; the whole stored line is GET /api/bots/:id/machine-events/:seq.
     public bool Truncated { get; init; }
     [JsonPropertyName("shown_elsewhere")] public bool ShownElsewhere { get; init; }
+    // The last words of a finished turn (machine-stream.md "Turn answer bubble"): drawn as a message bubble. Read as sent; an app never decides which words are last.
+    public bool Bubble { get; init; }
     // The group of a folded entry (its view); consecutive folded entries of one group may share a line.
     [JsonPropertyName("fold_group")] public string? FoldGroup { get; init; }
     public MachineTool? Tool { get; init; }

@@ -50,6 +50,7 @@ public sealed class MessageCard : ContentControl
     private QuestionCard? question;
     private MachineRequestCard? machineCard;
     private MachineEntry? machineLine;
+    private SelectableTextBlock? machineWords;
     private Border? bubble;
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center };
@@ -119,18 +120,22 @@ public sealed class MessageCard : ContentControl
     private void Render()
     {
         var message = Message;
-        if (messageId != message.Id)
+        // a471-tune-answer: the words row of a seat's turn is a bubble only when the body marked it (bubble), else one plain written line; the mark arrives later on the same id.
+        var plain = message.MachineEvent is { View: "words", Bubble: false } && !MachineEntry.IsEntry(message.MachineEvent) && !MachineRequestCard.IsCard(message.MachineEvent);
+        if (messageId != message.Id || plain != (machineWords is not null))
         {
-            messageId = message.Id; layout = null;
+            messageId = message.Id; layout = null; machineWords = null;
             if (message.Kind == "peer") BuildPeer(message);
             else if (message.MachineEvent is { } card && MachineRequestCard.IsCard(card)) BuildMachineCard();
             else if (message.MachineEvent is { } line && MachineEntry.IsEntry(line)) { machineLine = new MachineEntry(workspace); Content = machineLine; }
+            else if (plain) { machineWords = new SelectableTextBlock { FontSize = 15, Foreground = BellTheme.Ink, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(5, 2) }; Content = new CappedRow { Child = machineWords, HorizontalAlignment = HorizontalAlignment.Left }; }
             else if (message.SecretRequest is not null || message.OwnerQuestion is not null) BuildRequest(message);
             else BuildRow(message);
         }
         if (layout is not null) UpdateRow(message);
         else if (machineCard is not null) machineCard.Update(message.MachineEvent!, MachineName(message));
         else if (machineLine is not null) machineLine.Update(message);
+        else if (machineWords is not null) machineWords.Text = message.MachineEvent!.Text;
         else if (secret is not null || question is not null) UpdateRequest(message);
         else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
     }

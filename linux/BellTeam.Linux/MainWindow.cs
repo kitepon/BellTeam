@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly Border pageArea = new() { Background = BellTheme.ConversationBackground, IsVisible = false };
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     private readonly Grid messageColumn = new();
+    private StackPanel? messageStack;
     private readonly Button older = new() { Classes = { "plain" }, Content = "以前のメッセージを読む", HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), Foreground = BellTheme.Violet, IsVisible = false };
     private readonly Border queueStrip = new() { Background = BellTheme.QueueFill, CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 9.5), IsVisible = false };
     private readonly StackPanel queueRows = new();
@@ -270,7 +271,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(18, 20, 18, 18), Children = { older, messages, queueStrip } };
         messageColumn.Children.Add(stack); messageScroll.Content = messageColumn; AutomationProperties.SetName(messageScroll, "会話");
         Grid.SetRow(messageScroll, 1);
-        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) messageColumn.MinHeight = messageScroll.Viewport.Height; };
+        messageStack = stack;
+        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) { messageColumn.MinHeight = messageScroll.Viewport.Height; FillScreen(); } };
+        stack.PropertyChanged += (_, args) => { if (args.Property == BoundsProperty) FillScreen(); };
         messageScroll.ScrollChanged += async (_, args) =>
         {
             ShowLatestButton();
@@ -347,7 +350,11 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             case nameof(LinuxWorkspace.Selected): UpdateSelection(); unreadNew = false; break;
             case nameof(LinuxWorkspace.IsRoom): UpdateComposerBand(); ProfileLayout(); break;
             case nameof(LinuxWorkspace.ScreenVisible): UpdateInspectorPanels(); break;
-            case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title): UpdateWelcome(); break;
+            case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title):
+                UpdateWelcome();
+                // The rows are laid out by the time the background post runs; a failed older read (loadingOlder) does not retry here, only a layout or window change does.
+                if (name == nameof(LinuxWorkspace.Loading) && !model.Loading && !loadingOlder) Dispatcher.UIThread.Post(FillScreen, DispatcherPriority.Background);
+                break;
             case nameof(LinuxWorkspace.HasActivity) or nameof(LinuxWorkspace.ActivityRows) or nameof(LinuxWorkspace.StopEnabled): UpdateQueue(); UpdateWelcome(); UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.CurrentBotCanStop): UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.StopResult): ShowStopResult(); break;
@@ -506,16 +513,24 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         latest.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
         latest.IsVisible = !(atBottom && !unreadNew) && model.HasSelection && model.Messages.Count != 0;
     }
+    // a471-thinking-linux: folded rows count as items, so the first page can be shorter than the screen and scrolling never starts. Read older pages until the rows fill the viewport or none are left
+    // (the same spec on every client). A read that adds nothing ends the loop; the button and the scroll still work.
+    private void FillScreen()
+    {
+        if (loadingOlder || !model.HasMore || model.Loading || model.Messages.Count == 0 || messageStack is not { } stack) return;
+        if (stack.Bounds.Height + stack.Margin.Top + stack.Margin.Bottom < messageScroll.Viewport.Height) _ = LoadOlderPreservingPositionAsync();
+    }
     private async Task LoadOlderPreservingPositionAsync()
     {
         if (loadingOlder) return;
-        loadingOlder = true; var target = model.Selected?.Target; var offset = messageScroll.Offset.Y; var height = messageScroll.Extent.Height;
+        loadingOlder = true; var target = model.Selected?.Target; var offset = messageScroll.Offset.Y; var height = messageScroll.Extent.Height; var count = model.Messages.Count;
         try
         {
             await model.LoadOlderAsync();
             if (model.Selected?.Target == target) { messageScroll.UpdateLayout(); messageScroll.Offset = new Vector(0, offset + messageScroll.Extent.Height - height); }
         }
         finally { loadingOlder = false; }
+        if (model.Messages.Count != count) FillScreen();
     }
     private async Task ExportAsync()
     {
