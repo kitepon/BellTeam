@@ -26,6 +26,7 @@ flowchart LR
 
 - `BellTeam.Core`の所有者はアニス。LinuxはそのままProject参照で使い、Coreを変える時は小さなPRでアニスをレビューに入れる。条件はWindowsの挙動を変えないこと、[Windowsアーキテクチャ](windows-architecture.md)のCoreの節を同じ差分で更新すること、実行したBellTeam.Testsの範囲をPRに書くこと（2026-11-12 アニス合意）。
 - `Workspace`（会話一覧・会話・送信・SSE・再接続・下書き）はWindowsの`BellTeam.App`からCoreへ移し、画像の型とUIスレッドへの戻りだけを各アプリが渡す。Windowsは`Workspace : Core.Workspace<BitmapSource>`で呼び出し側を変えない。
+- 機械席（Claude machine mode）の質問と承認（a471）：履歴の`machine_event`のうち、`view`が`question`か`approval`の行は会話ログの白いカード（`MachineRequestCard`）として描く。質問は1問1答なら選択肢を押した時点で答え、複数問・複数選択は選んでから「送る」。「その他」は自由文。承認は「許可」「拒否」。答えは`POST /api/seat-requests/:request_id/answer`だけで返し、画面読み取りもキー送信もしない。`status`が`pending`以外のカードは選択肢を出さず結果の行にする。`display`が`fold`の行は1行の淡い文、`hide`の行は出さない。データ側（`TimelineMessage.MachineEvent`・`AnswerSeatRequestAsync`）は[Windowsアーキテクチャ](windows-architecture.md)のCoreの節（アニス）が正本。
 - 本体の状態は共通入口のHTTP APIとSSEだけで使う。本体の内部状態を直接読み書きしない。
 
 ## データの流れ
@@ -52,6 +53,9 @@ flowchart TD
   server -->|"履歴の origin（転送・共有の印）"| ws
   ws -->|"reply_to・reply_quote（送信本文。契約 conversation reply.md）"| api
   server -->|"履歴の reply_to（引用の元）"| ws
+  server -->|"履歴の machine_event（機械席の質問・承認・畳む行。契約 conversation machine-stream.md）"| ws
+  view -->|"カードで選ぶ・許可／拒否"| ws
+  ws -->|"POST /api/seat-requests/:id/answer（answers{indexes,other} または decision）"| api
   api -->|"/api/approvals/*（summary・一覧・答え・保留・つなぐ・SSE events）"| server
   api -->|"summary・events"| feed[ApprovalsFeed<br/>入口のバッジと窓が共有する読み手]
   feed --> hub[ApprovalsHub]
