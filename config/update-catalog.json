@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T15:25:53Z",
-  "expiresAt": "2026-11-27T15:25:53Z",
+  "publishedAt": "2026-11-20T16:27:20Z",
+  "expiresAt": "2026-11-27T16:27:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
-      "versionId": "4ad90c046bea78b8d6ccc14af9e54d8e02efcd865c5a605a89d48c530f63a1f0",
+      "sourceCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7",
+      "versionId": "e9672a639011661753904916f11018b3fae48696a5dbdd996599d9619c6988d4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-amd64.tar.gz",
-          "bytes": 3996641,
-          "sha256": "4ad90c046bea78b8d6ccc14af9e54d8e02efcd865c5a605a89d48c530f63a1f0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-amd64.tar.gz",
+          "bytes": 3996858,
+          "sha256": "e9672a639011661753904916f11018b3fae48696a5dbdd996599d9619c6988d4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "2b39bad74bd747b25a9f5dbce65503087de3291897b935436209681df0480173"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "b0f6739ebb62547c858aff1d2cba63f08707e7aa19fe86047539196a1dec1a8c"
         },
-        "signerCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c"
+        "signerCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "機械の口で動く席の読み取りと送信（stream_read・stream_send）が、実行の許可の一覧で断られていました。通すようにしたので、質問や承認のカードと出力の行が保存され、画面に出ます。"
+        "入れ替えや再開のとき、機械の口の席の読み取りを、古い実行エンジンは止め、新しい実行エンジンは始め直します。実行モジュールを入れ替えても、動いている席の出力の行とカードが途切れません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
-      "versionId": "8c05c246525e73e99179437fb4eec3b21a0c3d6b7ed9f1584d32ffbd763ed60e",
+      "sourceCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7",
+      "versionId": "de7173de5f3a84c636db1fd00b8e2872abcd710cc8c724eff2d39ab644aedd07",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-arm64.tar.gz",
-          "bytes": 3996641,
-          "sha256": "8c05c246525e73e99179437fb4eec3b21a0c3d6b7ed9f1584d32ffbd763ed60e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-arm64.tar.gz",
+          "bytes": 3996858,
+          "sha256": "de7173de5f3a84c636db1fd00b8e2872abcd710cc8c724eff2d39ab644aedd07"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10895,
-          "sha256": "2835bae9c04e5af3e1d4b85ac4dcbde11b2c394f67927bc42dc054e030ab3eaf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "ec918b8f172aded4f1cb663282dce7a5a7f3bdad5feda62352499678da56dfd1"
         },
-        "signerCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c"
+        "signerCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "機械の口で動く席の読み取りと送信（stream_read・stream_send）が、実行の許可の一覧で断られていました。通すようにしたので、質問や承認のカードと出力の行が保存され、画面に出ます。"
+        "入れ替えや再開のとき、機械の口の席の読み取りを、古い実行エンジンは止め、新しい実行エンジンは始め直します。実行モジュールを入れ替えても、動いている席の出力の行とカードが途切れません。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
-      "versionId": "sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9",
+      "sourceCommit": "4ee5db42f421942806641cda78c9cad74852a4a2",
+      "versionId": "sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "実行の許可の一覧に、機械の口の席の読み取りと送信（stream_read・stream_send）を加えました。本体イメージの中身は、Aiterm 0.70.85 と Throughline 0.21.2 のまま変わりません。"
+        "機械の口の席の読み取りを、実行エンジンの入れ替えと再開に合わせて止め、始め直すようにしました。",
+        "答えたあとに席が送る封筒で、質問のカードが「期限切れ」で閉じてしまう不具合を直しました。",
+        "Hook・rate_limit・system・control の行を、1つの折りたたみにまとめました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
-      "versionId": "sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9",
+      "sourceCommit": "4ee5db42f421942806641cda78c9cad74852a4a2",
+      "versionId": "sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "実行の許可の一覧に、機械の口の席の読み取りと送信（stream_read・stream_send）を加えました。本体イメージの中身は、Aiterm 0.70.85 と Throughline 0.21.2 のまま変わりません。"
+        "機械の口の席の読み取りを、実行エンジンの入れ替えと再開に合わせて止め、始め直すようにしました。",
+        "答えたあとに席が送る封筒で、質問のカードが「期限切れ」で閉じてしまう不具合を直しました。",
+        "Hook・rate_limit・system・control の行を、1つの折りたたみにまとめました。"
       ]
     },
     {
