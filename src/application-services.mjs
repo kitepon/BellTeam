@@ -58,6 +58,7 @@ import { BellTeamMemory } from './memory-service.mjs'
 import { BotScheduler, runShellCommand } from './scheduler.mjs'
 import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
+import { MachineStream } from './machine-stream.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
@@ -261,7 +262,14 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)
     await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${JSON.stringify(goalFailureCause(error))}\n${frames.join('\n')}` })
   }
-  const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
+  // conversation/machine-stream.md: execution hands envelopes to seatStream (ingest/cursor); the Owner's answer goes back through transport.streamSend.
+  const machineStream = new MachineStream({
+    root, bots, onRequest: item => notifications.question(item),
+    streamSend: (botId, input) => typeof transport.streamSend === 'function' ? transport.streamSend(bots.get(botId), input)
+      : Promise.reject(Object.assign(new Error('EXECUTION_REQUEST_INVALID'), { code: 'EXECUTION_REQUEST_INVALID' })),
+  })
+  await machineStream.initialize()
+  const conversationPorts = { bots, settings, seatRuntime, aiControl, seatStream: machineStream, conversationUsage: createConversationUsage({ settings, notifications }) }
   if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, getServices: () => conversationPorts,
     onDiagnostic: conversationDiagnosticPort(diagnostics), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   // Remote seats (remote-seat-ingress.md): terminals core is an in-parent injectable; seat credentials are parent state.
@@ -490,7 +498,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (!usageAssembly) await ownerQuestions.initialize()
   if (workGraphFactory) {
     // Optional module: the body never waits for it; the route answers 503 until the child is available.
-    const { messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
+    const { messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream })
     const workGraphEffects = createWorkGraphEffects({ bots, transport, messagePage })
     workGraphModule = workGraphFactory({ root, exchangeMutex, prepareRelease: prepareWorkGraph, onEffect: workGraphEffects,
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
@@ -561,7 +569,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   return {
     aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
-    notifications, secretRequests, ownerQuestions, bots, rooms,
+    notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
     scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,

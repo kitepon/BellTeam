@@ -2,6 +2,7 @@ import { bindAskerSeat, forkExecutionSource, resolveInternalSeat, seatExecutionS
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
 import { createScreenInputApi } from './http-screen-input-api.mjs'
+import { createSeatRequestApi } from './http-seat-request-api.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { createMemberDeletionApi } from './members/deletion.mjs'
 import { createRoomApi } from './http-room-api.mjs'
@@ -35,13 +36,13 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, approvals = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, machineStream = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, approvals = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   // SK07: execution's live fork registry; engines without it have no forks.
   const forkSeat = typeof transport?.forkSeat === 'function' ? name => transport.forkSeat(name) : null
-  const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, updateCenter: internal ? null : updateCenter, eventKeepalive, messageEventWindow })
-  const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions,
+  const events = createMessageEvents({ store, secretRequests, ownerQuestions, machineStream, rooms, bots, transport, aiControl, updateCenter: internal ? null : updateCenter, eventKeepalive, messageEventWindow })
+  const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream,
     ownerSecretGuide: internal ? null : ownerSecretGuide })
 
   const assertWebPushOrigin = createWebPushOrigin({ settings })
@@ -70,6 +71,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createGoalApi({ bots, goals, aiControl, ownerActions: !internal, notify: event => server.notify(event) }),
     createConversationApi({ bots, rooms, timeline }),
     createScreenInputApi({ bots, transport, internal }),
+    createSeatRequestApi({ machineStream, internal }),
     createWorkGraphApi({ facade: workGraph, internal }),
     createLatticeApi({ facade: lattice, internal }),
     ...(approvals ? [createApprovalsApi({ facade: approvals, internal })] : []),

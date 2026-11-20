@@ -26,7 +26,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const services = await createApplicationServices({ root, ...bootstrap, models, environment, client, gateway: () => gateway, builtinSourceCommit, notify: change => server?.notify(change) })
   const {
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,
-    secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
+    secretRequests, ownerQuestions, machineStream, bots, rooms, roomMessenger, messenger,
     store, transport, memory, ownerProfile, userRules, characterSheets,
     assets, scheduler, diagnostics,
     idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
@@ -55,6 +55,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     submittedSecretConsumer: services.submittedSecretCaller?.consumer,
     captureSubmittedSecretContext: services.submittedSecretCaller ? (request, id) => services.submittedSecretCaller.capture(request, id) : undefined,
     ownerQuestions,
+    machineStream,
     bots, rooms, roomMessenger,
     messenger,
     store,
