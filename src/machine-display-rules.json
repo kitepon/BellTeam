@@ -1,5 +1,5 @@
 {
-  "_comment": "a471 display rule: view -> show | fold. No hide: a kind may be folded to one openable line, never removed (Owner 2026-11-20 21:0x JST); any value but fold is read as show. Default table = Tronie's, for the Owner's first live try; tune with the Owner. Read at projection time only: stored events never change.",
+  "_comment": "a471 display rule: view -> show | fold. No hide: a kind may be folded to one openable line, never removed (Owner 2026-11-20 21:0x JST); any value but fold is read as show. Default table = Tronie's, for the Owner's first live try; tune with the Owner. fold_group maps a view to the group its folded rows share (clients merge a run of one group into one line). Read at projection time only: stored events never change.",
   "words": "show",
   "thinking": "show",
   "tool_use": "show",
@@ -12,6 +12,7 @@
   "rate_limit": "fold",
   "control": "fold",
   "unknown": "fold",
+  "fold_group": { "hook": "background", "rate_limit": "background", "system": "background", "control": "background" },
   "refine": [
     {
       "view": "thinking",

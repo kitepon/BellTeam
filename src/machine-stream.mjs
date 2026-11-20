@@ -156,7 +156,7 @@ export class MachineStream {
     const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
-      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
+      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: this.rules.fold_group?.[part.view] ?? part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
     const line = body.split('\n')[0].slice(0, 120)
