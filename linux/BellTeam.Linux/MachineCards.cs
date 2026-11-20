@@ -161,3 +161,74 @@ internal static class MachineRequestExtensions
         ? string.Join("、", answers[i].Indexes.Select(n => request.AskedOf()[i].Options.FirstOrDefault(o => o.Index == n)?.Label).Append(answers[i].Other).Where(label => !string.IsNullOrEmpty(label))) : "";
     public static MachineQuestion[] AskedOf(this MachineRequest request) => request.Questions ?? [];
 }
+
+// A machine seat's tool_use or folded entry in the chat log (a471; conversation machine-stream.md "Fold view"). Nothing is hidden: a folded entry is one collapsed line that opens to its full text,
+// a tool_use is one line with its folded results under it, and a run of one fold_group is one line "group ×n". Same look and behaviour as the Windows MachineEntry.
+public sealed class MachineEntry(LinuxWorkspace workspace) : Decorator
+{
+    // Open or closed is the app's own and is not stored; it survives a redraw of the same row.
+    private readonly HashSet<string> open = [];
+    private readonly Dictionary<string, string> raw = [];
+    private TimelineMessage? last;
+
+    internal static bool IsEntry(MachineEvent machine) => !MachineRequestCard.IsCard(machine) && (machine.IsFolded || machine.View == "tool_use");
+
+    public void Update(TimelineMessage message)
+    {
+        last = message; var entry = message.MachineEvent!;
+        var stack = new StackPanel();
+        if (entry.IsFolded) stack.Children.Add(Fold(message, [message, .. entry.Folded]));
+        else
+        {
+            stack.Children.Add(ToolUse(message, entry));
+            // A tool_use's results hang under it, each a collapsed line, a little indented.
+            foreach (var result in entry.Folded) { var line = Fold(result, [result]); line.Margin = new Thickness(18, 0, 0, 0); stack.Children.Add(line); }
+        }
+        Child = new CappedRow { Child = stack, HorizontalAlignment = HorizontalAlignment.Left };
+    }
+
+    private static Control ToolUse(TimelineMessage message, MachineEvent entry)
+    {
+        var text = entry.Tool?.Name is { Length: > 0 } name ? name + (string.IsNullOrWhiteSpace(entry.Tool.Summary) ? "" : ": " + entry.Tool.Summary) : message.Message ?? "";
+        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(5, 2), Children = { Icons.Draw(Icons.Branch, 13, BellTheme.Muted, thickness: 1.6), new TextBlock { Text = text, FontSize = 13, Foreground = BellTheme.Muted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center } } };
+    }
+
+    // One collapsed line (a run of one fold_group is one line "group ×n"); a click opens it to the full text and closes it again.
+    private StackPanel Fold(TimelineMessage head, TimelineMessage[] members)
+    {
+        var key = head.Id; var isOpen = open.Contains(key);
+        var label = members.Length > 1 ? $"{head.MachineEvent!.FoldGroup} ×{members.Length}" : head.Message ?? "";
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { Icons.Draw(isOpen ? Icons.ChevronDown : Icons.ChevronRight, 10, BellTheme.Muted, thickness: 2.4), new TextBlock { Text = label, FontSize = 13, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 700, VerticalAlignment = VerticalAlignment.Center } } };
+        var button = new Button { Classes = { "plain" }, Content = line, Background = Brushes.Transparent, Padding = new Thickness(5, 2), HorizontalAlignment = HorizontalAlignment.Left };
+        AutomationProperties.SetName(button, label);
+        button.Click += (_, _) => { if (!open.Remove(key)) open.Add(key); Update(last!); };
+        var panel = new StackPanel { Children = { button } };
+        if (isOpen) { var body = new StackPanel { Margin = new Thickness(26, 0, 8, 6) }; foreach (var member in members) body.Children.Add(Opened(member, members.Length > 1)); panel.Children.Add(body); }
+        return panel;
+    }
+
+    // The full text of one folded entry; when it was cut, a button reads the whole stored line.
+    private Control Opened(TimelineMessage member, bool titled)
+    {
+        var entry = member.MachineEvent!; var id = member.Id;
+        var panel = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
+        if (titled && !string.IsNullOrWhiteSpace(entry.Title)) panel.Children.Add(new TextBlock { Text = entry.Title, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Muted });
+        var box = new TextBox { Text = raw.GetValueOrDefault(id) ?? entry.Text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 13, FontFamily = BellTheme.Mono, Foreground = BellTheme.Ink, BorderThickness = default, Background = new SolidColorBrush(Color.FromArgb(20, 97, 71, 212)), Padding = new Thickness(8, 6), MaxHeight = 320 };
+        ScrollViewer.SetVerticalScrollBarVisibility(box, ScrollBarVisibility.Auto);
+        panel.Children.Add(box);
+        if (entry.Truncated && !raw.ContainsKey(id) && member.Sender?.Id is { } botId)
+        {
+            var more = MacUi.Bordered("全文を読み込む", () => { });
+            var failure = SecretCard.CardText("", size: 12, error: true); failure.IsVisible = false;
+            more.Click += async (_, _) =>
+            {
+                more.IsEnabled = false; failure.IsVisible = false;
+                try { raw[id] = box.Text = await workspace.MachineLineAsync(botId, entry.Seq); more.IsVisible = false; }
+                catch (Exception error) { failure.Text = "全文を読み込めませんでした。" + error.Message; failure.IsVisible = true; more.IsEnabled = true; }
+            };
+            more.HorizontalAlignment = HorizontalAlignment.Left; more.Margin = new Thickness(0, 4, 0, 0);
+            panel.Children.Add(more); panel.Children.Add(failure);
+        }
+        return panel;
+    }
+}
