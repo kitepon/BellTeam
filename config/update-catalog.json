@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-19T19:03:10Z",
-  "expiresAt": "2026-11-26T19:03:10Z",
+  "publishedAt": "2026-11-20T04:54:45Z",
+  "expiresAt": "2026-11-27T04:54:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -759,8 +759,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
-      "versionId": "675493a101383ce3f629e989e8a87f417039c5f2267316d729df80e83c0b8bac",
+      "sourceCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca",
+      "versionId": "29c4e051d46a4188fbeecb5313514a32d405a868aab8a74ff0d0078a972e5840",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -768,16 +768,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-amd64.tar.gz",
-          "bytes": 15348591,
-          "sha256": "675493a101383ce3f629e989e8a87f417039c5f2267316d729df80e83c0b8bac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-amd64.tar.gz",
+          "bytes": 15348371,
+          "sha256": "29c4e051d46a4188fbeecb5313514a32d405a868aab8a74ff0d0078a972e5840"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11047,
-          "sha256": "46d4640c9ba5b228487b8e441606c735f3b179a2e3502543799cf06db2e9e772"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "149394adc4f126eed24511647d1d685f10909754344379aa5725a015196c2a0b"
         },
-        "signerCommit": "b5488e36455317397ac5c9f71927104e9a2f9282"
+        "signerCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -789,13 +789,13 @@
         }
       },
       "changes": [
-        "Lattice を 0.113.2 にしました。工程表を読む時に使うメモリと時間が減ります。"
+        "工程表の過去ログは、閉じたツリーの完了済みの仕事を、開いた時にだけ読むようにしました。工程表の表示に使うデータが小さくなります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b5488e36455317397ac5c9f71927104e9a2f9282",
-      "versionId": "1ff0bf52d572adbf00c7b8a27d2fa48cb133431f4b1f66e44b3a2b979854f147",
+      "sourceCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca",
+      "versionId": "d585e55b053a55b1e3c0c70505c87a942be89ff07e292553110e01866ea9ecd4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -803,16 +803,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-arm64.tar.gz",
-          "bytes": 15348591,
-          "sha256": "1ff0bf52d572adbf00c7b8a27d2fa48cb133431f4b1f66e44b3a2b979854f147"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-arm64.tar.gz",
+          "bytes": 15348371,
+          "sha256": "d585e55b053a55b1e3c0c70505c87a942be89ff07e292553110e01866ea9ecd4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261119T175308Z/lattice-b5488e36455317397ac5c9f71927104e9a2f9282-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11184,
-          "sha256": "ff74d1f60ca1ed63246ebcf7338e859f4acef8687ff4fecea095b386eb6f9974"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "2e18cdbed3a7974b918888c126596a403700a8cd18f73e2360e81f3f2c144176"
         },
-        "signerCommit": "b5488e36455317397ac5c9f71927104e9a2f9282"
+        "signerCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -824,7 +824,7 @@
         }
       },
       "changes": [
-        "Lattice を 0.113.2 にしました。工程表を読む時に使うメモリと時間が減ります。"
+        "工程表の過去ログは、閉じたツリーの完了済みの仕事を、開いた時にだけ読むようにしました。工程表の表示に使うデータが小さくなります。"
       ]
     },
     {
