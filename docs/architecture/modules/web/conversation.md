@@ -385,6 +385,38 @@ flowchart LR
 
 Data ownership: unchanged (the clipboard write is the only new effect; the page keeps nothing). Failure handling: a refused clipboard write leaves the icon as it was. The selection button 引用して返信 is untouched. Source reach: `web/conversation-timeline.js`, `web/styles.css`, `test/timeline-open-queue.test.mjs`.
 
+### Machine seat entries and the question card (a471-askuser-web, Web client of [machine-stream.md](../conversation/machine-stream.md))
+
+Owner design 2026-11-20: a machine seat's question is a card in the chat log, answered as data. Web draws only what the Bot page `items` carry (`kind: "machine_event"`, `machine_event.view/display/request`); it never parses the raw line and never reads the screen.
+
+```mermaid
+flowchart LR
+  Page["GET /api/bots/:id/messages items (machine_event rows) + SSE timeline refresh"] --> Item["renderItemElement: kind machine_event"]
+  Item --> ME["machine-event.js renderMachineEvent"]
+  ME -->|"display hide"| Gone["hidden node"]
+  ME -->|"view question"| Q["question card: options, multi-select toggles, Other text"]
+  ME -->|"view approval"| A["approval card: 許可する / 断る"]
+  ME -->|"thinking"| T["lighter paragraph"]
+  ME -->|"any other view"| Line["one details line (open when display show)"]
+  Q -->|"tap (one question, single choice) or 送る"| Post["POST /api/seat-requests/:request_id/answer {answers:[{indexes,other}]}"]
+  A -->|"tap"| Post2["same route {decision: allow|deny}"]
+  Post -->|"200 request"| Item2["timelineMap item.machine_event.request replaced, card redrawn (answered)"]
+  Post -->|"409 closed / not pending"| Closed["plain words, stays disabled; next page read draws it expired"]
+  Post -->|"400 invalid / other error"| Retry["plain words, choices kept, enabled again"]
+```
+
+| Function | Input -> output and ownership |
+| --- | --- |
+| `renderMachineEvent(item, {api, sender, onChanged})` (web/machine-event.js, new) | entry -> node. Reads only `machine_event`. The only writer is the answer route; the card keeps its choices in the closure |
+| question card | One block per question (header chip, text, options with description). Single choice with exactly one question: a tap sends at once. Otherwise taps toggle (`aria-pressed`) and 送る is enabled when every question has an option or Other text. Single choice: Other text clears the option and an option clears the text (server rule: one answer). Multi-select: options and Other add up |
+| approval card | 許可する -> `{decision:"allow"}`, 断る -> `{decision:"deny"}`; pending only |
+| answered / expired | no buttons: answered shows the chosen labels (by index) and the Other text; expired says the seat no longer waits |
+| `renderItem` / `rerenderItem` (conversation-timeline.js) | `machine_event` joins the card snapshot, so a page re-read that changes `request.status` redraws the same row in place; `onChanged` replaces the row's `request` with the 200 body |
+
+Errors in plain words (code only in the data): 409 `SEAT_REQUEST_CLOSED` / `REQUEST_NOT_PENDING` / 404 -> この質問は、もう答えを待っていません。 (controls stay disabled); 400 `SEAT_REQUEST_ANSWER_INVALID` -> 選び直してください; 503 -> このサーバーはまだ答えを受け取れません; others -> もう一度選んでください. No automatic retry. No guard is added: a pending card leaves by the Owner's answer, by the seat (the card is redrawn as expired) or by the answer attempt itself.
+
+Data ownership: unchanged. The page keeps no new storage; the request lives in conversation (`state/machine-stream`). A body without the machine rows shows nothing new. Source reach: `web/machine-event.js`, `web/conversation-timeline.js`, `web/assets.mjs`, `web/styles.css`, `test/machine-event.test.mjs`.
+
 ## 操作の接続と確認範囲
 
 `stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](../../web-final-gaps.md)に記録する。

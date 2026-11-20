@@ -13,7 +13,7 @@ flowchart LR
     Header["Header: 設定 / 予定 / ゴール / 相関図 / 工程表 / 追加, 更新 badge<br/>index.html, application.js, update-center.js (badge)"]
   end
   subgraph Chat["Conversation"]
-    Timeline["Timeline + cards<br/>conversation-timeline.js, owner-question.js, secret-input.js, message-images.js, image-gallery.js"]
+    Timeline["Timeline + cards<br/>conversation-timeline.js, owner-question.js, machine-event.js, secret-input.js, message-images.js, image-gallery.js"]
     Composer["Composer, reply targets, stop<br/>conversation-composer.js, chat-input.js, member-stop.js"]
     ChatTools["Header tools: current work, screen, goal chip, … menu<br/>current-work.js, bot-read-views.js, goals.js"]
   end
@@ -71,6 +71,7 @@ flowchart LR
 | Send, stop | composer | — | `POST /api/{bots,rooms}/:id/messages`, `POST /api/bots/:id/stop` | conversation, execution |
 | The member's charts (task a94) | chat header 「…」 menu (Bot only) | `GET /api/lattice/charts` when the menu opens, filtered by `createdBy`; nothing shown on failure | — | lattice |
 | Export | chat … menu | `GET /api/{bots,rooms}/:id/export` | — | conversation |
+| Machine seat question / approval card | cards (machine-event.js) | the Bot page items | `POST /api/seat-requests/:request_id/answer` | [conversation](conversation.md) |
 | Owner question, secret request | cards | `GET /api/secret-requests/:id/onepassword-items` | `POST /api/owner-questions/:id/answer`, `POST /api/secret-requests/:id/{submit,cancel}` | usage |
 | Screen panel | chat | `GET /api/bots/:id/screen`, `GET …/screen/approval` | `POST …/screen/key`, `POST …/screen/approval` | execution |
 | Goal | chat chip, goals dialog | `GET /api/bots/:id/goal`, `GET /api/goals` | `POST /api/bots/:id/goal` | goals owner |

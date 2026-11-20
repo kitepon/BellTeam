@@ -52,6 +52,7 @@ export const webAssetFiles = new Map([
   ['/rich-text.js', 'rich-text.js'],
   ['/secret-input.js', 'secret-input.js'],
   ['/owner-question.js', 'owner-question.js'],
+  ['/machine-event.js', 'machine-event.js'],
   ['/settings-home.js', 'settings-home.js'],
   ['/user-rules-view.js', 'user-rules-view.js'],
   ['/activity-order.js', 'activity-order.js'],
