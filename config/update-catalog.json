@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T22:55:33Z",
-  "expiresAt": "2026-11-27T22:55:33Z",
+  "publishedAt": "2026-11-20T23:35:08Z",
+  "expiresAt": "2026-11-27T23:35:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "6550721f813c6c07286bf74b3904d3ec70295249",
-      "versionId": "1fd6b35bf1a033b21ad98a3b2b021b2b0109da1301008379d13bab5630e5a7e4",
+      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
+      "versionId": "78cf9346ca459d78cde322b4a86796366477061a5aaa6607406d3999d386f02b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-amd64.tar.gz",
-          "bytes": 3925561,
-          "sha256": "1fd6b35bf1a033b21ad98a3b2b021b2b0109da1301008379d13bab5630e5a7e4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz",
+          "bytes": 3925562,
+          "sha256": "78cf9346ca459d78cde322b4a86796366477061a5aaa6607406d3999d386f02b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11127,
-          "sha256": "d016afec4d05334b3aa79fe0932f624292ed7ad83f096711e3f298ce64b26bd2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "8417a7b7a3e0c1a8ccf8821b94c0a16260f879a10a9a2704ddf1cbd4624d79db"
         },
-        "signerCommit": "6550721f813c6c07286bf74b3904d3ec70295249"
+        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "機械の席の答えが、保存のときにも「1回だけの答え」の印を付けて残るようにしました。Webで答えが二重に出なくなります。"
+        "機械の口で動く席の出力の行を、引用や転送の対象にできるようになりました。この席の質問や承認の答えは、答えの行として保存しません。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "6550721f813c6c07286bf74b3904d3ec70295249",
-      "versionId": "2430706ae3c80818ecc905e3265341d75f654d67dce6b388eca2314e1433ac98",
+      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
+      "versionId": "ba600012345d84cf1b392be591c704077ca861177c8f9fce9cbf5dd68a2b258f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-arm64.tar.gz",
-          "bytes": 3925562,
-          "sha256": "2430706ae3c80818ecc905e3265341d75f654d67dce6b388eca2314e1433ac98"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz",
+          "bytes": 3925563,
+          "sha256": "ba600012345d84cf1b392be591c704077ca861177c8f9fce9cbf5dd68a2b258f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T225515Z/conversation-6550721f813c6c07286bf74b3904d3ec70295249-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "9a07c9a1e8faceca327e5637ac95867a3fbf5d93853c0de1df6e90f19d9dde4b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11233,
+          "sha256": "28d8a4586662942ddd49296050c09fbfdefdabe1436322d4c13422d5f7434db9"
         },
-        "signerCommit": "6550721f813c6c07286bf74b3904d3ec70295249"
+        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "機械の席の答えが、保存のときにも「1回だけの答え」の印を付けて残るようにしました。Webで答えが二重に出なくなります。"
+        "機械の口で動く席の出力の行を、引用や転送の対象にできるようになりました。この席の質問や承認の答えは、答えの行として保存しません。"
       ]
     },
     {
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7",
-      "versionId": "e9672a639011661753904916f11018b3fae48696a5dbdd996599d9619c6988d4",
+      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
+      "versionId": "327eabd6530ae49eeca2f2819d14422fc8236aa5e4cb33a9165d3b73366f81be",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-amd64.tar.gz",
-          "bytes": 3996858,
-          "sha256": "e9672a639011661753904916f11018b3fae48696a5dbdd996599d9619c6988d4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-amd64.tar.gz",
+          "bytes": 3996982,
+          "sha256": "327eabd6530ae49eeca2f2819d14422fc8236aa5e4cb33a9165d3b73366f81be"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "b0f6739ebb62547c858aff1d2cba63f08707e7aa19fe86047539196a1dec1a8c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11228,
+          "sha256": "6960068018ec811f748d396648c4ec4ee8da2194df7abf77cdace5a14d6c9500"
         },
-        "signerCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7"
+        "signerCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "入れ替えや再開のとき、機械の口の席の読み取りを、古い実行エンジンは止め、新しい実行エンジンは始め直します。実行モジュールを入れ替えても、動いている席の出力の行とカードが途切れません。"
+        "オーナーが直接送ったターンでも、機械の席の答えを「1回だけの答え」の印つきで保存します。Webで答えが二重に出なくなります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7",
-      "versionId": "de7173de5f3a84c636db1fd00b8e2872abcd710cc8c724eff2d39ab644aedd07",
+      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
+      "versionId": "33b73c32485b5c45e565f9e8ac5f00e5bb1b9084da4e6735d734746d00a75153",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-arm64.tar.gz",
-          "bytes": 3996858,
-          "sha256": "de7173de5f3a84c636db1fd00b8e2872abcd710cc8c724eff2d39ab644aedd07"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-arm64.tar.gz",
+          "bytes": 3996982,
+          "sha256": "33b73c32485b5c45e565f9e8ac5f00e5bb1b9084da4e6735d734746d00a75153"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T161521Z/execution-9d8c894e33b04a641cc5e1f09e9ad94c1df981a7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "ec918b8f172aded4f1cb663282dce7a5a7f3bdad5feda62352499678da56dfd1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10985,
+          "sha256": "8beb82386e07378cb4a935e89411fae7e77ab19c5720e098273e0f22bc0db0b6"
         },
-        "signerCommit": "9d8c894e33b04a641cc5e1f09e9ad94c1df981a7"
+        "signerCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "入れ替えや再開のとき、機械の口の席の読み取りを、古い実行エンジンは止め、新しい実行エンジンは始め直します。実行モジュールを入れ替えても、動いている席の出力の行とカードが途切れません。"
+        "オーナーが直接送ったターンでも、機械の席の答えを「1回だけの答え」の印つきで保存します。Webで答えが二重に出なくなります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "6722df3af4865556686d1456d6d117455a5c6e42",
-      "versionId": "sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6",
+      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
+      "versionId": "sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の席のターンの答えを、最後の発言の吹き出し1回だけで出します（結果の行の二重表示をなくしました）。続けて使った道具は「×2」のように件数つきの1行に畳みます。"
+        "機械の席の答えを渡す前に、答えを1回だけ出す印を付ける呼び出しを実行モジュールが行うようにしました。オーナー直送のターンでも答えが二重に出ません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "6722df3af4865556686d1456d6d117455a5c6e42",
-      "versionId": "sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6",
+      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
+      "versionId": "sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の席のターンの答えを、最後の発言の吹き出し1回だけで出します（結果の行の二重表示をなくしました）。続けて使った道具は「×2」のように件数つきの1行に畳みます。"
+        "機械の席の答えを渡す前に、答えを1回だけ出す印を付ける呼び出しを実行モジュールが行うようにしました。オーナー直送のターンでも答えが二重に出ません。"
       ]
     },
     {
