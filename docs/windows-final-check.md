@@ -245,3 +245,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 導入exeの読み取りsmoke（`--smoke-test`、本番 `http://192.168.1.2:18891/`）は成功した（`ok: true`）。session local・142メンバー・8ルーム・会話の読み取り・SSE接続を確認した。終了後のBellTeam.exeは0件。
 - 本番の`GET /api/subscription`は`accessMode: developer`・`billingSources: []`・`canPurchase: false`。導入exeの`--render-page settings-billing`は、新しい説明文を出し、購入の入口と管理ボタンを出さない（開発者サーバーの仕様どおり）。
 - 管理ボタンと解約済みの行は、人工データの描画（購入可・購読中・解約済みの3状態）と試験（購読の8件）で確かめた。実際のStripeの管理ページの操作は未確認。
+
+### 0.6.3 の導入（a471: 古いページで画面を埋める・答えの吹き出し・ツールの畳み）
+
+2026-11-21 07:10 JST、main c166543f（#2051・#2055・#2056・バージョン#2061）から `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget` で導入した（BellTeam.exeは動いておらず、共有先の登録は管理者の確認が要るため触っていない）。導入後の`BellTeam.exe`は0.6.3+c166543f。
+
+- スモーク（`--smoke-test` 本番 http://192.168.1.2:18891/）: 07:10:16に成功。authenticated=true、bots=144、rooms=9、最初の会話は10件でhasMore=true、SSE接続あり。
+- 本番の試験席 bot-f1a21da1 を `--render-conversation`（GETのみ）で描いた。最新30件は畳まれた行が多く、「background ×5」「background ×10」の1行にまとまり、時間順のまま並ぶ。画面は6:47の長い返答の吹き出しまで読み込まれて埋まり、先頭に「以前のメッセージを読む」が出る。
+- 確認できていない: 6:35のターンの考えた要約と道具の行（画面の上、スクロールの先にあり、描いた画像には入っていない）。`bubble: true`と`fold_count`の行は、本番の本体がまだ付けておらず（#2049・#2054の列車待ち）、実データでは見ていない。この2つは試験（MachineEventTests・UiChecks）で確かめた。
