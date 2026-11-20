@@ -115,17 +115,18 @@ export class RoomMessenger {
     }
     let responders
     try {
-      const turns = await this.roomTurns({
-        projectPath: this.rooms.roomsRoot, roomId: room.id, messageId: id,
-        speaker: sender.name, text: message || '画像',
-      })
+      const current = { speaker: sender.name, text: message || '画像' }
+      let turns, contextError
+      // The context only informs responder choice; an unreadable one never stops the post (delivery.md).
+      try { turns = await this.roomTurns({ projectPath: this.rooms.roomsRoot, roomId: room.id, messageId: id, ...current }) }
+      catch (error) { contextError = String(error?.message ?? error).slice(0, 200); turns = [current] }
       // History loading can overlap a global stop. Do not start a routing AI afterwards.
       await this.requireAccess()
       check()
       responders = manualResponders ?? (automaticRouting ? await this.chooseResponder({ room, turns, members }) : [])
       await this.rooms.appendMessage(room.id, {
         schema: 'bellteam.room-routing-status.v1', message_id: id,
-        routing: { status: 'ready', responders }, at: this.now(),
+        routing: { status: 'ready', responders, ...(contextError ? { context_error: contextError } : {}) }, at: this.now(),
       })
     } catch (error) {
       await failedRouting(error)

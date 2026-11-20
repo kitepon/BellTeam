@@ -116,14 +116,16 @@ flowchart TD
   Ready --> Notify["全参加者へ通知<br/>返信不要者にはsilentを指示"]
   Notify --> Results["各配送の結果を個別保存"]
   Results --> Return["一部失敗も元投稿を残して返す"]
-  Context -->|"文脈取得失敗"| Failed["routing failed / 停止時はstopped"]
+  Context -->|"読めない（1回読み直した後）"| Alone["この発言だけを文脈にして続行<br/>routing readyにcontext_errorを残す"]
+  Alone --> Routing
+  Routing -->|"選定失敗 / 停止"| Failed["routing failed / 停止時はstopped"]
 ```
 
 | 段階 | caller/実関数 | 保存と失敗 |
 | --- | --- | --- |
 | 投稿順序 | `sendroommessage` / `roomTasks` | 前投稿が失敗しても次の別投稿は処理。current PromiseだけをMapから除く |
 | 投稿前 | `sendRoomMessageInOrder` | 自動選定無効でtargetsなしの新規投稿は409。既responseTo/fromの返信はalready_posted。検証と受付後にだけ画像/発言を保存 |
-| 文脈 | `roomTurnsFromThroughline` | 現状は明示targetsでも呼ぶ。schema/room/latest messageを検証。不正は投稿後のrouting失敗になる。不要と決めつけて省略しない |
+| 文脈 | `roomTurnsFromThroughline` | 現状は明示targetsでも呼ぶ。schema/room/latest messageを検証。CLIの失敗は同じmessageIDで1回だけ読み直す（CLIは同じmessageなら不変で冪等）。それでも読めなければ、この発言1件だけを文脈にして続行し、routing readyに`context_error`（CLI codeを含むmessage）を残す。文脈は返信者選定のためだけにあり、読めないことは配送を止める理由にならない（保護対象なしのguardを置かない）。投稿を503にしない。不要と決めつけて省略しない |
 | 選定 | `chooseRoomResponder` | manual targetsが優先。TypeSafeを設定して有効にした時だけJevが現発言・前会話・参加者から選ぶ。確率/所属を検証し0.6以上で一人。自動選定無効でtargets省略/空配列の返信はresponders=[]となり、全員へsilentを指示 |
 | 通知 | `roomEnvelope` / `Promise.allSettled` | 配送対象と返信者のsnapshotを分ける。全員の受付結果を回収。各onStatusで部屋recordを更新、途中経過/最終回答は各BotのOwner会話へ |
 | 返信 | `mcp-conversation-tools.mjs`の`respond_to_room` | 元発言/宛先/返信者に対応付ける。silentは制御応答、replyだけ新規部屋投稿。新投稿は新しい返信担当判定を持つ |
