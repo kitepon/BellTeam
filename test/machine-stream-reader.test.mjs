@@ -52,6 +52,18 @@ test('a471 stream: a state change alone is sent (closes cards), an unchanged sta
   assert.equal(r.calls.length, 4, 'nothing is read after exited')
 })
 
+test('a471 stream: a drained previous launch hands over to the current launch; a seat without stream tools ends the reader', async () => {
+  const exited = { state: 'exited', reason: null, pending: [] }
+  const old = (lines, cursor, at_end) => ({ ...read(lines, cursor, exited, 'L'), current_launch_id: 'M', at_end })
+  const r = rig([old(['a'], 'L:5', false), old(['b'], 'L:9', true), read(['c'], 'M:3', idle, 'M')])
+  r.start(); await r.done
+  assert.deepEqual(r.calls.map(c => c.cursor ?? null).slice(0, 3), [null, 'L:5', null], 'once the old launch is drained (at_end) the next read starts at the current launch')
+  assert.equal(r.sent.at(-1).launch_id, 'M'); assert.equal(r.sent.at(-1).cursor_from, null)
+  const unsupported = Object.assign(new Error('aiterm: STREAM_UNSUPPORTED: not a stream seat'), { aitermResponseReturned: true })
+  const u = rig([unsupported]); u.start(); await u.done
+  assert.equal(u.calls.length, 1, 'no retry for a seat that has no stream')
+})
+
 test('a471 stream: an unreachable read waits and retries from the same cursor, and a vanished seat ends the reader', async () => {
   const r = rig([read(['a'], 'L:1'), new Error('boom'), read(['b'], 'L:2')])
   r.start(); await r.done
