@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T16:54:15Z",
-  "expiresAt": "2026-11-27T16:54:15Z",
+  "publishedAt": "2026-11-20T22:30:28Z",
+  "expiresAt": "2026-11-27T22:30:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "cacc1e0d7e228562d9642a93d793d48e335177c772af09d6cfd662cce59ec357",
+      "sourceCommit": "91af4375897d557da68cd2247a9a9615f4336611",
+      "versionId": "221c56cf75018b9c79be386306eca586969c39409c0e86eb9317fa08dd81bf70",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130423Z/web-gateway-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz",
-          "bytes": 5502491,
-          "sha256": "cacc1e0d7e228562d9642a93d793d48e335177c772af09d6cfd662cce59ec357"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-amd64.tar.gz",
+          "bytes": 5504237,
+          "sha256": "221c56cf75018b9c79be386306eca586969c39409c0e86eb9317fa08dd81bf70"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130423Z/web-gateway-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11240,
-          "sha256": "80be920d52ccf754ac3376425987e057f4a523261616625a1ce8e1a3781de9ae"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "22726f10070ecab95d43916ba9a7a4a9cc945d3e75227a3e7a3e424b17b17f12"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "91af4375897d557da68cd2247a9a9615f4336611"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "機械の口で動く席の画面で、質問と承認のカードに答えられるようになりました。出力の表は、既定ではすべての種類を出し、道具の結果を折りたたみます。ボット一覧の最近の表示も、チャートで開いている出力の行に合います。"
+        "Webで、機械の席のターンの答えを1回だけの吹き出しで出し、続けて使った道具を件数つきの1行に畳みます。画面を開いたとき、行が画面いっぱいになるまで古いページを読み足します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "37cf18b31345a36cd42501b93b874d049beaa72219a3b945867f7c5aec137ce4",
+      "sourceCommit": "91af4375897d557da68cd2247a9a9615f4336611",
+      "versionId": "6470a100bb0bfa9925d8bdbbc898ed2681c418e6929df8ce8b5791f7ffd53bd4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130423Z/web-gateway-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz",
-          "bytes": 5502491,
-          "sha256": "37cf18b31345a36cd42501b93b874d049beaa72219a3b945867f7c5aec137ce4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-arm64.tar.gz",
+          "bytes": 5504237,
+          "sha256": "6470a100bb0bfa9925d8bdbbc898ed2681c418e6929df8ce8b5791f7ffd53bd4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130423Z/web-gateway-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11193,
-          "sha256": "c2b5941290c565353667a4a2d1f1ec79d9e854286a89c905b9f712e1a1c472d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10958,
+          "sha256": "5bac5e02c45bd2cf9bdd8288afc61adc445baac290f85b0551e2605b75494a0f"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "91af4375897d557da68cd2247a9a9615f4336611"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "機械の口で動く席の画面で、質問と承認のカードに答えられるようになりました。出力の表は、既定ではすべての種類を出し、道具の結果を折りたたみます。ボット一覧の最近の表示も、チャートで開いている出力の行に合います。"
+        "Webで、機械の席のターンの答えを1回だけの吹き出しで出し、続けて使った道具を件数つきの1行に畳みます。画面を開いたとき、行が画面いっぱいになるまで古いページを読み足します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b30e4247f529b60da68223ca7621c689fcbe3811",
-      "versionId": "sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356",
+      "sourceCommit": "6722df3af4865556686d1456d6d117455a5c6e42",
+      "versionId": "sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ターンの終わりに出る行（結果の行と種類の分からない行）を、Hook などと同じ折りたたみにまとめました。ターンの終わりが生の JSON や単独の Hook の行で出なくなります。"
+        "機械の席のターンの答えを、最後の発言の吹き出し1回だけで出します（結果の行の二重表示をなくしました）。続けて使った道具は「×2」のように件数つきの1行に畳みます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b30e4247f529b60da68223ca7621c689fcbe3811",
-      "versionId": "sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356",
+      "sourceCommit": "6722df3af4865556686d1456d6d117455a5c6e42",
+      "versionId": "sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3147f2e23c80e466930f9f3f57c5a335b4da6cbd808814c2ba4bdeddf5467ad6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ターンの終わりに出る行（結果の行と種類の分からない行）を、Hook などと同じ折りたたみにまとめました。ターンの終わりが生の JSON や単独の Hook の行で出なくなります。"
+        "機械の席のターンの答えを、最後の発言の吹き出し1回だけで出します（結果の行の二重表示をなくしました）。続けて使った道具は「×2」のように件数つきの1行に畳みます。"
       ]
     },
     {
