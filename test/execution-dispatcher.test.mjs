@@ -54,6 +54,12 @@ test('factory owns real engine and preserves synchronous projections; retire fen
   assert.equal(next.engine.project(request('transport.session', bot)), bot.session)
 })
 
+test('the engine native allowlist lets the machine seat stream_send through (a471-card-missing)', async t => {
+  const f = await fixture(t, name => name === 'stream_send' ? { structuredContent: { accepted: 1 } } : undefined)
+  assert.deepEqual(await f.engine.dispatch(request('transport.streamSend', bot, { lines: [{ type: 'control_response' }] })), { accepted: 1 })
+  assert.ok(f.calls.includes('stream_send'))
+})
+
 test('quiesce does not retire an actual native read after its caller has stopped waiting, and old engine can resume', async t => {
   const read = deferred()
   const f = await fixture(t, name => name === 'pty_observe' ? read.promise : undefined)
