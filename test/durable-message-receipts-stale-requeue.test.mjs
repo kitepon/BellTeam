@@ -124,7 +124,8 @@ test('queue release wakes a requeued stale receipt only after the target becomes
   assert.ok(sent.every(item => item.options.queue.message === 'Original body'))
   assert.equal((await direct.receipts.store.records()).length, 1)
   assert.equal((await direct.receipts.store.records())[0].delivery_id, deliveryId)
-  assert.equal(errors.length, 2, 'the two terminal dispatch failures are reported')
+  // a447n (b7b0184d, BugHub 3beb1932): a refusal that carries the swap's not-started proof (EXECUTION_STALE_GENERATION) is requeued, never filed as a launch failure.
+  assert.equal(errors.length, 0, 'the two terminal stale refusals are requeued and not reported')
 
   blockMutex = true
   waitEntered = mutexEntered()
