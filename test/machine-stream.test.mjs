@@ -239,3 +239,21 @@ test('Bot list preview follows the stream rows the chat draws open, not folded o
   assert.deepEqual([preview.kind, preview.direction, preview.message, preview.image], ['message', 'incoming', 'first line', false]) // the folded result and hook rows do not become the preview
   assert.equal(listRecent({ id: 'q1', kind: 'message', direction: 'outgoing', message: 'm', image: false, at: 'a' }).direction, 'outgoing')
 })
+
+test('an answer in flight is not closed by the envelope the seat sends once it took the answer; seq stays in one order', async t => {
+  let service1
+  const { ms, make } = service1 = await service(t, async () => { await service1.ms.ingest(env([], 'L1:1', 'L1:2', pending())) ; return { accepted: true } })
+  await ms.ingest(env([ask('r1', Q)], null, 'L1:1', pending('r1')))
+  const done = await ms.answer('r1', { answers: [{ indexes: [1] }] })
+  assert.equal(done.status, 'answered')
+  assert.equal(ms.timeline({ botId: 'bot-d' }).find(row => row.id === 'me-1-0').machine_event.request.status, 'answered')
+  assert.equal(ms.cursor('bot-d').cursor, 'L1:2') // the envelope was stored, only its closing was held back
+  const reloaded = make(); await reloaded.initialize({ readOnly: true })
+  assert.equal(reloaded.get('r1').status, 'answered')
+  const log = (await readFile(join(service1.root, 'state/machine-stream/bot-d.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
+  assert.deepEqual(log.map(r => r.seq), log.map((_, i) => i + 1)) // no seq taken twice
+  // not in flight any more: the next envelope without it does not reopen it, and a card that never got an answer is still closed
+  await ms.ingest(env([ask('r2', Q)], 'L1:2', 'L1:3', pending('r2')))
+  await ms.ingest(env([], 'L1:3', 'L1:4', pending()))
+  assert.deepEqual([ms.get('r1').status, ms.get('r2').status], ['answered', 'expired'])
+})

@@ -178,6 +178,13 @@ export class MachineStream {
     await appendFile(join(this.directory, `${botId}.jsonl`), records.map(r => JSON.stringify(r)).join('\n') + '\n', { mode: 0o600 })
   }
 
+  // Every write to one Bot's log goes through this chain: seq and the cursor stay in one order.
+  chained(bot, work) {
+    const run = bot.chain.then(work)
+    bot.chain = run.catch(() => {})
+    return run
+  }
+
   // execution -> conversation. Serialised per Bot so the cursor chain never forks.
   ingest(envelope) {
     const { botId } = envelope ?? {}
@@ -186,9 +193,7 @@ export class MachineStream {
       && Array.isArray(envelope.lines) && envelope.lines.length <= 1000 && envelope.lines.every(line => typeof line === 'string')
     if (!check) return Promise.reject(fail('MACHINE_STREAM_INVALID'))
     const bot = this.bot(botId)
-    const run = bot.chain.then(() => this.ingestOne(bot, envelope))
-    bot.chain = run.catch(() => {})
-    return run
+    return this.chained(bot, () => this.ingestOne(bot, envelope))
   }
 
   async ingestOne(bot, { botId, session, launch_id, cursor_from, cursor_after, lines, state }) {
@@ -203,8 +208,8 @@ export class MachineStream {
     const closing = []
     if (state && Array.isArray(state.pending)) {
       const pending = new Set(state.pending.map(p => p?.request_id))
-      // Requests this envelope itself opens are checked after it is applied.
-      for (const request of bot.requests.values()) if (request.status === 'pending' && (state.state === 'exited' || !pending.has(request.id))) closing.push(request.id)
+      // Requests this envelope itself opens are checked after it is applied. One whose answer is in flight is left to answer(): the seat stops listing it once it took the answer.
+      for (const request of bot.requests.values()) if (request.status === 'pending' && !this.busy.has(request.id) && (state.state === 'exited' || !pending.has(request.id))) closing.push(request.id)
     }
     const fresh = new Set(lines.flatMap(line => project(line).map(p => p.request_id).filter(Boolean)))
     const locals = closing.filter(id => !fresh.has(id)).map(id => ({ seq: ++seq, type: 'local', at, local: 'expired', request_id: id }))
@@ -261,14 +266,16 @@ export class MachineStream {
       let result
       try { result = await this.streamSend(botId, { lines: [line.line] }) }
       catch (error) {
-        if (error?.code === 'STREAM_REQUEST_NOT_PENDING') { await this.expire(bot, botId, [requestId]); throw fail('REQUEST_NOT_PENDING') }
+        if (error?.code === 'STREAM_REQUEST_NOT_PENDING') { await this.chained(bot, () => this.expire(bot, botId, [requestId])); throw fail('REQUEST_NOT_PENDING') }
         throw error
       }
       if (result?.accepted === false) throw fail('SEAT_REQUEST_ANSWER_FAILED')
-      const record = { seq: bot.seq + 1, type: 'local', at: this.now(), local: 'answered', request_id: requestId, ...(line.answers ? { answers: line.answers } : { decision: line.decision }) }
-      await this.write(botId, [record])
-      this.apply(bot, botId, record, true)
-      this.notify([botId])
+      await this.chained(bot, async () => {
+        const record = { seq: bot.seq + 1, type: 'local', at: this.now(), local: 'answered', request_id: requestId, ...(line.answers ? { answers: line.answers } : { decision: line.decision }) }
+        await this.write(botId, [record])
+        this.apply(bot, botId, record, true)
+        this.notify([botId])
+      })
       return this.get(requestId)
     } finally { this.busy.delete(requestId) }
   }

@@ -58,7 +58,7 @@ flowchart LR
   - stored cursor = `cursor_from` (or nothing is stored and `cursor_from` is `null`): store, return `stored`.
   - a different `launch_id` with `cursor_from: null`: a new launch (resume, wake, or `STREAM_CURSOR_STALE`); a new segment starts, return `stored`.
   - anything else (a replay, a gap, a stale cursor): store nothing, return `resync` with the stored cursor (`null` if none). Execution reads again from that cursor; if Aiterm says `STREAM_CURSOR_STALE` it reads from the start of the current launch with `cursor_from: null`.
-- `state` only closes cards: a stored open request whose `request_id` is not in `state.pending` is closed (`expired`); `exited` closes every open request of that seat.
+- `state` only closes cards: a stored open request whose `request_id` is not in `state.pending` is closed (`expired`); `exited` closes every open request of that seat. A request whose answer is in flight (`MachineStream.busy`, between `streamSend` and the `answered` record) is never closed by `state`: the seat leaves its question as soon as it takes the answer, so the next envelope no longer lists it, and the answer attempt itself decides its end.
 
 ## Storage and cursor (atomic by structure)
 
@@ -74,6 +74,8 @@ flowchart LR
 | user message, steer, interrupt, config | stay on the existing tools (`pty_send`, `agent_stop`, `agent_configure`) | unchanged |
 
 If Aiterm answers `STREAM_REQUEST_NOT_PENDING`, the card becomes `expired` (the seat no longer waits).
+
+Every write to a Bot's log (an `ingest` envelope, the `answered` record of `answer`, the `expired` records of `expire`) runs on that Bot's one chain, so `seq` is assigned and written in one order; `answer` takes `seq` only when its turn on the chain comes.
 
 ## Entry in the chat log
 
@@ -159,8 +161,8 @@ For an approval card the body is `{ "decision": "allow" | "deny" }`.
 ```mermaid
 stateDiagram-v2
   [*] --> pending: can_use_tool line stored
-  pending --> answered: answer line accepted by Aiterm
-  pending --> expired: control_cancel_request / not in state.pending / exited / REQUEST_NOT_PENDING
+  pending --> answered: answer line accepted by Aiterm (state.pending / exited cannot close it while the answer is in flight)
+  pending --> expired: control_cancel_request / not in state.pending / exited (answer not in flight) / REQUEST_NOT_PENDING
   pending --> pending: answer invalid or transport failure
   answered --> [*]
   expired --> [*]
