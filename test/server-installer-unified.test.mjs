@@ -845,3 +845,32 @@ test('termination helper missing in selected image refuses without legacy stop f
  const calls=await f.calls()
  assert.equal(calls.some(c=>c.args.includes('state-maintenance')||c.args.includes('up')||c.args.includes('stop')||c.args[0]==='rm'),false)
 })
+
+test('旧installerがroot所有で作ったruntime/でも、server-onlyだけをDocker経由で作りこのユーザーへ渡して進む',async t=>{
+ const f=await fixture(t);await mkdir(f.install+'/runtime')
+ await writeFile(f.root+'/bin/mkdir','#!/bin/sh\nfor a; do case "$a" in */runtime/server-only) [ -d "$a" ] || exit 1;; esac; done\nexec /bin/mkdir "$@"\n',{mode:0o755})
+ await f.run()
+ const call=(await f.calls()).find(c=>c.args[0]==='run'&&c.args.some(a=>a.includes('chownSync("/runtime/server-only"')))
+ assert.ok(call,'root fallback ran');assert.deepEqual(call.args.slice(-2),[String(process.getuid()),String(process.getgid())])
+ assert.ok(call.args.includes('type=bind,source='+f.install+'/runtime,target=/runtime'))
+})
+
+test('COMPOSE_FILEで複数fileを使う旧設置は、配布compose.yamlを入れ替え、残りのfileと一緒に旧設定を証明する',async t=>{
+ const f=await fixture(t,{server:true}),override=f.install+'/compose.override.yaml';await writeFile(override,'services: {}\n')
+ const current=JSON.parse(await readFile(f.root+'/runtime.json'));
+ current.Config.Labels['com.docker.compose.project.config_files']=f.install+'/compose.yaml,'+override
+ await writeFile(f.root+'/runtime.json',JSON.stringify(current))
+ const result=await f.run();assert.doesNotMatch(result.stderr,/PREVIOUS_MODEL_UNVERIFIED/)
+ const render=(await f.calls()).find(c=>c.args.includes('--env-file')&&c.args.includes(override));assert.ok(render)
+ assert.equal(render.args.filter(a=>a==='-f').length,2);assert.match(render.args[render.args.indexOf('-f')+1],/previous-compose\.yaml$/)
+ // an override that is gone is refused before anything stops, and says what to do
+ await rm(override);await writeFile(f.root+'/runtime.json',JSON.stringify(current))
+ const before=(await f.calls()).length
+ await assert.rejects(f.run(),e=>e.code===1&&e.stderr.includes('SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED')&&e.stderr.includes('まだ何も止めていません'))
+ assert.equal((await f.calls()).slice(before).some(c=>c.args[0]==='stop'),false)
+})
+
+test('表示するportは、実際に公開されたport番号に合わせる',async t=>{
+ const f=await fixture(t),result=await f.run(['--no-pull'],{TEST_ENDPOINT:'0.0.0.0:18893'})
+ assert.match(result.stdout,/http:\/\/localhost:18893/);assert.match(result.stdout,/LANアドレスの18893番/);assert.doesNotMatch(result.stdout,/18891/)
+})

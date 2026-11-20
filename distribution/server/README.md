@@ -77,6 +77,8 @@ COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.site.yaml
 
 以後も同じ`sh install.sh`で追加設定を含めて更新します。取得し直すのは配布`compose.yaml`と`install.sh`だけです。自分の`.env`、override、追加fileと保存データは残してください。追加設定は本体と利用者のserviceへ適用し、root権限で動く付属の機能導入プログラムへ任意の環境変数やmountを引き継ぎません。
 
+更新の前に、installerは今動いている本体を作った時のfile一覧（COMPOSE_FILEの全file）をDockerのラベルから読み、配布`compose.yaml`だけを新しいものへ入れ替えて同じ設定になることを確かめます。overrideなどを作った後で書き換えたり移したりしていると、何も止めずに`SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED`で終わります。その時は、そのfileを起動した時の内容と場所へ戻して、もう一度`sh install.sh`を実行してください。古いinstallerが`runtime/`をroot所有で作っていた場合は、installerが`runtime/server-only`だけをDocker経由で作ってこのユーザーへ渡します。
+
 本体のdata/homeは同じ親フォルダの`data`と`home`に保ち、private state/controlのvolume・subpath・読み取り専用設定とCursor専用volume、AI状態の所有設定は配布構成の契約を維持してください。必須保存先が既設置と一致しなければ、旧本体を停止する前に拒否します。`docker compose config --quiet`は設定の構文確認で、installerの保存先検査は実行時に行います。解決済み設定や保存された`normal.json`には秘密値が含まれ得るため、ログや公開の問い合わせへ貼り付けないでください。
 
 ### 管理済みprofileを使う場合
