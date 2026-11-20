@@ -27,10 +27,10 @@ public sealed class MachineEventTests
     }
 
     [Fact]
-    public void HiddenAndShownElsewhereEntriesAreNotDrawnAndAResultFoldsUnderItsToolUse()
+    public void HiddenEntriesAreNotDrawnShownElsewhereIsOnlyAHintAndAResultFoldsUnderItsToolUse()
     {
         var rows = new[] { Event("a", "words", "show"), Event("b", "system", "hide"), Event("c", "words", "show", elsewhere: true), Event("d", "tool_use", "fold", "t1"), Event("e", "tool_result", "fold", "t1"), Event("f", "tool_result", "fold", "t2"), Event("g", "tool_result", "show", "t1") };
-        Assert.Equal(["a", "d", "f", "g"], Timeline.VisibleMachine(rows).Select(m => m.Id));
+        Assert.Equal(["a", "c", "d", "f", "g"], Timeline.VisibleMachine(rows).Select(m => m.Id));
         Assert.False(Timeline.IsQuotable(Row()));
     }
 
