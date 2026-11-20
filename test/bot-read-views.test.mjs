@@ -130,6 +130,18 @@ test('a stopped member gets no key bar and the panel says it starts with the nex
  assert.equal(input.hidden,true);assert.equal(status.textContent,'トロニーは止まっています。次のメッセージで起動します')
 })
 
+test('a machine seat (screen.machine) gets no key bar; the approval card and the screen text stay, and a missing flag keeps the bar',async t=>{
+ let machine=true,pending=false
+ const f=inputFixture(t,path=>path.endsWith('/approval')?(pending?{status:'approval_required',promptDigest:'sha256:'+'b'.repeat(64),choices:[{decision:'approve_once',label:'はい'},{decision:'deny',label:'いいえ'}]}:{status:'none'}):{online:true,screen:'claude> ',...(machine===undefined?{}:{machine})})
+ await f.view.open({id:'a',displayName:'A'})
+ const bar=()=>all(f.input,node=>node.className==='screen-keys')[0]
+ assert.equal(f.input.hidden,true);assert.equal(bar().hidden,true)
+ pending=true;await f.view.open({id:'a',displayName:'A'})
+ assert.equal(f.input.hidden,false);assert.equal(bar().hidden,true);assert.equal(f.decision('approve_once').textContent,'はい')
+ assert.equal(f.posts().filter(call=>call.path.endsWith('/key')).length,0)
+ machine=undefined;pending=false;await f.view.open({id:'a',displayName:'A'})
+ assert.equal(f.input.hidden,false);assert.equal(bar().hidden,false)
+})
 test('character sheet captions are the date only, and absent when the data has none; no file names on the surface',async t=>{
  platform(t);t.mock.method(URL,'createObjectURL',()=> 'blob:a');t.mock.method(URL,'revokeObjectURL',()=>{})
  const dialog=new Element(),list=new Element()
