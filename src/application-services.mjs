@@ -363,6 +363,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       const cli = usageAssembly?.harnessCli
       const harnessPort = factory.supportsHarnessCli === true && cli && typeof cli.installed === 'function' && typeof cli.watch === 'function'
         ? { harnessCli: { installed: () => cli.installed(), watch: listener => cli.watch(listener), ...(typeof cli.recheck === 'function' ? { recheck: harness => cli.recheck(harness) } : {}) } } : {}
+      // machine-stream.md: conversation's seatStream (cursor, ingest) goes only to an engine that declares it (EXECUTION_SEAT_STREAM).
+      const streamPort = factory.supportsSeatStream === true
+        ? { seatStream: { cursor: botId => machineStream.cursor(botId), ingest: envelope => machineStream.ingest(envelope) } } : {}
       const remote = factory.supportsRemoteSeats === true && terminals
         ? { terminals: { connection: terminals.connection, watch: listener => {
           const off = [terminals.watch(listener), remoteSeatListener.watch(listener)]
@@ -371,7 +374,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
           ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}),
           ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor, callerReplace: aitermCallerReplaceSupported() } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
-        input = { ...input, ports: { ...input.ports, ...remote, ...harnessPort } }
+        input = { ...input, ports: { ...input.ports, ...remote, ...harnessPort, ...streamPort } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
           botsRoot: join(root, 'bots'), versionId: factory.versionId, record: report => diagnostics.record(report) })
         if (supported) return factory.createExecutionDispatcher(input)

@@ -39,6 +39,10 @@
       "port": "history"
     },
     {
+      "module": "conversation",
+      "port": "seatStream (cursor, ingest)"
+    },
+    {
       "module": "usage",
       "port": "settings"
     },

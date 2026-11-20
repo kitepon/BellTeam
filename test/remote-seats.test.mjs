@@ -327,9 +327,15 @@ test('a471: only the machine test seat asks for interface machine; a refusal or 
       fx.transport.client.call = async (name, args, callOptions) => {
         fx.calls.push({ name, args, options: callOptions })
         if (name === 'pty_read') return { content: [{ type: 'text', text: 'hi' }] }
+        if (name === 'stream_read') return { structuredContent: { launch_id: 'L', lines: ['{"type":"system"}'], cursor: 'L:1', state: { state: 'exited', reason: null, pending: [] } } }
+        if (name === 'stream_send') return { structuredContent: { sent: args.lines.length } }
         return answer(args)
       }
+      // machine-stream.md: the seatStream port of conversation; only a confirmed machine seat gets a reader
+      fx.ingested = []
+      fx.transport.machineStreams.port = { cursor: async () => null, ingest: async envelope => (fx.ingested.push(envelope), { status: 'stored' }) }
       await fx.transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} })
+      await new Promise(resolve => setTimeout(resolve, 20))
       await check({ ...fx, member })
     } finally { await rm(fx.root, { recursive: true, force: true }) }
   }
@@ -343,10 +349,19 @@ test('a471: only the machine test seat asks for interface machine; a refusal or 
     assert.equal(remote.seats.launchNotice(member), null)
     assert.equal((await transport.screen(member)).machine, true)
   })
+  // the same confirmed machine seat: one reader hands the stream lines to conversation unchanged, and streamSend forwards unchanged
+  await run(args => receipt(args), async ({ calls, transport, member, ingested }) => {
+    assert.equal(ingested.length, 1)
+    assert.deepEqual([ingested[0].botId, ingested[0].session, ingested[0].lines], ['bot-f1a21da1', launches(calls)[0].session_name, ['{"type":"system"}']])
+    assert.deepEqual(await transport.streamSend(member, { lines: [{ type: 'user' }] }), { sent: 1 })
+    assert.equal(calls.find(call => call.name === 'stream_send').args.session_id, transport.session(member))
+    await assert.rejects(transport.streamSend(member, { lines: [] }), { code: 'STREAM_SEND_INVALID' })
+  })
   // AGENT_MACHINE_UNAVAILABLE: one launch without the key, a plain notice, the screen is a terminal screen
   await run(args => { if (args.interface) throw Object.assign(new Error('aiterm: AGENT_MACHINE_UNAVAILABLE: x'), { aitermResponseReturned: true }); return receipt(args, false) },
-    async ({ calls, transport, member, remote }) => {
+    async ({ calls, transport, member, remote, ingested }) => {
       assert.equal(launches(calls).length, 2)
+      assert.equal(ingested.length, 0, 'a seat that started the old way has no stream reader')
       assert.equal('interface' in launches(calls)[1], false)
       assert.equal(remote.seats.launchNotice(member).code, 'MACHINE_MODE_SKIPPED')
       assert.equal((await transport.screen(member)).machine, false)

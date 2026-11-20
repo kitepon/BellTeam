@@ -183,6 +183,8 @@ stateDiagram-v2
 
 Protects: a seat must not stop launching because of the new mode (give-up-is-a-guard). `launchWithMachine` is the only place that reads the two refusal names (error code, `aitermErrorCode`, `launchRefusal.code` or the message). Self-exit: the notice is cleared by the next machine launch that Aiterm confirms (`machineNotices` for a local seat, `RemoteSeats` notices for a terminal seat; both are read by `seatLaunch`), and that launch asks for the machine mode again. The receipt is the truth about the mode: `structuredContent.interface: 'machine'` of the launch result (aiterm-mcp 0.70.82, returned only for a machine seat). The launch record (`runtime-launches.json`) carries `machine: true` only for a seat Aiterm confirmed; the Bot screen view reads it (screen-observation.md). A live or hibernated seat is never closed to change mode (contract 4).
 
+A pending AskUserQuestion of a machine seat and the whole stream of a machine seat are relayed to the conversation as data and answered from there: [machine-stream.md](machine-stream.md).
+
 Not in BellTeam: the minimum Aiterm version (`MACHINE_INTERFACE_MINIMUM_VERSION = 0.70.82`, Aiterm's constant: a terminal below it refuses with `REMOTE_AITERM_TOO_OLD`; the container's own Aiterm below it strips `interface` silently, which the missing receipt field shows, so BellTeam keeps no version constant of its own), Code Mode inside machine mode (not available in `-p`: the test seat loses it while it runs machine), usage-limit mapping (`rate_limited` as today), asyncRewake and Stop-hook order (Aiterm).
 
 ## Target revision (member terminal/folder change)

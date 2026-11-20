@@ -25,6 +25,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { aitermFailureCause } from './agent-launch-error.mjs'
 import { harnessCliWait, harnessCliRefusal, HARNESS_NOT_INSTALLED } from './harness-cli-wait.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
+import { MachineStreamReaders } from './machine-stream-reader.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
@@ -172,7 +173,7 @@ const resumedRunningFastKept = (bot, receipt) => bot.fastMode === true && receip
   && receipt.startup?.reason === 'turn_running' && receipt.fast_error?.code === 'FAST_MODE_UNCONFIRMED'
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, refastRetry = 30_000 } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000 } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -218,6 +219,10 @@ export class AitermTransport {
     // a451 (cli-not-installed.md): usage's harnessCli window. cliWaits: botId -> {code, action|null, terminalId, at}, a local Bot refused for a CLI that is not ready.
     this.harnessCli = harnessCli
     this.cliWaits = new Map()
+    // a471 (machine-stream.md): one reader per machine seat relays stream_read lines to conversation's seatStream port (null = no relay).
+    this.machineStreams = new MachineStreamReaders({ client: { call: (...args) => this.client.call(...args) }, port: seatStream,
+      current: async session => (await this.readRuntimeLaunches())[session]?.machine === true,
+      gone: async session => (await this.client.call('pty_observe', { session_id: session }))?.structuredContent?.exists === false })
     this.machineNotices = new Map() // botId -> {code, action, at}: a471 machine launch that started the old way
     this.cliUnsubscribe = harnessCli?.watch?.(change => this.cliChanged(change)) ?? null
     // t29 (remote-seat.md "Resume after the route came back"): SM10 last seat-MCP request (ms) and refusals per (session, route).
@@ -322,6 +327,24 @@ export class AitermTransport {
   }
 
   // N5 screen input (screen-input.md): one Owner key or approval answer into the seat the screen view shows.
+  // machine-stream.md: after an engine start, every listed machine seat of this Aiterm gets its reader again (it reads its cursor from conversation).
+  // shortcut: a terminal seat has no row in this Aiterm's pty_list, so remote machine seats get theirs at their next launch; step 3 (a471-remotes) covers them.
+  async resumeMachineStreams() {
+    if (!this.machineStreams.port) return
+    const launches = await this.readRuntimeLaunches()
+    for (const row of (await this.client.call('pty_list')).structuredContent?.sessions ?? []) {
+      const seat = launches[row?.session_id], bot = seat?.machine === true && seat.botId ? this.resolveBot?.(seat.botId) : null
+      if (bot) this.machineStreams.start(bot, row.session_id)
+    }
+  }
+
+  // machine-stream.md: the Owner's answer lines (conversation builds them) go to the seat unchanged; Aiterm's result or error comes back as is.
+  async streamSend(bot, { lines } = {}) {
+    if (!Array.isArray(lines) || lines.length < 1 || lines.length > 20 || lines.some(line => !line || typeof line !== 'object' || Array.isArray(line)))
+      throw Object.assign(new Error('STREAM_SEND_INVALID'), { code: 'STREAM_SEND_INVALID', status: 400 })
+    return (await this.client.call('stream_send', { session_id: this.session(bot), lines })).structuredContent
+  }
+
   async screenKey(bot, key) {
     if (!SCREEN_KEYS.has(key)) throw screenFailure('SCREEN_KEY_INVALID', 400)
     if (!await this.isRunning(bot)) throw screenFailure('SCREEN_SEAT_ABSENT', 409)
@@ -522,7 +545,7 @@ export class AitermTransport {
     this.sessions.set(bot.id, session)
     this.seatHarnesses.set(bot.id, { session, harness })
     await this.recordRuntimeLaunch(session, runtime, harness,
-      { ...(remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null } : {}), ...(machineLaunched ? { machine: true } : {}) })
+      { ...(remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null } : {}), ...(machineLaunched ? { machine: true, botId: bot.id } : {}) })
     try {
       this.membersAdmission.assertLease(membersLease)
       await this.updateSession(bot.id, session, { membersLease })
@@ -539,6 +562,8 @@ export class AitermTransport {
     } catch (error) {
       throw error
     }
+    // machine-stream.md: the one reader of a confirmed machine main seat (a fork has none); idempotent per session.
+    if (machineLaunched) this.machineStreams.start(bot, session)
     // configuration-lock.md: a new launch has no Aiterm lock; the Owner's switch is read fresh, a failure only logs.
     if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
     return session
