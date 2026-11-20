@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T16:27:20Z",
-  "expiresAt": "2026-11-27T16:27:20Z",
+  "publishedAt": "2026-11-20T16:54:15Z",
+  "expiresAt": "2026-11-27T16:54:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4ee5db42f421942806641cda78c9cad74852a4a2",
-      "versionId": "sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482",
+      "sourceCommit": "b30e4247f529b60da68223ca7621c689fcbe3811",
+      "versionId": "sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の口の席の読み取りを、実行エンジンの入れ替えと再開に合わせて止め、始め直すようにしました。",
-        "答えたあとに席が送る封筒で、質問のカードが「期限切れ」で閉じてしまう不具合を直しました。",
-        "Hook・rate_limit・system・control の行を、1つの折りたたみにまとめました。"
+        "ターンの終わりに出る行（結果の行と種類の分からない行）を、Hook などと同じ折りたたみにまとめました。ターンの終わりが生の JSON や単独の Hook の行で出なくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4ee5db42f421942806641cda78c9cad74852a4a2",
-      "versionId": "sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482",
+      "sourceCommit": "b30e4247f529b60da68223ca7621c689fcbe3811",
+      "versionId": "sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:39ccbacccb8526285bfdc56e50e2742ded6c53ae415a63cc6ba5a08531c35482"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:faea735d0cf4b968c5711ef96fbc52939b11650b88660a809f8e456f1c4b8356"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の口の席の読み取りを、実行エンジンの入れ替えと再開に合わせて止め、始め直すようにしました。",
-        "答えたあとに席が送る封筒で、質問のカードが「期限切れ」で閉じてしまう不具合を直しました。",
-        "Hook・rate_limit・system・control の行を、1つの折りたたみにまとめました。"
+        "ターンの終わりに出る行（結果の行と種類の分からない行）を、Hook などと同じ折りたたみにまとめました。ターンの終わりが生の JSON や単独の Hook の行で出なくなります。"
       ]
     },
     {
