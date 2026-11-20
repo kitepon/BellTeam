@@ -50,7 +50,7 @@ public sealed class ScreenView : Grid
     }
     private void Updated(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(BellTeam.App.Workspace.Screen) or nameof(BellTeam.App.Workspace.ScreenStatus) or nameof(BellTeam.App.Workspace.ScreenOnline) or nameof(BellTeam.App.Workspace.ScreenInput) or nameof(BellTeam.App.Workspace.ScreenVisible) or nameof(BellTeam.App.Workspace.Selected)) Refresh();
+        if (args.PropertyName is nameof(BellTeam.App.Workspace.Screen) or nameof(BellTeam.App.Workspace.ScreenStatus) or nameof(BellTeam.App.Workspace.ScreenOnline) or nameof(BellTeam.App.Workspace.ScreenMachine) or nameof(BellTeam.App.Workspace.ScreenInput) or nameof(BellTeam.App.Workspace.ScreenVisible) or nameof(BellTeam.App.Workspace.Selected)) Refresh();
     }
 
     // Render seam: the digits row opened (Mac ScreenKeyBar(digitsOpen:)).
@@ -93,18 +93,23 @@ public sealed class ScreenView : Grid
 
     private void RenderBar()
     {
-        if (input is not { Available: true } model) { bar.Visibility = Visibility.Collapsed; barState = null; return; }
+        if (input is not { Available: true } model || Workspace is not { } workspace) { bar.Visibility = Visibility.Collapsed; barState = null; return; }
         // The bar is rebuilt only when something it shows changed: a build every second would swallow a click between press and release.
-        var state = string.Join('\u0003', model.SendingKey, model.SentKey, model.Notice, model.Banner?.Key, showDigits);
+        var state = string.Join('\u0003', model.SendingKey, model.SentKey, model.Notice, model.Banner?.Key, showDigits, workspace.ScreenMachine);
         if (state == barState) return;
         barState = state;
         var column = new StackPanel { Margin = new Thickness(12) };
         if (model.Banner is { IsRequired: true } approval) column.Children.Add(Spaced(Banner(model, approval)));
         if (model.Notice is { } notice) column.Children.Add(Spaced(Notice(notice)));
-        column.Children.Add(Spaced(Row(8, Key(model, "Escape", "取消", Glyph(""), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", "決定", EnterIcon(), InspectorUi.Violet, false), Key(model, "C-c", "中断", StopIcon(), Destructive, false))));
-        var toggle = Plain(ToggleCap(showDigits), "数字"); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
-        column.Children.Add(Spaced(Row(8, Key(model, "Left", "左", Glyph(""), KeyTint, true), Key(model, "Up", "上", Glyph(""), KeyTint, true), Key(model, "Down", "下", Glyph(""), KeyTint, true), Key(model, "Right", "右", Glyph(""), KeyTint, true), toggle)));
-        if (showDigits) column.Children.Add(Spaced(Row(5, Enumerable.Range(0, 10).Select(digit => Digit(model, digit.ToString())).ToArray())));
+        // A machine seat has no terminal: no keys, only the approval banner (and its notice) while a request is pending.
+        if (workspace.ScreenMachine && column.Children.Count == 0) { bar.Visibility = Visibility.Collapsed; return; }
+        if (!workspace.ScreenMachine)
+        {
+            column.Children.Add(Spaced(Row(8, Key(model, "Escape", "取消", Glyph(""), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", "決定", EnterIcon(), InspectorUi.Violet, false), Key(model, "C-c", "中断", StopIcon(), Destructive, false))));
+            var toggle = Plain(ToggleCap(showDigits), "数字"); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
+            column.Children.Add(Spaced(Row(8, Key(model, "Left", "左", Glyph(""), KeyTint, true), Key(model, "Up", "上", Glyph(""), KeyTint, true), Key(model, "Down", "下", Glyph(""), KeyTint, true), Key(model, "Right", "右", Glyph(""), KeyTint, true), toggle)));
+            if (showDigits) column.Children.Add(Spaced(Row(5, Enumerable.Range(0, 10).Select(digit => Digit(model, digit.ToString())).ToArray())));
+        }
         column.Children[0].SetValue(MarginProperty, new Thickness(0));
         // The hairline is a row of its own: a translucent border would show the window behind it.
         var frame = new StackPanel(); frame.Children.Add(new Rectangle { Height = 1, Fill = Hairline }); frame.Children.Add(column);

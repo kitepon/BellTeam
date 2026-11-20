@@ -26,7 +26,7 @@ All routes need the Owner's authenticated app session. A request on the internal
 | `GET /api/bots/:id/screen/approval` | none | `200 {"status":"none"}` or `200 {"status":"approval_required","promptDigest":"sha256:…","choices":[{"decision":"approve_once"\|"deny","label":"…"}]}` | `409 SCREEN_SEAT_ABSENT` |
 | `POST /api/bots/:id/screen/approval` | `{"decision":"approve_once"\|"deny","promptDigest":"sha256:…"}` (the digest from the GET) | `200 {"status":"submitted","decision":…}` | `400 SCREEN_APPROVAL_INVALID`, `409 SCREEN_APPROVAL_CHANGED` (the dialog changed or is gone: GET again), `422 SCREEN_APPROVAL_UNSUPPORTED` (harness without a public approval tool: use the key bar), `502 SCREEN_INPUT_FAILED` |
 
-Client guidance: show the key bar whenever the screen view is open. Poll GET approval with the screen tick, or when the Owner taps it. Show approval buttons only for `approval_required`, with the returned labels. Permanent approval is not offered, because Aiterm does not expose it.
+Client guidance: show the key bar whenever the screen view is open, except while `GET /api/bots/:id/screen` answers `machine: true` (a Claude seat launched in machine mode: no terminal keys; a missing field is `false`); the approval buttons stay driven by the approval read only. Poll GET approval with the screen tick, or when the Owner taps it. Show approval buttons only for `approval_required`, with the returned labels. Permanent approval is not offered, because Aiterm does not expose it.
 
 ## Execution contract
 
