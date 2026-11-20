@@ -36,18 +36,22 @@ export class MachineStreamReaders {
           if (answer?.status !== 'stored') throw new Error('SEAT_STREAM_INGEST_INVALID')
           sentState = state
         }
-        cursor = read.cursor
+        // A previous launch stays readable after a wake or restart (its launch_id differs from current_launch_id): once it is drained, read the current launch from its start.
+        const old = read.current_launch_id && read.current_launch_id !== read.launch_id
+        cursor = old && read.at_end ? null : read.cursor
         delay = 0
+        if (read.state?.state === 'exited' && !old) return
       } catch (error) {
-        // Aiterm's cursor belongs to one launch: a resume or wake starts the stream again from the start of the new launch.
+        // The launch's files are gone (seat closed): the cursor is stale, start over at the current launch.
         if (codeOf(error) === 'STREAM_CURSOR_STALE') { cursor = null; continue }
+        // A seat that was launched before the stream tools (screen-based machine host) has no stream: nothing to read until its next launch starts a reader.
+        if (codeOf(error) === 'STREAM_UNSUPPORTED') return
         if (!delay) process.stderr.write(`BellTeam machine stream: ${session}: ${codeOf(error) ?? error?.message}\n`)
         if (await this.gone(session).catch(() => false)) return
         delay = Math.min(BACKOFF_MAX_MS, delay ? delay * 2 : BACKOFF_FIRST_MS)
         await this.sleep(delay)
         continue
       }
-      if (read.state?.state === 'exited') return
     }
   }
 }

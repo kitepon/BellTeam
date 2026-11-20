@@ -185,7 +185,7 @@ Protects: a seat must not stop launching because of the new mode (give-up-is-a-g
 
 A pending AskUserQuestion of a machine seat and the whole stream of a machine seat are relayed to the conversation as data and answered from there: [machine-stream.md](machine-stream.md).
 
-Not in BellTeam: the minimum Aiterm version (`MACHINE_INTERFACE_MINIMUM_VERSION = 0.70.82`, Aiterm's constant: a terminal below it refuses with `REMOTE_AITERM_TOO_OLD`; the container's own Aiterm below it strips `interface` silently, which the missing receipt field shows, so BellTeam keeps no version constant of its own), Code Mode inside machine mode (not available in `-p`: the test seat loses it while it runs machine), usage-limit mapping (`rate_limited` as today), asyncRewake and Stop-hook order (Aiterm).
+Not in BellTeam: the minimum Aiterm version (`MACHINE_INTERFACE_MINIMUM_VERSION = 0.70.84` since the stream release (0.70.82 and 0.70.83 are the screen-based form and must not be used with the stream), Aiterm's constant: a terminal below it refuses with `REMOTE_AITERM_TOO_OLD`; the container's own Aiterm below it strips `interface` silently, which the missing receipt field shows, so BellTeam keeps no version constant of its own), Code Mode inside machine mode (not available in `-p`: the test seat loses it while it runs machine), usage-limit mapping (`rate_limited` as today), asyncRewake and Stop-hook order (Aiterm).
 
 ## Target revision (member terminal/folder change)
 
