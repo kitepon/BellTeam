@@ -1,0 +1,37 @@
+{
+  "_comment": "a471 display rule: view -> show | fold | hide. PROVISIONAL (Owner decides; thinking shown by the Owner 2026-11-20). Read at projection time only: stored events never change.",
+  "words": "show",
+  "thinking": "show",
+  "tool_use": "fold",
+  "tool_result": "fold",
+  "system": "hide",
+  "hook": "hide",
+  "result": "hide",
+  "rate_limit": "show",
+  "question": "show",
+  "approval": "show",
+  "control": "hide",
+  "unknown": "show",
+  "refine": [
+    {
+      "view": "thinking",
+      "empty": true,
+      "display": "hide"
+    },
+    {
+      "view": "result",
+      "is_error": true,
+      "display": "show"
+    },
+    {
+      "view": "tool_result",
+      "is_error": true,
+      "display": "show"
+    },
+    {
+      "view": "system",
+      "title": "api_retry",
+      "display": "show"
+    }
+  ]
+}

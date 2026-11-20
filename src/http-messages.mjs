@@ -1,27 +1,28 @@
 import { TimelineIndex, timelinePage, fullTimeline } from './timeline-index.mjs'
 
-export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, ownerSecretGuide = null }) {
-  const extras = (kind, id) => {
+export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream = null, ownerSecretGuide = null }) {
+  const extras = (kind, id, all = false) => {
     const target = kind === 'rooms' ? { roomId: id } : { botId: id }
     const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
-    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions)] : [])]
+    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions), ...(machineStream?.timelineView({ botId: id }, { all }).length ? [machineStream.timelineView({ botId: id }, { all })] : [])] : [])]
   }
-  const sources = async (kind, id, prepared = null) => {
+  const sources = async (kind, id, prepared = null, all = false) => {
     const base = prepared ?? (kind === 'rooms'
       ? rooms.messageView ? await rooms.messageView(id) : new TimelineIndex(await rooms.messages(id))
       : store.timelineView ? await store.timelineView(id) : new TimelineIndex(await store.timeline(id)))
-    return [base, ...extras(kind, id)]
+    return [base, ...extras(kind, id, all)]
   }
   const timeline = async (kind, id) => fullTimeline(await sources(kind, id))
   const messagePage = async (kind, id, url) => {
     let page
     if (store?.messagePage) {
       // 子へ渡した位置と本文を同じsnapshotに束縛し、待機中のカード更新を混ぜない。
-      const cards = extras(kind, id).map(source => source.snapshot())
+      const all = url.searchParams.get('machine') === 'all'
+      const cards = extras(kind, id, all).map(source => source.snapshot())
       const query = Object.fromEntries(['limit', 'before', 'after'].map(key => [key, url.searchParams.get(key)]))
       const result = await store.messagePage({ kind, id, query, cards: cards.map(rows => rows.map(({ id, at }) => ({ id, at }))) })
       page = { ...result, items: result.items.map(entry => entry.source === 0 ? entry.item : cards[entry.source - 1][entry.index]) }
-    } else page = timelinePage(await sources(kind, id), url)
+    } else page = timelinePage(await sources(kind, id, null, url.searchParams.get('machine') === 'all'), url)
     const items = await Promise.all(page.items.map(async entry => {
       const item = webMessage(entry)
       if (!ownerSecretGuide || item.kind !== 'secret_request' || !item.secret_request) return item
