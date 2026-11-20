@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { RETIRED_HARNESSES } from './retired-harness.mjs'
+import { baseHarness } from './agent-launch-error.mjs'
 
 // Persisted common intent contract; compatible producer releases still need structural capability checks.
 export const CONFIGURATION_VERSION = '0.63.11'
@@ -74,7 +75,7 @@ export function configurationReceipt(value, expected) {
     const harnesses = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli', ...RETIRED_HARNESSES }
     if (!exact(result, 'schema,session_id,provider,harness,model,reasoning_effort,fast')
       || result.schema !== 'aiterm.agent-configure-result.v1' || result.session_id !== binding.session_id
-      || !Object.hasOwn(harnesses, result.provider) || harnesses[result.provider] !== result.harness
+      || !Object.hasOwn(harnesses, result.provider) || harnesses[result.provider] !== baseHarness(result.harness)
       || ![result.model, result.reasoning_effort].every(entry => entry === null || typeof entry === 'string')
       || !(result.fast === null || typeof result.fast === 'boolean') || value.outcome !== 'applied') invalid()
   } else if (value.outcome === 'applied') invalid()
