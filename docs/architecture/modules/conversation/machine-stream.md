@@ -99,7 +99,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 
 | Stream line | view | text / extra |
 | --- | --- | --- |
-| `assistant` text block | `words` | the text. The same words also arrive as interim/answer rows by the existing path: the row carries `shown_elsewhere: true` (a hint only: the default table shows it too, see below) |
+| `assistant` text block | `words` | the text. The same words also arrive as interim/answer rows by the existing path: the row carries `shown_elsewhere: true` (a hint only: the default table shows it too, see below). The last one of a finished turn also carries `bubble: true` (see Turn answer bubble) |
 | `assistant` `thinking` block | `words` with `title: "thinking"` | collapsed |
 | `assistant` `tool_use` block | `tool_use` | `tool` |
 | `user` with `tool_result` | `tool_result` | text of the result, cut |
@@ -177,6 +177,23 @@ The held request is Claude Code's own; BellTeam adds no timer and no refusal. `p
 | claude's stdout lines | Aiterm stream file, per launch | until the launch's files are removed by Aiterm |
 | stored events, cursor, requests | conversation, `state/machine-stream/<botId>.jsonl` | kept like the chat log |
 | last read position of the live reader | execution memory | until the seat closes; after a restart execution asks `seatStream.cursor` |
+
+## Turn answer bubble (a471-tune-answer)
+
+Owner 2026-11-21 06:4x JST, on seeing the answer once as plain written text and once more as a bubble: 「これを出さない。その上で、今吹き出しになっていない最後の発言を吹き出しにする。」 So the answer shows once, and it is the seat's own last words.
+
+- **The duplicate is not drawn.** The turn's answer row that execution saves from the turn result (`user.complete`, labelled `stream: true`) is not on the Bot page or the full timeline. This is the rule above; nothing new is added for it. If the old words path is still live (no `displayFromStream`), the chat shows both as before; execution's flag decides, conversation adds no second rule.
+- **The last words become the bubble.** A `words` entry (not the replayed `input`, not empty) carries `bubble: true` when it is the last `words` entry of its turn and that turn has ended. A turn is the entries up to a `result` line; the `result` line ends it. Earlier `words` entries of the same turn stay plain written lines (the seat's talk between tool uses). Until the `result` arrives no entry has `bubble`; when it arrives the last words entry is replaced in place (same `id`, `seq`, `at`), and the page and SSE change event redraw it, like a card whose `request.status` changes. A turn with no words has no bubble. The mark is made here, at read time from the stored lines; stored events never change, and a restart rebuilds the same marks.
+- **Apps** draw a `words` entry with `bubble: true` as an ordinary incoming message bubble (the same look and the same Markdown rendering as a saved message, so `**` is never shown raw), and every other `words` entry as plain written text, as now. The app does not decide which words are last; it reads `bubble`. An app that already draws exactly this changes nothing.
+- The Bot list preview (`recent`) is unchanged: the latest `display: show` entry.
+
+```mermaid
+flowchart LR
+  Lines["stored lines (assistant text, ..., result)"] --> Apply["MachineStream.apply: remember the last words of the open turn"]
+  Apply -->|"result line arrives"| Mark["that words entry gets bubble: true (replaced in place)"]
+  Mark --> Page["Bot page / SSE: machine_event.bubble"]
+  Page --> Apps["apps: bubble true = message bubble, else plain line"]
+```
 
 ## Not changed
 

@@ -87,6 +87,22 @@ test('default table shows every kind, folds tool results and empty thinking, hid
   assert.equal(await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8'), before)
 })
 
+test('the last words of an ended turn are the bubble; earlier words, input and an open turn are not; a restart rebuilds it', async t => {
+  const { ms, root } = await service(t)
+  const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
+  const bubbles = m => m.timeline({ botId: 'bot-d' }).filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
+  await ms.ingest(env([J({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }), words('first'), words('last')], null, 'L1:1'))
+  assert.deepEqual(bubbles(ms), [false, false, false]) // the turn is still open
+  const before = ms.timeline({ botId: 'bot-d' })[2].id
+  await ms.ingest(env([J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'success' })], 'L1:1', 'L1:2'))
+  assert.deepEqual(bubbles(ms), [false, false, true]) // input and the earlier words stay plain; the second result has no words to mark
+  assert.equal(ms.timeline({ botId: 'bot-d' }).find(r => r.machine_event.bubble).id, before) // replaced in place
+  await ms.ingest(env([words('next'), J({ type: 'tool_use_free' }), J({ type: 'result', subtype: 'success' })], 'L1:2', 'L1:3'))
+  assert.deepEqual(bubbles(ms), [false, false, true, true])
+  const again = new MachineStream({ root, bots, streamSend: async () => ({}) }); await again.initialize({ readOnly: true })
+  assert.deepEqual(bubbles(again), [false, false, true, true])
+})
+
 test("Tronie's default table: what is shown open and what is folded to one line", async t => {
   const { ms } = await service(t)
   const cases = [

@@ -112,7 +112,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), bubbles: new Set(), lastWords: null, chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -136,6 +136,13 @@ export class MachineStream {
           if (live) this.onRequest({ id: part.request_id, botId })
         }
         changed.push(this.setRow(bot, botId, record, n, part))
+        // a471-tune-answer: the last words of a turn become the bubble when its result line arrives.
+        if (part.view === 'words' && part.title !== 'input' && part.text.trim()) bot.lastWords = { record, n, part }
+        else if (part.view === 'result') {
+          const last = bot.lastWords
+          bot.lastWords = null
+          if (last) { bot.bubbles.add(`me-${last.record.seq}-${last.n}`); changed.push(this.setRow(bot, botId, last.record, last.n, last.part)) }
+        }
       })
     } else if (record.type === 'local') this.setRequest(bot, record.request_id, record.local, record.at, record, changed)
     return changed
@@ -156,7 +163,7 @@ export class MachineStream {
     const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
-      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: this.rules.fold_group?.[part.view] ?? part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
+      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: this.rules.fold_group?.[part.view] ?? part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(bot.bubbles.has(`me-${record.seq}-${n}`) ? { bubble: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
     const line = body.split('\n')[0].slice(0, 120)
