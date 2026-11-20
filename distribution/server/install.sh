@@ -214,7 +214,10 @@ if [ "${BELLTEAM_CONTAINER_UPDATE_WORKER:-}" = 1 ]; then
     --mount "type=bind,source=$runtime,target=/runtime" --entrypoint /usr/local/bin/node "$image" \
     -e 'require("fs").mkdirSync("/runtime/server-only",{recursive:true})'
 else
-  mkdir -p "$runtime/server-only"
+  # An older installer created runtime/ through Docker (root-owned): make only server-only the same way and hand it to this user.
+  mkdir -p "$runtime/server-only" 2>/dev/null || docker run --pull never --rm --network none --read-only --user 0:0 \
+    --mount "type=bind,source=$runtime,target=/runtime" --entrypoint /usr/local/bin/node "$image" \
+    -e 'const fs=require("fs");fs.mkdirSync("/runtime/server-only",{recursive:true});fs.chownSync("/runtime/server-only",Number(process.argv[1]),Number(process.argv[2]))' "$(id -u)" "$(id -g)"
 fi
 docker volume ls --format '{{.Name}}' > "$staging/volume-names.txt"
 if grep -Fx "$state_volume" "$staging/volume-names.txt" >/dev/null; then
@@ -285,19 +288,31 @@ capture_previous() {
     *)
     case "$old_working" in /*) [ -d "$old_working" ] || return 1;; *) return 1;; esac
     case "$old_files" in
-      "$old_working/compose.yaml")
+      "$old_working/compose.yaml"|"$old_working/compose.yaml",*)
+        # COMPOSE_FILE=compose.yaml:compose.override.yaml... (README) lists every file; the first is the shipped compose.yaml, the others
+        # are the user's own files and must still exist. The config-hash check below proves this model equals the one the container was made from.
+        rest=
+        case "$old_files" in *,*) rest=${old_files#*,};; esac
         docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$old_image" /app/compose.yaml > "$saved/previous-compose.yaml" || return 1
-        old_files="$saved/previous-compose.yaml";;
+        set -- -f "$saved/previous-compose.yaml"
+        if [ -n "$rest" ]; then
+          saved_ifs=$IFS; IFS=,; set -f
+          for extra in $rest; do
+            case "$extra" in "$old_working"/*) [ -f "$extra" ] || { IFS=$saved_ifs; set +f; return 1; }; set -- "$@" -f "$extra";; *) IFS=$saved_ifs; set +f; return 1;; esac
+          done
+          IFS=$saved_ifs; set +f
+        fi;;
       */.bellteam-compose.*/normal.json|*/.bellteam-compose.*/previous-normal.json|*/.bellteam-repair.*/normal.json)
         # existing-install-repair.md leaves the live model in <install>/.bellteam-repair.*/normal.json.
         [ -f "$old_files" ] || return 1
         old_install=$(dirname "$(dirname "$old_files")")
-        [ "$old_working" = "$old_install" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;
+        [ "$old_working" = "$old_install" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1
+        set -- -f "$old_files";;
       *) return 1;;
     esac
     case "$old_env" in ''|'<no value>') old_env="$old_working/.env"; [ -f "$old_env" ] || old_env=/dev/null;; esac
     BELLTEAM_SERVER_IMAGE="$old_ref" docker compose --project-directory "$old_working" -p "$old_project" \
-      --env-file "$old_env" -f "$old_files" config --format json > "$saved/previous-model.json" || return 1
+      --env-file "$old_env" "$@" config --format json > "$saved/previous-model.json" || return 1
       ;;
   esac
   hash=$(docker compose -p "$project" -f "$saved/previous-model.json" config --hash bellteam) || return 1
@@ -332,6 +347,8 @@ if ! "$recovery" && [ -n "$stopped_container" ]; then
     rm -f "$saved/previous-normal.json"
     keep_saved=true
     echo SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED >&2
+    # Nothing was stopped yet. The usual cause is a COMPOSE_FILE file edited after the container was made, or a file moved away.
+    echo 'まだ何も止めていません。COMPOSE_FILE に並べたoverride等を、起動した時のまま設置フォルダに戻して、もう一度 sh install.sh を実行してください。' >&2
     exit 1
   fi
 fi
@@ -498,11 +515,12 @@ if ! "$recovery" && [ -f "$saved/container-updater.json" ]; then
   fi
 fi
 endpoint=$(docker compose port bellteam 4180)
+port=${endpoint##*:}
 case "$endpoint" in
-  0.0.0.0:*|\[::\]:*) url="http://localhost:18891" ;;
+  0.0.0.0:*|\[::\]:*) url="http://localhost:$port" ;;
   *) url="http://$endpoint" ;;
 esac
 printf '\nBellTeamを起動しました。ブラウザで %s を開いてください。\n' "$url"
-printf 'iPhone・iPadからは、このマシンのLANアドレスの18891番へ接続できます。\n'
+printf 'iPhone・iPadからは、このマシンのLANアドレスの%s番へ接続できます。\n' "$port"
 printf '最初に使うAIを選び、公式サイトで認証すると、案内役との会話が始まります。\n'
 printf '保存設定: %s\n' "$saved"
