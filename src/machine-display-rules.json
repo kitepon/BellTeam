@@ -1,37 +1,22 @@
 {
-  "_comment": "a471 display rule: view -> show | fold | hide. PROVISIONAL (Owner decides; thinking shown by the Owner 2026-11-20). Read at projection time only: stored events never change.",
+  "_comment": "a471 display rule: view -> show | fold | hide. For the Owner's first live try (2026-11-20 20:3x JST): show every kind as it is; only an empty thinking block has nothing to show. To be tuned with the Owner. Read at projection time only: stored events never change.",
   "words": "show",
   "thinking": "show",
-  "tool_use": "fold",
-  "tool_result": "fold",
-  "system": "hide",
-  "hook": "hide",
-  "result": "hide",
+  "tool_use": "show",
+  "tool_result": "show",
+  "system": "show",
+  "hook": "show",
+  "result": "show",
   "rate_limit": "show",
   "question": "show",
   "approval": "show",
-  "control": "hide",
+  "control": "show",
   "unknown": "show",
   "refine": [
     {
       "view": "thinking",
       "empty": true,
       "display": "hide"
-    },
-    {
-      "view": "result",
-      "is_error": true,
-      "display": "show"
-    },
-    {
-      "view": "tool_result",
-      "is_error": true,
-      "display": "show"
-    },
-    {
-      "view": "system",
-      "title": "api_retry",
-      "display": "show"
     }
   ]
 }

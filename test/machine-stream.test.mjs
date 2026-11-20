@@ -55,7 +55,7 @@ test('ingest: stores raw lines, advances the cursor, resyncs on a gap or replay,
   assert.deepEqual(await ms.ingest(env(['{"type":"y"}'], null, 'L2:10', undefined, 'L2')), { status: 'stored', cursor: 'L2:10' }) // new launch
   assert.equal(ms.line('bot-d', 2).line, '{"type":"mystery"}')
   // unknown kind is in the log (visible), init is stored but hidden by the rule table
-  assert.deepEqual(ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event.view), ['unknown', 'unknown', 'unknown'])
+  assert.deepEqual(ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event.view), ['system', 'unknown', 'unknown', 'unknown'])
   assert.equal(ms.timelineView({ botId: 'bot-d' }, { all: true }).length, 4)
   assert.deepEqual(ms.timeline({ roomId: 'room-x' }), [])
   await assert.rejects(ms.ingest({ ...env([], null, 'x'), botId: 'bot-zz' }), { code: 'MACHINE_STREAM_INVALID' })
@@ -66,19 +66,19 @@ test('ingest: stores raw lines, advances the cursor, resyncs on a gap or replay,
   assert.equal(again.timelineView({ botId: 'bot-d' }, { all: true }).length, 4)
 })
 
-test('display rule table is applied at read time; thinking shows when it has text; stored data does not change', async t => {
+test('default table shows every kind; only empty thinking is hidden; the table is read at display time and stored data does not change', async t => {
   const { ms, root } = await service(t)
   const lines = [J({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'I am checking' }, { type: 'thinking', thinking: '' }, { type: 'text', text: 'answer' }, { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] } }),
     J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a\nb' }] } }), J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'error_during_execution' })]
   await ms.ingest(env(lines, null, 'L1:1'))
   const shown = ms.timeline({ botId: 'bot-d' }).map(r => [r.machine_event.view, r.machine_event.display])
-  assert.deepEqual(shown, [['thinking', 'show'], ['tool_use', 'fold'], ['tool_result', 'fold'], ['result', 'show']])
+  assert.deepEqual(shown, [['thinking', 'show'], ['words', 'show'], ['tool_use', 'show'], ['tool_result', 'show'], ['result', 'show'], ['result', 'show']])
   const all = ms.timelineView({ botId: 'bot-d' }, { all: true }).snapshot().map(r => r.machine_event.display)
-  assert.deepEqual(all, ['show', 'hide', 'hide', 'fold', 'fold', 'hide', 'show']) // empty thinking, words shown elsewhere, success stats hidden
+  assert.deepEqual(all, ['show', 'hide', 'show', 'show', 'show', 'show', 'show']) // only the empty thinking block is hidden
   const before = await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8')
-  const hidden = new MachineStream({ root, bots, streamSend: async () => ({}), rules: { ...(await import('../src/machine-display-rules.json', { with: { type: 'json' } })).default, thinking: 'hide' } })
+  const hidden = new MachineStream({ root, bots, streamSend: async () => ({}), rules: { ...(await import('../src/machine-display-rules.json', { with: { type: 'json' } })).default, thinking: 'hide', tool_use: 'fold' } })
   await hidden.initialize({ readOnly: true })
-  assert.equal(hidden.timeline({ botId: 'bot-d' })[0].machine_event.view, 'tool_use') // same data, another rule
+  assert.equal(hidden.timeline({ botId: 'bot-d' })[0].machine_event.view, 'words') // same data, another rule
   assert.equal(await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8'), before)
 })
 
