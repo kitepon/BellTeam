@@ -89,6 +89,8 @@
     "src/http-delivery-api.mjs",
     "src/delivery-tracking.mjs",
     "src/durable-message-receipts.mjs",
-    "src/direct-log-record.mjs"
+    "src/direct-log-record.mjs",
+    "src/machine-stream.mjs",
+    "src/http-seat-request-api.mjs"
   ]
 }
