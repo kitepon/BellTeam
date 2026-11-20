@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T04:54:45Z",
-  "expiresAt": "2026-11-27T04:54:45Z",
+  "publishedAt": "2026-11-20T08:10:05Z",
+  "expiresAt": "2026-11-27T08:10:05Z",
   "releases": [
     {
       "componentId": "usage",
@@ -713,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56",
-      "versionId": "sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395",
+      "sourceCommit": "c4ec816030ccbe5c3f72a1aa25db431afa1e98a0",
+      "versionId": "sha256:3f36d14584468365fe5800f14e704f9d61af42ae59a718ba2b460bce4eb6778a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3f36d14584468365fe5800f14e704f9d61af42ae59a718ba2b460bce4eb6778a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -730,21 +730,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の AI に使わせる Aiterm を 0.70.81 にしました。fast mode の Claude の席を、ターンの途中で再開した時の扱いが直ります。",
-        "fast mode にしている Bot の席が、ターンの途中で再開されても、ターンが終わったあとで fast mode に戻るようにしました。"
+        "ルームへの投稿が、Throughline の会話文脈を読めない時にも失敗しなくなりました。もう一度読み直し、それでも読めなければ、その発言だけを文脈にして続けます。",
+        "内蔵のメモリ行の画面が、不明な版ではなく、イメージ自体の source commit を表示するようになりました。",
+        "公開サーバーの install.sh が、上書きファイルのある古い導入や root 所有の runtime/ でも、手作業なしで更新できるようになりました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "132e705fdae4358080ae69f264d7cc6e6a6cfc56",
-      "versionId": "sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395",
+      "sourceCommit": "c4ec816030ccbe5c3f72a1aa25db431afa1e98a0",
+      "versionId": "sha256:3f36d14584468365fe5800f14e704f9d61af42ae59a718ba2b460bce4eb6778a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6cf1e02d56a06a88d582839b51a088bc36f2070bbe83a13cd0f6cca6c7fe4395"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3f36d14584468365fe5800f14e704f9d61af42ae59a718ba2b460bce4eb6778a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -753,8 +754,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の AI に使わせる Aiterm を 0.70.81 にしました。fast mode の Claude の席を、ターンの途中で再開した時の扱いが直ります。",
-        "fast mode にしている Bot の席が、ターンの途中で再開されても、ターンが終わったあとで fast mode に戻るようにしました。"
+        "ルームへの投稿が、Throughline の会話文脈を読めない時にも失敗しなくなりました。もう一度読み直し、それでも読めなければ、その発言だけを文脈にして続けます。",
+        "内蔵のメモリ行の画面が、不明な版ではなく、イメージ自体の source commit を表示するようになりました。",
+        "公開サーバーの install.sh が、上書きファイルのある古い導入や root 所有の runtime/ でも、手作業なしで更新できるようになりました。"
       ]
     },
     {
