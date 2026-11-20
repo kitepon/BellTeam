@@ -466,7 +466,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         var key = (Server, entry.Target);
         var pending = PendingSend.Reconcile(pendingSends.GetValueOrDefault(key) ?? [], received);
         if (pending.Count == 0) pendingSends.Remove(key); else pendingSends[key] = pending;
-        var desired = PendingSend.Visible(received, pending);
+        var desired = Timeline.VisibleMachine(PendingSend.Visible(received, pending));
         var ids = desired.Select(message => message.Id).ToHashSet();
         for (var index = Messages.Count - 1; index >= 0; index--) if (!ids.Contains(Messages[index].Message.Id)) Messages.RemoveAt(index);
         for (var index = 0; index < desired.Length; index++)
@@ -504,7 +504,8 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             var page = await api.GetAsync<MessagePage>(target.Path + "/messages?limit=30&before=" + Uri.EscapeDataString(first.Id), token);
             token.ThrowIfCancellationRequested();
             var existing = Messages.Select(item => item.Message.Id).ToHashSet();
-            for (var index = page.Items.Length - 1; index >= 0; index--) if (existing.Add(page.Items[index].Id)) Messages.Insert(0, new(page.Items[index]));
+            var older = Timeline.VisibleMachine(page.Items);
+            for (var index = older.Length - 1; index >= 0; index--) if (existing.Add(older[index].Id)) Messages.Insert(0, new(older[index]));
             HasMore = page.HasMore;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -681,6 +682,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     private static readonly byte[] PreviewImagePng = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6, 0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 22, 73, 68, 65, 84, 120, 156, 99, 120, 54, 109, 203, 255, 105, 251, 46, 253, 103, 0, 17, 32, 14, 0, 112, 66, 12, 169, 254, 53, 102, 152, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130];
     public async Task<SecretRequest> FinishSecretAsync(string id, SecretSubmission? submission) => await (api ?? throw new BellApiException("接続先を設定してください。")).FinishSecretAsync(id, submission, connection!.Token);
     public async Task<OnePasswordKey[]?> SecretKeysAsync(string id) => await new SecretRequestApi(api ?? throw new BellApiException("接続先を設定してください。")).KeysAsync(id, connection!.Token);
+    public async Task<MachineRequest> AnswerSeatRequestAsync(string id, MachineAnswer[]? answers, string? decision) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerSeatRequestAsync(id, answers, decision, connection!.Token);
     public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerAsync(id, choice, text, connection!.Token);
     public void ReturnToProfile()
     {

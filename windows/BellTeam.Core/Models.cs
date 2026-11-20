@@ -105,6 +105,8 @@ public sealed record TimelineMessage
     [JsonPropertyName("image_urls")] public string[]? ImageUrls { get; init; }
     [JsonPropertyName("secret_request")] public SecretRequest? SecretRequest { get; init; }
     [JsonPropertyName("owner_question")] public OwnerQuestion? OwnerQuestion { get; init; }
+    // A machine seat's stream-json entry (conversation machine-stream.md): `kind == "machine_event"`.
+    [JsonPropertyName("machine_event")] public MachineEvent? MachineEvent { get; init; }
     public string[] DisplayedImageUrls => ImageUrls ?? (ImageUrl is { } url ? [url] : []);
     public bool IsOutgoing => Direction == "outgoing" || Sender?.Id == "user";
 }
@@ -209,6 +211,41 @@ public sealed record OwnerQuestion
     public required string Status { get; init; }
     public string? Answer { get; init; }
 }
+// `machine_event` of a history row; apps draw by View and never read the raw line. Display: show | fold | hide.
+public sealed record MachineEvent
+{
+    public int Seq { get; init; }
+    public int Part { get; init; }
+    public string View { get; init; } = "unknown";
+    public string Display { get; init; } = "show";
+    public string? Title { get; init; }
+    public string Text { get; init; } = "";
+    [JsonPropertyName("shown_elsewhere")] public bool ShownElsewhere { get; init; }
+    public MachineTool? Tool { get; init; }
+    public MachineRequest? Request { get; init; }
+}
+public sealed record MachineTool { public string? Id { get; init; } public string? Name { get; init; } public string? Summary { get; init; } }
+public sealed record MachineRequest
+{
+    // The history row carries request_id; the answer route returns the stored request, which names it id.
+    [JsonPropertyName("request_id")] public string? RequestId { get; init; }
+    public string? Id { get; init; }
+    public required string Status { get; init; }
+    public MachineQuestion[]? Questions { get; init; }
+    public MachineAnswer[]? Answers { get; init; }
+    public string? Decision { get; init; }
+}
+public sealed record MachineQuestion
+{
+    public string? Header { get; init; }
+    public required string Question { get; init; }
+    public bool MultiSelect { get; init; }
+    public bool AllowOther { get; init; }
+    public required MachineOption[] Options { get; init; }
+}
+public sealed record MachineOption { public required int Index { get; init; } public required string Label { get; init; } public string? Description { get; init; } }
+public sealed record MachineAnswer { public int[] Indexes { get; init; } = []; public string? Other { get; init; } }
+public sealed record SeatRequestResponse { public required MachineRequest Request { get; init; } }
 public sealed record SecretResponse { public required SecretRequest Request { get; init; } }
 public sealed record QuestionResponse { public required OwnerQuestion Question { get; init; } }
 // Machine: a Claude seat launched in machine mode (no terminal keys); an answer without the field is a terminal seat.

@@ -45,6 +45,7 @@ public sealed class MessageCard : ContentControl
     private Grid? footer;
     private SecretCard? secret;
     private QuestionCard? question;
+    private MachineEntry? machine;
     private Border? bubble;
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center };
@@ -118,12 +119,14 @@ public sealed class MessageCard : ContentControl
         if (Message is not { } message || Workspace is null) return;
         if (messageId != message.Id)
         {
-            messageId = message.Id; secret = null; question = null;
+            messageId = message.Id; secret = null; question = null; machine = null;
             if (message.Kind == "peer") BuildPeer(message);
+            else if (message.MachineEvent is not null) { layout = null; Content = machine = new MachineEntry(Workspace); }
             else if (message.SecretRequest is not null || message.OwnerQuestion is not null) BuildRequest(message);
             else BuildRow(message);
         }
-        if (layout is not null) UpdateRow(message);
+        if (machine is not null) machine.Update(message, BotName(message.Sender?.Id, message));
+        else if (layout is not null) UpdateRow(message);
         else if (secret is not null || question is not null) UpdateRequest(message);
         else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
     }
