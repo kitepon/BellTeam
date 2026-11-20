@@ -59,8 +59,9 @@ const resumeRefusal = error => {
 const CODE_MODE_ENV = Object.freeze({ CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' })
 const codeMode = harness => harness === 'claude-code' ? { settings_env: CODE_MODE_ENV } : {}
 // A terminal Aiterm below 0.70.76, or Code Mode's first-start confirm that Aiterm ends by closing the seat it made: the seat starts without it.
-const codeModeRefusal = error => ['REMOTE_AITERM_TOO_OLD', 'AGENT_STARTUP_BLOCKED']
+const refusalName = (error, names) => names
   .find(name => [error?.code, error?.aitermErrorCode, error?.launchRefusal?.code].includes(name) || String(error?.message ?? '').includes(name)) ?? null
+const codeModeRefusal = error => refusalName(error, ['REMOTE_AITERM_TOO_OLD', 'AGENT_STARTUP_BLOCKED'])
 // One more launch without settings_env, never a loop; `skipped(name)` tells the caller which refusal it was.
 async function launchWithCodeMode(args, call, skipped = () => {}) {
   try { return await call(args) } catch (error) {
@@ -70,6 +71,32 @@ async function launchWithCodeMode(args, call, skipped = () => {}) {
     const { settings_env, ...plain } = args
     const launched = await call(plain)
     skipped(name)
+    return launched
+  }
+}
+// a471 (remote-seat.md "Claude machine mode"): step 1 asks Aiterm for the machine launch on the test seat only; a471-all-container deletes the set.
+const MACHINE_TEST_SEATS = new Set(['bot-f1a21da1'])
+// Elegg's contract (a471-aiterm-machine): agent_launch `interface: 'machine'`, claude-code only. Aiterm ignores settings_env's Code Mode for a machine seat
+// (no REPL tool in claude -p, a471-rule item 12) and keeps it in the resume recipe, so the args stay as they are plus this key.
+const MACHINE_KEY = 'interface'
+const claudeLaunch = (bot, harness) => ({ ...codeMode(harness), ...(harness === 'claude-code' && MACHINE_TEST_SEATS.has(bot.id) ? { [MACHINE_KEY]: 'machine' } : {}) })
+// REMOTE_AITERM_TOO_OLD (remote layer, before any seat) or AGENT_MACHINE_UNAVAILABLE (the CLI did not come up in machine mode; Aiterm closed the half-made session).
+const machineRefusal = error => refusalName(error, ['REMOTE_AITERM_TOO_OLD', 'AGENT_MACHINE_UNAVAILABLE'])
+// aiterm-mcp >= 0.70.82 (MACHINE_INTERFACE_MINIMUM_VERSION) returns structuredContent.interface:'machine' for a seat that really started that way;
+// an older Aiterm strips the unknown key silently and sends none, so the receipt is the version gate too.
+const machineReceipt = launch => launch?.structuredContent?.interface === 'machine'
+// One more launch without `interface` (the TUI), never a loop; `machineSkipped(name)` tells the caller which refusal it was.
+// The second launch keeps its own single Code Mode fallback.
+async function launchWithMachine(args, call, codeModeSkipped = () => {}, machineSkipped = () => {}) {
+  if (!(MACHINE_KEY in args)) return launchWithCodeMode(args, call, codeModeSkipped)
+  // The first call keeps a442b's Code Mode fallback (an Aiterm that strips the key can still hit Code Mode's first-start confirm).
+  try { return await launchWithCodeMode(args, call, codeModeSkipped) } catch (error) {
+    const name = machineRefusal(error)
+    if (!name) throw error
+    process.stderr.write(`BellTeam Aiterm: machine launch refused (${name}), launching the old way: ${args.session_name}\n`)
+    const { [MACHINE_KEY]: machine, ...plain } = args
+    const launched = await launchWithCodeMode(plain, call, codeModeSkipped)
+    machineSkipped(name)
     return launched
   }
 }
@@ -191,6 +218,7 @@ export class AitermTransport {
     // a451 (cli-not-installed.md): usage's harnessCli window. cliWaits: botId -> {code, action|null, terminalId, at}, a local Bot refused for a CLI that is not ready.
     this.harnessCli = harnessCli
     this.cliWaits = new Map()
+    this.machineNotices = new Map() // botId -> {code, action, at}: a471 machine launch that started the old way
     this.cliUnsubscribe = harnessCli?.watch?.(change => this.cliChanged(change)) ?? null
     // t29 (remote-seat.md "Resume after the route came back"): SM10 last seat-MCP request (ms) and refusals per (session, route).
     this.seatMcpSeen = seatMcpSeen; this.routeResumes = new Map(); this.routeWakes = new Map(); this.routeReported = new Set()
@@ -278,6 +306,7 @@ export class AitermTransport {
   }
 
   // 履歴表示もscreen captureを使い、配送の共有読取位置を進めない。
+  // a471 (screen-observation.md): `machine` = the seat was launched in machine mode, read from BellTeam's own launch record (no native call).
   async screen(bot, { history = false } = {}) {
     let result
     try {
@@ -286,9 +315,10 @@ export class AitermTransport {
       })
     } catch (error) {
       console.error('Screen read failed', error)
-      return { online: false, screen: '' }
+      return { online: false, screen: '', machine: false }
     }
-    return { online: true, screen: cleanScreen(textResult(result), history ? 10000 : 25) }
+    const machine = (await this.readRuntimeLaunches())[this.session(bot)]?.machine === true
+    return { online: true, screen: cleanScreen(textResult(result), history ? 10000 : 25), machine }
   }
 
   // N5 screen input (screen-input.md): one Owner key or approval answer into the seat the screen view shows.
@@ -382,7 +412,7 @@ export class AitermTransport {
     let launch
     // harness-accounts.md: every seat runs on the 1st root; a 2nd seat differs only in the login the CLI gets (env token).
     const account = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
-    let remote = null, issuedLaunch = false
+    let remote = null, issuedLaunch = false, machineLaunched = false
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
@@ -397,7 +427,7 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-        ...codeMode(harness),
+        ...claudeLaunch(bot, harness),
       }
       // remote-seat.md (one launch path): a member bound to a terminal gets the terminal target, its folder, the launch context
       // and the seat MCP config on the same agent_launch; the existing checkpoint reruns after that async preparation.
@@ -413,10 +443,10 @@ export class AitermTransport {
         admissionCheck?.()
       }
       issuedLaunch = true
-      let codeModeSkipped = null
-      const launchWith = args => launchWithCodeMode(args, plain => this.changeSession(bot, 'agent_launch', plain, { ...launchOptions,
+      let codeModeSkipped = null, machineSkipped = null
+      const launchWith = args => launchWithMachine(args, plain => this.changeSession(bot, 'agent_launch', plain, { ...launchOptions,
         ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) }),
-        name => { codeModeSkipped = name })
+        name => { codeModeSkipped = name }, name => { machineSkipped = name })
       try { launch = await launchWith(launchArgs) } catch (error) {
         // delivery-details.md (a67): a launch that met a hibernated record of the same name whose resume Aiterm refused
         // (it answered) closes that record and starts fresh once; reached by every wake, also when the record was not observed.
@@ -455,6 +485,12 @@ export class AitermTransport {
       }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
       if (remote && codeModeSkipped) this.remoteSeats.codeModeSkipped(bot, codeModeSkipped)
+      // remote-seat.md "Claude machine mode": the fallback shows the plain notice; the next machine launch clears it.
+      // An Aiterm that strips the unknown key starts a TUI seat and sends no receipt field: the same notice as a too-old terminal.
+      if (MACHINE_KEY in launchArgs && !machineSkipped && !machineReceipt(launch)) machineSkipped = 'REMOTE_AITERM_TOO_OLD'
+      if (machineSkipped) this.machineNotice(bot, machineSkipped)
+      else this.machineNotices.delete(bot.id)
+      machineLaunched = MACHINE_KEY in launchArgs && !machineSkipped
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
       // a451 N5: a local launch Aiterm answered with a failure while usage says installed: the CLI may be gone, so usage looks again once.
@@ -486,7 +522,7 @@ export class AitermTransport {
     this.sessions.set(bot.id, session)
     this.seatHarnesses.set(bot.id, { session, harness })
     await this.recordRuntimeLaunch(session, runtime, harness,
-      remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null } : {})
+      { ...(remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null } : {}), ...(machineLaunched ? { machine: true } : {}) })
     try {
       this.membersAdmission.assertLease(membersLease)
       await this.updateSession(bot.id, session, { membersLease })
@@ -1826,7 +1862,7 @@ export class AitermTransport {
       // cwd = the main's folder: Aiterm accepts the same real path, the seat launcher requires it.
       // fork.md: the same saved model/effort as a main launch, so an opusplan Bot's fork also runs Opus in plan mode.
       let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId },
-        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}), ...codeMode(harness) }
+        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}), ...claudeLaunch(bot, harness) }
       if (isRemoteBot(bot)) {
         if (!this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
         remote = await this.remoteSeats.prepare(bot, args, { shortTermMemory: '', context: {}, slot, harness, kind: 'fork' })
@@ -1835,7 +1871,7 @@ export class AitermTransport {
       }
       check()
       issued = true
-      const launch = await launchWithCodeMode(args, plain => this.client.call('agent_launch', plain, { ...launchOptions,
+      const launch = await launchWithMachine(args, plain => this.client.call('agent_launch', plain, { ...launchOptions,
         ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}) }))
       receipt = launch?.structuredContent
       // Protects the project folder: only a launch Aiterm proved write-banned counts as a fork.
@@ -2172,7 +2208,17 @@ export class AitermTransport {
   // remote-seat.md "Launch notice": the latest not-started remote launch of this member, or null.
   seatLaunch(botId) {
     const wait = this.cliWaits.get(botId)
-    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? (wait?.action ? { ...wait } : null)
+    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? (wait?.action ? { ...wait } : null) ?? this.machineNotices.get(botId) ?? null
+  }
+
+  // remote-seat.md "Claude machine mode": the seat started the old way; the one step is Aiterm's, named plainly. Cleared by the next machine launch.
+  machineNotice(bot, code) {
+    const action = code === 'REMOTE_AITERM_TOO_OLD'
+      ? `${bot.terminalId ? `端末 ${bot.terminalId} の` : ''}Aitermを更新すると機械の口で起動します`
+      : `${bot.terminalId ? `端末 ${bot.terminalId} の` : ''}Claudeが機械の口で起動できませんでした。従来の画面で動いています`
+    const notice = { code: 'MACHINE_MODE_SKIPPED', action, at: new Date().toISOString() }
+    if (isRemoteBot(bot)) this.remoteSeats.notice(bot, notice)
+    else this.machineNotices.set(bot.id, notice)
   }
 
   // a451 N2/N3: a local Bot whose CLI is not ready waits (BOT_AWAITING_USER, not_started); a ready one clears its notice.

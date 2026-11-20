@@ -318,6 +318,60 @@ test('a442b: a Claude launch asks for Code Mode; a too-old terminal or the confi
   } finally { await rm(other.root, { recursive: true, force: true }) }
 })
 
+test('a471: only the machine test seat asks for interface machine; a refusal or an Aiterm that strips the key starts the old way once, with a notice', async () => {
+  const machineMember = member => ({ ...member, id: 'bot-f1a21da1' })
+  const run = async (answer, check) => {
+    const fx = await transportFixture()
+    try {
+      const member = machineMember(fx.member)
+      fx.transport.client.call = async (name, args, callOptions) => {
+        fx.calls.push({ name, args, options: callOptions })
+        if (name === 'pty_read') return { content: [{ type: 'text', text: 'hi' }] }
+        return answer(args)
+      }
+      await fx.transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} })
+      await check({ ...fx, member })
+    } finally { await rm(fx.root, { recursive: true, force: true }) }
+  }
+  const receipt = (args, machine = true) => ({ content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'd'.repeat(32), startup: { status: 'ready' }, ...(machine ? { interface: 'machine' } : {}) } })
+  const launches = calls => calls.filter(call => call.name === 'agent_launch').map(call => call.args)
+  // machine seat: the key and Code Mode's settings_env go together, the receipt proves it, the screen says so
+  await run(args => receipt(args), async ({ calls, transport, member, remote }) => {
+    assert.equal(launches(calls).length, 1)
+    assert.equal(launches(calls)[0].interface, 'machine')
+    assert.deepEqual(launches(calls)[0].settings_env, { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' })
+    assert.equal(remote.seats.launchNotice(member), null)
+    assert.equal((await transport.screen(member)).machine, true)
+  })
+  // AGENT_MACHINE_UNAVAILABLE: one launch without the key, a plain notice, the screen is a terminal screen
+  await run(args => { if (args.interface) throw Object.assign(new Error('aiterm: AGENT_MACHINE_UNAVAILABLE: x'), { aitermResponseReturned: true }); return receipt(args, false) },
+    async ({ calls, transport, member, remote }) => {
+      assert.equal(launches(calls).length, 2)
+      assert.equal('interface' in launches(calls)[1], false)
+      assert.equal(remote.seats.launchNotice(member).code, 'MACHINE_MODE_SKIPPED')
+      assert.equal((await transport.screen(member)).machine, false)
+    })
+  // an Aiterm that strips the unknown key answers with no receipt field: the seat is a TUI seat and says so
+  await run(args => receipt(args, false), async ({ transport, member, remote }) => {
+    assert.equal(remote.seats.launchNotice(member).code, 'MACHINE_MODE_SKIPPED')
+    assert.equal((await transport.screen(member)).machine, false)
+  })
+  // Code Mode's first-start confirm with the key present: a442b's fallback still applies (one launch without settings_env, key kept)
+  await run(args => { if (args.settings_env) throw Object.assign(new Error('aiterm: AGENT_STARTUP_BLOCKED: x'), { aitermResponseReturned: true }); return receipt(args) },
+    async ({ calls, member, remote }) => {
+      assert.equal(launches(calls).length, 2)
+      assert.equal('settings_env' in launches(calls)[1], false)
+      assert.equal(launches(calls)[1].interface, 'machine')
+      assert.equal(remote.seats.launchNotice(member).code, 'CODE_MODE_SKIPPED')
+    })
+  // every other seat: no key
+  const other = await transportFixture()
+  try {
+    await other.transport.wakeNow(other.member, { membersLease: 'L', admissionCheck: () => {} })
+    assert.equal('interface' in launches(other.calls)[0], false)
+  } finally { await rm(other.root, { recursive: true, force: true }) }
+})
+
 test('a443: turn-failure words in the conversation never show the AITERM_TURN_ code', async () => {
   const { turnFailureWords } = await import('../src/aiterm-transport.mjs')
   assert.equal(turnFailureWords('AITERM_TURN_ERROR: API Error: 529 overloaded'), 'API Error: 529 overloaded')

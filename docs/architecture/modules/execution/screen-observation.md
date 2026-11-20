@@ -8,7 +8,8 @@ Owner: Kiro. Root's 2026-11-07 screen-latency contract; public HTTP assembly is 
 | --- | --- | --- |
 | HTTP `GET /api/bots/:id/screen` | Existing authorized Bot; only `history=1` enables history | Existing `http-bot-api.mjs` calls `transport.screen(bot,{history})`; authorization and DTO unchanged |
 | `AitermTransport.screen` | Bot session; default 40 native lines/25 cleaned output lines, history 10000/10000; `{online,screen}` | Read only the target with `pty_read(screen:true,raw:true,timeout:0)`. Do not call `isRunning`, `runningBots` or `pty_list` before capture. No launch/input/configuration, shared output offset or persistent cache |
-| Read failure | Any exception from this tick's single native call | Log the original error only to the server log; return `{online:false,screen:''}` for this tick. This is display availability, not proof that the native session is absent. The next normal client poll can succeed independently |
+| Machine seat (a471) | Same read | The answer carries one additive field `machine`: a JSON boolean, always present. True only when the seat's launch record (`runtime-launches.json`, written at the launch from Aiterm's receipt, see remote-seat.md "Claude machine mode") says `machine: true`; otherwise false. No native call is added: the record is read from the cached file. Agreed 2026-11-20 with Admi (Web), Anis (Windows); Rapi (Apple), Neon (Linux) |
+| Read failure | Any exception from this tick's single native call | Log the original error only to the server log; return `{online:false,screen:'',machine:false}` for this tick. This is display availability, not proof that the native session is absent. The next normal client poll can succeed independently |
 | `cleanScreen` | Existing screen text and line bound | Preserve cleanup, trimming and existing output bounds |
 
 ## Data flow
@@ -18,7 +19,7 @@ flowchart LR
   HTTP[Authorized screen GET] --> Screen[Transport.screen: target session/history]
   Screen --> Read[Native pty_read: target screen snapshot]
   Read -->|success| Clean[Existing cleanScreen and line bound]
-  Clean --> Online[online:true and screen]
+  Clean --> Online[online:true, screen and machine]
   Read -->|any call failure| Log[Server log: original error]
   Log --> Offline[This tick: online:false and empty screen]
 ```
@@ -27,7 +28,7 @@ Target session identity is selected by the existing `session(bot)` function. Scr
 
 Root's13:55 ruling supersedes the earlier typed-missing precondition: one tick of offline display does not justify a native release dependency. No error-code/text parsing, extra presence read or internal retry is required. A typed missing envelope may be adopted separately later. The normal client poll, not a new server retry, leaves the offline display on the next successful read.
 
-Implementation: `src/aiterm-transport.mjs`. Direct caller: `src/http-bot-api.mjs`; no client/HTTP API change. Changed-contact check: `test/terminal-history.test.mjs` uses a mocked client, target success/history bounds and one thrown read error with server-log capture; the existing concurrent-list fixture remains scoped to list sharing.
+Implementation: `src/aiterm-transport.mjs`. Direct caller: `src/http-bot-api.mjs`; no HTTP route change; since a471 the answer has one additive boolean `machine` (see the table above; clients that ignore it keep today's screen). Changed-contact check: `test/terminal-history.test.mjs` and `test/remote-seats.test.mjs` (a471) use a mocked client, target success/history bounds and one thrown read error with server-log capture; the existing concurrent-list fixture remains scoped to list sharing.
 
 ## Cleanup-cost evidence and limits
 
