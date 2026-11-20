@@ -457,7 +457,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     }
 
     // The server history as the list holds it: everything except the local echoes.
-    private TimelineMessage[] Received() => Messages.Select(item => item.Message).Where(message => !PendingSend.IsLocal(message.Id)).ToArray();
+    private TimelineMessage[] Received() => Timeline.Expand(Messages.Select(item => item.Message)).Where(message => !PendingSend.IsLocal(message.Id)).ToArray();
 
     // Mac visibleMessages: puts the list to "received history, then the echoes the history does not have yet", keeping the rows (and their loaded images) that stay.
     private void ShowMessages(TimelineMessage[] received)
@@ -503,9 +503,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         {
             var page = await api.GetAsync<MessagePage>(target.Path + "/messages?limit=30&before=" + Uri.EscapeDataString(first.Id), token);
             token.ThrowIfCancellationRequested();
-            var existing = Messages.Select(item => item.Message.Id).ToHashSet();
-            var older = Timeline.VisibleMachine(page.Items);
-            for (var index = older.Length - 1; index >= 0; index--) if (existing.Add(older[index].Id)) Messages.Insert(0, new(older[index]));
+            // Folded rows are drawn again from the whole list, so a result whose tool_use was paged away moves under it.
+            var loaded = Received(); var known = loaded.Select(message => message.Id).ToHashSet();
+            ShowMessages([.. page.Items.Where(message => !known.Contains(message.Id)), .. loaded]);
             HasMore = page.HasMore;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -682,6 +682,8 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     private static readonly byte[] PreviewImagePng = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6, 0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 22, 73, 68, 65, 84, 120, 156, 99, 120, 54, 109, 203, 255, 105, 251, 46, 253, 103, 0, 17, 32, 14, 0, 112, 66, 12, 169, 254, 53, 102, 152, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130];
     public async Task<SecretRequest> FinishSecretAsync(string id, SecretSubmission? submission) => await (api ?? throw new BellApiException("接続先を設定してください。")).FinishSecretAsync(id, submission, connection!.Token);
     public async Task<OnePasswordKey[]?> SecretKeysAsync(string id) => await new SecretRequestApi(api ?? throw new BellApiException("接続先を設定してください。")).KeysAsync(id, connection!.Token);
+    // The stored raw line of an entry whose text was cut (machine-stream.md).
+    public async Task<string> MachineLineAsync(string botId, int seq) => (await (api ?? throw new BellApiException("接続先を設定してください。")).GetAsync<MachineLine>($"/api/bots/{Uri.EscapeDataString(botId)}/machine-events/{seq}", connection!.Token)).Line;
     public async Task<MachineRequest> AnswerSeatRequestAsync(string id, MachineAnswer[]? answers, string? decision) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerSeatRequestAsync(id, answers, decision, connection!.Token);
     public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerAsync(id, choice, text, connection!.Token);
     public void ReturnToProfile()

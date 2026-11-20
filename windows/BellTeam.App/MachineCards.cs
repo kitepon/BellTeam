@@ -7,37 +7,107 @@ using BellTeam.Core;
 
 namespace BellTeam.App;
 
-// A machine seat's stream entry in the chat log (a471-askuser; conversation machine-stream.md). Drawn by `view`, never from the raw line.
-// question / approval = a card the Owner answers while the request is pending; everything else is one quiet line or a small note.
+// A machine seat's stream entry in the chat log (a471; conversation machine-stream.md). Drawn by `view` and `display`, never from the raw line.
+// question / approval = a card the Owner answers while the request is pending; a folded entry = one collapsed line that opens to its text; everything else = a small note.
 public sealed class MachineEntry(Workspace workspace) : ContentControl
 {
-    private static readonly Brush Muted = SecretCard.Frozen(Color.FromRgb(120, 125, 145)), Red = SecretCard.Frozen(Color.FromRgb(255, 59, 48));
+    private static readonly Brush Muted = SecretCard.Frozen(Color.FromRgb(120, 125, 145)), Red = SecretCard.Frozen(Color.FromRgb(255, 59, 48)), Ink = SecretCard.Frozen(Color.FromRgb(33, 41, 61));
     private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     private MachineRequestCard? card;
     private string? shape;
+    // Open or closed is the app's own and is not stored; it survives a redraw of the same row.
+    private readonly HashSet<string> open = [];
+    private readonly Dictionary<string, string> raw = [];
     public void Update(TimelineMessage message, string sender)
     {
         var entry = message.MachineEvent!;
-        var kind = entry.Request is not null && entry.View is "question" or "approval" ? entry.View : entry.Display == "fold" ? "fold" : "note";
+        var kind = entry is { Request: not null, View: "question" or "approval" } ? entry.View : "line";
         if (shape != kind)
         {
             shape = kind; card = null;
-            if (kind is "question" or "approval")
+            if (kind != "line")
             {
                 card = new MachineRequestCard(workspace);
                 Content = new CappedRow { Child = new Border { Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20), Child = card }, HorizontalAlignment = HorizontalAlignment.Left };
             }
         }
         if (card is not null) { card.Update(entry, sender); return; }
-        var text = message.Message ?? "";
-        var line = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = kind == "fold" ? 13 : 15, Foreground = IsError(entry) ? Red : Muted, FontStyle = entry.View == "thinking" ? FontStyles.Italic : FontStyles.Normal, VerticalAlignment = VerticalAlignment.Center };
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 2, 8, 2) };
-        if (kind == "fold") row.Children.Add(new TextBlock { Text = "\uE713", FontFamily = Icons, FontSize = 12, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-        row.Children.Add(line);
-        Content = new CappedRow { Child = row, HorizontalAlignment = HorizontalAlignment.Left };
+        var stack = new StackPanel();
+        if (entry.IsFolded) stack.Children.Add(Fold(message, [message, .. entry.Folded]));
+        else
+        {
+            stack.Children.Add(Note(message, entry));
+            // A tool_use's results hang under it, each a collapsed line.
+            foreach (var result in entry.Folded) stack.Children.Add(Fold(result, [result]));
+        }
+        Content = new CappedRow { Child = stack, HorizontalAlignment = HorizontalAlignment.Left };
     }
-    // result and tool_result reach the log only when they are errors; api_retry is shown for the same reason.
-    private static bool IsError(MachineEvent entry) => entry.View is "result" or "tool_result" || entry.Title == "api_retry";
+
+    private static string FirstLine(string text) => text.Split('\n')[0];
+    private static TextBlock Glyph(string glyph, double size) => new() { Text = glyph, FontFamily = Icons, FontSize = size, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
+
+    // A shown entry: its words in full (thinking lighter and slanted); a tool_use is its one line. An error is red.
+    private static FrameworkElement Note(TimelineMessage message, MachineEvent entry)
+    {
+        // Only failures stay shown (the rest of these views fold), so a shown result is red.
+        var error = entry.View is "result" or "tool_result" || entry.View == "system" && entry.Title?.Contains("error", StringComparison.OrdinalIgnoreCase) == true;
+        var text = entry.View == "tool_use" && entry.Tool?.Name is { Length: > 0 } name ? name + (string.IsNullOrWhiteSpace(entry.Tool.Summary) ? "" : ": " + entry.Tool.Summary) : string.IsNullOrEmpty(entry.Text) || entry.View == "tool_use" ? message.Message ?? "" : entry.Text;
+        var panel = new StackPanel { Margin = new Thickness(8, 2, 8, 2) };
+        if (!string.IsNullOrWhiteSpace(entry.Title) && entry.View is not ("words" or "thinking" or "tool_use") && !string.IsNullOrEmpty(entry.Text))
+            panel.Children.Add(new TextBlock { Text = entry.Title, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = error ? Red : Muted });
+        var body = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = entry.View == "tool_use" ? 13 : 15, Foreground = error ? Red : entry.View is "thinking" or "tool_use" ? Muted : Ink, FontStyle = entry.View == "thinking" ? FontStyles.Italic : FontStyles.Normal };
+        if (entry.View == "tool_use") { var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(Glyph("\uE713", 12)); row.Children.Add(body); panel.Children.Add(row); }
+        else panel.Children.Add(body);
+        return panel;
+    }
+
+    // One collapsed line (a run of one fold_group is one line "group ×n"); a tap or click opens it to the full text and closes it again.
+    private FrameworkElement Fold(TimelineMessage head, TimelineMessage[] members)
+    {
+        var key = head.Id; var isOpen = open.Contains(key);
+        var entry = head.MachineEvent!;
+        var label = members.Length > 1 ? $"{entry.FoldGroup} ×{members.Length}" : head.Message ?? "";
+        var line = new StackPanel { Orientation = Orientation.Horizontal };
+        var chevron = Glyph(isOpen ? "\uE70D" : "\uE76C", 10);
+        line.Children.Add(chevron); line.Children.Add(new TextBlock { Text = label, FontSize = 13, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 700, VerticalAlignment = VerticalAlignment.Center });
+        var button = new Button { Content = line, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand, HorizontalAlignment = HorizontalAlignment.Left };
+        button.SetResourceReference(StyleProperty, "QuietButton"); button.Padding = new Thickness(8, 2, 8, 2); button.Margin = new Thickness(0);
+        System.Windows.Automation.AutomationProperties.SetName(button, label);
+        var body = new StackPanel { Margin = new Thickness(26, 0, 8, 6), Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed };
+        foreach (var member in members) body.Children.Add(Opened(member, members.Length > 1));
+        button.Click += (_, _) =>
+        {
+            var now = body.Visibility != Visibility.Visible;
+            body.Visibility = now ? Visibility.Visible : Visibility.Collapsed; ((TextBlock)line.Children[0]).Text = now ? "\uE70D" : "\uE76C";
+            if (now) open.Add(key); else open.Remove(key);
+        };
+        return new StackPanel { Children = { button, body } };
+    }
+
+    // The full text of one folded entry; when it was cut, a button reads the whole stored line.
+    private FrameworkElement Opened(TimelineMessage member, bool titled)
+    {
+        var entry = member.MachineEvent!; var id = member.Id;
+        var text = raw.GetValueOrDefault(id) ?? entry.Text;
+        var panel = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
+        if (titled && !string.IsNullOrWhiteSpace(entry.Title)) panel.Children.Add(new TextBlock { Text = entry.Title, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Muted });
+        var box = new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = Ink, BorderThickness = new Thickness(0), Background = new SolidColorBrush(Color.FromArgb(20, 97, 71, 212)), Padding = new Thickness(8, 6, 8, 6), MaxHeight = 320, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        panel.Children.Add(box);
+        var botId = member.Sender?.Id;
+        if (entry.Truncated && !raw.ContainsKey(id) && botId is not null)
+        {
+            var more = new Button { Content = "全文を読み込む", Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
+            var failure = new TextBlock { FontSize = 12, Foreground = Red, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+            more.Click += async (_, _) =>
+            {
+                more.IsEnabled = false; failure.Visibility = Visibility.Collapsed;
+                try { raw[id] = box.Text = await workspace.MachineLineAsync(botId, entry.Seq); more.Visibility = Visibility.Collapsed; }
+                catch (Exception error) { failure.Text = "全文を読み込めませんでした。" + error.Message; failure.Visibility = Visibility.Visible; more.IsEnabled = true; }
+            };
+            panel.Children.Add(more); panel.Children.Add(failure);
+        }
+        return panel;
+    }
 }
 
 public sealed class MachineRequestCard(Workspace workspace) : StackPanel

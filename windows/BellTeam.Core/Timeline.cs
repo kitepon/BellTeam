@@ -65,13 +65,28 @@ public static class Timeline
         }
     }
 
-    // Machine entries (machine-stream.md): an entry the display rule hides is not drawn (shown_elsewhere is a hint only, the server's display decides); a tool_result folds under the tool_use that shares its tool.id.
+    // Machine entries (machine-stream.md "Fold view"): nothing is hidden. A folded tool_result whose tool_use is in the list is drawn under it (MachineEvent.Folded of the tool_use);
+    // consecutive folded entries of one fold_group share one line (Folded of the first). Expand is the inverse, so a list that came from a screen can be folded again.
     public static TimelineMessage[] VisibleMachine(IEnumerable<TimelineMessage> messages)
     {
-        var list = messages.ToArray();
-        var uses = list.Where(m => m.MachineEvent is { View: "tool_use", Tool.Id.Length: > 0 }).Select(m => m.MachineEvent!.Tool!.Id!).ToHashSet();
-        return list.Where(m => m.MachineEvent is not { } e || e.Display != "hide" && !(e is { View: "tool_result", Display: "fold", Tool.Id: { } id } && uses.Contains(id))).ToArray();
+        var list = Expand(messages).ToList();
+        var uses = list.Select(m => m.MachineEvent).Where(e => e is { View: "tool_use", Tool.Id.Length: > 0 }).Select(e => e!.Tool!.Id!).ToHashSet();
+        var under = new Dictionary<string, List<TimelineMessage>>();
+        var result = new List<TimelineMessage>();
+        foreach (var message in list)
+            if (message.MachineEvent is { IsFolded: true, View: "tool_result", Tool.Id: { } id } && uses.Contains(id)) (under.TryGetValue(id, out var results) ? results : under[id] = []).Add(message);
+        foreach (var message in list)
+        {
+            if (message.MachineEvent is not { } entry) { result.Add(message); continue; }
+            if (entry is { IsFolded: true, View: "tool_result", Tool.Id: { } id } && uses.Contains(id)) continue;
+            if (entry is { View: "tool_use", Tool.Id: { } use } && under.TryGetValue(use, out var results)) result.Add(message with { MachineEvent = entry with { Folded = [.. results] } });
+            else if (entry is { IsFolded: true, FoldGroup.Length: > 0 } && result.Count > 0 && result[^1].MachineEvent is { IsFolded: true } last && last.FoldGroup == entry.FoldGroup) result[^1] = result[^1] with { MachineEvent = last with { Folded = [.. last.Folded, message] } };
+            else result.Add(message);
+        }
+        return [.. result];
     }
+    public static IEnumerable<TimelineMessage> Expand(IEnumerable<TimelineMessage> messages) =>
+        messages.SelectMany(m => m.MachineEvent is { Folded.Length: > 0 } entry ? new[] { m with { MachineEvent = entry with { Folded = [] } } }.Concat(entry.Folded) : [m]);
     // Reply (conversation reply.md "What can be quoted"): conversation rows only; a pending echo, a request card and a Bot-to-Bot row are not.
     public static bool IsQuotable(TimelineMessage message) => !PendingSend.IsLocal(message.Id) && message.SecretRequest is null && message.OwnerQuestion is null && message.Kind is null or "message" or "interim" or "schedule";
     // Forward (forward.md "What can be forwarded"): the same rows as a reply plus Bot-to-Bot rows.
