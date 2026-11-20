@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T09:55:20Z",
-  "expiresAt": "2026-11-27T09:55:20Z",
+  "publishedAt": "2026-11-20T12:03:22Z",
+  "expiresAt": "2026-11-27T12:03:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82",
-      "versionId": "65b4c06f844699ac1b61e2a855254d0be3d5c738cf48450e9383241a9d2b5450",
+      "sourceCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d",
+      "versionId": "bb1ad135961c4c769c94db181792ce7ee90300a2a9b375ac6ad8fef667cd2bbc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-amd64.tar.gz",
-          "bytes": 3924835,
-          "sha256": "65b4c06f844699ac1b61e2a855254d0be3d5c738cf48450e9383241a9d2b5450"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120232Z/conversation-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-amd64.tar.gz",
+          "bytes": 3924837,
+          "sha256": "bb1ad135961c4c769c94db181792ce7ee90300a2a9b375ac6ad8fef667cd2bbc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "cdd5947aa60e2d91c78bac57d6c5332bfd083cb77e6119e69db2ca7b654b1427"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120232Z/conversation-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11096,
+          "sha256": "d03ad404931f0ef552ad530807a78b52ad4d7cb206b81320e40a95b39a611128"
         },
-        "signerCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82"
+        "signerCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "ルームへの投稿が、Throughline の会話文脈を読めない時にも失敗しなくなりました。もう一度読み直し、それでも読めなければ、その発言だけを文脈にして続けます。"
+        "機械の口で動く席への質問や承認の答えを受け取る経路が入りました。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82",
-      "versionId": "821641860efab5d473cf10d5c09d8be72ce5a8b98504c43ed6afed26b80f259b",
+      "sourceCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d",
+      "versionId": "5dcebecf386c87c33ce7e6dc8f0c3c98fe86da093fec362262844a256f1e08dc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-arm64.tar.gz",
-          "bytes": 3924835,
-          "sha256": "821641860efab5d473cf10d5c09d8be72ce5a8b98504c43ed6afed26b80f259b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120232Z/conversation-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-arm64.tar.gz",
+          "bytes": 3924837,
+          "sha256": "5dcebecf386c87c33ce7e6dc8f0c3c98fe86da093fec362262844a256f1e08dc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T082222Z/conversation-402b64e9f48655ec1257e4e8336f7fb463569c82-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120232Z/conversation-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11002,
-          "sha256": "246a69e99e1d444708a9abf8e0c2d4ad139d59099d74f6920bc0dbaa6f14023e"
+          "sha256": "be58a1ad89342d793e9332885e07556fe1d95b99595bac893c414abc20b6939d"
         },
-        "signerCommit": "402b64e9f48655ec1257e4e8336f7fb463569c82"
+        "signerCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "ルームへの投稿が、Throughline の会話文脈を読めない時にも失敗しなくなりました。もう一度読み直し、それでも読めなければ、その発言だけを文脈にして続けます。"
+        "機械の口で動く席への質問や承認の答えを受け取る経路が入りました。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c",
-      "versionId": "a05992d2629545f11b8b33c0ec6fd1069f75b65076fa74e59c75b1ff6947a2cc",
+      "sourceCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d",
+      "versionId": "f4ee0d9b156010a6bb8dda420c99e7e083f1dd7f6abbfe57b2cf88b9291cae4b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095325Z/web-gateway-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-amd64.tar.gz",
-          "bytes": 5486022,
-          "sha256": "a05992d2629545f11b8b33c0ec6fd1069f75b65076fa74e59c75b1ff6947a2cc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120240Z/web-gateway-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-amd64.tar.gz",
+          "bytes": 5498294,
+          "sha256": "f4ee0d9b156010a6bb8dda420c99e7e083f1dd7f6abbfe57b2cf88b9291cae4b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095325Z/web-gateway-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "2d4eb600d98db5a2667f05b55f5532c19ef2ac983e5fe33bcb16ec1f1169a918"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120240Z/web-gateway-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10927,
+          "sha256": "6cbe6135f2b65e792917bfe62aece45e50125cc1f99bd885401cc1eac277aa18"
         },
-        "signerCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c"
+        "signerCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "機械の口で動く席の画面では、キー操作のバーを表示しなくなりました。承認の依頼がある間は、承認のカードはこれまでどおり出ます。"
+        "機械の口で動く席の画面で、質問と承認のカードに答えられるようになりました。出力の表は、既定ではすべての種類を出し、道具の結果だけを折りたたみます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c",
-      "versionId": "cc47a1e27a2d696339ff2f1b1e7ddb41095c1102ff026c9c7004d2c87743d056",
+      "sourceCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d",
+      "versionId": "41ce082c7ccb36d07ecd938f9d4e405843a3c162b21a7ca436131edc08ea6473",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095325Z/web-gateway-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-arm64.tar.gz",
-          "bytes": 5486022,
-          "sha256": "cc47a1e27a2d696339ff2f1b1e7ddb41095c1102ff026c9c7004d2c87743d056"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120240Z/web-gateway-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-arm64.tar.gz",
+          "bytes": 5498294,
+          "sha256": "41ce082c7ccb36d07ecd938f9d4e405843a3c162b21a7ca436131edc08ea6473"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095325Z/web-gateway-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10970,
-          "sha256": "47c045899401d22a5bfa82d8b30c45700af71cf5eaf95596170f9acb45544e6b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120240Z/web-gateway-0159d03632060b8d2478c1623fba4f34de1adc5d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10821,
+          "sha256": "0fa06f94390569679da2956c05be31a0b159bdbe5510e9e7c73c7a808fd83bcf"
         },
-        "signerCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c"
+        "signerCommit": "0159d03632060b8d2478c1623fba4f34de1adc5d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "機械の口で動く席の画面では、キー操作のバーを表示しなくなりました。承認の依頼がある間は、承認のカードはこれまでどおり出ます。"
+        "機械の口で動く席の画面で、質問と承認のカードに答えられるようになりました。出力の表は、既定ではすべての種類を出し、道具の結果だけを折りたたみます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c",
-      "versionId": "b2364f83c5d64d05d2afa2e1f468918a269dd7b06ead9aec33d4783fefd59398",
+      "sourceCommit": "7b457343ae7f0938f59ff82e4a215e72f31e38d2",
+      "versionId": "5a6e8c7a62f4a842e512b52170b52506acc548b0a3793676bb7a96b4b6271380",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095308Z/execution-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-amd64.tar.gz",
-          "bytes": 3993701,
-          "sha256": "b2364f83c5d64d05d2afa2e1f468918a269dd7b06ead9aec33d4783fefd59398"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120222Z/execution-7b457343ae7f0938f59ff82e4a215e72f31e38d2-linux-amd64.tar.gz",
+          "bytes": 3995841,
+          "sha256": "5a6e8c7a62f4a842e512b52170b52506acc548b0a3793676bb7a96b4b6271380"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095308Z/execution-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "3c13deefcf2032ca23e58edb4926af6b607ade0c448d93e2bb0948ae6854a0f0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120222Z/execution-7b457343ae7f0938f59ff82e4a215e72f31e38d2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10895,
+          "sha256": "9896909a2afe236d305b7a5a59d78082c6839405936975149ecba516b9a4f9b4"
         },
-        "signerCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c"
+        "signerCommit": "7b457343ae7f0938f59ff82e4a215e72f31e38d2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude を「機械の口」で起動する切り替えが入りました。いまは試験席だけが対象です。起動に失敗した時は、通知を出して一度だけこれまでの画面の席に戻ります。"
+        "機械の口で動く席の出力を、そのまま会話側へ渡す中継が入りました。席が止まったあとに残っていた読み取りも、次の起動の前に片付けます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c",
-      "versionId": "5726e8896f2f2fd3c4658d6ee25040d45d3c1a3458eebff50742e3e0abd5eeff",
+      "sourceCommit": "7b457343ae7f0938f59ff82e4a215e72f31e38d2",
+      "versionId": "1e2c3bb18a411834cb172d0bee1f97cde631940efd24f2fc2225f3bb51f15ef5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095308Z/execution-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-arm64.tar.gz",
-          "bytes": 3993701,
-          "sha256": "5726e8896f2f2fd3c4658d6ee25040d45d3c1a3458eebff50742e3e0abd5eeff"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120222Z/execution-7b457343ae7f0938f59ff82e4a215e72f31e38d2-linux-arm64.tar.gz",
+          "bytes": 3995841,
+          "sha256": "1e2c3bb18a411834cb172d0bee1f97cde631940efd24f2fc2225f3bb51f15ef5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T095308Z/execution-92d61c022f822cb2cf2637b279970d6f1209b76c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10993,
-          "sha256": "47953302f183e4532d8d45a0145dd00b01fef8ec7bf59e170eae5ba9fbb2d9d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T120222Z/execution-7b457343ae7f0938f59ff82e4a215e72f31e38d2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10785,
+          "sha256": "e9e0b4af1384092436846cfc7c484065b8c46e3c5568f39f3be70d4519aabe0d"
         },
-        "signerCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c"
+        "signerCommit": "7b457343ae7f0938f59ff82e4a215e72f31e38d2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude を「機械の口」で起動する切り替えが入りました。いまは試験席だけが対象です。起動に失敗した時は、通知を出して一度だけこれまでの画面の席に戻ります。"
+        "機械の口で動く席の出力を、そのまま会話側へ渡す中継が入りました。席が止まったあとに残っていた読み取りも、次の起動の前に片付けます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c",
-      "versionId": "sha256:e15233a70dabb903a328bba664bfcac1fb9d996577834eea081950dc2a74ead8",
+      "sourceCommit": "7b457343ae7f0938f59ff82e4a215e72f31e38d2",
+      "versionId": "sha256:f11be5ae0369f4bd033f721c99d1bd95f74466d0cc1a1c46356f781ea51ece64",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e15233a70dabb903a328bba664bfcac1fb9d996577834eea081950dc2a74ead8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f11be5ae0369f4bd033f721c99d1bd95f74466d0cc1a1c46356f781ea51ece64"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude を「機械の口」で起動する切り替えが入りました。いまは試験席だけが対象です。起動に失敗した時は、通知を出して一度だけこれまでの画面の席に戻ります。",
-        "席の画面の応答に、機械の口で動いているかを示す machine の項目が加わりました。",
-        "本体イメージの Aiterm が 0.70.82、Throughline が 0.21.2 になりました。"
+        "機械の口で動く席の出力を、解釈せずそのまま画面側へ渡す仕組みが入りました。質問や承認への答え、割り込み、設定の変更もデータとして席へ渡します。",
+        "出力の表の既定を、すべての種類を出して道具の結果だけを折りたたむ形にしました。",
+        "本体イメージの Aiterm が 0.70.84、Throughline が 0.21.2 になりました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "92d61c022f822cb2cf2637b279970d6f1209b76c",
-      "versionId": "sha256:e15233a70dabb903a328bba664bfcac1fb9d996577834eea081950dc2a74ead8",
+      "sourceCommit": "7b457343ae7f0938f59ff82e4a215e72f31e38d2",
+      "versionId": "sha256:f11be5ae0369f4bd033f721c99d1bd95f74466d0cc1a1c46356f781ea51ece64",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e15233a70dabb903a328bba664bfcac1fb9d996577834eea081950dc2a74ead8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f11be5ae0369f4bd033f721c99d1bd95f74466d0cc1a1c46356f781ea51ece64"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude を「機械の口」で起動する切り替えが入りました。いまは試験席だけが対象です。起動に失敗した時は、通知を出して一度だけこれまでの画面の席に戻ります。",
-        "席の画面の応答に、機械の口で動いているかを示す machine の項目が加わりました。",
-        "本体イメージの Aiterm が 0.70.82、Throughline が 0.21.2 になりました。"
+        "機械の口で動く席の出力を、解釈せずそのまま画面側へ渡す仕組みが入りました。質問や承認への答え、割り込み、設定の変更もデータとして席へ渡します。",
+        "出力の表の既定を、すべての種類を出して道具の結果だけを折りたたむ形にしました。",
+        "本体イメージの Aiterm が 0.70.84、Throughline が 0.21.2 になりました。"
       ]
     },
     {
