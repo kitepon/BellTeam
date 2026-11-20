@@ -43,7 +43,7 @@ Owner request: answer a stuck seat (e.g. a Claude permission dialog) from the Bo
 
 | Function / edge | Input -> output and ownership |
 | --- | --- |
-| Key bar | Shown whenever the screen panel is open. Buttons for the closed set Esc, Tab, ↑↓←→, Enter, 1-9, 0 and 中断 (C-c). One tap -> one `POST /api/bots/:id/screen/key {key}` for the Bot the panel was opened for; the pressed button is busy until the reply. 200 -> "〈key〉を送りました" + immediate screen read. No auto-retry on any error. |
+| Key bar | Shown whenever the screen panel is open, except for a machine seat: `GET /api/bots/:id/screen` answers `{online, screen, machine}`; `machine === true` (Claude seat in machine mode, a471) hides the keys and digits, the screen text is unchanged, no `POST …/screen/key` is made. A missing or false `machine` (older body, terminal seat) keeps the bar. Read on every screen tick. The approval card and its answer message stay for a machine seat; the container is hidden only while it has neither. Buttons for the closed set Esc, Tab, ↑↓←→, Enter, 1-9, 0 and 中断 (C-c). One tap -> one `POST /api/bots/:id/screen/key {key}` for the Bot the panel was opened for; the pressed button is busy until the reply. 200 -> "〈key〉を送りました" + immediate screen read. No auto-retry on any error. |
 | Approval card | Each 1 s screen tick also reads `GET /api/bots/:id/screen/approval`. `approval_required` -> card with the returned labels (approve_once primary, deny secondary), remembering that read's promptDigest. Tap -> `POST …/screen/approval {decision,promptDigest}`. `none` hides the card. No permanent approval, no free text. |
 | Errors (plain words; code only in the button's title) | 409 SCREEN_SEAT_ABSENT -> 席が起動していません; 409 SCREEN_APPROVAL_CHANGED -> re-read approval; 422 SCREEN_APPROVAL_UNSUPPORTED -> hide the card, "このAIはキーで答えてください"; 502 SCREEN_INPUT_FAILED -> 届いたか確認できません。画面を見てから必要ならもう一度; 503 SCREEN_INPUT_UNAVAILABLE (older body) -> hide key bar and card until the panel is reopened. |
 | Ownership | Results apply only while the same Bot's panel is open (same `owner` token as the screen read). Closing/reopening drops late replies. |
@@ -56,6 +56,7 @@ flowchart LR
   Tick --> Ask[GET /screen/approval]
   Ask -->|approval_required + digest| Card[Approval card: returned labels]
   Card -->|tap| Answer[POST /screen/approval decision+digest]
+  Screen -->|machine true| NoBar[No key bar]
   Open --> Bar[Key bar] -->|tap| Key[POST /screen/key]
   Key --> Screen
   Answer --> Screen

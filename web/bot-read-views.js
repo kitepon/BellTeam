@@ -17,7 +17,7 @@ const approvalValue = value => value?.status === 'approval_required' && typeof v
 export function createScreenView({ panel, status, text, header, api, input = null }) {
   let owner = null, timer = null, request = 0, reading = null, again = false
   // Per opened panel: the latest approval read, a hidden bar after 503, the key being sent and the last message.
-  let approval = null, unavailable = false, unsupported = false, busy = null, message = '', stopped = false
+  let approval = null, unavailable = false, unsupported = false, busy = null, message = '', stopped = false, machine = false
   const make = (tag, className, value) => { const node = document.createElement(tag); node.className = className; if (value !== undefined) node.textContent = value; return node }
   const card = input && make('section', 'screen-approval'), keys = input && make('div', 'screen-keys'), note = input && make('p', 'screen-input-note')
   const keyButtons = []
@@ -39,7 +39,9 @@ export function createScreenView({ panel, status, text, header, api, input = nul
   function renderInput() {
     if (!input) return
     // No key bar while the member is not running (W26): every key would fail.
-    input.hidden = !owner || unavailable || stopped
+    // A machine seat (screen.machine) takes no keys: only the approval card and its answer message stay.
+    input.hidden = !owner || unavailable || stopped || (machine && !approval && !message)
+    keys.hidden = machine
     for (const button of keyButtons) button.disabled = Boolean(busy)
     note.textContent = message
     card.hidden = !approval
@@ -90,7 +92,7 @@ export function createScreenView({ panel, status, text, header, api, input = nul
     timer = null
     reading = null; again = false
     panel.hidden = true
-    approval = null; busy = null; message = ''; stopped = false
+    approval = null; busy = null; message = ''; stopped = false; machine = false
     // Never show the previous member's screen (W25).
     status.textContent = ''; text.textContent = ''
     renderInput()
@@ -112,7 +114,7 @@ export function createScreenView({ panel, status, text, header, api, input = nul
       const result = await api(`/api/bots/${bot.id}/screen`)
       if (owner !== bot || token !== request) return
       const name = bot.name ?? bot.displayName
-      if (stopped !== !result.online) { stopped = !result.online; renderInput() }
+      if (stopped !== !result.online || machine !== (result.machine === true)) { stopped = !result.online; machine = result.machine === true; renderInput() }
       status.textContent = result.online ? `${name}の画面 · 1秒ごと` : `${name}は止まっています。次のメッセージで起動します`
       const stick = text.scrollHeight - text.scrollTop - text.clientHeight < 24
       text.textContent = result.screen.replace(/\s+$/u, '')
