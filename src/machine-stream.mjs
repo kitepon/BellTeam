@@ -112,7 +112,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), bubbles: new Set(), lastWords: null, chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), bubbles: new Set(), lastWords: null, toolRun: false, folds: new Map(), chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -129,6 +129,7 @@ export class MachineStream {
       bot.records.set(record.seq, record)
       const parts = project(record.line)
       parts.forEach((part, n) => {
+        this.openOrCloseToolRun(bot, record, n, part)
         if (part.request_id && part.view === 'control' && part.type === 'control_cancel_request') this.setRequest(bot, part.request_id, 'expired', record.at, null, changed)
         if (part.request_id && (part.view === 'question' || part.view === 'approval') && !bot.requests.has(part.request_id)) {
           bot.requests.set(part.request_id, { id: part.request_id, botId, seq: record.seq, part: n, tool: part.tool.name, input: part.input, questions: part.questions,
@@ -163,12 +164,23 @@ export class MachineStream {
     const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
-      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: this.rules.fold_group?.[part.view] ?? part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(bot.bubbles.has(`me-${record.seq}-${n}`) ? { bubble: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
+      title: part.title, text: body, truncated, ...(display === 'fold' ? (bot.folds.get(`me-${record.seq}-${n}`) ?? { fold_group: this.rules.fold_group?.[part.view] ?? part.view }) : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(bot.bubbles.has(`me-${record.seq}-${n}`) ? { bubble: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
     const line = body.split('\n')[0].slice(0, 120)
     return { id: `me-${record.seq}-${n}`, kind: 'machine_event', direction: 'incoming', at: record.at, sender,
       message: part.title ? `${part.title}${line ? `: ${line}` : ''}` : line, machine_event: entry }
+  }
+
+  // a471-tune-tools: a folded tool_use opens a tool run; every folded entry after it joins the run (fold_group tools, fold_count 0)
+  // until a shown entry or the turn's result closes it. Only earlier entries decide, so a later entry never changes an earlier one.
+  openOrCloseToolRun(bot, record, n, part) {
+    const id = `me-${record.seq}-${n}`
+    if (bot.folds.has(id)) return
+    if (displayOf(part, this.rules) !== 'fold') { bot.toolRun = false; return }
+    if (part.view === 'tool_use') bot.toolRun = true
+    if (bot.toolRun) bot.folds.set(id, { fold_group: this.rules.fold_group?.tool_use ?? 'tool_use', fold_count: part.view === 'tool_use' ? 1 : 0 })
+    if (part.view === 'result') bot.toolRun = false
   }
 
   setRow(bot, botId, record, n, part) {

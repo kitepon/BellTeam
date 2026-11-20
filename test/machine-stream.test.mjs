@@ -78,7 +78,7 @@ test('default table shows every kind, folds tool results and empty thinking, hid
     J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a\nb' }] } }), J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'error_during_execution' })]
   await ms.ingest(env(lines, null, 'L1:1'))
   const shown = ms.timeline({ botId: 'bot-d' }).map(r => [r.machine_event.view, r.machine_event.display])
-  assert.deepEqual(shown, [['thinking', 'show'], ['thinking', 'fold'], ['words', 'show'], ['tool_use', 'show'], ['tool_result', 'fold'], ['result', 'fold'], ['result', 'show']])
+  assert.deepEqual(shown, [['thinking', 'show'], ['thinking', 'fold'], ['words', 'show'], ['tool_use', 'fold'], ['tool_result', 'fold'], ['result', 'fold'], ['result', 'show']])
   assert.equal(ms.timeline({ botId: 'bot-d' })[1].message, 'thinking (no text)') // an empty thinking block is a folded line, never removed
   const before = await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8')
   const hidden = new MachineStream({ root, bots, streamSend: async () => ({}), rules: { ...(await import('../src/machine-display-rules.json', { with: { type: 'json' } })).default, thinking: 'hide', tool_use: 'fold', refine: [] } })
@@ -103,13 +103,35 @@ test('the last words of an ended turn are the bubble; earlier words, input and a
   assert.deepEqual(bubbles(again), [false, false, true, true])
 })
 
+test('tool runs: a folded tool_use and everything folded after it to the next shown entry or the turn result is one group, in time order; the use counts 1', async t => {
+  const { ms } = await service(t)
+  const use = (id, name) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input: { a: 1 } }] } })
+  const res = id => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } })
+  const hook = subtype => ({ type: 'system', subtype, hook_name: 'PreToolUse:X' })
+  const lines = [hook('hook_started'), // before any tool: background
+    use('t1', 'ToolSearch'), hook('hook_started'), hook('hook_response'), res('t1'), { type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } },
+    use('t2', 'x_home_timeline'), hook('hook_started'), res('t2'),
+    { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'ok then' }] } }, // shown: closes the run
+    use('t3', 'Bash'), res('t3'), { type: 'result', subtype: 'success' }, hook('hook_response'), // the result is the last member; the next hook is background again
+  ]
+  await ms.ingest(env(lines.map(J), null, 'L1:1'))
+  const rows = ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event)
+  assert.deepEqual(rows.map(e => e.seq), rows.map(e => e.seq).slice().sort((a, b) => a - b)) // nothing is moved
+  assert.deepEqual(rows.map(e => [e.fold_group, e.fold_count]), [
+    ['background', undefined],
+    ['tools', 1], ['tools', 0], ['tools', 0], ['tools', 0], ['tools', 0],
+    ['tools', 1], ['tools', 0], ['tools', 0],
+    [undefined, undefined],
+    ['tools', 1], ['tools', 0], ['tools', 0], ['background', undefined]])
+})
+
 test("Tronie's default table: what is shown open and what is folded to one line", async t => {
   const { ms } = await service(t)
   const cases = [
     [{ type: 'assistant', message: { content: [{ type: 'text', text: 'hello' }] } }, 'show'],
     [{ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'why' }] } }, 'show'],
     [{ type: 'assistant', message: { content: [{ type: 'thinking', thinking: '' }] } }, 'fold', 'thinking (no text)'],
-    [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Bash', input: {} }] } }, 'show'],
+    [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Bash', input: {} }] } }, 'fold'],
     [{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] } }, 'fold'],
     [{ type: 'user', message: { content: [{ type: 'text', text: 'replayed bubble' }] } }, 'fold'],
     [{ type: 'system', subtype: 'init', model: 'claude-x', tools: ['a', 'b', 'c'] }, 'fold', 'start: claude-x, 3 tools'],
@@ -281,6 +303,6 @@ test('hook rows, the rate_limit / system / control lines between them and the en
     { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] } }, { type: 'result', subtype: 'success' }, { type: 'command_lifecycle', phase: 'x' }, { type: 'system', subtype: 'hook_response', hook_name: 'Stop' }, { type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }]
   await ms.ingest(env(lines.map(J), null, 'L1:1'))
   const rows = ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event)
-  assert.deepEqual(rows.map(e => e.fold_group), ['background', 'background', 'background', 'background', 'background', 'tool_result', 'background', 'background', 'background', undefined]) // a shown rejected limit has no group and breaks the run
+  assert.deepEqual(rows.map(e => e.fold_group), ['background', 'background', 'background', 'background', 'background', 'tools', 'background', 'background', 'background', undefined]) // an orphan tool_result has the table's group; a shown rejected limit has no group and breaks the run
   assert.equal(new MachineStream({ root: '/x', bots, streamSend: async () => ({}), rules: { hook: 'fold' } }).row(ms.bot('bot-d'), 'bot-d', { seq: 1, at: 'a', launch_id: 'L' }, 0, project(J(lines[0]))[0]).machine_event.fold_group, 'hook') // no fold_group in the table: the view itself
 })
