@@ -362,6 +362,11 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       })
     }
     if (item.kind === 'machine_event' && item.machine_event) {
+      const event = item.machine_event
+      // The body marks the last words of a finished turn with bubble:true; it is read, never decided here (machine-stream.md "Turn answer bubble").
+      // Drawn as an ordinary incoming message; no id, so reply / forward / copy (saved-message ids) stay off.
+      if (event.view === 'words' && event.bubble === true) return renderItemElement({ ...item, kind: 'message', direction: 'incoming', id: undefined, machine_event: undefined,
+        sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '', message: event.text || item.message })
       const token = state.timelineToken
       return renderMachineEvent(item, {
         api, sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '',

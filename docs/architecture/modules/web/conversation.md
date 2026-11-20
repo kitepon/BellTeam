@@ -97,6 +97,7 @@ flowchart TD
 | 新しい会話 | `open → readHistory(openTimeline)` | 対象をcopyしtokenとhistoryRequestを進める。queueを待たず本文を描く |
 | queue | `openTimeline/refreshTimeline → refreshTimelineQueue` | tokenとqueueRequest一致だけ適用。失敗は末尾に表示、本文読取とは独立 |
 | 新しい履歴 | `refresh → readHistory(refreshTimeline)` | latest/afterを並行取得。同対象でも古い返却を適用しない。後着画像も同token |
+| 機械の席の答え（吹き出し） | `renderItem` → `renderItemElement`（machine_event の `words` で `bubble:true`） | 本体が「終わったターンの最後の words 行」だけに付ける `bubble:true` を読み、通常の受信メッセージと同じ吹き出し・同じMarkdown（`richTextHtml`）で描く。最後かどうかはWebで決めない。他の words 行は今までどおり書かれた文字。吹き出しは保存メッセージのidを持たないので返信・転送・コピーは出さない。行は同じidで置き換わるので、`bubble` が付いた時は `rerenderItem` が描き直す |
 | 最初の画面を埋める | `openTimeline` の末尾 → `fillViewport` → `readHistory(loadOlderMessages)` | 最新10件は折り畳んだ機械行が1件ずつ数えられ、表示領域に収まりスクロールが起きないことがある（thinking / tool_use が読まれない）。`has_more` で表示領域（`clientHeight>0`）に満たない間だけ、前ページを続けて読む。1ページごとに世代tokenと遡る位置を確かめ、読取失敗・位置が進まない・別会話に替わったら止まる（失敗は末尾の「もう一度読み込む」） |
 | 過去ページ | scroll listener → `loadOlderMessages` | before20件を重複除去して先頭へ。scrollHeight差を足す。finallyは同tokenだけ解除 |
 | 行とカード | `renderItem/renderItemElement/roomTimelineItem` | 秘密・質問の既部品を使う。完了callbackも元token一致時だけ該当行を描き直す |
@@ -400,6 +401,7 @@ flowchart LR
   ME -->|"view question"| Q["question card: options, multi-select toggles, Other text"]
   ME -->|"view approval"| A["approval card: 許可する / 断る"]
   ME -->|"display fold"| F["one closed details line; opens to the cut text, 全文を読み込む = GET /api/bots/:id/machine-events/:seq"]
+  ME -->|"view words with bubble:true (last words of a finished turn)"| B["ordinary incoming message bubble: same look, richTextHtml Markdown; no id, so no reply / forward / copy"]
   ME -->|"display show, other views"| S["drawn open: words as text, tool_use as name + summary, thinking lighter italic, any other show row as its one-line message"]
   Item --> Arr["arrangeMachineRows(timelineItems): result under its tool_use, same fold_group runs share one line"]
   Q -->|"tap (one question, single choice) or 送る"| Post["POST /api/seat-requests/:request_id/answer {answers:[{indexes,other}]}"]
