@@ -11,6 +11,11 @@ flowchart TD
   Message["会話履歴のTimelineMessage"] --> Cards["ConversationCardStates<br/>message ID別状態を保持"]
   Cards --> Question["OwnerQuestionCard<br/>選択肢 / その他の文章"]
   Cards --> Secret["SecretRequestCard<br/>入力sheetを会話の根で開く"]
+  Message -->|"kind machine_event（a471）"| Machine["MachineEventRow<br/>view別に描く。hideは出さない"]
+  Machine -->|"view question / approval"| MCard["MachineRequestCard<br/>質問ごとの選択肢・複数選択・その他 / 許可・拒否<br/>状態はConversationCardStatesがrequest_id別に保持"]
+  MCard --> Access
+  Access --> MAnswer["POST /api/seat-requests/:request_id/answer<br/>{answers:[{indexes,other}]} または {decision}"]
+  MAnswer --> MResult["返却requestのstatusをカードへ<br/>409 REQUEST_NOT_PENDINGも返却requestで期限切れ表示<br/>共通一覧refresh（行は同じidのまま状態だけ変わる）"]
   Question --> Access["AppStore.authorizeAIUse<br/>要求元Bot宛て"]
   Secret --> Sheet["SecretInputSheet<br/>秘密値・op://参照はsheet内だけ"]
   TerminalKey["TerminalDetailPage 鍵の行<br/>（terminals.md AT07）"] --> Sheet
@@ -31,6 +36,12 @@ flowchart TD
 | OwnerQuestionCardState | result/other/sending/error。ConversationCardStatesがID別に保持し、行の再利用をまたぐ。currentはresult優先。表示本文と選択肢は引数question |
 | 選択回答 | choice、その他はtextをOwnerAnswerBodyへ。その他はtrim後が空ならボタン無効。送信中はボタン/入力を無効化。authorizeAIUse後にPOSTしresultへ応答question、error消去→refreshFromView。受付応答からBotの回答処理完了を判定しない |
 | 回答失敗 | 認証はrequireLogin。他はoperationFailureMessageとwrite診断、otherは残す。deferでsending解除。自動POST再送・個別質問GETによる照合はこのカードにはない |
+| MachineEvent（Core/MachineEvent.swift） | 機械席（machine seat）のstream-jsonをconversationが解釈した行（`kind:"machine_event"`、契約は[conversation/machine-stream.md](../conversation/machine-stream.md)）。アプリは`view`だけで描き、生の行は読まない。読めない形でも履歴全体のdecodeを壊さず`unknown`として出す |
+| MachineEventRow | `display:"hide"`は描かない（サーバーは既定で出さないが、既に出した行が隠れる時は`hide`付きで返る）。`words`は本文（title `thinking`は薄い斜体。`shown_elsewhere`の行はサーバーが`display:"hide"`にする）、`tool_use`は1行、同じ`tool.id`のfoldした`tool_result`は`tool_use`の行へ畳み別行にしない、それ以外（system・rate_limit・result・unknown・エラー結果）は`message`の短い1行。カードのviewは下 |
+| MachineRequestCardState | result（返却status/answers）/選択/その他の文/sending/error。ConversationCardStatesがrequest_id別に保持し、行の再利用をまたぐ。currentはresult優先で、無ければ行の`request` |
+| 機械席の質問カード | `request.questions`を質問ごとに描く（`header`・本文・選択肢の`label`と`description`）。`multiSelect`はチェック、それ以外は1つ。その他は文章欄（trim後が空なら無効）。質問が1つで単一選択なら選択肢を押した時点で送り、それ以外は全質問に答えがそろったら「送る」を有効にする。bodyは質問と同じ順の`answers`（`indexes`と`other`）。`pending`のあいだだけ操作でき、`answered`は選んだ答え、`expired`は「席はもう待っていません」を出す |
+| 機械席の許可カード | `view:"approval"`。`tool`の名前と要約を出し、`pending`のあいだ「許可」「拒否」。bodyは`{decision}` |
+| 機械席の回答の成否 | authorizeAIUse後にPOST。200は返却statusをカードへ。409 `REQUEST_NOT_PENDING`は返却requestがexpiredなのでそのまま期限切れ表示。他の失敗はoperationFailureMessageとwrite診断で`pending`のまま残し、選択は残す（Owner自身がやり直せる。自動再送なし）。認証はrequireLogin。成功・409のあとは共通一覧refresh |
 | SecretRequestCardState | 応答requestだけ保持。pendingなら入力を開く、それ以外はsubmitted=登録済み、その他=取消。notification=failedならAIへの通知失敗の案内を表示 |
 | SecretInputSheet | requestとonCompleteを受け、value/reference/useOnePassword/sending/errorを所有。`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordの参照を上・既定（`preferred:'stored'`の時は保存値を既定）、保存値を代替にする。欠落（旧本体）は保存値だけ。`purpose:'terminal.ssh'`は改行を保つ複数行欄、他はSecureField。すべてprivacySensitive。`purpose:'terminal.login'`（Mac上のSSHへ1回だけ使うログインパスワード、保存しない）は、`inputOptions`が何を言っても1Passwordの選択肢も参照欄も出さず、SecureField1つ（題は呼び出し側が渡したサーバーのlabel。無ければ「ログインパスワード」）と上の文、ボタン「パスワードを渡す」。判定は`SecretRequest.isLoginPassword`・`onePasswordOffered`。`oneTime:true`（usage #1025、1回だけ使い保存しない値）も1Passwordの選択肢を出さず、文は「1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。」、ボタンは「渡して続ける」（判定は`SecretRequest.isOneTime`）。SSH鍵（`terminal.ssh`）とsudo（`terminal.sudo`）で1Password接続済みの時は、選択肢をSSH鍵なら「1Passwordから選ぶ」/「ここに貼り付ける」、sudoなら「1Passwordから選ぶ」/「ここに入力する」とし（一覧の無い`op://`参照欄は「1Passwordから読み出す」/「ここに入力する」。どちらも値の出どころを言い、保存するかどうかは下の文だけが言う）、前者は`onePasswordKeys`（`GET /api/secret-requests/:id/onepassword-items`、同じ`{items:[{title,vault,reference}]}`を1つの復号器で読む）の`title`と`vault`の一覧から選ぶ（参照は送信まで画面に出さない・提出は従来どおり`{source:'onepassword',reference}`）。sudoは`/password`で終わる参照だけを残す（旧本体はどの用途にもSSH鍵を返すので、SSH鍵の参照がsudoKeyRefにならない）。一覧の上に検索欄「名前や保管庫で絞り込む」と1行「N件から選んでください」（合うものが無ければ「「…」に合うパスワードがありません」/「…鍵がありません」）を出し、名前か保管庫に入力を含むものへ大文字小文字を区別せず絞る。絞り込みで見えなくなった選択は外す。検索語は秘密でなく送らない。sudoの貼り付け側はSecureField1つ。一覧が404（旧本体）なら選択肢を隠して貼り付け（sudoは入力）だけにし静かな一行を出す。他の失敗は「読めませんでした」と再読込、貼り付けの選択は残る。未接続の貼り付けにはWebと同じ短い案内（設定の「1Password連携」で一覧から選べる）。入力方法を替えると両方の欄を消す。通常会話draftに渡さない。閉じる操作はdismissだけでcancel POSTを呼ばない |
 | 秘密の送信body | 保存値`{value}`、1Password`{source:'onepassword', reference}`（`op://`で始まらなければ送らず案内）、拒否`{}`。形の最終検査はサーバー（`SECRET_REFERENCE_INVALID`） |
