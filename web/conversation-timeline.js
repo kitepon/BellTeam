@@ -1,5 +1,6 @@
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
+import { renderMachineEvent } from './machine-event.js?v=__ASSET_VERSION__'
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { fileNameOf, openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { applyAvatar, dayLabel, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -257,7 +258,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (token !== state.timelineToken) return
     const item = state.timelineMap.get(id)
     const element = timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`)
-    const card = item?.secret_request ?? item?.owner_question
+    const card = item?.secret_request ?? item?.owner_question ?? item?.machine_event
     if (card && element && cardSnapshots.get(element) === JSON.stringify(card)) return
     if (item && element) element.replaceWith(renderItem(item, queuedFor(item)))
   }
@@ -313,7 +314,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function renderItem(item, queued = []) {
     const element = renderItemElement(item, queued)
     element.dataset.id = item.id
-    const card = item.secret_request ?? item.owner_question
+    const card = item.secret_request ?? item.owner_question ?? item.machine_event
     if (card) cardSnapshots.set(element, JSON.stringify(card))
     return element
   }
@@ -339,6 +340,17 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
         onAnswered: updated => {
           if (token !== state.timelineToken) return
           state.timelineMap.set(item.id, { ...item, owner_question: updated })
+          rerenderItem(item.id, token)
+        },
+      })
+    }
+    if (item.kind === 'machine_event' && item.machine_event) {
+      const token = state.timelineToken
+      return renderMachineEvent(item, {
+        api, sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '',
+        onChanged: request => {
+          if (token !== state.timelineToken) return
+          state.timelineMap.set(item.id, { ...item, machine_event: { ...item.machine_event, request } })
           rerenderItem(item.id, token)
         },
       })
