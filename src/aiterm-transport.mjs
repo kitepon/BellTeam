@@ -1041,8 +1041,8 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
   }
 
-  turn(bot, message, { images = [], files = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease, conversationDelivery, summaryAuthority } = {}) {
-    return this.submit(bot, message, { summaryAuthority, images, files, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease, conversationDelivery })
+  turn(bot, message, { images = [], files = [], queue = {}, onStatus = null, onInterim = null, onStreamReply = null, admissionCheck = () => {}, membersLease, conversationDelivery, summaryAuthority } = {}) {
+    return this.submit(bot, message, { summaryAuthority, images, files, info: queue, onStatus, onInterim, onStreamReply, admissionCheck, transcript: true, membersLease, conversationDelivery })
   }
 
   // BellTeamが追っているターンの合間の言葉を、完了まで数秒おきにAitermから受け取る。
@@ -1164,7 +1164,7 @@ export class AitermTransport {
 
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
-  submit(bot, message, { images = [], files = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
+  submit(bot, message, { images = [], files = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, onStreamReply = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -1379,6 +1379,8 @@ export class AitermTransport {
     job.completion = completion.then(async value => { await release(); return value }, async error => { await release(); throw error })
     job.completion.catch(() => {})
     let result = conversationDelivery ? completion : job.completion
+    // The direct route has no user.complete: tell the same fact (machine-stream.md) before the reply is handed back to be saved.
+    if (!conversationDelivery && onStreamReply) result = job.completion.then(reply => { if (this.machineStreams.displays(this.session(bot))) onStreamReply(); return reply })
     if (conversationDelivery) {
       // submit yields before native work, so all real references exist before issuance.
       this.conversationAdmission.trackCompletion(conversationDelivery, job.completion)
