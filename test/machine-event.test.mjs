@@ -92,7 +92,8 @@ test('a fold row is one closed line (open only when the app opened it); show row
   const fold = draw(row(1, 'tool_result', 'fold', { message: 'tool_result: ok', text: 'ok\nmore' }))
   assert.equal(fold.tag, 'details'); assert.equal(fold.open, false); assert.match(words(fold), /tool_result: ok/)
   assert.equal(draw(row(1, 'tool_result', 'fold', { text: 'x' }), true).open, true)
-  assert.equal(draw(row(2, 'words', 'show', { text: 'こんにちは' })).tag, 'div')
+  const words2 = draw(row(2, 'words', 'show', { text: 'こんにちは' })); assert.equal(words2.tag, 'div'); assert.equal(words2.textContent, 'こんにちは')
+  const note = draw(row(5, 'rate_limit', 'show', { message: 'rate_limit: rejected', text: 'long long' })); assert.equal(note.tag, 'p'); assert.equal(note.textContent, 'rate_limit: rejected')
   const odd = draw(row(3, 'hook', 'hide', { text: 'x' }))
   assert.equal(odd.hidden, false); assert.equal(odd.dataset.fold, undefined)
   const use = draw(row(4, 'tool_use', 'show', { tool: { id: 'u1', name: 'Bash', summary: 'ls' } }))
@@ -101,7 +102,7 @@ test('a fold row is one closed line (open only when the app opened it); show row
 
 test('a truncated fold row reads the whole stored line on request', async () => {
   const line = draw(row(7, 'tool_result', 'fold', { text: 'cut', truncated: true }), true)
-  const more = label(line, '全文を読む'); more.listeners.click(); await settle()
+  const more = label(line, '全文を読み込む'); more.listeners.click(); await settle()
   assert.equal(all(line, node => node.tag === 'pre')[0].textContent, '{"raw":7}'); assert.equal(more.hidden, true)
 })
 
@@ -117,7 +118,7 @@ test('arrange: a result sits under its tool use, same-group runs share one line,
   arrangeMachineRows(container, open)
   const expected = ['me-1-0', 'me-7-0', 'me-2-0', 'me-8-0', '[me-3-0,me-4-0,me-5-0]', 'me-6-0', 'me-9-0', 'me-10-0', '[me-11-0,me-12-0]']
   assert.deepEqual(order(container), expected)
-  const group = container.children[4]; assert.match(words(group), /hooks ×3/)
+  const group = container.children[4]; assert.match(words(group), /hook ×3/)
   arrangeMachineRows(container, open); assert.deepEqual(order(container), expected)
   // opening the group opens its members and is remembered for the next arrangement
   group.open = true; group.listeners.toggle()

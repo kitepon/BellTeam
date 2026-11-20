@@ -129,8 +129,8 @@ function approvalCard(event, context) {
   return card
 }
 
+// Same look as the finished iPhone fold (a471-fold-apple): the group line reads "<fold_group> ×<count>".
 // Folded kinds are never removed (Owner 2026-11-20: 「畳むのはオッケー。消すのはダメ」): display is 'fold' or anything else = shown.
-const groupNames = { hook: 'hooks', tool_result: 'tool results', system: 'system', rate_limit: 'rate limits', result: 'results', control: 'control', words: 'input', thinking: 'thinking', unknown: 'unknown' }
 
 // One collapsed line that opens to the cut text; a cut row offers the whole stored line.
 function foldLine(item, event, context) {
@@ -141,7 +141,7 @@ function foldLine(item, event, context) {
   const body = node('pre', '', event.text || event.tool?.summary || '')
   line.append(body)
   if (event.truncated) {
-    const more = node('button', 'machine-more', '全文を読む'); more.type = 'button'
+    const more = node('button', 'machine-more', '全文を読み込む'); more.type = 'button'
     const note = node('p', 'owner-question-error'); note.hidden = true
     more.addEventListener('click', async () => {
       more.disabled = true; note.hidden = true
@@ -163,11 +163,9 @@ export function renderMachineEvent(item, context) {
   else if (event.view === 'tool_use') {
     element = node('div', 'machine-use')
     element.append(node('strong', '', event.tool?.name ?? event.title), node('code', '', event.tool?.summary ?? ''))
-  } else {
-    element = node('div', `machine-show view-${event.view}`)
-    if (event.title && event.title !== 'input') element.append(node('strong', '', event.title))
-    element.append(node('p', '', event.text || item.message))
-  }
+  } else if (event.view === 'words') element = node('div', 'machine-show view-words', event.text || item.message)
+  // Failures, limits and the like: one short line, as on the iPhone.
+  else element = node('p', `machine-note view-${event.view}`, item.message)
   // arrangeMachineRows reads these.
   element.dataset.machineView = event.view
   if (event.tool?.id) element.dataset.toolId = event.tool.id
@@ -198,7 +196,7 @@ export function arrangeMachineRows(container, openKeys) {
       const key = `group:${run[0].dataset.id}`, name = run[0].dataset.fold
       const group = node('details', 'machine-line machine-group')
       group.dataset.machineGroup = key
-      group.append(node('summary', '', `${groupNames[name] ?? name} ×${run.length}`))
+      group.append(node('summary', '', `${name} ×${run.length}`))
       container.insertBefore(group, run[0])
       const members = run
       group.open = openKeys.has(key)

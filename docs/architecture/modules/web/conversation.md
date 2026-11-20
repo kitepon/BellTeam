@@ -395,8 +395,8 @@ flowchart LR
   Item --> ME["machine-event.js renderMachineEvent"]
   ME -->|"view question"| Q["question card: options, multi-select toggles, Other text"]
   ME -->|"view approval"| A["approval card: 許可する / 断る"]
-  ME -->|"display fold"| F["one closed details line; opens to the cut text, 全文を読む = GET /api/bots/:id/machine-events/:seq"]
-  ME -->|"display show, other views"| S["drawn open: words / notes as text, tool_use as name + summary, thinking lighter"]
+  ME -->|"display fold"| F["one closed details line; opens to the cut text, 全文を読み込む = GET /api/bots/:id/machine-events/:seq"]
+  ME -->|"display show, other views"| S["drawn open: words as text, tool_use as name + summary, thinking lighter italic, any other show row as its one-line message"]
   Item --> Arr["arrangeMachineRows(timelineItems): result under its tool_use, same fold_group runs share one line"]
   Q -->|"tap (one question, single choice) or 送る"| Post["POST /api/seat-requests/:request_id/answer {answers:[{indexes,other}]}"]
   A -->|"tap"| Post2["same route {decision: allow|deny}"]
@@ -411,8 +411,8 @@ flowchart LR
 | question card | One block per question (header chip, text, options with description). Single choice with exactly one question: a tap sends at once. Otherwise taps toggle (`aria-pressed`) and 送る is enabled when every question has an option or Other text. Single choice: Other text clears the option and an option clears the text (server rule: one answer). Multi-select: options and Other add up |
 | approval card | 許可する -> `{decision:"allow"}`, 断る -> `{decision:"deny"}`; pending only |
 | answered / expired | no buttons: answered shows the chosen labels (by index) and the Other text; expired says the seat no longer waits |
-| fold row (`display: "fold"`) | one closed `details` line (`item.message`); opening shows the cut `text`; `truncated` adds 全文を読む, which reads the stored line once and shows it. Open/closed is the app's state (`foldOpen`, per opened conversation, never stored) |
-| `arrangeMachineRows(container, openKeys)` | Run after every render site of the timeline (open, refresh, older page, row replace, failed read). Idempotent: takes groups apart, moves each `tool_result` directly under the `tool_use` that has the same `tool.id` (if that row is on the page; otherwise the line stays at its own place), then wraps 2+ consecutive rows of one `fold_group` into one line (`hooks ×4`; opening it opens its members). A `show` row, another group, or a result already placed under its tool use breaks a run |
+| fold row (`display: "fold"`) | one closed `details` line (`item.message`); opening shows the cut `text`; `truncated` adds 全文を読み込む, which reads the stored line once and shows it. Open/closed is the app's state (`foldOpen`, per opened conversation, never stored) |
+| `arrangeMachineRows(container, openKeys)` | Run after every render site of the timeline (open, refresh, older page, row replace, failed read). Idempotent: takes groups apart, moves each `tool_result` directly under the `tool_use` that has the same `tool.id` (if that row is on the page; otherwise the line stays at its own place), then wraps 2+ consecutive rows of one `fold_group` into one line (`<fold_group> ×<count>`, e.g. `hook ×4`, as on the iPhone; opening it opens its members). A `show` row, another group, or a result already placed under its tool use breaks a run |
 | `display` | only `fold` folds; anything else (including an old `hide`) is drawn, never dropped (Owner 2026-11-20: 「畳むのはオッケー。消すのはダメ」) |
 | `renderItem` / `rerenderItem` (conversation-timeline.js) | `machine_event` joins the card snapshot, so a page re-read that changes `request.status` redraws the same row in place; `onChanged` replaces the row's `request` with the 200 body |
 
