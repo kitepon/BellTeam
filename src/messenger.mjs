@@ -396,6 +396,7 @@ export class BellTeamMessenger extends ConversationWriter {
       },
       onStatus: (status, error, tracking, mark) => this.appendDeliveryStatus(deliveryId, status, error, tracking, mark),
       onInterim: words => this.appendInterimWords(target, deliveryId, words),
+      onStreamReply: () => { prepared.stream = true },
     })
   }
 
@@ -408,12 +409,12 @@ export class BellTeamMessenger extends ConversationWriter {
   }
 
   // Rows the Bot sent to the Owner mid-turn (sendmessage, approval notices) are their own messages, never this answer (a148).
-  async recordUserReply({ target, deliveryId }, reply) {
+  async recordUserReply({ target, deliveryId, stream = false }, reply) {
     // Botが回答を空で終えた時（Aiterm 0.54.0から、空の回答は誤りではなく空の本文で届く）は、空の発言を会話へ足さない。
     if (typeof reply !== 'string' || !reply.trim())
       return { delivery: 'delivered', delivery_id: deliveryId, from: target, target: 'user', reply: null }
     const replyId = this.deliveryId()
-    await this.append(this.record({ deliveryId: replyId, from: target, target: 'user', message: reply }))
+    await this.append(this.record({ deliveryId: replyId, from: target, target: 'user', message: reply, ...(stream ? { label: { stream: true } } : {}) }))
     return { delivery: 'delivered', delivery_id: deliveryId, reply_id: replyId, from: target, target: 'user', reply }
   }
 

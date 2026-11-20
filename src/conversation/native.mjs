@@ -70,6 +70,8 @@ export class ConversationNative {
         if (method === 'user.complete') {
           if (entry.replied || !entry.reply || !entry.state.userSaved) throw failure()
           entry.replied = true
+          // a471-chat-from-stream: execution says the turn ran on a machine seat; its answer row is not drawn (the stream is).
+          if (params.stream === true) entry.options.onStreamReply?.()
           entry.reply.resolve(params.reply)
           await entry.state.userSaved
           await this.awaitStarted(context)

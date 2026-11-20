@@ -230,6 +230,13 @@ export class MachineStream {
   timeline(target) { return target.roomId ? [] : this.state.get(target.botId)?.rows.snapshot() ?? [] }
   timelineView(target) { return target.roomId ? new TimelineIndex() : this.state.get(target.botId)?.rows ?? new TimelineIndex() }
 
+  // Quote / forward of one drawn row (reply.md, forward.md): the same {sender, at, text} the saved rows give.
+  rowSource(botId, rowId) {
+    const rows = this.state.get(botId)?.rows
+    const item = rows && rows.indexOfId(rowId) >= 0 ? rows.at(rows.indexOfId(rowId)) : null
+    return item ? { sender: { id: botId, ...(this.bots.get(botId)?.name ? { name: this.bots.get(botId).name } : {}) }, at: item.at, text: item.machine_event.text } : null
+  }
+
   line(botId, seq) {
     const record = this.state.get(botId)?.records.get(Number(seq))
     if (!record) throw fail('MACHINE_EVENT_NOT_FOUND')

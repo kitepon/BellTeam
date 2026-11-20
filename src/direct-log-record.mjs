@@ -31,7 +31,7 @@ export function validateDirectLogRecord(record) {
     call_seq: value => value === null || Number.isFinite(value), call_reply_required: value => typeof value === 'boolean',
     seat: forkSeat, from_seat: forkSeat, in_reply_to: id, reply_to: replyTo, origin,
     file_assets: files => Array.isArray(files) && files.every(file => object(file, { owner: id, file: id, name: text, mime: text, size: Number.isSafeInteger })),
-    file_count: Number.isSafeInteger })
+    file_count: Number.isSafeInteger, stream: value => value === true })
   if (record?.schema === 'bellteam.interim-word.v1') return object(record, {
     schema: value => value === 'bellteam.interim-word.v1', id, at: id, bot: id, group_id: id, text,
   }, { kind: value => ['error', 'answer'].includes(value), written_at: text, seat: forkSeat })

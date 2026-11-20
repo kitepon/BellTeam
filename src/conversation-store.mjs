@@ -7,7 +7,9 @@ import { TimelineIndex } from './timeline-index.mjs'
 import { contentOf } from './origin-reference.mjs'
 
 export class ConversationStore {
-  constructor({ logPath, onCorruption = logCorruption }) {
+  // machineRow(botId, rowId) -> {sender, at, text} | null: a machine seat's stream row can be quoted and forwarded (machine-stream.md).
+  constructor({ logPath, onCorruption = logCorruption, machineRow = async () => null }) {
+    this.machineRow = machineRow
     this.logPath = logPath
     this.onCorruption = onCorruption
     this.read = emptyRead()
@@ -43,6 +45,7 @@ export class ConversationStore {
   }
   // reply.md "What can be quoted": an Owner<->Bot row or the Bot's in-turn words of this one conversation; anything else is null.
   async quoteSource(botId, id) {
+    if (/^me-\d+-\d+$/u.test(id)) { const row = await this.machineRow(botId, id); return row ? { ...row, image: false } : null }
     const state = await this.snapshot()
     const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
     if (row && ((row.from === 'user' && row.target === botId) || (row.from === botId && row.target === 'user')))
@@ -52,6 +55,7 @@ export class ConversationStore {
   }
   // forward.md "What can be forwarded": a row of this Bot's conversation (Owner, Bot, peer) or the Bot's in-turn words.
   async forwardSource(botId, id) {
+    if (/^me-\d+-\d+$/u.test(id)) { const row = await this.machineRow(botId, id); return row ? { ...row, imageAssets: [] } : null }
     const state = await this.snapshot()
     const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
     if (row && (row.from === botId || row.target === botId))
@@ -132,7 +136,7 @@ export class ConversationStore {
   }
   async timeline(botId) {
     const state = await this.snapshot(), view = botView(state, botId)
-    return view.snapshot ??= (state.byBot.get(botId) ?? []).map(key => view.index.get(key))
+    return view.snapshot ??= (state.byBot.get(botId) ?? []).filter(listed).map(key => view.index.get(key))
   }
   async timelineViews(botIds) {
     const state = await this.snapshot()
@@ -235,6 +239,8 @@ function resolveStatus(record, statuses) {
   return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { delivery_tracking: tracking } : {}),
     ...(status.delivery === 'delivered' && status.steered === true ? { steered: true } : {}) }
 }
+// A machine seat's final answer is saved for the turn's result, export and push but the stream row is the one drawn (machine-stream.md).
+const listed = record => record.stream !== true
 function display(record, bot, statuses) {
   if (record.schema === 'bellteam.interim-word.v1') return interimItem(record)
   const value = resolveStatus(record, statuses)
@@ -246,7 +252,8 @@ function display(record, bot, statuses) {
 function botView(state, bot) {
   if (!state.views.has(bot)) {
     const records = state.byBot.get(bot) ?? []
-    const view = { index: new TimelineIndex(records.map(record => display(record, bot, state.statuses)), records), snapshot: null }
+    const shown = records.filter(listed)
+    const view = { index: new TimelineIndex(shown.map(record => display(record, bot, state.statuses)), shown), snapshot: null }
     state.views.set(bot, view)
   }
   return state.views.get(bot)
@@ -272,7 +279,7 @@ function applyRecords(records, state) {
       for (const original of state.byDelivery.get(record.delivery_id) ?? []) {
         for (const bot of participants(original)) {
           const view = state.views.get(bot)
-          if (view) put(view, original, display(original, bot, state.statuses))
+          if (view && listed(original)) put(view, original, display(original, bot, state.statuses))
         }
       }
     } else {
@@ -285,7 +292,7 @@ function applyRecords(records, state) {
         if (!state.byBot.has(bot)) state.byBot.set(bot, [])
         state.byBot.get(bot).push(record)
         const view = state.views.get(bot)
-        if (view) put(view, record, display(record, bot, state.statuses))
+        if (view && listed(record)) put(view, record, display(record, bot, state.statuses))
       }
     }
   }

@@ -7,6 +7,10 @@ import test from 'node:test'
 import { MachineStream, project } from '../src/machine-stream.mjs'
 import { createSeatRequestApi } from '../src/http-seat-request-api.mjs'
 import { createMessageViews } from '../src/http-messages.mjs'
+import { ConversationStore } from '../src/conversation-store.mjs'
+import { SelfTurns } from '../src/self-turns.mjs'
+import { validateConversationCallback, normalizeConversationCallback } from '../src/conversation/callbacks.mjs'
+import { validateConversationEffectResult } from '../src/conversation/effects.mjs'
 
 const bots = new Map([['bot-d', { id: 'bot-d', name: 'ドリリー' }]])
 const J = value => JSON.stringify(value)
@@ -189,4 +193,36 @@ test('views merge the machine source only when the Bot has entries; route is Own
   const ok = await call(api)
   assert.deepEqual([ok.code, ok.body.request.status], [200, 'answered'])
   assert.equal((await call(api)).code, 409)
+})
+
+test('chat from the stream: the saved final answer is kept but not drawn; stream rows are quotable and forwardable', async t => {
+  const { ms, root } = await service(t)
+  await ms.ingest(env([J({ type: 'assistant', message: { content: [{ type: 'text', text: 'the words' }] } })], null, 'L1:1'))
+  const logPath = join(root, 'direct.jsonl')
+  const record = (id, from, target, message, extra = {}) => ({ schema: 'bellteam.direct-message.v1', delivery_id: id, at: '2026-11-20T00:00:0' + id.length + '.000Z', from, target,
+    from_identity: { id: from, name: from, position: '', role: '' }, target_identity: { id: target, name: target, position: '', role: '' }, message, image: false, delivery: 'delivered', ...extra })
+  await appendFile(logPath, [record('q1', 'user', 'bot-d', 'question'), record('a1', 'bot-d', 'user', 'the words', { stream: true }), record('n11', 'bot-d', 'user', 'a note from the Bot (sendmessage)')].map(J).join('\n') + '\n')
+  const store = new ConversationStore({ logPath, machineRow: async (botId, id) => ms.rowSource(botId, id) })
+  assert.deepEqual((await store.timeline('bot-d')).map(item => item.id), ['q1', 'n11']) // the stream:true answer row is not drawn
+  assert.equal((await store.records()).length, 3) // still in the log
+  const quote = await store.quoteSource('bot-d', 'me-1-0')
+  assert.deepEqual([quote.text, quote.sender.id, quote.image], ['the words', 'bot-d', false])
+  assert.deepEqual((await store.forwardSource('bot-d', 'me-1-0')).imageAssets, [])
+  assert.equal(await store.quoteSource('bot-d', 'me-9-0'), null)
+  assert.equal(ms.rowSource('bot-d', 'me-1-0').text, 'the words')
+})
+
+test('user.complete may carry stream:true; shown.read may carry stream:true; a machine seat self-started answer is not written but consumed', async () => {
+  validateConversationCallback('user.complete', { reply: 'x', stream: true })
+  assert.deepEqual(normalizeConversationCallback('user.complete', { reply: 'x', stream: true }), { reply: 'x', stream: true })
+  assert.throws(() => validateConversationCallback('user.complete', { reply: 'x', stream: false }))
+  validateConversationEffectResult('execution.shown.read', { shownId: 's', words: [], endedAt: null, stream: true })
+  assert.throws(() => validateConversationEffectResult('execution.shown.read', { shownId: 's', words: [], endedAt: null, stream: 'yes' }))
+  const appended = [], consumed = []
+  const selfTurns = new SelfTurns({ bots, statePath: '/nonexistent/self.json', appendAnswer: async (...a) => appended.push(a), shown: async () => ({ words: ['w'], endedAt: null, stream: true }),
+    consumeShown: async (...a) => consumed.push(a) })
+  selfTurns.assertCurrent = () => {}; selfTurns.startedOutsideDelivery = async () => true
+  const current = { seen: [], lastCompletedAt: null }
+  await selfTurns.accept(bots.get('bot-d'), current, { source_sha256: 'k', assistant: 'self answer', completed_at: 1 }, null)
+  assert.deepEqual([appended.length, consumed.length, current.seen], [0, 1, ['k']])
 })

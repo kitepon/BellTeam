@@ -243,15 +243,17 @@ export class SelfTurns {
     const whole = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
     if (whole && await this.startedOutsideDelivery(turn)) {
       const shown = await this.shown(bot.id)
-      const text = withoutShownWords(whole, shown, completedAt)
-      await this.appendAnswer(bot.id, this.groupId(), text)
-      if (text !== whole && !this.consumeShown) shown.words.length = 0
+      // a471-chat-from-stream: a machine seat's words are drawn from its stream, so this answer row is not written (the shown words are still consumed).
+      const stream = shown?.stream === true
+      const text = stream ? whole : withoutShownWords(whole, shown, completedAt)
+      if (!stream) await this.appendAnswer(bot.id, this.groupId(), text)
+      if ((stream || text !== whole) && !this.consumeShown) shown.words.length = 0
       current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
       current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
       this.afterTurn({ botId: bot.id, context: 'self',
         startedAt: new Date(startedAt ?? completedAt).toISOString(),
         endedAt: new Date(Math.max(completedAt, Date.now())).toISOString() })
-      if (text !== whole && this.consumeShown) await this.consumeShown(bot.id, shown)
+      if ((stream || text !== whole) && this.consumeShown) await this.consumeShown(bot.id, shown)
     } else {
       current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
       current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
