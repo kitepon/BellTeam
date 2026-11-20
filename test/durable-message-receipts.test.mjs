@@ -37,6 +37,18 @@ test('receipt survives unavailable execution and notification; recreated parent 
   assert.equal(dispatches, 1); assert.deepEqual(await restored.pending(), [])
 })
 
+test('a user.complete that says stream:true marks the prepared turn, so the saved answer row is labelled stream:true', async t => {
+  let seen = null
+  const f = await fixture(t, { dispatch: async ({ callbacks }) => {
+    await callbacks.onStatus('running'); callbacks.onStreamReply(); await callbacks.onUserComplete('PONG')
+    return { delivery: 'running' }
+  } })
+  f.service.finishUserTurn = async (prepared, reply) => { seen = { stream: prepared.stream, reply } }
+  const receipt = await f.service.receive(f.input)
+  await f.service.dispatchSaved(receipt.delivery_id)
+  assert.deepEqual(seen, { stream: true, reply: 'PONG' })
+})
+
 test('write failure rejects receipt; failed claim does not call execution', async t => {
   let dispatches = 0
   const f = await fixture(t, { dispatch: async () => { dispatches++; return { delivery: 'running' } } })
