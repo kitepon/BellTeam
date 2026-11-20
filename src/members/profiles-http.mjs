@@ -5,6 +5,11 @@ import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, sendAvatar } from '../http-assets.mjs'
 import { harnessNoticeFor } from '../retired-harness.mjs'
 
+// A machine seat's latest shown stream row is a message of the Bot for the list preview (apps read kind/direction/message/at; a471-preview-from-stream).
+export const listRecent = last => last.kind === 'machine_event'
+  ? { id: last.id, kind: 'message', direction: 'incoming', message: last.message, image: false, at: last.at }
+  : { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at }
+
 export function createMemberProfileApi({ bots, transport, administration, memory, characterSheets, sources, store }) {
   const readMember = id => bots.readMember ? bots.readMember(id) : bots.get(id)
   return async (request, response, url) => {
@@ -18,7 +23,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         store.recentViews ? store.recentViews(all.map(bot => bot.id)) : store.timelineViews?.(all.map(bot => bot.id)),
       ])
       const list = await Promise.all(all.map(async bot => {
-        const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
+        const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id), true))
         const view = administration.view?.(bot)
         const application = view?.configurationApplication
         const avatars = {}
@@ -50,7 +55,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           avatarLargeCrop: bot.avatarLargeCrop ?? null,
           online: !deleting(bot) && running.has(bot.id),
           ...(deleting(bot) ? { deleting: true } : {}),
-          recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
+          recent: last && listRecent(last),
           ...(application ? { configurationApplication: application } : {}),
           ...(view?.automaticConfigurationApplication ? { automaticConfigurationApplication: view.automaticConfigurationApplication } : {}),
         }
