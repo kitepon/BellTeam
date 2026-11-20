@@ -290,10 +290,10 @@ function rig(extra = {}) {
     async migrateLegacy() { return { names: 0, record: false } },
     async run({ id, args, env, input }) {
       const key = args.join(' ')
-      cli.calls.push(isRead(key) ? `${key} ${id}` : key)
+      cli.calls.push(key === READ ? `${key} ${id}` : key)
       if (key.startsWith('todo display history --json')) return cli.fail.has('history') ? { exitCode: cli.historyExit, stdout: '', stderr: 'boom' } : reply(cli.historyReply)
       if (key === 'todo status --json') return cli.fail.has('status') ? { exitCode: 1, stdout: '', stderr: 'boom' } : reply({ schema: 'lattice.todo_status_result.v10', next_ready: (cli.ready[id] ?? []).map(task => ({ plan_key: 'p1', task_id: task })) })
-      if (isRead(key)) return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
+      if (key === READ) return cli.fail.has('read') ? { exitCode: 1, stdout: '', stderr: 'boom' } : cli.fail.has('json') ? { exitCode: 0, stdout: 'nope', stderr: '' } : reply(cli.reads[id])
       cli.runs.push({ id, args, env, input })
       // A store-creating command makes the chart, and Lattice records the creator from LATTICE_SEAT_ID (K5).
       if (!cli.noStore && !cli.charts.includes(id)) { cli.charts.push(id); cli.metas[id] = { ...cli.metas[id], createdBy: env.LATTICE_SEAT_ID } }
@@ -302,7 +302,7 @@ function rig(extra = {}) {
   const world = { members: roster(['bot-a', 'bot-b']), failMembers: false, effects: 0 }
   const effect = async method => { world.effects++; assert.equal(method, 'members.list'); if (world.failMembers) throw new Error('members down'); return { members: world.members } }
   const logs = []
-  const core = createLatticeCore({ cli, now: () => clock.now, log: line => logs.push(line), openTrees: true, ...extra })
+  const core = createLatticeCore({ cli, now: () => clock.now, log: line => logs.push(line), ...extra })
   return { core, cli, world, clock, logs, effect, count: key => cli.calls.filter(call => call === key || call.startsWith(key + ' ')).length,
     chart: (projectId = 'alpha') => core.chart({ projectId }, effect) }
 }
@@ -314,8 +314,7 @@ function chartRead({ agent = 'bot-7b140b27', minute = 1, status = 'in-progress' 
   return readOf([planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', status], ['t2', 'pending']],
     deps: [{ from: ref('p1', 't1'), to: ref('p1', 't2') }], events: [ev('plan', 't1', agent, minute), ev('start', 't1', 'bot-a', minute + 1)] })])
 }
-const READ = 'todo display read --json --open', READ_COMPACT = 'todo display read --json --compact', SOURCE = 'charts source'
-const isRead = key => key === READ || key === READ_COMPACT
+const READ = 'todo display read --json --open', SOURCE = 'charts source'
 
 test('core: snapshot shape, members only for producers and waiters, coordinator flag', async () => {
   const x = rig()
@@ -490,14 +489,6 @@ test("core: a card is ready only when Lattice's status lists it (K9, a448); a fa
   // No Lattice answer for a store that is not verified: the status result is not used, nothing is ready.
   x.cli.reads.alpha = { ...chartRead({ status: 'done' }), state: 'last_verified' }; x.cli.ready.alpha = ['t2']; x.cli.tokens.alpha = 4
   assert.deepEqual(states(await x.chart()), ['done', 'pending'])
-})
-
-test('core: held a457 (openTrees false, the default) reads the compact read, leaves history out of the snapshot and answers the history route as an older server (a466f-hold-a457-module)', async () => {
-  const x = rig({ openTrees: false })
-  const snapshot = await x.core.chart({ projectId: 'alpha' }, x.effect)
-  assert.ok(!('history' in snapshot))
-  assert.ok(x.cli.calls.includes(READ_COMPACT + ' alpha') && !x.cli.calls.some(call => call.includes('--open')))
-  await assert.rejects(x.core.history({ projectId: 'alpha', before: null, limit: 5 }, x.effect), { code: 'LATTICE_CHART_NOT_FOUND', status: 404 })
 })
 
 test('core: history reads one page on demand, never keeps it, and tells a refused cursor from a failed read (a457)', async () => {

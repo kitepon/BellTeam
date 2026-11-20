@@ -22,8 +22,7 @@ const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
 
 // Chart state of one child generation: a memo per chart, re-read only when its token moves or it is dirty (README State it owns, task a95).
-// openTrees = false HOLDS a457 (Tronie 2026-11-20 01:2x JST, a466f-hold-a457-module): read the compact display read as in Z118 and leave `history` out of the snapshot, so the child equals the live behaviour for every client; a457-module-restore sets it true again with the 0.113.0 pin.
-export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000, openTrees = false,
+export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000,
   log = line => process.stderr.write(line + '\n'), codeCharts = createCodeCharts({ cli, now, log }) }) {
   const epoch = randomUUID(), memos = new Map(), locks = new Map(), warned = new Map()
   // Seat runs on one chart run one at a time, so a code chart's fast-forward and sensor sync never overlap a write.
@@ -86,7 +85,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     let read, meta, ready
     try {
       let status
-      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', openTrees ? '--open' : '--compact']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
+      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--open']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
       ready = readyOf(read, status)
     } catch (error) {
       memo.dirty = true
@@ -112,7 +111,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       degraded: rosterBad ? ['members'] : [],
       members: projection.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color,
         avatarVersion: known.get(botId).avatarVersion })),
-      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases, externals: projection.externals, ...openTrees ? { history: { closed: projection.closedTasks } } : {} })
+      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases, externals: projection.externals, history: { closed: projection.closedTasks } })
     return memo
   }
 
@@ -149,8 +148,6 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     },
     // One page of the closed trees' finished cards, read from Lattice only now (README L24, a457); nothing is kept, so a closed card never sits in the memo.
     async history({ projectId, before, limit }, effect) {
-      // Held: answer as a server without the route does (the apps read a 404 as 'show the snapshot's finished cards', README L24).
-      if (!openTrees) throw latticeError('LATTICE_CHART_NOT_FOUND', 404)
       await mustExist(projectId)
       await rosterReader(effect)()
       let result
