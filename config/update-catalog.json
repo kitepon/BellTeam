@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T13:05:00Z",
-  "expiresAt": "2026-11-27T13:05:00Z",
+  "publishedAt": "2026-11-20T15:25:53Z",
+  "expiresAt": "2026-11-27T15:25:53Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "9404cfc9211b8d9f64560e060a3cef6504f5bf128e3df6fa731ab73858356bd0",
+      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
+      "versionId": "4ad90c046bea78b8d6ccc14af9e54d8e02efcd865c5a605a89d48c530f63a1f0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130401Z/execution-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz",
-          "bytes": 3996571,
-          "sha256": "9404cfc9211b8d9f64560e060a3cef6504f5bf128e3df6fa731ab73858356bd0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-amd64.tar.gz",
+          "bytes": 3996641,
+          "sha256": "4ad90c046bea78b8d6ccc14af9e54d8e02efcd865c5a605a89d48c530f63a1f0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130401Z/execution-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "cf829444f4edbdd513854a3b186ca8abc89da0c2d80a28cab6b422899634eb3d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "2b39bad74bd747b25a9f5dbce65503087de3291897b935436209681df0480173"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "機械の口で動く席の出力を、解釈せずにそのまま会話側へ渡す中継が入りました。Aiterm の新しいハーネス（claude-machine）で席を起動し、設定の変更や目標の確認も扱います。"
+        "機械の口で動く席の読み取りと送信（stream_read・stream_send）が、実行の許可の一覧で断られていました。通すようにしたので、質問や承認のカードと出力の行が保存され、画面に出ます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "23bd955e34bc25802b1b53e871ca63d6e1ccd0aff3ab5ea79cf8b531e836857f",
+      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
+      "versionId": "8c05c246525e73e99179437fb4eec3b21a0c3d6b7ed9f1584d32ffbd763ed60e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130401Z/execution-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz",
-          "bytes": 3996571,
-          "sha256": "23bd955e34bc25802b1b53e871ca63d6e1ccd0aff3ab5ea79cf8b531e836857f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-arm64.tar.gz",
+          "bytes": 3996641,
+          "sha256": "8c05c246525e73e99179437fb4eec3b21a0c3d6b7ed9f1584d32ffbd763ed60e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130401Z/execution-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "c9eed6e11c5d8b20d79fbb4238ec62fc70d522ee31405b893eec76ebf06c32ba"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T152105Z/execution-3a306ffafea82e449e8ad240a2363182e4efa52c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10895,
+          "sha256": "2835bae9c04e5af3e1d4b85ac4dcbde11b2c394f67927bc42dc054e030ab3eaf"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "機械の口で動く席の出力を、解釈せずにそのまま会話側へ渡す中継が入りました。Aiterm の新しいハーネス（claude-machine）で席を起動し、設定の変更や目標の確認も扱います。"
+        "機械の口で動く席の読み取りと送信（stream_read・stream_send）が、実行の許可の一覧で断られていました。通すようにしたので、質問や承認のカードと出力の行が保存され、画面に出ます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "sha256:d7ccd63c5fcad5d66a41238bb78cda0964586a8cb330482156f96c3c37b72a36",
+      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
+      "versionId": "sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7ccd63c5fcad5d66a41238bb78cda0964586a8cb330482156f96c3c37b72a36"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の口で動く席の出力を、解釈せずそのまま画面側へ渡す仕組みと、Aiterm の新しいハーネス（claude-machine）への切り替えが入りました。質問や承認への答え、割り込み、設定の変更もデータとして席へ渡します。",
-        "出力の表の既定を、すべての種類を出して道具の結果だけを折りたたむ形にしました。ボット一覧の最近の表示も、開いている出力の行に合わせます。",
-        "本体イメージの Aiterm が 0.70.85、Throughline が 0.21.2 になりました。"
+        "実行の許可の一覧に、機械の口の席の読み取りと送信（stream_read・stream_send）を加えました。本体イメージの中身は、Aiterm 0.70.85 と Throughline 0.21.2 のまま変わりません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "sha256:d7ccd63c5fcad5d66a41238bb78cda0964586a8cb330482156f96c3c37b72a36",
+      "sourceCommit": "3a306ffafea82e449e8ad240a2363182e4efa52c",
+      "versionId": "sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d7ccd63c5fcad5d66a41238bb78cda0964586a8cb330482156f96c3c37b72a36"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ad3084ba01af236512fe3b388e5865cac0d9c1298763eb0f5a76fbc6943fcbf9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の口で動く席の出力を、解釈せずそのまま画面側へ渡す仕組みと、Aiterm の新しいハーネス（claude-machine）への切り替えが入りました。質問や承認への答え、割り込み、設定の変更もデータとして席へ渡します。",
-        "出力の表の既定を、すべての種類を出して道具の結果だけを折りたたむ形にしました。ボット一覧の最近の表示も、開いている出力の行に合わせます。",
-        "本体イメージの Aiterm が 0.70.85、Throughline が 0.21.2 になりました。"
+        "実行の許可の一覧に、機械の口の席の読み取りと送信（stream_read・stream_send）を加えました。本体イメージの中身は、Aiterm 0.70.85 と Throughline 0.21.2 のまま変わりません。"
       ]
     },
     {
