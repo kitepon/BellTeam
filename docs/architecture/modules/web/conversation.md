@@ -403,7 +403,7 @@ flowchart LR
   ME -->|"display fold"| F["one closed details line; opens to the cut text, 全文を読み込む = GET /api/bots/:id/machine-events/:seq"]
   ME -->|"view words with bubble:true (last words of a finished turn)"| B["ordinary incoming message bubble: same look, richTextHtml Markdown; no id, so no reply / forward / copy"]
   ME -->|"display show, other views"| S["drawn open: words as text, tool_use as name + summary, thinking lighter italic, any other show row as its one-line message"]
-  Item --> Arr["arrangeMachineRows(timelineItems): result under its tool_use, same fold_group runs share one line"]
+  Item --> Arr["arrangeMachineRows(timelineItems): neighbours of one fold_group share one line, labelled by the sum of fold_count; nothing moves out of its place in time"]
   Q -->|"tap (one question, single choice) or 送る"| Post["POST /api/seat-requests/:request_id/answer {answers:[{indexes,other}]}"]
   A -->|"tap"| Post2["same route {decision: allow|deny}"]
   Post -->|"200 request"| Item2["timelineMap item.machine_event.request replaced, card redrawn (answered)"]
@@ -418,7 +418,7 @@ flowchart LR
 | approval card | 許可する -> `{decision:"allow"}`, 断る -> `{decision:"deny"}`; pending only |
 | answered / expired | no buttons: answered shows the chosen labels (by index) and the Other text; expired says the seat no longer waits |
 | fold row (`display: "fold"`) | one closed `details` line (`item.message`); opening shows the cut `text`; `truncated` adds 全文を読み込む, which reads the stored line once and shows it. Open/closed is the app's state (`foldOpen`, per opened conversation, never stored) |
-| `arrangeMachineRows(container, openKeys)` | Run after every render site of the timeline (open, refresh, older page, row replace, failed read). Idempotent: takes groups apart, moves each `tool_result` directly under the `tool_use` that has the same `tool.id` (if that row is on the page; otherwise the line stays at its own place), then wraps 2+ consecutive rows of one `fold_group` into one line (`<fold_group> ×<count>`, e.g. `hook ×4`, as on the iPhone; opening it opens its members). A `show` row, another group, or a result already placed under its tool use breaks a run |
+| `arrangeMachineRows(container, openKeys)` | Run after every render site of the timeline (open, refresh, older page, row replace, failed read). Idempotent: takes groups apart, then wraps 2+ consecutive rows of one `fold_group` into one line. Nothing is moved out of its place in time (Owner 2026-11-21: 「時系列をくずすな」; the old step that pulled a `tool_result` under its `tool_use` is withdrawn). Label (machine-stream.md "Tool calls fold and the order rule"): `n` = sum of the members' `fold_count` (1 when absent); `n>1` `<fold_group> ×<n>` (`tools ×2`, `background ×9`); `n=1` the `message` of the member that counts 1 (the tool name); `n=0` `<fold_group> ×<members>`. Opened, the members are listed in their own order, each still a closed line that opens to its text (`tool_use`: `tool.summary`). A `show` row or another group breaks a run |
 | `display` | only `fold` folds; anything else (including an old `hide`) is drawn, never dropped (Owner 2026-11-20: 「畳むのはオッケー。消すのはダメ」) |
 | `renderItem` / `rerenderItem` (conversation-timeline.js) | `machine_event` joins the card snapshot, so a page re-read that changes `request.status` redraws the same row in place; `onChanged` replaces the row's `request` with the 200 body |
 

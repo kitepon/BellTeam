@@ -536,7 +536,6 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .machine-line summary { cursor: pointer; overflow-wrap: anywhere; }
 .machine-line pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 10px; background: #f3f3f5; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 .machine-line pre:empty { display: none; }
-.machine-fold.view-tool_result { margin-top: 0; padding-left: 14px; border-left: 2px solid #e4e4e8; }
 .machine-group > .machine-fold { margin-left: 14px; }
 .machine-more { margin-top: 6px; padding: 6px 12px; border: 0; border-radius: 10px; background: #eee9fb; color: #5843b7; font: inherit; font-weight: 700; cursor: pointer; }
 .machine-use { margin: 8px auto 0; max-width: 620px; display: flex; gap: 8px; align-items: baseline; color: #55555b; font-size: 13px; }
