@@ -1,8 +1,8 @@
 {
-  "_comment": "a471 display rule: view -> show | fold. No hide: a kind may be folded to one openable line, never removed (Owner 2026-11-20 21:0x JST); any value but fold is read as show. Default table = Tronie's, for the Owner's first live try; tune with the Owner. fold_group maps a view to the group its folded rows share (clients merge a run of one group into one line). Read at projection time only: stored events never change.",
+  "_comment": "a471 display rule: view -> show | fold. No hide: a kind may be folded to one openable line, never removed (Owner 2026-11-20 21:0x JST); any value but fold is read as show. Default table = Tronie's, for the Owner's first live try; tune with the Owner. fold_group maps a view to the group its folded rows share (clients merge a run of one group into one line). From a folded tool_use on, every folded row up to the next shown row or the turn result is in the group fold_group.tool_use (a tool run, with fold_count 1 on the tool_use and 0 on the rest). Read at projection time only: stored events never change.",
   "words": "show",
   "thinking": "show",
-  "tool_use": "show",
+  "tool_use": "fold",
   "question": "show",
   "approval": "show",
   "tool_result": "fold",
@@ -12,7 +12,7 @@
   "rate_limit": "fold",
   "control": "fold",
   "unknown": "fold",
-  "fold_group": { "hook": "background", "rate_limit": "background", "system": "background", "control": "background", "result": "background", "unknown": "background" },
+  "fold_group": { "tool_use": "tools", "tool_result": "tools", "hook": "background", "rate_limit": "background", "system": "background", "control": "background", "result": "background", "unknown": "background" },
   "refine": [
     {
       "view": "thinking",
