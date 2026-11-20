@@ -66,15 +66,15 @@ test('ingest: stores raw lines, advances the cursor, resyncs on a gap or replay,
   assert.equal(again.timelineView({ botId: 'bot-d' }, { all: true }).length, 4)
 })
 
-test('default table shows every kind; only empty thinking is hidden; the table is read at display time and stored data does not change', async t => {
+test('default table shows every kind but folds tool results; only empty thinking is hidden; the table is read at display time and stored data does not change', async t => {
   const { ms, root } = await service(t)
   const lines = [J({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'I am checking' }, { type: 'thinking', thinking: '' }, { type: 'text', text: 'answer' }, { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] } }),
     J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a\nb' }] } }), J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'error_during_execution' })]
   await ms.ingest(env(lines, null, 'L1:1'))
   const shown = ms.timeline({ botId: 'bot-d' }).map(r => [r.machine_event.view, r.machine_event.display])
-  assert.deepEqual(shown, [['thinking', 'show'], ['words', 'show'], ['tool_use', 'show'], ['tool_result', 'show'], ['result', 'show'], ['result', 'show']])
+  assert.deepEqual(shown, [['thinking', 'show'], ['words', 'show'], ['tool_use', 'show'], ['tool_result', 'fold'], ['result', 'show'], ['result', 'show']])
   const all = ms.timelineView({ botId: 'bot-d' }, { all: true }).snapshot().map(r => r.machine_event.display)
-  assert.deepEqual(all, ['show', 'hide', 'show', 'show', 'show', 'show', 'show']) // only the empty thinking block is hidden
+  assert.deepEqual(all, ['show', 'hide', 'show', 'show', 'fold', 'show', 'show']) // only the empty thinking block is hidden; the tool result is folded
   const before = await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8')
   const hidden = new MachineStream({ root, bots, streamSend: async () => ({}), rules: { ...(await import('../src/machine-display-rules.json', { with: { type: 'json' } })).default, thinking: 'hide', tool_use: 'fold' } })
   await hidden.initialize({ readOnly: true })

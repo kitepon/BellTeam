@@ -1,9 +1,9 @@
 {
-  "_comment": "a471 display rule: view -> show | fold | hide. For the Owner's first live try (2026-11-20 20:3x JST): show every kind as it is; only an empty thinking block has nothing to show. To be tuned with the Owner. Read at projection time only: stored events never change.",
+  "_comment": "a471 display rule: view -> show | fold | hide. For the Owner's first live try (2026-11-20 20:3x JST): show every kind as it is, except a tool result, which is folded to one line under its tool use (Owner 2026-11-20 20:5x JST); an empty thinking block has nothing to show. To be tuned with the Owner. Read at projection time only: stored events never change.",
   "words": "show",
   "thinking": "show",
   "tool_use": "show",
-  "tool_result": "show",
+  "tool_result": "fold",
   "system": "show",
   "hook": "show",
   "result": "show",
