@@ -174,6 +174,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
             if (!['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status)) fail('DISPATCH_STATUS_INVALID')
             return callbacks.onStatus(status, error, tracking, mark)
           },
+          onStreamReply: () => { prepared.stream = true }, // a471: the answer row of a machine seat's turn is labelled stream:true (not drawn), as in messenger.startUserTurn
           onUserComplete: reply => this.finishUserTurn(prepared, reply),
         },
       }
