@@ -60,7 +60,8 @@ export function validateConversationCallback(method, params) {
   } else if (method === 'delivery.answer') {
     object(params, ['text']); string(params.text)
   } else if (method === 'user.complete') {
-    object(params, ['reply'])
+    object(params, ['reply'], ['stream'])
+    if (Object.hasOwn(params, 'stream') && params.stream !== true) fail()
     if (typeof params.reply !== 'string') {
       object(params.reply, ['delivery'])
       if (params.reply.delivery !== 'steered') fail()
@@ -83,7 +84,7 @@ export function normalizeConversationCallback(method, params) {
         ...(typeof word.kind === 'string' ? { kind: word.kind } : {}),
         ...(typeof word.at === 'string' ? { at: word.at } : {}) })) }
       : method === 'delivery.answer' ? { text: params.text }
-        : method === 'user.complete' ? { reply: typeof params.reply === 'string' ? params.reply : { delivery: params.reply?.delivery } }
+        : method === 'user.complete' ? { reply: typeof params.reply === 'string' ? params.reply : { delivery: params.reply?.delivery }, ...(params.stream === true ? { stream: true } : {}) }
           : method === 'turn.end' ? { startedAt: params.startedAt, endedAt: params.endedAt } : fail()
   validateConversationCallback(method, normalized)
   return normalized

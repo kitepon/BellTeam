@@ -365,7 +365,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
         ? { harnessCli: { installed: () => cli.installed(), watch: listener => cli.watch(listener), ...(typeof cli.recheck === 'function' ? { recheck: harness => cli.recheck(harness) } : {}) } } : {}
       // machine-stream.md: conversation's seatStream (cursor, ingest) goes only to an engine that declares it (EXECUTION_SEAT_STREAM).
       const streamPort = factory.supportsSeatStream === true
-        ? { seatStream: { cursor: botId => machineStream.cursor(botId), ingest: envelope => machineStream.ingest(envelope) } } : {}
+        ? { seatStream: { cursor: botId => machineStream.cursor(botId), ingest: envelope => machineStream.ingest(envelope),
+          // a471-chat-from-stream: only this flag makes execution stop relaying words and set stream on user.complete / shown.read; set only for an engine that knows it (an older engine rejects unknown port keys).
+          ...(factory.supportsSeatStreamDisplay === true ? { displayFromStream: true } : {}) } } : {}
       const remote = factory.supportsRemoteSeats === true && terminals
         ? { terminals: { connection: terminals.connection, watch: listener => {
           const off = [terminals.watch(listener), remoteSeatListener.watch(listener)]

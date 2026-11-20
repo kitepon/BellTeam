@@ -18,6 +18,7 @@ const native = { deliveryId: 'delivery-a', target: 'bot-a', message: 'Q', images
 const samples = {
   'execution.shown.read': [{ botId: 'bot-a' }, { shownId: 'shown-a', words: ['hello'], endedAt: null }],
   'execution.shown.consume': [{ botId: 'bot-a', shownId: 'shown-a' }, { applied: true }],
+  'machine.rowSource': [{ botId: 'bot-a', rowId: 'me-3-0' }, { source: { sender: { id: 'bot-a', name: 'A' }, at: '2026-11-20T00:00:00.000Z', text: 'hello' } }],
   'members.profiles.read': [{}, { bots: [{ id: 'bot-a', name: 'A' }] }],
   'execution.assertAccess': [{}, { allowed: true }],
   'execution.reconcile': [{ botId: 'bot-a', deliveryId: 'delivery-a', target: { session_id: 'bot-a', launch_id: 'a'.repeat(32) } }, { recoveryId: 'recovery-a' }],

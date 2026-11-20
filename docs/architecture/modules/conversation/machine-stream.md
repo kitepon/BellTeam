@@ -206,10 +206,12 @@ flowchart LR
   Log --> List["recent, list preview, push, export"]
 ```
 
-### Compatibility and exit
+### Capability and compatibility (agreed with Kiro, PR #2030)
 
-- Old execution with a new conversation: it still relays interim/answer words and omits `stream`; the chat shows both (as today). Nothing breaks; the duplicate returns until execution ships. New execution with an old conversation: `user.complete` carries an unknown field only if the engine declares the stream capability (the same `EXECUTION_SEAT_STREAM` declaration), so an old conversation never sees it.
-- A seat that falls back to the TUI (machine launch refused) is a terminal seat again: execution relays words as before and does not set `stream`; its older `stream: true` rows stay out of the page but its stream rows stay in the page. No timer, no refusal: the rule follows the launch record turn by turn.
+- The capability comes from conversation: the port `seatStream` carries `displayFromStream: true`, set only for an engine whose loader declares `supportsSeatStreamDisplay` (an older engine rejects unknown port keys). Only when it is true does execution (a) stop relaying `delivery.words` of kind interim / answer and the display `onAnswer` for a machine seat's own turns (kind `error` words, `delivery.status`, `turn.end`, `user.complete`, the transcript answer relay to asking Bots / forks / rooms stay), (b) add `stream: true` to `user.complete` params, (c) add `stream: true` to the `execution.shown.read` result of a machine seat's self-started turn. With an old conversation (no flag) nothing changes: the old words path, no new field. So the duplicate disappears exactly when both parts are live, never half-way.
+- Conversation accepts the optional `stream: true` in `user.complete` (callbacks) and in the `execution.shown.read` result (effects). `SelfTurns` skips writing the answer when `shown.stream` is true and still consumes the shown words. The saved final-answer row gets `stream: true` and is left out of the Bot page, the full timeline and the list preview index (it stays in the log, export, the HTTP turn result and push). A known limit: the Bot list preview of a machine seat shows its last non-stream row until the apps read the stream for it.
+- Quote and forward: `ConversationStore.quoteSource / forwardSource` resolve a `me-<seq>-<part>` id through the parent effect `machine.rowSource` (`{botId, rowId}` to `{source: {sender, at, text} | null}`).
+- A seat with no running reader (fork, TUI fallback, `STREAM_UNSUPPORTED`, exited) keeps today's path: execution relays words as before and does not set `stream`. No timer, no refusal: the rule follows the reader turn by turn.
 
 ## Answers to Aiterm's open points
 

@@ -11,7 +11,7 @@ export const CONVERSATION_EFFECT_METHODS = Object.freeze([
   'runtime.observer.snapshot', 'runtime.observer.check', 'runtime.observer.read', 'execution.notify', 'execution.turn', 'execution.fork',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
   'execution.assertAccess', 'execution.reconcile', 'execution.closeLaunch',
-  'execution.shown.read', 'execution.shown.consume',
+  'execution.shown.read', 'execution.shown.consume', 'machine.rowSource',
 ])
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_EFFECT_INVALID'), { code: 'CONVERSATION_EFFECT_INVALID' }) }
 const plain = value => value !== null && typeof value === 'object'
@@ -58,6 +58,7 @@ export function validateConversationEffect(method, params, capturedContext) {
     case 'execution.shown.read': case 'execution.shown.consume':
       if (capturedContext.actor?.kind !== 'observer') invalid()
       return fields(params, { botId: id, ...(method.endsWith('.consume') ? { shownId: identity } : {}) })
+    case 'machine.rowSource': return fields(params, { botId: id, rowId: value => text(value) && /^me-\d+-\d+$/u.test(value) })
     case 'usage.notify.direct': return fields(params, { deliveryId: identity, from: nonempty, target: id })
     case 'usage.notify.room': return fields(params, { id: identity, sender: label, room: label })
     case 'assets.beginSave': return fields(params, { owner: id })
@@ -141,6 +142,7 @@ export function validateConversationEffectResult(method, result, params) {
       fields(result, { enabled: bool, epoch: integer, apiKey: nullable(nonempty) })
       if (!result.enabled && result.apiKey !== null) invalid()
       return true
+    case 'machine.rowSource': return fields(result, { source: nullable(value => fields(value, { sender: value => fields(value, { id }, { name: text }), at: text, text })) })
     case 'usage.notify.direct': case 'usage.notify.room': return fields(result, { accepted: value => value === true })
     case 'assets.beginSave': return fields(result, { leaseId: identity })
     case 'assets.endSave': case 'execution.background.end': return fields(result, { requested: value => value === true })
@@ -170,7 +172,7 @@ export function validateConversationEffectResult(method, result, params) {
     case 'execution.reconcile': return fields(result, { recoveryId: identity })
     case 'execution.closeLaunch': return fields(result, { closureId: identity })
     case 'execution.shown.read': if (result === null) return true
-      return fields(result, { shownId: identity, words: array(text), endedAt: nullable(finite) })
+      return fields(result, { shownId: identity, words: array(text), endedAt: nullable(finite) }, { stream: value => value === true })
     case 'execution.shown.consume': return fields(result, { applied: bool })
     default: invalid()
   }
