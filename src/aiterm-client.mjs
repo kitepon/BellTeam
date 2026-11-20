@@ -199,6 +199,15 @@ export class AitermClient {
       // shortcut: an Aiterm without claude_login reads the list with its own login (the behaviour before a04); require it once every body carries it.
       if (!supported) { const { claude_login: _login, ...rest } = args; args = rest }
     }
+    // a471-switch-harness: an Aiterm that does not list the machine harness fails the call with a plain validation error; read its schema instead.
+    if (name === 'agent_launch' && args.harness === 'claude-machine') {
+      let supported = false
+      try {
+        const tools = await listTools(callClient)
+        supported = tools.tools.some(tool => tool.name === 'agent_launch' && tool.inputSchema?.properties?.harness?.enum?.includes('claude-machine'))
+      } catch { /* No launch was issued by the capability read. */ }
+      if (!supported) throw Object.assign(new Error('AGENT_HARNESS_UNAVAILABLE: claude-machine'), { code: 'AGENT_HARNESS_UNAVAILABLE', effect: 'not_started' })
+    }
     if (name === 'agent_launch' && args.require_existing_resume === true) {
       let supported = false
       try {

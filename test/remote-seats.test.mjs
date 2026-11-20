@@ -318,7 +318,7 @@ test('a442b: a Claude launch asks for Code Mode; a too-old terminal or the confi
   } finally { await rm(other.root, { recursive: true, force: true }) }
 })
 
-test('a471: only the machine test seat asks for interface machine; a refusal or an Aiterm that strips the key starts the old way once, with a notice', async () => {
+test('a471: only the machine test seat asks for harness claude-machine; a refusal or a receipt of another harness starts the old way once, with a notice', async () => {
   const machineMember = member => ({ ...member, id: 'bot-f1a21da1' })
   const run = async (answer, check) => {
     const fx = await transportFixture()
@@ -339,12 +339,12 @@ test('a471: only the machine test seat asks for interface machine; a refusal or 
       await check({ ...fx, member })
     } finally { await rm(fx.root, { recursive: true, force: true }) }
   }
-  const receipt = (args, machine = true) => ({ content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'd'.repeat(32), startup: { status: 'ready' }, ...(machine ? { interface: 'machine' } : {}) } })
+  const receipt = (args, machine = true) => ({ content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'd'.repeat(32), startup: { status: 'ready' }, harness: machine ? 'claude-machine' : 'claude-code' } })
   const launches = calls => calls.filter(call => call.name === 'agent_launch').map(call => call.args)
-  // machine seat: the key and Code Mode's settings_env go together, the receipt proves it, the screen says so
+  // machine seat: the harness and Code Mode's settings_env go together, the receipt proves it, the screen says so
   await run(args => receipt(args), async ({ calls, transport, member, remote }) => {
     assert.equal(launches(calls).length, 1)
-    assert.equal(launches(calls)[0].interface, 'machine')
+    assert.equal(launches(calls)[0].harness, 'claude-machine')
     assert.deepEqual(launches(calls)[0].settings_env, { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' })
     assert.equal(remote.seats.launchNotice(member), null)
     assert.equal((await transport.screen(member)).machine, true)
@@ -357,33 +357,41 @@ test('a471: only the machine test seat asks for interface machine; a refusal or 
     assert.equal(calls.find(call => call.name === 'stream_send').args.session_id, transport.session(member))
     await assert.rejects(transport.streamSend(member, { lines: [] }), { code: 'STREAM_SEND_INVALID' })
   })
-  // AGENT_MACHINE_UNAVAILABLE: one launch without the key, a plain notice, the screen is a terminal screen
-  await run(args => { if (args.interface) throw Object.assign(new Error('aiterm: AGENT_MACHINE_UNAVAILABLE: x'), { aitermResponseReturned: true }); return receipt(args, false) },
+  // AGENT_MACHINE_UNAVAILABLE: one launch with the member's own harness, a plain notice, the screen is a terminal screen
+  await run(args => { if (args.harness === 'claude-machine') throw Object.assign(new Error('aiterm: AGENT_MACHINE_UNAVAILABLE: x'), { aitermResponseReturned: true }); return receipt(args, false) },
     async ({ calls, transport, member, remote, ingested }) => {
       assert.equal(launches(calls).length, 2)
       assert.equal(ingested.length, 0, 'a seat that started the old way has no stream reader')
-      assert.equal('interface' in launches(calls)[1], false)
+      assert.equal(launches(calls)[1].harness, 'claude-code')
       assert.equal(remote.seats.launchNotice(member).code, 'MACHINE_MODE_SKIPPED')
       assert.equal((await transport.screen(member)).machine, false)
     })
-  // an Aiterm that strips the unknown key answers with no receipt field: the seat is a TUI seat and says so
+  // the container's Aiterm does not list the harness (the client's probe, nothing sent) and a terminal below 0.70.85: the same one fallback
+  for (const code of ['AGENT_HARNESS_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
+    await run(args => { if (args.harness === 'claude-machine') throw Object.assign(new Error(`${code}: x`), { code, effect: 'not_started' }); return receipt(args, false) },
+      async ({ calls, member, remote }) => {
+        // REMOTE_AITERM_TOO_OLD is also Code Mode's refusal name: its own single retry (still machine) comes first, as before the harness split
+        assert.deepEqual([launches(calls)[0].harness, launches(calls).at(-1).harness], ['claude-machine', 'claude-code'])
+        assert.equal(remote.seats.launchNotice(member).code, 'MACHINE_MODE_SKIPPED')
+      })
+  // a receipt of another harness (the seat is up): a TUI seat, says so, no relaunch
   await run(args => receipt(args, false), async ({ transport, member, remote }) => {
     assert.equal(remote.seats.launchNotice(member).code, 'MACHINE_MODE_SKIPPED')
     assert.equal((await transport.screen(member)).machine, false)
   })
-  // Code Mode's first-start confirm with the key present: a442b's fallback still applies (one launch without settings_env, key kept)
+  // Code Mode's first-start confirm with the machine harness: a442b's fallback still applies (one launch without settings_env, harness kept)
   await run(args => { if (args.settings_env) throw Object.assign(new Error('aiterm: AGENT_STARTUP_BLOCKED: x'), { aitermResponseReturned: true }); return receipt(args) },
     async ({ calls, member, remote }) => {
       assert.equal(launches(calls).length, 2)
       assert.equal('settings_env' in launches(calls)[1], false)
-      assert.equal(launches(calls)[1].interface, 'machine')
+      assert.equal(launches(calls)[1].harness, 'claude-machine')
       assert.equal(remote.seats.launchNotice(member).code, 'CODE_MODE_SKIPPED')
     })
-  // every other seat: no key
+  // every other seat: the member's own harness
   const other = await transportFixture()
   try {
     await other.transport.wakeNow(other.member, { membersLease: 'L', admissionCheck: () => {} })
-    assert.equal('interface' in launches(other.calls)[0], false)
+    assert.equal(launches(other.calls)[0].harness, 'claude-code')
   } finally { await rm(other.root, { recursive: true, force: true }) }
 })
 

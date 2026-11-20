@@ -5,8 +5,11 @@ export const authenticationPreflightCodes = [
   'CLAUDE_AUTH_STATUS_TIMEOUT',
 ]
 
+// a471-switch-harness: Aiterm's machine harness is the member's claude-code to every validator of an Aiterm value (remote-seat.md "Claude machine mode").
+export const baseHarness = harness => harness === 'claude-machine' ? 'claude-code' : harness
+
 export function authenticationPreflightFailure(value) {
-  if (value?.schema !== 'aiterm.agent-launch-error.v1' || value.harness !== 'claude-code'
+  if (value?.schema !== 'aiterm.agent-launch-error.v1' || baseHarness(value.harness) !== 'claude-code'
     || !authenticationPreflightCodes.includes(value.code) || value.phase !== 'authentication_preflight'
     || value.effect !== 'not_issued' || value.session_created !== false) return null
   return { schema: value.schema, harness: value.harness, code: value.code,

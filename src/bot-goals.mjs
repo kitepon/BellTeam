@@ -1,3 +1,4 @@
+import { baseHarness } from './agent-launch-error.mjs'
 // Native CLI state is authoritative. No goal file or continuation loop lives here.
 const actions = ['inspect', 'create', 'edit', 'pause', 'resume', 'clear']
 const statuses = new Set(['active', 'paused', 'blocked', 'usageLimited', 'budgetLimited', 'complete'])
@@ -60,7 +61,7 @@ const validNativeGoal = (goal, result) => goal === null || (
     && keysOnly(goal.native, ['threadId', 'objective', 'status', 'tokenBudget', 'tokensUsed', 'timeUsedSeconds', 'createdAt', 'updatedAt'])
     && validGoal(goal.native, result.binding?.thread_id)
     && goal.native !== null
-  || goal?.kind === 'claude-code' && result.harness === 'claude-code' && keysOnly(goal, ['kind', 'phase', 'native', 'reported_turns'])
+  || goal?.kind === 'claude-code' && baseHarness(result.harness) === 'claude-code' && keysOnly(goal, ['kind', 'phase', 'native', 'reported_turns'])
     && goal.phase === 'active' && claudeStatus(goal.native) && goal.native.met === false
     && (!Object.hasOwn(goal, 'reported_turns') || natural(goal.reported_turns))
   || goal?.kind === 'grok-cli' && result.harness === 'grok-cli' && keysOnly(goal, ['kind', 'native', 'current_status'])
@@ -147,7 +148,7 @@ export class BotGoals {
       ? validNativeGoal(result.goal, result) : validGoal(result.goal, binding?.thread_id))) throw new Error('GOAL_STATE_INVALID')
     if (Object.hasOwn(result, 'native_history')) {
       const history = result.native_history
-      if (result.schema !== 'aiterm.agent-goal-result.v2' || result.harness !== 'claude-code'
+      if (result.schema !== 'aiterm.agent-goal-result.v2' || baseHarness(result.harness) !== 'claude-code'
         || !keysOnly(history, ['kind', 'terminal', 'native']) || history.kind !== 'claude-code'
         || !claudeStatus(history.native) || history.native.met !== true
         || (history.terminal === 'cleared' ? history.native.sentinel !== true
