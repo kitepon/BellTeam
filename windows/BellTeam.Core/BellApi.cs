@@ -114,6 +114,10 @@ public sealed class BellApi : IDisposable
     public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text, CancellationToken token = default)
         => (await PostAsync<QuestionResponse>($"/api/owner-questions/{Uri.EscapeDataString(id)}/answer", new { choice, text = text is null ? null : TextContent.Normalize(text) }, token)).Question;
 
+    // An answer is not idempotent: the caller never resends it by itself (conversation machine-stream.md "Answer route").
+    public async Task<MachineRequest> AnswerSeatRequestAsync(string id, MachineAnswer[]? answers, string? decision, CancellationToken token = default)
+        => (await PostAsync<SeatRequestResponse>($"/api/seat-requests/{Uri.EscapeDataString(id)}/answer", answers is null ? new { decision } : (object)new { answers = answers.Select(a => new { indexes = a.Indexes, other = a.Other is null ? null : TextContent.Normalize(a.Other) }) }, token)).Request;
+
     public async Task<byte[]> ImageAsync(string path, CancellationToken token = default)
     {
         var url = new Uri(Origin, path);

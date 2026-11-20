@@ -65,6 +65,13 @@ public static class Timeline
         }
     }
 
+    // Machine entries (machine-stream.md): an entry the display rule hides or another row already shows is not drawn; a tool_result folds under the tool_use that shares its tool.id.
+    public static TimelineMessage[] VisibleMachine(IEnumerable<TimelineMessage> messages)
+    {
+        var list = messages.ToArray();
+        var uses = list.Where(m => m.MachineEvent is { View: "tool_use", Tool.Id.Length: > 0 }).Select(m => m.MachineEvent!.Tool!.Id!).ToHashSet();
+        return list.Where(m => m.MachineEvent is not { } e || e.Display != "hide" && !e.ShownElsewhere && !(e is { View: "tool_result", Display: "fold", Tool.Id: { } id } && uses.Contains(id))).ToArray();
+    }
     // Reply (conversation reply.md "What can be quoted"): conversation rows only; a pending echo, a request card and a Bot-to-Bot row are not.
     public static bool IsQuotable(TimelineMessage message) => !PendingSend.IsLocal(message.Id) && message.SecretRequest is null && message.OwnerQuestion is null && message.Kind is null or "message" or "interim" or "schedule";
     // Forward (forward.md "What can be forwarded"): the same rows as a reply plus Bot-to-Bot rows.
