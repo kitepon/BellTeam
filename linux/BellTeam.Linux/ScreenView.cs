@@ -47,7 +47,7 @@ public sealed class ScreenView : Grid
 
     private void Updated(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(LinuxWorkspace.Screen) or nameof(LinuxWorkspace.ScreenStatus) or nameof(LinuxWorkspace.ScreenOnline) or nameof(LinuxWorkspace.ScreenInput) or nameof(LinuxWorkspace.ScreenVisible) or nameof(LinuxWorkspace.Selected))) return;
+        if (args.PropertyName is not (nameof(LinuxWorkspace.Screen) or nameof(LinuxWorkspace.ScreenStatus) or nameof(LinuxWorkspace.ScreenOnline) or nameof(LinuxWorkspace.ScreenMachine) or nameof(LinuxWorkspace.ScreenInput) or nameof(LinuxWorkspace.ScreenVisible) or nameof(LinuxWorkspace.Selected))) return;
         if (Dispatcher.UIThread.CheckAccess()) Refresh(); else Dispatcher.UIThread.Post(Refresh);
     }
 
@@ -91,12 +91,20 @@ public sealed class ScreenView : Grid
     {
         if (input is not { Available: true } model) { bar.IsVisible = false; barState = null; return; }
         // The bar is rebuilt only when something it shows changed: a build every second would swallow a click between press and release.
-        var state = string.Join('\u0003', model.SendingKey, model.SentKey, model.Notice, model.Banner?.Key, showDigits);
+        var machine = workspace.ScreenMachine;
+        var state = string.Join('\u0003', model.SendingKey, model.SentKey, model.Notice, model.Banner?.Key, showDigits, machine);
         if (state == barState) return;
         barState = state;
         var column = new StackPanel { Margin = new Thickness(12) };
         if (model.Banner is { IsRequired: true } approval) column.Children.Add(Spaced(Banner(model, approval)));
         if (model.Notice is { } notice) column.Children.Add(Spaced(Notice(notice)));
+        // A machine seat has no terminal: no keys, only the approval banner (and its notice) while a request is pending.
+        if (machine)
+        {
+            bar.IsVisible = column.Children.Count != 0;
+            if (bar.IsVisible) { column.Children[0].Margin = new Thickness(0); bar.Child = new StackPanel { Children = { new Border { Height = 1, Background = Hairline }, column } }; } else bar.Child = null;
+            return;
+        }
         column.Children.Add(Spaced(Row(8, Key(model, "Escape", "取消", Symbol(Icons.Close), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", "決定", EnterIcon(), BellTheme.Violet, false), Key(model, "C-c", "中断", StopIcon(), Destructive, false))));
         var toggle = Plain(ToggleCap(showDigits), "数字"); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
         column.Children.Add(Spaced(Row(8, Key(model, "Left", "左", Symbol(InspectorIcons.Left), KeyTint, true), Key(model, "Up", "上", Symbol(InspectorIcons.Up), KeyTint, true), Key(model, "Down", "下", Symbol(InspectorIcons.Down), KeyTint, true), Key(model, "Right", "右", Symbol(InspectorIcons.Right), KeyTint, true), toggle)));
