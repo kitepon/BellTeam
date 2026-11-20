@@ -1,16 +1,17 @@
 import { TimelineIndex, timelinePage, fullTimeline } from './timeline-index.mjs'
 
 export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream = null, ownerSecretGuide = null }) {
-  const extras = (kind, id) => {
+  const extras = (kind, id, recent = false) => {
     const target = kind === 'rooms' ? { roomId: id } : { botId: id }
     const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
-    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions), ...(machineStream?.timelineView({ botId: id }).length ? [machineStream.timelineView({ botId: id })] : [])] : [])]
+    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions), ...(machineStream?.timelineView({ botId: id }, { recent }).length ? [machineStream.timelineView({ botId: id }, { recent })] : [])] : [])]
   }
-  const sources = async (kind, id, prepared = null) => {
+  // recent: the Bot list preview reads only the machine rows the chat draws open (display show), not folded ones.
+  const sources = async (kind, id, prepared = null, recent = false) => {
     const base = prepared ?? (kind === 'rooms'
       ? rooms.messageView ? await rooms.messageView(id) : new TimelineIndex(await rooms.messages(id))
       : store.timelineView ? await store.timelineView(id) : new TimelineIndex(await store.timeline(id)))
-    return [base, ...extras(kind, id)]
+    return [base, ...extras(kind, id, recent)]
   }
   const timeline = async (kind, id) => fullTimeline(await sources(kind, id))
   const messagePage = async (kind, id, url) => {

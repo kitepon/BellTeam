@@ -7,6 +7,8 @@ import test from 'node:test'
 import { MachineStream, project } from '../src/machine-stream.mjs'
 import { createSeatRequestApi } from '../src/http-seat-request-api.mjs'
 import { createMessageViews } from '../src/http-messages.mjs'
+import { listRecent } from '../src/members/profiles-http.mjs'
+import { recentTimeline } from '../src/timeline-index.mjs'
 import { ConversationStore } from '../src/conversation-store.mjs'
 import { SelfTurns } from '../src/self-turns.mjs'
 import { validateConversationCallback, normalizeConversationCallback } from '../src/conversation/callbacks.mjs'
@@ -225,4 +227,15 @@ test('user.complete may carry stream:true; shown.read may carry stream:true; a m
   const current = { seen: [], lastCompletedAt: null }
   await selfTurns.accept(bots.get('bot-d'), current, { source_sha256: 'k', assistant: 'self answer', completed_at: 1 }, null)
   assert.deepEqual([appended.length, consumed.length, current.seen], [0, 1, ['k']])
+})
+
+test('Bot list preview follows the stream rows the chat draws open, not folded ones', async t => {
+  const { ms } = await service(t)
+  const views = createMessageViews({ rooms: {}, store: { timeline: async () => [{ id: 'q1', kind: 'message', direction: 'outgoing', message: 'question', at: '2026-11-19T00:00:00.000Z' }] }, machineStream: ms })
+  const last = async () => recentTimeline(await views.sources('bots', 'bot-d', null, true))
+  assert.equal((await last()).id, 'q1') // nothing from the stream yet
+  await ms.ingest(env([J({ type: 'assistant', message: { content: [{ type: 'text', text: 'first line\nsecond' }] } }), J({ type: 'result', subtype: 'success', duration_ms: 1000 }), J({ type: 'system', subtype: 'hook_response' })], null, 'L1:1'))
+  const preview = listRecent(await last())
+  assert.deepEqual([preview.kind, preview.direction, preview.message, preview.image], ['message', 'incoming', 'first line', false]) // the folded result and hook rows do not become the preview
+  assert.equal(listRecent({ id: 'q1', kind: 'message', direction: 'outgoing', message: 'm', image: false, at: 'a' }).direction, 'outgoing')
 })

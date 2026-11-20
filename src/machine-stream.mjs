@@ -112,7 +112,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -167,6 +167,7 @@ export class MachineStream {
   setRow(bot, botId, record, n, part) {
     const item = this.row(bot, botId, record, n, part)
     bot.rows.set(item.id, item)
+    if (item.machine_event.display === 'show') bot.shown.set(item.id, item) // the Bot list preview follows what the chat draws open
     return item
   }
 
@@ -228,7 +229,7 @@ export class MachineStream {
   }
 
   timeline(target) { return target.roomId ? [] : this.state.get(target.botId)?.rows.snapshot() ?? [] }
-  timelineView(target) { return target.roomId ? new TimelineIndex() : this.state.get(target.botId)?.rows ?? new TimelineIndex() }
+  timelineView(target, { recent = false } = {}) { return target.roomId ? new TimelineIndex() : this.state.get(target.botId)?.[recent ? 'shown' : 'rows'] ?? new TimelineIndex() }
 
   // Quote / forward of one drawn row (reply.md, forward.md): the same {sender, at, text} the saved rows give.
   rowSource(botId, rowId) {
