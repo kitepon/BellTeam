@@ -25,13 +25,15 @@ export const EXECUTION_SEAT_MCP_SEEN = true
 export const EXECUTION_REMOTE_USER_TOOLS = true
 // a451 (cli-not-installed.md): this engine accepts ports.harnessCli ({ installed, watch, recheck }); a parent passes it only when this is true.
 export const EXECUTION_HARNESS_CLI = true
+// a471 (machine-stream.md): this engine accepts ports.seatStream ({ cursor, ingest }) and the dispatch method transport.streamSend; a parent passes the port only when this is true.
+export const EXECUTION_SEAT_STREAM = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
   transport: ['isRunning', 'runningBots', 'screen', 'ensure', 'wake', 'restart', 'reconfigure',
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
     'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
-    'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval', 'forkInquiry'],
+    'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval', 'forkInquiry', 'streamSend'],
   administration: ['configureFromMcp', 'update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
   accounts: ['list', 'prepare'],
@@ -46,7 +48,7 @@ export const EXECUTION_METHODS = Object.freeze({
   project: Object.freeze(Object.entries(syncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
 })
 const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'moduleOperations', 'bots', 'rooms', 'configurationStorage',
-  'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress', 'harnessCli']
+  'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress', 'harnessCli', 'seatStream']
 
 // This module and every relative engine import belong to the same fixed bundle.
 export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null, requestRestartSummary = null }) {
@@ -62,7 +64,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
-    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'], harnessCli: ['installed', 'watch', 'recheck'],
+    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'], harnessCli: ['installed', 'watch', 'recheck'], seatStream: ['cursor', 'ingest'],
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')
@@ -133,7 +135,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       seatCommand: ports.seat?.waitProcess ?? null,
       recorded: async session => (await transport.readRuntimeLaunches())[session] ?? null }) : null
   const transport = createManagedTransport({
-    ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null,
+    ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null, seatStream: ports.seatStream ?? null,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'), configurationLock,
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
@@ -234,6 +236,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const startProducers = () => {
     if (!observerStarted) { observer.start(); observerStarted = true }
     if (!idleStarted) { idle.start(); idleStarted = true }
+    // machine-stream.md: seats already running in machine mode after an engine start get their reader again.
+    track(transport.resumeMachineStreams().catch(error => process.stderr.write(`BellTeam machine stream resume: ${error?.message}\n`)))
   }
   async function quiesce(timeoutMs = 60_000, { handover = false } = {}) {
     if (phase === 'quiesced') return { quiesced: true }
