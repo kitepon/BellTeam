@@ -211,7 +211,8 @@ public sealed record OwnerQuestion
 }
 public sealed record SecretResponse { public required SecretRequest Request { get; init; } }
 public sealed record QuestionResponse { public required OwnerQuestion Question { get; init; } }
-public sealed record ScreenResponse { public required bool Online { get; init; } public required string Screen { get; init; } }
+// Machine: a Claude seat launched in machine mode (no terminal keys); an answer without the field is a terminal seat.
+public sealed record ScreenResponse { public required bool Online { get; init; } public required string Screen { get; init; } public bool Machine { get; init; } }
 public sealed record ImageAttachment(string Name, string Mime, byte[] Bytes);
 public sealed record ImagePayload(string Mime, string Data);
 public sealed record DraftContent(string Text, ImageAttachment[] Images, string[] Targets, ReplyReference? Quote = null, QuoteSelection? Selection = null);

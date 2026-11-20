@@ -81,7 +81,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     private CancellationTokenSource? screenCancellation;
     private bool screenVisible;
     private string screenText = "", screenRaw = "";
-    private bool screenOnline;
+    private bool screenOnline, screenMachine;
     private string? screenError;
     private ScreenInputModel? screenInput;
     private string? actionError;
@@ -118,6 +118,8 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // What the terminal shows: the screen, or the empty-state line (Mac BotTerminalView value).
     public string Screen => screenText;
     public bool ScreenOnline => screenOnline;
+    // A machine seat has no terminal: the app shows the screen text without the key bar.
+    public bool ScreenMachine => screenMachine;
     public string? ScreenError => screenError;
     // Mac status line: a failed read shows its error instead (in red), otherwise "1秒ごとに更新" while the seat is online.
     public string ScreenStatus => screenError ?? (screenOnline ? "1秒ごとに更新" : "停止中");
@@ -127,13 +129,13 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public Task ScreenFirstRead => screenFirstRead.Task;
     // Where the screen key bar sends a failure the Mac would report to diagnostics; tests replace it.
     public Action<Exception, string, string>? ScreenFailureReport { get; set; }
-    private void SetScreen(string raw, bool online, string? error)
+    private void SetScreen(string raw, bool online, string? error, bool machine)
     {
         var text = raw.Length != 0 ? raw : online ? "画面は空です" : "次のメッセージで起動します";
         // Only a real change is published, so the terminal's selection and scroll position survive an unchanged second.
-        var changed = text != screenText || online != screenOnline || error != screenError;
-        screenRaw = raw; screenText = text; screenOnline = online; screenError = error;
-        if (changed) { Changed(nameof(Screen)); Changed(nameof(ScreenOnline)); Changed(nameof(ScreenError)); Changed(nameof(ScreenStatus)); }
+        var changed = text != screenText || online != screenOnline || error != screenError || machine != screenMachine;
+        screenRaw = raw; screenText = text; screenOnline = online; screenError = error; screenMachine = machine;
+        if (changed) { Changed(nameof(Screen)); Changed(nameof(ScreenOnline)); Changed(nameof(ScreenMachine)); Changed(nameof(ScreenError)); Changed(nameof(ScreenStatus)); }
     }
     public bool CanShowScreen => selected is { Target.IsRoom: false };
     public AttachmentPreview<TImage>[] Attachments => Draft?.Attachments.Select((image, index) => new AttachmentPreview<TImage>(image, attachmentPreviews[image], index + 1)).ToArray() ?? [];
@@ -695,7 +697,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         var token = screenCancellation.Token;
         var input = screenInput = new ScreenInputModel(current, entry.Target.Id, ScreenFailureReport);
         var firstRead = screenFirstRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        SetScreen("", false, null); Changed(nameof(ScreenInput)); ScreenVisible = true;
+        SetScreen("", false, null, false); Changed(nameof(ScreenInput)); ScreenVisible = true;
         var path = entry.Target.Path + "/screen";
         var scrollback = new ScreenScrollback(); var loadedHistory = false;
         try
@@ -710,7 +712,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                     string next;
                     if (loadedHistory) next = scrollback.Merge(result.Screen);
                     else { scrollback.Start(result.Screen); next = result.Screen; loadedHistory = true; }
-                    SetScreen(next, result.Online, null);
+                    SetScreen(next, result.Online, null, result.Machine);
                     await input.RefreshApprovalAsync(token);
                     firstRead.TrySetResult();
                 }
@@ -718,7 +720,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                 // BellApi has already raised AuthenticationRequired (the login button); the screen just stops.
                 catch (BellApiException error) when (error.RequiresLogin) { firstRead.TrySetResult(); break; }
                 // A transient failure (timeout, 5xx, seat restart) must not freeze an open screen: show it, read again next tick; the next 200 clears it.
-                catch (Exception error) { SetScreen(screenRaw, screenOnline, error.Message); firstRead.TrySetResult(); }
+                catch (Exception error) { SetScreen(screenRaw, screenOnline, error.Message, screenMachine); firstRead.TrySetResult(); }
                 // Reads never overlap: the next starts one second after the previous started, at once after a slow answer.
                 var wait = TimeSpan.FromSeconds(1) - started.Elapsed;
                 if (wait > TimeSpan.Zero) await Task.Delay(wait, token);
