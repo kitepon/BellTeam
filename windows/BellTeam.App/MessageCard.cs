@@ -85,7 +85,7 @@ public sealed class MessageCard : ContentControl
     // The text the row shows (a forwarded row: its comment and the forwarded content). A clipboard another program holds is transient: the icon stays as it was, and the check mark shows only a copy that went through.
     private void CopyText()
     {
-        try { Clipboard.SetDataObject(Message.Message ?? "", true); } catch (System.Runtime.InteropServices.ExternalException) { return; }
+        try { Clipboard.SetDataObject(Message.MachineEvent is { View: "words", Bubble: true } answer ? answer.Text : Message.Message ?? "", true); } catch (System.Runtime.InteropServices.ExternalException) { return; }
         var icon = (TextBlock)copyButton.Content; icon.Text = "";
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         timer.Tick += (_, _) => { timer.Stop(); icon.Text = ""; };
@@ -116,10 +116,14 @@ public sealed class MessageCard : ContentControl
     private static TextBlock Glyph(string text, double size, Brush brush) => new() { Text = text, FontFamily = Icons, FontSize = size, Foreground = brush, VerticalAlignment = VerticalAlignment.Center };
     private void Render()
     {
-        if (Message is not { } message || Workspace is null) return;
-        if (messageId != message.Id)
+        if (Message is not { } original || Workspace is null) return;
+        // a471-tune-answer: the last words of a finished turn (the server's bubble mark, never decided here) are an ordinary incoming bubble drawn from the row's text.
+        var asBubble = original.MachineEvent is { View: "words", Bubble: true };
+        var message = asBubble ? original with { Message = original.MachineEvent!.Text, MachineEvent = null } : original;
+        var shape = asBubble ? message.Id + "#bubble" : message.Id; // the mark reaches the same row id later, so the card is built again
+        if (messageId != shape)
         {
-            messageId = message.Id; secret = null; question = null; machine = null;
+            messageId = shape; secret = null; question = null; machine = null;
             if (message.Kind == "peer") BuildPeer(message);
             else if (message.MachineEvent is not null) { layout = null; Content = machine = new MachineEntry(Workspace); }
             else if (message.SecretRequest is not null || message.OwnerQuestion is not null) BuildRequest(message);
