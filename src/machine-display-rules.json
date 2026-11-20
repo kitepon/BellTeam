@@ -1,22 +1,42 @@
 {
-  "_comment": "a471 display rule: view -> show | fold | hide. For the Owner's first live try (2026-11-20 20:3x JST): show every kind as it is, except a tool result, which is folded to one line under its tool use (Owner 2026-11-20 20:5x JST); an empty thinking block has nothing to show. To be tuned with the Owner. Read at projection time only: stored events never change.",
+  "_comment": "a471 display rule: view -> show | fold. No hide: a kind may be folded to one openable line, never removed (Owner 2026-11-20 21:0x JST); any value but fold is read as show. Default table = Tronie's, for the Owner's first live try; tune with the Owner. Read at projection time only: stored events never change.",
   "words": "show",
   "thinking": "show",
   "tool_use": "show",
-  "tool_result": "fold",
-  "system": "show",
-  "hook": "show",
-  "result": "show",
-  "rate_limit": "show",
   "question": "show",
   "approval": "show",
-  "control": "show",
-  "unknown": "show",
+  "tool_result": "fold",
+  "system": "fold",
+  "hook": "fold",
+  "result": "fold",
+  "rate_limit": "fold",
+  "control": "fold",
+  "unknown": "fold",
   "refine": [
     {
       "view": "thinking",
       "empty": true,
-      "display": "hide"
+      "display": "fold"
+    },
+    {
+      "view": "words",
+      "title": "input",
+      "display": "fold"
+    },
+    {
+      "view": "system",
+      "is_error": true,
+      "display": "show"
+    },
+    {
+      "view": "result",
+      "is_error": true,
+      "display": "show"
+    },
+    {
+      "view": "rate_limit",
+      "status": "rejected",
+      "display": "show"
     }
   ]
 }

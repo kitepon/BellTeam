@@ -5,7 +5,7 @@ import { TimelineIndex } from './timeline-index.mjs'
 import displayRules from './machine-display-rules.json' with { type: 'json' }
 
 // A machine seat's stream-json as the chat log (conversation/machine-stream.md, a471).
-// Every line is stored unchanged; the view and the show/fold/hide display are derived at read time.
+// Every line is stored unchanged; the view and the show/fold display are derived at read time.
 const fail = code => Object.assign(new Error(code), { code })
 const ROW_TEXT_MAX = 20000 // the whole text of a result for the try; the raw line stays available by seq
 const cut = (value, max) => { const text = typeof value === 'string' ? value : JSON.stringify(value) ?? ''; return text.length > max ? [text.slice(0, max), true] : [text, false] }
@@ -41,7 +41,7 @@ export function project(line) {
     case 'assistant': {
       const parts = blocks(value.message?.content).map(block => {
         if (block?.type === 'text') return part({ view: 'words', title: null, text: block.text ?? '', shown_elsewhere: true })
-        if (block?.type === 'thinking') return part({ view: 'thinking', title: 'thinking', text: block.thinking ?? '' })
+        if (block?.type === 'thinking') return part({ view: 'thinking', title: block.thinking?.trim() ? 'thinking' : 'thinking (no text)', text: block.thinking ?? '' })
         if (block?.type === 'tool_use') return part({ view: 'tool_use', title: block.name ?? 'tool', text: '', tool: { id: str(block.id), name: str(block.name), summary: cut(block.input ?? {}, 200)[0] } })
         return unknown(str(block?.type) ?? 'assistant')
       })
@@ -55,10 +55,14 @@ export function project(line) {
     }
     case 'system':
       if (/^hook_/u.test(subtype ?? '')) return [part({ view: 'hook', title: subtype, text: str(value.hook_name) ?? '' })]
-      return [part({ view: 'system', title: subtype ?? 'system', text: str(value.message) ?? str(value.error) ?? (subtype === 'init' ? `model=${value.model ?? ''}` : '') })]
-    case 'result':
-      return [part({ view: 'result', title: subtype ?? 'result', text: `turns=${value.num_turns ?? ''} cost=${value.total_cost_usd ?? ''}`, is_error: value.is_error === true || (subtype ?? 'success') !== 'success' })]
-    case 'rate_limit_event': return [part({ view: 'rate_limit', title: 'rate_limit', text: JSON.stringify(value.rate_limit_info ?? {}) })]
+      if (subtype === 'init') return [part({ view: 'system', title: `start: ${value.model ?? '?'}, ${Array.isArray(value.tools) ? value.tools.length : '?'} tools`, text: '' })]
+      return [part({ view: 'system', title: subtype ?? 'system', text: str(value.message) ?? str(value.error) ?? '', is_error: Boolean(value.error) || /error|auth/iu.test(subtype ?? '') })]
+    case 'result': {
+      const normal = (subtype ?? 'success') === 'success' && value.is_error !== true && !/^aborted/u.test(value.terminal_reason ?? '')
+      return [part({ view: 'result', title: normal ? `done: ${Number.isFinite(value.duration_ms) ? `${(value.duration_ms / 1000).toFixed(1)}s` : ''}`.trim() : (subtype ?? 'result'),
+        text: `turns=${value.num_turns ?? ''} cost=${value.total_cost_usd ?? ''}${value.terminal_reason ? ` ${value.terminal_reason}` : ''}`, is_error: !normal })]
+    }
+    case 'rate_limit_event': return [part({ view: 'rate_limit', title: `rate limit: ${value.rate_limit_info?.status ?? '?'}`, status: str(value.rate_limit_info?.status), text: JSON.stringify(value.rate_limit_info ?? {}) })]
     case 'control_request': {
       const request = value.request
       if (request?.subtype !== 'can_use_tool' || !str(value.request_id)) return [part({ view: 'control', title: subtype ?? 'control_request', text: '' })]
@@ -76,8 +80,10 @@ export function project(line) {
 export function displayOf(part, rules = displayRules) {
   if (part.view === 'question' || part.view === 'approval') return 'show'
   const refined = rules.refine?.find(r => r.view === part.view && (r.empty === undefined || r.empty === !part.text.trim())
-    && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title))
-  return refined?.display ?? rules[part.view] ?? 'show'
+    && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title)
+    && (r.status === undefined || r.status === part.status))
+  // 'hide' does not exist (Owner 2026-11-20 21:0x JST: fold is fine, removing is not): anything but 'fold' shows.
+  return (refined?.display ?? rules[part.view]) === 'fold' ? 'fold' : 'show'
 }
 
 export class MachineStream {
@@ -106,7 +112,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), all: new TimelineIndex(), visible: new TimelineIndex(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -150,7 +156,7 @@ export class MachineStream {
     const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
-      title: part.title, text: body, truncated, ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
+      title: part.title, text: body, truncated, ...(display === 'fold' ? { fold_group: part.view } : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
     const line = body.split('\n')[0].slice(0, 120)
@@ -160,9 +166,7 @@ export class MachineStream {
 
   setRow(bot, botId, record, n, part) {
     const item = this.row(bot, botId, record, n, part)
-    bot.all.set(item.id, item)
-    if (item.machine_event.display === 'hide') { if (bot.visible.positions.has(item.id)) bot.visible.set(item.id, { ...item, machine_event: { ...item.machine_event, display: 'hide' } }) }
-    else bot.visible.set(item.id, item)
+    bot.rows.set(item.id, item)
     return item
   }
 
@@ -223,8 +227,8 @@ export class MachineStream {
     this.notify([botId])
   }
 
-  timeline(target) { return target.roomId ? [] : this.state.get(target.botId)?.visible.snapshot() ?? [] }
-  timelineView(target, { all = false } = {}) { return target.roomId ? new TimelineIndex() : (all ? this.state.get(target.botId)?.all : this.state.get(target.botId)?.visible) ?? new TimelineIndex() }
+  timeline(target) { return target.roomId ? [] : this.state.get(target.botId)?.rows.snapshot() ?? [] }
+  timelineView(target) { return target.roomId ? new TimelineIndex() : this.state.get(target.botId)?.rows ?? new TimelineIndex() }
 
   line(botId, seq) {
     const record = this.state.get(botId)?.records.get(Number(seq))
