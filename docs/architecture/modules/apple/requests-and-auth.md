@@ -11,7 +11,7 @@ flowchart TD
   Message["会話履歴のTimelineMessage"] --> Cards["ConversationCardStates<br/>message ID別状態を保持"]
   Cards --> Question["OwnerQuestionCard<br/>選択肢 / その他の文章"]
   Cards --> Secret["SecretRequestCard<br/>入力sheetを会話の根で開く"]
-  Message -->|"kind machine_event（a471）"| Machine["MachineEventRow<br/>view別に描く。hideは出さない"]
+  Message -->|"kind machine_event（a471）"| Machine["MachineEventRow<br/>view別に描く。消す行は無い<br/>fold行はMachineFoldLine（1行・開閉・束ね）"]
   Machine -->|"view question / approval"| MCard["MachineRequestCard<br/>質問ごとの選択肢・複数選択・その他 / 許可・拒否<br/>状態はConversationCardStatesがrequest_id別に保持"]
   MCard --> Access
   Access --> MAnswer["POST /api/seat-requests/:request_id/answer<br/>{answers:[{indexes,other}]} または {decision}"]
@@ -37,7 +37,9 @@ flowchart TD
 | 選択回答 | choice、その他はtextをOwnerAnswerBodyへ。その他はtrim後が空ならボタン無効。送信中はボタン/入力を無効化。authorizeAIUse後にPOSTしresultへ応答question、error消去→refreshFromView。受付応答からBotの回答処理完了を判定しない |
 | 回答失敗 | 認証はrequireLogin。他はoperationFailureMessageとwrite診断、otherは残す。deferでsending解除。自動POST再送・個別質問GETによる照合はこのカードにはない |
 | MachineEvent（Core/MachineEvent.swift） | 機械席（machine seat）のstream-jsonをconversationが解釈した行（`kind:"machine_event"`、契約は[conversation/machine-stream.md](../conversation/machine-stream.md)）。アプリは`view`だけで描き、生の行は読まない。読めない形でも履歴全体のdecodeを壊さず`unknown`として出す |
-| MachineEventRow | `display:"hide"`は描かない（サーバーは既定で出さないが、既に出した行が隠れる時は`hide`付きで返る）。`words`は本文（title `thinking`は薄い斜体。`shown_elsewhere`の行はサーバーが`display:"hide"`にする）、`tool_use`は1行、同じ`tool.id`のfoldした`tool_result`は`tool_use`の行へ畳み別行にしない、それ以外（system・rate_limit・result・unknown・エラー結果）は`message`の短い1行。カードのviewは下 |
+| MachineEventRow | `display`が`fold`でなければ`show`として描く（`hide`は無い。オーナー裁定「畳むのはオッケー、消すのはダメ」で、どの種類の行も必ず履歴にあり、アプリも消さない）。`words`は本文（title `thinking`は薄い斜体）、`tool_use`は1行、`rate_limit`・エラー結果などの`show`は`message`の短い1行。`fold`はMachineFoldLineで描く（下）。カードのviewはその下 |
+| 畳み行の組立（`[TimelineMessage].machineFolded`） | 履歴の行を順に読み、`fold`の`tool_result`は同じ`tool.id`の`tool_use`（`show`）の行へ付ける（読み込み済みの範囲に`tool_use`が無ければ自分の位置に単独の畳み行）。連続する`fold`行は`fold_group`（無ければ`view`）が同じ間だけ先頭の行へ束ね、別のgroup・`show`の行・機械席以外の行で切る。束ねた行は先頭行の`MachineEvent.attached`に持たせ、行の等価比較に入れて、後から結果が着いても一覧が再描画される。ConversationViewの`messages`がこの結果を使う |
+| MachineFoldLine | 畳み行は常に1行（chevronと`message`＝titleと結果の先頭1行。束ねた行は「group ×件数」）で、既定は閉じる。タップで本文（各行のtitleと`text`、選択・コピー可）が開き、もう一度で閉じる。`truncated`の行は「全文を読み込む」で`GET /api/bots/:id/machine-events/:seq`（`{seq,line}`）の保存済みの行をそのまま出す。`tool_result`の畳み行は`tool_use`の行の直下（少し字下げ）に出す。開閉と全文は`MachineFoldState`で、ConversationCardStatesが行id別に保持する（保存しない） |
 | MachineRequestCardState | result（返却status/answers）/選択/その他の文/sending/error。ConversationCardStatesがrequest_id別に保持し、行の再利用をまたぐ。currentはresult優先で、無ければ行の`request` |
 | 機械席の質問カード | `request.questions`を質問ごとに描く（`header`・本文・選択肢の`label`と`description`）。`multiSelect`はチェック、それ以外は1つ。その他は文章欄（trim後が空なら無効）。質問が1つで単一選択なら選択肢を押した時点で送り、それ以外は全質問に答えがそろったら「送る」を有効にする。bodyは質問と同じ順の`answers`（`indexes`と`other`）。`pending`のあいだだけ操作でき、`answered`は選んだ答え、`expired`は「席はもう待っていません」を出す |
 | 機械席の許可カード | `view:"approval"`。`tool`の名前と要約を出し、`pending`のあいだ「許可」「拒否」。bodyは`{decision}` |

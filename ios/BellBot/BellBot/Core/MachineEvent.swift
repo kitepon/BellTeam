@@ -18,22 +18,30 @@ struct MachineEvent: Decodable, Equatable {
         }
     }
 
+    let seq: Int
     let view: String
-    /// show | fold | hide。サーバーの表示規則表が決める。
+    /// show | fold。表の値がfoldでなければshow（hideは無い）。サーバーの表示規則表が決める。
     let display: String
+    let foldGroup: String
     let title: String?
     let text: String
+    let truncated: Bool
     let tool: Tool?
     let request: MachineRequest?
+    /// `machineFolded`が付ける。fold行の後続の行（束ねた行・tool_useの下の結果）。サーバーからは来ない。
+    var attached: [TimelineMessage] = []
 
-    private enum CodingKeys: String, CodingKey { case view, display, title, text, tool, request }
+    private enum CodingKeys: String, CodingKey { case seq, view, display, foldGroup, title, text, truncated, tool, request }
 
     init(from decoder: Decoder) {
         let c = try? decoder.container(keyedBy: CodingKeys.self)
+        seq = (try? c?.decodeIfPresent(Int.self, forKey: .seq)) ?? 0
         view = (try? c?.decodeIfPresent(String.self, forKey: .view)) ?? "unknown"
-        display = (try? c?.decodeIfPresent(String.self, forKey: .display)) ?? "show"
+        display = (try? c?.decodeIfPresent(String.self, forKey: .display)) == "fold" ? "fold" : "show"
+        foldGroup = (try? c?.decodeIfPresent(String.self, forKey: .foldGroup)) ?? view
         title = (try? c?.decodeIfPresent(String.self, forKey: .title)) ?? nil
         text = (try? c?.decodeIfPresent(String.self, forKey: .text)) ?? ""
+        truncated = (try? c?.decodeIfPresent(Bool.self, forKey: .truncated)) ?? false
         tool = (try? c?.decodeIfPresent(Tool.self, forKey: .tool)) ?? nil
         request = (try? c?.decodeIfPresent(MachineRequest.self, forKey: .request)) ?? nil
     }
@@ -107,16 +115,27 @@ struct MachineAnswerResult: Decodable, Equatable {
     let request: Request
 }
 
+/// `GET /api/bots/:id/machine-events/:seq`。保存済みの行をそのまま返す。
+struct MachineRawLine: Decodable { let seq: Int; let line: String }
+
 extension Array where Element == TimelineMessage {
-    /// machine-stream.md: `hide`の行は描かない。foldした`tool_result`は同じ`tool.id`の`tool_use`の行へ畳み、別行にしない。
-    var machineDisplayed: [TimelineMessage] {
+    /// machine-stream.md「Fold view」。`fold`の`tool_result`は同じ`tool.id`の`tool_use`の行の下へ、連続する`fold`行は
+    /// `fold_group`が同じ間だけ先頭の行へ束ねる。別のgroup・`show`の行・機械席以外の行が群を切る。消す行は無い。
+    var machineFolded: [TimelineMessage] {
         guard contains(where: { $0.machineEvent != nil }) else { return self }
-        let called = Set(compactMap { $0.machineEvent?.view == "tool_use" ? $0.machineEvent?.tool?.id : nil })
-        return filter { message in
-            guard let event = message.machineEvent else { return true }
-            if event.display == "hide" { return false }
-            if event.view == "tool_result", event.display == "fold", let id = event.tool?.id, called.contains(id) { return false }
-            return true
+        var rows: [TimelineMessage] = []
+        var useRow: [String: Int] = [:]
+        for message in self {
+            guard let event = message.machineEvent else { rows.append(message); continue }
+            if event.display == "fold", event.view == "tool_result", let id = event.tool?.id, let at = useRow[id] {
+                rows[at].machineEvent?.attached.append(message)
+            } else if event.display == "fold", let last = rows.last?.machineEvent, last.display == "fold", last.foldGroup == event.foldGroup {
+                rows[rows.count - 1].machineEvent?.attached.append(message)
+            } else {
+                rows.append(message)
+                if event.view == "tool_use", event.display == "show", let id = event.tool?.id { useRow[id] = rows.count - 1 }
+            }
         }
+        return rows
     }
 }

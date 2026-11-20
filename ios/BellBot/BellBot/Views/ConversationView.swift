@@ -100,7 +100,7 @@ private struct ConversationContent: View {
     @State private var presentedGallery: ConversationGallery?
     @AppStorage(ConversationOpening.storageKey) private var opening = ConversationOpening.rise
 
-    private var messages: [TimelineMessage] { timeline.visibleMessages.machineDisplayed }
+    private var messages: [TimelineMessage] { timeline.visibleMessages.machineFolded }
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -302,7 +302,8 @@ private struct ConversationContent: View {
             } else if let question = message.ownerQuestion {
                 OwnerQuestionCard(question: question, state: cards.questionState(for: message.id))
             } else if let event = message.machineEvent {
-                MachineEventRow(message: message, event: event, state: event.request.map { cards.machineState(for: $0.requestId) })
+                MachineEventRow(message: message, event: event, state: event.request.map { cards.machineState(for: $0.requestId) },
+                                fold: event.display == "fold" || !event.attached.isEmpty ? cards.foldState(for: message.id) : nil)
             } else {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
@@ -945,11 +946,19 @@ private final class ConversationCardStates {
     private var secretStates: [String: SecretRequestCardState] = [:]
     private var questionStates: [String: OwnerQuestionCardState] = [:]
     private var machineStates: [String: MachineRequestCardState] = [:]
+    private var foldStates: [String: MachineFoldState] = [:]
 
     func secretState(for id: String) -> SecretRequestCardState {
         if let state = secretStates[id] { return state }
         let state = SecretRequestCardState()
         secretStates[id] = state
+        return state
+    }
+
+    func foldState(for id: String) -> MachineFoldState {
+        if let state = foldStates[id] { return state }
+        let state = MachineFoldState()
+        foldStates[id] = state
         return state
     }
 

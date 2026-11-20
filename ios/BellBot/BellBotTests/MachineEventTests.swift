@@ -35,18 +35,35 @@ final class MachineEventTests: XCTestCase {
         XCTAssertNil(message.machineEvent?.request)
     }
 
-    func testHiddenRowsAndPairedToolResultsAreNotDrawn() throws {
+    func testFoldedRowsJoinTheirToolUseAndConsecutiveGroups() throws {
+        func fold(_ id: String, _ view: String, tool: String? = nil, display: String = "fold") -> [String: Any] {
+            row(id, ["seq": 1, "view": view, "display": display, "fold_group": view, "title": view, "text": "全文", "truncated": false] .merging(tool.map { ["tool": ["id": $0]] } ?? [:]) { a, _ in a })
+        }
         let rows = try decode([
-            row("a", ["view": "words", "display": "show", "text": "こんにちは"]),
-            row("b", ["view": "system", "display": "hide", "text": ""]),
-            row("c", ["view": "tool_use", "display": "fold", "text": "", "tool": ["id": "t1", "name": "Bash", "summary": "ls"]]),
-            row("d", ["view": "tool_result", "display": "fold", "text": "", "tool": ["id": "t1"]]),
-            row("e", ["view": "tool_result", "display": "show", "text": "失敗", "tool": ["id": "t1"]]),
-            row("f", ["view": "tool_result", "display": "fold", "text": "", "tool": ["id": "t9"]]),
-        ])
-        XCTAssertEqual(rows.machineDisplayed.map(\.id), ["a", "c", "e", "f"])
+            row("w", ["view": "words", "display": "show", "text": "こんにちは"]),
+            fold("h1", "hook"), fold("h2", "hook"), fold("h3", "hook"),
+            fold("u1", "tool_use", tool: "t1", display: "show"),
+            fold("s", "system"),
+            fold("r1", "tool_result", tool: "t1"),
+            fold("r9", "tool_result", tool: "t9"),
+            fold("r10", "tool_result", tool: "t10"),
+            fold("u2", "tool_use", tool: "t2", display: "show"),
+            fold("e", "tool_result", tool: "t2", display: "show"),
+        ]).machineFolded
+        // 先頭のhookが3行を束ね、tool_use(t1)の下にr1、sはgroupが違うので別の行、r9とr10は結果の相手が無く束ねる
+        XCTAssertEqual(rows.map(\.id), ["w", "h1", "u1", "s", "r9", "u2", "e"])
+        XCTAssertEqual(rows[1].machineEvent?.attached.map(\.id), ["h2", "h3"])
+        XCTAssertEqual(rows[2].machineEvent?.attached.map(\.id), ["r1"])
+        XCTAssertEqual(rows[4].machineEvent?.attached.map(\.id), ["r10"])
+        XCTAssertEqual(rows[5].machineEvent?.attached.map(\.id), [])
         let plain = try decode([["id": "x", "at": "2026-11-20T11:00:00Z", "message": "hi"]])
-        XCTAssertEqual(plain.machineDisplayed.map(\.id), ["x"])
+        XCTAssertEqual(plain.machineFolded.map(\.id), ["x"])
+    }
+
+    func testOnlyFoldIsFoldedAndAnythingElseIsShown() throws {
+        let rows = try decode([row("a", ["view": "words", "display": "hide", "text": "x"]), row("b", ["view": "words"])])
+        XCTAssertEqual(rows.map { $0.machineEvent?.display }, ["show", "show"])
+        XCTAssertEqual(rows.machineFolded.map(\.id), ["a", "b"])
     }
 
     func testAnswerBodiesMatchTheRouteContract() throws {
