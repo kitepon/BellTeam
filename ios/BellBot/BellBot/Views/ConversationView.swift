@@ -295,17 +295,19 @@ private struct ConversationContent: View {
     private func timelineRow(_ message: TimelineMessage, selectedBot: Bot?, botsByID: [String: Bot]) -> some View {
         let senderBot = (message.sender?.id).flatMap { botsByID[$0] }
         let label = replyLabel(for: message, botsByID: botsByID)
+        // 本席の最後の言葉（bubble: true）は普通の受信の吹き出し。rowのmessageは先頭1行なので全文に差し替える。
+        let bubbleText = message.machineEvent.flatMap { $0.isBubble ? message.replacingText($0.text) : nil }
         return Group {
             if let request = message.secretRequest {
                 let state = cards.secretState(for: message.id)
                 SecretRequestCard(request: request, state: state) { presentedSheet = .secret(request, state) }
             } else if let question = message.ownerQuestion {
                 OwnerQuestionCard(question: question, state: cards.questionState(for: message.id))
-            } else if let event = message.machineEvent {
+            } else if let event = message.machineEvent, !event.isBubble {
                 MachineEventRow(message: message, event: event, state: event.request.map { cards.machineState(for: $0.requestId) },
-                                fold: event.display == "fold" || !event.attached.isEmpty ? cards.foldState(for: message.id) : nil)
+                                fold: event.display == "fold" ? cards.foldState(for: message.id) : nil)
             } else {
-                MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
+                MessageRow(message: bubbleText ?? message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
                            onReply: message.isQuotable ? { startReply(to: message, senderBot: senderBot) } : nil,
                            onForward: message.isForwardable ? { forwarding = message } : nil,

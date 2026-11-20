@@ -71,6 +71,14 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s06"])
     }
 
+    /// 初回が3件しかなく表示域に収まらない（畳んだ行が続く試験席と同じ）。動かせないので、触らなくても過去を表示域が埋まるまで取る。
+    func testShortFirstPageLoadsOlderUntilScreenFilled() throws {
+        try openConversation("ハル", failBefore: false, shortPage: true)
+        XCTAssertTrue(text("s35").waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 4)
+        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s33"], "表示域が埋まれば止まる")
+    }
+
     /// 古い内容を見ている間に新着を取得しても、末尾へ飛ばず新着ボタンを出す。30件の履歴で最古まで読み、上端の引き下げ更新で新着を取る。
     func testNewMessageWhileReadingOlderDoesNotJumpToBottom() throws {
         try openConversation("ユキ", failBefore: false, total: 30)
@@ -191,8 +199,8 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertTrue(try requests().contains(where: { $0.contains("before=") }), "上端へ着いたら過去を取得する")
     }
 
-    private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false) throws {
-        _ = try data("/test/reset?failBefore=\(failBefore ? 1 : 0)&total=\(total)")
+    private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false, shortPage: Bool = false) throws {
+        _ = try data("/test/reset?failBefore=\(failBefore ? 1 : 0)&total=\(total)&shortPage=\(shortPage ? 1 : 0)")
         app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", base.absoluteString]
         if events { app.launchArguments.append("-bellbot-preview-events") }

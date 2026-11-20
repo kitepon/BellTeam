@@ -259,7 +259,7 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     let sender: Member?
     let targets: [Member]?
     let at: String
-    let message: String?
+    var message: String?
     let image: Bool?
     let imageCount: Int?
     let imageUrl: String?

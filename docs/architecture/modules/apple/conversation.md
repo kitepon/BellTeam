@@ -47,7 +47,7 @@ flowchart TD
 | 非active・画面終了 | reader/olderTaskをcancel、reader参照とagainを消し世代を増加。非activeではloading/loadingOlderも解除。reader世代は古いtaskによるreader参照の消去を防ぐ。取消は表示・診断しない |
 | loadの戻り値 | skippedSceneInactive / skippedAwaitingSend / joinedReaderReturned / startedReaderReturned。HTTP成功を示す値ではない |
 
-過去取得は一覧を上へ操作し、先頭可視行が25行以内になった時に要求する（上端に届く前に先読み）。下向き操作で次の要求を許可する。Macは表示域を埋めるまで追加要求も行う。失敗だけでは自動で同じfill要求を繰り返さない。
+過去取得は一覧を上へ操作し、先頭可視行が25行以内になった時に要求する（上端に届く前に先読み）。下向き操作で次の要求を許可する。全platform（iPhone・iPad・Mac）で、表示域を埋めるまで追加要求も行う（最初の30行が低い畳み行ばかりで画面に収まると動かせず、過去が読まれないため）。失敗だけでは自動で同じfill要求を繰り返さない。
 
 ## 本文と一覧への反映
 

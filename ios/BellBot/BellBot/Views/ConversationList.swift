@@ -353,8 +353,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         func fillIfShort() {
-            #if targetEnvironment(macCatalyst)
-            // Macのホイールは動かせる長さが無いと位置が変わらないので、表示域が埋まるまで過去を足す。
+            // 最初の30行が表示域に収まると上へ動かせず、過去が読まれない（畳んだ行は1行が低い）。全platformで、表示域が埋まるまで過去を足す。
             // 親が取得中の間と、届いた行を組み立てている間は頼まず、入った後の判定で頼む。
             if let view, let layout, view.bounds.height > 0, layout.collectionViewContentSize.height <= view.bounds.height,
                hasMore, !loading, !loadingOlder, !preparing, !fillRequested {
@@ -362,7 +361,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
                 DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
             }
-            #endif
         }
 
         // MARK: UICollectionViewDelegate
