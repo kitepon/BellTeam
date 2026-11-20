@@ -556,3 +556,25 @@ test('forward: 転送 hands the source (conversation + item id) and a preview to
   everyNode(room.timeline).find(node => node.className === 'message-reply message-forward').listeners.click()
   assert.deepEqual(asked.at(-1).source, { kind: 'room', id: 'room1' })
 })
+
+test('first screen: older pages are read while has_more and the rows do not fill the viewport, then it stops', async t => {
+  const pages = { m4: { items: [{ id: 'm3', message: 'x', direction: 'incoming' }], has_more: true }, m3: { items: [{ id: 'm2', message: 'x', direction: 'incoming' }], has_more: true },
+    m2: { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }, m1: { items: [{ id: 'm0', message: 'x', direction: 'incoming' }], has_more: false } }
+  const f = fixture(t, path => path.includes('before=') ? pages[path.split('before=')[1]] : { items: [{ id: 'm4', message: 'x', direction: 'incoming' }], has_more: true })
+  f.timeline.clientHeight = 2800 // fake rows are 1000 high: 1-2 rows (1200, 2200) do not fill it, 3 do
+  await f.open('a')
+  assert.deepEqual(f.ids(), ['m2', 'm3', 'm4']) // m1 is not read: the 3 rows overflow
+  assert.equal(f.requests.filter(path => path.includes('before=')).length, 2)
+})
+
+test('first screen: a failed older page stops the fill and shows the retry; a hidden timeline reads nothing more', async t => {
+  const f = fixture(t, path => { if (path.includes('before=')) throw Error('down'); return { items: [{ id: 'm4', message: 'x', direction: 'incoming' }], has_more: true } })
+  f.timeline.clientHeight = 5000
+  await f.open('a')
+  assert.equal(f.requests.filter(path => path.includes('before=')).length, 1)
+  assert.match(f.text(), /もう一度読み込む/)
+  const hidden = fixture(t, () => ({ items: [{ id: 'm4', message: 'x', direction: 'incoming' }], has_more: true }))
+  hidden.timeline.clientHeight = 0
+  await hidden.open('a')
+  assert.equal(hidden.requests.filter(path => path.includes('before=')).length, 0)
+})

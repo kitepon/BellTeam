@@ -85,6 +85,9 @@ flowchart TD
   QValid -->|"はい"| Tail["作業状態と停止buttonを描く"]
   Rows --> Images["画像を後から読み<br/>同じ世代の行へ適用"]
   Rows --> Older["上読はbefore20件<br/>重複除去と視点保持"]
+  Rows --> Fill{"has_more かつ描いた行が<br/>表示領域に満たない"}
+  Fill -->|"はい"| Older
+  Older --> Fill
   Change["別会話 / close"] --> Invalidate["旧世代を失効<br/>旧finallyも新しい読取を解除しない"]
 ```
 
@@ -94,6 +97,7 @@ flowchart TD
 | 新しい会話 | `open → readHistory(openTimeline)` | 対象をcopyしtokenとhistoryRequestを進める。queueを待たず本文を描く |
 | queue | `openTimeline/refreshTimeline → refreshTimelineQueue` | tokenとqueueRequest一致だけ適用。失敗は末尾に表示、本文読取とは独立 |
 | 新しい履歴 | `refresh → readHistory(refreshTimeline)` | latest/afterを並行取得。同対象でも古い返却を適用しない。後着画像も同token |
+| 最初の画面を埋める | `openTimeline` の末尾 → `fillViewport` → `readHistory(loadOlderMessages)` | 最新10件は折り畳んだ機械行が1件ずつ数えられ、表示領域に収まりスクロールが起きないことがある（thinking / tool_use が読まれない）。`has_more` で表示領域（`clientHeight>0`）に満たない間だけ、前ページを続けて読む。1ページごとに世代tokenと遡る位置を確かめ、読取失敗・位置が進まない・別会話に替わったら止まる（失敗は末尾の「もう一度読み込む」） |
 | 過去ページ | scroll listener → `loadOlderMessages` | before20件を重複除去して先頭へ。scrollHeight差を足す。finallyは同tokenだけ解除 |
 | 行とカード | `renderItem/renderItemElement/roomTimelineItem` | 秘密・質問の既部品を使う。完了callbackも元token一致時だけ該当行を描き直す |
 | 末尾 | `renderTail/renderQueueStatus/renderThinking` | queue/処理中/error/停止button。停止実行はappの`stopMember`へ |
