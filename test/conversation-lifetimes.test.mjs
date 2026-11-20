@@ -37,6 +37,7 @@ test('generation/correlation/object identity remain authoritative after closure'
   assert.throws(() => gate.assertLease({ ...root })); assert.throws(() => gate.assertLease(root, { correlation: 'other' }))
   gate.finish(root); gate.adopt(ticket, 'new'); assert.throws(() => gate.assertLease(root)); gate.resume(ticket)
 })
+// Owner ruling 2026-11-07 (3e5e7c1f): conversation admission has no close/drain/adopt gate. drain resolves at once, adopt always selects the generation, a refused reference is only CONVERSATION_NOT_ACCEPTED.
 test('registered correlation pins all five callback keys and refuses forged or late callbacks', async () => {
   const gate = new ConversationLifetimes(), root = gate.enter(undefined, 'operation-a'), seen = []
   const delivery = register(gate, root, { dispatch: async (kind, args, binding) => { seen.push(binding); return { applied: true } } })
@@ -46,14 +47,14 @@ test('registered correlation pins all five callback keys and refuses forged or l
   assert.throws(() => gate.assertCallback(delivery, { ...binding, target: 'other' }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
   gate.finish(delivery); gate.finish(root); await tick(); const ticket = gate.close()
   assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
-  assert.throws(() => gate.adopt(ticket, 'new'))
+  gate.adopt(ticket, 'new'); assert.equal(gate.capture().generation, 'new') // a refused callback no longer fails the generation
 })
 test('callback after terminal cannot be dropped as success or revive a new generation', async () => {
   const gate = new ConversationLifetimes(), root = gate.enter(), delivery = register(gate, root)
   gate.finish(delivery); gate.finish(root); await tick(); const ticket = gate.close()
   assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
   assert.throws(() => gate.invoke(delivery, 'delivery.answer', { text: 'late' }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
-  assert.throws(() => gate.adopt(ticket, 'new'))
+  gate.adopt(ticket, 'new'); assert.equal(gate.capture().generation, 'new') // the late callback cannot revive the old generation, and it does not block the new one
 })
 test('non-awaited turn.end registers background before return; one report continues under the old operation', async () => {
   const gate = new ConversationLifetimes(), root = gate.enter(), end = deferred(), actualReport = deferred()
@@ -119,13 +120,15 @@ test('background begin acquires a real reference before ACK and end requested ca
   const background = gate.runBackground(gate.deliveryFor(root, { deliveryId: 'delivery-a', target: 'bot-a' }), () => actual.promise)
   gate.finish(source); gate.finish(root)
   const ticket = gate.close()
-  assert.deepEqual(await gate.drain(ticket, { timeoutMs: 0 }), { status: 'busy' })
+  assert.ok(gate.snapshot().active > 0) // the real reference is still held; drain does not gate on it
+  assert.deepEqual(await gate.drain(ticket, { timeoutMs: 0 }), { status: 'drained' })
   // The wire end ACK has no path to the parent-owned actual completion.
   const endAck = { requested: true }; assert.equal(endAck.requested, true)
   gate.assertDelivery(source)
   const report = gate.deriveReport(source, { deliveryId: 'report-one', reason: 'missing', dispatch: async () => ({ applied: true }) })
   gate.finish(report); actual.resolve(); await background
   assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
+  assert.equal(gate.snapshot().active, 0)
 })
 
 
@@ -144,9 +147,9 @@ test('delivery completion waits for real work without callbacks; release ACK hol
   const ticket = gate.close()
   actual.resolve(); await done; await tick()
   assert.equal(settled, true); assert.equal(gate.snapshot().active, 1)
-  assert.deepEqual(await gate.drain(ticket, { timeoutMs: 0 }), { status: 'busy' })
+  assert.deepEqual(await gate.drain(ticket, { timeoutMs: 0 }), { status: 'drained' }) // the held operation does not gate
   gate.assertLease(root)
-  releaseAck.resolve(); assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
+  releaseAck.resolve(); await tick(); assert.deepEqual(await gate.drain(ticket), { status: 'drained' }); assert.equal(gate.snapshot().active, 0)
 })
 
 test('delivery completion cannot be captured from an operation, forged token or ended delivery', async () => {
@@ -154,7 +157,7 @@ test('delivery completion cannot be captured from an operation, forged token or 
     const gate = new ConversationLifetimes(), root = gate.enter(), delivery = register(gate, root, { kinds: [] })
     const done = gate.deliveryCompletion(delivery)
     if (kind === 'terminal') { gate.finish(delivery); await done }
-    assert.throws(() => gate.deliveryCompletion(kind === 'operation' ? root : kind === 'forged' ? { ...delivery } : delivery), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+    assert.throws(() => gate.deliveryCompletion(kind === 'operation' ? root : kind === 'forged' ? { ...delivery } : delivery), { code: 'CONVERSATION_NOT_ACCEPTED' })
     if (kind !== 'terminal') gate.finish(delivery)
     gate.finish(root); await tick()
   }
