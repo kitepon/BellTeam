@@ -34,12 +34,7 @@ public sealed class MachineEntry(Workspace workspace) : ContentControl
         if (card is not null) { card.Update(entry, sender); return; }
         var stack = new StackPanel();
         if (entry.IsFolded) stack.Children.Add(Fold(message, [message, .. entry.Folded]));
-        else
-        {
-            stack.Children.Add(Note(message, entry));
-            // A tool_use's results hang under it, each a collapsed line.
-            foreach (var result in entry.Folded) stack.Children.Add(Fold(result, [result]));
-        }
+        else stack.Children.Add(Note(message, entry));
         Content = new CappedRow { Child = stack, HorizontalAlignment = HorizontalAlignment.Left };
     }
 
@@ -66,7 +61,7 @@ public sealed class MachineEntry(Workspace workspace) : ContentControl
     {
         var key = head.Id; var isOpen = open.Contains(key);
         var entry = head.MachineEvent!;
-        var label = members.Length > 1 ? $"{entry.FoldGroup} ×{members.Length}" : head.Message ?? "";
+        var label = Timeline.FoldLabel(members);
         var line = new StackPanel { Orientation = Orientation.Horizontal };
         var chevron = Glyph(isOpen ? "\uE70D" : "\uE76C", 10);
         line.Children.Add(chevron); line.Children.Add(new TextBlock { Text = label, FontSize = 13, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 700, VerticalAlignment = VerticalAlignment.Center });
@@ -74,7 +69,7 @@ public sealed class MachineEntry(Workspace workspace) : ContentControl
         button.SetResourceReference(StyleProperty, "QuietButton"); button.Padding = new Thickness(8, 2, 8, 2); button.Margin = new Thickness(0);
         System.Windows.Automation.AutomationProperties.SetName(button, label);
         var body = new StackPanel { Margin = new Thickness(26, 0, 8, 6), Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed };
-        foreach (var member in members) body.Children.Add(Opened(member, members.Length > 1));
+        foreach (var member in members) body.Children.Add(members.Length > 1 ? Fold(member, [member]) : Opened(member, false)); // a run opens to its members, each a closed line
         button.Click += (_, _) =>
         {
             var now = body.Visibility != Visibility.Visible;
@@ -88,7 +83,7 @@ public sealed class MachineEntry(Workspace workspace) : ContentControl
     private FrameworkElement Opened(TimelineMessage member, bool titled)
     {
         var entry = member.MachineEvent!; var id = member.Id;
-        var text = raw.GetValueOrDefault(id) ?? entry.Text;
+        var text = raw.GetValueOrDefault(id) ?? (entry.Text.Length == 0 && entry.View == "tool_use" ? entry.Tool?.Summary ?? "" : entry.Text);
         var panel = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
         if (titled && !string.IsNullOrWhiteSpace(entry.Title)) panel.Children.Add(new TextBlock { Text = entry.Title, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Muted });
         var box = new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = Ink, BorderThickness = new Thickness(0), Background = new SolidColorBrush(Color.FromArgb(20, 97, 71, 212)), Padding = new Thickness(8, 6, 8, 6), MaxHeight = 320, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };

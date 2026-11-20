@@ -13,11 +13,12 @@ public sealed class MachineEventTests
 {
     private const string Question = """{"id":"me-7-0","kind":"machine_event","direction":"incoming","at":"2026-11-20T11:00:00Z","message":"question","sender":{"id":"bot-a","name":"ベル"},"machine_event":{"seq":7,"part":0,"launch_id":"l","type":"control_request","subtype":"can_use_tool","view":"question","display":"show","title":"AskUserQuestion","text":"","truncated":false,"request":{"request_id":"r1","status":"pending","questions":[{"header":"方式","question":"どちらにしますか","multiSelect":false,"allowOther":true,"options":[{"index":1,"label":"A","description":"早い"},{"index":2,"label":"B","description":null}]},{"header":null,"question":"足すものは","multiSelect":true,"allowOther":true,"options":[{"index":1,"label":"X","description":null},{"index":2,"label":"Y","description":null}]}]}}}""";
     private static TimelineMessage Row(string json = Question) => JsonSerializer.Deserialize<TimelineMessage>(json, BellApi.Json)!;
-    private static TimelineMessage Event(string id, string view, string display, string? toolId = null, string? group = null, bool elsewhere = false, string text = "", bool truncated = false)
+    private static TimelineMessage Event(string id, string view, string display, string? toolId = null, string? group = null, bool elsewhere = false, string text = "", bool truncated = false, int? count = null)
     {
         var entry = new Dictionary<string, object?> { ["seq"] = 1, ["view"] = view, ["display"] = display, ["title"] = view, ["text"] = text, ["truncated"] = truncated };
         if (elsewhere) entry["shown_elsewhere"] = true;
         if (group is not null) entry["fold_group"] = group;
+        if (count is not null) entry["fold_count"] = count;
         if (toolId is not null) entry["tool"] = new { id = toolId };
         return Row(JsonSerializer.Serialize(new { id, kind = "machine_event", direction = "incoming", at = "2026-11-20T11:00:00Z", message = view + ": " + text, sender = new { id = "bot-a", name = "ベル" }, machine_event = entry }));
     }
@@ -40,8 +41,8 @@ public sealed class MachineEventTests
             Event("h1", "hook", "fold", group: "hook"), Event("h2", "hook", "fold", group: "hook"), Event("h3", "hook", "fold", group: "hook"), Event("x", "words", "show"), Event("h4", "hook", "fold", group: "hook") };
         var shown = Timeline.VisibleMachine(rows);
         // "hide" is no display: it reads as show. shown_elsewhere is a hint only.
-        Assert.Equal(["a", "b", "c", "d", "e", "f", "g", "h1", "x", "h4"], shown.Select(m => m.Id));   // a result is not pulled up under its tool_use; entries without a fold_group stay single lines
-        Assert.Empty(shown[3].MachineEvent!.Folded); Assert.Equal(["h2", "h3"], shown[7].MachineEvent!.Folded.Select(m => m.Id));
+        Assert.Equal(["a", "b", "c", "d", "e", "g", "h1", "x", "h4"], shown.Select(m => m.Id));   // a result is not pulled up under its tool_use: only neighbours of one fold_group join (e+f, h1+h2+h3)
+        Assert.Empty(shown[3].MachineEvent!.Folded); Assert.Equal(["f"], shown[4].MachineEvent!.Folded.Select(m => m.Id)); Assert.Equal(["h2", "h3"], shown[6].MachineEvent!.Folded.Select(m => m.Id));
         // A screen's list folds again to the same lines: Expand is the inverse.
         Assert.Equal(rows.Select(m => m.Id), Timeline.Expand(shown).Select(m => m.Id));
         Assert.Equal(shown.Select(m => m.Id), Timeline.VisibleMachine(shown).Select(m => m.Id));
@@ -67,6 +68,32 @@ public sealed class MachineEventTests
             Assert.Equal(Visibility.Visible, Opened().Visibility);
             LogicalTree.Find<Button>(entry).Single().RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Assert.Equal(Visibility.Collapsed, Opened().Visibility);
+        });
+    }
+
+    // a471-tune-tools: a run of one fold_group is one closed line; n = sum of fold_count (absent counts 1). The hooks between two tools do not split them.
+    [Fact]
+    public void ARunOfToolsIsOneLineLabelledByTheSumOfFoldCountAndOpensToMembersInOrder()
+    {
+        RunSta(() =>
+        {
+            using var workspace = new Workspace();
+            string Line(params TimelineMessage[] rows)
+            {
+                var shown = Timeline.VisibleMachine(rows); Assert.Single(shown);
+                var entry = new MachineEntry(workspace); entry.Update(shown[0], "ベル");
+                return System.Windows.Automation.AutomationProperties.GetName(LogicalTree.Find<Button>(entry).First());
+            }
+            TimelineMessage Tool(string id, string name, int? count) => Event(id, "tool_use", "fold", "t" + id, "tools", text: name, count: count);
+            Assert.Equal("tools ×2", Line(Tool("a", "Read", 1), Event("h", "hook", "fold", group: "tools", count: 0), Event("r", "tool_result", "fold", "ta", "tools", count: 0), Tool("b", "Bash", 1)));
+            Assert.Equal("tool_use: Read", Line(Tool("a", "Read", 1), Event("r", "tool_result", "fold", "ta", "tools", count: 0)));
+            Assert.Equal("tools ×2", Line(Event("r", "tool_result", "fold", "ta", "tools", count: 0), Event("h", "hook", "fold", group: "tools", count: 0)));
+            Assert.Equal("background ×3", Line(Event("b1", "hook", "fold", group: "background"), Event("b2", "hook", "fold", group: "background"), Event("b3", "hook", "fold", group: "background")));
+            // Opened, the members are listed in their own order, each a closed line.
+            var run = Timeline.VisibleMachine([Tool("a", "Read", 1), Event("r", "tool_result", "fold", "ta", "tools", count: 0)]);
+            var card = new MachineEntry(workspace); card.Update(run[0], "ベル");
+            var names = LogicalTree.Find<Button>(card).Select(button => System.Windows.Automation.AutomationProperties.GetName(button)).ToArray();
+            Assert.Equal(["tool_use: Read", "tool_use: Read", "tool_result: "], names);
         });
     }
 
