@@ -54,6 +54,7 @@ test('one memory controller and its actual generation drive the stable facade, d
   } })
   t.after(() => memory.close())
   await memory.start(); const oldGeneration = memory.snapshot().generation
+  assert.equal(memory.snapshot().currentTarget, 'builtin')
   const facade = memory.memory(new Map()), adapters = createModuleUpdateAdapters({ gateway: () => null, memory, prepare: { memory: prepare } })
   const catalog = createModuleUpdateCatalog({ client: { catalog: async id => { assert.equal(id, 'memory'); return selected() } } })
   const executor = await createModuleUpdateExecutor({ root, catalog, moduleHost: createFixtureJobClient(root), adapters: { memory: adapters.memory } })
@@ -66,10 +67,20 @@ test('one memory controller and its actual generation drive the stable facade, d
   await center.start(input); await center.close()
   assert.equal((await center.operation(input.requestId)).phase, 'completed')
   assert.notEqual(memory.snapshot().generation, oldGeneration)
-  assert.equal(memory.snapshot().currentVersionId, versionId)
+  assert.equal(memory.snapshot().currentVersionId, versionId); assert.equal(memory.snapshot().currentTarget, 'release')
   assert.deepEqual(await facade.recallMemory({ scope: 'shared' }), { requested: 'recallMemory' })
   assert.equal(requests.at(-1).generation, memory.snapshot().generation)
   assert.ok(prepareCalls.every(release => release.versionId === versionId))
   await memory.close(); assert.equal(memory.snapshot().phase, 'closed')
   await assert.rejects(facade.recallMemory({ scope: 'shared' }), { code: 'MEMORY_CLOSED' })
+})
+
+test("memory running the image's own code shows the image's source commit, never another module's", async () => {
+  const imageSource = '1'.repeat(40)
+  const state = await createUpdateCenter({ builtinSourceCommit: imageSource, moduleCatalog: createModuleUpdateCatalog({ client: { catalog: async () => selected() } }),
+    memory: { snapshot: () => ({ available: true, currentVersionId: null, currentTarget: 'builtin', generation: 'real-generation' }) },
+    notifications: { controller: { snapshot: () => ({ builtinSourceCommit: 'a'.repeat(40) }) } } }).snapshot()
+  const memory = state.components.find(component => component.id === 'memory')
+  assert.deepEqual(memory.current, { version: imageSource, sourceCommit: imageSource, digest: null, origin: 'builtin' })
+  assert.equal(validateUpdates(state).valid, true)
 })

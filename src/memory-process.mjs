@@ -33,7 +33,7 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
     await Promise.allSettled([...active])
     if (!closed) await startAttempt()
   }, 'memory', onModuleRestartLimit)
-  const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, exchanging: changing, phase, update: update ? { ...update } : null })
+  const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release', generation, available, exchanging: changing, phase, update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
     if (usable) recovery.running()
