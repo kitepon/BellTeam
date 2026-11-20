@@ -2,7 +2,12 @@ import { spawn } from 'node:child_process'
 
 const CONTEXT_SCHEMA = 'throughline.room_context.v1'
 
-export async function roomTurnsFromThroughline({ projectPath, roomId, messageId, speaker, text, launch = spawn }) {
+// The CLI is idempotent per messageId, so one re-read is safe.
+export async function roomTurnsFromThroughline(input) {
+  try { return await readRoomTurns(input) } catch { return readRoomTurns(input) }
+}
+
+async function readRoomTurns({ projectPath, roomId, messageId, speaker, text, launch = spawn }) {
   const child = launch('throughline', ['room-context', '--json'], { stdio: ['pipe', 'pipe', 'pipe'] })
   let stdout = ''
   let stderr = ''

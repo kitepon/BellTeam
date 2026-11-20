@@ -370,3 +370,25 @@ test('onStatusの拒否行の保存が失敗した時は、notifyの拒否で代
   const rows = records.filter(record => record.schema === 'bellteam.room-delivery-status.v1' && record.target === bot.id)
   assert.deepEqual(rows.map(row => row.delivery), ['failed'], 'the fallback row is durable')
 })
+
+test('文脈を読めなくても投稿は503にならず、この発言だけを文脈に配送へ進む', async () => {
+  const bots = new Map([['bot-a', { id: 'bot-a', name: 'あかり' }]])
+  const room = { id: 'room-a', name: '相談', memberIds: ['bot-a'] }
+  const rooms = new Map([[room.id, room]])
+  const records = [], notified = []
+  rooms.messages = async () => records
+  rooms.appendMessage = async (_id, record) => records.push(record)
+  let selection
+  const messenger = new RoomMessenger({ bots, rooms, messageId: () => 'm1',
+    roomTurns: async () => { throw new Error('THROUGHLINE_ROOM_CONTEXT_FAILED: E_ROOM_CONTEXT_RECORD') },
+    chooseResponder: async input => { selection = input; return ['bot-a'] },
+    transport: { async notify(bot, text) { notified.push(bot.id); return { delivery: 'running' } } },
+  })
+  const result = await messenger.sendroommessage({ from: 'user', room: room.id, message: '相談です' })
+  assert.equal(result.delivery, 'running')
+  assert.deepEqual(notified, ['bot-a'])
+  assert.equal(selection.turns.length, 1)
+  assert.equal(selection.turns[0].text, '相談です')
+  const routing = records.find(record => record.schema === 'bellteam.room-routing-status.v1')
+  assert.deepEqual(routing.routing, { status: 'ready', responders: ['bot-a'], context_error: 'THROUGHLINE_ROOM_CONTEXT_FAILED: E_ROOM_CONTEXT_RECORD' })
+})

@@ -96,3 +96,26 @@ test('Throughlineの公開結果は現在の発言で終わる3ターンだけ�
   ])
   assert.equal(JSON.parse(input).messageId, 'now')
 })
+
+test('Throughline CLIが1度失敗しても同じ発言で1回読み直す', async () => {
+  let launches = 0
+  const launch = () => {
+    launches += 1
+    const child = new EventEmitter()
+    child.stdin = new PassThrough(); child.stdout = new PassThrough(); child.stderr = new PassThrough()
+    queueMicrotask(() => {
+      if (launches === 1) { child.stderr.end('{"code":"E_ROOM_CONTEXT_RECORD"}'); child.emit('close', 1); return }
+      child.stdout.end(JSON.stringify({ schema: 'throughline.room_context.v1', status: 'ready', turns: [{ messageId: 'now', speaker: 'クオ', text: '次は？' }] }))
+      child.emit('close', 0)
+    })
+    return child
+  }
+  const turns = await roomTurnsFromThroughline({ projectPath: '/srv/bellteam/rooms', roomId: 'room-a', messageId: 'now', speaker: 'クオ', text: '次は？', launch })
+  assert.equal(launches, 2)
+  assert.deepEqual(turns, [{ speaker: 'クオ', text: '次は？' }])
+  await assert.rejects(roomTurnsFromThroughline({ projectPath: '/srv/bellteam/rooms', roomId: 'room-a', messageId: 'now', speaker: 'クオ', text: '次は？',
+    launch: () => { launches += 1; const c = new EventEmitter(); c.stdin = new PassThrough(); c.stdout = new PassThrough(); c.stderr = new PassThrough()
+      queueMicrotask(() => { c.stderr.end('{"code":"E_ROOM_CONTEXT_RECORD"}'); c.emit('close', 1) }); return c } }),
+    /THROUGHLINE_ROOM_CONTEXT_FAILED: E_ROOM_CONTEXT_RECORD/)
+  assert.equal(launches, 4)
+})
