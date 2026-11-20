@@ -7,6 +7,7 @@ import displayRules from './machine-display-rules.json' with { type: 'json' }
 // A machine seat's stream-json as the chat log (conversation/machine-stream.md, a471).
 // Every line is stored unchanged; the view and the show/fold/hide display are derived at read time.
 const fail = code => Object.assign(new Error(code), { code })
+const ROW_TEXT_MAX = 20000 // the whole text of a result for the try; the raw line stays available by seq
 const cut = (value, max) => { const text = typeof value === 'string' ? value : JSON.stringify(value) ?? ''; return text.length > max ? [text.slice(0, max), true] : [text, false] }
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const str = value => typeof value === 'string' && value.length > 0 ? value : null
@@ -72,9 +73,8 @@ export function project(line) {
   }
 }
 
-export function displayOf(part, shownElsewhere = false, rules = displayRules) {
+export function displayOf(part, rules = displayRules) {
   if (part.view === 'question' || part.view === 'approval') return 'show'
-  if (shownElsewhere) return 'hide'
   const refined = rules.refine?.find(r => r.view === part.view && (r.empty === undefined || r.empty === !part.text.trim())
     && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title))
   return refined?.display ?? rules[part.view] ?? 'show'
@@ -146,8 +146,8 @@ export class MachineStream {
   row(bot, botId, record, n, part) {
     const request = part.request_id ? bot.requests.get(part.request_id) : null
     const shown = part.shown_elsewhere === true
-    const display = displayOf(part, shown, this.rules)
-    const [body, truncated] = cut(part.text, 2000)
+    const display = displayOf(part, this.rules)
+    const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
       title: part.title, text: body, truncated, ...(shown ? { shown_elsewhere: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
