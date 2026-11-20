@@ -49,7 +49,7 @@ public sealed class MessageCard : ContentControl
     private SecretCard? secret;
     private QuestionCard? question;
     private MachineRequestCard? machineCard;
-    private TextBlock? foldLabel;
+    private MachineEntry? machineLine;
     private Border? bubble;
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center };
@@ -124,14 +124,13 @@ public sealed class MessageCard : ContentControl
             messageId = message.Id; layout = null;
             if (message.Kind == "peer") BuildPeer(message);
             else if (message.MachineEvent is { } card && MachineRequestCard.IsCard(card)) BuildMachineCard();
-            else if (message.MachineEvent is { Display: "fold" }) BuildFold();
+            else if (message.MachineEvent is { } line && MachineEntry.IsEntry(line)) { machineLine = new MachineEntry(workspace); Content = machineLine; }
             else if (message.SecretRequest is not null || message.OwnerQuestion is not null) BuildRequest(message);
             else BuildRow(message);
         }
-        IsVisible = message.MachineEvent is not { Display: "hide" };
         if (layout is not null) UpdateRow(message);
         else if (machineCard is not null) machineCard.Update(message.MachineEvent!, MachineName(message));
-        else if (foldLabel is not null) foldLabel.Text = message.Message ?? "";
+        else if (machineLine is not null) machineLine.Update(message);
         else if (secret is not null || question is not null) UpdateRequest(message);
         else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
     }
@@ -157,12 +156,6 @@ public sealed class MessageCard : ContentControl
         var card = new Border { Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20) };
         machineCard = new MachineRequestCard(workspace, workspace.Title); card.Child = machineCard;
         Content = new CappedRow { Child = card, HorizontalAlignment = HorizontalAlignment.Left };
-    }
-    // A folded entry (a tool call and its result and the like): one muted line.
-    private void BuildFold()
-    {
-        foldLabel = new TextBlock { FontSize = 13, Foreground = BellTheme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
-        Content = new CappedRow { Child = new Border { Padding = new Thickness(5, 0), Child = foldLabel }, HorizontalAlignment = HorizontalAlignment.Left };
     }
     private string MachineName(TimelineMessage message) => message.Sender?.Title ?? workspace.Title;
 

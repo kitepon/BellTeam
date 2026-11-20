@@ -28,6 +28,7 @@ public sealed class MachineCardTests
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
                 var p when p.EndsWith("/answer") => """{"request":{"id":"r1","status":"answered"}}""",
+                var p when p.Contains("/machine-events/") => """{"seq":3,"line":"RAWLINE"}""",
                 _ => null
             };
             return body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -88,5 +89,37 @@ public sealed class MachineCardTests
     {
         var (card, _, workspace) = await OpenAsync(Row("expired", false)); using var _ = workspace;
         Assert.Empty(card.GetVisualDescendants().OfType<Button>());
+    });
+
+    // Fold rows (machine-stream.md "Fold view"): Core folds the list, MachineEntry draws each head as one collapsed line.
+    private static TimelineMessage Fold(string id, string view, string display, string tool = "", string text = "全文", bool truncated = false) => JsonSerializer.Deserialize<TimelineMessage>(JsonSerializer.Serialize(new Dictionary<string, object?>
+    {
+        ["id"] = id, ["kind"] = "machine_event", ["direction"] = "incoming", ["at"] = "2026-11-20T11:00:00Z", ["message"] = view + " " + id, ["sender"] = new { id = "b1", title = "ベル" },
+        ["machine_event"] = new Dictionary<string, object?> { ["seq"] = 3, ["view"] = view, ["display"] = display, ["fold_group"] = view, ["title"] = view, ["text"] = text, ["truncated"] = truncated, ["tool"] = tool.Length == 0 ? null : new { id = tool, name = "Bash", summary = "ls" } }
+    }), BellApi.Json)!;
+
+    [Fact]
+    public Task FoldedRowsAreOneOpenableLineAndResultsSitUnderTheirToolUse() => Ui.Run(async () =>
+    {
+        var server = new Server(); using var workspace = new LinuxWorkspace(origin => new BellApi(origin, server));
+        await workspace.ConnectAsync("http://localhost:1/", listen: false);
+        var rows = Timeline.VisibleMachine([Fold("u", "tool_use", "show", "t1"), Fold("r", "tool_result", "fold", "t1"), Fold("h1", "hook", "fold"), Fold("h2", "hook", "fold"), Fold("h3", "hook", "fold", truncated: true)]);
+        Assert.Equal(["u", "h1"], rows.Select(row => row.Id));
+        var use = new MachineEntry(workspace); use.Update(rows[0]);
+        Assert.Contains(use.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Bash: ls");
+        Assert.Single(use.GetVisualDescendants().OfType<Button>());
+        Assert.DoesNotContain(use.GetVisualDescendants().OfType<TextBox>(), _ => true);
+        Find(use, "tool_result r").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("全文", Assert.Single(use.GetVisualDescendants().OfType<TextBox>()).Text);
+        Find(use, "tool_result r").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Empty(use.GetVisualDescendants().OfType<TextBox>());
+
+        var hooks = new MachineEntry(workspace); hooks.Update(rows[1]);
+        Find(hooks, "hook ×3").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(3, hooks.GetVisualDescendants().OfType<TextBox>().Count());
+        // The cut member offers the stored line.
+        Find(hooks, "全文を読み込む").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Task.Delay(300);
+        Assert.Contains(hooks.GetVisualDescendants().OfType<TextBox>(), box => box.Text == "RAWLINE");
     });
 }
