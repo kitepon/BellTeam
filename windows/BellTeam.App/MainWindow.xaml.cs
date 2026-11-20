@@ -56,6 +56,7 @@ public partial class MainWindow : Window, IInspectorHost
             var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
             if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) _ = Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
+            else if (args.ViewportHeightChange != 0) await FillViewportAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
         Closed += (_, _) => { approvals.Dispose(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
@@ -79,6 +80,8 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
             if (args.PropertyName is nameof(Workspace.Selected) or nameof(Workspace.Connected)) UpdateGoalBar();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected) or nameof(Workspace.LoadFailed) or nameof(Workspace.HasActivity)) UpdateWelcome();
+            // a471-thinking-windows: the first page may not fill the screen; older rows are otherwise read only by scrolling up.
+            if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => await FillViewportAsync(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
             if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
@@ -120,6 +123,27 @@ public partial class MainWindow : Window, IInspectorHost
     }
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
     private async void Older_Click(object sender, RoutedEventArgs e) => await LoadOlderPreservingPositionAsync();
+    private bool filling;
+    // Reads older pages until the conversation can scroll (the screen is full) or there are no more; each page adds rows, so it always ends.
+    private async Task FillViewportAsync()
+    {
+        if (filling) return;
+        filling = true;
+        try
+        {
+            var loaded = false;
+            while (page is null && ConversationArea.Visibility == Visibility.Visible && model.Selected is not null && model.HasMore && !model.Loading && model.ConnectionError is null && MessageScroll.ScrollableHeight <= 0)
+            {
+                var before = model.Messages.Count;
+                await LoadOlderPreservingPositionAsync();
+                MessageScroll.UpdateLayout();
+                loaded = true;
+                if (model.Messages.Count == before) break;
+            }
+            if (loaded) MessageScroll.ScrollToEnd(); // the screen was at its bottom while it was not full
+        }
+        finally { filling = false; }
+    }
     private async Task LoadOlderPreservingPositionAsync()
     {
         if (loadingOlder) return;

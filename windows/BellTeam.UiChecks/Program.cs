@@ -20,6 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
+    await FillChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -169,6 +170,40 @@ public static class UiChecks {
     Check(ready.Window.Startup == StartupPhase.Ready && ready.Window.StartupContent is null && ((FrameworkElement)ready.Window.FindName("StartupHost")).Visibility == Visibility.Collapsed,"初期設定済みの接続先で会話画面になりません。");
     ready.Window.Close(); ready.Model.Dispose();
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"起動画面の確認で窓のハンドルを作成しました。");
+  }
+  // a471-thinking-windows: a first page too short to scroll reads older pages by itself until the screen is full, and stops there (not at the end of the history).
+  private static async Task FillChecks() {
+    var time = DateTimeOffset.UtcNow; var olderReads = 0;
+    TimelineMessage[] Rows(string prefix, int count, int minutes) => Enumerable.Range(0,count).Select(index => new TimelineMessage { Id = prefix + index, At = time.AddMinutes(minutes + index), Direction = "incoming", Message = "短い行 " + prefix + index }).ToArray();
+    var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
+    using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
+      var path = request.RequestUri!.AbsolutePath;
+      object result = path switch {
+        "/api/session" => new { authenticated = true, authMode = "local" },
+        "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
+        "/api/bots" => new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } },
+        "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
+        "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
+        _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
+        _ when path.EndsWith("/messages") => request.RequestUri.Query.Contains("before=")
+          ? new MessagePage { Items = Rows("old" + ++olderReads + "-", 1, -10 * olderReads), HasMore = olderReads < 30 }
+          : new MessagePage { Items = Rows("first", 3, 0), HasMore = true },
+        _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
+      };
+      return JsonSerializer.Serialize(result, wire);
+    })));
+    await workspace.ConnectAsync("http://localhost", listen:false);
+    var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
+    async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
+    await Layout();
+    var scroll = (ScrollViewer)window.FindName("MessageScroll");
+    ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
+    for (var turn = 0; turn < 100 && !(workspace.Messages.Count > 3 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
+    Check(scroll.ScrollableHeight > 0,"最初のページが画面を埋めないのに、古いページを読んで埋めていません。");
+    Check(workspace.HasMore && olderReads is > 0 and < 15,"画面が埋まった後も古いページを読み続けています（読んだ回数 " + olderReads + "）。");
+    var settled = olderReads; await Task.Delay(300); await Layout();
+    Check(olderReads == settled,"画面が埋まった後に古いページを読み続けています。");
+    window.Close(); Console.WriteLine("最初のページが短い時に古いページで画面を埋める確認に成功しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }
