@@ -211,7 +211,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const invoke = (request, type) => {
     enterFor({ type, method: request?.method }); validateRequest(request, type)
     const [owner, method] = request.method.split('.')
-    const callbackKeys = ['onStatus', 'onAnswer', 'onInterim', 'onTurnEnd', 'admissionCheck']
+    const callbackKeys = ['onStatus', 'onAnswer', 'onInterim', 'onTurnEnd', 'onStreamReply', 'admissionCheck']
     const args = request.args.map(arg => {
       if (!arg || typeof arg !== 'object' || !callbackKeys.some(key => typeof arg[key] === 'function')) return arg
       const copy = { ...arg }

@@ -44,6 +44,7 @@ flowchart LR
 | `followInterim` | when `displays(session)`: only words of kind `error` go to `delivery.words` (the limit recording of a self-started turn depends on them); `interim` and `answer` are read but not relayed |
 | `submit` answer step | when `displays(session)` the display answer (`onAnswer` of a turn nobody asked an answer of) is not read or relayed. The `transcript` answer returned to an asking Bot, fork or room is mechanics and stays |
 | `user.complete` | gains `stream: true` (same condition) so conversation does not draw its saved copy of the answer |
+| turn option `onStreamReply` | the Owner's direct turn (durable receipts -> `transport.turn`, no `conversationDelivery`) has no `user.complete`. `submit` calls `onStreamReply()` once, before the completion value is handed back, when `displays(session)` (same condition). The conversation-delivery route keeps `user.complete {stream: true}` and does not call it. Listed in the dispatcher's callback keys so it gets the alive/track wrapper |
 | `execution.shown.read` | gains `stream: true` for the watch of a machine seat's self-started turn; conversation's SelfTurns then skips the answer and consumes |
 | unchanged | `delivery.status`, `turn.end`, steer receipts, `stream_send` relay, forks |
 

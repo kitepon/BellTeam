@@ -1397,3 +1397,21 @@ test('見つけたターンを追っている席への差し込みは、その�
   // 差し込みの側は、合間の言葉を読みに行かない。
   assert.deepEqual(observes, [])
 })
+
+test('Ownerの直送ターン: 流れで表示する席は、返事を返す前にonStreamReplyを一度呼ぶ。readerの無い席は呼ばない', async () => {
+  for (const reader of [true, false]) {
+    const client = { async call(name) {
+      if (name === 'pty_send') return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: [] } } }
+      if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: 'PONG' } }
+      throw new Error(`unexpected ${name}`)
+    } }
+    const transport = new AitermTransport({ client, handoffContext: noMemory, waitProcess: async () => ({ outcome: 'done' }),
+      seatStream: { cursor: async () => null, ingest: async () => ({ status: 'stored' }), displayFromStream: true } })
+    if (reader) transport.machineStreams.readers.set('bot-a', { stopped: false })
+    const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: await mkdtemp(join(tmpdir(), 'bellteam-stream-reply-')) }
+    const order = []
+    const reply = await transport.turn(bot, 'PONGとだけ返して', { onStreamReply: () => order.push('mark') }).then(value => { order.push('reply'); return value })
+    assert.equal(reply, 'PONG')
+    assert.deepEqual(order, reader ? ['mark', 'reply'] : ['reply'])
+  }
+})
