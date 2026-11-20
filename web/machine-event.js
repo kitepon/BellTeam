@@ -129,17 +129,90 @@ function approvalCard(event, context) {
   return card
 }
 
-// context: { api, sender (the Bot's name), onChanged(request) }
+// Folded kinds are never removed (Owner 2026-11-20: 「畳むのはオッケー。消すのはダメ」): display is 'fold' or anything else = shown.
+const groupNames = { hook: 'hooks', tool_result: 'tool results', system: 'system', rate_limit: 'rate limits', result: 'results', control: 'control', words: 'input', thinking: 'thinking', unknown: 'unknown' }
+
+// One collapsed line that opens to the cut text; a cut row offers the whole stored line.
+function foldLine(item, event, context) {
+  const line = node('details', `machine-line machine-fold view-${event.view}`)
+  line.open = context.open === true
+  line.addEventListener('toggle', () => context.onOpen?.(line.open))
+  line.append(node('summary', '', item.message))
+  const body = node('pre', '', event.text || event.tool?.summary || '')
+  line.append(body)
+  if (event.truncated) {
+    const more = node('button', 'machine-more', '全文を読む'); more.type = 'button'
+    const note = node('p', 'owner-question-error'); note.hidden = true
+    more.addEventListener('click', async () => {
+      more.disabled = true; note.hidden = true
+      try { body.textContent = await context.readRaw(event.seq); more.hidden = true } catch { note.textContent = '全文を読めませんでした。もう一度押してください。'; note.hidden = false; more.disabled = false }
+    })
+    line.append(more, note)
+  }
+  return line
+}
+
+// context: { api, sender (the Bot's name), onChanged(request), open, onOpen(open), readRaw(seq) }
 export function renderMachineEvent(item, context) {
   const event = item.machine_event
-  if (event.display === 'hide') { const gone = node('div'); gone.hidden = true; return gone }
-  if (event.view === 'question' && event.request?.questions) return questionCard(event, context)
-  if (event.view === 'approval' && event.request) return approvalCard(event, context)
-  if (event.view === 'thinking') return node('p', 'machine-thinking', event.text)
-  // Everything else is one line; the details open to the cut text (the full line is GET /api/bots/:id/machine-events/:seq).
-  const line = node('details', `machine-line view-${event.view}`)
-  line.append(node('summary', '', item.message))
-  if (event.text || event.tool?.summary) line.append(node('pre', '', event.text || event.tool.summary))
-  if (event.display === 'show') line.open = true
-  return line
+  let element
+  if (event.view === 'question' && event.request?.questions) element = questionCard(event, context)
+  else if (event.view === 'approval' && event.request) element = approvalCard(event, context)
+  else if (event.display === 'fold') element = foldLine(item, event, context)
+  else if (event.view === 'thinking') element = node('p', 'machine-thinking', event.text)
+  else if (event.view === 'tool_use') {
+    element = node('div', 'machine-use')
+    element.append(node('strong', '', event.tool?.name ?? event.title), node('code', '', event.tool?.summary ?? ''))
+  } else {
+    element = node('div', `machine-show view-${event.view}`)
+    if (event.title && event.title !== 'input') element.append(node('strong', '', event.title))
+    element.append(node('p', '', event.text || item.message))
+  }
+  // arrangeMachineRows reads these.
+  element.dataset.machineView = event.view
+  if (event.tool?.id) element.dataset.toolId = event.tool.id
+  if (event.display === 'fold') element.dataset.fold = event.fold_group ?? event.view
+  return element
+}
+
+// Lays the machine rows of one timeline container out as the fold view (machine-stream.md):
+// a tool_result's line sits directly under its tool_use line, and consecutive folded rows of one fold_group share one line.
+// Idempotent: groups are taken apart and rebuilt, so rows added or replaced later land correctly. `openKeys` keeps what the Owner opened.
+export function arrangeMachineRows(container, openKeys) {
+  const rows = () => [...container.children]
+  for (const group of rows().filter(child => child.dataset?.machineGroup)) {
+    for (const member of [...group.children].filter(child => child.dataset?.machineView !== undefined)) container.insertBefore(member, group)
+    group.remove()
+  }
+  for (const result of rows().filter(child => child.dataset?.machineView === 'tool_result' && child.dataset.toolId)) {
+    const list = rows(), use = list.find(child => child.dataset?.machineView === 'tool_use' && child.dataset.toolId === result.dataset.toolId)
+    delete result.dataset.attached
+    if (!use) continue
+    result.dataset.attached = '1'
+    const next = list[list.indexOf(use) + 1]
+    if (next !== result) container.insertBefore(result, next ?? null)
+  }
+  let run = []
+  const flush = () => {
+    if (run.length > 1) {
+      const key = `group:${run[0].dataset.id}`, name = run[0].dataset.fold
+      const group = node('details', 'machine-line machine-group')
+      group.dataset.machineGroup = key
+      group.append(node('summary', '', `${groupNames[name] ?? name} ×${run.length}`))
+      container.insertBefore(group, run[0])
+      const members = run
+      group.open = openKeys.has(key)
+      group.addEventListener('toggle', () => { if (group.open) { openKeys.add(key); members.forEach(member => { member.open = true }) } else openKeys.delete(key) })
+      for (const member of run) group.append(member)
+      if (group.open) run.forEach(member => { member.open = true })
+    }
+    run = []
+  }
+  for (const child of rows()) {
+    const name = child.dataset?.fold
+    if (!name || child.dataset.attached) { flush(); continue }
+    if (run.length && run[0].dataset.fold !== name) flush()
+    run.push(child)
+  }
+  flush()
 }

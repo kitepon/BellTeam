@@ -1,6 +1,6 @@
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
-import { renderMachineEvent } from './machine-event.js?v=__ASSET_VERSION__'
+import { renderMachineEvent, arrangeMachineRows } from './machine-event.js?v=__ASSET_VERSION__'
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { fileNameOf, openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { applyAvatar, dayLabel, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -55,6 +55,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   let target = null
   const avatarColors = new Map()
   const cardSnapshots = new WeakMap()
+  // What the Owner opened in the fold view; the app's own state, never stored (machine-stream.md).
+  const foldOpen = new Set()
   const state = { timelineMap: new Map(), timelineQueue: [], timelineQueueRequest: 0,
     timelineQueueError: '', timelineHasMore: false, timelineOldestId: null,
     timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', historyRetry: null, stickToBottom: true, opening: false }
@@ -79,6 +81,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
         state.opening = false
         timelineItems.replaceChildren()
         if (state.timelineMap.size) timelineItems.append(dayLabel(), ...[...state.timelineMap.values()].map(item => renderItem(item, queuedFor(item))))
+        arrangeMachineRows(timelineItems, foldOpen)
         renderTail([...state.timelineMap.values()])
       }
       return false
@@ -88,6 +91,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.timelineToken++
     target = null
     state.timelineMap.clear()
+    foldOpen.clear()
     state.timelineQueue = []
     state.timelineLoadingOlder = false
     timelineItems.replaceChildren()
@@ -131,6 +135,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const token = ++state.timelineToken
     const request = ++state.historyRequest
     state.timelineMap = new Map()
+    foldOpen.clear()
     state.timelineHasMore = false
     state.timelineOldestId = null
     state.timelineLoadingOlder = false
@@ -153,6 +158,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.timelineOldestId = items[0]?.id ?? null
     timelineItems.replaceChildren(dayLabel(), ...items.map(item => renderItem(item, queuedFor(item))))
     state.historyError = ''
+    arrangeMachineRows(timelineItems, foldOpen)
     renderTail(items)
     scrollToBottom()
     loadStoredMessageImages(items, item => rerenderItem(item.id, token))
@@ -201,6 +207,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       rememberItems(newItems)
       timelineItems.append(...newItems.map(item => renderItem(item, queuedFor(item))))
     }
+    arrangeMachineRows(timelineItems, foldOpen)
     renderTail([...state.timelineMap.values()])
     if (state.stickToBottom) scrollToBottom()
     loadStoredMessageImages([...latestItems, ...newItems], item => rerenderItem(item.id, token))
@@ -223,6 +230,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       state.timelineOldestId = items[0]?.id ?? state.timelineOldestId
       const before = timeline.scrollHeight
       timelineItems.firstChild.after(...items.map(item => renderItem(item, queuedFor(item))))
+      arrangeMachineRows(timelineItems, foldOpen)
       timeline.scrollTo({ top: timeline.scrollTop + (timeline.scrollHeight - before), behavior: 'instant' })
       loadStoredMessageImages(items, item => rerenderItem(item.id, token))
     } finally {
@@ -260,7 +268,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const element = timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`)
     const card = item?.secret_request ?? item?.owner_question ?? item?.machine_event
     if (card && element && cardSnapshots.get(element) === JSON.stringify(card)) return
-    if (item && element) element.replaceWith(renderItem(item, queuedFor(item)))
+    if (item && element) { element.replaceWith(renderItem(item, queuedFor(item))); arrangeMachineRows(timelineItems, foldOpen) }
   }
 
   function renderTail(items) {
@@ -348,6 +356,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       const token = state.timelineToken
       return renderMachineEvent(item, {
         api, sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '',
+        open: foldOpen.has(item.id), onOpen: open => { if (open) foldOpen.add(item.id); else foldOpen.delete(item.id) },
+        readRaw: async () => (await api(`/api/bots/${encodeURIComponent(item.sender?.id ?? target?.id)}/machine-events/${item.machine_event.seq}`)).line,
         onChanged: request => {
           if (token !== state.timelineToken) return
           state.timelineMap.set(item.id, { ...item, machine_event: { ...item.machine_event, request } })
