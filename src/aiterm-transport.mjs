@@ -635,8 +635,15 @@ export class AitermTransport {
       const stamp = claudeLogin ? await this.accounts.stamp('claude', claudeLogin) : null
       // remote-seat.md "Claude machine mode": a restart never changes a seat's mode; the launch record says which harness it woke with.
       const machine = reference.harness === 'claude-code' && (await this.readRuntimeLaunches())[reference.sessionId]?.machine === true
-      const result = await this.changeSession(bot, 'agent_launch', { harness: machine ? MACHINE_HARNESS : reference.harness, cwd: bot.project,
-        session_name: reference.sessionId, require_existing_resume: true }, { ...options, ...(claudeLogin ? { claudeLogin } : {}) })
+      let result
+      try {
+        result = await this.changeSession(bot, 'agent_launch', { harness: machine ? MACHINE_HARNESS : reference.harness, cwd: bot.project,
+          session_name: reference.sessionId, require_existing_resume: true }, { ...options, ...(claudeLogin ? { claudeLogin } : {}) })
+      } catch (error) {
+        // An Aiterm without the machine harness cannot resume this seat: the same typed refusal as any resume it cannot do (the fresh continuation then falls back once).
+        if (error?.code === 'AGENT_HARNESS_UNAVAILABLE') throw notResumable()
+        throw error
+      }
       if (claudeLogin) await this.accounts.setSeat(bot.id, claudeLogin, stamp).catch(() => {})
       this.membersAdmission.assertLease(membersLease)
       this.requireStopVersion(bot.id, version)

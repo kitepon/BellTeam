@@ -38,4 +38,10 @@ test('a restart resumes a machine seat with the machine harness and a TUI seat w
     assert.deepEqual(launched, [['agent_launch', expected]])
     await transport.close?.()
   }
+  // an Aiterm without the harness: the typed refusal the restart path already turns into a fresh continuation
+  const old = new AitermTransport({ runtimeLaunchesPath: '/nowhere/runtime-launches.json', captureRuntime: async () => ({ generation: 'g' }),
+    client: { launchOptions: async () => ({}), async call() { throw Object.assign(new Error('AGENT_HARNESS_UNAVAILABLE: claude-machine'), { code: 'AGENT_HARNESS_UNAVAILABLE', effect: 'not_started' }) } } })
+  old.runtimeLaunches = { 'bot-m': { machine: true, harness: 'claude-code' } }
+  await assert.rejects(old.resumePreviouslyActive({ id: 'bot-m', session: 'bot-m', harness: 'claude', project: '/tmp' }, { harness: 'claude-code', sessionId: 'bot-m', launchId: 'a'.repeat(32) }),
+    { code: 'RESUME_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
 })
