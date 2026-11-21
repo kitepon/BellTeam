@@ -29,6 +29,9 @@ public sealed class ScrollFollowTests
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
+                var p when p.EndsWith("/messages") && request.Method == HttpMethod.Post => """{"delivery_id":"sent-1"}""",
+                var p when p.Contains("/messages?limit=10") => "{\"items\":[" + Rows(100) + "],\"has_more\":false}",
+                var p when p.Contains("/messages?after=") => """{"items":[],"has_more":false}""",
                 var p when p.Contains("/messages?limit=1000") && !p.Contains("before=") => "{\"items\":[" + Rows(100) + "],\"has_more\":false}",
                 _ => null
             };
@@ -111,6 +114,27 @@ public sealed class ScrollFollowTests
             scroll.Offset = new Vector(0, scroll.Extent.Height); window.UpdateLayout();
             AddRows(model, "after"); window.UpdateLayout();
             Assert.True(DistanceToEnd(scroll) < 1, "back at the end the view follows again");
+        }
+        window.Close();
+    });
+
+    // Owner 11/21 17:2x: send = the newest edge + follow, from any position (a471-send-follow): the sent bubble is at the bottom in the layout pass that adds it, and rows after it follow.
+    [Fact]
+    public Task SendingWhileReadingOlderGoesToTheNewestAndFollows() => Ui.Run(async () =>
+    {
+        var (model, window, scroll) = await OpenAsync();
+        using (model)
+        {
+            scroll.Offset = new Vector(0, scroll.Extent.Height / 3); window.UpdateLayout(); await Settle(5);
+            Assert.True(DistanceToEnd(scroll) > scroll.Viewport.Height * 3, "reading far above the newest");
+            model.DraftText = "送る文です";
+            var sending = model.SendAsync();
+            window.UpdateLayout();
+            Assert.True(DistanceToEnd(scroll) < 1, $"the sent bubble is at the newest at once ({DistanceToEnd(scroll):F0} px away)");
+            await sending; await Settle(10);
+            Assert.True(DistanceToEnd(scroll) < 1, "still at the newest after the server accepted it and the refresh ran");
+            AddRows(model, "answer"); window.UpdateLayout();
+            Assert.True(DistanceToEnd(scroll) < 1, "rows after the send are followed");
         }
         window.Close();
     });
