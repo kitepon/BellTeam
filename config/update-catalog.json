@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T00:50:22Z",
-  "expiresAt": "2026-11-28T00:50:22Z",
+  "publishedAt": "2026-11-21T01:16:35Z",
+  "expiresAt": "2026-11-28T01:16:35Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "91af4375897d557da68cd2247a9a9615f4336611",
-      "versionId": "221c56cf75018b9c79be386306eca586969c39409c0e86eb9317fa08dd81bf70",
+      "sourceCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f",
+      "versionId": "1024b625d1b08769ed4dc2b8c0088ab70e4167bcbc34a1e9eebd6d38791901e4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-amd64.tar.gz",
-          "bytes": 5504237,
-          "sha256": "221c56cf75018b9c79be386306eca586969c39409c0e86eb9317fa08dd81bf70"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-amd64.tar.gz",
+          "bytes": 5506284,
+          "sha256": "1024b625d1b08769ed4dc2b8c0088ab70e4167bcbc34a1e9eebd6d38791901e4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11017,
-          "sha256": "22726f10070ecab95d43916ba9a7a4a9cc945d3e75227a3e7a3e424b17b17f12"
+          "sha256": "97725969c383e3fa0842cbbd2ec9ea3e006eb53a993d0105b73ce3bbe0a0e419"
         },
-        "signerCommit": "91af4375897d557da68cd2247a9a9615f4336611"
+        "signerCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webで、機械の席のターンの答えを1回だけの吹き出しで出し、続けて使った道具を件数つきの1行に畳みます。画面を開いたとき、行が画面いっぱいになるまで古いページを読み足します。"
+        "実行中の列の行に、サーバーが決めた作業中の言葉（190語）を出します。Webの待ち行列と考え中の吹き出しに表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "91af4375897d557da68cd2247a9a9615f4336611",
-      "versionId": "6470a100bb0bfa9925d8bdbbc898ed2681c418e6929df8ce8b5791f7ffd53bd4",
+      "sourceCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f",
+      "versionId": "30f706d0d5ccb64b59e0fc4183bddb4d5fba81bda4abd8ed3cc5c00812802b22",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-arm64.tar.gz",
-          "bytes": 5504237,
-          "sha256": "6470a100bb0bfa9925d8bdbbc898ed2681c418e6929df8ce8b5791f7ffd53bd4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-arm64.tar.gz",
+          "bytes": 5506284,
+          "sha256": "30f706d0d5ccb64b59e0fc4183bddb4d5fba81bda4abd8ed3cc5c00812802b22"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T222953Z/web-gateway-91af4375897d557da68cd2247a9a9615f4336611-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10958,
-          "sha256": "5bac5e02c45bd2cf9bdd8288afc61adc445baac290f85b0551e2605b75494a0f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11005,
+          "sha256": "55bf55708166fd2d08006c392ff4c12a6b3c7fdd12a5d4b8e3e27511260994c5"
         },
-        "signerCommit": "91af4375897d557da68cd2247a9a9615f4336611"
+        "signerCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webで、機械の席のターンの答えを1回だけの吹き出しで出し、続けて使った道具を件数つきの1行に畳みます。画面を開いたとき、行が画面いっぱいになるまで古いページを読み足します。"
+        "実行中の列の行に、サーバーが決めた作業中の言葉（190語）を出します。Webの待ち行列と考え中の吹き出しに表示します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
-      "versionId": "sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec",
+      "sourceCommit": "99304e7a89aaba85cae1eefd9d9f4711f75b17c7",
+      "versionId": "sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "すべてのClaudeの席の起動で、機械の口（claude-machine）を使うよう実行モジュールが頼みます。"
+        "実行中の列の行に、一つの正本リストから選んだ作業中の言葉（workingWord）を付けます。Canoodling、Evaporating、Musing を加えた190語です。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
-      "versionId": "sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec",
+      "sourceCommit": "99304e7a89aaba85cae1eefd9d9f4711f75b17c7",
+      "versionId": "sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "すべてのClaudeの席の起動で、機械の口（claude-machine）を使うよう実行モジュールが頼みます。"
+        "実行中の列の行に、一つの正本リストから選んだ作業中の言葉（workingWord）を付けます。Canoodling、Evaporating、Musing を加えた190語です。"
       ]
     },
     {
