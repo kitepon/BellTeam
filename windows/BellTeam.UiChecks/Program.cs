@@ -169,7 +169,7 @@ public static class UiChecks {
     ready.Window.Close(); ready.Model.Dispose();
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"起動画面の確認で窓のハンドルを作成しました。");
   }
-  // a471-thinking-windows / a471-scrollback / a471-fill-drawn: a first page too short to scroll reads older pages by itself until 3 screens are DRAWN above the view, and stops there (not at the end of the history).
+  // a471-thinking-windows / a471-scrollback / a471-fill-drawn: a first page too short to fill a screen reads older pages by itself until one screen is DRAWN, stays at the newest while they land, and stops there (not at the end of the history; no read-ahead at the open).
   // With foldedPages > 0 the first older pages are all folded rows (one line each run): a page that draws almost nothing must not end the loop.
   private static async Task FillChecks(int foldedPages = 0) {
     var time = DateTimeOffset.UtcNow; var olderReads = 0;
@@ -199,10 +199,12 @@ public static class UiChecks {
     var scroll = (ScrollViewer)window.FindName("MessageScroll");
     ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
     for (var turn = 0; turn < 100 && !(workspace.Messages.Count > 3 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
-    Check(scroll.ScrollableHeight > 0,"最初のページが画面を埋めないのに、古いページを読んで埋めていません。");
+    Check(scroll.ScrollableHeight > 0,"最初のページが画面を埋めないのに、古いページを読んで埋めていません（読んだ回数 " + olderReads + "、行 " + workspace.Messages.Count + "、描いた高さ " + ((FrameworkElement)window.FindName("MessageList")).ActualHeight + "、viewport " + scroll.ViewportHeight + "、HasMore " + workspace.HasMore + "）。");
     Check(olderReads > foldedPages,"畳んだだけのページで古いページを読むのをやめています（読んだ回数 " + olderReads + "、畳んだページ " + foldedPages + "）。");
-    Check(scroll.VerticalOffset >= 3 * scroll.ViewportHeight - 1,"描いた中身が上に3画面分に届いていません（offset " + scroll.VerticalOffset + "、viewport " + scroll.ViewportHeight + "）。");
-    Check(workspace.HasMore && olderReads is > 0 and < 30,"上に残す分（描いた3画面）を超えても古いページを読み続けています（読んだ回数 " + olderReads + "、offset " + scroll.VerticalOffset + "、extent " + scroll.ExtentHeight + "、viewport " + scroll.ViewportHeight + "、行 " + workspace.Messages.Count + "）。");
+    var drawn = ((FrameworkElement)window.FindName("MessageList")).ActualHeight;
+    Check(drawn >= scroll.ViewportHeight,"描いた中身が1画面に届いていません（描いた高さ " + drawn + "、viewport " + scroll.ViewportHeight + "）。");
+    Check(workspace.HasMore && olderReads > 0 && olderReads <= foldedPages + 2,"1画面を超えて古いページを読み続けています（読んだ回数 " + olderReads + "、畳んだページ " + foldedPages + "、描いた高さ " + drawn + "、viewport " + scroll.ViewportHeight + "、行 " + workspace.Messages.Count + "）。");
+    Check(Math.Abs(scroll.VerticalOffset - scroll.ScrollableHeight) < 1,"古いページが上に届いて、最新から外れました（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
     var settled = olderReads; await Task.Delay(300); await Layout();
     Check(olderReads == settled,"画面が埋まった後に古いページを読み続けています。");
     window.Close(); Console.WriteLine("最初のページが短い時に古いページで画面を埋める確認に成功しました（畳んだページ " + foldedPages + "）。");
@@ -235,9 +237,12 @@ public static class UiChecks {
     ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
     for (var turn = 0; turn < 100 && !(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
     Check(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 3 * scroll.ViewportHeight,"最初のページが長い一覧になりません。");
-    scroll.ScrollToVerticalOffset(2 * scroll.ViewportHeight); await Layout();   // less than 3 screens above: an older page is asked for
+    Check(!olderRequested,"開いた時に画面が埋まっているのに、古いページを読んでいます。");
+    scroll.ScrollToVerticalOffset(2 * scroll.ViewportHeight); await Task.Delay(300); await Layout();   // 2 screens above: more than the 1 screen margin, nothing is asked for
+    Check(!olderRequested,"上に1画面分以上あるのに古いページを読んでいます。");
+    scroll.ScrollToVerticalOffset(0.5 * scroll.ViewportHeight); await Layout();   // less than 1 screen above: an older page is asked for
     for (var turn = 0; turn < 100 && !olderRequested; turn++) { await Task.Delay(20); await Layout(); }
-    Check(olderRequested,"上に3画面分が無いのに古いページを読みません。");
+    Check(olderRequested,"上に1画面分が無いのに古いページを読みません。");
     scroll.ScrollToVerticalOffset(scroll.VerticalOffset - 300); await Layout();   // the Owner keeps scrolling while the page is on its way
     double Top() => Descendants<MessageCard>(root).Single(card => card.Message?.Id == "first20").TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
     var before = Top();
@@ -319,13 +324,15 @@ public static class UiChecks {
     double Y(MessageCard card) => card.TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
     ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
     // (a) the first layout that has rows is at the newest, with nothing scrolled by the check
-    var first = false;
-    for (var turn = 0; turn < 200 && !(workspace.Messages.Count >= 100 && !workspace.Loading); turn++) {
-      await Task.Delay(20); await Layout();
-      if (!first && scroll.ScrollableHeight > 0) { first = true; Check(AtNewest(), "開いて最初に描いた画面が最新ではありません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。"); }
-    }
-    Check(first && workspace.Messages.Count >= 100, "古いページが届きません（行 " + workspace.Messages.Count + "）。");
-    await Layout(); Check(AtNewest() && host.IsNewest, "古いページが上に届いて、最新から外れました（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    for (var turn = 0; turn < 200 && !(workspace.Messages.Count >= 60 && !workspace.Loading); turn++) await Task.Delay(20);   // no layout here: the next one is the first that has rows
+    Check(workspace.Messages.Count == 60, "最初のページが届きません（行 " + workspace.Messages.Count + "）。");
+    await Layout(); Check(scroll.ScrollableHeight > 0 && AtNewest(), "開いて最初に描いた画面が最新ではありません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    await Task.Delay(300); await Layout(); Check(workspace.Messages.Count == 60 && AtNewest() && host.IsNewest, "開いた時に画面が埋まっているのに、古いページを読んでいます（行 " + workspace.Messages.Count + "）。");
+    // reading up to within one screen of the top reads the older page; the view stays on its row (JumpChecks measures the row), then the Owner goes back to the newest
+    scroll.ScrollToVerticalOffset(0.5 * scroll.ViewportHeight); await Layout();
+    for (var turn = 0; turn < 100 && workspace.Messages.Count < 100; turn++) { await Task.Delay(20); await Layout(); }
+    Check(workspace.Messages.Count >= 100, "上まで読み返しても古いページが届きません（行 " + workspace.Messages.Count + "）。");
+    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight); await Layout(); Check(AtNewest() && host.IsNewest, "最新まで戻っても最新を追う状態に戻りません。");
     // (b) a reader of older rows stays where he is when a row arrives, and is told
     scroll.ScrollToVerticalOffset(scroll.ScrollableHeight / 2); await Layout();
     Check(!host.IsNewest, "上へ読み返しても最新に固定されたままです。");
@@ -360,7 +367,7 @@ public static class UiChecks {
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
         _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
         _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
-        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=10") ? 10 : 100).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.EndsWith("limit=10") ? 10 : 100).ToArray(), HasMore = false },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
       return JsonSerializer.Serialize(result, wire);
@@ -403,7 +410,7 @@ public static class UiChecks {
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
         _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
         _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
-        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=10") ? 10 : 100).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.EndsWith("limit=10") ? 10 : 100).ToArray(), HasMore = false },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
       return JsonSerializer.Serialize(result, wire);
