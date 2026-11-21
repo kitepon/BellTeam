@@ -20,7 +20,7 @@ const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
-const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'configurationLocked', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color', 'terminalId', 'projectRoot'])
+const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'configurationLocked', 'pinned', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color', 'terminalId', 'projectRoot'])
 const TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 const WINDOWS_ROOT = /^[A-Za-z]:\\/u
 
@@ -305,7 +305,12 @@ export class BotRegistry extends Map {
     for (const key of Object.keys(changes)) {
       if (!PROFILE_FIELDS.has(key) && key !== 'createFolder') throw new Error(`BOT_UPDATE_FIELD_INVALID: ${key}`)
     }
-    const { createFolder, ...images } = changes
+    const { createFolder, pinned, ...images } = changes
+    // a480: the pin is an Owner switch; its order is the time it was pinned. Pinning a pinned Bot keeps its place.
+    if (pinned !== undefined) {
+      if (typeof pinned !== 'boolean') throw registryError('BOT_PINNED_INVALID')
+      images.pinnedAt = pinned ? current.pinnedAt ?? this.now().toISOString() : null
+    }
     for (const field of ['avatar', 'avatarLarge']) {
       const source = `${field}Source`, crop = `${field}Crop`
       if (Object.hasOwn(changes, source) || Object.hasOwn(changes, crop)) {
@@ -708,7 +713,7 @@ export class BotRegistry extends Map {
       profileText: profile.profileText, personality: profile.personality, speechStyle: profile.speechStyle, avatar: profile.avatar, color: profile.color,
       avatarLarge: profile.avatarLarge, avatarSource: profile.avatarSource, avatarLargeSource: profile.avatarLargeSource,
       avatarCrop: profile.avatarCrop, avatarLargeCrop: profile.avatarLargeCrop,
-      harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode, configurationLocked: profile.configurationLocked,
+      harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode, configurationLocked: profile.configurationLocked, pinnedAt: profile.pinnedAt,
       terminalId: profile.terminalId, projectRoot: profile.projectRoot,
     }
     await mkdir(this.statePath(profile.id), { recursive: true, mode: 0o700 })
@@ -793,6 +798,7 @@ function normalizeProfile(value) {
   if (value.fastMode !== undefined && typeof value.fastMode !== 'boolean') throw new Error('BOT_FAST_MODE_INVALID')
   if (value.configurationLocked !== undefined && typeof value.configurationLocked !== 'boolean') throw registryError('BOT_CONFIGURATION_LOCKED_INVALID')
   if (!COLORS.has(value.color ?? 'violet')) throw new Error('BOT_COLOR_INVALID')
+  if (value.pinnedAt != null && (typeof value.pinnedAt !== 'string' || !Number.isFinite(Date.parse(value.pinnedAt)))) throw registryError('BOT_PINNED_INVALID')
   for (const [field, content] of [['profileText', value.profileText ?? ''], ['personality', value.personality ?? ''], ['speechStyle', value.speechStyle ?? ''], ['role', role]]) {
     if (typeof content !== 'string' || content.length > 8_000)
       throw new Error(`BOT_${field.toUpperCase()}_INVALID`)
@@ -810,6 +816,7 @@ function normalizeProfile(value) {
     reasoningEffort,
     fastMode: value.fastMode === true,
     configurationLocked: value.configurationLocked === true,
+    pinnedAt: value.pinnedAt ?? null,
     color: value.color ?? 'violet',
     profileText: value.profileText ?? '',
     personality: value.personality ?? '',

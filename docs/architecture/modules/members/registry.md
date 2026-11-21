@@ -32,6 +32,7 @@ flowchart TB
 | session対応 | transport callback → `updateSession` | profileのsessionだけ更新。通常編集fieldとして外部から受けない |
 | 起動指示 | `prepareStartupContext` → `ProjectFiles.prepareStartupContext/writeInstructions` | 引継ぎ文をprevious-sessionへ保存し、本人編集のAGENTS.local.mdを席writerで合成して指示を再生成。個別正本は上書きしない。[個別指示の契約](instructions.md#本人編集の個別指示と生成agents)を参照 |
 | AI設定の固定印 | Owner HTTP PATCH/GET → `previewUpdate/update`、`normalizeProfile`、`writeProfile` | Botごとの`configurationLocked`（boolean、既定false、bot.json v8のadditive field）。保存と返却だけを持ち、固定中の断りは[execution](../execution/README.md)（a312）。MCPのupdate_self/update_botは入力schemaにこのfieldが無く`TOOL_ARGUMENT_INVALID`で断る。get_self/get_botの返す台帳にはそのまま含まれるが、表示の契約は持たない。fast modeは対象外 |
+| ピン留め（a480） | HTTP PATCH `pinned` → `Administration.update` → `previewUpdate` → `writeProfile` | Botごとの`pinnedAt`（ISO文字列またはnull、既定null、bot.json v8のadditive field）。`pinned:true`は未ピンなら`now()`、既ピンなら据え置き、`false`はnull。`pinnedAt`自体は外から受けない（`BOT_UPDATE_FIELD_INVALID`）。指示生成・実行設定・onChangeへは届かない。並べ替えは一覧handler（[profiles](profiles.md)）が持つ。保存は他のBot別fieldと同じ直列化・原子書込み |
 | Remote binding | HTTP/MCP create/update → `create/update` | `terminalId`/`projectRoot` saved in bot.json v8 as additive fields; pair rule and path validation. See [remote-seat.md](remote-seat.md) |
 | モデル一覧 | `LiveModelCatalog` → Aiterm | effort/fast検証に使用。保存値だけでnativeの変更成功を証明しない。Claudeは枠名`claudeLogin: '1st'`を渡す（a04、[boundary-details](../../boundary-details.md)。両枠が同じ一覧の間の暫定） |
 
