@@ -104,7 +104,7 @@ None of the four reads Approval Box content from the server except through the d
 | --- | --- | --- | --- |
 | Q1 | Nayuta | Does the daemon see every decision of K? | **Answered 2026-11-22: only what it filed.** Design: section 4a |
 | Q2 | Nayuta, Bready | What replaces `/me`? | **Answered 2026-11-22: nothing. `/v1/me` stays** (no content, not in the close list); only `/v1/me/export` loses its decisions after the purge. F6 and Bready's R4 are unchanged |
-| Q3 | Molly | Hosting and supervision of the one connector daemon (mount, restart, key/secret storage, 5.4 pairing step) | open |
+| Q3 | Molly | Hosting and supervision of the one connector daemon | **Answered 2026-11-22: yes.** Module child under the existing supervisor (uid 1001, crash restarts the child only); state under `/srv/bellteam/state/approval-box-daemon/` (0700, no new mount; keys and the paired K never in a secret card or log); unix socket 0600 under the child's run dir; readers keep their current path to the parent and the parent forwards to the socket (per-purpose scope kept; final shape in the code PR, Q5). Image pins `approval-box` with its native libdatachannel prebuild. She needs from Nayuta: package pin + prebuild, launch contract, non-interactive 5.4 pairing and status, re-pair rule with a visible "not paired" state, network hosts/ports (UDP egress to be checked in the lab), a test K |
 | Q4 | OLRW owner | For K-3JM9PS: keep the already-read answer or re-file through the daemon | open |
 | Q5 | Flora, Molly | The authenticated BellTeam route for app reports (D7b) and its link to the Lattice facade | open, belongs to the code PR |
 
