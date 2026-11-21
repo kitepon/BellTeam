@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
+using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
@@ -114,6 +115,21 @@ internal sealed class StartupFailureView : StartupBackdrop
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0), Spacing = 10 };
         actions.Children.Add(MacUi.Prominent("もう一度試す", retry)); actions.Children.Add(MacUi.Bordered("接続先を変更", changeServer));
         stack.Children.Add(actions); Children.Add(stack);
+    }
+}
+
+// a485 7e: the server's entitlement is "none", so the native app shows this instead of itself; the Web version is free. Linux and Android share it.
+internal sealed class PaywallView : StartupBackdrop
+{
+    public PaywallView(Uri server, Action recheck, Action changeServer)
+    {
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, Margin = new Thickness(30) };
+        var title = MacUi.Text(SubscriptionText.Paywall, 17, BellTheme.Ink, FontWeight.Bold); title.TextAlignment = TextAlignment.Center; title.TextWrapping = TextWrapping.Wrap; stack.Children.Add(title);
+        var failure = MacUi.Text("", 12, BellTheme.Red, margin: new Thickness(0, 8, 0, 0)); failure.TextAlignment = TextAlignment.Center; failure.TextWrapping = TextWrapping.Wrap;
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0), Spacing = 10 };
+        actions.Children.Add(MacUi.Prominent("ブラウザーで開く", () => { try { ExternalLink.Launch(server); } catch (Exception error) { failure.Text = "ブラウザーを開けませんでした。" + error.Message; } }));
+        actions.Children.Add(MacUi.Bordered("再確認", recheck)); actions.Children.Add(MacUi.Bordered("接続先を変更", changeServer));
+        stack.Children.Add(actions); stack.Children.Add(failure); Children.Add(stack);
     }
 }
 

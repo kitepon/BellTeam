@@ -115,6 +115,46 @@ public sealed class AppLoginTests
         view.Dispose(); window.Close();
     });
 
+    private sealed class Subscription(string body, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+    }
+
+    // a485 7e (Tronie): only entitlementState "none" shows the paywall; active, unknown, no field and a failed read show the app.
+    [Theory]
+    [InlineData("""{"subscription":{"entitlementState":"none"}}""", 200, true)]
+    [InlineData("""{"subscription":{"entitlementState":"active"}}""", 200, false)]
+    [InlineData("""{"subscription":{"entitlementState":"unknown"}}""", 200, false)]
+    [InlineData("""{"subscription":{"entitled":false}}""", 200, false)]
+    [InlineData("""{"error":"x"}""", 500, false)]
+    public async Task OnlyAnEntitlementStateOfNoneIsPaywalled(string body, int status, bool paywalled)
+        => Assert.Equal(paywalled, await new SubscriptionApi(new BellApi(new("http://localhost/"), new Subscription(body, (HttpStatusCode)status))).PaywalledAsync());
+
+    [Fact]
+    public void ThePaywallComesAfterLoginAndFailureAndBeforeOnboardingAndTheWorkspace()
+    {
+        var ready = new SetupState { Phase = "ready", Harnesses = [], Complete = true };
+        Assert.Equal(StartupPhase.Paywall, StartupRoute.AfterConnect(false, true, ready, paywalled: true));
+        Assert.Equal(StartupPhase.Ready, StartupRoute.AfterConnect(false, true, ready));
+        Assert.Equal(StartupPhase.SignIn, StartupRoute.AfterConnect(true, true, ready, paywalled: true));
+        Assert.Equal(StartupPhase.Failure, StartupRoute.AfterConnect(false, false, null, paywalled: true));
+    }
+
+    [Fact]
+    public Task ThePaywallScreenShowsTheRuledTextAndTheBrowserButtonOpensTheServer() => Ui.Run(async () =>
+    {
+        Uri? opened = null; var was = ExternalLink.Opener; ExternalLink.Opener = uri => opened = uri;
+        try
+        {
+            var server = new Uri("https://bell.example.com/"); var view = new PaywallView(server, () => { }, () => { });
+            var window = new Window { Content = view }; window.Show();
+            Assert.Contains("このアプリは購読が必要です。無料で使うならブラウザから", Texts(view));
+            Click(view, "ブラウザーで開く"); Assert.Equal(server, opened);
+            window.Close(); await Task.CompletedTask;
+        }
+        finally { ExternalLink.Opener = was; }
+    });
+
     private static string[] Texts(Control root) => root.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text ?? "").ToArray();
     private static void Click(Control root, string name) => root.GetVisualDescendants().OfType<TextBlock>().First(text => text.Text == name).FindAncestorOfType<Button>()!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
     private static async Task Until(Func<bool> condition) { var until = DateTime.UtcNow.AddSeconds(5); while (!condition()) { if (DateTime.UtcNow > until) throw new TimeoutException(); await Task.Delay(5); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); } }
