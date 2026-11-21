@@ -594,22 +594,22 @@ test('fork advanced IPC carries image-sized input and history, then exits after 
   await h.parent.drainIncoming(); await h.parent.reaped()
 })
 
-test('large input singleton refuses a second large root while small roots and independent control continue', { timeout: 4000 }, async t => {
+test('large input singleton makes a second large root wait while small roots and independent control continue', { timeout: 4000 }, async t => {
   const entered = Promise.withResolvers(), release = Promise.withResolvers()
   const h = await setup(t, { dispatcher: options => {
     const dispatcher = createConversationDispatcher(options)
     return { ...dispatcher, dispatch: async (method, params, context) => {
-      if (method === 'direct.post') { entered.resolve(); await release.promise }
+      if (method === 'direct.post' && !entered.settled) { entered.settled = true; entered.resolve(); await release.promise }
       return dispatcher.dispatch(method, params, context)
     } }
   } })
   const input = { from: h.fixture.bots[0].id, target: 'user', message: 'x'.repeat(100000), images: [] }
   const first = h.request('direct.post', input)
   await entered.promise
-  await assert.rejects(h.request('direct.post', input), { code: 'CONVERSATION_INPUT_BUSY', outcome: 'not_accepted' })
+  const second = h.request('direct.post', input)
   assert.equal((await h.request('rooms.list', {})).rooms.length, 1)
   await h.parent.control('routing.changed', { enabled: false, epoch: 2 })
-  release.resolve(); await first
+  release.resolve(); await first; await second
 })
 
 test('four stalled ordinary history streams leave callback and control progress available', { timeout: 4000 }, async t => {
