@@ -5,6 +5,13 @@ namespace BellTeam.Linux;
 
 public sealed class StoreAccountTests
 {
+    [Fact]
+    public void TheBadgeAndLineAreTheMacBillingPageHead()
+    {
+        Assert.Equal(("有効", SettingsTone.Green, "購読中です"), StoreAccount.Status(true));
+        Assert.Equal(("未設定", SettingsTone.Gray, "購読していません"), StoreAccount.Status(false));
+    }
+
     [Theory]
     [InlineData("none", 0, StoreAccountState.SignedOut)]
     [InlineData("none", 1, StoreAccountState.SignedOut)]

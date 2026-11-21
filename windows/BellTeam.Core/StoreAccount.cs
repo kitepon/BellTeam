@@ -13,6 +13,10 @@ public static class StoreAccount
         "signed" => StoreAccountState.Signed, // web sign-in (contract 1.20): never buys here
         _ => StoreAccountState.SignedOut,
     };
+
+    // The Mac 利用と課金 page head (SettingsSummary.billing): one badge and one sentence.
+    public static (string Badge, SettingsTone Tone, string Line) Status(bool entitled)
+        => entitled ? ("有効", SettingsTone.Green, "購読中です") : ("未設定", SettingsTone.Gray, "購読していません");
 }
 
 // Provisional words (the contract fixes behaviour, not copy): Tronie decides the final wording. No e-mail or name exists anywhere, so none is shown.
@@ -22,7 +26,12 @@ public static class StoreAccountText
     public const string SignedOut = "サインインしていません。";
     public const string SignIn = "Googleでサインイン";
     public const string SignedIn = "Googleでサインイン中";
-    public const string HandoffCannotBuy = "この端末では購入できません。";
+    public const string SignedInBrowser = "ブラウザーでサインイン中";
+    public const string WebCannotBuy = "ブラウザーでサインインした端末では、ここで購入できません。購読しているスマホから引き継いでください。";
+    public const string HandoffCancel = "やめる";
+    public const string HandoffCancelled = "引き継ぎをやめました。";
+    public const string StopAllOthersWhy = "このアカウントでログインしている、ほかのすべての端末を止めます。この端末は使い続けられます。Googleでもう一度サインインします。";
+    public const string StopAllOthersConfirm = "止める";
     public const string OtherAccount = "別のアカウントで購入したものがあります。このアカウントでは購読になりません。";
     public const string Refresh = "再確認";
     public const string StopAllOthers = "ほかの端末をすべて止める";
