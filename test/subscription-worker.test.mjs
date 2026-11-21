@@ -110,3 +110,23 @@ test('the library limits the anonymous paths per caller (CF-Connecting-IP), not 
   assert.equal((await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: { 'cf-connecting-ip': '192.0.2.2' } })).status, 200)
   assert.equal((await call('/auth/v1/signin/nonce', { headers: first })).status, 200, 'another path has its own count')
 })
+
+test('the Android return: assetlinks.json is served only when configured, the fallback page carries nothing, and the listed return and scheme are accepted', async () => {
+  const links = '[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"dev.kitepon.bellbot","sha256_cert_fingerprints":["AA"]}}]'
+  const off = await setup()
+  assert.equal((await off.send('/.well-known/assetlinks.json', { method: 'GET' })).status, 404)
+  const { send, call } = await setup({ LB_ASSETLINKS: links, LB_RETURN_SCHEMES: 'kitepon-bellbot', LB_RETURN_LINKS: `${ORIGIN}/auth/return/android` })
+  const listed = await send('/.well-known/assetlinks.json', { method: 'GET' })
+  assert.equal(listed.status, 200)
+  assert.equal(listed.headers.get('content-type'), 'application/json')
+  assert.equal(await listed.text(), links)
+  const page = await send('/auth/return/android?result=secret-code', { method: 'GET' })
+  assert.equal(page.status, 200)
+  assert.equal(page.headers.get('referrer-policy'), 'no-referrer')
+  assert.ok(!(await page.text()).includes('secret-code'), 'the page never echoes the result')
+  const secretHash = sha256('device-secret-0123456789abcdef')
+  for (const ret of [`${ORIGIN}/auth/return/android`, 'kitepon-bellbot://cb']) {
+    assert.equal((await call('/auth/v1/websignin/start', { body: { provider: 'google', return: ret, secretHash } })).status, 200, ret)
+  }
+  assert.equal((await call('/auth/v1/websignin/start', { body: { provider: 'google', return: `${ORIGIN}/auth/return/other`, secretHash } })).status, 400)
+})

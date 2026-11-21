@@ -3,6 +3,10 @@ import product from './product.json' with { type: 'json' }
 
 const WIRE_PREFIX = '/auth/v1'
 const CALLBACK_PATH = `${WIRE_PREFIX}/websignin/callback`
+// Android App Links: the https return of a web sign-in is handed to the app only when this host serves the app's certificate list.
+const ASSETLINKS_PATH = '/.well-known/assetlinks.json'
+const ANDROID_RETURN_PATH = '/auth/return/android'
+const PLAIN = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }
 const base64Url = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0))
 const list = value => (value ?? '').split(',').map(item => item.trim()).filter(Boolean)
 
@@ -60,6 +64,15 @@ export function createLoginBillingWorker({ storage = env => durableObjectStorage
   return {
     async fetch(request, env) {
       const path = new URL(request.url).pathname
+      if (path === ASSETLINKS_PATH && env.LB_ASSETLINKS) {
+        if (request.method !== 'GET') return new Response('GETを使ってください。', { status: 405, headers: { Allow: 'GET' } })
+        return new Response(env.LB_ASSETLINKS, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })
+      }
+      // The fallback return for a browser that did not hand the link to the app: a page that carries nothing and says to go back to the app.
+      if (path === ANDROID_RETURN_PATH) {
+        if (request.method !== 'GET') return new Response('GETを使ってください。', { status: 405, headers: { Allow: 'GET' } })
+        return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BellTeam</title><p>BellTeamアプリへ戻ってください。ログインがまだ終わっていなければ、アプリでやり直してください。</p>', { headers: { ...PLAIN, 'Content-Type': 'text/html; charset=utf-8' } })
+      }
       if (!path.startsWith(`${WIRE_PREFIX}/`)) return new Response('見つかりません', { status: 404 })
       // Every wire route is POST except the provider's callback (contract 1.20), a GET.
       const method = path === CALLBACK_PATH ? 'GET' : 'POST'
