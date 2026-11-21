@@ -119,6 +119,20 @@ test('restore keeps auth session, saved settings/error and stable projection wit
   await g.parent.control('quiesce'); await g.parent.control('exit')
 })
 
+test('a487n: a new child starts from a handoff of an older child that still carries webPush epochs and errors (Z166 lab)', async t => {
+  const f = await fixture(t)
+  await f.initialize()
+  await f.parent.control('quiesce'); const { handoff } = await f.parent.control('export'); await f.parent.control('exit')
+  // the older child (before Web push was removed) exports an epoch and an error for webPush
+  const older = { ...handoff, epochs: [...handoff.epochs, ['webPush', 3]], errors: [...handoff.errors, ['webPush', 'WEB_PUSH_SEND_FAILED']] }
+  const g = await fixture(t, { root: f.root, generation: 'generation-b', projection: f.projection })
+  await g.parent.control('initialize', { generation: g.generation, mode: 'restore', bootstrap, handoff: older })
+  await g.parent.ready
+  assert.ok(!g.projection.list().some(item => item.id === 'webPush'))
+  assert.deepEqual(Object.keys(g.projection.settingsRow?.().epochs ?? {}).includes('webPush'), false)
+  await g.parent.control('quiesce'); await g.parent.control('exit')
+})
+
 test('an old live effect callback finishes through drain using the same lease and captured authority', async t => {
   const entered = deferred(), release = deferred(); let live
   const f = await fixture(t, { effect: (method, params, context) => {

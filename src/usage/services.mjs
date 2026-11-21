@@ -257,9 +257,10 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       await secretRequests.initialize({ readOnly: restore })
       await ownerQuestions.initialize({ readOnly: restore })
       if (state) {
-        for (const [id, epoch] of state.epochs) epochs.set(id, epoch)
+        // a487n: a handoff from an older child may carry a feature this child no longer has (webPush); only the ids of this child's own list are taken.
+        for (const [id, epoch] of state.epochs) if (epochs.has(id)) epochs.set(id, epoch)
         if (Object.hasOwn(settings, 'routingEpoch')) settings.routingEpoch = epochs.get('routing')
-        for (const [id, code] of state.errors) settings.setError(id, { code })
+        for (const [id, code] of state.errors) if (epochs.has(id)) settings.setError(id, { code })
         harnessAuth.sessions = state.sessions; harnessAuth.receipts = state.receipts; onboarding.auth = receipt(state.onboardingAuth, onboarding.state.authSession)
       }
       syncOnePassword(); await onePasswordConnection()
