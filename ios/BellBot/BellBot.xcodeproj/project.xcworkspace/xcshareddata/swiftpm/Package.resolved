@@ -1,5 +1,5 @@
 {
-  "originHash" : "1d95b3dff7b821b9c42ec200d53459d5738025bc1582cc6a023893eeece4b63d",
+  "originHash" : "7d636a03a68064080fb4ecdc8f1863849fba0160858a411870c1b085c2658b6f",
   "pins" : [
     {
       "identity" : "chatlayout",
@@ -15,6 +15,15 @@
       "location" : "https://github.com/quolu/enriched-markdown-ios.git",
       "state" : {
         "revision" : "9f7204661671717ef90c701a23c8cba9ed54c613"
+      }
+    },
+    {
+      "identity" : "login-billing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kitepon/login-billing.git",
+      "state" : {
+        "revision" : "20c49ae5deb0414ab396ce98cd5107c78d77bfea",
+        "version" : "0.17.0"
       }
     }
   ],

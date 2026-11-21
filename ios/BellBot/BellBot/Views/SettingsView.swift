@@ -453,7 +453,7 @@ struct SettingsPageView: View {
             case .exclusions: RunningExclusionsPage()
             case .connection: ConnectionSettingsPage()
             case .display: DisplaySettingsPage()
-            case .billing: SettingsCardPage(page: page) { SubscriptionCard() }
+            case .billing: SettingsCardPage(page: page) { StoreAccountCard(); SubscriptionCard() }
             case .update:
                 ScrollView {
                     if navigator != nil { Text(page.title).font(.title2.bold()).frame(maxWidth: 620, alignment: .leading).padding(.horizontal, 18).padding(.top, 18) }

@@ -35,6 +35,9 @@ struct LoginFailure: Error, LocalizedError, Equatable {
         case "LOGIN_RATE_LIMITED": "しばらく待ってからもう一度お試しください。"
         case "LOGIN_OPERATOR_UNREACHABLE": "運営の確認先に届きません。サーバーのコードで入ることができます。"
         case "SESSION_STORE_UNAVAILABLE": "サーバーの準備中です。"
+        case "AUDIENCE_UNKNOWN": "このサーバーはこの接続先を知りません。サーバーに登録された接続先で開き直してください。"
+        case "PROOF_REFUSED": "運営の確認が通りませんでした。もう一度お試しください。"
+        case "NOT_OWNER_ACCOUNT": "このサーバーの持ち主のアカウントではありません。"
         default: "BellTeamがログインを受け付けませんでした（\(status)）。"
         }
     }

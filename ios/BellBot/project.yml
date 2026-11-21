@@ -11,6 +11,7 @@ settings:
     # App Group（先頭 group.）がこの値から揃う。コマンドラインの PRODUCT_BUNDLE_IDENTIFIER では
     # 拡張まで上書きされるため、署名時は BELLTEAM_APP_BUNDLE_IDENTIFIER を使う。
     BELLTEAM_APP_BUNDLE_IDENTIFIER: dev.kitepon.bellbot
+    BELLTEAM_LOGIN_BILLING_URL: ""
     TARGETED_DEVICE_FAMILY: '1,2'
     "TARGETED_DEVICE_FAMILY[sdk=macosx*]": '6'
     SUPPORTS_MACCATALYST: YES
@@ -23,6 +24,9 @@ packages:
   EnrichedMarkdown:
     url: https://github.com/quolu/enriched-markdown-ios.git
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
+  LoginBilling:
+    url: https://github.com/kitepon/login-billing.git
+    exactVersion: 0.17.0
 targets:
   BellTeam:
     type: application
@@ -59,6 +63,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
+        # 運営のWorker（共通ログイン・課金ライブラリの接続先）。未設定の間は店の側の画面を出さない。
+        BellTeamLoginBillingURL: $(BELLTEAM_LOGIN_BILLING_URL)
         NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するためにローカルネットワークを使います。
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
@@ -105,11 +111,15 @@ targets:
         com.apple.developer.usernotifications.communication: true
         keychain-access-groups:
           - $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
+        com.apple.developer.applesignin:
+          - Default
     dependencies:
       - package: ChatLayout
         product: ChatLayout
       - package: EnrichedMarkdown
         product: EnrichedMarkdown
+      - package: LoginBilling
+        product: LoginBilling
       - target: NotificationService
         embed: true
         link: false
