@@ -172,7 +172,7 @@ flowchart LR
   Export[既export・全件caller] --> Full[既list2 / 全件・既usage合成]
 ```
 
-親は`history.page`へkind/id、URLから得たlimit/before/after文字列又はnull、Botのsecret/question二列又はRoomのsecret一列のid/atだけを渡す。本文は親が同snapshotで保持し、子が返したsource/indexを作者の閉DTO検証後に同位置へ戻す。子は履歴本文だけをsource:0で返す。既limit既定値・上限・小数・未知cursor・after全差分・同時刻順・has_more/remaining_beforeはN102が既timelinePageを使い保持する。guide取得の部分失敗も従来どおりカードを失わない。
+親は`history.page`へkind/id、URLから得たlimit/before/after文字列又はnull、Botのsecret/question二列又はRoomのsecret一列のid/atだけを渡す。本文は親が同snapshotで保持し、子が返したsource/indexを作者の閉DTO検証後に同位置へ戻す。子は履歴本文だけをsource:0で返す。既limit既定値・上限・小数・未知cursor・after全差分・同時刻順・has_more/remaining_beforeはN102が既timelinePageを使い保持する。guide取得の部分失敗も従来どおりカードを失わない。 a471-page-request-bound: cardsは親がページに入り得る分（各列の最後のlimit件。before/afterは基準時刻の前後）だけに絞り、絞って除いた各列の古い件数を入力`skipped`（cardsと同順の整数列、省略は全0）で渡す。子はskippedをremaining_beforeとhas_moreの判定に足す。基準時刻が分からない読み出しは従来どおり全件を渡す。詳細はmachine-stream.mdの「History pages of a long stream」。
 
 `recentViews`は入力順・重複を含む子のrecentBatch列を検証し、Mapの最後の値と既TimelineIndexへ戻す。GET botsだけがこの窓口を優先し、usage合成、認可/read pin、await後の在席/pending再確認と公開shapeは既members handlerのまま。timelineViews/timelineViewとRoom一覧の全件契約、exportは保持する。page/recentBatchは元actual completionを保持して待ち、失敗を空pageへ変えない。子の接点・DTO・stream分類の正本はN102の[会話process](../conversation/process.md)、共通coalesceはruntimeの[module IPC](../runtime/module-ipc.md)を参照する。
 
