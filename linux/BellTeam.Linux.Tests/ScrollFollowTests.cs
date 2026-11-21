@@ -29,7 +29,7 @@ public sealed class ScrollFollowTests(ITestOutputHelper output)
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                var p when p.Contains("/messages?limit=100") => "{\"items\":[" + Rows(100) + "],\"has_more\":false}",
+                var p when p.Contains("/messages?limit=1000") && !p.Contains("before=") => "{\"items\":[" + Rows(100) + "],\"has_more\":false}",
                 _ => null
             };
             return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });

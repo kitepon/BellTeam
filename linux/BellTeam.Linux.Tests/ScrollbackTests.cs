@@ -29,8 +29,8 @@ public sealed class ScrollbackTests
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                var p when p.Contains("/messages?limit=100") => "{\"items\":[" + Rows("first", 3, 5000) + "],\"has_more\":true}",
-                var p when p.Contains("/messages?limit=500&before=") => "{\"items\":[" + Rows("old" + older + "-", 40, 5000 - 100 * older) + "],\"has_more\":true}",
+                var p when p.Contains("/messages?limit=1000") && !p.Contains("before=") => "{\"items\":[" + Rows("first", 3, 5000) + "],\"has_more\":true}",
+                var p when p.Contains("/messages?limit=1000&before=") => "{\"items\":[" + Rows("old" + older + "-", 40, 5000 - 100 * older) + "],\"has_more\":true}",
                 _ => null
             };
             return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
@@ -49,9 +49,9 @@ public sealed class ScrollbackTests
         using (model)
         {
             var older = server.Reads.Where(read => read.Contains("before=")).ToArray();
-            Assert.StartsWith("/api/bots/b1/messages?limit=100", server.Reads[0]);
+            Assert.StartsWith("/api/bots/b1/messages?limit=1000", server.Reads[0]);
             Assert.NotEmpty(older);                                              // nobody scrolled or pressed the button
-            Assert.All(older, read => Assert.Matches(@"limit=500&before=[^&]+&before_at=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$", read));
+            Assert.All(older, read => Assert.Matches(@"limit=1000&before=[^&]+&before_at=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$", read));
             var settled = older.Length; for (var round = 0; round < 25; round++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(20); }
             Assert.Equal(settled, server.Reads.Count(read => read.Contains("before=")));   // enough is loaded above the view: no more reads
             Assert.True(model.HasMore);                                          // the history goes on; reading stopped because the view has enough

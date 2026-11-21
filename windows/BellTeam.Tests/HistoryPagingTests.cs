@@ -44,12 +44,12 @@ public sealed class HistoryPagingTests
                     });
                 })));
                 workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult(); workspace.SelectAsync(workspace.Entries.Single()).GetAwaiter().GetResult();
-                Assert.Equal("?limit=100", requests[0]);
+                Assert.Equal("?limit=1000", requests[0]);
                 var around = new List<int>(); workspace.OlderRowsAdding += () => around.Add(workspace.Messages.Count); workspace.OlderRowsAdded += () => around.Add(workspace.Messages.Count);
                 var first = workspace.LoadOlderAsync(); var second = workspace.LoadOlderAsync(); // the second waits for the first
                 gate.SetResult(); Task.WaitAll(first, second);
                 Assert.Single(requests, query => query.Contains("before="));
-                Assert.Equal("?limit=500&before=m2&before_at=2026-11-21T01:00:00.125Z", requests.Single(query => query.Contains("before=")));
+                Assert.Equal("?limit=1000&before=m2&before_at=2026-11-21T01:00:00.125Z", requests.Single(query => query.Contains("before=")));
                 Assert.Equal(["m1", "m2"], workspace.Messages.Select(item => item.Message.Id));
                 Assert.Equal([1, 2], around); // a471-scroll-jump: the app reads its position just before the rows land and restores it just after, once for the page
             }
