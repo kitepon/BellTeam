@@ -1,4 +1,4 @@
-// @kitepon/login-billing 0.16.0 login-billing-home.mjs
+// @kitepon/login-billing 0.17.0 login-billing-home.mjs
 
 // dist/server/crypto.js
 var encoder = new TextEncoder();
@@ -48,6 +48,7 @@ var HOME_STATUS = {
   LOGIN_CODE_INVALID: 403,
   PROOF_REFUSED: 403,
   NOT_OWNER_ACCOUNT: 403,
+  FORBIDDEN: 403,
   SESSION_NOT_FOUND: 404,
   LOGIN_RATE_LIMITED: 429,
   LOGIN_OPERATOR_UNREACHABLE: 503,
@@ -55,9 +56,11 @@ var HOME_STATUS = {
 };
 var HomeError = class extends Error {
   code;
-  constructor(code) {
+  events;
+  constructor(code, events = []) {
     super(code);
     this.code = code;
+    this.events = events;
     this.name = "HomeError";
   }
 };
@@ -148,9 +151,10 @@ function createHomePart(config) {
   async function nonceMac(secret, body) {
     return b64u((await hmacSha256(fromB64u(secret), utf8("home-nonce:" + body))).slice(0, 16));
   }
-  async function nonce(peer = "") {
+  async function nonce(peer = "", counted = true) {
     const s = await current();
-    cap("nonce", peer);
+    if (counted)
+      cap("nonce", peer);
     const body = now().toString(36) + "." + b64u(randomBytes(12));
     return { nonce: body + "." + await nonceMac(s.nonceSecret, body) };
   }
@@ -221,35 +225,51 @@ function createHomePart(config) {
     const audience = input.audience;
     const binding = s0.owner === null || viaConsole && "console" in (s0.owner ?? {});
     let register = false;
+    let spent = false;
     if (s0.owner === null) {
       if (typeof input.setupCode !== "string" || !input.setupCode)
         fail("SETUP_CODE_REQUIRED");
-      if (!setup || setup.until <= now() || !sameHex(await hashHex(input.setupCode), setup.hash))
+      const h = await hashHex(input.setupCode);
+      const shown = setup;
+      if (!shown || shown.until <= now() || !sameHex(h, shown.hash))
         fail("LOGIN_CODE_INVALID");
       register = !s0.addresses.includes(audience);
+      cap("prove", peer);
+      setup = void 0;
+      spent = true;
     } else if (!s0.addresses.includes(audience)) {
       fail("AUDIENCE_UNKNOWN");
+    } else {
+      cap("prove", peer);
     }
-    cap("prove", peer);
-    if (register)
-      await mutate((s2) => {
-        if (!s2.addresses.includes(audience))
-          s2.addresses.push(audience);
+    let made;
+    try {
+      if (register)
+        await mutate((s2) => {
+          if (!s2.addresses.includes(audience))
+            s2.addresses.push(audience);
+        });
+      const p = await proveTake(input.code, audience, input.nonce);
+      const owner = (await current()).owner;
+      if (!binding && !(owner && "k" in owner && owner.k === p.k))
+        fail("NOT_OWNER_ACCOUNT");
+      made = await newSession("account", input.kind, p, typeof input.ticketFor === "string" && utf8(input.ticketFor).length <= 64 ? input.ticketFor : void 0);
+      await mutate((st) => {
+        if (binding) {
+          const still = st.owner === null || viaConsole && "console" in st.owner;
+          if (!still)
+            fail("NOT_OWNER_ACCOUNT");
+          st.owner = { k: p.k };
+          st.enforced = true;
+        }
+        st.sessions.push(made.s);
       });
-    const p = await proveTake(input.code, audience, input.nonce);
-    const owner = (await current()).owner;
-    if (!binding && !(owner && "k" in owner && owner.k === p.k))
-      fail("NOT_OWNER_ACCOUNT");
-    const { token, s } = await newSession("account", input.kind, p, typeof input.ticketFor === "string" && utf8(input.ticketFor).length <= 64 ? input.ticketFor : void 0);
-    await mutate((st) => {
-      if (binding) {
-        st.owner = { k: p.k };
-        st.enforced = true;
-      }
-      st.sessions.push(s);
-    });
-    if (binding)
-      setup = void 0;
+    } catch (e) {
+      if (spent && (!state || state.owner === null))
+        throw new HomeError(e instanceof HomeError ? e.code : "SESSION_STORE_UNAVAILABLE", [{ type: "setup.needed" }]);
+      throw e;
+    }
+    const { token, s } = made;
     return { token, sessionId: s.id, state: s.state, entitlements: s.ents, events: [{ type: "session.created", sessionId: s.id }] };
   }
   async function reprove(sessionId, input) {
@@ -335,9 +355,9 @@ function createHomePart(config) {
   }
   async function consoleLogin(code, peer = "") {
     await current();
-    cap("console", peer);
     if (typeof code !== "string" || code.length > 64)
       fail("LOGIN_INPUT_INVALID");
+    cap("console", peer);
     const h = await hashHex(code);
     const until = consoleCodes.get(h);
     consoleCodes.delete(h);
@@ -481,7 +501,7 @@ function createHomeHandler(part) {
       return json(200, { ...st, ...s2 ? { session: { id: s2.id, kind: s2.kind, state: s2.state, entitlements: s2.ents } } : {} });
     }
     if (m === "POST" && path === "login/nonce")
-      return json(200, await part.nonce(peer));
+      return json(200, await part.nonce(peer, !await part.sessionOf(r.headers)));
     if (m === "POST" && path === "login/prove") {
       const caller = await part.sessionOf(r.headers);
       const { events, ...out } = await part.prove(parse(r.body), peer, caller?.kind === "console");
@@ -496,7 +516,7 @@ function createHomeHandler(part) {
       throw new HomeError("UNAUTHORIZED");
     if (m === "POST" && path === "session/prove") {
       if (s.kind !== "account")
-        throw new HomeError("LOGIN_INPUT_INVALID");
+        throw new HomeError("FORBIDDEN");
       const { events, ...out } = await part.reprove(s.id, parse(r.body));
       return json(200, out, events);
     }
@@ -516,7 +536,7 @@ function createHomeHandler(part) {
       }
       if (m === "DELETE") {
         if (s.kind !== "console")
-          throw new HomeError("UNAUTHORIZED");
+          throw new HomeError("FORBIDDEN");
         return json(200, { addresses: await part.removeAddress(String(b.address)) });
       }
     }
@@ -527,7 +547,7 @@ function createHomeHandler(part) {
       return await route(r);
     } catch (e) {
       const code = e instanceof HomeError ? e.code : "SESSION_STORE_UNAVAILABLE";
-      return json(HOME_STATUS[code], { error: code });
+      return json(HOME_STATUS[code], { error: code }, e instanceof HomeError ? e.events : []);
     }
   };
 }

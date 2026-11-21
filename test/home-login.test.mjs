@@ -9,10 +9,10 @@ import test from 'node:test'
 import { createHomeLogin } from '../src/usage/home-login.mjs'
 import { createHomeFront } from '../src/home-login-front.mjs'
 
-// The vendored library files are byte-identical to the development release (v0.16.0); a repin changes these two lines.
+// The vendored library files are byte-identical to the development release (v0.17.0, the repair of Airi's audit); a repin changes these two lines.
 const PINS = {
-  'src/usage/vendor/login-billing-home.mjs': '9d6c3f1d26bbcb1f6a4f93766d7adcde22952c738705c4f282c6cd6e678d3a3f',
-  'src/vendor/login-billing-home-guard.mjs': '959ac108f19ac792e67e1b0d49b7589a9dab09661ef158781b110bd317f23917',
+  'src/usage/vendor/login-billing-home.mjs': 'a0ebdadae97d0b8dee113fd2b7138b30e17b681af32a30af67803e939ea9d109',
+  'src/vendor/login-billing-home-guard.mjs': '911236d0c2f8c9dd6c724f69962ddbaa8a8f45ea725b17965aa0971287c2994c',
 }
 const GOOD = 'A'.repeat(22)
 const ORIGIN = 'http://192.168.1.2:18893'
@@ -154,23 +154,19 @@ test('console: issue a code, log in as a console session (no pass), list, revoke
   } finally { await t.close() }
 })
 
-test('a proof that did not bind but spent the setup code (event setup.needed, contract 1.22) shows a new code', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'home-login-'))
-  const prints = []
-  const home = createHomeLogin({ path: join(dir, 'login-home.json'), operator: 'https://operator.test/auth/v1', fetch: async () => new Response('{}', { status: 404 }) })
-  // The 1.22 handler is not vendored yet: a stand-in child answers like it will.
-  const call = async (name, params) => name === 'home.handle' ? { status: 403, headers: {}, body: '{"error":"PROOF_REFUSED"}', setupNeeded: true } : home[name.slice(5)](params)
-  const front = createHomeFront({ call, markerPath: join(dir, 'login-enforced'), print: line => prints.push(line), setTimer: () => ({ unref() {} }) })
-  const server = createServer(async (request, response) => { await front.route(request, response, new URL(request.url, 'http://x')) })
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+test('a right setup code is spent even when the proof does not bind (1.22): the host is shown a new code, the old one is dead', async () => {
+  const t = await setup({ operatorStatus: { prove: 503, check: 200 } })
   try {
-    await front.start()
-    const before = prints.length
-    const answer = await fetch(`http://127.0.0.1:${server.address().port}/api/home/login/prove`, { method: 'POST', body: '{}' })
-    assert.equal(answer.status, 403)
-    assert.equal(prints.length, before + 1)
-    assert.match(prints.at(-1), /setup code/u)
-  } finally { server.closeAllConnections(); server.close(); await rm(dir, { recursive: true, force: true }) }
+    await t.front.start()
+    const spent = code(t.prints)
+    const failed = await t.login({ setupCode: spent })
+    assert.equal(failed.status, 503) // the operator cannot be reached
+    assert.equal(t.prints.length, 2)
+    assert.notEqual(code(t.prints), spent)
+    t.operator.status.prove = 200
+    assert.equal((await t.login({ setupCode: spent })).body.error, 'LOGIN_CODE_INVALID')
+    assert.equal((await t.login({ setupCode: code(t.prints) })).status, 200)
+  } finally { await t.close() }
 })
 
 // The usage child's closed surface (a485): system-only home.* methods, results checked as the channel checks them.
