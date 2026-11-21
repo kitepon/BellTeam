@@ -8,13 +8,19 @@ namespace BellTeam.Tests;
 public sealed class HistoryPagingTests
 {
     [Fact]
-    public void PrefetchReadsWhileLessThanThreeScreensOr2SecondsOfSpeedIsDrawnAboveTheView()
+    public void PrefetchReadsWhileLessThanOneScreenOr2SecondsOfSpeedIsDrawnAboveTheView()
     {
-        // 1000 px view: the floor is max(3000, 2 * speed). Only what is drawn counts: the rows held and the extent do not change the answer (machine-stream.md "Fill rule").
-        Assert.True(HistoryPaging.NeedsOlderPage(2999, 1000, 0)); Assert.False(HistoryPaging.NeedsOlderPage(3000, 1000, 0));
+        // 1000 px view: the floor is max(1000, 2 * speed) (11/21 ruling; it was 3 screens). Only what is drawn counts: the rows held and the extent do not change the answer (machine-stream.md "Fill rule").
+        Assert.True(HistoryPaging.NeedsOlderPage(999, 1000, 0)); Assert.False(HistoryPaging.NeedsOlderPage(1000, 1000, 0));
         Assert.True(HistoryPaging.NeedsOlderPage(19999, 1000, 10000)); Assert.False(HistoryPaging.NeedsOlderPage(20000, 1000, 10000));
         Assert.True(HistoryPaging.NeedsOlderPage(0, 1000, 0)); // the first screen: a short list has nothing above the view
         Assert.False(HistoryPaging.NeedsOlderPage(0, 0, 0)); // not laid out yet
+    }
+
+    [Fact]
+    public void TheOpenReadsOlderPagesOnlyWhileTheDrawnRowsDoNotFillOneScreen()
+    {
+        Assert.True(HistoryPaging.NeedsFirstScreen(999, 1000)); Assert.False(HistoryPaging.NeedsFirstScreen(1000, 1000)); Assert.False(HistoryPaging.NeedsFirstScreen(0, 0));
     }
 
     [Fact]

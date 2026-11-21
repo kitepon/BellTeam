@@ -452,7 +452,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     {
         var activeSelection = selection;
         var last = Received().LastOrDefault()?.Id;
-        var page = await current.GetAsync<MessagePage>(target.Path + "/messages?limit=30", token);
+        var page = await current.GetAsync<MessagePage>(target.Path + "/messages?limit=10", token);
         var after = last is null ? Array.Empty<TimelineMessage>()
             : (await current.GetAsync<MessagePage>(target.Path + "/messages?after=" + Uri.EscapeDataString(last), token)).Items;
         if (selected?.Target != target || Loading || api != current || selection != activeSelection) return;
