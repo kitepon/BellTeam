@@ -221,8 +221,8 @@ Under reading 3 (design-reading3.md draft 0.2 sections 2 to 4) every device sign
 | --- | --- |
 | Sign-in entry, title | BellTeamにサインイン |
 | Sign-in entry, buttons (only what the device can use) | Appleでサインイン / Googleでサインイン |
-| Sign-in entry, note under the buttons | ブラウザーが開きます。サインインが終わると、このアプリに戻ります。 |
-| Waiting for the browser (button: やめる) | ブラウザーでサインインしています… |
+| Sign-in entry, note under the buttons. **Windows and Linux only** (system-browser sign-in). Android (Credential Manager sheet) and Apple (native Sign in with Apple sheet) show no note; a cross-provider sign-in on a phone that does open the browser is not offered a note until Tronie says | ブラウザーが開きます。サインインが終わると、このアプリに戻ります。 |
+| Waiting for the browser (button: やめる). Only where the system browser was opened (Windows, Linux) | ブラウザーでサインインしています… |
 | Return not received | サインインの結果がこのアプリに届きませんでした。このパソコン自身のブラウザーで、もう一度サインインしてください。 |
 | Account is not the server owner | このサーバーの持ち主のアカウントではないため、ログインできませんでした。 |
 | Setup-code field (only at the first binding of an unbound server), label | セットアップコード |
@@ -237,6 +237,14 @@ Under reading 3 (design-reading3.md draft 0.2 sections 2 to 4) every device sign
 | Phone's approval, no live contract | 先に購読してください。 |
 | Phone's approval, other account | このコードは、別のアカウントのものです。 |
 | Paywall, instead of the app, when `entitlementState` is `none` (buttons: 再確認 / 接続先を変更) | このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。 |
+| Account and subscription page (phone apps; Neon's words, adopted): title | アカウントと購読 |
+| Account page, signed out | サインインしていません。 |
+| Account page, sign-in button (Android: Google) / signed-in line | Googleでサインイン / Googleでサインイン中 |
+| Account page, a device that cannot buy | この端末では購入できません。 |
+| Account page, a purchase of another account | 別のアカウントで購入したものがあります。このアカウントでは購読になりません。 |
+| Account page, buttons | 再確認 / ほかの端末をすべて止める / サインアウト |
+| Account page, subscription connection not set | 購読の接続先がまだ決まっていません。 |
+| Account page, errors | この商品はまだ読み込めていません。もう一度お試しください。 / サインインし直してください。 / うまくいきませんでした（コード） |
 | Server address not registered | このサーバーは、この接続先を登録していません。サーバーのコンソールで追加するか、すでに入っているアプリから「いまの接続先を追加」してください。 |
 | Server not ready (cannot judge) | サーバーの準備中です。 |
 
