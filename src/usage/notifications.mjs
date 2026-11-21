@@ -1,5 +1,4 @@
 import { validateNotificationRequest } from './notifications-dispatcher.mjs'
-import { webPushError } from './web-push-schema.mjs'
 
 const unavailable = () => Object.assign(new Error('PUSH_UNAVAILABLE'), { code: 'PUSH_UNAVAILABLE', status: 503, outcome: 'not_accepted', publicMessage: '通知を利用できません。' })
 
@@ -61,11 +60,6 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
       if (['PUSH_DEVICE_INVALID', 'PUSH_NOT_CONFIGURED', 'PUSH_ENVIRONMENT_UNAVAILABLE'].includes(error.code)) {
         throw Object.assign(new Error(error.code), { code: error.code, outcome: error.outcome })
       }
-      if (params.provider === 'webPush' && /^WEB_PUSH_/u.test(error.code ?? '')) {
-        const status = ['WEB_PUSH_DISABLED', 'WEB_PUSH_KEY_MISMATCH', 'WEB_PUSH_SUBSCRIPTION_EXPIRED', 'WEB_PUSH_SUBSCRIPTION_CONFLICT'].includes(error.code) ? 409
-          : ['WEB_PUSH_INPUT_INVALID', 'WEB_PUSH_SERVICE_UNSUPPORTED', 'WEB_PUSH_DESTINATION_FORBIDDEN'].includes(error.code) ? 400 : 503
-        throw webPushError(error.code, status, error.outcome)
-      }
       throw error
     }
   }
@@ -84,22 +78,13 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
       if (state.applyError?.apns) throw Object.assign(new Error(state.applyError.apns), { code: state.applyError.apns })
       return state.status.apns
     },
-    initialWebStatus: async () => {
-      if (!state.available) throw unavailable()
-      if (state.applyError?.webPush) throw webPushError(state.applyError.webPush, 503)
-      return state.status.webPush
-    },
     status: value => apns('status', value),
     configure: value => apns('configure', value),
     register: value => apns('register', value),
     unregister: value => apns('unregister', value),
-    webStatus: (endpoint, origin) => request('status', endpoint === undefined ? { provider: 'webPush' } : { provider: 'webPush', origin, endpoint }),
     androidStatus: () => request('status', { provider: 'fcm' }),
     androidRegister: value => request('register', { ...value, provider: 'fcm' }),
     androidUnregister: value => request('unregister', { ...value, provider: 'fcm' }),
-    configureWebPush: value => request('configure', { ...value, provider: 'webPush' }),
-    webRegister: (value, origin) => request('register', { ...value, origin, provider: 'webPush' }),
-    webUnregister: (value, origin) => request('unregister', { ...value, origin, provider: 'webPush' }),
     update: callback(item => ({ type: 'update', id: item.id })),
     direct: callback(record => record?.schema === 'bellteam.direct-message.v1' && record.target === 'user' && !['user', 'scheduler'].includes(record.from)
       ? { type: 'direct', id: record.delivery_id, botId: record.from, senderName: senderName(record.from) } : null),

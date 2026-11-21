@@ -24,10 +24,10 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   const adoptionPath = join(root, 'state/notifications-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, phase = 'unavailable'
   let builtinSourceCommit = null
-  let status = null, applyError = { apns: null, webPush: null }, available = false, exchanging = false, update = null, closed = false
+  let status = null, applyError = { apns: null }, available = false, exchanging = false, update = null, closed = false
   let configurationEpoch = -1, capturedConfiguration = null
-  const desiredEpoch = { apns: -1, webPush: -1 }, appliedEpoch = { apns: null, webPush: null }, errorEpoch = { apns: -1, webPush: -1 }
-  const providers = ['apns', 'webPush']
+  const desiredEpoch = { apns: -1 }, appliedEpoch = { apns: null }, errorEpoch = { apns: -1 }
+  const providers = ['apns']
   let operation = null, cancellation = null, closing = null, configuring = 0, initialized = false
   const recovery = createModuleChildRestart(async () => {
     await operation?.catch(() => {})
@@ -58,7 +58,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   }, 'notifications', onModuleRestartLimit)
   const captureConfiguration = (provider, expected) => {
     const next = structuredClone(configuration())
-    if (!next || Object.keys(next).sort().join(',') !== 'apns,webPush') throw failure('NOTIFICATIONS_CONFIGURATION_INVALID')
+    if (!next || Object.keys(next).sort().join(',') !== 'apns') throw failure('NOTIFICATIONS_CONFIGURATION_INVALID')
     if (provider && !isDeepStrictEqual(next[provider], expected)) throw failure('PUSH_CONFIGURATION_STALE', 409)
     if (provider || !isDeepStrictEqual(next, capturedConfiguration)) {
       configurationEpoch++

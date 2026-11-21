@@ -57,7 +57,6 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
   }
   const initialize = async () => {
     const initial = [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.initialStatus ? notifications.initialStatus() : notifications.configure(value)]]
-    if (notifications.initialWebStatus || notifications.configureWebPush) initial.push(['webPush', value => notifications.initialWebStatus ? notifications.initialWebStatus() : notifications.configureWebPush(value)])
     for (const [id, apply] of initial) {
       const state = settings.configurationState?.(id)
       try { await apply(state?.configuration ?? settings.configuration(id)) }
@@ -96,7 +95,6 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
             throw Object.assign(new Error('CONVERSATION_ROUTING_APPLY_FAILED'), { code: 'CONVERSATION_ROUTING_APPLY_FAILED' })
           }
         }
-        if (id === 'webPush') await notifications.configureWebPush(config)
         if (id === 'thinkingDisplay') services.machineStream?.displayChanged()
       } catch (error) {
         await setError(id, error, epoch)
