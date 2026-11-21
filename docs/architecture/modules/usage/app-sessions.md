@@ -203,7 +203,7 @@ Events on the existing stream (`GET /api/events`, same `{type, …}` envelope as
 
 ### 7d. Which task covers which screen
 
-Each app row builds, on this section: the connect screen (probe, start, wait, console code field, token store), the setup-code binding screen (a setup code goes with `start`; it is shown on the server console, not in an app), the requests screen (approve / deny), "add an app" (code display) and the session list with revoke. Token storage is the app's: Windows DPAPI file, Linux 0600 file (libsecret later), Android Keystore-backed preferences, Apple Keychain (shared access group), Web the cookie.
+Each app row builds, on this section: the sign-in screens of 7f (probe, sign-in, wait, setup-code field, QR handoff; no console-code field in an official app), the setup-code binding screen (a setup code goes with `start`; it is shown on the server console, not in an app), the requests screen (approve / deny), "add an app" (code display) and the session list with revoke. Token storage is the app's: Windows DPAPI file, Linux 0600 file (libsecret later), Android Keystore-backed preferences, Apple Keychain (shared access group), Web the cookie.
 
 ### 7e. Who may use BellTeam without paying (Owner decision 2026-11-22 00:3x JST, via Tronie; one wording for every app)
 
@@ -211,15 +211,34 @@ Each app row builds, on this section: the connect screen (probe, start, wait, co
 
 **The gate is the server's own entitlement, shown by each native app** (Tronie's ruling, unchanged): after login every native app reads `GET /api/subscription` → `subscription.entitlementState` (`active` | `none` | `unknown`; the field is optional, an older server has none). Only on `none` does the app show the paywall instead of the app; on `active`, `unknown` or no field it shows the app. `none` is set once the server holds its own pass and the operator says there is no contract (the library mount); a console-bound server with no pass is `none`. There is no per-app purchase gate on Windows or Linux, Android does not need Play Billing back for gating (it buys only when it is a store device, which feeds the same server pass), and no trustworthy `kind` is needed. Accepted limit: a modified client could skip its own gate; the data is the user's own and the operator-side paid features (the push relay) stay gated by the server's pass. A build of the open-source code is not an official app and carries no gate of the foundation's making.
 
-| Where | Text (Japanese, as shown) |
+**Official apps have no console-code entry** (Tronie's ruling, 2026-11-22). The only path into an official app is Apple or Google sign-in, then the phone's QR approval when the device has no store receipt, then the setup code at the first binding. Console-issued sessions stay a server feature, for host-local tools (for example the rabbit secret client) and for clients people build from the published source; no official app shows a field for them, and the "add an app" code and screen are not in an official app either. The paywall below is the only text of this section that a person without a contract sees besides the login screens of 7f.
+
+### 7f. One wording table for the login screens (Mika owns it; every app uses these sentences)
+
+Under reading 3 (design-reading3.md draft 0.2 sections 2 to 4) every device signs in itself, so the screens are: the sign-in entry, the wait for the browser, "return not received", the account refusal, the setup-code field, the handoff QR for a device with no store receipt, the phone's approval, the paywall, and the errors. The sentences for the sign-in and the QR screens are Anis's proposal (2026-11-22), adopted as written; the phone's own approval texts, the paywall and the server errors are Mika's. Until Mint's contract is fixed nothing here is final; the screens that fall away (the requests approve/deny, "add an app", the console-code entry, the session list built on section 7c) have no sentence and are not in an official app.
+
+| Screen | Text (Japanese, as shown) |
 | --- | --- |
-| Paywall, instead of the app, when `entitlementState` is `none` | このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。 |
-| Phone app, when its account has no live contract and the owner tries to approve | 先に購読してください。 |
-| "Add an app" screen | この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったものは、このアプリが終わると一緒に終わります。 |
-
-The connect screen offers the code field whenever the server answers `login.capability: true`, with or without a contract: the apps cannot know the contract, so the code way is always shown. A session made by a console or "add an app" code decides nothing about the contract (section 3). The Web connect text of the earlier 7e is gone with the Web version.
-
-> Status of this page (2026-11-22): section 7e above is current. Sections 2 to 8 are the input of Mint's contract and are being redesigned by Mint under the Owner's reading that every device signs in with Apple or Google (selfhosted-form 0.2 is not to be built from). Nothing here is built; read sections 2 to 8 as superseded wherever the new contract differs.
+| Sign-in entry, title | BellTeamにサインイン |
+| Sign-in entry, buttons (only what the device can use) | Appleでサインイン / Googleでサインイン |
+| Sign-in entry, note under the buttons | ブラウザーが開きます。サインインが終わると、このアプリに戻ります。 |
+| Waiting for the browser (button: やめる) | ブラウザーでサインインしています… |
+| Return not received | サインインの結果がこのアプリに届きませんでした。このパソコン自身のブラウザーで、もう一度サインインしてください。 |
+| Account is not the server owner | このサーバーの持ち主のアカウントではないため、ログインできませんでした。 |
+| Setup-code field (only at the first binding of an unbound server), label | セットアップコード |
+| Setup-code field, hint | このサーバーのコンソールに出ているコードを入れてください。最初の1回だけ使います。 |
+| Handoff QR (device with no store receipt), title | スマホで購読を引き継ぐ |
+| Handoff QR, lead | 購読しているスマホのBellTeamで、このQRを読み取ってください。読み取れない時は、下のコードを入れてください。 |
+| Handoff QR, labels | コード / 確認番号 |
+| Handoff QR, check line | スマホに出る確認番号が同じか、見比べてください。 |
+| Handoff QR, waiting | スマホの承認を待っています… |
+| Handoff, already entitled (never a failure) | すでに使えます。 |
+| Phone's approval screen | この端末にあなたの契約を渡します。確認番号が、相手の端末の画面と同じときだけ承認してください。 |
+| Phone's approval, no live contract | 先に購読してください。 |
+| Phone's approval, other account | このコードは、別のアカウントのものです。 |
+| Paywall, instead of the app, when `entitlementState` is `none` (buttons: 再確認 / 接続先を変更) | このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。 |
+| Server address not registered | このサーバーは、この接続先を登録していません。サーバーのコンソールで追加するか、すでに入っているアプリから「いまの接続先を追加」してください。 |
+| Server not ready (cannot judge) | サーバーの準備中です。 |
 
 ## 8. What reading the code showed for the mount (2026-11-21, for the library contract and the build)
 
