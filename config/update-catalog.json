@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T02:18:31Z",
-  "expiresAt": "2026-11-28T02:18:31Z",
+  "publishedAt": "2026-11-21T02:34:18Z",
+  "expiresAt": "2026-11-28T02:34:18Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
-      "versionId": "sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c",
+      "sourceCommit": "8869de05417f584cf01ff4487de555f7369d80d9",
+      "versionId": "sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "履歴の1ページの上限を200行から1000行にし、ページに入るカードだけを子へ渡します。機械の席の答えで「画面に何も残らなかった」と誤って出る検査を直し、引用の行を書式の記号なしの文字で返します。"
+        "Aitermを0.70.86に上げます。促しへの返事の前に、機械のストリームへ印の1行が出るので、返事の最初の一言がすぐ吹き出しになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
-      "versionId": "sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c",
+      "sourceCommit": "8869de05417f584cf01ff4487de555f7369d80d9",
+      "versionId": "sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "履歴の1ページの上限を200行から1000行にし、ページに入るカードだけを子へ渡します。機械の席の答えで「画面に何も残らなかった」と誤って出る検査を直し、引用の行を書式の記号なしの文字で返します。"
+        "Aitermを0.70.86に上げます。促しへの返事の前に、機械のストリームへ印の1行が出るので、返事の最初の一言がすぐ吹き出しになります。"
       ]
     },
     {
