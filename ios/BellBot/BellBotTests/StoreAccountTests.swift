@@ -17,7 +17,7 @@ final class StoreAccountTests: XCTestCase {
 
     func testNoContractWordingIsTheRuledText() {
         XCTAssertEqual(StoreAccount.words(LoginBillingErrorForTests.noEntitlement),
-                       "先に購読してください。購読しないで使うには、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードを使ってください。")
+                       "先に購読してください。購読しないで使うには、ブラウザー版を、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードで開いてください。")
     }
 }
 
