@@ -18,7 +18,7 @@ class Element {
   replaceChildren(...rows) { this.children = []; this.append(...rows) }
   replaceWith(row) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i, 1, row); row.parent = this.parent }
   after(...rows) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i + 1, 0, ...rows); for (const row of rows) row.parent = this.parent }
-  scrollTo({ top }) { this.scrollTop = top }
+  scrollTo({ top, behavior }) { this.scrollTop = top; this.lastBehavior = behavior }
   contains() { return true }
   querySelector(selector) { return this.querySelectorAll(selector)[0] }
   querySelectorAll(selector) {
@@ -606,6 +606,19 @@ test('a471-scroll-jump-web: when a row above the viewed row grows later, the vie
   rowTop = 50; f.timeline.scrollTop = 0; f.timeline.listeners.scroll()
   items.listeners.click(); rowTop = 170 // the Owner opened a fold line above: its content is for him to see
   f.resizers.at(-2)(); assert.equal(f.timeline.scrollTop, 0, 'after a click nothing is held back')
+})
+
+test('a471-scroll-smooth-web: rows arriving at the bottom are followed with a smooth scroll; the open is instant; touching the view stops the following', async t => {
+  const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
+  await f.open('a'); await settle()
+  assert.equal(f.timeline.lastBehavior, 'instant', 'opening goes to the bottom at once')
+  f.timeline.clientHeight = 100
+  f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, 'smooth', 'new content at the bottom is followed smoothly')
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll() // the animation is on its way: not at the bottom yet
+  f.timeline.lastBehavior = ''; f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, 'smooth', 'still following')
+  f.timeline.listeners.wheel() // the Owner touches the view
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); f.timeline.lastBehavior = ''
+  f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, '', 'no longer following')
 })
 
 test('a471-scrollback-web: the first page asks 100, an older page 500 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
