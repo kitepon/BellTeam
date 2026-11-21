@@ -31,7 +31,7 @@ public sealed class ForwardView : ScrollViewer, ISheetSave
         var muted = (Brush)Application.Current.FindResource("Muted");
         var form = new StackPanel { Margin = new Thickness(20, 8, 20, 24), MaxWidth = 720 };
         form.Children.Add(Header("転送する発言"));
-        var text = message.Message ?? ""; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
+        var text = message.QuoteText; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
         form.Children.Add(new Border { BorderBrush = (Brush)Application.Current.FindResource("Violet"), BorderThickness = new Thickness(3, 0, 0, 0), Background = new SolidColorBrush(Color.FromArgb(40, 0x61, 0x47, 0xD4)), Padding = new Thickness(12, 8, 12, 8), Child = new TextBlock { Text = text, FontSize = 15, Foreground = muted, TextWrapping = TextWrapping.Wrap, MaxHeight = 90, TextTrimming = TextTrimming.CharacterEllipsis } });
         form.Children.Add(Header("転送先"));
         destinations.ItemsSource = workspace.Entries; destinations.DisplayMemberPath = nameof(ConversationEntry.Name); destinations.FontSize = 16;

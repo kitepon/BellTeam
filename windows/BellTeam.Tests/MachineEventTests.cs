@@ -160,8 +160,11 @@ public sealed class MachineEventTests
             Assert.Single(LogicalTree.Find<MachineEntry>(card)); Assert.Empty(LogicalTree.Find<MarkdownView>(card));
             card.Message = Words(",\"bubble\":false");
             Assert.Single(LogicalTree.Find<MachineEntry>(card));
+            Assert.DoesNotContain(LogicalTree.Find<Button>(card), b => System.Windows.Automation.AutomationProperties.GetName(b).StartsWith("このメッセージ"));
             card.Message = Words(",\"bubble\":true");
             Assert.Empty(LogicalTree.Find<MachineEntry>(card));
+            // a471-reply-forward: the marked answer has the same reply, forward and copy icons as a saved bubble.
+            Assert.All(new[] { "このメッセージに返信", "このメッセージを転送", "このメッセージをコピー" }, name => Assert.Equal(System.Windows.Visibility.Visible, LogicalTree.Find<Button>(card).Single(b => System.Windows.Automation.AutomationProperties.GetName(b) == name).Visibility));
             var document = LogicalTree.Find<MarkdownView>(card).First().Document;
             var shown = new System.Windows.Documents.TextRange(document.ContentStart, document.ContentEnd).Text;
             Assert.Contains("強調", shown); Assert.DoesNotContain("**", shown);
