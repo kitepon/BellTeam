@@ -124,7 +124,7 @@ test('gatewayは認証・Host・日本語bytes・応答headerを保ち、画面�
   await gateway.start()
   const base = `http://127.0.0.1:${gateway.address.port}`
   // a487: the browser UI has ended. Any page that is not /api/* or /healthz is the one notice: no session read, no file, whatever the method or credentials.
-  const NOTICE = 'BellTeamのブラウザ版は終了しました。アプリをお使いください。\n'
+  const NOTICE = 'BellTeamのブラウザ版は終了しました。\nBellTeamはアプリ（iPhone・Mac・Windows・Linux・Android）でお使いください。無料で使うには、公開されているソースコード（https://github.com/kitepon/BellTeam 、MITライセンス）から自分でビルドしてください。\n'
   const before = seen.length
   for (const path of ['/', '/index.html', '/app.js?v=x', '/missing', '/sw.js']) {
     const page = await fetch(base + path)

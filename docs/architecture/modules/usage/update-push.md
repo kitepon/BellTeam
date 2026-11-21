@@ -1,6 +1,6 @@
 # 正式更新候補の端末通知
 
-2026-11-04 JST。工程L。通知業務・wireの正本はミカ。共通候補判定と変更検知はモリー、Web受入口はアドミ、Apple/Windows受入口は各ベル。全体は[機能図](../../feature-map.md)、既通知は[通知process](notification-process.md)と[Web Push](web-push.md)、呼出元は[integration](../integration/README.md)、接続先は[Web](../web/web-push.md)と[Apple](../apple/README.md)。
+2026-11-04 JST。工程L。通知業務・wireの正本はミカ。共通候補判定と変更検知はモリー、Web受入口はアドミ、Apple/Windows受入口は各ベル。全体は[機能図](../../feature-map.md)、既通知は[通知process](notification-process.md)と[Web Push](web-push.md)、呼出元は[integration](../integration/README.md)、接続先は[Web](../../../archive/web-ui/web-push.md)と[Apple](../apple/README.md)。
 
 ## 接続と状態所有
 
