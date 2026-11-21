@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { hasUnreadConversation, newestByRecent } from '../web/activity-order.js'
+import { hasUnreadConversation, newestByRecent, pinnedFirst } from '../web/activity-order.js'
 
 test('メンバーとルームを最後のアクションが新しい順へ並べる', () => {
   const items = [
@@ -40,4 +40,14 @@ test('既読は並び順に使わず、Botからユーザーへの返答だけ�
   assert.equal(hasUnreadConversation(peerAction, 'bot', null), false)
   assert.equal(hasUnreadConversation(roomReply, 'room', null), true)
   assert.equal(hasUnreadConversation(ownRoomMessage, 'room', null), false)
+})
+
+test('a480: ピン済みを先頭へ、ピンした順（同時刻はid順）に並べ、残りは来た順のまま。pinnedを送らない古い本体は未ピン', () => {
+  const items = [
+    { id: 'a' }, { id: 'c', pinnedAt: '2026-11-21T09:10:00.000Z' }, { id: 'b', pinnedAt: '2026-11-21T09:10:00.000Z' },
+    { id: 'd', pinnedAt: null }, { id: 'e', pinnedAt: '2026-11-21T09:05:00.000Z' }, { id: 'f', pinnedAt: 'invalid' },
+  ]
+  assert.deepEqual(pinnedFirst(items).map(item => item.id), ['e', 'b', 'c', 'a', 'd', 'f'])
+  assert.deepEqual(items.map(item => item.id), ['a', 'c', 'b', 'd', 'e', 'f'])
+  assert.deepEqual(pinnedFirst([]), [])
 })

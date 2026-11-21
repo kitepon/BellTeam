@@ -78,6 +78,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .bot-preview { display: block; overflow: hidden; margin-top: 5px; color: var(--muted); font-size: 14px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .bot-time { align-self: start; padding-top: 4px; color: #b9b9bd; font-size: 13px; }
 .bot-meta { display: grid; justify-items: end; align-self: stretch; gap: 8px; min-width: 34px; }
+.pin-mark { width: 16px; height: 16px; fill: none; stroke: #8a8a93; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .unread-dot { width: 9px; height: 9px; border-radius: 50%; background: #111; }
 
 .chat { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; min-width: 0; height: 100dvh; background: #fff; }
