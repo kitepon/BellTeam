@@ -268,3 +268,18 @@ test('installShareDrop: a drop on the open conversation becomes a share (text, u
   calls.length = 0; const unrelated = drag(['application/x-other']); handlers.drop(unrelated); assert.equal(unrelated.prevented, false); assert.deepEqual(calls, [])
   open = false; const closed = drag(['text/plain'], { 'text/plain': 'x' }); handlers.dragover(closed); handlers.drop(closed); assert.equal(closed.prevented, false); assert.deepEqual(calls, [])
 })
+
+test('a471-open-newest-web: the Owner\'s bubble is asked for the moment the send starts; the answer marks it accepted before the refresh; a failed send takes it back', async t => {
+  const events = []
+  const handle = { accept: () => events.push('accept'), remove: () => events.push('remove') }
+  const f = fixture(t, { onSending: (target, message, count) => { events.push(['sending', target.id, message, count]); return handle }, onAccepted: async () => { events.push('refresh') } })
+  f.input.value = 'こんにちは'
+  await f.composer.send()
+  assert.deepEqual(events, [['sending', 'a', 'こんにちは', 0], 'accept', 'refresh'], 'shown first, accepted by the answer, then the incremental read')
+  events.length = 0
+  const failing = fixture(t, { api: async () => { throw Object.assign(new Error('down'), { status: 503 }) }, onSending: () => handle })
+  failing.input.value = '届かない'
+  await failing.composer.send()
+  assert.deepEqual(events, ['remove'], 'a refused send takes the bubble back and keeps the draft')
+  assert.equal(failing.input.value, '届かない')
+})

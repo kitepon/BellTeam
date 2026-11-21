@@ -16,6 +16,7 @@ class Element {
   setAttribute(name, value) { this.attrs[name] = value }
   append(...rows) { for (const row of rows) { row.parent = this; this.children.push(row) } }
   replaceChildren(...rows) { this.children = []; this.append(...rows) }
+  remove() { const i = this.parent?.children.indexOf(this) ?? -1; if (i >= 0) this.parent.children.splice(i, 1) }
   replaceWith(row) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i, 1, row); row.parent = this.parent }
   after(...rows) { const i = this.parent.children.indexOf(this); this.parent.children.splice(i + 1, 0, ...rows); for (const row of rows) row.parent = this.parent }
   scrollTo({ top, behavior }) { this.scrollTop = top; this.lastBehavior = behavior }
@@ -45,9 +46,9 @@ function fixture(t, history, extra = {}) {
     }, messageImages: { load() {}, get() {}, failed() {} }, getBot() {}, avatarColor: async () => '', isStopping: () => false, onStop() {}, onQueueChange() {}, ...extra,
   })
   const open = (id, type = 'bot') => view.open({ type, id, name: id })
-  const ids = () => timeline.children[0].children.map(row => row.dataset.id).filter(Boolean)
+  const ids = () => timeline.children[2].children.map(row => row.dataset.id).filter(Boolean)
   const texts = node => [node.textContent ?? '', ...node.children.map(texts)].join(' ')
-  return { view, open, queues, requests, timeline, resizers, ids, text: () => texts(timeline) }
+  return { view, open, queues, requests, timeline, latestButton, resizers, ids, text: () => texts(timeline) }
 }
 for (const type of ['bot', 'room']) test(`${type} secret guide uses shared page rendering and is removed by an updated projection`, async t => {
   const request = { id: 'guide-current', botId: 'a', toolId: 'olrw-auth', label: '認証コード', message: '公式ページで認証してください。', status: 'pending',
@@ -69,7 +70,7 @@ for (const type of ['bot', 'room']) test(`${type} secret guide uses shared page 
   assert.equal(links(f.timeline).length, 2)
   updated = true; await f.view.refresh()
   assert.deepEqual(f.ids(), ['guide-older', 'guide-current', 'guide-added'])
-  const currentCard = f.timeline.children[0].children.find(child => child.dataset.id === 'guide-current')
+  const currentCard = f.timeline.children[2].children.find(child => child.dataset.id === 'guide-current')
   assert.equal(links(currentCard).length, 0)
   assert.equal(links(f.timeline).length, 2)
   assert.equal(JSON.stringify([current, older, added]), before)
@@ -116,7 +117,7 @@ test('overlapping refreshes apply only newest response; current read failure sta
   const older = f.view.refresh(), newer = f.view.refresh()
   pending[1].resolve({ items: [{ id: 'initial', message: 'new' }] }); await newer
   pending[0].resolve({ items: [{ id: 'initial', message: 'stale' }] }); await older
-  const row = f.timeline.children[0].querySelector('[data-id="initial"]')
+  const row = f.timeline.children[2].querySelector('[data-id="initial"]')
   const bubble = row.children[0].children[0]
   assert.equal(bubble.children[0].innerHTML.includes('new'), true)
   const failed = f.view.refresh(); pending[2].reject(new Error('GET failed'))
@@ -136,7 +137,7 @@ test('old before-page finally cannot unlock a new before request; current page p
   f.timeline.listeners.scroll(); assert.equal(before.length, 2)
   before[1].resolve({ items: [{ id: 'older', message: 'older' }, { id: 'b', message: 'duplicate' }], has_more: false }); await settle()
   assert.deepEqual(f.ids(), ['older', 'b'])
-  assert.ok(f.timeline.scrollTop > 0)
+  assert.equal(f.timeline.scrollTop, 0, 'the older page goes above the view: nothing is scrolled to keep the place (the bottom is the anchor)')
 })
 
 test('late question answer callback cannot replace a same-ID card in a new conversation', async t => {
@@ -147,7 +148,7 @@ test('late question answer callback cannot replace a same-ID card in a new conve
     return { items: [{ id: 'same', owner_question: { id: 'q-' + id, botId: id, question: 'question-' + id, status: 'pending', options: ['yes'] } }] }
   })
   await f.open('a')
-  const firstCard = f.timeline.children[0].children[1]
+  const firstCard = f.timeline.children[2].children[1]
   firstCard.children[2].children[0].listeners.click()
   await f.open('b')
   answer.resolve({ question: { id: 'q-a', question: 'old answered', status: 'answered', answer: 'yes' } }); await settle()
@@ -157,7 +158,7 @@ test('late question answer callback cannot replace a same-ID card in a new conve
 
 
 const tracking = { schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }
-const messageTimes = f => f.timeline.children[0].children.filter(row => row.dataset.id && row.className?.startsWith('message '))
+const messageTimes = f => f.timeline.children[2].children.filter(row => row.dataset.id && row.className?.startsWith('message '))
   .map(row => row.children.at(-1).children.find(node => node.className === 'message-time'))
 
 test('accepted tracking failure is neutral; old, incomplete and unknown tuples retain delivery failure', async t => {
@@ -279,7 +280,7 @@ test('writer-to-HTTP wire fixture renders accepted direct, existing peer details
   assert.equal(messageTimes(direct).length, 1)
   assert.match(messageTimes(direct)[0].textContent, /受付済み・完了未確認$/u)
   assert.equal(messageTimes(direct)[0].classes.has('failed'), false)
-  const peer = direct.timeline.children[0].querySelector('[data-id="d2"]')
+  const peer = direct.timeline.children[2].querySelector('[data-id="d2"]')
   assert.equal(peer.className, 'peer-event')
   assert.match(peer.innerHTML, /Bからメッセージを受け取りました/u)
   assert.doesNotMatch(peer.innerHTML, /配達失敗|再送/u)
@@ -301,7 +302,7 @@ test('fork rows (seat.kind fork) carry the 分身 label; rows without seat stay 
   ]
   const f = fixture(t, () => ({ items, has_more: false }))
   await f.open('b')
-  const row = id => f.timeline.children[0].children.find(child => child.dataset.id === id)
+  const row = id => f.timeline.children[2].children.find(child => child.dataset.id === id)
   const labels = node => [...(node.className === 'seat-label' ? [node.textContent] : []), ...node.children.flatMap(labels)]
   const html = node => [node.innerHTML ?? '', ...node.children.map(html)].join('')
   assert.match(html(row('ask')), /<summary><span class="seat-label">分身<\/span>アンからメッセージを受け取りました/)
@@ -317,7 +318,7 @@ test('a failed older page is the retry target: 「もう一度読み込む」 re
     return { items: [{ id: 'new', message: 'new', direction: 'incoming' }], has_more: true }
   })
   await f.open('a'); f.queues[0].resolve({ items: [] }); await settle()
-  const box = () => f.timeline.children[1].children.find(node => node.className === 'inline-error')
+  const box = () => f.timeline.children[0].children.find(node => node.className === 'inline-error')
   assert.ok(box(), 'the older-page failure is shown in place')
   const before = f.requests.length
   olderFails = false
@@ -394,7 +395,7 @@ test('reply: tapping the quote scrolls to a loaded original and highlights it', 
   const f = fixture(t, () => ({ has_more: false, items: [msg('o1'), msg('r1', { direction: 'outgoing', reply_to: snapshot('o1') })] }))
   await f.open('a'); await settle()
   quotes(f.timeline)[0].listeners.click(); await settle()
-  const original = f.timeline.children[0].children.find(row => row.dataset.id === 'o1')
+  const original = f.timeline.children[2].children.find(row => row.dataset.id === 'o1')
   assert.deepEqual(original.scrolledTo, { block: 'center' }); assert.equal(original.classes.has('reply-jumped'), true)
 })
 
@@ -408,7 +409,7 @@ test('reply: an original on an older page is loaded with the before cursor until
   const [far, never] = quotes(f.timeline)
   far.listeners.click(); await settle(); await settle()
   assert.equal(f.requests.filter(path => path.includes('before=')).length, 2, 'paged older twice')
-  assert.deepEqual(f.timeline.children[0].children.find(row => row.dataset.id === 'm1').scrolledTo, { block: 'center' })
+  assert.deepEqual(f.timeline.children[2].children.find(row => row.dataset.id === 'm1').scrolledTo, { block: 'center' })
   never.listeners.click(); await settle(); await settle()
   assert.equal(everyNode(f.timeline).filter(node => node.className === 'reply-quote-note' && node.textContent === '元のメッセージは見つかりません').length, 1)
   never.listeners.click(); await settle(); await settle()
@@ -452,7 +453,7 @@ test('reply part: tapping a part quote highlights that text in the original (fir
   const f = fixture(t, () => ({ has_more: false, items: [msg('o1', { message: '前置き。大事な点。後ろ。大事な点。' }), msg('r1', { direction: 'outgoing', reply_to: snapshot('o1', { text: '大事な点。', part: true, range: { start: 10, end: 15 } }) })] }))
   globalThis.CSS = { escape: value => value, highlights: { set: (name, value) => highlights.set(name, value), delete: name => highlights.delete(name) } }
   await f.open('a'); await settle()
-  const original = f.timeline.children[0].children.find(row => row.dataset.id === 'o1')
+  const original = f.timeline.children[2].children.find(row => row.dataset.id === 'o1')
   const holder = everyNode(original).find(node => node.className === 'message-text'); const text = { textContent: '前置き。大事な点。後ろ。大事な点。', children: [], dataset: {}, querySelectorAll: () => [] }; holder.children = [text]
   document.createTreeWalker = root => { const list = [...root.children]; return { nextNode: () => list.shift() ?? null } }
   quotes(f.timeline)[0].listeners.click(); await settle()
@@ -557,7 +558,7 @@ test('forward: 転送 hands the source (conversation + item id) and a preview to
   assert.deepEqual(asked.at(-1).source, { kind: 'room', id: 'room1' })
 })
 
-test('first screen: older pages are read one after another until the drawn height passes view + 3 screens; a page that draws little does not end it; enough drawn stops it', async t => {
+test('first screen: older pages are read one after another until the drawn height above the view passes one screen; a page that draws little does not end it; enough drawn stops it', async t => {
   const pages = { m4: { items: [{ id: 'm3', message: 'x', direction: 'incoming' }], has_more: true }, m3: { items: [{ id: 'm2', message: 'x', direction: 'incoming' }], has_more: true },
     m2: { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }, m1: { items: [{ id: 'm0', message: 'x', direction: 'incoming' }], has_more: false } }
   const f = fixture(t, path => path.includes('before=') ? pages[path.split('before=')[1]] : { items: [{ id: 'm4', message: 'x', direction: 'incoming' }], has_more: true })
@@ -566,11 +567,11 @@ test('first screen: older pages are read one after another until the drawn heigh
   assert.equal(f.requests.filter(path => path.includes('before=')).length, 4)
   const rows = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, message: 'x', direction: 'incoming' }))
   const full = fixture(t, () => ({ items: rows, has_more: true }))
-  full.timeline.clientHeight = 100 // the fake rows draw more than view + 3 screens (400)
+  full.timeline.clientHeight = 100 // the fake rows draw more than one screen above the view (a471-open-newest-web: one screen, not three)
   await full.open('a'); await settle()
   assert.equal(full.requests.filter(path => path.includes('before=')).length, 0, 'enough is drawn: nothing more is read until the view nears the top')
-  full.timeline.scrollTop = 0; full.timeline.listeners.scroll(); await settle()
-  assert.equal(full.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up under the margin reads the next older page')
+  full.timeline.scrollTop = -(full.timeline.scrollHeight - 100); full.timeline.listeners.scroll(); await settle() // scrolled up to the top (scrollTop is 0 at the bottom, negative going up)
+  assert.equal(full.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up to the top reads the next older page')
   assert.match(full.requests.find(path => path.includes('before=')), /limit=1000&before=r0$/)
 })
 
@@ -589,47 +590,79 @@ test('a471-fill-after-refresh-web: a refresh that fills the empty map after the 
   assert.equal(f.requests.filter(path => path.includes('before=')).length, 1, 'the open was overtaken: the refresh starts the fill')
 })
 
-test('a471-scroll-jump-web: when a row above the viewed row grows later, the view moves by that height; a click on a fold line holds nothing', async t => {
+test('a471-scroll-jump-web: while reading above the newest, a row growing below the viewed row moves the scroll so the viewed row stays; at the newest nothing is held; a click on a fold line holds nothing', async t => {
   globalThis.requestAnimationFrame = () => {} // the re-note after a click is not needed here
   t.after(() => { delete globalThis.requestAnimationFrame })
   const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
   await f.open('a'); await settle()
-  f.timeline.clientHeight = 100; f.timeline.scrollTop = 0
+  f.timeline.clientHeight = 100; f.timeline.scrollTop = -400 // reading older rows
   let rowTop = 50
-  const items = f.timeline.children[0], row = items.children.find(child => child.dataset.id)
+  const items = f.timeline.children[2], row = items.children.find(child => child.dataset.id)
   row.isConnected = true; row.getBoundingClientRect = () => ({ top: rowTop, bottom: rowTop + 100, height: 100 })
   f.timeline.getBoundingClientRect = () => ({ top: 0 })
   items.querySelectorAll = selector => selector === '[data-id]' ? [row] : []
   f.timeline.listeners.scroll() // the view looks at the row, 50 px below its top edge
-  rowTop = 170 // a group above it grew by 120 px
-  f.resizers.at(-2)(); assert.equal(f.timeline.scrollTop, 120, 'the scroll position follows, so the row stays where it was in the view')
-  rowTop = 50; f.timeline.scrollTop = 0; f.timeline.listeners.scroll()
-  items.listeners.click(); rowTop = 170 // the Owner opened a fold line above: its content is for him to see
-  f.resizers.at(-2)(); assert.equal(f.timeline.scrollTop, 0, 'after a click nothing is held back')
+  rowTop = 20 // rows below it grew by 30 px: the row moved up
+  f.resizers.at(-1)(); assert.equal(f.timeline.scrollTop, -430, 'the scroll position follows, so the row stays where it was in the view')
+  rowTop = 50; f.timeline.scrollTop = -400; f.timeline.listeners.scroll()
+  items.listeners.click(); rowTop = 20 // the Owner opened a fold line: its content is for him to see
+  f.resizers.at(-1)(); assert.equal(f.timeline.scrollTop, -400, 'after a click nothing is held back')
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); rowTop = 50; f.timeline.listeners.scroll(); rowTop = 20
+  f.resizers.at(-1)(); assert.equal(f.timeline.scrollTop, 0, 'at the newest the bottom is the anchor: nothing is held')
 })
 
-test('a471-scroll-smooth-web: rows arriving at the bottom are followed with a smooth scroll; the open is instant; touching the view stops the following', async t => {
-  const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
-  await f.open('a'); await settle()
-  assert.equal(f.timeline.lastBehavior, 'instant', 'opening goes to the bottom at once')
+test('a471-open-newest-web: the list is laid out from the bottom (tail, pending, items); opening, new rows and an older page need no scroll command', async t => {
+  let page = 0
+  const f = fixture(t, path => {
+    if (path.includes('before=')) return { items: [{ id: 'm0', message: 'older', direction: 'incoming' }], has_more: false }
+    if (path.includes('after=')) return { items: [{ id: 'm2', message: 'new', direction: 'incoming' }], has_more: false }
+    return { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true, page: page++ }
+  })
   f.timeline.clientHeight = 100
-  f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, 'smooth', 'new content at the bottom is followed smoothly')
-  f.timeline.scrollTop = 0; f.timeline.listeners.scroll() // the animation is on its way: not at the bottom yet
-  f.timeline.lastBehavior = ''; f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, 'smooth', 'still following')
-  f.timeline.listeners.pointerdown() // the Owner grabs the scrollbar (it fires no wheel / touch / key)
-  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); f.timeline.lastBehavior = ''
-  f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, '', 'no longer following')
+  await f.open('a'); await settle()
+  assert.deepEqual(f.timeline.children.map(node => node.className), ['timeline-tail', 'timeline-pending', 'timeline-items'], 'DOM order is bottom-up')
+  assert.equal(f.timeline.scrollTop, 0, 'the first frame is the newest row')
+  assert.equal(f.timeline.lastBehavior, undefined, 'opening issues no scroll command, no catch-up')
+  await f.view.refresh(); await settle()
+  assert.deepEqual(f.ids().slice(-1), ['m2'], 'a new row is appended, the list is not rebuilt')
+  assert.equal(f.timeline.lastBehavior, undefined, 'a new row at the newest issues no scroll command')
+  assert.equal(f.timeline.scrollTop, 0)
+  const top = -(f.timeline.scrollHeight - 100)
+  f.timeline.scrollTop = top // the Owner scrolled up to the top
+  f.timeline.listeners.scroll(); await settle()
+  assert.deepEqual(f.ids(), ['m0', 'm1', 'm2'])
+  assert.equal(f.timeline.scrollTop, top, 'an older page goes above the view: the place is kept without any compensation')
+  assert.equal(f.timeline.lastBehavior, undefined)
 })
 
-test('a471-scroll-smooth-web: a scroll up with no input event (a programmatic jump) also stops the following', async t => {
+test('a471-open-newest-web: 最新へ is the only scroll command and goes to scrollTop 0', async t => {
   const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
+  f.timeline.clientHeight = 100
   await f.open('a'); await settle()
-  f.timeline.clientHeight = 100; Object.defineProperty(f.timeline, 'scrollHeight', { value: 1000 })
-  f.resizers.at(-2)() // following
-  f.timeline.scrollTop = 600; f.timeline.listeners.scroll() // the glide is on its way
-  f.timeline.scrollTop = 200; f.timeline.listeners.scroll() // a direct scrollTop write moves the view up: no wheel / touch / key / pointer
-  f.timeline.lastBehavior = ''; f.resizers.at(-2)()
-  assert.equal(f.timeline.lastBehavior, '', 'the next growth does not glide the view to the bottom')
+  f.timeline.scrollTop = -500; f.timeline.listeners.scroll()
+  assert.equal(f.latestButton.hidden, false, 'away from the newest the button shows')
+  f.latestButton.listeners.click()
+  assert.equal(f.timeline.scrollTop, 0); assert.equal(f.timeline.lastBehavior, 'instant'); assert.equal(f.latestButton.hidden, true)
+})
+
+test('a471-open-newest-web: a sent bubble shows at once at the newest position; the answered send is replaced by the real row in the same refresh; a failed send takes it back', async t => {
+  const rows = []
+  const f = fixture(t, path => path.includes('after=') ? { items: rows.splice(0), has_more: false } : { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false })
+  await f.open('a'); await settle()
+  const pending = f.view.addPending({ type: 'bot', id: 'a' }, '送ったよ')
+  assert.equal(f.timeline.children[1].children.length, 1, 'the bubble is there before any request answered')
+  assert.equal(everyNode(f.timeline.children[1]).some(node => String(node.innerHTML ?? node.textContent ?? '').includes('送ったよ')), true)
+  assert.equal(f.view.addPending({ type: 'bot', id: 'other' }, 'x'), null, 'another conversation takes none')
+  await f.view.refresh(); await settle()
+  assert.equal(f.timeline.children[1].children.length, 1, 'a read while the POST is unanswered keeps it (its real row may not exist yet)')
+  pending.accept(); rows.push({ id: 'm2', message: '送ったよ', direction: 'outgoing' })
+  await f.view.refresh(); await settle()
+  assert.equal(f.timeline.children[1].children.length, 0, 'the real row replaced it')
+  assert.deepEqual(f.ids().slice(-1), ['m2'])
+  const failed = f.view.addPending({ type: 'bot', id: 'a' }, '届かない'); failed.remove()
+  assert.equal(f.timeline.children[1].children.length, 0, 'a failed send takes the bubble back')
+  f.view.addPending({ type: 'bot', id: 'a' }, '開き直すと消える'); await f.open('a'); await settle()
+  assert.equal(f.timeline.children[1].children.length, 0, 'a new conversation starts clean')
 })
 
 test('a471-scrollback-web: the first page asks 1000, an older page 1000 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
@@ -654,7 +687,7 @@ test('turn answer: a words row with bubble:true is an ordinary incoming bubble w
   const row = (id, event) => ({ id, kind: 'machine_event', at: '2026-11-21T06:35:00Z', sender: { id: 'a', name: 'テスト席' }, message: event.text, machine_event: { view: 'words', display: 'show', ...event } })
   const f = fixture(t, () => ({ items: [row('me-1', { text: '途中の発言' }), row('me-2', { text: '**答え**です', bubble: true })], has_more: false }))
   await f.open('a')
-  const rows = f.timeline.children[0].children.filter(child => child.dataset.id)
+  const rows = f.timeline.children[2].children.filter(child => child.dataset.id)
   assert.equal(rows[0].className, 'machine-show view-words')
   assert.equal(rows[1].className, 'message incoming')
   const text = rows[1].querySelectorAll('.message-text')[0]
@@ -687,7 +720,7 @@ test('a471-thinking-bubble-web: a shown thinking row is an incoming bubble with 
   t.after(() => { delete globalThis.navigator })
   const f = fixture(t, () => ({ items: [row('me-1-0', { view: 'thinking', title: 'thinking', text: whole }), row('me-2-0', { view: 'thinking', title: 'thinking (no text)', text: '', display: 'fold' }), row('me-3-0', { view: 'words', text: '途中の発言' })], has_more: false }))
   await f.open('a'); await settle()
-  const rows = f.timeline.children[0].children.filter(child => child.dataset.id)
+  const rows = f.timeline.children[2].children.filter(child => child.dataset.id)
   assert.equal(rows[0].className, 'message incoming', 'drawn in the answer bubble container')
   const nodes = everyNode(rows[0])
   assert.ok(nodes.some(node => String(node.className).includes('is-thinking')), 'lighter and slanted')
