@@ -278,3 +278,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9。
 - 本番の忙しい機械の席 bot-7b140b27（トロニー）を `--render-conversation member`（GETのみ）で描いた。終了コード0。最初の画面は返答の吹き出し・考えた行（全文）・畳んだ「background ×54」「tools ×5」と作業中の行でいっぱいで、スクロールバーのつまみは小さく下に寄り、上に読み込み済みの分が十分ある。
 - 確認できていない: 実際に上へスクロールして、先読みが3画面分を保って続く動き（試験とUiChecksで確かめた。本番の画面での操作は未確認）。LinuxとAndroidは旧5引数の転送で新しい規則が効いている（Linuxの新形式への移行はa471-fill-drawn-linux）。
+
+### 0.6.8 の導入（a471: 思考の行を吹き出しで描く）
+
+2026-11-21 12:06 JST、main a3edcaaa（#2124）から `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget` で導入した（共有先の登録は触っていない）。導入後の`BellTeam.exe`は0.6.8+a3edcaaa。
+
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9。
+- 導入後の実物で本番の自席 bot-0d7da1c1 を `--render-conversation scrolled`（GETのみ）で描いた。終了コード0。thinking の行が、回答と同じ受信の吹き出しに薄く斜めの文字で全文出て、時刻とコピーのアイコンだけが付く（返信・転送は出ない）。
+- 確認できていない: 実際の会話で返信・転送の入口が出ないことを手で押して見ること、コピーで全文がクリップボードに入ること（試験とUiChecksで確かめた範囲）。LinuxとAndroidの吹き出しは担当の席。
