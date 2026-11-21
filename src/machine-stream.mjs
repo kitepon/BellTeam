@@ -127,7 +127,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), quiet: new TimelineIndex(), shownQuiet: new TimelineIndex(), bubbles: new Set(), reminded: false, lastWords: null, toolRun: false, folds: new Map(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), quiet: new TimelineIndex(), shownQuiet: new TimelineIndex(), toolRun: false, folds: new Map(), chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -150,19 +150,7 @@ export class MachineStream {
             status: record.auto?.includes(part.request_id) ? 'auto' : 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
         }
         this.openOrCloseToolRun(bot, record, n, autoPart(bot, part))
-        // a471-tune-reminder: the supplier's marker line makes the next words entry of the turn a bubble at once.
-        if (part.type === 'system' && part.subtype === 'silent_turn_reminder') bot.reminded = true
-        else if (part.view === 'words' && part.title !== 'input' && part.text.trim() && bot.reminded) { bot.reminded = false; bot.bubbles.add(`me-${record.seq}-${n}`) }
-        else if (part.view === 'result') bot.reminded = false
         changed.push(this.setRow(bot, botId, record, n, part))
-        // a471-tune-answer: the last words of a turn become the bubble when its result line arrives.
-        // a471-final-not-bubble: or at the first Stop hook line, which follows the words at once; the result comes after the hooks, too far back for the clients' newest-10 re-read.
-        if (part.view === 'words' && part.title !== 'input' && part.text.trim()) bot.lastWords = { record, n, part }
-        else if (part.view === 'result' || (part.view === 'hook' && part.title === 'hook_started' && part.text === 'Stop')) {
-          const last = bot.lastWords
-          bot.lastWords = null
-          if (last) { bot.bubbles.add(`me-${last.record.seq}-${last.n}`); changed.push(this.setRow(bot, botId, last.record, last.n, last.part)) }
-        }
       })
     } else if (record.type === 'local') this.setRequest(bot, record.request_id, record.local, record.at, record, changed)
     return changed
@@ -186,9 +174,10 @@ export class MachineStream {
     const [body, truncated] = cut(part.text, ROW_TEXT_MAX)
     const sender = { id: botId, name: this.bots.get(botId)?.name ?? botId }
     const entry = { seq: record.seq, part: n, launch_id: record.launch_id, type: part.type, subtype: part.subtype, view: part.view, display,
-      title: part.title, text: body, truncated, ...(display === 'fold' ? (bot.folds.get(`me-${record.seq}-${n}`) ?? { fold_group: this.rules.fold_group?.[part.view] ?? part.view }) : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(bot.bubbles.has(`me-${record.seq}-${n}`) ? { bubble: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
+      title: part.title, text: body, truncated, ...(display === 'fold' ? (bot.folds.get(`me-${record.seq}-${n}`) ?? { fold_group: this.rules.fold_group?.[part.view] ?? part.view }) : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(part.view === 'words' && part.title !== 'input' && part.text.trim() ? { bubble: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
+    // a479-interim-bubble: every words entry of the seat is a bubble from the moment it is stored; nothing is marked later.
     const line = part.summary !== undefined ? part.summary : body.split('\n')[0].slice(0, 120)
     return { id: `me-${record.seq}-${n}`, kind: 'machine_event', direction: 'incoming', at: record.at, sender,
       message: part.title ? `${part.title}${line ? `: ${line}` : ''}` : line, machine_event: entry }
