@@ -131,7 +131,7 @@ public sealed class BellPushService : FirebaseMessagingService
         var open = new Intent(this, typeof(MainActivity)).SetFlags(ActivityFlags.SingleTop | ActivityFlags.ClearTop);
         foreach (var key in PushRouter.Keys) if (data.TryGetValue(key, out var value)) open.PutExtra(key, value);
         var tap = PendingIntent.GetActivity(this, 0, open, PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
-        var notification = new Notification.Builder(this, PushChannel.Id).SetContentTitle(title).SetContentText(text).SetSmallIcon(ApplicationInfo!.Icon).SetAutoCancel(true).SetContentIntent(tap).Build();
+        var notification = new Notification.Builder(this, PushChannel.Id).SetContentTitle(title).SetContentText(text).SetSmallIcon(Resource.Drawable.ic_stat_bell).SetAutoCancel(true).SetContentIntent(tap).Build();
         var tag = data.TryGetValue("messageId", out var id) ? id : null;
         ((NotificationManager?)GetSystemService(NotificationService))?.Notify(tag, 1, notification);
     }
