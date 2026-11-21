@@ -113,7 +113,7 @@ public sealed class AppLoginTests
         Until(() => Texts(view).Contains("0123-4567"));
         Assert.Contains("確認番号 042", Texts(view));
         Assert.Contains("スマホで承認する", Texts(view)); Assert.Contains("サーバーのコードで入る", Texts(view));
-        Assert.Contains("購読していない場合は、サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。", Texts(view));
+        Assert.Contains("このアプリは購読が必要です。購読していない場合は、ブラウザー版が無料で使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで、ブラウザー版に入れます。", Texts(view));
         var field = Descendants<TextBox>(view).Single();
         field.Text = "BAD"; Click(view, "コードでログイン"); Until(() => Texts(view).Contains("コードが正しくないか、すでに使われています。")); Assert.Equal(0, signedIn);
         field.Text = "GOOD"; Click(view, "コードでログイン"); Until(() => signedIn == 1);
