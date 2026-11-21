@@ -29,7 +29,10 @@ Shared visual vocabulary (same as Apple section 3): badge 「未設定」 gray, 
 ```mermaid
 stateDiagram-v2
   [*] --> Booting: open the page
-  Booting --> AuthNeeded: /api/session 401 or Cloudflare
+  Booting --> AuthNeeded: /api/session 401 or Cloudflare (a server with no `login` key: today's path)
+  Booting --> CodeLogin: /api/session unauthenticated and states `login` (a485, W-LOGIN)
+  CodeLogin --> Booting: approved (the server set the cookie) or a console code accepted
+  CodeLogin --> CodeLogin: 「もう一度」 after refused / expired / cancelled / start failed
   Booting --> BootFailed: session / settings / setup / list failed
   Booting --> Onboarding: setup.phase != ready
   Booting --> Home: ready
@@ -420,12 +423,15 @@ stateDiagram-v2
 - ⚠W58 (S8) Today a five-row table of jargon (利用環境 / 通知の許可 / ブラウザー / 通知サーバー / サーバー登録) and two buttons, often both disabled with no reason (`web-push.js:38-58`). → The states above, one badge, one sentence, and only the button of that state (the others are not drawn). Preparing and allowing stay two presses on the same button, because the browser's permission prompt needs a fresh user press after the worker install wait (existing consent rule); the sentence between them says what the next press does.
 - The iPhone app line (from `GET /api/notifications`): 「iPhoneアプリへの通知: 設定済み」 / 「未設定」 + 「設定する」 (opens the プッシュ通知 feature card). The old separate 「通知」 section with its own 「状態を更新」 goes away.
 
+- W-LOGIN (a485, usage/app-sessions.md section 7) The code screen `#login-screen` (web/login-screen.js), shown instead of the app: `POST /api/login/start {kind:'web', carrier:'cookie'}`, then `GET /api/login/{loginId}` every `pollAfterMs` (3 s; slower after a failed or 429 poll). States: `waiting_second_hand` 「承認を待っています」 (an existing app or the server console approves first); `waiting_phone` the short code and the check number exactly as given, the server's `qrPng` when it is a PNG data URL, and the end time; `approved`/`delivered` boots the app again (the cookie is HttpOnly and set by the server; the page never holds a token); `refused` (`not_owner_account`, `second_hand_denied`, `phone_denied`), `expired`, `cancelled`, a 404 and a failed start end with one sentence and 「もう一度」. A 503 `LOGIN_OPERATOR_UNREACHABLE` points to the console code. 「やめる」 posts `cancel`. The console-code field (`POST /api/login/console {code, kind, carrier}`) stays through every state and keeps what is typed across redraws; 403/4xx says the code is wrong or expired, 429 says to wait. A poll failure keeps waiting: the login ends only by what the server says or by 「やめる」. Out of this screen (other tasks): the requests screen (approve / deny), 「アプリを足す」 and the session list.
+
 ### 4.9 接続, 表示, 利用と購読, 端末, アップデート
 
 - ⚠W59 (S9) 「接続先のURL http://127.0.0.1:4180」 + 「別のサーバーを開く」 are in the main page for everyone. → 接続 page: 「このサーバー」 card (Cloudflare login state and 「ログアウト」 when Cloudflare). 「別のサーバーを開く」 is inside a closed 「ほかのサーバーへ」 fold, with the URL field there; the current origin is not prefilled as an editable value.
 - 表示: the conversation motion select stays (it works, saves at once with the result next to it).
 - 端末: the row shows the count and the worst state; tap opens the terminals dialog (section 7.6) in front.
 - アップデート: the row shows the update state; tap opens the update center (section 5).
+- 利用と購読 (a485): the Web has no purchase (Stripe is gone). The page says to buy in the iPhone / iPad / Mac / Android app and log this server in there; the home row says 「購入はアプリで」.
 
 ### 4.10 稼働中に数えない処理 (a63)
 

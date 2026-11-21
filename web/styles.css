@@ -2018,3 +2018,15 @@ button.reply-quote { cursor: pointer; }
   .image-viewer-pill { width: 46px; padding: 0; justify-content: center; }
   .image-viewer-tools { gap: 6px; }
 }
+
+/* a485: the code screen of a server that issues its own sessions. */
+.login-screen { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: #fff; overflow-y: auto; }
+.login-screen[hidden] { display: none; }
+.login-card { width: min(480px, 100%); display: grid; gap: 14px; }
+.login-card h2 { margin: 0; font-size: 22px; }
+.login-card p { margin: 0; line-height: 1.7; }
+.login-code { font-size: 34px; font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums; text-align: center; padding: 18px 12px; border-radius: 18px; background: #f4f4f6; user-select: all; }
+.login-qr { width: 200px; height: 200px; margin: 0 auto; image-rendering: pixelated; }
+.login-check { text-align: center; font-size: 18px; }
+.login-console { display: grid; gap: 10px; margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.login-console-input { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; font: inherit; letter-spacing: .08em; }

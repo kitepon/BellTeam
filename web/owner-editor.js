@@ -269,7 +269,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpda
     harnessAuthSection = null
     home.reset()
     home.set('profile', { line: profile.name })
-    home.set('billing', { line: 'Web版は無料' })
+    home.set('billing', { line: '購入はアプリで' })
     home.set('updates', updateItem(updateSummary()))
     void aiControl.refresh()
     void exclusions.refresh()

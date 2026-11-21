@@ -17,6 +17,7 @@
   <div class="notification-route-notice" id="notification-route-notice" role="alert" hidden><span data-notification-notice></span><button type="button" id="notification-route-retry">再確認</button><button type="button" id="notification-route-dismiss" aria-label="通知の案内を閉じる">閉じる</button></div>
   <!-- W3/W4: app-level messages (updates stopped, setup errors) live here, never in a conversation's composer. -->
   <div class="app-banner" id="app-banner" role="alert" hidden><p data-banner-text></p><button type="button" data-banner-action hidden></button><button type="button" data-banner-close aria-label="この知らせを閉じる">×</button></div>
+  <section id="login-screen" class="login-screen" hidden></section>
   <main class="app" id="app">
     <aside class="roster" id="roster">
       <header class="roster-header">
@@ -317,7 +318,7 @@
           </section>
           <section class="settings-page" data-settings-page="billing" data-settings-icon="card" hidden>
             <h3>利用と購読</h3>
-            <p class="settings-lead">Web版は無料です。iPhone・Mac・Windows・Linux・Androidのアプリは月額980円（税込・最初の1か月無料）の共通購読を使い、購入・復元・解約は各アプリの設定「BellTeamの購読」で行います。どの購入元の購読も、同じサーバーに接続した全アプリで使えます。サーバーとAIは、ご自身の契約で使います。</p>
+            <p class="settings-lead">Web版では購入できません。BellTeamの購読は、iPhone・iPad・Mac・Androidのアプリで購入し、そのアプリでこのサーバーにログインさせます。購入・復元・解約は各アプリの設定「BellTeamの購読」で行い、ログインしたサーバーでは、つないだ全アプリで使えます。サーバーとAIは、ご自身の契約で使います。</p>
           </section>
         </div>
       </div>
