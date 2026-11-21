@@ -253,3 +253,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番 http://192.168.1.2:18891/）: 07:10:16に成功。authenticated=true、bots=144、rooms=9、最初の会話は10件でhasMore=true、SSE接続あり。
 - 本番の試験席 bot-f1a21da1 を `--render-conversation`（GETのみ）で描いた。最新30件は畳まれた行が多く、「background ×5」「background ×10」の1行にまとまり、時間順のまま並ぶ。画面は6:47の長い返答の吹き出しまで読み込まれて埋まり、先頭に「以前のメッセージを読む」が出る。
 - 確認できていない: 6:35のターンの考えた要約と道具の行（画面の上、スクロールの先にあり、描いた画像には入っていない）。`bubble: true`と`fold_count`の行は、本番の本体がまだ付けておらず（#2049・#2054の列車待ち）、実データでは見ていない。この2つは試験（MachineEventTests・UiChecks）で確かめた。
+
+### 0.6.4 の導入（a471: 作業中の行に Claude Code の言葉）
+
+2026-11-21 09:59 JST、main 0bedaca8（#2073・バージョン#2075）から `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget` で導入した（共有先の登録は管理者の確認が要るため触っていない）。導入後の`BellTeam.exe`は0.6.4+0bedaca8。
+
+- スモーク（`--smoke-test` 本番 http://192.168.1.2:18891/）: 09:59:33に成功。authenticated=true、bots=144、rooms=9、最初の会話は10件でhasMore=true、SSE接続あり。
+- 本番の席 bot-0d7da1c1 を `--render-conversation`（GETのみ）で描いた。処理中の行は「アニス BellTeam Windows · 処理中」で、本番の本体の`GET /api/queue`がまだ`workingWord`を返さない（#2069・#2071の列車待ち）ため、古い本体の表示になる。
+- 確認できていない: 実データでの「名前 · Mulling…」の表示（本体の列車が出てから）。Coreの`QueueItem.Line`の試験（ConversationParityTests、26件合格）で、言葉あり・無し・`queued`の3通りを確かめた。
