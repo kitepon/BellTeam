@@ -20,7 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
-    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await SmoothChecks();
+    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await ReconnectChecks(); await SmoothChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -375,6 +375,50 @@ public static class UiChecks {
     Check(workspace.Messages.Count == held + 3,"最新ページが戻って、新しい行が足されません（" + workspace.Messages.Count + "）。");
     Check(Math.Abs(Top() - start) < 2,"最新ページが戻って新しい行が届いた時に、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
     window.Close(); Console.WriteLine("最新ページの取り直しで見ている行が動かない確認に成功しました。");
+  }
+  // a471-scroll-reconnect: a full reconnect (the button, or an automatic one) to the same server keeps the open conversation, the held rows and the viewed row; the fresh rows are merged in. Another server starts clean.
+  private static async Task ReconnectChecks() {
+    var time = DateTimeOffset.UtcNow; var server = Enumerable.Range(0, 60).Select(index => new TimelineMessage { Id = "r" + index.ToString("D3"), At = time.AddMinutes(index), Direction = "incoming", Message = "行 " + index }).ToList();
+    var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
+    using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
+      var path = request.RequestUri!.AbsolutePath; var query = request.RequestUri.Query;
+      object result = path switch {
+        "/api/session" => new { authenticated = true, authMode = "local" },
+        "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
+        "/api/bots" => new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } },
+        "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
+        "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
+        _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
+        _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=30") ? 30 : 100).ToArray(), HasMore = false },
+        _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
+      };
+      return JsonSerializer.Serialize(result, wire);
+    })));
+    await workspace.ConnectAsync("http://localhost", listen:false);
+    var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
+    async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
+    await Layout();
+    var scroll = (ScrollViewer)window.FindName("MessageScroll");
+    ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
+    for (var turn = 0; turn < 100 && !(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
+    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight - 2.5 * scroll.ViewportHeight); await Layout(); await Task.Delay(150); await Layout();
+    double Y(MessageCard card) => card.TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
+    var viewed = Descendants<MessageCard>(root).Where(card => card.Message is not null && Y(card) >= 0).OrderBy(Y).First().Message!.Id;
+    double Top() => Y(Descendants<MessageCard>(root).Single(card => card.Message?.Id == viewed));
+    var start = Top(); var held = workspace.Messages.Count; var open = workspace.Selected?.Target;
+    // the Owner presses reconnect while rows keep arriving on the server
+    server.AddRange(Enumerable.Range(60, 3).Select(index => new TimelineMessage { Id = "r" + index.ToString("D3"), At = time.AddMinutes(index), Direction = "incoming", Message = "新しい行 " + index }));
+    await window.ConnectAsync(workspace.Server, openLogin: false);   // the reconnect button: the opening page covers the window, then the conversation shows again
+    for (var turn = 0; turn < 100 && !workspace.Connected; turn++) { await Task.Delay(20); await Layout(); }
+    await Layout(); await Task.Delay(150); await Layout();
+    Check(workspace.Selected?.Target == open,"再接続で開いていた会話が閉じました。");
+    Check(workspace.Messages.Count == held + 3,"再接続で持っている行が減るか、新しい行が足されません（" + held + " → " + workspace.Messages.Count + "）。");
+    Check(Math.Abs(Top() - start) < 2,"再接続で、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
+    // another server starts clean
+    await workspace.ConnectAsync("http://localhost:8080", listen:false);
+    Check(workspace.Selected is null && workspace.Messages.Count == 0,"別のサーバーへつなぐのに、前の会話が残っています。");
+    window.Close(); Console.WriteLine("再接続しても開いている会話と見ている行が保たれる確認に成功しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }

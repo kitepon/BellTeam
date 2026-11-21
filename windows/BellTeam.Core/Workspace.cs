@@ -233,6 +233,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         ready = false;
         SaveReplyMembers();
         ReturnToProfile();
+        // a471-scroll-jump: a reconnect to the same server keeps the open conversation, its rows, the echoes and the list; the roster read at the end merges the fresh rows in like any refresh, so what the
+        // Owner is reading stays where it is. Another server, or no open conversation, starts clean.
+        var keep = selected is not null && api is not null && api.Origin == origin;
         connection?.Cancel();
         selection?.Cancel();
         api?.Dispose();
@@ -241,10 +244,13 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         terminals = null;
         avatars.Clear();
         connection = new CancellationTokenSource();
-        selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        all.Clear(); pendingBotDeletions.Clear(); pendingSends.Clear(); queue = []; Owner = null; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
+        if (keep) { selection?.Dispose(); selection = CancellationTokenSource.CreateLinkedTokenSource(connection.Token); }
+        if (!keep) selected = null;
+        stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
+        pendingBotDeletions.Clear(); queue = []; Owner = null; OwnerName = "あなた"; AuthMode = "local";
+        if (!keep) { all.Clear(); pendingSends.Clear(); Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); }
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
-        HasMore = false;
+        if (!keep) HasMore = false;
         Loading = false;
         Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(Connected)); Changed(nameof(EditLabel)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(Server)); DraftChanged();
         ConnectionError = null;
