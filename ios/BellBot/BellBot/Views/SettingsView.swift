@@ -502,13 +502,14 @@ private struct ConnectionSettingsPage: View {
         Form {
             Section { SettingsPageHeader(page: .connection) }.listRowBackground(Color.clear)
             Section {
-                LabeledContent("ログイン方法", value: store.authMode == "cloudflare" ? "Cloudflare Access" : "同じネットワークから直接")
+                LabeledContent("ログイン方法", value: store.usesServerSessions ? "このサーバーのログイン" : store.authMode == "cloudflare" ? "Cloudflare Access" : "同じネットワークから直接")
             }
+            if store.usesServerSessions { ServerSessionsSection(model: store.serverSessions) }
             Section {
                 Button("別のサーバーにつなぎ直す", systemImage: "arrow.triangle.2.circlepath") { confirmingChange = true }
                     .accessibilityIdentifier("connection-change-server")
             }
-            if store.authMode == "cloudflare" {
+            if store.authMode == "cloudflare" || store.usesServerSessions {
                 Section {
                     Button("ログアウト", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                         Task { await store.signOut() }

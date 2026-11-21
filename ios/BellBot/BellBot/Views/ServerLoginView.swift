@@ -1,3 +1,4 @@
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 /// サーバーに入る画面（app-sessions.md 7章、文言は7e）。QRの描画は本体が作った画像を出すだけで、アプリにQR生成は無い。
@@ -63,7 +64,7 @@ struct ServerLoginView: View {
                 ProgressView()
                 cancelButton
             case .waitingPhone(let phone, let expiresAt):
-                if let png = phone.qrPng, let image = Self.image(png) {
+                if let image = Self.qrImage(phone.qr) {
                     Image(uiImage: image).interpolation(.none).resizable().scaledToFit().frame(width: 200, height: 200)
                         .accessibilityLabel("承認用のQRコード")
                 }
@@ -106,8 +107,13 @@ struct ServerLoginView: View {
         .padding(20).bellCard()
     }
 
-    private static func image(_ dataURL: String) -> UIImage? {
-        guard let comma = dataURL.firstIndex(of: ","), let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])) else { return nil }
-        return UIImage(data: data)
+    /// 短いコードと確認番号だけでも承認できるので、描けなければ絵は出さない。
+    static func qrImage(_ payload: String) -> UIImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(payload.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)),
+              let cgImage = CIContext().createCGImage(output, from: output.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 }

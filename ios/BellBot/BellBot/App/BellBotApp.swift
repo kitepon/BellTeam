@@ -181,12 +181,12 @@ private struct RootView: View {
 
     @ViewBuilder private var readyView: some View {
         #if targetEnvironment(macCatalyst)
-        DesktopWorkspaceView()
+        DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {
-            DesktopWorkspaceView()
+            DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
         } else {
-            BellTabs()
+            BellTabs().safeAreaInset(edge: .top) { LoginRequestBanner() }
         }
         #endif
     }

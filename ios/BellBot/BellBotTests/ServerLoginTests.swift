@@ -29,7 +29,7 @@ final class ServerLoginTests: XCTestCase {
     }
 
     func testPhoneApprovalKeepsTheTokenOnceAndStopsPolling() async {
-        ServerLoginProtocol.script["POST /api/login/start"] = [.json(200, #"{"loginId":"L1","status":"waiting_phone","expiresAt":"2026-11-21T13:05:00.000Z","pollAfterMs":3000,"phone":{"shortCode":"0AB12CDE","checkNumber":"0042","qr":"lbq1:x","qrPng":null}}"#)]
+        ServerLoginProtocol.script["POST /api/login/start"] = [.json(200, #"{"loginId":"L1","status":"waiting_phone","expiresAt":"2026-11-21T13:05:00.000Z","pollAfterMs":3000,"phone":{"shortCode":"0AB12CDE","checkNumber":"0042","qr":"lbq1:x","qrSvg":"<svg/>"}}"#)]
         ServerLoginProtocol.script["GET /api/login/L1"] = [.json(200, #"{"loginId":"L1","status":"waiting_phone","pollAfterMs":3000,"phone":{"shortCode":"0AB12CDE","checkNumber":"0042","qr":"lbq1:x"}}"#),
                                                            .json(200, #"{"loginId":"L1","status":"approved","token":"tok-new","sessionId":"s9"}"#)]
         var received: [(String, String?)] = []
@@ -84,7 +84,8 @@ final class ServerLoginTests: XCTestCase {
         await model.submitConsole(code: " AAAA-BBBB-CCCCC ")
         await waitUntil("token") { !received.isEmpty }
         XCTAssertEqual(received, ["tc"])
-        XCTAssertEqual(ServerLoginProtocol.bodies["POST /api/login/console"]?.first, #"{"code":"AAAA-BBBB-CCCCC","kind":"apple"}"#)
+        let sent = ServerLoginProtocol.bodies["POST /api/login/console"]?.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: String] }
+        XCTAssertEqual(sent, ["code": "AAAA-BBBB-CCCCC", "kind": "apple"])
     }
 
     func testUnauthenticatedProbeOfASessionServerOpensTheLoginScreen() async {
@@ -100,6 +101,46 @@ final class ServerLoginTests: XCTestCase {
         let store = AppStore(api: makeAPI())
         await store.bootstrap()
         if case .signIn = store.phase {} else { XCTFail("従来のAccess経路へ進む") }
+    }
+
+    func testRequestsApproveDenyAndRefresh() async {
+        ServerLoginProtocol.script["GET /api/login/requests"] = [.json(200, #"{"requests":[{"loginId":"R1","kind":"windows","networkClass":"unknown","requestedAt":"2026-11-21T13:00:00.000Z","expiresAt":"2026-11-21T13:05:00.000Z"}]}"#),
+                                                                 .json(200, #"{"requests":[]}"#)]
+        ServerLoginProtocol.script["GET /api/sessions"] = [.json(200, #"{"sessions":[{"id":"s1","kind":"apple","origin":"phone","networkClass":"lan","createdAt":"2026-11-21T12:00:00.000Z","lastUsedAt":null,"current":true},{"id":"s2","kind":"windows","origin":"added","networkClass":"unknown","createdAt":"2026-11-21T12:30:00.000Z","issuedBy":"s1","current":false}]}"#)]
+        ServerLoginProtocol.script["POST /api/login/R1/approve"] = [.json(200, #"{"loginId":"R1","status":"waiting_phone"}"#)]
+        let model = ServerSessionsModel(api: makeAPI(token: "t"))
+        await model.refresh()
+        XCTAssertEqual(model.requests.map(\.loginId), ["R1"])
+        XCTAssertEqual(model.sessions.map(\.origin), ["phone", "added"])
+        XCTAssertEqual(model.sessions[1].issuedBy, "s1")
+        await model.approve(model.requests[0])
+        XCTAssertEqual(ServerLoginProtocol.count("POST /api/login/R1/approve"), 1)
+        XCTAssertTrue(model.requests.isEmpty, "許可の後は読み直す")
+    }
+
+    func testFailedApproveIsNotResentAndShowsTheReason() async {
+        ServerLoginProtocol.script["GET /api/login/requests"] = [.json(200, #"{"requests":[{"loginId":"R2","kind":"web","networkClass":"lan","requestedAt":"2026-11-21T13:00:00.000Z","expiresAt":"2026-11-21T13:05:00.000Z"}]}"#)]
+        ServerLoginProtocol.script["GET /api/sessions"] = [.json(200, #"{"sessions":[]}"#)]
+        ServerLoginProtocol.script["POST /api/login/R2/approve"] = [.json(409, #"{"error":"LOGIN_NOT_WAITING"}"#)]
+        let model = ServerSessionsModel(api: makeAPI(token: "t"))
+        await model.refresh()
+        await model.approve(model.requests[0])
+        XCTAssertEqual(ServerLoginProtocol.count("POST /api/login/R2/approve"), 1)
+        XCTAssertNotNil(model.errorText)
+    }
+
+    func testAddAppIssuesACodeOnce() async {
+        ServerLoginProtocol.script["POST /api/login/code"] = [.json(200, #"{"code":"ABCD-EFGH-JKMNP","expiresAt":"2026-11-21T13:10:00.000Z"}"#)]
+        let model = ServerSessionsModel(api: makeAPI(token: "t"))
+        await model.issueCode()
+        XCTAssertEqual(model.issued?.code, "ABCD-EFGH-JKMNP")
+        model.discardCode()
+        XCTAssertNil(model.issued)
+        XCTAssertEqual(ServerLoginProtocol.count("POST /api/login/code"), 1)
+    }
+
+    func testQRImageIsDrawnFromThePayload() {
+        XCTAssertNotNil(ServerLoginView.qrImage("lbq1:AbCdEfGhIjKlMnOpQrStUv"))
     }
 
     func testServerNotReadyKeepsTheTokenAndRetries() async {
