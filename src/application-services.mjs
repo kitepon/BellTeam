@@ -265,6 +265,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // conversation/machine-stream.md: execution hands envelopes to seatStream (ingest/cursor); the Owner's answer goes back through transport.streamSend.
   const machineStream = new MachineStream({
     root, bots, onRequest: item => notifications.question(item),
+    showThinking: () => settings.configuration('thinkingDisplay').enabled,
     streamSend: (botId, input) => typeof transport.streamSend === 'function' ? transport.streamSend(bots.get(botId), input)
       : Promise.reject(Object.assign(new Error('EXECUTION_REQUEST_INVALID'), { code: 'EXECUTION_REQUEST_INVALID' })),
   })

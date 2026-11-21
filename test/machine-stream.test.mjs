@@ -120,6 +120,31 @@ test('the last words are the bubble at the first Stop hook line, a newest-10 re-
   assert.deepEqual(bubbles(), [false, false, true, true])
 })
 
+test('thinking follows the Owner setting: hidden by default in the page and the preview, shown when on, stored lines unchanged, a failed read is hidden (a479-thinking-setting)', async t => {
+  const { root, changes } = await service(t)
+  let on = false
+  const ms = new MachineStream({ root, bots, streamSend: async () => ({}), showThinking: () => on })
+  await ms.initialize()
+  ms.watch(change => changes.push(change))
+  const lines = [J({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'secret thoughts' }, { type: 'text', text: 'answer' }] } }), J({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: '' }] } })]
+  await ms.ingest(env(lines, null, 'L1:1'))
+  const views = () => ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event.view)
+  const recent = () => ms.timelineView({ botId: 'bot-d' }, { recent: true }).snapshot().map(r => r.machine_event.view)
+  assert.deepEqual(views(), ['words']) // hidden: the shown and the empty (folded) thinking rows are both left out, nothing else moves
+  assert.deepEqual(recent(), ['words'])
+  const before = changes.length
+  on = true; ms.displayChanged()
+  assert.equal(changes.length, before + 1) // the usual timeline change event for the machine seat
+  assert.deepEqual(views(), ['thinking', 'words', 'thinking']) // rows keep their order and ids
+  assert.deepEqual(recent(), ['thinking', 'words'])
+  assert.equal(ms.timeline({ botId: 'bot-d' })[0].id, 'me-1-0')
+  on = false
+  assert.deepEqual(views(), ['words'])
+  assert.equal(JSON.parse((await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8')).split('\n')[0]).line, lines[0]) // stored line untouched
+  ms.showThinking = () => { throw new Error('FEATURE_NOT_FOUND') }
+  assert.deepEqual(views(), ['words']) // a failed read is hidden
+})
+
 test('the words that follow a silent_turn_reminder marker are a bubble at once, only the first one; a result clears a marker nobody answered; a restart rebuilds it', async t => {
   const { ms, root } = await service(t)
   const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
