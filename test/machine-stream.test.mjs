@@ -332,3 +332,12 @@ test('an unknown line has a plain one-line label and keeps its raw JSON in text'
   assert.equal(rows[0].machine_event.text, raw)
   assert.ok(rows.every(r => !r.message.includes('{')))
 })
+
+// a471-raw-ratelimit-row: a rate_limit row's label is its title only; the info JSON stays in text.
+test('a rate_limit row has a plain one-line label and keeps its info JSON in text', async t => {
+  const { ms } = await service(t)
+  await ms.ingest(env([J({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', resetsAt: 1790000000 } })], null, 'L1:1'))
+  const [row] = ms.timeline({ botId: 'bot-d' })
+  assert.equal(row.message, 'rate limit: allowed')
+  assert.equal(row.machine_event.text, JSON.stringify({ status: 'allowed', resetsAt: 1790000000 }))
+})
