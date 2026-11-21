@@ -49,6 +49,7 @@ public partial class MainWindow : Window, IInspectorHost
         };
         UpdateWelcome(); ProfileLayout();
         model.Messages.CollectionChanged += (_, _) => UpdateWelcome();
+        KeepPositionWhileRowsLand();
         MessageScroll.ScrollChanged += async (_, args) =>
         {
             if (!ReferenceEquals(args.OriginalSource, MessageScroll)) return;
@@ -163,15 +164,18 @@ public partial class MainWindow : Window, IInspectorHost
         readOnceFor = model.Selected?.Target;
         await LoadOlderPreservingPositionAsync();
     }
+    // The row being read stays where it is when older rows land above it (a471-scroll-jump): the position is read and restored by the model's two events, at the change itself.
+    private double anchorOffset, anchorHeight;
+    private void KeepPositionWhileRowsLand()
+    {
+        model.OlderRowsAdding += () => { anchorOffset = MessageScroll.VerticalOffset; anchorHeight = MessageScroll.ExtentHeight; };
+        model.OlderRowsAdded += () => { MessageScroll.UpdateLayout(); MessageScroll.ScrollToVerticalOffset(anchorOffset + MessageScroll.ExtentHeight - anchorHeight); };
+    }
     private async Task LoadOlderPreservingPositionAsync()
     {
         if (loadingOlder) return;
-        loadingOlder = true; var target = model.Selected?.Target; var offset = MessageScroll.VerticalOffset; var height = MessageScroll.ExtentHeight;
-        try
-        {
-            await model.LoadOlderAsync();
-            if (model.Selected?.Target == target) { MessageScroll.UpdateLayout(); MessageScroll.ScrollToVerticalOffset(offset + MessageScroll.ExtentHeight - height); }
-        }
+        loadingOlder = true;
+        try { await model.LoadOlderAsync(); }
         finally { loadingOlder = false; }
     }
     private async void Reconnect_Click(object sender, RoutedEventArgs e) { if (page?.CanNavigateAway == false || model.Server.Length == 0) return; ShowConversation(); await ConnectAsync(model.Server); }

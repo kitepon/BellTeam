@@ -495,6 +495,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
 
     // One older request at a time (machine-stream.md "History pages of a long stream"): a caller that comes while one is on its way waits for that one.
     // The read does not set Loading, so a background read never turns the send button off.
+    // a471-scroll-jump: rows that land above the view must not move it. The app reads its scroll position in OlderRowsAdding and restores it in OlderRowsAdded; both run on the UI thread
+    // around the one change, so a scroll the Owner made while the page was on its way is kept (the position read when the request started would undo it).
+    public event Action? OlderRowsAdding, OlderRowsAdded;
     private Task? olderRead;
     public Task LoadOlderAsync() => olderRead is { IsCompleted: false } running ? running : olderRead = ReadOlderAsync();
     private async Task ReadOlderAsync()
@@ -508,7 +511,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             token.ThrowIfCancellationRequested();
             // Folded rows are drawn again from the whole list, so a run split by the page edge becomes one line.
             var loaded = Received(); var known = loaded.Select(message => message.Id).ToHashSet();
+            OlderRowsAdding?.Invoke();
             ShowMessages([.. page.Items.Where(message => !known.Contains(message.Id)), .. loaded]);
+            OlderRowsAdded?.Invoke();
             HasMore = page.HasMore;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

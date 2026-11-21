@@ -20,7 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
-    await FillChecks(); await FillChecks(3);
+    await FillChecks(); await FillChecks(3); await JumpChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -207,7 +207,49 @@ public static class UiChecks {
     Check(olderReads == settled,"画面が埋まった後に古いページを読み続けています。");
     window.Close(); Console.WriteLine("最初のページが短い時に古いページで画面を埋める確認に成功しました（畳んだページ " + foldedPages + "）。");
   }
+  // a471-scroll-jump: the row the Owner looks at stays put when an older page lands, also when he scrolled while the page was on its way (the position read when the request started must not be restored).
+  private static async Task JumpChecks() {
+    var time = DateTimeOffset.UtcNow; var gate = new TaskCompletionSource(); var olderRequested = false;
+    TimelineMessage[] Rows(string prefix, int count, int minutes) => Enumerable.Range(0,count).Select(index => new TimelineMessage { Id = prefix + index, At = time.AddMinutes(minutes + index), Direction = "incoming", Message = "行 " + prefix + index }).ToArray();
+    var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
+    using var workspace = new Workspace(origin => new BellApi(origin, new GatedHandler(async request => {
+      var path = request.RequestUri!.AbsolutePath;
+      if (path.EndsWith("/messages") && request.RequestUri.Query.Contains("before=")) { olderRequested = true; await gate.Task; return JsonSerializer.Serialize(new MessagePage { Items = Rows("old", 20, -100), HasMore = true }, wire); }
+      object result = path switch {
+        "/api/session" => new { authenticated = true, authMode = "local" },
+        "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
+        "/api/bots" => new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } },
+        "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
+        "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
+        _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = Rows("first", 60, 0), HasMore = true },
+        _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
+      };
+      return JsonSerializer.Serialize(result, wire);
+    })));
+    await workspace.ConnectAsync("http://localhost", listen:false);
+    var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
+    async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
+    await Layout();
+    var scroll = (ScrollViewer)window.FindName("MessageScroll");
+    ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
+    for (var turn = 0; turn < 100 && !(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
+    Check(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 3 * scroll.ViewportHeight,"最初のページが長い一覧になりません。");
+    scroll.ScrollToVerticalOffset(2 * scroll.ViewportHeight); await Layout();   // less than 3 screens above: an older page is asked for
+    for (var turn = 0; turn < 100 && !olderRequested; turn++) { await Task.Delay(20); await Layout(); }
+    Check(olderRequested,"上に3画面分が無いのに古いページを読みません。");
+    scroll.ScrollToVerticalOffset(scroll.VerticalOffset - 300); await Layout();   // the Owner keeps scrolling while the page is on its way
+    double Top() => Descendants<MessageCard>(root).Single(card => card.Message?.Id == "first20").TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
+    var before = Top();
+    gate.SetResult();
+    for (var turn = 0; turn < 100 && workspace.Messages.Count < 80; turn++) { await Task.Delay(20); await Layout(); }
+    Check(workspace.Messages.Count >= 80,"古いページが届きません。");
+    var after = Top();
+    Check(Math.Abs(after - before) < 2,"古いページが届いて、見ている行が動きました（前 " + before + "、後 " + after + "）。");
+    window.Close(); Console.WriteLine("古いページが届いても見ている行が動かない確認に成功しました。");
+  }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }
+  private sealed class GatedHandler(Func<HttpRequestMessage,Task<string>> response):HttpMessageHandler { protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(await response(request),System.Text.Encoding.UTF8,"application/json")}; }
   private sealed class MockHandler(Func<HttpRequestMessage,string> response):HttpMessageHandler { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(response(request),System.Text.Encoding.UTF8,"application/json")}); }
 }
