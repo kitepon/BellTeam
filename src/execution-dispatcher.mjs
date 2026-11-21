@@ -8,6 +8,7 @@ import { ConfigurationRequests } from './configuration-requests.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
 import { IdleSessions, approvalBoxWakeDecisions, approvalBoxVersionAsSeat } from './idle-sessions.mjs'
+import { SeatOomBias } from './seat-oom-bias.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 import { HarnessAccounts, seatFilesOver } from './harness-accounts.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -202,9 +203,14 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   }
   transport.activity.recoverCapacity = continuation ? context => continuation.failed(context) : null
   if (continuation) deferredRecovery.push(...(transport.activity.deferredCapacity?.splice(0) ?? []))
-  const unsubscribe = transport.watchQueue(change => {
+  const unsubscribeQueue = transport.watchQueue(change => {
     alive(); track(ports.observer?.emitQueue?.(change))
   })
+  // a472m: a seat in a turn is a later memory-pressure victim than a quiet one. Needs the parent's seat runner; best effort.
+  const stopOomBias = typeof ports.seat?.waitProcess === 'function'
+    ? new SeatOomBias({ activity: transport.activity, bots: ports.bots, session: bot => transport.session(bot), run: ports.seat.waitProcess,
+      report: message => ports.observer?.report?.(message) }).start() : () => {}
+  const unsubscribe = () => { unsubscribeQueue(); stopOomBias() }
   const engines = { transport, administration, goals,
     accounts: { list: () => accounts.list(), prepare: (harness, slot) => accounts.prepare(harness, slot) } }
   const deliveryMethods = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.setupTest', 'transport.forkInquiry'])
