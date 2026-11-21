@@ -42,6 +42,8 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           reasoningEffort: bot.reasoningEffort ?? '',
           fastMode: bot.fastMode === true,
           configurationLocked: bot.configurationLocked === true,
+          pinned: Boolean(bot.pinnedAt),
+          pinnedAt: bot.pinnedAt ?? null,
           color: bot.color ?? 'violet',
           profileText: bot.profileText ?? '',
           personality: bot.personality ?? '',
@@ -74,6 +76,9 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         if (seatLaunch !== undefined) item.seatLaunch = state === 'active' ? seatLaunch : null
         current.push(item)
       }
+      // a480: pinned Bots first by the time they were pinned, then the rest in the order above (Array sort is stable).
+      current.sort((a, b) => Boolean(b.pinnedAt) - Boolean(a.pinnedAt)
+        || (a.pinnedAt && b.pinnedAt ? Date.parse(a.pinnedAt) - Date.parse(b.pinnedAt) || a.id.localeCompare(b.id) : 0))
       return json(response, 200, { bots: current })
     }
     if (request.method === 'POST' && url.pathname === '/api/bots') {

@@ -25,7 +25,7 @@ const crop = value => {
 }
 const profileFields = {
   name: value => { string(value, 100); if (!value.trim()) fail() }, harness,
-  model: value => string(value, 200), reasoningEffort: text, fastMode: bool, configurationLocked: bool,
+  model: value => string(value, 200), reasoningEffort: text, fastMode: bool, configurationLocked: bool, pinned: bool,
   profileText: value => string(value, 8000), personality: value => string(value, 8000), speechStyle: value => string(value, 8000),
   position: value => string(value, 100), role: value => string(value, 8000),
   color: value => { if (!['rose', 'indigo', 'violet'].includes(value)) fail() },
@@ -144,7 +144,7 @@ export function validateMembersControl(method, params) {
 const version = value => { if (value !== '' && (typeof value !== 'string' || !/^[a-f0-9]{16}$/u.test(value))) fail() }
 const avatarVersions = { avatarVersion: version, avatarLargeVersion: version, avatarSourceVersion: version, avatarLargeSourceVersion: version }
 const bot = (value, metadata = false) => {
-  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool }, ['id', 'name', 'harness', 'session'])
+  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), pinnedAt: value => { if (value !== null) time(value) }, id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool }, ['id', 'name', 'harness', 'session'])
 }
 const persistedSchedule = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail()

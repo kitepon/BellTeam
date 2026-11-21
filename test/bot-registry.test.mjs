@@ -316,6 +316,21 @@ test('configurationLockedは既定false、booleanだけ保存し、他のfield�
   assert.equal((await registry.update('bot-a', { configurationLocked: false })).configurationLocked, false)
 })
 
+test('a480: pinnedは既定で未ピン、pinnedAtにピンした時刻を保存し、再ピンで位置を動かさず、他の保存と再読込で保たれる', async () => {
+  const { root, registry } = await fixture()
+  assert.equal(registry.get('bot-a').pinnedAt, null)
+  await assert.rejects(registry.update('bot-a', { pinned: 'yes' }), /BOT_PINNED_INVALID/u)
+  const first = (await registry.update('bot-a', { pinned: true })).pinnedAt
+  assert.ok(Number.isFinite(Date.parse(first)))
+  assert.equal(JSON.parse(await readFile(join(root, 'bots/bot-a/bot.json'), 'utf8')).pinnedAt, first)
+  assert.equal((await registry.update('bot-a', { pinned: true })).pinnedAt, first)
+  await registry.update('bot-a', { role: '別の変更' })
+  await registry.refresh()
+  assert.equal(registry.get('bot-a').pinnedAt, first)
+  assert.equal((await registry.update('bot-a', { pinned: false })).pinnedAt, null)
+  await assert.rejects(registry.update('bot-a', { pinnedAt: '2026-01-01T00:00:00Z' }), /BOT_UPDATE_FIELD_INVALID/u)
+})
+
 test('ファストモードは既定で無効にし、Aitermの一覧が切り替えられると返すモデルだけ有効を保存する', async () => {
   const { root, registry } = await fixture()
   assert.equal(registry.get('bot-a').fastMode, false)
