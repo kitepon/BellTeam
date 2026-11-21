@@ -273,7 +273,10 @@ jobs:
           assert.equal(subscription.entitled, false);
           assert.equal(subscription.accessMode, "subscription");
           assert.equal(subscription.canUseAI, true);
-          assert.equal((await fetch(base)).status, 200);
+          // a487: the browser UI has ended; the public gateway answers every page with one notice.
+          const root = await fetch(base);
+          assert.equal(root.status, 410);
+          assert.match(await root.text(), /ブラウザ版は終了しました/);
           '
       - name: 失敗時の本体・module-installer・container-updaterの状態と記録
         if: failure()
