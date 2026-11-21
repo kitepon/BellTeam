@@ -50,9 +50,12 @@ export function createExecutionFacade({ getController, client, membersAdmission,
     const owned = value.state === 'idle' ? own(bot.id) : null
     return owned ? { ...value, state: 'working', reason: { kind: owned.kind, detail: owned.detail ?? null, since: iso(owned.since) } } : value
   }
+  // a485: a turn BellTeam started or follows is running at once; the native read only shows it a read cycle later (24 s at the worst seen, Mint 11/21).
+  // Only `false` counts: an older engine or a failed call says nothing.
+  const busy = botId => { try { return current().project({ method: 'transport.isIdle', args: [botId] }) === false } catch { return false } }
   result.transport.runningState = botId => {
     const state = current().project({ method: 'transport.currentTurn', args: [botId] })?.state
-    return state === 'idle' && own(botId) ? 'working' : state
+    return state === 'working' ? state : state === 'idle' && own(botId) || busy(botId) ? 'working' : state
   }
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,
