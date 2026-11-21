@@ -110,18 +110,20 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, webP
     if (method === 'initialize') {
       object(params, ['configuration'])
       if (initialized || exiting) throw failure('PUSH_CONTROL_INVALID')
-      object(params.configuration, ['apns', 'webPush'])
+      object(params.configuration, ['apns'], ['webPush'])
       object(params.configuration.apns, ['enabled', 'relayUrl'])
-      object(params.configuration.webPush, ['enabled', 'subject'])
+      // a487n stage 1: a parent that no longer sends webPush is accepted; the child still reports a (disabled) webPush status until stage 2
+      const webPushConfiguration = params.configuration.webPush ?? { enabled: false, subject: '' }
+      object(webPushConfiguration, ['enabled', 'subject'])
       validateNotificationRequest('configure', { ...params.configuration.apns, provider: 'apns' })
-      validateNotificationRequest('configure', { ...params.configuration.webPush, provider: 'webPush' })
+      validateNotificationRequest('configure', { ...webPushConfiguration, provider: 'webPush' })
       await service.initialize()
       await web.initialize()
       await fcm.initialize()
       initialized = true
       const applyError = { apns: null, webPush: null }
       for (const [name, target] of [['apns', service], ['webPush', web]]) {
-        try { await target.configure(params.configuration[name]) }
+        try { await target.configure(name === 'webPush' ? webPushConfiguration : params.configuration[name]) }
         catch (error) {
           const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : name === 'apns' ? 'PUSH_CONFIGURATION_FAILED' : 'WEB_PUSH_CONFIGURATION_FAILED'
           applyError[name] = code
