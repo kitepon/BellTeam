@@ -103,6 +103,23 @@ test('the last words of an ended turn are the bubble; earlier words, input and a
   assert.deepEqual(bubbles(again), [false, false, true, true])
 })
 
+test('the last words are the bubble at the first Stop hook line, a newest-10 re-read away; the result after the hooks changes nothing; words after a Stop go on to the next mark', async t => {
+  const { ms } = await service(t)
+  const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
+  const stop = J({ type: 'system', subtype: 'hook_started', hook_name: 'Stop' })
+  const rows = () => ms.timeline({ botId: 'bot-d' })
+  const bubbles = () => rows().filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
+  await ms.ingest(env([J({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }), words('mid'), J({ type: 'system', subtype: 'hook_started', hook_name: 'PreToolUse:Bash' }), words('answer')], null, 'L1:1'))
+  assert.deepEqual(bubbles(), [false, false, false]) // a tool hook is not the end of the turn
+  await ms.ingest(env([stop, stop, stop, stop], 'L1:1', 'L1:2'))
+  assert.deepEqual(bubbles(), [false, false, true])
+  assert.ok(rows().findIndex(r => r.machine_event.bubble) >= rows().length - 6) // within the newest 10 rows of the moment it was made
+  await ms.ingest(env([J({ type: 'system', subtype: 'hook_response', hook_name: 'Stop' }), J({ type: 'result', subtype: 'success' })], 'L1:2', 'L1:3'))
+  assert.deepEqual(bubbles(), [false, false, true]) // the result had nothing left to mark
+  await ms.ingest(env([words('after the hook sent it on'), stop, J({ type: 'result', subtype: 'success' })], 'L1:3', 'L1:4'))
+  assert.deepEqual(bubbles(), [false, false, true, true])
+})
+
 test('the words that follow a silent_turn_reminder marker are a bubble at once, only the first one; a result clears a marker nobody answered; a restart rebuilds it', async t => {
   const { ms, root } = await service(t)
   const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
