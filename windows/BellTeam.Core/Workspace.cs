@@ -757,7 +757,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         new() { Id = "preview-secret", At = DateTimeOffset.Now, SecretRequest = new() { Id = "preview-secret", BotId = "preview", ToolId = "test", Label = "確認用の入力", Message = "これは表示確認用の人工データです。", Status = "pending" } },
         new() { Id = "preview-question", At = DateTimeOffset.Now, OwnerQuestion = new() { Id = "preview-question", BotId = "preview", Question = "どちらから始めましょうか。", Options = ["画像を確認", "会話を書き出す"], AllowOther = true, Status = "open" } }
     ];
-    public void Dispose() { ReturnToProfile(); connection?.Cancel(); selection?.Cancel(); connection?.Dispose(); selection?.Dispose(); api?.Dispose(); attachmentPreviews.Clear(); avatars.Clear(); drafts.Clear(); }
+    public void Dispose() { ReturnToProfile(); connection?.Cancel(); selection?.Cancel(); connection?.Dispose(); selection?.Dispose(); api?.Dispose(); api = null; attachmentPreviews.Clear(); avatars.Clear(); drafts.Clear(); }
 }
 
 public sealed record ActivityRow(string Text, string? StopBotId, string Name, bool Stopping) { public string StopLabel => Stopping ? "停止中…" : "止める"; }
