@@ -119,6 +119,18 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertGreaterThan(try requests().count, before)
     }
 
+    /// a471-fill-drawn：読んだ頁が全部畳まれる行で、描かれる行がほとんど増えなくても、描かれた量が足りるまで頁を読み続ける。
+    /// 最新の100件は先頭90件が畳まれた道具の行、次の500件も畳まれた行（先頭の畳んだ行へ束ねられ、行の並びが変わらない）、その先の500件は普通の行。
+    func testAllFoldedPageDoesNotEndTheFillLoop() throws {
+        try openConversation("ユキ", failBefore: false, fold: true)
+        XCTAssertTrue(text("m1100").waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 8)
+        XCTAssertEqual(try requests(), ["?limit=100",
+                                        "?limit=500&before=m1001&before_at=2026-01-01T16%3A40%3A00.000Z",
+                                        "?limit=500&before=m501&before_at=2026-01-01T08%3A20%3A00.000Z"],
+                       "畳まれた頁の後も、描かれた量が足りなければ次の頁を読む")
+    }
+
     /// 先読みした過去の頁が入った後に上へ読み進めても、読んでいる位置は動かず、頁は重ねて取らない（has_moreが偽）。
     /// 全160行を指で最古まで送るには時間がかかり過ぎるので、行の入れ替えを見る分だけ送る。
     func testReadingUpAfterPrefetchKeepsPositionAndAsksNoMorePages() throws {
@@ -184,8 +196,8 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(scrolled, 2, "59°傾いたドラッグ5回のうち2回以上でログが動く（実測 \(scrolled)/5）")
     }
 
-    private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false, shortPage: Bool = false) throws {
-        _ = try data("/test/reset?failBefore=\(failBefore ? 1 : 0)&total=\(total)&shortPage=\(shortPage ? 1 : 0)")
+    private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false, shortPage: Bool = false, fold: Bool = false) throws {
+        _ = try data("/test/reset?failBefore=\(failBefore ? 1 : 0)&total=\(total)&shortPage=\(shortPage ? 1 : 0)&fold=\(fold ? 1 : 0)")
         app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", base.absoluteString]
         if events { app.launchArguments.append("-bellbot-preview-events") }

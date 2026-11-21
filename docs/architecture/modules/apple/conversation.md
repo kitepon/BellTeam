@@ -47,7 +47,7 @@ flowchart TD
 | 非active・画面終了 | reader/olderTaskをcancel、reader参照とagainを消し世代を増加。非activeではloading/loadingOlderも解除。reader世代は古いtaskによるreader参照の消去を防ぐ。取消は表示・診断しない |
 | loadの戻り値 | skippedSceneInactive / skippedAwaitingSend / joinedReaderReturned / startedReaderReturned。HTTP成功を示す値ではない |
 
-過去取得は先読み（machine-stream.md「History pages of a long stream」）：最初の頁は`limit=100`（更新は`refreshPage`の30件とafter）、過去の頁は`limit=500`で、持っている最古の行の`id`と`at`を`before`と`before_at`（URLエンコード）で送る。見ている行より上に読込済みを`max(3画面, 150行, 2秒分のスクロール速度)`残すことを`ConversationHistoryPage.needsOlder`で判定し、足りなければ`ConversationList.Coordinator.prefetchIfLow`が次の頁を要求する。判定は、開いた直後（スクロール無しの背景読み）・表示域に収まらない時・頁が届いた直後（速いスクロールで頁が続く）・スクロールの動きで行う。同時に頼むのは一つで、失敗は次のスクロールの動きまで繰り返さない。`hasMore`が偽で止まる。足した行の上で読んでいる位置は動かさない（ChatLayoutの役目、a426）。
+過去取得は先読み（machine-stream.md「History pages of a long stream」）：最初の頁は`limit=100`（更新は`refreshPage`の30件とafter）、過去の頁は`limit=500`で、持っている最古の行の`id`と`at`を`before`と`before_at`（URLエンコード）で送る。見ている行より上に読込済みを`max(3画面, 150行, 2秒分のスクロール速度)`残すことを`ConversationHistoryPage.needsOlder`で判定し、足りなければ`ConversationList.Coordinator.prefetchIfLow`が次の頁を要求する。判定は、開いた直後（スクロール無しの背景読み）・表示域に収まらない時・頁が届いた直後（速いスクロールで頁が続く）・スクロールの動きで行う。同時に頼むのは一つで、失敗は次のスクロールの動きまで繰り返さない。判定は描かれた量（畳んだ行は1行。表示域の行と上の点数）で行い、保持している生の行数では行わない（machine-stream.md「Fill rule」、a471-fill-drawn）。頁が読めるたびに`olderPagesRead`が増え、一覧は先読みの判定をやり直す。畳まれた行ばかりの頁は並びを変えずに先頭の畳んだ行へ束ねられ行が増えないが、それでも描かれた量が足りなければ次の頁を読み続ける。行の更新（束ねるだけの更新を含む）の後にも必ず判定する。`hasMore`が偽で止まる。足した行の上で読んでいる位置は動かさない（ChatLayoutの役目、a426）。
 
 ## 本文と一覧への反映
 

@@ -37,6 +37,18 @@ function pageItems(items, url) {
 }
 
 // 初回10件が画面に収まる短文の履歴（ハル）。過去は残っている。
+// 長く動いた機械席：古い500件は普通の行、次の500件は畳まれる道具の行（同じfold_group）、最新の100件は先頭90件が畳まれる道具の行。
+// 畳んだ行は一つの行に束ねて描くので、頁を読んでも描かれる行がほとんど増えない（a471-fill-drawn）。
+const foldHistory = Array.from({ length: 1100 }, (_, index) => {
+  const id = `m${String(index + 1).padStart(3, '0')}`
+  const at = new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString()
+  const base = { id, direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at, delivery: 'delivered' }
+  if ((index >= 500 && index < 1000) || (index >= 1000 && index < 1090)) {
+    return { ...base, kind: 'machine_event', message: 'Bash ls', machine_event: { seq: index, view: 'tool_use', display: 'fold', fold_group: 'tool_use', fold_count: 1, title: 'tool_use', text: 'Bash ls', tool: { name: 'Bash', summary: 'ls' } } }
+  }
+  return { ...base, kind: 'message', message: `${id} 短い返事です。` }
+})
+
 const shortMessages = Array.from({ length: 35 }, (_, index) => {
   const id = `s${String(index + 1).padStart(2, '0')}`
   return {
@@ -58,7 +70,7 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); requests = []; diagnosticReports = []; messages = url.searchParams.get('fold') === '1' ? foldHistory.slice() : history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })

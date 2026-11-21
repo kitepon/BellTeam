@@ -47,6 +47,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
     let hasMore: Bool
     let loading: Bool
     let loadingOlder: Bool
+    let olderPagesRead: Int
     let bottomInset: CGFloat
     let opening: ConversationOpening
     let scrollToBottomRevision: Int
@@ -99,6 +100,11 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         if coordinator.loading && !loading { coordinator.prefetchRequested = false }
         coordinator.loading = loading
         coordinator.loadingOlder = loadingOlder
+        // 頁が読めたら、描かれた量が足りるか判定をやり直す。畳まれた行ばかりの頁は並びを変えずに先頭の畳んだ行へ束ねられ、行が増えない。
+        if coordinator.olderPagesRead != olderPagesRead {
+            coordinator.olderPagesRead = olderPagesRead
+            coordinator.prefetchRequested = false
+        }
         if view.contentInset.bottom != bottomInset { view.contentInset.bottom = bottomInset }
         coordinator.present(rows: rows, messages: messages, queue: queue, rowContext: rowContext,
                             environment: context.environment)
@@ -131,6 +137,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var rowContext: [ConversationRowContext] = []
         private var lastOffset: CGFloat = 0
         var prefetchRequested = false
+        var olderPagesRead = 0
         private var scrollSpeed: CGFloat = 0
         private var lastScrollTime: CFTimeInterval = 0
         private var atBottom = true
@@ -203,6 +210,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private func apply(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
                            rowContext: [ConversationRowContext]) {
             guard let view, let dataSource else { return }
+            // 行が変わらない・束ねられるだけの更新でも、描かれた量を見て先読みを続けるかを必ず判定する。
+            defer { DispatchQueue.main.async { [weak self] in self?.prefetchIfLow() } }
             let previous = dataSource.snapshot?.itemIdentifiers ?? []
             let updated = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var changed = Set<ConversationRow>()
