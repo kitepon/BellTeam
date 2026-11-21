@@ -11,7 +11,7 @@ Docker Engine 26以降とvolume subpathに対応したDocker Composeを使い、
 3. 最初に使うClaude・Codex・Grok・Cursorをアプリの画面で選びます。AIのCLIはこのイメージに含まれていません。AIの認証の「最新版を入れる」を押して入れ、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。BellTeamのメンバーは、コンテナの中で、Claude Codeの「Bypass Permissions」（操作のたびに許可を求めない）モードで動きます。そのため、BellTeamはメンバー用のClaude Codeの初回案内と、このモードの確認画面に、自分で答えます（`~/.claude.json`の`hasCompletedOnboarding`と`~/.claude/settings.json`の`skipDangerousModePermissionPrompt`を書きます）。利用規約の更新への同意は書きません。
 4. 認証後、案内役との会話が始まります。メンバーや追加機能など、希望する使い方を案内役へ伝えて設定します。
 
-Webアプリとサーバーは無料です。初期設定の後も、すべてのメンバーとの会話、メンバー間の配送、予定の実行を購読なしで使えます。AI各社や追加機能に使う外部サービスの契約は自分で用意します。
+サーバーは無料です（MITライセンスのオープンソース）。アプリ（iPhone・Mac・Windows・Linux・Android）の利用には購読が必要です。無料で使いたい場合は、ソースから自分でビルドして使えます。初期設定の後も、すべてのメンバーとの会話、メンバー間の配送、予定の実行を購読なしで使えます。AI各社や追加機能に使う外部サービスの契約は自分で用意します。
 
 ## 設置先とイメージの指定
 
