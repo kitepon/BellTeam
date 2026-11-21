@@ -20,7 +20,12 @@ struct SubscriptionStatus: Decodable {
     // Since a389. Optional so an older server still decodes; a missing canPurchase means no purchase button (contract rule 6).
     let billingSources: [String]?
     let canPurchase: Bool?
+    /// The server's own word (app-sessions.md 7e): 'active' | 'none' | 'unknown'. Absent on older servers.
+    let entitlementState: String?
     let error: Issue?
+
+    /// Only a definite 'none' replaces the app; 'active', 'unknown' and no field show it (the Web is never gated).
+    var requiresSubscription: Bool { entitlementState == "none" }
 }
 
 private struct SubscriptionResponse: Decodable { let subscription: SubscriptionStatus }
@@ -90,6 +95,7 @@ final class BillingStore: ObservableObject {
         return status == nil ? .unavailable : .inactive
     }
     var isDeveloper: Bool { status?.accessMode == .developer }
+    var serverRequiresSubscription: Bool { status?.requiresSubscription == true }
     /// A Stripe or Google Play subscription the server verified; an Apple one only counts through this Apple Account's own StoreKit entitlement.
     var otherStoreEntitled: Bool { status?.entitled == true && status?.source != nil && status?.source != "apple" }
     var billingSources: [String] { status?.billingSources ?? [] }
