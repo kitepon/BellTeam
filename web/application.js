@@ -31,13 +31,18 @@ import { createWebClient } from './client.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
 import { createTerminalsView, seatLaunchText } from './terminals.js?v=__ASSET_VERSION__'
 import { createUpdateCenter } from './update-center.js?v=__ASSET_VERSION__'
+import { createAppSessions } from './app-sessions.js?v=__ASSET_VERSION__'
 import { loginNeeded, mountLoginScreen, readSession } from './login-screen.js?v=__ASSET_VERSION__'
 
 // a480: the mark on a pinned Bot's row.
 const PIN_MARK = '<svg class="pin-mark" viewBox="0 0 24 24" role="img" aria-label="ピン留め中"><title>ピン留め中</title><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6ZM12 14v7"/></svg>'
 
 export function createWebApp({ client = createWebClient() } = {}) {
-  const { api, fetchImage, watchEvents } = client
+  const { fetchImage, watchEvents } = client
+  // a485: with sessions, a definite 401 means this browser's session ended (revoked, 14 days idle): show the code screen again. Anything else is not a logout.
+  const api = async (...args) => {
+    try { return await client.api(...args) } catch (error) { if (error?.status === 401 && state.sessionMode) void sessionLost(); throw error }
+  }
   const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
   const app = document.querySelector('#app')
@@ -248,6 +253,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   })
 
   const ownerEditor = createOwnerEditor(ownerDialog, { api,
+    onOpen: () => { if (state.sessionMode) void appSessions.refresh() },
     onOpenUpdates: button => updateCenter.open(button), updateSummary: () => updateCenter.summary(),
     memberName: id => state.bots.find(bot => bot.id === id)?.name ?? null,
     onOwner: owner => { catalogueRead++; applyOwner(owner, ++ownerReads) },
@@ -390,12 +396,23 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const loginScreen = mountLoginScreen(document.querySelector('#login-screen'), { api, onApproved: () => void boot().catch(error => showBanner(`接続できませんでした（${error.message}）。`, { label: 'もう一度', run: () => void boot().catch(() => {}) })) })
 
+  const appSessions = createAppSessions({ api, requestsRoot: document.querySelector('#login-requests'), sessionsRoot: document.querySelector('[data-app-sessions]'), onLost: () => void sessionLost() })
+  function sessionLost() {
+    if (!state.sessionMode) return
+    state.sessionMode = false
+    state.reconnectAfterLogin = true
+    state.stopEvents?.(); state.stopEvents = null
+    void loginScreen.open(state.login)
+  }
+
   async function boot() {
     sendButton.disabled = true
     localStorage.removeItem('bellteam-token')
     const session = await readSession(api, { onWaiting: () => showBanner('サーバーの準備中です。少し待ってから、つなぎ直します。') })
     showBanner('')
     state.authMode = session.authMode
+    state.sessionMode = Boolean(session.authenticated && session.sessionId)
+    state.login = session.login
     // a485: a server that issues its own sessions (it states `login`) shows the code screen; one that does not keeps today's path below.
     if (loginNeeded(session)) { await loginScreen.open(session.login); return }
     if (!session.authenticated) {
@@ -438,6 +455,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   async function startConversations(setup) {
     state.setup = setup
+    if (state.sessionMode) void appSessions.refresh()
     setupNotice.hidden = setup.phase === 'ready'
     const first = !conversationsStarted
     conversationsStarted = true
@@ -450,7 +468,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
       if (!guide) throw new Error('案内役が見つかりません。')
       await selectBot(guide)
     }
-    if (!first) return
+    if (!first) { if (state.reconnectAfterLogin) { state.reconnectAfterLogin = false; void connectEvents() } return }
     void connectEvents()
     await notifications.ready()
   }
@@ -917,6 +935,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   }
 
   async function refreshFromEvent(payload) {
+    if (state.sessionMode && await appSessions.onEvent(payload)) return
     if (payload.all || payload.type === 'ready' || payload.type === 'updates') void updateCenter.refresh(payload)
     // 更新ジョブの知らせは更新画面だけの用事。会話や一覧を読み直さない。
     if (payload.type === 'updates') return
@@ -943,7 +962,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     state.stopEvents?.()
     let reconnecting = false
     reconnectPill.hidden = true
-    state.stopEvents = watchEvents(refreshFromEvent, () => {
+    state.stopEvents = watchEvents(refreshFromEvent, error => {
+      if (error?.status === 401 && state.sessionMode) { sessionLost(); return }
       // W3: stopped (refused) -> one banner with 「つなぎ直す」; never written into a conversation.
       reconnectPill.hidden = true
       showBanner('最新の状態が届かなくなりました。', { label: 'つなぎ直す', run: () => void connectEvents() })

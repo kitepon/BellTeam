@@ -54,7 +54,7 @@ export function onePasswordItem(setting) {
   return setting.status === 'enabled' ? { line: '連携中', badge: '連携中', tone: 'ok' } : { line: '未連携', badge: '', tone: '' }
 }
 
-export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpdates = () => {}, updateSummary = () => null, memberName = () => null }) {
+export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpdates = () => {}, onOpen = () => {}, updateSummary = () => null, memberName = () => null }) {
   const find = id => dialog.querySelector(`#${id}`)
   const form = find('owner-form'), name = find('owner-name'), description = find('owner-description')
   const xUrl = find('owner-x-url'), githubUrl = find('owner-github-url'), ownerLinks = find('owner-links')
@@ -270,6 +270,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpda
     home.reset()
     home.set('profile', { line: profile.name })
     home.set('billing', { line: '購入はアプリで' })
+    onOpen()
     home.set('updates', updateItem(updateSummary()))
     void aiControl.refresh()
     void exclusions.refresh()
