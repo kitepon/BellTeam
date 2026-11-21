@@ -16,6 +16,9 @@ public sealed class AppLoginTests
     private sealed class Server(params string[] polls) : HttpMessageHandler
     {
         public readonly List<string> Calls = []; public string? Authorization, ConsoleBody; public int PollCount; public int FailPolls;
+        public string Requests = """{"requests":[{"loginId":"L9","kind":"ios","networkClass":"unknown","requestedAt":"2026-11-21T10:00:00.000Z","expiresAt":"2999-01-01T00:00:00.000Z"}]}""";
+        public string Sessions = """{"sessions":[{"id":"S1","kind":"windows","origin":"phone","networkClass":"lan","createdAt":"2026-11-20T10:00:00.000Z","lastUsedAt":"2026-11-21T10:00:00.000Z","current":true},{"id":"S2","kind":"web","origin":"added","networkClass":"unknown","createdAt":"2026-11-21T09:00:00.000Z","issuedBy":"S1","current":false}]}""";
+        public bool CodeLimited;
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
@@ -25,6 +28,11 @@ public sealed class AppLoginTests
             if (path == "/api/login/L1/cancel") return Json("""{"loginId":"L1","status":"cancelled"}""");
             if (path == "/api/login/console") { ConsoleBody = await request.Content!.ReadAsStringAsync(token); return ConsoleBody.Contains("GOOD") ? Json("""{"status":"approved","sessionId":"S1","token":"tok-console"}""") : Json("""{"error":"LOGIN_CODE_INVALID"}""", HttpStatusCode.Forbidden); }
             if (path == "/api/sessions/S1") return Json("""{"id":"S1","status":"ended"}""");
+            if (path == "/api/login/requests") return Json(Requests);
+            if (path is "/api/login/L9/approve" or "/api/login/L9/deny") { Requests = """{"requests":[]}"""; return Json("""{"loginId":"L9","status":"waiting_phone"}"""); }
+            if (path == "/api/login/code") return CodeLimited ? Json("""{"error":"LOGIN_RATE_LIMITED"}""", (HttpStatusCode)429) : Json("""{"code":"ABCD-EFGH-JKLMN","expiresAt":"2999-01-01T00:10:00.000Z"}""");
+            if (path == "/api/sessions") return Json(Sessions);
+            if (path == "/api/sessions/S2") { Sessions = """{"sessions":[]}"""; return Json("""{"id":"S2","status":"ended"}"""); }
             if (path == "/api/login/L1")
             {
                 if (FailPolls-- > 0) return Json("""{"error":"LOGIN_RATE_LIMITED"}""", (HttpStatusCode)429);
@@ -119,6 +127,40 @@ public sealed class AppLoginTests
         field.Text = "GOOD"; Click(view, "コードでログイン"); Until(() => signedIn == 1);
         Assert.Equal("tok-console", tokens.Load(origin)); Assert.Contains("\"kind\":\"windows\"", server.ConsoleBody);
         view.Dispose();
+    });
+
+    [Fact]
+    public void TheRequestsRowAsksForTheHandAndAnAnswerPostsOnceThenTheListIsReadAgain() => RunSta(() =>
+    {
+        var server = new Server(); var changes = 0;
+        var view = new LoginRequestsView(Api(server), () => changes++, default);
+        var read = view.RefreshAsync(); Until(() => read.IsCompleted);
+        Assert.Contains("iosからのログイン要求（ネットワークは不明）", Texts(view)); Assert.Contains(SessionText.RequestHint, Texts(view)); Assert.True(view.HasContent);
+        Click(view, "許可する"); Until(() => !view.HasContent);
+        Assert.Equal(1, server.Calls.Count(call => call == "POST /api/login/L9/approve")); Assert.DoesNotContain("POST /api/login/L9/deny", server.Calls);
+    });
+
+    [Fact]
+    public void AFailedRequestsReadShowsItsReasonAndAsksForARetry() => RunSta(() =>
+    {
+        var view = new LoginRequestsView(Api(new Server { Requests = "<html>" }), () => { }, default);
+        var read = view.RefreshAsync(); Until(() => read.IsCompleted);
+        Assert.True(view.NeedsRetry); Assert.True(view.HasContent); Assert.Contains(Texts(view), text => text.StartsWith("ログイン要求を読み込めませんでした。"));
+    });
+
+    [Fact]
+    public void TheSessionListSignsOutThisAppRevokesAnotherAndAddAnAppShowsTheCodeOnceWithItsNote() => RunSta(() =>
+    {
+        var server = new Server(); var signedOut = 0;
+        var view = new AppSessionsView(Api(server), () => signedOut++, default);
+        Until(() => view.Ready.IsCompleted);
+        Assert.Contains("windows（このアプリ）", Texts(view)); Assert.Contains("web", Texts(view));
+        Click(view, "ログアウト"); Assert.Equal(1, signedOut); Assert.DoesNotContain("DELETE /api/sessions/S1", server.Calls);   // sign-out belongs to the window, which ends the session and clears the token
+        Click(view, "取り消す"); Until(() => Texts(view).Contains("入っているアプリはありません。"));
+        Assert.Equal(1, server.Calls.Count(call => call == "DELETE /api/sessions/S2"));
+        Click(view, "アプリを追加するコードを出す"); Until(() => Texts(view).Contains("ABCD-EFGH-JKLMN"));
+        Assert.Contains(SessionText.AddAppNote, Texts(view)); Assert.Equal(1, server.Calls.Count(call => call == "POST /api/login/code"));
+        server.CodeLimited = true; Click(view, "アプリを追加するコードを出す"); Until(() => Texts(view).Contains(SessionText.CodeLimit));
     });
 
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
