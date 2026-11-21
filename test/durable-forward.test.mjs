@@ -82,3 +82,34 @@ test('the HTTP edge answers an origin refusal with its 4xx instead of 500', asyn
   await api(request, response, new URL('http://localhost/api/bots/bot-a/messages'))
   assert.deepEqual(out, [404, { error: 'FORWARD_SOURCE_NOT_FOUND' }])
 })
+
+// a471-reply-bubble-not-found: the parent's receipts read a machine seat's stream row for reply and forward.
+test('a reply to and a forward of a machine seat bubble (me-<seq>-<part>) resolve through machineRow; without it they stay unavailable', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'durable-machine-row-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const bots = new Map([['bot-a', { id: 'bot-a', name: 'あかり' }]])
+  const row = { sender: { id: 'bot-a', name: 'あかり' }, at: '2026-11-21T03:06:00.000Z', text: '調べた結果です。\n二行目' }
+  const make = (machineRow, dir) => {
+    let serial = 0
+    const service = new DurableMessageReceipts({ root: join(root, dir), bots, assets: new MessageAssets({ root: join(root, dir) }), deliveryId: () => `d-${++serial}`,
+      now: () => '2026-11-21T03:07:00.000Z', ...(machineRow ? { machineRow } : {}),
+      forwardSource: ({ kind, id, messageId }) => kind === 'bot' ? service.store.forwardSource(id, messageId) : null,
+      dispatch: async () => ({ delivery: 'running' }) })
+    return service
+  }
+  const rowsOf = async service => (await readFile(service.logPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line)).filter(r => r.schema === 'bellteam.direct-message.v1')
+  const calls = []
+  const found = make(async (botId, rowId) => { calls.push([botId, rowId]); return rowId === 'me-7970-0' ? row : null }, 'found')
+  await found.receive({ from: 'user', target: 'bot-a', message: 'この部分について', replyTo: 'me-7970-0', replyQuote: { text: '調べた結果' } })
+  await found.receive({ from: 'user', target: 'bot-a', message: '転送', forward: { source: { kind: 'bot', id: 'bot-a' }, message_id: 'me-7970-0' } })
+  const saved = await rowsOf(found)
+  assert.deepEqual(calls, [['bot-a', 'me-7970-0'], ['bot-a', 'me-7970-0']])
+  assert.equal(saved[0].reply_to.available, true)
+  assert.equal(saved[0].reply_to.sender.id, 'bot-a')
+  assert.equal(saved[0].reply_to.at, row.at)
+  assert.equal(saved[0].reply_to.text, '調べた結果')
+  assert.match(saved[1].message, /調べた結果です。/u)
+  const missing = make(null, 'missing')
+  await missing.receive({ from: 'user', target: 'bot-a', message: 'この部分について', replyTo: 'me-7970-0', replyQuote: { text: '調べた結果' } })
+  assert.equal((await rowsOf(missing))[0].reply_to.available, false)
+})

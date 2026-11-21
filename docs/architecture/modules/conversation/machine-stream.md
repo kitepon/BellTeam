@@ -254,6 +254,8 @@ Owner 2026-11-21 10:3x JST: 「返信機能とか、転送機能とか、引用�
 - **Plain written lines stay without actions** (words not marked `bubble`, thinking, tool lines, cards): they are the seat's talk between tool uses, not messages. Widening this later changes only the clients' gate.
 - A bubble not yet marked (turn still open) has no actions; when the mark arrives the row is replaced in place and gets them.
 
+- **Both stores read the row (a471-reply-bubble-not-found, found 2026-11-21 12:0x JST on Tronie's seat).** The Owner's direct send is saved by the parent's durable receipts, whose conversation store had no `machineRow`, so a reply to or forward of `me-<seq>-<part>` came out as 「元の発言は見つかりませんでした」 (only the conversation child's store read the stream). The parent now hands its receipts store the same `machine.rowSource` read (`MachineStream.rowSource`), so reply, quote-reply and forward of a seat bubble resolve the speaker, time and text on the parent path too.
+
 ```mermaid
 flowchart LR
   Row["machine_event, bubble: true, id me-seq-part"] --> Gate["client gate: bubble true = quotable and forwardable"]

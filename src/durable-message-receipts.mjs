@@ -21,10 +21,11 @@ export function remoteSeatNotStarted(error, deliveryId, botId) {
 }
 
 export class DurableMessageReceipts extends BellTeamMessenger {
-  constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), onLogCorruption = null, deferred = () => false, ...options }) {
+  constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), onLogCorruption = null, machineRow = null, deferred = () => false, ...options }) {
     const logPath = options.logPath ?? join(root, 'logs/direct-messages.jsonl')
     // log-append.md: the parent's reads report an isolated bad line to diagnostics, not only stderr.
-    super({ ...options, logPath, ...(onLogCorruption && !options.store ? { store: new ConversationStore({ logPath, onCorruption: onLogCorruption }) } : {}),
+    super({ ...options, logPath, // a471-reply-bubble-not-found: the parent holds the machine stream, so its store reads a me-<seq>-<part> row (reply / forward of a seat's bubble).
+    ...((onLogCorruption || machineRow) && !options.store ? { store: new ConversationStore({ logPath, ...(onLogCorruption ? { onCorruption: onLogCorruption } : {}), ...(machineRow ? { machineRow } : {}) }) } : {}),
       onMessage: record => { if (!this.childRecords.has(record)) this.report(() => options.onMessage?.(record)) } })
     if (typeof dispatch !== 'function') fail('SAVED_DISPATCH_REQUIRED')
     this.dispatch = dispatch
