@@ -39,6 +39,18 @@ final class ConversationTimelineStateTests: XCTestCase {
         XCTAssertEqual(state.visibleMessages.map(\.id), ["older", "first", "next"])
     }
 
+    func testPrefetchKeepsMaxOfThreeScreensOneFiftyRowsAndTwoSecondsAbove() {
+        let page = ConversationHistoryPage.self
+        XCTAssertEqual([page.firstPage, page.refreshPage, page.pageSize], [100, 30, 500])
+        // 画面800pt: 3画面=2400pt。行も点も足りていれば頼まない。
+        XCTAssertFalse(page.needsOlder(rowsAbove: 150, pointsAbove: 2400, viewHeight: 800, speed: 0))
+        XCTAssertTrue(page.needsOlder(rowsAbove: 149, pointsAbove: 9000, viewHeight: 800, speed: 0), "150行に満たない")
+        XCTAssertTrue(page.needsOlder(rowsAbove: 500, pointsAbove: 2399, viewHeight: 800, speed: 0), "3画面に満たない")
+        XCTAssertFalse(page.needsOlder(rowsAbove: 500, pointsAbove: 5000, viewHeight: 800, speed: 2400), "2秒分4800ptを超えて残っている")
+        XCTAssertTrue(page.needsOlder(rowsAbove: 500, pointsAbove: 4799, viewHeight: 800, speed: 2400), "速いスクロールは2秒分を残す")
+        XCTAssertEqual(page.query("2026-11-20T11:00:00.123+09:00"), "2026-11-20T11%3A00%3A00.123%2B09%3A00")
+    }
+
     private func message(_ id: String, text: String, delivery: String = "running") throws -> TimelineMessage {
         let data = try JSONSerialization.data(withJSONObject: [
             "id": id, "kind": "message", "direction": "outgoing", "at": "2026-10-23T00:00:00Z",

@@ -113,7 +113,7 @@ flowchart TD
 
 送信前の利用確認（`authorizeAIUse`）の失敗と、POSTの失敗は別の経路になる。前者は `ConversationView.swift` の764〜777行で、認証失敗なら`requireLogin`して戻り、それ以外は結果不明かどうかを問わずactiveなら`load`する。後者は792〜800行で、`SendFailureReconcileObservation.observe`（同31〜37行）がactiveかつ`operationResultUnconfirmed`の時だけ`load`する。
 
-`ConversationContent.load`は非activeと送信応答待ちで取得を始めない。進行中readerがあれば次の読取要求をまとめる。初回本文とqueueは並列に取り、本文を先に表示するので、queueだけが失敗しても本文を残せる。初回は10件、過去取得は`ConversationHistoryPage.pageSize`の25件。更新は最新20件とafter取得を併合する。
+`ConversationContent.load`は非activeと送信応答待ちで取得を始めない。進行中readerがあれば次の読取要求をまとめる。初回本文とqueueは並列に取り、本文を先に表示するので、queueだけが失敗しても本文を残せる。初回は`ConversationHistoryPage.firstPage`の100件、過去取得は`pageSize`の500件（`before`＋`before_at`）。更新は最新`refreshPage`の30件とafter取得を併合する。
 
 | 場面 | 停止・後始末・返却先 |
 | --- | --- |

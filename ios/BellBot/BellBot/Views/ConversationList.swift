@@ -95,14 +95,14 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         coordinator.onAtBottomChange = onAtBottomChange
         coordinator.opening = opening
         coordinator.hasMore = hasMore
-        // 初回取得が終わったら、表示域を埋める判定をやり直してよい。読み足しは行が入った時にやり直す。失敗では繰り返さない。
-        if coordinator.loading && !loading { coordinator.fillRequested = false }
+        // 初回取得が終わったら、先読みの判定をやり直してよい。読み足しは行が入った時とスクロールの動きでやり直す。失敗では繰り返さない。
+        if coordinator.loading && !loading { coordinator.prefetchRequested = false }
         coordinator.loading = loading
         coordinator.loadingOlder = loadingOlder
         if view.contentInset.bottom != bottomInset { view.contentInset.bottom = bottomInset }
         coordinator.present(rows: rows, messages: messages, queue: queue, rowContext: rowContext,
                             environment: context.environment)
-        coordinator.fillIfShort()
+        coordinator.prefetchIfLow()
         if coordinator.scrollToBottomRevision != scrollToBottomRevision {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
             coordinator.scrollToBottom(animated: true)
@@ -119,7 +119,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var hasMore = false
         var loading = false
         var loadingOlder = false
-        var fillRequested = false
         var scrollToBottomRevision = 0
         private var jumpRevision = 0
         private var pendingJump: String?
@@ -131,7 +130,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var queue: [QueueItem] = []
         private var rowContext: [ConversationRowContext] = []
         private var lastOffset: CGFloat = 0
-        private var armed = true
+        var prefetchRequested = false
+        private var scrollSpeed: CGFloat = 0
+        private var lastScrollTime: CFTimeInterval = 0
         private var atBottom = true
         private var shown: Set<ConversationRow> = []
         private var prepared: Set<String> = []
@@ -154,7 +155,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self?.configure(cell, row: row)
                 return cell
             }
-            view.onLayout = { [weak self] in self?.fillIfShort() }
+            view.onLayout = { [weak self] in self?.prefetchIfLow() }
             view.onReveal = { [weak self] in self?.reveal() }
             // キーボードや入力欄で下の余白が変わる時、末尾にいたなら末尾に残す（レイアウトはこれを自動では補わない）。
             view.onInsetChange = { [weak self] in
@@ -248,8 +249,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 }
             }
             if prepended {
-                armed = true
-                fillRequested = false
+                // 頁が届いたら、残りが足りるか直ぐ確かめる（速いスクロールでは頁が続く）。
+                prefetchRequested = false
+                DispatchQueue.main.async { [weak self] in self?.prefetchIfLow() }
             }
             report()
             performPendingJump()
@@ -352,15 +354,21 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             DispatchQueue.main.async { [onAtBottomChange] in onAtBottomChange?(now) }
         }
 
-        func fillIfShort() {
-            // 最初の30行が表示域に収まると上へ動かせず、過去が読まれない（畳んだ行は1行が低い）。全platformで、表示域が埋まるまで過去を足す。
-            // 親が取得中の間と、届いた行を組み立てている間は頼まず、入った後の判定で頼む。
-            if let view, let layout, view.bounds.height > 0, layout.collectionViewContentSize.height <= view.bounds.height,
-               hasMore, !loading, !loadingOlder, !preparing, !fillRequested {
-                fillRequested = true
-                // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
-                DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
-            }
+        /// machine-stream.md「History pages of a long stream」：見ている行より上に max(3画面, 150行, 2秒分の速度) の読込済みを残す。
+        /// 足りなければ次の過去の頁を頼む（開いた直後・表示域に収まらない時・届いた直後も同じ判定。上端に届いて空になってから読まない）。
+        /// 頼むのは一度に一つ。失敗は次のスクロールの動きまで繰り返さない。親が取得中の間と、届いた行を組み立てている間は頼まない。
+        func prefetchIfLow() {
+            guard let view, view.bounds.height > 0, hasMore, !loading, !loadingOlder, !preparing, !prefetchRequested,
+                  let first = view.indexPathsForVisibleItems.map(\.item).min() else { return }
+            var moving = view.isDragging || view.isDecelerating
+            #if targetEnvironment(macCatalyst)
+            moving = moving || wheel?.isActive == true
+            #endif
+            guard ConversationHistoryPage.needsOlder(rowsAbove: first, pointsAbove: view.contentOffset.y + view.adjustedContentInset.top,
+                                                     viewHeight: view.bounds.height, speed: moving ? scrollSpeed : 0) else { return }
+            prefetchRequested = true
+            // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
+            DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
         }
 
         // MARK: UICollectionViewDelegate
@@ -389,19 +397,17 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             guard let view else { return }
             let delta = view.contentOffset.y - lastOffset
             lastOffset = view.contentOffset.y
+            let now = CACurrentMediaTime()
+            scrollSpeed = now - lastScrollTime < 0.5 && now > lastScrollTime ? abs(delta) / CGFloat(now - lastScrollTime) : 0
+            lastScrollTime = now
             report()
             var userDriven = view.isDragging || view.isDecelerating
             #if targetEnvironment(macCatalyst)
             userDriven = userDriven || wheel?.isActive == true
             #endif
             guard userDriven else { return }
-            if delta > 0 { armed = true }
-            // 読込済みの残りが少なくなったら、上端に届く前に次の過去を頼む（同じ取得は重ねない）。
-            if delta < 0, armed, hasMore, !loadingOlder,
-               let first = view.indexPathsForVisibleItems.map(\.item).min(), first <= ConversationHistoryPage.lowStockRows {
-                armed = false
-                onLoadOlder?()
-            }
+            prefetchRequested = false
+            prefetchIfLow()
         }
     }
 }
