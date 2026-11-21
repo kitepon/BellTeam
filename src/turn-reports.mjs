@@ -72,10 +72,9 @@ export function turnView(records, { botId, startedAt, endedAt, names = id => id,
       else memberMessages.push({ to: names(record.target), text: record.message })
     }
   }
-  for (const row of rows) {
-    const event = row.machine_event
-    if (within(row) && row.kind === 'machine_event' && event?.view === 'words' && event.display === 'show' && event.text) notes.push({ at: row.at, text: event.text, final: event.bubble === true })
-  }
+  // Every words row is a bubble (a479-interim-bubble), so the turn's closing words are the last of them.
+  const spoken = rows.filter(row => within(row) && row.kind === 'machine_event' && row.machine_event?.view === 'words' && row.machine_event.display === 'show' && row.machine_event.text)
+  spoken.forEach((row, n) => notes.push({ at: row.at, text: row.machine_event.text, final: n === spoken.length - 1 }))
   const finals = [...notes.filter(note => note.final), ...toOwner].sort((a, b) => a.at.localeCompare(b.at))
   const final = finals.at(-1) ?? null
   return {

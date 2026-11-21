@@ -87,37 +87,18 @@ test('default table shows every kind, folds tool results and empty thinking, hid
   assert.equal(await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8'), before)
 })
 
-test('the last words of an ended turn are the bubble; earlier words, input and an open turn are not; a restart rebuilds it', async t => {
+test('every words entry of the seat is a bubble from the moment it is stored: interim and final, not the replayed input, not empty; no later change (a479-interim-bubble)', async t => {
   const { ms, root } = await service(t)
   const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
   const bubbles = m => m.timeline({ botId: 'bot-d' }).filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
-  await ms.ingest(env([J({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }), words('first'), words('last')], null, 'L1:1'))
-  assert.deepEqual(bubbles(ms), [false, false, false]) // the turn is still open
-  const before = ms.timeline({ botId: 'bot-d' })[2].id
-  await ms.ingest(env([J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'success' })], 'L1:1', 'L1:2'))
-  assert.deepEqual(bubbles(ms), [false, false, true]) // input and the earlier words stay plain; the second result has no words to mark
-  assert.equal(ms.timeline({ botId: 'bot-d' }).find(r => r.machine_event.bubble).id, before) // replaced in place
-  await ms.ingest(env([words('next'), J({ type: 'tool_use_free' }), J({ type: 'result', subtype: 'success' })], 'L1:2', 'L1:3'))
-  assert.deepEqual(bubbles(ms), [false, false, true, true])
+  await ms.ingest(env([J({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }), words('わかった'), words('   '), words('answer')], null, 'L1:1'))
+  assert.deepEqual(bubbles(ms), [false, true, false, true]) // the turn is still open and both are already bubbles; input and the empty words are not
+  const ids = ms.timeline({ botId: 'bot-d' }).map(r => r.id)
+  await ms.ingest(env([J({ type: 'result', subtype: 'success' })], 'L1:1', 'L1:2'))
+  assert.deepEqual(bubbles(ms), [false, true, false, true])
+  assert.deepEqual(ms.timeline({ botId: 'bot-d' }).slice(0, ids.length).map(r => r.id), ids) // the result changes no earlier row
   const again = new MachineStream({ root, bots, streamSend: async () => ({}) }); await again.initialize({ readOnly: true })
-  assert.deepEqual(bubbles(again), [false, false, true, true])
-})
-
-test('the last words are the bubble at the first Stop hook line, a newest-10 re-read away; the result after the hooks changes nothing; words after a Stop go on to the next mark', async t => {
-  const { ms } = await service(t)
-  const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
-  const stop = J({ type: 'system', subtype: 'hook_started', hook_name: 'Stop' })
-  const rows = () => ms.timeline({ botId: 'bot-d' })
-  const bubbles = () => rows().filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
-  await ms.ingest(env([J({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }), words('mid'), J({ type: 'system', subtype: 'hook_started', hook_name: 'PreToolUse:Bash' }), words('answer')], null, 'L1:1'))
-  assert.deepEqual(bubbles(), [false, false, false]) // a tool hook is not the end of the turn
-  await ms.ingest(env([stop, stop, stop, stop], 'L1:1', 'L1:2'))
-  assert.deepEqual(bubbles(), [false, false, true])
-  assert.ok(rows().findIndex(r => r.machine_event.bubble) >= rows().length - 6) // within the newest 10 rows of the moment it was made
-  await ms.ingest(env([J({ type: 'system', subtype: 'hook_response', hook_name: 'Stop' }), J({ type: 'result', subtype: 'success' })], 'L1:2', 'L1:3'))
-  assert.deepEqual(bubbles(), [false, false, true]) // the result had nothing left to mark
-  await ms.ingest(env([words('after the hook sent it on'), stop, J({ type: 'result', subtype: 'success' })], 'L1:3', 'L1:4'))
-  assert.deepEqual(bubbles(), [false, false, true, true])
+  assert.deepEqual(bubbles(again), [false, true, false, true])
 })
 
 test('thinking follows the Owner setting: hidden by default in the page and the preview, shown when on, stored lines unchanged, a failed read is hidden (a479-thinking-setting)', async t => {
@@ -143,21 +124,6 @@ test('thinking follows the Owner setting: hidden by default in the page and the 
   assert.equal(JSON.parse((await readFile(join(root, 'state/machine-stream/bot-d.jsonl'), 'utf8')).split('\n')[0]).line, lines[0]) // stored line untouched
   ms.showThinking = () => { throw new Error('FEATURE_NOT_FOUND') }
   assert.deepEqual(views(), ['words']) // a failed read is hidden
-})
-
-test('the words that follow a silent_turn_reminder marker are a bubble at once, only the first one; a result clears a marker nobody answered; a restart rebuilds it', async t => {
-  const { ms, root } = await service(t)
-  const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
-  const reminder = J({ type: 'system', subtype: 'silent_turn_reminder' })
-  const bubbles = m => m.timeline({ botId: 'bot-d' }).filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
-  await ms.ingest(env([words('before'), reminder, words('checking five seats'), words('after')], null, 'L1:1'))
-  assert.deepEqual(bubbles(ms), [false, true, false]) // the turn is still open and the bubble is already there
-  const marker = ms.timeline({ botId: 'bot-d' })[1].machine_event
-  assert.deepEqual([marker.view, marker.display, marker.fold_group], ['system', 'fold', 'background']) // the marker itself is a folded background line
-  await ms.ingest(env([reminder, J({ type: 'result', subtype: 'success' }), words('next turn')], 'L1:1', 'L1:2'))
-  assert.deepEqual(bubbles(ms), [false, true, true, false]) // 'after' is the ended turn's last words (the earlier rule); the unanswered marker did not leak into 'next turn'
-  const again = new MachineStream({ root, bots, streamSend: async () => ({}) }); await again.initialize({ readOnly: true })
-  assert.deepEqual(bubbles(again), [false, true, true, false])
 })
 
 test('tool runs: a folded tool_use and everything folded after it to the next shown entry or the turn result is one group, in time order; the use counts 1', async t => {

@@ -99,7 +99,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 
 | Stream line | view | text / extra |
 | --- | --- | --- |
-| `assistant` text block | `words` | the text. The same words also arrive as interim/answer rows by the existing path: the row carries `shown_elsewhere: true` (a hint only: the default table shows it too, see below). The last one of a finished turn also carries `bubble: true` (see Turn answer bubble) |
+| `assistant` text block | `words` | the text. The same words also arrive as interim/answer rows by the existing path: the row carries `shown_elsewhere: true` (a hint only: the default table shows it too, see below). The last one of a finished turn also carries `bubble: true` (see Every words entry is a bubble) |
 | `assistant` `thinking` block | `thinking` with `title: "thinking"` (`thinking (no text)` when empty) | shown open when it has text, folded when empty |
 | `assistant` `tool_use` block | `tool_use` | `tool` |
 | `user` with `tool_result` | `tool_result` | text of the result, cut |
@@ -188,7 +188,7 @@ Owner 2026-11-21 18:0x JST: 「thinkingは表示、非表示を選択できる�
 
 - **The value** is the usage module's feature setting `thinkingDisplay` (title 「AIの考えの表示」, no fields, `enabled: true` = thinking is shown). Default `enabled: false` = hidden. It is stored and changed only through the settings contract that already exists (`GET /api/settings`, `PATCH /api/settings/thinkingDisplay` with `{enabled}`; Mika owns the module). Conversation stores no copy.
 - **The decision is the conversation module's, at read time.** `MachineStream` takes `showThinking()` (reads `settings.configuration('thinkingDisplay').enabled`; a missing feature or a failed read is hidden). While it is false, entries with `view: "thinking"` are not in the Bot page, the full timeline or the Bot list preview. Stored lines never change; nothing moves: the other entries keep their place and their `seq`. The reply, forward and fold rules see no thinking row. Folded tool groups simply join, since apps merge neighbours of one group.
-- **When the setting changes** the settings change reaches the body (`settings.onChange`, id `thinkingDisplay`), `MachineStream.displayChanged()` makes the page follow the new value and sends the usual timeline change event for every machine seat. Rows an open chat already holds stay until it is reopened or reloaded (the apps re-read the newest 10 rows only; see Turn answer bubble); nothing is pushed to remove them.
+- **When the setting changes** the settings change reaches the body (`settings.onChange`, id `thinkingDisplay`), `MachineStream.displayChanged()` makes the page follow the new value and sends the usual timeline change event for every machine seat. Rows an open chat already holds stay until it is reopened or reloaded (the apps re-read the newest 10 rows only; see Every words entry is a bubble); nothing is pushed to remove them.
 - **Clients** change nothing in the chat: they draw the page they get. The switch is a row of the server's feature list (`fields: []`, so a plain switch: title and `enabled`). A client whose features screen is built from `GET /api/settings` shows it without a release; the client owners (Rapi, Admi, Anis, Neon) check that a feature with `fields: []` is drawn as a switch on their screen.
 - Not a guard: nothing is refused or stopped; the setting only chooses what is drawn.
 
@@ -231,39 +231,24 @@ flowchart LR
   Page --> App["apps: merge neighbours of one group; label group x sum(fold_count); no entry is moved"]
 ```
 
-## Turn answer bubble (a471-tune-answer)
+## Every words entry is a bubble (a479-interim-bubble; replaces a471-tune-answer, a471-tune-reminder and a471-final-not-bubble)
 
-Owner 2026-11-21 06:4x JST, on seeing the answer once as plain written text and once more as a bubble: 「これを出さない。その上で、今吹き出しになっていない最後の発言を吹き出しにする。」 So the answer shows once, and it is the seat's own last words.
+Owner 2026-11-21 06:4x JST, on seeing the answer once as plain text and once as a bubble: 「これを出さない。その上で、今吹き出しになっていない最後の発言を吹き出しにする。」 Owner 18:1x JST, told that interim words like 「わかった」 stay plain lines: 「こう言うものをふきだしにして欲しいんだけども。」 So the seat's every speech is a bubble, once, in time order.
 
-- **The duplicate is not drawn.** The turn's answer row that execution saves from the turn result (`user.complete`, labelled `stream: true`) is not on the Bot page or the full timeline. This is the rule above; nothing new is added for it. If the old words path is still live (no `displayFromStream`), the chat shows both as before; execution's flag decides, conversation adds no second rule.
-- **The last words become the bubble.** A `words` entry (not the replayed `input`, not empty) carries `bubble: true` when it is the last `words` entry of its turn and that turn has ended. A turn is the entries up to a `result` line; the `result` line ends it. Earlier `words` entries of the same turn stay plain written lines (the seat's talk between tool uses). Nothing moves: the bubble is the same entry in the same place, only marked. Until the `result` arrives no entry has `bubble`; when it arrives the last words entry is replaced in place (same `id`, `seq`, `at`), and the page and SSE change event redraw it, like a card whose `request.status` changes. A turn with no words has no bubble. The mark is made here, at read time from the stored lines; stored events never change, and a restart rebuilds the same marks.
-- **The mark is made early (a471-final-not-bubble).** Owner 2026-11-21 17:57 JST, iPhone, Nayuta: the answer was plain text with raw `**` and 11 folded rows after it. Cause: the mark was made only at `result`, but a Claude Code seat runs its `Stop` hooks between the last words and the `result` (4 `hook_started`, the responses, `command_lifecycle`, then `result`: 11 rows). The clients re-read only the newest 10 rows on a change event (iOS `refreshPage`, Web `TIMELINE_REFRESH_PAGE`), so the in-place change of a row 12th from the end never reached the open chat (a reopen reads 1000 rows and showed it). So the mark is also made at the first `Stop` hook line (`system` `hook_started` with `hook_name: Stop`), the moment the seat has finished speaking: that line sits right after the words, in the same read batch or the next one, so the words entry is first drawn with `bubble: true` or changes at most a few rows behind the newest. The `result` stays the closing mark for a seat without `Stop` hooks. Both marks take the same remembered last words and clear it, so one turn marks it once. If a `Stop` hook sends the seat on, its next words are remembered again and marked at the next `Stop` or `result`; the earlier bubble stays. **Rule for every in-place change: it must sit within the newest 10 rows of the moment it is made**; a later rule that changes an older row has to say how the clients get it.
-- **Apps** draw a `words` entry with `bubble: true` as an ordinary incoming message bubble (the same look and the same Markdown rendering as a saved message, so `**` is never shown raw), and every other `words` entry as plain written text, as now. The app does not decide which words are last; it reads `bubble`. An app that already draws exactly this changes nothing.
+- **The duplicate is not drawn.** The turn's answer row that execution saves from the turn result (`user.complete`, labelled `stream: true`) is not on the Bot page or the full timeline (rule above, unchanged). If the old words path is still live (no `displayFromStream`), the chat shows both as before; execution's flag decides.
+- **Every `words` entry carries `bubble: true`**: the assistant text of the seat, interim or final, as long as it is not the replayed `input` (`title: "input"`) and its text is not empty. It is set when the row is made, from the entry alone: no turn state, no `result`, no `Stop` hook, no `silent_turn_reminder` marker. The entry never changes afterwards, so no client has to re-read an older row (the earlier rule marked the last words at `result`, 11 rows behind the end behind Stop hooks, and the apps re-read only the newest 10 rows: a471-final-not-bubble). Nothing moves; a restart rebuilds the same rows. The `silent_turn_reminder` line stays a folded `system` entry in `background`, like every other system line.
+- **Apps** draw a `words` entry with `bubble: true` as an ordinary incoming message bubble (the same look and Markdown rendering as a saved message; `**` is never shown raw), and any other `words` entry (the replayed input) as before. The app does not decide which words count; it reads `bubble`. Apps already draw exactly this; nothing changes in them.
 - The Bot list preview (`recent`) is unchanged: the latest `display: show` entry.
+- **The turn report check** (`turn-reports.mjs`) used `bubble` to find the turn's closing words. Every words row is a bubble now, so it takes the last words row of the turn as the final message and the earlier ones as progress notes, as before.
+- **Rule for every in-place change** (kept): it must sit within the newest 10 rows of the moment it is made, because the clients re-read only the newest 10 rows on a change event; a later rule that changes an older row has to say how the clients get it.
 
 ```mermaid
 flowchart LR
-  Lines["stored lines (assistant text, Stop hook_started, ..., result)"] --> Apply["MachineStream.apply: remember the last words of the open turn"]
-  Apply -->|"first Stop hook_started, or result, arrives"| Mark["that words entry gets bubble: true (replaced in place, within the newest 10 rows)"]
-  Mark --> Page["Bot page / SSE: machine_event.bubble"]
-  Page --> Apps["apps: bubble true = message bubble, else plain line"]
-```
-
-## Reminder answer bubble (a471-tune-reminder)
-
-Owner 2026-11-21 10:2x JST, on the mid-turn line a seat wrote because Claude Code asked it to say what it is doing: 「ではこれを吹き出しにしろ」. Claude Code injects `silent_turn_reminder` ("The user hasn't heard from you in a while — say in a few words what you're doing") after a quiet stretch, and the seat's next words are an update meant for the Owner.
-
-- **The marker is supplied, not guessed.** Claude Code's `-p` stream does not carry the reminder: it is an `attachment` record of the transcript only (measured 2026-11-21: the answering text has `stop_reason` null in the stream and no record of its own). The supplier, Aiterm (Elegg), adds one stream line `{"type":"system","subtype":"silent_turn_reminder"}` when it sees that attachment, **before** the lines of the answer. Order matters: a marker that arrives after the words it belongs to marks nothing.
-- **The next words become the bubble at once.** The first `words` entry (not the replayed `input`, not empty) after the marker carries `bubble: true` from the moment it is stored, without waiting for the turn's `result`. Only that one: the seat's later words stay plain until the existing last-words rule applies. A `result` line clears a marker nobody answered, so it never leaks into the next turn. Nothing moves; the marker line itself is a folded `system` entry in the `background` group, like every other system line.
-- **Apps change nothing**: they already draw `bubble: true` as a message bubble. Mark is made here at read time from the stored lines; a restart rebuilds it.
-
-```mermaid
-flowchart LR
-  Transcript["Claude Code transcript: attachment silent_turn_reminder"] --> Supplier["Aiterm (Elegg): adds the marker line before the answer"]
-  Supplier --> Lines["stored lines: marker, words, ..."]
-  Lines --> Apply["MachineStream.apply: reminded = true; next words get bubble: true; result clears it"]
-  Apply --> Page["Bot page / SSE: machine_event.bubble"]
+  Lines["stored lines (assistant text, ...)"] --> Apply["MachineStream.row: words, not input, not empty"]
+  Apply --> Row["entry bubble: true, from the moment it is stored"]
+  Row --> Page["Bot page / SSE: machine_event.bubble"]
   Page --> Apps["apps: bubble true = message bubble"]
+  Row --> Report["turn report check: last words row = final, earlier = progress"]
 ```
 
 ## Thinking is drawn as a bubble (a471-thinking-bubble)

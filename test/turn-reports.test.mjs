@@ -128,9 +128,9 @@ test('Jevへ英語の問い2つと会話の原文を送り、確率を受け取�
 })
 
 // a471-silent-turn-check-misfires: a machine seat's words and closing bubble are stream rows; they count as left on the Owner's screen.
-test('machine seat stream rows count as shown, the bubble row is the final message', async () => {
+test('machine seat stream rows count as shown, every words row is a bubble, the last one of the turn is the final message', async () => {
   const row = (at, text, bubble) => ({ id: `me-${at}`, kind: 'machine_event', at, machine_event: { view: 'words', display: 'show', text, ...(bubble ? { bubble: true } : {}) } })
-  const rows = [row('2026-09-30T23:07:45Z', '確認しています。'), row('2026-09-30T23:08:10Z', '直しました。', true), row('2026-09-30T23:09:00Z', '次のターン', true),
+  const rows = [row('2026-09-30T23:07:45Z', '確認しています。', true), row('2026-09-30T23:08:10Z', '直しました。', true), row('2026-09-30T23:09:00Z', '次のターン', true),
     { ...row('2026-09-30T23:07:50Z', 'thinking text'), machine_event: { view: 'thinking', display: 'show', text: 'thinking text' } }]
   const view = turnView([], { botId: 'bot-d', ...window, rows })
   assert.deepEqual(view.ownerView, { progress_notes: ['確認しています。'], messages_to_owner: [], final_message: '直しました。' })
