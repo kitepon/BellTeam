@@ -6,6 +6,8 @@
 	<string>group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)</string>
 	<key>BellTeamKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share</string>
+	<key>BellTeamLoginBillingURL</key>
+	<string>$(BELLTEAM_LOGIN_BILLING_URL)</string>
 	<key>BellTeamPushEnvironment</key>
 	<string>$(BELLTEAM_PUSH_ENVIRONMENT)</string>
 	<key>CFBundleDevelopmentRegion</key>

@@ -6,6 +6,10 @@
     <string>$(BELLTEAM_PUSH_ENVIRONMENT)</string>
     <key>com.apple.developer.usernotifications.communication</key>
     <true/>
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
     <key>com.apple.security.app-sandbox</key>
     <true/>
     <key>com.apple.security.application-groups</key>

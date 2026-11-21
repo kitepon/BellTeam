@@ -59,6 +59,14 @@ flowchart TD
 - セッション一覧：`GET /api/sessions`（`origin` phone／console／added、`issuedBy`）。自分の行は「ログアウト」（`signOut`が自分のセッションをDELETEしてトークンを捨てる）、他は「取り消す」（`DELETE /api/sessions/{id}`）。
 - 許可・拒否・コード発行・取消は非冪等なので自動では再送しない。失敗したら理由を出して読み直す（理由は読み直しで消さない）。
 
+## 店の側の実装（B1）
+
+- `Core/StoreAccount.swift`がライブラリのLoginBillingClientを1つ持つ。画面は`Views/StoreAccountView.swift`（設定の「利用と課金」の先頭のカード）：Appleでサインイン、購読（`purchase`、印つき）、QRまたは短いコードでサーバー・アプリを承認（確認番号と「自分で始めたログインだけ許可してください」の確認シート）、承認した端末の一覧と「止める」、「端末をなくした時」は`stopAllOthers`、サインアウト。QRの読み取りはライブラリの`QRScannerView`（iPhone・iPadでカメラが使える時）、Macは短いコードだけ。
+- 運営のWorkerの接続先は`Info.plist`の`BellTeamLoginBillingURL`（ビルド設定`BELLTEAM_LOGIN_BILLING_URL`）。空の間はカードを出さない（ブレディのWorkerが決まるまで）。
+- 契約の無いまま承認しようとするとライブラリが`no_entitlement`を返し、画面は7eの文（「先に購読してください。…」）を出す。
+- 権限：`com.apple.developer.applesignin`（アプリ本体のentitlements、Macは`BellBot-Mac.entitlements`）。Apple側のアプリID（dev.kitepon.bellbot）のSign in with Appleは出荷前に有効にする（今は無効）。
+- この版では従来の購入（StoreKit直接・`/api/subscription/verify`・Stripe・Google Playの行）を残す。外すのは切替の版（サーバーが契約をパスで確かめる時）で、トロニーの出荷順に従う。旧サーバーはこの版のアプリでも今までの証明の送信が要るため。
+
 ## 失敗と回復
 
 - 探査・ログイン開始・ポーリングの一時失敗は、理由と再試行の状態を出して上限付きバックオフで続ける（回数で打ち切らない）。手動の再試行は待機中の次の試行を直ちに実行し、並列に増やさない。キャンセル・接続先変更で旧処理を終える。

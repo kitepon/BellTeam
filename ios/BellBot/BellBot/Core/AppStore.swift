@@ -82,6 +82,8 @@ final class AppStore: ObservableObject {
     private(set) lazy var serverSessions = ServerSessionsModel(api: api)
     /// このサーバーがセッションで入る本体か（トークンがある、またはenforced）。
     var usesServerSessions: Bool { api.sessionToken != nil || loginProbe?.enforced == true }
+    /// 店の側のアカウント（ライブラリ）。運営のWorkerの接続先が設定された時だけ動く。
+    let storeAccount = StoreAccount(baseURL: StoreAccount.configuredBaseURL, productId: BillingStore.configuration.productId)
     /// 本体が今はセッションを判断できない（503 SESSION_STORE_UNAVAILABLE）。トークンは残し、1・2・4…30秒で読み直す。
     @Published private(set) var serverPreparing = false
     private var preparingDelay: TimeInterval = 1
