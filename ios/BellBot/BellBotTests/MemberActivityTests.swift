@@ -74,6 +74,17 @@ final class MemberActivityTests: XCTestCase {
                        "差し込みは実行中ターンの1行にまとめ、steeredの無い旧形式は従来どおり")
     }
 
+    func testRunningRowShowsTheServerWorkingWordAndOldServerKeepsTheOldLabel() throws {
+        let response = try JSONDecoder().decode(QueueResponse.self, from: Data("""
+        {"items":[
+          {"id":"a","botId":"bot-one","status":"running","workingWord":"Mulling"},
+          {"id":"b","botId":"bot-two","status":"running"},
+          {"id":"c","botId":"bot-three","status":"queued"}
+        ]}
+        """.utf8))
+        XCTAssertEqual(response.items.map(\.workingLabel), ["Mulling…", "処理中", "処理中"])
+    }
+
     func testStoppedDeliveryIsDistinctAndAnotherRunningMemberRemainsVisible() throws {
         let messages = try JSONDecoder().decode([TimelineMessage].self, from: Data("""
         [

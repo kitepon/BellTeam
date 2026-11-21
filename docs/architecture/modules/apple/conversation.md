@@ -120,7 +120,7 @@ flowchart TD
 
 [BackgroundMessageSend](../../../../ios/BellBot/BellBot/Core/BackgroundMessageSend.swift#L5)はOSの実行時間が取れなければoperation taskをcancelしbackgroundSendUnavailable。期限通知ではexpiredを立ててcancelし即時finish、エラーをbackgroundSendExpiredにする。caller取消も子taskへ伝える。通常終了・失敗のdeferもfinishを通り、identifierをinvalidにして二重終了を避ける。
 
-表示するstatusはoutgoingだけ：submitting=受付確認中、accepted=受付済み・反映待ち、queued=送信待ち、running=処理中、stopped=中断、delivered=配達済み、failed=配達失敗（赤）。ただし`TimelineMessage.completionUnknown`が真のfailedは中立表示（下の「受付後の追跡故障」）。これらの履歴値からAIの依頼全体の完了は判定しない。status集約はrouting.failedを最優先、直接deliveryがあればその値、複数deliveriesはfailed→running→queued→stoppedの順、それ以外の非空集合はdeliveredとなる。queueは`QueueItem.displayItems`の表示用整理を通し（差し込まれた配送`steered:true`は実行中ターンの「処理中」1行にまとめる）、ルームのrouting pending/failed/readyは返信者判定文言へ変換する。
+表示するstatusはoutgoingだけ：submitting=受付確認中、accepted=受付済み・反映待ち、queued=送信待ち、running=処理中、stopped=中断、delivered=配達済み、failed=配達失敗（赤）。ただし`TimelineMessage.completionUnknown`が真のfailedは中立表示（下の「受付後の追跡故障」）。これらの履歴値からAIの依頼全体の完了は判定しない。status集約はrouting.failedを最優先、直接deliveryがあればその値、複数deliveriesはfailed→running→queued→stoppedの順、それ以外の非空集合はdeliveredとなる。queueは`QueueItem.displayItems`の表示用整理を通し（差し込まれた配送`steered:true`は実行中ターンの「処理中」1行にまとめる）、ルームのrouting pending/failed/readyは返信者判定文言へ変換する。会話の処理中の行（`queueStrip`）は、runningの行が持つ`workingWord`（本体が選ぶClaude Codeの言葉、…なし。契約は conversation/working-word.md）を`QueueItem.workingLabel`で「Mulling…」と描く。`workingWord`の無い旧本体は従来の「処理中」。アプリは言葉の一覧も選択も持たない。
 
 ### 受付後の追跡故障を未達へ読み替えない
 

@@ -404,7 +404,7 @@ private struct ConversationContent: View {
             ForEach(displayItems) { item in
                 HStack(spacing: 9) {
                     ProgressView().controlSize(.mini)
-                    Text("\(item.botName ?? title) · \(item.status == "queued" ? "送信待ち" : "処理中")")
+                    Text("\(item.botName ?? title) · \(item.status == "queued" ? "送信待ち" : item.workingLabel)")
                         .font(BellTheme.messageHelperFont.weight(.medium))
                     Spacer()
                     if target.isRoom, isStopRow(item, in: displayItems), let id = item.botId {
