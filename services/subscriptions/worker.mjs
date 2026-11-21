@@ -7,6 +7,16 @@ const CALLBACK_PATH = `${WIRE_PREFIX}/websignin/callback`
 const ASSETLINKS_PATH = '/.well-known/assetlinks.json'
 const ANDROID_RETURN_PATH = '/auth/return/android'
 const PLAIN = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }
+// workerd refuses fetch's redirect "error" ("must be one of follow or manual"); the library asks for it on the provider's token exchange, so
+// every web sign-in code exchange threw and ended in error=signin_failed (found on the first real run, 2026-11-22). Same meaning here:
+// "manual", and a redirect answer is an error. A library defect (workerd), reported to Mint; drop this when the library asks for "manual" itself.
+export async function workerdFetch(url, init) {
+  if (init?.redirect !== 'error') return fetch(url, init)
+  const response = await fetch(url, { ...init, redirect: 'manual' })
+  if (response.status >= 300 && response.status < 400) throw new TypeError('redirect refused')
+  return response
+}
+
 const base64Url = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0))
 const list = value => (value ?? '').split(',').map(item => item.trim()).filter(Boolean)
 
@@ -39,6 +49,7 @@ export function loginBillingConfig(env, storage, extra = {}) {
     ],
     kKey: base64Url(env.LB_KKEY),
     passKeys: { current: { id: env.LB_PASS_KEY_CURRENT_ID, key: base64Url(env.LB_PASS_KEY_CURRENT) }, ...previous },
+    fetch: workerdFetch,
     billing: env.LB_BILLING === 'off' ? 'off' : 'store',
     // Installed apps still log devices in by the old handoff until every app carries the new sign-in (contract 1.20).
     oldHandoff: env.LB_OLD_HANDOFF === 'off' ? 'off' : 'on',

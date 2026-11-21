@@ -4,7 +4,7 @@ import test from 'node:test'
 import { createTestKit } from '@kitepon/login-billing/testing'
 import { MemoryStorage } from '@kitepon/login-billing/server'
 import product from '../services/subscriptions/product.json' with { type: 'json' }
-import { createLoginBillingWorker } from '../services/subscriptions/worker.mjs'
+import { createLoginBillingWorker, workerdFetch } from '../services/subscriptions/worker.mjs'
 
 // These tests cover how the Worker mounts the library (login-billing 0.10.0): configuration, routing, billing mode, the callback GET and
 // the limiter. The library's own behaviour (passes, handoff, proof codes, tickets, the Durable Object storage) is the library's suite.
@@ -129,4 +129,16 @@ test('the Android return: assetlinks.json is served only when configured, the fa
     assert.equal((await call('/auth/v1/websignin/start', { body: { provider: 'google', return: ret, secretHash } })).status, 200, ret)
   }
   assert.equal((await call('/auth/v1/websignin/start', { body: { provider: 'google', return: `${ORIGIN}/auth/return/other`, secretHash } })).status, 400)
+})
+
+test('workerd refuses redirect "error": the Worker asks for "manual" instead and treats a redirect answer as an error', async () => {
+  const real = globalThis.fetch
+  const seen = []
+  try {
+    globalThis.fetch = async (url, init) => { seen.push(init.redirect); return new Response(null, { status: url.includes('moved') ? 302 : 200, headers: { location: 'https://elsewhere.example/' } }) }
+    assert.equal((await workerdFetch('https://provider.example/token', { redirect: 'error' })).status, 200)
+    await assert.rejects(workerdFetch('https://provider.example/moved', { redirect: 'error' }), TypeError)
+    await workerdFetch('https://provider.example/other', {})
+    assert.deepEqual(seen, ['manual', 'manual', undefined], 'other calls are untouched')
+  } finally { globalThis.fetch = real }
 })
