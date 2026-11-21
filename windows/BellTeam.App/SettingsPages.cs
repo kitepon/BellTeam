@@ -521,20 +521,22 @@ public sealed partial class SettingsWindow
     }
 
     // ---- 利用と課金 ----
-    private Task BillingPage()
+    // a485: nothing is sold on Windows; the server's own contract state is read and shown, and the words say where to buy.
+    private const string BuyOnPhone = "Windowsでは購入できません。iPhone・iPad・MacのBellTeamアプリで購入し、その端末からこのサーバーにログインしてください。Androidはまだ購入できません。";
+    private async Task BillingPage()
     {
-        // a336: the Stripe purchase entry sits under the lead text; it hides itself when there is nothing to buy (active plan, developer server, Stripe not set up).
-        var purchase = new PurchaseEntry(new SubscriptionApi(workspace.Management.Api), url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }), lifetime!.Token);
         var page = NewPage(SettingsPage.Billing);
         var card = new StackPanel(); card.Children.Add(CardTitle("", "BellTeamの利用", 17));
         card.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
-        card.Children.Add(purchase);
+        var buy = Text(BuyOnPhone, 13, Muted, null, new Thickness(0, 0, 0, 6)); buy.TextWrapping = TextWrapping.Wrap; card.Children.Add(buy);
+        var state = new StackPanel(); card.Children.Add(state);
         var notice = new StackPanel();
         card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(OpenLink("サポート", SupportUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(notice);
         var holder = Card(card); holder.Margin = new Thickness(0, 16, 0, 0); page.Children.Add(holder);
-        return purchase.LoadAsync();
+        try { foreach (var line in SubscriptionText.StateLines(await new SubscriptionApi(workspace.Management.Api).GetAsync(lifetime!.Token))) state.Children.Add(Text(line, 13, Ink, null, new Thickness(0, 0, 0, 4))); }
+        catch (Exception error) when (error is not OperationCanceledException) { state.Children.Add(Banner("契約の状態を読めませんでした。" + error.Message)); }
     }
 
     // ---- アップデート ----
