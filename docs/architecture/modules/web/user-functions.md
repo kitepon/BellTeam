@@ -5,7 +5,7 @@ What the user can do in the Web app, which screen offers it, which view file own
 ```mermaid
 flowchart LR
   subgraph Shell["App shell (app.js, application.js, client.js)"]
-    Boot["Boot: session -> settings -> setup -> list -> SSE"]
+    Boot["Boot: session -> (code login, a485) -> settings -> setup -> list -> SSE<br/>login-screen.js"]
     Banner["App banner: reconnecting / stopped / app-level errors"]
   end
   subgraph Home["Home"]
@@ -63,6 +63,7 @@ flowchart LR
 
 | Function | Screen | Reads | Writes | Owner of the data |
 | --- | --- | --- | --- | --- |
+| Code login (a485, usage/app-sessions.md section 7) | shell, `#login-screen` | `GET /api/session` (`login` key), `GET /api/login/{id}` | `POST /api/login/start {kind:'web', carrier:'cookie'}`, `POST /api/login/{id}/cancel`, `POST /api/login/console {code, kind, carrier}`; the server sets the HttpOnly cookie | usage |
 | Boot, session, setup phase | shell | `GET /api/session`, `GET /api/settings`, `GET /api/setup` | — | integration, onboarding |
 | Live updates | shell | `GET /api/events` (SSE) | — | integration |
 | Member and room list | roster | `GET /api/bots?avatar=omit`, `GET /api/rooms`, `GET /api/owner`, avatars `GET /api/bots/:id/avatar` | — | members |
