@@ -35,7 +35,8 @@ export function project(line) {
   if (!plain(value)) return [{ type: 'not-json', subtype: null, view: 'unknown', title: 'not-json', text: line }]
   const { type } = value, subtype = str(value.subtype) ?? str(value.request?.subtype)
   const part = fields => ({ type: str(type) ?? 'unknown', subtype, ...fields })
-  const unknown = title => part({ view: 'unknown', title: title ?? str(type) ?? 'unknown', text: line })
+  // summary: a short plain word for the one-line label, so the label never carries the raw JSON (it stays in text, opened, and by seq)
+  const unknown = title => part({ view: 'unknown', title: title ?? str(type) ?? 'unknown', text: line, summary: str(value.state) ?? str(value.phase) ?? subtype ?? '' })
   const blocks = content => typeof content === 'string' ? [{ type: 'text', text: content }] : Array.isArray(content) ? content : []
   switch (type) {
     case 'assistant': {
@@ -171,7 +172,7 @@ export class MachineStream {
       title: part.title, text: body, truncated, ...(display === 'fold' ? (bot.folds.get(`me-${record.seq}-${n}`) ?? { fold_group: this.rules.fold_group?.[part.view] ?? part.view }) : {}), ...(shown ? { shown_elsewhere: true } : {}), ...(bot.bubbles.has(`me-${record.seq}-${n}`) ? { bubble: true } : {}), ...(part.tool ? { tool: part.tool } : {}),
       ...(request && (part.view === 'question' || part.view === 'approval') ? { request: { request_id: request.id, status: request.status,
         ...(request.questions ? { questions: request.questions } : {}), ...(request.answers ? { answers: request.answers } : {}), ...(request.decision ? { decision: request.decision } : {}) } } : {}) }
-    const line = body.split('\n')[0].slice(0, 120)
+    const line = part.summary !== undefined ? part.summary : body.split('\n')[0].slice(0, 120)
     return { id: `me-${record.seq}-${n}`, kind: 'machine_event', direction: 'incoming', at: record.at, sender,
       message: part.title ? `${part.title}${line ? `: ${line}` : ''}` : line, machine_event: entry }
   }

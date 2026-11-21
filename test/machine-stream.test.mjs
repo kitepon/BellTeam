@@ -321,3 +321,14 @@ test('hook rows, the rate_limit / system / control lines between them and the en
   assert.deepEqual(rows.map(e => e.fold_group), ['background', 'background', 'background', 'background', 'background', 'tools', 'background', 'background', 'background', undefined]) // an orphan tool_result has the table's group; a shown rejected limit has no group and breaks the run
   assert.equal(new MachineStream({ root: '/x', bots, streamSend: async () => ({}), rules: { hook: 'fold' } }).row(ms.bot('bot-d'), 'bot-d', { seq: 1, at: 'a', launch_id: 'L' }, 0, project(J(lines[0]))[0]).machine_event.fold_group, 'hook') // no fold_group in the table: the view itself
 })
+
+// a471-raw-lifecycle-row: the one-line label of an unknown kind is a plain word, never the raw JSON (the raw line stays in text).
+test('an unknown line has a plain one-line label and keeps its raw JSON in text', async t => {
+  const { ms } = await service(t)
+  const raw = J({ type: 'command_lifecycle', command_uuid: 'c-1', state: 'queued', uuid: 'u-1' })
+  await ms.ingest(env([raw, J({ type: 'command_lifecycle', phase: 'x' }), J({ type: 'brand_new_kind' }), 'not json at all'], null, 'L1:1'))
+  const rows = ms.timeline({ botId: 'bot-d' })
+  assert.deepEqual(rows.map(r => r.message), ['command_lifecycle: queued', 'command_lifecycle: x', 'brand_new_kind', 'not-json: not json at all'])
+  assert.equal(rows[0].machine_event.text, raw)
+  assert.ok(rows.every(r => !r.message.includes('{')))
+})
