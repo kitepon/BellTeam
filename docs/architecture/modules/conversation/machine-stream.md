@@ -24,7 +24,7 @@ flowchart LR
   Store --> Project["project(line): view per kind"]
   Project --> Views["createMessageViews: extra source of the Bot page"]
   Project --> SSE["/api/events: topic timeline + botIds"]
-  Project --> Cards["pending can_use_tool: question card / approval card"]
+  Project --> Cards["can_use_tool the supplier lists as waiting (state.pending): question card / approval card + push; not listed: one folded line (allowed automatically)"]
   Views --> Apps["apps draw entries and cards"]
   Apps -->|"POST /api/seat-requests/:request_id/answer"| Api["http-seat-request-api (Owner only)"]
   Api --> Store
@@ -109,7 +109,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 | `result` | `result` | subtype, turns, cost/usage line |
 | `rate_limit_event` | `rate_limit` | reset time |
 | `control_request` `can_use_tool` AskUserQuestion | `question` | `request` with questions; buttons for one choice, checks for `multiSelect`, free text for Other |
-| `control_request` `can_use_tool` other tool | `approval` | `tool`, `request.status`; approve / deny while `pending` |
+| `control_request` `can_use_tool` other tool | `approval` | `tool` (`tool.summary` is the plain summary, see Tool summary), `request.status`; approve / deny while `pending`. Only when the supplier lists it as waiting; otherwise see Requests the seat answers itself |
 | `control_cancel_request`, `control_response` | `control` | closes the request |
 | `stream_event` | `control` | not shown by default (partial messages are off) |
 | anything else, or a line that is not JSON | `unknown` | `title`: type or `not-json`, `text`: the line cut. Never dropped |
@@ -130,7 +130,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 
 Messages sent to the seat (Owner, Bots, schedules) are already shown by the existing bubbles; the stream's replay of them is the folded `input` line. Folded entries carry `fold_group` (the group the table gives their `view`; default the view itself): an app **may** merge consecutive folded entries of the same `fold_group` into one line (for example `hooks ×4`); opening that line opens its members. Entries with a different `fold_group`, and every `show` entry, break a group. **Background rows share one group**: the default table gives `hook`, `rate_limit`, `system`, `control`, `result` and `unknown` the one group `background`, so the hook lines of a tool use (`hook_started`, `hook_response`) and the `rate_limit` / `control` lines that arrive between them are one run, one closed line "background ×n" the Owner can open; at the end of a turn the folded `result` (`done: 2.5s`), an unknown kind such as `command_lifecycle` (its raw JSON stays inside the fold) and the `Stop` hook join the same run instead of leaving three lines (Owner 2026-11-21 01:43 JST via Tronie, a471-tune-tail; Owner 2026-11-21 01:14 JST: 「Hook の表示は畳んでくれ」; before, each `rate_limit` line cut the run of `hook` lines into several). The grouping is made here, by the table, so the four apps draw it the same way and no app changes; a `show` entry (a card, words, an error) still breaks the run. Thinking text: Claude Code's `-p` stream carries it empty by default; Aiterm's host sends `set_max_thinking_tokens {thinking_display:"summarized"}` after initialize, so the stream carries the vendor's first-person summary (1-3 sentences), not raw thinking (Elegg, measured 2026-11-20, Opus 5.5 / Sonnet 5.5 / Fable 5.2). The row `text` is cut at 20000 characters (`truncated: true`); the raw line is always available by `seq`.
 - Cards: one entry per request; its `request.status` changes in place (the entry keeps its `id`/`seq` and `at`), so apps redraw from the page they re-read. The Bot page `items` use the existing paging (`before`/`after`); machine events are one more source merged by `at`.
-- SSE: `/api/events` change event `{topics:["timeline"], botIds:[botId], roomIds:[]}` per stored envelope and per request status change, no body. A pending card also pushes through `notifications.question`.
+- SSE: `/api/events` change event `{topics:["timeline"], botIds:[botId], roomIds:[]}` per stored envelope and per request status change, no body. A card that waits for the Owner (and only that) pushes through `notifications.question`; a request the seat answers itself never pushes.
 - Machine events and cards belong to the Bot's direct log (`roomId` null), also when the turn started from a room.
 
 - History page compatibility: the machine entries are one more card source of the Bot page (`history.page` `cards` is 2 or 3 long), added only when the Bot has machine entries, so a body with an older conversation module keeps working until a machine seat exists.
@@ -160,7 +160,10 @@ For an approval card the body is `{ "decision": "allow" | "deny" }`.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> pending: can_use_tool line stored
+  [*] --> auto: can_use_tool line stored, state.pending of the same envelope does not list it
+  auto --> pending: a later state lists it (the state file trailed the stream line)
+  auto --> [*]
+  [*] --> pending: can_use_tool line stored, state.pending lists it (or the envelope has no state)
   pending --> answered: answer line accepted by Aiterm (state.pending / exited cannot close it while the answer is in flight)
   pending --> expired: control_cancel_request / not in state.pending / exited (answer not in flight) / REQUEST_NOT_PENDING
   pending --> pending: answer invalid or transport failure
@@ -169,6 +172,15 @@ stateDiagram-v2
 ```
 
 The held request is Claude Code's own; BellTeam adds no timer and no refusal. `pending` always leaves by the Owner, by the seat (cancel, interrupt, turn end, exit) or by the answer attempt itself (`REQUEST_NOT_PENDING`).
+
+## Requests the seat answers itself, and the tool summary (a471-auto-approval-noise)
+
+Owner 2026-11-21 15:47 JST (Pepper's chat, plan mode): 「この類の通知めっちゃくる。自動で許可するなら通知いらねーよな」「あとから見て可読性が最悪」. Ruling (Tronie, all clients the same): (1) a request the seat side answers automatically never pushes and never becomes an Owner card; it stays in the timeline only as a folded background line saying it was allowed automatically, with the tool and its summary. Only a request that really waits for the Owner pushes and draws a card. (2) Every approval card, and that folded line, shows the tool name and a readable summary (the command or file), never the raw JSON.
+
+- **How conversation knows, with no timer.** Aiterm's host answers some `can_use_tool` itself (plan mode: every tool but AskUserQuestion; ExitPlanMode; a fork's question) and never lists such a request in `state.pending`; a request that waits for a person is listed. So an envelope's request line that `state.pending` of the same envelope does not list was answered by the seat. The line record carries `auto: [request_id]` (persisted, so a restart draws the same), the request is `auto`, nothing is pushed, and the entry is drawn as `view: control`, `display: fold`, `fold_group: background`, `title: "<tool> allowed automatically"`, `text` = the plain summary (the label is `<title>: <summary>`). It has no `request` block, so no app draws a card for it; apps change nothing. An `auto` request is closed for answering (`SEAT_REQUEST_CLOSED`).
+- **When the state trails the line.** Aiterm writes the stream line first and `pending` a moment later (separate writes), so a real request can be read together with a state that does not list it yet. Aiterm (Elegg, a471e-pending-before-request-line, 0.70.89) will write `pending` before the line, so a line that is read is always covered. Until then conversation does not lose the request: a later state that lists an `auto` request writes the local record `listed`, the request becomes `pending` (card with `request`) and the push goes out then. Nothing waits on a timer.
+- No state in the envelope (or no `pending` array): the request waits, as before. A seat that exited (`state: exited`) expires its unanswered requests as before.
+- **Tool summary.** `tool.summary` of a `tool_use` and of an approval entry is one plain line: the first present of `command`, `file_path`, `notebook_path`, `pattern` (`<pattern> in <path>` when `path` is given), `path`, `url`, `query`, `skill`, `description`, `prompt`, `plan` of the tool's input, cut to 200 characters; with none of them the compact JSON, as before. It is computed at read time, so history already stored reads the same way. Apps already draw `tool.summary`.
 
 ## Data ownership
 
