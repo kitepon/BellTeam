@@ -1444,3 +1444,37 @@ test('a478: 動いていない席はpty_closeのhibernateで休止し、読み�
   assert.deepEqual(stopped, ['old-session'])
   assert.equal(transport.configurationChanges.has(bot.id), false)
 })
+
+test('a478b: 休止を別の理由で断られた席も従来どおり閉じ、答えの無い失敗だけ次のtickへ残す', async () => {
+  const calls = []
+  let failure
+  const client = { async call(name, args) {
+    calls.push(args)
+    if (args.hibernate === true && failure) throw failure
+    return {}
+  } }
+  const transport = new AitermTransport({ client })
+  transport.machineStreams.stop = () => {}
+  const bot = { id: 'bot-a', session: 'old-session' }
+  failure = Object.assign(new Error('aiterm: ACCOUNT_CAPABILITY_UNAVAILABLE: x'), { aitermErrorCode: 'ACCOUNT_CAPABILITY_UNAVAILABLE' })
+  assert.equal(await transport.closeIdle(bot), true)
+  failure = Object.assign(new Error('aiterm: SOMETHING_ELSE: x'), { aitermResponseReturned: true })
+  calls.length = 0
+  assert.equal(await transport.closeIdle(bot), true)
+  assert.equal(calls.length, 2)
+  failure = Object.assign(new Error('timeout'), { code: -32001 })
+  await assert.rejects(transport.closeIdle(bot), /timeout/u)
+})
+
+test('a478b: エンジン再起動後の読み手は、休止した機械席には付けない', async () => {
+  const started = []
+  const transport = new AitermTransport({ client: { async call() {
+    return { structuredContent: { sessions: [{ session_id: 's1', current_command: 'node' }, { session_id: 's2', current_command: 'hibernated' }] } }
+  } } })
+  transport.readRuntimeLaunches = async () => ({ s1: { machine: true, botId: 'a' }, s2: { machine: true, botId: 'b' } })
+  transport.resolveBot = id => ({ id })
+  transport.machineStreams.port = {}
+  transport.machineStreams.start = (bot, session) => started.push(session)
+  await transport.resumeMachineStreams()
+  assert.deepEqual(started, ['s1'])
+})
