@@ -141,3 +141,27 @@ test('機能の保存: 応答待ちの間に書いた入力と未保存の印は
     assert.equal(other.value, ''); assert.equal(featureFormsDirty(container), false)
   } finally { globalThis.document = previous }
 })
+
+test('a479: 欄のない thinkingDisplay は、一文とチェック1つだけで描き、{enabled} だけを送る', async () => {
+  const previous = globalThis.document
+  class Live extends Element {
+    constructor(tag) { super(tag); this.handlers = {} }
+    addEventListener(type, handler) { this.handlers[type] = handler }
+  }
+  globalThis.document = { createElement: tag => new Live(tag), createTextNode: text => Object.assign(new Live('#text'), { textContent: text }) }
+  try {
+    const container = new Live('div'), sent = []
+    renderFeatureSettings(container, [{ id: 'thinkingDisplay', title: 'AIの考えの表示', enabled: false, status: 'disabled', fields: [] }],
+      { api: async (url, init) => { sent.push([url, JSON.parse(init.body)]) }, onChange() {} })
+    const all = element => [element, ...element.children.flatMap(all)]
+    const card = container.children[0], items = all(card)
+    assert.deepEqual(all(card.children[0]).map(item => item.textContent).filter(Boolean), ['AIの考えの表示', '使っていません', 'AIが考えている内容を、会話に表示します。', '変更'])
+    const boxes = items.filter(item => item.type === 'checkbox')
+    assert.equal(boxes.length, 1)
+    assert.equal(boxes[0].checked, false)
+    assert.equal(items.some(item => item.dataset?.fieldKey !== undefined), false)
+    boxes[0].checked = true
+    await items.find(item => item.tag === 'form').handlers.submit({ preventDefault() {} })
+    assert.deepEqual(sent, [['/api/settings/thinkingDisplay', { enabled: true, values: {} }]])
+  } finally { globalThis.document = previous }
+})

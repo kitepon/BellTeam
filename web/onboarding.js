@@ -159,6 +159,7 @@ const FEATURE_SENTENCES = {
   routing: 'ルームで、誰が返事をするかをAIが選びます。', callBridge: 'ほかのチームのメンバーと話せるようにします。',
   cloudflare: '外からこのBellTeamを開けるようにします。', diagnostics: '困った時の情報を、担当へ送れるようにします。',
   notifications: 'iPhoneアプリへ通知を送ります。', webPush: 'ブラウザーへ通知を送ります。', onePassword: '1Passwordの鍵やパスワードを使えるようにします。',
+  thinkingDisplay: 'AIが考えている内容を、会話に表示します。',
 }
 // 必須の欄が空のまま「使っています」と言わない。required が無い旧本体では判定しない。
 export const missingRequired = setting => (setting.fields ?? []).some(field => field.required === true && !field.configured)
