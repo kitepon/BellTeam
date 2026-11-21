@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T10:20:01Z",
-  "expiresAt": "2026-11-28T10:20:01Z",
+  "publishedAt": "2026-11-21T10:43:29Z",
+  "expiresAt": "2026-11-28T10:43:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "29af802a723d11b237d86039bab8cbc4030e1c57",
-      "versionId": "sha256:b3d1f71a7786558a15d14bf8b005a7ae39f62614d0670a77c7011c8b91073eef",
+      "sourceCommit": "521be6509d9385c1ec16356eb9eef60cd4a0e9d4",
+      "versionId": "sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b3d1f71a7786558a15d14bf8b005a7ae39f62614d0670a77c7011c8b91073eef"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "使われていない席を10分で休止にします（会話は残ります）。席が途中で出す言葉も吹き出しで表示します。AIの考えの表示を切り替えられるようにします。メンバーのピン留めに対応します。あわせて、席の部品Aitermを新しい版にします。"
+        "アプリに、席の裏の作業の行と、繰り返して見える入力の行を送らないようにします。エラーと利用上限の知らせは、これまでどおり出ます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "29af802a723d11b237d86039bab8cbc4030e1c57",
-      "versionId": "sha256:b3d1f71a7786558a15d14bf8b005a7ae39f62614d0670a77c7011c8b91073eef",
+      "sourceCommit": "521be6509d9385c1ec16356eb9eef60cd4a0e9d4",
+      "versionId": "sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b3d1f71a7786558a15d14bf8b005a7ae39f62614d0670a77c7011c8b91073eef"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "使われていない席を10分で休止にします（会話は残ります）。席が途中で出す言葉も吹き出しで表示します。AIの考えの表示を切り替えられるようにします。メンバーのピン留めに対応します。あわせて、席の部品Aitermを新しい版にします。"
+        "アプリに、席の裏の作業の行と、繰り返して見える入力の行を送らないようにします。エラーと利用上限の知らせは、これまでどおり出ます。"
       ]
     },
     {
