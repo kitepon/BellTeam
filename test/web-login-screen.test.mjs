@@ -11,12 +11,13 @@ test('a485: a server without `login` in /api/session keeps today\'s path; one th
   assert.equal(loginNeeded({ authenticated: false, authMode: 'local', login: { capability: true, bound: true, enforced: true } }), true)
 })
 
-test('a485: the screen shows the code and check number exactly as given (leading zeros kept), and a QR only as a PNG data URL from the server', () => {
+test('a485: the screen shows the code and check number exactly as given (leading zeros kept), and a QR only as an img data URL made from the SVG the server sends', () => {
   const phone = loginView({ phase: 'phone', code: 'ABCD-EFGH-JKMNP', check: '042', expiresAt: '2026-11-21T12:00:00.000Z' })
   assert.equal(phone.code, 'ABCD-EFGH-JKMNP'); assert.equal(phone.check, '042'); assert.equal(phone.cancel, true); assert.match(phone.until, /まで有効/u)
-  assert.equal(loginView({ phase: 'phone', code: 'C', check: '042', qr: 'data:image/png;base64,AAAA' }).qr, 'data:image/png;base64,AAAA')
-  assert.equal(loginView({ phase: 'phone', code: 'C', check: '042', qr: 'javascript:alert(1)' }).qr, '')
-  assert.equal(loginView({ phase: 'phone', code: 'C', check: '042', qr: 'https://x/y.png' }).qr, '')
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'
+  assert.equal(loginView({ phase: 'phone', code: 'C', check: '042', qr: svg }).qr, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
+  assert.equal(loginView({ phase: 'phone', code: 'C', check: '042', qr: '<?xml version="1.0"?>' + svg }).qr.startsWith('data:image/svg+xml'), true)
+  for (const bad of ['<div onclick="x"></div>', 'javascript:alert(1)', 'data:image/png;base64,AAAA', '', null, 'x'.repeat(200_000) + '<svg>']) assert.equal(loginView({ phase: 'phone', code: 'C', check: '042', qr: bad }).qr, '')
   assert.equal(loginView({ phase: 'second_hand' }).code, '')
   assert.equal(loginView({ phase: 'ended', message: 'x' }).again, true)
 })
@@ -36,7 +37,7 @@ function run(script, extra = {}) {
 }
 
 test('a485: start (kind web) -> second hand -> phone code -> approved boots the app again, polling the same login id', async () => {
-  const t = run([{ loginId: 'L1', status: 'waiting_second_hand' }, { status: 'waiting_phone', phone: { shortCode: 'ABCD-EFGH-JKMNP', checkNumber: '042', qr: 'bt://x', qrPng: 'data:image/png;base64,AAAA' }, expiresAt: '2026-11-21T12:00:00.000Z', pollAfterMs: 3000 }, { status: 'approved' }])
+  const t = run([{ loginId: 'L1', status: 'waiting_second_hand' }, { status: 'waiting_phone', phone: { shortCode: 'ABCD-EFGH-JKMNP', checkNumber: '042', qr: 'bt://x', qrSvg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>' }, expiresAt: '2026-11-21T12:00:00.000Z', pollAfterMs: 3000 }, { status: 'approved' }])
   await t.login.start()
   assert.deepEqual(t.calls, [['POST', '/api/login/start', '{"kind":"web","carrier":"cookie"}'], ['GET', '/api/login/L1', undefined], ['GET', '/api/login/L1', undefined]])
   assert.deepEqual(t.states.map(state => state.phase), ['starting', 'second_hand', 'phone'])
