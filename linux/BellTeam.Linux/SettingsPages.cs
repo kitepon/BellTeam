@@ -445,11 +445,15 @@ public sealed partial class SettingsWindow
     }
 
     // ---- 利用と課金 ----
+    // The Linux app sets this at start: the account card (a485) comes from its own files, which Android does not link.
+    internal static Func<CancellationToken, Control>? AccountEntry { get; set; }
+
     private Task BillingPage()
     {
         // a485: no purchase here; the entry shows the server's plan or the one sentence, and hides itself on a developer server.
         var purchase = new PurchaseEntry(new SubscriptionApi(workspace.Management.Api), lifetime!.Token);
         var page = NewPage(SettingsPage.Billing);
+        if (AccountEntry?.Invoke(lifetime!.Token) is { } account) page.Children.Add(Card(account));
         var card = new StackPanel(); card.Children.Add(CardTitle(SettingsIcons.Card, "BellTeamの利用", 17));
         card.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
         card.Children.Add(purchase);

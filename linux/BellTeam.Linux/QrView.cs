@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using QRCoder;
 
-namespace BellTeam.Android;
+namespace BellTeam.Linux;
 
 // Draws the QR text exactly as given (contract 1.20: the text is shown as it is, never inside a link). QRCoder's matrix already carries the quiet zone.
 public sealed class QrView : Control

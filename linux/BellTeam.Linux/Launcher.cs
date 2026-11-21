@@ -68,6 +68,7 @@ internal static partial class Launcher
         MainWindow? main = null;
         instance = new SingleInstance(() => Dispatcher.UIThread.Post(() => main?.Raise()));
         if (!instance.IsPrimary) { desktop.Shutdown(0); return; }
+        SettingsWindow.AccountEntry = token => new LinuxAccountCard(token);
         var tokens = new FileSessionTokenStore(SettingsStore.UserDirectory);
         var workspace = new LinuxWorkspace(origin => new BellApi(origin) { SessionToken = tokens.Load(origin) });
         // Desktop notifications: default off, only while the app runs; a click opens the conversation (or the Update sheet) in the window.
@@ -83,7 +84,7 @@ internal static partial class Launcher
         };
         main.Show();
         var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
-        if (StartupRoute.Initial(settings.ServerUrl) == StartupPhase.Setup) main.ShowServerSetup(); else await main.ConnectAsync(settings.ServerUrl!);
+        await main.StartAfterAccountAsync(settings.ServerUrl);
     }
 
     // The preview fixture or a live server's read-only data, drawn into a PNG without a screen.

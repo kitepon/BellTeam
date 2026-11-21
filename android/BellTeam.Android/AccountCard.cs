@@ -142,31 +142,13 @@ public sealed class AccountCard : StackPanel
         Children.Add(Text(StoreAccountText.WebCannotBuy, 13, Muted, null, new Thickness(0, 10, 0, 0)));
         if (handoff is { } login)
         {
-            var block = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Spacing = 6 };
-            block.Children.Add(Text(StoreAccountText.HandoffTitle, 16, Ink, FontWeight.Bold));
-            block.Children.Add(Text(StoreAccountText.HandoffLead, 13, Muted));
-            var qr = new QrView(login.QrPayload, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; block.Children.Add(qr);
-            var pair = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
-            var code = Pair(StoreAccountText.HandoffCode, login.ShortCode); var check = Pair(StoreAccountText.HandoffCheckNumber, login.CheckNumber); Grid.SetColumn(check, 1);
-            pair.Children.Add(code); pair.Children.Add(check); block.Children.Add(pair);
-            block.Children.Add(Text(StoreAccountText.HandoffCheckLine, 12, Muted));
-            var waiting = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
-            waiting.Children.Add(Glyph(SettingsIcons.Waiting, 16, Muted)); var wt = Text(StoreAccountText.HandoffWaiting, 13, Muted); wt.VerticalAlignment = VerticalAlignment.Center; waiting.Children.Add(wt);
-            block.Children.Add(waiting);
-            block.Children.Add(Button(StoreAccountText.HandoffCancel, () => { epoch++; handoff = null; handoffCancelled = true; Render(); return Task.CompletedTask; }, Look.Secondary));
-            Children.Add(new Border { Child = block, Background = SettingsUi.Canvas, CornerRadius = new CornerRadius(16), Padding = new Thickness(16), Margin = new Thickness(0, 12, 0, 0) });
+            Children.Add(AccountParts.HandoffBlock(login.QrPayload, login.ShortCode, login.CheckNumber, () => { epoch++; handoff = null; handoffCancelled = true; Render(); }));
         }
         else if (handoffCancelled)
         {
             Children.Add(Text(StoreAccountText.HandoffCancelled, 13, Muted, null, new Thickness(0, 10, 0, 0)));
             Children.Add(Button(StoreAccountText.HandoffAgain, () => { handoffAsked = false; _ = HandoffAsync(billing!); return Task.CompletedTask; }, Look.Primary));
         }
-    }
-
-    private static Control Pair(string label, string value)
-    {
-        var p = new StackPanel { Spacing = 2 };
-        p.Children.Add(Text(label, 12, Muted)); p.Children.Add(Text(value, 20, Ink, FontWeight.Bold)); return p;
     }
 
     // "Stop all others" is destructive: below sign-out, set apart, danger-coloured, with a short reason and a confirm step.

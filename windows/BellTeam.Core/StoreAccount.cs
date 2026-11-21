@@ -26,6 +26,11 @@ public static class StoreAccountText
     public const string SignedOut = "サインインしていません。";
     public const string SignIn = "Googleでサインイン";
     public const string SignedIn = "Googleでサインイン中";
+    // Desktop (Linux, Windows): the library signs in through the system browser and returns to a loopback address; no purchase happens here (login-billing 0.14.0). Provisional words, like the rest.
+    public const string SignInWeb = "ブラウザーでサインイン";
+    public const string SigningInWeb = "ブラウザーでのサインインを待っています…";
+    public const string SigningInWebCancel = "やめる";
+    public const string StopAllOthersWhyWeb = "このアカウントでログインしている、ほかのすべての端末を止めます。この端末は使い続けられます。ブラウザーでもう一度サインインします。";
     public const string SignedInBrowser = "ブラウザーでサインイン中";
     public const string WebCannotBuy = "ブラウザーでサインインした端末では、ここで購入できません。購読しているスマホから引き継いでください。";
     public const string HandoffCancel = "やめる";
@@ -56,6 +61,7 @@ public static class StoreAccountText
     {
         "product_unknown" => "この商品はまだ読み込めていません。もう一度お試しください。",
         "pass_invalid" => "サインインし直してください。",
+        "pass_store_unavailable" => "この端末のサインイン情報を読めません。サインアウトにはなっていません。ファイルの権限を確かめて、もう一度お試しください。",
         _ => "うまくいきませんでした（" + code + (reason is { } number ? " " + number : "") + "）。",
     };
 }
