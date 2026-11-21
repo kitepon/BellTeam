@@ -49,6 +49,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private CancellationTokenSource? settingsLife;
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
     private readonly NewestColumn messageColumn = new();
+    private bool unreadNew; // a row arrived while the reader was away from the newest
+    // The same button as the Linux window (a471-latest-button-android): 最新へ when away from the newest, 新着メッセージ when a row arrived below; a tap returns to the newest and follows again.
+    private readonly Button latest = new() { Classes = { "plain" }, Content = "最新へ ↓", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
     private StackPanel? messageStack;
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
     private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
@@ -94,11 +97,13 @@ public sealed class PhoneShell : UserControl, IMessageHost
         search.TextChanged += (_, _) => model.Search = search.Text ?? "";
 
         var messages = new ItemsControl { ItemsSource = model.Messages, ItemTemplate = new FuncDataTemplate<MessageItem>((item, _) => new MessageCard(item, model)) };
-        messageScroll.ScrollChanged += (_, args) => { NoteScrollUp(args); FillScreen(); };
-        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) { messageColumn.MinHeight = messageScroll.Viewport.Height; FillScreen(); } };        messageStack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 12), Children = { messages } };
+        messageScroll.ScrollChanged += (_, args) => { ShowLatestButton(); NoteScrollUp(args); FillScreen(); };
+        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) { messageColumn.MinHeight = messageScroll.Viewport.Height; FillScreen(); } };
+        messageStack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 12), Children = { messages } };
         messageStack.PropertyChanged += (_, args) => { if (args.Property == BoundsProperty) FillScreen(); };
         messageColumn.Children.Add(messageStack); messageScroll.Content = messageColumn;
-        Grid.SetRow(messageScroll, 1);
+        Grid.SetRow(messageScroll, 1); Grid.SetRow(latest, 1);
+        latest.Click += (_, _) => { unreadNew = false; messageColumn.FollowNewest(); latest.IsVisible = false; }; Avalonia.Automation.AutomationProperties.SetName(latest, "最新へ");
         composer.TextChanged += (_, _) => { if (syncingComposer) return; syncingComposer = true; try { model.DraftText = composer.Text ?? ""; } finally { syncingComposer = false; } };
         send.Click += (_, _) => _ = model.SendAsync();
         attachmentScroll.Content = attachments;
@@ -111,7 +116,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         quoteBar.Child = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { quoteName, quoteText } }, cancelQuote } };
         var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(12, 8), Children = { sendError, attachmentScroll, quoteBar, pill } } };
         Grid.SetRow(band, 2);
-        conversationPage.Children.Add(header); conversationPage.Children.Add(messageScroll); conversationPage.Children.Add(band);
+        conversationPage.Children.Add(header); conversationPage.Children.Add(messageScroll); conversationPage.Children.Add(latest); conversationPage.Children.Add(band);
 
         var settingsBack = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
         settingsBack.Click += (_, _) => ShowList();
@@ -133,7 +138,11 @@ public sealed class PhoneShell : UserControl, IMessageHost
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
         model.Entries.CollectionChanged += (_, _) => QueueListRebuild();
         // a471-open-newest-linux: the newest row is the anchor (NewestColumn, shared with the Linux window): opening or sending asks to be at the newest; a row that arrives there is at the newest in the same layout pass, one that arrives while the reader reads older rows leaves the view where it is.
-        model.ScrollToBottom += force => { if (force) messageColumn.FollowNewest(); };
+        model.ScrollToBottom += force =>
+        {
+            if (force) messageColumn.FollowNewest();
+            else if (!messageColumn.Following) { unreadNew = true; ShowLatestButton(); }
+        };
         model.ThisPc = new NoThisPc();
         // A field that gets focus scrolls into view once the keyboard has taken its space.
         AddHandler(GotFocusEvent, (_, e) => { if (e.Source is TextBox box) { Dispatcher.UIThread.Post(() => Reveal(box), DispatcherPriority.Background); DispatcherTimer.RunOnce(() => Reveal(box), TimeSpan.FromMilliseconds(350)); } });
@@ -342,6 +351,13 @@ public sealed class PhoneShell : UserControl, IMessageHost
         scrollSpeed = (ScrollSpeed - args.OffsetDelta.Y / seconds) / 2; lastScrollUp = now;
     }
     private double ScrollSpeed => Environment.TickCount64 - lastScrollUp < 500 ? scrollSpeed : 0;
+    private void ShowLatestButton()
+    {
+        var atBottom = messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80;
+        if (atBottom) unreadNew = false;
+        latest.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
+        latest.IsVisible = !(atBottom && !unreadNew) && model.HasSelection && model.Messages.Count != 0;
+    }
     private bool CanReadOlder() => model.HasSelection && model.HasMore && !model.Loading;
     private void FillScreen() => _ = PrefetchOlderAsync();
     private async Task PrefetchOlderAsync()
@@ -379,7 +395,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         switch (name)
         {
             case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.Sync(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
-            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
+            case nameof(LinuxWorkspace.Selected): unreadNew = false; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
