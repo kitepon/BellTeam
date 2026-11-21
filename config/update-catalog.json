@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T03:50:13Z",
-  "expiresAt": "2026-11-28T03:50:13Z",
+  "publishedAt": "2026-11-21T04:01:56Z",
+  "expiresAt": "2026-11-28T04:01:56Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11",
-      "versionId": "d956703f9ce87d0e7404999cb8f614860cf24299af223ce2120830e8b802fe02",
+      "sourceCommit": "fb751f4eb732cf675c5538a71df23eba23a8d054",
+      "versionId": "5300edbe16fdb452fbe38d69c195b49b8bdf4c60fe1ba21135b8a8ae14b8ea3c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-amd64.tar.gz",
-          "bytes": 5510524,
-          "sha256": "d956703f9ce87d0e7404999cb8f614860cf24299af223ce2120830e8b802fe02"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T040130Z/web-gateway-fb751f4eb732cf675c5538a71df23eba23a8d054-linux-amd64.tar.gz",
+          "bytes": 5510796,
+          "sha256": "5300edbe16fdb452fbe38d69c195b49b8bdf4c60fe1ba21135b8a8ae14b8ea3c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10633,
-          "sha256": "70d6036d550ff160eda79e50dcc8b6cdce85ebbd2683d19f9ef40ebf2c5e0734"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T040130Z/web-gateway-fb751f4eb732cf675c5538a71df23eba23a8d054-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10735,
+          "sha256": "fe04fb1297b05ba74f825d5268e65f78968f5fd606bd0017b9c361334e2f40d8"
         },
-        "signerCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11"
+        "signerCommit": "fb751f4eb732cf675c5538a71df23eba23a8d054"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "スクロール中に、見ている行が動かないようにします。古いページを読み込んだときも、上の行が変わったときも、見ている場所は動きません。更新の読み出しが最初の読み出しと重なっても、画面を埋めます。"
+        "スクロール中に、見ている行が動かないようにします。古いページを読み込んだときも、上の行が変わったときも、見ている場所は動きません。下に届いた行は、なめらかなスクロールで追いかけます。スクロールバーをつかむと、追いかけを止めます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11",
-      "versionId": "58153fa1b2d4884e2e35a7b06a6927287fcb84e007ca11d3ecf61dafb5d1ba14",
+      "sourceCommit": "fb751f4eb732cf675c5538a71df23eba23a8d054",
+      "versionId": "5b5eb9ad58884e4a5b818db55c925e8bb2a7b7a1095075a0c28f3959b9e148a8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-arm64.tar.gz",
-          "bytes": 5510524,
-          "sha256": "58153fa1b2d4884e2e35a7b06a6927287fcb84e007ca11d3ecf61dafb5d1ba14"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T040130Z/web-gateway-fb751f4eb732cf675c5538a71df23eba23a8d054-linux-arm64.tar.gz",
+          "bytes": 5510796,
+          "sha256": "5b5eb9ad58884e4a5b818db55c925e8bb2a7b7a1095075a0c28f3959b9e148a8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10833,
-          "sha256": "db2370c3f6ae803e1cf9da5dc68f8b601c43074a09f4d8cbd3e5ad4c33dc7c82"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T040130Z/web-gateway-fb751f4eb732cf675c5538a71df23eba23a8d054-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10782,
+          "sha256": "97c48d78603e9bbe5fd7a0c9c9c51ec549c1e8c03b63faba61f331f293a4114f"
         },
-        "signerCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11"
+        "signerCommit": "fb751f4eb732cf675c5538a71df23eba23a8d054"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "スクロール中に、見ている行が動かないようにします。古いページを読み込んだときも、上の行が変わったときも、見ている場所は動きません。更新の読み出しが最初の読み出しと重なっても、画面を埋めます。"
+        "スクロール中に、見ている行が動かないようにします。古いページを読み込んだときも、上の行が変わったときも、見ている場所は動きません。下に届いた行は、なめらかなスクロールで追いかけます。スクロールバーをつかむと、追いかけを止めます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e71d1188bc162a7ffa6a4260e378ff1f906bba17",
-      "versionId": "sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25",
+      "sourceCommit": "bf384eb3808b8b871a749c787f76566848883c67",
+      "versionId": "sha256:cba487e4b9e0c5ccd5a0c6576fb4f918a15cfc1d880587ad5ec72e9fc157c731",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cba487e4b9e0c5ccd5a0c6576fb4f918a15cfc1d880587ad5ec72e9fc157c731"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "種類の分からない折りたたみ行（たとえば command_lifecycle）の1行ラベルに、生のJSONを出さないようにします。生の行は machine_event.text に残ります。"
+        "Aitermを0.70.87に上げます。計画モードの機械の席が、道具を呼ぶたびに許可カードを出さなくなります。種類の分からない折りたたみ行（たとえば command_lifecycle）の1行ラベルには、生のJSONを出しません。生の行は machine_event.text に残ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e71d1188bc162a7ffa6a4260e378ff1f906bba17",
-      "versionId": "sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25",
+      "sourceCommit": "bf384eb3808b8b871a749c787f76566848883c67",
+      "versionId": "sha256:cba487e4b9e0c5ccd5a0c6576fb4f918a15cfc1d880587ad5ec72e9fc157c731",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cba487e4b9e0c5ccd5a0c6576fb4f918a15cfc1d880587ad5ec72e9fc157c731"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "種類の分からない折りたたみ行（たとえば command_lifecycle）の1行ラベルに、生のJSONを出さないようにします。生の行は machine_event.text に残ります。"
+        "Aitermを0.70.87に上げます。計画モードの機械の席が、道具を呼ぶたびに許可カードを出さなくなります。種類の分からない折りたたみ行（たとえば command_lifecycle）の1行ラベルには、生のJSONを出しません。生の行は machine_event.text に残ります。"
       ]
     },
     {
