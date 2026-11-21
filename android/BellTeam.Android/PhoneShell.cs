@@ -366,12 +366,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private async Task LoadOlderPreservingPositionAsync()
     {
         if (loadingOlder) return;
-        loadingOlder = true; var target = model.Selected?.Target; var offset = messageScroll.Offset.Y; var height = messageScroll.Extent.Height; var count = model.Messages.Count;
-        try
-        {
-            await model.LoadOlderAsync();
-            if (model.Selected?.Target == target) { messageScroll.UpdateLayout(); messageScroll.Offset = new Vector(0, offset + messageScroll.Extent.Height - height); }
-        }
+        loadingOlder = true; var count = model.Messages.Count;
+        // a471-scroll-jump: the rows are added above the view and the scroll view's anchor (each MessageCard registers) keeps the row being looked at where it is, whatever the Owner scrolled while the page was on its way.
+        try { await model.LoadOlderAsync(); messageScroll.UpdateLayout(); }
         finally { loadingOlder = false; }
         if (model.Messages.Count != count) FillScreen();
     }
