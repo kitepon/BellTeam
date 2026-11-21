@@ -520,7 +520,7 @@ case "$endpoint" in
   0.0.0.0:*|\[::\]:*) url="http://localhost:$port" ;;
   *) url="http://$endpoint" ;;
 esac
-printf '\nBellTeamを起動しました。ブラウザで %s を開いてください。\n' "$url"
-printf 'iPhone・iPadからは、このマシンのLANアドレスの%s番へ接続できます。\n' "$port"
-printf '最初に使うAIを選び、公式サイトで認証すると、案内役との会話が始まります。\n'
+printf '\nBellTeamを起動しました。BellTeamのアプリの接続先に %s を指定してください（ブラウザ版は終了しました）。\n' "$url"
+printf 'iPhone・iPad・別のMacなどからは、このマシンのLANアドレスの%s番へ接続できます。\n' "$port"
+printf 'アプリで最初に使うAIを選び、公式サイトで認証すると、案内役との会話が始まります。\n'
 printf '保存設定: %s\n' "$saved"
