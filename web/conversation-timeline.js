@@ -132,7 +132,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const calm = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
     timeline.scrollTo({ top: timeline.scrollHeight, behavior: calm ? 'instant' : 'smooth' })
   }
-  for (const name of ['wheel', 'touchstart', 'keydown']) timeline.addEventListener(name, () => { following = false }, { passive: true })
+  for (const name of ['wheel', 'touchstart', 'keydown', 'pointerdown']) timeline.addEventListener(name, () => { following = false }, { passive: true })
   latestButton.addEventListener('click', () => {
     state.stickToBottom = true
     scrollToBottom()
