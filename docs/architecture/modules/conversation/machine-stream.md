@@ -85,7 +85,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 { "id": "me-<seq>", "kind": "machine_event", "direction": "incoming", "at": "...",
   "message": "<one line for a plain-text app>", "sender": {"id": "bot-…", "name": "…"},
   "machine_event": { "seq": 42, "launch_id": "…", "type": "assistant", "subtype": null,
-                     "view": "words|tool_use|tool_result|system|hook|result|rate_limit|approval|question|control|unknown",
+                     "view": "words|thinking|tool_use|tool_result|system|hook|result|rate_limit|approval|question|control|unknown",
                      "display": "show|fold", "fold_group": "<only when folded; the table's group for the view, default the view>", "title": "short label", "text": "<=20000 chars", "truncated": false,
                      "tool": { "id": "…", "name": "Bash", "summary": "<=200 chars" },
                      "request": { "request_id": "…", "status": "pending|answered|expired",
@@ -100,7 +100,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 | Stream line | view | text / extra |
 | --- | --- | --- |
 | `assistant` text block | `words` | the text. The same words also arrive as interim/answer rows by the existing path: the row carries `shown_elsewhere: true` (a hint only: the default table shows it too, see below). The last one of a finished turn also carries `bubble: true` (see Turn answer bubble) |
-| `assistant` `thinking` block | `words` with `title: "thinking"` | collapsed |
+| `assistant` `thinking` block | `thinking` with `title: "thinking"` (`thinking (no text)` when empty) | shown open when it has text, folded when empty |
 | `assistant` `tool_use` block | `tool_use` | `tool` |
 | `user` with `tool_result` | `tool_result` | text of the result, cut |
 | `user` text (replayed input, hook-injected) | `words` with `title: "input"` | `shown_elsewhere: true` when BellTeam saved the same message |
@@ -245,6 +245,25 @@ flowchart LR
   Post --> Child["conversation child: quoteSource / forwardSource"]
   Child --> Eff["effect machine.rowSource (parent MachineStream.rowSource)"]
   Eff --> Snap["snapshot {sender, at, text} saved on the new row"]
+```
+
+## Thinking is always shown whole (a471-thinking-full)
+
+Owner 2026-11-21 10:2x JST chose 「ア：いつも全部出す」 (「あと、thinkingの内容も貴重だよね」): every thinking row of a machine seat shows its whole text, always, on all four apps. His iPhone screenshot showed thinking cut after about 150 characters (「Then I'll get back to K」, 「with t」) with no way to open it, while the stream line carries the whole summary (939 characters in `bot-7b140b27.jsonl` seq 907).
+
+**Cause (found 2026-11-21).** The body gives a thinking block `view: "thinking"`, not `view: "words"` with `title: "thinking"` as this document said. Web (`machine-event.js`: `view === 'thinking'` draws `text`), Windows (`MachineCards.cs`: draws `text` for `thinking`) and Linux (a shown row with `text` is drawn as a message) draw the whole `text`. iOS/Mac draws the whole `text` only for `view == "words"` (`MachineEventView.shown`) and `isThinking` is `view == "words" && title == "thinking"`, so a `thinking` row falls to the one-line label: the row's `message` (title plus the first 120 characters of the first line) with `lineLimit(3)`. Nothing is cut in the body: `text` is whole up to the 20 000-character row cut (`truncated: true`); the one-line `message` is only a summary for lists and folded lines.
+
+**Rule (all four, one spec).**
+
+- A shown row with `view: "thinking"` draws its whole `machine_event.text`, wrapped, never `message` and never a line limit, lighter and slanted as now. The Owner can select it. Where a row is quoted, copied or forwarded its whole `text` is used (see the reply section).
+- iOS/Mac: `isThinking` is `view == "thinking"` (the old `words`+`title` test may stay as an alias), and `MachineEventView.shown` draws `text` for `words` and `thinking`. Web, Windows and Linux already draw `text`; their task is to check on a long thinking row (about 1 000 characters, several lines) that no line limit, ellipsis or max height cuts it, and to fix it if one does.
+- Folded rows keep their one-line `message` with the open action; an empty `thinking (no text)` stays folded. This rule does not change which rows are shown.
+- The body changes nothing and the wire stays as is. Thinking summaries are 1–3 sentences, far below the 20 000-character cut.
+
+```mermaid
+flowchart LR
+  Row["machine_event, view thinking, text whole, message = first 120 chars"] --> App["app draws event.text (not message), no line limit"]
+  Row --> Fold["folded line / list preview: message"]
 ```
 
 ## History pages of a long stream (a471-page-request-bound, a471-page-size-scrollback)
