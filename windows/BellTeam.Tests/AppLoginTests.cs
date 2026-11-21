@@ -145,6 +145,21 @@ public sealed class AppLoginTests
         Click(view, "再確認"); Click(view, "接続先を変更"); Assert.Equal((1, 1), (rechecked, changed));
     });
 
+    [Fact]
+    public void TheSignInEntryOffersAppleAndGoogleWithoutAConsoleCodeAndAsksForTheSetupCodeOnlyWhenTold() => RunSta(() =>
+    {
+        var chosen = new List<string>(); var cancelled = 0; var view = new SignInView(chosen.Add, () => cancelled++);
+        Assert.Contains(SignInText.Title, Texts(view)); Assert.Contains(SignInText.Note, Texts(view));
+        Assert.Empty(Descendants<TextBox>(view)); Assert.DoesNotContain(SignInText.SetupCodeLabel, Texts(view));
+        Click(view, SignInText.Apple); Click(view, SignInText.Google); Assert.Equal(["apple", "google"], chosen);
+        view.RequireSetupCode(true); Descendants<TextBox>(view).Single().Text = " ABC "; Assert.Equal("ABC", view.SetupCode);
+        Assert.Contains(SignInText.SetupCodeLabel, Texts(view)); Assert.Contains(SignInText.SetupCodeHint, Texts(view));
+        view.Show(SignInPhase.Waiting); Assert.Contains(SignInText.Waiting, Texts(view)); Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Apple);
+        Click(view, SignInText.Cancel); Assert.Equal(1, cancelled);
+        view.Show(SignInPhase.ReturnNotReceived); Assert.Contains(SignInText.ReturnNotReceived, Texts(view));
+        view.Show(SignInPhase.NotOwner); Assert.Contains(SignInText.NotOwner, Texts(view));
+    });
+
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
     private static void Click(DependencyObject root, string name) => Descendants<Button>(root).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject { if (root is T found) yield return found; foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach (var item in Descendants<T>(child)) yield return item; }
