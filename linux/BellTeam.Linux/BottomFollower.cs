@@ -5,6 +5,7 @@ using Avalonia.Threading;
 
 namespace BellTeam.Linux;
 
+// The Linux window no longer uses it (a471-open-newest-linux: NewestColumn); Android's PhoneShell still does, and compiles this file from linux/.
 // a471-scroll-jump-linux: a row that arrives while the reader is at the bottom is followed by an animated scroll, at most Step px per frame (the Web's rule), never a snap.
 // With motion off it is instant; the reader's wheel, touch, drag or key stops the following.
 // shortcut: a 16 ms timer stands for the display frame; upgrade to the compositor's frame clock if the pace shows on a 120 Hz screen.
