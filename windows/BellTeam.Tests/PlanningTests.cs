@@ -150,6 +150,25 @@ public sealed class PlanningTests
         });
     }
     [Fact]
+    public void FeatureWithNoFieldsIsOnePlainSwitch()
+    {
+        RunSta(() =>
+        {
+            string? sent = null;
+            using var workspace = WorkspaceWithFeatures((request, _) => { sent = request.Content!.ReadAsStringAsync().Result; return Task.FromResult(StubHandler.Json("""{"setting":{"id":"thinkingDisplay","title":"AIの考えの表示","enabled":true,"status":"enabled","fields":[]}}""")); },
+                """{"id":"thinkingDisplay","title":"AIの考えの表示","enabled":false,"status":"disabled","fields":[]}""");
+            Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var editor = new FeatureEditor(workspace, "thinkingDisplay", "AIの考えの表示"); Await(editor.InitializeAsync());
+            var toggle = Assert.Single(Descendants<System.Windows.Controls.Primitives.ToggleButton>(editor)); Assert.False(toggle.IsChecked);
+            Assert.Equal("有効にする", System.Windows.Automation.AutomationProperties.GetName(toggle));
+            Assert.Empty(Descendants<CheckBox>(editor)); Assert.Empty(Descendants<TextBox>(editor)); Assert.Empty(Descendants<PasswordBox>(editor));
+            Assert.DoesNotContain(Descendants<TextBlock>(editor), text => text.Text == "設定" || text.Text.Contains("登録"));
+            toggle.IsChecked = true;
+            Descendants<Button>(editor).Single(button => (string)button.Content == "保存").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+            Assert.Contains("\"enabled\":true", sent); editor.Close();
+        });
+    }
+    [Fact]
     public void FeatureEditorFailedSaveClearsPasswordAndShowsNoSecret()
     {
         RunSta(() =>
@@ -288,9 +307,9 @@ public sealed class PlanningTests
             Assert.Equal("2件の決まり", editor.ItemStatus(SettingsPage.Rules).Line); editor.Close();
         });
     }
-    private static Workspace WorkspaceWithFeatures(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? write = null) => new(origin => new BellApi(origin, new StubHandler((request, token) =>
+    private static Workspace WorkspaceWithFeatures(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? write = null, string feature = FeatureJson) => new(origin => new BellApi(origin, new StubHandler((request, token) =>
         request.Method != HttpMethod.Get ? write!(request, token) : Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
-        { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/settings" => "{\"settings\":[" + FeatureJson + "]}", _ => ApiTests.Page })))));
+        { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/settings" => "{\"settings\":[" + feature + "]}", _ => ApiTests.Page })))));
     // ---- the Mac schedule page and editor (PR 9) ----
     [Fact]
     public void NextRunIsPrintedLikeTheMacCardAndAMissingOneIsUndecided()
