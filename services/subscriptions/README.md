@@ -1,73 +1,67 @@
 # BellTeam login and billing Worker (operator side)
 
-Owner: Bready (bot-823b56e9). Since a485 this Worker is the server part of the shared login/billing library `@kitepon/login-billing` (pinned **0.7.2**, contract 1.16, `vendor/kitepon-login-billing-0.7.2.tgz`, sha256 `cd65aeef2f1ffcffb0faa299185e4c1fc74be5ea9a3d6e3005a5234e95bcb848`). Mechanism: Mint's `docs/login-billing/design-qr-pass.md`; ruling for BellTeam: `rulings/bellteam.md`. Owner decisions: App Store + Google Play only, Stripe abolished (2026-11-20), D1 = B, D2 no cap on servers per contract, D3 developer mode stays the user server's own switch.
+Owner: Bready (bot-823b56e9). Since a485 this Worker is the server part of the shared login/billing library `@kitepon/login-billing` (pinned **0.10.0, development release**, contract 1.20 section 2, `vendor/kitepon-login-billing-0.10.0.tgz`, sha256 `ddac4bbb59dd56acad7c6c2e481583779205877a0d45d909e4b7861158df6d31`). Mechanism: Mint's `design-reading3.md`; ruling for BellTeam: `rulings/bellteam.md`. Owner decisions: App Store + Google Play only, Stripe abolished (2026-11-20), every device signs in itself and the person's phone hands over the contract (reading 3).
 
-The Worker holds the library's secrets (kKey, pass keys, store keys). It runs only at the operator and is never embedded in a user's BellTeam server: the user's server is a *device that the owner's phone logs in*, and it calls the Worker; the operator never calls a user's server.
+The Worker holds the library's secrets (kKey, pass keys, store keys, web-sign-in clients). It runs only at the operator and is never embedded in a user's BellTeam server; the user's server calls out, the operator never calls a user's server. The Worker keeps no copy of the library's behaviour: it mounts the library's handler, gives it the Durable Object storage and a per-caller limiter, and nothing else. Production is not switched by this change.
 
 ## Function diagram
 ```mermaid
 flowchart LR
-  Phone["Phone app (iPhone/iPad/Mac, later Android)<br/>Apple/Google sign-in, store purchase"]
-  Srv["User's BellTeam server<br/>holds one handoff pass (file, 0600)"]
+  App["BellTeam apps (iPhone/iPad/Mac, Android, Windows, Linux)"]
+  Browser["System browser (web sign-in)"]
+  Srv["User's BellTeam server"]
   Relay["Notification relay (operator)"]
-  subgraph W["Worker bellteam-subscriptions"]
-    Front["fetch(): routing, per-caller rate limit"]
-    Lib["library server part<br/>createLoginBilling + createHandler(/auth/v1)"]
-    Ent["POST /v1/entitlement<br/>pass -> {entitled, validUntil, source}"]
+  subgraph W["Worker (bellteam-subscriptions | bellteam-login-test)"]
+    Front["fetch(): path and method gate, per-caller limiter"]
+    Lib["library server part: createLoginBilling + createHandler(/auth/v1)"]
     Pages["public pages (public-pages.mjs)"]
   end
-  Store[("Durable Object LoginBillingStorage<br/>nonces, handoff slots, refused pass ids, notBefore, each with an expiry")]
-  Stores["Apple App Store Server API / Google Play Developer API"]
-  Phone -->|"/auth/v1/signin, receipt, handoff/approve, confirm, refuse"| Front
-  Srv -->|"/auth/v1/handoff/start, take, signout"| Front
-  Srv -->|"POST /v1/entitlement (Bearer pass), hourly"| Front
+  Store[("Durable Object LBStorage (library's LoginBillingStorageObject)<br/>nonces, slots, web-login records, proof codes, refused ids, notBefore, each with an expiry")]
+  Providers["Apple / Google sign-in and store APIs"]
+  App -->|"/auth/v1/signin, receipt, websignin/start+take, handoff/*, prove/start, refuse, signout"| Front
+  Browser -->|"GET /auth/v1/websignin/callback?code&state"| Front
+  Srv -->|"/auth/v1/prove/take"| Front
+  Relay -->|"/auth/v1/ticket/check"| Front
   Front --> Lib --> Store
-  Front --> Ent --> Lib
-  Lib --> Stores
-  Srv -->|"push: payload, device token, pass"| Relay
-  Relay -->|"POST /v1/entitlement (Bearer pass)"| Front
+  Lib --> Providers
 ```
-Gone since a485: `POST /v1/subscriptions/verify` (verify by receipt), Stripe checkout / portal / verify, the Stripe and Apple/Google receipt code the library replaces, `STRIPE_*` and `APPLE_ENVIRONMENT` variables. Kept untouched, not used by the Worker: `apple-jwt.mjs`, `apple-roots.json` and the Apple library dependency (the probes under `experiments/subscription-worker-probe` and `test/subscription-native-verifier.test.mjs` use them); `endpoints.json` and `product.json` stay because the user server's `src/subscriptions.mjs` reads them until a485-lb-server changes it.
+Gone since a485: `POST /v1/subscriptions/verify` (verify by receipt), Stripe checkout / portal / verify, `STRIPE_*` and `APPLE_ENVIRONMENT`, the earlier hand-built `/v1/entitlement` route (the library's `prove/take` and `ticket/check` replace it). Kept untouched and not used by the Worker: `apple-jwt.mjs`, `apple-roots.json`, the Apple library dependency (probes under `experiments/subscription-worker-probe` and `test/subscription-native-verifier.test.mjs`), `endpoints.json` and `product.json` (the user server's `src/subscriptions.mjs` reads them until a485-lb-server changes it).
 
 ## Data flow
-| Data | Created by | Held where | Lifetime | Notes |
-|---|---|---|---|---|
-| Sign-in nonce | `signin/nonce` | LoginBillingStorage | 5 min, single use | tied to no account |
-| Handoff slot (slot id, short code, take secret, label, payloads) | `handoff/start` | LoginBillingStorage | 5 min or pickup | label is a fixed app kind, no person's name |
-| Refused pass id | `refuse`, `signout`, `signin` with `replaces` | LoginBillingStorage | until the pass would have ended (14 days) | random number |
-| `{K, notBefore}` for "stop all others" | `signin` with `stopOthers` | LoginBillingStorage | notBefore + 14 days | K is a number from the provider id and kKey |
-| Pass (sealed) | library | the device or the user's server | 14 days, renewed on use | never stored at the operator |
-| Store answer | Apple / Google | Worker isolate memory | 10 min | best effort, not needed for correctness |
-| Caller rate counters | `fetch()` | Worker isolate memory | 1 min | key = hash of the connecting address, never persisted or logged |
-Nothing else is written: no account row, no subscription row, no e-mail, no IP address, no id token. Cloudflare Workers Logs stay off (`observability.enabled: false`).
+Everything stored is a key, a value and an expiry in `LBStorage`; the library decides the kinds and the budgets (`DEFAULT_BUDGETS`), the Worker adds none. Nothing about a person is kept: no account row, subscription row, e-mail, IP address or id token. Caller rate counters live in the isolate's memory for a minute, keyed by a hash of the connecting address, never persisted or logged. Cloudflare Workers Logs stay off (`observability.enabled: false`).
+| Data | Held where | Lifetime |
+|---|---|---|
+| sign-in nonce, handoff slot (old and new), web-login record, result code, proof code | `LBStorage` | 5 min / 10 min / 60 s, spent by `take(key)` |
+| refused pass id, notBefore | `LBStorage` | until the pass would have ended (14 days) |
+| pass, ticket (sealed) | the device / the user's server | pass 14 days renewed on use; ticket 14 days or until its pass ends |
+| store answer | isolate memory | 10 min, best effort |
 
 ## Routes
-All answers are JSON, `Cache-Control: no-store` for the product route.
-| Route | Pass | Answer |
-|---|---|---|
-| `POST /auth/v1/*` | per library | the library's wire contract v1 (`docs/wire-v1.md` of the library): `signin/nonce`, `signin`, `receipt`, `handoff/start`, `handoff/approve`, `handoff/confirm`, `handoff/take`, `refuse`, `signout`; errors `{error: <code>}` |
-| `POST /v1/entitlement` | any live pass (`Authorization: Bearer`) | `{entitled, validUntil?, source?}`. `entitled` is true when the pass's account has a live `dev.kitepon.bellbot.monthly` subscription (`apple` or `google`); `validUntil` is its end (ISO 8601, no trial flag: entitlement is the store contract only); a renewed pass comes in the `Login-Billing-Pass` header. Errors are the library's codes (`pass_invalid`, `pass_expired`, `pass_refused`: 401). A live pass with no contract answers 200 `{entitled:false}` |
-| `GET /`, `/support`, `/privacy`, `/server/*` | - | unchanged redirects and server install files (`public-pages.mjs`) |
-Rate limit on the two anonymous writers (`signin/nonce`, `handoff/start`): per caller, 30 per minute, in the isolate's memory. `rate_limited` (429) also when the storage cap (100 000 rows) is reached. shortcut: per-isolate counters, upgrade to a Durable Object counter if abuse appears.
+All under `/auth/v1` (the library's wire v1, `docs/wire-v1.md` of the library): every route is POST except the provider's callback, `GET /auth/v1/websignin/callback` (contract 1.20; answers a 302 to the stored return with `Referrer-Policy: no-referrer`, `Cache-Control: no-store`). Anything else under the prefix is 405, anything outside it is 404; `GET /`, `/support`, `/privacy`, `/server/*` are the unchanged public pages (`public-pages.mjs`). Anonymous paths limited per caller, 30 per minute each: `signin/nonce`, `handoff/start`, `websignin/start`, `prove/take`, `ticket/check` (library duty; shortcut: per-isolate counters, upgrade to a Durable Object counter if abuse appears).
 
 ## Configuration
-Product values are in `product.json` (bundle id / package name / product id) and `wrangler.jsonc` vars; secrets are set with `wrangler secret put` through the shared 1Password tool, never printed.
+Product ids are in `product.json`; vars in `wrangler.jsonc`; secrets are set with `wrangler secret put` (values piped from the shared 1Password tool or generated at deploy, never printed).
 | Name | Kind | Meaning |
 |---|---|---|
-| `LB_KKEY` | secret | kKey (32 random bytes, base64url). **Different for the test Worker and production** (contract 1.13); a lost kKey cannot be repaired |
+| `LB_KKEY` | secret | kKey (32 random bytes, base64url). **Different for every Worker** (contract 1.13); a lost kKey cannot be repaired |
 | `LB_PASS_KEY_CURRENT`, `LB_PASS_KEY_CURRENT_ID`, optional `LB_PASS_KEY_PREVIOUS`, `LB_PASS_KEY_PREVIOUS_ID` | secret / var | pass sealing keys (rotation: previous stays for 14 days) |
-| `APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | var, secret, secret | App Store Server API in-app purchase key (existing) |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT` | secret | Play Developer API service account JSON (existing) |
-| `APPLE_SIGNIN_AUDIENCES` | var | comma list: Apple bundle ids accepted as id-token audience |
-| `GOOGLE_SIGNIN_AUDIENCES` | var | comma list: Google OAuth client ids accepted as audience |
-Without `LB_KKEY` or the pass key every route answers 503 `{error: "not_configured"}`. A store whose key is missing is left out of the library's configuration: its receipts come back `invalid` and no entitlement is listed. The Worker never uses billing "off" and so never opens a free path.
+| `APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `GOOGLE_PLAY_SERVICE_ACCOUNT` | var, secrets | store API keys (absent on the test Worker) |
+| `APPLE_SIGNIN_AUDIENCES`, `GOOGLE_SIGNIN_AUDIENCES` | var | accepted id-token audiences: the Apple bundle id; the BellTeam Google Web client id |
+| `LB_PUBLIC_ORIGIN` | var | the Worker's own https origin; the callback is this origin + `/auth/v1/websignin/callback` |
+| `WEBSIGNIN_GOOGLE_CLIENT_ID`, `WEBSIGNIN_GOOGLE_CLIENT_SECRET` | var, secret | the Google web client of the code flow (its id is accepted as an audience by the library) |
+| `WEBSIGNIN_APPLE_SERVICES_ID`, `WEBSIGNIN_APPLE_TEAM_ID`, `WEBSIGNIN_APPLE_KEY_ID`, `WEBSIGNIN_APPLE_PRIVATE_KEY` | vars, secret | Sign in with Apple for the web (Services ID in the apps' Apple team) |
+| `LB_RETURN_LINKS`, `LB_RETURN_SCHEMES` | vars | extra places a web sign-in may return to (exact https links; session schemes). Loopback `http://127.0.0.1:<port>/<random>` is always allowed |
+| `LB_BILLING` | var | `off` only on the test Worker: every signed-in account gets the product's entitlement and no store is asked (contract 1.13, option c). Anything else is `store` |
+| `LB_OLD_HANDOFF` | var | `off` refuses the old pass-less handoff once every app carries the new sign-in; default on |
+Without `LB_KKEY` or the pass key every route answers 503 `{error: "not_configured"}`. Web sign-in is on only with `LB_PUBLIC_ORIGIN` and at least one complete provider client; a provider without one answers `provider_unknown`. A store whose key is missing is left out: its receipts come back `invalid`. The Worker never uses billing "off" unless `LB_BILLING` says so.
 
 ## Durable Object
-`LoginBillingStorage` (SQLite-backed, one instance `login-billing`): `get`, `put(key, value, ttlMs)`, `delete`; expired rows are swept on write (no alarms); `put` answers `full` at the cap and the front throws the library's `StorageFull`. The old class `SubscriptionVerifier` is removed by migration `login-billing-storage-v2` (it never stored anything).
+`LBStorage extends LoginBillingStorageObject` (exported from `index.mjs`, bound as `LB_STORAGE`, one object named by the library). One object processes one request at a time, so `take` is one read-and-delete. Expiry by alarm; a budget per record kind so anonymous writes cannot push out the others. The old class `SubscriptionVerifier` is removed by migration `login-billing-storage-v2` (it never stored anything).
 
-## Release order and environments
-- Test Worker `bellteam-subscriptions-sandbox` first, with its own kKey. Production `bellteam-subscriptions` is switched only when all apps and the user server ship (Tronie's release order). Real-store runs go to production from TestFlight / the internal track (contract 1.13 section "Test servers"); the test Worker is for the wire, the storage and the relay.
-- Deploy: `npm exec --yes --package wrangler@latest -- wrangler deploy --env sandbox` (production `--env ""`), from a commit that is an ancestor of `origin/main`; Cloudflare key use is approved by the Owner each time. Rollback: `wrangler rollback <version>`.
+## Environments and release order
+- **Test Worker** `bellteam-login-test` at `https://bellteam-login-test.kitepon.dev` (custom domain in the Owner's zone, `--env test`): its own kKey and pass key, `LB_BILLING=off`, no store keys. For the apps' first device runs and the Worker's own real-service checks. Real-store purchases are never run against it.
+- `bellteam-subscriptions-sandbox` and `bellteam-subscriptions` (production) are configured in `wrangler.jsonc` for the same code but **not deployed by this change**; production switches only when all apps and the user server ship (Tronie's release order), on the Owner's domain that Mint asks for.
+- Deploy: `npm exec --yes --package wrangler@latest -- wrangler deploy --env test` from `services/subscriptions`; the Cloudflare key is read from 1Password by the deploy step and never printed; use is approved by Tronie. Rollback: `wrangler rollback <version> --env test`.
 
 ## Tests
-`node --test test/subscription-worker.test.mjs test/notification-relay.test.mjs test/fcm-notifications.test.mjs` run the Worker against the library's testing entry (fake sign-in keys and store answers, same code paths) and an in-memory SQLite stand-in for the Durable Object. The real stores are not called by tests.
+`node --test test/subscription-worker.test.mjs` covers the mount: configuration, routing, billing mode, the callback GET, the strict return check, the limiter. The library's behaviour is the library's suite; the Durable Object storage is checked on Cloudflare itself (see the a485 evidence).

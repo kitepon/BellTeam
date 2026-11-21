@@ -7,17 +7,18 @@
   "rules": [{ "type": "Text", "globs": ["**/*.yaml", "**/*.sh", "**/.env.example", "**/distribution/server/README.md", "**/docs/onboarding.md"], "fallthrough": true }],
   // Privacy rule 2026-11-19: no request metadata (IP, UA, URL) is kept by Cloudflare Workers Logs.
   "observability": { "enabled": false },
+  // The library's Durable Object storage (login-billing 0.10.0, contract 1.20). The old class SubscriptionVerifier never stored anything.
   "durable_objects": {
-    "bindings": [{ "name": "LOGIN_BILLING_STORAGE", "class_name": "LoginBillingStorage" }]
+    "bindings": [{ "name": "LB_STORAGE", "class_name": "LBStorage" }]
   },
   "migrations": [
     { "tag": "subscription-verifier-v1", "new_sqlite_classes": ["SubscriptionVerifier"] },
-    { "tag": "login-billing-storage-v2", "new_sqlite_classes": ["LoginBillingStorage"], "deleted_classes": ["SubscriptionVerifier"] }
+    { "tag": "login-billing-storage-v2", "new_sqlite_classes": ["LBStorage"], "deleted_classes": ["SubscriptionVerifier"] }
   ],
   "vars": {
     "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
     "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
-    "GOOGLE_SIGNIN_AUDIENCES": "",
+    "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
     "LB_PASS_KEY_CURRENT_ID": "k1"
   },
   "env": {
@@ -25,17 +26,38 @@
       "name": "bellteam-subscriptions-sandbox",
       "observability": { "enabled": false },
       "durable_objects": {
-        "bindings": [{ "name": "LOGIN_BILLING_STORAGE", "class_name": "LoginBillingStorage" }]
+        "bindings": [{ "name": "LB_STORAGE", "class_name": "LBStorage" }]
       },
       "migrations": [
         { "tag": "subscription-verifier-v1", "new_sqlite_classes": ["SubscriptionVerifier"] },
-        { "tag": "login-billing-storage-v2", "new_sqlite_classes": ["LoginBillingStorage"], "deleted_classes": ["SubscriptionVerifier"] }
+        { "tag": "login-billing-storage-v2", "new_sqlite_classes": ["LBStorage"], "deleted_classes": ["SubscriptionVerifier"] }
       ],
       "vars": {
         "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
         "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
-        "GOOGLE_SIGNIN_AUDIENCES": "",
+        "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
         "LB_PASS_KEY_CURRENT_ID": "k1"
+      }
+    },
+    // Development/test Worker for login-billing 0.10.0 (Tronie, 2026-11-22): its own kKey and keys, no store keys, billing off
+    // (contract 1.13, option c: a test server never runs real-store purchases), on a custom domain, not workers.dev.
+    "test": {
+      "name": "bellteam-login-test",
+      "workers_dev": false,
+      "routes": [{ "pattern": "bellteam-login-test.kitepon.dev", "custom_domain": true }],
+      "observability": { "enabled": false },
+      "durable_objects": {
+        "bindings": [{ "name": "LB_STORAGE", "class_name": "LBStorage" }]
+      },
+      "migrations": [
+        { "tag": "login-billing-storage-v1", "new_sqlite_classes": ["LBStorage"] }
+      ],
+      "vars": {
+        "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
+        "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
+        "LB_PASS_KEY_CURRENT_ID": "t1",
+        "LB_BILLING": "off",
+        "LB_PUBLIC_ORIGIN": "https://bellteam-login-test.kitepon.dev"
       }
     }
   }

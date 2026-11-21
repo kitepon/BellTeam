@@ -1,18 +1,18 @@
-import { createLoginBilling, createHandler, LoginBillingError, StorageFull } from '@kitepon/login-billing/server'
+import { createLoginBilling, createHandler, durableObjectStorage } from '@kitepon/login-billing/server'
 import product from './product.json' with { type: 'json' }
 
 const WIRE_PREFIX = '/auth/v1'
-const ENTITLEMENT_PATH = '/v1/entitlement'
-// The two anonymous routes that write to storage without a pass (library duty): per caller, in this isolate's memory.
-// shortcut: per-isolate counters (the cap in storage is the backstop), move to a Durable Object counter if abuse appears.
-const LIMITED = [`${WIRE_PREFIX}/signin/nonce`, `${WIRE_PREFIX}/handoff/start`]
+const CALLBACK_PATH = `${WIRE_PREFIX}/websignin/callback`
+// The anonymous paths that write to storage or spend a code without a pass (library duty): per caller, in this isolate's memory.
+// shortcut: per-isolate counters (the storage budgets are the backstop), move to a Durable Object counter if abuse appears.
+const LIMITED = ['signin/nonce', 'handoff/start', 'websignin/start', 'prove/take', 'ticket/check'].map(name => `${WIRE_PREFIX}/${name}`)
 const LIMIT_PER_MINUTE = 30
 
 const base64Url = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0))
 const list = value => (value ?? '').split(',').map(item => item.trim()).filter(Boolean)
-const json = (body, status = 200, headers) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store', ...headers } })
 
-// Reads the Worker's secrets and vars; a missing key is an unconfigured Worker, never a free path (billing stays "store").
+// Reads the Worker's secrets and vars. A missing key means an unconfigured Worker, never a free path:
+// billing is "store" unless the var LB_BILLING is "off", which only the test Worker sets (contract 1.13, option c).
 export function loginBillingConfig(env, storage, extra = {}) {
   if (!env.LB_KKEY || !env.LB_PASS_KEY_CURRENT || !env.LB_PASS_KEY_CURRENT_ID) return null
   const stores = {}
@@ -24,6 +24,13 @@ export function loginBillingConfig(env, storage, extra = {}) {
   }
   const previous = env.LB_PASS_KEY_PREVIOUS && env.LB_PASS_KEY_PREVIOUS_ID
     ? { previous: { id: env.LB_PASS_KEY_PREVIOUS_ID, key: base64Url(env.LB_PASS_KEY_PREVIOUS) } } : {}
+  // Web sign-in (contract 1.20) is on only when the Worker has its own public origin and at least one provider client.
+  const google = env.WEBSIGNIN_GOOGLE_CLIENT_ID && env.WEBSIGNIN_GOOGLE_CLIENT_SECRET
+    ? { google: { clientId: env.WEBSIGNIN_GOOGLE_CLIENT_ID, clientSecret: env.WEBSIGNIN_GOOGLE_CLIENT_SECRET } } : {}
+  const apple = env.WEBSIGNIN_APPLE_SERVICES_ID && env.WEBSIGNIN_APPLE_TEAM_ID && env.WEBSIGNIN_APPLE_KEY_ID && env.WEBSIGNIN_APPLE_PRIVATE_KEY
+    ? { apple: { servicesId: env.WEBSIGNIN_APPLE_SERVICES_ID, teamId: env.WEBSIGNIN_APPLE_TEAM_ID, keyId: env.WEBSIGNIN_APPLE_KEY_ID, privateKey: env.WEBSIGNIN_APPLE_PRIVATE_KEY } } : {}
+  const webSignIn = env.LB_PUBLIC_ORIGIN && (google.google || apple.apple)
+    ? { webSignIn: { publicOrigin: env.LB_PUBLIC_ORIGIN, ...google, ...apple, returns: { loopback: true, links: list(env.LB_RETURN_LINKS), sessionSchemes: list(env.LB_RETURN_SCHEMES) } } } : {}
   return {
     signIn: { apple: list(env.APPLE_SIGNIN_AUDIENCES), google: list(env.GOOGLE_SIGNIN_AUDIENCES) },
     stores,
@@ -33,19 +40,12 @@ export function loginBillingConfig(env, storage, extra = {}) {
     ],
     kKey: base64Url(env.LB_KKEY),
     passKeys: { current: { id: env.LB_PASS_KEY_CURRENT_ID, key: base64Url(env.LB_PASS_KEY_CURRENT) }, ...previous },
-    billing: 'store',
+    billing: env.LB_BILLING === 'off' ? 'off' : 'store',
+    // Installed apps still log devices in by the old handoff until every app carries the new sign-in (contract 1.20).
+    oldHandoff: env.LB_OLD_HANDOFF === 'off' ? 'off' : 'on',
+    ...webSignIn,
     storage,
     ...extra,
-  }
-}
-
-// The library's Storage over a store that answers 'full' at its cap (an error object does not cross a Durable Object call as one).
-// `target()` returns the store, local or a Durable Object stub; it is looked up on every call.
-export function libraryStorage(target) {
-  return {
-    async get(key) { return (await target().get(key)) ?? undefined },
-    async put(key, value, ttlMs) { if ((await target().put(key, value, ttlMs)) === 'full') throw new StorageFull() },
-    async delete(key) { await target().delete(key) },
   }
 }
 
@@ -56,15 +56,15 @@ async function callerKey(request) {
   return Array.from(new Uint8Array(digest).slice(0, 8), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-// storage: the library's Storage (get/put/delete with an expiry). extra: test overrides for the library (fetch, now).
-export function createLoginBillingWorker({ storage, extra = {}, clock = Date.now }) {
+// storage(env): the library's Storage (the Durable Object storage on Cloudflare). extra: test overrides for the library (fetch, now, stores).
+export function createLoginBillingWorker({ storage = env => durableObjectStorage(env.LB_STORAGE), extra = {}, clock = Date.now } = {}) {
   let service
   const counters = new Map()
 
   function configured(env) {
     if (service === undefined) {
-      const config = loginBillingConfig(env, storage, extra)
-      service = config ? (() => { const lb = createLoginBilling(config); return { lb, http: createHandler(lb, { prefix: WIRE_PREFIX, origins: [] }) } })() : null
+      const config = loginBillingConfig(env, storage(env), extra)
+      service = config ? createHandler(createLoginBilling(config), { prefix: WIRE_PREFIX, origins: [] }) : null
     }
     return service
   }
@@ -80,32 +80,17 @@ export function createLoginBillingWorker({ storage, extra = {}, clock = Date.now
     return entry.count > LIMIT_PER_MINUTE
   }
 
-  // What a pass entitles: a live BellTeam subscription of the pass's account, from the store, nothing kept.
-  async function entitlement(request, { http }) {
-    try {
-      const checked = await http.authenticate(request)
-      const live = checked.entitlements.filter(item => item.productId === product.productId && (item.store === 'apple' || item.store === 'google'))
-      if (live.length === 0) return json({ entitled: false }, 200, checked.headers)
-      const end = item => (item.expiresAt ? Date.parse(item.expiresAt) : 0)
-      const best = live.reduce((a, b) => (end(b) > end(a) ? b : a))
-      return json({ entitled: true, source: best.store, ...(best.expiresAt ? { validUntil: best.expiresAt } : {}) }, 200, checked.headers)
-    } catch (error) {
-      if (error instanceof LoginBillingError) return http.errorResponse(error.code, request)
-      if (error instanceof StorageFull) return http.errorResponse('rate_limited')
-      return http.errorResponse('internal')
-    }
-  }
-
   return {
     async fetch(request, env) {
       const path = new URL(request.url).pathname
-      if (!path.startsWith(`${WIRE_PREFIX}/`) && path !== ENTITLEMENT_PATH) return new Response('見つかりません', { status: 404 })
-      if (request.method !== 'POST') return new Response('POSTを使ってください。', { status: 405, headers: { Allow: 'POST' } })
-      const current = configured(env)
-      if (!current) return json({ error: 'not_configured' }, 503)
-      if (await limited(request, path)) return current.http.errorResponse('rate_limited')
-      if (path === ENTITLEMENT_PATH) return entitlement(request, current)
-      return (await current.http.handle(request)) ?? new Response('見つかりません', { status: 404 })
+      if (!path.startsWith(`${WIRE_PREFIX}/`)) return new Response('見つかりません', { status: 404 })
+      // Every wire route is POST except the provider's callback (contract 1.20), a GET.
+      const method = path === CALLBACK_PATH ? 'GET' : 'POST'
+      if (request.method !== method) return new Response(`${method}を使ってください。`, { status: 405, headers: { Allow: method } })
+      const http = configured(env)
+      if (!http) return Response.json({ error: 'not_configured' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+      if (await limited(request, path)) return http.errorResponse('rate_limited')
+      return (await http.handle(request)) ?? new Response('見つかりません', { status: 404 })
     },
   }
 }

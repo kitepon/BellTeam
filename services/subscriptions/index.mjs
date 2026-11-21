@@ -1,27 +1,15 @@
-import { DurableObject } from 'cloudflare:workers'
-import { createLoginBillingWorker, libraryStorage } from './worker.mjs'
-import { createSqlStorage } from './sql-storage.mjs'
+import { LoginBillingStorageObject } from '@kitepon/login-billing/server'
+import { createLoginBillingWorker } from './worker.mjs'
 import { publicPageResponse } from './public-pages.mjs'
 
-// The library's only storage: nonces, handoff slots, refused pass ids and notBefore records, each with an expiry.
-export class LoginBillingStorage extends DurableObject {
-  constructor(ctx, env) {
-    super(ctx, env)
-    this.kv = createSqlStorage(ctx.storage.sql)
-  }
-  get(key) { return this.kv.get(key) }
-  put(key, value, ttlMs) { return this.kv.put(key, value, ttlMs) }
-  delete(key) { return this.kv.delete(key) }
-}
+// The library's only storage on Cloudflare (contract 1.20): nonces, handoff slots, web-login records, proof codes, refused pass ids and
+// notBefore records, each with an expiry. One object, one request at a time, so take(key) is one read-and-delete.
+export class LBStorage extends LoginBillingStorageObject {}
 
-let worker
-function login(env) {
-  worker ??= createLoginBillingWorker({ storage: libraryStorage(() => env.LOGIN_BILLING_STORAGE.getByName('login-billing')) })
-  return worker
-}
+const worker = createLoginBillingWorker()
 
 export default {
   fetch(request, env) {
-    return publicPageResponse(request) ?? login(env).fetch(request, env)
+    return publicPageResponse(request) ?? worker.fetch(request, env)
   },
 }

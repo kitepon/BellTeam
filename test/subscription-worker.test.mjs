@@ -1,180 +1,114 @@
 import assert from 'node:assert/strict'
-import { DatabaseSync } from 'node:sqlite'
+import { createHash } from 'node:crypto'
 import test from 'node:test'
 import { createTestKit } from '@kitepon/login-billing/testing'
+import { MemoryStorage } from '@kitepon/login-billing/server'
 import product from '../services/subscriptions/product.json' with { type: 'json' }
-import { createLoginBillingWorker, libraryStorage } from '../services/subscriptions/worker.mjs'
-import { createSqlStorage } from '../services/subscriptions/sql-storage.mjs'
+import { createLoginBillingWorker } from '../services/subscriptions/worker.mjs'
 
+// These tests cover how the Worker mounts the library (login-billing 0.10.0): configuration, routing, billing mode, the callback GET and
+// the limiter. The library's own behaviour (passes, handoff, proof codes, tickets, the Durable Object storage) is the library's suite.
 const b64 = byte => Buffer.alloc(32, byte).toString('base64url')
-const env = { LB_KKEY: b64(7), LB_PASS_KEY_CURRENT: b64(9), LB_PASS_KEY_CURRENT_ID: 'k1', APPLE_SIGNIN_AUDIENCES: product.bundleId, GOOGLE_SIGNIN_AUDIENCES: 'google-client' }
+const base = { LB_KKEY: b64(7), LB_PASS_KEY_CURRENT: b64(9), LB_PASS_KEY_CURRENT_ID: 'k1', APPLE_SIGNIN_AUDIENCES: product.bundleId, GOOGLE_SIGNIN_AUDIENCES: 'google-client' }
+const ORIGIN = 'https://worker.test'
+const sha256 = value => createHash('sha256').update(value).digest('hex')
 
-// The Durable Object's SQL interface over an in-memory SQLite: the same storage code runs in the test.
-function sqlOf(database) {
-  return { exec: (query, ...binds) => { const rows = database.prepare(query).all(...binds); return { toArray: () => rows } } }
-}
-
-async function setup({ configured = true, max } = {}) {
+async function setup(overrides = {}, { configured = true } = {}) {
   const kit = await createTestKit()
-  const storage = createSqlStorage(sqlOf(new DatabaseSync(':memory:')), { max })
+  const { google, apple } = kit.webClients()
+  const env = {
+    ...base, LB_PUBLIC_ORIGIN: ORIGIN,
+    WEBSIGNIN_GOOGLE_CLIENT_ID: google.clientId, WEBSIGNIN_GOOGLE_CLIENT_SECRET: google.clientSecret,
+    WEBSIGNIN_APPLE_SERVICES_ID: apple.servicesId, WEBSIGNIN_APPLE_TEAM_ID: apple.teamId, WEBSIGNIN_APPLE_KEY_ID: apple.keyId, WEBSIGNIN_APPLE_PRIVATE_KEY: apple.privateKey,
+    ...overrides,
+  }
+  const storage = new MemoryStorage()
   const worker = createLoginBillingWorker({
-    storage: libraryStorage(() => storage),
+    storage: () => storage,
     extra: { fetch: kit.fetch, stores: { apple: kit.appleStore(product.bundleId), google: kit.googleStore(product.bundleId) } },
   })
-  const call = async (path, body = {}, pass, headers = {}) => {
-    const response = await worker.fetch(new Request(`https://worker.test${path}`, {
-      method: 'POST', body: JSON.stringify(body),
-      headers: { 'content-type': 'application/json', ...(pass ? { authorization: `Bearer ${pass}` } : {}), ...headers },
-    }), configured ? env : {})
-    return { status: response.status, body: await response.json(), headers: response.headers }
-  }
-  const signIn = async (provider = 'apple', sub = 'subject-1') => {
-    const { body: { nonce } } = await call('/auth/v1/signin/nonce')
-    const idToken = provider === 'apple'
-      ? await kit.appleIdToken({ aud: product.bundleId, sub, nonce })
-      : await kit.googleIdToken({ aud: 'google-client', sub, nonce })
-    const result = await call('/auth/v1/signin', { provider, idToken, nonce, deviceLabel: 'iPhone' })
-    assert.equal(result.status, 200)
-    return result.body
-  }
-  return { kit, call, signIn, worker }
+  const send = (path, { method = 'POST', body = {}, pass, headers = {} } = {}) => worker.fetch(new Request(`${ORIGIN}${path}`, {
+    method, redirect: 'manual', ...(method === 'GET' ? {} : { body: JSON.stringify(body) }),
+    headers: { 'content-type': 'application/json', ...(pass ? { authorization: `Bearer ${pass}` } : {}), ...headers },
+  }), configured ? env : {})
+  const call = async (path, options) => { const response = await send(path, options); return { status: response.status, body: await response.json(), headers: response.headers } }
+  return { kit, call, send, env }
 }
 
-const entitlement = (context, pass) => context.call('/v1/entitlement', {}, pass)
-
 test('an unconfigured Worker answers 503 and opens no free path', async () => {
-  const { call } = await setup({ configured: false })
-  assert.deepEqual((await call('/v1/entitlement', {}, 'x')).body, { error: 'not_configured' })
+  const { call } = await setup({}, { configured: false })
+  assert.deepEqual((await call('/auth/v1/signin/nonce')).body, { error: 'not_configured' })
   assert.equal((await call('/auth/v1/signin/nonce')).status, 503)
 })
 
-test('only POST on the wire prefix and the product route; anything else is 404', async () => {
-  const { worker } = await setup()
-  assert.equal((await worker.fetch(new Request('https://worker.test/v1/entitlement'), env)).status, 405)
-  assert.equal((await worker.fetch(new Request('https://worker.test/v1/subscriptions/verify', { method: 'POST', body: '{}' }), env)).status, 404)
-  assert.equal((await worker.fetch(new Request('https://worker.test/v1/subscriptions/stripe/checkout', { method: 'POST', body: '{}' }), env)).status, 404)
-})
-
-test('a signed-in pass with no contract is not entitled; a purchase made with the mark makes it entitled (Apple)', async () => {
-  const context = await setup()
-  const signed = await context.signIn()
-  assert.deepEqual((await entitlement(context, signed.pass)).body, { entitled: false })
-  const expiresDate = Date.now() + 5 * 86400_000
-  context.kit.apple.transactions['1001'] = {
-    transactionId: '1001', originalTransactionId: '1001', productId: product.productId, bundleId: product.bundleId,
-    type: 'Auto-Renewable Subscription', expiresDate, appAccountToken: signed.purchaseMark,
+test('only the library prefix is served; the old verify, Stripe and entitlement routes are gone', async () => {
+  const { send } = await setup()
+  for (const path of ['/v1/subscriptions/verify', '/v1/subscriptions/stripe/checkout', '/v1/subscriptions/stripe/portal', '/v1/entitlement']) {
+    assert.equal((await send(path)).status, 404, path)
   }
-  const attached = await context.call('/auth/v1/receipt', { receipts: [{ store: 'apple', transactionId: '1001' }] }, signed.pass)
-  assert.equal(attached.body.receiptResults[0].result, 'attached')
-  const result = await entitlement(context, attached.body.pass)
-  assert.equal(result.status, 200)
-  assert.deepEqual(result.body, { entitled: true, source: 'apple', validUntil: new Date(expiresDate).toISOString() })
+  assert.equal((await send('/auth/v1/signin/nonce', { method: 'GET' })).status, 405)
+  assert.equal((await send('/auth/v1/websignin/callback', { method: 'POST' })).status, 405, 'the callback is a GET')
 })
 
-test('a Google subscription is entitled with source google', async () => {
-  const context = await setup()
-  const signed = await context.signIn('google', 'g-1')
-  context.kit.google.subscriptions.gt = {
-    subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE', acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING',
-    externalAccountIdentifiers: { obfuscatedExternalAccountId: signed.purchaseMark },
-    lineItems: [{ productId: product.productId, expiryTime: new Date(Date.now() + 86400_000).toISOString() }],
+test('billing is "store" unless the test Worker sets LB_BILLING=off: a signed-in pass without a purchase has no contract', async () => {
+  for (const [billing, entitled] of [[undefined, 0], ['off', 1]]) {
+    const { kit, call } = await setup(billing ? { LB_BILLING: billing } : {})
+    const { body: { nonce } } = await call('/auth/v1/signin/nonce')
+    const idToken = await kit.appleIdToken({ aud: product.bundleId, sub: 'subject-1', nonce })
+    const signed = await call('/auth/v1/signin', { body: { provider: 'apple', idToken, nonce, deviceLabel: 'iPhone' } })
+    assert.equal(signed.status, 200)
+    assert.equal(signed.body.entitlements.length, entitled, `billing ${billing ?? 'store'}`)
   }
-  const attached = await context.call('/auth/v1/receipt', { receipts: [{ store: 'google', productId: product.productId, purchaseToken: 'gt' }] }, signed.pass)
-  assert.equal(attached.body.receiptResults[0].result, 'attached')
-  const result = await entitlement(context, attached.body.pass)
-  assert.equal(result.body.entitled, true)
-  assert.equal(result.body.source, 'google')
 })
 
-test('the entitlement answer names no account, pass or store identifier', async () => {
-  const context = await setup()
-  const signed = await context.signIn()
-  const body = (await entitlement(context, signed.pass)).body
-  assert.deepEqual(Object.keys(body), ['entitled'])
-  assert.ok(!JSON.stringify(body).includes(signed.k))
+test('web sign-in: start, the provider callback (GET, 302 to the stored return, no referrer), take', async () => {
+  const { kit, call, send } = await setup({ LB_BILLING: 'off' })
+  const secret = 'device-secret-0123456789abcdef'
+  const ret = 'http://127.0.0.1:51234/abcdefghijklmnopqrstuv'
+  const started = await call('/auth/v1/websignin/start', { body: { provider: 'google', return: ret, secretHash: sha256(secret) } })
+  assert.equal(started.status, 200)
+  assert.ok(started.body.providerUrl.startsWith('https://accounts.google.com/'))
+  const callback = await kit.signInAtProvider(started.body.providerUrl, { sub: 'g-subject' })
+  const redirected = await send(new URL(callback).pathname + new URL(callback).search, { method: 'GET' })
+  assert.equal(redirected.status, 302)
+  assert.equal(redirected.headers.get('referrer-policy'), 'no-referrer')
+  assert.equal(redirected.headers.get('cache-control'), 'no-store')
+  const location = new URL(redirected.headers.get('location'))
+  assert.equal(`${location.origin}${location.pathname}`, ret)
+  const taken = await call('/auth/v1/websignin/take', { body: { loginId: started.body.loginId, secret, resultCode: location.searchParams.get('result') } })
+  assert.equal(taken.status, 200)
+  assert.ok(taken.body.pass)
+  const again = await call('/auth/v1/websignin/take', { body: { loginId: started.body.loginId, secret, resultCode: location.searchParams.get('result') } })
+  assert.equal(again.body.error, 'login_gone', 'a result is spent once')
 })
 
-test('a bad, signed-out or refused pass is 401 with the library code', async () => {
-  const context = await setup()
-  assert.deepEqual((await entitlement(context, 'not-a-pass')).body, { error: 'pass_invalid' })
-  assert.equal((await entitlement(context, 'not-a-pass')).status, 401)
-  assert.equal((await context.call('/v1/entitlement')).status, 401)
-  const signed = await context.signIn()
-  await context.call('/auth/v1/signout', {}, signed.pass)
-  const refused = await entitlement(context, signed.pass)
-  assert.equal(refused.status, 401)
-  assert.equal(refused.body.error, 'pass_refused')
-})
-
-test('QR handoff: a server takes a handoff pass the phone approved, and that pass is entitled; stopping it ends it', async () => {
-  const context = await setup()
-  const phone = await context.signIn()
-  const expiresDate = Date.now() + 86400_000
-  context.kit.apple.transactions['1002'] = {
-    transactionId: '1002', originalTransactionId: '1002', productId: product.productId, bundleId: product.bundleId,
-    type: 'Auto-Renewable Subscription', expiresDate, appAccountToken: phone.purchaseMark,
+test('the return is checked strictly: another host, a custom scheme not on the list and a path with no random segment are refused', async () => {
+  const { call } = await setup()
+  const secretHash = sha256('device-secret-0123456789abcdef')
+  for (const ret of ['http://localhost:5000/abcdefghijklmnopqrstuv', 'https://evil.example/', 'myapp://cb', 'http://127.0.0.1:5000/']) {
+    const result = await call('/auth/v1/websignin/start', { body: { provider: 'google', return: ret, secretHash } })
+    assert.equal(result.status, 400, ret)
+    assert.equal(result.body.error, 'return_refused')
   }
-  const store = (await context.call('/auth/v1/receipt', { receipts: [{ store: 'apple', transactionId: '1002' }] }, phone.pass)).body.pass
-  const started = (await context.call('/auth/v1/handoff/start', { deviceLabel: 'BellTeam server' })).body
-  const approve = await context.call('/auth/v1/handoff/approve', { slotId: started.slotId }, store)
-  assert.equal(approve.status, 200)
-  assert.equal(approve.body.checkNumber, started.checkNumber)
-  const confirm = await context.call('/auth/v1/handoff/confirm', { slotId: started.slotId }, store)
-  assert.equal(confirm.status, 200)
-  const taken = (await context.call('/auth/v1/handoff/take', { slotId: started.slotId, takeSecret: started.takeSecret })).body
-  assert.equal(taken.status, 'ready')
-  assert.equal((await entitlement(context, taken.pass)).body.entitled, true)
-  assert.equal((await context.call('/auth/v1/refuse', { passId: confirm.body.issuedPassId }, store)).status, 200)
-  assert.equal((await entitlement(context, taken.pass)).body.error, 'pass_refused')
+  const listed = await setup({ LB_RETURN_SCHEMES: 'dev.kitepon.bellbot' })
+  assert.equal((await listed.call('/auth/v1/websignin/start', { body: { provider: 'google', return: 'dev.kitepon.bellbot://cb', secretHash } })).status, 200)
 })
 
-test('a handoff pass cannot approve, attach receipts or refuse', async () => {
-  const context = await setup()
-  const phone = await context.signIn()
-  const started = (await context.call('/auth/v1/handoff/start', { deviceLabel: 'BellTeam server' })).body
-  const expiresDate = Date.now() + 86400_000
-  context.kit.apple.transactions['1003'] = {
-    transactionId: '1003', originalTransactionId: '1003', productId: product.productId, bundleId: product.bundleId,
-    type: 'Auto-Renewable Subscription', expiresDate, appAccountToken: phone.purchaseMark,
-  }
-  const store = (await context.call('/auth/v1/receipt', { receipts: [{ store: 'apple', transactionId: '1003' }] }, phone.pass)).body.pass
-  await context.call('/auth/v1/handoff/approve', { slotId: started.slotId }, store)
-  await context.call('/auth/v1/handoff/confirm', { slotId: started.slotId }, store)
-  const handoff = (await context.call('/auth/v1/handoff/take', { slotId: started.slotId, takeSecret: started.takeSecret })).body.pass
-  assert.equal((await context.call('/auth/v1/receipt', { receipts: [] }, handoff)).body.error, 'not_store_device')
-  assert.equal((await context.call('/auth/v1/handoff/start', { deviceLabel: 'x' }, handoff)).status, 200)
+test('without a web client or a public origin the provider is unknown (web sign-in off)', async () => {
+  const { call } = await setup({ WEBSIGNIN_GOOGLE_CLIENT_SECRET: undefined, WEBSIGNIN_APPLE_PRIVATE_KEY: undefined })
+  const result = await call('/auth/v1/websignin/start', { body: { provider: 'google', return: 'http://127.0.0.1:5000/abcdefghijklmnopqrstuv', secretHash: sha256('device-secret-0123456789abcdef') } })
+  assert.equal(result.status, 400)
 })
 
-test('the anonymous writers are limited per caller, not for everyone', async () => {
-  const context = await setup()
+test('the anonymous paths are limited per caller, not for everyone, and each path has its own count', async () => {
+  const { call } = await setup()
   const first = { 'cf-connecting-ip': '192.0.2.1' }
-  for (let index = 0; index < 30; index++) assert.equal((await context.call('/auth/v1/handoff/start', { deviceLabel: 'a' }, undefined, first)).status, 200)
-  const limited = await context.call('/auth/v1/handoff/start', { deviceLabel: 'a' }, undefined, first)
+  for (let index = 0; index < 30; index++) assert.equal((await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: first })).status, 200)
+  const limited = await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: first })
   assert.equal(limited.status, 429)
   assert.equal(limited.body.error, 'rate_limited')
-  assert.equal((await context.call('/auth/v1/handoff/start', { deviceLabel: 'a' }, undefined, { 'cf-connecting-ip': '192.0.2.2' })).status, 200)
-  assert.equal((await context.call('/auth/v1/signin/nonce', {}, undefined, first)).status, 200, 'another route has its own count')
-})
-
-test('a full storage answers rate_limited (the library maps StorageFull)', async () => {
-  const context = await setup({ max: 3 })
-  const statuses = []
-  for (let index = 0; index < 5; index++) statuses.push((await context.call('/auth/v1/signin/nonce')).status)
-  assert.deepEqual(statuses, [200, 200, 200, 429, 429])
-})
-
-test('SQL storage: values expire, expired rows are swept to make room, delete works', () => {
-  let clock = 1_000_000
-  const storage = createSqlStorage(sqlOf(new DatabaseSync(':memory:')), { now: () => clock, max: 2 })
-  assert.equal(storage.put('a', '1', 1000), 'ok')
-  assert.equal(storage.put('b', '2', 5000), 'ok')
-  assert.equal(storage.put('c', '3', 5000), 'full')
-  assert.equal(storage.get('a'), '1')
-  clock += 1500
-  assert.equal(storage.get('a'), undefined, 'expired')
-  assert.equal(storage.put('c', '3', 5000), 'ok', 'the expired row was swept')
-  storage.delete('b')
-  assert.equal(storage.get('b'), undefined)
-  assert.equal(storage.put('a', '9', 1000), 'ok')
-  assert.equal(storage.get('a'), '9')
+  assert.equal((await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: { 'cf-connecting-ip': '192.0.2.2' } })).status, 200)
+  assert.equal((await call('/auth/v1/signin/nonce', { headers: first })).status, 200, 'another route has its own count')
+  for (let index = 0; index < 31; index++) await call('/auth/v1/ticket/check', { body: { ticket: 'x' }, headers: first })
+  assert.equal((await call('/auth/v1/ticket/check', { body: { ticket: 'x' }, headers: first })).status, 429, 'the new anonymous paths are limited too')
 })
