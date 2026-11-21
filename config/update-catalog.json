@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T03:06:47Z",
-  "expiresAt": "2026-11-28T03:06:47Z",
+  "publishedAt": "2026-11-21T03:31:42Z",
+  "expiresAt": "2026-11-28T03:31:42Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f",
-      "versionId": "sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0",
+      "sourceCommit": "ead4339d2977eb63848180b7408cda1a66d71d41",
+      "versionId": "sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "返信の引用の行で、切れた書式の記号（対になっていない ** ~~ __）を外し、コードのような文の * は残します。"
+        "機械の席の吹き出しへの返信・転送で、元の文が「見つからない」と席に伝わる不具合を直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f",
-      "versionId": "sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0",
+      "sourceCommit": "ead4339d2977eb63848180b7408cda1a66d71d41",
+      "versionId": "sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "返信の引用の行で、切れた書式の記号（対になっていない ** ~~ __）を外し、コードのような文の * は残します。"
+        "機械の席の吹き出しへの返信・転送で、元の文が「見つからない」と席に伝わる不具合を直します。"
       ]
     },
     {
