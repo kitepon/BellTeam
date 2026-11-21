@@ -114,6 +114,7 @@
     "src/bot-goals.mjs",
     "src/seat-turns.mjs",
     "src/idle-sessions.mjs",
+    "src/seat-oom-bias.mjs",
     "src/bot-administration.mjs",
     "src/automatic-configuration-application.mjs",
     "src/conversation-lifetimes.mjs",

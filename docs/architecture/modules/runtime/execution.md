@@ -106,6 +106,33 @@ flowchart TD
 | No new limit | Turn start and concurrency are unchanged. The box memory bound is the next section (body container owner, Molly, since 2026-11-11). Host swap/OS changes stay Host-owned (Emma). |
 | Not covered | The body can still be chosen. The parent's own ~800MB+ RSS is a separate question, not changed here. |
 
+### Working seats are later victims than quiet seats (Molly, 2026-11-21, a472m)
+
+Production 2026-11-21 15:5x JST: the box sat at `memory.max` 20 GiB with the 2 GiB swap full (about 27-41 live seats at 0.5-0.7 GB each) and the memcg OOM killer (`oom_kill` 20) took seat processes in the middle of turns (`AITERM_TURN_CLOSED`). Every seat-side process has the same `oom_score_adj` 1000, so the kernel picks the largest of them, and a working seat is larger than a quiet one. Fewer live seats (the idle close window, Kiro/Owner) is a separate ruling; this section only changes who is picked first.
+
+```mermaid
+flowchart TD
+  Activity["SeatActivity (execution engine, UID1001)<br/>idle(botId): no job, no watch"] -->|"change: botIds"| Bias["SeatOomBias.update(bot)<br/>working -> 500, idle -> 1000"]
+  Bias -->|"only on a state change;<br/>working again at most every 60 s"| Runner["ports.seat.waitProcess<br/>(parent's seat runner, UID1000)"]
+  Runner --> Script["node -e OOM_BIAS_SCRIPT session value"]
+  Script --> Tree["processes whose command line names the session<br/>(aiterm-wait-cli --session, claude-machine-host --stream-file .../session.launch...)<br/>and all their descendants (claude CLI, tools, MCP servers)"]
+  Tree --> Write["write /proc/pid/oom_score_adj only when the current value is 500 or 1000"]
+  Pressure["memcg OOM"] --> Pick{"badness = size + adj"}
+  Pick -->|"first: quiet seats (1000)"| Quiet["quiet seat process"]
+  Pick -->|"then: working seats (500)"| Working["working seat process"]
+  Pick -.->|"last, not immune: body and modules (0)"| Body["supervisor / module children"]
+```
+
+| Item | Contract |
+| --- | --- |
+| State source | `SeatActivity.idle(botId)` of the execution engine: a delivery job (also one not yet accepted), an accepted delivery or a watched self-started turn makes the seat working. Aiterm's own judgment is not read. Forks (`ask_readonly`) keep 1000; not covered. |
+| Where | `src/seat-oom-bias.mjs` (`SeatOomBias`, started by `createExecutionDispatcher` when the parent gives a seat runner; stopped with the queue listener). The seat-side step is an inline `node -e` script because the module payload is not readable by seat UID 1000. |
+| Values | working 500, quiet 1000 (the `seat-exec.c` value), body and modules 0. Only 500 and 1000 are rewritten: the body-side Aiterm server (0) and any other value are left alone. A seat UID may lower the value (Docker drops `CAP_SYS_RESOURCE`, so the kernel records no minimum), tested on production 2026-11-21. |
+| Reach | A process started inside the seat after the change inherits the value of its parent at fork; the tree already running is rewritten at the transition. A relaunched seat (back at 1000) is lowered again by the 60 s refresh while its turn runs. |
+| Failure | A failed write or runner error is reported and ignored. The seat state is not changed; the next activity change tries again (exit). Not a guard: no turn is refused or delayed. |
+| Effect | A bias in the kernel's badness heuristic, like the section above: no victim order is guaranteed, the body is not immune, and a working seat can still be killed when only working seats are left. It adds two short seat commands (about 0.1 s) per turn. |
+| Rollout | Execution module row plus the container row only if rows.py names one; an older body or module simply never biases (no refusal). |
+
 ## Box memory bound: BellTeam's demand stays inside its own cgroup (Molly, 2026-11-11)
 
 Production 2026-11-09..11 (Trony, Emma's host assessment r20): the host OOM killer fired 30 times in 48 h. The body container had no memory bound (`HostConfig.Memory` 0, cgroup `memory.max` max), so one runaway seat-side process (a `node` at 5.4-8.0 GB anon killed 7 times on 11-09 14:15-14:18 JST; a `grep` at 3.8 GB on 11-10 10:46) plus the other seats pushed the whole host into global OOM. The kernel then also chose processes outside BellTeam (the nightly backup `tar`, spotter, dbus, systemd). The seat bias above only biases victim selection; it never stops BellTeam's demand from reaching the host.
