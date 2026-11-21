@@ -10,7 +10,7 @@ appは組立て・一覧・会話選択・機能間の接続を持つ。各機�
 | --- | --- | --- |
 | [application.js](../../../../web/application.js) | setup/authMode/settings、bots/rooms/owner、selected/type、SSE接続、既読、部屋別返信先 | `boot/startConversations/loadBots/selectBot/selectRoom/clearSelection`。一覧から明示的なtargetを各viewへ |
 | [conversation-composer.js](../../../../web/conversation-composer.js) | 会話別drafts、送信中snapshot、sending、回収欄retained | app→`select/clear/addImages/send/update/showError`。`onAccepted/onSelect`をappへ返す |
-| [conversation-timeline.js](../../../../web/conversation-timeline.js) | 対象、履歴Mapと前後ページ、queue、取得世代と読取順、scroll、色cache | app→`open/refresh/close/updateTarget/isBusy/updateStops`。`onQueueChange/onStop`だけappへ返す |
+| [conversation-timeline.js](../../../../web/conversation-timeline.js) | 対象、履歴Mapと前後ページ、queue、取得世代と読取順、下端を基準にした一覧（最新の行が基準）、送信中の仮の吹き出し、色cache | app→`open/refresh({clearPending})/addPending/close/updateTarget/isBusy/updateStops`。`onQueueChange/onStop`だけappへ返す |
 | [message-images.js](../../../../web/message-images.js) | 発言ID別preview、取得中Promise、失敗集合、所有URL | app→`remember/close`、timeline→`load/get/failed`。可変Mapをappへ公開しない |
 | 各編集・補助view | 開いた対象、未保存入力、読取/保存中、局所URL/timer | app→各`open(target)`。一覧の変更通知と選択はappへ返す。[管理詳細](management.md) |
 | [goals.js](../../../../web/goals.js) | Bot別snapshot、draft、binding、観測revision | app→`open/select/refresh/refreshSelected/refreshOnEvent`。Goalの正本はnative |
@@ -77,15 +77,17 @@ DFD: existing HTTP queue/history → current conversation/read generation → un
 flowchart TD
   Select["Bot / 部屋を選ぶ<br/>appが対象を決める"] --> Input["composerへ対象を渡す<br/>その会話の下書きを表示"]
   Select --> Open["timelineへ対象を渡す<br/>取得世代と履歴を初期化"]
-  Open --> Page["最新100件を取得"]
+  Open --> Page["最新1000件を取得"]
   Open --> Queue["queueを独立取得"]
   Page --> Valid{"同じ対象・世代で<br/>最新の履歴読取か"}
   Queue --> QValid{"同じ世代で<br/>最新のqueue読取か"}
-  Valid -->|"はい"| Rows["行・ページ境界を描く"]
+  Valid -->|"はい"| Rows["行を描く<br/>下端が基準の一覧なので最初の1フレームが最新"]
   QValid -->|"はい"| Tail["作業状態と停止buttonを描く"]
   Rows --> Images["画像を後から読み<br/>同じ世代の行へ適用"]
-  Rows --> Older["上読はbefore500件 + before_at<br/>重複除去と視点保持"]
-  Rows --> Fill{"has_more かつ見ている位置の上に描いた高さが<br/>max(3画面,スクロール速さ2秒分)未満（行数では見ない）"}
+  Rows --> Older["上読はbefore1000件 + before_at<br/>重複除去して上へ足す（見ている行は動かない）"]
+  Rows --> Fill{"has_more かつ見ている位置の上に描いた高さが<br/>max(1画面,スクロール速さ2秒分)未満（上へスクロールして上端に近づいた時）"}
+  Send["送信を始める"] --> Pending["自分の吹き出しを最新の位置に出す（timelinePending）"]
+  Send --> Accept["POST受付後は差分だけ読み直し<br/>本物の行と同時に仮の吹き出しを外す"]
   Fill -->|"はい"| Older
   Older --> Fill
   Change["別会話 / close"] --> Invalidate["旧世代を失効<br/>旧finallyも新しい読取を解除しない"]
@@ -96,13 +98,14 @@ flowchart TD
 | 選択 | app `selectBot/selectRoom → loadMessages(false)` | ヘッダ・composer・Goal/screen/返信先を接続。timelineのMapを触らない |
 | 新しい会話 | `open → readHistory(openTimeline)` | 対象をcopyしtokenとhistoryRequestを進める。queueを待たず本文を描く |
 | queue | `openTimeline/refreshTimeline → refreshTimelineQueue` | tokenとqueueRequest一致だけ適用。失敗は末尾に表示、本文読取とは独立 |
-| 新しい履歴 | `refresh → readHistory(refreshTimeline)` | latest/afterを並行取得。同対象でも古い返却を適用しない。後着画像も同token |
+| 新しい履歴 | `refresh({clearPending}) → readHistory(refreshTimeline)` | latest/afterを並行取得し、差分だけ足す（会話を開き直さない）。同対象でも古い返却を適用しない。後着画像も同token。`clearPending` は送信受付後の更新だけが付け、本物の行を描いた同じ同期処理で仮の吹き出しを外す |
+| 送った吹き出しを今すぐ出す（a471-open-newest-web） | composer `send` → `addPending(destination, message, imageCount)` → `timelinePending`（送信を始めた時） | 下書きを空にして送信を始めた同じ瞬間に、自分の吹き出し（送信中）を最新の位置に出す。POST失敗は `remove()`（下書きは今まで通り戻す）。受付後は `onAccepted → refresh({clearPending:true})`。会話を替える・閉じる時は失効 |
 | 機械の席の答え（吹き出し） | `renderItem` → `renderItemElement`（machine_event の `words` で `bubble:true`） | 本体が「終わったターンの最後の words 行」だけに付ける `bubble:true` を読み、通常の受信メッセージと同じ吹き出し・同じMarkdown（`richTextHtml`）で描く。最後かどうかはWebで決めない。他の words 行は今までどおり書かれた文字。吹き出しは行自身のid（`me-<seq>-<part>`）で返信・引用して返信・転送・コピーを出す（`bubbleMessage`：本文・引用・転送コメントは `machine_event.text` 全体。契約は conversation/machine-stream.md「Reply, forward, quote and copy of a bubble」）。書かれた文字の行・thinking・道具・カード・まだ印の無い行には出さない。行は同じidで置き換わるので、`bubble` が付いた時は `rerenderItem` が描き直す |
 | 機械の席の考え（吹き出し・a471-thinking-bubble） | `renderItem` → `renderItemElement({...bubbleMessage(item), thinking:true})`（machine_event の `view:'thinking'`・`display` が畳みでない・本文あり） | 答えと同じ受信の吹き出しで、本文は `machine_event.text` 全体、文字は薄く斜め（`.message-bubble.is-thinking`）。1行1吹き出し。出す操作はコピーだけ（返信・転送は出さない）。選択した文章への「引用して返信」も出さない（`quoteOfSelection` が thinking 行を除く）。本文が空の `thinking (no text)` は畳んだ行のまま。契約は conversation/machine-stream.md「Thinking is drawn as a bubble」 |
-| 先読み（a471-scrollback-web） | `openTimeline` の末尾（最初の表示のあと、待たずに背景で）と scroll listener → `fillViewport` → `wantOlder` → `readHistory(loadOlderMessages)` | machine-stream.md「History pages of a long stream」。最初のページは100件（`TIMELINE_FIRST_PAGE`）、再読込（`refreshTimeline`）の直近確認は10件。満ちたかは「描いた中身」（畳んだあとの高さ）で見て、行数では見ない（machine-stream.md「Fill rule」、a471-fill-drawn-web）。見ている位置の上に描かれた高さが `max(3画面, 上向きスクロール速さの2秒分)` になるまで（最初の画面では描いた高さが 画面+3画面 を超えるまで）、前ページ（500件）を1つずつ続けて読む。畳んで数行しか描かれないページが来ても、位置が進む限り続ける（`has_more` の間。`clientHeight>0` の時だけ）。最初の表示のあとはスクロールしなくても前の1ページが読まれる。1ページごとに世代tokenと遡る位置を確かめ、読取失敗・位置が進まない・別会話に替わったら止まる（失敗は末尾の「もう一度読み込む」。次のスクロールで再び試す。ループしない） |
-| 過去ページ | scroll listener → `fillViewport` → `loadOlderMessages` | `before=<最古の行のid>&before_at=<その行のat>` を500件（`TIMELINE_MORE_PAGE`）、重複除去して先頭へ。scrollHeight差を足して視点を保つ。finallyは同tokenだけ解除。サーバーの上限が小さい間は、その上限に切られるだけで動く |
-| 見ている行を動かさない（a471-scroll-jump-web） | scroll listener → `noteViewed`（見ている行と、その行が画面のどこにあるかを覚える）→ ResizeObserver(`timelineItems`) → `holdViewed` | 上の行が後から伸び縮みした時（畳んだ道具・背景の組、頁の追加、画像）、その差だけ `scrollTop` を戻して見ている行を同じ位置に置く。最下部に付いている間は `scrollToBottom`。畳みの行を押した時は戻さない（開いた中身を見せる）。読み込みの印（`.timeline-older`）は流れの外（sticky・高さ0）なので、出ても消えても行を動かさない。再読み込みが空の状態を埋めて最初の表示を追い越した時は、`refreshTimeline` が先読みを始める（センチ、Z147 lab） |
-| 最下部で新しい行を滑らかに追う（a471-scroll-jump-web、オーナー 11/21） | ResizeObserver(`timelineItems` / `timelineTail`) と `refreshTimeline` → `followBottom` | 最下部に付いている間、新しい行・組の高さが増えたら `scrollTo({behavior:'smooth'})`（`prefers-reduced-motion` の時は即時）で追う。開く時と「最新へ」ボタンは即時のまま。追っている間（`following`）は途中のscrollで「最下部から離れた」と見ない。ホイール・タッチ・キー・ポインタ（スクロールバーの掴み）に触れたら追うのをやめ、読んでいる位置から動かさない |
+| 先読み（a471-scrollback-web） | scroll listener → `fillViewport` → `wantOlder` → `readHistory(loadOlderMessages)`。開いた最初の描画の後にも呼ぶが、上に描いた高さが1画面に満たない時（短い会話）しか読まない | 最初の頁は1000件（`TIMELINE_FIRST_PAGE`）、再読込（`refreshTimeline`）の直近確認は10件。古い頁は「上へスクロールして上端に近づいた時」だけ読む（a471-open-newest-web、オーナー 11/21「過去ログは上にスクロールしたら読むもの」）：見ている位置の上に描かれた高さが `max(1画面, 上向きスクロール速さの2秒分)` 未満の間、前ページ（1000件）を1つずつ読む（行数では見ない）。`has_more` の間、`clientHeight>0` の時だけ。1ページごとに世代tokenと遡る位置を確かめ、読取失敗・位置が進まない・別会話に替わったら止まる（失敗は末尾の「もう一度読み込む」。次のスクロールで再び試す。ループしない）。machine-stream.md「Fill rule」の3画面は、この1画面に狭まる（契約文の改訂はノエル・N102に依頼） |
+| 過去ページ | scroll listener → `fillViewport` → `loadOlderMessages` | `before=<最古の行のid>&before_at=<その行のat>` を1000件（`TIMELINE_MORE_PAGE`）、重複除去して先頭へ。一覧は下端が基準なので、上へ足しても下端からの距離は変わらず、見ている行は動かない（scroll命令も高さの差の補正も無い）。finallyは同tokenだけ解除 |
+| 見ている行を動かさない（a471-scroll-jump-web → a471-open-newest-web） | scroll listener → `noteViewed` → ResizeObserver(`timelineItems` / `timelineTail` / `timelinePending`) → `holdViewed` | 下端から離れて読んでいる間（下端からの距離が1pxを超える時）だけ働く。見ている行の下に新しい行・組・仮の吹き出しが付いて行が動いた時、その差だけ `scrollTop` を戻す。下端にいる間は何もしない（下端が基準なので、新しい行は最新の位置に付く）。畳みの行を押した時は戻さない。読み込みの印（`.timeline-older`）は流れの外（sticky・高さ0） |
+| 下端が基準の一覧（a471-open-newest-web、オーナー 11/21：最新の行が基準） | `.timeline` が `flex-direction: column-reverse`、DOM順は `timelineTail` → `timelinePending` → `timelineItems`。`scrollTop` 0 = 最新（下端） | 開く・新しい行・送った吹き出し・再読込・タブ復帰は、scroll命令も追いかけの動きも要らない（`scrollToBottom` / `followBottom` / `following` / smooth は廃止）。`openTimeline` は一覧を作る時に一度だけ `scrollTop=0` にして最初の1フレームから最新を出す。`refreshTimeline` は差分（`after`）を足すだけで、一覧を作り直さない（空の一覧を初めて埋める時だけ全置換）。「最新へ」だけが利用者の操作として `scrollTop=0` にする。下端からの距離は `-scrollTop`、上端までの距離は `scrollHeight-clientHeight+scrollTop`（`wantOlder` が使う） |
 | 行とカード | `renderItem/renderItemElement/roomTimelineItem` | 秘密・質問の既部品を使う。完了callbackも元token一致時だけ該当行を描き直す |
 | 末尾 | `renderTail/renderQueueStatus/renderThinking` | queue/処理中/error/停止button。停止実行はappの`stopMember`へ |
 | 読取失敗 | `readHistory` | 同じ世代/読取のエラーを履歴末尾へ表示しfalseを返す。SSEの切断へ変換しない |
@@ -234,7 +237,7 @@ flowchart TD
 
 appの`sendMessage`は返信者必須条件を確認し、composerの`send`を呼ぶ。composerは`capture → claimMessageSend`で対象・本文・File/URL・返信先を**画像変換前**に固定する。送信中も新しい下書きを書けるが、同宛先POSTは受付まで一件。finallyでsendingを解除し、受付後の`onAccepted`失敗では元本文を戻さない。
 
-`onAccepted`はappへ渡したcallback。画像previewをcacheへ渡し、一覧と現在表示中の対象履歴をallSettledで更新する。どちらかが失敗しても二回目POSTはしない。API成功はAI回答完了ではない。POST応答不明では未配送と断定せず、再送前に会話を確認するよう表示する。
+`onAccepted`はappへ渡したcallback。画像previewをcacheへ渡し、一覧と現在表示中の対象履歴（`refresh({clearPending:true})`。会話を開き直さない、a471-open-newest-web）をallSettledで更新する。送信を始めた時に composer が `addPending` で自分の吹き出しを最新の位置へ出し、POST失敗で外す。どちらかが失敗しても二回目POSTはしない。API成功はAI回答完了ではない。POST応答不明では未配送と断定せず、再送前に会話を確認するよう表示する。
 
 明確な`MEMBERS_NOT_ACCEPTED`拒否では、メンバー機能が新しい操作を受け付けられないことと入力保持を説明する。容量/閉鎖/世代の原因はWebで推測せず、本文・画像・返信者の既回収と明示送信の契約を維持する。
 

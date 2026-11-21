@@ -137,10 +137,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
       const item = (target.type === 'room' ? state.rooms : state.bots).find(item => item.id === target.id)
       if (item) return target.type === 'room' ? selectRoom(item) : selectBot(item)
     },
+    onSending: (target, message, imageCount) => conversationTimeline.addPending(target, message || (imageCount ? `画像 ${imageCount} 枚` : "共有")),
+    // The accepted send reads only what is new; it never reopens (and so never rebuilds) the conversation (a471-open-newest-web).
     onAccepted: async (target, result, previews) => {
       if (previews.length) messageImages.remember(result.delivery_id ?? result.id, previews)
       const results = await Promise.allSettled([loadBots(),
-        state.selectedType === target.type && state.selected?.id === target.id ? loadMessages(false) : Promise.resolve()])
+        state.selectedType === target.type && state.selected?.id === target.id ? loadMessages(true) : Promise.resolve()])
       if (results.some(result => result.status === 'rejected' || result.value === false)) throw new Error('DISPLAY_REFRESH_FAILED')
     },
   })

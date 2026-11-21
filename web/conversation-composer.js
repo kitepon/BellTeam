@@ -30,7 +30,7 @@ export function installShareDrop(panel, { enabled, composer }) {
 }
 
 export function createConversationComposer({ input, attachments, error, sendButton, recovery,
-  api, readImage, getTargets, setTargets, findTarget, onSelect, onAccepted, replyBar = null }) {
+  api, readImage, getTargets, setTargets, findTarget, onSelect, onAccepted, onSending = () => null, replyBar = null }) {
   const drafts = new Map()
   const sending = new Set()
   const retained = []
@@ -198,6 +198,8 @@ export function createConversationComposer({ input, attachments, error, sendButt
     const snapshot = { ...claimed, targets: current.targets ? [...current.targets] : null, error: '', reply: current.reply, share: current.share }
     drafts.set(key(destination), empty())
     paint()
+    // The Owner's own bubble shows at once at the newest position (a471-open-newest-web); a failed send takes it back.
+    const pending = onSending(destination, snapshot.message, snapshot.pendingImages.length)
     let images, result
     let issued = false
     try {
@@ -209,6 +211,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
         body: JSON.stringify({ message: snapshot.message, images, ...(snapshot.targets ? { targets: snapshot.targets } : {}), ...(snapshot.share ? { share: snapshot.share } : {}), ...(snapshot.reply ? { reply_to: snapshot.reply.id, ...(snapshot.reply.quote ? { reply_quote: snapshot.reply.quote } : {}) } : {}) }),
       })
     } catch (cause) {
+      pending?.remove()
       capture()
       snapshot.error = issued && !cause.status
         ? '送信結果を確認できませんでした。再送する前に会話を確認してください。'
@@ -222,6 +225,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
       update()
     }
     release(snapshot)
+    pending?.accept()
     try {
       await onAccepted(destination, result, images.map(image => `data:${image.mime};base64,${image.data}`))
     } catch {

@@ -96,6 +96,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.timelineLoadingOlder = false
     timelineItems.replaceChildren()
     timelineTail.replaceChildren()
+    pendings.clear(); timelinePending.replaceChildren()
     latestButton.hidden = true
     onQueueChange()
   }
@@ -107,7 +108,13 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   timelineItems.className = 'timeline-items'
   const timelineTail = document.createElement('div')
   timelineTail.className = 'timeline-tail'
-  timeline.replaceChildren(timelineItems, timelineTail)
+  // Pending bubbles of messages being sent (a471-open-newest-web); separate from the tail so a queue redraw never wipes them.
+  const timelinePending = document.createElement('div')
+  timelinePending.className = 'timeline-pending'
+  const pendings = new Set()
+  // The list is laid out from the bottom (.timeline is column-reverse): scrollTop 0 is the newest row, so opening, new rows, a sent bubble and a refresh need no scroll command.
+  // DOM order is bottom-up: tail, pending, items.
+  timeline.replaceChildren(timelineTail, timelinePending, timelineItems)
 
   function messagesPath() {
     return target?.type === 'room' ? `/api/rooms/${target.id}/messages` : `/api/bots/${target.id}/messages`
@@ -121,21 +128,12 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function queuedFor(item) {
     return state.timelineQueue.filter(entry => entry.groupId === item.id)
   }
-  function scrollToBottom() {
-    timeline.scrollTo({ top: timeline.scrollHeight, behavior: 'instant' })
-  }
-  // 最下部で新しい行が付く時は、瞬時に動かず滑らかに追う（オーナー 11/21：動く向きが分かるように）。
-  // 追っている間は、途中のscrollで「最下部から離れた」と見ない。ユーザーが触ったら追うのをやめる。
-  let following = false
-  function followBottom() {
-    following = true
-    const calm = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-    timeline.scrollTo({ top: timeline.scrollHeight, behavior: calm ? 'instant' : 'smooth' })
-  }
-  for (const name of ['wheel', 'touchstart', 'keydown', 'pointerdown']) timeline.addEventListener(name, () => { following = false }, { passive: true })
+  // Distance from the newest row (bottom) and from the oldest loaded row (top). scrollTop is 0 at the bottom and negative going up.
+  const fromBottom = () => -timeline.scrollTop
+  const fromTop = () => timeline.scrollHeight - timeline.clientHeight + timeline.scrollTop
   latestButton.addEventListener('click', () => {
     state.stickToBottom = true
-    scrollToBottom()
+    timeline.scrollTo({ top: 0, behavior: 'instant' }) // the only scroll command: the user asked for the newest
     latestButton.hidden = true
   })
   function rememberItems(items) {
@@ -159,6 +157,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.opening = true
     timelineItems.replaceChildren(loadingBubbles())
     timelineTail.replaceChildren()
+    pendings.clear(); timelinePending.replaceChildren()
+    timeline.scrollTop = 0 // a new list starts at its anchor, the newest row
     void refreshTimelineQueue(token)
     const result = await api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`)
     if (token !== state.timelineToken || request !== state.historyRequest) return
@@ -171,17 +171,16 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.historyError = ''
     arrangeMachineRows(timelineItems, foldOpen)
     renderTail(items)
-    scrollToBottom()
     loadStoredMessageImages(items, item => rerenderItem(item.id, token))
-    void fillViewport(token) // after the first paint, in the background
+    void fillViewport(token) // after the first paint; reads only when the drawn rows do not fill a screen
   }
 
-  // 先読み・最初の画面を埋める（machine-stream.md「Fill rule」）：満ちたかどうかは「描いた中身」で見る。行数では見ない。
-  // 見ている位置の上に max(3画面, 今のスクロール速さの2秒分) の高さが描かれるまで（最初の画面では、描いた高さが 画面+3画面 を超えるまで）、前のページを1つずつ読む。
+  // 前のページは、上へスクロールして上端に近づいた時だけ読む（a471-open-newest-web、オーナー 11/21）。満ちたかどうかは「描いた中身」で見る。行数では見ない。
+  // 見ている位置の上に max(1画面, 今のスクロール速さの2秒分) の高さが描かれるまで、前のページを1つずつ読む（開いた直後は、描いた行が1画面に満たない短い会話だけ）。
   // 畳んで数行しか描かれないページが来ても、それで終わらない（位置が進む限り続ける）。失敗は次のスクロールで再び試す（ここでは繰り返さない）。
   let scrollSpeed = 0, lastTop = 0, lastTime = 0 // px per ms, upward only
   function wantOlder() {
-    return timeline.scrollTop < Math.max(3 * timeline.clientHeight, 2000 * scrollSpeed)
+    return fromTop() < Math.max(timeline.clientHeight, 2000 * scrollSpeed)
   }
   async function fillViewport(token) {
     while (token === state.timelineToken && state.timelineHasMore && !state.timelineLoadingOlder && timeline.clientHeight > 0 && wantOlder()) {
@@ -207,6 +206,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
 
   async function refreshTimeline() {
     const token = state.timelineToken
+    const settled = [...pendings].filter(entry => entry.accepted) // accepted before this read starts: its rows are in the answer
     const request = ++state.historyRequest
     const ids = [...state.timelineMap.keys()]
     const lastId = ids.at(-1) ?? null
@@ -235,7 +235,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     }
     arrangeMachineRows(timelineItems, foldOpen)
     renderTail([...state.timelineMap.values()])
-    if (state.stickToBottom) followBottom()
+    for (const entry of settled) { entry.element.remove(); pendings.delete(entry) } // in the same task as the real rows: no gap, no twin
     loadStoredMessageImages([...latestItems, ...newItems], item => rerenderItem(item.id, token))
     // A refresh that fills an empty map took over the open's read (historyRequest), so the open returned before its fill: start it here (Centi, Z147 lab).
     if (!lastId && latestItems.length) void fillViewport(token)
@@ -257,10 +257,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       state.timelineMap = ordered
       state.timelineHasMore = result.has_more
       state.timelineOldestId = items[0]?.id ?? state.timelineOldestId
-      const before = timeline.scrollHeight
-      timelineItems.firstChild.after(...items.map(item => renderItem(item, queuedFor(item))))
+      timelineItems.firstChild.after(...items.map(item => renderItem(item, queuedFor(item)))) // above the view: the distance from the bottom is unchanged, nothing on screen moves
       arrangeMachineRows(timelineItems, foldOpen)
-      timeline.scrollTo({ top: timeline.scrollTop + (timeline.scrollHeight - before), behavior: 'instant' })
       loadStoredMessageImages(items, item => rerenderItem(item.id, token))
     } finally {
       // The flag is released first, so nothing in the clean-up can leave the older page unreadable.
@@ -284,7 +282,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (!item || !['secret_request','owner_question'].includes(kind) || item[kind]?.id !== id) throw Error('REQUEST_NOT_FOUND')
     const card = timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`)
     if (!card) throw Error('REQUEST_NOT_RENDERED')
-    state.stickToBottom = false; following = false
+    state.stickToBottom = false
     card.tabIndex = -1
     card.classList.add('notification-highlight')
     card.scrollIntoView({ block:'center' })
@@ -341,9 +339,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   }
 
   timeline.addEventListener('scroll', () => {
-    const atBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
-    if (atBottom || timeline.scrollTop < lastTop) following = false // the glide only goes down: any move up is not ours (a programmatic jump fires no wheel/touch/key/pointer)
-    state.stickToBottom = atBottom || following
+    state.stickToBottom = fromBottom() < 40
     latestButton.hidden = !target || state.stickToBottom
     if (selectionPick) onSelectionChange() // 選択は残る：位置だけ追う（タッチでは下に固定）
     noteViewed()
@@ -364,13 +360,13 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     viewedTop = viewed ? viewed.getBoundingClientRect().top - top : 0
   }
   function holdViewed() {
-    if (!viewed?.isConnected) return
+    if (!viewed?.isConnected || fromBottom() <= 1) return // at the newest nothing is held: the bottom is the anchor
     const shift = viewed.getBoundingClientRect().top - timeline.getBoundingClientRect().top - viewedTop
     if (Math.abs(shift) >= 1) timeline.scrollTop += shift
   }
   timelineItems.addEventListener('click', () => { viewed = null; requestAnimationFrame(noteViewed) }, true)
-  new ResizeObserver(() => { if (state.stickToBottom) followBottom(); else holdViewed() }).observe(timelineItems)
-  new ResizeObserver(() => { if (state.stickToBottom) followBottom() }).observe(timelineTail)
+  const holder = new ResizeObserver(holdViewed)
+  for (const part of [timelineItems, timelineTail, timelinePending]) holder.observe(part)
 
   // A bubble row as the message the actions read: its own id, the whole machine_event.text (the row's message is only the first line).
   const bubbleMessage = item => ({ ...item, kind: 'message', direction: 'incoming', machine_event: undefined,
@@ -677,7 +673,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       if (!quote.dataset.missing) { quote.dataset.missing = '1'; quote.after(Object.assign(document.createElement('small'), { className: 'reply-quote-note', textContent: '元のメッセージは見つかりません' })) }
       return
     }
-    state.stickToBottom = false; following = false
+    state.stickToBottom = false
     row.scrollIntoView({ block: 'center' })
     row.classList.add('reply-jumped')
     setTimeout(() => row.classList.remove('reply-jumped'), 2000)
@@ -887,7 +883,17 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     return [h * 60, s, l]
   }
 
-  return { revealRequest, open(value) { target = { ...value }; return readHistory(openTimeline) },
+  // The Owner's own bubble, at the newest position the moment the send starts (a471-open-newest-web). accept() marks the POST answered: the next read that started after it replaces the bubble with the real row.
+  function addPending(destination, message) {
+    if (!target || target.type !== destination.type || target.id !== destination.id) return null
+    const element = renderItemElement({ id: `pending-${Date.now()}-${pendings.size}`, kind: 'message', direction: 'outgoing', message, at: new Date().toISOString() })
+    element.classList.add('is-pending')
+    const entry = { element, accepted: false }
+    pendings.add(entry); timelinePending.append(element)
+    return { accept() { entry.accepted = true }, remove() { element.remove(); pendings.delete(entry) } }
+  }
+
+  return { revealRequest, addPending, open(value) { target = { ...value }; return readHistory(openTimeline) },
     refresh() { return target ? readHistory(refreshTimeline) : Promise.resolve(true) }, close,
     updateTarget(value) { if (target?.type === value.type && target.id === value.id) target = { ...value } },
     isBusy(id) { return state.timelineQueue.some(item => item.botId === id && item.status !== 'failed') },
