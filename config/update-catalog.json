@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T09:41:29Z",
-  "expiresAt": "2026-11-28T09:41:29Z",
+  "publishedAt": "2026-11-21T10:20:01Z",
+  "expiresAt": "2026-11-28T10:20:01Z",
   "releases": [
     {
       "componentId": "usage",
@@ -753,8 +753,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca",
-      "versionId": "29c4e051d46a4188fbeecb5313514a32d405a868aab8a74ff0d0078a972e5840",
+      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
+      "versionId": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-amd64.tar.gz",
-          "bytes": 15348371,
-          "sha256": "29c4e051d46a4188fbeecb5313514a32d405a868aab8a74ff0d0078a972e5840"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz",
+          "bytes": 15348472,
+          "sha256": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10949,
-          "sha256": "149394adc4f126eed24511647d1d685f10909754344379aa5725a015196c2a0b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10839,
+          "sha256": "5418ac174ff43e64bc548d890e0669b1e232a19949e6840c4a90f45a9067706b"
         },
-        "signerCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca"
+        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表の過去ログは、閉じたツリーの完了済みの仕事を、開いた時にだけ読むようにしました。工程表の表示に使うデータが小さくなります。"
+        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca",
-      "versionId": "d585e55b053a55b1e3c0c70505c87a942be89ff07e292553110e01866ea9ecd4",
+      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
+      "versionId": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-arm64.tar.gz",
-          "bytes": 15348371,
-          "sha256": "d585e55b053a55b1e3c0c70505c87a942be89ff07e292553110e01866ea9ecd4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz",
+          "bytes": 15348472,
+          "sha256": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T045431Z/lattice-e294ea0df9e26ac4fe062b39554e41d962c4f7ca-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "2e18cdbed3a7974b918888c126596a403700a8cd18f73e2360e81f3f2c144176"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10745,
+          "sha256": "7e79e5bda02acb08ea31a1f73b9a4c68976f7c1a1cdc74fcd36b68acb4d87ce0"
         },
-        "signerCommit": "e294ea0df9e26ac4fe062b39554e41d962c4f7ca"
+        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表の過去ログは、閉じたツリーの完了済みの仕事を、開いた時にだけ読むようにしました。工程表の表示に使うデータが小さくなります。"
+        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
       ]
     },
     {
