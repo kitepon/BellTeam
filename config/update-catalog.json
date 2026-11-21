@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T15:32:57Z",
-  "expiresAt": "2026-11-28T15:32:57Z",
+  "publishedAt": "2026-11-21T16:32:24Z",
+  "expiresAt": "2026-11-28T16:32:24Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a",
-      "versionId": "aea685e1c9f3e7c92637957f0e05f70b7e95f8664ea158522eb71f54214050c7",
+      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
+      "versionId": "22ce6a507672bc6fcab2cbd543ac6c2a19be7c6d859495bcdd1ad4311ee04295",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153037Z/usage-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-amd64.tar.gz",
-          "bytes": 92227,
-          "sha256": "aea685e1c9f3e7c92637957f0e05f70b7e95f8664ea158522eb71f54214050c7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163041Z/usage-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-amd64.tar.gz",
+          "bytes": 89557,
+          "sha256": "22ce6a507672bc6fcab2cbd543ac6c2a19be7c6d859495bcdd1ad4311ee04295"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153037Z/usage-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10674,
-          "sha256": "6060de8a4304ee6275af151e088661b90e8509f11e28d6363746d4fdc99fb707"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163041Z/usage-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10905,
+          "sha256": "c4d3bfb10c64416b8a6d4b37765a46ea6cd8fce6444ea96854afa62f90e91c59"
         },
-        "signerCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a"
+        "signerCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -41,7 +41,6 @@
             "cloudflare",
             "diagnostics",
             "notifications",
-            "webPush",
             "onePassword",
             "thinkingDisplay"
           ],
@@ -49,13 +48,13 @@
         }
       },
       "changes": [
-        "通知の設定を、Webの通知の項目があってもなくても読めるようにします。見える変化はありません。"
+        "Webの通知の設定を、通知の設定の一覧から取り除きます。アプリへの通知は変わりません。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a",
-      "versionId": "693ab6dbf02df93b9c4c671a79a5f96102650ba8606ca4061435c308eeafd9c8",
+      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
+      "versionId": "12a628fcf24dd0a1e45275b6ecdc31e0e9752d57981abcb59a92b607f44c8217",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153037Z/usage-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-arm64.tar.gz",
-          "bytes": 92227,
-          "sha256": "693ab6dbf02df93b9c4c671a79a5f96102650ba8606ca4061435c308eeafd9c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163041Z/usage-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-arm64.tar.gz",
+          "bytes": 89557,
+          "sha256": "12a628fcf24dd0a1e45275b6ecdc31e0e9752d57981abcb59a92b607f44c8217"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153037Z/usage-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10627,
-          "sha256": "c22403e86fbeec6499f2a54990fc7c4580cacae6521d18bda7cef7637031a4db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163041Z/usage-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10870,
+          "sha256": "b0237efa87c562f9bbaabe8206d4c45e608efe550ce515e3192bd8e4f5b63877"
         },
-        "signerCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a"
+        "signerCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -90,7 +89,6 @@
             "cloudflare",
             "diagnostics",
             "notifications",
-            "webPush",
             "onePassword",
             "thinkingDisplay"
           ],
@@ -98,7 +96,7 @@
         }
       },
       "changes": [
-        "通知の設定を、Webの通知の項目があってもなくても読めるようにします。見える変化はありません。"
+        "Webの通知の設定を、通知の設定の一覧から取り除きます。アプリへの通知は変わりません。"
       ]
     },
     {
@@ -293,8 +291,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a",
-      "versionId": "57def1bc2bcedcfdc523b75c6fb64705232e57c4c550645b5bd2aee078f977f6",
+      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
+      "versionId": "f8ff156f566684889cc887c6aea9ad359165af1a98e200f7e0f47939534ee4a8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -302,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153049Z/notifications-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-amd64.tar.gz",
-          "bytes": 4638472,
-          "sha256": "57def1bc2bcedcfdc523b75c6fb64705232e57c4c550645b5bd2aee078f977f6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-amd64.tar.gz",
+          "bytes": 4513200,
+          "sha256": "f8ff156f566684889cc887c6aea9ad359165af1a98e200f7e0f47939534ee4a8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153049Z/notifications-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10802,
-          "sha256": "94d738bf56df082d7547490a8ac4ffa4be506eb8fbb90634aa4ebe8f2362b5be"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10947,
+          "sha256": "4933d3b7aaf748d9c1014c211f3195862957480d60a6ca93a8814776a5c648c0"
         },
-        "signerCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a"
+        "signerCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -320,13 +318,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の窓口を、Webの通知の項目があってもなくても読めるようにします。見える変化はありません。"
+        "Webの通知の送信を取り除き、古い鍵と購読のファイルを最初の起動で消します。アプリへの通知は変わりません。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a",
-      "versionId": "547a258b255e217e5469b4d073a74ea987b601bb15421bc9b7b6356995077a3e",
+      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
+      "versionId": "5534a90b87c6993ca114231d1b80c552cce365fd17309ba93f713f8a941cf5e2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -334,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153049Z/notifications-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-arm64.tar.gz",
-          "bytes": 4638475,
-          "sha256": "547a258b255e217e5469b4d073a74ea987b601bb15421bc9b7b6356995077a3e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-arm64.tar.gz",
+          "bytes": 4513200,
+          "sha256": "5534a90b87c6993ca114231d1b80c552cce365fd17309ba93f713f8a941cf5e2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153049Z/notifications-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11037,
-          "sha256": "8299686ea52ab469d25d86d8430517896b7ea01712c54f5f809063205e0185cd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10943,
+          "sha256": "82c6f7d72462ec54d8b1c1dd34993bf1ad6ecf1667d446a77eb5a2c839ff8b4e"
         },
-        "signerCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a"
+        "signerCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -352,7 +350,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の窓口を、Webの通知の項目があってもなくても読めるようにします。見える変化はありません。"
+        "Webの通知の送信を取り除き、古い鍵と購読のファイルを最初の起動で消します。アプリへの通知は変わりません。"
       ]
     },
     {
@@ -709,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "971a129e51b468fca6384977b6c1308739aa9f4a",
-      "versionId": "sha256:33bbeac3b1cff16778825ad8bf3d42036c6d56720c809ce92c98d400e74bb1c4",
+      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
+      "versionId": "sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33bbeac3b1cff16778825ad8bf3d42036c6d56720c809ce92c98d400e74bb1c4"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ブラウザ版の画面のファイルをサーバーから取り除きます。通知の設定を、Webの通知の項目があってもなくても読めるようにします。"
+        "Webの通知の送信と、Webの通知の設定を取り除きます。アプリへの通知は変わりません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "971a129e51b468fca6384977b6c1308739aa9f4a",
-      "versionId": "sha256:33bbeac3b1cff16778825ad8bf3d42036c6d56720c809ce92c98d400e74bb1c4",
+      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
+      "versionId": "sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33bbeac3b1cff16778825ad8bf3d42036c6d56720c809ce92c98d400e74bb1c4"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ブラウザ版の画面のファイルをサーバーから取り除きます。通知の設定を、Webの通知の項目があってもなくても読めるようにします。"
+        "Webの通知の送信と、Webの通知の設定を取り除きます。アプリへの通知は変わりません。"
       ]
     },
     {
