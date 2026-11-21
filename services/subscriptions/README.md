@@ -45,7 +45,7 @@ Product ids are in `product.json`; vars in `wrangler.jsonc`; secrets are set wit
 |---|---|---|
 | `LB_KKEY` | secret | kKey (32 random bytes, base64url). **Different for every Worker** (contract 1.13); a lost kKey cannot be repaired |
 | `LB_PASS_KEY_CURRENT`, `LB_PASS_KEY_CURRENT_ID`, optional `LB_PASS_KEY_PREVIOUS`, `LB_PASS_KEY_PREVIOUS_ID` | secret / var | pass sealing keys (rotation: previous stays for 14 days) |
-| `APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `GOOGLE_PLAY_SERVICE_ACCOUNT` | var, secrets | store API keys (absent on the test Worker) |
+| `APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `GOOGLE_PLAY_SERVICE_ACCOUNT` | var, secrets | store API keys (the test Worker has the Apple key only, set 2026-11-22 for sandbox purchases; no Google key) |
 | `APPLE_SIGNIN_AUDIENCES`, `GOOGLE_SIGNIN_AUDIENCES` | var | accepted id-token audiences: the Apple bundle id; the BellTeam Google Web client id |
 | `LB_PUBLIC_ORIGIN` | var | the Worker's own https origin; the callback is this origin + `/auth/v1/websignin/callback` |
 | `WEBSIGNIN_GOOGLE_CLIENT_ID`, `WEBSIGNIN_GOOGLE_CLIENT_SECRET` | var, secret | the Google web client of the code flow (its id is accepted as an audience by the library) |
