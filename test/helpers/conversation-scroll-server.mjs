@@ -39,16 +39,28 @@ function pageItems(items, url) {
 }
 
 // 初回10件が画面に収まる短文の履歴（ハル）。過去は残っている。
-// 長く動いた機械席：古い500件は普通の行、次の500件は畳まれる道具の行（同じfold_group）、最新の100件は先頭90件が畳まれる道具の行。
+// 長く動いた機械席：古い500件は普通の行、次の597件は畳まれる道具の行（同じfold_group）、最新の3件だけが普通の行（1画面に満たない）。
 // 畳んだ行は一つの行に束ねて描くので、頁を読んでも描かれる行がほとんど増えない（a471-fill-drawn）。
 const foldHistory = Array.from({ length: 1100 }, (_, index) => {
   const id = `m${String(index + 1).padStart(3, '0')}`
   const at = new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString()
   const base = { id, direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at, delivery: 'delivered' }
-  if ((index >= 500 && index < 1000) || (index >= 1000 && index < 1090)) {
+  if (index >= 500 && index < 1097) {
     return { ...base, kind: 'machine_event', message: 'Bash ls', machine_event: { seq: index, view: 'tool_use', display: 'fold', fold_group: 'tool_use', fold_count: 1, title: 'tool_use', text: 'Bash ls', tool: { name: 'Bash', summary: 'ls' } } }
   }
   return { ...base, kind: 'message', message: `${id} 短い返事です。` }
+})
+
+// 頁の境目が畳んだ行の束の中にある履歴（働いている機械席でよく起きる）：m001〜m100は普通の行、m101〜m220は畳まれる道具の行（一つの束）、m221〜m223は普通の行。
+// 最初の頁を100行に絞ると m124〜m223 で、先頭 m124 は束の途中。過去の頁（m001〜m123）が届くと束の先頭が m101 に替わる。
+const boundaryHistory = Array.from({ length: 223 }, (_, index) => {
+  const id = `m${String(index + 1).padStart(3, '0')}`
+  const at = new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString()
+  const base = { id, direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at, delivery: 'delivered' }
+  if (index >= 100 && index < 220) {
+    return { ...base, kind: 'machine_event', message: 'Bash ls', machine_event: { seq: index, view: 'tool_use', display: 'fold', fold_group: 'tool_use', fold_count: 1, title: 'tool_use', text: 'Bash ls', tool: { name: 'Bash', summary: 'ls' } } }
+  }
+  return { ...base, kind: 'message', message: index % 3 === 2 ? plain(id) : rich(id) }
 })
 
 // 答えの後に出る思考の行（a471-thinking-bubble）。全文は message（先頭120字）より長い。
@@ -74,6 +86,7 @@ let shortPage = false
 let legacyServer = false
 let shortTotal = shortMessages.length
 let beforeDelay = 0
+let firstDelay = 0
 let firstCap = 0
 let olderCap = 0
 let requests = []
@@ -82,7 +95,7 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); for (const subscriber of subscribers) subscriber.end(); subscribers = []; beforeDelay = Number(url.searchParams.get('beforeDelay') ?? 0); firstCap = Number(url.searchParams.get('firstCap') ?? 0); olderCap = Number(url.searchParams.get('olderCap') ?? 0); requests = []; diagnosticReports = []; messages = url.searchParams.get('thinking') === '1' ? [...history.slice(0, 12), thinkingRow] : url.searchParams.get('fold') === '1' ? foldHistory.slice() : history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); for (const subscriber of subscribers) subscriber.end(); subscribers = []; firstDelay = 0; beforeDelay = Number(url.searchParams.get('beforeDelay') ?? 0); firstCap = Number(url.searchParams.get('firstCap') ?? 0); olderCap = Number(url.searchParams.get('olderCap') ?? 0); requests = []; diagnosticReports = []; messages = url.searchParams.get('boundary') === '1' ? boundaryHistory.slice() : url.searchParams.get('thinking') === '1' ? [...history.slice(0, 12), thinkingRow] : url.searchParams.get('fold') === '1' ? foldHistory.slice() : history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })
@@ -92,6 +105,12 @@ const server = createServer((request, response) => {
       : { type: 'messages' }
     for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
     return json({ id })
+  }
+  if (path === '/test/config') {
+    // 履歴を作り直さずに、応答の遅れだけを変える（会話を開き直す場合の再現）。
+    firstDelay = Number(url.searchParams.get('firstDelay') ?? 0)
+    if (url.searchParams.has('firstCap')) firstCap = Number(url.searchParams.get('firstCap'))
+    return json({ firstDelay, firstCap })
   }
   if (path === '/test/grow') {
     // 既存の行（id）の本文を長くする。上の行の高さが後から変わる場合（畳んだ群の伸び・本文の描き直し）の再現。
@@ -108,10 +127,11 @@ const server = createServer((request, response) => {
     const n = Number(url.searchParams.get('n') ?? 30), interval = Number(url.searchParams.get('interval') ?? 250)
     // tall=1：背の高い言葉の行だけを詰めて届ける（末尾を追うアニメーションが途切れない）。
     const tall = url.searchParams.get('tall') === '1'
+    const prefix = url.searchParams.get('prefix') ?? 'b'
     const kinds = tall ? ['words'] : ['tool_use', 'tool_use', 'hook', 'thinking', 'tool_use', 'words']
     for (let i = 0; i < n; i++) setTimeout(() => {
       const kind = kinds[i % kinds.length]
-      const id = `b${String(i + 1).padStart(3, '0')}`
+      const id = `${prefix}${String(i + 1).padStart(3, '0')}`
       const folded = kind === 'tool_use' || kind === 'hook'
       messages.push({
         id, kind: 'machine_event', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), delivery: 'delivered',
@@ -151,11 +171,24 @@ const server = createServer((request, response) => {
   if (path === '/api/rooms') return json({ rooms: fixture.rooms })
   if (path === '/api/owner') return json({ owner: fixture.owner })
   if (path.includes('/queue')) return json({ items: [] })
+  if (path === '/api/bots/bot-one/messages' && request.method === 'POST') {
+    // 送信：受け付けて履歴へ足す（Botの会話は delivery_id が履歴の行のid）。
+    let body = ''
+    request.on('data', chunk => { body += chunk })
+    request.on('end', () => {
+      const id = `sent-${messages.length + 1}`
+      messages.push({ id, kind: 'message', direction: 'outgoing', sender: { id: 'user', name: '利用者' }, at: new Date().toISOString(), message: JSON.parse(body).message, delivery: 'queued' })
+      json({ delivery_id: id })
+    })
+    return
+  }
   if (path === '/api/bots/bot-one/messages' && request.method === 'GET') {
     requests.push({ query: url.search })
     if (failBefore && url.searchParams.has('before')) return json({ error: 'FIXTURE_FAILURE', message: '試験用の取得失敗です。' }, 500)
     // 過去の頁だけ遅らせる（末尾を追うスクロールの途中に頁が届く場合の再現）。
     if (beforeDelay && url.searchParams.has('before')) { const page = pageItems(messages, url); return void setTimeout(() => json(page), beforeDelay) }
+    // 最初の頁（before も after も無い、limit が頁の大きさ）だけ遅らせる。
+    if (firstDelay && !url.searchParams.has('before') && !url.searchParams.has('after') && Number(url.searchParams.get('limit')) >= 100) { const page = pageItems(messages, url); return void setTimeout(() => json(page), firstDelay) }
     return json(pageItems(messages, url))
   }
   if (path === '/api/bots/bot-two/messages' && request.method === 'GET') {

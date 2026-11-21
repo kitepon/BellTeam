@@ -113,7 +113,7 @@ flowchart TD
 
 送信前の利用確認（`authorizeAIUse`）の失敗と、POSTの失敗は別の経路になる。前者は `ConversationView.swift` の764〜777行で、認証失敗なら`requireLogin`して戻り、それ以外は結果不明かどうかを問わずactiveなら`load`する。後者は792〜800行で、`SendFailureReconcileObservation.observe`（同31〜37行）がactiveかつ`operationResultUnconfirmed`の時だけ`load`する。
 
-`ConversationContent.load`は非activeと送信応答待ちで取得を始めない。進行中readerがあれば次の読取要求をまとめる。初回本文とqueueは並列に取り、本文を先に表示するので、queueだけが失敗しても本文を残せる。初回は`ConversationHistoryPage.firstPage`の1000件、過去取得は`pageSize`の1000件（`before`＋`before_at`）。更新は最新`refreshPage`の30件とafter取得を併合する。
+`ConversationContent.load`は非activeと送信応答待ちで取得を始めない。進行中readerがあれば次の読取要求をまとめる。初回本文とqueueは並列に取り、本文を先に表示するので、queueだけが失敗しても本文を残せる。初回は`ConversationHistoryPage.firstPage`の1000件、過去取得は`pageSize`の1000件（`before`＋`before_at`）。更新は最新`refreshPage`の10件とafter取得を併合する。会話を出る時と最初の頁を読めた時に、持っている最新の側（最大`firstPage`行）を`AppStore.conversationPages`へ控え、開き直しでは控えを出してから最初の頁を重なる所から後ろだけ足す（`mergeLatestPage`。a471-iphone-flash-jump-177）。
 
 | 場面 | 停止・後始末・返却先 |
 | --- | --- |
