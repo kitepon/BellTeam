@@ -5,8 +5,8 @@
 const POLL_MS = 3000
 const post = body => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 const WEB = { kind: 'web', carrier: 'cookie' }
-// qrPng is drawn by the server; only a PNG data URL is put in <img> (the value comes over the wire).
-const pngDataUrl = value => typeof value === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/u.test(value) ? value : ''
+// phone.qrSvg is a ready SVG string from the server. It goes only into an <img> as a data URL (an image cannot run script), never inline; anything that is not an <svg> document is dropped.
+const svgDataUrl = value => typeof value === 'string' && value.length < 200_000 && /^\s*(<\?xml[^>]*\?>\s*)?<svg[\s>]/u.test(value) ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(value)}` : ''
 
 // An older server has no `login` key in /api/session: the Web keeps today's path (Cloudflare Access / local).
 export const loginNeeded = session => session?.authenticated === false && session.login != null && typeof session.login === 'object'
@@ -38,7 +38,7 @@ export function loginView(state) {
   if (state.phase === 'phone') return {
     heading: 'このコードを、BellTeamアプリで承認してください',
     notes: ['iPhone・Macなどの BellTeam アプリで、このサーバーのログインを承認します。アプリに下のコードを入力し、照合番号が同じか確かめてください。'],
-    code: state.code, check: state.check, qr: pngDataUrl(state.qr), until: state.expiresAt ? untilText(state.expiresAt) : '', again: false, cancel: true,
+    code: state.code, check: state.check, qr: svgDataUrl(state.qr), until: state.expiresAt ? untilText(state.expiresAt) : '', again: false, cancel: true,
   }
   return { heading: 'つないでいます…', notes: [], code: '', check: '', qr: '', until: '', again: false, cancel: false }
 }
@@ -69,7 +69,7 @@ export function createLogin({ api, show, onApproved, wait = ms => new Promise(re
       if (login.status === 'refused') return end(refusedText(login.reason))
       if (login.status === 'expired') return end(EXPIRED)
       if (login.status === 'cancelled') return end('取り消しました。')
-      if (login.status === 'waiting_phone' && login.phone) show({ phase: 'phone', code: login.phone.shortCode ?? '', check: login.phone.checkNumber ?? '', qr: login.phone.qrPng, expiresAt: login.expiresAt })
+      if (login.status === 'waiting_phone' && login.phone) show({ phase: 'phone', code: login.phone.shortCode ?? '', check: login.phone.checkNumber ?? '', qr: login.phone.qrSvg, expiresAt: login.expiresAt })
       else show({ phase: 'second_hand' })
       const delay = Number.isFinite(login.pollAfterMs) && login.pollAfterMs >= 2000 ? login.pollAfterMs : POLL_MS
       await wait(delay)
