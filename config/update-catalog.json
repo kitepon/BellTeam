@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T13:03:30Z",
-  "expiresAt": "2026-11-28T13:03:30Z",
+  "publishedAt": "2026-11-21T14:55:42Z",
+  "expiresAt": "2026-11-28T14:55:42Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7927bb27ac8f0bb95f53c70310507fffd8e62ca6",
-      "versionId": "5cb0cd7dc05dcf55f46b8100681978e001132b1e2c72b935c95dd7873d144fe9",
+      "sourceCommit": "4a500c424909f99e1d056452fad0a56a970cae95",
+      "versionId": "236758794b9e0e1d4c064058aa78eb1d253bf9b5a0edebeba683606a30cf86d4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093930Z/web-gateway-7927bb27ac8f0bb95f53c70310507fffd8e62ca6-linux-amd64.tar.gz",
-          "bytes": 5516530,
-          "sha256": "5cb0cd7dc05dcf55f46b8100681978e001132b1e2c72b935c95dd7873d144fe9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T145517Z/web-gateway-4a500c424909f99e1d056452fad0a56a970cae95-linux-amd64.tar.gz",
+          "bytes": 5523973,
+          "sha256": "236758794b9e0e1d4c064058aa78eb1d253bf9b5a0edebeba683606a30cf86d4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093930Z/web-gateway-7927bb27ac8f0bb95f53c70310507fffd8e62ca6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10923,
-          "sha256": "e034b0c0bfb0370d1bf4d70fe929a159955e8508ed7954481980050fb866bdd6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T145517Z/web-gateway-4a500c424909f99e1d056452fad0a56a970cae95-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11021,
+          "sha256": "86662b20e9ba1a48d41b898b8bfe0a160146923f60a6a6c90afa26c74c0afd61"
         },
-        "signerCommit": "7927bb27ac8f0bb95f53c70310507fffd8e62ca6"
+        "signerCommit": "4a500c424909f99e1d056452fad0a56a970cae95"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webで、メンバーのピン留めと、AIの考えの表示の切り替えが使えるようにします。"
+        "BellTeamのブラウザ版を終了します。ブラウザで開くと「アプリをお使いください」というお知らせだけが出ます。アプリが使う窓口はそのままです。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7927bb27ac8f0bb95f53c70310507fffd8e62ca6",
-      "versionId": "858442e050e87e17867808a4b63069dc9ff2d33bda1801c2fbf667a870793339",
+      "sourceCommit": "4a500c424909f99e1d056452fad0a56a970cae95",
+      "versionId": "ecfca7b26e163a2166378a88741ffc5f115396e3013a99cd56f52436c47afc7f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093930Z/web-gateway-7927bb27ac8f0bb95f53c70310507fffd8e62ca6-linux-arm64.tar.gz",
-          "bytes": 5516530,
-          "sha256": "858442e050e87e17867808a4b63069dc9ff2d33bda1801c2fbf667a870793339"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T145517Z/web-gateway-4a500c424909f99e1d056452fad0a56a970cae95-linux-arm64.tar.gz",
+          "bytes": 5523973,
+          "sha256": "ecfca7b26e163a2166378a88741ffc5f115396e3013a99cd56f52436c47afc7f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093930Z/web-gateway-7927bb27ac8f0bb95f53c70310507fffd8e62ca6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11009,
-          "sha256": "1794558f54820d0fe3eb9ebe467efe89400282b4c02a339f0fc689e8599640b9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T145517Z/web-gateway-4a500c424909f99e1d056452fad0a56a970cae95-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "aef6aaae3c68048157bad7ca4f4ad25f859cad48194508076f5ad47e0abfcd67"
         },
-        "signerCommit": "7927bb27ac8f0bb95f53c70310507fffd8e62ca6"
+        "signerCommit": "4a500c424909f99e1d056452fad0a56a970cae95"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +488,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webで、メンバーのピン留めと、AIの考えの表示の切り替えが使えるようにします。"
+        "BellTeamのブラウザ版を終了します。ブラウザで開くと「アプリをお使いください」というお知らせだけが出ます。アプリが使う窓口はそのままです。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4f5da710f72594132903da261eb6c406eb655ed6",
-      "versionId": "sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4",
+      "sourceCommit": "272d13c21a81349fecbf876618ffb0c64db96135",
+      "versionId": "sha256:6db1c8e783f43fab8e5eb9333f86637c7df36422ba711fb2d38c493c2748600e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6db1c8e783f43fab8e5eb9333f86637c7df36422ba711fb2d38c493c2748600e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席が実行中のとき、BellTeamが追っているターンも「作業中」と読むようにします。実行中なのに「不明」と出たり、動いていないと促されたりしないようにします。あわせて、席の部品Aitermを新しい版にします。"
+        "ブラウザ版の終了に合わせて、Web受付の起動確認の方法を変えます。あわせて、契約状態の項目を足し、ライセンス（MIT）の記載を入れます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4f5da710f72594132903da261eb6c406eb655ed6",
-      "versionId": "sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4",
+      "sourceCommit": "272d13c21a81349fecbf876618ffb0c64db96135",
+      "versionId": "sha256:6db1c8e783f43fab8e5eb9333f86637c7df36422ba711fb2d38c493c2748600e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6db1c8e783f43fab8e5eb9333f86637c7df36422ba711fb2d38c493c2748600e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席が実行中のとき、BellTeamが追っているターンも「作業中」と読むようにします。実行中なのに「不明」と出たり、動いていないと促されたりしないようにします。あわせて、席の部品Aitermを新しい版にします。"
+        "ブラウザ版の終了に合わせて、Web受付の起動確認の方法を変えます。あわせて、契約状態の項目を足し、ライセンス（MIT）の記載を入れます。"
       ]
     },
     {
