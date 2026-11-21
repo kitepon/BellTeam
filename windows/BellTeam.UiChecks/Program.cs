@@ -20,7 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
-    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await SmoothChecks();
+    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await SmoothChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -323,7 +323,7 @@ public static class UiChecks {
     Check(grew,"届いた行で内容が増えません。");
     Check(Math.Abs(scroll.VerticalOffset - scroll.ScrollableHeight) < 1,"届いた行へ最後まで追従しません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
     Check(steps.Count(step => step > 0.5) >= 3,"届いた行を一度に動いて表示しています（動いた回数 " + steps.Count(step => step > 0.5) + "、歩み " + string.Join(",", steps.Take(12).Select(step => Math.Round(step))) + "、追従 " + typeof(MainWindow).GetField("following", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(window) + "、アニメ " + SystemParameters.ClientAreaAnimation + "）。");
-    Check(steps.Max() <= 34,"1コマで33pxより大きく動きました（" + steps.Max() + "）。");
+    Check(steps.Max() <= 67,"1回の標本で33px×2より大きく動きました（" + steps.Max() + "）。"); // a sample here can span two 16 ms timer ticks, each at most 33 px
     // the wheel stops the following
     workspace.Messages.Add(new MessageItem(new TimelineMessage { Id = "arrived2", At = time.AddMinutes(101), Direction = "incoming", Message = "もう一行\n\n二つ目\n\n三つ目" }));
     await Task.Delay(40); await Layout();
@@ -331,6 +331,50 @@ public static class UiChecks {
     var stopped = scroll.VerticalOffset; await Task.Delay(300); await Layout();
     Check(Math.Abs(scroll.VerticalOffset - stopped) < 1,"ホイールで追従が止まりません。");
     window.Close(); Console.WriteLine("下に届いた行を滑らかに追う確認に成功しました。");
+  }
+  // a471-scroll-refresh: the newest page is read again (SSE event, reconnect of the stream, return from sleep) while older rows stay. It may come back short for a moment (the newest rows missing) and then whole with new rows.
+  // The rows already held must stay, and the row the Owner is looking at must not move, in both steps.
+  private static async Task RefreshChecks() {
+    var time = DateTimeOffset.UtcNow; var server = Enumerable.Range(0, 60).Select(index => new TimelineMessage { Id = "r" + index.ToString("D3"), At = time.AddMinutes(index), Direction = "incoming", Message = "行 " + index }).ToList();
+    var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
+    using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
+      var path = request.RequestUri!.AbsolutePath; var query = request.RequestUri.Query;
+      object result = path switch {
+        "/api/session" => new { authenticated = true, authMode = "local" },
+        "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
+        "/api/bots" => new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } },
+        "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
+        "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
+        _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
+        _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=30") ? 30 : 100).ToArray(), HasMore = false },
+        _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
+      };
+      return JsonSerializer.Serialize(result, wire);
+    })));
+    await workspace.ConnectAsync("http://localhost", listen:false);
+    var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
+    async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
+    await Layout();
+    var scroll = (ScrollViewer)window.FindName("MessageScroll");
+    ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
+    for (var turn = 0; turn < 100 && !(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
+    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight - 2.5 * scroll.ViewportHeight); await Layout(); await Task.Delay(150); await Layout();   // reading near the newest rows, not at the bottom
+    double Y(MessageCard card) => card.TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
+    var viewed = Descendants<MessageCard>(root).Where(card => card.Message is not null && Y(card) >= 0).OrderBy(Y).First().Message!.Id;
+    double Top() => Y(Descendants<MessageCard>(root).Single(card => card.Message?.Id == viewed));
+    var start = Top(); var held = workspace.Messages.Count;
+    // 1. the newest page comes back short: the newest 12 rows are missing for a moment
+    var kept = server.ToList(); server.RemoveRange(48, 12);
+    await workspace.RefreshManagementAsync(); await Layout(); await Task.Delay(100); await Layout();
+    Check(workspace.Messages.Count == held,"最新ページが短く返った時に、持っている行が減りました（" + held + " → " + workspace.Messages.Count + "）。");
+    Check(Math.Abs(Top() - start) < 2,"最新ページが短く返った時に、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
+    // 2. it comes back whole with three new rows
+    server = kept; server.AddRange(Enumerable.Range(60, 3).Select(index => new TimelineMessage { Id = "r" + index.ToString("D3"), At = time.AddMinutes(index), Direction = "incoming", Message = "新しい行 " + index }));
+    await workspace.RefreshManagementAsync(); await Layout(); await Task.Delay(100); await Layout();
+    Check(workspace.Messages.Count == held + 3,"最新ページが戻って、新しい行が足されません（" + workspace.Messages.Count + "）。");
+    Check(Math.Abs(Top() - start) < 2,"最新ページが戻って新しい行が届いた時に、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
+    window.Close(); Console.WriteLine("最新ページの取り直しで見ている行が動かない確認に成功しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }
