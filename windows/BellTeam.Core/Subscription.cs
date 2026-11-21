@@ -55,8 +55,8 @@ public static class SubscriptionText
 {
     // docs/billing-client-contract.md (a358): Windows and Linux list Stripe first, then the other two stores, as equal rows; only Stripe can be bought here.
     public static readonly string[] Stores = ["Stripe", "App Store", "Google Play"];
-    // a485/a486 7e (Owner 2026-11-22): shown instead of the native app when the server's entitlement is "none"; there is no browser version.
-    public const string Paywall = "このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。";
+    // a485 7e (Tronie ruling): shown instead of the native app when the server's entitlement is "none"; the Web version is never gated.
+    public const string Paywall = "このアプリは購読が必要です。無料で使うならブラウザから";
     public const string Start = "購入";
     public const string Price = "月980円（税込）";
     public const string FreeMonth = "最初の1か月無料";

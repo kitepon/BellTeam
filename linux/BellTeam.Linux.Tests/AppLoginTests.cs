@@ -145,7 +145,7 @@ public sealed class AppLoginTests
     {
         int rechecked = 0, changed = 0; var view = new PaywallView(() => rechecked++, () => changed++);
         var window = new Window { Content = view }; window.Show();
-        Assert.Contains("このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。", Texts(view)); Assert.DoesNotContain("ブラウザーで開く", Texts(view));
+        Assert.Contains(SubscriptionText.Paywall, Texts(view)); Assert.DoesNotContain("ブラウザーで開く", Texts(view));
         Click(view, "再確認"); Click(view, "接続先を変更"); Assert.Equal((1, 1), (rechecked, changed));
         window.Close(); await Task.CompletedTask;
     });

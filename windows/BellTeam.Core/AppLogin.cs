@@ -48,7 +48,7 @@ public sealed record SessionList { public SessionEntry[] Sessions { get; init; }
 public static class SessionText
 {
     // 7e: the "add an app" screen, said once under the code.
-    public const string AddAppNote = "この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったものは、このアプリが終わると一緒に終わります。";
+    public const string AddAppNote = "この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。";
     public const string RequestHint = "自分で始めたログインだけ許可してください。";
     public const string CodeLimit = "出したコードが残っています。使うか、切れるまで待ってから、もう一度出してください。";
     public static string RequestTitle(LoginRequest request) => request.Kind + "からのログイン要求";
