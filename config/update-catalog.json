@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-20T23:35:08Z",
-  "expiresAt": "2026-11-27T23:35:08Z",
+  "publishedAt": "2026-11-21T00:50:22Z",
+  "expiresAt": "2026-11-28T00:50:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
-      "versionId": "327eabd6530ae49eeca2f2819d14422fc8236aa5e4cb33a9165d3b73366f81be",
+      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
+      "versionId": "43cc2d88d8c31f0d39c1f5454b03cc8ac63acd37c1024a31739fb92cec97ec57",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-amd64.tar.gz",
-          "bytes": 3996982,
-          "sha256": "327eabd6530ae49eeca2f2819d14422fc8236aa5e4cb33a9165d3b73366f81be"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-amd64.tar.gz",
+          "bytes": 3996962,
+          "sha256": "43cc2d88d8c31f0d39c1f5454b03cc8ac63acd37c1024a31739fb92cec97ec57"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11228,
-          "sha256": "6960068018ec811f748d396648c4ec4ee8da2194df7abf77cdace5a14d6c9500"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "f53551f7d9b97d07a62de851d26daacee7aa47bb5045d45fe59d6679faca546c"
         },
-        "signerCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2"
+        "signerCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "オーナーが直接送ったターンでも、機械の席の答えを「1回だけの答え」の印つきで保存します。Webで答えが二重に出なくなります。"
+        "すべてのClaudeの席を、機械の口（claude-machine）で起動するよう頼みます。Aiterm 0.70.85未満の遠隔端末は、お知らせを出して従来の方法で起動するので、止まりません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
-      "versionId": "33b73c32485b5c45e565f9e8ac5f00e5bb1b9084da4e6735d734746d00a75153",
+      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
+      "versionId": "42ba9ba12c8bc3e6e91ea52dc54cfdea545999636dfecb237b524663f2f50e41",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-arm64.tar.gz",
-          "bytes": 3996982,
-          "sha256": "33b73c32485b5c45e565f9e8ac5f00e5bb1b9084da4e6735d734746d00a75153"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-arm64.tar.gz",
+          "bytes": 3996962,
+          "sha256": "42ba9ba12c8bc3e6e91ea52dc54cfdea545999636dfecb237b524663f2f50e41"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T233449Z/execution-3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10985,
-          "sha256": "8beb82386e07378cb4a935e89411fae7e77ab19c5720e098273e0f22bc0db0b6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "7d2e22b54becdbcf0692e935db2b21a25659e9ed5d78895ed5996cd3102978cb"
         },
-        "signerCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2"
+        "signerCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "オーナーが直接送ったターンでも、機械の席の答えを「1回だけの答え」の印つきで保存します。Webで答えが二重に出なくなります。"
+        "すべてのClaudeの席を、機械の口（claude-machine）で起動するよう頼みます。Aiterm 0.70.85未満の遠隔端末は、お知らせを出して従来の方法で起動するので、止まりません。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
-      "versionId": "sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98",
+      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
+      "versionId": "sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の席の答えを渡す前に、答えを1回だけ出す印を付ける呼び出しを実行モジュールが行うようにしました。オーナー直送のターンでも答えが二重に出ません。"
+        "すべてのClaudeの席の起動で、機械の口（claude-machine）を使うよう実行モジュールが頼みます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3ffa38cf0b3e825af3a1619c0ee4b059e72ee4f2",
-      "versionId": "sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98",
+      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
+      "versionId": "sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cff31d289d8d4ca2e8bc93909c4c86d777f8482edb1cd4cf3d76dd0bef4ecd98"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3c921c5d9f36ad98cbbec866d96836642550fc090c5e20aeea55c2e20d68eaec"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の席の答えを渡す前に、答えを1回だけ出す印を付ける呼び出しを実行モジュールが行うようにしました。オーナー直送のターンでも答えが二重に出ません。"
+        "すべてのClaudeの席の起動で、機械の口（claude-machine）を使うよう実行モジュールが頼みます。"
       ]
     },
     {
