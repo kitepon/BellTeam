@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T14:55:42Z",
-  "expiresAt": "2026-11-28T14:55:42Z",
+  "publishedAt": "2026-11-21T15:09:49Z",
+  "expiresAt": "2026-11-28T15:09:49Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "0e3c6b1d601d47e2c787824fc21d0d661ba0474d",
-      "versionId": "beda3752e809be0ab25cc546c335b7109c9070eb77acc4a41b3c310f4c32f2ee",
+      "sourceCommit": "aef4a9c82b221d34e55f6bc81927577ef8bf3914",
+      "versionId": "660cd2284ca678033685f3cb7208c22cfec1613f68f150cb4b54aeb5d3812545",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093859Z/usage-0e3c6b1d601d47e2c787824fc21d0d661ba0474d-linux-amd64.tar.gz",
-          "bytes": 91853,
-          "sha256": "beda3752e809be0ab25cc546c335b7109c9070eb77acc4a41b3c310f4c32f2ee"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T150931Z/usage-aef4a9c82b221d34e55f6bc81927577ef8bf3914-linux-amd64.tar.gz",
+          "bytes": 92086,
+          "sha256": "660cd2284ca678033685f3cb7208c22cfec1613f68f150cb4b54aeb5d3812545"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093859Z/usage-0e3c6b1d601d47e2c787824fc21d0d661ba0474d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10952,
-          "sha256": "1b10193d4e0d881fcef2e2c306e07ae828d172f38b27fb8484f53c8e43a2b5ea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T150931Z/usage-aef4a9c82b221d34e55f6bc81927577ef8bf3914-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10811,
+          "sha256": "0b2b1c00ff52ad67b2c6a226e6890a7be7e069f560571e6530fd9f3777a5a5d4"
         },
-        "signerCommit": "0e3c6b1d601d47e2c787824fc21d0d661ba0474d"
+        "signerCommit": "aef4a9c82b221d34e55f6bc81927577ef8bf3914"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -49,13 +49,13 @@
         }
       },
       "changes": [
-        "設定に「AIの考えの表示」を足します。初期値は表示しないです。"
+        "購読の状態に、サーバー自身の契約の状態を表す項目を足します。まだアプリは読まないので、見える変化はありません。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "0e3c6b1d601d47e2c787824fc21d0d661ba0474d",
-      "versionId": "7d2f86f131d82e88e98e0ff706fb98acb3934bb8d7c23b41544e8d09e968d8a2",
+      "sourceCommit": "aef4a9c82b221d34e55f6bc81927577ef8bf3914",
+      "versionId": "92bd3b9bd7d50b6a854e8ac363638f5eec2bf1d4e9ba500ce609c95795fcbfbb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -63,16 +63,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093859Z/usage-0e3c6b1d601d47e2c787824fc21d0d661ba0474d-linux-arm64.tar.gz",
-          "bytes": 91853,
-          "sha256": "7d2f86f131d82e88e98e0ff706fb98acb3934bb8d7c23b41544e8d09e968d8a2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T150931Z/usage-aef4a9c82b221d34e55f6bc81927577ef8bf3914-linux-arm64.tar.gz",
+          "bytes": 92086,
+          "sha256": "92bd3b9bd7d50b6a854e8ac363638f5eec2bf1d4e9ba500ce609c95795fcbfbb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T093859Z/usage-0e3c6b1d601d47e2c787824fc21d0d661ba0474d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10870,
-          "sha256": "041bcb636694a9cbcbc120084747b3a4bb6cc40b93b17a80846eb52290be7da2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T150931Z/usage-aef4a9c82b221d34e55f6bc81927577ef8bf3914-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10858,
+          "sha256": "d1be516f036c5bcc3157b9394e50b3a53ad2635a149988cf26c20d3caab8dcd1"
         },
-        "signerCommit": "0e3c6b1d601d47e2c787824fc21d0d661ba0474d"
+        "signerCommit": "aef4a9c82b221d34e55f6bc81927577ef8bf3914"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -98,7 +98,7 @@
         }
       },
       "changes": [
-        "設定に「AIの考えの表示」を足します。初期値は表示しないです。"
+        "購読の状態に、サーバー自身の契約の状態を表す項目を足します。まだアプリは読まないので、見える変化はありません。"
       ]
     },
     {
