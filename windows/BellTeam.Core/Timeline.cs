@@ -88,6 +88,8 @@ public static class Timeline
         messages.SelectMany(m => m.MachineEvent is { Folded.Length: > 0 } entry ? new[] { m with { MachineEvent = entry with { Folded = [] } } }.Concat(entry.Folded) : [m]);
     // Reply (conversation reply.md "What can be quoted"): conversation rows and a machine seat's bubble row (machine-stream.md, a471-reply-forward-broken) only; a pending echo, a request card and a Bot-to-Bot row are not.
     public static bool IsQuotable(TimelineMessage message) => !PendingSend.IsLocal(message.Id) && message.SecretRequest is null && message.OwnerQuestion is null && (message.Kind is null or "message" or "interim" or "schedule" || message.MachineEvent is { Bubble: true });
+    // a471-thinking-bubble (machine-stream.md "Thinking is drawn as a bubble"): a shown thinking row with text is drawn in the answer's incoming bubble, its whole text lighter and slanted; copy only (it is no reply, quote or forward row).
+    public static bool IsThinkingBubble(TimelineMessage message) => message.MachineEvent is { View: "thinking", Text.Length: > 0, IsFolded: false };
     // Forward (forward.md "What can be forwarded"): the same rows as a reply plus Bot-to-Bot rows.
     public static bool IsForwardable(TimelineMessage message) => IsQuotable(message) || !PendingSend.IsLocal(message.Id) && message.Kind == "peer";
     // The comment and the content of a forwarded or shared row; a row without origin (or with an unknown kind) is all comment-less content.
