@@ -283,7 +283,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function renderTail(items) {
     const renderedIds = new Set(items.map(item => item.id))
     const tail = state.timelineQueue.filter(entry => !renderedIds.has(entry.groupId)).map(renderQueuedItem)
-    if (target?.type === 'bot' && state.timelineQueue.some(entry => entry.status === 'running')) tail.push(renderThinking(target.id))
+    const running = state.timelineQueue.find(entry => entry.status === 'running')
+    if (target?.type === 'bot' && running) tail.push(renderThinking(target.id, running.workingWord))
     timelineTail.replaceChildren(...tail)
     if (!state.opening && !state.historyError && !state.timelineMap.size && !tail.length) timelineTail.append(Object.assign(document.createElement('p'), { className: 'timeline-empty', textContent: 'まだ会話がありません。メッセージを送ってみてください。' }))
     // A failed read says so in place, with its own retry (user-paths.md 3.1 CError).
@@ -670,7 +671,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       const label = document.createElement('span')
       const failed = item.status === 'failed'
       // W34: one plain line per member; a working one is animated and has a labelled 停止.
-      label.textContent = failed ? `${item.botName}に届きませんでした` : item.status === 'queued' ? `${item.botName}への送信待ち` : `${item.botName}が作業中`
+      label.textContent = failed ? `${item.botName}に届きませんでした` : item.status === 'queued' ? `${item.botName}への送信待ち` : `${item.botName}が作業中${workingWord(item)}`
       if (!failed && item.status !== 'queued') label.className = 'queue-working'
       row.append(label)
       if (failed) {
@@ -761,7 +762,10 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     return messageImages.load(items, onLoaded)
   }
 
-  function renderThinking(botId) {
+  // a471-spinner-words: the server picks the word (conversation/working-word.md); an older server sends none and today's indicator stays.
+  const workingWord = item => typeof item.workingWord === 'string' && item.workingWord ? `・${item.workingWord}` : ''
+
+  function renderThinking(botId, word) {
     const wrapper = document.createElement('div')
     wrapper.className = 'message incoming thinking-message'
     wrapper.dataset.botId = botId
@@ -769,7 +773,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     wrapper.setAttribute('aria-label', `${target?.name ?? 'Bot'}が回答を作成中`)
     const bubble = document.createElement('div')
     bubble.className = 'message-bubble thinking-bubble'
-    bubble.innerHTML = '<i></i><i></i><i></i>'
+    if (typeof word === 'string' && word) bubble.append(Object.assign(document.createElement('span'), { className: 'queue-working', textContent: word }))
+    else bubble.innerHTML = '<i></i><i></i><i></i>'
     wrapper.append(bubble)
     return wrapper
   }

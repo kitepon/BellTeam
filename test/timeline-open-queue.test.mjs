@@ -590,3 +590,17 @@ test('turn answer: a words row with bubble:true is an ordinary incoming bubble w
   assert.match(text.innerHTML, /<strong>答え<\/strong>/)
   assert.match(f.text(), /テスト席/)
 })
+
+test('a471-spinner-words: running rows draw the server word in the queue line and the thinking bubble; no word keeps today\'s indicator', async t => {
+  const f = fixture(t)
+  await f.open('a')
+  f.queues[0].resolve({ items: [{ botId: 'a', botName: 'A', groupId: 'q', status: 'running', workingWord: 'Mulling' }, { botId: 'b', botName: 'B', groupId: 'r', status: 'queued' }] }); await settle()
+  assert.match(f.text(), /Aが作業中・Mulling/)
+  assert.doesNotMatch(f.text(), /Bが作業中/)
+  const words = node => [...(node.className === 'queue-working' && node.textContent === 'Mulling' ? [node] : []), ...node.children.flatMap(words)]
+  assert.equal(words(f.timeline).length, 1) // the queue line has the word inside its text; the thinking bubble has its own span
+  await f.view.refresh(); f.queues[1].resolve({ items: [{ botId: 'a', botName: 'A', groupId: 'q', status: 'running' }] }); await settle()
+  assert.match(f.text(), /Aが作業中/); assert.doesNotMatch(f.text(), /・/)
+  const bubbles = node => [...(node.innerHTML === '<i></i><i></i><i></i>' ? [node] : []), ...node.children.flatMap(bubbles)]
+  assert.equal(bubbles(f.timeline).length, 1)
+})
