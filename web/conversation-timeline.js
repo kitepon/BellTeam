@@ -329,6 +329,11 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineTail)
 
+  // A bubble row as the message the actions read: its own id, the whole machine_event.text (the row's message is only the first line).
+  const bubbleMessage = item => ({ ...item, kind: 'message', direction: 'incoming', machine_event: undefined,
+    sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '', message: item.machine_event.text || item.message })
+  const isBubbleRow = item => item?.kind === 'machine_event' && item.machine_event?.view === 'words' && item.machine_event.bubble === true
+
   function renderItem(item, queued = []) {
     const element = renderItemElement(item, queued)
     element.dataset.id = item.id
@@ -365,9 +370,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (item.kind === 'machine_event' && item.machine_event) {
       const event = item.machine_event
       // The body marks the last words of a finished turn with bubble:true; it is read, never decided here (machine-stream.md "Turn answer bubble").
-      // Drawn as an ordinary incoming message; no id, so reply / forward / copy (saved-message ids) stay off.
-      if (event.view === 'words' && event.bubble === true) return renderItemElement({ ...item, kind: 'message', direction: 'incoming', id: undefined, machine_event: undefined,
-        sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '', message: event.text || item.message })
+      // Drawn as an ordinary incoming message with the row's own id me-<seq>-<part>, so reply / quote / forward / copy work (machine-stream.md "Reply, forward, quote and copy of a bubble").
+      if (event.view === 'words' && event.bubble === true) return renderItemElement(bubbleMessage(item))
       const token = state.timelineToken
       return renderMachineEvent(item, {
         api, sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '',
@@ -594,7 +598,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function quoteOfSelection(selection) {
     const range = selection.getRangeAt(0), holder = holderOf(range.startContainer)
     if (!holder || holder !== holderOf(range.endContainer) || !timelineItems.contains(holder)) return null
-    const item = state.timelineMap.get(holder.closest('[data-id]')?.dataset.id)
+    const row = state.timelineMap.get(holder.closest('[data-id]')?.dataset.id)
+    const item = isBubbleRow(row) ? bubbleMessage(row) : row
     const text = selection.toString().trim().slice(0, 10000) // reply.md: 1..10000 characters; start is omitted (the bubble shows rendered markup)
     if (!item || !text.trim()) return null
     return { ...replySender(item), text: text.replace(/\s+/gu, ' ').trim(), quote: { text } }
