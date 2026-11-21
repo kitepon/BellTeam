@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T03:31:42Z",
-  "expiresAt": "2026-11-28T03:31:42Z",
+  "publishedAt": "2026-11-21T03:50:13Z",
+  "expiresAt": "2026-11-28T03:50:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3",
-      "versionId": "29599d0f4029c1ca504ddf3be370cee184044db4e9ae549a476acb2888572e77",
+      "sourceCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11",
+      "versionId": "d956703f9ce87d0e7404999cb8f614860cf24299af223ce2120830e8b802fe02",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-amd64.tar.gz",
-          "bytes": 5509618,
-          "sha256": "29599d0f4029c1ca504ddf3be370cee184044db4e9ae549a476acb2888572e77"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-amd64.tar.gz",
+          "bytes": 5510524,
+          "sha256": "d956703f9ce87d0e7404999cb8f614860cf24299af223ce2120830e8b802fe02"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11205,
-          "sha256": "38582ab9975e0784f26892774e5a9435df7e6abd55c26a63d0620434be611add"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10633,
+          "sha256": "70d6036d550ff160eda79e50dcc8b6cdce85ebbd2683d19f9ef40ebf2c5e0734"
         },
-        "signerCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3"
+        "signerCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの最初の画面と先読みの余白を、行数でなく実際に描いた高さで決めます。考えた内容を答えの吹き出しの中に出します。返信の引用の行も同じ直しを使います。"
+        "スクロール中に、見ている行が動かないようにします。古いページを読み込んだときも、上の行が変わったときも、見ている場所は動きません。更新の読み出しが最初の読み出しと重なっても、画面を埋めます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3",
-      "versionId": "6c6113a8279428eceab82b1deb6ee77524b452f16e1419a9dfe3fccbd5c9a826",
+      "sourceCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11",
+      "versionId": "58153fa1b2d4884e2e35a7b06a6927287fcb84e007ca11d3ecf61dafb5d1ba14",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-arm64.tar.gz",
-          "bytes": 5509618,
-          "sha256": "6c6113a8279428eceab82b1deb6ee77524b452f16e1419a9dfe3fccbd5c9a826"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-arm64.tar.gz",
+          "bytes": 5510524,
+          "sha256": "58153fa1b2d4884e2e35a7b06a6927287fcb84e007ca11d3ecf61dafb5d1ba14"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11244,
-          "sha256": "9a3801ae7a8eeff8c29fa7f0a2ade13e2118c7dbeb720f2cf64b347f19db221d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T034801Z/web-gateway-b71fa8baedcd50bee4f48e215833608ac5895e11-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10833,
+          "sha256": "db2370c3f6ae803e1cf9da5dc68f8b601c43074a09f4d8cbd3e5ad4c33dc7c82"
         },
-        "signerCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3"
+        "signerCommit": "b71fa8baedcd50bee4f48e215833608ac5895e11"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの最初の画面と先読みの余白を、行数でなく実際に描いた高さで決めます。考えた内容を答えの吹き出しの中に出します。返信の引用の行も同じ直しを使います。"
+        "スクロール中に、見ている行が動かないようにします。古いページを読み込んだときも、上の行が変わったときも、見ている場所は動きません。更新の読み出しが最初の読み出しと重なっても、画面を埋めます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ead4339d2977eb63848180b7408cda1a66d71d41",
-      "versionId": "sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c",
+      "sourceCommit": "e71d1188bc162a7ffa6a4260e378ff1f906bba17",
+      "versionId": "sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の席の吹き出しへの返信・転送で、元の文が「見つからない」と席に伝わる不具合を直します。"
+        "種類の分からない折りたたみ行（たとえば command_lifecycle）の1行ラベルに、生のJSONを出さないようにします。生の行は machine_event.text に残ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ead4339d2977eb63848180b7408cda1a66d71d41",
-      "versionId": "sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c",
+      "sourceCommit": "e71d1188bc162a7ffa6a4260e378ff1f906bba17",
+      "versionId": "sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b32eebccbfd3bac13da2976fa18d35afed3bfd1c0fc1d982bf6eacf742c5567c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:78cca8327ee277c3f38c34db557bca06a1dee4392fcce73c0cf31fdca1e26c25"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機械の席の吹き出しへの返信・転送で、元の文が「見つからない」と席に伝わる不具合を直します。"
+        "種類の分からない折りたたみ行（たとえば command_lifecycle）の1行ラベルに、生のJSONを出さないようにします。生の行は machine_event.text に残ります。"
       ]
     },
     {
