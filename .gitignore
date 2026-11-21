@@ -13,6 +13,7 @@ linux/**/bin/
 linux/**/obj/
 android/**/bin/
 android/**/obj/
+android/packages-local/
 linux/artifacts/
 ios/BellBot/build/
 ios/BellBot/DerivedData/

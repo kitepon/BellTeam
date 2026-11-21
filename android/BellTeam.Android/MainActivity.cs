@@ -19,6 +19,6 @@ public class MainActivity : AvaloniaMainActivity
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu && CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications) != Permission.Granted) RequestPermissions([global::Android.Manifest.Permission.PostNotifications], 1);
     }
     protected override void OnNewIntent(Intent? intent) { base.OnNewIntent(intent); PushRouter.Accept(intent); }
-    protected override void OnResume() { base.OnResume(); PushRouter.Foreground = true; }
+    protected override void OnResume() { base.OnResume(); PushRouter.Foreground = true; _ = AccountStore.StartAsync(); }
     protected override void OnPause() { PushRouter.Foreground = false; base.OnPause(); }
 }

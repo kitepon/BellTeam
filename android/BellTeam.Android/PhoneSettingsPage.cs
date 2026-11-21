@@ -35,6 +35,8 @@ public sealed class PhoneSettingsPage : ScrollViewer
         }
         column.Children.Add(Card(connection));
 
+        column.Children.Add(Card(new AccountCard(token)));
+
         var billing = new StackPanel();
         billing.Children.Add(CardTitle(SettingsIcons.Card, "利用と課金", 17));
         billing.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));

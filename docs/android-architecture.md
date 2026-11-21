@@ -15,7 +15,9 @@ flowchart LR
   ws --> core
   core -->|HTTP API・SSE| integration[BellTeam共通入口<br/>モリー]
   core --> local[アプリの私有領域の設定<br/>settings.json]
-  billing -->|購入トークン| core
+  shell --> account[AccountCard・AccountStore<br/>Googleサインイン・購入・再確認・ほかの端末を止める・サインアウト<br/>a485 契約1.20のA部]
+  account -->|サインイン・パス・Play購入| lib[login-billing 0.9.1 android部<br/>Kitepon.LoginBilling.Android]
+  lib -->|パスは運営のWorkerのoriginだけ| worker[運営のWorker<br/>product.jsonのloginBillingWorkerUrl]
   shell --> access[Accessログイン<br/>WebView・CookieManager]
   access -->|CF_Authorization| core
   shell --> android[Android入口<br/>MainActivity・AvaloniaAndroidApplication<br/>戻る・安全領域・平文http許可]
@@ -63,7 +65,7 @@ flowchart TD
 ## 現在の範囲と順序
 
 1. 済：接続先の入力・起動の各画面（Mac版と同じ。キーボードの上に持ち上げ、入力欄を表示位置へ送る）・会話一覧（アバター・在席・要約）・会話（履歴・返信/転送/コピーの印・送信）・戻る・設定の頁（接続・利用と課金・アプリの版）。エミュレーター（API 36）で本番サーバーに接続して確認。
-2. 課金：このリリースでAndroid自身のGoogle Play購入と購入トークンの送信は無い（a485。Workerが受領書での確認をやめる）。「利用と課金」はLinuxと同じ`PurchaseEntry`が契約の状態と「iPhone・iPad・Macで購入し、このサーバーをログインさせてください。」を出す。購入はライブラリのandroid部（Kotlin）を.NETから使う次の段階（ミント裁定待ち）。
+2. 課金（a485、契約1.20。**0.9.1は開発版で、これで作ったものは出荷しない**。専用ブランチ`neon/a485-lb-android-090`で、ミントの受け入れ後にmainへ入れる）：設定の頁に`AccountCard`を足し、Googleサインイン・購入（`ProductDetailsAsync`→`PurchaseAsync`）・再確認・ほかの端末を止める・サインアウト・別のアカウントで買った印を出す。`AccountStore`が`LoginBilling`を1つ持ち、起動時と前面に戻るたびに`StartAsync`を呼ぶ。接続先（運営のWorker）は`product.json`の`loginBillingWorkerUrl`で、無い間は店の画面は動かさない（Appleの設計と同じ）。パスは表示・ログ・送信をしない。パッケージは`android/fetch-login-billing.sh`が版とsha256を確かめて`android/packages-local`へ置く。契約のB部（AndroidでのAppleサインイン、署名済み端末の画面、QRで契約を受ける・承認する、サーバーへの所有証明）はプリカのclient release（t4k）とミントのt3hが出てから配線する（画面は置かない）。旧記述：このリリースでAndroid自身のGoogle Play購入と購入トークンの送信は無い（a485。Workerが受領書での確認をやめる）。「利用と課金」はLinuxと同じ`PurchaseEntry`が契約の状態と「iPhone・iPad・Macで購入し、このサーバーをログインさせてください。」を出す。購入はライブラリのandroid部（Kotlin）を.NETから使う次の段階（ミント裁定待ち）。
 3. 次：通知（サーバー側のpush＝FCMの対応が要る）。Avaloniaの`Window`はAndroidで作れない（`NotSupportedException`）ため、それらの画面は窓の継承を外した頁に分けてから載せる。
 4. 配布：署名鍵・AABのbuild・Google Play Consoleの内部テストへのアップロード（Play Consoleの操作はオーナーのアカウントが要るため、トロニー経由で申請する）。
 
