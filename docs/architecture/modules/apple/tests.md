@@ -208,6 +208,13 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testAccountUnavailableReasonIsShown](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L409) | アカウントのfast利用不能理由を表示用に返す |
 | [testMissingDefaultModelCannotBeEnabled](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L416) | 既定モデルが一覧に無ければfastを許可しない |
 
+### BotPinTests.swift
+
+| 試験 | 確かめること |
+| --- | --- |
+| testPinnedFirstOrdersByPinTimeThenIdAndKeepsTheRest | ピン済みを`pinnedAt`昇順・同時刻は`id`で先頭へ、残りは元の順（a480）。`isPinned`は`pinnedAt`の有無 |
+| testBodyWithoutPinsIsUnchanged | `pinnedAt`の無い（旧本体の）名簿は並びを変えない |
+
 ### BotStopTests.swift
 
 対象：個別停止。補助型も同じファイルを読んだ。
@@ -1031,6 +1038,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | --- | --- |
 | testTerminalListAddCheckAndHostKeyConfirm | 一覧の宛先・鍵の状態（`op://`無し）、つながる/眠っている/ホスト鍵変化/信用なし/鍵なしの確認結果、指紋の誤りは409で信用せず、端末で読んだ指紋だけを`confirmHostKey`で送る、追加の検査とbody（鍵の項目なし）、編集でIDを変えない、確認後の削除、設定の項目「端末」 |
 | testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Passwordが上・既定、sudoは「1Passwordから選ぶ」の一覧、題は端末と鍵の種類）、一覧から選んで登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
+| testPinningAMemberMovesItToTheTop | 一覧の下の方のメンバーを長押し→「ピン留めする」→`PATCH {pinned:true}`が1回だけ送られ（`/test/proof`の`pins`）、ピンの印が出て、そのメンバーが一番上へ移る（a480） |
 | testFieldlessFeatureIsOneSwitch | `fields`が空の`thinkingDisplay`のeditorは「有効にする」の切替（初期はオフ）と保存だけで、「設定」の見出しも「必要な項目を登録」の案内も出さない（a479） |
 | testSudoPickerListsPasswordsSearchesAndFallsBack | sudoカードの一覧（`/password`の5件。旧本体がSSH鍵も返す`picker=sshkeys`でも鍵は数えない）、保管庫・名前で絞る、選択が見えなくなったら外れる、合わなければ「「…」に合うパスワードがありません」、選んで登録→submitは`source`/`reference`だけ。SSHカードにも検索欄。一覧404はパスワード入力だけ＋一行、503は「読めませんでした」と入力の選択を残す |
 | testShotsMemberConfigurationStatus | 画面写真だけ：メンバー編集の適用状態の1行（pending・accepted・failed。DEBUGの`-bellbot-preview-configuration <state>`が最初のメンバーへ入れる。記録なしは稼働中の既定文を確かめる） |

@@ -66,7 +66,7 @@ function reset() {
     ],
     requests: new Map(),
     createdFolders: new Set(),
-    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0, trusts: [], authorizes: [], folderChecks: [], folderReads: [], folderCreates: [] },
+    proof: { pins: [], terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0, trusts: [], authorizes: [], folderChecks: [], folderReads: [], folderCreates: [] },
     folderTree: new Map(Object.entries(FOLDERS).map(([key, names]) => [key, [...names]])),
   }
 }
@@ -190,7 +190,9 @@ const server = createServer(async (request, response) => {
         { terminalId: 'closed-mac', host: '192.168.1.41', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'secret', hostTrust: trust('closed-mac'), revision: 1, maintenance: null })
     return send(200, state.mode)
   }
-  const bots = () => state.bots.map(bot => {
+  // a480: pinned members first by pinnedAt (the members contract), the rest in stored order.
+  const pinFirst = list => [...list.filter(bot => bot.pinnedAt).sort((a, b) => a.pinnedAt.localeCompare(b.pinnedAt) || a.id.localeCompare(b.id)), ...list.filter(bot => !bot.pinnedAt)]
+  const bots = () => pinFirst(state.bots).map(bot => {
     if (state.mode.members === 'new') return bot
     const { terminalId, projectRoot, ...old } = bot
     return old
@@ -220,6 +222,11 @@ const server = createServer(async (request, response) => {
     const input = await body(request)
     const bot = state.bots.find(item => item.id === botMatch[1])
     if (!bot) return fail(404, 'BOT_NOT_FOUND')
+    if (typeof input.pinned === 'boolean') {
+      state.proof.pins.push({ id: bot.id, pinned: input.pinned })
+      bot.pinnedAt = input.pinned ? (bot.pinnedAt ?? new Date().toISOString()) : null
+      return send(200, { ok: true, bot })
+    }
     // Same rules as bot-registry normalizeRemoteBinding; a body without the fields keeps the stored binding.
     const terminalId = input.terminalId ?? bot.terminalId, projectRoot = input.projectRoot ?? bot.projectRoot
     let code = null

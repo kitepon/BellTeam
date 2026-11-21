@@ -87,6 +87,8 @@ final class AppStore: ObservableObject {
     var routingEnabled: Bool { featureSettings.first { $0.id == "routing" }?.status == "enabled" }
     var notificationsEnabled: Bool { featureSettings.first { $0.id == "notifications" }?.status == "enabled" }
     @Published var bots: [Bot] = []
+    /// a480: why the last pin/unpin failed; the lists show it in an alert.
+    @Published var pinError: String?
     @Published private(set) var pendingBotDeletionIDs: Set<String> = []
     @Published var rooms: [Room] = []
     @Published var owner: Owner?
@@ -632,6 +634,20 @@ final class AppStore: ObservableObject {
                         representativeId: saved.representativeId, memberIds: saved.memberIds,
                         avatar: saved.avatar, recent: previous?.recent)
         rooms = (rooms.filter { $0.id != saved.id } + [room]).sorted { $0.id < $1.id }
+    }
+
+    /// a480: pin or unpin a member (PATCH {pinned}, idempotent), then re-read the list so every screen takes the server's order.
+    func setPinned(_ bot: Bot, _ pinned: Bool) async {
+        let path = "/api/bots/\(bot.id)"
+        do {
+            let _: APIAcknowledgement = try await api.patch(path, body: ["pinned": pinned])
+            await refreshFromView(origin: .memberSave, refreshSubscription: false)
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            requireLogin(for: error)
+        } catch {
+            pinError = "\(bot.displayName)のピン留めを変えられませんでした。\(BellAPIError.operationFailureMessage(error))"
+            api.diagnostics.report(error, path: path, method: "PATCH", observation: .write)
+        }
     }
 
     // DELETEの202は受付だけ。成功した一覧読取で消失を確認してから画面を片付ける。

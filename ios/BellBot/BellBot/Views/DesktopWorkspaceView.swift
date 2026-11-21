@@ -20,7 +20,7 @@ struct DesktopWorkspaceView: View {
     private var selection: ChatTarget? { store.chatPath.last }
     private var visibleBots: [Bot] {
         store.bots.filter { search.isEmpty || $0.displayName.localizedCaseInsensitiveContains(search) }
-            .sorted { ($0.recent?.at ?? "") > ($1.recent?.at ?? "") }
+            .sorted { ($0.recent?.at ?? "") > ($1.recent?.at ?? "") }.pinnedFirst()
     }
     private var visibleRooms: [Room] {
         store.rooms.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
@@ -52,6 +52,7 @@ struct DesktopWorkspaceView: View {
         .background(BellTheme.canvas)
         .sheet(isPresented: $creatingBot) { BotEditor(initial: nil).environmentObject(store).bellEditorSheet() }
         .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store).bellEditorSheet() }
+        .pinErrorAlert(store)
         #if DEBUG && targetEnvironment(macCatalyst)
         .onAppear {
             // -bellbot-open-work-graph は試料データにせず、実サーバーのまま窓を開く（色・画像の確認用）。
@@ -201,7 +202,8 @@ struct DesktopWorkspaceView: View {
                         row(target: .bot(bot.id), name: bot.displayName, subtitle: CurrentWork.label(bot.currentWork),
                             avatar: bot.avatar, color: BellTheme.accent(bot.color), online: bot.online,
                             working: bot.isWorking, fastMode: bot.fastMode,
-                            seatLaunch: bot.seatLaunch?.line)
+                            seatLaunch: bot.seatLaunch?.line, pinned: bot.isPinned)
+                        .botPinMenu(bot)
                     }
                     if visibleBots.isEmpty && visibleRooms.isEmpty { Text("見つかりませんでした").font(.footnote).padding() }
                 }
@@ -257,14 +259,15 @@ struct DesktopWorkspaceView: View {
     }
 
     private func row(target: ChatTarget, name: String, subtitle: String, avatar: String, color: Color,
-                     online: Bool, working: Bool = false, fastMode: Bool = false, seatLaunch: String? = nil) -> some View {
+                     online: Bool, working: Bool = false, fastMode: Bool = false, seatLaunch: String? = nil,
+                     pinned: Bool = false) -> some View {
         Button {
             store.selectedTab = 0
             store.chatPath = [target]
             compactColumn = .detail
         } label: {
             SidebarRowLabel(name: name, subtitle: subtitle, avatar: avatar, color: color, isRoom: target.isRoom,
-                            online: online, working: working, fastMode: fastMode, seatLaunch: seatLaunch,
+                            online: online, working: working, fastMode: fastMode, seatLaunch: seatLaunch, pinned: pinned,
                             selected: selection == target && store.selectedTab == 0, metrics: .current)
             .contentShape(Rectangle())
         }
@@ -447,6 +450,7 @@ struct SidebarRowLabel: View {
     var working = false
     var fastMode = false
     var seatLaunch: String?
+    var pinned = false
     var selected = false
     var metrics: SidebarRowMetrics = .current
 
@@ -460,6 +464,7 @@ struct SidebarRowLabel: View {
                 HStack(spacing: 6) {
                     Text(name).font(.system(size: metrics.nameFont, weight: .semibold)).lineLimit(1)
                     if fastMode { BotFastModeBadge() }
+                    if pinned { PinMark() }
                 }
                 // Members show their work summary on up to 2 lines; rooms keep a 1-line preview.
                 Text(subtitle).font(.system(size: metrics.detailFont)).foregroundStyle(BellTheme.muted)

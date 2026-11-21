@@ -11,8 +11,8 @@ flowchart TD
   WideInput["DesktopWorkspaceView.sidebar<br/>@State search・FocusState searching"] --> WideFilter["同じ2フィールドの包含検索"]
   Models --> PhoneFilter
   Models --> WideFilter
-  PhoneFilter --> PhoneOrder["recentFirst<br/>日時をparse・同日時は元の順"]
-  WideFilter --> WideOrder["recent.atの文字列降順"]
+  PhoneFilter --> PhoneOrder["recentFirst<br/>日時をparse・同日時は元の順<br/>→ pinnedFirst（Botだけ）"]
+  WideFilter --> WideOrder["recent.atの文字列降順<br/>→ pinnedFirst（Botだけ）"]
   PhoneOrder --> PhoneRows["RoomCard / BotRow"]
   WideOrder --> WideRows["row<br/>引数subtitleを表示"]
   Models -->|"Bot.seatLaunch.line<br/>(null・欠落・不正は無し)"| Notice["SeatLaunchLine<br/>BotRow・SidebarRowLabel・会話ヘッダー"]
@@ -29,13 +29,14 @@ flowchart TD
 | iPad/MacのRoom行 | rowへ`name`と`recent.preview ?? purpose`を渡す。purpose空時の固定文は無い |
 | RecentMessage.preview | messageの前後空白・改行を除き、空なら「画像」、本文の改行は半角空白へ置換。副題専用の追加HTTPなし |
 | 起動できない理由（`seatLaunch`） | `GET /api/bots`のBot項目`seatLaunch`（`null` \| `{code, action, terminalId, at}`。契約は[execution remote-seat](../execution/remote-seat.md)の「Launch notice」）。全項目を省略可で読み、型の違う項目は無いものとして扱い、`seatLaunch`自体が不正な値（文字列・数・配列など）でも名簿の読込は壊さず「無し」と同じ扱い。表示は赤い1行「端末で起動できません：<action>」で、`action`が空・空白だけ・無い時は`code`。両方空なら「端末で起動できません。」。`null`・欠落（旧本体）でも出さない。置き場所はiPhoneのBotRowとiPad/Macの`SidebarRowLabel`（副題の下。Roomには無い）と、Botの会話ヘッダー（ナビゲーションバー直下に同じ行を最大3行で折り返して出す。状態語は残す）。変更はSSE topic `bots`（既存の`requestRefreshFromEvent`）で読み直す。新しい取得・状態・保存は無い |
+| ピン留め（a480） | 契約は[members/profiles.md](../members/profiles.md)のピン留め。`Bot.pinnedAt`（ISO文字列、`null`・欠落・不正は未ピン）を読み、`isPinned = pinnedAt != nil`。並びは`[Bot].pinnedFirst()`：ピン済みを`pinnedAt`昇順（同時刻は`id`）で先頭へ、残りは直前の並び（iPhoneはrecentFirst、iPad/Macは`recent.at`降順）のまま。iPhoneの`HomeView.bots`とiPad/Macの`DesktopWorkspaceView.visibleBots`が検索の後に適用（検索中もピン済みが先）。ピン済みの行はピンの印`PinMark`（`pin.fill`、ラベル「ピン留め中」）を名前の横に出す（iPhoneの`BotRow`、iPad/Macの`SidebarRowLabel`）。操作はBot行の長押し（Macは右クリック）の`botPinMenu`：「ピン留めする」／「ピン留めを外す」。押すと`AppStore.setPinned(bot, pinned)`が`PATCH /api/bots/:id`へ`{"pinned": bool}`を1回送り（冪等）、成功したら名簿を読み直して本体の順を取る（画面側で先に並べ替えない）。認証拒否はログインへ。それ以外の失敗は`AppStore.pinError`に理由を置き、`pinErrorAlert`の警告で「ピン留めを変えられませんでした」と出す（診断に`.write`で記録）。自動再送はせず、利用者が操作し直す。Roomにはピンが無い。新しい取得・保存の経路は無い |
 | 稼働丸・ファスト表示 | BotPresenceDotは`Bot.isWorking`（`currentWork.state == working`。Web・相関図と同じ判定で、配達の列からは作らない）なら赤点滅、onlineなら緑、それ以外は灰色。fastModeはBotFastModeBadge。BotRowの日時は`BellDate.short(recent.at)` |
 | 画像の項目 | 一覧の`avatar`（Bot・Room・Owner）は省略可で、無ければ空として読む。画像は`avatarVersion`付きの個別URLから取る。他の画像本体の項目（avatarLarge等）は一覧から読まない |
 | 一覧上部・下部 | オンライン人数は`store.bots.filter(online).count`、ルーム件数はstore.rooms.count。iPhoneはOwnerの名前・画像、iPad/MacはOwner名も表示 |
 
 `HomeView.search`と`DesktopWorkspaceView.search`は別々の画面内状態。検索はサーバーへ送信しない。name（Botの内部名）、id、position、role、purpose、会話本文は検索条件に含まない。空検索で全件、大文字小文字を区別せず`localizedCaseInsensitiveContains`を使う。検索語のtrimは行わない。iPhoneは消去ボタン、iPad/Macは消去と検索focus、⌘Kを持つ。
 
-HomeViewの並びは`BellDate.parse`で日時へ変換し、欠損・不正日時はdistantPast。同じ日時は元の配列順を保つ。DesktopWorkspaceViewは`recent.at ?? ""`の文字列比較を使う。
+HomeViewの並び（`pinnedFirst`の前）は`BellDate.parse`で日時へ変換し、欠損・不正日時はdistantPast。同じ日時は元の配列順を保つ。DesktopWorkspaceViewは`recent.at ?? ""`の文字列比較を使う。
 
 ## 開く場所と共通編集画面
 

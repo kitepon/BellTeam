@@ -33,6 +33,16 @@ struct Bot: Decodable, Identifiable, Equatable {
     var configurationApplication: ConfigurationApplication? = nil
     /// Read-only; set only for a member still on a retired harness (a365). Never sent back in a PATCH.
     var harnessNotice: String? = nil
+    /// a480: ISO time the Owner pinned this member (members/profiles.md). nil = not pinned, or a body that predates pins.
+    var pinnedAt: String? = nil
+    var isPinned: Bool { pinnedAt != nil }
+}
+
+extension Array where Element == Bot {
+    /// Pinned members first by pinnedAt (then id), the rest keep their order (the members contract's order rule).
+    func pinnedFirst() -> [Bot] {
+        filter(\.isPinned).sorted { ($0.pinnedAt!, $0.id) < ($1.pinnedAt!, $1.id) } + filter { !$0.isPinned }
+    }
 }
 
 /// What happened to the last settings change of a running member (`pending` | `accepted` | `failed`). Both fields are optional;
@@ -102,7 +112,7 @@ extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, configurationLocked, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
-        case terminalId, projectRoot, seatLaunch, configurationApplication, harnessNotice
+        case terminalId, projectRoot, seatLaunch, configurationApplication, harnessNotice, pinnedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -135,6 +145,7 @@ extension Bot {
         seatLaunch = try? c.decodeIfPresent(SeatLaunch.self, forKey: .seatLaunch)
         configurationApplication = try? c.decodeIfPresent(ConfigurationApplication.self, forKey: .configurationApplication)
         harnessNotice = try? c.decodeIfPresent(String.self, forKey: .harnessNotice)
+        pinnedAt = try? c.decodeIfPresent(String.self, forKey: .pinnedAt)
     }
 }
 
