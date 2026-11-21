@@ -2,7 +2,7 @@ import { createSeatProcessRunner } from '../seat-process.mjs'
 
 // Fixed source, never a caller-supplied Python program or shell fragment.
 const remoteProgram = String.raw`
-import json,sys,urllib.request,urllib.error
+import json,os,stat,sys,urllib.request,urllib.error
 receipt={'schema':'bellteam.submitted-secret-input.v1','outcome':'unknown','authStatus':None,'httpStatus':None}
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs): return None
@@ -13,8 +13,17 @@ try:
     if not isinstance(payload,dict) or set(payload)!={'binding','prompt_digest','response'}: raise ValueError()
     response=payload['response']
     if not isinstance(response,dict) or set(response)!={'kind','value'} or response['kind']!='authorization_code': raise ValueError()
+    # a485: once the server is Enforced the owner API needs a session. A console session token kept by this host user (0600, own file) rides as Bearer; absent or loose: none is sent.
+    headers={'Content-Type':'application/json'}
+    try:
+        path=os.path.expanduser('~/.config/bellteam/console-session')
+        info=os.stat(path)
+        if info.st_uid==os.getuid() and stat.S_IMODE(info.st_mode)==0o600:
+            with open(path) as handle: headers['Authorization']='Bearer '+handle.read(1024).strip()
+    except OSError:
+        pass
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
-    request=urllib.request.Request('http://127.0.0.9:18891/api/setup/auth/input',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST')
+    request=urllib.request.Request('http://127.0.0.9:18891/api/setup/auth/input',data=json.dumps(payload).encode(),headers=headers,method='POST')
     try:
         with opener.open(request,timeout=60) as answer:
             receipt['httpStatus']=answer.status

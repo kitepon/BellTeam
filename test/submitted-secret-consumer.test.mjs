@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -218,4 +218,27 @@ test('submitted: internal route captures admission, rejects public/missing and k
   let status
   await handler({ method: 'POST' }, { writeHead(code) { status = code }, end() {} }, new URL('http://local/api/setup/auth/input'))
   assert.equal(status, 403)
+})
+
+test('a485: the fixed remote program sends a console session token only from its own 0600 file', async () => {
+  let command
+  await createSubmittedSecretRabbitClient({ project: '/fixed/project', run: async (_, args) => { command = args.at(-1); return { stdout: JSON.stringify(inputReceipt), stderr: '' } } })(
+    { ...challenge, response: { kind: 'authorization_code', value: 'synthetic-code' } }, { assertBeforeIssue() {} })
+  const program = command.slice("python3 -c '".length, -1).replaceAll("'\\''", "'")
+  const mock = `import urllib.request,json\nclass Answer:\n status=200\n def __enter__(self): return self\n def __exit__(self,*args): pass\n def read(self,limit): return b'{"harness":"claude","auth":{"status":"authenticated"}}'\nclass Opener:\n def open(self,request,timeout):\n  print(request.get_header('Authorization'), file=__import__('sys').stderr)\n  return Answer()\nurllib.request.build_opener=lambda *args: Opener()\n`
+  const run = async mode => {
+    const home = await mkdtemp(join(tmpdir(), 'rabbit-home-'))
+    if (mode !== 'none') {
+      await mkdir(join(home, '.config/bellteam'), { recursive: true })
+      await writeFile(join(home, '.config/bellteam/console-session'), 'synthetic-session-token\n', { mode: mode === 'loose' ? 0o644 : 0o600 })
+      if (mode === 'loose') await chmod(join(home, '.config/bellteam/console-session'), 0o644)
+    }
+    const out = spawnSync('python3', ['-c', mock + program], { input: JSON.stringify({ ...challenge, response: { kind: 'authorization_code', value: 'synthetic-code' } }), encoding: 'utf8', env: { ...process.env, HOME: home } })
+    await rm(home, { recursive: true, force: true })
+    assert.equal(out.status, 0); assert.ok(!out.stdout.includes('synthetic-session-token'))
+    return out.stderr.trim()
+  }
+  assert.equal(await run('own'), 'Bearer synthetic-session-token')
+  assert.equal(await run('loose'), 'None')
+  assert.equal(await run('none'), 'None')
 })

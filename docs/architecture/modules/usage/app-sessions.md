@@ -97,7 +97,7 @@ Paths, bodies, answers and error codes are exactly `docs/home-wire-v1.md` of the
 2. Body first, tolerant (a reader before the writer): the `homeLogin` row (optional, an old child publishes none and stays Legacy), the guard, the marker, `/api/home/*`, the `entitlementState` overlay, the sweep timer, the setup-code print, the console socket. Then the usage child (the part, its methods, the row). Then the console script and the image.
 3. Release order: apps first (they probe `/api/home/session`), body, usage. Enforcement only by the owner's first binding, never by a flag. The vendored library files are a development release (`0.17.0`: `home.mjs` sha256 `a0ebdada…`, `home-guard.mjs` `911236d0…`); the PR is ready only after Mint accepts the final library server version and the files are repinned (hash in the file header).
 4. Push tickets (a second change): `ticketFor` = lowercase hex SHA-256 of the device token; the device record in the notifications module keeps the ticket beside `signedTransaction`/`proof`. Starts when Bready fixes the relay request shape.
-5. Host callers (the rabbit secret client at `127.0.0.9`) use a console session token kept in a 0600 file of the host user, before the first binding.
+5. Host callers (the rabbit secret client at `127.0.0.9`, `submitted-secret-rabbit-client.mjs`) send a console session token as Bearer when `~/.config/bellteam/console-session` of the host user exists, is owned by that user and is mode 0600 (anything looser is ignored). The host makes it once: `bellteam-console issue`, then `POST /api/home/login/console {code}`, and writes the answer's `token` to that file. Needed only once the server is Enforced.
 
 ## 7. (Superseded) Earlier wire of sections 7a–7c
 
