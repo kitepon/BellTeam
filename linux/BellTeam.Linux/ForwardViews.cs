@@ -80,7 +80,7 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
     // The sheet of the 転送 button: the picked message, then the destination.
     public static DestinationSheet Forward(LinuxWorkspace workspace, TimelineMessage message, Action close)
     {
-        var text = message.Message ?? ""; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
+        var text = message.QuoteText; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
         // Drawn the way the conversation draws the message (no literal ** or - marks), clipped to a few lines.
         var body = new MarkdownView { FontSize = 15, Foreground = BellTheme.Muted };
         try { body.Source = text; } catch (NotSupportedException) { body.ShowText(text); }

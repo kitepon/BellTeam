@@ -88,7 +88,7 @@ public sealed class MessageCard : ContentControl
         forwardButton.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowForwardSheet(Message);
         copyButton.Click += async (_, _) =>
         {
-            if (Message.Message is not { Length: > 0 } text || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            if (Message.QuoteText is not { Length: > 0 } text || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
             await clipboard.SetTextAsync(text);
             copyButton.Content = Icons.Draw(Icons.Check, 16, BellTheme.Violet, thickness: 2); await Task.Delay(1200); copyButton.Content = Icons.Draw(Icons.Copy, 16, BellTheme.Muted, thickness: 1.8);
         };
@@ -285,7 +285,7 @@ public sealed class MessageCard : ContentControl
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
             AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
         }
-        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message); copyButton.IsVisible = forwardButton.IsVisible && !string.IsNullOrEmpty(message.Message);
+        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message); copyButton.IsVisible = forwardButton.IsVisible && !string.IsNullOrEmpty(message.QuoteText);
         actions.IsVisible = replyButton.IsVisible || forwardButton.IsVisible || copyButton.IsVisible;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
