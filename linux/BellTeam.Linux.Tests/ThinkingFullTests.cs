@@ -35,4 +35,24 @@ public sealed class ThinkingFullTests
             host.Close();
         }
     });
+    // a471-thinking-bubble-linux: the thinking row is the answer's bubble with lighter slanted text and has copy only (no reply, no forward).
+    [Fact]
+    public Task AThinkingRowIsASlantedLightBubbleWithCopyOnly() => Ui.Run(async () =>
+    {
+        var json = "{\"id\":\"me-9-0\",\"kind\":\"machine_event\",\"direction\":\"incoming\",\"at\":\"2026-11-21T06:35:00Z\",\"message\":\"thinking: one\",\"sender\":{\"id\":\"b1\",\"name\":\"ベル\"},\"machine_event\":{\"seq\":9,\"part\":0,\"view\":\"thinking\",\"display\":\"show\",\"title\":\"thinking\",\"text\":\"one\\ntwo\"}}";
+        var model = new LinuxWorkspace(origin => new BellApi(origin, new NoServer()));
+        using (model)
+        {
+            var card = new MessageCard(new MessageItem(JsonSerializer.Deserialize<TimelineMessage>(json, BellApi.Json)!), model);
+            var host = new Window { Content = card, Width = 900, Height = 600 }; host.Show();
+            Dispatcher.UIThread.RunJobs();
+            var markdown = card.GetVisualDescendants().OfType<MarkdownView>().First();
+            Assert.Equal(Avalonia.Media.FontStyle.Italic, markdown.FontStyle);
+            Assert.Equal(BellTheme.Muted, markdown.Foreground);
+            bool Shown(string name) => card.GetVisualDescendants().OfType<Button>().First(button => Avalonia.Automation.AutomationProperties.GetName(button) == name).IsVisible;
+            Assert.True(Shown("このメッセージをコピー"));
+            Assert.False(Shown("このメッセージに返信")); Assert.False(Shown("このメッセージを転送"));
+            host.Close();
+        }
+    });
 }

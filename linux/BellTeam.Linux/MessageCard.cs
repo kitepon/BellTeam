@@ -88,7 +88,7 @@ public sealed class MessageCard : ContentControl
         forwardButton.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowForwardSheet(Message);
         copyButton.Click += async (_, _) =>
         {
-            if (Message.QuoteText is not { Length: > 0 } text || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            if (CopyText(Message) is not { Length: > 0 } text || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
             await clipboard.SetTextAsync(text);
             copyButton.Content = Icons.Draw(Icons.Check, 16, BellTheme.Violet, thickness: 2); await Task.Delay(1200); copyButton.Content = Icons.Draw(Icons.Copy, 16, BellTheme.Muted, thickness: 1.8);
         };
@@ -179,6 +179,9 @@ public sealed class MessageCard : ContentControl
     // Mac cards name the asking bot by its id, not by who the timeline says sent it.
     private string BotName(string? botId, TimelineMessage message) => workspace.Bots.FirstOrDefault(bot => bot.Id == botId)?.Name ?? message.Sender?.Title ?? workspace.Title;
 
+    // What the copy icon puts on the clipboard: the whole text of a thinking row (its message is only the one-line summary), else the row's quote text.
+    private static string CopyText(TimelineMessage message) => Timeline.IsThinkingBubble(message) ? message.MachineEvent!.Text : message.QuoteText;
+
     private void BuildRow(TimelineMessage message)
     {
         var outgoing = message.IsOutgoing;
@@ -268,6 +271,9 @@ public sealed class MessageCard : ContentControl
         var count = message.ImageCount ?? 1;
         imageLabel!.Text = count > 1 ? $"画像{count}枚" : "画像";
         imagePlaceholder!.IsVisible = message.Image == true && urls.Length == 0;
+        // a471-thinking-bubble: a shown thinking row is this bubble with its whole text lighter and slanted (Mac is the reference); copy only, so reply and forward stay on the answer bubbles.
+        var thinking = Timeline.IsThinkingBubble(message);
+        body!.FontStyle = thinking ? FontStyle.Italic : FontStyle.Normal; body.Foreground = thinking ? BellTheme.Muted : BellTheme.Ink;
         try { body!.Source = text; contentBody!.Source = content; }
         catch (NotSupportedException error) { body!.ShowText(error.Message); }
         body!.IsVisible = text.Length != 0;
@@ -285,7 +291,7 @@ public sealed class MessageCard : ContentControl
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
             AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
         }
-        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message); copyButton.IsVisible = forwardButton.IsVisible && !string.IsNullOrEmpty(message.QuoteText);
+        replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message); copyButton.IsVisible = (forwardButton.IsVisible || thinking) && !string.IsNullOrEmpty(CopyText(message));
         actions.IsVisible = replyButton.IsVisible || forwardButton.IsVisible || copyButton.IsVisible;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
