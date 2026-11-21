@@ -52,9 +52,12 @@ public sealed class MachineEntry(Workspace workspace) : ContentControl
             panel.Children.Add(new TextBlock { Text = entry.Title, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = error ? Red : Muted });
         var body = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = entry.View == "tool_use" ? 13 : 15, Foreground = error ? Red : entry.View is "thinking" or "tool_use" ? Muted : Ink, FontStyle = entry.View == "thinking" ? FontStyles.Italic : FontStyles.Normal };
         if (entry.View == "tool_use") { var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(Glyph("\uE713", 12)); row.Children.Add(body); panel.Children.Add(row); }
+        else if (entry.View == "thinking") panel.Children.Add(Selectable(body)); // a471-thinking-full: the whole text, wrapped with no limit, and the Owner can select it
         else panel.Children.Add(body);
         return panel;
     }
+
+    private static TextBox Selectable(TextBlock body) => new() { Text = body.Text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = body.FontSize, FontStyle = body.FontStyle, Foreground = body.Foreground, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0) };
 
     // One collapsed line (a run of one fold_group is one line "group ×n"); a tap or click opens it to the full text and closes it again.
     private FrameworkElement Fold(TimelineMessage head, TimelineMessage[] members)
