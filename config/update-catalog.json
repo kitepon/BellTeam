@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T06:43:25Z",
-  "expiresAt": "2026-11-28T06:43:25Z",
+  "publishedAt": "2026-11-21T07:13:48Z",
+  "expiresAt": "2026-11-28T07:13:48Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3208287f5dd4b9d8e1881fd3fd11d680fec3bff4",
-      "versionId": "sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02",
+      "sourceCommit": "1d6824b4ebc2291f0c0ba557672464b97be4354e",
+      "versionId": "sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の入れ替えのあとの確認を、一時的に失敗しても最大3回やり直します。機械が一瞬止まっただけで、正常な新しい本体を元に戻さないようにします。失敗のたびに記録を残します。"
+        "席が自分で答えた確認（自動で承認されたもの）を、通知せずに、畳んだ1行で表示します。道具の要約は、コマンドやファイル名そのままにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3208287f5dd4b9d8e1881fd3fd11d680fec3bff4",
-      "versionId": "sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02",
+      "sourceCommit": "1d6824b4ebc2291f0c0ba557672464b97be4354e",
+      "versionId": "sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の入れ替えのあとの確認を、一時的に失敗しても最大3回やり直します。機械が一瞬止まっただけで、正常な新しい本体を元に戻さないようにします。失敗のたびに記録を残します。"
+        "席が自分で答えた確認（自動で承認されたもの）を、通知せずに、畳んだ1行で表示します。道具の要約は、コマンドやファイル名そのままにします。"
       ]
     },
     {
