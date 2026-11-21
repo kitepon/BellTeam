@@ -10,9 +10,11 @@ public sealed record QueueItem
     public string? ContextId { get; init; }
     // A delivery steered into a running turn is shown with that turn's row.
     public bool? Steered { get; init; }
+    // working-word.md: the server picks one Claude Code word for a running row; a missing word (older server) keeps 処理中.
+    public string? WorkingWord { get; init; }
     public static QueueItem[] DisplayItems(IEnumerable<QueueItem> items)
         => items.DistinctBy(item => (item.BotId is not null, item.BotId ?? item.Id, item.BotId is null ? "" : item.Steered == true ? "running" : item.Status)).ToArray();
-    public string Line(string fallbackName) => $"{BotName ?? fallbackName} · {(Status == "queued" ? "送信待ち" : "処理中")}";
+    public string Line(string fallbackName) => $"{BotName ?? fallbackName} · {(Status == "queued" ? "送信待ち" : WorkingWord is { Length: > 0 } word ? word + "…" : "処理中")}";
     public bool IsActive => Status is "running" or "queued";
     // A room row gets the stop button only for the first active row of a member of that room.
     public static bool IsStopRow(QueueItem item, IReadOnlyList<QueueItem> display, bool isRoom, IEnumerable<string> roomMemberIds)

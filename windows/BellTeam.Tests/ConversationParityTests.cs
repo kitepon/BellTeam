@@ -74,7 +74,7 @@ public sealed class ConversationParityTests
         var other = run with { Id = "3", BotId = "b", BotName = null, Status = "queued" };
         var outsider = run with { Id = "4", BotId = "z", BotName = "外" };
         var steered = run with { Id = "5", Status = "queued", Steered = true };
-        Assert.Equal("ユキ · 処理中", run.Line("部屋")); Assert.Equal("ユキ · 送信待ち", wait.Line("部屋")); Assert.Equal("部屋 · 送信待ち", other.Line("部屋"));
+        Assert.Equal("ユキ · 処理中", run.Line("部屋")); Assert.Equal("ユキ · Mulling…", (run with { WorkingWord = "Mulling" }).Line("部屋")); Assert.Equal("ユキ · 送信待ち", (wait with { WorkingWord = "Mulling" }).Line("部屋")); Assert.Equal("ユキ · 送信待ち", wait.Line("部屋")); Assert.Equal("部屋 · 送信待ち", other.Line("部屋"));
         var display = QueueItem.DisplayItems([run, wait, other, outsider, steered]);
         Assert.Equal(["1", "2", "3", "4"], display.Select(item => item.Id)); // a steered delivery joins the running turn's row
         string[] members = ["a", "b"];
