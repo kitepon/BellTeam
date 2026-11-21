@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T07:13:48Z",
-  "expiresAt": "2026-11-28T07:13:48Z",
+  "publishedAt": "2026-11-21T07:49:03Z",
+  "expiresAt": "2026-11-28T07:49:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
-      "versionId": "43cc2d88d8c31f0d39c1f5454b03cc8ac63acd37c1024a31739fb92cec97ec57",
+      "sourceCommit": "d118ff277bd0246ab7787a4f76134182e143aa7d",
+      "versionId": "1fd507fa951aab5de693d70924afd78b4bed6de8f3ba94894d5ecec5bed5bcaa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-amd64.tar.gz",
-          "bytes": 3996962,
-          "sha256": "43cc2d88d8c31f0d39c1f5454b03cc8ac63acd37c1024a31739fb92cec97ec57"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T073949Z/execution-d118ff277bd0246ab7787a4f76134182e143aa7d-linux-amd64.tar.gz",
+          "bytes": 3998836,
+          "sha256": "1fd507fa951aab5de693d70924afd78b4bed6de8f3ba94894d5ecec5bed5bcaa"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "f53551f7d9b97d07a62de851d26daacee7aa47bb5045d45fe59d6679faca546c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T073949Z/execution-d118ff277bd0246ab7787a4f76134182e143aa7d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "ef7f6cb3c905467bc0e3164037a37480b6a2368317cedfda3278aa117bf685da"
         },
-        "signerCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766"
+        "signerCommit": "d118ff277bd0246ab7787a4f76134182e143aa7d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "すべてのClaudeの席を、機械の口（claude-machine）で起動するよう頼みます。Aiterm 0.70.85未満の遠隔端末は、お知らせを出して従来の方法で起動するので、止まりません。"
+        "作業中の席を、メモリが足りないときに強制終了される順番の後ろにします。使われていない席が先に終了され、作業中の席は後回しになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766",
-      "versionId": "42ba9ba12c8bc3e6e91ea52dc54cfdea545999636dfecb237b524663f2f50e41",
+      "sourceCommit": "d118ff277bd0246ab7787a4f76134182e143aa7d",
+      "versionId": "ab48a9d9bccc67ac8d56bdd6ab9b5767d5b8878a4775be0bb5d1d470433c879c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-arm64.tar.gz",
-          "bytes": 3996962,
-          "sha256": "42ba9ba12c8bc3e6e91ea52dc54cfdea545999636dfecb237b524663f2f50e41"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T073949Z/execution-d118ff277bd0246ab7787a4f76134182e143aa7d-linux-arm64.tar.gz",
+          "bytes": 3998836,
+          "sha256": "ab48a9d9bccc67ac8d56bdd6ab9b5767d5b8878a4775be0bb5d1d470433c879c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T004959Z/execution-39cb3a7bb5b74d1c71aca3defde0f8c893096766-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "7d2e22b54becdbcf0692e935db2b21a25659e9ed5d78895ed5996cd3102978cb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T073949Z/execution-d118ff277bd0246ab7787a4f76134182e143aa7d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11040,
+          "sha256": "9c408d12cbb43dbfa20a76e6cce674bc98d835f90e5b7f5f348aa114876ef58c"
         },
-        "signerCommit": "39cb3a7bb5b74d1c71aca3defde0f8c893096766"
+        "signerCommit": "d118ff277bd0246ab7787a4f76134182e143aa7d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "すべてのClaudeの席を、機械の口（claude-machine）で起動するよう頼みます。Aiterm 0.70.85未満の遠隔端末は、お知らせを出して従来の方法で起動するので、止まりません。"
+        "作業中の席を、メモリが足りないときに強制終了される順番の後ろにします。使われていない席が先に終了され、作業中の席は後回しになります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "1d6824b4ebc2291f0c0ba557672464b97be4354e",
-      "versionId": "sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc",
+      "sourceCommit": "d118ff277bd0246ab7787a4f76134182e143aa7d",
+      "versionId": "sha256:ec80eb4a6b43bfe43a8ed8cde2f08d98c72beef88711f733170d2ce0d67b8daf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ec80eb4a6b43bfe43a8ed8cde2f08d98c72beef88711f733170d2ce0d67b8daf"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席が自分で答えた確認（自動で承認されたもの）を、通知せずに、畳んだ1行で表示します。道具の要約は、コマンドやファイル名そのままにします。"
+        "メモリが足りないとき、作業中の席を、使われていない席より後に強制終了するようにします。あわせて、席の部品Aitermを新しい版にし、作業中の席が実行中と読まれるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "1d6824b4ebc2291f0c0ba557672464b97be4354e",
-      "versionId": "sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc",
+      "sourceCommit": "d118ff277bd0246ab7787a4f76134182e143aa7d",
+      "versionId": "sha256:ec80eb4a6b43bfe43a8ed8cde2f08d98c72beef88711f733170d2ce0d67b8daf",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4055548aa063f3820d57ef5c137f78b9778de9ac21abf7d0d5c4173563fd05cc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ec80eb4a6b43bfe43a8ed8cde2f08d98c72beef88711f733170d2ce0d67b8daf"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席が自分で答えた確認（自動で承認されたもの）を、通知せずに、畳んだ1行で表示します。道具の要約は、コマンドやファイル名そのままにします。"
+        "メモリが足りないとき、作業中の席を、使われていない席より後に強制終了するようにします。あわせて、席の部品Aitermを新しい版にし、作業中の席が実行中と読まれるようにします。"
       ]
     },
     {
