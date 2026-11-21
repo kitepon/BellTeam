@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T01:16:35Z",
-  "expiresAt": "2026-11-28T01:16:35Z",
+  "publishedAt": "2026-11-21T01:39:28Z",
+  "expiresAt": "2026-11-28T01:39:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "78cf9346ca459d78cde322b4a86796366477061a5aaa6607406d3999d386f02b",
+      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
+      "versionId": "a9452f507fed41648b8623e8617f2beb5dd54fbf802fe78ca979f2b88b9c0d1d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz",
-          "bytes": 3925562,
-          "sha256": "78cf9346ca459d78cde322b4a86796366477061a5aaa6607406d3999d386f02b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-amd64.tar.gz",
+          "bytes": 3925893,
+          "sha256": "a9452f507fed41648b8623e8617f2beb5dd54fbf802fe78ca979f2b88b9c0d1d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11139,
-          "sha256": "8417a7b7a3e0c1a8ccf8821b94c0a16260f879a10a9a2704ddf1cbd4624d79db"
+          "sha256": "d103697f17518e5e9c1c98b62f2ae1255aa546a29902f34264f183d21667a181"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "機械の口で動く席の出力の行を、引用や転送の対象にできるようになりました。この席の質問や承認の答えは、答えの行として保存しません。"
+        "大きな本文の読み出しが、会話の入力の順番待ちで失敗（503）にならず、順番を待つようにします。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116",
-      "versionId": "ba600012345d84cf1b392be591c704077ca861177c8f9fce9cbf5dd68a2b258f",
+      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
+      "versionId": "f8d038ff0707430e403bcd6c19bdf63ee60e993021e431be2510211b7aaf34db",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz",
-          "bytes": 3925563,
-          "sha256": "ba600012345d84cf1b392be591c704077ca861177c8f9fce9cbf5dd68a2b258f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-arm64.tar.gz",
+          "bytes": 3925893,
+          "sha256": "f8d038ff0707430e403bcd6c19bdf63ee60e993021e431be2510211b7aaf34db"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261120T130414Z/conversation-2537119187eda1d3bc6629a3909c2188e9e2d116-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "28d8a4586662942ddd49296050c09fbfdefdabe1436322d4c13422d5f7434db9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "ee37fdf76033571ec40e058333fd273b29040acac1155a02a79a539a3c0ae050"
         },
-        "signerCommit": "2537119187eda1d3bc6629a3909c2188e9e2d116"
+        "signerCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "機械の口で動く席の出力の行を、引用や転送の対象にできるようになりました。この席の質問や承認の答えは、答えの行として保存しません。"
+        "大きな本文の読み出しが、会話の入力の順番待ちで失敗（503）にならず、順番を待つようにします。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "99304e7a89aaba85cae1eefd9d9f4711f75b17c7",
-      "versionId": "sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc",
+      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
+      "versionId": "sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "実行中の列の行に、一つの正本リストから選んだ作業中の言葉（workingWord）を付けます。Canoodling、Evaporating、Musing を加えた190語です。"
+        "読み出しの本文が大きくても、会話の入力の順番待ちで503にならないようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "99304e7a89aaba85cae1eefd9d9f4711f75b17c7",
-      "versionId": "sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc",
+      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
+      "versionId": "sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7866c7f9c430d87ff8e94255deffa939c60890339d5a48f9ddb57c519c8adcc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "実行中の列の行に、一つの正本リストから選んだ作業中の言葉（workingWord）を付けます。Canoodling、Evaporating、Musing を加えた190語です。"
+        "読み出しの本文が大きくても、会話の入力の順番待ちで503にならないようにします。"
       ]
     },
     {
