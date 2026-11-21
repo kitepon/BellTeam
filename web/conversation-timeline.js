@@ -344,6 +344,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   // A bubble row as the message the actions read: its own id, the whole machine_event.text (the row's message is only the first line).
   const bubbleMessage = item => ({ ...item, kind: 'message', direction: 'incoming', machine_event: undefined,
     sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '', message: item.machine_event.text || item.message })
+  const isThinkingBubbleRow = item => item?.kind === 'machine_event' && item.machine_event?.view === 'thinking' && item.machine_event.display !== 'fold' && Boolean(item.machine_event.text?.trim())
   const isBubbleRow = item => item?.kind === 'machine_event' && item.machine_event?.view === 'words' && item.machine_event.bubble === true
 
   function renderItem(item, queued = []) {
@@ -384,6 +385,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       // The body marks the last words of a finished turn with bubble:true; it is read, never decided here (machine-stream.md "Turn answer bubble").
       // Drawn as an ordinary incoming message with the row's own id me-<seq>-<part>, so reply / quote / forward / copy work (machine-stream.md "Reply, forward, quote and copy of a bubble").
       if (event.view === 'words' && event.bubble === true) return renderItemElement(bubbleMessage(item))
+      // A shown thinking row is drawn in the same incoming bubble, text lighter and slanted, copy only (machine-stream.md "Thinking is drawn as a bubble"); an empty one stays a folded line.
+      if (isThinkingBubbleRow(item)) return renderItemElement({ ...bubbleMessage(item), thinking: true })
       const token = state.timelineToken
       return renderMachineEvent(item, {
         api, sender: item.sender?.name ?? getBot(item.sender?.id)?.name ?? '',
@@ -422,7 +425,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const column = document.createElement('div')
     column.className = 'message-column'
     const bubble = document.createElement('div')
-    bubble.className = 'message-bubble'
+    bubble.className = item.thinking ? 'message-bubble is-thinking' : 'message-bubble'
     // ルームでは発言者のアバターを左に出し、アバターから導いた色を吹き出しの枠に付ける。
     const senderBot = item.direction === 'incoming' && target?.type === 'room' && item.senderId
       ? getBot(item.senderId) : null
@@ -514,7 +517,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (item.id) {
       const actions = document.createElement('div')
       actions.className = 'message-actions'
-      actions.append(replyButton(item), forwardButton(item), ...(item.message?.trim() ? [copyButton(item)] : []))
+      actions.append(...(item.thinking ? [] : [replyButton(item), forwardButton(item)]), ...(item.message?.trim() ? [copyButton(item)] : []))
       column.append(actions)
     }
     wrapper.append(column)
@@ -611,6 +614,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const range = selection.getRangeAt(0), holder = holderOf(range.startContainer)
     if (!holder || holder !== holderOf(range.endContainer) || !timelineItems.contains(holder)) return null
     const row = state.timelineMap.get(holder.closest('[data-id]')?.dataset.id)
+    if (isThinkingBubbleRow(row)) return null // a thinking bubble has copy only: no quote-reply
     const item = isBubbleRow(row) ? bubbleMessage(row) : row
     const text = selection.toString().trim().slice(0, 10000) // reply.md: 1..10000 characters; start is omitted (the bubble shows rendered markup)
     if (!item || !text.trim()) return null

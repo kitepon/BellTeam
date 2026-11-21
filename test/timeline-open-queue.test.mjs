@@ -620,6 +620,26 @@ test('a471-reply-forward-web: a bubble row has reply / forward / copy by its own
   assert.deepEqual(copied, ['一行目\n二行目'], 'the whole machine_event.text, not the first line')
 })
 
+test('a471-thinking-bubble-web: a shown thinking row is an incoming bubble with the whole text and copy only; an empty folded one and plain words are not', async t => {
+  const row = (id, event) => ({ id, kind: 'machine_event', at: '2026-11-21T06:35:00Z', sender: { id: 'a', name: 'テスト席' }, message: event.text.split('\n')[0], machine_event: { display: 'show', ...event } })
+  const whole = '一行目の考え\n二行目の考え'
+  const copied = []
+  Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText: async text => { copied.push(text) } } }, configurable: true })
+  t.after(() => { delete globalThis.navigator })
+  const f = fixture(t, () => ({ items: [row('me-1-0', { view: 'thinking', title: 'thinking', text: whole }), row('me-2-0', { view: 'thinking', title: 'thinking (no text)', text: '', display: 'fold' }), row('me-3-0', { view: 'words', text: '途中の発言' })], has_more: false }))
+  await f.open('a'); await settle()
+  const rows = f.timeline.children[0].children.filter(child => child.dataset.id)
+  assert.equal(rows[0].className, 'message incoming', 'drawn in the answer bubble container')
+  const nodes = everyNode(rows[0])
+  assert.ok(nodes.some(node => String(node.className).includes('is-thinking')), 'lighter and slanted')
+  assert.equal(nodes.filter(node => node.className === 'message-reply').length, 0, 'no reply')
+  assert.equal(nodes.filter(node => node.className === 'message-reply message-forward').length, 0, 'no forward')
+  nodes.find(node => node.className === 'message-reply message-copy').listeners.click(); await settle()
+  assert.deepEqual(copied, [whole], 'copy is the whole text')
+  assert.notEqual(rows[1].className, 'message incoming', 'an empty thinking stays a folded line')
+  assert.equal(rows[2].className, 'machine-show view-words', 'plain words keep their drawing')
+})
+
 test('a471-spinner-words: running rows draw the server word in the queue line and the thinking bubble; no word keeps today\'s indicator', async t => {
   const f = fixture(t)
   await f.open('a')

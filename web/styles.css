@@ -542,6 +542,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .machine-use code { min-width: 0; overflow-wrap: anywhere; color: #77777d; font-size: 12px; }
 .machine-show { margin: 8px auto; max-width: 620px; color: #29263b; white-space: pre-wrap; overflow-wrap: anywhere; }
 .machine-note { margin: 6px auto; max-width: 620px; color: #77777d; font-size: 13px; overflow-wrap: anywhere; }
+.message-bubble.is-thinking { color: #929298; font-style: italic; }
 .machine-thinking { margin: 6px auto; max-width: 620px; color: #929298; font-size: 13px; font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere; }
 .secret-request { max-width: 460px; padding: 20px; border: 1px solid #d6d0ee; border-radius: 20px; background: #faf8ff; color: #29263b; }
 .secret-request p, .secret-dialog p { white-space: pre-wrap; overflow-wrap: anywhere; }
