@@ -124,6 +124,15 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function scrollToBottom() {
     timeline.scrollTo({ top: timeline.scrollHeight, behavior: 'instant' })
   }
+  // 最下部で新しい行が付く時は、瞬時に動かず滑らかに追う（オーナー 11/21：動く向きが分かるように）。
+  // 追っている間は、途中のscrollで「最下部から離れた」と見ない。ユーザーが触ったら追うのをやめる。
+  let following = false
+  function followBottom() {
+    following = true
+    const calm = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    timeline.scrollTo({ top: timeline.scrollHeight, behavior: calm ? 'instant' : 'smooth' })
+  }
+  for (const name of ['wheel', 'touchstart', 'keydown']) timeline.addEventListener(name, () => { following = false }, { passive: true })
   latestButton.addEventListener('click', () => {
     state.stickToBottom = true
     scrollToBottom()
@@ -226,7 +235,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     }
     arrangeMachineRows(timelineItems, foldOpen)
     renderTail([...state.timelineMap.values()])
-    if (state.stickToBottom) scrollToBottom()
+    if (state.stickToBottom) followBottom()
     loadStoredMessageImages([...latestItems, ...newItems], item => rerenderItem(item.id, token))
     // A refresh that fills an empty map took over the open's read (historyRequest), so the open returned before its fill: start it here (Centi, Z147 lab).
     if (!lastId && latestItems.length) void fillViewport(token)
@@ -275,7 +284,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (!item || !['secret_request','owner_question'].includes(kind) || item[kind]?.id !== id) throw Error('REQUEST_NOT_FOUND')
     const card = timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`)
     if (!card) throw Error('REQUEST_NOT_RENDERED')
-    state.stickToBottom = false
+    state.stickToBottom = false; following = false
     card.tabIndex = -1
     card.classList.add('notification-highlight')
     card.scrollIntoView({ block:'center' })
@@ -332,7 +341,9 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   }
 
   timeline.addEventListener('scroll', () => {
-    state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
+    const atBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
+    if (atBottom) following = false
+    state.stickToBottom = atBottom || following
     latestButton.hidden = !target || state.stickToBottom
     if (selectionPick) onSelectionChange() // 選択は残る：位置だけ追う（タッチでは下に固定）
     noteViewed()
@@ -358,8 +369,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (Math.abs(shift) >= 1) timeline.scrollTop += shift
   }
   timelineItems.addEventListener('click', () => { viewed = null; requestAnimationFrame(noteViewed) }, true)
-  new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom(); else holdViewed() }).observe(timelineItems)
-  new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineTail)
+  new ResizeObserver(() => { if (state.stickToBottom) followBottom(); else holdViewed() }).observe(timelineItems)
+  new ResizeObserver(() => { if (state.stickToBottom) followBottom() }).observe(timelineTail)
 
   // A bubble row as the message the actions read: its own id, the whole machine_event.text (the row's message is only the first line).
   const bubbleMessage = item => ({ ...item, kind: 'message', direction: 'incoming', machine_event: undefined,
@@ -666,7 +677,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       if (!quote.dataset.missing) { quote.dataset.missing = '1'; quote.after(Object.assign(document.createElement('small'), { className: 'reply-quote-note', textContent: '元のメッセージは見つかりません' })) }
       return
     }
-    state.stickToBottom = false
+    state.stickToBottom = false; following = false
     row.scrollIntoView({ block: 'center' })
     row.classList.add('reply-jumped')
     setTimeout(() => row.classList.remove('reply-jumped'), 2000)
