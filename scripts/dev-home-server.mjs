@@ -22,7 +22,16 @@ const methods = {
 const front = createHomeFront({ call: (name, params) => methods[name](params), markerPath: join(dir, 'login-enforced') })
 
 const send = (response, status, body) => { response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify(body)) }
+// One line per request for the people who record the first run: time, peer, method, path, status and, for a refusal, its error code.
+// Never a header, a body, a token or a code.
+const log = (request, response, started) => {
+  let error = ''
+  const end = response.end.bind(response)
+  response.end = (chunk, ...rest) => { if (response.statusCode >= 400 && typeof chunk === 'string') { try { error = ` ${JSON.parse(chunk).error ?? ''}` } catch {} } return end(chunk, ...rest) }
+  response.on('finish', () => process.stderr.write(`${new Date().toISOString()} ${request.socket.remoteAddress} ${request.method} ${request.url.split('?')[0]} ${response.statusCode}${error} ${Date.now() - started}ms\n`))
+}
 const server = createServer(async (request, response) => {
+  log(request, response, Date.now())
   const url = new URL(request.url, 'http://dev')
   try {
     if (request.method === 'GET' && url.pathname === '/healthz') return send(response, 200, { ok: true })
