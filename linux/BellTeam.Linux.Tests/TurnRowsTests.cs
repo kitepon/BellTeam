@@ -32,8 +32,8 @@ public sealed class TurnRowsTests
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                "/api/bots/b1/messages?limit=30" => "{\"items\":[" + Hook(5) + "," + Hook(6) + "," + Words("me-7-0", "done") + "],\"has_more\":true}",
-                var p when p.StartsWith("/api/bots/b1/messages?limit=30&before=me-h5-0") => "{\"items\":[" + thinking + "],\"has_more\":false}",
+                "/api/bots/b1/messages?limit=30" or "/api/bots/b1/messages?limit=100" => "{\"items\":[" + Hook(5) + "," + Hook(6) + "," + Words("me-7-0", "done") + "],\"has_more\":true}",
+                var p when p.StartsWith("/api/bots/b1/messages?limit=500&before=me-h5-0") => "{\"items\":[" + thinking + "],\"has_more\":false}",
                 _ => null
             };
             return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });

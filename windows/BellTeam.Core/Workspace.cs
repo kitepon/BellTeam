@@ -391,7 +391,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         selection?.Cancel(); selection?.Dispose();
         selection = connection is null ? new CancellationTokenSource() : CancellationTokenSource.CreateLinkedTokenSource(connection.Token);
         var token = selection.Token;
-        selected = entry;
+        selected = entry; olderRead = null;
         Changed(nameof(ConversationSubtitle));
         stopResult = null; loadFailed = false; Changed(nameof(StopResult)); Changed(nameof(LoadFailed));
         ActivityChanged();
@@ -407,7 +407,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         Loading = true;
         try
         {
-            var page = await api.GetAsync<MessagePage>(entry.Target.Path + "/messages?limit=30", token);
+            var page = await api.GetAsync<MessagePage>(entry.Target.Path + "/messages?limit=" + HistoryPaging.FirstPageLimit, token);
             token.ThrowIfCancellationRequested();
             // The cards created for this first page enter with the staggered opening animation; later arrivals use the short one.
             Opening = true; afterFirstRender(() => Opening = false);
@@ -493,15 +493,18 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         ChangePending(key, null, accepted ? echo with { AcceptedId = "render-accepted" } : echo);
     }
 
-    public async Task LoadOlderAsync()
+    // One older request at a time (machine-stream.md "History pages of a long stream"): a caller that comes while one is on its way waits for that one.
+    // The read does not set Loading, so a background read never turns the send button off.
+    private Task? olderRead;
+    public Task LoadOlderAsync() => olderRead is { IsCompleted: false } running ? running : olderRead = ReadOlderAsync();
+    private async Task ReadOlderAsync()
     {
         if (api is null || selected is null || Received().FirstOrDefault() is not { } first || Loading) return;
         var target = selected.Target;
         var token = selection!.Token;
-        Loading = true;
         try
         {
-            var page = await api.GetAsync<MessagePage>(target.Path + "/messages?limit=30&before=" + Uri.EscapeDataString(first.Id), token);
+            var page = await api.GetAsync<MessagePage>(target.Path + "/messages?limit=" + HistoryPaging.OlderPageLimit + "&before=" + Uri.EscapeDataString(first.Id) + "&before_at=" + HistoryPaging.BeforeAt(first.At), token);
             token.ThrowIfCancellationRequested();
             // Folded rows are drawn again from the whole list, so a run split by the page edge becomes one line.
             var loaded = Received(); var known = loaded.Select(message => message.Id).ToHashSet();
@@ -510,7 +513,6 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { if (!token.IsCancellationRequested) ConnectionError = error.Message; }
-        finally { if (!token.IsCancellationRequested) Loading = false; }
     }
 
     // Forward one message of the open conversation to another Bot or room, with an optional comment of the Owner's own. Returns null when it was accepted,
