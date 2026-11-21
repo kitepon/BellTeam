@@ -890,6 +890,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     element.classList.add('is-pending')
     const entry = { element, accepted: false }
     pendings.add(entry); timelinePending.append(element)
+    timeline.scrollTo({ top: 0, behavior: 'instant' }) // a send goes to the newest edge from any position, and the bottom anchor follows from there
     return { accept() { entry.accepted = true }, remove() { element.remove(); pendings.delete(entry) } }
   }
 

@@ -665,6 +665,17 @@ test('a471-open-newest-web: a sent bubble shows at once at the newest position; 
   assert.equal(f.timeline.children[1].children.length, 0, 'a new conversation starts clean')
 })
 
+test('a471-send-follow-web: a send while reading older rows goes to the newest edge (scrollTop 0) and stays there', async t => {
+  const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
+  await f.open('a'); await settle()
+  f.timeline.scrollTop = -500; f.timeline.listeners.scroll()
+  f.view.addPending({ type: 'bot', id: 'a' }, '読み戻し中に送った')
+  assert.equal(f.timeline.scrollTop, 0); assert.equal(f.timeline.lastBehavior, 'instant')
+  f.timeline.scrollTop = -500; f.timeline.listeners.scroll()
+  f.view.addPending({ type: 'bot', id: 'other' }, 'another conversation')
+  assert.equal(f.timeline.scrollTop, -500, 'a bubble that is not drawn moves nothing')
+})
+
 test('a471-scrollback-web: the first page asks 1000, an older page 1000 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
   const f = fixture(t, path => path.includes('before=') ? { items: [], has_more: false } : { items: [{ id: 'm4', at: '2026-11-21T01:02:03Z', message: 'x', direction: 'incoming' }], has_more: true })
   await f.open('a'); await settle()
