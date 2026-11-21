@@ -84,9 +84,9 @@ stateDiagram-v2
   [*] --> active: approved by the owner's account
   active --> active: use (lastUsed); lease ask OK (background, at most every 10 min per session)
   active --> ended: app logout (server signs the pass out)
-  active --> ended: pass_refused / pass_expired on a lease ask (phone stop, stop all others, 14 days)
+  active --> ended: pass_refused / pass_expired / pass_invalid on a lease ask: ends at that ask and the server signs the pass out (Mint, confirmed)
   active --> ended: 14 days without use (server clock); a console session has no pass, so this and `revoke` are its only ends
-  active --> active: operator unreachable: last answer holds
+  active --> active: operator not reachable (no answer at all): last answer holds; a refusal is never carried on it
   ended --> [*]: record and pass file deleted; token hash leaves the projection; open SSE of that session closed
 ```
 
