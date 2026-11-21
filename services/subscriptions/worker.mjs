@@ -3,11 +3,6 @@ import product from './product.json' with { type: 'json' }
 
 const WIRE_PREFIX = '/auth/v1'
 const CALLBACK_PATH = `${WIRE_PREFIX}/websignin/callback`
-// The anonymous paths that write to storage or spend a code without a pass (library duty): per caller, in this isolate's memory.
-// shortcut: per-isolate counters (the storage budgets are the backstop), move to a Durable Object counter if abuse appears.
-const LIMITED = ['signin/nonce', 'handoff/start', 'websignin/start', 'prove/take', 'ticket/check'].map(name => `${WIRE_PREFIX}/${name}`)
-const LIMIT_PER_MINUTE = 30
-
 const base64Url = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0))
 const list = value => (value ?? '').split(',').map(item => item.trim()).filter(Boolean)
 
@@ -49,17 +44,10 @@ export function loginBillingConfig(env, storage, extra = {}) {
   }
 }
 
-// The caller key is a hash of the connecting address; it is never stored or logged.
-async function callerKey(request) {
-  const address = request.headers.get('cf-connecting-ip') ?? 'unknown'
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(address))
-  return Array.from(new Uint8Array(digest).slice(0, 8), byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
 // storage(env): the library's Storage (the Durable Object storage on Cloudflare). extra: test overrides for the library (fetch, now, stores).
-export function createLoginBillingWorker({ storage = env => durableObjectStorage(env.LB_STORAGE), extra = {}, clock = Date.now } = {}) {
+// The per-caller limit on the anonymous paths is the library's (0.10.1, counted in its storage object, caller = CF-Connecting-IP): none here.
+export function createLoginBillingWorker({ storage = env => durableObjectStorage(env.LB_STORAGE), extra = {} } = {}) {
   let service
-  const counters = new Map()
 
   function configured(env) {
     if (service === undefined) {
@@ -67,17 +55,6 @@ export function createLoginBillingWorker({ storage = env => durableObjectStorage
       service = config ? createHandler(createLoginBilling(config), { prefix: WIRE_PREFIX, origins: [] }) : null
     }
     return service
-  }
-
-  async function limited(request, path) {
-    if (!LIMITED.includes(path)) return false
-    const key = `${path}:${await callerKey(request)}`
-    const now = clock()
-    for (const [name, entry] of counters) if (entry.resetAt <= now) counters.delete(name)
-    const entry = counters.get(key) ?? { count: 0, resetAt: now + 60_000 }
-    entry.count += 1
-    counters.set(key, entry)
-    return entry.count > LIMIT_PER_MINUTE
   }
 
   return {
@@ -89,7 +66,6 @@ export function createLoginBillingWorker({ storage = env => durableObjectStorage
       if (request.method !== method) return new Response(`${method}を使ってください。`, { status: 405, headers: { Allow: method } })
       const http = configured(env)
       if (!http) return Response.json({ error: 'not_configured' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
-      if (await limited(request, path)) return http.errorResponse('rate_limited')
       return (await http.handle(request)) ?? new Response('見つかりません', { status: 404 })
     },
   }

@@ -100,15 +100,13 @@ test('without a web client or a public origin the provider is unknown (web sign-
   assert.equal(result.status, 400)
 })
 
-test('the anonymous paths are limited per caller, not for everyone, and each path has its own count', async () => {
+test('the library limits the anonymous paths per caller (CF-Connecting-IP), not for everyone; the Worker adds no limiter of its own', async () => {
   const { call } = await setup()
   const first = { 'cf-connecting-ip': '192.0.2.1' }
-  for (let index = 0; index < 30; index++) assert.equal((await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: first })).status, 200)
+  for (let index = 0; index < 10; index++) assert.equal((await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: first })).status, 200)
   const limited = await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: first })
   assert.equal(limited.status, 429)
   assert.equal(limited.body.error, 'rate_limited')
   assert.equal((await call('/auth/v1/handoff/start', { body: { deviceLabel: 'a' }, headers: { 'cf-connecting-ip': '192.0.2.2' } })).status, 200)
-  assert.equal((await call('/auth/v1/signin/nonce', { headers: first })).status, 200, 'another route has its own count')
-  for (let index = 0; index < 31; index++) await call('/auth/v1/ticket/check', { body: { ticket: 'x' }, headers: first })
-  assert.equal((await call('/auth/v1/ticket/check', { body: { ticket: 'x' }, headers: first })).status, 429, 'the new anonymous paths are limited too')
+  assert.equal((await call('/auth/v1/signin/nonce', { headers: first })).status, 200, 'another path has its own count')
 })
