@@ -127,6 +127,13 @@ final class ConversationScrollUITests: XCTestCase {
     }
 
     /// 画面に出ている会話の行（message-text-m###）の番号。1回の問い合わせで読む。
+    /// 要素が画面の会話の枠の中にある（行の入れ替わりの最中でも壊れない見方。isHittable は行のidが替わる間に失敗する）。
+    private func onScreen(_ element: XCUIElement) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame, area = conversationScroll().frame
+        return !frame.isEmpty && frame.maxY > area.minY && frame.minY < area.maxY
+    }
+
     private func visibleMessageNumbers() -> [Int] {
         // 動いている最中でも壊れないよう、画面の木を一度に写して読む。
         guard let root = try? app.snapshot() else { return [] }
@@ -179,23 +186,39 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertEqual(try requests(), ["?limit=1000"], "表示域が埋まっていれば、開いただけでは過去の頁を読まない")
     }
 
-    /// 上を読んでいる時に送ると、最新の端へ移る（build 177 は固まって動かなかった）。アニメーションの行き先を持たず、レイアウトの位置決めで移る。
-    /// この試験用サーバーは購読の確認を通さないので、送信そのものは手前で止まる。確かめるのは送信の操作で最新の端へ移ることだけ（吹き出しの表示は実機で確かめる）。
-    func testSendingWhileReadingOlderMovesToTheNewestEnd() throws {
-        try openConversation("ユキ", failBefore: false, total: 160, firstCap: 100)
+    /// 送信（a471-send-follow-apple）：本物と同じく、受け付けが遅く、受け付けた後に席が思考・道具・フック・言葉の行で答え続ける間も、送った吹き出しが最新の端に見え、最新の端を追い続ける。位置は上を読んでいる所・最新の端の両方から。
+    /// build 178 では、答えの最初の行（思考の吹き出し）が入れた後に実高へ測り直されて伸びると、伸びた分だけ最新の端から離れ、以後は追えず固まった（実測：離れた距離 126→1451pt、新着ボタン）。
+    private func sendFollowsTheSeatsReply(fromReadingOlder: Bool) throws {
+        try openConversation("ユキ", failBefore: false, total: 160, events: true, firstCap: 20, billing: true)
         XCTAssertTrue(text("m160").waitForExistence(timeout: 10))
-        for _ in 0..<3 { conversationScroll().swipeDown() }
-        Thread.sleep(forTimeInterval: 2)
-        XCTAssertFalse(text("m160").exists && text("m160").isHittable, "上を読んでいる")
+        try waitForSubscriber()
+        _ = try data("/test/config?sendDelay=1500&replyRows=24")
+        if fromReadingOlder {
+            for _ in 0..<3 { conversationScroll().swipeDown() }
+            Thread.sleep(forTimeInterval: 2)
+            XCTAssertFalse(text("m160").exists && text("m160").isHittable, "上を読んでいる")
+        }
         let input = app.textViews["message-input"]
         input.tap()
         input.typeText("送信の確認です")
         app.buttons["送信"].tap()
-        XCTAssertTrue(text("m160").waitForExistence(timeout: 5))
+        let pending = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'message-text-local-pending-' OR identifier BEGINSWITH 'message-text-sent-'")).firstMatch
+        XCTAssertTrue(pending.waitForExistence(timeout: 5), "送った吹き出しが一覧に入る")
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertTrue(onScreen(pending), "送った直後、吹き出しが最新の端に見える")
+        let last = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'r024' OR value CONTAINS 'r024'")).firstMatch
+        for second in 0..<30 {
+            if onScreen(last) { break }
+            Thread.sleep(forTimeInterval: 1)
+        }
         Thread.sleep(forTimeInterval: 2)
-        XCTAssertTrue(text("m160").isHittable, "送信の操作で最新の行へ移る")
-        XCTAssertFalse(app.buttons["新着メッセージ"].exists, "最新の端にいる")
+        XCTAssertTrue(onScreen(last), "席の答えが続く間も最新の端を追い、最後の行（r024）が見える。見えている番号: \(visibleMessageNumbers())")
+        XCTAssertFalse(app.buttons["新着メッセージ"].exists, "追い続けていて新着ボタンは出ない")
     }
+
+    func testSendFromTheNewestEndKeepsFollowingTheSeatsReply() throws { try sendFollowsTheSeatsReply(fromReadingOlder: false) }
+
+    func testSendFromReadingOlderMovesToTheNewestEndAndKeepsFollowingTheSeatsReply() throws { try sendFollowsTheSeatsReply(fromReadingOlder: true) }
 
     /// a471-iphone-flash-jump-177：会話を出て開き直した時、最初の頁が届く前でも、出る前に見ていた最新の行が出ている（古い控えの頁＝過去だけ、を出さない）。
     /// 頁が届いた後も、その行の上端は動かない。
@@ -456,11 +479,13 @@ final class ConversationScrollUITests: XCTestCase {
     }
 
     private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false, shortPage: Bool = false, fold: Bool = false, beforeDelay: Int = 0,
-                                  firstCap: Int = 0, olderCap: Int = 0, thinking: Bool = false, boundary: Bool = false) throws {
+                                  firstCap: Int = 0, olderCap: Int = 0, thinking: Bool = false, boundary: Bool = false, billing: Bool = false) throws {
         _ = try data("/test/reset?failBefore=\(failBefore ? 1 : 0)&total=\(total)&shortPage=\(shortPage ? 1 : 0)&fold=\(fold ? 1 : 0)&beforeDelay=\(beforeDelay)&firstCap=\(firstCap)&olderCap=\(olderCap)&thinking=\(thinking ? 1 : 0)&boundary=\(boundary ? 1 : 0)")
         app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", base.absoluteString]
         if events { app.launchArguments.append("-bellbot-preview-events") }
+        // 購読の状態を試験用サーバーから読む（開発者アクセス）。送信の入口の購読確認を通すため。
+        if billing { app.launchArguments.append("-bellbot-preview-reporting") }
         app.launch()
         let member = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", name)).firstMatch
         XCTAssertTrue(member.waitForExistence(timeout: 10))
