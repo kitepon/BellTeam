@@ -12,5 +12,7 @@ public sealed class StoreAccountTests
     [InlineData("store", 1, StoreAccountState.SignedInEntitled)]
     [InlineData("handoff", 0, StoreAccountState.Handoff)]
     [InlineData("handoff", 2, StoreAccountState.Handoff)]
+    [InlineData("signed", 0, StoreAccountState.Signed)]
+    [InlineData("signed", 1, StoreAccountState.Signed)]
     public void ThePassKindAndEntitlementsDecideTheAccountState(string kind, int entitlements, StoreAccountState expected) => Assert.Equal(expected, StoreAccount.Of(kind, entitlements));
 }

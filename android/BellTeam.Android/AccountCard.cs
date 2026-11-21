@@ -18,7 +18,9 @@ public sealed class AccountCard : StackPanel
     private LoginBilling? billing => AccountStore.Billing;
     private ProductInfo? product;
     private string? failure;
-    private bool busy;
+    private bool busy, handoffAsked;
+    private LoginStart? handoff;
+    private bool alreadyEntitled;
 
     public AccountCard(CancellationToken token)
     {
@@ -30,9 +32,28 @@ public sealed class AccountCard : StackPanel
     // What Play knows of the one product, once signed in with a store pass; the purchase button shows its price.
     private async Task LoadAsync()
     {
-        if (billing is not { PassKind: PassKind.Store }) return;
+        if (billing is { PassKind: PassKind.Signed }) { await HandoffAsync(billing); return; }
+        if (billing is not { PassKind: PassKind.Store }) { handoffAsked = false; return; }
         try { product = (await billing.ProductDetailsAsync([AccountStore.ProductId], subscription: true)).FirstOrDefault(); }
-        catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code); }
+        catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code, error.Reason); }
+        if (!token.IsCancellationRequested) Render();
+    }
+
+    // Contract 1.20 (Mint's ruling): only a web-signed device (PassKind.Signed) asks to be let in by a phone, and a device that is already entitled gets null and shows no QR.
+    // A Store pass (native Google sign-in) never starts one: the library answers signed_in before any request, so this is not even asked.
+    private async Task HandoffAsync(LoginBilling lb)
+    {
+        if (handoffAsked) return;
+        handoffAsked = true;
+        try
+        {
+            handoff = await lb.StartLoginAsync(); alreadyEntitled = handoff is null;
+            if (!token.IsCancellationRequested) Render();
+            if (handoff is null) return;
+            await lb.WaitForPassAsync();
+            handoff = null; alreadyEntitled = true;
+        }
+        catch (LoginBillingException error) { handoff = null; failure = StoreAccountText.Failure(error.Code, error.Reason); handoffAsked = false; }
         if (!token.IsCancellationRequested) Render();
     }
 
@@ -41,7 +62,7 @@ public sealed class AccountCard : StackPanel
         if (busy || billing is null) return;
         busy = true; failure = null; Render();
         try { await action(billing); await LoadAsync(); }
-        catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code); }
+        catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code, error.Reason); }
         busy = false;
         if (!token.IsCancellationRequested) Render();
     }
@@ -51,7 +72,7 @@ public sealed class AccountCard : StackPanel
         Children.Clear();
         Children.Add(Text(StoreAccountText.Title, 17, Ink, FontWeight.SemiBold));
         if (billing is not { } lb) { Children.Add(Text(StoreAccountText.NotConfigured, 14, Muted, null, new Thickness(0, 10, 0, 0))); return; }
-        var state = StoreAccount.Of(lb.PassKind switch { PassKind.Store => "store", PassKind.Handoff => "handoff", _ => "none" }, lb.Entitlements.Count);
+        var state = StoreAccount.Of(lb.PassKind switch { PassKind.Store => "store", PassKind.Handoff => "handoff", PassKind.Signed => "signed", _ => "none" }, lb.Entitlements.Count);
         if (state == StoreAccountState.SignedOut)
         {
             Children.Add(Text(StoreAccountText.SignedOut, 14, Ink, null, new Thickness(0, 10, 0, 0)));
@@ -59,7 +80,7 @@ public sealed class AccountCard : StackPanel
         }
         else
         {
-            Children.Add(Text(state == StoreAccountState.Handoff ? StoreAccountText.HandoffCannotBuy : StoreAccountText.SignedIn, 14, Ink, null, new Thickness(0, 10, 0, 0)));
+            Children.Add(Text(state is StoreAccountState.Handoff or StoreAccountState.Signed ? StoreAccountText.HandoffCannotBuy : StoreAccountText.SignedIn, 14, Ink, null, new Thickness(0, 10, 0, 0)));
             foreach (var entitlement in lb.Entitlements)
                 if (SubscriptionText.StoreOf(entitlement.Store) is { } store) Children.Add(Text(SubscriptionText.Active(store), 14, Ink, FontWeight.SemiBold, new Thickness(0, 6, 0, 0)));
             // A purchase on this phone that belongs to another account is never shown as owned.
@@ -67,12 +88,27 @@ public sealed class AccountCard : StackPanel
             if (state == StoreAccountState.SignedInNeedsPurchase && product is not null)
                 Children.Add(Button(StoreAccountText.Buy(product.Offers.FirstOrDefault()?.Phases.FirstOrDefault()?.FormattedPrice ?? product.OneTimePrice?.FormattedPrice ?? product.Title),
                     () => RunAsync(async b => await b.PurchaseAsync(MainActivity.Current, product.ProductId, product.Offers.FirstOrDefault()?.OfferToken)), prominent: true));
-            Children.Add(Button(StoreAccountText.Refresh, () => RunAsync(async b => await b.RefreshAsync())));
-            if (state == StoreAccountState.SignedInEntitled || state == StoreAccountState.SignedInNeedsPurchase || state == StoreAccountState.Handoff)
+            if (state == StoreAccountState.Signed) RenderHandoff();
+            if (state != StoreAccountState.Signed) Children.Add(Button(StoreAccountText.Refresh, () => RunAsync(async b => await b.RefreshAsync())));
+            if (state != StoreAccountState.SignedOut)
                 Children.Add(Button(StoreAccountText.StopAllOthers, () => RunAsync(async b => await b.StopAllOthersAsync(MainActivity.Current))));
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(b => b.SignOutAsync())));
         }
         if (failure is not null) Children.Add(Banner(failure));
+    }
+
+    // 7f: the handoff QR of a device with no store receipt, the sentences as written; the QR text is drawn as given, never wrapped in a link.
+    private void RenderHandoff()
+    {
+        if (alreadyEntitled) { Children.Add(Text(StoreAccountText.AlreadyEntitled, 14, Ink, FontWeight.SemiBold, new Thickness(0, 10, 0, 0))); return; }
+        if (handoff is not { } login) return;
+        Children.Add(Text(StoreAccountText.HandoffTitle, 15, Ink, FontWeight.SemiBold, new Thickness(0, 14, 0, 0)));
+        Children.Add(Text(StoreAccountText.HandoffLead, 13, Muted, null, new Thickness(0, 6, 0, 8)));
+        var qr = new QrView(login.QrPayload, 220) { HorizontalAlignment = HorizontalAlignment.Left }; Children.Add(qr);
+        Children.Add(Text(StoreAccountText.HandoffCode + "　" + login.ShortCode, 17, Ink, FontWeight.SemiBold, new Thickness(0, 10, 0, 0)));
+        Children.Add(Text(StoreAccountText.HandoffCheckNumber + "　" + login.CheckNumber, 17, Ink, FontWeight.SemiBold, new Thickness(0, 4, 0, 0)));
+        Children.Add(Text(StoreAccountText.HandoffCheckLine, 13, Muted, null, new Thickness(0, 6, 0, 0)));
+        Children.Add(Text(StoreAccountText.HandoffWaiting, 13, Muted, null, new Thickness(0, 6, 0, 0)));
     }
 
     private Button Button(string label, Func<Task> click, bool prominent = false)
