@@ -22,11 +22,14 @@ const pending = (...ids) => ({ state: 'blocked', reason: null, pending: ids.map(
 const env = (lines, from, after, state = { state: 'busy', reason: null, pending: [] }, launch = 'L1') =>
   ({ botId: 'bot-d', session: 's1', launch_id: launch, cursor_from: from, cursor_after: after, lines, state })
 
-async function service(t, streamSend = async () => ({ accepted: true })) {
+const defaults = (await import('../src/machine-display-rules.json', { with: { type: 'json' } })).default
+const keepAll = { ...defaults, omit: [] } // a table that omits nothing: the projection tests read the rows the default table leaves out of the page
+
+async function service(t, streamSend = async () => ({ accepted: true }), rules = defaults) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-machine-stream-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const requested = [], changes = [], sent = []
-  const make = () => new MachineStream({ root, bots, streamSend: async (id, input) => { sent.push([id, input]); return streamSend(id, input) }, onRequest: item => requested.push(item.id), now: () => '2026-11-20T00:00:00.000Z' })
+  const make = () => new MachineStream({ root, bots, rules, streamSend: async (id, input) => { sent.push([id, input]); return streamSend(id, input) }, onRequest: item => requested.push(item.id), now: () => '2026-11-20T00:00:00.000Z' })
   const ms = make(); await ms.initialize(); ms.watch(change => changes.push(change))
   return { ms, root, requested, changes, sent, make }
 }
@@ -48,7 +51,7 @@ test('project: every kind has a view; unknown and non-JSON are shown, never drop
 })
 
 test('ingest: stores raw lines, advances the cursor, resyncs on a gap or replay, starts a new segment on a new launch', async t => {
-  const { ms, root, changes, make } = await service(t)
+  const { ms, root, changes, make } = await service(t, undefined, keepAll)
   assert.equal(ms.cursor('bot-d'), null)
   const first = ['{"type":"system","subtype":"init"}', '{"type":"mystery"}']
   assert.deepEqual(await ms.ingest(env(first, null, 'L1:100')), { status: 'stored', cursor: 'L1:100' })
@@ -73,7 +76,7 @@ test('ingest: stores raw lines, advances the cursor, resyncs on a gap or replay,
 })
 
 test('default table shows every kind, folds tool results and empty thinking, hides nothing; the table is read at display time and stored data does not change', async t => {
-  const { ms, root } = await service(t)
+  const { ms, root } = await service(t, undefined, keepAll)
   const lines = [J({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'I am checking' }, { type: 'thinking', thinking: '' }, { type: 'text', text: 'answer' }, { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] } }),
     J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a\nb' }] } }), J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'error_during_execution' })]
   await ms.ingest(env(lines, null, 'L1:1'))
@@ -88,7 +91,7 @@ test('default table shows every kind, folds tool results and empty thinking, hid
 })
 
 test('every words entry of the seat is a bubble from the moment it is stored: interim and final, not the replayed input, not empty; no later change (a479-interim-bubble)', async t => {
-  const { ms, root } = await service(t)
+  const { ms, root } = await service(t, undefined, keepAll)
   const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
   const bubbles = m => m.timeline({ botId: 'bot-d' }).filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
   await ms.ingest(env([J({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }), words('わかった'), words('   '), words('answer')], null, 'L1:1'))
@@ -97,8 +100,28 @@ test('every words entry of the seat is a bubble from the moment it is stored: in
   await ms.ingest(env([J({ type: 'result', subtype: 'success' })], 'L1:1', 'L1:2'))
   assert.deepEqual(bubbles(ms), [false, true, false, true])
   assert.deepEqual(ms.timeline({ botId: 'bot-d' }).slice(0, ids.length).map(r => r.id), ids) // the result changes no earlier row
-  const again = new MachineStream({ root, bots, streamSend: async () => ({}) }); await again.initialize({ readOnly: true })
+  const again = new MachineStream({ root, bots, streamSend: async () => ({}), rules: keepAll }); await again.initialize({ readOnly: true })
   assert.deepEqual(bubbles(again), [false, true, false, true])
+})
+
+test('the default table leaves background rows and the replayed input out of every page; errors, rejections, cards and tool lines stay; stored lines and tool-run groups are unchanged (a481-hide-background-input)', async t => {
+  const { ms, root } = await service(t)
+  const call = (id, name) => J({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input: { command: 'ls' } }] } })
+  const back = id => J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } })
+  const lines = [J({ type: 'system', subtype: 'init', model: 'm' }), J({ type: 'user', message: { content: [{ type: 'text', text: 'replayed' }] } }), J({ type: 'system', subtype: 'hook_started', hook_name: 'Stop' }),
+    call('t1', 'Bash'), J({ type: 'system', subtype: 'hook_started', hook_name: 'PreToolUse:Bash' }), back('t1'), call('t2', 'Read'), J({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } }), back('t2'),
+    J({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }), J({ type: 'system', subtype: 'api_error', error: 'boom' }), J({ type: 'mystery' }), J({ type: 'stream_event' }),
+    J({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } }), J({ type: 'result', subtype: 'success' }), J({ type: 'result', subtype: 'error_during_execution' }), ask('q1', Q)]
+  await ms.ingest(env(lines, null, 'L1:1', pending('q1')))
+  const rows = ms.timeline({ botId: 'bot-d' })
+  assert.deepEqual(rows.map(r => [r.machine_event.view, r.machine_event.fold_group, r.machine_event.fold_count]), [
+    ['tool_use', 'tools', 1], ['tool_result', 'tools', 0], ['tool_use', 'tools', 1], ['tool_result', 'tools', 0], // the hook line inside the run is gone; the run still counts 2 tools
+    ['rate_limit', undefined, undefined], ['system', undefined, undefined], ['words', undefined, undefined], ['result', undefined, undefined], ['question', undefined, undefined]])
+  assert.deepEqual(rows.filter(r => r.machine_event.view === 'rate_limit').map(r => r.machine_event.title), ['rate limit: rejected'])
+  assert.deepEqual(ms.timelineView({ botId: 'bot-d' }, { recent: true }).snapshot().map(r => r.machine_event.view), ['rate_limit', 'system', 'words', 'result', 'question']) // the preview follows the shown rows
+  assert.equal(ms.line('bot-d', 1).line, lines[0]) // the omitted line is still stored and readable by seq
+  const all = new MachineStream({ root, bots, streamSend: async () => ({}), rules: keepAll }); await all.initialize({ readOnly: true })
+  assert.equal(all.timeline({ botId: 'bot-d' }).length, lines.length) // the same stored lines, a table that omits nothing brings every row back
 })
 
 test('thinking follows the Owner setting: hidden by default in the page and the preview, shown when on, stored lines unchanged, a failed read is hidden (a479-thinking-setting)', async t => {
@@ -126,8 +149,8 @@ test('thinking follows the Owner setting: hidden by default in the page and the 
   assert.deepEqual(views(), ['words']) // a failed read is hidden
 })
 
-test('tool runs: a folded tool_use and everything folded after it to the next shown entry or the turn result is one group, in time order; the use counts 1', async t => {
-  const { ms } = await service(t)
+test('tool runs: a folded tool_use and defaults folded after it to the next shown entry or the turn result is one group, in time order; the use counts 1', async t => {
+  const { ms } = await service(t, undefined, keepAll)
   const use = (id, name) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input: { a: 1 } }] } })
   const res = id => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } })
   const hook = subtype => ({ type: 'system', subtype, hook_name: 'PreToolUse:X' })
@@ -149,7 +172,7 @@ test('tool runs: a folded tool_use and everything folded after it to the next sh
 })
 
 test("Tronie's default table: what is shown open and what is folded to one line", async t => {
-  const { ms } = await service(t)
+  const { ms } = await service(t, undefined, keepAll)
   const cases = [
     [{ type: 'assistant', message: { content: [{ type: 'text', text: 'hello' }] } }, 'show'],
     [{ type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'why' }] } }, 'show'],
@@ -236,7 +259,7 @@ test('a request leaves pending by cancel, by state.pending, by exit, or by REQUE
 const bash = (id, input) => J({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: 'Bash', input } })
 
 test('a request the seat answers itself pushes nothing and is one folded line; a waiting one pushes and stays a card (a471-auto-approval-noise)', async t => {
-  const { ms, requested, make, root } = await service(t)
+  const { ms, requested, make, root } = await service(t, undefined, keepAll)
   const input = { command: 'sed -n 1,140p server.js | head -8', description: 'Read se' }
   await ms.ingest(env([bash('b1', input)], null, 'L1:1', { state: 'busy', reason: null, pending: [] }))
   assert.deepEqual(requested, []) // no push
@@ -358,7 +381,7 @@ test('an answer in flight is not closed by the envelope the seat sends once it t
 })
 
 test('hook rows, the rate_limit / system / control lines between them and the end-of-turn result / unknown lines share one fold group; tool_result keeps its own', async t => {
-  const { ms } = await service(t)
+  const { ms } = await service(t, undefined, keepAll)
   const lines = [{ type: 'system', subtype: 'hook_started', hook_name: 'PreToolUse:AskUserQuestion' }, { type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } },
     { type: 'system', subtype: 'hook_response', hook_name: 'PreToolUse:AskUserQuestion' }, { type: 'system', subtype: 'init', model: 'm', tools: [] }, { type: 'control_response', response: { request_id: 'c' } },
     { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] } }, { type: 'result', subtype: 'success' }, { type: 'command_lifecycle', phase: 'x' }, { type: 'system', subtype: 'hook_response', hook_name: 'Stop' }, { type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }]
@@ -370,7 +393,7 @@ test('hook rows, the rate_limit / system / control lines between them and the en
 
 // a471-raw-lifecycle-row: the one-line label of an unknown kind is a plain word, never the raw JSON (the raw line stays in text).
 test('an unknown line has a plain one-line label and keeps its raw JSON in text', async t => {
-  const { ms } = await service(t)
+  const { ms } = await service(t, undefined, keepAll)
   const raw = J({ type: 'command_lifecycle', command_uuid: 'c-1', state: 'queued', uuid: 'u-1' })
   await ms.ingest(env([raw, J({ type: 'command_lifecycle', phase: 'x' }), J({ type: 'brand_new_kind' }), 'not json at all'], null, 'L1:1'))
   const rows = ms.timeline({ botId: 'bot-d' })
@@ -381,7 +404,7 @@ test('an unknown line has a plain one-line label and keeps its raw JSON in text'
 
 // a471-raw-ratelimit-row: a rate_limit row's label is its title only; the info JSON stays in text.
 test('a rate_limit row has a plain one-line label and keeps its info JSON in text', async t => {
-  const { ms } = await service(t)
+  const { ms } = await service(t, undefined, keepAll)
   await ms.ingest(env([J({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', resetsAt: 1790000000 } })], null, 'L1:1'))
   const [row] = ms.timeline({ botId: 'bot-d' })
   assert.equal(row.message, 'rate limit: allowed')

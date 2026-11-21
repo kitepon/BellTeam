@@ -114,7 +114,7 @@ History row (what apps read in `items` of the Bot page and the full timeline):
 | `stream_event` | `control` | not shown by default (partial messages are off) |
 | anything else, or a line that is not JSON | `unknown` | `title`: type or `not-json`, `text`: the line cut. Never dropped |
 
-- Display rule (show / fold) is **separate from the data**: every line is stored; `project` adds `machine_event.display` (`show|fold`) at read time from one rule table, `src/machine-display-rules.json` (key = `view`, optional refinements `title` / `is_error`; optional `fold_group`: view -> group name for the folded entries of that view). Changing the table changes what every app shows without touching stored events and without an app release. **There is no `hide` (Owner policy 2026-11-20 21:0x JST: 「畳むのはオッケー。消すのはダメ」): a table may show or fold a kind, never remove it, and a table value other than `fold` is read as `show`. So every stored kind is always in the Bot page and the full timeline, except `thinking` while the Owner's setting hides it (see Thinking can be shown or hidden by a setting).** **Fold view (all four apps draw it the same way)**: a `fold` entry is one collapsed line, not hidden. A tool call (its `tool_use` and `tool_result` entries, same `tool.id`) is folded into one closed line, see Tool calls fold; nothing is moved out of its place in time to do it. A tap or click opens it to the full `text` and closes it again; when `truncated` is true the opened view offers the whole raw line from `GET /api/bots/:id/machine-events/:seq`. A `fold` entry is not drawn as a separate row of the timeline; if its `tool_use` is not in the loaded page (paged away), the app draws the folded line alone at its own position. The open/closed state is the app's and is not stored. A pending question/approval card is always `show`.
+- Display rule (show / fold) is **separate from the data**: every line is stored; `project` adds `machine_event.display` (`show|fold`) at read time from one rule table, `src/machine-display-rules.json` (key = `view`, optional refinements `title` / `is_error`; optional `fold_group`: view -> group name for the folded entries of that view). Changing the table changes what every app shows without touching stored events and without an app release. **`display` is `show` or `fold` (a table value other than `fold` is read as `show`); a kind leaves the page only through the table's `omit` list (Owner 2026-11-21 19:4x JST, see Background rows and the replayed input are not sent); the earlier policy 2026-11-20 21:0x JST 「畳むのはオッケー。消すのはダメ」 now holds for every other kind. So every stored kind is always in the Bot page and the full timeline, except `thinking` while the Owner's setting hides it (see Thinking can be shown or hidden by a setting).** **Fold view (all four apps draw it the same way)**: a `fold` entry is one collapsed line, not hidden. A tool call (its `tool_use` and `tool_result` entries, same `tool.id`) is folded into one closed line, see Tool calls fold; nothing is moved out of its place in time to do it. A tap or click opens it to the full `text` and closes it again; when `truncated` is true the opened view offers the whole raw line from `GET /api/bots/:id/machine-events/:seq`. A `fold` entry is not drawn as a separate row of the timeline; if its `tool_use` is not in the loaded page (paged away), the app draws the folded line alone at its own position. The open/closed state is the app's and is not stored. A pending question/approval card is always `show`.
 - Default table (Tronie's, set 2026-11-20 21:0x JST for the Owner's first live try; to be tuned with the Owner after he has seen it live). Owner words: 「要約とかいいからさ、出してみようぜ」, 「ツールの結果は畳んで良い」, 「君が畳んだ方がいいと思うものは畳んでみて」. The rule table is `src/machine-display-rules.json`; the refinements match `view` plus `empty` / `is_error` / `title` / `status`.
 
 | Shown open (`show`) | Folded to one openable line (`fold`) |
@@ -203,6 +203,26 @@ flowchart LR
   Show --> View
   View --> Page["Bot page / SSE / list preview"]
   Body --> Page
+```
+
+## Background rows and the replayed input are not sent (a481-hide-background-input)
+
+Owner 2026-11-21 19:4x JST: 「アプリ上の表示で background と input は表示する必要がなさそうだ。」 and 「いいよ」 to Tronie's proposal. This changes the 2026-11-20 21:0x rule 「畳むのはオッケー。消すのはダメ」 for these kinds only.
+
+- **The table has an `omit` list** (`src/machine-display-rules.json`, same matcher as `refine`: `view`, `title`, `is_error`, `status`): `hook`, `system`, `control`, `result`, `unknown`, `rate_limit` and `words` titled `input`. `omit_except` keeps what the Owner must still see: `system` and `result` with `is_error`, and `rate_limit` with `status: rejected`. A request the seat answered itself is a `control` row (see Requests the seat answers itself), so it is left out too; a request that waits stays an approval or question card (never omitted).
+- **An omitted row is in no page, no full timeline, no list preview and no SSE row.** The stored lines never change and `GET /api/bots/:id/machine-events/:seq` still reads any line, so the rule is display only and reversible: removing an entry from `omit` brings the rows back. `Thinking can be shown or hidden by a setting` is a second, separate filter.
+- **Nothing else changes.** Tool runs, fold counts and the answer bubbles are decided from every stored line before a row is left out: a hook line inside a tool run is no longer drawn, the run keeps its `tools` group and `fold_count` (1 per tool use). A replayed `input` is not drawn; the Owner's own message is already a saved message row.
+- **Newest-10 rule**: an omitted row is never changed afterwards, so no client has to find it. The one row that changes kind is a self-answered request the host then lists as waiting (`listed`): it first is omitted, then appears as a card at its own place a few rows behind the newest, while the push is sent at once (Aiterm 0.70.89 lists it before its line, so this is the rare old-host case).
+- **Clients change nothing.** They draw the page they get; a folded `background ×N` line simply no longer appears.
+
+```mermaid
+flowchart LR
+  Lines["stored lines (unchanged)"] --> Apply["MachineStream.apply: tool runs, bubbles, requests from every line"]
+  Apply --> Row["row entry"]
+  Row --> Omit{"omit list matches and omit_except does not?"}
+  Omit -->|"yes: hook, system, control, result, unknown, rate_limit, input"| Gone["in no index: not on the page, timeline, preview or SSE"]
+  Omit -->|"no: words, tools, errors, rejections, cards"| Page["Bot page / SSE"]
+  Lines --> Read["GET /machine-events/:seq reads any stored line"]
 ```
 
 ## Data ownership

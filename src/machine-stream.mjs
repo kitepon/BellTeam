@@ -92,14 +92,20 @@ export function project(line) {
   }
 }
 
+const ruleMatches = (r, part) => r.view === part.view && (r.empty === undefined || r.empty === !part.text.trim())
+  && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title)
+  && (r.status === undefined || r.status === part.status)
+
 export function displayOf(part, rules = displayRules) {
   if (part.view === 'question' || part.view === 'approval') return 'show'
-  const refined = rules.refine?.find(r => r.view === part.view && (r.empty === undefined || r.empty === !part.text.trim())
-    && (r.is_error === undefined || r.is_error === (part.is_error === true)) && (r.title === undefined || r.title === part.title)
-    && (r.status === undefined || r.status === part.status))
-  // 'hide' does not exist (Owner 2026-11-20 21:0x JST: fold is fine, removing is not): anything but 'fold' shows.
+  const refined = rules.refine?.find(r => ruleMatches(r, part))
+  // display is show or fold: anything but 'fold' shows.
   return (refined?.display ?? rules[part.view]) === 'fold' ? 'fold' : 'show'
 }
+
+// a481-hide-background-input: a part the table leaves out of the page (stored lines never change).
+export const omittedOf = (part, rules = displayRules) => !(part.view === 'question' || part.view === 'approval')
+  && Boolean(rules.omit?.some(r => ruleMatches(r, part))) && !rules.omit_except?.some(r => ruleMatches(r, part))
 
 export class MachineStream {
   constructor({ root, bots, streamSend, onRequest = () => {}, now = () => new Date().toISOString(), rules = displayRules, showThinking = () => true }) { // no setting wired (a test, a lone service) hides nothing; the body wires the Owner's setting
@@ -196,6 +202,8 @@ export class MachineStream {
 
   setRow(bot, botId, record, n, part) {
     const item = this.row(bot, botId, record, n, part)
+    // a481-hide-background-input: an omitted row is in no index. Tool runs and bubbles were decided from every line before this, so nothing else moves.
+    if (omittedOf(autoPart(bot, part), this.rules)) return item
     // a479-thinking-setting: quiet / shownQuiet are the same rows without thinking, read while the Owner's setting hides it.
     const thinking = item.machine_event.view === 'thinking'
     bot.rows.set(item.id, item)
