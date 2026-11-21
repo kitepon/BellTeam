@@ -555,6 +555,7 @@ public partial class MainWindow : Window, IInspectorHost
             StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
             StartupPhase.SignIn => model.SessionLoginRequired ? SessionSignIn() : new LoginView(OpenLoginSheet),
+            StartupPhase.Paywall => new PaywallView(ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
@@ -616,13 +617,19 @@ public partial class MainWindow : Window, IInspectorHost
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
         if (generation != connectGeneration) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        bool paywalled;
+        try { paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken); }
+        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
+        if (generation != connectGeneration) return;
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) startupAttempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
     }
