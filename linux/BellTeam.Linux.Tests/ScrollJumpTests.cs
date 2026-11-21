@@ -16,8 +16,12 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
     private sealed class Server : HttpMessageHandler
     {
         public int OlderDelayMs;
+        public bool Fresh;   // the newest rows have changed on the server: a refresh of the latest page brings one more row
         public int Older;
         private static string Rows(string prefix, int count, int minuteStart) => string.Join(",", Enumerable.Range(0, count).Select(index =>
+            "{\"id\":\"" + prefix + index + "\",\"kind\":\"message\",\"direction\":\"incoming\",\"at\":\"" + new DateTimeOffset(2026, 11, 21, 0, 0, 0, TimeSpan.Zero).AddMinutes(minuteStart + index).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'") +
+            "\",\"message\":\"" + prefix + index + " " + string.Concat(Enumerable.Repeat("あいうえお", 1 + index * 7 % 11)) + "\",\"sender\":{\"id\":\"b1\",\"name\":\"ベル\"}}"));
+        private static string Slice(string prefix, int from, int count, int minuteStart) => string.Join(",", Enumerable.Range(from, count).Select(index =>
             "{\"id\":\"" + prefix + index + "\",\"kind\":\"message\",\"direction\":\"incoming\",\"at\":\"" + new DateTimeOffset(2026, 11, 21, 0, 0, 0, TimeSpan.Zero).AddMinutes(minuteStart + index).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'") +
             "\",\"message\":\"" + prefix + index + " " + string.Concat(Enumerable.Repeat("あいうえお", 1 + index * 7 % 11)) + "\",\"sender\":{\"id\":\"b1\",\"name\":\"ベル\"}}"));
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -33,6 +37,8 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
+                var p when p.Contains("/messages?limit=30") => "{\"items\":[" + Slice("first", 70, 30, 5000) + (Fresh ? "," + Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":true}",
+                var p when p.Contains("/messages?after=") => "{\"items\":[" + (Fresh ? Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":false}",
                 var p when p.Contains("/messages?limit=100") => "{\"items\":[" + Rows("first", 100, 5000) + "],\"has_more\":true}",
                 var p when older => "{\"items\":[" + Rows("old" + Older + "-", 500, 5000 - 500 * Older) + "],\"has_more\":true}",
                 _ => null
@@ -131,6 +137,25 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
             await Settle(20);
             var after = Top(scroll, card);
             output.WriteLine($"anchor top {before:F1} -> {after:F1}");
+            Assert.True(Math.Abs(after - before) <= 1, $"the row moved from {before:F1} to {after:F1}");
+        }
+        window.Close();
+    });
+    [Fact]
+    public Task TheRowBeingLookedAtStaysPutWhenTheLatestPageIsRefreshed() => Ui.Run(async () =>
+    {
+        var (server, model, window, scroll) = await OpenAsync();
+        using (model)
+        {
+            scroll.Offset = new Vector(0, scroll.Viewport.Height * 4);
+            await Settle(30);
+            var (card, before) = Anchor(scroll);
+            server.Fresh = true;
+            await model.RefreshManagementAsync();   // the refresh of the latest page (reconnect, a gap in the event stream, the app coming back)
+            await Settle(30);
+            var after = Top(scroll, card);
+            output.WriteLine($"refresh: rows {model.Messages.Count}, anchor top {before:F1} -> {after:F1}");
+            Assert.Contains(model.Messages, item => item.Message.Id == "fresh0");
             Assert.True(Math.Abs(after - before) <= 1, $"the row moved from {before:F1} to {after:F1}");
         }
         window.Close();

@@ -129,7 +129,14 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
         model.Entries.CollectionChanged += (_, _) => QueueListRebuild();
-        model.ScrollToBottom += force => Dispatcher.UIThread.Post(() => messageScroll.ScrollToEnd());
+        // a471-scroll-jump-linux: opening or sending snaps to the end; a row that arrives while the reader is at the bottom is followed by an animated scroll, and one that arrives higher up leaves the view where it is.
+        follower = new BottomFollower(messageScroll);
+        BottomFollower.MotionOn = () => global::Android.Provider.Settings.Global.GetFloat(global::Android.App.Application.Context.ContentResolver, "animator_duration_scale", 1f) > 0;   // the system's animations-off setting is the reduced-motion switch
+        model.ScrollToBottom += force =>
+        {
+            if (force) { follower.Stop(); Dispatcher.UIThread.Post(() => BottomFollower.SnapToEnd(messageScroll)); }
+            else if (messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80) follower.Follow();
+        };
         model.ThisPc = new NoThisPc();
         // A field that gets focus scrolls into view once the keyboard has taken its space.
         AddHandler(GotFocusEvent, (_, e) => { if (e.Source is TextBox box) { Dispatcher.UIThread.Post(() => Reveal(box), DispatcherPriority.Background); DispatcherTimer.RunOnce(() => Reveal(box), TimeSpan.FromMilliseconds(350)); } });
@@ -330,6 +337,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
     // a471-linux-android-older-button: there is no button; older pages are read from the scroll motion (machine-stream.md "History pages of a long stream", the same spec and the same
     // HistoryPaging as the Linux window): while less than max(3 screens, 2 s of the scroll speed) of drawn height is above the view. Fullness is what is drawn (the Fill rule): a page of folded rows draws almost nothing but still adds rows, so it does not end the loop. A failed page leaves its error and the next scroll movement asks again.
+    private BottomFollower? follower;
     private double scrollSpeed; private long lastScrollUp; private bool loadingOlder, prefetching; private ChatTarget? readOnceFor;
     private void NoteScrollUp(ScrollChangedEventArgs args)
     {
