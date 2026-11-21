@@ -14,7 +14,7 @@ const addAssetVersion = async (version, root) => {
   assetVersions.set(version, { root: join(root, 'web'), files: assets.webAssetFiles, versioned: assets.versionedWebAssets })
 }
 for (const [version, root] of JSON.parse(previousVersions)) await addAssetVersion(version, root)
-const gateway = createHttpGateway({ socketPath, assetVersion, assetVersions,
+const gateway = createHttpGateway({ socketPath, assetVersion, assetVersions, browserUi: process.env.BELLTEAM_GATEWAY_BROWSER_UI === '1',
   staticRoot: join(dirname(dirname(fileURLToPath(import.meta.url))), 'web') })
 await new Promise((resolve, reject) => {
   gateway.server.once('error', reject)

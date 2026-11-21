@@ -126,7 +126,7 @@ test('固有adapterから実gatewayをSHA→builtinへ戻し、同port/採用nul
   await writeFile(join(releaseRoot, 'web/app.js'), 'signed:__ASSET_VERSION__')
   backend.listen(socketPath); await once(backend, 'listening')
   const prepare = async id => { reads++; assert.equal(id, signed); return { ...descriptor, appRoot: releaseRoot } }
-  gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot, prepareRelease: prepare, adoptionPath })
+  gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot, prepareRelease: prepare, adoptionPath })
   const adapter = createWebGatewayUpdateAdapter({ gateway: () => gateway, builtinSourceCommit, prepare })
   await gateway.start(); const port = gateway.address.port, base = `http://127.0.0.1:${port}`
   assert.deepEqual(adapter.current(), builtin)

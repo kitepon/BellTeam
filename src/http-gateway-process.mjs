@@ -12,7 +12,7 @@ export const GATEWAY_START_TIMEOUT_MS = 15000
 export const GATEWAY_ASSET_SHARE_TIMEOUT_MS = 5000
 
 export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit, onModuleRestartLimit,
-  writeAdoption = writeAtomic }) {
+  writeAdoption = writeAtomic, browserUi = false }) {
   let child = null, address = null
   let closed = false
   const recovery = createModuleChildRestart(async () => {
@@ -68,7 +68,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     const requestedPort = boundPort
     recovery.restarting()
     const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), assetKey, assetCatalog()], {
-      env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      env: browserUi ? { BELLTEAM_GATEWAY_BROWSER_UI: '1' } : {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     // A child bound without SO_REUSEPORT (a release before 95eef79b) on either side makes the new bind fail with EADDRINUSE.
     let addressInUse = false
@@ -117,7 +117,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         })
       })
       await probeModuleReady(() => new Promise((resolve, reject) => {
-        const request = get({ host: '127.0.0.1', port: ready.probePort ?? ready.address.port, path: '/', timeout: 30_000 }, response => {
+        const request = get({ host: '127.0.0.1', port: ready.probePort ?? ready.address.port, path: '/api/session', timeout: 30_000 }, response => {
           response.resume()
           response.once('end', () => response.statusCode === 200 ? resolve() : reject(new Error('HTTP_STATUS')))
           response.once('error', reject)
