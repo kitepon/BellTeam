@@ -121,8 +121,8 @@ export function mountLoginScreen(root, { api, onApproved }) {
     use.disabled = false
   })
   let codeWay = true
-  // Tronie's ruling (app-sessions.md 7e): the two ways are always shown, with this one line under them, in the same words in every app.
-  const NO_CONTRACT = '購読していない場合は、サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。'
+  // app-sessions.md 7e (Owner fact: the browser version is the free way): this line goes under the code field, in the same words in the docs and every app's Web version.
+  const FREE_WEB = 'ブラウザー版は購読なしで使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。'
   function show(state) {
     const view = loginView(state)
     const phone = el('section', { className: 'login-way' }, el('h3', { textContent: 'スマホで承認する' }), el('p', { className: 'login-status', textContent: view.heading }), ...view.notes.map(text => el('p', { textContent: text })))
@@ -132,8 +132,7 @@ export function mountLoginScreen(root, { api, onApproved }) {
     if (view.cancel) phone.append(el('button', { type: 'button', className: 'text-button', textContent: 'やめる', onclick: () => void login.cancel() }))
     if (view.again) phone.append(el('button', { type: 'button', className: 'primary-button', textContent: 'もう一度', onclick: () => void login.start() }))
     const card = el('section', { className: 'login-card' }, el('h2', { textContent: 'このサーバーにログインします' }), phone)
-    if (codeWay) card.append(el('section', { className: 'login-way' }, el('h3', { textContent: 'サーバーのコードで入る' }), form))
-    card.append(el('p', { className: 'field-help', textContent: NO_CONTRACT }))
+    if (codeWay) card.append(el('section', { className: 'login-way' }, el('h3', { textContent: 'サーバーのコードで入る' }), form, el('p', { className: 'field-help', textContent: FREE_WEB })))
     root.replaceChildren(card)
   }
   login = createLogin({ api, show, onApproved: () => { root.hidden = true; onApproved() } })

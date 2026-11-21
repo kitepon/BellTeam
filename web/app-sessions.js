@@ -7,7 +7,7 @@ const ORIGINS = { phone: 'スマホで承認', console: 'サーバーのコー�
 const post = body => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 const time = value => { const at = Date.parse(value ?? ''); return Number.isFinite(at) ? new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(at) : '' }
 
-export const ADD_APP_TEXT = 'この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったアプリは、このアプリが終わると一緒に終わります。'
+export const ADD_APP_TEXT = 'この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。'
 export const REQUEST_WARNING = '自分で始めたログインだけ許可してください。'
 
 export function sessionRow(session) {

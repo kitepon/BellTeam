@@ -19,6 +19,10 @@ test('a485: session and request rows say who, how it came in and which one is th
   assert.match(requestRow({ loginId: 'L', kind: 'windows', networkClass: 'lan' }).line, /同じネットワーク/u)
 })
 
+test('a485: the add-an-app text is the ruled one (app-sessions.md 7e, the free browser way)', () => {
+  assert.equal(ADD_APP_TEXT, 'この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。')
+})
+
 function setup(script) {
   const previous = globalThis.document
   globalThis.document = { createElement: tag => Object.assign(new Node(tag), { }), createTextNode: text => Object.assign(new Node('#text'), { textContent: text }) }
