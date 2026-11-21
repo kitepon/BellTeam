@@ -932,7 +932,29 @@ final class TerminalsUITests: XCTestCase {
         shot(app, "47-member-editor-old-body-text-field")
     }
 
-    /// Epinel #1114: while 保存 is pending the inputs are locked, so nothing typed after it can be lost when the screen settles.
+    /// a480: long-press a member row → ピン留めする → the pin is sent once (PATCH {pinned:true}) and the member moves to the top.
+    func testPinningAMemberMovesItToTheTop() async throws {
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ナギ")).firstMatch
+        XCTAssertTrue(scrollTo(row, in: app), "ナギは一覧の下の方にいる")
+        row.press(forDuration: 1.2)
+        let pin = app.buttons["ピン留めする"]
+        XCTAssertTrue(pin.waitForExistence(timeout: 5))
+        pin.tap()
+        XCTAssertTrue(app.images["ピン留め中"].waitForExistence(timeout: 5), "ピン留めの印が出る")
+        let pinned = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ナギ")).firstMatch
+        XCTAssertTrue(scrollTo(pinned, in: app, up: true))
+        let others = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "ユキ", "ハル")).firstMatch
+        XCTAssertTrue(others.waitForExistence(timeout: 5))
+        XCTAssertLessThan(pinned.frame.minY, others.frame.minY, "ピン留めしたメンバーが一番上")
+        let pins = try await call("/test/proof")["pins"] as? [[String: Any]]
+        XCTAssertEqual(pins?.count, 1)
+        XCTAssertEqual(pins?.first?["id"] as? String, "bot-three")
+        XCTAssertEqual(pins?.first?["pinned"] as? Bool, true)
+        shot(app, "80-member-pinned")
+    }
+
     /// a479: a feature with no fields (thinkingDisplay) draws as the one on/off switch: no 設定 heading, no registration guide.
     func testFieldlessFeatureIsOneSwitch() async throws {
         let app = launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "thinkingDisplay"])
@@ -946,6 +968,7 @@ final class TerminalsUITests: XCTestCase {
         shot(app, "70-fieldless-feature-switch")
     }
 
+    /// Epinel #1114: while 保存 is pending the inputs are locked, so nothing typed after it can be lost when the screen settles.
     func testOnePasswordInputsAreLockedWhileTheSaveIsPending() async throws {
         _ = try await call("/test/mode?patchdelay=4000")
         let app = launch(["-bellbot-preview-settings", "onepassword"])

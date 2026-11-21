@@ -8,7 +8,7 @@ struct HomeView: View {
 
     private var bots: [Bot] {
         let filtered = store.bots.filter { search.isEmpty || $0.displayName.localizedCaseInsensitiveContains(search) }
-        return recentFirst(filtered) { $0.recent?.at }
+        return recentFirst(filtered) { $0.recent?.at }.pinnedFirst()
     }
 
     private var rooms: [Room] {
@@ -59,6 +59,7 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $addingBot) { BotEditor(initial: nil).environmentObject(store) }
             .sheet(isPresented: $addingRoom) { RoomEditor(initial: nil).environmentObject(store) }
+            .pinErrorAlert(store)
         }
     }
 
@@ -168,6 +169,7 @@ struct HomeView: View {
                             BotRow(bot: bot, working: bot.isWorking)
                         }
                         .buttonStyle(.plain)
+                        .botPinMenu(bot)
                     }
                 }
             }
@@ -222,6 +224,37 @@ private struct RoomCard: View {
     }
 }
 
+/// a480: the pin glyph on a pinned member's row.
+struct PinMark: View {
+    var body: some View {
+        Image(systemName: "pin.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(BellTheme.violet)
+            .accessibilityLabel("ピン留め中")
+    }
+}
+
+extension View {
+    /// a480: long-press / right-click a member row to pin or unpin it; a failure shows in an alert.
+    func botPinMenu(_ bot: Bot) -> some View { modifier(BotPinMenu(bot: bot)) }
+    func pinErrorAlert(_ store: AppStore) -> some View {
+        alert("ピン留めを変えられませんでした", isPresented: Binding(get: { store.pinError != nil }, set: { if !$0 { store.pinError = nil } })) {
+            Button("閉じる") { store.pinError = nil }
+        } message: { Text(store.pinError ?? "") }
+    }
+}
+
+private struct BotPinMenu: ViewModifier {
+    let bot: Bot
+    @EnvironmentObject private var store: AppStore
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            Button(bot.isPinned ? "ピン留めを外す" : "ピン留めする", systemImage: bot.isPinned ? "pin.slash" : "pin") {
+                Task { await store.setPinned(bot, !bot.isPinned) }
+            }
+        }
+    }
+}
+
 struct BotRow: View {
     let bot: Bot
     let working: Bool
@@ -246,6 +279,7 @@ struct BotRow: View {
                         .foregroundStyle(BellTheme.ink)
                         .lineLimit(1)
                     if bot.fastMode { BotFastModeBadge() }
+                    if bot.isPinned { PinMark() }
                     Spacer(minLength: 4)
                     Text(BellDate.short(bot.recent?.at))
                         .font(.system(size: 12))

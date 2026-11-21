@@ -52,6 +52,7 @@
 		262669725F069CD9DF364C2A /* LatticeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1550A683607F4290707784 /* LatticeListView.swift */; };
 		28EC3BBB6D3B44C9964AA634 /* WorkGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AA940588176E122E90B54C /* WorkGraphView.swift */; };
 		29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */; };
+		2DAAB4573CA415B796EC7919 /* BotPinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF17AABDF93B527CD81DE09 /* BotPinTests.swift */; };
 		304A7DC6BEF79E723AA6A0B9 /* ConversationList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */; };
 		3391D0836BD773E3AEB65F67 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF09858FAA98BE09EEF4582 /* UpdateModels.swift */; };
 		34365A7DB1D5F80135AF03A3 /* BotStopUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */; };
@@ -367,6 +368,7 @@
 		9D505AA366C00647C21E6CE8 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStreamLiveTests.swift; sourceTree = "<group>"; };
 		9F3616EB3EAB7A82477860FA /* FixtureLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureLink.swift; sourceTree = "<group>"; };
+		9FF17AABDF93B527CD81DE09 /* BotPinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotPinTests.swift; sourceTree = "<group>"; };
 		A113AE7E3F745B4DD64764EB /* SettingsNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigation.swift; sourceTree = "<group>"; };
 		A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenKeyBarTests.swift; sourceTree = "<group>"; };
 		A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretRequestView.swift; sourceTree = "<group>"; };
@@ -476,6 +478,7 @@
 				FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */,
 				85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */,
 				4E89EE9A9585139D146052FD /* BillingStoreTests.swift */,
+				9FF17AABDF93B527CD81DE09 /* BotPinTests.swift */,
 				254EE50E23553FA4436C995B /* BotSaveTests.swift */,
 				19964D1F37185563CBBACBFB /* BotStopTests.swift */,
 				1059C273C08DFFD40999AB9A /* BotTerminalTextViewTests.swift */,
@@ -1121,6 +1124,7 @@
 				66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */,
 				DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */,
 				529D85B3ECEBB99D6FDF5AEA /* BillingStoreTests.swift in Sources */,
+				2DAAB4573CA415B796EC7919 /* BotPinTests.swift in Sources */,
 				4EA35592F0FF935859D2718E /* BotSaveTests.swift in Sources */,
 				A9A3678F294FEF42E8AD810C /* BotStopTests.swift in Sources */,
 				C44EFE3CB2B841A23DC06E6D /* BotTerminalTextViewTests.swift in Sources */,
