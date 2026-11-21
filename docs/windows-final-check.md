@@ -262,3 +262,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 本番の自席 bot-0d7da1c1 を `--render-conversation member|default|scrolled`（GETのみ）で描いた。考えた行（thinking）が行数の制限なしに全文で折り返されて出て、先頭に「以前のメッセージを読む」が出る。
 - 確認できていない: 返信・転送・コピーのアイコンと、スクロールでの先読みの実際の動き（試験とUiChecksで確かめた。本番の画面での操作は未確認）。
 - 見つけた不具合: `--render-conversation`はPNGを書いたあとに終了時に落ちた（例外コード0xE0434352、ObjectDisposedException。描画モードが`Workspace.Dispose`したあとに、待っていたスクロールの先読みが破棄済みの選択を読んだ）。通常の起動では`Dispose`は走らないため利用者の画面には出ない。修理は #2100（試験つき、版は上げない）。
+
+### 0.6.6 の導入（a471: 会話の上の「以前のメッセージを読む」ボタンを外す）
+
+2026-11-21 11:19 JST、main 2fb5c080（#2104 = 37af4a5aを含む）から `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget` で導入した（共有先の登録は触っていない）。導入後の`BellTeam.exe`は0.6.6+2fb5c080。
+
+- スモーク（`--smoke-test` 本番）: 11:19:29に成功。authenticated=true、bots=144、rooms=9、SSE接続あり。
+- 本番の自席 bot-0d7da1c1 を `--render-conversation member`（GETのみ）で描いた。終了コードは0（0.6.5で出ていた終了時の落ち、#2100、が直っている）。HasMoreが真の会話で、行の上に「以前のメッセージを読む」は出ない。
+- 確認できていない: 実際にスクロールして先読みが働く動き（試験とUiChecksで確かめた。本番の画面での操作は未確認）。LinuxとAndroidには同じボタンが残っている（担当はそれぞれの席）。
