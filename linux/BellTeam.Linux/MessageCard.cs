@@ -20,6 +20,7 @@ public sealed class MessageCard : ContentControl
     private readonly LinuxWorkspace workspace;
     private TimelineMessage Message => item.Message;
     private string? messageId;
+    private ScrollViewer? anchors;
     private Grid? layout;
     private AvatarTile? avatar;
     private TextBlock? stackName;
@@ -102,9 +103,11 @@ public sealed class MessageCard : ContentControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        // a471-scroll-jump: the scroll view keeps the row being looked at in place when a row above it changes height (an image that loaded, a fold that opened).
+        anchors = this.FindAncestorOfType<ScrollViewer>(); anchors?.RegisterAnchorCandidate(this);
         item.PropertyChanged += ItemChanged; workspace.PropertyChanged += WorkspaceChanged; Render(); UpdateAccent();
     }
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e) { item.PropertyChanged -= ItemChanged; workspace.PropertyChanged -= WorkspaceChanged; base.OnDetachedFromVisualTree(e); }
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e) { anchors?.UnregisterAnchorCandidate(this); anchors = null; item.PropertyChanged -= ItemChanged; workspace.PropertyChanged -= WorkspaceChanged; base.OnDetachedFromVisualTree(e); }
     private void ItemChanged(object? sender, PropertyChangedEventArgs args) => Render();
     private void WorkspaceChanged(object? sender, PropertyChangedEventArgs args) { if (args.PropertyName == nameof(LinuxWorkspace.Selected)) UpdateAccent(); }
     private void UpdateAccent()
