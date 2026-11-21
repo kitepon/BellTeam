@@ -156,8 +156,9 @@ export class MachineStream {
         else if (part.view === 'result') bot.reminded = false
         changed.push(this.setRow(bot, botId, record, n, part))
         // a471-tune-answer: the last words of a turn become the bubble when its result line arrives.
+        // a471-final-not-bubble: or at the first Stop hook line, which follows the words at once; the result comes after the hooks, too far back for the clients' newest-10 re-read.
         if (part.view === 'words' && part.title !== 'input' && part.text.trim()) bot.lastWords = { record, n, part }
-        else if (part.view === 'result') {
+        else if (part.view === 'result' || (part.view === 'hook' && part.title === 'hook_started' && part.text === 'Stop')) {
           const last = bot.lastWords
           bot.lastWords = null
           if (last) { bot.bubbles.add(`me-${last.record.seq}-${last.n}`); changed.push(this.setRow(bot, botId, last.record, last.n, last.part)) }
