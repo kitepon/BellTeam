@@ -20,7 +20,7 @@ flowchart TD
   Unit --> Module[同image固定module installer / code・receipt配置だけ]
   Module --> Recheck[親prepareReleaseで配置・互換を再検査]
   Recheck --> Exchange[同module controllerの実交換 / 他module・親は継続]
-  Installer --> Verify[実CID・immutable image・source・health確認]
+  Installer --> Verify[実CID・immutable image・source・health確認 / 一時的な失敗は最大3回確認し直し、毎回の例外をverify.logへ]
   Verify --> Result[同requestIdへdurable終端 / cleanup失敗分離]
   Result --> Client
   Client --> Get[同ID get / ledger排他を待機して再読]
@@ -64,6 +64,10 @@ catalog root保存はCentiの専用公式verifier成功後のみ。初回固定�
 Rootコード公開はinstall-container-update-code.pyで固定14fileのimagePath/installPathと最終bytes/hashを検証し、停止したままの一時image containerからだけ取り出す。Source SHA別immutable dir/完全inventory/受入recordを起動前に再検証する。OS toolはPython>=3.11・canonical Node/Docker/Compose/system manager・/usr/bin/ghの公式必要flagsを前提とする。
 
 Host planのexpectedには実mount/specをtarget順で正規化したstorageBinding hashを持つ。生のHostpathをAPIへ返さず、worker受領前/新起動後にprivate normalと実bind/volume名/RO/subpathを照合する。新imageのlocal ID/source/healthyと保存先本人性の確認までcompletedにしない。
+
+### Post-swap verification retries (2026-11-21)
+
+`execute_installer` confirms the new body (real container ID, image ID, source commit, `healthy`, storage binding) with `inspect_current()` after the installer exits 0. The first Z150 lab swap was rolled back because the host stalled about 100 s and the single inspection hit a 30 s docker timeout. The inspection now runs up to 3 times, 10 s apart (`VERIFY_ATTEMPTS`, `VERIFY_RETRY_SECONDS`), for a `Failure` or `SubprocessError` only; every failed attempt is appended to `verify.log` (0600) in the operation directory, next to `installer.log` and `recover.log`. The same retry checks the restored old body after a rollback. A body that really does not confirm (wrong image/source, unhealthy) or an inspection that fails on all 3 attempts still takes the existing rollback; nothing new is refused, and the retry ends by itself after 3 attempts. The rollback does not yet restore the container-updater image (install.sh `--recover` skips the updater step); that mixed state is tracked separately.
 
 ### New bind at worker admission (2026-11-11)
 
