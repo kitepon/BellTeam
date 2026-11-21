@@ -205,6 +205,22 @@ Events on the existing stream (`GET /api/events`, same `{type, …}` envelope as
 
 Each app row builds, on this section: the sign-in screens of 7f (probe, sign-in, wait, setup-code field, QR handoff; no console-code field in an official app), the setup-code binding screen (a setup code goes with `start`; it is shown on the server console, not in an app), the requests screen (approve / deny), "add an app" (code display) and the session list with revoke. Token storage is the app's: Windows DPAPI file, Linux 0600 file (libsecret later), Android Keystore-backed preferences, Apple Keychain (shared access group), Web the cookie.
 
+**First-run order, the same on every app (Tronie's ruling, 2026-11-22).** The first screen of an app is sign-in and the account, never the server address. Neon found that the Android release app showed アカウントと購読 only after a server was connected, so a person with only an Android phone could never buy. The order is:
+
+```mermaid
+flowchart LR
+  A["1. Sign in with Apple or Google<br/>the account and purchase screen (アカウントと購読)"] --> B{"Does this device hold a store receipt?"}
+  B -->|"yes (a store device with a contract)"| C
+  B -->|"no"| Q["2. QR approval from the person's own phone<br/>(スマホで購読を引き継ぐ)"]
+  Q --> C["3. Server connection<br/>the address, and the setup code at the first binding"]
+```
+
+1. **Sign-in and the account screen.** Apple or Google sign-in (7f), then アカウントと購読 where the person can buy or see 購読中です。 No server is needed for this step.
+2. **QR approval**, only when the device has no store receipt: the handoff block of 7f; the person's own phone approves.
+3. **Server connection**, last: the address of the person's own server and, at the first binding only, the setup code (printed on the server console).
+
+An app with no server saved therefore opens on step 1 (or on the paywall of 7e when the server says `none`), not on the server address screen; the account screen is reachable before and after a server is connected.
+
 ### 7e. Who may use BellTeam without paying (Owner decision 2026-11-22 00:3x JST, via Tronie; one wording for every app)
 
 **The browser version is abolished. Official BellTeam is the native apps only (iPhone, iPad, Mac, Windows, Linux, Android), and all of them are paid. Free use means building the open-source code yourself.** (This replaces the earlier line "the free way is the Web version", Owner fact via Mint 2026-11-21, which is withdrawn.)
