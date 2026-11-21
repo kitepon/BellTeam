@@ -84,6 +84,8 @@ public sealed record TimelineMessage
     public required string Id { get; init; }
     public required DateTimeOffset At { get; init; }
     public string? Message { get; init; }
+    // machine-stream.md "Reply, forward, quote and copy of a bubble": the text a quote, copy or forward carries; a bubble row's `message` is only its first line, so the whole machine_event.text.
+    public string QuoteText => MachineEvent is { Bubble: true, Text.Length: > 0 } bubble ? bubble.Text : Message ?? "";
     public string? Kind { get; init; }
     public string? Direction { get; init; }
     public Member? Sender { get; init; }
@@ -148,7 +150,7 @@ public sealed record ReplyReference(string Id, bool Available, string? SenderNam
     // A picked selection (reply.md "Quoting a selected part") replaces the text; the range is the server's to locate, so none is claimed here.
     public static ReplyReference Local(TimelineMessage original, string senderName, QuoteSelection? selection = null)
     {
-        var runes = TextContent.Normalize(selection?.Text ?? original.Message ?? "").EnumerateRunes().ToArray();
+        var runes = TextContent.Normalize(selection?.Text ?? original.QuoteText).EnumerateRunes().ToArray();
         return new(original.Id, true, senderName, string.Concat(runes.Take(TextLimit)), runes.Length > TextLimit, selection is null && (original.Image == true || original.DisplayedImageUrls.Length != 0), selection is not null);
     }
 }
