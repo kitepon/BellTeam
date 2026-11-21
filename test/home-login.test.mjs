@@ -210,3 +210,19 @@ test('usage child: without an operator every home call is unavailable (the body 
   await assert.rejects(service.request('home.publish', {}, system), { code: 'SESSION_STORE_UNAVAILABLE' })
   await assert.rejects(service.request('home.handle', { method: 'GET', path: '/session', peer: '' }, system), { code: 'SESSION_STORE_UNAVAILABLE' })
 })
+
+test('an open event stream counts as use and is closed when its session ends', async () => {
+  const { EventEmitter } = await import('node:events')
+  const dir = await mkdtemp(join(tmpdir(), 'home-login-'))
+  const sweeps = []
+  const rows = [{ v: 1, bound: true, enforced: true, hashes: { h: 's1' }, states: { s1: 'active' } }, { v: 1, bound: true, enforced: true, hashes: {}, states: {} }]
+  const front = createHomeFront({ call: async (name, params) => { if (name === 'home.sweep') { sweeps.push(params); return { row: sweeps.length === 1 ? undefined : rows[1] } } return { row: rows[0] } }, markerPath: join(dir, 'm'), setTimer: () => ({ unref() {} }), print() {} })
+  try {
+    await front.start()
+    const response = Object.assign(new EventEmitter(), { destroyed: false, destroy() { this.destroyed = true; this.emit('close') } })
+    front.trackStream('s1', response)
+    await front.tick()
+    assert.deepEqual(sweeps.at(-1).streaming, ['s1'])
+    assert.equal(response.destroyed, true) // the second answer no longer holds s1
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})

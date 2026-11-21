@@ -100,6 +100,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       authenticated ??= await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
+      if (request.bellteamSession && request.method === 'GET' && url.pathname === '/api/events') homeFront.trackStream(request.bellteamSession, response)
       if (!internal && crossSiteWrite(request, (() => { try { return new URL(settings?.configuration('cloudflare')?.publicUrl).origin } catch { return null } })()))
         return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
       if (url.pathname === '/api/diagnostics/conversation-admission') {

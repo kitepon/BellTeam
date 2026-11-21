@@ -22,6 +22,7 @@ export function createHomeFront({ call, enabled = true, markerPath, print = line
   let loaded = false
   let lastPrint = 0
   const used = new Set()
+  const streams = new Map() // session id -> open /api/events responses: they count as use, and end with the session
 
   const readMarker = async () => {
     if (loaded) return
@@ -30,7 +31,10 @@ export function createHomeFront({ call, enabled = true, markerPath, print = line
   }
   const accept = async next => {
     if (!next) return
+    const before = new Set(Object.values(row?.hashes ?? {}))
     row = next
+    const after = new Set(Object.values(next.hashes))
+    for (const id of before) if (!after.has(id)) for (const response of streams.get(id) ?? []) response.destroy() // an ended session's stream is closed
     if (next.enforced && !marker) {
       await mkdir(dirname(markerPath), { recursive: true, mode: 0o700 })
       await writeFile(markerPath, `${new Date(now()).toISOString()}\n`, { mode: 0o600 })
@@ -89,7 +93,7 @@ export function createHomeFront({ call, enabled = true, markerPath, print = line
     used.clear()
     try {
       if (!row) await accept((await call('home.publish', {})).row) // a restarted body: the child only sends a row when it changed
-      const { row: next } = await call('home.sweep', { used: ids, streaming: [] })
+      const { row: next } = await call('home.sweep', { used: ids, streaming: [...streams.keys()] })
       await accept(next)
       if (row && !row.bound && now() - lastPrint >= SETUP_REPRINT_MS) await showSetupCode()
     } catch { ids.forEach(id => used.add(id)) }
@@ -98,6 +102,11 @@ export function createHomeFront({ call, enabled = true, markerPath, print = line
   let timer = null, closeConsole = null
   return {
     route, judge, tick, accept, get row() { return row },
+    trackStream(sessionId, response) {
+      const set = streams.get(sessionId) ?? new Set()
+      set.add(response); streams.set(sessionId, set)
+      response.once('close', () => { set.delete(response); if (!set.size && streams.get(sessionId) === set) streams.delete(sessionId) })
+    },
     /** The entitlement state of a session from the published row; undefined when this server is not enforced. */
     stateOf: sessionId => sessionId !== undefined && (marker || row?.enforced) ? row?.states?.[sessionId] ?? 'none' : undefined,
     async start(consoleSocketPath) {
