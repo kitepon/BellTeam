@@ -99,8 +99,10 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     latestButton.hidden = true
     onQueueChange()
   }
-  const TIMELINE_FIRST_PAGE = 10
-  const TIMELINE_MORE_PAGE = 20
+  // machine-stream.md "History pages of a long stream": first page 100, every older page 500 (the server clamps to its own cap); one line each if a real seat measures otherwise.
+  const TIMELINE_FIRST_PAGE = 100
+  const TIMELINE_MORE_PAGE = 500
+  const TIMELINE_REFRESH_PAGE = 10 // the newest rows are re-read only to catch changed delivery states; new rows come by `after`
   const timelineItems = document.createElement('div')
   timelineItems.className = 'timeline-items'
   const timelineTail = document.createElement('div')
@@ -162,12 +164,18 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     renderTail(items)
     scrollToBottom()
     loadStoredMessageImages(items, item => rerenderItem(item.id, token))
-    await fillViewport(token)
+    void fillViewport(token) // after the first paint, in the background
   }
 
-  // 最新ページが表示領域に収まるとスクロールが起きず前ページが読まれないので、領域が埋まるまで遡る。
+  // 先読み（machine-stream.md）：見ている位置の上に max(3画面, 150行, 今のスクロール速さの2秒分) が読み込み済みになるまで、前のページを1つずつ続けて読む。
+  // 最初の表示のあとも同じ規則で動くので、スクロールしなくても前の1ページが背景で読まれる。失敗は次のスクロールで再び試す（ここでは繰り返さない）。
+  let scrollSpeed = 0, lastTop = 0, lastTime = 0 // px per ms, upward only
+  function wantOlder() {
+    const rowHeight = timeline.scrollHeight / Math.max(1, state.timelineMap.size)
+    return timeline.scrollTop < Math.max(3 * timeline.clientHeight, 150 * rowHeight, 2000 * scrollSpeed)
+  }
   async function fillViewport(token) {
-    while (token === state.timelineToken && state.timelineHasMore && timeline.clientHeight > 0 && timeline.scrollHeight <= timeline.clientHeight) {
+    while (token === state.timelineToken && state.timelineHasMore && !state.timelineLoadingOlder && timeline.clientHeight > 0 && wantOlder()) {
       const oldest = state.timelineOldestId
       if (!await readHistory(loadOlderMessages) || oldest === state.timelineOldestId) return
     }
@@ -195,7 +203,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const lastId = ids.at(-1) ?? null
     void refreshTimelineQueue(token)
     const [latest, after] = await Promise.all([
-      api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`),
+      api(`${messagesPath()}?limit=${lastId ? TIMELINE_REFRESH_PAGE : TIMELINE_FIRST_PAGE}`),
       lastId ? api(`${messagesPath()}?after=${encodeURIComponent(lastId)}`) : Promise.resolve({ items: [] }),
     ])
     if (token !== state.timelineToken || request !== state.historyRequest) return
@@ -230,7 +238,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const spinner = Object.assign(document.createElement('p'), { className: 'timeline-older', textContent: '前の会話を読み込んでいます…' })
     timelineItems.firstChild?.after(spinner)
     try {
-      const result = await api(`${messagesPath()}?limit=${TIMELINE_MORE_PAGE}&before=${encodeURIComponent(state.timelineOldestId)}`)
+      const oldestAt = state.timelineMap.get(state.timelineOldestId)?.at
+      const result = await api(`${messagesPath()}?limit=${TIMELINE_MORE_PAGE}&before=${encodeURIComponent(state.timelineOldestId)}${oldestAt ? `&before_at=${encodeURIComponent(oldestAt)}` : ''}`)
       if (token !== state.timelineToken) return
       const items = normalizeItems(result.items).filter(item => !state.timelineMap.has(item.id))
       const ordered = new Map([...items.map(item => [item.id, item]), ...state.timelineMap])
@@ -324,7 +333,10 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
     latestButton.hidden = !target || state.stickToBottom
     if (selectionPick) onSelectionChange() // 選択は残る：位置だけ追う（タッチでは下に固定）
-    if (timeline.scrollTop < 240) void readHistory(loadOlderMessages)
+    const now = Date.now(), up = lastTop - timeline.scrollTop
+    scrollSpeed = lastTime && now > lastTime && up > 0 ? up / (now - lastTime) : scrollSpeed / 2
+    lastTop = timeline.scrollTop; lastTime = now
+    void fillViewport(state.timelineToken)
   })
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineTail)
