@@ -160,4 +160,23 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
         }
         window.Close();
     });
+    [Fact]
+    public Task TheRowBeingLookedAtStaysPutWhenTheConnectionIsMadeAgain() => Ui.Run(async () =>
+    {
+        var (server, model, window, scroll) = await OpenAsync();
+        using (model)
+        {
+            scroll.Offset = new Vector(0, scroll.Viewport.Height * 4);
+            await Settle(30);
+            var (card, before) = Anchor(scroll);
+            var rows = model.Messages.Count;
+            await model.ReconnectAsync();   // the reconnect button, and the automatic reconnect after a drop
+            await Settle(60);
+            var after = Top(scroll, card);
+            output.WriteLine($"reconnect: rows {rows} -> {model.Messages.Count}, anchor top {before:F1} -> {after:F1}");
+            Assert.True(model.Messages.Count >= rows, "the loaded rows are kept (the read-ahead may add more)");
+            Assert.True(Math.Abs(after - before) <= 1, $"the row moved from {before:F1} to {after:F1}");
+        }
+        window.Close();
+    });
 }
