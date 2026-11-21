@@ -410,6 +410,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     forwardSource: async ({ kind, id, messageId }) => kind === 'bot' ? directMessages.receipts.store.forwardSource(id, messageId)
       : roomForwardSource((await rooms.messages(id)).find(row => row.id === messageId)),
     executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available && !execution.hold?.held,
+    machineRow: async (botId, rowId) => machineStream.rowSource(botId, rowId),
     onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
     onError: (error, context) => diagnostics.record(directFailureReport(error, context)),
     onLogCorruption: conversationDiagnosticPort(diagnostics) })

@@ -50,7 +50,7 @@ export function directFailureReport(error, context) {
 
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
-  exchangeMutex, executionReady = () => true, environmentReady = null, forwardSource = async () => null, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null }) {
+  exchangeMutex, executionReady = () => true, environmentReady = null, forwardSource = async () => null, onMessage, onTurnEnd, onError = error => console.error(error), onLogCorruption = null, machineRow = null }) {
   let started = false, closed = false, requested = false, draining = null, unwatchQueue = null
   // a413 (durable-receipt.md "A seat awaiting its user"): a Bot whose seat refused for an open question dialog is skipped by the drain
   // until its turn ends (queue change, Bot idle) or AWAITING_REVIEW_MS passes. Memory only; a restart tries once.
@@ -173,7 +173,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     }
   }
   const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, forwardSource, onMessage, onTurnEnd, deferred: botId => awaiting.has(botId),
-    onPending: requestDrain, onError: report, onLogCorruption })
+    onPending: requestDrain, onError: report, onLogCorruption, machineRow })
   const capture = (method, input) => conversation?.captureReceipt(method, input)
   const messenger = Object.assign(Object.create(legacy), {
     sendmessage(input, options) {
