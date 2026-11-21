@@ -35,6 +35,7 @@ function fixture(t, history, extra = {}) {
   globalThis.CSS = { escape: value => value }
   t.after(() => Object.assign(globalThis, saved))
   const queues = [], requests = [], timeline = new Element(), latestButton = new Element()
+  timeline.clientHeight = 1e6 // a tall view: the 3-screen margin is never full, so the background read of one older page happens (a471-fill-drawn-web)
   const view = createConversationTimeline({ timeline, latestButton,
     api: async (path, options) => {
       requests.push(path)
@@ -555,19 +556,21 @@ test('forward: 転送 hands the source (conversation + item id) and a preview to
   assert.deepEqual(asked.at(-1).source, { kind: 'room', id: 'room1' })
 })
 
-test('first screen: older pages are read one after another while less than the reserve (3 screens / 150 rows) is above the view; enough rows above stop it', async t => {
+test('first screen: older pages are read one after another until the drawn height passes view + 3 screens; a page that draws little does not end it; enough drawn stops it', async t => {
   const pages = { m4: { items: [{ id: 'm3', message: 'x', direction: 'incoming' }], has_more: true }, m3: { items: [{ id: 'm2', message: 'x', direction: 'incoming' }], has_more: true },
     m2: { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }, m1: { items: [{ id: 'm0', message: 'x', direction: 'incoming' }], has_more: false } }
   const f = fixture(t, path => path.includes('before=') ? pages[path.split('before=')[1]] : { items: [{ id: 'm4', message: 'x', direction: 'incoming' }], has_more: true })
   await f.open('a'); await settle()
-  assert.deepEqual(f.ids(), ['m0', 'm1', 'm2', 'm3', 'm4']) // 5 rows are far below the 150-row reserve: it chains until has_more ends
+  assert.deepEqual(f.ids(), ['m0', 'm1', 'm2', 'm3', 'm4']) // one-row pages draw little each: it keeps chaining until has_more ends
   assert.equal(f.requests.filter(path => path.includes('before=')).length, 4)
-  const many = fixture(t, () => ({ items: Array.from({ length: 160 }, (_, i) => ({ id: `r${i}`, message: 'x', direction: 'incoming' })), has_more: true }))
-  await many.open('a'); await settle()
-  assert.equal(many.requests.filter(path => path.includes('before=')).length, 0, '160 rows are loaded: nothing more is read until the view nears the top')
-  many.timeline.scrollTop = 0; many.timeline.listeners.scroll(); await settle()
-  assert.equal(many.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up under the reserve reads the next older page')
-  assert.match(many.requests.find(path => path.includes('before=')), /limit=500&before=r0$/)
+  const rows = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, message: 'x', direction: 'incoming' }))
+  const full = fixture(t, () => ({ items: rows, has_more: true }))
+  full.timeline.clientHeight = 100 // the fake rows draw more than view + 3 screens (400)
+  await full.open('a'); await settle()
+  assert.equal(full.requests.filter(path => path.includes('before=')).length, 0, 'enough is drawn: nothing more is read until the view nears the top')
+  full.timeline.scrollTop = 0; full.timeline.listeners.scroll(); await settle()
+  assert.equal(full.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up under the margin reads the next older page')
+  assert.match(full.requests.find(path => path.includes('before=')), /limit=500&before=r0$/)
 })
 
 test('a471-scrollback-web: the first page asks 100, an older page 500 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
