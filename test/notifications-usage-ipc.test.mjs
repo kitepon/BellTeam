@@ -19,7 +19,7 @@ async function start(t, { mode = '', configuration = { enabled: false, relayUrl:
   child.stderr.on('data', chunk => { stderr += chunk })
   const channel = createNotificationsParentChannel(child, { onDiagnostic })
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose(); await rm(root, { recursive: true, force: true }) })
-  await channel.control('initialize', { configuration: { apns: configuration, webPush: webConfiguration } })
+  await channel.control('initialize', { configuration: webConfiguration === null ? { apns: configuration } : { apns: configuration, webPush: webConfiguration } })
   const ready = await channel.ready
   return { channel, ready, root, child, ended, stderr: () => stderr }
 }
@@ -142,4 +142,11 @@ test('ABI2 real IPC correlates Web origin/409 and drains both artificial provide
   assert.deepEqual(await readFile(join(root, 'state/web-push-keys.json')), keyBytes)
   await channel.control('exit')
   assert.deepEqual(await ended, { code: 0, signal: null })
+})
+
+test('a487n stage 1: the child starts when the parent sends no webPush configuration, and the parent reads a ready with and without webPush', async t => {
+  const { ready } = await start(t, { webConfiguration: null })
+  // stage 1 writers still report a (disabled) webPush; the reader accepts both shapes
+  assert.equal(ready.applyError.apns, null)
+  assert.equal(ready.status.webPush.enabled, false)
 })

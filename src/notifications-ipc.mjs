@@ -21,10 +21,12 @@ const statusValid = value => object(value) && jsonValid(value)
   && value.environments.every(item => ['development', 'production'].includes(item))
   && (value.error === undefined || keys(value.error, 'code,message') && safeCode(value.error.code)
     && value.error.message === '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。')
-const pair = value => keys(value, 'apns,webPush')
-const applyErrorValid = value => pair(value) && [value.apns, value.webPush].every(error => error === null || safeCode(error))
+// a487n stage 1: webPush is leaving. Readers accept the pair with or without it; writers still send it until every half reads without it.
+const pair = value => keys(value, 'apns,webPush') || keys(value, 'apns')
+const applyErrorValid = value => pair(value) && [value.apns, value.webPush].every(error => error === undefined || error === null || safeCode(error))
 const initializedValid = value => keys(value, 'status,applyError') && pair(value.status)
-  && statusValid(value.status.apns) && webPushStatusValid(value.status.webPush) && applyErrorValid(value.applyError)
+  && statusValid(value.status.apns) && (!Object.hasOwn(value.status, 'webPush') || webPushStatusValid(value.status.webPush)) && applyErrorValid(value.applyError)
+export const notificationsReadyValid = initializedValid // a487n: exported for the reader test
 const resultValid = (method, params, value, control) => control
   ? method === 'initialize' ? initializedValid(value)
     : method === 'quiesce' ? keys(value, 'quiesced') && typeof value.quiesced === 'boolean'
@@ -42,9 +44,9 @@ const validateParams = (method, params, control) => {
     if (!keys(params, 'configuration') || !pair(params.configuration)
       || !keys(params.configuration.apns, 'enabled,relayUrl') || typeof params.configuration.apns.enabled !== 'boolean'
       || typeof params.configuration.apns.relayUrl !== 'string' || params.configuration.apns.relayUrl.includes('\0')
-      || !keys(params.configuration.webPush, 'enabled,subject'))
+      || Object.hasOwn(params.configuration, 'webPush') && !keys(params.configuration.webPush, 'enabled,subject'))
       throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
-    validateWebPushParams('configure', { provider: 'webPush', ...params.configuration.webPush })
+    if (Object.hasOwn(params.configuration, 'webPush')) validateWebPushParams('configure', { provider: 'webPush', ...params.configuration.webPush })
     return
   }
   if (method === 'publish') return

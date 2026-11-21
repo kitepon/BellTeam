@@ -53,3 +53,14 @@ Web payloadはRoot固定10key、既event ID/種別/botId/roomId/表示snapshot/�
 `test/fixtures/notifications-web-push-state.mjs:writeNotificationsWebFixture(root)` は使い捨て人工rootへ実writerの設定/登録APIだけで0600のVAPID/登録と既APNs配列を作り、publish無しで閉じる。返却はorigin/otherOrigin/applicationServerKey/subscription/foreignSubscription/replacementSubscription/apnsDeviceと、両OFFのconfiguration。生成値は人工fixtureだけで実endpoint/実Owner値をコピーしない。CentiはこのAPIと固定P2 dispatcher/entryへ結合する。製品entryへ任意path/provider/envを追加しない。
 
 必要直接試験はschema、旧5設定移行/破損拒否、キー永続/0600/欠測/破損/保存失敗、origin所有の原子的無変更、HTTP Owner/Origin/閉body/既APNs投影、両inflight/savingと実IPC drain。providerは合成DNS/人工TLSで公開IP固定・VAPID暗号化・redirect/401/403/404/410/未知・期限destroy/実socket終端を確認する。人工TLS用一時証明書は試験中の一時root内で生成し必ず回収、実serviceへ送信しない。ABI2の資材/両native受入は別Centi原本と結合するまで未成立。
+
+## Removal of Web push (a487n, 2026-11-22; the browser version is abolished)
+
+No client is left that can register a Web push subscription (the Owner abolished the browser version; Admi's #2239 removes `web/`). Web push sending, its HTTP routes, the `webPush` setting and the VAPID/subscription files go. The halves ship apart (body, usage module, notifications module), so the removal is two stages, readers before writers (`runtime/module-ipc.md` "Records between halves that ship apart"):
+
+| Stage | Change | Why this order |
+| --- | --- | --- |
+| 1 (this change) | Every reader accepts the shape with and without `webPush`: the notifications IPC validator (`ready.status`, `ready.applyError`, the `initialize` configuration), the notifications child's `initialize`, the body's settings list / projection row / usage `stateCompatibility` (any combination of the two optional features `webPush`, `thinkingDisplay`) and the usage handoff epochs. Writers still send `webPush`. | A reader that is not yet shipped would refuse the writer that has stopped sending it. |
+| 2 (after stage 1 is on a body train and on the notifications and usage module trains) | Writers stop: the usage child no longer lists `webPush` (and drops a stored entry on load), the body stops sending the `webPush` configuration, the notifications child stops reporting it; `/api/web-push/*`, `PATCH /api/settings/webPush`, the provider, `web-push-origin`, the `web-push` dependency, the file lists and the stored VAPID key and subscription files are removed. | Only now is no reader left that needs the key. |
+
+Clients: the apps read the settings list as a list (iPhone `FeatureSettingsView` only maps an icon for the id `webPush`; Windows, Linux and Android hold no `webPush` code), so a list without it is shown without the row. The app owners drop the icon mapping and the test fixtures with it in their next build; no client has to ship before stage 2.
