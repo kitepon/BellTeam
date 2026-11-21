@@ -933,6 +933,19 @@ final class TerminalsUITests: XCTestCase {
     }
 
     /// Epinel #1114: while 保存 is pending the inputs are locked, so nothing typed after it can be lost when the screen settles.
+    /// a479: a feature with no fields (thinkingDisplay) draws as the one on/off switch: no 設定 heading, no registration guide.
+    func testFieldlessFeatureIsOneSwitch() async throws {
+        let app = launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "thinkingDisplay"])
+        defer { app.terminate() }
+        let toggle = app.switches["有効にする"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertTrue(app.buttons["feature-save"].exists)
+        XCTAssertFalse(app.staticTexts["設定"].exists)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "必要な項目を登録")).firstMatch.exists)
+        shot(app, "70-fieldless-feature-switch")
+    }
+
     func testOnePasswordInputsAreLockedWhileTheSaveIsPending() async throws {
         _ = try await call("/test/mode?patchdelay=4000")
         let app = launch(["-bellbot-preview-settings", "onepassword"])

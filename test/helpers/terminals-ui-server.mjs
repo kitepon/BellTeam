@@ -94,6 +94,7 @@ function onePasswordItem() {
 const settingsList = () => [
   { id: 'notifications', title: '通知', enabled: true, status: 'enabled', fields: [], error: null },
   { id: 'calendar', title: 'カレンダー', enabled: false, status: 'disabled', fields: [], error: null },
+  { id: 'thinkingDisplay', title: 'AIの考えの表示', enabled: false, status: 'disabled', fields: [], error: null },
   ...(state.mode.setting === 'absent' ? [] : [onePasswordItem()])]
 const ITEMS = [
   { title: 'Mac mini 本番', vault: 'Infra', reference: `op://${VAULT}/${ITEM}/private key?ssh-format=openssh` },

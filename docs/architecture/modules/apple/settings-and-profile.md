@@ -213,3 +213,7 @@ flowchart TD
 ## 保存中の入力（Epinel #1114）
 
 チームの決まりの編集（`UserRulesView`）、追加機能の編集（`FeatureSettingEditor`）、1Password（`OnePasswordSettingEditor`）は、`saving`の間は入力欄と切替を`.disabled(saving)`で止める。`saving`は要求を送る前に立ち、`defer`で戻る。成功で閉じる・失敗で残す挙動とエラーの扱いは変えない。試験は`TerminalsUITests.testOnePasswordInputsAreLockedWhileTheSaveIsPending`（fixtureの`patchdelay`）。
+
+## 項目の無い機能は切替だけ（a479）
+
+`fields`が空の機能（`thinkingDisplay`「AIの考えの表示」）の`FeatureSettingEditor`は、「有効にする」の切替と保存だけを描く。「設定」の見出しと「必要な項目を登録してから…」の案内は`fields`が一つ以上ある時だけ出す。保存は従来どおり`enabled`だけを送る（`values`は空）。`FeatureSetting.look`は`thinkingDisplay`に`brain`・紫・「AIが考えている内容を、会話に表示します。」（Webの案内と同文）を持つ。iPhoneとMacは同じ画面。試験は`TerminalsUITests.testFieldlessFeatureIsOneSwitch`。

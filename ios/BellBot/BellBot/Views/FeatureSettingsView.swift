@@ -102,6 +102,7 @@ extension FeatureSetting {
         case "notifications": ("bell.badge.fill", .red, "メンバーからの連絡をiPhoneとMacへ通知します")
         case "webPush": ("globe", .blue, "ブラウザーで開いたWeb画面にも通知を出します")
         case "onePassword": ("key.fill", .blue, "1Passwordの保管庫の鍵をメンバーが使えるようにします")
+        case "thinkingDisplay": ("brain", .purple, "AIが考えている内容を、会話に表示します。")
         default: ("puzzlepiece.extension.fill", .gray, nil)
         }
     }
@@ -357,15 +358,19 @@ struct FeatureSettingEditor: View {
             }
             .listRowBackground(Color.clear)
             if loaded {
-                Section(footer: Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。").font(BellTheme.secondaryFont)) {
+                Section {
                     // Inputs are locked while the PATCH is pending, then the screen closes: later edits would be lost.
                     Toggle("有効にする", isOn: $enabled)
+                } footer: {
+                    // A feature with no fields (thinkingDisplay) is the switch alone: nothing to register, so no guide.
+                    if !fields.isEmpty { Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。").font(BellTheme.secondaryFont) }
                 }
                 .disabled(saving)
                 if let failure = currentSetting.error {
                     // The code stays out of sight (closed 詳細 and diagnostics); the plain sentence is the action.
                     Section { Label(failure.message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
                 }
+                if !fields.isEmpty {
                 Section(header: BellSectionHeader("設定")) {
                     ForEach(fields) { field in
                         if field.configured && !changing.contains(field.key) {
@@ -393,6 +398,7 @@ struct FeatureSettingEditor: View {
                     }
                 }
                 .disabled(saving)
+                }
                 if !savedDetails.isEmpty || currentSetting.error != nil {
                     Section {
                         DisclosureGroup("詳細") {
