@@ -14,16 +14,16 @@
 
 ```mermaid
 flowchart TD
-  Poll["5分ごとにBotを観測"] --> Exists{"席が存在するか"}
+  Poll["2分ごとにBotを観測"] --> Exists{"席が存在するか"}
   Exists -->|"いいえ / 観測失敗"| Reset["idle計測を捨てる"]
   Exists -->|"はい"| Quiet["入力待ち・起動後process 0<br/>子配送0・本体処理なしを確認"]
   Quiet --> Since["画面変化がなければ静かな開始時刻を保持"]
-  Since --> Time{"30分以上か"}
-  Time -->|"いいえ"| Keep["今回は閉じない"]
+  Since --> Time{"10分以上か"}
+  Time -->|"いいえ"| Keep["今回は休止しない"]
   Time -->|"はい"| Approval{"Approval Boxが申請者を起こす約束を持つか<br/>approval-box version --json の capabilities に bellteam-requester-wake"}
   Approval -->|"不明（無い・読めない・持たない）"| Keep
-  Approval -->|"持つ"| Close["closeIdleで処理と設定待ちを再確認"]
-  Close --> End["pty_close・保持画像削除<br/>計測を除く"]
+  Approval -->|"持つ"| Close["closeIdleで処理と設定待ちを再確認し、pty_close hibernate:true"]
+  Close --> End["休止（会話とプロンプトキャッシュを残す・機械席の読み手を止める）<br/>AGENT_BUSYなら休止せず次のtick／AGENT_HIBERNATE_UNAVAILABLEなら従来のpty_closeと保持画像削除<br/>計測を除く"]
   Poll --> Wake["approval-box version --json をtickごとに1回、席の利用者として親のseat runner（ports.seat.waitProcess）で読む（bd03）"]
   Wake -->|"bellteam-requester-wake を持つ"| Old["Botの古い席<br/>transport.closeOldSeats（a48）"]
   Wake -->|"不明"| Keep

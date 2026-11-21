@@ -1,12 +1,12 @@
-// しばらく動いていない席のセッションを閉じる（オーナー裁定 2026-10-03）。
+// しばらく動いていない席のセッションを休止する（オーナー裁定 2026-10-03、10分と休止は2026-11-21 a478）。
 // 一度起きた席は次の再起動まで残り、動いていなくてもCLIと席ごとのMCPのメモリを持ち続ける。
-// 閉じた席は、次の配送がAitermの不達を受けて起動し直す（docs/current-design.md「Botとプロジェクト」）。
+// 休止した席は会話と1時間のプロンプトキャッシュを残し、次の配送が起こす。休止できない席（再開の記録が無い）だけは閉じ、起動し直す（docs/current-design.md「Botとプロジェクト」）。
 // 動いているかはAitermの観測（pty_observe）だけで決める。BellTeamが配送していないターンも席は自分で始めるため。
 
-// 続けて動きが無いと確かめられた時間がこれを超えたら閉じる。
-export const IDLE_CLOSE_MS = 30 * 60_000
-// 観測の間隔。閉じるのは、動きが止まってから30〜35分後になる。
-const INTERVAL_MS = 5 * 60_000
+// 続けて動きが無いと確かめられた時間がこれを超えたら休止する。
+export const IDLE_CLOSE_MS = 10 * 60_000
+// 観測の間隔。休止するのは、動きが止まってから10〜12分後になる。
+const INTERVAL_MS = 2 * 60_000
 
 export class IdleSessions {
   constructor({ bots, transport, pendingDecisions = approvalBoxWakeDecisions(), allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
@@ -79,7 +79,7 @@ export class IdleSessions {
     if (await this.pendingDecisions(bot) !== 0) return
     if (!this.allowClose() || !await this.transport.closeIdle(bot)) return
     this.seen.delete(bot.id)
-    this.report(`BellTeam idle sessions: ${bot.id} を閉じました（${Math.round((now - since) / 60_000)}分動きなし）`)
+    this.report(`BellTeam idle sessions: ${bot.id} を止めました（${Math.round((now - since) / 60_000)}分動きなし）`)
   }
 }
 
