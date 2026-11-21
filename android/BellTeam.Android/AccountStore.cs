@@ -12,7 +12,12 @@ public static class AccountStore
     private static LoginBilling? billing;
     private static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
     public static string ProductId => Product("productId") ?? throw new InvalidOperationException("product.json に productId がありません。");
-    public static LoginBilling? Billing => billing ??= Product("loginBillingWorkerUrl") is { } worker ? new LoginBilling(MainActivity.Current, ServerClientId, worker) : null;
+    // The web sign-in's return address the operator lists: product.json loginBillingWebReturn (a verified https App Link, or a session scheme only the Auth Tab sees).
+    private static string? WebReturn()
+    {
+        return Product("loginBillingWebReturn");
+    }
+    public static LoginBilling? Billing => billing ??= Product("loginBillingWorkerUrl") is { } worker ? new LoginBilling(MainActivity.Current, ServerClientId, worker, WebReturn()) : null;
 
     // At launch and on every foreground; a failure is not swallowed into a screen state here, it surfaces on the account card by the next action.
     public static async Task StartAsync()
