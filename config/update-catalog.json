@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T01:39:28Z",
-  "expiresAt": "2026-11-28T01:39:28Z",
+  "publishedAt": "2026-11-21T02:18:31Z",
+  "expiresAt": "2026-11-28T02:18:31Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
-      "versionId": "a9452f507fed41648b8623e8617f2beb5dd54fbf802fe78ca979f2b88b9c0d1d",
+      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
+      "versionId": "a996061ddb9428779219edca7ec1134f0c5f8b5412a6e97536730047540d44e6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-amd64.tar.gz",
-          "bytes": 3925893,
-          "sha256": "a9452f507fed41648b8623e8617f2beb5dd54fbf802fe78ca979f2b88b9c0d1d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz",
+          "bytes": 3927352,
+          "sha256": "a996061ddb9428779219edca7ec1134f0c5f8b5412a6e97536730047540d44e6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "d103697f17518e5e9c1c98b62f2ae1255aa546a29902f34264f183d21667a181"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "0a6619a3ef6e925f6d02482654bc9f203014c7d44e4bd16652b68d1aee1f2447"
         },
-        "signerCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459"
+        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "大きな本文の読み出しが、会話の入力の順番待ちで失敗（503）にならず、順番を待つようにします。"
+        "履歴の1ページを最大1000行まで返せるようにし、ページに入るカードだけを子へ渡します。ログがたくさん見えるようになります。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
-      "versionId": "f8d038ff0707430e403bcd6c19bdf63ee60e993021e431be2510211b7aaf34db",
+      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
+      "versionId": "941b2c007680c2cfc8c83b4f8074f56fc6eae6949ca5aa7f02ec62dc4c4c482c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-arm64.tar.gz",
-          "bytes": 3925893,
-          "sha256": "f8d038ff0707430e403bcd6c19bdf63ee60e993021e431be2510211b7aaf34db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz",
+          "bytes": 3927352,
+          "sha256": "941b2c007680c2cfc8c83b4f8074f56fc6eae6949ca5aa7f02ec62dc4c4c482c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T013849Z/conversation-dda8af527f2e82c7084f61e705f0d568c81ca459-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "ee37fdf76033571ec40e058333fd273b29040acac1155a02a79a539a3c0ae050"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10939,
+          "sha256": "e1af54bd80206783b104da2d197354afc3b5ed7a32175e6e781386dfc58e6204"
         },
-        "signerCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459"
+        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "大きな本文の読み出しが、会話の入力の順番待ちで失敗（503）にならず、順番を待つようにします。"
+        "履歴の1ページを最大1000行まで返せるようにし、ページに入るカードだけを子へ渡します。ログがたくさん見えるようになります。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f",
-      "versionId": "1024b625d1b08769ed4dc2b8c0088ab70e4167bcbc34a1e9eebd6d38791901e4",
+      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
+      "versionId": "7721d64bc55f1db2bd9918bedc78b5d0621554d8a3fce891fb22f0d68f55247e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-amd64.tar.gz",
-          "bytes": 5506284,
-          "sha256": "1024b625d1b08769ed4dc2b8c0088ab70e4167bcbc34a1e9eebd6d38791901e4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz",
+          "bytes": 5508993,
+          "sha256": "7721d64bc55f1db2bd9918bedc78b5d0621554d8a3fce891fb22f0d68f55247e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11017,
-          "sha256": "97725969c383e3fa0842cbbd2ec9ea3e006eb53a993d0105b73ce3bbe0a0e419"
+          "sha256": "9c86dd788b1dec9479757c4dbc8df368af914c9e58cbbd3d38888925ec1bdcc8"
         },
-        "signerCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f"
+        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "実行中の列の行に、サーバーが決めた作業中の言葉（190語）を出します。Webの待ち行列と考え中の吹き出しに表示します。"
+        "Webで、返信・引用・転送・コピー、100/500行のスクロールバックと先読み、考えた内容の全文表示を使えるようにします。引用の行は書式の記号を外した文字で出ます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f",
-      "versionId": "30f706d0d5ccb64b59e0fc4183bddb4d5fba81bda4abd8ed3cc5c00812802b22",
+      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
+      "versionId": "ea70b83228fbeaf284b2673e84137b36d744c45e19fbaa9a7be94766a050ad29",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-arm64.tar.gz",
-          "bytes": 5506284,
-          "sha256": "30f706d0d5ccb64b59e0fc4183bddb4d5fba81bda4abd8ed3cc5c00812802b22"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz",
+          "bytes": 5508993,
+          "sha256": "ea70b83228fbeaf284b2673e84137b36d744c45e19fbaa9a7be94766a050ad29"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T011604Z/web-gateway-e5a969a2e1ed1dd0ddab67dffe5537ea072a656f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11005,
-          "sha256": "55bf55708166fd2d08006c392ff4c12a6b3c7fdd12a5d4b8e3e27511260994c5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10974,
+          "sha256": "3dc2306e22df99115fb2b9672bc67a1b5786fb3a5aeadfcd97b77bfcaf1a763c"
         },
-        "signerCommit": "e5a969a2e1ed1dd0ddab67dffe5537ea072a656f"
+        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "実行中の列の行に、サーバーが決めた作業中の言葉（190語）を出します。Webの待ち行列と考え中の吹き出しに表示します。"
+        "Webで、返信・引用・転送・コピー、100/500行のスクロールバックと先読み、考えた内容の全文表示を使えるようにします。引用の行は書式の記号を外した文字で出ます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
-      "versionId": "sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8",
+      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
+      "versionId": "sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "読み出しの本文が大きくても、会話の入力の順番待ちで503にならないようにします。"
+        "履歴の1ページの上限を200行から1000行にし、ページに入るカードだけを子へ渡します。機械の席の答えで「画面に何も残らなかった」と誤って出る検査を直し、引用の行を書式の記号なしの文字で返します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "dda8af527f2e82c7084f61e705f0d568c81ca459",
-      "versionId": "sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8",
+      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
+      "versionId": "sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfa9f5d42346477c8a73c7e81f655781a2ed095de53886fa9513736f9981ebd8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:591ffd6ae9975dab9911bfed36a9af8886a4f49c8298a52f1c16efca5d5c5f0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "読み出しの本文が大きくても、会話の入力の順番待ちで503にならないようにします。"
+        "履歴の1ページの上限を200行から1000行にし、ページに入るカードだけを子へ渡します。機械の席の答えで「画面に何も残らなかった」と誤って出る検査を直し、引用の行を書式の記号なしの文字で返します。"
       ]
     },
     {
