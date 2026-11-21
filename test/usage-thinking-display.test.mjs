@@ -21,13 +21,18 @@ const without = (row, id) => ({ list: row.list.filter(item => item.id !== id), c
 
 test('a479: the body accepts a settings list with and without thinkingDisplay, and nothing else missing', async t => {
   const row = await rows(t)
-  assert.equal(row.list.length, 8)
+  assert.equal(row.list.length, 7)
   const record = value => ({ type: 'settings', revision: 1, ...value })
   assert.equal(usageProjectionRecordValid(record(row)), true)
   assert.equal(usageProjectionRecordValid(record(without(row, 'thinkingDisplay'))), true)
+  // a487n: a child that still lists webPush (rolled back) is read too
+  const withWebPush = { list: [...row.list, { id: 'webPush', title: 'ブラウザーの通知', enabled: false, status: 'unconfigured', fields: [{ key: 'subject', label: '通知運用の公開連絡先', secret: false, value: '', configured: false }] }],
+    configurations: { ...row.configurations, webPush: { enabled: false, subject: '' } }, epochs: { ...row.epochs, webPush: 0 } }
+  assert.equal(usageProjectionRecordValid(record(withWebPush)), true)
   assert.equal(usageProjectionRecordValid(record(without(row, 'routing'))), false)
   assert.equal(usageResultValid('settings.list', row.list), true)
   assert.equal(usageResultValid('settings.list', without(row, 'thinkingDisplay').list), true)
+  assert.equal(usageResultValid('settings.list', withWebPush.list), true)
   assert.equal(usageResultValid('settings.list', without(row, 'routing').list), false)
   assert.equal(usageResultValid('settings.configuration', { enabled: false }, { id: 'thinkingDisplay' }), true)
   assert.equal(usageResultValid('settings.configuration', { enabled: false, x: '' }, { id: 'thinkingDisplay' }), false)
@@ -35,6 +40,6 @@ test('a479: the body accepts a settings list with and without thinkingDisplay, a
 
 test('a479: the body starts a usage child that predates thinkingDisplay', () => {
   assertUsageStateCompatibility(structuredClone(USAGE_STATE_COMPATIBILITY))
-  assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.slice(0, 7) })
-  assert.throws(() => assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.slice(0, 6) }), { code: 'USAGE_STATE_INCOMPATIBLE' })
+  assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.filter(id => id !== 'thinkingDisplay') })
+  assert.throws(() => assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.slice(0, 5) }), { code: 'USAGE_STATE_INCOMPATIBLE' })
 })

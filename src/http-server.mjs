@@ -23,7 +23,6 @@ import { logWriteRequest, logReadRequest, recordSlowOrAborted } from './http-req
 import { respondHttpError } from './http-errors.mjs'
 import { createMessageViews } from './http-messages.mjs'
 import { createMessageEvents, EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS } from './http-events.mjs'
-import { createWebPushOrigin } from './web-push-origin.mjs'
 import { validateConversationAdmissionDiagnostic } from './conversation-lifetimes.mjs'
 import { captureInstallInspectionOwner } from './update-install-inspection.mjs'
 
@@ -44,13 +43,12 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream,
     ownerSecretGuide: internal ? null : ownerSecretGuide })
 
-  const assertWebPushOrigin = createWebPushOrigin({ settings })
   const captureUsageContext = usageAssembly ? async (request, method) => {
     const botId = internal ? (await resolveInternalSeat(request, bots, forkSeat)).botId : null
     if (internal && !botId) throw Object.assign(new Error('BELLTEAM_SEAT_UNRESOLVED'), { code: 'BELLTEAM_SEAT_UNRESOLVED', status: 403 })
     return usageAssembly.capture(method, { kind: internal ? 'bot' : 'owner', botId })
   } : undefined
-  const controlApi = createControlApi({ captureUsageContext, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : undefined, submittedSecretConsumer, captureSubmittedSecretContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin,
+  const controlApi = createControlApi({ captureUsageContext, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : undefined, submittedSecretConsumer, captureSubmittedSecretContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter,
     captureInstallInspectionOwner: request => captureInstallInspectionOwner(async () => !internal && await authorize(request) === true) })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })

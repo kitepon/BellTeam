@@ -7,10 +7,12 @@ import { notificationsReadyValid } from '../src/notifications-ipc.mjs'
 
 // a487n stage 1: webPush is leaving. Every reader accepts the shipped shape (with webPush) and the shape without it,
 // before any writer stops sending it (module-ipc.md "Records between halves that ship apart").
-const all = USAGE_STATE_COMPATIBILITY.settingsFeatures
+// a487n stage 2: the child's own list no longer has webPush; the readers still accept the older list that has it
+const all = ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay']
 const without = (...ids) => all.filter(id => !ids.includes(id))
 
 test('the usage state compatibility accepts every combination of the two optional features and nothing else', () => {
+  assert.deepEqual(USAGE_STATE_COMPATIBILITY.settingsFeatures, without('webPush'))
   for (const list of [all, without('webPush'), without('thinkingDisplay'), without('webPush', 'thinkingDisplay')]) {
     assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: list })
   }

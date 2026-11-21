@@ -23,7 +23,7 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 [会話子へのusage限定接点](conversation-effects.md)にrouting一資格の供給・失効と、親の通知/秘密カード境界を置く。会話独立更新のRoot固定契約v1に従い、実装の公開接点をN102・共通組立て担当と合わせる。
 [残るusageの単体更新](usage-process.md)に6service factory・閉dispatcher・安定facadeとread-only restore/volatile handoffの接点を置く。runtime/通常assembly/同source実物への接続は別工程として区別する。
 
-[Web Pushの別providerと公開契約](web-push.md)にRoot固定v1.1、登録/鍵writer・origin・安全な終端・ABI2の接点を置く。
+[Web Pushの廃止（a487n）](web-push.md)（以前の別providerと公開契約はアーカイブ）。
 
 [正式更新候補の端末通知](update-push.md)は工程Lの最小payload・共通候補判定との接続・既通知許可/重複/失敗と、同接続先Updateへの受入口の正本。
 
