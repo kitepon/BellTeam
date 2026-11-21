@@ -288,8 +288,9 @@ public sealed class MessageCard : ContentControl
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
             System.Windows.Automation.AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
         }
-        replyButton.Visibility = Timeline.IsQuotable(message) ? Visibility.Visible : Visibility.Collapsed;
-        forwardButton.Visibility = Timeline.IsForwardable(message) ? Visibility.Visible : Visibility.Collapsed;
+        // The gate reads the row as sent (a marked answer is drawn from a copy without its machine_event).
+        replyButton.Visibility = Timeline.IsQuotable(Message) ? Visibility.Visible : Visibility.Collapsed;
+        forwardButton.Visibility = Timeline.IsForwardable(Message) ? Visibility.Visible : Visibility.Collapsed;
         copyButton.Visibility = string.IsNullOrEmpty(message.Message) ? Visibility.Collapsed : Visibility.Visible;
         // VStack(spacing: 8): space only between the parts that are showing.
         var first = true;
