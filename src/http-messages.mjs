@@ -1,4 +1,5 @@
 import { TimelineIndex, timelinePage, fullTimeline, cardWindow, pageLimit } from './timeline-index.mjs'
+import { plainQuoteText } from './reply-reference.mjs'
 
 export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream = null, ownerSecretGuide = null }) {
   const extras = (kind, id, recent = false) => {
@@ -66,7 +67,8 @@ export function pageItems(items, url) {
 // forward.md "Files": the saved files of a message are listed with a name, a type, a size and a download URL (never the stored path).
 export function webMessage(item) {
   const { file_assets: fileAssets = [], ...rest } = item
-  const message = imageMessage(rest)
+  // reply.md: the quote is served as plain text (Markdown marks removed) on every read.
+  const message = imageMessage(typeof rest.reply_to?.text === 'string' ? { ...rest, reply_to: { ...rest.reply_to, text: plainQuoteText(rest.reply_to.text) } } : rest)
   return fileAssets.length ? { ...message, files: fileAssets.map(file => ({ name: file.name, mime: file.mime, size: file.size,
     url: `/api/message-files/${encodeURIComponent(file.owner)}/${encodeURIComponent(file.file)}` })) } : message
 }

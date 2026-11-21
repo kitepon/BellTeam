@@ -89,6 +89,17 @@ The reply is accepted and delivered like any message; only the quote degrades.
 
 Nothing about the other conversation (existence, text, sender) is returned or saved.
 
+### The quote is served as plain text (a471-quote-plain-server)
+
+Tronie's ruling 2026-11-21 11:0x JST: the quote line shows raw Markdown marks (`**` and the like) on all five clients, because each draws `reply_to.text` as it is. The server now serves `reply_to.text` as plain readable text on every read (`webMessage`, `plainQuoteText`), so old replies are fixed too and no client changes. Removed: emphasis (`**`, `__`, `*`, `_`, `~~`), inline code backticks and the fence lines of code blocks (the code stays), heading `#`, blockquote `>`, list markers (`-`, `*`, `+`, `1.`, `1)`), links `[t](u)` to `t` and images `![alt](u)` to `alt`. Line breaks stay. Snake_case words, a lone `*` and `2*3*4` stay as they are. What is saved is unchanged: the snapshot on the row, `range` (it refers to the original's own text), what the Bot reads (`replyNotice`), and copy and forward of the original message, which keep the original text.
+
+```mermaid
+flowchart LR
+  Saved["saved row: reply_to.text as selected (raw)"] --> Serve["webMessage: plainQuoteText"]
+  Serve --> Apps["five clients draw reply_to.text as served"]
+  Saved --> Bot["replyNotice: Bot reads the saved text"]
+```
+
 ### Jump to the original
 
 The quote carries `id`. A client scrolls to the item with that `id` when it is loaded; otherwise it loads older items with the existing `before` cursor until the id appears or `has_more` is false, and then shows 「元のメッセージは見つかりません」. shortcut: no server-side jump query in v1, upgrade to `around=<id>&limit=N` when long conversations make the paging visible.

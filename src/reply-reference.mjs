@@ -46,6 +46,25 @@ export function snapshotReply(id, source, quote = null) {
     ...(quote ? { part: true, ...(range ? { range } : {}) } : {}) }
 }
 
+// a471-quote-plain-server: the quote line is drawn as served, so the server removes Markdown marks on every read (old replies too).
+// The saved snapshot and what the Bot reads stay as saved; `range` refers to the original's own text and is unchanged.
+// shortcut: line-based marks only, no nested lists or HTML, upgrade if the Owner's messages show other marks.
+export function plainQuoteText(text) {
+  return String(text)
+    .replace(/^[ \t]*(`{3,}|~{3,})[^\n]*$/gmu, '\0')
+    .replace(/^\0\n?/gmu, '')
+    .replace(/!\[([^\]\n]*)\]\([^)\n]*\)/gu, '$1')
+    .replace(/\[([^\]\n]+)\]\([^)\n]*\)/gu, '$1')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gmu, '')
+    .replace(/^(?:[ \t]*>[ \t]?)+/gmu, '')
+    .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/gmu, '')
+    .replace(/`+([^`\n]+)`+/gu, '$1')
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/gu, '$2')
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/gu, '$1')
+    .replace(/(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])/gu, '$1')
+    .replace(/(?<![\w_])_(?=\S)([^_\n]+?)(?<=\S)_(?![\w_])/gu, '$1')
+}
+
 export function jst(iso) {
   return `${new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ')} JST`
 }
