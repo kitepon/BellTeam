@@ -11,6 +11,18 @@ const pngDataUrl = value => typeof value === 'string' && /^data:image\/png;base6
 // An older server has no `login` key in /api/session: the Web keeps today's path (Cloudflare Access / local).
 export const loginNeeded = session => session?.authenticated === false && session.login != null && typeof session.login === 'object'
 
+// 7a: a server that cannot judge a session right now (restart, rollback) answers 503 SESSION_STORE_UNAVAILABLE: that is not a logout.
+// Say it is getting ready and ask again (1, 2, 4 ... 30 s) until it answers; only a definite 401 means log in again, and it is not retried here.
+export async function readSession(api, { onWaiting = () => {}, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+  for (let delay = 1000; ; delay = Math.min(delay * 2, 30000)) {
+    try { return await api('/api/session') } catch (error) {
+      if (error?.code !== 'SESSION_STORE_UNAVAILABLE') throw error
+      onWaiting()
+      await wait(delay)
+    }
+  }
+}
+
 const refusedText = reason => reason === 'not_owner_account' ? 'このサーバーのオーナーのアカウントではないため、入れませんでした。'
   : reason === 'phone_denied' ? '携帯で拒否されました。' : '許可されませんでした。'
 const EXPIRED = 'ログインの時間が切れました。もう一度お試しください。'

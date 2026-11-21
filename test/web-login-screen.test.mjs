@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createLogin, loginNeeded, loginView } from '../web/login-screen.js'
+import { createLogin, loginNeeded, loginView, readSession } from '../web/login-screen.js'
 
 const err = status => Object.assign(new Error('HTTP'), { status })
 
@@ -78,4 +78,13 @@ test('a485: 「やめる」 stops the loop and cancels that login id; the consol
   assert.deepEqual(c.calls, [['POST', '/api/login/console', '{"code":"ABCD-EFGH-JKMNP","kind":"web","carrier":"cookie"}']])
   assert.match(await run([err(403)]).login.useConsoleCode('x'), /コードが違う/u)
   assert.match(await run([err(429)]).login.useConsoleCode('x'), /しばらくしてから/u)
+})
+
+test('a485: a 503 SESSION_STORE_UNAVAILABLE probe is waited out with 1, 2, 4 ... 30 s backoff; a 401 or another error is not retried', async () => {
+  const waits = []; let waiting = 0
+  const unavailable = Object.assign(new Error('x'), { status: 503, code: 'SESSION_STORE_UNAVAILABLE' })
+  const script = [unavailable, unavailable, unavailable, unavailable, unavailable, unavailable, unavailable, { authenticated: true }]
+  const session = await readSession(async () => { const next = script.shift(); if (next instanceof Error) throw next; return next }, { onWaiting: () => waiting++, wait: async ms => { waits.push(ms) } })
+  assert.deepEqual(session, { authenticated: true }); assert.deepEqual(waits, [1000, 2000, 4000, 8000, 16000, 30000, 30000]); assert.equal(waiting, 7)
+  await assert.rejects(readSession(async () => { throw err(401) }, { wait: async () => { throw new Error('no wait') } }), { status: 401 })
 })

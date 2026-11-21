@@ -31,7 +31,7 @@ import { createWebClient } from './client.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
 import { createTerminalsView, seatLaunchText } from './terminals.js?v=__ASSET_VERSION__'
 import { createUpdateCenter } from './update-center.js?v=__ASSET_VERSION__'
-import { loginNeeded, mountLoginScreen } from './login-screen.js?v=__ASSET_VERSION__'
+import { loginNeeded, mountLoginScreen, readSession } from './login-screen.js?v=__ASSET_VERSION__'
 
 // a480: the mark on a pinned Bot's row.
 const PIN_MARK = '<svg class="pin-mark" viewBox="0 0 24 24" role="img" aria-label="ピン留め中"><title>ピン留め中</title><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6ZM12 14v7"/></svg>'
@@ -393,7 +393,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
   async function boot() {
     sendButton.disabled = true
     localStorage.removeItem('bellteam-token')
-    const session = await api('/api/session')
+    const session = await readSession(api, { onWaiting: () => showBanner('サーバーの準備中です。少し待ってから、つなぎ直します。') })
+    showBanner('')
     state.authMode = session.authMode
     // a485: a server that issues its own sessions (it states `login`) shows the code screen; one that does not keeps today's path below.
     if (loginNeeded(session)) { await loginScreen.open(); return }
