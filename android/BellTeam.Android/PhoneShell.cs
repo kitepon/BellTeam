@@ -180,8 +180,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (lb is null) { Begin(); return; }
         try
         {
-            var entitled = lb.PassKind != Kitepon.LoginBilling.PassKind.None && lb.Entitlements.Count != 0;
-            if (lb.PassKind == Kitepon.LoginBilling.PassKind.Signed) entitled = (await lb.CheckAsync()).Entitlements.Count != 0;
+            // Asked of the server: the library keeps no entitlement list across a restart.
+            var entitled = lb.PassKind != Kitepon.LoginBilling.PassKind.None && (await lb.CheckAsync()).Entitlements.Count != 0;
             if (entitled) { Begin(); return; }
         }
         catch (Kitepon.LoginBilling.LoginBillingException) { Begin(); return; }

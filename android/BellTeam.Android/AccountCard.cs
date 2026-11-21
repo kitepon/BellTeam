@@ -19,7 +19,8 @@ public sealed class AccountCard : StackPanel
     private ProductInfo? product;
     private string? failure;
     private bool busy, handoffAsked, handoffCancelled, confirmingStop;
-    private bool? serverEntitled;   // CheckAsync's answer for a web-signed device (the stored entitlements can be stale)
+    private bool? serverEntitled;   // CheckAsync's answer (the stored entitlements are empty after a restart and can be stale after the operator's state changed)
+    private IReadOnlyList<Entitlement>? checkedEntitlements;
     private LoginStart? handoff;
     private int epoch;
 
@@ -36,6 +37,12 @@ public sealed class AccountCard : StackPanel
 
     private async Task LoadAsync()
     {
+        if (billing is { PassKind: not PassKind.None } signedIn)
+        {
+            try { var check = await signedIn.CheckAsync(); serverEntitled = check.Entitlements.Count != 0; checkedEntitlements = check.Entitlements; }
+            catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code, error.Reason); }
+            if (!token.IsCancellationRequested) Render();
+        }
         if (billing is { PassKind: PassKind.Signed }) { await HandoffAsync(billing); return; }
         if (billing is not { PassKind: PassKind.Store }) { handoffAsked = false; return; }
         try { product = (await billing.ProductDetailsAsync([AccountStore.ProductId], subscription: true)).FirstOrDefault(); }
@@ -50,7 +57,7 @@ public sealed class AccountCard : StackPanel
         handoffAsked = true; handoffCancelled = false; var mine = ++epoch;
         try
         {
-            serverEntitled = (await lb.CheckAsync()).Entitlements.Count != 0;
+            serverEntitled = (await lb.CheckAsync()).Entitlements.Count != 0;   // asked again here: the person may have waited on the QR for minutes
             if (serverEntitled == true) { if (!token.IsCancellationRequested) Render(); return; }
             handoff = await lb.StartLoginAsync(); serverEntitled = handoff is null;
             if (!token.IsCancellationRequested) Render();
@@ -77,8 +84,9 @@ public sealed class AccountCard : StackPanel
     {
         Children.Clear();
         var lb = billing;
-        var state = lb is null ? StoreAccountState.SignedOut : StoreAccount.Of(lb.PassKind switch { PassKind.Store => "store", PassKind.Handoff => "handoff", PassKind.Signed => "signed", _ => "none" }, lb.Entitlements.Count);
-        var entitled = lb is not null && state != StoreAccountState.SignedOut && (state == StoreAccountState.Signed ? serverEntitled ?? lb.Entitlements.Count != 0 : lb.Entitlements.Count != 0);
+        var held = serverEntitled is { } asked ? (asked ? 1 : 0) : lb?.Entitlements.Count ?? 0;
+        var state = lb is null ? StoreAccountState.SignedOut : StoreAccount.Of(lb.PassKind switch { PassKind.Store => "store", PassKind.Handoff => "handoff", PassKind.Signed => "signed", _ => "none" }, held);
+        var entitled = lb is not null && state != StoreAccountState.SignedOut && held != 0;
         var status = StoreAccount.Status(entitled);
         if (Entitled != entitled) { Entitled = entitled; EntitledChanged?.Invoke(); }
 
@@ -96,7 +104,7 @@ public sealed class AccountCard : StackPanel
             Children.Add(Button(StoreAccountText.SignIn, () => RunAsync(async b => await b.SignInAsync(MainActivity.Current)), Look.Primary));
         else
         {
-            foreach (var entitlement in lb.Entitlements)
+            foreach (var entitlement in checkedEntitlements ?? lb.Entitlements)
                 if (entitled && SubscriptionText.StoreOf(entitlement.Store) is { } store) Children.Add(Text(SubscriptionText.Active(store), 14, Ink, FontWeight.SemiBold, new Thickness(0, 10, 0, 0)));
             // A purchase on this phone that belongs to another account is never shown as owned.
             if (lb.OtherAccountProducts.Count != 0) Children.Add(Text(StoreAccountText.OtherAccount, 13, Muted, null, new Thickness(0, 10, 0, 0)));
