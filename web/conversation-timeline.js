@@ -167,12 +167,12 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     void fillViewport(token) // after the first paint, in the background
   }
 
-  // 先読み（machine-stream.md）：見ている位置の上に max(3画面, 150行, 今のスクロール速さの2秒分) が読み込み済みになるまで、前のページを1つずつ続けて読む。
-  // 最初の表示のあとも同じ規則で動くので、スクロールしなくても前の1ページが背景で読まれる。失敗は次のスクロールで再び試す（ここでは繰り返さない）。
+  // 先読み・最初の画面を埋める（machine-stream.md「Fill rule」）：満ちたかどうかは「描いた中身」で見る。行数では見ない。
+  // 見ている位置の上に max(3画面, 今のスクロール速さの2秒分) の高さが描かれるまで（最初の画面では、描いた高さが 画面+3画面 を超えるまで）、前のページを1つずつ読む。
+  // 畳んで数行しか描かれないページが来ても、それで終わらない（位置が進む限り続ける）。失敗は次のスクロールで再び試す（ここでは繰り返さない）。
   let scrollSpeed = 0, lastTop = 0, lastTime = 0 // px per ms, upward only
   function wantOlder() {
-    const rowHeight = timeline.scrollHeight / Math.max(1, state.timelineMap.size)
-    return timeline.scrollTop < Math.max(3 * timeline.clientHeight, 150 * rowHeight, 2000 * scrollSpeed)
+    return timeline.scrollTop < Math.max(3 * timeline.clientHeight, 2000 * scrollSpeed)
   }
   async function fillViewport(token) {
     while (token === state.timelineToken && state.timelineHasMore && !state.timelineLoadingOlder && timeline.clientHeight > 0 && wantOlder()) {
