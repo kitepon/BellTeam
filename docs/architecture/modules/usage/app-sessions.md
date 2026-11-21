@@ -204,3 +204,15 @@ Events on the existing stream (`GET /api/events`, same `{type, …}` envelope as
 ### 7d. Which task covers which screen
 
 Each app row builds, on this section: the connect screen (probe, start, wait, console code field, token store), the setup-code binding screen (a setup code goes with `start`; it is shown on the server console, not in an app), the requests screen (approve / deny), "add an app" (code display) and the session list with revoke. Token storage is the app's: Windows DPAPI file, Linux 0600 file (libsecret later), Android Keystore-backed preferences, Apple Keychain (shared access group), Web the cookie.
+
+### 7e. A person with no contract (Tronie's ruling; one wording for every app)
+
+BellTeam is free to use without a contract. The first app of such a person enters by a **console code** (printed by the host console); every further app by an **"add an app" code** from an app that already has a session. Phone approval needs a live contract on the approving phone, so a phone with no contract cannot approve a login. All apps show the same two ways on the connect screen and the same texts:
+
+| Where | Text (Japanese, as shown) |
+| --- | --- |
+| Connect screen, under the two ways (「スマホで承認する」 and 「サーバーのコードで入る」) | 購読していない場合は、サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。 |
+| Phone app, when its account has no live contract and the owner tries to approve | 先に購読してください。購読しないで使うには、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードを使ってください。 |
+| "Add an app" screen | この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったアプリは、このアプリが終わると一緒に終わります。 |
+
+The connect screen offers the code field whenever the server answers `login.capability: true`, with or without a contract: the apps cannot know the contract, so the code way is always shown. A session made by a console or "add an app" code decides nothing about the contract (section 3).
