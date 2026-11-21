@@ -101,7 +101,10 @@ public sealed class AccountCard : StackPanel
 
         if (state != StoreAccountState.SignedOut) Children.Add(AccountRow(state));
         if (state == StoreAccountState.SignedOut)
+        {
             Children.Add(Button(StoreAccountText.SignIn, () => RunAsync(async b => await b.SignInAsync(MainActivity.Current)), Look.Primary));
+            Children.Add(Button(StoreAccountText.SignInApple, () => RunAsync(async b => await b.SignInWebAsync(MainActivity.Current, "apple")), Look.Primary));
+        }
         else
         {
             foreach (var entitlement in checkedEntitlements ?? lb.Entitlements)
@@ -117,6 +120,7 @@ public sealed class AccountCard : StackPanel
             if (state == StoreAccountState.Signed) RenderSigned(entitled);
             if (state is StoreAccountState.SignedInNeedsPurchase or StoreAccountState.SignedInEntitled) Children.Add(Button(StoreAccountText.Refresh, () => RunAsync(async b => await b.RefreshAsync()), Look.Secondary));
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(b => b.SignOutAsync()), Look.Secondary));
+            if (lb.PassKind == PassKind.Store) Children.Add(new ApprovePanel(lb, token));   // only a store pass may approve and list (the library keeps the list on the store device only)
             RenderDanger();
         }
         if (failure is not null) Children.Add(Banner(failure));
@@ -156,9 +160,15 @@ public sealed class AccountCard : StackPanel
     {
         Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
         if (!confirmingStop) { Children.Add(Button(StoreAccountText.StopAllOthers, () => { confirmingStop = true; Render(); return Task.CompletedTask; }, Look.Danger)); return; }
-        Children.Add(Text(StoreAccountText.StopAllOthersWhy, 13, Muted, null, new Thickness(0, 8, 0, 0)));
+        var web = billing?.PassKind == PassKind.Signed;   // a web-signed device stops the others by signing in again with the provider it used (the library does not say which)
+        Children.Add(Text(web ? StoreAccountText.StopAllOthersWhyWeb : StoreAccountText.StopAllOthersWhy, 13, Muted, null, new Thickness(0, 8, 0, 0)));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        row.Children.Add(Button(StoreAccountText.StopAllOthersConfirm, () => { confirmingStop = false; return RunAsync(async b => await b.StopAllOthersAsync(MainActivity.Current)); }, Look.DangerFilled));
+        if (web)
+        {
+            row.Children.Add(Button(StoreAccountText.StopAllOthersGoogle, () => { confirmingStop = false; return RunAsync(async b => await b.SignInWebAsync(MainActivity.Current, "google", stopOthers: true)); }, Look.DangerFilled));
+            row.Children.Add(Button(StoreAccountText.StopAllOthersApple, () => { confirmingStop = false; return RunAsync(async b => await b.SignInWebAsync(MainActivity.Current, "apple", stopOthers: true)); }, Look.DangerFilled));
+        }
+        else row.Children.Add(Button(StoreAccountText.StopAllOthersConfirm, () => { confirmingStop = false; return RunAsync(async b => await b.StopAllOthersAsync(MainActivity.Current)); }, Look.DangerFilled));
         row.Children.Add(Button(StoreAccountText.StopAllOthersCancel, () => { confirmingStop = false; Render(); return Task.CompletedTask; }, Look.Secondary));
         Children.Add(row);
     }

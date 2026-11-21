@@ -98,7 +98,11 @@ public sealed class LinuxAccountCard : StackPanel
         Children.Add(Text(state == StoreAccountState.SignedOut ? StoreAccountText.SignedOut : status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
 
         if (state != StoreAccountState.SignedOut) Children.Add(AccountRow());
-        if (state == StoreAccountState.SignedOut) Children.Add(Button(StoreAccountText.SignInWeb, () => RunAsync((b, cancel) => b.SignInWebAsync(ct: cancel)), Look.Primary));
+        if (state == StoreAccountState.SignedOut)
+        {
+            Children.Add(Button(StoreAccountText.SignIn, () => RunAsync((b, cancel) => b.SignInWebAsync("google", ct: cancel)), Look.Primary));
+            Children.Add(Button(StoreAccountText.SignInApple, () => RunAsync((b, cancel) => b.SignInWebAsync("apple", ct: cancel)), Look.Primary));
+        }
         else
         {
             foreach (var entitlement in checkedEntitlements ?? lb.Entitlements ?? [])
@@ -148,7 +152,9 @@ public sealed class LinuxAccountCard : StackPanel
         if (!confirmingStop) { Children.Add(Button(StoreAccountText.StopAllOthers, () => { confirmingStop = true; Render(); return Task.CompletedTask; }, Look.Danger)); return; }
         Children.Add(Text(StoreAccountText.StopAllOthersWhyWeb, 13, Muted, null, new Thickness(0, 8, 0, 0)));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        row.Children.Add(Button(StoreAccountText.StopAllOthersConfirm, () => { confirmingStop = false; return RunAsync((b, cancel) => b.SignInWebAsync(stopOthers: true, ct: cancel)); }, Look.DangerFilled));
+        // The same provider as the account signed in with: the library does not say which one, so the person picks.
+        row.Children.Add(Button(StoreAccountText.StopAllOthersGoogle, () => { confirmingStop = false; return RunAsync((b, cancel) => b.SignInWebAsync("google", stopOthers: true, ct: cancel)); }, Look.DangerFilled));
+        row.Children.Add(Button(StoreAccountText.StopAllOthersApple, () => { confirmingStop = false; return RunAsync((b, cancel) => b.SignInWebAsync("apple", stopOthers: true, ct: cancel)); }, Look.DangerFilled));
         row.Children.Add(Button(StoreAccountText.StopAllOthersCancel, () => { confirmingStop = false; Render(); return Task.CompletedTask; }, Look.Secondary));
         Children.Add(row);
     }
