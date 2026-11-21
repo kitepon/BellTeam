@@ -7,7 +7,7 @@ import { backgroundAgentError, backgroundInputValid } from './background-agent-s
 import { cliNotice } from './harness-cli-notice.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE, harnessNoticeFor } from '../retired-harness.mjs'
 
-export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
+export function createUsageApi({ homeFront, onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
   // a374: the setup record crosses the usage IPC with its six fields; the notice for a retired AI is added here.
   // a451: an install takes minutes and is one long usage operation. Answer when it has visibly started (the parent copy shows busy) or has ended.
   const started = pending => {
@@ -103,7 +103,12 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     }
     if (url.pathname.startsWith('/api/subscription')) {
       if (!subscriptions) return json(response, 503, { error: 'SUBSCRIPTION_NOT_CONFIGURED' })
-      if (request.method === 'GET' && url.pathname === '/api/subscription') return json(response, 200, { subscription: await subscriptions.current(await context('subscriptions.current')) })
+      if (request.method === 'GET' && url.pathname === '/api/subscription') {
+        const subscription = await subscriptions.current(await context('subscriptions.current'))
+        // a485: Enforced, the gate is the session's own entitlement (the home part), never the request's claim.
+        const state = homeFront?.stateOf(request.bellteamSession)
+        return json(response, 200, { subscription: state === undefined ? subscription : { ...subscription, entitlementState: state } })
+      }
       if (request.method === 'POST' && url.pathname === '/api/subscription/verify')
         return json(response, 200, { subscription: await subscriptions.install((await readJson(request, 32768)).signedTransaction, await context('subscriptions.install')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/checkout')

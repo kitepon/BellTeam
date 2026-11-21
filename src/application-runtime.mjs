@@ -43,6 +43,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     accounts: services.accounts,
     membersAuthorization: services.membersAuthorization,
     usageAssembly: services.usageAssembly,
+    homeFront: services.homeFront,
     conversationAssembly: services.conversationAssembly,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
@@ -212,7 +213,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         // Before the providers they call (usage, diagnostics, native client) close.
         () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(), () => services.latticeModule?.close(),
+        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.homeFront?.stop(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(), () => services.latticeModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

@@ -16,7 +16,7 @@ const json = (response, status, body, headers = {}) => {
 }
 const unavailable = response => json(response, 503, { error: 'SESSION_STORE_UNAVAILABLE' })
 
-export function createHomeFront({ call, markerPath, print = line => process.stderr.write(line), now = Date.now, setTimer = setInterval, clearTimer = clearInterval }) {
+export function createHomeFront({ call, enabled = true, markerPath, print = line => process.stderr.write(line), now = Date.now, setTimer = setInterval, clearTimer = clearInterval }) {
   let row = null // the last homeLogin row the child published; null = none yet (Legacy)
   let marker = false // durable: once enforced, never Legacy again
   let loaded = false
@@ -56,6 +56,9 @@ export function createHomeFront({ call, markerPath, print = line => process.stde
   /** Handles /api/home/* (before any owner check: the handler judges). Returns false when the path is not ours. */
   async function route(request, response, url) {
     if (url.pathname !== HOME_PREFIX && !url.pathname.startsWith(`${HOME_PREFIX}/`)) return false
+    await readMarker()
+    // Not configured on this server: the path does not exist (an app reads 404 as "an older server"). An Enforced marker keeps it 503 instead.
+    if (!enabled && !marker) { json(response, 404, { error: 'NOT_FOUND' }); return true }
     const chunks = []
     let size = 0
     for await (const chunk of request) {
@@ -85,26 +88,25 @@ export function createHomeFront({ call, markerPath, print = line => process.stde
     const ids = [...used]
     used.clear()
     try {
+      if (!row) await accept((await call('home.publish', {})).row) // a restarted body: the child only sends a row when it changed
       const { row: next } = await call('home.sweep', { used: ids, streaming: [] })
       await accept(next)
       if (row && !row.bound && now() - lastPrint >= SETUP_REPRINT_MS) await showSetupCode()
     } catch { ids.forEach(id => used.add(id)) }
   }
 
-  let timer = null
+  let timer = null, closeConsole = null
   return {
     route, judge, tick, accept, get row() { return row },
     /** The entitlement state of a session from the published row; undefined when this server is not enforced. */
-    stateOf: sessionId => marker || row?.enforced ? row?.states?.[sessionId] ?? 'none' : undefined,
-    async start() {
+    stateOf: sessionId => sessionId !== undefined && (marker || row?.enforced) ? row?.states?.[sessionId] ?? 'none' : undefined,
+    async start(consoleSocketPath) {
       await readMarker()
-      const first = await call('home.publish', {})
-      await accept(first.row)
-      await tick()
-      timer = setTimer(() => { void tick() }, TICK_MS)
-      timer.unref?.()
+      if (consoleSocketPath && (enabled || marker)) closeConsole = await this.listenConsole(consoleSocketPath)
+      if (enabled || marker) await tick() // a usage child that is not up yet leaves the row empty: Legacy, or 503 when the marker says Enforced; the timer tries again
+      if (enabled || marker) { timer = setTimer(() => { void tick() }, TICK_MS); timer.unref?.() }
     },
-    stop() { if (timer) clearTimer(timer); timer = null },
+    async stop() { if (timer) clearTimer(timer); timer = null; await closeConsole?.(); closeConsole = null },
     /** The host console: a unix socket (0600) that takes one JSON line {op, ...} and answers one JSON line. */
     async listenConsole(socketPath) {
       await mkdir(dirname(socketPath), { recursive: true, mode: 0o700 })

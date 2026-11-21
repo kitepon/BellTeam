@@ -87,6 +87,12 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       create: ({ botId, ...input }, context) => call('questions.create', input, context),
       answer: (id, input, context) => call('questions.answer', { id, input }, context),
     },
+    // a485: the home part; system calls from the body only. The answer's `row` is the guard's set, kept by the body.
+    home: {
+      handle: (params, context) => call('home.handle', params, context), sweep: (params, context) => call('home.sweep', params, context),
+      setupCode: context => call('home.setupCode', {}, context), publish: context => call('home.publish', {}, context),
+      console: (params, context) => call('home.console', params, context),
+    },
     subscriptions: {
       status: () => projection.subscription(), current: context => call('subscriptions.current', {}, context),
       install: (signedTransaction, context) => call('subscriptions.install', { signedTransaction }, context),

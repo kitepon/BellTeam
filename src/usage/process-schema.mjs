@@ -67,6 +67,12 @@ export const usageMethods = {
   'questions.get': cardRead,
   'questions.answer': spec(shape({ id, input: shape({}, { choice: value => value === null || text(value), text: value => value === null || text(value) }) }), kinds.owner),
   'questions.timeline': spec(shape({ target }), kinds.system),
+  // a485: the login-billing home part. System only: the body drives it (route, timer, console); no owner or Bot is an actor of a stranger's login.
+  'home.handle': spec(shape({ method: text, path: value => typeof value === 'string' && value.length <= 512, peer: value => typeof value === 'string' && value.length <= 128 },
+    { bearer: value => typeof value === 'string' && value.length <= 1024, body: value => typeof value === 'string' && value.length <= 16384 }), kinds.system),
+  'home.sweep': spec(shape({ used: ids => Array.isArray(ids) && ids.length <= 10_000 && ids.every(id), streaming: ids => Array.isArray(ids) && ids.length <= 10_000 && ids.every(id) }), kinds.system),
+  'home.setupCode': spec(none, kinds.system), 'home.publish': spec(none, kinds.system),
+  'home.console': spec(shape({ op: text }, { id: text, action: text, address: text }), kinds.system),
   'subscriptions.status': spec(none), 'subscriptions.current': spec(none),
   'subscriptions.install': spec(shape({ signedTransaction: text }), kinds.owner),
   'subscriptions.installStripe': spec(shape({ stripeSessionId: text }), kinds.owner),

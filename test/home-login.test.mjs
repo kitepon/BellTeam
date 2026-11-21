@@ -172,3 +172,41 @@ test('a proof that did not bind but spent the setup code (event setup.needed, co
     assert.match(prints.at(-1), /setup code/u)
   } finally { server.closeAllConnections(); server.close(); await rm(dir, { recursive: true, force: true }) }
 })
+
+// The usage child's closed surface (a485): system-only home.* methods, results checked as the channel checks them.
+import { createUsageServices } from '../src/usage/services.mjs'
+import { usageResultValid } from '../src/usage/process-results.mjs'
+
+const system = { kind: 'system', botId: null }
+async function usageFixture(t, environment) {
+  const root = await mkdtemp(join(tmpdir(), 'home-login-usage-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const service = createUsageServices({ root, bots: new Map(), rooms: new Map(), effect: async () => undefined, onProjection: () => {}, environment })
+  await service.initializeSettings(); await service.initialize()
+  t.after(async () => { await service.quiesce(); service.close() })
+  return { root, service }
+}
+
+test('usage child: home.* answers through the closed surface, only for the system, and the row is the one the body keeps', async t => {
+  const { root, service } = await usageFixture(t, { BELLTEAM_HOME_OPERATOR: 'https://operator.test/auth/v1' })
+  const first = await service.request('home.publish', {}, system)
+  assert.equal(usageResultValid('home.publish', first), true)
+  assert.deepEqual(first.row, { v: 1, bound: false, enforced: false, hashes: {}, states: {} })
+  const nonce = await service.request('home.handle', { method: 'POST', path: '/login/nonce', body: '{}', peer: '192.168.1.5' }, system)
+  assert.equal(usageResultValid('home.handle', nonce), true)
+  assert.equal(nonce.status, 200)
+  assert.equal(Object.hasOwn(nonce, 'row'), true) // present as a key; undefined when unchanged
+  assert.equal(nonce.row, undefined)
+  const code = await service.request('home.setupCode', {}, system)
+  assert.equal(usageResultValid('home.setupCode', code), true)
+  assert.equal(usageResultValid('home.sweep', await service.request('home.sweep', { used: [], streaming: [] }, system)), true)
+  for (const actor of [{ kind: 'owner', botId: null }, { kind: 'bot', botId: 'bot-a' }]) await assert.rejects(service.request('home.setupCode', {}, actor), { code: 'USAGE_ACTOR_FORBIDDEN' })
+  await assert.rejects(service.request('home.handle', { method: 'POST', path: '/x', peer: 'p', headers: { authorization: 'Bearer x' } }, system), { code: 'USAGE_INPUT_INVALID' }) // only the bearer value crosses
+  assert.match(await readFile(join(root, 'shared/login-home.json'), 'utf8'), /"nonceSecret"/u)
+})
+
+test('usage child: without an operator every home call is unavailable (the body stays Legacy)', async t => {
+  const { service } = await usageFixture(t, {})
+  await assert.rejects(service.request('home.publish', {}, system), { code: 'SESSION_STORE_UNAVAILABLE' })
+  await assert.rejects(service.request('home.handle', { method: 'GET', path: '/session', peer: '' }, system), { code: 'SESSION_STORE_UNAVAILABLE' })
+})
