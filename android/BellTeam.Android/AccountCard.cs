@@ -23,6 +23,10 @@ public sealed class AccountCard : StackPanel
     private LoginStart? handoff;
     private int epoch;
 
+    // The account gate (first run) waits for this: true once the pass has a contract.
+    public bool Entitled { get; private set; }
+    public event Action? EntitledChanged;
+
     public AccountCard(CancellationToken token)
     {
         this.token = token; Spacing = 0;
@@ -76,6 +80,7 @@ public sealed class AccountCard : StackPanel
         var state = lb is null ? StoreAccountState.SignedOut : StoreAccount.Of(lb.PassKind switch { PassKind.Store => "store", PassKind.Handoff => "handoff", PassKind.Signed => "signed", _ => "none" }, lb.Entitlements.Count);
         var entitled = lb is not null && state != StoreAccountState.SignedOut && (state == StoreAccountState.Signed ? serverEntitled ?? lb.Entitlements.Count != 0 : lb.Entitlements.Count != 0);
         var status = StoreAccount.Status(entitled);
+        if (Entitled != entitled) { Entitled = entitled; EntitledChanged?.Invoke(); }
 
         // Head: tile, title, the one badge; then the state sentence (the Mac page head).
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };

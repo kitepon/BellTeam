@@ -46,6 +46,7 @@ public static class StoreAccountText
     public const string HandoffCheckLine = "スマホに出る確認番号が同じか、見比べてください。";
     public const string HandoffWaiting = "スマホの承認を待っています…";
     public const string AlreadyEntitled = "すでに使えます。";
+    public const string GateNext = "サーバーにつなぐ";   // provisional (Tronie/Mika): the step after the account on first run
     public const string NotConfigured = "購読の接続先がまだ決まっていません。";
     public static string Buy(string price) => $"購入（{price}）";
     // The period comes from the offer's ISO 8601 billing period (P1M, P1Y, P1W, P3M...), never hard-coded; an unknown period shows the price alone.

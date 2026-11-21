@@ -148,7 +148,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         // A field that gets focus scrolls into view once the keyboard has taken its space.
         AddHandler(GotFocusEvent, (_, e) => { if (e.Source is TextBox box) { Dispatcher.UIThread.Post(() => Reveal(box), DispatcherPriority.Background); DispatcherTimer.RunOnce(() => Reveal(box), TimeSpan.FromMilliseconds(350)); } });
         AttachedToVisualTree += (_, _) => Attached();
-        Loaded += (_, _) => Begin();
+        Loaded += (_, _) => _ = BeginAfterAccountAsync();
     }
 
     // The whole field plus some room under it, not only the caret line, so the field and the button below it are not left under the keyboard.
@@ -170,6 +170,22 @@ public sealed class PhoneShell : UserControl, IMessageHost
             else if (pages.Count != 0) { GoBackPage(); e.Handled = true; }
             else if (conversationPage.IsVisible || settingsPage.IsVisible) { ShowList(); e.Handled = true; }
         };
+    }
+
+    // First run order (app-sessions.md 7e): the account (sign-in, purchase or QR handoff) comes before any server. A device that already has a contract goes straight on; when the library cannot be asked
+    // (offline, no Worker configured) the app goes on too: an unknown state is not a reason to stop.
+    private async Task BeginAfterAccountAsync()
+    {
+        var lb = AccountStore.Billing;
+        if (lb is null) { Begin(); return; }
+        try
+        {
+            var entitled = lb.PassKind != Kitepon.LoginBilling.PassKind.None && lb.Entitlements.Count != 0;
+            if (lb.PassKind == Kitepon.LoginBilling.PassKind.Signed) entitled = (await lb.CheckAsync()).Entitlements.Count != 0;
+            if (entitled) { Begin(); return; }
+        }
+        catch (Kitepon.LoginBilling.LoginBillingException) { Begin(); return; }
+        startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None); startupHost.IsVisible = true;
     }
 
     private void Begin()
