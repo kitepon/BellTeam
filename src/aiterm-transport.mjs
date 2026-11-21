@@ -226,6 +226,8 @@ export class AitermTransport {
     // t29 (remote-seat.md "Resume after the route came back"): SM10 last seat-MCP request (ms) and refusals per (session, route).
     this.seatMcpSeen = seatMcpSeen; this.routeResumes = new Map(); this.routeWakes = new Map(); this.routeReported = new Set()
     this.accountMoves = new Map()
+    this.moveRetryMs = 60_000
+    this.moveRetryTimer = null
     // Members whose account recovery is sending their continuation: the observer keeps their old watch until it is sent.
     this.accountRecoveries = new Set()
     this.reviewedRecovery = null
@@ -2433,9 +2435,19 @@ export class AitermTransport {
         await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
       }
-    })().catch(error => process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`))
-      .finally(() => this.accountMoves.delete(botId))
+    })().catch(error => {
+      process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`)
+      this.retryMoves()
+    }).finally(() => this.accountMoves.delete(botId))
     this.accountMoves.set(botId, pending)
+  }
+
+  // harness-accounts.md "Idle-boundary moves": an unconfirmed move is looked at again in a minute, one shared timer for all members.
+  // The review moves only a seat whose recorded slot differs, so it ends by itself once the moves succeed.
+  retryMoves() {
+    if (this.moveRetryTimer || this.accountRecoveryAllowed?.() === false) return
+    this.moveRetryTimer = setTimeout(() => { this.moveRetryTimer = null; void this.reviewAccounts().catch(() => {}) }, this.moveRetryMs)
+    this.moveRetryTimer.unref?.()
   }
 
   // harness-accounts.md "account recovery" with a free slot. Aiterm closed the limit-ended turn, so the seat is at a boundary.
@@ -2482,6 +2494,8 @@ export class AitermTransport {
   async close() {
     this.cliUnsubscribe?.()
     this.accountsUnsubscribe?.()
+    clearTimeout(this.moveRetryTimer)
+    this.moveRetryTimer = null
     this.accounts?.close()
     const recovery = this.continuation?.close()
     for (const job of this.summaryJobs) this.backgroundSummary?.invalidate(job.bot.id, job.id)
