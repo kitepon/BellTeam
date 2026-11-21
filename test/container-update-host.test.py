@@ -269,6 +269,26 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         self.assertEqual(result['verification'],'succeeded');self.assertEqual(result['cleanup'],'failed')
         self.assertEqual(result['rollback'],'not_needed');self.assertFalse((install/'recovered').exists())
         self.assertEqual(module.read_json(self.prefix/'state/current-runtime.json',os.getuid())['sourceCommit'],'d'*40)
+    def flaky_inspect(self,install,failures):
+        inspect,calls=self.updater.inspect_current,[]
+        def flaky():
+            if (install/'applied').exists() and not (install/'recovered').exists() and len(calls)<failures:
+                calls.append(1);raise module.Failure('HOST_UPDATE_CURRENT_UNAVAILABLE')
+            return inspect()
+        self.updater.inspect_current=flaky
+    def test_one_transient_inspect_failure_after_the_swap_does_not_roll_back(self):
+        install=self.executor_fixture();self.flaky_inspect(install,1)
+        directory=self.prefix/'state/fixture-result';directory.mkdir()
+        with patch.object(module,'VERIFY_RETRY_SECONDS',0):result=module.execute_installer(self.updater,self.plan(),directory)
+        self.assertEqual(result['verification'],'succeeded');self.assertEqual(result['rollback'],'not_needed')
+        self.assertFalse((install/'recovered').exists());self.assertIn('attempt 1/3',(directory/'verify.log').read_text())
+    def test_inspect_failing_on_every_attempt_still_rolls_back_and_logs_each_attempt(self):
+        install=self.executor_fixture();self.flaky_inspect(install,99)
+        directory=self.prefix/'state/fixture-result';directory.mkdir()
+        with patch.object(module,'VERIFY_RETRY_SECONDS',0):result=module.execute_installer(self.updater,self.plan(),directory)
+        self.assertEqual(result['verification'],'failed');self.assertEqual(result['error'],'HOST_UPDATE_VERIFICATION_FAILED')
+        self.assertEqual(result['rollback'],'succeeded');self.assertTrue((install/'recovered').exists())
+        self.assertEqual(len((directory/'verify.log').read_text().splitlines()),3)
     def test_failed_aiterm_state_step_keeps_the_swap_but_is_not_completed(self):
         install=self.executor_fixture();(install/'state-fail').touch()
         directory=self.prefix/'state/fixture-result';directory.mkdir()

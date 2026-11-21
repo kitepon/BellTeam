@@ -25,6 +25,7 @@ import uuid
 PREFIX = Path('/srv/bellteam/shared/tools/bellteam-container-update-host')
 LIMIT = 64 * 1024
 CATALOG_LIMIT = 1024 * 1024
+VERIFY_ATTEMPTS, VERIFY_RETRY_SECONDS = 3, 10  # shortcut: fixed retry count, tune if a host stalls longer than ~2 min
 TERMINAL = {'completed', 'failed'}
 JOB_STATES = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
 JOB_RETAIN = 256
@@ -1025,8 +1026,18 @@ def execute_installer(updater, plan, directory):
                     # Persist the timeout as failure; terminate only this installer process group.
                     import signal
                     os.killpg(child.pid, signal.SIGKILL); child.wait()
+    def inspect_retrying():
+        # The new body is already running: one transient docker/host stall (a 30 s command timeout) must not roll it back.
+        for attempt in range(1, VERIFY_ATTEMPTS + 1):
+            try:
+                return updater.inspect_current()
+            except (Failure, subprocess.SubprocessError) as error:
+                with os.fdopen(os.open(directory / 'verify.log', os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600), 'a') as note:
+                    note.write(f'inspect attempt {attempt}/{VERIFY_ATTEMPTS}: {error!r}\n')
+                if attempt == VERIFY_ATTEMPTS: raise
+                time.sleep(VERIFY_RETRY_SECONDS)
     def verify():
-        actual = updater.inspect_current()
+        actual = inspect_retrying()
         confirmed = actual['imageId'] == selected and actual['sourceCommit'] == target['sourceCommit'] and actual['health'] == 'healthy'
         if confirmed:
             check(saved is not None, 'HOST_UPDATE_GENERATION_FAILED')
@@ -1046,7 +1057,7 @@ def execute_installer(updater, plan, directory):
         if saved and (saved / 'previous-normal.json').exists():
             try:
                 recovered = run(True) == 0
-                restored = updater.inspect_current()
+                restored = inspect_retrying()
                 rollback = 'succeeded' if recovered and restored['imageId'] == plan['expected']['imageId'] and restored['sourceCommit'] == plan['expected']['sourceCommit'] and restored['health'] == 'healthy' else 'failed'
                 atomic(updater.state / 'current-runtime.json', restored)
                 if rollback == 'succeeded':
