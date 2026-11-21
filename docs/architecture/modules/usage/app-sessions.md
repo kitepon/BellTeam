@@ -243,7 +243,7 @@ Under reading 3 (design-reading3.md draft 0.2 sections 2 to 4) every device sign
 | Account page, sign-in button (only what the device can use) | Appleでサインイン / Googleでサインイン |
 | Account page, the account row | Appleでサインイン中 / Googleでサインイン中 / ブラウザーでサインイン中（ブラウザーでサインインした端末） |
 | Account page, a web-signed device with no contract: why it cannot buy (replaces 「この端末では購入できません。」) | ブラウザーでサインインした端末では、ここで購入できません。購読しているスマホから引き継いでください。 |
-| Account page, buy button (the price comes from the store) | 購入（{価格}） e.g. 購入（¥980） |
+| Account page, buy button (Tronie's ruling: the period comes with the price, both from the store's offer, never hard-coded; the price is the paid phase of the offer, so a free trial never shows ¥0) | 購入（{期間}{価格}） e.g. 購入（月額¥980）. Period: 1か月 = 月額, 1年 = 年額, 1週 = 週額, 3か月・6か月 = 3か月ごと・6か月ごと; an unknown period shows the price alone |
 | Account page, start the handoff / cancel / after cancelling | スマホで引き継ぐ / やめる / 引き継ぎをやめました。 |
 | Account page, a purchase of another account | 別のアカウントで購入したものがあります。このアカウントでは購読になりません。 |
 | Account page, buttons | 再確認 / ほかの端末をすべて止める / サインアウト |
