@@ -49,7 +49,7 @@ flowchart LR
   Mon[配布・監視] -->|/healthz| Gate
   Old[古いブラウザ・ブックマーク] -->|それ以外の全path・全method| Gate
   Gate{公開受付 http-gateway} -->|/api/* と /healthz: そのまま転送| Biz[業務process 認可・応答]
-  Gate -->|それ以外: 業務processに問い合わせず| Notice[410 text/plain「BellTeamのブラウザ版は終了しました。アプリをお使いください。」<br/>x-bellteam-gateway-version]
+  Gate -->|それ以外: 業務processに問い合わせず| Notice[410 text/plain「BellTeamのブラウザ版は終了しました。／アプリ（iPhone・Mac・Windows・Linux・Android）でお使いください。無料で使うには、公開されているソースコード（MITライセンス）から自分でビルドしてください。」<br/>x-bellteam-gateway-version]
   Biz -->|API以外のpath| NotFound[404 NOT_FOUND]
 ```
 

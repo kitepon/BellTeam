@@ -25,7 +25,7 @@ export async function socketPeer(socket, readTable = () => readFile('/proc/net/t
 
 // a487: the browser UI has ended. Every page that is not /api/* or /healthz answers this one plain notice (no session read, no file);
 // everything the native apps call (/api/*, /healthz) is forwarded as before. The version header lets the exchange tests and the train check see which gateway answers.
-const ENDED_NOTICE = Buffer.from('BellTeamのブラウザ版は終了しました。アプリをお使いください。\n')
+const ENDED_NOTICE = Buffer.from('BellTeamのブラウザ版は終了しました。\nBellTeamはアプリ（iPhone・Mac・Windows・Linux・Android）でお使いください。無料で使うには、公開されているソースコード（https://github.com/kitepon/BellTeam 、MITライセンス）から自分でビルドしてください。\n')
 function endedNotice(request, response, assetVersion) {
   response.writeHead(410, { 'content-type': 'text/plain; charset=utf-8', 'content-length': ENDED_NOTICE.length, 'cache-control': 'no-store', 'x-bellteam-gateway-version': assetVersion })
   response.end(request.method === 'HEAD' ? undefined : ENDED_NOTICE)
