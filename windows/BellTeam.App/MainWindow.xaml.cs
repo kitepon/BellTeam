@@ -56,7 +56,6 @@ public partial class MainWindow : Window, IInspectorHost
             var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
             if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) _ = Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
             NoteScrollUp(args);
-            if (args.ViewportHeightChange != 0) await FillViewportAsync();
             await PrefetchOlderAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
@@ -82,7 +81,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName is nameof(Workspace.Selected) or nameof(Workspace.Connected)) UpdateGoalBar();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected) or nameof(Workspace.LoadFailed) or nameof(Workspace.HasActivity)) UpdateWelcome();
             // a471-thinking-windows: the first page may not fill the screen; older rows are otherwise read only by scrolling up.
-            if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => { await FillViewportAsync(); await ReadOlderAfterFirstPaintAsync(); }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); await PrefetchOlderAsync(); }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
             if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
@@ -123,27 +122,6 @@ public partial class MainWindow : Window, IInspectorHost
         }
     }
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
-    private bool filling;
-    // Reads older pages until the conversation can scroll (the screen is full) or there are no more; each page adds rows, so it always ends.
-    private async Task FillViewportAsync()
-    {
-        if (filling) return;
-        filling = true;
-        try
-        {
-            var loaded = false;
-            while (page is null && ConversationArea.Visibility == Visibility.Visible && model.Selected is not null && model.HasMore && !model.Loading && model.ConnectionError is null && MessageScroll.ScrollableHeight <= 0)
-            {
-                var before = model.Messages.Count;
-                await LoadOlderPreservingPositionAsync();
-                MessageScroll.UpdateLayout();
-                loaded = true;
-                if (model.Messages.Count == before) break;
-            }
-            if (loaded) MessageScroll.ScrollToEnd(); // the screen was at its bottom while it was not full
-        }
-        finally { filling = false; }
-    }
     // a471-scrollback (machine-stream.md "History pages of a long stream"): older pages are read from the scroll motion, before the Owner runs out of rows, never only when the list is empty.
     // Speed is how fast the view moves up (px/s, smoothed); only a user's move counts (a move that comes with an extent change is the anchor or a new row).
     private double scrollSpeed; private long lastScrollUp; private ChatTarget? readOnceFor;
@@ -156,20 +134,24 @@ public partial class MainWindow : Window, IInspectorHost
     // A scroll that stopped half a second ago has no speed.
     private double ScrollSpeed => Environment.TickCount64 - lastScrollUp < 500 ? scrollSpeed : 0;
     private bool CanReadOlder() => page is null && ConversationArea.Visibility == Visibility.Visible && model.Selected is not null && model.HasMore && !model.Loading;
-    // A failed page leaves its error and the loop ends (the count did not grow); the next scroll movement asks again.
+    // The one loop for the first screen and every scroll-back (machine-stream.md "Fill rule"): read older pages while less than the margin is DRAWN above the view; a page that draws almost
+    // nothing (all folded) still adds rows, so it does not end the loop. A failed page leaves its error and the loop ends (the count did not grow); the next scroll movement asks again.
     private async Task PrefetchOlderAsync()
     {
         if (loadingOlder || prefetching) return;
         prefetching = true;
         try
         {
-            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(MessageScroll.VerticalOffset, MessageScroll.ViewportHeight, MessageScroll.ExtentHeight, model.Messages.Count, ScrollSpeed))
+            var wasShort = MessageScroll.ScrollableHeight <= 0; var loaded = false;
+            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(MessageScroll.VerticalOffset, MessageScroll.ViewportHeight, ScrollSpeed))
             {
                 var before = model.Messages.Count;
                 await LoadOlderPreservingPositionAsync();
                 await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background); // the new rows are laid out and input is handled before the next page
-                MessageScroll.UpdateLayout();                if (model.Messages.Count == before) break;
+                MessageScroll.UpdateLayout(); loaded = true;
+                if (model.Messages.Count == before) break;
             }
+            if (loaded && wasShort) MessageScroll.ScrollToEnd(); // the screen was at its bottom while the list was too short to scroll
         }
         finally { prefetching = false; }
     }

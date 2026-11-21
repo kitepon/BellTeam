@@ -8,14 +8,15 @@ namespace BellTeam.Tests;
 public sealed class HistoryPagingTests
 {
     [Fact]
-    public void PrefetchReadsWhileLessThanThreeScreens150RowsOr2SecondsOfSpeedIsAboveTheView()
+    public void PrefetchReadsWhileLessThanThreeScreensOr2SecondsOfSpeedIsDrawnAboveTheView()
     {
-        // 1000 px view, 200 rows in 20000 px (100 px a row): the floor is max(3000, 15000, 2 * speed).
-        Assert.True(HistoryPaging.NeedsOlderPage(14999, 1000, 20000, 200, 0)); Assert.False(HistoryPaging.NeedsOlderPage(15000, 1000, 20000, 200, 0));
-        // short rows (10 px, so 150 rows are 1500 px): 3 screens win; a fast scroll (10000 px/s) wants 20000 px.
-        Assert.True(HistoryPaging.NeedsOlderPage(2999, 1000, 150, 15, 0)); Assert.False(HistoryPaging.NeedsOlderPage(3000, 1000, 150, 15, 0));
-        Assert.True(HistoryPaging.NeedsOlderPage(19999, 1000, 20000, 200, 10000)); Assert.False(HistoryPaging.NeedsOlderPage(20000, 1000, 20000, 200, 10000));
-        Assert.True(HistoryPaging.NeedsOlderPage(0, 1000, 0, 0, 0)); // nothing loaded yet
+        // 1000 px view: the floor is max(3000, 2 * speed). Only what is drawn counts: the rows held and the extent do not change the answer (machine-stream.md "Fill rule").
+        Assert.True(HistoryPaging.NeedsOlderPage(2999, 1000, 0)); Assert.False(HistoryPaging.NeedsOlderPage(3000, 1000, 0));
+        Assert.True(HistoryPaging.NeedsOlderPage(19999, 1000, 10000)); Assert.False(HistoryPaging.NeedsOlderPage(20000, 1000, 10000));
+        Assert.True(HistoryPaging.NeedsOlderPage(0, 1000, 0)); // the first screen: a short list has nothing above the view
+        Assert.False(HistoryPaging.NeedsOlderPage(0, 0, 0)); // not laid out yet
+        // The five-argument form Linux and Android still call gives the same answer for any extent and row count (500 folded rows drawing 300 px included).
+        Assert.True(HistoryPaging.NeedsOlderPage(300, 1000, 300, 500, 0)); Assert.True(HistoryPaging.NeedsOlderPage(2999, 1000, 20000, 200, 0)); Assert.False(HistoryPaging.NeedsOlderPage(3000, 1000, 20000, 200, 0));
     }
 
     [Fact]
