@@ -431,7 +431,7 @@ stateDiagram-v2
 - 表示: the conversation motion select stays (it works, saves at once with the result next to it).
 - 端末: the row shows the count and the worst state; tap opens the terminals dialog (section 7.6) in front.
 - アップデート: the row shows the update state; tap opens the update center (section 5).
-- 利用と購読 (a485): the Web is the free way and has no purchase (Stripe is gone). The page says the browser version needs no subscription, that the iPhone / iPad / Mac / Windows / Linux / Android apps need one, and that it is bought in the iPhone / iPad / Mac / Android app, which then logs this server in; the home row says 「ブラウザー版は購読なし」.
+- 利用と購読 (a485): the Web is the free way and has no purchase (Stripe is gone). The page says the browser version needs no subscription, that the iPhone / iPad / Mac / Windows / Linux / Android apps need one, and that it is bought in the iPhone / iPad / Mac app (Android 0.1.24 has no purchase, Neon; add Android when it can buy), which then logs this server in; the home row says 「ブラウザー版は購読なし」.
 
 ### 4.10 稼働中に数えない処理 (a63)
 
