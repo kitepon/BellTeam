@@ -61,9 +61,8 @@ for (const type of ['bot', 'room']) test(`${type} secret guide uses shared page 
   })
   const links = node => [...(node.href ? [node] : []), ...node.children.flatMap(links)]
   await f.open('a', type)
-  assert.equal(links(f.timeline).length, 1)
+  await settle() // the older page is read in the background after the first paint
   assert.equal(links(f.timeline)[0].textContent, '公式認証ページを開く')
-  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
   assert.deepEqual(f.ids(), ['guide-older', 'guide-current'])
   assert.equal(links(f.timeline).length, 2)
   updated = true; await f.view.refresh()
@@ -128,8 +127,9 @@ test('old before-page finally cannot unlock a new before request; current page p
     if (path.includes('before=')) { const next = deferred(); before.push(next); return next.promise }
     return { items: [{ id: path.includes('/a/') ? 'a' : 'b', message: 'latest' }], has_more: true }
   })
-  await f.open('a'); f.timeline.scrollTop = 0; f.timeline.listeners.scroll()
-  await f.open('b'); f.timeline.scrollTop = 0; f.timeline.listeners.scroll()
+  await f.open('a'); await settle(); f.timeline.listeners.scroll()
+  await f.open('b'); await settle(); f.timeline.listeners.scroll()
+  assert.equal(before.length, 2, 'each target reads its own older page in the background; a scroll does not start a second one while it is on its way')
   before[0].resolve({ items: [], has_more: false }); await settle()
   f.timeline.listeners.scroll(); assert.equal(before.length, 2)
   before[1].resolve({ items: [{ id: 'older', message: 'older' }, { id: 'b', message: 'duplicate' }], has_more: false }); await settle()
@@ -259,12 +259,11 @@ test('latest/after and before pages share evidence rendering; queue removal expo
   const f = fixture(t, path => path.includes('before=') ? { items: [item('older')], has_more: false }
     : path.includes('after=') ? { items: [item('added')], has_more: false }
     : { items: [latest++ ? item('initial') : { ...item('initial'), delivery: 'running' }], has_more: true })
-  await f.open('a')
+  await f.open('a'); await settle() // the older page is read in the background
   f.queues[0].resolve({ items: [{ botId: 'a', groupId: 'initial', status: 'running' }] }); await settle()
-  assert.equal(messageTimes(f)[0].textContent, '')
+  assert.equal(messageTimes(f)[1].textContent, '')
   await f.view.refresh()
   f.queues[1].resolve({ items: [] }); await settle()
-  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
   assert.deepEqual(f.ids(), ['older', 'initial', 'added'])
   assert.deepEqual(messageTimes(f).map(node => node.textContent), Array(3).fill('受付済み・完了未確認'))
 })
@@ -316,13 +315,12 @@ test('a failed older page is the retry target: 「もう一度読み込む」 re
     return { items: [{ id: 'new', message: 'new', direction: 'incoming' }], has_more: true }
   })
   await f.open('a'); f.queues[0].resolve({ items: [] }); await settle()
-  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
   const box = () => f.timeline.children[1].children.find(node => node.className === 'inline-error')
   assert.ok(box(), 'the older-page failure is shown in place')
   const before = f.requests.length
   olderFails = false
   box().children.find(node => node.textContent === 'もう一度読み込む').listeners.click(); await settle()
-  assert.deepEqual(f.requests.slice(before), ['/api/bots/a/messages?limit=20&before=new']) // the same older page, not the newest page
+  assert.deepEqual(f.requests.slice(before), ['/api/bots/a/messages?limit=500&before=new']) // the same older page, not the newest page
   assert.equal(box(), undefined)
   assert.deepEqual(f.ids(), ['old', 'new'])
 })
@@ -557,14 +555,25 @@ test('forward: 転送 hands the source (conversation + item id) and a preview to
   assert.deepEqual(asked.at(-1).source, { kind: 'room', id: 'room1' })
 })
 
-test('first screen: older pages are read while has_more and the rows do not fill the viewport, then it stops', async t => {
+test('first screen: older pages are read one after another while less than the reserve (3 screens / 150 rows) is above the view; enough rows above stop it', async t => {
   const pages = { m4: { items: [{ id: 'm3', message: 'x', direction: 'incoming' }], has_more: true }, m3: { items: [{ id: 'm2', message: 'x', direction: 'incoming' }], has_more: true },
     m2: { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }, m1: { items: [{ id: 'm0', message: 'x', direction: 'incoming' }], has_more: false } }
   const f = fixture(t, path => path.includes('before=') ? pages[path.split('before=')[1]] : { items: [{ id: 'm4', message: 'x', direction: 'incoming' }], has_more: true })
-  f.timeline.clientHeight = 2800 // fake rows are 1000 high: 1-2 rows (1200, 2200) do not fill it, 3 do
-  await f.open('a')
-  assert.deepEqual(f.ids(), ['m2', 'm3', 'm4']) // m1 is not read: the 3 rows overflow
-  assert.equal(f.requests.filter(path => path.includes('before=')).length, 2)
+  await f.open('a'); await settle()
+  assert.deepEqual(f.ids(), ['m0', 'm1', 'm2', 'm3', 'm4']) // 5 rows are far below the 150-row reserve: it chains until has_more ends
+  assert.equal(f.requests.filter(path => path.includes('before=')).length, 4)
+  const many = fixture(t, () => ({ items: Array.from({ length: 160 }, (_, i) => ({ id: `r${i}`, message: 'x', direction: 'incoming' })), has_more: true }))
+  await many.open('a'); await settle()
+  assert.equal(many.requests.filter(path => path.includes('before=')).length, 0, '160 rows are loaded: nothing more is read until the view nears the top')
+  many.timeline.scrollTop = 0; many.timeline.listeners.scroll(); await settle()
+  assert.equal(many.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up under the reserve reads the next older page')
+  assert.match(many.requests.find(path => path.includes('before=')), /limit=500&before=r0$/)
+})
+
+test('a471-scrollback-web: the first page asks 100, an older page 500 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
+  const f = fixture(t, path => path.includes('before=') ? { items: [], has_more: false } : { items: [{ id: 'm4', at: '2026-11-21T01:02:03Z', message: 'x', direction: 'incoming' }], has_more: true })
+  await f.open('a'); await settle()
+  assert.deepEqual(f.requests.filter(path => path.includes('messages')), ['/api/bots/a/messages?limit=100', '/api/bots/a/messages?limit=500&before=m4&before_at=2026-11-21T01%3A02%3A03Z'])
 })
 
 test('first screen: a failed older page stops the fill and shows the retry; a hidden timeline reads nothing more', async t => {
