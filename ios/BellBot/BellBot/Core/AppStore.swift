@@ -78,6 +78,10 @@ final class AppStore: ObservableObject {
     private(set) var loginProbe: SessionResponse.Login?
     private(set) var sessionID: String?
     @Published private(set) var serverLogin: ServerLoginModel?
+    /// 入っているアプリ側: 承認待ち・アプリを追加・セッション一覧。
+    private(set) lazy var serverSessions = ServerSessionsModel(api: api)
+    /// このサーバーがセッションで入る本体か（トークンがある、またはenforced）。
+    var usesServerSessions: Bool { api.sessionToken != nil || loginProbe?.enforced == true }
     /// 本体が今はセッションを判断できない（503 SESSION_STORE_UNAVAILABLE）。トークンは残し、1・2・4…30秒で読み直す。
     @Published private(set) var serverPreparing = false
     private var preparingDelay: TimeInterval = 1
@@ -832,9 +836,11 @@ final class AppStore: ObservableObject {
                         self.updateConnectionError()
                         switch event.type {
                         case "ready":
+                            if self.usesServerSessions { await self.serverSessions.refresh() }
                             self.eventRevision += 1
                             self.requestRefreshFromEvent()
                             self.requestSideRefresh([.updates])
+                        case "login.requested", "session.created", "session.ended": await self.serverSessions.refresh()
                         case "updates": self.requestSideRefresh([.updates])
                         case "settings": self.requestSideRefresh([.settings])
                         case "setup": self.requestSideRefresh([.setup])
@@ -1028,6 +1034,7 @@ final class AppStore: ObservableObject {
         }
         api.sessionToken = nil
         self.sessionID = nil
+        serverSessions.reset()
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
         let store = webDataStore.httpCookieStore
         for cookie in await store.allCookies() { await store.deleteCookie(cookie) }

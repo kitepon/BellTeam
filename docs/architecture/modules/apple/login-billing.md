@@ -22,7 +22,7 @@ flowchart TD
   Boot -->|"トークン有効"| Ready["初期状態へ"]
   Connect --> Start["POST /api/login/start {kind:apple}"]
   Start -->|"waiting_second_hand"| Second["既にログイン済みのアプリの許可か<br/>サーバーのコンソールのコードを待つ"]
-  Start -->|"waiting_phone"| Phone["QR・短いコード・確認番号を表示<br/>3秒ごとにGET /api/login/{id}"]
+  Start -->|"waiting_phone"| Phone["QR（`qr`の文字列からアプリがCoreImageで描く。`qrSvg`は使わない）・短いコード・確認番号を表示<br/>3秒ごとにGET /api/login/{id}"]
   Second -->|"承認されるとwaiting_phone"| Phone
   Phone -->|"この端末で承認（Appleサインイン済み・契約あり）"| Approve["LoginBillingClient.approveQr(qr)<br/>確認画面で番号と「自分で始めたログインだけ」"]
   Phone -->|"approved: tokenが1回だけ"| Keep["共有Keychainへトークン保存"]
@@ -51,6 +51,13 @@ flowchart TD
 - パスは運営のWorkerのoriginにだけ行く。ユーザーのサーバーへは行かない。
 - 購入の画面からStripeの行・Google Playの行・サーバー側の購読状態の読取りを外す（「Stripeは無くなる」）。購入はApp Storeだけ。
 - ログ・診断にK・パス・パスのidを書かない。
+
+## 入っているアプリ側（S2）
+
+- 承認待ち：SSEの`login.requested`／`session.created`／`session.ended`（と`ready`）で`ServerSessionsModel.refresh`が`GET /api/login/requests`と`GET /api/sessions`を読む。承認待ちは準備ができた画面の上の帯（`LoginRequestBanner`）に出し、「許可」「拒否」の下に「自分で始めたログインだけ許可してください。」を添える。ネットワークの種類は`lan`なら「同じネットワークから」、`unknown`は「ネットワークは確認できません」とだけ言う。
+- 「アプリを追加」：設定の接続に置く。`POST /api/login/code`のコード（13文字・10分・1回）を出し、閉じたら捨てる。文は7eのとおり。
+- セッション一覧：`GET /api/sessions`（`origin` phone／console／added、`issuedBy`）。自分の行は「ログアウト」（`signOut`が自分のセッションをDELETEしてトークンを捨てる）、他は「取り消す」（`DELETE /api/sessions/{id}`）。
+- 許可・拒否・コード発行・取消は非冪等なので自動では再送しない。失敗したら理由を出して読み直す（理由は読み直しで消さない）。
 
 ## 失敗と回復
 

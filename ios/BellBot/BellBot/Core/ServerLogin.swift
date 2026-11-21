@@ -7,8 +7,8 @@ enum ServerLoginStatus: String, Decodable { case waitingSecondHand = "waiting_se
 struct LoginPhone: Decodable, Equatable {
     let shortCode: String
     let checkNumber: String
+    /// 電話のカメラが読む文字列。QRの絵は本体が作らず、アプリがこの文字列から描く（契約: qrSvgは使わない）。
     let qr: String
-    let qrPng: String?
 }
 
 struct LoginAnswer: Decodable, Equatable {
@@ -73,6 +73,51 @@ struct ServerLoginClient {
 
     func cancel(_ loginId: String) async throws {
         _ = try await call("/api/login/\(loginId)/cancel", method: "POST", body: [:])
+    }
+
+    struct Request: Decodable, Equatable, Identifiable {
+        let loginId: String
+        let kind: String
+        let networkClass: String
+        let requestedAt: String
+        let expiresAt: String
+        var id: String { loginId }
+    }
+
+    struct SessionEntry: Decodable, Equatable, Identifiable {
+        let id: String
+        let kind: String
+        let origin: String
+        let networkClass: String
+        let createdAt: String
+        let lastUsedAt: String?
+        let issuedBy: String?
+        let current: Bool
+    }
+
+    struct IssuedCode: Decodable, Equatable { let code: String; let expiresAt: String }
+
+    func requests() async throws -> [Request] {
+        struct Body: Decodable { let requests: [Request] }
+        return try decode(Body.self, try await call("/api/login/requests", method: "GET")).requests
+    }
+
+    func approve(_ loginId: String) async throws { _ = try await call("/api/login/\(loginId)/approve", method: "POST", body: [:]) }
+    func deny(_ loginId: String) async throws { _ = try await call("/api/login/\(loginId)/deny", method: "POST", body: [:]) }
+
+    func issueCode() async throws -> IssuedCode {
+        try decode(IssuedCode.self, try await call("/api/login/code", method: "POST", body: [:]))
+    }
+
+    func sessions() async throws -> [SessionEntry] {
+        struct Body: Decodable { let sessions: [SessionEntry] }
+        return try decode(Body.self, try await call("/api/sessions", method: "GET")).sessions
+    }
+
+    func revoke(_ id: String) async throws { _ = try await call("/api/sessions/\(id)", method: "DELETE") }
+
+    private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
+        do { return try JSONDecoder().decode(type, from: data) } catch { throw BellAPIError.invalidResponse }
     }
 
     func console(code: String) async throws -> LoginAnswer {
@@ -224,5 +269,61 @@ final class ServerLoginModel: ObservableObject {
         let plain = ISO8601DateFormatter(), fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractional.date(from: text) ?? plain.date(from: text)
+    }
+}
+
+/// 入っているアプリ側（app-sessions.md 7c）: 承認待ちの許可・拒否、「アプリを追加」のコード、セッション一覧と取消。
+/// 許可・拒否・コード発行・取消は非冪等なので自動では再送しない。失敗したら理由を出して読み直す。
+@MainActor
+final class ServerSessionsModel: ObservableObject {
+    @Published private(set) var requests: [ServerLoginClient.Request] = []
+    @Published private(set) var sessions: [ServerLoginClient.SessionEntry] = []
+    @Published private(set) var issued: ServerLoginClient.IssuedCode?
+    @Published private(set) var errorText: String?
+    @Published private(set) var busy = false
+    private let client: ServerLoginClient
+    private var refreshing = false
+
+    init(api: BellAPI) { client = ServerLoginClient(api: api) }
+
+    func reset() { requests = []; sessions = []; issued = nil; errorText = nil }
+
+    /// 読み取りだけなので、失敗は理由を出して次のイベントか手動の再読込で直す。
+    func refresh() async {
+        guard !refreshing else { return }
+        refreshing = true
+        defer { refreshing = false }
+        do {
+            async let r = client.requests()
+            async let s = client.sessions()
+            (requests, sessions) = try await (r, s)
+            errorText = nil
+        } catch { errorText = error.localizedDescription }
+    }
+
+    func approve(_ request: ServerLoginClient.Request) async { await act { try await self.client.approve(request.loginId) } }
+    func deny(_ request: ServerLoginClient.Request) async { await act { try await self.client.deny(request.loginId) } }
+    func revoke(_ entry: ServerLoginClient.SessionEntry) async { await act { try await self.client.revoke(entry.id) } }
+
+    /// 画面を閉じたらコードは捨てる（1回だけ・10分で切れる）。
+    func issueCode() async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do { issued = try await client.issueCode(); errorText = nil }
+        catch { errorText = error.localizedDescription; issued = nil }
+    }
+
+    func discardCode() { issued = nil }
+
+    private func act(_ work: @escaping () async throws -> Void) async {
+        guard !busy else { return }
+        busy = true
+        var failure: String?
+        do { try await work() } catch { failure = error.localizedDescription }
+        busy = false
+        await refresh()
+        // 読み直しが成功しても、操作が失敗した理由は残す。
+        errorText = failure ?? errorText
     }
 }
