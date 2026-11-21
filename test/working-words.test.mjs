@@ -7,6 +7,7 @@ import { WORKING_WORDS, withWorkingWord, workingWord } from '../src/working-word
 test('the list is Claude Code\'s: plain unique words, no ellipsis', () => {
   assert.ok(WORKING_WORDS.length > 150 && WORKING_WORDS.includes('Mulling') && WORKING_WORDS.includes('Cerebrating'))
   assert.equal(new Set(WORKING_WORDS).size, WORKING_WORDS.length)
+  for (const word of ['Canoodling', 'Evaporating', 'Musing']) assert.ok(WORKING_WORDS.includes(word), `the Owner's word ${word}`)
   assert.ok(WORKING_WORDS.every(word => /^[A-Za-zé'-]+$/u.test(word)))
 })
 
