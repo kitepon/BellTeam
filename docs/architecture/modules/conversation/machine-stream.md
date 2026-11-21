@@ -230,6 +230,23 @@ flowchart LR
   Page --> Apps["apps: bubble true = message bubble"]
 ```
 
+## Reply, forward, quote and copy of a bubble (a471-reply-forward-broken)
+
+Owner 2026-11-21 10:3x JST: 「返信機能とか、転送機能とか、引用して返信とか、使えなくなってる。」 Cause found 2026-11-21 (not the read outage): a machine seat's answer is now the stream bubble (`machine_event` with `bubble: true`), and every client gates reply / forward / quote / copy on `kind` being `message`, `interim` or `schedule` (Web draws the bubble with `id: undefined`; iOS `isQuotable`, Windows/Linux `Timeline.IsQuotable` / `IsForwardable`). A `machine_event` row is none of those, so the Bot's answers lost the actions. The body already accepts the row: `reply_to` and `forward.message_id` take its id `me-<seq>-<part>` (source kind `bot`), `quoteSource` / `forwardSource` read its whole `machine_event.text` through `machine.rowSource`, and `reply_quote` locates the selected text in it. Nothing changes in the body or in the wire.
+
+- **Client rule (same on all four).** A `machine_event` row with `bubble: true` is a message bubble, so it gets the same actions as a saved message bubble: reply, quote of a selected part, forward, copy. The id sent is the row's own `id` (`me-<seq>-<part>`; it stays the same when the row is replaced in place by the bubble mark). The text for the selected part, for copy and for the forward comment is the whole `machine_event.text` (the row's `message` is only the first line). A quote of a bubble in a reply scrolls to the row by that id.
+- **Plain written lines stay without actions** (words not marked `bubble`, thinking, tool lines, cards): they are the seat's talk between tool uses, not messages. Widening this later changes only the clients' gate.
+- A bubble not yet marked (turn still open) has no actions; when the mark arrives the row is replaced in place and gets them.
+
+```mermaid
+flowchart LR
+  Row["machine_event, bubble: true, id me-seq-part"] --> Gate["client gate: bubble true = quotable and forwardable"]
+  Gate --> Post["POST reply_to / forward.message_id = me-seq-part"]
+  Post --> Child["conversation child: quoteSource / forwardSource"]
+  Child --> Eff["effect machine.rowSource (parent MachineStream.rowSource)"]
+  Eff --> Snap["snapshot {sender, at, text} saved on the new row"]
+```
+
 ## Not changed
 
 Direct and room message routes, the existing interim/answer/status rows, reply, `owner_question` and `secret_request` cards, every existing SSE topic and terminal seats stay as they are. A machine seat's turn end, answer text and steer receipts stay on the existing tools; the stream is additive for the chat log.
