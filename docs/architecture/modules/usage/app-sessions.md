@@ -237,12 +237,18 @@ Under reading 3 (design-reading3.md draft 0.2 sections 2 to 4) every device sign
 | Phone's approval, no live contract | 先に購読してください。 |
 | Phone's approval, other account | このコードは、別のアカウントのものです。 |
 | Paywall, instead of the app, when `entitlementState` is `none` (buttons: 再確認 / 接続先を変更) | このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。 |
-| Account and subscription page (phone apps; Neon's words, adopted): title | アカウントと購読 |
+| Account and subscription page (every app that has one; Neon's words, ruled 2026-11-22): title | アカウントと購読 |
+| Account page, badge and state sentence (the Mac wording) | 有効 / 未設定 ・ 購読中です。 / 購読していません。 |
 | Account page, signed out | サインインしていません。 |
-| Account page, sign-in button (Android: Google) / signed-in line | Googleでサインイン / Googleでサインイン中 |
-| Account page, a device that cannot buy | この端末では購入できません。 |
+| Account page, sign-in button (only what the device can use) | Appleでサインイン / Googleでサインイン |
+| Account page, the account row | Appleでサインイン中 / Googleでサインイン中 / ブラウザーでサインイン中（ブラウザーでサインインした端末） |
+| Account page, a web-signed device with no contract: why it cannot buy (replaces 「この端末では購入できません。」) | ブラウザーでサインインした端末では、ここで購入できません。購読しているスマホから引き継いでください。 |
+| Account page, buy button (the price comes from the store) | 購入（{価格}） e.g. 購入（¥980） |
+| Account page, start the handoff / cancel / after cancelling | スマホで引き継ぐ / やめる / 引き継ぎをやめました。 |
 | Account page, a purchase of another account | 別のアカウントで購入したものがあります。このアカウントでは購読になりません。 |
 | Account page, buttons | 再確認 / ほかの端末をすべて止める / サインアウト |
+| Stop all others, the reason (with the provider of this device) | このアカウントでログインしている、ほかのすべての端末を止めます。この端末は使い続けられます。{Apple / Google}でもう一度サインインします。 |
+| Stop all others, the confirm buttons (not 「やめる」: it sounds like 「止める」) | 止める / キャンセル |
 | Account page, subscription connection not set | 購読の接続先がまだ決まっていません。 |
 | Account page, errors | この商品はまだ読み込めていません。もう一度お試しください。 / サインインし直してください。 / うまくいきませんでした（コード） |
 | Server address not registered | このサーバーは、この接続先を登録していません。サーバーのコンソールで追加するか、すでに入っているアプリから「いまの接続先を追加」してください。 |
