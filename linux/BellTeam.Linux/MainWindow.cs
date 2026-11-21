@@ -29,7 +29,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // Off for the render seams, which capture a screen and must not move on by themselves.
     public bool AutoRetry { get; set; } = true;
     private bool loadingOlder;
-        private bool unreadNew; // a message arrived while the reader was away from the bottom
+    private bool unreadNew; // a message arrived while the reader was away from the bottom
     private bool syncingComposer;
     private string attachmentKey = "", queueKey = "";
 
