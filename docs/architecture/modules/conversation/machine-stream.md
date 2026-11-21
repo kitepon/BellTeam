@@ -247,6 +247,33 @@ flowchart LR
   Eff --> Snap["snapshot {sender, at, text} saved on the new row"]
 ```
 
+## History pages of a long stream (a471-page-request-bound, a471-page-size-scrollback)
+
+Owner 2026-11-21 10:4x–10:5x JST: scrolling back through a machine seat's log must keep up (「一回で読むログを多くしないとダメだよ。1000とか。あと、足りなくなってから読むのもダメだよ。過去ログにスクロールする動きを見て先読みしなきゃダメ。」, then 「1000はやりすぎか？ちとわからんがね。」). A machine seat writes thinking, tool and hook rows, so a page of 20 covers little time. Two parts, one contract, the same on all four apps.
+
+**Measured (N102, 2026-11-21, `GET /messages` page path on the real code with synthetic rows; production state is not readable from this seat, so Tronie's stream file is the check of row size).**
+
+| Fact | Value |
+| --- | --- |
+| One row as the apps get it | about 0.3 KB for a tool/words row, 1.3 KB for a thinking row of 939 characters (the one in `bot-7b140b27.jsonl` seq 907); the row text is cut at 20000 characters |
+| Time to build one page in the body and child | 0.3–5 ms at 800–10 000 stream rows; 42–85 ms at 100 000 stream rows. It does not depend on `limit`; it depends on how many card ids the child is handed (the 100 000-row case hands it 5 MB) |
+| Size of one page | 100 rows about 30–130 KB, 500 rows about 150–650 KB, 1000 rows about 0.3–1.3 MB before compression; text compresses 4–6 times |
+
+**Decision.**
+
+- **Server cap of `limit`: 200 → 1000** (`pageItems` and `timelinePage`). The default for a request without `limit` stays 10 (old apps). Nothing else about the page changes: newest first, `before` / `after`, `has_more`, `remaining_before`.
+- **Page sizes the apps ask for:** first page `limit=100` (fills the screen at once; a471-web-fill-first-page keeps reading until the screen is full), every older page `limit=500`. 500 is about half a megabyte at worst, one round trip on a phone link, and it covers hours of a busy machine seat; 1000 doubles the wait of one page for little gain, so it stays the cap, not the size. The two numbers are one constant each in an app, so a measurement on a real seat changes one line.
+- **Prefetch, not load-on-empty.** An app reads the next older page while the Owner is still looking at rows it already has. Rule (the same in all four): keep at least `max(3 screens, 150 rows, 2 seconds of the current scroll speed)` of loaded rows above the top of the view; when less is left and `has_more` is true and no older page is on its way, ask for the next one. One older request at a time; when a page arrives, check the rule again at once (a fast scroll chains pages). After the first paint, with no scroll, the app also reads one older page in the background. It stops when `has_more` is false. A failed page is tried again on the next scroll movement, not in a loop. The scroll position must not jump when rows are added above the view (keep the anchor row).
+- **Page request bound (body, no app change needed).** The page read no longer hands the child every card of every extra source. The parent hands only the cards that can fall inside the page: for the newest page the last `limit` cards of each source; for `before=<id>` the last `limit` cards at or before the cursor time; for `after=<id>` the cards at or after the cursor time. The cursor time is the `at` of the cursor row. The parent knows it when the cursor is a card id; for a saved message the app sends it as the new optional query value `before_at` / `after_at` (the `at` of the row it already holds). With no hint (an old app, an unknown id) the parent falls back to handing every card, as today; the read waits for the large-body slot (PR #2079), so it never fails for that. The child gets, next to `cards`, `skipped`: per source the count of older cards the parent left out, and adds it to `remaining_before` and to the has-more test. Indexes in the child's answer refer to the cards the parent sent; the parent maps them back to its own rows, so nothing else changes. The request is now at most `limit` cards per source plus counts, however long the stream grows.
+
+```mermaid
+flowchart LR
+  App["app: limit 100 / 500, before + before_at, prefetch"] --> Parent["parent messagePage: window the cards by cursor time"]
+  Parent -->|"cards (at most limit per source) + skipped counts"| Child["child history.page: timelinePage"]
+  Child -->|"items {source, index}, has_more, remaining_before"| Parent
+  Parent --> App
+```
+
 ## Not changed
 
 Direct and room message routes, the existing interim/answer/status rows, reply, `owner_question` and `secret_request` cards, every existing SSE topic and terminal seats stay as they are. A machine seat's turn end, answer text and steer receipts stay on the existing tools; the stream is additive for the chat log.
