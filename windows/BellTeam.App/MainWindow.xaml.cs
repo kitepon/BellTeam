@@ -56,6 +56,12 @@ public partial class MainWindow : Window, IInspectorHost
             ShowLatestButton();
             var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
             if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) _ = Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
+            if (args.VerticalChange == 0 && args.ExtentHeightChange != 0 && !loadingOlder && previousBottomDistance >= 80 && viewedRow is { } row && row.IsDescendantOf(MessageScroll))
+            {
+                var drift = RowTop(row) - viewedTop;
+                if (Math.Abs(drift) >= 1) MessageScroll.ScrollToVerticalOffset(MessageScroll.VerticalOffset + drift);
+            }
+            else RememberViewedRow();
             NoteScrollUp(args);
             await PrefetchOlderAsync();
         };
@@ -163,6 +169,20 @@ public partial class MainWindow : Window, IInspectorHost
         if (!CanReadOlder() || readOnceFor == model.Selected?.Target || loadingOlder) return;
         readOnceFor = model.Selected?.Target;
         await LoadOlderPreservingPositionAsync();
+    }
+    // a471-scroll-jump: a row that grows or appears above the viewed row (a late row, an image, a thinking text) must not move it. The first row in view is remembered with its distance from the top
+    // of the view; when the content height changes without a scroll, the offset follows that row. Not while the newest row is followed (it is at the bottom) and not while older rows land (the two events restore those exactly).
+    private FrameworkElement? viewedRow; private double viewedTop;
+    private double RowTop(FrameworkElement row) => row.TransformToAncestor(MessageScroll).Transform(new Point(0, 0)).Y;
+    private void RememberViewedRow()
+    {
+        int low = 0, high = MessageList.Items.Count - 1; viewedRow = null;
+        while (low <= high) // rows are in order, so the first one whose bottom is below the top of the view is found by halving
+        {
+            var middle = (low + high) / 2;
+            if (MessageList.ItemContainerGenerator.ContainerFromIndex(middle) is not FrameworkElement row || !row.IsDescendantOf(MessageScroll)) return;
+            if (RowTop(row) + row.ActualHeight > 0) { viewedRow = row; viewedTop = RowTop(row); high = middle - 1; } else low = middle + 1;
+        }
     }
     // The row being read stays where it is when older rows land above it (a471-scroll-jump): the position is read and restored by the model's two events, at the change itself.
     private double anchorOffset, anchorHeight;
