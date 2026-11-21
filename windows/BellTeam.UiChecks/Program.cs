@@ -20,7 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
-    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await ReconnectChecks(); await SmoothChecks();
+    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await ReconnectChecks(); await NewestChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -288,13 +288,14 @@ public static class UiChecks {
     Check(Math.Abs(Top() - start) < 2,"上に行が足されて、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
     window.Close(); Console.WriteLine("上の行が変わっても見ている行が動かない確認に成功しました。");
   }
-  // a471-scroll-smooth: a row that arrives while the view is at the bottom is followed with an animated scroll (steps of at most 33 px), not a jump; the wheel stops it.
-  private static async Task SmoothChecks() {
-    var time = DateTimeOffset.UtcNow;
-    TimelineMessage[] Rows(string prefix, int count, int minutes) => Enumerable.Range(0,count).Select(index => new TimelineMessage { Id = prefix + index, At = time.AddMinutes(minutes + index), Direction = "incoming", Message = "行 " + prefix + index }).ToArray();
+  // a471-open-newest: the chat is anchored to its newest end. The first frame with rows is already at the newest (no older position first, no catch-up), an older page landing above and a new row
+  // arriving while following move nothing, a sent bubble is on screen at once at the newest, and a reader of older rows is left where he is.
+  private static async Task NewestChecks() {
+    var time = DateTimeOffset.UtcNow; var server = Enumerable.Range(0, 100).Select(index => new TimelineMessage { Id = "s" + index.ToString("D3"), At = time.AddMinutes(index), Direction = "incoming", Message = "行 " + index }).ToList();
     var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
     using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
-      var path = request.RequestUri!.AbsolutePath;
+      var path = request.RequestUri!.AbsolutePath; var query = request.RequestUri.Query;
+      if (request.Method == HttpMethod.Post) return "{\"delivery_id\":\"sent1\"}";
       object result = path switch {
         "/api/session" => new { authenticated = true, authMode = "local" },
         "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
@@ -302,7 +303,9 @@ public static class UiChecks {
         "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
         _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
-        _ when path.EndsWith("/messages") => new MessagePage { Items = Rows("first", 60, 0), HasMore = false },
+        _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") && query.Contains("before=") => new MessagePage { Items = Enumerable.Range(0, 40).Select(index => new TimelineMessage { Id = "a" + index.ToString("D3"), At = time.AddMinutes(-100 + index), Direction = "incoming", Message = "古い行 " + index }).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(60).ToArray(), HasMore = true },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
       return JsonSerializer.Serialize(result, wire);
@@ -311,26 +314,36 @@ public static class UiChecks {
     var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
     async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
     await Layout();
-    var scroll = (ScrollViewer)window.FindName("MessageScroll");
+    var scroll = (ScrollViewer)window.FindName("MessageScroll"); var host = (BottomAnchoredScroller)window.FindName("MessageHost");
+    bool AtNewest() => Math.Abs(scroll.VerticalOffset - scroll.ScrollableHeight) < 1;
+    double Y(MessageCard card) => card.TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
     ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
-    for (var turn = 0; turn < 100 && !(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
-    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight); await Layout(); await Task.Delay(100); await Layout();
-    if (!SystemParameters.ClientAreaAnimation) { Console.WriteLine("この端末はアニメーション効果が切れているため、滑らかな追従の確認を省きました。"); window.Close(); return; }
-    var last = scroll.VerticalOffset; var before = scroll.ScrollableHeight;
-    workspace.Messages.Add(new MessageItem(new TimelineMessage { Id = "arrived", At = time.AddMinutes(100), Direction = "incoming", Message = "届いた行\n\n二つ目\n\n三つ目" }));
-    var steps = new List<double>(); var grew = false;
-    for (var turn = 0; turn < 200; turn++) { await Task.Delay(16); await Layout(); steps.Add(scroll.VerticalOffset - last); last = scroll.VerticalOffset; grew |= scroll.ScrollableHeight > before + 20; if (grew && scroll.VerticalOffset >= scroll.ScrollableHeight - 0.5) break; }
-    Check(grew,"届いた行で内容が増えません。");
-    Check(Math.Abs(scroll.VerticalOffset - scroll.ScrollableHeight) < 1,"届いた行へ最後まで追従しません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
-    Check(steps.Count(step => step > 0.5) >= 3,"届いた行を一度に動いて表示しています（動いた回数 " + steps.Count(step => step > 0.5) + "、歩み " + string.Join(",", steps.Take(12).Select(step => Math.Round(step))) + "、追従 " + typeof(MainWindow).GetField("following", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(window) + "、アニメ " + SystemParameters.ClientAreaAnimation + "）。");
-    Check(steps.Max() <= 67,"1回の標本で33px×2より大きく動きました（" + steps.Max() + "）。"); // a sample here can span two 16 ms timer ticks, each at most 33 px
-    // the wheel stops the following
-    workspace.Messages.Add(new MessageItem(new TimelineMessage { Id = "arrived2", At = time.AddMinutes(101), Direction = "incoming", Message = "もう一行\n\n二つ目\n\n三つ目" }));
-    await Task.Delay(40); await Layout();
-    scroll.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice, Environment.TickCount, 0) { RoutedEvent = UIElement.PreviewMouseWheelEvent });
-    var stopped = scroll.VerticalOffset; await Task.Delay(300); await Layout();
-    Check(Math.Abs(scroll.VerticalOffset - stopped) < 1,"ホイールで追従が止まりません。");
-    window.Close(); Console.WriteLine("下に届いた行を滑らかに追う確認に成功しました。");
+    // (a) the first layout that has rows is at the newest, with nothing scrolled by the check
+    var first = false;
+    for (var turn = 0; turn < 200 && !(workspace.Messages.Count >= 100 && !workspace.Loading); turn++) {
+      await Task.Delay(20); await Layout();
+      if (!first && scroll.ScrollableHeight > 0) { first = true; Check(AtNewest(), "開いて最初に描いた画面が最新ではありません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。"); }
+    }
+    Check(first && workspace.Messages.Count >= 100, "古いページが届きません（行 " + workspace.Messages.Count + "）。");
+    await Layout(); Check(AtNewest() && host.IsNewest, "古いページが上に届いて、最新から外れました（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    // (b) a reader of older rows stays where he is when a row arrives, and is told
+    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight / 2); await Layout();
+    Check(!host.IsNewest, "上へ読み返しても最新に固定されたままです。");
+    var viewed = Descendants<MessageCard>(root).Where(card => card.Message is not null && Y(card) >= 0).OrderBy(Y).First().Message!.Id;
+    double Top() => Y(Descendants<MessageCard>(root).Single(card => card.Message?.Id == viewed));
+    var start = Top(); server.Add(new TimelineMessage { Id = "s100", At = time.AddMinutes(100), Direction = "incoming", Message = "新着\n\n二つ目" });
+    await workspace.RefreshManagementAsync(); await Layout();
+    Check(Math.Abs(Top() - start) < 2 && !host.IsNewest, "読み返している間の新着で、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
+    // (c) sending: the bubble is at the bottom at once, in view, and the view is at the newest; then the history catches up without a move
+    workspace.DraftText = "送った言葉"; await workspace.SendAsync(); await Layout();
+    var sent = Descendants<MessageCard>(root).SingleOrDefault(card => card.Message?.Message == "送った言葉");
+    Check(sent is not null, "送った吹き出しが出ていません。");
+    Check(host.IsNewest && AtNewest() && Y(sent!) >= 0 && Y(sent!) + sent!.ActualHeight <= scroll.ActualHeight, "送った吹き出しが最新の位置に見えていません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    // (d) following: a row that arrives keeps the view at the newest in the same layout, with no scroll and no later move
+    var before = scroll.VerticalOffset; server.Add(new TimelineMessage { Id = "s101", At = time.AddMinutes(101), Direction = "incoming", Message = "届いた行\n\n二つ目\n\n三つ目" });
+    await workspace.RefreshManagementAsync(); await Layout();
+    Check(AtNewest() && scroll.ScrollableHeight > before, "最新を追っている時に届いた行で最新から外れました（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    window.Close(); Console.WriteLine("開いた時・送信・新着・古いページで最新に固定され、読み返しは動かない確認に成功しました。");
   }
   // a471-scroll-refresh: the newest page is read again (SSE event, reconnect of the stream, return from sleep) while older rows stay. It may come back short for a moment (the newest rows missing) and then whole with new rows.
   // The rows already held must stay, and the row the Owner is looking at must not move, in both steps.
