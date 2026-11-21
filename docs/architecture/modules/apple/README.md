@@ -31,6 +31,7 @@ Apple内部の機能図は未作成（担当ベルの2026-11-02回答）。現�
 - [相関図](work-graph.md)：作業中のメンバーと依頼の流れのネイティブ描画（iPhone/iPadはタブ、Macは別窓）。
 - [決裁箱（Approval Box拡張）](approvals.md)：決裁箱の入口（左メニューの先頭の固定行）・一覧・詳細・答える・工程とのつながり・つなぐ。iPhoneは押し込む画面、iPadは詳細の列、Macは別窓。
 - [工程表（Lattice）](lattice-chart.md)：工程表の一覧・ブロック一覧と1枚の工程表のネイティブ描画（iPhoneは相関図タブの切り替え、iPadはサイドバー、Macは別窓）。
+- [ログインと購読の共通基盤への切替（a485）](login-billing.md)：サーバーへのセッションログイン（Mikaの契約）、店のパスとレシート（ライブラリv0.7.2）、承認・端末一覧・停止、Stripe撤去。
 - [背景復帰・通知・購読・platform配置](lifecycle-and-platform.md)：SSE再接続と背景復帰、push拡張、購読と復元、端末保存とlogout、iPhone・iPad・Macの差。
 - [試験の対応表](tests.md)：XCTestと独立チェックの本文から、各試験が確かめる契約。
 - [Update画面](update.md)：商用更新の表示、計画と実行、結果照会、SSE `updates`、push `kind=update`。
