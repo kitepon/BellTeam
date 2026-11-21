@@ -438,6 +438,11 @@ struct QueueItem: Decodable, Identifiable, Equatable {
     let message: String?
     /// 実行中のターンへ差し込まれた配送。無い旧サーバーではfalse扱い。
     var steered: Bool?
+    /// 実行中の行だけ本体が付ける作業中の言葉（Claude Codeの言葉、…なし）。選びも並べ替えもしない。無い旧サーバーでは無し。
+    var workingWord: String?
+
+    /// 作業中の表示。言葉があれば「Mulling…」、無ければ従来の「処理中」。
+    var workingLabel: String { workingWord.map { "\($0)…" } ?? "処理中" }
 
     /// Botの実行中ターンごとに「処理中」を1行だけ出す。差し込まれた配送はそのターンの行にまとめる。
     static func displayItems(_ items: [QueueItem]) -> [QueueItem] {
