@@ -57,7 +57,9 @@
         "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
         "LB_PASS_KEY_CURRENT_ID": "t1",
         "LB_BILLING": "off",
-        "LB_PUBLIC_ORIGIN": "https://bellteam-login-test.kitepon.dev"
+        "LB_PUBLIC_ORIGIN": "https://bellteam-login-test.kitepon.dev",
+        // The Google web client of the code flow (project bellteam-515414, redirect = this origin + /auth/v1/websignin/callback). Not the Android serverClientId.
+        "WEBSIGNIN_GOOGLE_CLIENT_ID": "316260984663-lofu7qohq45fhbfup8k3ottlgat415pk.apps.googleusercontent.com"
       }
     }
   }
