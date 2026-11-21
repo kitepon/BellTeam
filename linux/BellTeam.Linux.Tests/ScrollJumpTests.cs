@@ -39,7 +39,7 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
                 var p when p.Contains("/messages?limit=30") => "{\"items\":[" + Slice("first", 70, 30, 5000) + (Fresh ? "," + Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":true}",
                 var p when p.Contains("/messages?after=") => "{\"items\":[" + (Fresh ? Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":false}",
-                var p when p.Contains("/messages?limit=1000") => "{\"items\":[" + Rows("first", 100, 5000) + "],\"has_more\":true}",
+                var p when p.Contains("/messages?limit=1000") && !older => "{\"items\":[" + Rows("first", 100, 5000) + "],\"has_more\":true}",
                 var p when older => "{\"items\":[" + Rows("old" + Older + "-", 500, 5000 - 500 * Older) + "],\"has_more\":true}",
                 _ => null
             };

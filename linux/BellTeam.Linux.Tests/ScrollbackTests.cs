@@ -29,7 +29,7 @@ public sealed class ScrollbackTests
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                var p when p.Contains("/messages?limit=1000") => "{\"items\":[" + Rows("first", 3, 5000) + "],\"has_more\":true}",
+                var p when p.Contains("/messages?limit=1000") && !p.Contains("before=") => "{\"items\":[" + Rows("first", 3, 5000) + "],\"has_more\":true}",
                 var p when p.Contains("/messages?limit=1000&before=") => "{\"items\":[" + Rows("old" + older + "-", 40, 5000 - 100 * older) + "],\"has_more\":true}",
                 _ => null
             };
