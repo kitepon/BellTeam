@@ -486,6 +486,8 @@ public partial class MainWindow : Window, IInspectorHost
     public void HideInspectorForRender() { inspectorVisible = false; ProfileLayout(); }
     public async Task PrepareRenderAsync(bool bottomOfPage = false, bool readingOlder = false)
     {
+        // The list realizes its rows (and their avatar tiles) after the first layout; without this pass the wait below finds no tile and the picture is taken before the images arrive.
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ContextIdle); Root.UpdateLayout();
         // A roster re-read during the wait replaces entries and starts new avatar loads; wait again until none is still running.
         for (var round = 0; round < 20; round++)
         {
