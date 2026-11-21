@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { MachineStream, project } from '../src/machine-stream.mjs'
+import { MachineStream, project, toolSummary } from '../src/machine-stream.mjs'
 import { createSeatRequestApi } from '../src/http-seat-request-api.mjs'
 import { createMessageViews } from '../src/http-messages.mjs'
 import { listRecent } from '../src/members/profiles-http.mjs'
@@ -220,9 +220,47 @@ test('a request leaves pending by cancel, by state.pending, by exit, or by REQUE
   assert.equal(ms.get('c3').status, 'expired')
   await ms.ingest(env([], 'L1:2', 'L1:2', { state: 'exited', reason: null, pending: [] }))
   assert.equal(ms.get('c4').status, 'expired')
-  // a request opened and already gone in the same envelope is expired too
+  // a request opened and not listed in the same envelope was answered by the seat itself (a471-auto-approval-noise)
   await ms.ingest(env([ask('c5', Q)], 'L1:2', 'L1:3', { state: 'idle', reason: null, pending: [] }))
-  assert.equal(ms.get('c5').status, 'expired')
+  assert.equal(ms.get('c5').status, 'auto')
+})
+
+const bash = (id, input) => J({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: 'Bash', input } })
+
+test('a request the seat answers itself pushes nothing and is one folded line; a waiting one pushes and stays a card (a471-auto-approval-noise)', async t => {
+  const { ms, requested, make, root } = await service(t)
+  const input = { command: 'sed -n 1,140p server.js | head -8', description: 'Read se' }
+  await ms.ingest(env([bash('b1', input)], null, 'L1:1', { state: 'busy', reason: null, pending: [] }))
+  assert.deepEqual(requested, []) // no push
+  assert.equal(ms.get('b1').status, 'auto')
+  const [row] = ms.timeline({ botId: 'bot-d' }).filter(r => r.machine_event.seq === 1)
+  assert.deepEqual([row.machine_event.view, row.machine_event.display, row.machine_event.fold_group, row.machine_event.request], ['control', 'fold', 'background', undefined])
+  assert.equal(row.message, 'Bash allowed automatically: sed -n 1,140p server.js | head -8') // the command, never the raw JSON
+  // a request the seat lists as waiting pushes once and stays a card with the plain summary
+  await ms.ingest(env([bash('b2', input)], 'L1:1', 'L1:2', { state: 'blocked', reason: 'tool_approval', pending: [{ request_id: 'b2', subtype: 'can_use_tool', tool_name: 'Bash' }] }))
+  assert.deepEqual(requested, ['b2'])
+  const card = ms.timeline({ botId: 'bot-d' }).find(r => r.machine_event.seq === 2).machine_event
+  assert.deepEqual([card.view, card.request.status, card.tool.summary], ['approval', 'pending', 'sed -n 1,140p server.js | head -8'])
+  // the state file can trail the line: a later state that lists it turns it back into a waiting request (and it pushes then)
+  const listed = id => ({ request_id: id, subtype: 'can_use_tool', tool_name: 'Bash' })
+  await ms.ingest(env([bash('b3', input)], 'L1:2', 'L1:3', { state: 'blocked', reason: 'tool_approval', pending: [listed('b2')] }))
+  assert.equal(ms.get('b3').status, 'auto')
+  await ms.ingest(env([], 'L1:3', 'L1:3', { state: 'blocked', reason: 'tool_approval', pending: [listed('b2'), listed('b3')] }))
+  assert.deepEqual([ms.get('b3').status, requested], ['pending', ['b2', 'b3']])
+  // all of it survives a restart and pushes nothing while loading
+  const again = make(); await again.initialize()
+  assert.deepEqual([again.get('b1').status, again.get('b2').status, again.get('b3').status], ['auto', 'pending', 'pending'])
+  assert.equal(requested.length, 2)
+  void root
+})
+
+test('toolSummary: the command or the file in plain form, never the raw JSON', () => {
+  assert.equal(toolSummary({ command: 'ls -la', description: 'x' }), 'ls -la')
+  assert.equal(toolSummary({ file_path: '/a/b.js', offset: 3 }), '/a/b.js')
+  assert.equal(toolSummary({ pattern: 'foo', path: '/srv' }), 'foo in /srv')
+  assert.equal(toolSummary({ url: 'https://x' }), 'https://x')
+  assert.equal(toolSummary({ n: 1 }), '{"n":1}') // no known key: the compact JSON, as before
+  assert.equal(toolSummary(null), '')
 })
 
 test('views merge the machine source only when the Bot has entries; route is Owner-only', async t => {

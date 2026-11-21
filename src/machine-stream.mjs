@@ -9,6 +9,16 @@ import displayRules from './machine-display-rules.json' with { type: 'json' }
 const fail = code => Object.assign(new Error(code), { code })
 const ROW_TEXT_MAX = 20000 // the whole text of a result for the try; the raw line stays available by seq
 const cut = (value, max) => { const text = typeof value === 'string' ? value : JSON.stringify(value) ?? ''; return text.length > max ? [text.slice(0, max), true] : [text, false] }
+// a471-auto-approval-noise: the one plain line a tool's input stands for (the command or the file, never the raw JSON) in a tool_use and an approval card.
+const SUMMARY_KEYS = ['command', 'file_path', 'notebook_path', 'pattern', 'path', 'url', 'query', 'skill', 'description', 'prompt', 'plan']
+export function toolSummary(input, max = 200) {
+  if (!plain(input)) return cut(input ?? '', max)[0]
+  const first = SUMMARY_KEYS.find(key => str(input[key]))
+  if (!first) return cut(input, max)[0]
+  // a search names where it looks: "pattern in path"
+  const where = first === 'pattern' && str(input.path) ? ` in ${input.path}` : ''
+  return cut(`${input[first].trim()}${where}`, max)[0]
+}
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const str = value => typeof value === 'string' && value.length > 0 ? value : null
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max ? value.trim() : null
@@ -28,6 +38,10 @@ function questionsOf(input) {
 const resultText = content => typeof content === 'string' ? content
   : Array.isArray(content) ? content.map(block => block?.type === 'text' ? block.text : JSON.stringify(block)).join('\n') : JSON.stringify(content) ?? ''
 
+// a471-auto-approval-noise: a request the seat answered itself is one folded line (the tool and its plain summary), not an approval card.
+const autoPart = (bot, part) => part.request_id && (part.view === 'approval' || part.view === 'question') && bot.requests.get(part.request_id)?.status === 'auto'
+  ? { type: part.type, subtype: part.subtype, view: 'control', title: `${part.tool?.name ?? 'tool'} allowed automatically`, text: part.tool?.summary ?? '' } : part
+
 // raw line -> list of entry parts. Unknown or unreadable input becomes the 'unknown' view, never nothing.
 export function project(line) {
   let value
@@ -43,7 +57,7 @@ export function project(line) {
       const parts = blocks(value.message?.content).map(block => {
         if (block?.type === 'text') return part({ view: 'words', title: null, text: block.text ?? '', shown_elsewhere: true })
         if (block?.type === 'thinking') return part({ view: 'thinking', title: block.thinking?.trim() ? 'thinking' : 'thinking (no text)', text: block.thinking ?? '' })
-        if (block?.type === 'tool_use') return part({ view: 'tool_use', title: block.name ?? 'tool', text: '', tool: { id: str(block.id), name: str(block.name), summary: cut(block.input ?? {}, 200)[0] } })
+        if (block?.type === 'tool_use') return part({ view: 'tool_use', title: block.name ?? 'tool', text: '', tool: { id: str(block.id), name: str(block.name), summary: toolSummary(block.input) } })
         return unknown(str(block?.type) ?? 'assistant')
       })
       return parts.length ? parts : [unknown('assistant')]
@@ -70,7 +84,7 @@ export function project(line) {
       const questions = request.tool_name === 'AskUserQuestion' ? questionsOf(request.input) : null
       if (request.tool_name === 'AskUserQuestion' && !questions) return [unknown('AskUserQuestion')]
       return [part({ view: questions ? 'question' : 'approval', title: request.tool_name ?? 'tool', text: questions ? questions[0].question : '',
-        tool: { id: null, name: str(request.tool_name), summary: cut(request.input ?? {}, 200)[0] }, request_id: value.request_id, questions, input: request.input ?? {} })]
+        tool: { id: null, name: str(request.tool_name), summary: toolSummary(request.input) }, request_id: value.request_id, questions, input: request.input ?? {} })]
     }
     case 'control_cancel_request': case 'control_response': case 'stream_event':
       return [part({ view: 'control', title: str(type), text: '', request_id: str(value.request_id) ?? str(value.response?.request_id) })]
@@ -130,13 +144,12 @@ export class MachineStream {
       bot.records.set(record.seq, record)
       const parts = project(record.line)
       parts.forEach((part, n) => {
-        this.openOrCloseToolRun(bot, record, n, part)
         if (part.request_id && part.view === 'control' && part.type === 'control_cancel_request') this.setRequest(bot, part.request_id, 'expired', record.at, null, changed)
         if (part.request_id && (part.view === 'question' || part.view === 'approval') && !bot.requests.has(part.request_id)) {
           bot.requests.set(part.request_id, { id: part.request_id, botId, seq: record.seq, part: n, tool: part.tool.name, input: part.input, questions: part.questions,
-            status: 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
-          if (live) this.onRequest({ id: part.request_id, botId })
+            status: record.auto?.includes(part.request_id) ? 'auto' : 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
         }
+        this.openOrCloseToolRun(bot, record, n, autoPart(bot, part))
         // a471-tune-reminder: the supplier's marker line makes the next words entry of the turn a bubble at once.
         if (part.type === 'system' && part.subtype === 'silent_turn_reminder') bot.reminded = true
         else if (part.view === 'words' && part.title !== 'input' && part.text.trim() && bot.reminded) { bot.reminded = false; bot.bubbles.add(`me-${record.seq}-${n}`) }
@@ -156,13 +169,16 @@ export class MachineStream {
 
   setRequest(bot, id, status, at, record, changed) {
     const request = bot.requests.get(id)
-    if (!request || request.status !== 'pending') return
-    Object.assign(request, status === 'answered' ? { status, answers: record?.answers ?? null, decision: record?.decision ?? null, answeredAt: at } : { status: 'expired', expiredAt: at })
+    // a471-auto-approval-noise: 'auto' = the seat answered it itself (the supplier does not list it as waiting); 'listed' = the supplier lists it after all, so it waits for the Owner.
+    if (status === 'listed') { if (!request || request.status !== 'auto') return; request.status = 'pending' }
+    else if (!request || request.status !== 'pending') return
+    else Object.assign(request, status === 'answered' ? { status, answers: record?.answers ?? null, decision: record?.decision ?? null, answeredAt: at } : status === 'auto' ? { status } : { status: 'expired', expiredAt: at })
     const source = bot.records.get(request.seq)
     if (source) changed.push(this.setRow(bot, request.botId, source, request.part, project(source.line)[request.part]))
   }
 
-  row(bot, botId, record, n, part) {
+  row(bot, botId, record, n, original) {
+    const part = autoPart(bot, original)
     const request = part.request_id ? bot.requests.get(part.request_id) : null
     const shown = part.shown_elsewhere === true
     const display = displayOf(part, this.rules)
@@ -229,6 +245,15 @@ export class MachineStream {
     let seq = bot.seq
     lines.forEach((line, i) => records.push({ seq: ++seq, type: 'line', at, session, launch_id, cursor_after: i === lines.length - 1 ? cursor_after : null, line }))
     if (!lines.length && stored?.cursor !== cursor_after) records.push({ seq: ++seq, type: 'cursor', at, session, launch_id, cursor_after })
+    // a471-auto-approval-noise: only a request the supplier lists as waiting reaches the Owner (push and card). A request line of this envelope that
+    // state.pending does not list was answered by the seat itself (or the seat is gone): the line record carries `auto`, and it stays a folded line.
+    // A later state that does list it (the state file can trail the stream line) turns it back into a waiting request (local `listed`).
+    // No state in the envelope: it waits, as before.
+    const waiting = state && Array.isArray(state.pending) ? new Set(state.pending.map(p => p?.request_id)) : null
+    if (waiting && state.state !== 'exited') for (const record of records) if (record.type === 'line') {
+      const ids = project(record.line).filter(p => p.request_id && (p.view === 'question' || p.view === 'approval')).map(p => p.request_id).filter(id => !waiting.has(id))
+      if (ids.length) record.auto = ids
+    }
     const closing = []
     if (state && Array.isArray(state.pending)) {
       const pending = new Set(state.pending.map(p => p?.request_id))
@@ -241,17 +266,17 @@ export class MachineStream {
     const changed = []
     for (const record of [...records, ...locals]) changed.push(...this.apply(bot, botId, record, true))
     if (changed.length || records.length) this.notify([botId])
-    // A request this envelope opened but state.pending no longer lists is already over.
-    if (state && Array.isArray(state.pending)) {
-      const pending = new Set(state.pending.map(p => p?.request_id))
-      const late = [...fresh].filter(id => bot.requests.get(id)?.status === 'pending' && (state.state === 'exited' || !pending.has(id)))
-      if (late.length) await this.expire(bot, botId, late)
-    }
+    const relist = waiting ? [...bot.requests.keys()].filter(id => bot.requests.get(id).status === 'auto' && waiting.has(id)) : []
+    if (state?.state !== 'exited') for (const id of fresh) if (bot.requests.get(id)?.status === 'pending') this.onRequest({ id, botId })
+    if (relist.length) { await this.expire(bot, botId, relist, 'listed'); for (const id of relist) this.onRequest({ id, botId }) }
+    // A request this envelope opened but state.pending no longer lists (the seat exited) is already over.
+    const late = state?.state === 'exited' ? [...fresh].filter(id => bot.requests.get(id)?.status === 'pending') : []
+    if (late.length) await this.expire(bot, botId, late)
     return { status: 'stored', cursor: cursor_after }
   }
 
-  async expire(bot, botId, ids) {
-    const at = this.now(), locals = ids.map(id => ({ seq: bot.seq + 1 + ids.indexOf(id), type: 'local', at, local: 'expired', request_id: id }))
+  async expire(bot, botId, ids, local = 'expired') {
+    const at = this.now(), locals = ids.map(id => ({ seq: bot.seq + 1 + ids.indexOf(id), type: 'local', at, local, request_id: id }))
     await this.write(botId, locals)
     for (const record of locals) this.apply(bot, botId, record, true)
     this.notify([botId])
