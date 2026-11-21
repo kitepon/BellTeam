@@ -48,6 +48,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private PhoneSettingsPage? settingsBody;
     private CancellationTokenSource? settingsLife;
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
+    private readonly NewestColumn messageColumn = new();
+    private StackPanel? messageStack;
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
     private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
     private readonly TextBlock sendError = new() { Foreground = BellTheme.Red, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
@@ -93,8 +95,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
         var messages = new ItemsControl { ItemsSource = model.Messages, ItemTemplate = new FuncDataTemplate<MessageItem>((item, _) => new MessageCard(item, model)) };
         messageScroll.ScrollChanged += (_, args) => { NoteScrollUp(args); FillScreen(); };
-        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) FillScreen(); };
-        messageScroll.Content = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 12), Children = { messages } };
+        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) { messageColumn.MinHeight = messageScroll.Viewport.Height; FillScreen(); } };        messageStack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 12), Children = { messages } };
+        messageStack.PropertyChanged += (_, args) => { if (args.Property == BoundsProperty) FillScreen(); };
+        messageColumn.Children.Add(messageStack); messageScroll.Content = messageColumn;
         Grid.SetRow(messageScroll, 1);
         composer.TextChanged += (_, _) => { if (syncingComposer) return; syncingComposer = true; try { model.DraftText = composer.Text ?? ""; } finally { syncingComposer = false; } };
         send.Click += (_, _) => _ = model.SendAsync();
@@ -129,14 +132,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
         model.Entries.CollectionChanged += (_, _) => QueueListRebuild();
-        // a471-scroll-jump-linux: opening or sending snaps to the end; a row that arrives while the reader is at the bottom is followed by an animated scroll, and one that arrives higher up leaves the view where it is.
-        follower = new BottomFollower(messageScroll);
-        BottomFollower.MotionOn = () => global::Android.Provider.Settings.Global.GetFloat(global::Android.App.Application.Context.ContentResolver, "animator_duration_scale", 1f) > 0;   // the system's animations-off setting is the reduced-motion switch
-        model.ScrollToBottom += force =>
-        {
-            if (force) { follower.Stop(); Dispatcher.UIThread.Post(() => BottomFollower.SnapToEnd(messageScroll)); }
-            else if (messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80) follower.Follow();
-        };
+        // a471-open-newest-linux: the newest row is the anchor (NewestColumn, shared with the Linux window): opening or sending asks to be at the newest; a row that arrives there is at the newest in the same layout pass, one that arrives while the reader reads older rows leaves the view where it is.
+        model.ScrollToBottom += force => { if (force) messageColumn.FollowNewest(); };
         model.ThisPc = new NoThisPc();
         // A field that gets focus scrolls into view once the keyboard has taken its space.
         AddHandler(GotFocusEvent, (_, e) => { if (e.Source is TextBox box) { Dispatcher.UIThread.Post(() => Reveal(box), DispatcherPriority.Background); DispatcherTimer.RunOnce(() => Reveal(box), TimeSpan.FromMilliseconds(350)); } });
@@ -336,9 +333,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void EndSettings() { settingsLife?.Cancel(); settingsLife = null; if (settingsBody is not null) { settingsPage.Children.Remove(settingsBody); settingsBody = null; } }
 
     // a471-linux-android-older-button: there is no button; older pages are read from the scroll motion (machine-stream.md "History pages of a long stream", the same spec and the same
-    // HistoryPaging as the Linux window): while less than max(3 screens, 2 s of the scroll speed) of drawn height is above the view. Fullness is what is drawn (the Fill rule): a page of folded rows draws almost nothing but still adds rows, so it does not end the loop. A failed page leaves its error and the next scroll movement asks again.
-    private BottomFollower? follower;
-    private double scrollSpeed; private long lastScrollUp; private bool loadingOlder, prefetching; private ChatTarget? readOnceFor;
+    // HistoryPaging as the Linux window): while less than max(1 screen, 2 s of the scroll speed) of drawn height is above the view (the open reads one only while the drawn rows do not fill one screen). Fullness is what is drawn (the Fill rule): a page of folded rows draws almost nothing but still adds rows, so it does not end the loop. A failed page leaves its error and the next scroll movement asks again.
+    private double scrollSpeed; private long lastScrollUp; private bool loadingOlder, prefetching;
     private void NoteScrollUp(ScrollChangedEventArgs args)
     {
         if (args.OffsetDelta.Y >= 0 || args.ExtentDelta.Y != 0) return;   // a move that comes with an extent change is the anchor or a new row, not the Owner's
@@ -354,7 +350,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         prefetching = true;
         try
         {
-            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, ScrollSpeed))
+            while (CanReadOlder() && NeedsOlder())
             {
                 var before = model.Messages.Count;
                 await LoadOlderPreservingPositionAsync();
@@ -364,13 +360,10 @@ public sealed class PhoneShell : UserControl, IMessageHost
         }
         finally { prefetching = false; }
     }
-    // After the first paint, with no scroll, one older page is read in the background (once for each conversation shown).
-    private async Task ReadOlderAfterFirstPaintAsync()
-    {
-        if (!CanReadOlder() || readOnceFor == model.Selected?.Target || loadingOlder) return;
-        readOnceFor = model.Selected?.Target;
-        await LoadOlderPreservingPositionAsync();
-    }
+    // At the newest (the open, nothing scrolled) an older page is read only while the drawn rows do not fill one screen; once the reader scrolls up, the margin rule applies (machine-stream.md "Fill rule").
+    private bool NeedsOlder() => messageColumn.Following
+        ? HistoryPaging.NeedsFirstScreen(messageStack?.Bounds.Height ?? 0, messageScroll.Viewport.Height)
+        : HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, ScrollSpeed);
     private async Task LoadOlderPreservingPositionAsync()
     {
         if (loadingOlder) return;
@@ -386,12 +379,12 @@ public sealed class PhoneShell : UserControl, IMessageHost
         switch (name)
         {
             case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.Sync(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
-            case nameof(LinuxWorkspace.Selected): readOnceFor = null; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
+            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): { var text = model.ActionError ?? model.ConnectionError; status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); break; }
-            case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); await PrefetchOlderAsync(); }, DispatcherPriority.Background); break;
+            case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => await PrefetchOlderAsync(), DispatcherPriority.Background); break;
             case nameof(LinuxWorkspace.SendError): sendError.Text = model.SendError; sendError.IsVisible = !string.IsNullOrEmpty(model.SendError); break;
             case nameof(LinuxWorkspace.DraftText): if (!syncingComposer) { syncingComposer = true; try { composer.Text = model.DraftText; } finally { syncingComposer = false; } } break;
             case nameof(LinuxWorkspace.CanSend) or nameof(LinuxWorkspace.SendLabel): send.IsEnabled = model.CanSend; send.Content = model.SendLabel; break;

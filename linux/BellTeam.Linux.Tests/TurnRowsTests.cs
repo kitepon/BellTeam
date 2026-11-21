@@ -32,7 +32,7 @@ public sealed class TurnRowsTests
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                "/api/bots/b1/messages?limit=30" or "/api/bots/b1/messages?limit=1000" => "{\"items\":[" + Hook(5) + "," + Hook(6) + "," + Words("me-7-0", "done") + "],\"has_more\":true}",
+                "/api/bots/b1/messages?limit=10" or "/api/bots/b1/messages?limit=1000" => "{\"items\":[" + Hook(5) + "," + Hook(6) + "," + Words("me-7-0", "done") + "],\"has_more\":true}",
                 var p when p.StartsWith("/api/bots/b1/messages?limit=1000&before=me-h5-0") => "{\"items\":[" + thinking + "],\"has_more\":false}",
                 _ => null
             };

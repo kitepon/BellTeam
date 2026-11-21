@@ -360,7 +360,7 @@ public static class UiChecks {
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
         _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
         _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
-        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=30") ? 30 : 100).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=10") ? 10 : 100).ToArray(), HasMore = false },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
       return JsonSerializer.Serialize(result, wire);
@@ -403,7 +403,7 @@ public static class UiChecks {
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
         _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
         _ when path.EndsWith("/messages") && query.Contains("after=") => new MessagePage { Items = server.Where(row => string.CompareOrdinal(row.Id, Uri.UnescapeDataString(query.Split("after=")[1].Split('&')[0])) > 0).ToArray(), HasMore = false },
-        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=30") ? 30 : 100).ToArray(), HasMore = false },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = server.TakeLast(query.Contains("limit=10") ? 10 : 100).ToArray(), HasMore = false },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
       return JsonSerializer.Serialize(result, wire);

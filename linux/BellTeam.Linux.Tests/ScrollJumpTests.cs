@@ -37,7 +37,7 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                var p when p.Contains("/messages?limit=30") => "{\"items\":[" + Slice("first", 70, 30, 5000) + (Fresh ? "," + Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":true}",
+                var p when p.EndsWith("/messages?limit=10") => "{\"items\":[" + Slice("first", 70, 30, 5000) + (Fresh ? "," + Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":true}",
                 var p when p.Contains("/messages?after=") => "{\"items\":[" + (Fresh ? Slice("fresh", 0, 1, 6000) : "") + "],\"has_more\":false}",
                 var p when p.Contains("/messages?limit=1000") && !older => "{\"items\":[" + Rows("first", 100, 5000) + "],\"has_more\":true}",
                 var p when older => "{\"items\":[" + Rows("old" + Older + "-", 500, 5000 - 500 * Older) + "],\"has_more\":true}",
@@ -72,7 +72,7 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
         using (model)
         {
             var reads = server.Older;
-            scroll.Offset = new Vector(0, scroll.Viewport.Height);   // too little is left above the view: an older page is read
+            scroll.Offset = new Vector(0, scroll.Viewport.Height / 2);   // less than one screen is left above the view: an older page is read
             await Settle(5);
             var (card, before) = Anchor(scroll);
             await Settle(100);
@@ -91,7 +91,7 @@ public sealed class ScrollJumpTests(ITestOutputHelper output)
         using (model)
         {
             server.OlderDelayMs = 500; var reads = server.Older;
-            scroll.Offset = new Vector(0, scroll.Viewport.Height);   // the read starts and waits 500 ms
+            scroll.Offset = new Vector(0, scroll.Viewport.Height / 2);   // the read starts and waits 500 ms
             await Settle(5);
             scroll.Offset = new Vector(0, scroll.Offset.Y + 300);    // the Owner scrolls on while it is on its way
             await Settle(3);

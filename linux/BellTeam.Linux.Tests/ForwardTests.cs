@@ -36,7 +36,7 @@ public sealed class ForwardTests
                 "/api/rooms?avatar=omit" => """{"rooms":[]}""",
                 "/api/queue" => """{"items":[]}""",
                 "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-                "/api/bots/b1/messages?limit=30" or "/api/bots/b1/messages?limit=1000" => Messages,
+                "/api/bots/b1/messages?limit=10" or "/api/bots/b1/messages?limit=1000" => Messages,
                 _ => null
             };
             return body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
