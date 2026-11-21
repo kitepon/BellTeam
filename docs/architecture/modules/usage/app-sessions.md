@@ -1,33 +1,43 @@
 # App sessions on the user's server (shape 2) — DRAFT for review
 
-2026-11-21 JST, Mika (task a484-shape2-session-read). Status: design read against `main ed3d78fe`; nothing is built. Tronie's rulings of 2026-11-21 (console issue, setup code, enforcement gate) are folded in (section 5). Counterpart: Mint's `login-billing/rulings/bellteam.md` section 3 (the server is a phone-logged-in device; an app with no session gets a QR/short code from the server; the owner approves on the phone; the server keeps the pass and gives the app its own session). Owner decision D1 = B (2026-11-21 21:41 JST): built and released with the contract check. Today's trust: [usage flows](flows.md) (`authMode`, Owner判定 SEC-049; no session exists) and the client-by-client table in Mika's a483 facts page.
+2026-11-21 JST, Mika (tasks a484, a484b, a484c). Status: design read against `main ed3d78fe`; nothing is built. Folded in: Tronie's rulings (console issue, setup code, enforcement gate), Mint's confirmations (lease, Access, no contract per session), Airi's review of `87d13a33` and Tronie's rulings on it (section 5). Counterpart: Mint's `login-billing/rulings/bellteam.md` section 3 (the server is a phone-logged-in device; an app with no session asks the server for a login; the owner approves on the phone; the server keeps the pass and gives the app its own session). Owner decision D1 = B (2026-11-21 21:41 JST): built and released with the contract check. Today's trust: [usage flows](flows.md) (`authMode`, Owner判定 SEC-049; no session exists) and the client-by-client table in Mika's a483 facts page.
 
 ## 1. Function split (who does what)
 
 | Role | Holds | Does |
 | --- | --- | --- |
-| App (Web, iPhone/Mac, Windows, Linux, Android) | server address + one opaque **session token** (256-bit random). Never a pass | shows the code/QR the server gives, polls, keeps the token, sends it on every request |
-| Public gateway (`http-gateway.mjs`, own process) | nothing | names the TCP peer; today authorizes static files through `/api/session`; **new:** serves static files with no session (public code, no data) |
-| Body public server (`authorize` in `application-features.mjs`) | projection of valid sessions: set of `sha256(token)` with state | hot path, no network: token → hash → in the set → Owner; else 401 |
-| Usage child (sole writer) | `owner.json` (owner account id), `app-sessions.json` (id, token hash, kind, label, created, lastUsed, leaseUntil, state), one pass file per session (0600, atomic replace), pending logins (memory) | login start/poll/cancel, binds the owner, issues/ends sessions, asks the Worker per session on a lease, publishes the projection |
-| Console (`bellteam-console`, run by the host user with `docker exec`) | nothing; talks to the usage child on a private socket in the child's runtime directory (mode 0600) | `setup-code` (print a new one-time setup code), `issue` (print a one-time login code for an app, or `--token` a session token for a host script), `list`, `revoke <id>`, `reset-owner`. The only operator-free way in; every server has it |
-| Operator Worker | handoff slots, refused pass ids | as Mint's section 3; never talks to apps |
+| App (Web, iPhone/Mac, Windows, Linux, Android) | server address + one opaque **session token** (256-bit random, returned once). Never a pass | starts a login, shows what the server gives, polls, keeps the token, sends it on every request; an app that already has a session also shows login requests and its session list (revoke) |
+| Public gateway (`http-gateway.mjs`, own process) | nothing | names the TCP peer; **new:** serves static files with no session (public code, no data), forwards the peer and the proxy headers it saw |
+| Body public server (`authorize` in `application-features.mjs`) | projection of valid sessions: set of `sha256(token)` with state | hot path, no network: token → hash → in the set → Owner; else 401. Applies the Origin rule (2d) to cookie-carried requests |
+| Usage child (sole writer) | `owner.json` (owner account id or `console`), `app-sessions.json` (id, token hash, kind, label, network class, created, lastUsed, leaseUntil, state), one pass file per session (0600, atomic replace), pending logins (memory) | login start/poll/cancel, network class, second hand, binds the owner, issues/ends sessions, asks the Worker per session on a lease, publishes the projection, announces new logins and sessions |
+| Console (`bellteam-console`, run by the host user with `docker exec`) | nothing; talks to the usage child on a private socket in the child's runtime directory (mode 0600) | `setup-code`, `issue` (one-time login code for an app, or `--token` a session token for a host script), `approve <loginId>` (second hand), `list`, `revoke <id>`, `reset-owner`. Does not go through HTTP, so no flood on the HTTP endpoints can lock the owner out of it. The only operator-free way in; every server has it |
+| Operator Worker | handoff slots, refused pass ids | as Mint's section 3; never talks to apps; **never called for a login that still waits for its second hand** |
 | Internal listener (seats) | unchanged | unchanged (Bots are not app sessions) |
 
 ## 2. Login (data flow)
 
 ```mermaid
 sequenceDiagram
-  participant App
+  participant App as New app
   participant GW as Gateway + body
   participant U as Usage child
+  participant E as Existing app (has a session) or console
   participant W as Operator Worker
   participant P as Owner's phone
   App->>GW: POST /api/login/start {kind}
-  GW->>U: loginStart (peer class, caps checked here first)
-  U->>W: handoff start (label = kind + "same network"/"internet")
+  GW->>U: loginStart (peer, proxy headers)
+  U->>U: network class (2c), pool caps (4)
+  alt class is lan, or the owner switch "phone-only from outside" is on
+    Note over U: no second hand
+  else unknown network (the default for anything not provably on the LAN)
+    U-->>App: {loginId, status: waiting_second_hand}
+    U-->>E: event login.requested {loginId, kind, network class, time}
+    E->>U: approve (existing session: POST /api/login/{id}/approve; console: approve <id>)
+    Note over U: or the owner types a console code in the new app (2a): session at once, no phone
+  end
+  U->>W: handoff start (label = kind only)
   W-->>U: slot, QR payload, short code, check number
-  U-->>App: {loginId, qr, shortCode, checkNumber, expiresAt}
+  U-->>App: {status: waiting_phone, qr, shortCode, checkNumber, expiresAt}
   P->>W: scan / type code, compare check number, approve
   loop every 3-5 s, at most 5 min
     App->>GW: GET /api/login/{loginId}
@@ -37,11 +47,11 @@ sequenceDiagram
   W-->>U: handoff pass
   alt pass account = bound owner account
     U->>U: new session: token (once), hash stored, pass file, lease
-    U-->>App: {status:approved, token}  (Web: Set-Cookie instead, HttpOnly)
-    U-->>GW: projection + hash
+    U-->>App: {status: approved, token} (Web: Set-Cookie instead, HttpOnly); later polls say delivered, no token
+    U-->>E: event session.created {id, kind, network class} (revoke in the apps' session list)
   else another account
     U->>W: sign out that pass at once, keep nothing
-    U-->>App: {status:refused, reason:not_owner_account}
+    U-->>App: {status: refused, reason: not_owner_account}
   end
 ```
 
@@ -58,13 +68,15 @@ sequenceDiagram
   U-->>C: one-time code (10 min, single use; only its hash is stored)
   C-->>H: printed in this terminal, never written to a file or the log
   H->>App: types the code in "use a code from the server console"
-  App->>U: POST /api/login/console {code}  (5 wrong tries per minute, then wait)
+  App->>U: POST /api/login/console {code}
   U-->>App: session token (kind console, no pass, no operator)
 ```
 
-The first binding of an unbound server uses a **setup code**: printed once to the container log (visible from the host with `docker logs`, and by the installer) at each start while the server is unbound, only its hash kept, so a stranger on the network cannot start or complete it. The binding is done either by a phone approval (the setup code goes with `POST /api/login/start`, checked before any Worker call) or by the console (`POST /api/login/console {code}` with a setup code), and records the owner as `account` (phone) or `console` (no operator).
+The first binding of an unbound server uses a **setup code**: printed once to the container log (visible from the host with `docker logs`, and by the installer) at each start while the server is unbound, only its hash kept, so a stranger on the network cannot start or complete it. The binding is done either by a phone approval (the setup code goes with `POST /api/login/start`, checked before any Worker call; no second hand, the code is the second hand) or by the console (`POST /api/login/console {code}` with a setup code), and records the owner as `account` (phone) or `console` (no operator).
 
-## 2b. Server login mode
+Codes: setup code and console code are **64 random bits or more** (13 Crockford base32 characters, shown 4-4-5), single use, 10 minutes. Try cap on the code endpoints (`/api/login/start` with a setup code, `/api/login/console`): 10 wrong codes per minute per peer and 60 per minute in total, then 429 for the code endpoints only; with 64 bits the cap is a brake, not the protection. The console does not go through HTTP, so a flood cannot block the owner there. `loginId` is 128 random bits or more, so a poll cannot be guessed. The token is returned once.
+
+### 2b. Server login mode
 
 ```mermaid
 stateDiagram-v2
@@ -77,13 +89,28 @@ stateDiagram-v2
 
 `Legacy` is today's path unchanged (local mode or Access); it is left only by the binding, which is the owner's own act (first-run screen of a new install, or "log this server in" in Settings of an app that is already in). `Enforced` is written to a durable marker; the body never returns to `Legacy` on its own, not after a restart, a usage rollback or a reset (a body that finds the marker but a usage child without the capability answers 401 and says so on `/api/session`, never opens). In `Rebind` every request but the login endpoints is 401.
 
-A session admits an app and decides nothing about the contract (Mint, 2026-11-21): paid features follow the server's own pass, or developer mode, never the session. A console session (no pass) therefore gives the same paid features as a phone session; both end the same way a server-level "no contract" shows today.
+### 2c. Network class of a login (what the label may say)
+
+The server only states what it can prove. The class comes from the TCP peer the gateway names, never from client text:
+
+| Class | When | Effect |
+| --- | --- | --- |
+| `lan` | the peer is a private or link-local address, is **not** the container's default gateway (the NAT or userland-proxy hop that hides the real peer), and the request has no forwarding header (`X-Forwarded-For`, `Forwarded`, `CF-Connecting-IP`, `Via`) | phone-only approval, as Tronie ruled for the same-network first login |
+| `unknown` | everything else: a public address, the gateway address, loopback, any forwarding header, a Cloudflare Tunnel or Caddy in front | second hand needed (section 2) |
+
+A "named trusted proxy" that states the real peer (an owner-listed proxy address and header) can later turn `unknown` into a known class; the first build has none, so everything behind a proxy is `unknown`. Nothing in the phone's approval screen says "same network" for `unknown`. The label sent to the operator is the enumerated kind only; the class and the peer address stay in the server's own session list and events.
+
+### 2d. Origin rule for the web cookie (S3)
+
+A request that carries the session as the cookie (not as `Authorization: Bearer`) is accepted only if: a write (anything but GET/HEAD/OPTIONS) has an `Origin` that equals the server's own origin (`scheme://Host`, or the saved `cloudflare.publicUrl` origin), a `Content-Type` of `application/json` (SEC-052 stays), and no `Sec-Fetch-Site` other than `same-origin`; a cookie request with no `Origin` may only GET/HEAD (and a GET changes nothing). This is what closes same-site pages that SameSite=Strict lets through (another subdomain, another port on the same LAN address). Bearer-carried requests are not ambient and skip the Origin rule.
 
 ## 3. Session state
 
+A session admits an app and decides nothing about the contract (Mint, 2026-11-21): paid features follow the server's own pass, or developer mode, never the session. A console session (no pass) therefore gives the same paid features as a phone session; both end the same way a server-level "no contract" shows today.
+
 ```mermaid
 stateDiagram-v2
-  [*] --> active: approved by the owner's account
+  [*] --> active: approved by the owner's account (and the second hand where needed)
   active --> active: use (lastUsed); lease ask OK (background, at most every 10 min per session)
   active --> ended: app logout (server signs the pass out)
   active --> ended: pass_refused / pass_expired / pass_invalid on a lease ask: ends at that ask and the server signs the pass out (Mint, confirmed)
@@ -92,36 +119,41 @@ stateDiagram-v2
   ended --> [*]: record and pass file deleted; token hash leaves the projection; open SSE of that session closed
 ```
 
-## 4. Answers to the five asks
+## 4. Answers to the five asks and the unauthenticated surface
 
 | Ask | Design |
 | --- | --- |
 | What the app holds | server address + session token. Not a pass, never talks to the operator |
 | Where | Apple: Keychain (shared access group for the share extension; replaces the `CF_Authorization` cookie item). Windows: DPAPI-protected file in `%LOCALAPPDATA%\BellTeam`. Android: Keystore-backed encrypted preferences. Linux: libsecret, else 0600 file in `~/.local/share/BellTeam`. Web: cookie `bellteam_session`, HttpOnly, SameSite=Strict, Secure on https; the page never sees the token. Native sends `Authorization: Bearer`; the server accepts both carriers. The CF cookie copy code (`AccessCookies`, WKWebView/WebView2/CookieManager login sheets) goes away |
-| How it ends | section 3. A stop from the phone reaches the server at the next lease ask (at most 10 minutes), not instantly |
-| What a request with no session may do | `GET /healthz`; `GET /api/session` (`{authenticated, authMode, login:{capability, bound, enforced}}`; an old server has no `login` key, which is how an app tells); `POST /api/login/start`, `GET /api/login/{id}`, `POST /api/login/{id}/cancel`, `POST /api/login/console`; static files. In `Legacy` everything else is today's path. Everything else 401 (including `/api/updates`, which answers 403 today, once `Enforced`). Caps before any Worker call: at most 4 pending logins in total, one start per peer per 10 s, bodies ≤ 1 KB, poll ≤ 1 per 2 s per login, unknown ids 404 |
+| How it ends | section 3. A stop from the phone reaches the server at the next lease ask (at most 10 minutes), not instantly; console `revoke` and the apps' session list revoke at once |
+| What a request with no session may do | `GET /healthz`; `GET /api/session` (`{authenticated, authMode, login:{capability, bound, enforced}}`; an old server has no `login` key, which is how an app tells); `POST /api/login/start`, `GET /api/login/{id}`, `POST /api/login/{id}/cancel`, `POST /api/login/console`; static files. In `Legacy` everything else is today's path; once `Enforced` everything else is 401 (including `/api/updates`, which answers 403 today) |
+| What a request **with** a session may add | `GET /api/login/requests` and `POST /api/login/{id}/approve` (the second hand), `GET /api/sessions` (every session, phone-approved and console, with kind, network class, created, last used) and `DELETE /api/sessions/{id}`; events `login.requested` and `session.created` on the existing event stream, so every new login is announced in the owner's apps with a revoke button |
 | Owner binding at first login | only with the setup code (section 2a). The first successful handoff binds its account id to `owner.json`, or the console binds `console`; a later pass of another account is refused and signed out at once. Reset only from the host console (`reset-owner`, then a new setup code) |
 | One pass per session, asked on use | one `createWebClient` + pass file per session. "On use" = a background lease: a request after `leaseUntil` is served on the last answer and triggers one ask; an open SSE counts as use and renews by timer. The ask is never inside a request |
+| Caps on the unauthenticated surface | `login/start` from a stranger: 1 start per peer per 10 s, at most 2 pending per peer, at most 16 pending in total for strangers; bodies ≤ 1 KB; poll ≤ 1 per 2 s per login; unknown ids 404. A login that waits for its second hand has no Worker slot. Logins the owner starts (console `issue`, an existing session's approve, a console code) are counted in a separate pool of 8 and never wait behind strangers |
 
 ## 5. Where section 3 did not hold, and how each point is settled
 
-Tronie's rulings (2026-11-21): rows 1, 2 and 5 below. The rest are settled here by Mika; Mint to confirm the ones that touch her contract (3, 6).
+Tronie's rulings (2026-11-21): rows 1, 2, 5, and S1-S3 (rows 11-13). Mint confirmed rows 3 and 6. The rest are settled here by Mika.
 
-| # | Point (what does not hold as written) | Settled as |
+| # | Point | Settled as |
 | --- | --- | --- |
 | 1 | Login depended on the operator: the open image, a LAN without internet, developer servers and host callers (`src/usage/submitted-secret-rabbit-client.mjs` posts the owner API from the host at `127.0.0.9:18891`) could not log in | **Ruled yes.** The console path (2a) exists on every server. The rabbit client takes a `--token` console session kept in a 0600 file of its host user (a later change in that client, mine). D3 (developer mode) stays the Owner's separate question |
-| 2 | Trust on first use on a default `0.0.0.0:18891` | **Ruled yes.** Setup code, host-visible only (2a). Until bound the server is as open as today, no worse; the binding is the owner's act |
-| 3 | "Asks the Worker when the session is used" cannot be per request | per-session background lease, 10 minutes (the Worker's cache); a phone stop takes up to 10 minutes; offline the last answer holds, ended by the 14-day idle rule. Console sessions have no lease |
+| 2 | Trust on first use on a default `0.0.0.0:18891` | **Ruled yes.** Setup code, host-visible only (2a). Until bound the server is as open as today, no worse; the binding is the owner's act, so the first-run screen of a new install and Settings of an app already in push it |
+| 3 | "Asks the Worker when the session is used" cannot be per request | per-session background lease, 10 minutes (the Worker's cache); a phone stop takes up to 10 minutes; a refusal ends at that ask; offline the last answer holds, ended by the 14-day idle rule (never, if the holder keeps using it; the Owner's trade-off, not capped here). Console sessions have no lease |
 | 4 | "Not local" is not enough: the peer can look local behind Docker's published port | in `Enforced` every request on the public listener needs a session, loopback and `docker exec` included. Seats keep the internal listener. In `Legacy` nothing changes |
 | 5 | Release order can lock the Owner out | **Ruled.** Apps first (they probe `login` in `/api/session`; an app with no `login` key uses today's path); the server enforces only when the usage child reports the capability and the owner has bound (2b). The switch day removes the e-mail login by Access becoming optional, not by a flag flip |
-| 6 | Cloudflare precedence | in `Enforced`, an Access JWT is no longer an owner proof; the session is required in addition, and Access is an optional outer layer. `cloudflare.publicUrl` stays only for the Web Push origin |
-| 7 | Plain HTTP on the LAN (`http://ip:18891`, the main install path): the token is readable by a sniffer on the same LAN; the cookie cannot be Secure | a stated limit, to tell the Owner: it stops strangers, DNS rebinding and hostile pages (none carries a token), not a sniffer on the LAN. Over https it is full strength |
-| 8 | Unauthenticated login start amplifies toward the Worker and exhausts slots | caps before any Worker call: 4 pending logins in total, one start per peer per 10 s, bodies ≤ 1 KB, poll ≤ 1 per 2 s per login, unknown ids 404; while unbound, the setup code is checked first; console: 5 wrong codes per minute |
-| 9 | A client-chosen label would make a stranger's request look like "Windows app" | label = enumerated kind + "same network" / "internet"; no address goes to the operator; the full address stays in the server's own log |
-| 10 | Pass files are readable by seats (they can sudo; owner access accepted 2026-11-15) | said, not hidden: 0600 is no boundary against seats. A leaked handoff pass can only ask entitlement and use the push relay. A seat can also run the console, which is the same accepted exposure as a seat being the owner today |
+| 6 | Cloudflare precedence | confirmed by Mint: in `Enforced`, an Access JWT is no longer an owner proof; the session is required in addition, and Access stays usable as an outer network gate (it also sits in front of every `unknown` login). `cloudflare.publicUrl` stays for the Web Push origin and the Origin rule |
+| 7 | Plain HTTP on the LAN (`http://ip:18891`, the main install path) | a stated limit, to tell the Owner: it stops strangers, DNS rebinding and hostile pages (none carries a token), not a sniffer on the same LAN, and **a sniffed token is a lasting owner credential** until revoked or 14 days unused. Over https it is full strength |
+| 8 | Unauthenticated login start amplifies toward the Worker and exhausts slots | the Worker is not called for a login waiting for its second hand; caps in section 4 (per peer, larger total, separate owner pool, S2) |
+| 9 | A client-chosen label would make a stranger's request look like "Windows app" | label sent to the operator = enumerated kind only; the network class is the server's own finding (2c) and appears only in the server's session list and events |
+| 10 | Pass files are readable by seats (they can sudo; owner access accepted 2026-11-15) | said, not hidden: 0600 is no boundary against seats. A leaked handoff pass can only ask entitlement and use the push relay. A seat can also run the console, the same accepted exposure as a seat being the owner today |
+| 11 | **S1** One relayed approval gives a stranger an owner session; "same network" is not knowable behind a proxy | (a) the class is `lan` only when provable, else `unknown` (2c); (b) a login from `unknown` needs a second hand, an existing app's approval or the console (section 2), and the per-server owner switch **"allow phone-only approval from outside"** exists, **off by default** (it is a usage setting, added with the build; same-network first login stays phone-only); (c) every `login.requested` and `session.created` is announced in the owner's existing apps with revoke; (d) Access stays usable as the outer gate. A stranger never receives a real QR, because the Worker is not called before the second hand |
+| 12 | **S2** A stranger can hold every pending slot | per-peer caps, a larger stranger pool, and an owner-started pool outside it (section 4); the console is outside HTTP |
+| 13 | **S3** The web cookie relied on SameSite=Strict alone | Origin rule + Content-Type check for cookie-carried requests (2d) |
+| 14 | Specs Airi asked for | code length and try cap (2a), `loginId` ≥ 128 bits, token once (2a), **console sessions are not in the phone's device list**: the apps' session list (`GET /api/sessions`) is the place that shows them, and the Owner is told so |
 
 ## 6. Order of work (diagram first, then code)
 
-1. This page and `flows.md` accepted (Airi's independent review first, a484-shape2-airi-review); Mint's confirmation of rows 3 and 6.
-2. Usage child: session store, console + socket, login endpoints, lease, capability in ready. Body: tolerant projection row (reader first, as a479), `authorize` by token hash behind the gate, gateway static without session, console binary in the image. Apps: code screen and the "use a console code" field with the legacy probe. The Enforced switch last.
-3. Independent security review (Maxwell) of this page before step 2 starts.
+1. This page and `flows.md` accepted after the re-check (Airi, Maxwell); the build rows (a485-lb-server, -worker, -apple, -android-linux, -windows, -web) start from it.
+2. Usage child: session store, console + socket, login endpoints, network class, lease, the owner switch, capability in ready. Body: tolerant projection row (reader first, as a479), `authorize` by token hash behind the gate with the Origin rule, gateway static without session and the proxy headers passed on, console binary in the image. Apps: login screens (waiting for second hand, phone, console code), requests and sessions list with revoke, and the legacy probe. The Enforced switch last.
