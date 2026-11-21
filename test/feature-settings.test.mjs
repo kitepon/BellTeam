@@ -21,10 +21,11 @@ function errorCode(code) {
 
 test('未設定で起動でき、全機能は未設定・無効で秘密の値を返さない', async t => {
   const { settings, root } = await fixture(t)
-  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'])
+  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'])
   for (const item of settings.list()) {
     assert.equal(item.enabled, false)
-    assert.equal(item.status, 'unconfigured')
+    // a479: the field-less switch is always configured, so it reads disabled (hidden), never unconfigured
+    assert.equal(item.status, item.id === 'thinkingDisplay' ? 'disabled' : 'unconfigured')
     assert.ok(item.fields.every(field => field.value === '' && !field.configured && typeof field.secret === 'boolean'))
   }
   assert.equal((await stat(join(root, 'shared/tools/bellteam-settings/settings.json'))).mode & 0o777, 0o600)
@@ -43,7 +44,7 @@ test('既存envを初回だけ取り込み、橋の認証ファイルは読ま�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'unconfigured'])
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'unconfigured', 'disabled'])
   // bd11: the token comes only from the Bridge export import (callBridgeSettingsInput), never from the Bridge-written file.
   assert.deepEqual(settings.configuration('callBridge'), { enabled: false, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: '' })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
@@ -251,4 +252,35 @@ test('1Password連携: 6項目の保存ファイルへ無効で足し、ops_ト�
   assert.equal(settings.configuration('onePassword').token, 'ops_synthetic')
   settings.setError('onePassword', { code: 'ONEPASSWORD_TOKEN_REJECTED' })
   assert.match(item().error.message, /トークンを貼り直してください/)
+})
+
+test('a479: thinkingDisplay is a field-less switch, off by default, added to an older stored file, {enabled} only', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-thinking-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'shared/tools/bellteam-settings/settings.json')
+  const old = { routing: { enabled: false, apiKey: '' }, callBridge: { enabled: false, url: '', token: '' },
+    cloudflare: { enabled: false, teamDomain: '', audience: '', publicUrl: '' }, diagnostics: { enabled: false, key: '' },
+    notifications: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' }, onePassword: { enabled: false, token: '' } }
+  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
+  await writeFile(path, JSON.stringify(old), { mode: 0o600 })
+  const changes = []
+  const settings = new FeatureSettings({ root, environment: {}, onChange: async (id, configuration) => { changes.push([id, configuration]) } })
+  await settings.initialize()
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).thinkingDisplay, { enabled: false })
+  const item = () => settings.list().find(row => row.id === 'thinkingDisplay')
+  assert.deepEqual(item(), { id: 'thinkingDisplay', title: 'AIの考えの表示', enabled: false, status: 'disabled', fields: [] })
+  assert.deepEqual(settings.configuration('thinkingDisplay'), { enabled: false })
+  for (const input of [{ values: { x: '' } }, { secretRequestId: 'r1' }, { enabled: 'yes' }, { other: 1 }]) {
+    await assert.rejects(settings.update('thinkingDisplay', input, { botId: 'b', secretRequests: { get() {} } }), errorCode(input.secretRequestId ? 'FEATURE_SECRET_REQUEST_INVALID' : 'FEATURE_INPUT_INVALID'))
+  }
+  assert.equal((await settings.update('thinkingDisplay', { enabled: true })).status, 'enabled')
+  assert.deepEqual(changes, [['thinkingDisplay', { enabled: true }]])
+  const reread = new FeatureSettings({ root, environment: {} })
+  await reread.initialize()
+  assert.equal(reread.configuration('thinkingDisplay').enabled, true)
+  // a fresh install (no stored file) also starts hidden
+  const fresh = new FeatureSettings({ root: await mkdtemp(join(tmpdir(), 'bellteam-settings-thinking-fresh-')), environment: {} })
+  t.after(() => rm(fresh.root, { recursive: true, force: true }))
+  await fresh.initialize()
+  assert.equal(fresh.configuration('thinkingDisplay').enabled, false)
 })

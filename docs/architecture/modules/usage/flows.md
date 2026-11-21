@@ -138,6 +138,20 @@ flowchart TD
 
 `FeatureSettings.update`は入力検証、秘密入力による保存値・1Password参照の解決、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。`onePassword`（1Password連携）は秘密欄`token`だけを持ち、保存後に1Passwordへの接続を確かめて、結果を設定の状態とエラーで返す。詳細の正本は[secret credentials](secret-credentials.md#settings-1password連携-token-field-2026-11-09-owner-ask-trony-un-hold)。
 
+### Settings feature `thinkingDisplay` — AIの考えの表示 (a479, 2026-11-21, Owner 18:0x via N102)
+
+An 8th feature in the same list: plain switch, `fields: []`, no secret, default `enabled:false` (false = thinking hidden, true = shown). Always configured, so its status is only `enabled`/`disabled`, never `unconfigured`; a fresh install and a stored file without it both start disabled (`lateFeatures`, same migration as `webPush`/`onePassword`). `settings.update` accepts `{enabled}` only: any `values` key or `secretRequestId` is refused (`FEATURE_INPUT_INVALID` / `FEATURE_SECRET_REQUEST_INVALID`). The MCP `update_settings` enum is unchanged, so a Bot cannot flip the Owner's display choice.
+
+```mermaid
+flowchart LR
+  Client[Web / Apple / Android / Linux settings list] -->|PATCH /api/settings/thinkingDisplay {enabled}| FS[FeatureSettings thinkingDisplay]
+  FS -->|settings.json 0600, sole writer| File[(bellteam-settings/settings.json)]
+  FS -->|onChange -> settings.changed effect + settings projection| Parent[body: settings.configuration('thinkingDisplay').enabled]
+  Parent -->|onChange id thinkingDisplay (no usage-side apply)| Conv[conversation MachineStream.displayChanged, N102]
+```
+
+Ships apart (module-ipc.md "Records between halves that ship apart"): the body ships before the usage module. The body reads a settings list, projection row and handoff with or without `thinkingDisplay` (7 or 8 features; the 7 older ones stay required), and accepts the usage child's `stateCompatibility.settingsFeatures` in either form, so the shipped 7-feature usage child still starts under the new body. Against such a child `settings.configuration('thinkingDisplay')` is `FEATURE_NOT_FOUND` (404): the reader treats it as hidden. An older child reads a stored file that already has `thinkingDisplay` as invalid, so after the new usage module has run, rolling usage back needs the stored key removed (the file's only writer is the usage child). `BUSINESS_STATE['usage']` lists the 8 features, so a body with it reads only an 8-feature usage row as compatible.
+
 | 対象 | 状態の持ち主 / 呼ばれる関数 | 失敗後に残るもの |
 | --- | --- | --- |
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
