@@ -555,7 +555,7 @@ public partial class MainWindow : Window, IInspectorHost
             StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
             StartupPhase.SignIn => model.SessionLoginRequired ? SessionSignIn() : new LoginView(OpenLoginSheet),
-            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings),
+            StartupPhase.Paywall => new PaywallView(ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
