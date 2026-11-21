@@ -103,6 +103,21 @@ test('the last words of an ended turn are the bubble; earlier words, input and a
   assert.deepEqual(bubbles(again), [false, false, true, true])
 })
 
+test('the words that follow a silent_turn_reminder marker are a bubble at once, only the first one; a result clears a marker nobody answered; a restart rebuilds it', async t => {
+  const { ms, root } = await service(t)
+  const words = text => J({ type: 'assistant', message: { content: [{ type: 'text', text }] } })
+  const reminder = J({ type: 'system', subtype: 'silent_turn_reminder' })
+  const bubbles = m => m.timeline({ botId: 'bot-d' }).filter(r => r.machine_event.view === 'words').map(r => r.machine_event.bubble === true)
+  await ms.ingest(env([words('before'), reminder, words('checking five seats'), words('after')], null, 'L1:1'))
+  assert.deepEqual(bubbles(ms), [false, true, false]) // the turn is still open and the bubble is already there
+  const marker = ms.timeline({ botId: 'bot-d' })[1].machine_event
+  assert.deepEqual([marker.view, marker.display, marker.fold_group], ['system', 'fold', 'background']) // the marker itself is a folded background line
+  await ms.ingest(env([reminder, J({ type: 'result', subtype: 'success' }), words('next turn')], 'L1:1', 'L1:2'))
+  assert.deepEqual(bubbles(ms), [false, true, true, false]) // 'after' is the ended turn's last words (the earlier rule); the unanswered marker did not leak into 'next turn'
+  const again = new MachineStream({ root, bots, streamSend: async () => ({}) }); await again.initialize({ readOnly: true })
+  assert.deepEqual(bubbles(again), [false, true, true, false])
+})
+
 test('tool runs: a folded tool_use and everything folded after it to the next shown entry or the turn result is one group, in time order; the use counts 1', async t => {
   const { ms } = await service(t)
   const use = (id, name) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input: { a: 1 } }] } })

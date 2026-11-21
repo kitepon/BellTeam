@@ -112,7 +112,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), bubbles: new Set(), lastWords: null, toolRun: false, folds: new Map(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), bubbles: new Set(), reminded: false, lastWords: null, toolRun: false, folds: new Map(), chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -136,6 +136,10 @@ export class MachineStream {
             status: 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
           if (live) this.onRequest({ id: part.request_id, botId })
         }
+        // a471-tune-reminder: the supplier's marker line makes the next words entry of the turn a bubble at once.
+        if (part.type === 'system' && part.subtype === 'silent_turn_reminder') bot.reminded = true
+        else if (part.view === 'words' && part.title !== 'input' && part.text.trim() && bot.reminded) { bot.reminded = false; bot.bubbles.add(`me-${record.seq}-${n}`) }
+        else if (part.view === 'result') bot.reminded = false
         changed.push(this.setRow(bot, botId, record, n, part))
         // a471-tune-answer: the last words of a turn become the bubble when its result line arrives.
         if (part.view === 'words' && part.title !== 'input' && part.text.trim()) bot.lastWords = { record, n, part }

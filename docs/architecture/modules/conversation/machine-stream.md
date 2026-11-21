@@ -213,6 +213,23 @@ flowchart LR
   Page --> Apps["apps: bubble true = message bubble, else plain line"]
 ```
 
+## Reminder answer bubble (a471-tune-reminder)
+
+Owner 2026-11-21 10:2x JST, on the mid-turn line a seat wrote because Claude Code asked it to say what it is doing: 「ではこれを吹き出しにしろ」. Claude Code injects `silent_turn_reminder` ("The user hasn't heard from you in a while — say in a few words what you're doing") after a quiet stretch, and the seat's next words are an update meant for the Owner.
+
+- **The marker is supplied, not guessed.** Claude Code's `-p` stream does not carry the reminder: it is an `attachment` record of the transcript only (measured 2026-11-21: the answering text has `stop_reason` null in the stream and no record of its own). The supplier, Aiterm (Elegg), adds one stream line `{"type":"system","subtype":"silent_turn_reminder"}` when it sees that attachment, **before** the lines of the answer. Order matters: a marker that arrives after the words it belongs to marks nothing.
+- **The next words become the bubble at once.** The first `words` entry (not the replayed `input`, not empty) after the marker carries `bubble: true` from the moment it is stored, without waiting for the turn's `result`. Only that one: the seat's later words stay plain until the existing last-words rule applies. A `result` line clears a marker nobody answered, so it never leaks into the next turn. Nothing moves; the marker line itself is a folded `system` entry in the `background` group, like every other system line.
+- **Apps change nothing**: they already draw `bubble: true` as a message bubble. Mark is made here at read time from the stored lines; a restart rebuilds it.
+
+```mermaid
+flowchart LR
+  Transcript["Claude Code transcript: attachment silent_turn_reminder"] --> Supplier["Aiterm (Elegg): adds the marker line before the answer"]
+  Supplier --> Lines["stored lines: marker, words, ..."]
+  Lines --> Apply["MachineStream.apply: reminded = true; next words get bubble: true; result clears it"]
+  Apply --> Page["Bot page / SSE: machine_event.bubble"]
+  Page --> Apps["apps: bubble true = message bubble"]
+```
+
 ## Not changed
 
 Direct and room message routes, the existing interim/answer/status rows, reply, `owner_question` and `secret_request` cards, every existing SSE topic and terminal seats stay as they are. A machine seat's turn end, answer text and steer receipts stay on the existing tools; the stream is additive for the chat log.
