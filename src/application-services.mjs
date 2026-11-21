@@ -418,6 +418,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   directTurnReports = new TurnReports({ bots, store: directMessages.receipts.store, transport,
     enabled: () => !aiControl.paused && settings.configuration('routing').enabled,
     judge: value => judgeOwnerReport({ ...value, apiKey: settings.configuration('routing').apiKey }),
+    streamRows: botId => machineStream.timeline({ botId }),
     appendInterimWords: (...args) => directMessages.receipts.appendInterimWords(...args) })
   if (conversationAssembly) await conversationAssembly.initialize()
   if (conversationAssembly) {
