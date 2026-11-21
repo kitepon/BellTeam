@@ -138,6 +138,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var lastOffset: CGFloat = 0
         var prefetchRequested = false
         var olderPagesRead = 0
+        /// 末尾へなめらかに送っている間。新着が続いても末尾にいるものとして追う。指・ホイールが触れたら外す。
+        private var following = false
         private var scrollSpeed: CGFloat = 0
         private var lastScrollTime: CFTimeInterval = 0
         private var atBottom = true
@@ -170,7 +172,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self.view?.pinToBottom()
             }
             #if targetEnvironment(macCatalyst)
-            wheel = WheelScrollSmoother(scrollView: view, onStart: {}, onStop: { [weak self] in self?.report() })
+            wheel = WheelScrollSmoother(scrollView: view, onStart: { [weak self] in self?.following = false }, onStop: { [weak self] in self?.report(); self?.flushDeferred() })
             #endif
         }
 
@@ -237,7 +239,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             }
             let prepended = previous.first.flatMap { rows.firstIndex(of: $0) }.map { $0 > 0 } ?? false
             // 指を載せたままのスクロールは、毎フレーム指の位置から位置を決め直す。過去を足してレイアウトが位置を補っても直後に打ち消されて飛ぶので、指を離すまで待つ（a426）。
-            if prepended, view.isTracking {
+            // 指を離した後の減速中とMacのホイールの平滑スクロールも、動きが自分で位置を進めるので、止まるまで待つ（a471-scroll-jump）。
+            if prepended, isScrolling(view) {
                 applyAfterDrag = true
                 return
             }
@@ -253,8 +256,16 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 }
                 atBottom = true
             } else {
+                // 末尾にいる時の新着・行の伸びは瞬時に動かさず、なめらかに末尾へ送る（動いた向きが分かるように）。上を読んでいる時は動かさない。
+                let follow = !prepended && (atBottom || following) && !view.isTracking
+                if follow { layout?.keepContentOffsetAtBottomOnBatchUpdates = false }
                 UIView.performWithoutAnimation {
                     dataSource.apply(snapshot, animatingDifferences: false, commitAlongsideUpdates: commit)
+                    if follow { view.layoutIfNeeded() }
+                }
+                if follow {
+                    layout?.keepContentOffsetAtBottomOnBatchUpdates = true
+                    followBottom()
                 }
             }
             if prepended {
@@ -264,6 +275,27 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             }
             report()
             performPendingJump()
+        }
+
+        private func isScrolling(_ view: UIScrollView) -> Bool {
+            var scrolling = view.isTracking || view.isDecelerating
+            #if targetEnvironment(macCatalyst)
+            scrolling = scrolling || wheel?.isActive == true
+            #endif
+            return scrolling
+        }
+
+        /// 止まった時に、待たせていた過去の行を入れる。
+        private func flushDeferred() {
+            guard applyAfterDrag, let latest, let view, !isScrolling(view) else { return }
+            applyAfterDrag = false
+            apply(rows: latest.rows, messages: latest.messages, queue: latest.queue, rowContext: latest.rowContext)
+        }
+
+        private func followBottom() {
+            guard let view, view.distanceFromBottom > 1 else { following = false; return }
+            following = true
+            view.setContentOffset(CGPoint(x: view.contentOffset.x, y: view.bottomOffset), animated: true)
         }
 
         func requestJump(_ jump: ConversationJump) {
@@ -356,7 +388,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         /// 末尾から48pt以内なら末尾にいるとみなす。親の新着ボタンと、余白変更時の末尾維持に使う。
         private func report() {
             guard let view else { return }
-            let now = view.distanceFromBottom <= 48
+            let now = following || view.distanceFromBottom <= 48
             guard now != atBottom else { return }
             atBottom = now
             // 配置の途中で呼ばれるので、親の状態は次の周で変える。
@@ -367,7 +399,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         /// 足りなければ次の過去の頁を頼む（開いた直後・表示域に収まらない時・届いた直後も同じ判定。上端に届いて空になってから読まない）。
         /// 頼むのは一度に一つ。失敗は次のスクロールの動きまで繰り返さない。親が取得中の間と、届いた行を組み立てている間は頼まない。
         func prefetchIfLow() {
-            guard let view, view.bounds.height > 0, hasMore, !loading, !loadingOlder, !preparing, !prefetchRequested,
+            guard let view, view.bounds.height > 0, hasMore, !loading, !loadingOlder, !preparing, !prefetchRequested, !applyAfterDrag,
                   let first = view.indexPathsForVisibleItems.map(\.item).min() else { return }
             var moving = view.isDragging || view.isDecelerating
             #if targetEnvironment(macCatalyst)
@@ -391,12 +423,22 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool { false }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            guard applyAfterDrag, let latest else { return }
-            applyAfterDrag = false
-            apply(rows: latest.rows, messages: latest.messages, queue: latest.queue, rowContext: latest.rowContext)
+            if !decelerate { flushDeferred() }
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            flushDeferred()
+        }
+
+        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            guard following else { return }
+            // 追う間に行の高さが測り直されて末尾が遠のいたら、続けて追う。
+            followBottom()
+            if !following { report() }
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            following = false
             #if targetEnvironment(macCatalyst)
             wheel?.stop()
             #endif
