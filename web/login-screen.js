@@ -112,7 +112,7 @@ export function mountLoginScreen(root, { api, onApproved }) {
   const consoleError = el('p', { className: 'form-error', role: 'alert' })
   const input = el('input', { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: 'XXXX-XXXX-XXXXX', maxLength: 32, className: 'login-console-input' })
   const use = el('button', { type: 'submit', className: 'primary-button', textContent: 'このコードを使う' })
-  const form = el('form', { className: 'login-console' }, el('p', { className: 'field-help', textContent: 'サーバーのコンソールで発行したコードがあれば、ここに入力できます。' }), input, use, consoleError)
+  const form = el('form', { className: 'login-console' }, el('p', { className: 'field-help', textContent: 'サーバーのコンソールで出したコード、または「アプリを追加」で出したコードを入力します。' }), input, use, consoleError)
   form.addEventListener('submit', async event => {
     event.preventDefault()
     if (!input.value.trim()) return
@@ -120,17 +120,23 @@ export function mountLoginScreen(root, { api, onApproved }) {
     consoleError.textContent = await login.useConsoleCode(input.value.trim())
     use.disabled = false
   })
+  let codeWay = true
+  // Tronie's ruling (app-sessions.md 7e): the two ways are always shown, with this one line under them, in the same words in every app.
+  const NO_CONTRACT = '購読していない場合は、サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。'
   function show(state) {
     const view = loginView(state)
-    const card = el('section', { className: 'login-card' }, el('h2', { textContent: view.heading }), ...view.notes.map(text => el('p', { textContent: text })))
-    if (view.qr) card.append(el('img', { className: 'login-qr', src: view.qr, alt: 'BellTeamアプリで読み取るQRコード' }))
-    if (view.code) card.append(el('p', { className: 'login-code', textContent: view.code }), el('p', { className: 'login-check', textContent: `照合番号 ${view.check}` }))
-    if (view.until) card.append(el('p', { className: 'field-help', textContent: view.until }))
-    if (view.cancel) card.append(el('button', { type: 'button', className: 'text-button', textContent: 'やめる', onclick: () => void login.cancel() }))
-    if (view.again) card.append(el('button', { type: 'button', className: 'primary-button', textContent: 'もう一度', onclick: () => void login.start() }))
-    card.append(form)
+    const phone = el('section', { className: 'login-way' }, el('h3', { textContent: 'スマホで承認する' }), el('p', { className: 'login-status', textContent: view.heading }), ...view.notes.map(text => el('p', { textContent: text })))
+    if (view.qr) phone.append(el('img', { className: 'login-qr', src: view.qr, alt: 'BellTeamアプリで読み取るQRコード' }))
+    if (view.code) phone.append(el('p', { className: 'login-code', textContent: view.code }), el('p', { className: 'login-check', textContent: `照合番号 ${view.check}` }))
+    if (view.until) phone.append(el('p', { className: 'field-help', textContent: view.until }))
+    if (view.cancel) phone.append(el('button', { type: 'button', className: 'text-button', textContent: 'やめる', onclick: () => void login.cancel() }))
+    if (view.again) phone.append(el('button', { type: 'button', className: 'primary-button', textContent: 'もう一度', onclick: () => void login.start() }))
+    const card = el('section', { className: 'login-card' }, el('h2', { textContent: 'このサーバーにログインします' }), phone)
+    if (codeWay) card.append(el('section', { className: 'login-way' }, el('h3', { textContent: 'サーバーのコードで入る' }), form))
+    card.append(el('p', { className: 'field-help', textContent: NO_CONTRACT }))
     root.replaceChildren(card)
   }
   login = createLogin({ api, show, onApproved: () => { root.hidden = true; onApproved() } })
-  return { open() { root.hidden = false; return login.start() } }
+  // `info` is the probe's `login` object: the code way is shown whenever the server answers capability true (the contract is unknown to the app).
+  return { open(info) { codeWay = info?.capability !== false; root.hidden = false; return login.start() } }
 }

@@ -397,7 +397,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     showBanner('')
     state.authMode = session.authMode
     // a485: a server that issues its own sessions (it states `login`) shows the code screen; one that does not keeps today's path below.
-    if (loginNeeded(session)) { await loginScreen.open(); return }
+    if (loginNeeded(session)) { await loginScreen.open(session.login); return }
     if (!session.authenticated) {
       if (session.authMode === 'cloudflare') {
         const notice = document.createElement('p')
