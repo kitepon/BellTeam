@@ -4,6 +4,6 @@
   "type": "module",
   "dependencies": {
     "@apple/app-store-server-library": "3.1.0",
-    "@kitepon/login-billing": "file:vendor/kitepon-login-billing-0.12.0.tgz"
+    "@kitepon/login-billing": "file:vendor/kitepon-login-billing-0.12.1.tgz"
   }
 }
