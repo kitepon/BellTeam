@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T02:34:18Z",
-  "expiresAt": "2026-11-28T02:34:18Z",
+  "publishedAt": "2026-11-21T03:06:47Z",
+  "expiresAt": "2026-11-28T03:06:47Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
-      "versionId": "a996061ddb9428779219edca7ec1134f0c5f8b5412a6e97536730047540d44e6",
+      "sourceCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f",
+      "versionId": "3ec759fddc573645e06db1c63bec22415b1c885b2308ca7d330e2e763937c072",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz",
-          "bytes": 3927352,
-          "sha256": "a996061ddb9428779219edca7ec1134f0c5f8b5412a6e97536730047540d44e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T025955Z/conversation-01ba5edf34c6bfb9d352fffece730f4252b7255f-linux-amd64.tar.gz",
+          "bytes": 3927690,
+          "sha256": "3ec759fddc573645e06db1c63bec22415b1c885b2308ca7d330e2e763937c072"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "0a6619a3ef6e925f6d02482654bc9f203014c7d44e4bd16652b68d1aee1f2447"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T025955Z/conversation-01ba5edf34c6bfb9d352fffece730f4252b7255f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "338e67633d4e271013b3485c9db07fbb8ddea97a8e38d2284fc2fdeec62f72cf"
         },
-        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
+        "signerCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "履歴の1ページを最大1000行まで返せるようにし、ページに入るカードだけを子へ渡します。ログがたくさん見えるようになります。"
+        "返信の引用の行で、切れた書式の記号（対になっていない ** ~~ __）を外し、コードのような文の * は残します。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
-      "versionId": "941b2c007680c2cfc8c83b4f8074f56fc6eae6949ca5aa7f02ec62dc4c4c482c",
+      "sourceCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f",
+      "versionId": "7df84a3895b30024ba7bd29b9a58673fe6f1250322f3f428421ee851744e12cb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz",
-          "bytes": 3927352,
-          "sha256": "941b2c007680c2cfc8c83b4f8074f56fc6eae6949ca5aa7f02ec62dc4c4c482c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T025955Z/conversation-01ba5edf34c6bfb9d352fffece730f4252b7255f-linux-arm64.tar.gz",
+          "bytes": 3927690,
+          "sha256": "7df84a3895b30024ba7bd29b9a58673fe6f1250322f3f428421ee851744e12cb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021746Z/conversation-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10939,
-          "sha256": "e1af54bd80206783b104da2d197354afc3b5ed7a32175e6e781386dfc58e6204"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T025955Z/conversation-01ba5edf34c6bfb9d352fffece730f4252b7255f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "e2fed15229b4fa47fbabde981f329322e5155ae61094b6fcc1778178b8c87d7d"
         },
-        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
+        "signerCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "履歴の1ページを最大1000行まで返せるようにし、ページに入るカードだけを子へ渡します。ログがたくさん見えるようになります。"
+        "返信の引用の行で、切れた書式の記号（対になっていない ** ~~ __）を外し、コードのような文の * は残します。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
-      "versionId": "7721d64bc55f1db2bd9918bedc78b5d0621554d8a3fce891fb22f0d68f55247e",
+      "sourceCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3",
+      "versionId": "29599d0f4029c1ca504ddf3be370cee184044db4e9ae549a476acb2888572e77",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz",
-          "bytes": 5508993,
-          "sha256": "7721d64bc55f1db2bd9918bedc78b5d0621554d8a3fce891fb22f0d68f55247e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-amd64.tar.gz",
+          "bytes": 5509618,
+          "sha256": "29599d0f4029c1ca504ddf3be370cee184044db4e9ae549a476acb2888572e77"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11017,
-          "sha256": "9c86dd788b1dec9479757c4dbc8df368af914c9e58cbbd3d38888925ec1bdcc8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "38582ab9975e0784f26892774e5a9435df7e6abd55c26a63d0620434be611add"
         },
-        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
+        "signerCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webで、返信・引用・転送・コピー、100/500行のスクロールバックと先読み、考えた内容の全文表示を使えるようにします。引用の行は書式の記号を外した文字で出ます。"
+        "Webの最初の画面と先読みの余白を、行数でなく実際に描いた高さで決めます。考えた内容を答えの吹き出しの中に出します。返信の引用の行も同じ直しを使います。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7",
-      "versionId": "ea70b83228fbeaf284b2673e84137b36d744c45e19fbaa9a7be94766a050ad29",
+      "sourceCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3",
+      "versionId": "6c6113a8279428eceab82b1deb6ee77524b452f16e1419a9dfe3fccbd5c9a826",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz",
-          "bytes": 5508993,
-          "sha256": "ea70b83228fbeaf284b2673e84137b36d744c45e19fbaa9a7be94766a050ad29"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-arm64.tar.gz",
+          "bytes": 5509618,
+          "sha256": "6c6113a8279428eceab82b1deb6ee77524b452f16e1419a9dfe3fccbd5c9a826"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T021801Z/web-gateway-ee18d0b35f880ea7d6366ce3276c2b807154f9f7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10974,
-          "sha256": "3dc2306e22df99115fb2b9672bc67a1b5786fb3a5aeadfcd97b77bfcaf1a763c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T030615Z/web-gateway-bcc20191c7932b89e4507f02e4f7ecf598b2b0a3-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11244,
+          "sha256": "9a3801ae7a8eeff8c29fa7f0a2ade13e2118c7dbeb720f2cf64b347f19db221d"
         },
-        "signerCommit": "ee18d0b35f880ea7d6366ce3276c2b807154f9f7"
+        "signerCommit": "bcc20191c7932b89e4507f02e4f7ecf598b2b0a3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webで、返信・引用・転送・コピー、100/500行のスクロールバックと先読み、考えた内容の全文表示を使えるようにします。引用の行は書式の記号を外した文字で出ます。"
+        "Webの最初の画面と先読みの余白を、行数でなく実際に描いた高さで決めます。考えた内容を答えの吹き出しの中に出します。返信の引用の行も同じ直しを使います。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "8869de05417f584cf01ff4487de555f7369d80d9",
-      "versionId": "sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f",
+      "sourceCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f",
+      "versionId": "sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.86に上げます。促しへの返事の前に、機械のストリームへ印の1行が出るので、返事の最初の一言がすぐ吹き出しになります。"
+        "返信の引用の行で、切れた書式の記号（対になっていない ** ~~ __）を外し、コードのような文の * は残します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "8869de05417f584cf01ff4487de555f7369d80d9",
-      "versionId": "sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f",
+      "sourceCommit": "01ba5edf34c6bfb9d352fffece730f4252b7255f",
+      "versionId": "sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:aa5c3fbcb46cfed959c1841cea5333e335f946b5cdcb58667700ddc1f579cb2f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:89bcc5ecf9e242c4b59d797966c6c99ffd841102e3c854d93822f9c6c7efe5c0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aitermを0.70.86に上げます。促しへの返事の前に、機械のストリームへ印の1行が出るので、返事の最初の一言がすぐ吹き出しになります。"
+        "返信の引用の行で、切れた書式の記号（対になっていない ** ~~ __）を外し、コードのような文の * は残します。"
       ]
     },
     {
