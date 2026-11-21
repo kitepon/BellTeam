@@ -69,6 +69,9 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
   const turns = await effect('turns.read', { botIds: [...lanes.keys()] }).then(value => value.turns, () => ({}))
   for (const [bot, entries] of lanes) {
     if (turns[bot] === 'working') { out.skipped++; continue }
+    // The sends run one by one (a wake can take long), so the batch read above can be stale: a Bot that started a turn since then reads again just before its own send (a481, Mint 2026-11-21).
+    const now = await effect('turns.read', { botIds: [bot] }).then(value => value.turns[bot], () => turns[bot])
+    if (now === 'working') { out.skipped++; continue }
     const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
     if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) { out.prompted++; for (const entry of entries) if (entry.key) warned.set(entry.key, bot) }
     else { out.failed++; log(`lattice-nudge-send ${bot} not accepted`) }
