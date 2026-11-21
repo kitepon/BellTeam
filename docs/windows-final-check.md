@@ -253,3 +253,12 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番 http://192.168.1.2:18891/）: 07:10:16に成功。authenticated=true、bots=144、rooms=9、最初の会話は10件でhasMore=true、SSE接続あり。
 - 本番の試験席 bot-f1a21da1 を `--render-conversation`（GETのみ）で描いた。最新30件は畳まれた行が多く、「background ×5」「background ×10」の1行にまとまり、時間順のまま並ぶ。画面は6:47の長い返答の吹き出しまで読み込まれて埋まり、先頭に「以前のメッセージを読む」が出る。
 - 確認できていない: 6:35のターンの考えた要約と道具の行（画面の上、スクロールの先にあり、描いた画像には入っていない）。`bubble: true`と`fold_count`の行は、本番の本体がまだ付けておらず（#2049・#2054の列車待ち）、実データでは見ていない。この2つは試験（MachineEventTests・UiChecks）で確かめた。
+
+### 0.6.5 の導入（a471: 返信・転送・コピー、過去ログ100/500と先読み、thinkingを全文で描く）
+
+2026-11-21 11:06 JST、main 73ea2810（#2090・#2093・#2095・バージョン#2097）から `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget` で導入した（共有先の登録は管理者の確認が要るため触っていない）。導入後の`BellTeam.exe`は0.6.5+73ea2810。
+
+- スモーク（`--smoke-test` 本番 http://192.168.1.2:18891/）: 11:07:11に成功。authenticated=true、bots=144、rooms=9、最初の会話は10件でhasMore=true、SSE接続あり。
+- 本番の自席 bot-0d7da1c1 を `--render-conversation member|default|scrolled`（GETのみ）で描いた。考えた行（thinking）が行数の制限なしに全文で折り返されて出て、先頭に「以前のメッセージを読む」が出る。
+- 確認できていない: 返信・転送・コピーのアイコンと、スクロールでの先読みの実際の動き（試験とUiChecksで確かめた。本番の画面での操作は未確認）。
+- 見つけた不具合: `--render-conversation`はPNGを書いたあとに終了時に落ちた（例外コード0xE0434352、ObjectDisposedException。描画モードが`Workspace.Dispose`したあとに、待っていたスクロールの先読みが破棄済みの選択を読んだ）。通常の起動では`Dispose`は走らないため利用者の画面には出ない。修理は #2100（試験つき、版は上げない）。
