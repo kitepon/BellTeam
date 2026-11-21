@@ -142,10 +142,10 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
         if (request.method === 'GET' && url.pathname === '/api/notifications/android') return json(response, 200, await notifications.androidStatus())
         if (request.method === 'POST' && url.pathname === '/api/notifications/android/devices') {
           const body = await readJson(request, 8192)
-          // The proof is the server's own entitled store proof for the operator relay; a client never supplies it.
+          // a494: the server no longer adds a store proof (it never reached the child: the usage facade has no `proof`, and the new relay takes a
+          // session ticket instead). A client never supplies a proof either.
           if (body && typeof body === 'object' && Object.hasOwn(body, 'proof')) throw Object.assign(new Error('PUSH_DEVICE_INVALID'), { code: 'PUSH_DEVICE_INVALID' })
-          const proof = subscriptions?.proof?.() ?? null
-          return json(response, 200, await notifications.androidRegister(proof ? { ...body, proof } : body))
+          return json(response, 200, await notifications.androidRegister(body))
         }
         if (request.method === 'POST' && url.pathname === '/api/notifications/android/unregister') return json(response, 200, await notifications.androidUnregister(await readJson(request, 4096)))
         return json(response, 404, { error: 'NOT_FOUND' })

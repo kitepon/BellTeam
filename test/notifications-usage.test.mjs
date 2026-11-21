@@ -334,11 +334,10 @@ test('Android routes reach the notification child as provider fcm and keep the 4
   }
 })
 
-test('Android registration carries the server\'s own subscription proof for the relay and refuses a client-supplied one', async t => {
+test('Android registration carries no store proof (a494) and refuses a client-supplied one', async t => {
   const calls = []
-  let proof = { stripeSubscriptionId: 'sub_synthetic' }
   const { service } = facadeFixture({ request: async (method, params) => { calls.push([method, params]); return { registered: true } } })
-  const handler = createUsageApi({ notifications: service, subscriptions: { proof: () => proof } })
+  const handler = createUsageApi({ notifications: service, subscriptions: { proof: () => ({ stripeSubscriptionId: 'sub_would_be_added_before' }) } })
   const server = createServer((request, response) => {
     handler(request, response, new URL(request.url, 'http://localhost')).catch(error => respondHttpError(request, response, error))
   })
@@ -348,8 +347,7 @@ test('Android registration carries the server\'s own subscription proof for the 
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const body = { token: 'a'.repeat(40), server: 'https://bell.example.com' }
   assert.equal((await post(body)).status, 200)
-  assert.deepEqual(calls.at(-1), ['register', { ...body, proof, provider: 'fcm' }])
-  proof = null
+  assert.deepEqual(calls.at(-1), ['register', { ...body, provider: 'fcm' }]) // even if a `proof` method exists on the object it is not read
   assert.equal((await post(body)).status, 200)
   assert.deepEqual(calls.at(-1), ['register', { ...body, provider: 'fcm' }])
   const before = calls.length
