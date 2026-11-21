@@ -146,7 +146,7 @@ final class StoreAccount: ObservableObject {
     static func words(_ error: Error) -> String {
         let code = (error as? LoginBillingError)?.code ?? "unknown"
         switch code {
-        case "no_entitlement": return "先に購読してください。購読しないで使うには、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードを使ってください。"
+        case "no_entitlement": return "先に購読してください。購読しないで使うには、ブラウザー版を、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードで開いてください。"
         case "account_mismatch": return "別のアカウントです。何も止めていません。この端末と同じAppleアカウントでサインインしてください。"
         case "other_account": return "このApple Accountの購入は、別のBellTeamアカウントのものです。購入は反映されていません。"
         case "slot_gone": return "コードの時間が切れたか、違っています。もう一度出してもらってください。"
