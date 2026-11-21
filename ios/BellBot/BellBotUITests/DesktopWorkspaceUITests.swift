@@ -124,7 +124,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
 
         let filled = try open(reset: "failBefore=0")
         Thread.sleep(forTimeInterval: 4)
-        XCTAssertEqual(try older(), ["?limit=25&before=s33"], "表示域が埋まれば止まる")
+        XCTAssertEqual(try older(), ["?limit=500&before=s33&before_at=2026-01-01T00%3A32%3A00.000Z"], "表示域が埋まれば止まる")
         filled.terminate()
 
         let complete = try open(reset: "failBefore=0&shortTotal=3")
@@ -136,7 +136,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         defer { failing.terminate() }
         XCTAssertTrue(failing.staticTexts["send-error"].waitForExistence(timeout: 5), "取得失敗を表示する")
         Thread.sleep(forTimeInterval: 3)
-        XCTAssertEqual(try older(), ["?limit=25&before=s33"], "失敗しても繰り返さない")
+        XCTAssertEqual(try older(), ["?limit=500&before=s33&before_at=2026-01-01T00%3A32%3A00.000Z"], "失敗しても繰り返さない")
     }
 
     func testMacHasOneInspectorButtonAndNoProfilePopup() {

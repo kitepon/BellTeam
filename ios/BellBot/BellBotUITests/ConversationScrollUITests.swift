@@ -17,7 +17,7 @@ final class ConversationScrollUITests: XCTestCase {
 
     override func tearDown() { app?.terminate() }
 
-    /// 初回30件が長い。Markdownが後から描画されて高さが伸びても、末尾が見える。
+    /// 初回100件（この履歴は60件で全部）が長い。Markdownが後から描画されて高さが伸びても、末尾が見える。
     func testLatestMessageStaysVisibleAfterMarkdownRendering() throws {
         try openConversation("ユキ", failBefore: false)
         let last = text("m060")
@@ -28,47 +28,37 @@ final class ConversationScrollUITests: XCTestCase {
         print("末尾位置 maxY=\(last.frame.maxY) 入力欄上端=\(limit)")
         XCTAssertLessThanOrEqual(last.frame.maxY, limit + 1, "最新メッセージの末尾が入力欄に隠れない")
         XCTAssertGreaterThan(last.frame.minY, 0)
-        XCTAssertEqual(try requests(), ["?limit=30"], "開いただけでは初回の30件しか取得しない")
+        XCTAssertEqual(try requests(), ["?limit=100"], "最初の頁は100件で、全部入るので過去は取得しない")
     }
 
-    /// 上へ読むと上端に届く前に25件を先読みし、その時に読んでいた行が同じ位置に残る。足した行のMarkdownが後から伸びても動かない。
-    func testOlderMessagesLoadAutomaticallyAtTopAndKeepPosition() throws {
-        try openConversation("ユキ", failBefore: false)
-        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["以前のメッセージを読む"].exists)
-        try scrollUntilOlderRequested()
-        Thread.sleep(forTimeInterval: 0.5)
-        let reading = try XCTUnwrap((31...60).reversed().map { text(String(format: "m%03d", $0)) }
-            .first { $0.exists && $0.isHittable }, "先読みの時に読んでいる行がある")
-        let first = reading.frame.minY
+    /// 最初の頁（100件）の上には150行残っていないので、スクロール無しでも開いた直後に過去の頁（500件、before_at付き）を一度だけ背景で読む。
+    /// 末尾の読み位置は動かず、足した行のMarkdownが後から伸びても動かない。
+    func testOlderPageIsPrefetchedAfterFirstPaintAndKeepsPosition() throws {
+        try openConversation("ユキ", failBefore: false, total: 160)
+        XCTAssertTrue(text("m160").waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 2)
+        let first = text("m160").frame.minY
         Thread.sleep(forTimeInterval: 3)
-        let settled = reading.frame.minY
-        print("先読み直後の読んでいる行 minY=\(first) 3秒後=\(settled) 表示領域=\(conversationScroll().frame)")
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=m031"])
-        XCTAssertFalse(app.buttons["以前のメッセージを読む"].exists)
-        XCTAssertLessThan(settled, conversationScroll().frame.maxY, "読んでいる行が画面内に残る")
-        XCTAssertEqual(first, settled, accuracy: 2, "足した行のMarkdownが伸びても読んでいる位置が動かない")
+        XCTAssertEqual(try requests(), ["?limit=100", "?limit=500&before=m061&before_at=2026-01-01T01%3A00%3A00.000Z"],
+                       "開いた直後に過去の頁を一度だけ先読みする")
+        XCTAssertEqual(text("m160").frame.minY, first, accuracy: 2, "足した行で末尾の読み位置が動かない")
     }
 
-    func testOlderFailureIsShownAndNotRetried() throws {
-        try openConversation("ユキ", failBefore: true)
-        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
-        try scrollUntilOlderRequested()
-        XCTAssertTrue(app.staticTexts["send-error"].waitForExistence(timeout: 5), "取得失敗が表示される")
+    /// 先読みの失敗は表示し、スクロールの動きが無い間は繰り返さない。
+    func testOlderFailureIsShownAndNotRetriedWithoutScrolling() throws {
+        try openConversation("ユキ", failBefore: true, total: 160)
+        XCTAssertTrue(text("m160").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["send-error"].waitForExistence(timeout: 10), "取得失敗が表示される")
         Thread.sleep(forTimeInterval: 4)
         XCTAssertEqual(try requests().filter { $0.contains("before=") }.count, 1, "失敗後に自動で繰り返さない")
     }
 
-    /// 初回30件の短文の履歴。開いただけでは過去を取得せず、利用者が上へ引いた時に取得する。
-    func testShortInitialPageLoadsOlderOnlyWhenUserScrolls() throws {
+    /// 全部が最初の頁に入る短文の履歴（ハル、35件）。過去は無いので取得しない。
+    func testShortHistoryReadsNoOlderPage() throws {
         try openConversation("ハル", failBefore: false)
         XCTAssertTrue(text("s35").waitForExistence(timeout: 10))
         Thread.sleep(forTimeInterval: 4)
-        XCTAssertEqual(try requests(), ["?limit=30"], "開いただけでは過去を取得しない")
-        let scroll = conversationScroll()
-        for _ in 0..<4 where try !requests().contains(where: { $0.contains("before=") }) { scroll.swipeDown() }
-        Thread.sleep(forTimeInterval: 2)
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s06"])
+        XCTAssertEqual(try requests(), ["?limit=100"], "has_moreが偽なら過去を取得しない")
     }
 
     /// 初回が3件しかなく表示域に収まらない（畳んだ行が続く試験席と同じ）。動かせないので、触らなくても過去を表示域が埋まるまで取る。
@@ -76,7 +66,7 @@ final class ConversationScrollUITests: XCTestCase {
         try openConversation("ハル", failBefore: false, shortPage: true)
         XCTAssertTrue(text("s35").waitForExistence(timeout: 10))
         Thread.sleep(forTimeInterval: 4)
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s33"], "表示域が埋まれば止まる")
+        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=500&before=s33&before_at=2026-01-01T00%3A32%3A00.000Z"], "表示域が埋まり、has_moreが偽になれば止まる")
     }
 
     /// 古い内容を見ている間に新着を取得しても、末尾へ飛ばず新着ボタンを出す。30件の履歴で最古まで読み、上端の引き下げ更新で新着を取る。
@@ -129,19 +119,21 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertGreaterThan(try requests().count, before)
     }
 
-    /// 画面外の行を入れ替えながら、複数ページの最古まで読み進められる。
-    func testWindowCanReachOldestAcrossMultiplePages() throws {
-        try openConversation("ユキ", failBefore: false)
-        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+    /// 先読みした過去の頁が入った後に上へ読み進めても、読んでいる位置は動かず、頁は重ねて取らない（has_moreが偽）。
+    /// 全160行を指で最古まで送るには時間がかかり過ぎるので、行の入れ替えを見る分だけ送る。
+    func testReadingUpAfterPrefetchKeepsPositionAndAsksNoMorePages() throws {
+        try openConversation("ユキ", failBefore: false, total: 160)
+        XCTAssertTrue(text("m160").waitForExistence(timeout: 10))
         let scroll = conversationScroll()
-        for _ in 0..<50 where !(text("m001").exists && text("m001").isHittable) { scroll.swipeDown() }
-        XCTAssertTrue(text("m001").isHittable, "範囲を入れ替えながら最古まで読める")
-        let before = text("m001").frame.minY
+        for _ in 0..<12 { scroll.swipeDown() }
+        Thread.sleep(forTimeInterval: 2)
+        let reading = try XCTUnwrap((61...159).reversed().map { text(String(format: "m%03d", $0)) }
+            .first { $0.exists && $0.isHittable }, "読んでいる行がある")
+        let before = reading.frame.minY
         Thread.sleep(forTimeInterval: 3)
-        XCTAssertEqual(text("m001").frame.minY, before, accuracy: 2)
+        XCTAssertEqual(reading.frame.minY, before, accuracy: 2)
         XCTAssertEqual(try requests().filter { $0.contains("before=") },
-                       ["?limit=25&before=m031", "?limit=25&before=m006"])
-        XCTAssertFalse(text("m060").exists, "最古を読んでいる間は最新の本文を描画しない")
+                       ["?limit=500&before=m061&before_at=2026-01-01T01%3A00%3A00.000Z"])
     }
 
     #if !targetEnvironment(macCatalyst)
@@ -149,11 +141,11 @@ final class ConversationScrollUITests: XCTestCase {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPadの幅変更を確認する試験です。")
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
-        try openConversation("ユキ", failBefore: false)
-        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
-        try scrollUntilOlderRequested()
-        let row = text("m031")
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        try openConversation("ユキ", failBefore: false, total: 160)
+        XCTAssertTrue(text("m160").waitForExistence(timeout: 10))
+        let row = text("m061")
+        for _ in 0..<40 where !(row.exists && row.isHittable) { conversationScroll().swipeDown() }
+        XCTAssertTrue(row.isHittable, "先読みした頁の手前の行まで読む")
         Thread.sleep(forTimeInterval: 3)
         let before = row.frame.minY
         let width = conversationScroll().frame.width
@@ -190,13 +182,6 @@ final class ConversationScrollUITests: XCTestCase {
         }
         // この角度はOS標準の縦スクロールの開始の境目で、標準でも動く割合は7〜8割。DragGestureを付けていた間は0〜1割だったので、2回以上で見分ける。
         XCTAssertGreaterThanOrEqual(scrolled, 2, "59°傾いたドラッグ5回のうち2回以上でログが動く（実測 \(scrolled)/5）")
-    }
-
-    private func scrollUntilOlderRequested() throws {
-        let scroll = conversationScroll()
-        for _ in 0..<12 where try !requests().contains(where: { $0.contains("before=") }) { scroll.swipeDown() }
-        Thread.sleep(forTimeInterval: 1)
-        XCTAssertTrue(try requests().contains(where: { $0.contains("before=") }), "上端へ着いたら過去を取得する")
     }
 
     private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false, shortPage: Bool = false) throws {

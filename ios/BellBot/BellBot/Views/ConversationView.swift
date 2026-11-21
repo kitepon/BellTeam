@@ -773,11 +773,12 @@ private struct ConversationContent: View {
     }
 
     private func loadOlder() async {
-        guard scenePhase == .active, hasMore, !loading, !loadingOlder, let oldest = messages.first?.id else { return }
+        guard scenePhase == .active, hasMore, !loading, !loadingOlder, let oldest = messages.first else { return }
         loadingOlder = true
         defer { loadingOlder = false }
         do {
-            let path = target.path + "/messages?limit=\(ConversationHistoryPage.pageSize)&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
+            // before_at（持っている最古の行のat）で、本体は頁に入り得るカードだけを子へ渡せる（machine-stream.md「History pages of a long stream」）。
+            let path = target.path + "/messages?limit=\(ConversationHistoryPage.pageSize)&before=\(ConversationHistoryPage.query(oldest.id))&before_at=\(ConversationHistoryPage.query(oldest.at))"
             let result: ListResponse<TimelineMessage> = try await store.api.get(path)
             try Task.checkCancellation()
             hasMore = result.hasMore
@@ -795,7 +796,7 @@ private struct ConversationContent: View {
         guard !loading, appIsActive, !awaitingSendResponse else { return }
         do {
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
-            let latestPath = target.path + "/messages?limit=\(ConversationHistoryPage.firstPage)"
+            let latestPath = target.path + "/messages?limit=\(timeline.receivedMessages.isEmpty ? ConversationHistoryPage.firstPage : ConversationHistoryPage.refreshPage)"
             if let lastId = timeline.receivedMessages.last?.id {
                 let encodedId = lastId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? lastId
                 async let latest: ListResponse<TimelineMessage> = store.api.get(latestPath)
@@ -937,12 +938,28 @@ private final class ReadCoordinator {
     var generation = 0
 }
 
+/// machine-stream.md「History pages of a long stream」。頁の大きさと先読みの規則（全アプリ共通の契約。実測で変えるのはこの数字だけ）。
 enum ConversationHistoryPage {
-    /// 開いた時と更新時に取る最新の行数。
-    static let firstPage = 30
-    /// 見えている行より上の読込済みが25行以下になったら、次の25行を足す。
-    static let lowStockRows = 25
-    static let pageSize = 25
+    /// 開いた時に取る最新の行数。
+    static let firstPage = 100
+    /// 更新（SSE・引き下げ）で取る最新の行数。新着は after で取るので、既知の行の状態を直すだけの小さな頁。
+    static let refreshPage = 30
+    /// 過去の頁。
+    static let pageSize = 500
+    /// 見ている行より上に読込済みとして残す量は max(3画面, 150行, 2秒分のスクロール速度)。
+    static let stockRows = 150
+    static let stockScreens: CGFloat = 3
+    static let stockSeconds: CGFloat = 2
+
+    /// 上に残る読込済みがこの量に満たなければ、次の過去の頁を頼む。
+    static func needsOlder(rowsAbove: Int, pointsAbove: CGFloat, viewHeight: CGFloat, speed: CGFloat) -> Bool {
+        rowsAbove < stockRows || pointsAbove < max(stockScreens * viewHeight, stockSeconds * speed)
+    }
+
+    /// クエリ値として送る文字列。ISO時刻の「+」「:」も含めて符号化する。
+    static func query(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? value
+    }
 }
 
 /// 行を配置から外しても会話が持ち続けるカードの状態。

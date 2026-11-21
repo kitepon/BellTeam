@@ -7,7 +7,7 @@ const fixture = JSON.parse(source.match(/let source = """\n([\s\S]*?)\n\s*"""/u)
 
 const rich = id => `## ${id} の確認\n\n**強調**と[資料](https://example.org)です。\n\n| 項目 | 状態 |\n| --- | --- |\n| 調査 | 完了 |\n| 表示確認 | 進行中 |\n\n- 見出しと段落の余白\n- 長い項目も字下げを揃えて折り返します。\n\n> 表示確認用のメモです。\n\n\`\`\`swift\nlet status = "working"\n\`\`\``
 const plain = id => `${id} 短い返事です。`
-const history = Array.from({ length: 60 }, (_, index) => {
+const history = Array.from({ length: 260 }, (_, index) => {
   const id = `m${String(index + 1).padStart(3, '0')}`
   return {
     id, kind: 'message', direction: index % 2 ? 'outgoing' : 'incoming',
@@ -20,7 +20,7 @@ const history = Array.from({ length: 60 }, (_, index) => {
 
 // src/http-server.mjs の pageItems と同じ before / limit の意味。依存を入れずに起動できるよう複製する。
 function pageItems(items, url) {
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 10))
+  const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit')) || 10))
   const before = url.searchParams.get('before')
   const after = url.searchParams.get('after')
   if (after) {
