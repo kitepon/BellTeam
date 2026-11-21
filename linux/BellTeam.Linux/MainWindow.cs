@@ -58,7 +58,6 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     private readonly Grid messageColumn = new();
     private StackPanel? messageStack;
-    private readonly Button older = new() { Classes = { "plain" }, Content = "以前のメッセージを読む", HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), Foreground = BellTheme.Violet, IsVisible = false };
     private readonly Border queueStrip = new() { Background = BellTheme.QueueFill, CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 9.5), IsVisible = false };
     private readonly StackPanel queueRows = new();
     private readonly StackPanel welcome = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 450, Margin = new Thickness(30) };
@@ -267,8 +266,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var messages = new ItemsControl { ItemsSource = model.Messages, ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<MessageItem>((item, _) => new MessageCard(item, model)) };
         // Mac queueStrip: one line per running or queued delivery; in a room each member's line has its own stop button.
         queueStrip.Child = queueRows; AutomationProperties.SetName(queueStrip, "処理中");
-        older.Click += async (_, _) => await LoadOlderPreservingPositionAsync();
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(18, 20, 18, 18), Children = { older, messages, queueStrip } };
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(18, 20, 18, 18), Children = { messages, queueStrip } };
         messageColumn.Children.Add(stack); messageScroll.Content = messageColumn; AutomationProperties.SetName(messageScroll, "会話");
         Grid.SetRow(messageScroll, 1);
         messageStack = stack;
@@ -362,7 +360,6 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): UpdateStrip(); break;
             case nameof(LinuxWorkspace.DraftText) or nameof(LinuxWorkspace.SendError) or nameof(LinuxWorkspace.CanSend) or nameof(LinuxWorkspace.SendLabel) or nameof(LinuxWorkspace.CanAttach) or nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.ReplyTargetLabel) or nameof(LinuxWorkspace.Quote): UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.OwnerName) or nameof(LinuxWorkspace.OnlineSummary) or nameof(LinuxWorkspace.AccountsBanner): UpdateSidebarTexts(); break;
-            case nameof(LinuxWorkspace.HasMore): older.IsVisible = model.HasMore; break;
         }
     }
     private void UpdateAll() { UpdateApprovalsEntry(); UpdateNav(); UpdateSelection(); UpdateWelcome(); UpdateQueue(); UpdateComposerBand(); UpdateStrip(); UpdateSidebarTexts(); QueueListRebuild(); }
@@ -429,7 +426,6 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         emptyConversation.IsVisible = idle && !model.LoadFailed;
         failedConversation.IsVisible = idle && model.LoadFailed;
         emptyTitle.Text = model.Title + "と話しましょう";
-        older.IsVisible = model.HasMore;
     }
     private void UpdateQueue()
     {
