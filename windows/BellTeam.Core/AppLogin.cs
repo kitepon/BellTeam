@@ -26,33 +26,18 @@ public sealed class LoginApi(BellApi api)
     // Sign-out (app-sessions.md 7c): DELETE the app's own session; the id is SessionInfo.SessionId from the probe.
     public Task EndSessionAsync(string sessionId, CancellationToken token = default) => api.DeleteAsync("/api/sessions/" + Uri.EscapeDataString(sessionId), token);
     public Task CancelAsync(string loginId, CancellationToken token = default) => api.PostAsync<System.Text.Json.JsonElement>("/api/login/" + Uri.EscapeDataString(loginId) + "/cancel", new { }, token);
-    // "use a code from the server console" (section 2a): the answer carries the session token at once.
-    public async Task<LoginRequest[]> RequestsAsync(CancellationToken token = default) => (await api.GetAsync<LoginRequestList>("/api/login/requests", token)).Requests;
-    public Task ApproveAsync(string loginId, CancellationToken token = default) => api.PostAsync<System.Text.Json.JsonElement>("/api/login/" + Uri.EscapeDataString(loginId) + "/approve", new { }, token);
-    public Task DenyAsync(string loginId, CancellationToken token = default) => api.PostAsync<System.Text.Json.JsonElement>("/api/login/" + Uri.EscapeDataString(loginId) + "/deny", new { }, token);
-    // 429 LOGIN_RATE_LIMITED when four codes are outstanding (BellApiException.Code).
-    public Task<IssuedCode> IssueCodeAsync(CancellationToken token = default) => api.PostAsync<IssuedCode>("/api/login/code", new { }, token);
     public async Task<SessionEntry[]> SessionsAsync(CancellationToken token = default) => (await api.GetAsync<SessionList>("/api/sessions", token)).Sessions;
+    // "use a code from the server console" (section 2a, kept: login-billing design 4.6): the answer carries the session token at once.
     public Task<LoginStatus> ConsoleAsync(string code, string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/console", new { code = code.Trim(), kind }, token);
 }
 
-// a485 7c, with a session: the requests that wait for this app's hand, the one-time code for "add an app", and the session list. Kept free of UI types (Linux and Android link this file).
-public sealed record LoginRequest { public string LoginId { get; init; } = ""; public string Kind { get; init; } = ""; public string NetworkClass { get; init; } = ""; public DateTimeOffset? RequestedAt { get; init; } public DateTimeOffset? ExpiresAt { get; init; } }
-public sealed record IssuedCode { public string Code { get; init; } = ""; public DateTimeOffset? ExpiresAt { get; init; } }
-// origin: phone | console | added; issuedBy is the issuing session's id for added.
+// With a session: the session list (revoke and sign-out stay; app-sessions wire is held until Mint's t3h). origin: phone | console | added; issuedBy is the issuing session's id for added.
 public sealed record SessionEntry { public string Id { get; init; } = ""; public string Kind { get; init; } = ""; public string Origin { get; init; } = ""; public string NetworkClass { get; init; } = ""; public DateTimeOffset? CreatedAt { get; init; } public DateTimeOffset? LastUsedAt { get; init; } public string? IssuedBy { get; init; } public bool Current { get; init; } }
-public sealed record LoginRequestList { public LoginRequest[] Requests { get; init; } = []; }
 public sealed record SessionList { public SessionEntry[] Sessions { get; init; } = []; }
 
-// The words of the session screens, the same in every app (app-sessions.md 7c, 7e).
+// The words of the session list.
 public static class SessionText
 {
-    // 7e: the "add an app" screen, said once under the code.
-    public const string AddAppNote = "この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったものは、このアプリが終わると一緒に終わります。";
-    public const string RequestHint = "自分で始めたログインだけ許可してください。";
-    public const string CodeLimit = "出したコードが残っています。使うか、切れるまで待ってから、もう一度出してください。";
-    public static string RequestTitle(LoginRequest request) => request.Kind + "からのログイン要求";
-    public static string Where(string networkClass) => networkClass == "lan" ? "同じネットワークから" : "ネットワークは不明";
     public static string Origin(string origin) => origin switch { "phone" => "スマホで承認", "console" => "サーバーのコードで入った", "added" => "「アプリを追加」のコードで入った", _ => origin };
 }
 
