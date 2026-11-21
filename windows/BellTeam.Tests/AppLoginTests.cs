@@ -121,7 +121,7 @@ public sealed class AppLoginTests
         Until(() => Texts(view).Contains("0123-4567"));
         Assert.Contains("確認番号 042", Texts(view));
         Assert.Contains("スマホで承認する", Texts(view)); Assert.Contains("サーバーのコードで入る", Texts(view));
-        Assert.Contains("このアプリは購読が必要です。購読していない場合は、ブラウザー版が無料で使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで、ブラウザー版に入れます。", Texts(view));
+        Assert.DoesNotContain(Texts(view), text => text.Contains("ブラウザー版"));
         var field = Descendants<TextBox>(view).Single();
         field.Text = "BAD"; Click(view, "コードでログイン"); Until(() => Texts(view).Contains("コードが正しくないか、すでに使われています。")); Assert.Equal(0, signedIn);
         field.Text = "GOOD"; Click(view, "コードでログイン"); Until(() => signedIn == 1);
@@ -164,11 +164,11 @@ public sealed class AppLoginTests
     });
 
     [Fact]
-    public void ThePaywallSaysThatTheAppNeedsASubscriptionAndOffersTheBrowserARecheckAndAServerChange() => RunSta(() =>
+    public void ThePaywallSaysThatTheAppNeedsASubscriptionAndOffersARecheckAndAServerChange() => RunSta(() =>
     {
-        int rechecked = 0, changed = 0; var view = new PaywallView(new Uri("http://localhost/"), () => rechecked++, () => changed++);
-        Assert.Contains("このアプリは購読が必要です。無料で使うならブラウザから", Texts(view));
-        Assert.Single(Descendants<Button>(view), button => System.Windows.Automation.AutomationProperties.GetName(button) == "ブラウザーで開く");
+        int rechecked = 0, changed = 0; var view = new PaywallView(() => rechecked++, () => changed++);
+        Assert.Contains("このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。", Texts(view));
+        Assert.DoesNotContain(Descendants<Button>(view), button => System.Windows.Automation.AutomationProperties.GetName(button) == "ブラウザーで開く");
         Click(view, "再確認"); Click(view, "接続先を変更"); Assert.Equal((1, 1), (rechecked, changed));
     });
 
