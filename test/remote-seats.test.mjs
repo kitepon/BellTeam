@@ -282,7 +282,7 @@ test('a442b: a Claude launch asks for Code Mode; a too-old terminal or the confi
       transport.client.call = async (name, args, callOptions) => {
         calls.push({ name, args, options: callOptions })
         if (name === 'agent_launch' && args.settings_env && refused) throw Object.assign(new Error(`aiterm: ${refusal}: x`), { aitermResponseReturned: true })
-        return { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'd'.repeat(32), startup: { status: 'ready' } } }
+        return { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'd'.repeat(32), startup: { status: 'ready' }, harness: args.harness } }
       }
       await transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} })
       const launches = calls.filter(call => call.name === 'agent_launch').map(call => call.args)
@@ -318,12 +318,11 @@ test('a442b: a Claude launch asks for Code Mode; a too-old terminal or the confi
   } finally { await rm(other.root, { recursive: true, force: true }) }
 })
 
-test('a471: only the machine test seat asks for harness claude-machine; a refusal or a receipt of another harness starts the old way once, with a notice', async () => {
-  const machineMember = member => ({ ...member, id: 'bot-f1a21da1' })
+test('a471: every Claude seat asks for harness claude-machine; a refusal or a receipt of another harness starts the old way once, with a notice', async () => {
   const run = async (answer, check) => {
     const fx = await transportFixture()
     try {
-      const member = machineMember(fx.member)
+      const member = fx.member
       fx.transport.client.call = async (name, args, callOptions) => {
         fx.calls.push({ name, args, options: callOptions })
         if (name === 'pty_read') return { content: [{ type: 'text', text: 'hi' }] }
@@ -352,7 +351,7 @@ test('a471: only the machine test seat asks for harness claude-machine; a refusa
   // the same confirmed machine seat: one reader hands the stream lines to conversation unchanged, and streamSend forwards unchanged
   await run(args => receipt(args), async ({ calls, transport, member, ingested }) => {
     assert.equal(ingested.length, 1)
-    assert.deepEqual([ingested[0].botId, ingested[0].session, ingested[0].lines], ['bot-f1a21da1', launches(calls)[0].session_name, ['{"type":"system"}']])
+    assert.deepEqual([ingested[0].botId, ingested[0].session, ingested[0].lines], [member.id, launches(calls)[0].session_name, ['{"type":"system"}']])
     assert.deepEqual(await transport.streamSend(member, { lines: [{ type: 'user' }] }), { sent: 1 })
     assert.equal(calls.find(call => call.name === 'stream_send').args.session_id, transport.session(member))
     await assert.rejects(transport.streamSend(member, { lines: [] }), { code: 'STREAM_SEND_INVALID' })
@@ -387,12 +386,6 @@ test('a471: only the machine test seat asks for harness claude-machine; a refusa
       assert.equal(launches(calls)[1].harness, 'claude-machine')
       assert.equal(remote.seats.launchNotice(member).code, 'CODE_MODE_SKIPPED')
     })
-  // every other seat: the member's own harness
-  const other = await transportFixture()
-  try {
-    await other.transport.wakeNow(other.member, { membersLease: 'L', admissionCheck: () => {} })
-    assert.equal(launches(other.calls)[0].harness, 'claude-code')
-  } finally { await rm(other.root, { recursive: true, force: true }) }
 })
 
 test('a443: turn-failure words in the conversation never show the AITERM_TURN_ code', async () => {

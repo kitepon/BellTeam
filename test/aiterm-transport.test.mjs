@@ -246,7 +246,7 @@ test('BotのCLI名を四つのAiterm harnessへ変換する。Antigravityは起�
   const transport = new AitermTransport({ client, handoffContext: noMemory })
   const root = await mkdtemp(join(tmpdir(), 'bellteam-harnesses-'))
   for (const [harness, expected] of [
-    ['claude', 'claude-code'], ['codex', 'codex-cli'], ['grok', 'grok-cli'], ['cursor', 'cursor-cli'],
+    ['claude', 'claude-machine'], ['codex', 'codex-cli'], ['grok', 'grok-cli'], ['cursor', 'cursor-cli'],
   ]) {
     await transport.ensure({ id: harness, session: harness, harness, project: join(root, harness) })
     assert.equal(launches.at(-1).harness, expected)
@@ -394,7 +394,7 @@ test('b5159a79: saved harness matches but the live seat runs another CLI, so the
   const next = { ...current, model: 'opus' }
   assert.equal((await transport.reconfigure(current, next)).mode, 'restart')
   assert.deepEqual(calls.map(([name]) => name), ['pty_close', 'agent_launch'])
-  assert.equal(calls[1][1].harness, 'claude-code')
+  assert.equal(calls[1][1].harness, 'claude-machine')
 })
 
 test('モデルとエフォートをCLI既定へ戻す時は記憶引き継ぎ付きで再起動する', async () => {
@@ -531,7 +531,7 @@ test('長期記憶とRAGは起動引数へ渡さない', async () => {
   await transport.ensure({ id: 'bot-a', session: 'bot-a', harness: 'claude', project })
 
   assert.deepEqual(startups, ['前セッションの短期記憶だけ'])
-  assert.deepEqual(launches, [{ harness: 'claude-code', cwd: project, session_name: 'bot-a', trust_project: true, fast: false, settings_env: { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' } }])
+  assert.deepEqual(launches, [{ harness: 'claude-machine', cwd: project, session_name: 'bot-a', trust_project: true, fast: false, settings_env: { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '1' } }])
 })
 
 test('ユーザーターンはAitermの完了後に確定回答を回収し、複数の画像一時ファイルを削除する', async () => {
