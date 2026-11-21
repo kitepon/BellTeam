@@ -142,3 +142,40 @@ test('workerd refuses redirect "error": the Worker asks for "manual" instead and
     assert.deepEqual(seen, ['manual', 'manual', undefined], 'other calls are untouched')
   } finally { globalThis.fetch = real }
 })
+
+test('the Apple return: the association file is served only when configured, the Apple fallback page carries nothing, and the Apple link is accepted', async () => {
+  const association = '{"applinks":{"details":[{"appIDs":["TPWX489GV4.dev.kitepon.bellbot"],"components":[{"/":"/auth/return/apple"}]}]},"webcredentials":{"apps":["TPWX489GV4.dev.kitepon.bellbot"]}}'
+  const off = await setup()
+  assert.equal((await off.send('/.well-known/apple-app-site-association', { method: 'GET' })).status, 404)
+  const { send, call } = await setup({ LB_APPLE_APP_SITE_ASSOCIATION: association, LB_RETURN_LINKS: `${ORIGIN}/auth/return/android,${ORIGIN}/auth/return/apple` })
+  const listed = await send('/.well-known/apple-app-site-association', { method: 'GET' })
+  assert.equal(listed.status, 200)
+  assert.equal(listed.headers.get('content-type'), 'application/json')
+  assert.equal(await listed.text(), association)
+  const page = await send('/auth/return/apple?result=secret-code', { method: 'GET' })
+  assert.equal(page.status, 200)
+  assert.ok(!(await page.text()).includes('secret-code'))
+  const secretHash = sha256('device-secret-0123456789abcdef')
+  for (const ret of [`${ORIGIN}/auth/return/apple`, `${ORIGIN}/auth/return/android`]) {
+    assert.equal((await call('/auth/v1/websignin/start', { body: { provider: 'google', return: ret, secretHash } })).status, 200, ret)
+  }
+})
+
+test('LB_EXEMPT_K: an exempt account has the product entitlement with billing "store" and no store keys; another account has none', async () => {
+  const { kit, call } = await setup({ LB_BILLING: 'store' })
+  const signIn = async sub => {
+    const { body: { nonce } } = await call('/auth/v1/signin/nonce')
+    const idToken = await kit.appleIdToken({ aud: product.bundleId, sub, nonce })
+    return (await call('/auth/v1/signin', { body: { provider: 'apple', idToken, nonce, deviceLabel: 'iPhone' } })).body
+  }
+  const exempt = await signIn('subject-exempt')
+  const other = await signIn('subject-other')
+  assert.equal(exempt.entitlements.length, 0)
+  const again = await setup({ LB_BILLING: 'store', LB_EXEMPT_K: exempt.k.toUpperCase() })
+  const { body: { nonce } } = await again.call('/auth/v1/signin/nonce')
+  const withList = await again.call('/auth/v1/signin', { body: { provider: 'apple', idToken: await again.kit.appleIdToken({ aud: product.bundleId, sub: 'subject-exempt', nonce }), nonce, deviceLabel: 'iPhone' } })
+  assert.equal(withList.body.k, exempt.k, 'K is the same on every Worker with this kKey')
+  assert.equal(withList.body.entitlements.length, 1)
+  assert.equal(withList.body.entitlements[0].store, 'exempt')
+  assert.equal(other.entitlements.length, 0)
+})

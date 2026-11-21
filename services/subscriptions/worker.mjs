@@ -5,7 +5,8 @@ const WIRE_PREFIX = '/auth/v1'
 const CALLBACK_PATH = `${WIRE_PREFIX}/websignin/callback`
 // Android App Links: the https return of a web sign-in is handed to the app only when this host serves the app's certificate list.
 const ASSETLINKS_PATH = '/.well-known/assetlinks.json'
-const ANDROID_RETURN_PATH = '/auth/return/android'
+const APPLE_ASSOCIATION_PATH = '/.well-known/apple-app-site-association'
+const RETURN_PAGE_PATHS = ['/auth/return/android', '/auth/return/apple']
 const PLAIN = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }
 // workerd refuses fetch's redirect "error" ("must be one of follow or manual"); the library asks for it on the provider's token exchange, so
 // every web sign-in code exchange threw and ended in error=signin_failed (found on the first real run, 2026-11-22). Same meaning here:
@@ -50,6 +51,8 @@ export function loginBillingConfig(env, storage, extra = {}) {
     kKey: base64Url(env.LB_KKEY),
     passKeys: { current: { id: env.LB_PASS_KEY_CURRENT_ID, key: base64Url(env.LB_PASS_KEY_CURRENT) }, ...previous },
     fetch: workerdFetch,
+    // The operator's exempt accounts (K values): they get the product's entitlement whatever the store says (contract 2.3, the Owner's account).
+    exemptK: list(env.LB_EXEMPT_K).map(k => k.toLowerCase()),
     billing: env.LB_BILLING === 'off' ? 'off' : 'store',
     // Installed apps still log devices in by the old handoff until every app carries the new sign-in (contract 1.20).
     oldHandoff: env.LB_OLD_HANDOFF === 'off' ? 'off' : 'on',
@@ -75,12 +78,17 @@ export function createLoginBillingWorker({ storage = env => durableObjectStorage
   return {
     async fetch(request, env) {
       const path = new URL(request.url).pathname
+      // Apple: the same host list for universal links and for the https callback of ASWebAuthenticationSession (webcredentials).
+      if (path === APPLE_ASSOCIATION_PATH && env.LB_APPLE_APP_SITE_ASSOCIATION) {
+        if (request.method !== 'GET') return new Response('GETを使ってください。', { status: 405, headers: { Allow: 'GET' } })
+        return new Response(env.LB_APPLE_APP_SITE_ASSOCIATION, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })
+      }
       if (path === ASSETLINKS_PATH && env.LB_ASSETLINKS) {
         if (request.method !== 'GET') return new Response('GETを使ってください。', { status: 405, headers: { Allow: 'GET' } })
         return new Response(env.LB_ASSETLINKS, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })
       }
-      // The fallback return for a browser that did not hand the link to the app: a page that carries nothing and says to go back to the app.
-      if (path === ANDROID_RETURN_PATH) {
+      // The fallback return (Android and Apple) for a browser that did not hand the link to the app: a page that carries nothing and says to go back to the app.
+      if (RETURN_PAGE_PATHS.includes(path)) {
         if (request.method !== 'GET') return new Response('GETを使ってください。', { status: 405, headers: { Allow: 'GET' } })
         return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BellTeam</title><p>BellTeamアプリへ戻ってください。ログインがまだ終わっていなければ、アプリでやり直してください。</p>', { headers: { ...PLAIN, 'Content-Type': 'text/html; charset=utf-8' } })
       }
