@@ -332,7 +332,8 @@ export class AitermTransport {
     const launches = await this.readRuntimeLaunches()
     for (const row of (await this.client.call('pty_list')).structuredContent?.sessions ?? []) {
       const seat = launches[row?.session_id], bot = seat?.machine === true && seat.botId ? this.resolveBot?.(seat.botId) : null
-      if (bot) this.machineStreams.start(bot, row.session_id)
+      // A hibernated row has no stream to read; its reader starts at its next wake.
+      if (bot && !dormantSeats.has(row.current_command)) this.machineStreams.start(bot, row.session_id)
     }
   }
 
@@ -1016,8 +1017,8 @@ export class AitermTransport {
 
   // 動いていない席を休止する（a478、オーナー裁定 2026-11-21）。配送中・配送待ちがあれば休止しない。休止はプロセスを止め、会話と
   // 1時間のプロンプトキャッシュを残す。次の配送が通常の復旧（wake）で同じ会話へ起こす。
-  // AGENT_BUSYは席の処理・子・配送が動いているので、休止せず次のtickで確かめ直す。AGENT_HIBERNATE_UNAVAILABLEは再開の記録が無い席
-  // （モデル・エフォート未指定の機械席。Aiterm側の直しが出るまで）なので、従来どおり閉じる。
+  // AGENT_BUSYは席の処理・子・配送が動いているので、休止せず次のtickで確かめ直す。それ以外にAitermが答えた断り（再開の記録が無い
+  // AGENT_HIBERNATE_UNAVAILABLE＝モデル・エフォート未指定の機械席、hibernate入力の無いAitermなど）は、従来どおり閉じる。
   closeIdle(bot) {
     if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)
     // 休止・閉じている間の送信は、設定変更と同じ順序で、終わってから通常の不達復旧へ進める。
@@ -1026,7 +1027,8 @@ export class AitermTransport {
       try { await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true }) } catch (error) {
         const code = error?.aitermErrorCode ?? error?.code ?? /^(?:aiterm: )?([A-Z][A-Z0-9_]+):/u.exec(String(error?.message ?? ''))?.[1]
         if (code === 'AGENT_BUSY') return false
-        if (code !== 'AGENT_HIBERNATE_UNAVAILABLE') throw error
+        // delivery-details.md: any answered hibernate refusal, or an Aiterm without the hibernate input, closes as before; only an unanswered call (timeout) is retried next tick.
+        if (error?.aitermResponseReturned !== true && code !== 'ACCOUNT_CAPABILITY_UNAVAILABLE') throw error
         await this.changeSession(bot, 'pty_close', { session_id: session })
         await this.removeRetainedImages(bot.id)
         this.machineStreams.stop(session)
