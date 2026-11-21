@@ -87,7 +87,8 @@ export function validateConversationInput(method, params, actor) {
       fields(params, { kind: oneOf('bots', 'rooms'), id,
         query: value => fields(value, { limit: nullable(text), before: nullable(text), after: nullable(text) }),
         cards: array(array(value => fields(value, { id: text, at: text }))),
-      })
+      }, { skipped: array(integer) })
+      if (params.skipped && params.skipped.length !== params.cards.length) invalid()
       if (!(params.kind === 'bots' ? [2, 3] : [1]).includes(params.cards.length) || (params.kind === 'rooms' && !roomId(params.id))) invalid()
       return true
     case 'direct.post': return fields(params, { from: id, target: id, ...post }, { askerSeat })

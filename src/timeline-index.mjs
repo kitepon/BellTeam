@@ -65,8 +65,13 @@ const earlier = (sources, a, b) => compareTime(sources[a.source].at(a.index), so
 
 // 時刻順の履歴・秘密入力依頼・質問を結合し、カーソルのIDは各列の索引で探す。
 // 同時刻では履歴、秘密入力依頼、質問の順を保つ。
-export function timelinePage(sources, url) {
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 10))
+// a471-page-size-scrollback: one page may hold up to 1000 rows (machine seats write many rows; apps read 100 / 500).
+export const PAGE_LIMIT_MAX = 1000
+export const pageLimit = value => Math.min(PAGE_LIMIT_MAX, Math.max(1, Number(value) || 10))
+
+// skipped: the number of older rows the parent left out of the sources (a471-page-request-bound); they are all older than the page.
+export function timelinePage(sources, url, skipped = 0) {
+  const limit = pageLimit(url.searchParams.get('limit'))
   const after = url.searchParams.get('after'), before = url.searchParams.get('before')
   const cursor = id => {
     let found = null
@@ -94,11 +99,12 @@ export function timelinePage(sources, url) {
   const total = ends.reduce((sum, end, n) => sum + end - starts[n], 0)
   // 従来の未知afterはslice(-limit)を使い、負の添字の端数を0の方向へ丸める。
   // 通常/beforeのslice(end-limit, end)とは、整数化する向きが異なる。
-  const pageLimit = after && !target ? Math.trunc(limit) : limit
-  const count = allAfter ? total : Math.min(pageLimit, total)
+  const take = after && !target ? Math.trunc(limit) : limit
+  const count = allAfter ? total : Math.min(take, total)
   const items = mergeItems(sources, starts, ends, allAfter, count)
+  const older = after ? 0 : skipped
   // 従来のafterは、未知のカーソルの場合も前ページの有無をfalseで返す。
-  return { items, has_more: after ? false : total > count, ...(after ? {} : { remaining_before: total - items.length }) }
+  return { items, has_more: after ? false : total + older > count, ...(after ? {} : { remaining_before: total + older - items.length }) }
 }
 
 export function recentTimeline(sources) {
@@ -128,7 +134,7 @@ function mergeItems(sources, starts, ends, forward, count) {
 }
 
 // Card bodies stay in the parent; source/index refer to its captured card snapshot.
-export function conversationHistoryPage(base, { query, cards }) {
+export function conversationHistoryPage(base, { query, cards, skipped = [] }) {
   const references = new Map()
   const sources = [base, ...cards.map((rows, n) => new TimelineIndex(rows.map((row, index) => {
     const item = { ...row }
@@ -136,6 +142,23 @@ export function conversationHistoryPage(base, { query, cards }) {
     return item
   })))]
   const url = { searchParams: new URLSearchParams(Object.entries(query).filter(([, value]) => value !== null)) }
-  const page = timelinePage(sources, url)
+  const page = timelinePage(sources, url, skipped.reduce((sum, count) => sum + count, 0))
   return { ...page, items: page.items.map(item => references.get(item) ?? { source: 0, item }) }
+}
+
+// a471-page-request-bound: the cards of one extra source that can fall inside the page, so the request to the child
+// does not grow with the stream. rows are time ordered. hint = the `at` of the cursor row (before_at / after_at).
+// Without a hint the whole list is returned (old apps, unknown cursor): same as before, the read waits for the large-body slot.
+export function cardWindow(rows, { limit, before, after, hint }) {
+  const size = Math.ceil(pageLimit(limit))
+  const first = at => { let low = 0, high = rows.length; while (low < high) { const mid = (low + high) >>> 1; if ((rows[mid].at ?? '').localeCompare(at) < 0) low = mid + 1; else high = mid } return low }
+  const past = at => { let low = 0, high = rows.length; while (low < high) { const mid = (low + high) >>> 1; if ((rows[mid].at ?? '').localeCompare(at) <= 0) low = mid + 1; else high = mid } return low }
+  const slice = (start, end) => ({ rows: rows.slice(start, end), skipped: start })
+  if (!before && !after) return slice(Math.max(0, rows.length - size), rows.length)
+  const own = rows.findIndex(row => row.id === (before ?? after))
+  const at = own >= 0 ? rows[own].at : hint
+  if (typeof at !== 'string' || !at) return slice(0, rows.length)
+  // ties of the cursor time stay in (they sort before or after the cursor by source), so the window starts a full page before the first of them
+  if (after) return slice(first(at), rows.length)
+  return slice(Math.max(0, first(at) - size), past(at))
 }

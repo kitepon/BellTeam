@@ -1,4 +1,4 @@
-import { TimelineIndex, timelinePage, fullTimeline } from './timeline-index.mjs'
+import { TimelineIndex, timelinePage, fullTimeline, cardWindow, pageLimit } from './timeline-index.mjs'
 
 export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream = null, ownerSecretGuide = null }) {
   const extras = (kind, id, recent = false) => {
@@ -20,8 +20,11 @@ export function createMessageViews({ rooms, store, secretRequests, ownerQuestion
       // 子へ渡した位置と本文を同じsnapshotに束縛し、待機中のカード更新を混ぜない。
       const cards = extras(kind, id).map(source => source.snapshot())
       const query = Object.fromEntries(['limit', 'before', 'after'].map(key => [key, url.searchParams.get(key)]))
-      const result = await store.messagePage({ kind, id, query, cards: cards.map(rows => rows.map(({ id, at }) => ({ id, at }))) })
-      page = { ...result, items: result.items.map(entry => entry.source === 0 ? entry.item : cards[entry.source - 1][entry.index]) }
+      // a471-page-request-bound: the child gets only the cards that can fall in the page, and how many older ones were left out.
+      const hint = query.before ? url.searchParams.get('before_at') : url.searchParams.get('after_at')
+      const windows = cards.map(rows => cardWindow(rows, { ...query, hint }))
+      const result = await store.messagePage({ kind, id, query, cards: windows.map(({ rows }) => rows.map(({ id, at }) => ({ id, at }))), skipped: windows.map(({ skipped }) => skipped) })
+      page = { ...result, items: result.items.map(entry => entry.source === 0 ? entry.item : windows[entry.source - 1].rows[entry.index]) }
     } else page = timelinePage(await sources(kind, id), url)
     const items = await Promise.all(page.items.map(async entry => {
       const item = webMessage(entry)
@@ -43,7 +46,7 @@ export function createMessageViews({ rooms, store, secretRequests, ownerQuestion
 
 // 会話は最新から読む。limit=最新からの件数、before=そのIDより前、after=そのIDより後（差分）。
 export function pageItems(items, url) {
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 10))
+  const limit = pageLimit(url.searchParams.get('limit'))
   const before = url.searchParams.get('before')
   const after = url.searchParams.get('after')
   if (after) {

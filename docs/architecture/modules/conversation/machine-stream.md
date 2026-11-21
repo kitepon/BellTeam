@@ -251,13 +251,15 @@ flowchart LR
 
 Owner 2026-11-21 10:4x–10:5x JST: scrolling back through a machine seat's log must keep up (「一回で読むログを多くしないとダメだよ。1000とか。あと、足りなくなってから読むのもダメだよ。過去ログにスクロールする動きを見て先読みしなきゃダメ。」, then 「1000はやりすぎか？ちとわからんがね。」). A machine seat writes thinking, tool and hook rows, so a page of 20 covers little time. Two parts, one contract, the same on all four apps.
 
-**Measured (N102, 2026-11-21, `GET /messages` page path on the real code with synthetic rows; production state is not readable from this seat, so Tronie's stream file is the check of row size).**
+**Measured.** N102 on the real page code with synthetic rows, and Tronie on production (read-only, 2026-11-21 10:46 JST; `state/machine-stream/bot-7b140b27.jsonl`: 2930 lines, 2.88 MB, line mean 983 B, p50 448 B, p95 2787 B, p99 8493 B, max 455 KB; all 13 seats: 24 240 lines, mean 1.10 KB, p50 449 B, p95 2.7 KB, p99 12.5 KB, max 767 KB; the worst 500-line window is 1.99 MB raw). The lines are the raw stream; a row's `text` is cut at 20 000 characters (`truncated: true`), so a row is at most about 20 KB however long its line is.
 
 | Fact | Value |
 | --- | --- |
-| One row as the apps get it | about 0.3 KB for a tool/words row, 1.3 KB for a thinking row of 939 characters (the one in `bot-7b140b27.jsonl` seq 907); the row text is cut at 20000 characters |
+| One row as the apps get it | typically 0.3 KB (tool/words) to 1.3 KB (thinking summary of 939 characters); at most about 20 KB |
 | Time to build one page in the body and child | 0.3–5 ms at 800–10 000 stream rows; 42–85 ms at 100 000 stream rows. It does not depend on `limit`; it depends on how many card ids the child is handed (the 100 000-row case hands it 5 MB) |
-| Size of one page | 100 rows about 30–130 KB, 500 rows about 150–650 KB, 1000 rows about 0.3–1.3 MB before compression; text compresses 4–6 times |
+| Size of one page | 100 rows about 30–130 KB, 500 rows about 150–650 KB typical (production mean 1.1 KB per line, so about 550 KB for 500), worst seen 2 MB raw; text compresses 4–6 times, so the worst page is about 0.4 MB on the wire |
+
+A page carries every row whole (no per-page byte cap and no further cut): the outliers are rare single rows, and the 20 000-character row cut already bounds them.
 
 **Decision.**
 
