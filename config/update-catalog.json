@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T04:52:59Z",
-  "expiresAt": "2026-11-28T04:52:59Z",
+  "publishedAt": "2026-11-21T05:27:46Z",
+  "expiresAt": "2026-11-28T05:27:46Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "14b6084e62aaa58a12af3ec0a387476bd1cf7841",
-      "versionId": "sha256:cd78ec859b294c649ba0c6a88c3115833d87ae45592f4a1bcdd06223488ddfec",
+      "sourceCommit": "3208287f5dd4b9d8e1881fd3fd11d680fec3bff4",
+      "versionId": "sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cd78ec859b294c649ba0c6a88c3115833d87ae45592f4a1bcdd06223488ddfec"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "rate_limit の行の1行ラベルに、生のJSONを出さないようにします。"
+        "更新の入れ替えのあとの確認を、一時的に失敗しても最大3回やり直します。機械が一瞬止まっただけで、正常な新しい本体を元に戻さないようにします。失敗のたびに記録を残します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "14b6084e62aaa58a12af3ec0a387476bd1cf7841",
-      "versionId": "sha256:cd78ec859b294c649ba0c6a88c3115833d87ae45592f4a1bcdd06223488ddfec",
+      "sourceCommit": "3208287f5dd4b9d8e1881fd3fd11d680fec3bff4",
+      "versionId": "sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cd78ec859b294c649ba0c6a88c3115833d87ae45592f4a1bcdd06223488ddfec"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:936f56faf502392a7f416469f842e8f3e15b8a634ff3b957cbe68a5eccf91b02"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "rate_limit の行の1行ラベルに、生のJSONを出さないようにします。"
+        "更新の入れ替えのあとの確認を、一時的に失敗しても最大3回やり直します。機械が一瞬止まっただけで、正常な新しい本体を元に戻さないようにします。失敗のたびに記録を残します。"
       ]
     },
     {
