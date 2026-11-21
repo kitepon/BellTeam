@@ -63,7 +63,7 @@ export function project(line) {
       return [part({ view: 'result', title: normal ? `done: ${Number.isFinite(value.duration_ms) ? `${(value.duration_ms / 1000).toFixed(1)}s` : ''}`.trim() : (subtype ?? 'result'),
         text: `turns=${value.num_turns ?? ''} cost=${value.total_cost_usd ?? ''}${value.terminal_reason ? ` ${value.terminal_reason}` : ''}`, is_error: !normal })]
     }
-    case 'rate_limit_event': return [part({ view: 'rate_limit', title: `rate limit: ${value.rate_limit_info?.status ?? '?'}`, status: str(value.rate_limit_info?.status), text: JSON.stringify(value.rate_limit_info ?? {}) })]
+    case 'rate_limit_event': return [part({ view: 'rate_limit', title: `rate limit: ${value.rate_limit_info?.status ?? '?'}`, status: str(value.rate_limit_info?.status), text: JSON.stringify(value.rate_limit_info ?? {}), summary: '' })]
     case 'control_request': {
       const request = value.request
       if (request?.subtype !== 'can_use_tool' || !str(value.request_id)) return [part({ view: 'control', title: subtype ?? 'control_request', text: '' })]
