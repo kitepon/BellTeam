@@ -20,7 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
-    await FillChecks(); await FillChecks(3); await JumpChecks();
+    await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -247,6 +247,46 @@ public static class UiChecks {
     var after = Top();
     Check(Math.Abs(after - before) < 2,"古いページが届いて、見ている行が動きました（前 " + before + "、後 " + after + "）。");
     window.Close(); Console.WriteLine("古いページが届いても見ている行が動かない確認に成功しました。");
+  }
+  // a471-scroll-jump: a row that grows or appears ABOVE the viewed row (a late row, an image, a thinking text that grows) must not move it.
+  private static async Task AnchorChecks() {
+    var time = DateTimeOffset.UtcNow;
+    TimelineMessage[] Rows(string prefix, int count, int minutes) => Enumerable.Range(0,count).Select(index => new TimelineMessage { Id = prefix + index, At = time.AddMinutes(minutes + index), Direction = "incoming", Message = "行 " + prefix + index }).ToArray();
+    var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
+    using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
+      var path = request.RequestUri!.AbsolutePath;
+      object result = path switch {
+        "/api/session" => new { authenticated = true, authMode = "local" },
+        "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
+        "/api/bots" => new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } },
+        "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
+        "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
+        _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
+        _ when path.EndsWith("/messages") => new MessagePage { Items = Rows("first", 60, 0), HasMore = false },
+        _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
+      };
+      return JsonSerializer.Serialize(result, wire);
+    })));
+    await workspace.ConnectAsync("http://localhost", listen:false);
+    var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
+    async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
+    await Layout();
+    var scroll = (ScrollViewer)window.FindName("MessageScroll");
+    ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
+    for (var turn = 0; turn < 100 && !(workspace.Messages.Count == 60 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
+    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight / 2); await Layout(); await Task.Delay(100); await Layout();
+    double Y(MessageCard card) => card.TransformToAncestor(scroll).Transform(new Point(0, 0)).Y;
+    var viewed = Descendants<MessageCard>(root).Where(card => card.Message is not null && Y(card) >= 0).OrderBy(Y).First().Message!.Id;
+    double Top() => Y(Descendants<MessageCard>(root).Single(card => card.Message?.Id == viewed));
+    var start = Top();
+    Check(start > 0 && start < scroll.ViewportHeight,"見ている行が画面にありません（" + start + "）。");
+    var grown = workspace.Messages.Single(item => item.Message.Id == "first5"); grown.Update(grown.Message with { Message = string.Join("\n\n", Enumerable.Range(0, 8).Select(n => "長い行 " + n)) });
+    await Layout(); await Task.Delay(100); await Layout();
+    Check(Math.Abs(Top() - start) < 2,"上の行の高さが変わって、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
+    workspace.Messages.Insert(3, new MessageItem(new TimelineMessage { Id = "late", At = time.AddMinutes(-1), Direction = "incoming", Message = "遅れて届いた行\n\n二つ目" }));
+    await Layout(); await Task.Delay(100); await Layout();
+    Check(Math.Abs(Top() - start) < 2,"上に行が足されて、見ている行が動きました（前 " + start + "、後 " + Top() + "）。");
+    window.Close(); Console.WriteLine("上の行が変わっても見ている行が動かない確認に成功しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }
