@@ -24,7 +24,7 @@ flowchart TD
 
 固定entryはsrc/conversation-entry.mjs、builtin /app又は/run/bellteam-maintenance/conversation/releases/SHA/payload。非特権C UID/GID1001、空envから定数だけ、任意path/UID/command禁止。親lock非継承。conversation.lockを子だけがEX保持、OSclose以前のnewwriter0。Node匿名IPCは固定advanced serializationでBuffer chunkを運び、dataは256KiB以下、controlは本文無しJSON64KiB以下。各方向control1MiBと未消費8MiBは別管理、send callbackをawaitしNode queueに先積みしない。
 
-同stream連番/重複・欠落・終端後data/宣言size不一致は拒否。creditは消費済chunkに対してだけ返し、endとresource-close ACKは別。root/exportは4streamまで、callback/continuationに残り4を予約。JSON全体検証前の新業務0、UTF8をsplitしても境界を保持。全件historyは作者の同snapshot AsyncIterableを逐次encodeし、IPCのために全体の第二JSON文字列を作らない。子>64KiB再構成は同時1、payload96MiB+metadata64KiB、無進行60秒。総RSS保証へ拡張しない。
+同stream連番/重複・欠落・終端後data/宣言size不一致は拒否。creditは消費済chunkに対してだけ返し、endとresource-close ACKは別。root/exportは4streamまで、callback/continuationに残り4を予約。JSON全体検証前の新業務0、UTF8をsplitしても境界を保持。全件historyは作者の同snapshot AsyncIterableを逐次encodeし、IPCのために全体の第二JSON文字列を作らない。子>64KiB再構成は同時1（2つ目は断らず順番待ち、解放で次へ渡す。長い機械streamの頁読みは64KiBを超えるため、断ると読み出しが503になった。a471-read-busy-503）、payload96MiB+metadata64KiB、無進行60秒。総RSS保証へ拡張しない。
 
 親asset FDは固定root/state/bots/<id>/messages/assets又はowner/messages/assetsと既owner/fileだけから導出、O_RDONLY/O_NOFOLLOW・regular・25MiB・mime検査。任意path/flags/root無し。HTTP終端/error/切断でclose、交換中も既FDを読了可。FDをwireへ渡さず、親FDstreamは子drainを塞がない。readImageBytes純粋export/席runtime接点は保持する。
 
