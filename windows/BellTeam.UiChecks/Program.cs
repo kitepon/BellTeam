@@ -20,7 +20,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await StartupChecks();
-    await FillChecks();
+    await FillChecks(); await FillChecks(3);
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -169,10 +169,12 @@ public static class UiChecks {
     ready.Window.Close(); ready.Model.Dispose();
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"起動画面の確認で窓のハンドルを作成しました。");
   }
-  // a471-thinking-windows / a471-scrollback: a first page too short to scroll reads older pages by itself until max(3 screens, 150 rows) are loaded above the view, and stops there (not at the end of the history).
-  private static async Task FillChecks() {
+  // a471-thinking-windows / a471-scrollback / a471-fill-drawn: a first page too short to scroll reads older pages by itself until 3 screens are DRAWN above the view, and stops there (not at the end of the history).
+  // With foldedPages > 0 the first older pages are all folded rows (one line each run): a page that draws almost nothing must not end the loop.
+  private static async Task FillChecks(int foldedPages = 0) {
     var time = DateTimeOffset.UtcNow; var olderReads = 0;
     TimelineMessage[] Rows(string prefix, int count, int minutes) => Enumerable.Range(0,count).Select(index => new TimelineMessage { Id = prefix + index, At = time.AddMinutes(minutes + index), Direction = "incoming", Message = "短い行 " + prefix + index }).ToArray();
+    TimelineMessage[] Folded(string prefix, int count, int minutes) => Enumerable.Range(0,count).Select(index => new TimelineMessage { Id = prefix + index, At = time.AddMinutes(minutes + index), Direction = "incoming", Kind = "machine_event", Message = "hook: " + prefix + index, MachineEvent = new MachineEvent { Seq = index, View = "hook", Display = "fold", FoldGroup = "background", Title = "hook" } }).ToArray();
     var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
     using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
       var path = request.RequestUri!.AbsolutePath;
@@ -184,7 +186,7 @@ public static class UiChecks {
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
         _ when path.EndsWith("/schedules") => new { schedules = Array.Empty<object>() },
         _ when path.EndsWith("/messages") => request.RequestUri.Query.Contains("before=")
-          ? new MessagePage { Items = Rows("old" + ++olderReads + "-", 20, -30 * olderReads), HasMore = olderReads < 200 }
+          ? new MessagePage { Items = ++olderReads <= foldedPages ? Folded("fold" + olderReads + "-", 20, -30 * olderReads) : Rows("old" + olderReads + "-", 20, -30 * olderReads), HasMore = olderReads < 200 }
           : new MessagePage { Items = Rows("first", 3, 0), HasMore = true },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
@@ -198,10 +200,12 @@ public static class UiChecks {
     ((ListBox)window.FindName("ConversationList")).SelectedItem = workspace.Entries.Single();
     for (var turn = 0; turn < 100 && !(workspace.Messages.Count > 3 && scroll.ScrollableHeight > 0 && !workspace.Loading); turn++) { await Task.Delay(20); await Layout(); }
     Check(scroll.ScrollableHeight > 0,"最初のページが画面を埋めないのに、古いページを読んで埋めていません。");
-    Check(workspace.HasMore && olderReads is > 0 and < 15,"上に残す分（3画面・150行）を超えても古いページを読み続けています（読んだ回数 " + olderReads + "、offset " + scroll.VerticalOffset + "、extent " + scroll.ExtentHeight + "、viewport " + scroll.ViewportHeight + "、行 " + workspace.Messages.Count + "）。");
+    Check(olderReads > foldedPages,"畳んだだけのページで古いページを読むのをやめています（読んだ回数 " + olderReads + "、畳んだページ " + foldedPages + "）。");
+    Check(scroll.VerticalOffset >= 3 * scroll.ViewportHeight - 1,"描いた中身が上に3画面分に届いていません（offset " + scroll.VerticalOffset + "、viewport " + scroll.ViewportHeight + "）。");
+    Check(workspace.HasMore && olderReads is > 0 and < 30,"上に残す分（描いた3画面）を超えても古いページを読み続けています（読んだ回数 " + olderReads + "、offset " + scroll.VerticalOffset + "、extent " + scroll.ExtentHeight + "、viewport " + scroll.ViewportHeight + "、行 " + workspace.Messages.Count + "）。");
     var settled = olderReads; await Task.Delay(300); await Layout();
     Check(olderReads == settled,"画面が埋まった後に古いページを読み続けています。");
-    window.Close(); Console.WriteLine("最初のページが短い時に古いページで画面を埋める確認に成功しました。");
+    window.Close(); Console.WriteLine("最初のページが短い時に古いページで画面を埋める確認に成功しました（畳んだページ " + foldedPages + "）。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }

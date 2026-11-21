@@ -8,7 +8,7 @@ using BellTeam.Core;
 namespace BellTeam.Linux;
 
 // a471-scrollback-linux (machine-stream.md "History pages of a long stream"): the first page asks 100, older pages ask 500 with before_at, and older pages are read ahead until
-// max(3 screens, 150 rows) is loaded above the view, then reading stops although the history goes on.
+// 3 screens are drawn above the view (a471-fill-drawn: what is drawn, never a row count), then reading stops although the history goes on.
 public sealed class ScrollbackTests
 {
     private sealed class Server : HttpMessageHandler
@@ -55,7 +55,6 @@ public sealed class ScrollbackTests
             var settled = older.Length; for (var round = 0; round < 25; round++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(20); }
             Assert.Equal(settled, server.Reads.Count(read => read.Contains("before=")));   // enough is loaded above the view: no more reads
             Assert.True(model.HasMore);                                          // the history goes on; reading stopped because the view has enough
-            Assert.True(model.Messages.Count >= 150);
             // a471-linux-android-older-button: with more history to read there is still no button; the scroll motion is the only way.
             Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), button => button.Content as string == "以前のメッセージを読む");
         }
