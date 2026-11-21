@@ -71,6 +71,27 @@ public sealed class MachineEventTests
         });
     }
 
+    // a471-thinking-full (machine-stream.md "Thinking is always shown whole"): a shown thinking row draws its whole text, never the one-line message, with no line limit, ellipsis or height cap; the Owner can select it.
+    [Fact]
+    public void AShownThinkingRowDrawsItsWholeTextSelectableWithNoLimit()
+    {
+        RunSta(() =>
+        {
+            using var workspace = new Workspace();
+            var whole = string.Join("\n", Enumerable.Range(1, 12).Select(n => $"Sentence {n}: " + new string('x', 70))); // about 1000 characters, several lines
+            var row = Event("t", "thinking", "show", text: whole) with { Message = "thinking: " + whole[..110] };
+            var entry = new MachineEntry(workspace); entry.Update(row, "ベル");
+            var box = LogicalTree.Find<TextBox>(entry).Single();
+            Assert.Equal(whole, box.Text); Assert.True(box.IsReadOnly);
+            Assert.True(double.IsPositiveInfinity(box.MaxHeight)); Assert.Equal(TextWrapping.Wrap, box.TextWrapping);
+            entry.Measure(new Size(600, double.PositiveInfinity));
+            Assert.True(entry.DesiredSize.Height > 12 * box.FontSize, $"drawn {entry.DesiredSize.Height}px, cut"); // every line takes room
+            // An empty thinking row stays one folded line.
+            var empty = new MachineEntry(workspace); empty.Update(Event("e", "thinking", "fold", text: "") with { Message = "thinking (no text)" }, "ベル");
+            Assert.Single(LogicalTree.Find<Button>(empty)); Assert.Equal(Visibility.Collapsed, ((UIElement)((FrameworkElement)LogicalTree.Find<TextBox>(empty).Single().Parent).Parent).Visibility);
+        });
+    }
+
     // a471-tune-tools: a run of one fold_group is one closed line; n = sum of fold_count (absent counts 1). The hooks between two tools do not split them.
     [Fact]
     public void ARunOfToolsIsOneLineLabelledByTheSumOfFoldCountAndOpensToMembersInOrder()
