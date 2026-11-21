@@ -35,7 +35,7 @@ test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is no
     turns: { 'bot-a': 'idle', 'bot-b': 'working', 'bot-c': 'unknown' },
   })
   const out = await x.go()
-  assert.deepEqual(x.reads, [['bot-a', 'bot-b', 'bot-c']], 'owner, deleting and non-roster lanes have no seat; a lane by name resolves')
+  assert.deepEqual(x.reads, [['bot-a', 'bot-b', 'bot-c'], ['bot-a'], ['bot-c']], 'owner, deleting and non-roster lanes have no seat; a lane by name resolves; each Bot to be prompted is read again right before its send')
   assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['scheduler', 'bot-a'], ['scheduler', 'bot-c']], 'a working Bot is not prompted')
   const text = x.sent[0].message
   assert.ok(text.startsWith('Lattice: you are not running') && text.includes('Start at least one now.'))
@@ -46,6 +46,15 @@ test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is no
     + '\nChart beta (lattice tool, project beta):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`'))
   assert.ok(!text.includes('t5') && !text.includes('t6') && !text.includes('t7') && !text.includes('t8'), 'stopped, waiting on prerequisites and finished cards are not prompted')
   assert.deepEqual(out, { charts: 3, prompted: 2, skipped: 1, failed: 0 })
+})
+
+test('nudge: a Bot that started a turn after the batch read is not prompted (a481)', async () => {
+  const sent = [], effect = async (method, params) => method === 'turns.read'
+    ? { turns: { 'bot-a': params.botIds.length > 1 ? 'idle' : 'working', 'bot-c': 'idle' } }
+    : (sent.push(params.target), { delivery: 'running' })
+  const out = await nudgeSweep([{ projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a'), card('t2', 'ready', 'bot-c')] }], { laneOf: laneResolver(members), log() {}, effect })
+  assert.deepEqual(sent, ['bot-c'])
+  assert.deepEqual(out, { charts: 1, prompted: 1, skipped: 1, failed: 0 })
 })
 
 test('nudge: a failed turns read prompts every Bot; a send not accepted counts failed and the next tick sends again', async () => {
