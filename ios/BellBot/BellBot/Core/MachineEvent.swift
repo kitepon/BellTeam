@@ -52,7 +52,8 @@ struct MachineEvent: Decodable, Equatable {
         bubble = (try? c?.decodeIfPresent(Bool.self, forKey: .bubble)) ?? false
     }
 
-    var isThinking: Bool { view == "words" && title == "thinking" }
+    /// machine-stream.md「Thinking is always shown whole」。本体は `view: "thinking"` で送る。古い words+title の形は別名として残す。
+    var isThinking: Bool { view == "thinking" || (view == "words" && title == "thinking") }
     var isBubble: Bool { view == "words" && bubble }
 }
 

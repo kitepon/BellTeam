@@ -36,7 +36,7 @@ struct MachineEventRow: View {
     }
 
     @ViewBuilder private var shown: some View {
-        if event.view == "words" {
+        if event.view == "words" || event.view == "thinking" {
             SelectableText(event.text, font: bodyFont, color: event.isThinking ? BellTheme.ink.opacity(0.55) : BellTheme.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
