@@ -279,7 +279,8 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             ShowLatestButton();
             var previousBottomDistance = messageScroll.Extent.Height - args.ExtentDelta.Y - messageScroll.Viewport.Height - messageScroll.Offset.Y;
             if (!loadingOlder && args.ExtentDelta.Y > 0 && previousBottomDistance < 80) Dispatcher.UIThread.Post(() => messageScroll.ScrollToEnd());
-            if (!loadingOlder && args.OffsetDelta.Y < 0 && messageScroll.Offset.Y < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
+            NoteScrollUp(args);
+            await PrefetchOlderAsync();
         };
         model.ScrollToBottom += force =>
         {
@@ -347,13 +348,13 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         {
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && !connecting) RouteToLogin(); break;
             case nameof(LinuxWorkspace.Connected): UpdateNav(); UpdateGoalBar(); if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { updateBadge.IsVisible = false; CloseMemberWindows(); } break;
-            case nameof(LinuxWorkspace.Selected): UpdateSelection(); unreadNew = false; break;
+            case nameof(LinuxWorkspace.Selected): UpdateSelection(); unreadNew = false; readOnceFor = null; break;
             case nameof(LinuxWorkspace.IsRoom): UpdateComposerBand(); ProfileLayout(); break;
             case nameof(LinuxWorkspace.ScreenVisible): UpdateInspectorPanels(); break;
             case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title):
                 UpdateWelcome();
                 // The rows are laid out by the time the background post runs; a failed older read (loadingOlder) does not retry here, only a layout or window change does.
-                if (name == nameof(LinuxWorkspace.Loading) && !model.Loading && !loadingOlder) Dispatcher.UIThread.Post(FillScreen, DispatcherPriority.Background);
+                if (name == nameof(LinuxWorkspace.Loading) && !model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); }, DispatcherPriority.Background);
                 break;
             case nameof(LinuxWorkspace.HasActivity) or nameof(LinuxWorkspace.ActivityRows) or nameof(LinuxWorkspace.StopEnabled): UpdateQueue(); UpdateWelcome(); UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.CurrentBotCanStop): UpdateComposerBand(); break;
@@ -513,12 +514,43 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         latest.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
         latest.IsVisible = !(atBottom && !unreadNew) && model.HasSelection && model.Messages.Count != 0;
     }
-    // a471-thinking-linux: folded rows count as items, so the first page can be shorter than the screen and scrolling never starts. Read older pages until the rows fill the viewport or none are left
-    // (the same spec on every client). A read that adds nothing ends the loop; the button and the scroll still work.
-    private void FillScreen()
+    // a471-scrollback (machine-stream.md "History pages of a long stream", the same spec on every client): older pages are read from the scroll motion, while
+    // less than max(3 screens, 150 rows, 2 s of the scroll speed) is loaded above the view, never only when the list is empty. This also fills a first page too short to scroll (a471-thinking-linux).
+    // A read that adds no row ends the loop; a failed page leaves its error and the next scroll movement asks again.
+    private double scrollSpeed; private long lastScrollUp; private ChatTarget? readOnceFor; private bool prefetching;
+    // Speed is how fast the view moves up (px/s, smoothed); a move that comes with an extent change is the anchor or a new row, not the Owner's.
+    private void NoteScrollUp(ScrollChangedEventArgs args)
     {
-        if (loadingOlder || !model.HasMore || model.Loading || model.Messages.Count == 0 || messageStack is not { } stack) return;
-        if (stack.Bounds.Height + stack.Margin.Top + stack.Margin.Bottom < messageScroll.Viewport.Height) _ = LoadOlderPreservingPositionAsync();
+        if (args.OffsetDelta.Y >= 0 || args.ExtentDelta.Y != 0) return;
+        var now = Environment.TickCount64; var seconds = Math.Max(0.016, (now - lastScrollUp) / 1000.0);
+        scrollSpeed = (ScrollSpeed - args.OffsetDelta.Y / seconds) / 2; lastScrollUp = now;
+    }
+    // A scroll that stopped half a second ago has no speed.
+    private double ScrollSpeed => Environment.TickCount64 - lastScrollUp < 500 ? scrollSpeed : 0;
+    private bool CanReadOlder() => model.HasSelection && model.HasMore && !model.Loading;
+    private void FillScreen() => _ = PrefetchOlderAsync();
+    private async Task PrefetchOlderAsync()
+    {
+        if (loadingOlder || prefetching) return;
+        prefetching = true;
+        try
+        {
+            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, messageScroll.Extent.Height, model.Messages.Count, ScrollSpeed))
+            {
+                var before = model.Messages.Count;
+                await LoadOlderPreservingPositionAsync();
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); // the new rows are laid out and input is handled before the next page
+                if (model.Messages.Count == before) break;
+            }
+        }
+        finally { prefetching = false; }
+    }
+    // After the first paint, with no scroll, one older page is read in the background (once for each conversation shown).
+    private async Task ReadOlderAfterFirstPaintAsync()
+    {
+        if (!CanReadOlder() || readOnceFor == model.Selected?.Target || loadingOlder) return;
+        readOnceFor = model.Selected?.Target;
+        await LoadOlderPreservingPositionAsync();
     }
     private async Task LoadOlderPreservingPositionAsync()
     {
