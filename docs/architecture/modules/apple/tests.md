@@ -626,6 +626,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | --- | --- |
 | [testLatestMessageStaysVisibleAfterMarkdownRendering](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L21) | 初回10件だけ取得しMarkdown後も最新行が入力欄に隠れない |
 | [testOlderPageIsPrefetchedAfterFirstPaintAndKeepsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L35) | 最初の頁は100件、開いた直後に過去500件（before＋before_at）を一度だけ先読み、末尾の位置を保持 |
+| [testAllFoldedPageDoesNotEndTheFillLoop](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 読んだ500件が全部畳まれる道具の行で行が増えなくても、描かれた量が足りるまで次の頁を読む（fixture `fold=1`、a471-fill-drawn） |
 | [testOlderFailureIsShownAndNotRetriedWithoutScrolling](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L53) | 過去GET失敗はerror表示、スクロールの動きが無い間は再取得無し |
 | [testShortHistoryReadsNoOlderPage](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L63) | 全部が最初の頁（100件）に入る履歴はhas_more偽で過去GETしない |
 | [testNewMessageWhileReadingOlderDoesNotJumpToBottom](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L75) | 過去閲覧中の新着はoffset保持と新着ボタン、押すと最新へ |

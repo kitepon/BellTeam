@@ -58,6 +58,8 @@ private struct ConversationContent: View {
     @State private var hasMore = false
     @State private var loading = true
     @State private var loadingOlder = false
+    /// 過去の頁を読めた回数。一覧が、頁が描く行をほとんど増やさなかった時にも先読みの判定をやり直すための印（a471-fill-drawn）。
+    @State private var olderPagesRead = 0
     @State private var reader = ReadCoordinator()
     @State private var olderTask: Task<Void, Never>?
     @State private var sending = false
@@ -126,7 +128,7 @@ private struct ConversationContent: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 ConversationList(messages: messages, queue: queue, rowContext: rowContext,
-                                 hasMore: hasMore, loading: loading, loadingOlder: loadingOlder,
+                                 hasMore: hasMore, loading: loading, loadingOlder: loadingOlder, olderPagesRead: olderPagesRead,
                                  bottomInset: 18 + (attachments.isEmpty ? 0 : attachmentStripHeight),
                                  opening: opening, scrollToBottomRevision: scrollToBottomRevision, jump: jumpRequest,
                                  onLoadOlder: { olderTask = Task { await loadOlder() } },
@@ -783,6 +785,7 @@ private struct ConversationContent: View {
             try Task.checkCancellation()
             hasMore = result.hasMore
             _ = timeline.prependReceived(result.items)
+            olderPagesRead += 1
         } catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
