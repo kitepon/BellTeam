@@ -346,6 +346,13 @@ public static class UiChecks {
     var sent = Descendants<MessageCard>(root).SingleOrDefault(card => card.Message?.Message == "送った言葉");
     Check(sent is not null, "送った吹き出しが出ていません。");
     Check(host.IsNewest && AtNewest() && Y(sent!) >= 0 && Y(sent!) + sent!.ActualHeight <= scroll.ActualHeight, "送った吹き出しが最新の位置に見えていません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    // (c2) from the oldest rows too: the Owner reading at the very top sends, and the history that then holds the sent row and a reply still leaves the view following the newest (a471-send-follow)
+    scroll.ScrollToVerticalOffset(0); await Layout(); Check(!host.IsNewest && scroll.VerticalOffset < 1, "最上端へ読み返せていません（offset " + scroll.VerticalOffset + "）。");
+    workspace.DraftText = "二通目"; await workspace.SendAsync(); await Layout();
+    Check(host.IsNewest && AtNewest(), "最上端で読み返している時の送信で最新へ移りません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
+    server.Add(new TimelineMessage { Id = "s102", At = time.AddMinutes(102), Direction = "outgoing", Message = "二通目" }); server.Add(new TimelineMessage { Id = "s103", At = time.AddMinutes(103), Direction = "incoming", Message = "返事\n\n二つ目" });
+    await workspace.RefreshManagementAsync(); await Layout();
+    Check(host.IsNewest && AtNewest(), "送信後に履歴が追いついた時に最新を追えていません（offset " + scroll.VerticalOffset + "、末尾 " + scroll.ScrollableHeight + "）。");
     // (d) following: a row that arrives keeps the view at the newest in the same layout, with no scroll and no later move
     var before = scroll.VerticalOffset; server.Add(new TimelineMessage { Id = "s101", At = time.AddMinutes(101), Direction = "incoming", Message = "届いた行\n\n二つ目\n\n三つ目" });
     await workspace.RefreshManagementAsync(); await Layout();
