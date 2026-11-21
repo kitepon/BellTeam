@@ -173,3 +173,8 @@ test('Approval Box capability is read as the seat user through the seat runner, 
   const refused = approvalBoxWakeDecisions({ run: approvalBoxVersionAsSeat(async () => { throw Object.assign(new Error('AITERM_WAIT_INVALID'), { code: 'AITERM_WAIT_INVALID' }) }, '/home/bell') })
   assert.equal(await refused({ harness: 'codex' }), null)
 })
+
+test('a478: 休止までの時間は10分で、観測は2分ごと（オーナー裁定 2026-11-21）', async () => {
+  const { IDLE_CLOSE_MS } = await import('../src/idle-sessions.mjs')
+  assert.equal(IDLE_CLOSE_MS, 10 * 60_000)
+})

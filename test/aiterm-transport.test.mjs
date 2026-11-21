@@ -1415,3 +1415,32 @@ test('Ownerの直送ターン: 流れで表示する席は、返事を返す前�
     assert.deepEqual(order, reader ? ['mark', 'reply'] : ['reply'])
   }
 })
+
+test('a478: 動いていない席はpty_closeのhibernateで休止し、読み手を止める。Aitermが断る時は、AGENT_BUSYは休止せず、再開の記録が無い席は従来どおり閉じる', async () => {
+  const calls = []
+  let refusal = null
+  const client = { async call(name, args) {
+    calls.push([name, args])
+    if (name !== 'pty_close') throw new Error(`unexpected ${name}`)
+    if (args.hibernate === true && refusal) throw Object.assign(new Error(`aiterm: ${refusal}: x`), { aitermErrorCode: refusal, aitermResponseReturned: true })
+    return {}
+  } }
+  const transport = new AitermTransport({ client })
+  const stopped = []
+  transport.machineStreams.stop = session => stopped.push(session)
+  const bot = { id: 'bot-a', session: 'old-session' }
+  assert.equal(await transport.closeIdle(bot), true)
+  assert.deepEqual(calls, [['pty_close', { session_id: 'old-session', hibernate: true }]])
+  assert.deepEqual(stopped, ['old-session'])
+  calls.length = 0; stopped.length = 0
+  refusal = 'AGENT_BUSY'
+  assert.equal(await transport.closeIdle(bot), false)
+  assert.deepEqual(calls, [['pty_close', { session_id: 'old-session', hibernate: true }]])
+  assert.deepEqual(stopped, [])
+  calls.length = 0
+  refusal = 'AGENT_HIBERNATE_UNAVAILABLE'
+  assert.equal(await transport.closeIdle(bot), true)
+  assert.deepEqual(calls, [['pty_close', { session_id: 'old-session', hibernate: true }], ['pty_close', { session_id: 'old-session' }]])
+  assert.deepEqual(stopped, ['old-session'])
+  assert.equal(transport.configurationChanges.has(bot.id), false)
+})

@@ -1014,13 +1014,25 @@ export class AitermTransport {
     }))
   }
 
-  // 動いていない席を閉じる。配送中・配送待ちがあれば閉じない。閉じた後の配送は不達になり、通常の経路で起動し直す。
+  // 動いていない席を休止する（a478、オーナー裁定 2026-11-21）。配送中・配送待ちがあれば休止しない。休止はプロセスを止め、会話と
+  // 1時間のプロンプトキャッシュを残す。次の配送が通常の復旧（wake）で同じ会話へ起こす。
+  // AGENT_BUSYは席の処理・子・配送が動いているので、休止せず次のtickで確かめ直す。AGENT_HIBERNATE_UNAVAILABLEは再開の記録が無い席
+  // （モデル・エフォート未指定の機械席。Aiterm側の直しが出るまで）なので、従来どおり閉じる。
   closeIdle(bot) {
     if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)
-    // 閉じている間の送信は、設定変更と同じ順序で、閉じ終わってから通常の不達復旧へ進める。
+    // 休止・閉じている間の送信は、設定変更と同じ順序で、終わってから通常の不達復旧へ進める。
     return this.memberOperation(bot, () => this.activity.configurationChanges.track(bot.id, (async () => {
-      await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
-      await this.removeRetainedImages(bot.id)
+      const session = this.session(bot)
+      try { await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true }) } catch (error) {
+        const code = error?.aitermErrorCode ?? error?.code ?? /^(?:aiterm: )?([A-Z][A-Z0-9_]+):/u.exec(String(error?.message ?? ''))?.[1]
+        if (code === 'AGENT_BUSY') return false
+        if (code !== 'AGENT_HIBERNATE_UNAVAILABLE') throw error
+        await this.changeSession(bot, 'pty_close', { session_id: session })
+        await this.removeRetainedImages(bot.id)
+        this.machineStreams.stop(session)
+        return true
+      }
+      this.machineStreams.stop(session)
       return true
     })()))
   }
