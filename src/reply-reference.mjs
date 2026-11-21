@@ -49,7 +49,7 @@ export function snapshotReply(id, source, quote = null) {
 // a471-quote-plain-server: the quote line is drawn as served, so the server removes Markdown marks on every read (old replies too).
 // The saved snapshot and what the Bot reads stay as saved; `range` refers to the original's own text and is unchanged.
 // shortcut: line-based marks only, no nested lists or HTML, upgrade if the Owner's messages show other marks.
-// shortcut: a lone `*` right before a word is taken as a cut italic mark (a footnote star at a word start is lost), upgrade if that shows up.
+// shortcut: a lone `*` at a word start before a letter is taken as a cut italic mark (a footnote star there is lost), upgrade if that shows up.
 export function plainQuoteText(text) {
   return String(text)
     .replace(/^[ \t]*(`{3,}|~{3,})[^\n]*$/gmu, '\0')
@@ -65,8 +65,11 @@ export function plainQuoteText(text) {
     .replace(/(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])/gu, '$1')
     .replace(/(?<![\w_])_(?=\S)([^_\n]+?)(?<=\S)_(?![\w_])/gu, '$1')
     // a selection can cut a span: an opening or closing mark left without its partner (a471-quote-cut-marks)
-    .replace(/(?<!\w)(?:\*\*|~~|__)(?=\S)|(?<=\S)(?:\*\*|~~|__)(?!\w)/gu, '')
-    .replace(/(?<![\w*])\*(?=[^\s*])/gu, '')
+    // Code-like text keeps its stars: an opening mark must not follow a visible ASCII character (so `(**kwargs`, `/**`, `x**2` stay),
+    // a closing mark must follow a letter, digit or non-ASCII character, and `*.js`, `*/` stay.
+    .replace(/(?<![\x21-\x7e])(?:\*\*|~~|__)(?=[^\s\/.*()\[\]{}<>~_])/gu, '')
+    .replace(/(?<=[^\s\x21-\x2f\x3a-\x40\x5b-\x60\x7b-\x7e])(?:\*\*|~~|__)(?![\w*~_])/gu, '')
+    .replace(/(?<![\x21-\x7e])\*(?=[^\s*.\/])/gu, '')
 }
 
 export function jst(iso) {

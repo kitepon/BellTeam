@@ -22,6 +22,11 @@ const cases = [
   ['~~消す途中', '消す途中'],
   ['\n*斜体の途中', '\n斜体の途中'],
   ['2**3 と a__b と x_y_z', '2**3 と a__b と x_y_z'],
+  // code-like text keeps its stars (Epinel's check of #2112)
+  ['rg *.mjs を探す', 'rg *.mjs を探す'],
+  ['def f(**kwargs)', 'def f(**kwargs)'],
+  ['src/**/*.js を探す', 'src/**/*.js を探す'],
+  ['dir/**', 'dir/**'],
 ]
 for (const [input, expected] of cases) test(`plain quote: ${JSON.stringify(input)}`, () => {
   assert.equal(plainQuoteText(input), expected)
