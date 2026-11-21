@@ -46,7 +46,6 @@
       </Border>
       <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,20,18,18" AutomationProperties.Name="会話" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop">
         <Grid MinHeight="{Binding ViewportHeight, ElementName=MessageScroll}"><StackPanel VerticalAlignment="Bottom">
-          <Button Content="以前のメッセージを読む" Visibility="{Binding HasMore, Converter={StaticResource Visible}}" Click="Older_Click"/>
           <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate><local:MessageCard Message="{Binding Message}" Workspace="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Author="{Binding DataContext.Title, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,0,17"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
           <!-- Mac queueStrip: one line per running or queued delivery; in a room each member's line has its own stop button. -->
           <Border x:Name="QueueStrip" Background="#A6E8E0FF" CornerRadius="16" Padding="14,9.5" Visibility="{Binding HasActivity, Converter={StaticResource Visible}}" AutomationProperties.Name="処理中">

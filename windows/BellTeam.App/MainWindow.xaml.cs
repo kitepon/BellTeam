@@ -123,7 +123,6 @@ public partial class MainWindow : Window, IInspectorHost
         }
     }
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
-    private async void Older_Click(object sender, RoutedEventArgs e) => await LoadOlderPreservingPositionAsync();
     private bool filling;
     // Reads older pages until the conversation can scroll (the screen is full) or there are no more; each page adds rows, so it always ends.
     private async Task FillViewportAsync()
