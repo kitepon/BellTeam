@@ -26,7 +26,9 @@ async function fixture(t) {
   return { root, bots, provider, service, sent, reports, diagnostics }
 }
 
-test('返信だけを通知し、明示返信とターン完了で二重送信しない', async t => {
+// a148 (7b83eb59): the turn's final answer is always saved as its own row, and a mid-turn sendmessage to the user is an independent row.
+// Push notifies every saved reply row exactly once, so these two rows are two notifications; Bot-to-Bot rows are never notified.
+test('返信の行ごとに一度だけ通知し、Bot間の連絡は通知しない', async t => {
   const { root, bots, service, sent } = await fixture(t)
   const messenger = new BellTeamMessenger({ bots, transport: { notify: async () => ({ delivery: 'running' }) },
     logPath: join(root, 'messages.jsonl'), onMessage: item => service.direct(item) })
@@ -36,8 +38,10 @@ test('返信だけを通知し、明示返信とターン完了で二重送信�
   await messenger.sendmessage({ from: 'bot-a', target: 'user', message: '秘密の回答' })
   await messenger.finishUserTurn(prepared, '秘密の回答')
   await service.close()
-  assert.equal(sent.length, 1)
+  assert.equal(sent.length, 2) // the explicit reply row and the final answer row; the Bot-to-Bot row notifies nobody
+  assert.notEqual(sent[0][2], sent[1][2]) // one notification per row, never the same row twice
   assert.equal(sent[0][1].bellteam.botId, 'bot-a')
+  assert.equal(sent[1][1].bellteam.botId, 'bot-a')
   assert.equal(sent[0][1].aps.alert.title, 'テストメンバー')
   assert.equal(sent[0][1].aps['mutable-content'], 1)
   assert.deepEqual(sent[0][1].bellteam.sender, { id: 'bot-a', name: 'テストメンバー' })
