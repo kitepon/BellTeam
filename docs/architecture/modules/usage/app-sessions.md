@@ -91,7 +91,7 @@ stateDiagram-v2
   Rebind --> Enforced: a new setup code binds an owner
 ```
 
-`Legacy` is today's path unchanged (local mode or Access); it is left only by the binding, which is the owner's own act (first-run screen of a new install, or "log this server in" in Settings of an app that is already in). `Enforced` is written to a durable marker; the body never returns to `Legacy` on its own, not after a restart, a usage rollback or a reset (a body that finds the marker but a usage child without the capability answers 401 and says so on `/api/session`, never opens). In `Rebind` every request but the login endpoints is 401.
+`Legacy` is today's path unchanged (local mode or Access); it is left only by the binding, which is the owner's own act (first-run screen of a new install, or "log this server in" in Settings of an app that is already in). `Enforced` is written to a durable marker; the body never returns to `Legacy` on its own, not after a restart, a usage rollback or a reset (a body that finds the marker but a usage child without the capability answers 503 `SESSION_STORE_UNAVAILABLE` and says so on `/api/session`, never opens, and apps keep their tokens, section 7a). In `Rebind` every request but the login endpoints is 401.
 
 ### 2c. Network class of a login (what the label may say)
 
@@ -169,7 +169,7 @@ All bodies are JSON (UTF-8). Errors are `{error: CODE}` with the HTTP status, as
 
 ### 7a. Session probe
 
-`GET /api/session` always answers 200: `{authenticated: boolean, authMode: 'local'|'cloudflare', login?: {capability: boolean, bound: boolean, enforced: boolean}, sessionId?: string}`. `login` is absent on a server that predates this contract (the app then uses today's path); `sessionId` is present when the request is authenticated by a session. Every other endpoint answers **401 `UNAUTHORIZED`** to a missing, unknown, ended or expired token; an app treats a 401 on a stored token, and `authenticated:false` from the probe, the same: delete the stored token and show the connect screen. A session ended while the event stream is open closes the stream (the next request is 401).
+`GET /api/session` answers 200 whenever the server can judge a session: `{authenticated: boolean, authMode: 'local'|'cloudflare', login?: {capability: boolean, bound: boolean, enforced: boolean}, sessionId?: string}`. `login` is absent on a server that predates this contract (the app then uses today's path); `sessionId` is present when the request is authenticated by a session. Every other endpoint answers **401 `UNAUTHORIZED`** to a missing, unknown, ended or expired token; an app treats a 401 on a stored token, and `authenticated:false` from the probe, the same: delete the stored token and show the connect screen. **Only a definite 401 deletes the token.** When the server cannot judge a session right now (an `Enforced` marker with a usage child that lacks the capability after a rollback, or a body that has not yet loaded the session projection at start) the probe and every other endpoint answer **503 `SESSION_STORE_UNAVAILABLE`** (the probe body also carries `login: {capability: false, bound: true, enforced: true}`); the app keeps its token, says the server is not ready (「サーバーの準備中です」) and retries with backoff (1, 2, 4 … 30 s). This keeps a rollback or a restart from logging every app out for good. A session ended while the event stream is open closes the stream (the next request is 401).
 
 ### 7b. Login (no session needed)
 
