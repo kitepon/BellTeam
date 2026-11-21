@@ -55,6 +55,9 @@ public sealed class ScrollbackTests
             var settled = older.Length; for (var round = 0; round < 25; round++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(20); }
             Assert.Equal(settled, server.Reads.Count(read => read.Contains("before=")));   // enough is loaded above the view: no more reads
             Assert.True(model.HasMore);                                          // the history goes on; reading stopped because the view has enough
+            // a471-fill-drawn-linux: the first screen was short (3 rows), so the view was at the bottom; after older pages arrive it is still at the bottom (Avalonia keeps it, so no ScrollToEnd as on Windows).
+            var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First(candidate => Avalonia.Automation.AutomationProperties.GetName(candidate) == "会話");
+            Assert.True(scroll.Offset.Y + scroll.Viewport.Height >= scroll.Extent.Height - 2, $"offset {scroll.Offset.Y} viewport {scroll.Viewport.Height} extent {scroll.Extent.Height}");
             // a471-linux-android-older-button: with more history to read there is still no button; the scroll motion is the only way.
             Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), button => button.Content as string == "以前のメッセージを読む");
         }

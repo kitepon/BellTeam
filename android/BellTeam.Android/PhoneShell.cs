@@ -329,7 +329,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void EndSettings() { settingsLife?.Cancel(); settingsLife = null; if (settingsBody is not null) { settingsPage.Children.Remove(settingsBody); settingsBody = null; } }
 
     // a471-linux-android-older-button: there is no button; older pages are read from the scroll motion (machine-stream.md "History pages of a long stream", the same spec and the same
-    // HistoryPaging as the Linux window): while less than max(3 screens, 150 rows, 2 s of the scroll speed) is loaded above the view. A failed page leaves its error and the next scroll movement asks again.
+    // HistoryPaging as the Linux window): while less than max(3 screens, 2 s of the scroll speed) of drawn height is above the view. Fullness is what is drawn (the Fill rule): a page of folded rows draws almost nothing but still adds rows, so it does not end the loop. A failed page leaves its error and the next scroll movement asks again.
     private double scrollSpeed; private long lastScrollUp; private bool loadingOlder, prefetching; private ChatTarget? readOnceFor;
     private void NoteScrollUp(ScrollChangedEventArgs args)
     {
@@ -346,7 +346,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         prefetching = true;
         try
         {
-            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, messageScroll.Extent.Height, model.Messages.Count, ScrollSpeed))
+            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, ScrollSpeed))
             {
                 var before = model.Messages.Count;
                 await LoadOlderPreservingPositionAsync();
@@ -386,7 +386,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): { var text = model.ActionError ?? model.ConnectionError; status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); break; }
-            case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); }, DispatcherPriority.Background); break;
+            case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); await PrefetchOlderAsync(); }, DispatcherPriority.Background); break;
             case nameof(LinuxWorkspace.SendError): sendError.Text = model.SendError; sendError.IsVisible = !string.IsNullOrEmpty(model.SendError); break;
             case nameof(LinuxWorkspace.DraftText): if (!syncingComposer) { syncingComposer = true; try { composer.Text = model.DraftText; } finally { syncingComposer = false; } } break;
             case nameof(LinuxWorkspace.CanSend) or nameof(LinuxWorkspace.SendLabel): send.IsEnabled = model.CanSend; send.Content = model.SendLabel; break;

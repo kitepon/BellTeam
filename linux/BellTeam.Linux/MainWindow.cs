@@ -352,7 +352,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title):
                 UpdateWelcome();
                 // The rows are laid out by the time the background post runs; a failed older read (loadingOlder) does not retry here, only a layout or window change does.
-                if (name == nameof(LinuxWorkspace.Loading) && !model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); }, DispatcherPriority.Background);
+                if (name == nameof(LinuxWorkspace.Loading) && !model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); await PrefetchOlderAsync(); }, DispatcherPriority.Background);
                 break;
             case nameof(LinuxWorkspace.HasActivity) or nameof(LinuxWorkspace.ActivityRows) or nameof(LinuxWorkspace.StopEnabled): UpdateQueue(); UpdateWelcome(); UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.CurrentBotCanStop): UpdateComposerBand(); break;
@@ -512,7 +512,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     }
     // a471-scrollback (machine-stream.md "History pages of a long stream", the same spec on every client): older pages are read from the scroll motion, while
     // less than max(3 screens, 150 rows, 2 s of the scroll speed) is loaded above the view, never only when the list is empty. This also fills a first page too short to scroll (a471-thinking-linux).
-    // A read that adds no row ends the loop; a failed page leaves its error and the next scroll movement asks again.
+    // Fullness is what is drawn (machine-stream.md "Fill rule"): a page of folded rows draws almost nothing but still adds rows, so it does not end the loop; a read that adds no row ends it, and a failed page leaves its error and the next scroll movement asks again.
     private double scrollSpeed; private long lastScrollUp; private ChatTarget? readOnceFor; private bool prefetching;
     // Speed is how fast the view moves up (px/s, smoothed); a move that comes with an extent change is the anchor or a new row, not the Owner's.
     private void NoteScrollUp(ScrollChangedEventArgs args)
@@ -531,7 +531,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         prefetching = true;
         try
         {
-            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, messageScroll.Extent.Height, model.Messages.Count, ScrollSpeed))
+            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, ScrollSpeed))
             {
                 var before = model.Messages.Count;
                 await LoadOlderPreservingPositionAsync();
