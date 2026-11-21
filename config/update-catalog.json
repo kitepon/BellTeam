@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T10:43:29Z",
-  "expiresAt": "2026-11-28T10:43:29Z",
+  "publishedAt": "2026-11-21T13:03:30Z",
+  "expiresAt": "2026-11-28T13:03:30Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "521be6509d9385c1ec16356eb9eef60cd4a0e9d4",
-      "versionId": "sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3",
+      "sourceCommit": "4f5da710f72594132903da261eb6c406eb655ed6",
+      "versionId": "sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "アプリに、席の裏の作業の行と、繰り返して見える入力の行を送らないようにします。エラーと利用上限の知らせは、これまでどおり出ます。"
+        "席が実行中のとき、BellTeamが追っているターンも「作業中」と読むようにします。実行中なのに「不明」と出たり、動いていないと促されたりしないようにします。あわせて、席の部品Aitermを新しい版にします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "521be6509d9385c1ec16356eb9eef60cd4a0e9d4",
-      "versionId": "sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3",
+      "sourceCommit": "4f5da710f72594132903da261eb6c406eb655ed6",
+      "versionId": "sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a788bc36fce26762e95ef9800c6ae0d63cbbdaef9cb774d93e1ebe5974c0eda3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8d33eeef817f85c2c736ef3bf450f1a4a4973bef66677ae18186b3eaf5872bd4"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "アプリに、席の裏の作業の行と、繰り返して見える入力の行を送らないようにします。エラーと利用上限の知らせは、これまでどおり出ます。"
+        "席が実行中のとき、BellTeamが追っているターンも「作業中」と読むようにします。実行中なのに「不明」と出たり、動いていないと促されたりしないようにします。あわせて、席の部品Aitermを新しい版にします。"
       ]
     },
     {
