@@ -55,15 +55,27 @@ final class ConversationTimelineStateTests: XCTestCase {
         XCTAssertEqual(state.receivedMessages.suffix(41).map(\.id), held.map(\.id) + ["m41"], "過去を足しても最新の部分は残る")
     }
 
-    func testPrefetchKeepsMaxOfThreeScreensOneFiftyRowsAndTwoSecondsAbove() {
+    /// a471-iphone-flash-jump-177：開き直した時の最初の頁は、重なる所から後ろだけを足す。持っている行は消えない。重ならなければ何もしない。
+    func testReopenMergesTheLatestPageFromTheOverlapAndDropsNothing() throws {
+        var state = ConversationTimelineState()
+        let held = try (1...40).map { try message("m\($0)", text: "行\($0)", delivery: "delivered") }
+        state.replaceReceived(held)
+        let page = try (31...50).map { try message("m\($0)", text: "行\($0)", delivery: "delivered") }
+        XCTAssertTrue(state.mergeLatestPage(page))
+        XCTAssertEqual(state.receivedMessages.map(\.id), (1...50).map { "m\($0)" }, "古い側の m1〜m30 は残り、m41〜m50 だけが足される")
+        let far = try (100...110).map { try message("m\($0)", text: "行\($0)", delivery: "delivered") }
+        XCTAssertFalse(state.mergeLatestPage(far), "一つも重ならない頁は足さない（呼び手が入れ替える）")
+        XCTAssertEqual(state.receivedMessages.count, 50)
+    }
+
+    func testPrefetchKeepsOneScreenOrTwoSecondsOfUpwardSpeedAbove() {
         let page = ConversationHistoryPage.self
-        XCTAssertEqual([page.firstPage, page.refreshPage, page.pageSize], [1000, 30, 1000])
-        // 画面800pt: 3画面=2400pt。行も点も足りていれば頼まない。
-        XCTAssertFalse(page.needsOlder(rowsAbove: 150, pointsAbove: 2400, viewHeight: 800, speed: 0))
-        XCTAssertTrue(page.needsOlder(rowsAbove: 149, pointsAbove: 9000, viewHeight: 800, speed: 0), "150行に満たない")
-        XCTAssertTrue(page.needsOlder(rowsAbove: 500, pointsAbove: 2399, viewHeight: 800, speed: 0), "3画面に満たない")
-        XCTAssertFalse(page.needsOlder(rowsAbove: 500, pointsAbove: 5000, viewHeight: 800, speed: 2400), "2秒分4800ptを超えて残っている")
-        XCTAssertTrue(page.needsOlder(rowsAbove: 500, pointsAbove: 4799, viewHeight: 800, speed: 2400), "速いスクロールは2秒分を残す")
+        XCTAssertEqual([page.firstPage, page.refreshPage, page.pageSize], [1000, 10, 1000])
+        // 画面800pt: 上に1画面分の描いた高さがあれば頼まない。
+        XCTAssertFalse(page.needsOlder(pointsAbove: 800, viewHeight: 800, upwardSpeed: 0))
+        XCTAssertTrue(page.needsOlder(pointsAbove: 799, viewHeight: 800, upwardSpeed: 0), "1画面に満たない")
+        XCTAssertFalse(page.needsOlder(pointsAbove: 5000, viewHeight: 800, upwardSpeed: 2400), "2秒分4800ptを超えて残っている")
+        XCTAssertTrue(page.needsOlder(pointsAbove: 4799, viewHeight: 800, upwardSpeed: 2400), "速く上へ読む時は2秒分を残す")
         XCTAssertEqual(page.query("2026-11-20T11:00:00.123+09:00"), "2026-11-20T11%3A00%3A00.123%2B09%3A00")
     }
 

@@ -625,22 +625,27 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testLatestMessageStaysVisibleAfterMarkdownRendering](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L21) | 初回10件だけ取得しMarkdown後も最新行が入力欄に隠れない |
-| [testOlderPageIsPrefetchedAfterFirstPaintAndKeepsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L35) | 最初の頁は1000件を頼み（fixtureの`firstCap=100`で頁の境目を作る）、開いた直後に過去の頁（before＋before_at）を一度だけ先読み、末尾の位置を保持 |
-| [testAllFoldedPageDoesNotEndTheFillLoop](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 読んだ500件が全部畳まれる道具の行で行が増えなくても、描かれた量が足りるまで次の頁を読む（fixture `fold=1`、a471-fill-drawn） |
+| [testOpeningReadsOnlyTheFirstPageAndScrollingUpReadsOlderWithoutMovingTheView](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 開いた時は最初の頁（1000件を頼む）だけを読み、最新の行が末尾にある。上に1画面より多く残る間は読まず、上へ読んで足りなくなったら過去の頁を一度読む。足した行で読んでいる位置は動かない |
+| [testAllFoldedPageDoesNotEndTheFillLoop](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 描いた中身が1画面に満たない間は、読んだ頁が全部畳まれる行で行が増えなくても、満たすまで次の頁を読む（fixture `fold=1`） |
+| [testSendingWhileReadingOlderMovesToTheNewestEnd](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上を読んでいる時の送信の操作で最新の端へ移る（アニメーションの行き先を持たない）。fixtureは購読の確認を通さないので、吹き出しの表示そのものは確かめていない |
+| [testReopeningShowsTheNewestHeldRowsBeforeTheFirstPageArrives](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 会話を出て開き直すと、最初の頁（5秒遅れ）が届く前でも、出る前に見ていた最新の行が出ている。頁が届いてもその行の上端は動かない。修理前は古い控えの頁（過去）が先に出て失敗（a471-iphone-flash-jump-177） |
+| [testReopeningAfterMoreThanAPageArrivedLandsOnTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 出ている間に頁より多く進んだ時（控えと重ならない）は頁へ入れ替え、最新の行から出し直す。古い行に取り残されない |
+| [testOlderPageJoiningAFoldedRunWhileAFingerIsDownDoesNotMoveTheView](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 頁の境目が畳んだ束の中にあり、指で引いている最中に過去の頁（束の先頭が替わる）が届いても、最新の近くを見たまま（fixture `boundary=1`） |
 | [testBurstOfMachineRowsWhileReadingAboveKeepsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 少し上を読んでいる間に、働いている席の道具・フック・思考・言葉の行が続けざまに届いても、読んでいる行の上端が動かない（fixture `/test/burst`、a471-scroll-jump） |
 | [testRowAboveTheReadingRowGrowingKeepsItsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 読んでいる行より上の行が後から伸びても、読んでいる行の上端が動かない（fixture `/test/grow`） |
-| [testBurstOfMachineRowsAtBottomFollowsToTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 末尾にいる時に行が続けて届くと末尾を追い、新着ボタンを出さない。追いはなめらかなスクロール（試験中に動きの更新が1回の追いで500回以上、1回0.3〜3ptずつ出ることを一時のログで確認。コミットしていない） |
-| [testOlderPageArrivingDuringTheFollowDoesNotThrowTheViewIntoThePast](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 末尾を追うアニメーションの途中に過去の頁（6秒遅れ）が届いても、過去の行（m200より前）が画面に出ず、行が届き終わった後は最新の行にいて新着ボタンも出ない。build 176 の実装では3回中3回失敗（過去 m163 に取り残される）、修理後は3回中3回成功（fixture `beforeDelay`・`/test/burst?tall=1`、a471-refresh-jump） |
+| [testBurstOfMachineRowsAtBottomFollowsToTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 末尾にいる時に行が続けて届くと、レイアウトが末尾を保ち、最新の行が見えたまま新着ボタンを出さない（アプリはスクロールを指示しない） |
+| [testOlderPageArrivingWhileRowsStreamAtTheNewestEndDoesNotShowThePast](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上へ読んで過去の頁（8秒遅れ）を頼み、「最新へ」で戻った後、新しい行が続けて届く間に頁が届いても、過去の行が画面に出ず、最後は最新の行にいて新着ボタンも出ない。build 176 は末尾をアニメーションで追い、この場面で過去へ飛んだ（実測21,920pt） |
 | [testForegroundReturnWhileReadingOlderKeepsHeldRowsAndPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上を読んでいる間に背景へ回して戻し、その間に新着が3件あっても、読んでいた行は残り、上端が動かない |
 | [testRefreshesWhileReadingOlderKeepHeldRowsAndPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上を読んでいる間に更新の通知と新着が8回続いても、読んでいた行は残り、上端が動かない |
-| [testFirstPageOfAThousandRowsOpensAtTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 1000件の最初の頁（1100行の機械席）でも最新の行から開き、残りの過去を1回で読む |
+| [testFirstPageOfAThousandRowsOpensAtTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 1000件の最初の頁（1100行の機械席）でも最新の行から開き、開いただけでは過去の頁を読まない |
+| ConversationTimelineStateTests.testReopenMergesTheLatestPageFromTheOverlapAndDropsNothing | 開き直しの最初の頁は重なる所から後ろだけ足す。持っている行は消えない。重ならなければ足さない |
 | [testThinkingRowIsDrawnWholeInABubble](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 中身のあるthinkingの行が、答えと同じ吹き出しで全文（message-text-<id>）出る（fixture `thinking=1`、a471-thinking-bubble） |
 | ConversationTimelineStateTests.testRefreshWithAShortOrEmptyLatestPageRemovesNoHeldRow | 最新の頁の読み直しが短い・空でも持っている行は消えず並びも変わらない。新着は末尾へ足すだけ。過去を足しても最新の部分は残る |
-| [testOlderFailureIsShownAndNotRetriedWithoutScrolling](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L53) | 過去GET失敗はerror表示、スクロールの動きが無い間は再取得無し |
+| [testOlderFailureIsShownAndNotRetriedWithoutScrolling](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上へ読んで頼んだ過去の頁の失敗はerror表示、スクロールの動きが無い間は再取得無し |
 | [testShortHistoryReadsNoOlderPage](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L63) | 全部が最初の頁（1000件）に入る履歴はhas_more偽で過去GETしない |
 | [testNewMessageWhileReadingOlderDoesNotJumpToBottom](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L75) | 過去閲覧中の新着はoffset保持と新着ボタン、押すと最新へ |
 | [testTargetedEventDoesNotReloadAnotherConversation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L105) | 別Botの対象通知は会話GET無し、対象Bot新着は取得表示 |
-| [testReadingUpAfterPrefetchKeepsPositionAndAsksNoMorePages](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L125) | 先読みで160件になった後に上へ読み進めても位置は動かず、過去の頁を重ねて取らない |
+| [testReadingUpAfterPrefetchKeepsPositionAndAsksNoMorePages](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 過去の頁が入った後に上へ読み進めても位置は動かず、過去の頁を重ねて取らない |
 | [testOlderReadingPositionSurvivesTabletRotation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L140) | iPad回転で幅が変わっても同じ過去行の縦位置を保持 |
 | [testSlantedDragScrollsLogWithReplySwipeRows](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L163) | iPhoneで縦から約59°傾いた左右のドラッグ5回のうち2回以上でログが動く（OS標準でも7〜8割の境目。DragGesture時は0〜1割。返信の左スワイプに飲まれない。a424） |
 

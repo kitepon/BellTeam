@@ -53,6 +53,15 @@ struct ConversationTimelineState {
         return additions.count
     }
 
+    /// 開き直した時に届く最初の頁。持っている行と重なれば、頁の行で既知を直し、既知の最後より後の行だけ足して true を返す（持っている行は消さない）。
+    /// 一つも重ならなければ（出ている間に頁の大きさより多く進んだ）何もせず false を返す。
+    mutating func mergeLatestPage(_ items: [TimelineMessage]) -> Bool {
+        let known = Set(receivedMessages.map(\.id))
+        guard let lastKnown = items.lastIndex(where: { known.contains($0.id) }) else { return false }
+        _ = mergeRefresh(latest: items, after: Array(items[(lastKnown + 1)...]))
+        return true
+    }
+
     mutating func beginSend(id: String, body: String, imageCount: Int, at: String, replyTo: ReplyReference? = nil) {
         pendingSends.append(PendingSend(id: id, body: body, imageCount: imageCount, at: at, replyTo: replyTo, acceptedID: nil))
     }

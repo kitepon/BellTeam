@@ -58,6 +58,8 @@ private struct ConversationContent: View {
     @State private var hasMore = false
     @State private var loading = true
     @State private var loadingOlder = false
+    /// 最初の頁を読めた時の世代。控えの頁（`rememberPage`）を書く時に使う。
+    @State private var loadedGeneration: Int?
     /// 過去の頁を読めた回数。一覧が、頁が描く行をほとんど増やさなかった時にも先読みの判定をやり直すための印（a471-fill-drawn）。
     @State private var olderPagesRead = 0
     @State private var reader = ReadCoordinator()
@@ -276,6 +278,7 @@ private struct ConversationContent: View {
             reader.again = false
             reader.generation += 1
             olderTask?.cancel()
+            rememberPage()
             if BellNotifications.shared.visibleConversation == target { BellNotifications.shared.visibleConversation = nil }
         }
         #if targetEnvironment(macCatalyst)
@@ -733,9 +736,10 @@ private struct ConversationContent: View {
         // サインアウトや接続先の変更の後に届いた応答は、成功も失敗も反映しない。
         let generation = store.conversationGeneration
         let stale = { store.conversationGeneration != generation }
-        if let page = store.conversationPages[target] {
-            timeline.replaceReceived(page.items)
-            hasMore = page.hasMore
+        let cached = store.conversationPages[target]
+        if let cached {
+            timeline.replaceReceived(cached.items)
+            hasMore = cached.hasMore
         }
         do {
             // 処理待ち一覧の応答を待たず、本文を届いた時点で出す。
@@ -743,10 +747,14 @@ private struct ConversationContent: View {
             let result: ListResponse<TimelineMessage> = try await store.api.get(target.path + "/messages?limit=\(ConversationHistoryPage.firstPage)")
             try Task.checkCancellation()
             guard !stale(), !awaitingSendResponse else { loading = false; return }
-            timeline.replaceReceived(result.items)
-            hasMore = result.hasMore
-            store.remember(ConversationPage(items: result.items, hasMore: result.hasMore, remainingBefore: result.remainingBefore ?? 0),
-                           for: target, generation: generation)
+            // 控えを出している時は、届いた頁で差し替えず、重なる所から後ろだけを足す（持っている行を消さない。古い側の残りは控えのまま）。
+            // 一つも重ならない時（出ている間に頁より多く進んだ）だけ、頁へ入れ替える。
+            if cached == nil || !timeline.mergeLatestPage(result.items) {
+                timeline.replaceReceived(result.items)
+                hasMore = result.hasMore
+            }
+            loadedGeneration = generation
+            rememberPage()
             loading = false
             errorText = nil
             initialLoadFailed = false
@@ -774,6 +782,17 @@ private struct ConversationContent: View {
             store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
         }
         loading = false
+    }
+
+    /// 開き直した時にすぐ出す控え。いま持っている最新の側を入れる。
+    /// 最初に読んだ時の頁のままにすると、開き直すたびに過去だけが出て、頁が届いてから最新へ差し替わる（a471-iphone-flash-jump-177）。
+    private func rememberPage() {
+        guard let generation = loadedGeneration else { return }
+        let held = timeline.receivedMessages
+        guard !held.isEmpty else { return }
+        let kept = Array(held.suffix(ConversationHistoryPage.firstPage))
+        store.remember(ConversationPage(items: kept, hasMore: hasMore || held.count > kept.count, remainingBefore: 0),
+                       for: target, generation: generation)
     }
 
     private func loadOlder() async {
@@ -948,17 +967,16 @@ enum ConversationHistoryPage {
     /// 開いた時に取る最新の行数（本体の上限。オーナー 2026-11-21「もう一回で読むのは1000とかにしろよ」）。
     static let firstPage = 1000
     /// 更新（SSE・引き下げ）で取る最新の行数。新着は after で取るので、既知の行の状態を直すだけの小さな頁。
-    static let refreshPage = 30
+    static let refreshPage = 10
     /// 過去の頁。
     static let pageSize = 1000
-    /// 見ている行より上に読込済みとして残す量は max(3画面, 150行, 2秒分のスクロール速度)。
-    static let stockRows = 150
-    static let stockScreens: CGFloat = 3
+    /// 上へ読んでいる間、見ている行より上に残す描いた高さは max(1画面, 上向きの速度の2秒分)。行数では決めない（畳んだ行は低い）。
+    static let stockScreens: CGFloat = 1
     static let stockSeconds: CGFloat = 2
 
-    /// 上に残る読込済みがこの量に満たなければ、次の過去の頁を頼む。
-    static func needsOlder(rowsAbove: Int, pointsAbove: CGFloat, viewHeight: CGFloat, speed: CGFloat) -> Bool {
-        rowsAbove < stockRows || pointsAbove < max(stockScreens * viewHeight, stockSeconds * speed)
+    /// 上に残る描いた高さがこの量に満たなければ、次の過去の頁を頼む。
+    static func needsOlder(pointsAbove: CGFloat, viewHeight: CGFloat, upwardSpeed: CGFloat) -> Bool {
+        pointsAbove < max(stockScreens * viewHeight, stockSeconds * upwardSpeed)
     }
 
     /// クエリ値として送る文字列。ISO時刻の「+」「:」も含めて符号化する。

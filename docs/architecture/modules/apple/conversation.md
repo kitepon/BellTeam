@@ -47,7 +47,9 @@ flowchart TD
 | 非active・画面終了 | reader/olderTaskをcancel、reader参照とagainを消し世代を増加。非activeではloading/loadingOlderも解除。reader世代は古いtaskによるreader参照の消去を防ぐ。取消は表示・診断しない |
 | loadの戻り値 | skippedSceneInactive / skippedAwaitingSend / joinedReaderReturned / startedReaderReturned。HTTP成功を示す値ではない |
 
-過去取得は先読み（machine-stream.md「History pages of a long stream」）：最初の頁も過去の頁も`limit=1000`（本体の上限。オーナー 2026-11-21。更新は`refreshPage`の30件とafter）で、持っている最古の行の`id`と`at`を`before`と`before_at`（URLエンコード）で送る。見ている行より上に読込済みを`max(3画面, 150行, 2秒分のスクロール速度)`残すことを`ConversationHistoryPage.needsOlder`で判定し、足りなければ`ConversationList.Coordinator.prefetchIfLow`が次の頁を要求する。判定は、開いた直後（スクロール無しの背景読み）・表示域に収まらない時・頁が届いた直後（速いスクロールで頁が続く）・スクロールの動きで行う。同時に頼むのは一つで、失敗は次のスクロールの動きまで繰り返さない。判定は描かれた量（畳んだ行は1行。表示域の行と上の点数）で行い、保持している生の行数では行わない（machine-stream.md「Fill rule」、a471-fill-drawn）。頁が読めるたびに`olderPagesRead`が増え、一覧は先読みの判定をやり直す。畳まれた行ばかりの頁は並びを変えずに先頭の畳んだ行へ束ねられ行が増えないが、それでも描かれた量が足りなければ次の頁を読み続ける。行の更新（束ねるだけの更新を含む）の後にも必ず判定する。過去の行を足すのは止まっている間だけ（上の位置の節）。`hasMore`が偽で止まる。足した行の上で読んでいる位置は動かさない（ChatLayoutの役目、a426）。
+過去取得（machine-stream.md「History pages of a long stream」「Fill rule」、オーナー 2026-11-21「過去の頁は上へスクロールした時だけ」）：最初の頁も過去の頁も`limit=1000`（本体の上限。更新は`refreshPage`の30件とafter）で、持っている最古の行の`id`と`at`を`before`と`before_at`（URLエンコード）で送る。過去の頁を頼むのは二つの時だけ（`ConversationList.Coordinator.prefetchIfLow`）：(1) 利用者が動かしている間に、見ている行より上の読込済みが`max(3画面, 150行, 2秒分のスクロール速度)`に満たなくなった時（`ConversationHistoryPage.needsOlder`）。(2) 描いた中身が表示域に満たず動かせない時（畳んだ行ばかりの頁。頁が読めるたびに`olderPagesRead`が増えて判定をやり直し、満たすまで読み続ける）。開いただけ・止まっているだけでは読まない。同時に頼むのは一つで、失敗は次のスクロールの動きまで繰り返さない。指を離すのを待っている間（上の位置の節）は頼まない。`hasMore`が偽で止まる。
+
+開き直し（a471-iphone-flash-jump-177）：`AppStore.conversationPages`の控えは「いま持っている最新の側」（最大`firstPage`行。`rememberPage`が最初の頁を読めた時と会話を出る時に書く）。開き直すと控えをすぐ出し、届いた最初の頁は差し替えずに`ConversationTimelineState.mergeLatestPage`で重なる所から後ろだけを足す（持っている行を消さない）。一つも重ならない時だけ頁へ入れ替え、一覧は最新の端から出し直す。控えを最初に読んだ時の頁のままにすると、開き直すたびに過去だけが出て、頁が届いてから最新へ入れ替わる（オーナー実機「12:04の行が先に出て、そこから末尾へ動く」）。更新（最新の頁の読み直し・afterの読み足し・再接続・前面復帰）も持っている行を消さない（`mergeRefresh`はidで直し、足すだけ）。
 
 ## 本文と一覧への反映
 
@@ -56,7 +58,7 @@ flowchart LR
   Model["TimelineMessage / queue"] --> Prepare["Coordinator.present<br/>未先読sourceをMessageText.prerender"]
   Prepare --> Latest["先読中の更新は最新の組だけ保持"]
   Latest --> Apply["ChatLayoutDiffableDataSource<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは一覧に触らない"]
-  Apply --> Position["CollectionViewChatLayoutが位置を保つ<br/>上への追加・上の行の実高変化・幅変更でも表示中の行は動かない<br/>新着は末尾にいる時だけ追従<br/>上への追加は、指を載せたスクロール（isTracking）の間は入れず、指を離した時（scrollViewDidEndDragging）に入れる（a426: 指の下では位置が毎フレーム指から決め直され、レイアウトの補正が打ち消されて数十行上へ飛んだ）。減速中（isDecelerating）とMacのホイールの平滑スクロールの間も同じく入れず、止まった時（scrollViewDidEndDecelerating・止まる指離し・ホイールの停止）に入れる（a471-scroll-jump）。自分で始めたアニメーション付きのスクロール（末尾を追う`followBottom`・最新へ・引用元へ。`animatingScroll`）の間も入れない：その行き先は始めた時の座標なので、途中で過去の行を足すと行き先が過去の位置になり、画面が過去へ飛んで最新へ流れ直すのを繰り返す（a471-refresh-jump、build 176 で実測 21,920pt）。アニメーションの終わりの通知（scrollViewDidEndScrollingAnimation）の中では入れず、次の周で入れる（通知の直後にUIKitが古い行き先へ位置を置き直すため。実測 -23,174pt）。過去の行と新着が同じ更新に入った時も、末尾にいたなら入れた後に末尾を追う。更新（最新の頁の読み直し・afterの読み足し・再接続・前面復帰）は持っている行を消さない（`ConversationTimelineState.mergeRefresh`はidで直し、足すだけ）。待たせている間は先読みの再要求もしない（古い高さの判定で頁を重ねて読まないため）。末尾にいる間の新着・行の伸びは瞬時に動かさず、なめらかなスクロールで末尾へ送る（`followBottom`、動いた向きが分かる。指・ホイールが触れたら追うのをやめ、追う間は末尾にいるものとして新着ボタンを出さない）"]
+  Apply --> Position["位置はCollectionViewChatLayoutだけが保つ（アプリは最新の端に居続けるためのスクロール・アニメーションを出さない）<br/>末尾にいる時：新着・行の伸び・過去の追加のどれでも末尾のまま（keepContentOffsetAtBottomOnBatchUpdates）<br/>上を読んでいる時：上への追加・上の行の実高変化・下への新着・幅変更のどれでも、表示中の行は動かない<br/>開いた時：最初の行を入れて最新の端に置いてから見せる（restoreContentOffset、見える前）<br/>アプリが位置を動かすのは利用者の操作だけ：送信・最新へ（レイアウトの位置決めで一度に最新の端へ）、引用元へ（scrollToItem）<br/>上への追加は、指を載せたスクロール（isTracking）の間は入れず、指を離した時（scrollViewDidEndDragging）に入れる（a426: 指の下では位置が毎フレーム指から決め直され、レイアウトの補正が打ち消されて飛ぶ）。上への追加かは「残る行の最初より上に新しい行があるか」で決める（畳んだ束の先頭の行は過去の頁で替わる）<br/>前の行と一つも重ならない更新（開き直した間に頁より多く進んだ）は、別の内容として最新の端から出し直す"]
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```
 

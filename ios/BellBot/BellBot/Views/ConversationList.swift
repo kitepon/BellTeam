@@ -40,6 +40,8 @@ enum ConversationOpening: String, CaseIterable {
 /// 会話の行をチャット用レイアウト（ChatLayout）に載せる。読んでいる位置を保つのはレイアウトの役目で、ここでは位置を計算しない。
 /// - 過去を上へ足す・見えている行より上の行の高さが実測で変わる → レイアウトが表示中の行の画面上の位置を保つ。
 /// - 新着を下へ足す → 末尾にいる時だけ追従し、上を読んでいる時は動かない（keepContentOffsetAtBottomOnBatchUpdates）。
+/// 最新の端に居続けるためのスクロールの指示やアニメーションを、アプリからは出さない（出していた176・177で、過去へ飛ぶ・固まるが起きた）。
+/// アプリが位置を動かすのは利用者の操作（送信・最新へ・引用元へ）だけ。
 struct ConversationList<RowContent: View>: UIViewRepresentable {
     let messages: [TimelineMessage]
     let queue: [QueueItem]
@@ -111,7 +113,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         coordinator.prefetchIfLow()
         if coordinator.scrollToBottomRevision != scrollToBottomRevision {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
-            coordinator.scrollToBottom(animated: true)
+            coordinator.scrollToBottom()
         }
         coordinator.requestJump(jump)
     }
@@ -138,11 +140,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var lastOffset: CGFloat = 0
         var prefetchRequested = false
         var olderPagesRead = 0
-        /// 末尾へなめらかに送っている間。新着が続いても末尾にいるものとして追う。指・ホイールが触れたら外す。
-        private var following = false
-        /// 自分で始めたアニメーション付きのスクロール（末尾を追う・最新へ・引用元へ）が動いている間。
-        /// その行き先は始めた時の座標なので、この間に過去の行を足すと行き先が過去の位置になり、画面が過去へ飛ぶ（a471-refresh-jump、build 176 で実測 21,920pt）。
-        private var animatingScroll = false
         private var scrollSpeed: CGFloat = 0
         private var lastScrollTime: CFTimeInterval = 0
         private var atBottom = true
@@ -175,7 +172,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self.view?.pinToBottom()
             }
             #if targetEnvironment(macCatalyst)
-            wheel = WheelScrollSmoother(scrollView: view, onStart: { [weak self] in self?.following = false }, onStop: { [weak self] in self?.report(); self?.flushDeferred() })
+            wheel = WheelScrollSmoother(scrollView: view, onStart: {}, onStop: { [weak self] in self?.report() })
             #endif
         }
 
@@ -240,14 +237,18 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self.queue = queue
                 self.rowContext = rowContext
             }
-            let prepended = previous.first.flatMap { rows.firstIndex(of: $0) }.map { $0 > 0 } ?? false
+            let held = Set(previous)
+            // 前の行と一つも重ならない（開き直した間に頁より多く進み、控えの頁が丸ごと入れ替わった）時は、別の内容として末尾から出し直す。
+            let replaced = !previous.isEmpty && !rows.contains { $0 != .queue && held.contains($0) }
+            // 残る行のうち最初のものより上に、新しい行がある＝上へ足す更新。畳んだ束の先頭の行は過去の頁で替わるので、前の先頭の行だけでは決めない。
+            let prepended = !replaced && (rows.firstIndex(where: held.contains) ?? 0) > 0
             // 指を載せたままのスクロールは、毎フレーム指の位置から位置を決め直す。過去を足してレイアウトが位置を補っても直後に打ち消されて飛ぶので、指を離すまで待つ（a426）。
-            // 指を離した後の減速中とMacのホイールの平滑スクロールも、動きが自分で位置を進めるので、止まるまで待つ（a471-scroll-jump）。
-            if prepended, isScrolling(view) {
+            if prepended, view.isTracking {
                 applyAfterDrag = true
                 return
             }
-            if previous.isEmpty {
+            applyAfterDrag = false
+            if previous.isEmpty || replaced {
                 // 最初の行は末尾から見せる。
                 UIView.performWithoutAnimation {
                     dataSource.applySnapshotUsingReloadData(snapshot, commitAlongsideUpdates: commit)
@@ -259,53 +260,28 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 }
                 atBottom = true
             } else {
-                // 末尾にいる時の新着・行の伸びは瞬時に動かさず、なめらかに末尾へ送る（動いた向きが分かるように）。上を読んでいる時は動かさない。
-                // 過去の行と新着が同じ更新に入った時も、末尾にいたなら追う（レイアウトは過去の分だけ位置を補い、新着の分は下に残る）。
-                let follow = (atBottom || following) && !view.isTracking
-                let smooth = follow && !prepended
-                if smooth { layout?.keepContentOffsetAtBottomOnBatchUpdates = false }
+                // 位置はレイアウトが保つ：末尾にいれば末尾のまま、上を読んでいれば見ている行のまま。アプリはスクロールを指示しない。
                 UIView.performWithoutAnimation {
                     dataSource.apply(snapshot, animatingDifferences: false, commitAlongsideUpdates: commit)
-                    if follow { view.layoutIfNeeded() }
                 }
-                if smooth { layout?.keepContentOffsetAtBottomOnBatchUpdates = true }
-                if follow { followBottom() }
             }
             if prepended {
                 // 頁が届いたら、残りが足りるか直ぐ確かめる（速いスクロールでは頁が続く）。
                 prefetchRequested = false
-                DispatchQueue.main.async { [weak self] in self?.prefetchIfLow() }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, let view = self.view else { return }
+                    prefetchIfLow(moving: view.isDragging || view.isDecelerating)
+                }
             }
             report()
             performPendingJump()
         }
 
-        private func isScrolling(_ view: UIScrollView) -> Bool {
-            var scrolling = view.isTracking || view.isDecelerating || animatingScroll
-            #if targetEnvironment(macCatalyst)
-            scrolling = scrolling || wheel?.isActive == true
-            #endif
-            return scrolling
-        }
-
-        /// 止まった時に、待たせていた過去の行を入れる。
+        /// 指を離した時に、待たせていた過去の行を入れる。
         private func flushDeferred() {
-            guard applyAfterDrag, let latest, let view, !isScrolling(view) else { return }
+            guard applyAfterDrag, let latest else { return }
             applyAfterDrag = false
             apply(rows: latest.rows, messages: latest.messages, queue: latest.queue, rowContext: latest.rowContext)
-        }
-
-        private func followBottom() {
-            guard let view else { following = false; return }
-            // 残りが数ptなら動かさずに合わせて終える。画素の丸めで1〜2pt残り続けると、追い直しのアニメーションが止まらない。
-            guard view.distanceFromBottom > 4 else {
-                view.pinToBottom()
-                following = false
-                return
-            }
-            following = true
-            animatingScroll = true
-            view.setContentOffset(CGPoint(x: view.contentOffset.x, y: view.bottomOffset), animated: true)
         }
 
         func requestJump(_ jump: ConversationJump) {
@@ -322,11 +298,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             guard let id = pendingJump, let view, let dataSource,
                   let indexPath = dataSource.indexPath(for: .message(id)) else { return }
             pendingJump = nil
-            // 動かない時（もう中央にある）は終わりの通知が来ないので、印を立てない。
-            if let frame = view.layoutAttributesForItem(at: indexPath)?.frame {
-                let y = min(max(frame.midY - view.bounds.height / 2, -view.adjustedContentInset.top), view.bottomOffset)
-                animatingScroll = abs(y - view.contentOffset.y) > 0.5
-            }
             view.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
             let flashes = pendingFlash
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reveal(.message(id), flash: flashes) }
@@ -346,12 +317,15 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             }
         }
 
-        func scrollToBottom(animated: Bool) {
-            guard let view else { return }
-            atBottom = true
-            animatingScroll = animated && abs(view.bottomOffset - view.contentOffset.y) > 0.5
-            view.setContentOffset(CGPoint(x: 0, y: view.bottomOffset), animated: animated)
-            if !animated { report() }
+        /// 利用者の操作（送信・最新へ）で最新の端へ移る。レイアウトの位置決めで一度に移し、行き先を持つアニメーションは使わない
+        /// （アニメーションの途中に行が入ると行き先が古い座標のまま残り、過去へ飛ぶ。build 176 で実測）。
+        func scrollToBottom() {
+            guard let view, let count = dataSource?.snapshot?.itemIdentifiers.count, count > 0 else { return }
+            UIView.performWithoutAnimation {
+                view.layoutIfNeeded()
+                layout?.restoreContentOffset(with: ChatLayoutPositionSnapshot(indexPath: IndexPath(item: count - 1, section: 0), edge: .bottom))
+            }
+            report()
         }
 
         /// 最初の配置の直後に、選んだ開き方で見せる。1回だけ。
@@ -404,25 +378,23 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         /// 末尾から48pt以内なら末尾にいるとみなす。親の新着ボタンと、余白変更時の末尾維持に使う。
         private func report() {
             guard let view else { return }
-            let now = following || view.distanceFromBottom <= 48
+            let now = view.distanceFromBottom <= 48
             guard now != atBottom else { return }
             atBottom = now
             // 配置の途中で呼ばれるので、親の状態は次の周で変える。
             DispatchQueue.main.async { [onAtBottomChange] in onAtBottomChange?(now) }
         }
 
-        /// machine-stream.md「History pages of a long stream」：見ている行より上に max(3画面, 150行, 2秒分の速度) の読込済みを残す。
-        /// 足りなければ次の過去の頁を頼む（開いた直後・表示域に収まらない時・届いた直後も同じ判定。上端に届いて空になってから読まない）。
-        /// 頼むのは一度に一つ。失敗は次のスクロールの動きまで繰り返さない。親が取得中の間と、届いた行を組み立てている間は頼まない。
-        func prefetchIfLow() {
-            guard let view, view.bounds.height > 0, hasMore, !loading, !loadingOlder, !preparing, !prefetchRequested, !applyAfterDrag,
-                  let first = view.indexPathsForVisibleItems.map(\.item).min() else { return }
-            var moving = view.isDragging || view.isDecelerating
-            #if targetEnvironment(macCatalyst)
-            moving = moving || wheel?.isActive == true
-            #endif
-            guard ConversationHistoryPage.needsOlder(rowsAbove: first, pointsAbove: view.contentOffset.y + view.adjustedContentInset.top,
-                                                     viewHeight: view.bounds.height, speed: moving ? scrollSpeed : 0) else { return }
+        /// 過去の頁を頼むのは二つの時だけ（オーナー 2026-11-21「過去の頁は上へスクロールした時だけ」）。
+        /// 1. 利用者が動かしている間に、見ている行より上の描いた高さが max(1画面, 上向きの速度の2秒分) に満たなくなった時（machine-stream.md「History pages of a long stream」）。
+        /// 2. 描いた中身が表示域に満たず、動かせない時（畳んだ行ばかりの頁。満たすまで読み続ける。「Fill rule」）。
+        /// 頼むのは一度に一つ。失敗は次のスクロールの動きまで繰り返さない。親が取得中の間、届いた行を組み立てている間、指を離すのを待っている間は頼まない。
+        func prefetchIfLow(moving: Bool = false) {
+            guard let view, let layout, view.bounds.height > 0, hasMore, !loading, !loadingOlder, !preparing, !prefetchRequested, !applyAfterDrag else { return }
+            if layout.collectionViewContentSize.height > view.bounds.height {
+                guard moving, ConversationHistoryPage.needsOlder(pointsAbove: view.contentOffset.y + view.adjustedContentInset.top,
+                                                                viewHeight: view.bounds.height, upwardSpeed: scrollSpeed) else { return }
+            }
             prefetchRequested = true
             // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
             DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
@@ -439,30 +411,10 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool { false }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            if !decelerate { flushDeferred() }
-        }
-
-        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
             flushDeferred()
         }
 
-        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-            animatingScroll = false
-            // この通知の中で過去の行を入れると、直後にUIKitがアニメーションの行き先（古い座標）へ位置を置き直し、過去へ飛ぶ（実測 -23,174pt）。
-            // 次の周で入れる（レイアウトが位置を補う）。その後で、末尾が遠のいていれば続けて追う。
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                flushDeferred()
-                guard following, !animatingScroll else { return }
-                followBottom()
-                if !following { report() }
-            }
-        }
-
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-            following = false
-            // 指が触れるとアニメーションは打ち切られ、終わりの通知は来ない。
-            animatingScroll = false
             #if targetEnvironment(macCatalyst)
             wheel?.stop()
             #endif
@@ -473,7 +425,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             let delta = view.contentOffset.y - lastOffset
             lastOffset = view.contentOffset.y
             let now = CACurrentMediaTime()
-            scrollSpeed = now - lastScrollTime < 0.5 && now > lastScrollTime ? abs(delta) / CGFloat(now - lastScrollTime) : 0
+            // 上向き（過去の方）へ動いている時の速度だけを数える。
+            scrollSpeed = delta < 0 && now - lastScrollTime < 0.5 && now > lastScrollTime ? -delta / CGFloat(now - lastScrollTime) : 0
             lastScrollTime = now
             report()
             var userDriven = view.isDragging || view.isDecelerating
@@ -482,7 +435,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             #endif
             guard userDriven else { return }
             prefetchRequested = false
-            prefetchIfLow()
+            prefetchIfLow(moving: true)
         }
     }
 }
