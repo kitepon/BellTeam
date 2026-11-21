@@ -26,9 +26,11 @@ const features = [
       ],
       link: { label: 'サービスアカウントの作り方を開く（1Password）', url: 'https://developer.1password.com/docs/service-accounts/get-started/' },
     } },
+  // a479: a plain switch, no fields; hidden until the Owner turns it on.
+  { id: 'thinkingDisplay', title: 'AIの考えの表示', fields: [] },
 ]
 // Features added after the first release; a stored file without them gains their disabled default.
-const lateFeatures = ['webPush', 'onePassword']
+const lateFeatures = ['webPush', 'onePassword', 'thinkingDisplay']
 const onePasswordErrors = {
   ONEPASSWORD_TOKEN_REJECTED: 'このトークンで1Passwordに接続できませんでした。トークンを貼り直してください。サービスアカウントが無効になっていないか、通信ができるかも確かめてください。',
   ONEPASSWORD_CLI_MISSING: 'この本体には1Passwordに接続する道具がありません。BellTeamを更新してください。',
@@ -146,7 +148,7 @@ export class FeatureSettings {
     for (const feature of features) {
       const { enabled, ...values } = this.settings[feature.id]
       validateValues(feature, values)
-      this.settings[feature.id].enabled = configured(feature, values, this.legacyAPNsConfigured)
+      this.settings[feature.id].enabled = feature.fields.length > 0 && configured(feature, values, this.legacyAPNsConfigured)
     }
     await this.save(this.settings)
     return this.list()

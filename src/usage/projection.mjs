@@ -8,7 +8,11 @@ const keys = (value, required, optional = []) => object(value) && required.every
 // a399 (module-ipc.md): rows with nothing secret-adjacent are read by the fields this side uses; a field a newer writer adds is not refused.
 // secret, question, settings and credential rows stay closed: they are served as stored, and the key list is what keeps a stray value out.
 const has = (value, required) => object(value) && required.every(key => Object.hasOwn(value, key))
-const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'] }
+const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'], thinkingDisplay: [] }
+// a479 (module-ipc.md "Records between halves that ship apart"): the body ships before the usage module, so a list from a child
+// that predates thinkingDisplay stays valid. shortcut: drop this when every shipped usage module sends it.
+const required = Object.keys(fields).filter(id => id !== 'thinkingDisplay')
+export const usageFeatureIdsValid = ids => ids.length >= required.length && new Set(ids).size === ids.length && required.every(id => ids.includes(id)) && ids.every(id => Object.hasOwn(fields, id))
 const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
 export function usageSettingValid(item) {
@@ -33,12 +37,13 @@ export function usageProjectionRecordValid(row) {
     if (!keys(row, ['type', 'revision', 'list', 'configurations', 'epochs'], ['backgroundAgent', 'backgroundAgentError'])
       || Object.hasOwn(row, 'backgroundAgent') && (!backgroundRecordValid(row.backgroundAgent) || Object.hasOwn(row, 'backgroundAgentError'))
       || Object.hasOwn(row, 'backgroundAgentError') && !['BACKGROUND_AGENT_STATE_INVALID', 'BACKGROUND_AGENT_STATE_FAILED'].includes(row.backgroundAgentError)
-      || !keys(row.configurations, Object.keys(fields)) || !keys(row.epochs, Object.keys(fields)) || Object.values(row.epochs).some(epoch => !Number.isSafeInteger(epoch) || epoch < 0) || !Array.isArray(row.list) || row.list.length !== Object.keys(fields).length) return false
+      || !object(row.configurations) || !object(row.epochs) || !usageFeatureIdsValid(Object.keys(row.configurations)) || !keys(row.epochs, Object.keys(row.configurations))
+      || Object.values(row.epochs).some(epoch => !Number.isSafeInteger(epoch) || epoch < 0) || !Array.isArray(row.list) || row.list.length !== Object.keys(row.configurations).length) return false
     const seen = new Set()
     return row.list.every(item => {
       if (!usageSettingValid(item) || seen.has(item.id)) return false
       seen.add(item.id)
-      return usageConfigurationValid(item.id, row.configurations[item.id])
+      return Object.hasOwn(row.configurations, item.id) && usageConfigurationValid(item.id, row.configurations[item.id])
     })
   }
   if (!keys(row, ['type', 'revision', 'value']) || !object(row.value)) return false
@@ -94,7 +99,7 @@ export function createUsageProjection({ bots }) {
       items.set(item.id, copy(item))
       if (item.botId !== null) (secret ? state.secretTimeline : state.questionTimeline).put(copy(item))
     } else if (row.type === 'settings') {
-      if (!Array.isArray(row.list) || !row.configurations || row.list.length !== Object.keys(fields).length
+      if (!Array.isArray(row.list) || !row.configurations || !usageFeatureIdsValid(row.list.map(item => item?.id))
         || row.list.some(item => typeof item.id !== 'string' || !Object.hasOwn(row.configurations, item.id))) throw usageError('USAGE_PROJECTION_INVALID')
       state.settings = copy(row)
     } else if (!['event', 'credential', 'credentialRecovery'].includes(row.type)) {

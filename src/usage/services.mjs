@@ -39,12 +39,13 @@ function volatileState(value) {
     }
     return result
   }
-  const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
-  if (epochs.size !== 7) throw usageError('USAGE_HANDOFF_INVALID')
+  // a479: a handoff from a usage module that predates thinkingDisplay carries 7 epochs; the new one starts at 0.
+  const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
+  if (epochs.size !== 7 + Number(epochs.has('thinkingDisplay'))) throw usageError('USAGE_HANDOFF_INVALID')
   const sessions = map(value.sessions, (key, session) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && typeof session === 'string' && session.length > 0)
   const receipts = map(value.receipts, (key, item) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && item !== null
     && (item.slot === undefined ? key !== 'claude:2nd' : item.slot === (key === 'claude:2nd' ? '2nd' : '1st')) && Boolean(receipt(item, sessions.get(key))))
-  const errors = map(value.errors, (id, code) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].includes(id) && typeof code === 'string' && /^[A-Z_0-9]+$/u.test(code))
+  const errors = map(value.errors, (id, code) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].includes(id) && typeof code === 'string' && /^[A-Z_0-9]+$/u.test(code))
   return { epochs, sessions, receipts: new Map([...receipts].map(([h, item]) => [h, receipt(item, sessions.get(h))])), errors, onboardingAuth: receipt(value.onboardingAuth) }
 }
 
@@ -54,7 +55,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
   let projectionFailed = false, projectionTail = Promise.resolve()
-  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].map(id => [id, 0]))
+  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
   const pending = new Set(), effectScope = new AsyncLocalStorage()
   const track = run => {
     const result = Promise.resolve().then(run)

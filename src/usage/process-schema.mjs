@@ -5,7 +5,7 @@ import { credentialContextValid, credentialScopeValid } from './secret-credentia
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const text = value => typeof value === 'string' && value.length > 0 && !value.includes('\0')
 const id = value => text(value) && value.length <= 200
-const feature = value => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].includes(value)
+const feature = value => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].includes(value)
 const harness = value => Object.hasOwn(HARNESS, value)
 const accountSlot = value => ['1st', '2nd'].includes(value)
 export const terminalOs = value => ['macos', 'linux', 'windows'].includes(value)

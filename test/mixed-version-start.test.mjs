@@ -53,5 +53,5 @@ for (const commit of commits ?? []) test(`この本体が、配布済みのusage
   // The same three steps as the body's startup; the last one ends with the ready probe.
   await assembly.initializeSettings(); await assembly.initializeSubscriptions(); await assembly.initializeServices()
   assert.equal(typeof assembly.facade.subscriptions.status().canUseAI, 'boolean')
-  assert.equal(assembly.facade.settings.list().length, 7)
+  assert.equal(assembly.facade.settings.list().length >= 7, true)
 })
