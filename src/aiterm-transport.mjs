@@ -75,12 +75,11 @@ async function launchWithCodeMode(args, call, skipped = () => {}) {
     return launched
   }
 }
-// a471 (remote-seat.md "Claude machine mode"): step 1 asks Aiterm for the machine launch on the test seat only; a471-all-container deletes the set.
-const MACHINE_TEST_SEATS = new Set(['bot-f1a21da1'])
 // a471-switch-harness (Elegg a471-harness-split): machine mode is Aiterm's own harness. The member's harness stays claude (HARNESS maps it to claude-code);
 // only the harness of the launch call changes. settings_env's Code Mode stays in the args (kept in the resume recipe for a later TUI wake).
 const MACHINE_HARNESS = 'claude-machine'
-const claudeLaunch = (bot, harness) => ({ ...codeMode(harness), ...(harness === 'claude-code' && MACHINE_TEST_SEATS.has(bot.id) ? { harness: MACHINE_HARNESS } : {}) })
+// Every Claude launch (main, fork, local or remote) asks for the machine harness (a471-all-container); launchWithMachine falls back once to the TUI.
+const claudeLaunch = harness => ({ ...codeMode(harness), ...(harness === 'claude-code' ? { harness: MACHINE_HARNESS } : {}) })
 const isMachineLaunch = args => args.harness === MACHINE_HARNESS
 // REMOTE_AITERM_TOO_OLD (a terminal below 0.70.85, before anything is sent), AGENT_MACHINE_UNAVAILABLE (the CLI did not come up in machine mode; Aiterm closed the half-made session)
 // or AGENT_HARNESS_UNAVAILABLE (the container's Aiterm does not list the harness: AitermClient's probe, nothing was sent).
@@ -449,7 +448,7 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-        ...claudeLaunch(bot, harness),
+        ...claudeLaunch(harness),
       }
       // remote-seat.md (one launch path): a member bound to a terminal gets the terminal target, its folder, the launch context
       // and the seat MCP config on the same agent_launch; the existing checkpoint reruns after that async preparation.
@@ -1902,7 +1901,7 @@ export class AitermTransport {
       // cwd = the main's folder: Aiterm accepts the same real path, the seat launcher requires it.
       // fork.md: the same saved model/effort as a main launch, so an opusplan Bot's fork also runs Opus in plan mode.
       let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId },
-        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}), ...claudeLaunch(bot, harness) }
+        ...(bot.model ? { model: bot.model } : {}), ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}), ...claudeLaunch(harness) }
       if (isRemoteBot(bot)) {
         if (!this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
         remote = await this.remoteSeats.prepare(bot, args, { shortTermMemory: '', context: {}, slot, harness, kind: 'fork' })
