@@ -70,6 +70,9 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     private var pendingUpdateRoute: BellUpdateRoute?
     private var api: BellAPI?
     private var token: String?
+    var pushToken: String? { token }
+    /// 通知トークンが変わった時（ホームのチケットを新しい値で証明し直す）。
+    var onTokenChange: (() -> Void)?
     private var signedTransaction: String?
     private var attached = false
     private var activating = false
@@ -129,6 +132,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
 
     func receivedToken(_ data: Data) {
         token = data.map { String(format: "%02x", $0) }.joined()
+        onTokenChange?()
         guard attached else { return }
         registrationTask = Task { await registerToken() }
     }

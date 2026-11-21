@@ -3,7 +3,7 @@ import LoginBilling
 import SwiftUI
 import UIKit
 
-/// 店の側（Appleのレシートと店のパス）。ライブラリ（login-billing 0.7.2）をそのまま使い、仕組みを横に作らない。
+/// 店の側（Appleのレシートと店のパス）。ライブラリ（login-billing 0.16.0）をそのまま使い、仕組みを横に作らない。
 /// パスは運営のWorkerのoriginにだけ行き、ユーザーのサーバーへは行かない（docs/architecture/modules/apple/login-billing.md）。
 @MainActor
 final class StoreAccount: ObservableObject {
@@ -24,6 +24,8 @@ final class StoreAccount: ObservableObject {
     @Published private(set) var approval: ApprovalPrompt?
     private var decision: CheckedContinuation<Bool, Never>?
     private let client: LoginBillingClient?
+    /// このアプリのホームサーバーへの接続（ライブラリ0.16.0）。パスを持つこの部品に1つだけ置く。
+    let home: HomeConnection?
     let productId: String
 
     /// 接続先が無い間は動かさない（運営のWorkerが決まるまで）。理由は画面に出す。
@@ -38,10 +40,15 @@ final class StoreAccount: ObservableObject {
     init(baseURL: URL?, productId: String) {
         self.productId = productId
         if let baseURL {
-            do { client = try LoginBillingClient(baseURL: baseURL) }
-            catch { client = nil; errorText = Self.words(error) }
+            do {
+                let passStore = KeychainPassStore()
+                let made = try LoginBillingClient(baseURL: baseURL, store: passStore)
+                client = made
+                home = HomeConnection(client: made, store: passStore)
+            } catch { client = nil; home = nil; errorText = Self.words(error) }
         } else {
             client = nil
+            home = nil
         }
     }
 
@@ -118,10 +125,32 @@ final class StoreAccount: ObservableObject {
 
     func signOut() async {
         await run { client in
+            // ライブラリのsignOutはホームのセッションを終えない（製品の務め）。終えられなくても、サインアウトは進める。
+            var homeFailure: String?
+            do { try await self.endHome() } catch { homeFailure = Self.words(error) }
             try await client.signOut()
-            self.message = "サインアウトしました。"
+            self.message = "サインアウトしました。" + (homeFailure.map { "ホームサーバーのセッションは終えられませんでした（\($0)）。サーバーが確かめ次第、終わります。" } ?? "")
         }
     }
+
+    /// ホームサーバーへ入る（接続先の/api/home、種類はapple）。セットアップコードは最初の結びつけだけ。
+    func connectHome(_ server: URL, setupCode: String?, pushToken: String?) async throws -> HomeSession {
+        guard let home else { throw LoginBillingError(code: "not_configured") }
+        return try await home.connectHome(HomeServer.base(server), kind: HomeServer.kind, setupCode: setupCode, ticketFor: HomeServer.ticketFor(pushToken: pushToken))
+    }
+
+    /// ホームのトークン（その接続先のオリジンへだけ）。BellAPIがBearerとして付ける。
+    func homeToken(for server: URL) -> String? {
+        guard let header = home?.homeHeader(HomeServer.base(server)), header.hasPrefix("Bearer ") else { return nil }
+        return String(header.dropFirst(7))
+    }
+
+    /// 通知トークンが変わった時と前面に戻る時に呼ぶ（間隔が来ていなければ何もしない）。
+    func reproveHome(pushToken: String?) async throws -> HomeSession? {
+        try await home?.reproveIfDue(ticketFor: HomeServer.ticketFor(pushToken: pushToken))
+    }
+
+    func endHome() async throws { try await home?.endHomeSession() }
 
     private func ask(label: String, check: String) async -> Bool {
         await withCheckedContinuation { continuation in

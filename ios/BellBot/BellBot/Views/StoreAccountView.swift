@@ -35,7 +35,7 @@ struct StoreAccountCard: View {
                     ApprovalSheet(prompt: prompt) { account.answer($0) }
                 }
                 .sheet(isPresented: $scanning) {
-                    #if os(iOS)
+                    #if os(iOS) && !targetEnvironment(macCatalyst)
                     NavigationStack {
                         QRScannerView { payload in scanning = false; Task { await account.approve(payload) } }
                             .ignoresSafeArea()
