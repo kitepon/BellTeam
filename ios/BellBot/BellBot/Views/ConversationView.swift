@@ -297,6 +297,8 @@ private struct ConversationContent: View {
         let label = replyLabel(for: message, botsByID: botsByID)
         // 本席の最後の言葉（bubble: true）は普通の受信の吹き出し。rowのmessageは先頭1行なので全文に差し替える。
         let bubbleText = message.machineEvent.flatMap { $0.isBubble ? message.replacingText($0.text) : nil }
+        // 返信・引用・転送の元は全文の行（id は me-<seq>-<part> のまま）。
+        let source = bubbleText ?? message
         return Group {
             if let request = message.secretRequest {
                 let state = cards.secretState(for: message.id)
@@ -309,9 +311,9 @@ private struct ConversationContent: View {
             } else {
                 MessageRow(message: bubbleText ?? message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api,
-                           onReply: message.isQuotable ? { startReply(to: message, senderBot: senderBot) } : nil,
-                           onForward: message.isForwardable ? { forwarding = message } : nil,
-                           onQuote: message.isQuotable ? { startReply(to: message, senderBot: senderBot, selection: $0) } : nil,
+                           onReply: message.isQuotable ? { startReply(to: source, senderBot: senderBot) } : nil,
+                           onForward: message.isForwardable ? { forwarding = source } : nil,
+                           onQuote: message.isQuotable ? { startReply(to: source, senderBot: senderBot, selection: $0) } : nil,
                            highlight: jumpHighlight?.id == message.id ? jumpHighlight?.highlight : nil,
                            onJump: { reply in Task { await jump(to: reply) } },
                            onOpenPeer: { presentedSheet = .peer(message) },

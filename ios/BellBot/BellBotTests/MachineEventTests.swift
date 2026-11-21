@@ -36,6 +36,16 @@ final class MachineEventTests: XCTestCase {
         XCTAssertEqual(rows.map { $0.machineEvent?.isBubble }, [true, false, false, false])
     }
 
+    func testOnlyABubbleRowCanBeRepliedQuotedAndForwardedWithItsWholeText() throws {
+        func words(_ extra: [String: Any]) -> [String: Any] { ["seq": 1, "view": "words", "display": "show", "text": "一行目\n二行目", "truncated": false].merging(extra) { $1 } }
+        let rows = try decode([row("me-1-0", words(["bubble": true])), row("me-2-0", words([:])), row("me-3-0", ["seq": 3, "view": "thinking", "display": "show", "text": "t"])])
+        XCTAssertEqual(rows.map(\.isQuotable), [true, false, false])
+        XCTAssertEqual(rows.map(\.isForwardable), [true, false, false])
+        let quote = ReplyReference(quoting: rows[0].replacingText(try XCTUnwrap(rows[0].machineEvent).text), senderName: "ユキ")
+        XCTAssertEqual(quote.id, "me-1-0")
+        XCTAssertEqual(quote.text, "一行目\n二行目", "row.message is the first line only; the quote carries machine_event.text")
+    }
+
     func testMalformedEventShowsAsUnknownAndDoesNotBreakTheRow() throws {
         let message = try decode([row("me-2-0", ["view": 5, "request": ["status": "pending"]])])[0]
         XCTAssertEqual(message.machineEvent?.view, "unknown")

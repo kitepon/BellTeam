@@ -27,6 +27,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | `MessageSeat`（`Core/Models.swift`）、`TimelineMessage.seat` / `TimelineMessage.isFork` | 直接会話の行の任意`seat`。`kind`だけを寛容に読み（不正な型は`kind`なし）、`kind=="fork"`の行に`MessageRow`が「分身」のバッジを出す（[図](conversation.md#分身の行の表示)、契約は[fork-inquiry](../conversation/fork-inquiry.md)） |
 | [QueueItem.displayItems](../../../../ios/BellBot/BellBot/Core/Models.swift#L128) | Bot IDとstatus単位で表示queueをまとめる。`steered:true`（実行中ターンへの差し込み）はrunningとして数え、Botの実行中ターンごとに「処理中」1行にする。steeredの無い旧形式はfalse扱い。botId無しは別項目 |
 | [QueueItem.workingLabel](../../../../ios/BellBot/BellBot/Core/Models.swift) | runningの行の`workingWord`（本体が選んだ言葉、…なし）を「Mulling…」にする。無い旧本体は「処理中」。会話の処理中の行（`ConversationView.queueStrip`）が描く。一覧・選択はアプリに持たない |
+| [TimelineMessage.isStreamBubble](../../../../ios/BellBot/BellBot/Core/Models.swift) | `machine_event`で`bubble: true`の行か。真なら`isQuotable`/`isForwardable`が通り、返信・引用・転送・コピーが出る。送るidは行のid（`me-<seq>-<part>`）、文は`machine_event.text`全文（`timelineRow`が全文の行を渡す） |
 | [Schedule.title](../../../../ios/BellBot/BellBot/Core/Models.swift#L159) | 予定の表示名 |
 | [ChatTarget.id / isRoom / path](../../../../ios/BellBot/BellBot/Core/Models.swift#L166) | 宛先と`/api/bots/:id`・`/api/rooms/:id` |
 | [ConversationPage](../../../../ios/BellBot/BellBot/Core/Models.swift#L177)、[ListResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L183) | 履歴ページと古い残件情報 |
