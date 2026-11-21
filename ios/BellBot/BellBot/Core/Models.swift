@@ -287,12 +287,14 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     /// conversation forward.md "What can be forwarded": message / interim / peer rows and room messages. Not cards, not a row the server has not saved.
     var isForwardable: Bool {
         guard secretRequest == nil, ownerQuestion == nil, !id.hasPrefix("local-pending-") else { return false }
-        return kind == nil || ["message", "interim", "peer", "schedule"].contains(kind!)
+        return kind == nil || ["message", "interim", "peer", "schedule"].contains(kind!) || isStreamBubble
     }
+    /// machine-stream.md「Reply, forward, quote and copy of a bubble」: a machine seat's answer bubble is a message bubble. Plain words, thinking, tools and cards are not.
+    var isStreamBubble: Bool { kind == "machine_event" && machineEvent?.isBubble == true }
     /// conversation reply.md "What can be quoted": message / interim rows and room posts that the server already holds.
     var isQuotable: Bool {
         guard !isPeer, secretRequest == nil, ownerQuestion == nil, !id.hasPrefix("local-pending-") else { return false }
-        return kind == nil || ["message", "interim", "schedule"].contains(kind!)
+        return kind == nil || ["message", "interim", "schedule"].contains(kind!) || isStreamBubble
     }
     var isPeer: Bool { kind == "peer" }
     var displayedImageURLs: [String] { imageUrls ?? imageUrl.map { [$0] } ?? [] }
