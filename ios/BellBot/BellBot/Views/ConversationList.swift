@@ -140,6 +140,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var olderPagesRead = 0
         /// 末尾へなめらかに送っている間。新着が続いても末尾にいるものとして追う。指・ホイールが触れたら外す。
         private var following = false
+        /// 自分で始めたアニメーション付きのスクロール（末尾を追う・最新へ・引用元へ）が動いている間。
+        /// その行き先は始めた時の座標なので、この間に過去の行を足すと行き先が過去の位置になり、画面が過去へ飛ぶ（a471-refresh-jump、build 176 で実測 21,920pt）。
+        private var animatingScroll = false
         private var scrollSpeed: CGFloat = 0
         private var lastScrollTime: CFTimeInterval = 0
         private var atBottom = true
@@ -257,16 +260,16 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 atBottom = true
             } else {
                 // 末尾にいる時の新着・行の伸びは瞬時に動かさず、なめらかに末尾へ送る（動いた向きが分かるように）。上を読んでいる時は動かさない。
-                let follow = !prepended && (atBottom || following) && !view.isTracking
-                if follow { layout?.keepContentOffsetAtBottomOnBatchUpdates = false }
+                // 過去の行と新着が同じ更新に入った時も、末尾にいたなら追う（レイアウトは過去の分だけ位置を補い、新着の分は下に残る）。
+                let follow = (atBottom || following) && !view.isTracking
+                let smooth = follow && !prepended
+                if smooth { layout?.keepContentOffsetAtBottomOnBatchUpdates = false }
                 UIView.performWithoutAnimation {
                     dataSource.apply(snapshot, animatingDifferences: false, commitAlongsideUpdates: commit)
                     if follow { view.layoutIfNeeded() }
                 }
-                if follow {
-                    layout?.keepContentOffsetAtBottomOnBatchUpdates = true
-                    followBottom()
-                }
+                if smooth { layout?.keepContentOffsetAtBottomOnBatchUpdates = true }
+                if follow { followBottom() }
             }
             if prepended {
                 // 頁が届いたら、残りが足りるか直ぐ確かめる（速いスクロールでは頁が続く）。
@@ -278,7 +281,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         private func isScrolling(_ view: UIScrollView) -> Bool {
-            var scrolling = view.isTracking || view.isDecelerating
+            var scrolling = view.isTracking || view.isDecelerating || animatingScroll
             #if targetEnvironment(macCatalyst)
             scrolling = scrolling || wheel?.isActive == true
             #endif
@@ -293,8 +296,15 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         private func followBottom() {
-            guard let view, view.distanceFromBottom > 1 else { following = false; return }
+            guard let view else { following = false; return }
+            // 残りが数ptなら動かさずに合わせて終える。画素の丸めで1〜2pt残り続けると、追い直しのアニメーションが止まらない。
+            guard view.distanceFromBottom > 4 else {
+                view.pinToBottom()
+                following = false
+                return
+            }
             following = true
+            animatingScroll = true
             view.setContentOffset(CGPoint(x: view.contentOffset.x, y: view.bottomOffset), animated: true)
         }
 
@@ -312,6 +322,11 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             guard let id = pendingJump, let view, let dataSource,
                   let indexPath = dataSource.indexPath(for: .message(id)) else { return }
             pendingJump = nil
+            // 動かない時（もう中央にある）は終わりの通知が来ないので、印を立てない。
+            if let frame = view.layoutAttributesForItem(at: indexPath)?.frame {
+                let y = min(max(frame.midY - view.bounds.height / 2, -view.adjustedContentInset.top), view.bottomOffset)
+                animatingScroll = abs(y - view.contentOffset.y) > 0.5
+            }
             view.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
             let flashes = pendingFlash
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reveal(.message(id), flash: flashes) }
@@ -334,6 +349,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         func scrollToBottom(animated: Bool) {
             guard let view else { return }
             atBottom = true
+            animatingScroll = animated && abs(view.bottomOffset - view.contentOffset.y) > 0.5
             view.setContentOffset(CGPoint(x: 0, y: view.bottomOffset), animated: animated)
             if !animated { report() }
         }
@@ -431,14 +447,22 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-            guard following else { return }
-            // 追う間に行の高さが測り直されて末尾が遠のいたら、続けて追う。
-            followBottom()
-            if !following { report() }
+            animatingScroll = false
+            // この通知の中で過去の行を入れると、直後にUIKitがアニメーションの行き先（古い座標）へ位置を置き直し、過去へ飛ぶ（実測 -23,174pt）。
+            // 次の周で入れる（レイアウトが位置を補う）。その後で、末尾が遠のいていれば続けて追う。
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                flushDeferred()
+                guard following, !animatingScroll else { return }
+                followBottom()
+                if !following { report() }
+            }
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
             following = false
+            // 指が触れるとアニメーションは打ち切られ、終わりの通知は来ない。
+            animatingScroll = false
             #if targetEnvironment(macCatalyst)
             wheel?.stop()
             #endif

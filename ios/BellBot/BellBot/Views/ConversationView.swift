@@ -301,18 +301,20 @@ private struct ConversationContent: View {
         let bubbleText = message.machineEvent.flatMap { $0.isBubble ? message.replacingText($0.text) : nil }
         // 返信・引用・転送の元は全文の行（id は me-<seq>-<part> のまま）。
         let source = bubbleText ?? message
+        // machine-stream.md「Thinking is drawn as a bubble」：中身のある thinking の行は答えと同じ受信の吹き出しで、全文を薄い斜体で出す。操作はコピーだけ（isQuotable/isForwardableは偽）。
+        let thinkingText = message.machineEvent.flatMap { $0.isThinking && $0.display == "show" && $0.request == nil && !$0.text.isEmpty ? message.replacingText($0.text) : nil }
         return Group {
             if let request = message.secretRequest {
                 let state = cards.secretState(for: message.id)
                 SecretRequestCard(request: request, state: state) { presentedSheet = .secret(request, state) }
             } else if let question = message.ownerQuestion {
                 OwnerQuestionCard(question: question, state: cards.questionState(for: message.id))
-            } else if let event = message.machineEvent, !event.isBubble {
+            } else if let event = message.machineEvent, !event.isBubble, thinkingText == nil {
                 MachineEventRow(message: message, event: event, state: event.request.map { cards.machineState(for: $0.requestId) },
                                 fold: event.display == "fold" ? cards.foldState(for: message.id) : nil)
             } else {
-                MessageRow(message: bubbleText ?? message, isRoom: target.isRoom, bot: selectedBot,
-                           senderBot: senderBot, replyLabel: label, api: store.api,
+                MessageRow(message: bubbleText ?? thinkingText ?? message, isRoom: target.isRoom, bot: selectedBot,
+                           senderBot: senderBot, replyLabel: label, api: store.api, thinking: thinkingText != nil,
                            onReply: message.isQuotable ? { startReply(to: source, senderBot: senderBot) } : nil,
                            onForward: message.isForwardable ? { forwarding = source } : nil,
                            onQuote: message.isQuotable ? { startReply(to: source, senderBot: senderBot, selection: $0) } : nil,
@@ -943,12 +945,12 @@ private final class ReadCoordinator {
 
 /// machine-stream.md「History pages of a long stream」。頁の大きさと先読みの規則（全アプリ共通の契約。実測で変えるのはこの数字だけ）。
 enum ConversationHistoryPage {
-    /// 開いた時に取る最新の行数。
-    static let firstPage = 100
+    /// 開いた時に取る最新の行数（本体の上限。オーナー 2026-11-21「もう一回で読むのは1000とかにしろよ」）。
+    static let firstPage = 1000
     /// 更新（SSE・引き下げ）で取る最新の行数。新着は after で取るので、既知の行の状態を直すだけの小さな頁。
     static let refreshPage = 30
     /// 過去の頁。
-    static let pageSize = 500
+    static let pageSize = 1000
     /// 見ている行より上に読込済みとして残す量は max(3画面, 150行, 2秒分のスクロール速度)。
     static let stockRows = 150
     static let stockScreens: CGFloat = 3
@@ -1170,6 +1172,8 @@ private struct MessageRow: View, Equatable {
     let senderBot: Bot?
     let replyLabel: String?
     let api: BellAPI
+    /// 思考の吹き出し。本文は薄い斜体で、操作はコピーだけ。
+    let thinking: Bool
     let onReply: (() -> Void)?
     let onForward: (() -> Void)?
     let onQuote: ((String) -> Void)?
@@ -1184,7 +1188,7 @@ private struct MessageRow: View, Equatable {
             && lhs.bot?.avatar == rhs.bot?.avatar
             && lhs.senderBot?.id == rhs.senderBot?.id && lhs.senderBot?.color == rhs.senderBot?.color
             && lhs.senderBot?.avatar == rhs.senderBot?.avatar
-            && lhs.replyLabel == rhs.replyLabel && lhs.api === rhs.api
+            && lhs.replyLabel == rhs.replyLabel && lhs.api === rhs.api && lhs.thinking == rhs.thinking
             && (lhs.onReply == nil) == (rhs.onReply == nil) && (lhs.onForward == nil) == (rhs.onForward == nil)
             && lhs.highlight == rhs.highlight
     }
@@ -1259,6 +1263,10 @@ private struct MessageRow: View, Equatable {
                             if let text = message.message, !text.isEmpty {
                                 if let origin = message.origin, origin.isForward || origin.isShare {
                                     originBody(origin, text: text)
+                                } else if thinking {
+                                    SelectableText(text, font: UIFont.italicSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize),
+                                                   color: BellTheme.ink.opacity(0.55))
+                                        .accessibilityIdentifier("message-text-\(message.id)")
                                 } else {
                                     MessageText(source: text, accessibilityIdentifier: "message-text-\(message.id)",
                                                 onReply: onReply, onForward: onForward, onQuote: onQuote, highlight: highlight)
