@@ -442,6 +442,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
             StartupPhase.Checking => new StartupOpeningView(),
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, () => { }, model.Server),
+            StartupPhase.Paywall => new PaywallView(ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.SignIn => model.SessionLoginRequired ? SessionSignIn() : new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, async ready => { await model.ReconnectAsync(); await EnterAsync(generation, ready); }, () => ShowStartup(StartupPhase.Setup), model.ConnectionToken)
         };
@@ -476,14 +477,17 @@ public sealed class PhoneShell : UserControl, IMessageHost
             try { setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken); }
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        var paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken);
         if (mine != generation) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) attempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); ShowList(); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowStartup(StartupPhase.SignIn); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleRetry(mine); break;
         }
     }
