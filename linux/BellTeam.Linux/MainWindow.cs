@@ -29,8 +29,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // Off for the render seams, which capture a screen and must not move on by themselves.
     public bool AutoRetry { get; set; } = true;
     private bool loadingOlder;
-    private BottomFollower? follower;
-    private bool unreadNew; // a message arrived while the reader was away from the bottom
+        private bool unreadNew; // a message arrived while the reader was away from the bottom
     private bool syncingComposer;
     private string attachmentKey = "", queueKey = "";
 
@@ -57,7 +56,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly Grid conversationArea = new();
     private readonly Border pageArea = new() { Background = BellTheme.ConversationBackground, IsVisible = false };
     private readonly ScrollViewer messageScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    private readonly Grid messageColumn = new();
+    private readonly NewestColumn messageColumn = new();
     private StackPanel? messageStack;
     private readonly Border queueStrip = new() { Background = BellTheme.QueueFill, CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 9.5), IsVisible = false };
     private readonly StackPanel queueRows = new();
@@ -273,21 +272,17 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         messageStack = stack;
         messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) { messageColumn.MinHeight = messageScroll.Viewport.Height; FillScreen(); } };
         stack.PropertyChanged += (_, args) => { if (args.Property == BoundsProperty) FillScreen(); };
-        follower = new BottomFollower(messageScroll);
         messageScroll.ScrollChanged += async (_, args) =>
         {
             ShowLatestButton();
-            var previousBottomDistance = messageScroll.Extent.Height - args.ExtentDelta.Y - messageScroll.Viewport.Height - messageScroll.Offset.Y;
-            if (!loadingOlder && args.ExtentDelta.Y > 0 && previousBottomDistance < 80) follower!.Follow();
             NoteScrollUp(args);
             await PrefetchOlderAsync();
         };
         model.ScrollToBottom += force =>
         {
-            // a471-scroll-jump-linux: opening or sending snaps to the end; a row that arrives while the reader is at the bottom is followed by an animated scroll (BottomFollower).
-            if (force) { follower!.Stop(); Dispatcher.UIThread.Post(() => BottomFollower.SnapToEnd(messageScroll)); }
-            else if (messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80) follower!.Follow();
-            else { unreadNew = true; ShowLatestButton(); }
+            // a471-open-newest-linux: opening and sending ask to be at the newest; the column then lays out from the newest row (NewestColumn). A row that arrives while the reader reads older ones only lights the button.
+            if (force) messageColumn.FollowNewest();
+            else if (!messageColumn.Following) { unreadNew = true; ShowLatestButton(); }
         };
         model.ScrollToMessage += (id, quote) => Dispatcher.UIThread.Post(() => ScrollToMessageRow(stack, id, quote), DispatcherPriority.Background);
         var cancelQuote = new Button { Classes = { "plain" }, Width = 32, Height = 32, Padding = default, CornerRadius = new CornerRadius(16), Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Content = Icons.Draw(Icons.Close, 12, BellTheme.Muted, thickness: 2.2) };
@@ -309,7 +304,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var failedNote = BellTheme.Text("再読み込みしてください。", 15, BellTheme.Muted, margin: new Thickness(0, 8, 0, 0)); failedNote.TextAlignment = TextAlignment.Center; failedConversation.Children.Add(failedNote);
         var reload = new Button { Classes = { "plain" }, Content = "再読み込み", HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0), Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), Foreground = BellTheme.Violet };
         AutomationProperties.SetName(reload, "再読み込み"); reload.Click += async (_, _) => { if (model.Selected is { } entry) await model.SelectAsync(entry); }; failedConversation.Children.Add(reload);
-        latest.Click += (_, _) => { unreadNew = false; BottomFollower.SnapToEnd(messageScroll); latest.IsVisible = false; }; AutomationProperties.SetName(latest, "最新へ");
+        latest.Click += (_, _) => { unreadNew = false; messageColumn.FollowNewest(); latest.IsVisible = false; }; AutomationProperties.SetName(latest, "最新へ");
 
         // Composer band (Mac composer): notices and attachments sit above the reply target and the input.
         stopNoticeBox.Child = stopNoticeText; AutomationProperties.SetName(stopNoticeBox, "停止の結果");
@@ -959,7 +954,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             await Task.WhenAll(loads); await Task.Yield();
         }
         UpdateLayout();
-        if (conversationArea.IsVisible && !readingOlder) { messageScroll.ScrollToEnd(); UpdateLayout(); } // images that finished loading changed the height
+        if (conversationArea.IsVisible && !readingOlder) { messageColumn.FollowNewest(); UpdateLayout(); } // images that finished loading changed the height
         if (bottomOfPage && settingsPage is { } open) { open.ScrollToEndForRender(); UpdateLayout(); }
     }
 }

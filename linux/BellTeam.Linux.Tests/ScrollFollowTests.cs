@@ -11,8 +11,8 @@ using Xunit.Abstractions;
 
 namespace BellTeam.Linux;
 
-// a471-scroll-jump-linux: a row that arrives while the reader is at the bottom is followed by an animated scroll (at most 33 px a frame), instant with motion off, and stopped by the reader's key.
-public sealed class ScrollFollowTests(ITestOutputHelper output)
+// a471-open-newest-linux: the newest row is the anchor (NewestColumn): opening, a new row and a sent bubble are at the newest in the layout pass that adds them; reading older rows nothing moves.
+public sealed class ScrollFollowTests
 {
     private sealed class Server : HttpMessageHandler
     {
@@ -40,72 +40,90 @@ public sealed class ScrollFollowTests(ITestOutputHelper output)
     private static ScrollViewer ScrollOf(Window window) => window.GetVisualDescendants().OfType<ScrollViewer>().First(candidate => AutomationProperties.GetName(candidate) == "会話");
     private static double DistanceToEnd(ScrollViewer scroll) => scroll.Extent.Height - scroll.Viewport.Height - scroll.Offset.Y;
 
-    private async Task<(LinuxWorkspace Model, MainWindow Window, ScrollViewer Scroll)> OpenAtBottomAsync()
+    private static void AddRows(LinuxWorkspace model, string prefix = "new")
+    {
+        var last = model.Messages[^1].Message;
+        for (var index = 0; index < 3; index++) model.Messages.Add(new MessageItem(last with { Id = prefix + index, At = last.At.AddMinutes(1 + index), Message = string.Concat(Enumerable.Repeat("新着の長い行です。", 30)) }));
+    }
+
+    // Every offset the view had after a layout pass with something to scroll; a catch-up would leave a value that is not the end.
+    private static List<double> WatchDistances(ScrollViewer scroll)
+    {
+        var seen = new List<double>();
+        scroll.ScrollChanged += (_, _) => { if (scroll.Extent.Height > scroll.Viewport.Height) seen.Add(DistanceToEnd(scroll)); };
+        return seen;
+    }
+
+    // (a) The first frame is the newest rows at the bottom: one layout pass after the rows arrive, no scroll command and no later catch-up.
+    [Fact]
+    public Task OpeningShowsTheNewestAtOnce() => Ui.Run(async () =>
+    {
+        var model = new LinuxWorkspace(origin => new BellApi(origin, new Server()));
+        var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false }; window.Show();
+        using (model)
+        {
+            await model.ConnectAsync("http://localhost:1/", listen: false);
+            var scroll = ScrollOf(window); var seen = WatchDistances(scroll);
+            await model.SelectAsync(model.Entries.Single());
+            window.UpdateLayout();
+            Assert.True(scroll.Extent.Height > scroll.Viewport.Height * 3, "a long conversation");
+            Assert.True(DistanceToEnd(scroll) < 1, $"the first frame is at the newest ({DistanceToEnd(scroll):F1} px from it)");
+            await Settle(60);
+            Assert.True(DistanceToEnd(scroll) < 1, "still at the newest after the background work");
+            Assert.True(seen.Count != 0 && seen.All(distance => distance < 1), "every frame after the rows arrived was at the newest: " + string.Join(", ", seen.Select(distance => distance.ToString("F0"))));
+        }
+        window.Close();
+    });
+
+    // (b) A sent bubble and (c) a new row while following: at the newest in the layout pass that adds them, held rows stay.
+    [Fact]
+    public Task NewRowsWhileFollowingAreAtTheNewestInTheSamePass() => Ui.Run(async () =>
+    {
+        var (model, window, scroll) = await OpenAsync();
+        using (model)
+        {
+            var seen = WatchDistances(scroll);
+            for (var round = 0; round < 3; round++) { AddRows(model, "n" + round + "_"); window.UpdateLayout(); Assert.True(DistanceToEnd(scroll) < 1, $"round {round}: {DistanceToEnd(scroll):F1} px from the newest"); }
+            await Settle(10);
+            Assert.True(seen.All(distance => distance < 1), "no frame between: " + string.Join(", ", seen.Select(distance => distance.ToString("F0"))));
+            Assert.Equal(109, model.Messages.Count);
+        }
+        window.Close();
+    });
+
+    // Reading older rows: a new row below and an older page above move nothing; reaching the end follows again.
+    [Fact]
+    public Task WhileReadingOlderNothingMoves() => Ui.Run(async () =>
+    {
+        var (model, window, scroll) = await OpenAsync();
+        using (model)
+        {
+            scroll.Offset = new Vector(0, scroll.Extent.Height / 2); window.UpdateLayout(); await Settle(5);
+            var offset = scroll.Offset.Y;
+            AddRows(model); window.UpdateLayout(); await Settle(5);
+            Assert.True(Math.Abs(scroll.Offset.Y - offset) < 1, $"a new row below moved the view by {scroll.Offset.Y - offset:F1} px");
+            var card = window.GetVisualDescendants().OfType<MessageCard>().First(c => c.TranslatePoint(default, scroll) is { } at && at.Y >= 0);
+            var before = card.TranslatePoint(default, scroll)!.Value.Y;
+            var first = model.Messages[0].Message;
+            for (var index = 0; index < 5; index++) model.Messages.Insert(0, new MessageItem(first with { Id = "old" + index, At = first.At.AddMinutes(-5 + index), Message = string.Concat(Enumerable.Repeat("古い行です。", 40)) }));
+            window.UpdateLayout(); await Settle(5);
+            Assert.True(Math.Abs(card.TranslatePoint(default, scroll)!.Value.Y - before) < 1, "an older page above moved the row being read");
+            scroll.Offset = new Vector(0, scroll.Extent.Height); window.UpdateLayout();
+            AddRows(model, "after"); window.UpdateLayout();
+            Assert.True(DistanceToEnd(scroll) < 1, "back at the end the view follows again");
+        }
+        window.Close();
+    });
+
+    private async Task<(LinuxWorkspace Model, MainWindow Window, ScrollViewer Scroll)> OpenAsync()
     {
         var model = new LinuxWorkspace(origin => new BellApi(origin, new Server()));
         var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false }; window.Show();
         await model.ConnectAsync("http://localhost:1/", listen: false);
         await model.SelectAsync(model.Entries.Single());
         await Settle(60);
-        var scroll = ScrollOf(window); BottomFollower.SnapToEnd(scroll); await Settle(10);
-        Assert.True(DistanceToEnd(scroll) < 2, "the conversation opens at the bottom");
+        var scroll = ScrollOf(window);
+        Assert.True(DistanceToEnd(scroll) < 1, "the conversation opens at the newest");
         return (model, window, scroll);
     }
-
-    private static void AddRows(LinuxWorkspace model)
-    {
-        var last = model.Messages[^1].Message;
-        for (var index = 0; index < 3; index++) model.Messages.Add(new MessageItem(last with { Id = "new" + index, At = last.At.AddMinutes(1 + index), Message = string.Concat(Enumerable.Repeat("新着の長い行です。", 30)) }));
-    }
-
-    [Fact]
-    public Task NewRowsAtTheBottomAreFollowedFrameByFrameNotSnapped() => Ui.Run(async () =>
-    {
-        var (model, window, scroll) = await OpenAtBottomAsync();
-        using (model)
-        {
-            BottomFollower.MotionOn = () => true;
-            var offsets = new List<double> { scroll.Offset.Y };
-            AddRows(model);
-                        for (var frame = 0; frame < 150; frame++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(8); if (offsets[^1] != scroll.Offset.Y) offsets.Add(scroll.Offset.Y); if (DistanceToEnd(scroll) < 1) break; }
-            var steps = offsets.Zip(offsets.Skip(1), (a, b) => b - a).ToArray();
-            output.WriteLine($"steps {steps.Length}, largest {steps.DefaultIfEmpty().Max():F1} px, to end {DistanceToEnd(scroll):F1}");
-            Assert.True(DistanceToEnd(scroll) < 1, "the view followed to the end");
-            Assert.True(steps.Length >= 3, "it moved in several steps, not one snap");
-            Assert.True(steps.Max() <= BottomFollower.Step + 1, $"a step was {steps.Max():F1} px");
-        }
-        window.Close();
-    });
-
-    [Fact]
-    public Task WithMotionOffTheViewFollowsAtOnce() => Ui.Run(async () =>
-    {
-        var (model, window, scroll) = await OpenAtBottomAsync();
-        using (model)
-        {
-            BottomFollower.MotionOn = () => false;
-            AddRows(model);
-            await Settle(5);
-            BottomFollower.MotionOn = () => true;
-            Assert.True(DistanceToEnd(scroll) < 1, "motion off: the view is at the end at once");
-        }
-        window.Close();
-    });
-
-    [Fact]
-    public Task TheReadersKeyStopsTheFollowing() => Ui.Run(async () =>
-    {
-        var (model, window, scroll) = await OpenAtBottomAsync();
-        using (model)
-        {
-            BottomFollower.MotionOn = () => true;
-            AddRows(model);
-            for (var frame = 0; frame < 6; frame++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(20); }
-            Assert.True(DistanceToEnd(scroll) > 100, "still following");
-            scroll.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Up });
-            var stopped = scroll.Offset.Y; await Settle(15);
-            Assert.True(Math.Abs(scroll.Offset.Y - stopped) < 1, "the following stopped where the reader's key found it");
-        }
-        window.Close();
-    });
 }
