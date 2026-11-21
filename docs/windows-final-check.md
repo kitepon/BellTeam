@@ -270,3 +270,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 11:19:29に成功。authenticated=true、bots=144、rooms=9、SSE接続あり。
 - 本番の自席 bot-0d7da1c1 を `--render-conversation member`（GETのみ）で描いた。終了コードは0（0.6.5で出ていた終了時の落ち、#2100、が直っている）。HasMoreが真の会話で、行の上に「以前のメッセージを読む」は出ない。
 - 確認できていない: 実際にスクロールして先読みが働く動き（試験とUiChecksで確かめた。本番の画面での操作は未確認）。LinuxとAndroidには同じボタンが残っている（担当はそれぞれの席）。
+
+### 0.6.7 の導入（a471-fill-drawn: 最初の画面と先読みの幅を描いた中身で埋める）
+
+2026-11-21 11:56 JST、main f5f1607c（#2116）から `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget` で導入した（共有先の登録は触っていない）。導入後の`BellTeam.exe`は0.6.7+f5f1607c。
+
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9。
+- 本番の忙しい機械の席 bot-7b140b27（トロニー）を `--render-conversation member`（GETのみ）で描いた。終了コード0。最初の画面は返答の吹き出し・考えた行（全文）・畳んだ「background ×54」「tools ×5」と作業中の行でいっぱいで、スクロールバーのつまみは小さく下に寄り、上に読み込み済みの分が十分ある。
+- 確認できていない: 実際に上へスクロールして、先読みが3画面分を保って続く動き（試験とUiChecksで確かめた。本番の画面での操作は未確認）。LinuxとAndroidは旧5引数の転送で新しい規則が効いている（Linuxの新形式への移行はa471-fill-drawn-linux）。
