@@ -591,6 +591,23 @@ test('turn answer: a words row with bubble:true is an ordinary incoming bubble w
   assert.match(f.text(), /テスト席/)
 })
 
+test('a471-reply-forward-web: a bubble row has reply / forward / copy by its own id and the whole text; plain words and an open turn do not', async t => {
+  const row = (id, event) => ({ id, kind: 'machine_event', at: '2026-11-21T06:35:00Z', sender: { id: 'a', name: 'テスト席' }, message: event.text.split('\n')[0], machine_event: { view: 'words', display: 'show', ...event } })
+  const asked = [], replied = [], copied = []
+  Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText: async text => { copied.push(text) } } }, configurable: true })
+  t.after(() => { delete globalThis.navigator })
+  const f = fixture(t, () => ({ items: [row('me-1-0', { text: '途中の発言' }), row('me-2-0', { text: '一行目\n二行目', bubble: true })], has_more: false }), { onForward: request => asked.push(request), onReply: reply => replied.push(reply) })
+  await f.open('a'); await settle()
+  const forwards = everyNode(f.timeline).filter(node => node.className === 'message-reply message-forward')
+  assert.equal(forwards.length, 1, 'only the bubble row has actions')
+  forwards[0].listeners.click()
+  assert.deepEqual(asked, [{ source: { kind: 'bot', id: 'a' }, messageId: 'me-2-0', preview: { sender: 'テスト席', text: '一行目' } }])
+  everyNode(f.timeline).find(node => node.className === 'message-reply').listeners.click()
+  assert.deepEqual(replied, [{ id: 'me-2-0', sender: 'テスト席', text: '一行目' }])
+  everyNode(f.timeline).find(node => node.className === 'message-reply message-copy').listeners.click(); await settle()
+  assert.deepEqual(copied, ['一行目\n二行目'], 'the whole machine_event.text, not the first line')
+})
+
 test('a471-spinner-words: running rows draw the server word in the queue line and the thinking bubble; no word keeps today\'s indicator', async t => {
   const f = fixture(t)
   await f.open('a')
