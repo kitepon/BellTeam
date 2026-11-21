@@ -19,11 +19,11 @@ Extends [README.md](README.md) (v0.1). Where this document and v0.1 disagree abo
 
 | v0.1 part | Today | After the move | Who |
 | --- | --- | --- | --- |
-| F1 reader, F2 answer writer, F7 connection holder (server child, `/v1` + client session) | server child process | **removed.** A server process cannot be a device. Apps read and answer on their own device session. | apps |
+| F1 reader, F2 answer writer (server child, `/v1`) | server child process | **removed.** A server process cannot be a device. Apps read and answer on their own device session. | apps |
 | F5 app contract `/api/approvals/*` (list, one, answer, hold, SSE, summary) | server | **removed** (it carried content). Only the id-level link lookup stays (decisionId ↔ project/plan/task, link state; no title, no text). | this module |
 | Apps' decisions view | draws from `/api/approvals/*` | draws from the device session (PeerChannel Swift package on Apple; the shared C# core on Windows, Linux, Android) and joins it with the id-level link lookup for the 工程表 badge and 「決裁を開く」 | Rapi, Anis, Neon |
-| F6 entitlement gate | Approval Box `GET /me` | **open (Q2)**: `/me` closes with the content routes | Bready, Nayuta |
-| F3 link engine, F4 link record | server child, fed by `/v1/events` | stays on the server, but its feed changes (**open Q1**) | this module |
+| F6 entitlement gate, F7 connection holder | Approval Box `GET /v1/me` with the client session | **unchanged.** `/v1/me` carries no decision content and is not in the close list (Nayuta, adoption doc section 4). F7 now holds the session for `/me` only | Bready, this module |
+| F3 link engine, F4 link record | server child, fed by `/v1/events` | stays on the server; the feed has two sources (section 4a) | this module |
 | Lattice effects decisions.file / decisions.read, running-exclusions check, olrw management caller | connector `/connector/v1` with a connection token | same code, base changes to the local connector daemon (section 5) | Molly, Flora, this module |
 
 ## 3. Function diagram
@@ -55,7 +55,8 @@ flowchart LR
   V -->|"link state for a decision (ids)"| LK
   LE <--> LK
   LE -->|"task actions"| LP
-  DM -->|"decision events (Q1)"| LE
+  DM -->|"events for what the Lattice connector filed (L8)"| LE
+  V -->|"device report: decision seen / answered / cancelled (ids, status, label)"| LE
 ```
 
 ## 4. Data-flow diagram
@@ -68,12 +69,19 @@ flowchart TD
   VIEW -- "D4 answer {option_id|text, version}, signed on the device (10.2)" --> DEVICE
   DEVICE -- "D5 signed answer via relay" --> DM
   DM -- "D6 answer to the AI (existing connector semantics)" --> AI
-  DM -- "D7 event: decision seen / answered / cancelled (ids, status, answer label)" --> LE["F3 link engine"]
+  DM -- "D7a event for decisions the Lattice connector filed (ids, status, answer label)" --> LE["F3 link engine"]
+  VIEW -- "D7b device report for every other decision (ids, status, session_label, answer label), authenticated BellTeam route" --> LE
   LE <-- "D8 link rows (ids, state, handled version): /srv/bellteam/state/approval-box-extension/" --> LR[("F4 link record")]
   LE -- "D9 task add/start/done/retire/note" --> LP["Lattice module port"]
   VIEW -- "D10 link lookup by decision id (ids only)" --> LK["id-level link lookup"]
   LK -- "D11 task state (read)" --> LP
 ```
+
+### 4a. Link engine feed (Nayuta, Q1: the daemon is per-connection)
+
+The connector daemon sees only what it filed; only devices hold every decision of K. So F3 has two sources, both idempotent on the decision id:
+- **D7a, the daemon**: decisions the Lattice effects filed (Owner-lane hand-over, L8 attach). They already name their task; answers drive L2/L3 as today.
+- **D7b, the apps**: every decision an AI seat filed from its own connector (the common `request_decision` path) and every external decision (L9, no chart action). A device that shows a decision reports the id-level fact to the BellTeam route; a replay or a second device finds the same row. Chart sync therefore needs one app to be open after the answer; the answer itself never waits (v0.1 section 9). `shortcut: apps are the only sight of non-Lattice decisions, upgrade when a seat connector can be paired to the same K and read by the server`.
 
 Stored where: titles, contexts, answers, attachments live only on the AI's PC (connector) and the person's devices. The extension keeps only F4 rows (ids and state), as in v0.1 section 4. **Task titles and answer labels written to the chart come through D7 and are chart content, exactly as today**; they are BellTeam's own data written by BellTeam's own server for the person's own chart, not Approval Box server content.
 
@@ -90,14 +98,15 @@ Today all four use `/connector/v1` with a connection token (they work unchanged 
 
 None of the four reads Approval Box content from the server except through the daemon; BellTeam's server never holds a device key.
 
-## 6. Open questions (each is one message, owner named)
+## 6. Questions
 
-| # | To | Question | Why it decides the design |
+| # | To | Question | Status |
 | --- | --- | --- | --- |
-| Q1 | Nayuta | Does the peer-channel connector daemon (5.4-paired to K) see **every** decision of K, or only the decisions it filed (like `/connector/v1` today, per-connection)? | If it sees all, F3 stays on the server fed by the daemon (no new surface). If only its own, decisions an AI files from its own PC are invisible to the server: then F3 is fed by the apps (a device reports an id-level fact: decision id, status, session_label, answer label) over an authenticated BellTeam route, and chart sync waits for an app to be open |
-| Q2 | Bready, Nayuta | What replaces `GET /me` for the entitlement (R4)? | `/me` closes with the content routes; the gate reads only `entitled` and must not lock on unknown |
-| Q3 | Molly | Hosting and supervision of the one connector daemon (mount, restart, secret/key storage, 5.4 pairing screen) | The daemon is a long-running body-side process |
-| Q4 | OLRW owner | For K-3JM9PS: keep the already-read answer or re-file through the daemon | The wrapper must keep passing the unchanged OLRW checks after the purge |
+| Q1 | Nayuta | Does the daemon see every decision of K? | **Answered 2026-11-22: only what it filed.** Design: section 4a |
+| Q2 | Nayuta, Bready | What replaces `/me`? | **Answered 2026-11-22: nothing. `/v1/me` stays** (no content, not in the close list); only `/v1/me/export` loses its decisions after the purge. F6 and Bready's R4 are unchanged |
+| Q3 | Molly | Hosting and supervision of the one connector daemon (mount, restart, key/secret storage, 5.4 pairing step) | open |
+| Q4 | OLRW owner | For K-3JM9PS: keep the already-read answer or re-file through the daemon | open |
+| Q5 | Flora, Molly | The authenticated BellTeam route for app reports (D7b) and its link to the Lattice facade | open, belongs to the code PR |
 
 ## 7. Failure handling
 
@@ -108,7 +117,7 @@ A device that cannot reach the relay shows the last view dimmed with the visible
 1. Anis: C# HPKE library named and pinned, accepted by Airi; vectors pc1-hpke and pc1-envelope green; then the device core (dates in the chart: 11/25 vectors, 11/27 dev signaling, 11/29 real decisions if the server part is live by 11/28).
 2. Rapi: Apple on the Swift package, contract 0.5.6; dev/TestFlight 12/03, store 12/07.
 3. Neon: Android and Linux on the shared C# core; firm date by 11/23 evening.
-4. This module: answers to Q1-Q4; then the reader base change (one PR per reader owner) and F3's new feed; the extension's server child F1/F2/F7/F5 are removed in the same PR that flips the feed, not before the apps report.
+4. This module: answers to Q3-Q5; then the reader base change (one PR per reader owner) and F3's new feed; the extension's server child F1/F2/F7/F5 are removed in the same PR that flips the feed, not before the apps report.
 5. Nayuta sets the `/v1` close date after the last app and the four readers have reported.
 
 Nothing here edits another product's code. Every connection above is to be drawn in both products' diagrams in the code PR (Approval Box docs/architecture, Lattice module docs, the app module docs).
