@@ -99,9 +99,9 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     latestButton.hidden = true
     onQueueChange()
   }
-  // machine-stream.md "History pages of a long stream": first page 100, every older page 500 (the server clamps to its own cap); one line each if a real seat measures otherwise.
-  const TIMELINE_FIRST_PAGE = 100
-  const TIMELINE_MORE_PAGE = 500
+  // machine-stream.md "History pages of a long stream": first page 1000, every older page 1000 (Owner 11/21; the server cap); one line each if a real seat measures otherwise.
+  const TIMELINE_FIRST_PAGE = 1000
+  const TIMELINE_MORE_PAGE = 1000
   const TIMELINE_REFRESH_PAGE = 10 // the newest rows are re-read only to catch changed delivery states; new rows come by `after`
   const timelineItems = document.createElement('div')
   timelineItems.className = 'timeline-items'

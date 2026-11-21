@@ -322,7 +322,7 @@ test('a failed older page is the retry target: 「もう一度読み込む」 re
   const before = f.requests.length
   olderFails = false
   box().children.find(node => node.textContent === 'もう一度読み込む').listeners.click(); await settle()
-  assert.deepEqual(f.requests.slice(before), ['/api/bots/a/messages?limit=500&before=new']) // the same older page, not the newest page
+  assert.deepEqual(f.requests.slice(before), ['/api/bots/a/messages?limit=1000&before=new']) // the same older page, not the newest page
   assert.equal(box(), undefined)
   assert.deepEqual(f.ids(), ['old', 'new'])
 })
@@ -571,7 +571,7 @@ test('first screen: older pages are read one after another until the drawn heigh
   assert.equal(full.requests.filter(path => path.includes('before=')).length, 0, 'enough is drawn: nothing more is read until the view nears the top')
   full.timeline.scrollTop = 0; full.timeline.listeners.scroll(); await settle()
   assert.equal(full.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up under the margin reads the next older page')
-  assert.match(full.requests.find(path => path.includes('before=')), /limit=500&before=r0$/)
+  assert.match(full.requests.find(path => path.includes('before=')), /limit=1000&before=r0$/)
 })
 
 test('a471-fill-after-refresh-web: a refresh that fills the empty map after the open was overtaken still reads the older pages', async t => {
@@ -586,7 +586,7 @@ test('a471-fill-after-refresh-web: a refresh that fills the empty map after the 
   await refreshing; await settle()
   first.resolve({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }); await opening; await settle()
   assert.deepEqual(f.ids(), ['m0', 'm1'])
-  assert.equal(f.requests.filter(path => path.includes('limit=500')).length, 1, 'the open was overtaken: the refresh starts the fill')
+  assert.equal(f.requests.filter(path => path.includes('before=')).length, 1, 'the open was overtaken: the refresh starts the fill')
 })
 
 test('a471-scroll-jump-web: when a row above the viewed row grows later, the view moves by that height; a click on a fold line holds nothing', async t => {
@@ -632,10 +632,10 @@ test('a471-scroll-smooth-web: a scroll up with no input event (a programmatic ju
   assert.equal(f.timeline.lastBehavior, '', 'the next growth does not glide the view to the bottom')
 })
 
-test('a471-scrollback-web: the first page asks 100, an older page 500 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
+test('a471-scrollback-web: the first page asks 1000, an older page 1000 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
   const f = fixture(t, path => path.includes('before=') ? { items: [], has_more: false } : { items: [{ id: 'm4', at: '2026-11-21T01:02:03Z', message: 'x', direction: 'incoming' }], has_more: true })
   await f.open('a'); await settle()
-  assert.deepEqual(f.requests.filter(path => path.includes('messages')), ['/api/bots/a/messages?limit=100', '/api/bots/a/messages?limit=500&before=m4&before_at=2026-11-21T01%3A02%3A03Z'])
+  assert.deepEqual(f.requests.filter(path => path.includes('messages')), ['/api/bots/a/messages?limit=1000', '/api/bots/a/messages?limit=1000&before=m4&before_at=2026-11-21T01%3A02%3A03Z'])
 })
 
 test('first screen: a failed older page stops the fill and shows the retry; a hidden timeline reads nothing more', async t => {
