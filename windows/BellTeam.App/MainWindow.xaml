@@ -44,8 +44,8 @@
         <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding Selected.SeatLaunchLine}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style>
         <TextBlock Text="{Binding Selected.SeatLaunchLine}" Foreground="#FF3B30" FontSize="13" LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="54" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
       </Border>
-      <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,20,18,18" AutomationProperties.Name="会話" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop">
-        <Grid MinHeight="{Binding ViewportHeight, ElementName=MessageScroll}"><StackPanel VerticalAlignment="Bottom">
+      <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,20,18,18" CanContentScroll="True" AutomationProperties.Name="会話" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop">
+        <local:BottomAnchoredScroller x:Name="MessageHost"><StackPanel>
           <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate><local:MessageCard Message="{Binding Message}" Workspace="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Author="{Binding DataContext.Title, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,0,17"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
           <!-- Mac queueStrip: one line per running or queued delivery; in a room each member's line has its own stop button. -->
           <Border x:Name="QueueStrip" Background="#A6E8E0FF" CornerRadius="16" Padding="14,9.5" Visibility="{Binding HasActivity, Converter={StaticResource Visible}}" AutomationProperties.Name="処理中">
@@ -57,7 +57,7 @@
               </DockPanel>
             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
           </Border>
-        </StackPanel></Grid>
+        </StackPanel></local:BottomAnchoredScroller>
       </ScrollViewer>
       <StackPanel x:Name="Welcome" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="450" Margin="30"><TextBlock Text="&#xE8F2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="52" Foreground="{StaticResource Violet}" HorizontalAlignment="Center" Margin="0,0,0,18"/><TextBlock x:Name="WelcomeTitle" FontSize="29" FontWeight="Bold" TextAlignment="Center" TextWrapping="Wrap" Text="チームと、同じデスクで。"/><TextBlock x:Name="WelcomeNote" FontSize="16" Foreground="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,14,0,0" Text="左のメンバーやルームを選んで、会話を始めましょう。"/><StackPanel x:Name="WelcomeHints" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,30,0,0" TextElement.FontSize="14" TextElement.Foreground="{StaticResource Muted}"><TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBlock Text="検索  Ctrl+K" Margin="0,0,25,0"/><TextBlock Text="&#xE724;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBlock Text="送信  Enter"/></StackPanel></StackPanel>
       <!-- Mac ConversationContent states: loading, nothing said yet, and a first read that failed. -->

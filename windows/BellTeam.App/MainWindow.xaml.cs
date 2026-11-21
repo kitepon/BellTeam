@@ -49,21 +49,11 @@ public partial class MainWindow : Window, IInspectorHost
         };
         UpdateWelcome(); ProfileLayout();
         model.Messages.CollectionChanged += (_, _) => UpdateWelcome();
-        KeepPositionWhileRowsLand();
-        followTimer.Tick += (_, _) => FollowStep();
-        foreach (var stop in new RoutedEvent[] { PreviewMouseWheelEvent, PreviewKeyDownEvent, PreviewMouseDownEvent, PreviewTouchDownEvent }) MessageScroll.AddHandler(stop, new RoutedEventHandler((_, _) => StopFollowing()), true);
+        MessageHost.Rows = MessageList;
         MessageScroll.ScrollChanged += async (_, args) =>
         {
             if (!ReferenceEquals(args.OriginalSource, MessageScroll)) return;
             ShowLatestButton();
-            var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
-            if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) FollowEnd(args);
-            if (args.VerticalChange == 0 && args.ExtentHeightChange != 0 && !loadingOlder && !following && previousBottomDistance >= 80 && viewedRow is { } row && row.IsDescendantOf(MessageScroll))
-            {
-                var drift = RowTop(row) - viewedTop;
-                if (Math.Abs(drift) >= 1) MessageScroll.ScrollToVerticalOffset(MessageScroll.VerticalOffset + drift);
-            }
-            else RememberViewedRow();
             NoteScrollUp(args);
             await PrefetchOlderAsync();
         };
@@ -71,12 +61,8 @@ public partial class MainWindow : Window, IInspectorHost
         Closed += (_, _) => { approvals.Dispose(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
-        model.ScrollToBottom += force =>
-        {
-            if (force) { StopFollowing(); Dispatcher.BeginInvoke(ScrollToBottomNow); } // opening a conversation or sending: nothing to follow, instant
-            else if (MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80 || following) FollowEnd();
-            else { unreadNew = true; ShowLatestButton(); }
-        };
+        // a471-open-newest: the view is anchored to the newest end (BottomAnchoredScroller), so a new row at the end moves nothing to follow. Opening or sending anchors it there again; a reader elsewhere is told.
+        model.ScrollToBottom += force => { if (force) MessageHost.FollowNewest(); else if (!MessageHost.IsNewest) { unreadNew = true; ShowLatestButton(); } };
         model.ScrollToMessage += (id, quote) => Dispatcher.BeginInvoke(() => ScrollToMessageRow(id, quote), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         model.PropertyChanged += (_, args) =>
         {
@@ -151,16 +137,14 @@ public partial class MainWindow : Window, IInspectorHost
         prefetching = true;
         try
         {
-            var wasShort = MessageScroll.ScrollableHeight <= 0; var loaded = false;
             while (CanReadOlder() && HistoryPaging.NeedsOlderPage(MessageScroll.VerticalOffset, MessageScroll.ViewportHeight, ScrollSpeed))
             {
                 var before = model.Messages.Count;
                 await LoadOlderPreservingPositionAsync();
                 await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background); // the new rows are laid out and input is handled before the next page
-                MessageScroll.UpdateLayout(); loaded = true;
+                MessageScroll.UpdateLayout();
                 if (model.Messages.Count == before) break;
             }
-            if (loaded && wasShort) ScrollToBottomNow(); // the screen was at its bottom while the list was too short to scroll
         }
         finally { prefetching = false; }
     }
@@ -171,51 +155,6 @@ public partial class MainWindow : Window, IInspectorHost
         if (!CanReadOlder() || readOnceFor == model.Selected?.Target || loadingOlder) return;
         readOnceFor = model.Selected?.Target;
         await LoadOlderPreservingPositionAsync();
-    }
-    // a471-scroll-smooth: rows that arrive while the view is at the bottom are followed with an animated scroll, so the Owner can see which way the log moves (it used to jump to the end at once).
-    // The wheel, the keys, a touch and a press on the scroll bar stop it. With Windows' animation effects off (reduced motion) the move stays instant. A big change (a conversation opening, a page of rows)
-    // has nothing to follow and stays instant. Each frame moves a fifth of what is left, at most 33 px, so the next row that arrives is simply followed too.
-    private readonly System.Windows.Threading.DispatcherTimer followTimer = new(System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
-    private bool following; private long landingTicks;
-    // WPF's ScrollToEnd leaves an offset beyond the last one in the scroll viewer, so the next growth carries the view to the new end by itself (the jump the Owner saw). The last offset itself does not.
-    private void ScrollToBottomNow() { MessageScroll.UpdateLayout(); MessageScroll.ScrollToVerticalOffset(MessageScroll.ScrollableHeight); }
-    private void FollowEnd(ScrollChangedEventArgs args)
-    {
-        if (args.ExtentHeight - args.ExtentHeightChange <= args.ViewportHeight || args.ExtentHeightChange > 3 * args.ViewportHeight) { StopFollowing(); _ = Dispatcher.BeginInvoke(ScrollToBottomNow); return; }
-        FollowEnd();
-    }
-    private void FollowEnd()
-    {
-        if (!SystemParameters.ClientAreaAnimation || Environment.TickCount64 - landingTicks < 500) { StopFollowing(); _ = Dispatcher.BeginInvoke(ScrollToBottomNow); return; } // older rows that just landed above are not rows to follow
-        following = true; followTimer.Start();
-    }
-    private void FollowStep()
-    {
-        var left = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset;
-        if (!following || left <= 0.5) { StopFollowing(); if (left > 0) ScrollToBottomNow(); return; }
-        MessageScroll.ScrollToVerticalOffset(MessageScroll.VerticalOffset + Math.Min(left, Math.Clamp(left * 0.18, 2, 33)));
-    }
-    private void StopFollowing() { following = false; followTimer.Stop(); }
-    // a471-scroll-jump: a row that grows or appears above the viewed row (a late row, an image, a thinking text) must not move it. The first row in view is remembered with its distance from the top
-    // of the view; when the content height changes without a scroll, the offset follows that row. Not while the newest row is followed (it is at the bottom) and not while older rows land (the two events restore those exactly).
-    private FrameworkElement? viewedRow; private double viewedTop;
-    private double RowTop(FrameworkElement row) => row.TransformToAncestor(MessageScroll).Transform(new Point(0, 0)).Y;
-    private void RememberViewedRow()
-    {
-        int low = 0, high = MessageList.Items.Count - 1; viewedRow = null;
-        while (low <= high) // rows are in order, so the first one whose bottom is below the top of the view is found by halving
-        {
-            var middle = (low + high) / 2;
-            if (MessageList.ItemContainerGenerator.ContainerFromIndex(middle) is not FrameworkElement row || !row.IsDescendantOf(MessageScroll)) return;
-            if (RowTop(row) + row.ActualHeight > 0) { viewedRow = row; viewedTop = RowTop(row); high = middle - 1; } else low = middle + 1;
-        }
-    }
-    // The row being read stays where it is when older rows land above it (a471-scroll-jump): the position is read and restored by the model's two events, at the change itself.
-    private double anchorOffset, anchorHeight;
-    private void KeepPositionWhileRowsLand()
-    {
-        model.OlderRowsAdding += () => { anchorOffset = MessageScroll.VerticalOffset; anchorHeight = MessageScroll.ExtentHeight; landingTicks = Environment.TickCount64; };
-        model.OlderRowsAdded += () => { MessageScroll.UpdateLayout(); MessageScroll.ScrollToVerticalOffset(anchorOffset + MessageScroll.ExtentHeight - anchorHeight); };
     }
     private async Task LoadOlderPreservingPositionAsync()
     {
@@ -482,19 +421,17 @@ public partial class MainWindow : Window, IInspectorHost
     private void ScrollToMessageRow(string id, ReplyReference? quote)
     {
         if (model.Messages.FirstOrDefault(item => item.Message.Id == id) is not { } item || MessageList.ItemContainerGenerator.ContainerFromItem(item) is not FrameworkElement row) return;
-        MessageScroll.UpdateLayout();
-        var top = row.TransformToAncestor((Visual)MessageScroll.Content).Transform(new Point(0, 0)).Y;
-        MessageScroll.ScrollToVerticalOffset(Math.Max(0, top - (MessageScroll.ViewportHeight - row.ActualHeight) / 2));
+        MessageScroll.UpdateLayout(); MessageHost.Reveal(row);
         if (VisualTreeHelper.GetChildrenCount(row) > 0 && VisualTreeHelper.GetChild(row, 0) is MessageCard card) card.Flash(quote);
     }
     private void ShowLatestButton()
     {
-        var atBottom = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80;
+        var atBottom = MessageHost.IsNewest;
         if (atBottom) unreadNew = false;
         NewMessagesLabel.Text = unreadNew ? "新着メッセージ" : "最新へ"; System.Windows.Automation.AutomationProperties.SetName(NewMessagesButton, NewMessagesLabel.Text);
         NewMessagesBand.Visibility = atBottom && !unreadNew ? Visibility.Collapsed : Visibility.Visible;
     }
-    private void NewMessages_Click(object sender, RoutedEventArgs e) { unreadNew = false; ScrollToBottomNow(); NewMessagesBand.Visibility = Visibility.Collapsed; }
+    private void NewMessages_Click(object sender, RoutedEventArgs e) { unreadNew = false; MessageHost.FollowNewest(); NewMessagesBand.Visibility = Visibility.Collapsed; }
     private async void Reload_Click(object sender, RoutedEventArgs e) { if (model.Selected is { } entry) await model.SelectAsync(entry); }
     private async void StopBot_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: ActivityRow { StopBotId: { } id } row }) await model.StopAsync(id, row.Name); }
     private async void StopCurrent_Click(object sender, RoutedEventArgs e) => await model.StopCurrentAsync();
