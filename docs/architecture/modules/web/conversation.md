@@ -402,7 +402,7 @@ flowchart LR
   ME -->|"view approval"| A["approval card: 許可する / 断る"]
   ME -->|"display fold"| F["one closed details line; opens to the cut text, 全文を読み込む = GET /api/bots/:id/machine-events/:seq"]
   ME -->|"view words with bubble:true (last words of a finished turn)"| B["ordinary incoming message bubble: same look, richTextHtml Markdown; own id me-seq-part, so reply / quote / forward / copy by machine_event.text; plain words rows have none"]
-  ME -->|"display show, other views"| S["drawn open: words as text, tool_use as name + summary, thinking lighter italic, any other show row as its one-line message"]
+  ME -->|"display show, other views"| S["drawn open: words as text, tool_use as name + summary, thinking lighter italic and always its whole `machine_event.text` (wrapped, no line limit or max height, never the one-line `message`; a471-thinking-full), any other show row as its one-line message"]
   Item --> Arr["arrangeMachineRows(timelineItems): neighbours of one fold_group share one line, labelled by the sum of fold_count; nothing moves out of its place in time"]
   Q -->|"tap (one question, single choice) or 送る"| Post["POST /api/seat-requests/:request_id/answer {answers:[{indexes,other}]}"]
   A -->|"tap"| Post2["same route {decision: allow|deny}"]

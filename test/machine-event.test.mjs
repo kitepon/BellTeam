@@ -136,3 +136,13 @@ test('arrange: neighbours of one fold_group share one line labelled by the sum o
   assert.deepEqual(order(container).slice(-4), expected.slice(-4))
   assert.equal(order(container)[0], '[me-0-0,me-1-0,me-2-0,me-3-0,me-4-0,me-5-0,me-6-0]')
 })
+
+test('a471-thinking-full-web: a shown thinking row draws its whole text, not the one-line message; an empty one stays a closed line', () => {
+  const whole = Array.from({ length: 12 }, (_, i) => `考えた文${i}。`.repeat(13)).join('\n') // about 1000 characters, several lines
+  const row = (text, display) => ({ id: 'me-9-0', kind: 'machine_event', sender: { id: 'b', name: 'A' }, message: 'thinking: ' + text.split('\n')[0].slice(0, 120),
+    machine_event: { view: 'thinking', display, title: 'thinking', text } })
+  const shown = renderMachineEvent(row(whole, 'show'), { sender: 'A' })
+  assert.equal(shown.className, 'machine-thinking'); assert.equal(shown.textContent, whole); assert.ok(whole.length > 900)
+  const empty = renderMachineEvent(row('', 'fold'), { sender: 'A', open: false })
+  assert.notEqual(empty.className, 'machine-thinking')
+})
