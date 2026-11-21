@@ -217,7 +217,7 @@ flowchart LR
 
 1. **Sign-in and the account screen.** Apple or Google sign-in (7f), then アカウントと購読 where the person can buy or see 購読中です。 No server is needed for this step.
 2. **QR approval**, only when the device has no store receipt: the handoff block of 7f; the person's own phone approves.
-3. **Server connection**, last: the address of the person's own server and, at the first binding only, the setup code (printed on the server console).
+3. **Server connection**, last: the address of the person's own server and, at the first binding only, the setup code (printed on the server console). The step is entered from the account screen by one button, **サーバーにつなぐ**, shown once a contract exists (購読中です。); every app labels it with that word.
 
 An app with no server saved therefore opens on step 1 (or on the paywall of 7e when the server says `none`), not on the server address screen; the account screen is reachable before and after a server is connected.
 
@@ -267,6 +267,7 @@ Under reading 3 (design-reading3.md draft 0.2 sections 2 to 4) every device sign
 | Stop all others, the confirm buttons (not 「やめる」: it sounds like 「止める」) | 止める / キャンセル |
 | Account page, subscription connection not set | 購読の接続先がまだ決まっていません。 |
 | Account page, errors | この商品はまだ読み込めていません。もう一度お試しください。 / サインインし直してください。 / うまくいきませんでした（コード） |
+| Account page, the button to the server step (shown once a contract exists; the first-run order of 7d) | サーバーにつなぐ |
 | Server address not registered | このサーバーは、この接続先を登録していません。サーバーのコンソールで追加するか、すでに入っているアプリから「いまの接続先を追加」してください。 |
 | Server not ready (cannot judge) | サーバーの準備中です。 |
 
