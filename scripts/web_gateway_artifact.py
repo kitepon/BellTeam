@@ -273,6 +273,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/runtime-selection.mjs',
     'src/seat-activity.mjs',
     'src/seat-command.mjs',
+    'src/seat-oom-bias.mjs',
     'src/seat-process.mjs',
     'src/seat-turns.mjs',
     'src/session-interruption.mjs',
