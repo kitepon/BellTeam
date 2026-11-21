@@ -63,6 +63,8 @@ public static class SubscriptionText
     public static string NotRenewingRow(DateTimeOffset until) => $"次回の更新はありません。{until.ToLocalTime():yyyy年M月d日 H:mm}まで使えます。";
     public const string Verify = "購入を確認";
     public const string Recheck = "再確認";
+    // a485 (Bready's final wording): where the server has no live contract or is not logged in, no app buys anything here.
+    public const string BuyOnApple = "iPhone・iPad・Macで購入し、このサーバーをログインさせてください。";
     public const string Trial = "無料期間中です。";
     public static string ValidUntil(DateTimeOffset value) => "有効期限：" + value.ToLocalTime().ToString("yyyy年M月d日 H:mm");
     // The state lines of a plan that is active: expiry, then the trial note when it applies (the non-renewing line sits on the source's row: NotRenewingRow).

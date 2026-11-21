@@ -10,7 +10,6 @@ namespace BellTeam.Android;
 [Activity(Label = "BellTeam", Theme = "@style/Theme.AppCompat.NoActionBar", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, WindowSoftInputMode = SoftInput.AdjustResize, ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public class MainActivity : AvaloniaMainActivity
 {
-    // Play Billing's purchase sheet needs the running Activity.
     public static MainActivity Current { get; private set; } = null!;
     protected override void OnCreate(Bundle? savedInstanceState)
     {
