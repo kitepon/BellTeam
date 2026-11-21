@@ -95,10 +95,8 @@ public static class UiChecks {
     newMessage = true; await workspace.RefreshManagementAsync(); await Layout();
     Check(Math.Abs(scroll.VerticalOffset-offset) < 1,"新着で読んでいた位置が動きました。");
     Check(band.Visibility == Visibility.Visible && Shown() == "新着メッセージ" && System.Windows.Automation.AutomationProperties.GetName(latest) == "新着メッセージ","新着の入口が見えません。");
-    var oldHeight = scroll.ExtentHeight; var older = Descendants<Button>(root).Single(button => button.Content as string == "以前のメッセージを読む");
-    older.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Layout();
-    Check(workspace.Messages.Count == 41,"以前のメッセージが増えていません。");
-    Check(Math.Abs((scroll.VerticalOffset-offset) - (scroll.ExtentHeight-oldHeight)) < 1,"以前の履歴を追加して位置がずれました。");
+    // a471-windows-older-button: nothing is pressed to read older rows; the scroll motion reads them (as on the Mac; the prefetch scenes below check that).
+    Check(!Descendants<Button>(root).Any(button => button.Content as string == "以前のメッセージを読む"),"以前のメッセージを読むボタンが出ています（先読みだけで読む）。");
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"確認で窓のハンドルを作成しました。");
     root.Measure(new Size(5120,1400)); root.Arrange(new Rect(0,0,5120,1400)); root.UpdateLayout();
     Check(Descendants<ProfileView>(root).Single().ActualWidth <= 760,"横長の窓でプロフィールが伸びすぎます。");
