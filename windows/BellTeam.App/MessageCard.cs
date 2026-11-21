@@ -85,7 +85,7 @@ public sealed class MessageCard : ContentControl
     // The text the row shows (a forwarded row: its comment and the forwarded content). A clipboard another program holds is transient: the icon stays as it was, and the check mark shows only a copy that went through.
     private void CopyText()
     {
-        try { Clipboard.SetDataObject(Message.MachineEvent is { View: "words", Bubble: true } answer ? answer.Text : Message.Message ?? "", true); } catch (System.Runtime.InteropServices.ExternalException) { return; }
+        try { Clipboard.SetDataObject(Message.MachineEvent is { } sent && (sent is { View: "words", Bubble: true } || Timeline.IsThinkingBubble(Message)) ? sent.Text : Message.Message ?? "", true); } catch (System.Runtime.InteropServices.ExternalException) { return; }
         var icon = (TextBlock)copyButton.Content; icon.Text = "";
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         timer.Tick += (_, _) => { timer.Stop(); icon.Text = ""; };
@@ -118,9 +118,11 @@ public sealed class MessageCard : ContentControl
     {
         if (Message is not { } original || Workspace is null) return;
         // a471-tune-answer: the last words of a finished turn (the server's bubble mark, never decided here) are an ordinary incoming bubble drawn from the row's text.
-        var asBubble = original.MachineEvent is { View: "words", Bubble: true };
+        // a471-thinking-bubble: a shown thinking row is the same bubble drawn from its whole text (slanted and lighter, copy only: the gates below read the row as sent).
+        var thinking = Timeline.IsThinkingBubble(original);
+        var asBubble = thinking || original.MachineEvent is { View: "words", Bubble: true };
         var message = asBubble ? original with { Message = original.MachineEvent!.Text, MachineEvent = null } : original;
-        var shape = asBubble ? message.Id + "#bubble" : message.Id; // the mark reaches the same row id later, so the card is built again
+        var shape = asBubble ? message.Id + (thinking ? "#thinking" : "#bubble") : message.Id; // the mark reaches the same row id later, so the card is built again
         if (messageId != shape)
         {
             messageId = shape; secret = null; question = null; machine = null;
@@ -273,6 +275,7 @@ public sealed class MessageCard : ContentControl
         var (comment, content) = origin is null ? (text, "") : Timeline.OriginParts(message);
         try { body!.Source = comment; contentBody!.Source = content; }
         catch (NotSupportedException error) { body!.Document = new System.Windows.Documents.FlowDocument(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(error.Message))); }
+        if (Timeline.IsThinkingBubble(Message)) { body!.Document.FontStyle = FontStyles.Italic; body.Document.Foreground = Muted; } // every Source change builds a new document, so the style is set after it
         body!.Visibility = comment.Length != 0 ? Visibility.Visible : Visibility.Collapsed;
         contentBorder!.Visibility = content.Length != 0 ? Visibility.Visible : Visibility.Collapsed;
         originMark!.Text = origin is null ? "" : string.Join(" · ", new[] { Timeline.OriginMark(origin), origin.IsForward ? origin.FromName : null, origin.IsForward && origin.At is { } at ? Timeline.ShortTime(at, DateTimeOffset.Now) : null }.Where(part => !string.IsNullOrEmpty(part)));

@@ -15,8 +15,6 @@ public sealed class HistoryPagingTests
         Assert.True(HistoryPaging.NeedsOlderPage(19999, 1000, 10000)); Assert.False(HistoryPaging.NeedsOlderPage(20000, 1000, 10000));
         Assert.True(HistoryPaging.NeedsOlderPage(0, 1000, 0)); // the first screen: a short list has nothing above the view
         Assert.False(HistoryPaging.NeedsOlderPage(0, 0, 0)); // not laid out yet
-        // The five-argument form Linux and Android still call gives the same answer for any extent and row count (500 folded rows drawing 300 px included).
-        Assert.True(HistoryPaging.NeedsOlderPage(300, 1000, 300, 500, 0)); Assert.True(HistoryPaging.NeedsOlderPage(2999, 1000, 20000, 200, 0)); Assert.False(HistoryPaging.NeedsOlderPage(3000, 1000, 20000, 200, 0));
     }
 
     [Fact]

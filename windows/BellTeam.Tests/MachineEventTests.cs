@@ -192,6 +192,27 @@ public sealed class MachineEventTests
         });
     }
 
+    // a471-thinking-bubble (machine-stream.md "Thinking is drawn as a bubble"): a shown thinking row is drawn in the answer's bubble from its whole text, slanted, with copy only; a thinking (no text) row stays one folded line.
+    [Fact]
+    public void AShownThinkingRowIsABubbleWithItsWholeTextSlantedAndCopyOnly()
+    {
+        RunSta(() =>
+        {
+            using var workspace = new Workspace();
+            var whole = string.Join("\n\n", Enumerable.Range(1, 6).Select(n => $"Sentence {n}: " + new string('x', 70)));
+            var card = new MessageCard { Workspace = workspace, Message = Event("t", "thinking", "show", text: whole) with { Message = "thinking: " + whole[..110] } };
+            Assert.Empty(LogicalTree.Find<MachineEntry>(card));
+            var document = LogicalTree.Find<MarkdownView>(card).First().Document;
+            Assert.Contains("Sentence 6:", new System.Windows.Documents.TextRange(document.ContentStart, document.ContentEnd).Text); // the whole text, not the one-line message
+            Assert.Equal(System.Windows.FontStyles.Italic, document.FontStyle);
+            System.Windows.Visibility Icon(string name) => LogicalTree.Find<Button>(card).Single(b => System.Windows.Automation.AutomationProperties.GetName(b) == name).Visibility;
+            Assert.Equal(System.Windows.Visibility.Visible, Icon("このメッセージをコピー"));
+            Assert.Equal(System.Windows.Visibility.Collapsed, Icon("このメッセージに返信")); Assert.Equal(System.Windows.Visibility.Collapsed, Icon("このメッセージを転送"));
+            var empty = new MessageCard { Workspace = workspace, Message = Event("e", "thinking", "fold", text: "") with { Message = "thinking (no text)" } };
+            Assert.Single(LogicalTree.Find<MachineEntry>(empty)); Assert.Empty(LogicalTree.Find<MarkdownView>(empty));
+        });
+    }
+
     private static void Press(ToggleButton button) { button.IsChecked = !button.IsChecked; button.RaiseEvent(new System.Windows.RoutedEventArgs(ButtonBase.ClickEvent)); }
 
     private static void RunSta(Action action)
