@@ -9,7 +9,7 @@ flowchart LR
     Banner["App banner: reconnecting / stopped / app-level errors"]
   end
   subgraph Home["Home"]
-    Roster["Roster: members, rooms, search, loading / error / stale / empty<br/>application.js, roster-view.js, roster-search.js, activity-order.js"]
+    Roster["Roster: members (pinned first, a480), rooms, search, loading / error / stale / empty<br/>application.js, roster-view.js, roster-search.js, activity-order.js"]
     Header["Header: 設定 / 予定 / ゴール / 相関図 / 工程表 / 追加, 更新 badge<br/>index.html, application.js, update-center.js (badge)"]
   end
   subgraph Chat["Conversation"]
@@ -66,6 +66,7 @@ flowchart LR
 | Boot, session, setup phase | shell | `GET /api/session`, `GET /api/settings`, `GET /api/setup` | — | integration, onboarding |
 | Live updates | shell | `GET /api/events` (SSE) | — | integration |
 | Member and room list | roster | `GET /api/bots?avatar=omit`, `GET /api/rooms`, `GET /api/owner`, avatars `GET /api/bots/:id/avatar` | — | members |
+| Pin / unpin a Bot (a480, members/profiles.md) | chat header 「…」 menu (Bot only) + pin mark on the row | `pinned` / `pinnedAt` on `GET /api/bots` items | `PATCH /api/bots/:id` `{pinned}` (answer `bot.pinnedAt`); the list shows pinned Bots first by `pinnedAt`, then the rest by recent activity; a failure keeps the list and shows the roster notice | members |
 | Account limit banner | roster | `GET /api/accounts` | — | execution |
 | Conversation history and queue | timeline | `GET /api/{bots,rooms}/:id/messages`, `GET …/queue` | — | conversation |
 | Send, stop | composer | — | `POST /api/{bots,rooms}/:id/messages`, `POST /api/bots/:id/stop` | conversation, execution |

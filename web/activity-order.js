@@ -4,6 +4,13 @@ export function newestByRecent(items) {
     .map(entry => entry.item)
 }
 
+// a480: pinned Bots first by pinnedAt (the pin order; ties by id), the rest keep the order they came in (members/profiles.md).
+export function pinnedFirst(items) {
+  const at = item => item.pinnedAt ? Date.parse(item.pinnedAt) : NaN
+  const pinned = items.filter(item => Number.isFinite(at(item))).sort((left, right) => at(left) - at(right) || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+  return [...pinned, ...items.filter(item => !Number.isFinite(at(item)))]
+}
+
 export function hasUnreadConversation(item, type, lastReadId) {
   const recent = item?.recent
   if (!recent?.id || recent.id === lastReadId) return false

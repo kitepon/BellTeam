@@ -25,12 +25,15 @@ import { claimSingleFlight, releaseSingleFlight } from './chat-input.js?v=__ASSE
 import { createMessageImageCache } from './message-images.js?v=__ASSET_VERSION__'
 import { createConversationComposer, installShareDrop } from './conversation-composer.js?v=__ASSET_VERSION__'
 import { createForwardDialog } from './forward-dialog.js?v=__ASSET_VERSION__'
-import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
+import { hasUnreadConversation, newestByRecent, pinnedFirst } from './activity-order.js?v=__ASSET_VERSION__'
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 import { createWebClient } from './client.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
 import { createTerminalsView, seatLaunchText } from './terminals.js?v=__ASSET_VERSION__'
 import { createUpdateCenter } from './update-center.js?v=__ASSET_VERSION__'
+
+// a480: the mark on a pinned Bot's row.
+const PIN_MARK = '<svg class="pin-mark" viewBox="0 0 24 24" role="img" aria-label="ピン留め中"><title>ピン留め中</title><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6ZM12 14v7"/></svg>'
 
 export function createWebApp({ client = createWebClient() } = {}) {
   const { api, fetchImage, watchEvents } = client
@@ -302,6 +305,21 @@ export function createWebApp({ client = createWebClient() } = {}) {
   // 7.1: 記憶と知識 and キャラクターシート live in the member's 「…」 menu, not in the edit form.
   document.querySelector('#memory-button').addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void memoryView.open(state.selected) })
   document.querySelector('#character-sheet-button').addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void characterSheets.open(state.selected) })
+  // a480: pin / unpin the open Bot. The server keeps pinnedAt (PATCH /api/bots/:id {pinned}); the list shows pinned Bots first.
+  const pinButton = document.querySelector('#pin-button')
+  const pinnedNow = () => Boolean(state.bots.find(bot => bot.id === state.selected?.id)?.pinnedAt)
+  pinButton.addEventListener('click', async () => {
+    if (state.selectedType !== 'bot' || !state.selected) return
+    const { id } = state.selected, pinned = !pinnedNow()
+    try {
+      const { bot } = await api(`/api/bots/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pinned }) })
+      state.bots = state.bots.map(item => item.id === id ? { ...item, pinned: bot.pinnedAt != null, pinnedAt: bot.pinnedAt ?? null } : item)
+      renderBots()
+    } catch {
+      rosterError.textContent = pinned ? 'ピン留めできませんでした。通信を確かめて、もう一度押してください。' : 'ピン留めを外せませんでした。通信を確かめて、もう一度押してください。'
+      rosterNotice.hidden = false
+    }
+  })
   // 「…」 menu (W24): closes after a choice, on an outside click and on Esc.
   const chatMore = document.querySelector('#chat-more')
   chatMore.addEventListener('click', event => { if (event.target.closest('.chat-more-menu button')) chatMore.open = false })
@@ -311,6 +329,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const memberCharts = document.querySelector('[data-member-charts]')
   let memberChartsRead = 0
   chatMore.addEventListener('toggle', async () => {
+    pinButton.querySelector('span').textContent = pinnedNow() ? 'ピン留めを外す' : 'ピン留めする'
     const read = ++memberChartsRead
     memberCharts.replaceChildren()
     if (!chatMore.open || state.selectedType !== 'bot' || !state.selected) return
@@ -555,13 +574,13 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   function renderBots() {
     const query = rosterSearch.value
-    const botRows = newestByRecent(state.bots).filter(bot => matchesMemberQuery(bot, query)).map(bot => {
+    const botRows = pinnedFirst(newestByRecent(state.bots)).filter(bot => matchesMemberQuery(bot, query)).map(bot => {
       const row = memberRow(bot)
       const button = rosterButton('bot', bot, () => selectBot(bot))
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}</span>
         <span class="bot-copy"><span class="bot-name">${escapeHtml(row.name)}</span><span class="bot-preview">${escapeHtml(row.line)}</span></span>
-        <span class="bot-meta"><time class="bot-time">${rowTime(bot.recent?.at)}</time>${button.classList.contains('unread') ? '<i class="unread-dot" title="未読" aria-label="未読"></i>' : ''}</span>`
+        <span class="bot-meta"><time class="bot-time">${rowTime(bot.recent?.at)}</time>${bot.pinnedAt ? PIN_MARK : ''}${button.classList.contains('unread') ? '<i class="unread-dot" title="未読" aria-label="未読"></i>' : ''}</span>`
       if (row.state) button.querySelector('[data-avatar]').append(stateBadge(row.state))
       applyAvatar(button.querySelector('[data-avatar]'), bot)
       return button
