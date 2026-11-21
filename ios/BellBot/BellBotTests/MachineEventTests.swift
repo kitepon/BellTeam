@@ -46,6 +46,15 @@ final class MachineEventTests: XCTestCase {
         XCTAssertEqual(quote.text, "一行目\n二行目", "row.message is the first line only; the quote carries machine_event.text")
     }
 
+    func testThinkingRowIsThinkingAndItsWholeTextIsTheEventText() throws {
+        let whole = String(repeating: "長い考えの全文。", count: 120)
+        let rows = try decode([row("me-1-0", ["seq": 1, "view": "thinking", "display": "show", "title": "thinking", "text": whole]),
+                               row("me-2-0", ["seq": 2, "view": "words", "display": "show", "title": "thinking", "text": "別名"]),
+                               row("me-3-0", ["seq": 3, "view": "words", "display": "show", "text": "普通の言葉"])])
+        XCTAssertEqual(rows.map { $0.machineEvent?.isThinking }, [true, true, false])
+        XCTAssertEqual(rows[0].machineEvent?.text, whole, "message(先頭の要約)ではなく text の全文を描く")
+    }
+
     func testMalformedEventShowsAsUnknownAndDoesNotBreakTheRow() throws {
         let message = try decode([row("me-2-0", ["view": 5, "request": ["status": "pending"]])])[0]
         XCTAssertEqual(message.machineEvent?.view, "unknown")
