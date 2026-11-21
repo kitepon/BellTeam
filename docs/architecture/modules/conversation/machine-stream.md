@@ -230,6 +230,22 @@ flowchart LR
   Page --> Apps["apps: bubble true = message bubble"]
 ```
 
+## Thinking is drawn as a bubble (a471-thinking-bubble)
+
+Owner 2026-11-21 11:5x JST: 「Thinkingも吹き出しにして」. Today a thinking row is plain slanted text outside a bubble on Web, Windows and Linux. Same spec on all clients (Web, iPhone/Mac, Windows, Linux, Android); the Mac app is the visual reference. Only what the clients need is fixed here:
+
+- **Which rows.** Every shown row with `view: "thinking"` (it has text; display `show`). A `thinking (no text)` row stays folded as now. No other view changes: plain written lines (`words` without `bubble`), tools and cards keep their drawing.
+- **Look.** The row is drawn in the same incoming bubble container the app uses for the seat's answer bubble (`words` with `bubble: true`): same shape, colour, width, alignment, sender and time rules. Inside, the whole `machine_event.text` as in the thinking-full rule, lighter and slanted as now, so a thinking bubble cannot be mistaken for the answer. One bubble per row (no merging of rows). Order and time stay those of the row.
+- **Actions: copy only.** A thinking bubble has copy (the whole text, and the selected part when the Owner selects text). It has no reply, quote-reply or forward: those stay on the answer bubbles (`bubble: true`, see the reply section), because a thinking row is the seat's working note, not a message to the Owner. The body already accepts a thinking row id for `reply_to` and `forward`, so widening later changes only the clients' gate.
+- **Nothing else.** No new field, no body change, no change to the list preview, fold groups or the turn report check.
+
+```mermaid
+flowchart LR
+  Row["machine_event, view thinking, display show, text whole"] --> Bubble["incoming bubble container (same as the answer), text lighter and slanted"]
+  Bubble --> Copy["actions: copy only"]
+  Row2["thinking (no text)"] --> Fold["folded line, unchanged"]
+```
+
 ## Reply, forward, quote and copy of a bubble (a471-reply-forward-broken)
 
 Owner 2026-11-21 10:3x JST: 「返信機能とか、転送機能とか、引用して返信とか、使えなくなってる。」 Cause found 2026-11-21 (not the read outage): a machine seat's answer is now the stream bubble (`machine_event` with `bubble: true`), and every client gates reply / forward / quote / copy on `kind` being `message`, `interim` or `schedule` (Web draws the bubble with `id: undefined`; iOS `isQuotable`, Windows/Linux `Timeline.IsQuotable` / `IsForwardable`). A `machine_event` row is none of those, so the Bot's answers lost the actions. The body already accepts the row: `reply_to` and `forward.message_id` take its id `me-<seq>-<part>` (source kind `bot`), `quoteSource` / `forwardSource` read its whole `machine_event.text` through `machine.rowSource`, and `reply_quote` locates the selected text in it. Nothing changes in the body or in the wire.
