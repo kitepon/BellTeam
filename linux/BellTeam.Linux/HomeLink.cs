@@ -55,9 +55,10 @@ public static class HomeGate
 }
 
 // The app's session tokens: the home server's one (from the library's record) first, the older per-server file or Keystore entry for servers that still use app sessions.
-public sealed class CompositeSessionTokenStore(IHomeLink home, ISessionTokenStore older) : ISessionTokenStore
+// home is asked at use: on Android the library needs the activity, which does not exist yet when the shell is built.
+public sealed class CompositeSessionTokenStore(Func<IHomeLink?> home, ISessionTokenStore older) : ISessionTokenStore
 {
-    public string? Load(Uri origin) => home.Token(origin.AbsoluteUri) ?? older.Load(origin);
+    public string? Load(Uri origin) => home()?.Token(origin.AbsoluteUri) ?? older.Load(origin);
     public void Save(Uri origin, string token) => older.Save(origin, token);   // the library keeps the home token itself
-    public void Clear(Uri origin) { home.Forget(origin.AbsoluteUri); older.Clear(origin); }
+    public void Clear(Uri origin) { home()?.Forget(origin.AbsoluteUri); older.Clear(origin); }
 }

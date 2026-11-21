@@ -70,7 +70,7 @@ internal static partial class Launcher
         if (!instance.IsPrimary) { desktop.Shutdown(0); return; }
         SettingsWindow.AccountEntry = token => new LinuxAccountCard(token);
         var home = LinuxAccountStore.Home;
-        ISessionTokenStore tokens = home is null ? new FileSessionTokenStore(SettingsStore.UserDirectory) : new CompositeSessionTokenStore(home, new FileSessionTokenStore(SettingsStore.UserDirectory));
+        ISessionTokenStore tokens = home is null ? new FileSessionTokenStore(SettingsStore.UserDirectory) : new CompositeSessionTokenStore(() => home, new FileSessionTokenStore(SettingsStore.UserDirectory));
         var workspace = new LinuxWorkspace(origin => new BellApi(origin) { SessionToken = tokens.Load(origin) });
         // Desktop notifications: default off, only while the app runs; a click opens the conversation (or the Update sheet) in the window.
         var notifications = new DesktopNotifications(new FreedesktopNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.UIThread.Post(() => _ = main!.OpenNotificationAsync(server, target)));

@@ -16,9 +16,9 @@ namespace BellTeam.Android;
 public sealed class PhoneShell : UserControl, IMessageHost
 {
     private readonly AccessSession access = new();
-    private readonly ISessionTokenStore tokens = AccountStore.Home is { } home ? new CompositeSessionTokenStore(home, new KeystoreSessionTokenStore()) : new KeystoreSessionTokenStore();
+    private readonly ISessionTokenStore tokens = new CompositeSessionTokenStore(() => AccountStore.Home, new KeystoreSessionTokenStore());
     // a492: a home server (login-billing HomeConnection); the login screen of one that has no kept login yet.
-    private readonly IHomeLink? home = AccountStore.Home;
+    private IHomeLink? home => AccountStore.Home;   // at use: the library needs the activity
     private HomeProbe? homeBinding;
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settings = new(SettingsStore.UserDirectory);

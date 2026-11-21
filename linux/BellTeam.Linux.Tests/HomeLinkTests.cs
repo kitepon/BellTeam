@@ -20,7 +20,7 @@ public sealed class HomeLinkTests
     public void TheHomeTokenIsOnlyForItsOwnOriginAndClearDropsIt()
     {
         var home = new FakeHome(); var older = new MemorySessionTokenStore();
-        var store = new CompositeSessionTokenStore(home, older);
+        var store = new CompositeSessionTokenStore(() => home, older);
         var mine = new Uri("http://home.example:18897/"); var other = new Uri("http://other.example/");
         older.Save(other, "old");
         Assert.Equal("tok", store.Load(mine)); Assert.Equal("old", store.Load(other));
