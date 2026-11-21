@@ -15,6 +15,12 @@ final class StoreAccountTests: XCTestCase {
         XCTAssertEqual(account.errorText, "購読の接続先の設定が正しくありません。")
     }
 
+    func testPurchaseReadBackNamesTheServersWord() {
+        XCTAssertEqual(StoreAccount.word(.attached), "attached")
+        XCTAssertEqual(StoreAccount.word(.otherAccount), "other_account")
+        XCTAssertEqual(StoreAccount.word(.notConfirmed), "not_confirmed")
+    }
+
     func testNoContractWordingIsTheRuledText() {
         XCTAssertEqual(StoreAccount.words(LoginBillingErrorForTests.noEntitlement),
                        "先に購読してください。購読しないで使うには、ブラウザー版を、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードで開いてください。")

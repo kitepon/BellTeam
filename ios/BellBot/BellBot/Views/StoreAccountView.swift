@@ -55,6 +55,14 @@ struct StoreAccountCard: View {
                     .buttonStyle(.bellPrimary).controlSize(.large).disabled(account.busy)
                     .accessibilityIdentifier("store-purchase")
             }
+            // 購入の読み戻し: サーバーの答えと、返ってきた権利（商品・ストア・期限）をそのまま出す。
+            if let word = account.purchaseWord {
+                Text("購入の確認: \(word)").font(BellTheme.secondaryFont).accessibilityIdentifier("store-purchase-word")
+            }
+            ForEach(account.entitlements, id: \.productId) { entitlement in
+                Text("権利: \(entitlement.productId)（\(entitlement.store)）" + (entitlement.expiresAt.map { " \($0.formatted(date: .abbreviated, time: .shortened))まで" } ?? ""))
+                    .font(BellTheme.secondaryFont).accessibilityIdentifier("store-entitlement")
+            }
             if !account.otherAccountProducts.isEmpty {
                 Text("この端末の購入は、別のBellTeamアカウントのものです。そのアカウントでサインインすると反映されます。")
                     .font(BellTheme.secondaryFont).foregroundStyle(.orange)
