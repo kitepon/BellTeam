@@ -161,3 +161,45 @@ Tronie's rulings (2026-11-21): rows 1, 2, 5, and S1-S3 (rows 11-13). Mint confir
 
 1. This page and `flows.md` accepted after the re-check (Airi, Maxwell); the build rows (a485-lb-server, -worker, -apple, -android-linux, -windows, -web) start from it.
 2. Usage child: session store, console + socket, login endpoints, network class, lease, the owner switch, capability in ready. Body: tolerant projection row (reader first, as a479), `authorize` by token hash behind the gate with the Origin rule, gateway static without session and the proxy headers passed on, console binary in the image. Apps: login screens (waiting for second hand, phone, console code), requests and sessions list with revoke, and the legacy probe. The Enforced switch last.
+
+## 7. Wire contract (draft; the five app builds read this section)
+
+All bodies are JSON (UTF-8). Errors are `{error: CODE}` with the HTTP status, as the rest of the server. Times are ISO-8601 UTC strings with milliseconds (`2026-11-21T13:05:00.000Z`). `kind` is one of `web`, `apple` (iPhone, iPad, Mac), `windows`, `linux`, `android`; any other value is 400 `LOGIN_INPUT_INVALID`. `carrier` is `bearer` (default; the token comes in the body) or `cookie` (Web: the server sets the HttpOnly cookie and the body has no token).
+
+### 7a. Session probe
+
+`GET /api/session` always answers 200: `{authenticated: boolean, authMode: 'local'|'cloudflare', login?: {capability: boolean, bound: boolean, enforced: boolean}, sessionId?: string}`. `login` is absent on a server that predates this contract (the app then uses today's path); `sessionId` is present when the request is authenticated by a session. Every other endpoint answers **401 `UNAUTHORIZED`** to a missing, unknown, ended or expired token; an app treats a 401 on a stored token, and `authenticated:false` from the probe, the same: delete the stored token and show the connect screen. A session ended while the event stream is open closes the stream (the next request is 401).
+
+### 7b. Login (no session needed)
+
+| Call | Request | Answer |
+| --- | --- | --- |
+| `POST /api/login/start` | `{kind, carrier?, setupCode?}`. `setupCode` only while the server is unbound | 200 `{loginId, status, expiresAt, pollAfterMs, secondHand?, phone?}` |
+| `GET /api/login/{loginId}` | none | 200 `{loginId, status, expiresAt, pollAfterMs, secondHand?, phone?, token?, reason?}` |
+| `POST /api/login/{loginId}/cancel` | `{}` | 200 `{loginId, status: 'cancelled'}` |
+| `POST /api/login/console` | `{code, kind, carrier?}` (a console code, or an "add an app" code, or a setup code on an unbound server) | 200 `{status: 'approved', sessionId, token?}` |
+
+- `loginId`: string, 128 random bits, base64url (22 characters).
+- `status`: `waiting_second_hand` (an existing app or the console must approve first; `secondHand` is `{ways: ['existing_app', 'console_code']}`), `waiting_phone` (`phone` is present), `approved`, `delivered`, `refused` (`reason`: `not_owner_account`, `second_hand_denied`, `phone_denied`), `expired`, `cancelled`.
+- `phone`: `{shortCode: string, checkNumber: string, qr: string, qrPng?: string}`. `shortCode` and `checkNumber` are strings exactly as the library returns them (keep leading zeros, show as given). `qr` is the payload string a phone camera reads; `qrPng` is a ready `data:image/png;base64,…` image of that payload (the server renders it, so an app needs **no QR encoder**; an app may show it, or show only the short code and check number, which is enough: the phone can type the code instead of scanning). The shortCode and checkNumber are the required display; `qrPng` is optional.
+- `approved`: the first poll after approval carries `token` (string, 256 bits, base64url) exactly once with `carrier: bearer`; later polls say `delivered` with no token. With `carrier: cookie` the same poll sets the cookie and has no `token`. An app that loses the response must start a new login.
+- `expired` and `cancelled`: the login is over; the app shows 「ログインの時間が切れました」 (or 「取り消しました」) and a button that starts a new login. An unknown or ended `loginId` answers 404 `LOGIN_NOT_FOUND` (the app treats it like `expired`). There is no 410.
+- Poll interval: the server asks for `pollAfterMs` (3000); the app polls at that interval, the server refuses more than 1 poll per 2 s per login with 429 `LOGIN_RATE_LIMITED` and a `Retry-After` (seconds) header, and the app waits that long. (The "3-5 s" of the sequence diagram is the same thing: 3 s.)
+- Errors: 400 `LOGIN_INPUT_INVALID`; 403 `SETUP_CODE_REQUIRED` (unbound server, `setupCode` missing or wrong); 403 `LOGIN_CODE_INVALID` (wrong or used console code; constant time, same answer for every reason); 404 `LOGIN_NOT_FOUND`; 409 `LOGIN_NOT_WAITING`; 429 `LOGIN_RATE_LIMITED`; 503 `LOGIN_OPERATOR_UNREACHABLE` (the Worker cannot be reached when a phone login must start; the app says so and offers the console code).
+
+### 7c. With a session
+
+| Call | Answer |
+| --- | --- |
+| `GET /api/login/requests` | 200 `{requests: [{loginId, kind, networkClass: 'lan'\|'unknown', requestedAt, expiresAt}]}`, oldest first, only logins in `waiting_second_hand` |
+| `POST /api/login/{loginId}/approve` (`{}`) | 200 `{loginId, status: 'waiting_phone'}`; 404 `LOGIN_NOT_FOUND`; 409 `LOGIN_NOT_WAITING` |
+| `POST /api/login/{loginId}/deny` (`{}`) | 200 `{loginId, status: 'refused'}` (the new app sees `second_hand_denied`) |
+| `POST /api/login/code` (`{}`) | 200 `{code: string, expiresAt}`: 13 characters grouped 4-4-5, shown once, 10 minutes, single use; 429 `LOGIN_RATE_LIMITED` when 4 are outstanding |
+| `GET /api/sessions` | 200 `{sessions: [{id, kind, origin: 'phone'\|'console', networkClass: 'lan'\|'unknown', createdAt, lastUsedAt, current: boolean}]}`, newest first; `id` is a public id, never the token |
+| `DELETE /api/sessions/{id}` | 200 `{id, status: 'ended'}`; 404 `SESSION_NOT_FOUND`. Ending the `current` one is the sign-out: the app then deletes its stored token (`sessionId` from the probe, or the `current` entry, tells it which one is its own). There is no `POST /api/logout` |
+
+Events on the existing stream (`GET /api/events`, same `{type, …}` envelope as the `settings` events), sent to every open session: `{type: 'login.requested', loginId, kind, networkClass, requestedAt}`, `{type: 'session.created', id, kind, origin, networkClass, createdAt}`, `{type: 'session.ended', id}`. An app shows the first two as a notice with 許可 / 拒否 and 取り消す.
+
+### 7d. Which task covers which screen
+
+Each app row builds, on this section: the connect screen (probe, start, wait, console code field, token store), the setup-code binding screen (a setup code goes with `start`; it is shown on the server console, not in an app), the requests screen (approve / deny), "add an app" (code display) and the session list with revoke. Token storage is the app's: Windows DPAPI file, Linux 0600 file (libsecret later), Android Keystore-backed preferences, Apple Keychain (shared access group), Web the cookie.
