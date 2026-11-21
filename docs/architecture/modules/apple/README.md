@@ -8,7 +8,7 @@ Apple内部の機能図は未作成（担当ベルの2026-11-02回答）。現�
 
 本体への提供窓口はなく、利用側としてHTTP /api/*とSSE /api/eventsを使う。MCP利用はない。会話はN102、設定/通知はミカ、モデル操作はキロ、更新実行はエピネルへ、共通HTTP/SSEの実装はモリーへ接続する。ベルはlocalチームのためBellTeam botIdを持たず、連絡はトロニーの既call-bridge通話から中継する。
 
-商用更新は[Webとの共通状態設計](../web/update-notice-design.md)へ接続し、Update画面・SSE updates・push kind=updateは[Update画面](update.md)で実装済み。ロゴ右を置けない画面の通知帯は未採用の代替案で、Ownerの配置指示を変更したことにしない。
+商用更新は[Webとの共通状態設計](../../../archive/web-ui/update-notice-design.md)へ接続し、Update画面・SSE updates・push kind=updateは[Update画面](update.md)で実装済み。ロゴ右を置けない画面の通知帯は未採用の代替案で、Ownerの配置指示を変更したことにしない。
 
 [接続情報](module.json) / [共通の変更手順](../../module-ownership.md)
 

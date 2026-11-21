@@ -11,7 +11,6 @@ import { createModuleUpdateCatalog } from '../src/update-module-catalog.mjs'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { runtimeComponentIds, validateUpdateRequest, validateUpdateResponse } from '../src/update-center-contract.mjs'
-import { validUpdateInventory } from '../web/update-center.js'
 
 const sha = character => character.repeat(64)
 const record = (jobId, kind, moduleId, updatedAtNs) => ({ schema: 'bellteam.update-job.v1', jobId, idempotencyKey: jobId, kind,
@@ -44,7 +43,6 @@ test('released readers see byte-identical updates without runtime=1; runtime row
 
   const plain = await (await fetch(base)).json()
   assert.equal(stable(plain), stable(await released.snapshot()))
-  assert.ok(validUpdateInventory(plain))
   assert.deepEqual(plain.jobs, [moduleJob])
   assert.ok(plain.components.every(component => !runtimeComponentIds.includes(component.id) && !('runtimeApplication' in component)))
   assert.deepEqual(await (await fetch(base + '/jobs')).json(), { jobs: [moduleJob] })

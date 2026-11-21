@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,17 +29,14 @@ async function fixture(t, backend = createServer((_request, response) => respons
   })
   for (const name of ['builtin', 'signed']) {
     const directory = roots[name] = join(root, name)
-    await mkdir(join(directory, 'src'), { recursive: true }); await mkdir(join(directory, 'web'))
+    await mkdir(join(directory, 'src'), { recursive: true });
     await symlink(join(appRoot, 'src/http-gateway.mjs'), join(directory, 'src/http-gateway.mjs'))
     const entry = await readFile(join(appRoot, 'src/http-gateway-entry.mjs'), 'utf8')
     await writeFile(join(directory, 'src/http-gateway-entry.mjs'),
-      `import { appendFileSync } from 'node:fs'\nappendFileSync(${JSON.stringify(childrenPath)}, JSON.stringify({name:${JSON.stringify(name)},pid:process.pid,catalog:JSON.parse(process.argv[5])})+'\\n')\n${entry}`)
-    await copyFile(join(appRoot, 'web/assets.mjs'), join(directory, 'web/assets.mjs'))
-    await writeFile(join(directory, 'web/index.html'), `<h1>${name}</h1><script src="/app.js?v=__ASSET_VERSION__"></script>`)
-    await writeFile(join(directory, 'web/app.js'), `${name}:__ASSET_VERSION__`)
+      `import { appendFileSync } from 'node:fs'\nappendFileSync(${JSON.stringify(childrenPath)}, JSON.stringify({name:${JSON.stringify(name)},pid:process.pid,key:process.argv[4],catalog:JSON.parse(process.argv[5])})+'\\n')\n${entry}`)
   }
   const create = (options = {}) => {
-    const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: roots.builtin, adoptionPath,
+    const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: roots.builtin, adoptionPath,
       prepareRelease: async id => {
         prepared.push(id)
         assert.equal(id, signed, 'the reader only accepts signed SHA, never builtin/null')
@@ -49,7 +46,9 @@ async function fixture(t, backend = createServer((_request, response) => respons
     gateways.push(gateway); return gateway
   }
   const children = async () => (await readFile(childrenPath, 'utf8')).trim().split('\n').map(JSON.parse)
-  return { root, roots, adoptionPath, create, prepared, children }
+  // a487: which child answers is read from its version header (the key it was started with), not from a page.
+  const serving = async url => { const key = (await fetch(url)).headers.get('x-bellteam-gateway-version'); return (await children()).findLast(child => child.key === key)?.name }
+  return { root, roots, adoptionPath, create, prepared, children, serving }
 }
 
 test('signed→builtin→採用再読込は固定appRoot/同port/旧SHA資材を保持し実ready版を登録する', { timeout: 5000 }, async t => {
@@ -63,11 +62,9 @@ test('signed→builtin→採用再読込は固定appRoot/同port/旧SHA資材を
   assert.throws(() => process.kill(signedPid, 0), { code: 'ESRCH' })
   assert.deepEqual(JSON.parse(await readFile(f.adoptionPath, 'utf8')), adoption(null, signed))
   assert.equal((await stat(f.adoptionPath)).mode & 0o777, 0o600)
-  const html = await (await fetch(base)).text(), version = html.match(/app\.js\?v=([^"]+)/)[1]
-  assert.match(html, /<h1>builtin<\/h1>/)
+  const version = (await fetch(base)).headers.get('x-bellteam-gateway-version')
+  assert.equal(await f.serving(base), 'builtin')
   assert.ok(version && !['null', 'builtin', signed].includes(version))
-  assert.equal(await (await fetch(base + '/app.js?v=' + version)).text(), `builtin:${version}`)
-  assert.equal(await (await fetch(base + '/app.js?v=' + signed)).text(), `signed:${signed}`)
   const builtinPid = gateway.pid
   await gateway.replace('builtin')
   assert.equal(gateway.pid, builtinPid, 'already builtin does not spawn another child')
@@ -75,8 +72,7 @@ test('signed→builtin→採用再読込は固定appRoot/同port/旧SHA資材を
   const reloaded = f.create({ port }); await reloaded.start()
   assert.equal(reloaded.versionId, null); assert.equal(reloaded.address.port, port)
   assert.deepEqual(f.prepared, [signed])
-  assert.match(await (await fetch(base)).text(), /<h1>builtin<\/h1>/)
-  assert.equal(await (await fetch(base + '/app.js?v=' + signed)).text(), `signed:${signed}`)
+  assert.equal(await f.serving(base), 'builtin')
   for (const child of await f.children()) {
     assert.ok(child.catalog.every(([key]) => typeof key === 'string' && key && !['builtin', 'null'].includes(key)))
   }
@@ -105,7 +101,7 @@ test('builtin起動失敗は旧signed子を止めずに配り続け、採用記�
     && error.cause.message === 'GATEWAY_START_FAILED')
   assert.equal(gateway.versionId, signed); assert.equal(gateway.address.port, port)
   assert.equal(await readFile(f.adoptionPath, 'utf8'), saved)
-  assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>signed<\/h1>/)
+  assert.equal(await f.serving(`http://127.0.0.1:${port}`), 'signed')
   // 95eef79b: the signed child was never stopped, so nothing is re-prepared or restarted.
   assert.equal(gateway.pid, signedPid)
   assert.deepEqual(f.prepared, [signed])
@@ -125,7 +121,7 @@ test('builtin採用保存失敗は新子を回収しsignedの記録と公開版�
   const spawnedBuiltin = (await f.children()).find(child => child.name === 'builtin')
   assert.throws(() => process.kill(spawnedBuiltin.pid, 0), { code: 'ESRCH' })
   assert.equal(await readFile(f.adoptionPath + '.saved', 'utf8'), saved)
-  assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>signed<\/h1>/)
+  assert.equal(await f.serving(`http://127.0.0.1:${port}`), 'signed')
 })
 
 test('builtin戻しの交換中に親closeすると旧子も新子も回収し、子を残さない', { timeout: 5000 }, async t => {

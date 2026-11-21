@@ -16,7 +16,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   await copyFile(new URL('../scripts/package-server.mjs', import.meta.url), join(root, 'scripts/package-server.mjs'))
   const paths = [
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src/supervisor.mjs',
-    'web/index.html', 'integrations/bellteam.mjs', 'config/common-agents.md', 'config/harness-products.json', 'config/lattice-harness-entries.json', 'scripts/lattice-sensor-init', 'config/models.json',
+    'integrations/bellteam.mjs', 'config/common-agents.md', 'config/harness-products.json', 'config/lattice-harness-entries.json', 'scripts/lattice-sensor-init', 'config/models.json',
     'config/setup-guide.json', 'config/ponytail-LICENSE', 'docs/bot-environment.md', 'docs/onboarding.md',
     'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
