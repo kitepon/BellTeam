@@ -265,7 +265,7 @@ stateDiagram-v2
 
 ### 4.8b 稼働中に数えない処理（a64）
 
-Web（a63、[user-paths.md](../web/user-paths.md) 4.10）と同じ語・同じ札。Macが基準の見た目で、Windows（a65）が合わせる。
+Web（a63、[user-paths.md](../../../archive/web-ui/user-paths.md) 4.10）と同じ語・同じ札。Macが基準の見た目で、Windows（a65）が合わせる。
 
 ```mermaid
 stateDiagram-v2

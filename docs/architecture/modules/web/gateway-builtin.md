@@ -38,7 +38,7 @@ asset catalogへnullやbuiltinという仮keyは追加しない。実子readyの
 
 ## 公開受付が返すもの（a487、2026-11-22、Owner「ブラウザ版を廃止しよう」「今すぐ廃止しよう」）
 
-公式BellTeamはネイティブアプリだけになる。公開受付（`http-gateway.mjs`）はブラウザ画面を配らず、アプリが使う入口だけを残す。今夜の最小除去は受付の1か所（`createHttpGateway`の先頭分岐）で、画面コード（`web/`）と静的配信の枝は後続の全面撤去（a487-web-ui-removal）で消す。
+公式BellTeamはネイティブアプリだけになる。公開受付（`http-gateway.mjs`）はブラウザ画面を持たず、アプリが使う入口だけを通す。画面コード（`web/`）、資材表、静的配信（受付の枝、本体の`staticFile`）は撤去済み。画面の旧仕様は[廃止した画面の記録](../../../archive/web-ui/README.md)。
 
 ```mermaid
 flowchart LR
@@ -48,16 +48,19 @@ flowchart LR
   Lin[Linux] -->|/api/*| Gate
   Mon[配布・監視] -->|/healthz| Gate
   Old[古いブラウザ・ブックマーク] -->|それ以外の全path・全method| Gate
-  Gate{公開受付 http-gateway} -->|/api/* と /healthz: 従来どおり転送| Biz[業務process 認可・応答]
-  Gate -->|それ以外: 業務processに問い合わせず| Notice[410 text/plain「BellTeamのブラウザ版は終了しました。アプリをお使いください。」<br/>x-bellteam-gateway-version]
+  Gate{公開受付 http-gateway} -->|/api/* と /healthz: そのまま転送| Biz[業務process 認可・応答]
+  Gate -->|それ以外: 業務processに問い合わせず| Notice[410 text/plain「BellTeamのブラウザ版は終了しました。／アプリ（iPhone・Mac・Windows・Linux・Android）でお使いください。無料で使うには、公開されているソースコード（MITライセンス）から自分でビルドしてください。」<br/>x-bellteam-gateway-version]
+  Biz -->|API以外のpath| NotFound[404 NOT_FOUND]
 ```
 
-| 経路 | 今夜 | 使うクライアント |
+| 経路 | 扱い | 使うクライアント |
 | --- | --- | --- |
-| `/api/*`（一覧・会話・SSE `/api/events`・アバター `/api/bots/:id/avatar`・添付 `/api/.../attachments`・`/api/session`・設定・更新ほか） | 変えない（そのまま業務processへ転送） | 全ネイティブアプリ。Apple/Windowsのログイン表示は`/api/session`を開き、`/`は開かない（`LoginView.swift`、`AccessLogin.cs`で確認） |
+| `/api/*`（一覧・会話・SSE `/api/events`・アバター `/api/bots/:id/avatar`・添付・`/api/session`・設定・更新ほか） | 変えない（そのまま業務processへ転送） | 全ネイティブアプリ。Apple/Windows/Androidのログイン表示は`/api/session`を開き、`/`は開かない（`LoginView.swift`、`AccessLogin.cs`で確認） |
 | `/healthz` | 変えない | 配布・監視 |
-| それ以外（`/`、`/index.html`、`/app.js`、`/sw.js`、`/manifest`…） | 画面を返さず、410と終了のお知らせだけ。セッション確認もファイル読みもしない。`x-bellteam-gateway-version`に受付の版を載せ、列車の反映を外から確かめられる | なし（ブラウザだけ） |
+| それ以外（`/`、`/index.html`、`/app.js`、`/sw.js`…） | 画面を返さず、410と終了のお知らせだけ。セッション確認もファイル読みもしない。`x-bellteam-gateway-version`に受付の版を載せ、列車の反映を外から確かめられる | なし |
 
-- 版交換のready確認（`http-gateway-process.mjs`）は`/`ではなく`/api/session`を新子へ1回読む（アプリが使う転送経路そのものを確かめる）。
-- 古い画面の配信枝は`browserUi`（既定false、本番は常にfalse）の裏に残し、受付の版を内容で見分ける版交換試験（`gateway-version-switch`、`web-gateway-builtin`、`web-gateway-update-adapter`）だけがtrueにする。全面撤去で枝ごと消し、試験は`x-bellteam-gateway-version`で見分ける形へ替える。
-- 既にブラウザへ登録済みのService Worker（`/sw.js`、通知用）は更新できず残るが、画面は出ない。Web通知の送出停止は全面撤去の範囲。
+- 版交換のready確認（`http-gateway-process.mjs`）は新子の`/api/session`を1回読む（アプリが使う転送経路そのものを確かめる）。
+- 版交換の取り決め（子への`asset-version`送信と`asset-version-ack`）は変えない。画面資材が無いので子は形だけ確かめて即ackする（旧親は従来どおり待てる）。第4引数（過去版の資材root）は読まない。
+- 版交換の試験は、受付がどの版か（内蔵か署名版か）を画面の中身ではなく`x-bellteam-gateway-version`で見分ける。
+- 配布: web-gateway artifactは`web/`を含まない（`module_artifact_package.py`、`package-server.mjs`）。release検証が要るのは`payload/src/http-gateway.mjs`など受付のコードで、`payload/web/assets.mjs`は要らない（既存の旧releaseに残っていても害はない）。
+- 既にブラウザへ登録済みのService Worker（`/sw.js`、通知用）は更新できず残るが、画面は出ない。Web通知の送出と`webPush`設定（アプリの設定一覧にも出る）は通知/usage（ミカ）の契約で、別工程として撤去を依頼する。

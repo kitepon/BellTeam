@@ -118,15 +118,12 @@ test('固有adapterから実gatewayをSHA→builtinへ戻し、同port/採用nul
   const backend = createServer((_request, response) => response.end('{"authenticated":true}'))
   let gateway, reads = 0
   t.after(async () => { await gateway?.close(); await new Promise(resolve => backend.close(resolve)); await rm(root, { recursive: true, force: true }) })
-  await mkdir(join(releaseRoot, 'src'), { recursive: true }); await mkdir(join(releaseRoot, 'web'))
+  await mkdir(join(releaseRoot, 'src'), { recursive: true })
   await copyFile(join(appRoot, 'src/http-gateway-entry.mjs'), join(releaseRoot, 'src/http-gateway-entry.mjs'))
   await symlink(join(appRoot, 'src/http-gateway.mjs'), join(releaseRoot, 'src/http-gateway.mjs'))
-  await copyFile(join(appRoot, 'web/assets.mjs'), join(releaseRoot, 'web/assets.mjs'))
-  await writeFile(join(releaseRoot, 'web/index.html'), '<h1>signed</h1>')
-  await writeFile(join(releaseRoot, 'web/app.js'), 'signed:__ASSET_VERSION__')
   backend.listen(socketPath); await once(backend, 'listening')
   const prepare = async id => { reads++; assert.equal(id, signed); return { ...descriptor, appRoot: releaseRoot } }
-  gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot, prepareRelease: prepare, adoptionPath })
+  gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot, prepareRelease: prepare, adoptionPath })
   const adapter = createWebGatewayUpdateAdapter({ gateway: () => gateway, builtinSourceCommit, prepare })
   await gateway.start(); const port = gateway.address.port, base = `http://127.0.0.1:${port}`
   assert.deepEqual(adapter.current(), builtin)
@@ -138,6 +135,5 @@ test('固有adapterから実gatewayをSHA→builtinへ戻し、同port/採用nul
   assert.throws(() => process.kill(signedPid, 0), { code: 'ESRCH' })
   const state = JSON.parse(await readFile(adoptionPath, 'utf8'))
   assert.equal(state.currentVersionId, null); assert.equal(state.previousVersionId, signed)
-  assert.equal(await (await fetch(base + '/app.js?v=' + signed)).text(), `signed:${signed}`)
   assert.equal(reads, 2, 'builtin preparation/application must not enter signed reader')
 })

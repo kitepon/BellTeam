@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { scheduleFormValues, scheduleRequest, scheduleDescription } from '../web/schedule-editor.js'
 import { BotRegistry, normalizeSchedule } from '../src/bot-registry.mjs'
 import { BotScheduler } from '../src/scheduler.mjs'
 import { bellTeamTools } from '../src/mcp-tools.mjs'
@@ -77,22 +76,4 @@ test('保存・読み直し・実行・編集で日おきの基準と時間帯�
   assert.equal(edited.id, savedHours.id)
   assert.equal(edited.intervalHours, 4)
   assert.equal((await reloaded.markScheduleRun('bot-a', edited.id, new Date('2026-09-02T08:00:01Z'))).nextRunAt, '2026-09-03T00:00:00.000Z')
-})
-
-test('画面の編集・保存は両方の間隔設定と元のタイムゾーンを保持する', async () => {
-  for (const schedule of [days, hours]) {
-    const values = { kind: schedule.kind, action: 'prompt', name: '', prompt: schedule.prompt, 'interval-days': schedule.intervalDays, 'start-date': schedule.startDate, time: schedule.time, 'interval-hours': schedule.intervalHours, 'start-hour': schedule.startHour, 'end-hour': schedule.endHour, minute: schedule.minute }
-    const form = scheduleFormValues(schedule)
-    assert.equal(form.type, schedule.kind)
-    const request = scheduleRequest(values, 'bot', schedule.timezone)
-    const { id, ...input } = schedule
-    assert.deepEqual(request, { ...input, name: '', enabled: true })
-    assert.match(scheduleDescription(schedule), /おき/)
-  }
-  for (const name of ['set_schedule', 'set_room_schedule']) {
-    const schema = bellTeamTools.find(tool => tool.name === name).inputSchema
-    assert.ok(schema.properties.kind.enum.includes('interval_days'))
-    assert.ok(schema.properties.kind.enum.includes('interval_hours'))
-    assert.equal(schema.properties.intervalHours.maximum, 24)
-  }
 })

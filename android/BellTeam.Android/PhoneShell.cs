@@ -442,7 +442,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
             StartupPhase.Checking => new StartupOpeningView(),
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, () => { }, model.Server),
-            StartupPhase.Paywall => new PaywallView(ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.SignIn => model.SessionLoginRequired ? SessionSignIn() : new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, async ready => { await model.ReconnectAsync(); await EnterAsync(generation, ready); }, () => ShowStartup(StartupPhase.Setup), model.ConnectionToken)
         };

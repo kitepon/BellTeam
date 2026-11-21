@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { authUi, authResponse } from '../src/auth-ui.mjs'
-import { renderAuthFlow } from '../web/auth-flow.js'
 import { HarnessAuth } from '../src/harness-auth.mjs'
 
 const binding = { session_id: 'auth-owned', launch_id: null, metadata_identity: 'dev:ino:birth:mtime', native_id: 'tmux-session', pane_id: '%1', server_pid: 100, server_started: '100-start', pane_pid: 101, pane_started: '101-start' }
@@ -9,25 +8,10 @@ const ui = (stage, extra = {}) => ({ schema: 'aiterm.auth-ui.v1', binding, url: 
 const receipt = value => ({ schema: 'aiterm.agent-auth-result.v1', status: 'blocked', session_id: binding.session_id,
   input_required: true, ...value })
 
-class Element {
-  constructor(tag) { this.tag = tag; this.children = []; this.textContent = ''; this.events = {}; this.value = '' }
-  append(...children) { this.children.push(...children) }
-  setAttribute(key, value) { this[key] = value }
-  addEventListener(key, fn) { this.events[key] = fn }
-  all() { return [this, ...this.children.flatMap(child => child.all())] }
-}
-
-test('missing native UI and bare input_required cannot become a code field or terminal buttons', () => {
+test('missing native UI and bare input_required cannot become a verified response', () => {
   const value = authUi(receipt(), binding.session_id)
   assert.equal(value.stage, 'unavailable'); assert.equal(value.binding, null)
   assert.throws(() => authResponse({ text: 'not-a-verified-code' }, binding.session_id, value), /AUTH_RESPONSE_INVALID/)
-  const document = globalThis.document; globalThis.document = { createElement: tag => new Element(tag) }
-  try {
-    const flow = renderAuthFlow({ status: 'blocked', input_required: true }, { name: 'Claude', respond() {} })
-    const elements = flow.elements.flatMap(node => node.all())
-    assert.equal(flow.password, undefined); assert.ok(elements.some(node => node.textContent.includes('案内を取得できません')))
-    assert.equal(elements.some(node => ['Enter', 'Up', 'Down', 'Tab'].includes(node.textContent)), false)
-  } finally { globalThis.document = document }
 })
 
 test('native URL/code/choice stages require their own binding and actionable fields', () => {
@@ -38,35 +22,6 @@ test('native URL/code/choice stages require their own binding and actionable fie
   }
   const good = ui('paste_code', { input: 'authorization_code' })
   assert.deepEqual(authUi(receipt({ auth_ui: good }), binding.session_id), good)
-})
-
-test('four harness presentations expose meaningful official actions and only the required input', () => {
-  const document = globalThis.document; globalThis.document = { createElement: tag => new Element(tag) }
-  try {
-    for (const [name, value] of [
-      ['Claude', ui('paste_code', { url: 'https://claude.com/cai/oauth/authorize?code=true', input: 'authorization_code' })],
-      ['Codex', ui('device_code', { url: 'https://auth.openai.com/codex/device', user_code: 'TEST-CODE' })],
-      ['Grok', ui('device_code', { url: 'https://auth.example.invalid/grok/device', user_code: 'TEST-GROK' })],
-      ['Cursor', ui('open_url', { url: 'https://cursor.com/login' })],
-    ]) {
-      const replies = [], flow = renderAuthFlow({ auth_ui: value }, { name, respond: async input => replies.push(input) })
-      const nodes = flow.elements.flatMap(node => node.all())
-      assert.equal(nodes.find(node => node.tag === 'a').textContent, `${name}のログイン画面を開く`)
-      assert.equal(nodes.some(node => ['Enter', 'Up', 'Down', 'Tab'].includes(node.textContent)), false)
-      assert.equal(!!flow.password, name === 'Claude')
-      if (flow.password) {
-        flow.password.value = 'synthetic-one-use-code'; flow.password.events.input()
-        nodes.find(node => node.tag === 'button').events.click()
-        assert.equal(flow.password.value, '')
-        assert.deepEqual(replies, [{ binding, prompt_digest: 'a'.repeat(64), response: { kind: 'authorization_code', value: 'synthetic-one-use-code' } }])
-      }
-    }
-    const replies = [], flow = renderAuthFlow({ auth_ui: ui('select', { title: 'ログイン方法を選んでください', choices: [{ id: 'option-1', label: 'ブラウザでログイン' }] }) },
-      { name: 'Claude', respond: input => replies.push(input) })
-    const button = flow.elements.flatMap(node => node.all()).find(node => node.tag === 'button')
-    assert.equal(button.textContent, 'ブラウザでログイン'); button.events.click()
-    assert.deepEqual(replies, [{ binding, prompt_digest: 'a'.repeat(64), response: { kind: 'choice', id: 'option-1' } }])
-  } finally { globalThis.document = document }
 })
 
 test('code/choice responses reject stale generation, wrong phase and arbitrary key input', () => {
