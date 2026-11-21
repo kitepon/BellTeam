@@ -19,6 +19,9 @@ public sealed class ConversationRow : Button
     private readonly Ellipse presence = new() { Width = 9, Height = 9, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Stroke = Brushes.White, StrokeThickness = 2 };
     private readonly Run name = new() { FontSize = 16, FontWeight = FontWeight.SemiBold };
     private readonly Run badge = new() { FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Violet };
+    private readonly Run pinMark = new() { FontSize = 12 };
+    private readonly MenuItem pin = new();
+    private readonly ContextMenu menu = new();
     private readonly TextBlock summary = new() { Foreground = BellTheme.Muted, FontSize = 11, LineHeight = 15, Margin = new Thickness(0, 3, 0, 0), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock seatLaunch = new() { Foreground = BellTheme.Red, FontSize = 11, LineHeight = 15, MaxLines = 2, Margin = new Thickness(0, 3, 0, 0), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private CancellationTokenSource? pulse;
@@ -30,12 +33,19 @@ public sealed class ConversationRow : Button
         Classes.Add("plain"); Classes.Add("row"); Background = Brushes.Transparent; Foreground = BellTheme.Ink; FontWeight = FontWeight.Normal; FontSize = 16;
         var texts = new StackPanel { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         var title = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, };
-        title.Inlines!.Add(name); title.Inlines.Add(badge);
+        title.Inlines!.Add(name); title.Inlines.Add(badge); title.Inlines.Add(pinMark);
         texts.Children.Add(title); texts.Children.Add(summary); texts.Children.Add(seatLaunch);
         var tile = new Grid { Width = 57.6, Height = 57.6, VerticalAlignment = VerticalAlignment.Center, Children = { avatar, presence } };
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("57.6,*"), Children = { tile, texts } };
         Grid.SetColumn(texts, 1); Content = grid;
         Click += (_, _) => select(Entry);
+        // a480: right-click (a long press on Android) pins or unpins a member; the order then comes back from the server's roster.
+        menu.Items.Add(pin);
+        pin.Click += async (_, _) =>
+        {
+            try { await workspace.SetPinnedAsync(Entry.Target.Id, !Entry.Pinned); }
+            catch (Exception error) when (error is not OperationCanceledException) { workspace.ReportActionError("ピン留めを変えられませんでした。" + error.Message); }
+        };
         Update(entry);
     }
 
@@ -44,7 +54,8 @@ public sealed class ConversationRow : Button
         var working = entry.Working;
         Entry = entry;
         if (avatar.Entry?.AvatarUrl != entry.AvatarUrl || avatar.Entry?.Name != entry.Name || avatar.Entry?.Bot?.Color != entry.Bot?.Color || avatar.Entry?.Bot?.Avatar != entry.Bot?.Avatar) avatar.Entry = entry;
-        name.Text = entry.Name; badge.Text = entry.FastModeBadge;
+        name.Text = entry.Name; badge.Text = entry.FastModeBadge; pinMark.Text = entry.Pinned ? "  📌" : "";
+        pin.Header = entry.Pinned ? "ピン留めを外す" : "ピン留め"; ContextMenu = entry.IsMember ? menu : null;
         summary.Text = entry.PreviewText; summary.MaxLines = entry.IsMember ? 2 : 1;
         seatLaunch.Text = entry.SeatLaunchLine; seatLaunch.IsVisible = entry.SeatLaunchLine is not null;
         presence.IsVisible = entry.IsMember;

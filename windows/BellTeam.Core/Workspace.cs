@@ -12,6 +12,7 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public string Presence => Bot is { Online: true } ? "●" : "";
     public bool FastMode => Bot?.FastMode == true;
     public bool IsMember => Bot is not null;
+    public bool Pinned => Bot?.PinnedAt is not null;
     // The red line under a member's summary and on top of its conversation; null for a room and for a member with no notice.
     public string? SeatLaunchLine => Bot?.SeatLaunch?.Line;
     public string PreviewText => TextContent.Normalize(Subtitle).Replace('\n', ' ');
@@ -387,7 +388,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     {
         Entries.Clear();
         foreach (var entry in all.Where(item => item.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))
-            .OrderByDescending(item => item.Target.IsRoom).ThenByDescending(item => item.RecentAt)) Entries.Add(entry);
+            .OrderByDescending(item => item.Target.IsRoom).ThenBy(item => item.Bot?.PinnedAt ?? DateTimeOffset.MaxValue).ThenBy(item => item.Pinned ? item.Target.Id : "", StringComparer.Ordinal).ThenByDescending(item => item.RecentAt)) Entries.Add(entry);
     }
 
     public async Task SelectAsync(ConversationEntry entry)
@@ -626,6 +627,12 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // Render seam: the state a 202 from DELETE leaves while the member is still listed.
     public void SetBotDeletionPendingForRender(string id) { pendingBotDeletions.Add(id); RosterChanged?.Invoke(); }
     public bool HasBot(string id) => all.Any(entry => entry.Target == new ChatTarget(id, false));
+    // a480: PATCH /api/bots/:id {pinned}; the roster is read again so the order comes from the server's pinnedAt. A failed read-back is reported, never a failed pin.
+    public async Task SetPinnedAsync(string id, bool pinned)
+    {
+        await Management.SetPinnedAsync(id, pinned, ConnectionToken);
+        await RefreshManagementAsync();
+    }
     public async Task RequestBotDeletionAsync(string id)
     {
         await Management.DeleteBotAsync(id, ConnectionToken);
