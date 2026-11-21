@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T08:53:58Z",
-  "expiresAt": "2026-11-28T08:53:58Z",
+  "publishedAt": "2026-11-21T09:11:55Z",
+  "expiresAt": "2026-11-28T09:11:55Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "be34a6297b3f18fa1830719321cbba2e355aeabf",
-      "versionId": "sha256:eaa4ffb415d93015dec0303bcb9ed691ecdca48e882889e6704e293565cccb4e",
+      "sourceCommit": "99ad4f9b7b6d309f7985582ccf67187da937c1f3",
+      "versionId": "sha256:1284e57188b47436f14a64a856ee924026ad6adedcbf99a7bfac1264b213ef0d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:eaa4ffb415d93015dec0303bcb9ed691ecdca48e882889e6704e293565cccb4e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1284e57188b47436f14a64a856ee924026ad6adedcbf99a7bfac1264b213ef0d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "使われていない席を、10分で休止にします（会話は残ります）。あわせて、席の部品Aitermを新しい版にし、最初に何も指定せずに起動した席も休止して戻れるようにします。"
+        "席の答えが、すぐに吹き出しになるようにします。答えの最後の印を、最初の終わりの合図の行に付けます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "be34a6297b3f18fa1830719321cbba2e355aeabf",
-      "versionId": "sha256:eaa4ffb415d93015dec0303bcb9ed691ecdca48e882889e6704e293565cccb4e",
+      "sourceCommit": "99ad4f9b7b6d309f7985582ccf67187da937c1f3",
+      "versionId": "sha256:1284e57188b47436f14a64a856ee924026ad6adedcbf99a7bfac1264b213ef0d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:eaa4ffb415d93015dec0303bcb9ed691ecdca48e882889e6704e293565cccb4e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1284e57188b47436f14a64a856ee924026ad6adedcbf99a7bfac1264b213ef0d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "使われていない席を、10分で休止にします（会話は残ります）。あわせて、席の部品Aitermを新しい版にし、最初に何も指定せずに起動した席も休止して戻れるようにします。"
+        "席の答えが、すぐに吹き出しになるようにします。答えの最後の印を、最初の終わりの合図の行に付けます。"
       ]
     },
     {
