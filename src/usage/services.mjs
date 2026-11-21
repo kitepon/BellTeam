@@ -39,9 +39,9 @@ function volatileState(value) {
     }
     return result
   }
-  // a479: a handoff from a usage module that predates thinkingDisplay carries 7 epochs; the new one starts at 0.
+  // a479 / a487n stage 1: a handoff from a usage module that predates thinkingDisplay, or that has dropped webPush, carries fewer epochs; the six core ones are required.
   const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
-  if (epochs.size !== 7 + Number(epochs.has('thinkingDisplay'))) throw usageError('USAGE_HANDOFF_INVALID')
+  if (epochs.size !== 6 + Number(epochs.has('webPush')) + Number(epochs.has('thinkingDisplay'))) throw usageError('USAGE_HANDOFF_INVALID')
   const sessions = map(value.sessions, (key, session) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && typeof session === 'string' && session.length > 0)
   const receipts = map(value.receipts, (key, item) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && item !== null
     && (item.slot === undefined ? key !== 'claude:2nd' : item.slot === (key === 'claude:2nd' ? '2nd' : '1st')) && Boolean(receipt(item, sessions.get(key))))
@@ -55,7 +55,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
   let projectionFailed = false, projectionTail = Promise.resolve()
-  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
+  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
   const pending = new Set(), effectScope = new AsyncLocalStorage()
   const track = run => {
     const result = Promise.resolve().then(run)
@@ -257,9 +257,10 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       await secretRequests.initialize({ readOnly: restore })
       await ownerQuestions.initialize({ readOnly: restore })
       if (state) {
-        for (const [id, epoch] of state.epochs) epochs.set(id, epoch)
+        // a487n: a handoff from an older child may carry a feature this child no longer has (webPush); only the ids of this child's own list are taken.
+        for (const [id, epoch] of state.epochs) if (epochs.has(id)) epochs.set(id, epoch)
         if (Object.hasOwn(settings, 'routingEpoch')) settings.routingEpoch = epochs.get('routing')
-        for (const [id, code] of state.errors) settings.setError(id, { code })
+        for (const [id, code] of state.errors) if (epochs.has(id)) settings.setError(id, { code })
         harnessAuth.sessions = state.sessions; harnessAuth.receipts = state.receipts; onboarding.auth = receipt(state.onboardingAuth, onboarding.state.authSession)
       }
       syncOnePassword(); await onePasswordConnection()

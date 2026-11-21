@@ -16,12 +16,8 @@ const provider = ['provider', 'both-providers', 'receipt-provider'].includes(mod
     if (id === 'slow' || mode === 'receipt-provider') await waitRelease('release')
     if (mode === 'receipt-provider') return { apnsStatus: 200, apnsId: '11111111-2222-3333-4444-555555555555' }
   } } : undefined
-const webPushProvider = mode === 'both-providers' ? { async send(_subscription, payload) {
-  await appendFile(join(root, 'web-sent.jsonl'), payload + '\n')
-  await waitRelease('web-release')
-} } : undefined
 let channel
-const dispatcher = createNotificationsDispatcher({ root, provider, webPushProvider, diagnostic: report => channel.diagnostic(report) })
+const dispatcher = createNotificationsDispatcher({ root, provider, diagnostic: report => channel.diagnostic(report) })
 channel = createNotificationsChildChannel({ ...dispatcher,
   afterControl: async (method, value) => {
     if (method === 'initialize') await channel.ready(value)

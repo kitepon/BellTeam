@@ -21,7 +21,7 @@ function errorCode(code) {
 
 test('未設定で起動でき、全機能は未設定・無効で秘密の値を返さない', async t => {
   const { settings, root } = await fixture(t)
-  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'])
+  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'onePassword', 'thinkingDisplay'])
   for (const item of settings.list()) {
     assert.equal(item.enabled, false)
     // a479: the field-less switch is always configured, so it reads disabled (hidden), never unconfigured
@@ -44,7 +44,7 @@ test('既存envを初回だけ取り込み、橋の認証ファイルは読ま�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'unconfigured', 'disabled'])
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'disabled'])
   // bd11: the token comes only from the Bridge export import (callBridgeSettingsInput), never from the Bridge-written file.
   assert.deepEqual(settings.configuration('callBridge'), { enabled: false, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: '' })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
@@ -283,4 +283,21 @@ test('a479: thinkingDisplay is a field-less switch, off by default, added to an 
   t.after(() => rm(fresh.root, { recursive: true, force: true }))
   await fresh.initialize()
   assert.equal(fresh.configuration('thinkingDisplay').enabled, false)
+})
+
+test('a487n: a stored webPush entry of an older version is dropped and the file is rewritten without it; the feature no longer exists', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-webpush-gone-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'shared/tools/bellteam-settings/settings.json')
+  const old = { routing: { enabled: false, apiKey: '' }, callBridge: { enabled: false, url: '', token: '' },
+    cloudflare: { enabled: false, teamDomain: '', audience: '', publicUrl: '' }, diagnostics: { enabled: false, key: '' },
+    notifications: { enabled: false, relayUrl: '' }, webPush: { enabled: true, subject: 'mailto:ops@example.com' }, onePassword: { enabled: false, token: '' } }
+  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
+  await writeFile(path, JSON.stringify(old), { mode: 0o600 })
+  const settings = new FeatureSettings({ root, environment: {} })
+  await settings.initialize()
+  assert.ok(!settings.list().some(item => item.id === 'webPush'))
+  assert.equal(Object.hasOwn(JSON.parse(await readFile(path, 'utf8')), 'webPush'), false)
+  await assert.rejects(settings.update('webPush', { enabled: false }), errorCode('FEATURE_NOT_FOUND'))
+  // an older module that still lists webPush can read the rewritten file: it gains the disabled default (a late feature of its own era)
 })

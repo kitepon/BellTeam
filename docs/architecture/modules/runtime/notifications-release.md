@@ -63,7 +63,7 @@ Root WebPushv1.1/b64aにより親子protocol2/stateSchema2。既APNs file1とHTT
 
 ### 親設定の相関と公開epoch
 
-`configuration()`は両設定 `{apns:{enabled,relayUrl},webPush:{enabled,subject}}` を一回で返す。親だけがcaptureごとの`configurationEpoch`とprovider別desired/applied/error epochを保持する。`snapshot()/onState`は既status/applyErrorのprovider pairに`configurationEpoch:number`と`appliedEpoch:{apns:number|null,webPush:number|null}`を加える。設定保存側に第二epoch writerを作らない。
+`configuration()`は設定 `{apns:{enabled,relayUrl}}` を一回で返す（a487n 2026-11-22以降。以前は`webPush:{enabled,subject}`も返した。古い親が送る`webPush`は子が読み捨てる）。親だけがcaptureごとの`configurationEpoch`とprovider別desired/applied/error epochを保持する。`snapshot()/onState`は既status/applyErrorのprovider pairに`configurationEpoch:number`と`appliedEpoch:{apns:number|null,webPush:number|null}`を加える。設定保存側に第二epoch writerを作らない。
 
 設定保存後の`request('configure',{provider,...保存済設定})`は現在snapshotとの一致を先に検査し、古いparamsは`PUSH_CONFIGURATION_STALE`409で送信しない。交換中の要求もsnapshotを捕捉してそのproviderへBUSYを記録し、保存済設定は残す。initialize control-resultを実適用ACKとしreadyの同status/applyError pairを照合する。ready nullだけ、status読取、又は古いepochのconfigure成功で、新しいepochのapplyErrorを消さない。
 

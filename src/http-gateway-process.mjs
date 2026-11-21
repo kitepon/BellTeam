@@ -117,7 +117,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         })
       })
       await probeModuleReady(() => new Promise((resolve, reject) => {
-        const request = get({ host: '127.0.0.1', port: ready.probePort ?? ready.address.port, path: '/', timeout: 30_000 }, response => {
+        const request = get({ host: '127.0.0.1', port: ready.probePort ?? ready.address.port, path: '/api/session', timeout: 30_000 }, response => {
           response.resume()
           response.once('end', () => response.statusCode === 200 ? resolve() : reject(new Error('HTTP_STATUS')))
           response.once('error', reject)

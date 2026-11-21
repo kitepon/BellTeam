@@ -155,7 +155,7 @@ flowchart LR
 | Contact | Contract |
 | --- | --- |
 | Schedules | Not an input. `createExecutionFacade` and `createExecutionAssembly` take no `commandWait`; a released body that still passes one has it ignored. Removing `scheduler.commandWait` (members schedules.md SC9) is Belota's a70; the body wiring (application-services, work-graph `commandWaits.watch` W1) and the Lattice L15 wording are Molly's a72. |
-| `transport.runningState(botId)` | `'working'|'idle'|'unknown'` = native `currentTurn(botId).state`, `'working'` when native is `idle` and own work is set. Lattice turns.read keeps reading it (fallback to currentTurn on an older body). |
+| `transport.runningState(botId)` | `'working'|'idle'|'unknown'` = native `currentTurn(botId).state`, `'working'` when native is `idle` and own work is set, or when native is not `working` and `transport.isIdle(botId)` is `false` (a turn BellTeam started or follows is running at once; the native read shows it a read cycle later, a485). Lattice turns.read keeps reading it (fallback to currentTurn on an older body). |
 | reason enum | `schedule` stays in the public `reason.kind` enum (current-work-contract.mjs) because released Apple/Windows clients and older bodies read it; execution no longer emits it. |
 | Not changed | `currentTurn`, `watchCurrentTurn`, after_turn, the engine, own work (CLI background tasks keep counting). |
 | Consequence (ruling review 3) | A Bot whose only activity is an enabled notify=result schedule reads idle and the Lattice nudge reaches it; an outside-waiter sets a Lattice stop (ruling review 3). |

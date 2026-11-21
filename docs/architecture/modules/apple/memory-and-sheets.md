@@ -4,7 +4,7 @@
 
 Webにある二つの画面をAppleにも置く。メンバー編集の「記憶とキャラクターシート」節から開く。使う契約は変えない。
 
-- 記憶と知識：[Web](../web/apple-parity.md)の`web/memory-view.js`と同じ。`POST`と`GET /api/bots/:id/memory`、`POST`と`GET /api/bots/:id/knowledge`（`src/http-bot-api.mjs`、[memory](../memory/README.md)）。
+- 記憶と知識：[Web](../../../archive/web-ui/apple-parity.md)の`web/memory-view.js`と同じ。`POST`と`GET /api/bots/:id/memory`、`POST`と`GET /api/bots/:id/knowledge`（`src/http-bot-api.mjs`、[memory](../memory/README.md)）。
 - キャラクターシート：`web/bot-read-views.js`の`createCharacterSheetView`と同じ。`GET /api/bots/:id/character-sheet`と、一覧の`url`の画像（`src/members/profiles-http.mjs`、[members profiles](../members/profiles.md)）。
 - Appleは利用側で、HTTPの契約もMCPも変えない。固定・改訂・まとめ（`PATCH …/memory/:id`、`…/pin`、`…/consolidate-growth`）はWebも呼ばないため、Appleにも置かない。
 

@@ -9,6 +9,8 @@ enum ShareCredentials {
         /// `Cookie`ヘッダーの値。LANのHTTP接続などクッキーの無い接続先ではnil。
         var cookieHeader: String?
         var cookieExpiresAt: Date?
+        /// サーバーのセッショントークン（app-sessions.md）。あれば`Authorization: Bearer`で使う。
+        var sessionToken: String?
         /// Appleの購読が有効な期限。サーバーが開発者モードの接続先では使わない。
         var entitledUntil: Date?
     }

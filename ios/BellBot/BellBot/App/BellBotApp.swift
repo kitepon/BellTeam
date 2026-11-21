@@ -180,13 +180,17 @@ private struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @ViewBuilder private var readyView: some View {
+        ReadyGate(billing: store.billing) { appView }
+    }
+
+    @ViewBuilder private var appView: some View {
         #if targetEnvironment(macCatalyst)
-        DesktopWorkspaceView()
+        DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {
-            DesktopWorkspaceView()
+            DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
         } else {
-            BellTabs()
+            BellTabs().safeAreaInset(edge: .top) { LoginRequestBanner() }
         }
         #endif
     }
@@ -197,7 +201,7 @@ private struct RootView: View {
             case .checking:
                 ZStack {
                     BellBackground()
-                    ProgressView("BellTeamを開いています")
+                    ProgressView(store.serverPreparing ? "サーバーの準備中です" : "BellTeamを開いています")
                         .font(.subheadline)
                 }
             case .setup:
@@ -206,6 +210,8 @@ private struct RootView: View {
                 OnboardingView()
             case .signIn:
                 LoginView()
+            case .serverLogin:
+                if let model = store.serverLogin { ServerLoginView(model: model) }
             case .ready:
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-avatar-crop") {

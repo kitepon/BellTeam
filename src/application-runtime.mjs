@@ -65,7 +65,6 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     userRules,
     characterSheets,
     assets,
-    staticRoot: join(appRoot, 'web'),
     models,
     scheduler,
     diagnostics,

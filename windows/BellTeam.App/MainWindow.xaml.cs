@@ -11,6 +11,7 @@ public partial class MainWindow : Window, IInspectorHost
 {
     private readonly Workspace model;
     private readonly DesktopAccess? access;
+    private readonly ISessionTokenStore tokens;
     private readonly DesktopNotifications? notifications;
     private readonly SettingsStore settingsStore;
     private StartupPhase startup = StartupPhase.Ready;
@@ -30,10 +31,10 @@ public partial class MainWindow : Window, IInspectorHost
     private bool loadingOlder;
     private bool unreadNew; // a message arrived while the reader was away from the bottom
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null, ISessionTokenStore? tokens = null)
     {
         this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory);
-        this.access = access;
+        this.access = access; this.tokens = tokens ?? new MemorySessionTokenStore();
         this.notifications = notifications;
         SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent(); ProfilePanel.Host = this;
@@ -69,7 +70,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Quote)) UpdateQuoteBar();
             // Mac requireLogin: whenever the server asks for a login, the login screen takes the window.
             if (args.PropertyName == nameof(Workspace.NeedsLogin) && model.NeedsLogin && !connecting) { if (Dispatcher.CheckAccess()) RouteToLogin(); else Dispatcher.BeginInvoke(RouteToLogin); }
-            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } }
+            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } Dispatcher.BeginInvoke(UpdateStrip); }
             // Without a selection (the welcome screen) there is no inspector column, as on the Mac.
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible && page is null) ProfileLayout();
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
@@ -79,9 +80,10 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => await PrefetchOlderAsync(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
-            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
+            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { UpdateStrip(); ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
+        // a485 7c: a request for this app's hand arrives on the stream; a failed read is tried again when the stream next reads everything.
         PreviewKeyDown += Window_KeyDown;
         // Mac scenePhase .active: coming back to the window reads the goals again.
         Activated += (_, _) => { GoalBar.Reload(); (page as GoalsWindow)?.Reload(); };
@@ -312,6 +314,8 @@ public partial class MainWindow : Window, IInspectorHost
     {
         _ = CropAsync(image, variant, null, false); return cropView!;
     }
+    private void UpdateStrip() => ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible;
+
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;
@@ -498,7 +502,9 @@ public partial class MainWindow : Window, IInspectorHost
     private async Task SignOutAsync()
     {
         ShowConversation(); signingOut = true;
+        var ended = await EndServerSessionAsync();
         try { model.SignOut(); } finally { signingOut = false; }
+        if (ended is not null) model.ReportActionError(ended);
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
     }
@@ -534,7 +540,8 @@ public partial class MainWindow : Window, IInspectorHost
             // A manual retry keeps this page (the automatic path) so 「接続しています…」 shows instead of the opening view.
             StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
-            StartupPhase.SignIn => new LoginView(OpenLoginSheet),
+            StartupPhase.SignIn => model.SessionLoginRequired ? SessionSignIn() : new LoginView(OpenLoginSheet),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
@@ -543,7 +550,22 @@ public partial class MainWindow : Window, IInspectorHost
     public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
     // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).
-    private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
+    private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin && !model.SessionLoginRequired) OpenLoginSheet(); }
+    // a485: a server that enforces app sessions is answered by its own code login; a server without them keeps the Access login above. A token the server refused is gone for good (a 503 SESSION_STORE_UNAVAILABLE never gets here).
+    private ConnectView SessionSignIn()
+    {
+        var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
+        return new ConnectView(new LoginApi(model.Management.Api), "windows", origin, tokens, () => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings);
+    }
+    // Sign-out ends this app's own session on the server (DELETE /api/sessions/{id}); the local token goes either way, and a failure is told after the sign-out.
+    private async Task<string?> EndServerSessionAsync()
+    {
+        var origin = ServerOrigin.Parse(model.Server);
+        if (tokens.Load(origin) is null) return null;
+        try { if ((await model.Management.Api.GetAsync<SessionInfo>("/api/session")).SessionId is { } id) await new LoginApi(model.Management.Api).EndSessionAsync(id); return null; }
+        catch (Exception error) { return "サーバー側のログインを終了できませんでした。" + error.Message; }
+        finally { tokens.Clear(origin); }
+    }
     private void OpenLoginSheet()
     {
         if (access is null) return;
@@ -581,13 +603,19 @@ public partial class MainWindow : Window, IInspectorHost
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
         if (generation != connectGeneration) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        bool paywalled;
+        try { paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken); }
+        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
+        if (generation != connectGeneration) return;
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) startupAttempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
     }

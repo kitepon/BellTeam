@@ -208,10 +208,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     bots = members.bots; ownerProfile = members.ownerProfile; userRules = members.userRules
   }
   const notifications = createNotifications({ root, bots, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit,
-    configuration: () => ({ apns: settings.configuration('notifications'), webPush: settings.configuration('webPush') }), createProcess,
+    configuration: () => ({ apns: settings.configuration('notifications') }), createProcess,
     onState: state => {
       // Usage applies errors through its captured settings.changed epoch, never a later snapshot.
-      if (!usageAssembly) for (const [provider, feature] of [['apns', 'notifications'], ['webPush', 'webPush']]) {
+      if (!usageAssembly) for (const [provider, feature] of [['apns', 'notifications']]) {
         if (state.applyError?.[provider]) settings.setError(feature, { code: state.applyError[provider] })
       }
       updateCenter?.notify()

@@ -38,7 +38,7 @@ public sealed class PhoneSettingsPage : ScrollViewer
         var billing = new StackPanel();
         billing.Children.Add(CardTitle(SettingsIcons.Card, "利用と課金", 17));
         billing.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
-        var purchase = new PurchaseEntry(workspace.Management.Api, new PlayBilling(MainActivity.Current), () => MainActivity.Current, token);
+        var purchase = new BellTeam.Linux.PurchaseEntry(new SubscriptionApi(workspace.Management.Api), token);
         billing.Children.Add(purchase);
         var notice = new StackPanel();
         billing.Children.Add(Link("プライバシー方針", "privacyPolicyUrl", notice)); billing.Children.Add(Link("サポート", "supportUrl", notice)); billing.Children.Add(notice);

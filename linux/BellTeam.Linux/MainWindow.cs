@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
+    private readonly ISessionTokenStore tokens;
     private readonly DesktopNotifications? notifications;
     private StartupPhase startup = StartupPhase.Ready;
     private int connectGeneration;
@@ -100,9 +101,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // The open settings page (hosted content of a never-shown EditorWindow) and its notification switch; the notification delivery port supplies its own switch.
     private SettingsWindow? settingsPage;
 
-    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null)
+    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null, ISessionTokenStore? tokens = null)
     {
-        this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
+        this.tokens = tokens ?? new MemorySessionTokenStore(); this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
         model.ThisPc = new NoThisPc(); // 16c reads the Windows OpenSSH host-key path
         Title = "BellTeam"; Width = 1280; Height = 820; MinWidth = 1100; MinHeight = 640;
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
@@ -728,7 +729,8 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             StartupPhase.Checking => new StartupOpeningView(),
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(lastAddress ?? model.Server), OpenConnectionSettings),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
-            StartupPhase.SignIn => new LoginView(OpenConnectionSettings),
+            StartupPhase.SignIn => SignInView(),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         startupHost.IsVisible = phase != StartupPhase.Ready;
@@ -742,6 +744,13 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
         ShowConversation(); ShowServerSetup();
+    }
+    // a485: a server that enforces app sessions is answered by its own login (the code screen); a server without them keeps today's view. A refused stored token is gone for good.
+    private Control SignInView()
+    {
+        if (!model.SessionLoginRequired) return new LoginView(OpenConnectionSettings);
+        var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
+        return new ConnectView(new LoginApi(model.Management.Api), "linux", origin, tokens, () => _ = ConnectAsync(model.Server), OpenConnectionSettings);
     }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); }
 
@@ -784,14 +793,17 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             try { setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken); }
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        var paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken);
         if (generation != connectGeneration) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) startupAttempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowStartup(StartupPhase.SignIn); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
     }

@@ -11,7 +11,7 @@ const has = (value, required) => object(value) && required.every(key => Object.h
 const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'], thinkingDisplay: [] }
 // a479 (module-ipc.md "Records between halves that ship apart"): the body ships before the usage module, so a list from a child
 // that predates thinkingDisplay stays valid. shortcut: drop this when every shipped usage module sends it.
-const required = Object.keys(fields).filter(id => id !== 'thinkingDisplay')
+const required = Object.keys(fields).filter(id => !['thinkingDisplay', 'webPush'].includes(id)) // a487n stage 1: webPush is leaving
 export const usageFeatureIdsValid = ids => ids.length >= required.length && new Set(ids).size === ids.length && required.every(id => ids.includes(id)) && ids.every(id => Object.hasOwn(fields, id))
 const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
@@ -76,6 +76,7 @@ export function usageProjectionRecordValid(row) {
     && ['setupComplete', 'entitled', 'canUseAI', 'autoRenewing'].every(key => typeof item[key] === 'boolean')
     // a394f: 新しい項目は任意。古いusageの記録も、新しい本体と部品が受け入れる（本体を先に入れ替える）。
     && (!Object.hasOwn(item, 'canPurchase') || typeof item.canPurchase === 'boolean')
+    && (!Object.hasOwn(item, 'entitlementState') || ['active', 'none', 'unknown'].includes(item.entitlementState))
     && (!Object.hasOwn(item, 'billingSources') || Array.isArray(item.billingSources) && item.billingSources.every(source => typeof source === 'string'))
   return false
 }

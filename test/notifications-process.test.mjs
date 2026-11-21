@@ -25,7 +25,7 @@ async function setup(t,{mode='',prepare=async()=>{},report=async()=>{}}={}) {
     children.push(child);return child
   });syncBuiltinESMExports()
   const states=[]
-  const controller=createNotificationsProcess({root,configuration:()=>({apns:{enabled:false,relayUrl:''},webPush:{enabled:false,subject:''}}),onDiagnostic:report,onState:s=>states.push(s),
+  const controller=createNotificationsProcess({root,configuration:()=>({apns:{enabled:false,relayUrl:''}}),onDiagnostic:report,onState:s=>states.push(s),
     prepareRelease:async(id,options)=>{await prepare(id,options);return {versionId:id,appRoot:`/run/bellteam-maintenance/notifications/releases/${id}/payload`,protocolVersion:2,stateSchema:2}}})
   t.after(async()=>{await controller.close();t.mock.restoreAll();syncBuiltinESMExports();await rm(root,{recursive:true,force:true})})
   return {controller,children,root,states}

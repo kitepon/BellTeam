@@ -66,12 +66,26 @@ final class AppStore: ObservableObject {
         case setup
         case onboarding
         case signIn
+        /// サーバーのセッションログイン（app-sessions.md）。modelはserverLoginが持つ。
+        case serverLogin
         case ready
         case failure(String)
     }
 
     @Published var phase: Phase = .checking
     @Published private(set) var serverURL: URL?
+    /// 本体のログイン契約の探査結果（GET /api/session）。古い本体はnilで、従来のAccess経路を使う。
+    private(set) var loginProbe: SessionResponse.Login?
+    private(set) var sessionID: String?
+    @Published private(set) var serverLogin: ServerLoginModel?
+    /// 入っているアプリ側: 承認待ち・アプリを追加・セッション一覧。
+    private(set) lazy var serverSessions = ServerSessionsModel(api: api)
+    /// このサーバーがセッションで入る本体か（トークンがある、またはenforced）。
+    var usesServerSessions: Bool { api.sessionToken != nil || loginProbe?.enforced == true }
+    /// 本体が今はセッションを判断できない（503 SESSION_STORE_UNAVAILABLE）。トークンは残し、1・2・4…30秒で読み直す。
+    @Published private(set) var serverPreparing = false
+    private var preparingDelay: TimeInterval = 1
+    private var preparingTask: Task<Void, Never>?
     @Published var setup: SetupResponse?
     @Published private(set) var setupAuthNeedsRefresh = false
     private var setupAuthRevision = 0
@@ -180,6 +194,9 @@ final class AppStore: ObservableObject {
         let url = suppliedAPI == nil ? saved.flatMap { ServerOrigin.url($0) } : suppliedAPI?.baseURL
         serverURL = url
         api = suppliedAPI ?? BellAPI(baseURL: url)
+        if suppliedAPI == nil, let url, let shared = try? ShareCredentials.load(), shared.serverURL == url.absoluteString {
+            api.sessionToken = shared.sessionToken
+        }
         self.webDataStore = webDataStore
         billing = suppliedBilling ?? BillingStore(api: api)
         updates = UpdateStore(api: api)
@@ -230,6 +247,8 @@ final class AppStore: ObservableObject {
             resetAIControl()
             updates.reset()
         }
+        // トークンはその接続先のものだけ。別の接続先へは持ち越さない。
+        if serverURL != url { api.sessionToken = nil; sessionID = nil; loginProbe = nil; serverLogin = nil }
         serverURL = url
         api.baseURL = url
         api.diagnostics.configure(serverURL: url)
@@ -241,6 +260,8 @@ final class AppStore: ObservableObject {
 
     func changeServer() async {
         await signOut()
+        preparingTask?.cancel(); serverPreparing = false
+        loginProbe = nil; serverLogin = nil
         UserDefaults.standard.removeObject(forKey: "bellbot.serverURL")
         serverURL = nil
         api.baseURL = nil
@@ -268,10 +289,20 @@ final class AppStore: ObservableObject {
         do {
             let session: SessionResponse = try await api.get("/api/session")
             authMode = session.authMode
-            guard session.authenticated else { throw BellAPIError.unauthorized }
+            loginProbe = session.login
+            sessionID = session.sessionId
+            serverPreparing = false
+            preparingDelay = 1
+            guard session.authenticated else {
+                // ログイン契約のある本体: 確定した未認証だけがトークンを捨て、サーバーに入る画面へ進む。
+                if session.login?.capability == true { showServerLogin(); return }
+                throw BellAPIError.unauthorized
+            }
             try await loadInitialState(origin: .bootstrap)
         } catch let error where BellAPIError.isAuthenticationError(error) {
             requireLogin(for: error)
+        } catch BellAPIError.httpStatus(503, let code, _) where code == "SESSION_STORE_UNAVAILABLE" {
+            retryBootstrapSoon()
         } catch {
             phase = .failure(error.localizedDescription)
             api.diagnostics.report(error, path: "/api/session", method: "GET", observation: .startup)
@@ -805,9 +836,11 @@ final class AppStore: ObservableObject {
                         self.updateConnectionError()
                         switch event.type {
                         case "ready":
+                            if self.usesServerSessions { await self.serverSessions.refresh() }
                             self.eventRevision += 1
                             self.requestRefreshFromEvent()
                             self.requestSideRefresh([.updates])
+                        case "login.requested", "session.created", "session.ended": await self.serverSessions.refresh()
                         case "updates": self.requestSideRefresh([.updates])
                         case "settings": self.requestSideRefresh([.settings])
                         case "setup": self.requestSideRefresh([.setup])
@@ -931,7 +964,41 @@ final class AppStore: ObservableObject {
         eventsError = nil
         notificationError = nil
         updateConnectionError()
+        if api.sessionToken != nil || loginProbe?.enforced == true { showServerLogin(); return }
         phase = authMode == "cloudflare" ? .signIn : .failure("接続先が認証を拒否しました。サーバーの設定を確認してください。")
+    }
+
+    /// 本体が確定した401・未認証を返した。古いトークンは捨てて、サーバーに入る画面を出す。
+    private func showServerLogin() {
+        api.sessionToken = nil
+        sessionID = nil
+        publishShareCredentials()
+        serverLogin = ServerLoginModel(api: api, setupCodeNeeded: loginProbe?.bound == false) { [weak self] token, id in
+            await self?.completeServerLogin(token: token, sessionId: id)
+        }
+        phase = .serverLogin
+    }
+
+    private func completeServerLogin(token: String, sessionId: String?) async {
+        api.sessionToken = token
+        sessionID = sessionId
+        publishShareCredentials()
+        serverLogin = nil
+        phase = .checking
+        await bootstrap()
+    }
+
+    private func retryBootstrapSoon() {
+        serverPreparing = true
+        phase = .checking
+        let delay = preparingDelay
+        preparingDelay = min(preparingDelay * 2, 30)
+        preparingTask?.cancel()
+        preparingTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.bootstrap()
+        }
     }
 
     func requireLogin(for error: Error) {
@@ -960,6 +1027,14 @@ final class AppStore: ObservableObject {
         updatePresented = false
         notificationSecret = nil
         pendingNotification = nil
+        // 自分のセッションを終える（本体は次の要求で401）。届かなくてもトークンは消す。理由は診断へ。
+        if let sessionID, api.sessionToken != nil {
+            do { try await api.delete("/api/sessions/\(sessionID)") }
+            catch { api.diagnostics.report(error, path: "/api/sessions", method: "DELETE", observation: .write) }
+        }
+        api.sessionToken = nil
+        self.sessionID = nil
+        serverSessions.reset()
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
         let store = webDataStore.httpCookieStore
         for cookie in await store.allCookies() { await store.deleteCookie(cookie) }
@@ -1076,6 +1151,7 @@ final class AppStore: ObservableObject {
                 serverURL: url.absoluteString,
                 cookieHeader: cookies.isEmpty ? nil : HTTPCookie.requestHeaderFields(with: cookies)["Cookie"],
                 cookieExpiresAt: cookies.compactMap(\.expiresDate).min(),
+                sessionToken: api.sessionToken,
                 entitledUntil: billing.entitlement?.validUntil)
             // 同じ内容は書き直さない（書き直しは消してから足すので、読む側に一瞬の空白ができる）。
             if try ShareCredentials.load() == snapshot { return }

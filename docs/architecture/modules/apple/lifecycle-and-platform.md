@@ -109,6 +109,7 @@ flowchart TD
 | restore | 非developer・非checkingでsyncPurchases→権利→取引ありならdeliver。取引無しは有効購読無しの文言。deferでoperation解除。失敗はerror/診断 |
 | 管理・解約 (a389) | billingSourcesに含まれる購入元の行に1つだけ「購読を管理・解約」。Appleは自端末の権利が有効でも出す。apple=`apps.apple.com/account/subscriptions`、google=Google Playの購読ページを開く（サーバー呼出し無し）。stripe=`POST /api/subscription/stripe/manage`（本文なし）が返す`url`をシステムブラウザで開き、アプリに戻ったらrecheck。失敗はerror/診断（path `/api/subscription/stripe/manage`）。自動更新停止かつ有効の行は「次回の更新はありません。{期限}まで使えます。」 |
 | 購入可否 (a389) | 購入ボタンはstatus.canPurchaseがtrueの間だけ。statusに無い（旧サーバー・未取得）はfalse。purchaseもstatus再読取後にcanPurchaseを見て、falseならApple画面を開かずerrorを出す |
+| 購読の壁 (a485) | `GET /api/subscription`の`subscription.entitlementState`（'active'｜'none'｜'unknown'、無い本体もある）。確定した'none'の時だけ、準備のできた画面（`ReadyGate`）をアプリの代わりに「このアプリは購読が必要です。無料で使うならブラウザから」の画面（SubscriptionRequiredView：文＋既存のSubscriptionCard＋接続先の変更）にする。'active'・'unknown'・項目なしはアプリを出す（Webは壁の対象外）。購入・復元は今までどおり（StoreKit→`/api/subscription/verify`→サーバーのパス）。壁の判定は本体の値だけで、アプリ側で契約を推測しない。本体は今は'active'か'unknown'を返し、'none'は自分のパスを持ち運営が契約なしと答えた後（Mika・Tronie）。 |
 | recheck | `POST /api/subscription/refresh`→status適用→権利確認→本体error検査。自動POST再送はない |
 | 通知との接続 | 権利の署名変化/失敗時にonEntitlementChange、AppStoreからBellNotifications.updateSignedTransactionへ。有効権利の時だけJWSを渡す |
 | stop/logout | entitlementTask/updatesTaskをcancelし参照・status/権利/取引/商品/error/messageを消す。Appleの購入取消を行う処理ではない |

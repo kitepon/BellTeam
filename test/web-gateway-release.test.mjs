@@ -6,7 +6,7 @@ import { prepareGatewayRelease, validateGatewayReleaseManifest } from '../src/we
 const fixture = () => ({ schema: 'bellteam.web-gateway.artifact.v1', component: 'web-gateway',
   sourceCommit: 'a'.repeat(40), entry: 'payload/src/http-gateway-entry.mjs',
   runtime: { os: process.platform, arch: ({ x64: 'amd64', arm64: 'arm64' })[process.arch], nodeMajor: 26, parentProtocol: 1 },
-  files: ['payload/src/http-gateway-entry.mjs', 'payload/package.json', 'payload/package-lock.json', 'payload/web/assets.mjs']
+  files: ['payload/src/http-gateway-entry.mjs', 'payload/package.json', 'payload/package-lock.json', 'payload/src/http-gateway.mjs']
     .map(path => ({ path, bytes: 1, sha256: 'b'.repeat(64) })),
 })
 

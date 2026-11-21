@@ -10,6 +10,8 @@ import test from 'node:test'
 import { createHttpGatewayProcess, GATEWAY_ASSET_SHARE_TIMEOUT_MS, GATEWAY_START_TIMEOUT_MS } from '../src/http-gateway-process.mjs'
 import { writeAtomic } from '../src/json-file.mjs'
 
+// a487: there is no page to read any more; the gateway that answers is named by its version header.
+const served = async url => (await fetch(url)).headers.get('x-bellteam-gateway-version')
 const ids = { one: 'a'.repeat(64), two: 'b'.repeat(64), broken: 'c'.repeat(64), incompatible: 'd'.repeat(64), unknown: 'f'.repeat(64) }
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url))
@@ -24,12 +26,8 @@ async function fixture(t, handler = (_request, response) => response.end('{"auth
   for (const versionId of ['one', 'two', 'broken']) {
     const dir = join(root, versionId)
     await mkdir(join(dir, 'src'), { recursive: true })
-    await mkdir(join(dir, 'web'))
     await symlink(join(appRoot, 'src/http-gateway.mjs'), join(dir, 'src/http-gateway.mjs'))
     await copyFile(join(appRoot, 'src/http-gateway-entry.mjs'), join(dir, 'src/http-gateway-entry.mjs'))
-    await copyFile(join(appRoot, 'web/assets.mjs'), join(dir, 'web/assets.mjs'))
-    await writeFile(join(dir, 'web/index.html'), `<h1>${versionId}</h1><script src="/app.js?v=__ASSET_VERSION__"></script>`)
-    await writeFile(join(dir, 'web/app.js'), `${versionId}:__ASSET_VERSION__`)
     if (versionId === 'broken') await writeFile(join(dir, 'src/http-gateway-entry.mjs'), 'throw new Error("synthetic startup failure")\n')
     releases.set(ids[versionId], { versionId: ids[versionId], appRoot: dir, protocolVersion: 1 })
   }
@@ -50,9 +48,8 @@ test('確認済版だけへ同じportで交換し、拒否は旧版維持、起�
   assert.equal(prepareCalls, 0)
   await gateway.start()
   const base = `http://127.0.0.1:${gateway.address.port}`, originalPid = gateway.pid
-  const oldHtml = await (await fetch(base)).text()
-  assert.match(oldHtml, /<h1>one<\/h1>/)
-  const oldVersion = oldHtml.match(/app\.js\?v=([^"]+)/)[1]
+  const one = await served(base)
+  assert.equal(await served(base), one)
   await assert.rejects(gateway.replace(ids.unknown), /SYNTHETIC_RELEASE_REJECTED/)
   assert.equal(gateway.pid, originalPid)
   releases.set(ids.incompatible, { ...releases.get(ids.two), versionId: ids.incompatible, protocolVersion: 2 })
@@ -61,13 +58,11 @@ test('確認済版だけへ同じportで交換し、拒否は旧版維持、起�
   await gateway.replace(ids.two)
   assert.notEqual(gateway.pid, originalPid)
   assert.equal(gateway.versionId, ids.two)
-  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
-  assert.equal(await (await fetch(base + '/app.js?v=' + oldVersion)).text(), `one:${oldVersion}`)
-  assert.equal((await fetch(base + '/app.js?v=unknown')).status, 404)
+  assert.equal(await served(base), ids.two)
   await assert.rejects(gateway.replace(ids.broken), error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK'
     && error.cause.message === 'GATEWAY_START_FAILED')
   assert.equal(gateway.versionId, ids.two)
-  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  assert.equal(await served(base), ids.two)
 })
 
 test('親closeはprepare待ちを止めて旧子を回収し、遅いprepare完了後に新子を起こさない', { timeout: 5000 }, async t => {
@@ -95,6 +90,7 @@ test('不正portのreadyを拒否して新子を回収し、元の公開portで�
   t.after(() => gateway.close())
   await gateway.start()
   const port = gateway.address.port, base = `http://127.0.0.1:${port}`
+  const one = await served(base)
   const pidPath = join(root, 'rejected-child.pid')
   for (const readyPort of [0, -1, 65536, port === 65535 ? port - 1 : port + 1]) {
     await writeFile(join(releases.get(ids.broken).appRoot, 'src/http-gateway-entry.mjs'), `
@@ -109,11 +105,11 @@ test('不正portのreadyを拒否して新子を回収し、元の公開portで�
     assert.throws(() => process.kill(rejectedPid, 0), { code: 'ESRCH' })
     assert.equal(gateway.address.port, port)
     assert.equal(gateway.versionId, null)
-    assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+    assert.equal(await served(base), one)
   }
   await gateway.replace(ids.two)
   assert.equal(gateway.address.port, port)
-  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  assert.equal(await served(base), ids.two)
 })
 
 test('readyを返さない新子を期限で回収して旧版へ戻す', { timeout: 20000 }, async t => {
@@ -125,11 +121,12 @@ test('readyを返さない新子を期限で回収して旧版へ戻す', { time
   t.after(() => gateway.close())
   await gateway.start()
   const base = `http://127.0.0.1:${gateway.address.port}`
+  const one = await served(base)
   const startedAt = performance.now()
   await assert.rejects(gateway.replace(ids.broken), error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK'
     && error.cause.message === 'GATEWAY_START_TIMEOUT')
   assert.ok(performance.now() - startedAt >= GATEWAY_START_TIMEOUT_MS)
-  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  assert.equal(await served(base), one)
 })
 
 test('ready後だけ採用版を保存し、再起動でcurrent/previousを再確認、破損はfallbackしない', { timeout: 5000 }, async t => {
@@ -154,7 +151,7 @@ test('ready後だけ採用版を保存し、再起動でcurrent/previousを再�
   const third = create(); t.after(() => third.close())
   await third.start()
   assert.deepEqual(prepared, [ids.one, ids.two])
-  assert.equal(await (await fetch(`http://127.0.0.1:${third.address.port}/app.js?v=${ids.two}`)).text(), `two:${ids.two}`)
+  assert.equal(await served(`http://127.0.0.1:${third.address.port}`), ids.one)
   await third.close()
   await writeFile(adoptionPath, '{invalid')
   const corrupt = create()
@@ -169,9 +166,10 @@ test('採用recordを書けない時は新子を回収して旧版へ戻す', { 
   t.after(() => gateway.close())
   await gateway.start()
   const base = `http://127.0.0.1:${gateway.address.port}`
+  const one = await served(base)
   await assert.rejects(gateway.replace(ids.two), error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK' && error.cause.code === 'ENOENT')
   assert.equal(gateway.versionId, null)
-  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  assert.equal(await served(base), one)
 })
 
 
@@ -206,7 +204,7 @@ test('a request still running in the old gateway cannot veto the exchange: the d
   assert.ok(Date.now() - started >= 4500, 'the old gateway got its bounded drain first')
   assert.notEqual(gateway.pid, oldPid)
   assert.equal(gateway.versionId, ids.two)
-  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  assert.equal(await served(base), ids.two)
   assert.equal(await inflight, 'reset')
 })
 
@@ -240,7 +238,7 @@ test('an exchange never leaves the public port without a listener, and stopping 
   assert.notEqual(gateway.pid, oldPid)
   assert.ok(exited(oldPid))
   assert.equal(gateway.address.port, port)
-  assert.match(await (await fetch(`http://127.0.0.1:${port}`)).text(), /<h1>two<\/h1>/)
+  assert.equal(await served(`http://127.0.0.1:${port}`), ids.two)
   await new Promise(resolve => setTimeout(resolve, 1200))
   assert.deepEqual(exits, [])
 })
@@ -255,16 +253,17 @@ test('a child bound without SO_REUSEPORT on either side falls back to stop-then-
   t.after(() => gateway.close())
   const { port } = await gateway.start()
   const base = `http://127.0.0.1:${port}`
+  const one = await served(base)
   const firstPid = gateway.pid
   await gateway.replace(ids.two)
   assert.ok(exited(firstPid))
   assert.equal(gateway.versionId, ids.two)
-  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  assert.equal(await served(base), ids.two)
   // Back to the legacy entry: it cannot bind beside the reusePort child either.
   await gateway.replace(ids.one)
   assert.equal(gateway.versionId, ids.one)
   assert.equal(gateway.address.port, port)
-  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  assert.equal(await served(base), ids.one)
 })
 
 test('a new child that fails to start or to answer its own ready read leaves the old child serving untouched', { timeout: 10000 }, async t => {
@@ -275,6 +274,7 @@ test('a new child that fails to start or to answer its own ready read leaves the
   t.after(() => gateway.close())
   const { port } = await gateway.start(), oldPid = gateway.pid
   const base = `http://127.0.0.1:${port}`
+  const one = await served(base)
   const { refused } = await refusalsDuring(port, () => assert.rejects(gateway.replace(ids.broken),
     error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK' && error.cause.message === 'GATEWAY_START_FAILED'))
   assert.equal(refused, 0)
@@ -293,7 +293,7 @@ test('a new child that fails to start or to answer its own ready read leaves the
   assert.equal(gateway.pid, oldPid)
   assert.equal(gateway.versionId, null)
   await assert.rejects(readFile(adoptionPath), { code: 'ENOENT' })
-  assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  assert.equal(await served(base), one)
   await new Promise(resolve => setTimeout(resolve, 1200))
   assert.equal(gateway.pid, oldPid)
   assert.deepEqual(exits, [])
@@ -323,12 +323,7 @@ test('close() during an exchange stops both the old child and the new one', { ti
 })
 
 // A fresh connection each time, so a pooled keep-alive socket cannot pick the child.
-const read = url => new Promise((resolve, reject) => get(url, { agent: false }, response => {
-  let body = ''
-  response.setEncoding('utf8').on('data', chunk => { body += chunk }).once('end', () => resolve({ status: response.statusCode, body }))
-}).once('error', reject))
-
-test('during the overlap the old child resolves the new ?v= assets and the new child resolves the old ones', { timeout: 10000 }, async t => {
+test('during the overlap the old child keeps answering, and the new child answers once the exchange is done', { timeout: 10000 }, async t => {
   const { root, socketPath, releases } = await fixture(t)
   // The candidate holds off listening, so the old child is the only one on the port after the share ack.
   const marker = join(root, 'candidate-started'), candidate = join(releases.get(ids.two).appRoot, 'src/http-gateway-entry.mjs')
@@ -338,21 +333,21 @@ test('during the overlap the old child resolves the new ?v= assets and the new c
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   const { port } = await gateway.start(), oldPid = gateway.pid, base = `http://127.0.0.1:${port}`
-  const oldVersion = (await read(base)).body.match(/app\.js\?v=([^"]+)/)[1]
+  const one = await served(base)
+  assert.equal(await served(base), one)
   const replacing = gateway.replace(ids.two)
   while (!await stat(marker).catch(() => null)) await new Promise(resolve => setTimeout(resolve, 10))
   assert.equal(gateway.pid, oldPid)
-  assert.deepEqual(await read(`${base}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+  assert.equal(await served(base), one)
   await replacing
   assert.ok(exited(oldPid))
-  assert.deepEqual(await read(`${base}/app.js?v=${oldVersion}`), { status: 200, body: `one:${oldVersion}` })
-  assert.deepEqual(await read(`${base}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+  assert.equal(await served(base), ids.two)
 })
 
 test('an old child that never acknowledges the shared asset version falls back to stop-then-start and still completes', { timeout: 20000 }, async t => {
   const { socketPath, releases } = await fixture(t)
   const entry = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs'), source = await readFile(entry, 'utf8')
-  const handler = "process.on('message', message => { if (message?.type === 'asset-version') void shareAssetVersion(message) })"
+  const handler = "process.on('message', message => { if (message?.type === 'asset-version') acknowledgeAssetVersion(message) })"
   assert.ok(source.includes(handler))
   await writeFile(entry, source.replace(handler, ''))
   const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
@@ -364,7 +359,7 @@ test('an old child that never acknowledges the shared asset version falls back t
   assert.ok(Date.now() - started >= GATEWAY_ASSET_SHARE_TIMEOUT_MS - 100, 'waited for the bounded ack first')
   assert.ok(exited(oldPid))
   assert.equal(gateway.versionId, ids.two)
-  assert.deepEqual(await read(`http://127.0.0.1:${port}/app.js?v=${ids.two}`), { status: 200, body: `two:${ids.two}` })
+  assert.equal(await served(`http://127.0.0.1:${port}`), ids.two)
 })
 
 test('a candidate that exits during the adoption write is not committed: the old child keeps serving and the record is restored', { timeout: 15000 }, async t => {
@@ -403,7 +398,7 @@ test('a candidate that exits during the adoption write is not committed: the old
   assert.equal(gateway.pid, servingPid)
   assert.equal(gateway.versionId, ids.two)
   assert.deepEqual(JSON.parse(await readFile(adoptionPath, 'utf8')), JSON.parse(saved))
-  assert.match((await read(`http://127.0.0.1:${port}`)).body, /<h1>two<\/h1>/)
+  assert.equal(await served(`http://127.0.0.1:${port}`), ids.two)
   // Recovery stayed with the serving child: no restart replaces it.
   await new Promise(resolve => setTimeout(resolve, 1500))
   assert.equal(gateway.pid, servingPid)
