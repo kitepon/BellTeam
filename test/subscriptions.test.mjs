@@ -55,6 +55,8 @@ test('一般配布版は開発者免除を拒否し、未購入でもWebのAI利
   assert.equal(subscriptions.status().accessMode, 'subscription')
   assert.equal(subscriptions.status().canUseAI, true)
   assert.equal(subscriptions.status().entitled, false)
+  // a486c: not entitled is 'unknown' until the server holds its own pass; the Web version is never gated
+  assert.equal(subscriptions.status().entitlementState, 'unknown')
 })
 
 test('開発者設定のApple免除は保持し、購入情報を照会しない', async t => {
@@ -242,6 +244,7 @@ test('Stripeの購入を保存し、Appleと両方ある時は有効な方を使
   assert.equal(subscriptions.proof(), null)
   const status = await subscriptions.installStripe('cs_1')
   assert.deepEqual(subscriptions.proof(), { stripeSubscriptionId: 'sub_1' })
+  assert.equal(status.entitlementState, 'active')
   assert.notEqual(subscriptions.proof(), subscriptions.proof())
   assert.deepEqual([status.entitled, status.source, status.isTrial, status.canUseAI], [true, 'stripe', true, true])
   assert.equal(JSON.parse(await readFile(subscriptions.path, 'utf8')).stripeSubscriptionId, 'sub_1')
