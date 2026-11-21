@@ -1,5 +1,6 @@
 import { pipeline } from 'node:stream'
 import { json, readJson } from './http-response.mjs'
+import { withWorkingWord } from './working-words.mjs'
 import { webMessage, messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 import { validReplyQuote, validReplyTo } from './reply-reference.mjs'
 import { originFailure, readOrigin } from './origin-reference.mjs'
@@ -33,7 +34,7 @@ export function createBotConversationApi({ bots, transport, messagePage, messeng
     const botQueueMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/queue$/u)
     if (request.method === 'GET' && botQueueMatch) {
       if (!await exists(botQueueMatch[1])) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      return json(response, 200, { items: transport.queueItems({ botId: botQueueMatch[1] }) })
+      return json(response, 200, { items: withWorkingWord(await transport.queueItems({ botId: botQueueMatch[1] })) })
     }
 
     const match = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/messages$/u)

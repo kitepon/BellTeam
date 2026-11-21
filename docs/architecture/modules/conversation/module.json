@@ -91,6 +91,8 @@
     "src/durable-message-receipts.mjs",
     "src/direct-log-record.mjs",
     "src/machine-stream.mjs",
+    "src/working-words.mjs",
+    "src/working-words.json",
     "src/http-seat-request-api.mjs"
   ]
 }
