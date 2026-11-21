@@ -273,7 +273,8 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .skeleton-bubble.is-right { justify-self: end; width: 38%; }
 @media (prefers-reduced-motion: reduce) { .skeleton-bubble { animation: none; } }
 .timeline-empty { margin: 28px auto; color: var(--muted); font-size: 14px; text-align: center; }
-.timeline-older { margin: 8px 0; color: var(--muted); font-size: 12px; text-align: center; }
+/* Out of the flow: its height must not move the rows being looked at when it appears and goes (a471-scroll-jump-web). */
+.timeline-older { position: sticky; top: 0; z-index: 1; height: 0; margin: 0; overflow: visible; color: var(--muted); font-size: 12px; text-align: center; pointer-events: none; }
 .inline-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: #fcefd9; color: #8a5200; font-size: 13px; }
 .inline-error p { margin: 0; }
 .inline-error button { min-height: 36px; padding: 6px 14px; border: 0; border-radius: 10px; background: #fff; color: #8a5200; font-weight: 750; cursor: pointer; }

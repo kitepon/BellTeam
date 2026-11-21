@@ -228,6 +228,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     renderTail([...state.timelineMap.values()])
     if (state.stickToBottom) scrollToBottom()
     loadStoredMessageImages([...latestItems, ...newItems], item => rerenderItem(item.id, token))
+    // A refresh that fills an empty map took over the open's read (historyRequest), so the open returned before its fill: start it here (Centi, Z147 lab).
+    if (!lastId && latestItems.length) void fillViewport(token)
   }
 
   // 上へ遡ったら前のページを先頭に足し、見ている位置は動かさない。
@@ -333,12 +335,30 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
     latestButton.hidden = !target || state.stickToBottom
     if (selectionPick) onSelectionChange() // 選択は残る：位置だけ追う（タッチでは下に固定）
+    noteViewed()
     const now = Date.now(), up = lastTop - timeline.scrollTop
     scrollSpeed = lastTime && now > lastTime && up > 0 ? up / (now - lastTime) : scrollSpeed / 2
     lastTop = timeline.scrollTop; lastTime = now
     void fillViewport(state.timelineToken)
   })
-  new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)
+  // 見ている行を動かさない（a471-scroll-jump-web）：見ている行（最初に見えている行）と、その行が画面のどこにあるかを覚え、
+  // 上の行が後から伸び縮みした時（畳んだ道具の組・背景の組の高さ、頁の追加、画像）に、その差だけ位置を戻す。
+  // 読み込みの印は流れの外なので、この差には入らない。ユーザーが畳みを開いた時は、開いた中身を見せるため戻さない。
+  let viewed = null, viewedTop = 0
+  function noteViewed() {
+    const top = timeline.getBoundingClientRect?.().top
+    viewed = null
+    if (top === undefined) return
+    viewed = [...timelineItems.querySelectorAll('[data-id]')].find(row => { const box = row.getBoundingClientRect(); return box.height > 0 && box.bottom > top }) ?? null
+    viewedTop = viewed ? viewed.getBoundingClientRect().top - top : 0
+  }
+  function holdViewed() {
+    if (!viewed?.isConnected) return
+    const shift = viewed.getBoundingClientRect().top - timeline.getBoundingClientRect().top - viewedTop
+    if (Math.abs(shift) >= 1) timeline.scrollTop += shift
+  }
+  timelineItems.addEventListener('click', () => { viewed = null; requestAnimationFrame(noteViewed) }, true)
+  new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom(); else holdViewed() }).observe(timelineItems)
   new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineTail)
 
   // A bubble row as the message the actions read: its own id, the whole machine_event.text (the row's message is only the first line).

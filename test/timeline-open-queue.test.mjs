@@ -31,7 +31,8 @@ class Element {
 const saved = { document: globalThis.document, ResizeObserver: globalThis.ResizeObserver, CSS: globalThis.CSS }
 function fixture(t, history, extra = {}) {
   globalThis.document = { createElement: () => new Element(), querySelectorAll: () => [] }
-  globalThis.ResizeObserver = class { observe() {} }
+  const resizers = []
+  globalThis.ResizeObserver = class { constructor(callback) { resizers.push(callback) } observe() {} }
   globalThis.CSS = { escape: value => value }
   t.after(() => Object.assign(globalThis, saved))
   const queues = [], requests = [], timeline = new Element(), latestButton = new Element()
@@ -46,7 +47,7 @@ function fixture(t, history, extra = {}) {
   const open = (id, type = 'bot') => view.open({ type, id, name: id })
   const ids = () => timeline.children[0].children.map(row => row.dataset.id).filter(Boolean)
   const texts = node => [node.textContent ?? '', ...node.children.map(texts)].join(' ')
-  return { view, open, queues, requests, timeline, ids, text: () => texts(timeline) }
+  return { view, open, queues, requests, timeline, resizers, ids, text: () => texts(timeline) }
 }
 for (const type of ['bot', 'room']) test(`${type} secret guide uses shared page rendering and is removed by an updated projection`, async t => {
   const request = { id: 'guide-current', botId: 'a', toolId: 'olrw-auth', label: '認証コード', message: '公式ページで認証してください。', status: 'pending',
@@ -571,6 +572,40 @@ test('first screen: older pages are read one after another until the drawn heigh
   full.timeline.scrollTop = 0; full.timeline.listeners.scroll(); await settle()
   assert.equal(full.requests.filter(path => path.includes('before=')).length, 1, 'scrolling up under the margin reads the next older page')
   assert.match(full.requests.find(path => path.includes('before=')), /limit=500&before=r0$/)
+})
+
+test('a471-fill-after-refresh-web: a refresh that fills the empty map after the open was overtaken still reads the older pages', async t => {
+  const first = deferred()
+  let firsts = 0
+  const f = fixture(t, path => {
+    if (path.includes('before=')) return { items: [{ id: 'm0', message: 'x', direction: 'incoming' }], has_more: false }
+    return firsts++ === 0 ? first.promise : { items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }
+  })
+  const opening = f.open('a') // its newest page is still on its way
+  await settle(); const refreshing = f.view.refresh(); await settle() // the refresh answers first and fills the map
+  await refreshing; await settle()
+  first.resolve({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: true }); await opening; await settle()
+  assert.deepEqual(f.ids(), ['m0', 'm1'])
+  assert.equal(f.requests.filter(path => path.includes('limit=500')).length, 1, 'the open was overtaken: the refresh starts the fill')
+})
+
+test('a471-scroll-jump-web: when a row above the viewed row grows later, the view moves by that height; a click on a fold line holds nothing', async t => {
+  globalThis.requestAnimationFrame = () => {} // the re-note after a click is not needed here
+  t.after(() => { delete globalThis.requestAnimationFrame })
+  const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
+  await f.open('a'); await settle()
+  f.timeline.clientHeight = 100; f.timeline.scrollTop = 0
+  let rowTop = 50
+  const items = f.timeline.children[0], row = items.children.find(child => child.dataset.id)
+  row.isConnected = true; row.getBoundingClientRect = () => ({ top: rowTop, bottom: rowTop + 100, height: 100 })
+  f.timeline.getBoundingClientRect = () => ({ top: 0 })
+  items.querySelectorAll = selector => selector === '[data-id]' ? [row] : []
+  f.timeline.listeners.scroll() // the view looks at the row, 50 px below its top edge
+  rowTop = 170 // a group above it grew by 120 px
+  f.resizers.at(-2)(); assert.equal(f.timeline.scrollTop, 120, 'the scroll position follows, so the row stays where it was in the view')
+  rowTop = 50; f.timeline.scrollTop = 0; f.timeline.listeners.scroll()
+  items.listeners.click(); rowTop = 170 // the Owner opened a fold line above: its content is for him to see
+  f.resizers.at(-2)(); assert.equal(f.timeline.scrollTop, 0, 'after a click nothing is held back')
 })
 
 test('a471-scrollback-web: the first page asks 100, an older page 500 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
