@@ -730,7 +730,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(lastAddress ?? model.Server), OpenConnectionSettings),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
             StartupPhase.SignIn => SignInView(),
-            StartupPhase.Paywall => new PaywallView(ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), OpenConnectionSettings),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         startupHost.IsVisible = phase != StartupPhase.Ready;

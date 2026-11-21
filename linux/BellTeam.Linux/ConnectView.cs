@@ -43,8 +43,6 @@ internal sealed class ConnectView : StartupBackdrop, IDisposable
         body.Children.Add(Centered(MacUi.Text("サーバーのコードで入る", 17, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 22, 0, 0))));
         body.Children.Add(consoleCode);
         consoleSend = MacUi.Bordered("コードでログイン", () => _ = UseConsoleCodeAsync()); consoleSend.HorizontalAlignment = HorizontalAlignment.Center; body.Children.Add(consoleSend); body.Children.Add(consoleNote);
-        // Tronie's wording (app-sessions.md 7e), the same in every app: a person with no contract enters by a code.
-        body.Children.Add(Centered(MacUi.Text("このアプリは購読が必要です。購読していない場合は、ブラウザー版が無料で使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで、ブラウザー版に入れます。", 12, BellTheme.Muted, margin: new Thickness(0, 14, 0, 0))));
         frame.Children.Add(body);
         var change = MacUi.Bordered("接続先を変更", changeServer); change.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetRow(change, 1); frame.Children.Add(change);
         Children.Add(frame);

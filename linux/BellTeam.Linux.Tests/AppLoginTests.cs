@@ -105,7 +105,7 @@ public sealed class AppLoginTests
         await Until(() => Texts(view).Contains("0123-4567"));
         Assert.Contains("確認番号 042", Texts(view));
         Assert.Contains("スマホで承認する", Texts(view)); Assert.Contains("サーバーのコードで入る", Texts(view));
-        Assert.Contains("このアプリは購読が必要です。購読していない場合は、ブラウザー版が無料で使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで、ブラウザー版に入れます。", Texts(view));
+        Assert.DoesNotContain(Texts(view), text => text.Contains("ブラウザー版"));
         // a wrong console code says so and keeps the screen; a right one stores the token and connects
         view.GetVisualDescendants().OfType<TextBox>().Single().Text = "BAD";
         Click(view, "コードでログイン"); await Until(() => Texts(view).Contains("コードが正しくないか、すでに使われています。")); Assert.Equal(0, signedIn);
@@ -141,18 +141,13 @@ public sealed class AppLoginTests
     }
 
     [Fact]
-    public Task ThePaywallScreenShowsTheRuledTextAndTheBrowserButtonOpensTheServer() => Ui.Run(async () =>
+    public Task ThePaywallScreenShowsTheRuledTextWithNoBrowserButton() => Ui.Run(async () =>
     {
-        Uri? opened = null; var was = ExternalLink.Opener; ExternalLink.Opener = uri => opened = uri;
-        try
-        {
-            var server = new Uri("https://bell.example.com/"); var view = new PaywallView(server, () => { }, () => { });
-            var window = new Window { Content = view }; window.Show();
-            Assert.Contains("このアプリは購読が必要です。無料で使うならブラウザから", Texts(view));
-            Click(view, "ブラウザーで開く"); Assert.Equal(server, opened);
-            window.Close(); await Task.CompletedTask;
-        }
-        finally { ExternalLink.Opener = was; }
+        int rechecked = 0, changed = 0; var view = new PaywallView(() => rechecked++, () => changed++);
+        var window = new Window { Content = view }; window.Show();
+        Assert.Contains(SubscriptionText.Paywall, Texts(view)); Assert.DoesNotContain("ブラウザーで開く", Texts(view));
+        Click(view, "再確認"); Click(view, "接続先を変更"); Assert.Equal((1, 1), (rechecked, changed));
+        window.Close(); await Task.CompletedTask;
     });
 
     private static string[] Texts(Control root) => root.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text ?? "").ToArray();
