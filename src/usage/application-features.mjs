@@ -97,6 +97,7 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
           }
         }
         if (id === 'webPush') await notifications.configureWebPush(config)
+        if (id === 'thinkingDisplay') services.machineStream?.displayChanged()
       } catch (error) {
         await setError(id, error, epoch)
         throw error

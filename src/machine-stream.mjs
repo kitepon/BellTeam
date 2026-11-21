@@ -102,9 +102,9 @@ export function displayOf(part, rules = displayRules) {
 }
 
 export class MachineStream {
-  constructor({ root, bots, streamSend, onRequest = () => {}, now = () => new Date().toISOString(), rules = displayRules }) {
+  constructor({ root, bots, streamSend, onRequest = () => {}, now = () => new Date().toISOString(), rules = displayRules, showThinking = () => true }) { // no setting wired (a test, a lone service) hides nothing; the body wires the Owner's setting
     this.directory = join(root, 'state/machine-stream')
-    this.bots = bots; this.streamSend = streamSend; this.onRequest = onRequest; this.now = now; this.rules = rules
+    this.bots = bots; this.streamSend = streamSend; this.onRequest = onRequest; this.now = now; this.rules = rules; this.showThinking = showThinking
     this.state = new Map() // botId -> { seq, cursor, records, requests, all, visible, chain }
     this.busy = new Set()
     this.events = new EventEmitter()
@@ -127,7 +127,7 @@ export class MachineStream {
   }
 
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), bubbles: new Set(), reminded: false, lastWords: null, toolRun: false, folds: new Map(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), quiet: new TimelineIndex(), shownQuiet: new TimelineIndex(), bubbles: new Set(), reminded: false, lastWords: null, toolRun: false, folds: new Map(), chain: Promise.resolve() })
     return this.state.get(botId)
   }
 
@@ -207,8 +207,11 @@ export class MachineStream {
 
   setRow(bot, botId, record, n, part) {
     const item = this.row(bot, botId, record, n, part)
+    // a479-thinking-setting: quiet / shownQuiet are the same rows without thinking, read while the Owner's setting hides it.
+    const thinking = item.machine_event.view === 'thinking'
     bot.rows.set(item.id, item)
-    if (item.machine_event.display === 'show') bot.shown.set(item.id, item) // the Bot list preview follows what the chat draws open
+    if (!thinking) bot.quiet.set(item.id, item)
+    if (item.machine_event.display === 'show') { bot.shown.set(item.id, item); if (!thinking) bot.shownQuiet.set(item.id, item) } // the Bot list preview follows what the chat draws open
     return item
   }
 
@@ -283,8 +286,15 @@ export class MachineStream {
     this.notify([botId])
   }
 
-  timeline(target) { return target.roomId ? [] : this.state.get(target.botId)?.rows.snapshot() ?? [] }
-  timelineView(target, { recent = false } = {}) { return target.roomId ? new TimelineIndex() : this.state.get(target.botId)?.[recent ? 'shown' : 'rows'] ?? new TimelineIndex() }
+  // a479-thinking-setting: the Owner's switch; a wired setting that is missing or fails to read is hidden (the default).
+  thinkingShown() { try { return this.showThinking() === true } catch { return false } }
+  displayChanged() { this.notify([...this.state.keys()]) }
+  timeline(target) { return target.roomId ? [] : this.timelineView(target).snapshot() }
+  timelineView(target, { recent = false } = {}) {
+    if (target.roomId) return new TimelineIndex()
+    const bot = this.state.get(target.botId), quiet = !this.thinkingShown()
+    return bot?.[recent ? (quiet ? 'shownQuiet' : 'shown') : (quiet ? 'quiet' : 'rows')] ?? new TimelineIndex()
+  }
 
   // Quote / forward of one drawn row (reply.md, forward.md): the same {sender, at, text} the saved rows give.
   rowSource(botId, rowId) {
