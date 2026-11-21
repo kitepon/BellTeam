@@ -5,6 +5,13 @@ namespace BellTeam.Linux;
 
 public sealed class StoreAccountTests
 {
+    [Theory]
+    [InlineData("¥980", "P1M", "購入（月額¥980）")]
+    [InlineData("¥9,800", "P1Y", "購入（年額¥9,800）")]
+    [InlineData("¥980", "P2M", "購入（¥980）")]
+    [InlineData("¥980", null, "購入（¥980）")]
+    public void TheBuyButtonSaysThePeriodFromTheOffer(string price, string? period, string expected) => Assert.Equal(expected, StoreAccountText.Buy(price, period));
+
     [Fact]
     public void TheBadgeAndLineAreTheMacBillingPageHead()
     {

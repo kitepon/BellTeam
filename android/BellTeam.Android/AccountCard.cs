@@ -96,8 +96,11 @@ public sealed class AccountCard : StackPanel
             // A purchase on this phone that belongs to another account is never shown as owned.
             if (lb.OtherAccountProducts.Count != 0) Children.Add(Text(StoreAccountText.OtherAccount, 13, Muted, null, new Thickness(0, 10, 0, 0)));
             if (state == StoreAccountState.SignedInNeedsPurchase && product is not null)
-                Children.Add(Button(StoreAccountText.Buy(product.Offers.FirstOrDefault()?.Phases.FirstOrDefault()?.FormattedPrice ?? product.OneTimePrice?.FormattedPrice ?? product.Title),
+            {
+                var paid = product.Offers.FirstOrDefault()?.Phases.LastOrDefault(phase => phase.PriceMicros > 0);   // a free-trial phase comes first
+                Children.Add(Button(paid is not null ? StoreAccountText.Buy(paid.FormattedPrice, paid.BillingPeriod) : StoreAccountText.Buy(product.OneTimePrice?.FormattedPrice ?? product.Title),
                     () => RunAsync(async b => await b.PurchaseAsync(MainActivity.Current, product.ProductId, product.Offers.FirstOrDefault()?.OfferToken)), Look.Primary));
+            }
             if (state == StoreAccountState.Signed) RenderSigned(entitled);
             if (state is StoreAccountState.SignedInNeedsPurchase or StoreAccountState.SignedInEntitled) Children.Add(Button(StoreAccountText.Refresh, () => RunAsync(async b => await b.RefreshAsync()), Look.Secondary));
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(b => b.SignOutAsync()), Look.Secondary));
@@ -143,7 +146,7 @@ public sealed class AccountCard : StackPanel
         else if (handoffCancelled)
         {
             Children.Add(Text(StoreAccountText.HandoffCancelled, 13, Muted, null, new Thickness(0, 10, 0, 0)));
-            Children.Add(Button(StoreAccountText.HandoffTitle, () => { handoffAsked = false; _ = HandoffAsync(billing!); return Task.CompletedTask; }, Look.Primary));
+            Children.Add(Button(StoreAccountText.HandoffAgain, () => { handoffAsked = false; _ = HandoffAsync(billing!); return Task.CompletedTask; }, Look.Primary));
         }
     }
 
@@ -161,7 +164,7 @@ public sealed class AccountCard : StackPanel
         Children.Add(Text(StoreAccountText.StopAllOthersWhy, 13, Muted, null, new Thickness(0, 8, 0, 0)));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         row.Children.Add(Button(StoreAccountText.StopAllOthersConfirm, () => { confirmingStop = false; return RunAsync(async b => await b.StopAllOthersAsync(MainActivity.Current)); }, Look.DangerFilled));
-        row.Children.Add(Button(StoreAccountText.HandoffCancel, () => { confirmingStop = false; Render(); return Task.CompletedTask; }, Look.Secondary));
+        row.Children.Add(Button(StoreAccountText.StopAllOthersCancel, () => { confirmingStop = false; Render(); return Task.CompletedTask; }, Look.Secondary));
         Children.Add(row);
     }
 

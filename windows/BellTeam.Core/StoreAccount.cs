@@ -32,6 +32,8 @@ public static class StoreAccountText
     public const string HandoffCancelled = "引き継ぎをやめました。";
     public const string StopAllOthersWhy = "このアカウントでログインしている、ほかのすべての端末を止めます。この端末は使い続けられます。Googleでもう一度サインインします。";
     public const string StopAllOthersConfirm = "止める";
+    public const string StopAllOthersCancel = "キャンセル";   // not やめる: 止める and やめる sound the same side by side (Mika, 7f)
+    public const string HandoffAgain = "スマホで引き継ぐ";
     public const string OtherAccount = "別のアカウントで購入したものがあります。このアカウントでは購読になりません。";
     public const string Refresh = "再確認";
     public const string StopAllOthers = "ほかの端末をすべて止める";
@@ -46,6 +48,9 @@ public static class StoreAccountText
     public const string AlreadyEntitled = "すでに使えます。";
     public const string NotConfigured = "購読の接続先がまだ決まっていません。";
     public static string Buy(string price) => $"購入（{price}）";
+    // The period comes from the offer's ISO 8601 billing period (P1M, P1Y, P1W, P3M...), never hard-coded; an unknown period shows the price alone.
+    public static string Buy(string price, string? billingPeriod) => Period(billingPeriod) is { } period ? $"購入（{period}{price}）" : Buy(price);
+    private static string? Period(string? iso) => iso switch { "P1W" => "週額", "P1M" => "月額", "P3M" => "3か月ごと", "P6M" => "6か月ごと", "P1Y" => "年額", _ => null };
     public static string Failure(string code, int? reason = null) => code switch
     {
         "product_unknown" => "この商品はまだ読み込めていません。もう一度お試しください。",
