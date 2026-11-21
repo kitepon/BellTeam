@@ -408,6 +408,12 @@ test('購読の記録は、billingSources・canPurchaseが無い古い形も有�
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: old, revision: 0 }), true)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, canPurchase: 'yes' }, revision: 0 }), false)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, billingSources: [1] }, revision: 0 }), false)
+  // a486c: entitlementState is optional (an older usage sends none) and one of three words
+  const { entitlementState, ...before } = old
+  assert.equal(entitlementState, 'unknown')
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: before, revision: 0 }), true)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, entitlementState: 'none' }, revision: 0 }), true)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, entitlementState: 'maybe' }, revision: 0 }), false)
   // a399: a field a newer usage adds is not refused; a missing required one still is. Rows served as stored with secrets nearby stay closed.
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, unknown: 1 }, revision: 0 }), true)
   const { entitled, ...short } = old

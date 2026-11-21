@@ -76,6 +76,7 @@ export function usageProjectionRecordValid(row) {
     && ['setupComplete', 'entitled', 'canUseAI', 'autoRenewing'].every(key => typeof item[key] === 'boolean')
     // a394f: 新しい項目は任意。古いusageの記録も、新しい本体と部品が受け入れる（本体を先に入れ替える）。
     && (!Object.hasOwn(item, 'canPurchase') || typeof item.canPurchase === 'boolean')
+    && (!Object.hasOwn(item, 'entitlementState') || ['active', 'none', 'unknown'].includes(item.entitlementState))
     && (!Object.hasOwn(item, 'billingSources') || Array.isArray(item.billingSources) && item.billingSources.every(source => typeof source === 'string'))
   return false
 }
