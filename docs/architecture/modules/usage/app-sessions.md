@@ -205,15 +205,16 @@ Events on the existing stream (`GET /api/events`, same `{type, …}` envelope as
 
 Each app row builds, on this section: the connect screen (probe, start, wait, console code field, token store), the setup-code binding screen (a setup code goes with `start`; it is shown on the server console, not in an app), the requests screen (approve / deny), "add an app" (code display) and the session list with revoke. Token storage is the app's: Windows DPAPI file, Linux 0600 file (libsecret later), Android Keystore-backed preferences, Apple Keychain (shared access group), Web the cookie.
 
-### 7e. A person with no contract (Tronie's ruling; one wording for every app)
+### 7e. A person with no contract (Owner fact via Mint and Tronie, B2 withdrawn; one wording for every app)
 
-BellTeam is free to use without a contract. The first app of such a person enters by a **console code** (printed by the host console); every further app by an **"add an app" code** from an app that already has a session. Phone approval needs a live contract on the approving phone, so a phone with no contract cannot approve a login. All apps show the same two ways on the connect screen and the same texts:
+**The free way is the Web version (the browser). Every native app (iPhone, iPad, Mac, Windows, Linux, Android) is paid and needs a subscription.** A person with no contract opens the Web version: the first time by a **console code** (printed by the host console), later by an **"add an app" code** from a session that already exists. Phone approval stays for accounts with a live contract (or an exempt account), so a phone with no contract cannot approve a login. The server does not enforce "the apps are paid": `kind` is the client's own word and the server cannot know the contract of a person; each native app keeps its own subscription gate (the store purchase), and the texts below tell the person which way is free.
 
 | Where | Text (Japanese, as shown) |
 | --- | --- |
-| Connect screen, under the two ways (「スマホで承認する」 and 「サーバーのコードで入る」) | 購読していない場合は、サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。 |
-| Phone app, when its account has no live contract and the owner tries to approve | 先に購読してください。購読しないで使うには、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードを使ってください。 |
-| "Add an app" screen | この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったアプリは、このアプリが終わると一緒に終わります。 |
+| Connect screen of a native app, under the two ways (「スマホで承認する」 and 「サーバーのコードで入る」) | このアプリは購読が必要です。購読していない場合は、ブラウザー版が無料で使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで、ブラウザー版に入れます。 |
+| Connect screen of the Web version, under the code field | ブラウザー版は購読なしで使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。 |
+| Phone app, when its account has no live contract and the owner tries to approve | 先に購読してください。購読しないで使うには、ブラウザー版を、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードで開いてください。 |
+| "Add an app" screen | この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。 |
 
 The connect screen offers the code field whenever the server answers `login.capability: true`, with or without a contract: the apps cannot know the contract, so the code way is always shown. A session made by a console or "add an app" code decides nothing about the contract (section 3).
 
