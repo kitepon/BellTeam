@@ -295,6 +295,18 @@ flowchart LR
   Parent --> App
 ```
 
+## The turn report check sees the stream (a471-silent-turn-check-misfires)
+
+Tronie 2026-11-21 (seat on machine mode since Z142): after every turn that ended with a final answer, BellTeam sent 「直前のターンでは、オーナーの会話画面に何も残りませんでした」 and the seat had to say it all again, so the Owner read each answer twice. Cause: `TurnReports.check` (`src/turn-reports.mjs`) looks for what the turn left on the Owner's screen only in the saved records (`bellteam.interim-word.v1` of the Bot and direct messages from the Bot to the Owner). A machine seat's words and its closing bubble are stream rows (`machine_event`, `view: "words"`), not saved records, so the check found nothing and asked for a report every time. Fix: the body hands the check the seat's stream rows (`MachineStream.timeline`); a shown `words` row inside the turn window counts as left on the screen: a row with `bubble: true` is the final message, the others are progress notes. Thinking, tools and folded rows do not count. A turn that left no saved record and no such row is still asked for a report. Nothing else changes: not the wire, not the clients, not the content check (Jev), which now also reads the bubble text.
+
+```mermaid
+flowchart LR
+  Turn["turn end (afterTurn)"] --> Check["TurnReports.check"]
+  Store["saved records: interim words, direct messages to the Owner"] --> Check
+  Stream["MachineStream.timeline(botId): shown words rows, bubble = final"] --> Check
+  Check -->|"nothing shown"| Ask["report request to the Bot"]
+```
+
 ## Not changed
 
 Direct and room message routes, the existing interim/answer/status rows, reply, `owner_question` and `secret_request` cards, every existing SSE topic and terminal seats stay as they are. A machine seat's turn end, answer text and steer receipts stay on the existing tools; the stream is additive for the chat log.

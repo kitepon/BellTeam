@@ -10,12 +10,13 @@ export const SUBSTANCE_MIN = 0.5
 const OWNER_VIEW = '(`owner_view.progress_notes`, `owner_view.messages_to_owner`, and `owner_view.final_message`)'
 
 export class TurnReports {
-  constructor({ bots, store, transport, appendInterimWords, judge = judgeOwnerReport, enabled = () => true, report = message => process.stderr.write(`${message}\n`), messageId = randomUUID, notifyReport = null }) {
+  constructor({ bots, store, transport, appendInterimWords, judge = judgeOwnerReport, streamRows = () => [], enabled = () => true, report = message => process.stderr.write(`${message}\n`), messageId = randomUUID, notifyReport = null }) {
     this.bots = bots
     this.store = store
     this.transport = transport
     this.appendInterimWords = appendInterimWords
     this.judge = judge
+    this.streamRows = streamRows
     this.enabled = enabled
     this.report = report
     this.messageId = messageId
@@ -30,7 +31,7 @@ export class TurnReports {
   async check({ botId, context, startedAt, endedAt }) {
     const bot = this.bots.get(botId)
     if (!bot) return null
-    const { ownerView, memberMessages } = turnView(await this.store.entries(), { botId, startedAt, endedAt, names: id => this.bots.get(id)?.name ?? id })
+    const { ownerView, memberMessages } = turnView(await this.store.entries(), { botId, startedAt, endedAt, names: id => this.bots.get(id)?.name ?? id, rows: this.streamRows(botId) })
     const shown = ownerView.progress_notes.length || ownerView.messages_to_owner.length || ownerView.final_message
     // ルームの発言はオーナーもルームで読める。黙る指示に従ったターンも漏れではない。
     if (!shown && context !== 'room') return this.requestReport(bot, 'missing', [])
@@ -56,7 +57,8 @@ export class TurnReports {
 }
 
 // ターンの間にオーナーの会話画面へ出たものと、メンバーへ送ったものを集める。
-export function turnView(records, { botId, startedAt, endedAt, names = id => id }) {
+// rows: a machine seat draws its words as stream rows (machine_event, view words), not as interim-word records; its closing words are the bubble row.
+export function turnView(records, { botId, startedAt, endedAt, names = id => id, rows = [] }) {
   const within = record => record.at >= startedAt && record.at <= endedAt
   const notes = []
   const toOwner = []
@@ -69,6 +71,10 @@ export function turnView(records, { botId, startedAt, endedAt, names = id => id 
       if (record.target === 'user') toOwner.push({ at: record.at, text: record.message })
       else memberMessages.push({ to: names(record.target), text: record.message })
     }
+  }
+  for (const row of rows) {
+    const event = row.machine_event
+    if (within(row) && row.kind === 'machine_event' && event?.view === 'words' && event.display === 'show' && event.text) notes.push({ at: row.at, text: event.text, final: event.bubble === true })
   }
   const finals = [...notes.filter(note => note.final), ...toOwner].sort((a, b) => a.at.localeCompare(b.at))
   const final = finals.at(-1) ?? null
