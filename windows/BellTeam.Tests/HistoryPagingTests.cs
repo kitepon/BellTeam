@@ -56,4 +56,27 @@ public sealed class HistoryPagingTests
         });
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
+
+    [Fact]
+    public void AnOlderReadAfterDisposeEndsAtOnce()
+    {
+        // The render modes dispose the workspace while a scroll prefetch is still queued on the window: it must end, not throw on the disposed selection.
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
+                {
+                    "/api/bots/one/messages" => """{"items":[{"id":"m2","kind":"message","direction":"incoming","at":"2026-11-21T01:00:00.125Z","message":"newest"}],"has_more":true}""",
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => """{"bots":[{"id":"one","name":"ユキ","displayName":"ユキ"}]}""", "/api/owner" => ApiTests.Owner, "/api/rooms" => """{"rooms":[]}""", "/api/queue" => ApiTests.EmptyQueue, _ => ApiTests.Page
+                })))));
+                workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult(); workspace.SelectAsync(workspace.Entries.Single()).GetAwaiter().GetResult();
+                workspace.Dispose();
+                workspace.LoadOlderAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception error) { failure = error; }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
 }
