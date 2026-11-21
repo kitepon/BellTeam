@@ -128,3 +128,12 @@ test('a487n stage 2: the child ignores the webPush configuration of an older bod
   const names = await readdir(join(root, 'state'))
   assert.ok(!names.some(name => name.startsWith('web-push')))
 })
+
+test('a485: tickets goes through the real IPC (parent and child checks), bounded and exact', async t => {
+  const { channel } = await start(t, { configuration: { enabled: false, relayUrl: '' } })
+  await channel.control('resume')
+  assert.deepEqual(await channel.request('tickets', { tickets: { ['a'.repeat(64)]: 'ticket' } }), { accepted: true })
+  assert.deepEqual(await channel.request('tickets', { tickets: {} }), { accepted: true })
+  for (const bad of [{ tickets: { short: 'ticket' } }, { tickets: { ['a'.repeat(64)]: '' } }, { tickets: {}, provider: 'apns' }, {}])
+    await assert.rejects(channel.request('tickets', bad), error => ['PUSH_IPC_ARGUMENTS', 'PUSH_INPUT_INVALID'].includes(error.code))
+})

@@ -90,7 +90,7 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
     // a485: the home part; system calls from the body only. The answer's `row` is the guard's set, kept by the body.
     home: {
       handle: (params, context) => call('home.handle', params, context), sweep: (params, context) => call('home.sweep', params, context),
-      setupCode: context => call('home.setupCode', {}, context), publish: context => call('home.publish', {}, context),
+      setupCode: context => call('home.setupCode', {}, context), pushTickets: context => call('home.pushTickets', {}, context), publish: context => call('home.publish', {}, context),
       console: (params, context) => call('home.console', params, context),
     },
     subscriptions: {

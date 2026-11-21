@@ -202,7 +202,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     // a485: what the body's home front calls; each call is a system root call (the body's own mechanism, never an owner's or a Bot's act).
     home: {
       handle: params => facade.home.handle(params, systemContext('home.handle')), sweep: params => facade.home.sweep(params, systemContext('home.sweep')),
-      setupCode: () => facade.home.setupCode(systemContext('home.setupCode')), publish: () => facade.home.publish(systemContext('home.publish')),
+      setupCode: () => facade.home.setupCode(systemContext('home.setupCode')), pushTickets: () => facade.home.pushTickets(systemContext('home.pushTickets')), publish: () => facade.home.publish(systemContext('home.publish')),
       console: params => facade.home.console(params, systemContext('home.console')),
     },
     initializeSettings: () => controller.start(),

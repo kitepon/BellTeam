@@ -76,6 +76,7 @@ flowchart TD
 | status | `src/usage/http-api.mjs:63` → Push `:37` | GET `/api/notifications`。同期で `{configured,environments,error?}`。token/取引/鍵を返さない |
 | configure | `src/usage/application-features.mjs:47,73` → Push `:42` | `{enabled,relayUrl}`。providerを外す→現inflight待ち→旧provider.close→OFF/直送復帰/relay status実照会。成功時status、失敗時診断後throw |
 | register | usage HTTP `:65` → Push `:66` | `{token,environment,server,previousToken?,signedTransaction?}`、32,768 byte上限。検証・環境照合→旧token除去/Map更新→save→`{registered:true}` |
+| tickets (a485) | body `home-login-front` → facade `setTickets` → IPC `tickets` | `{tickets:{<sha256 hex of a device token>: <operator ticket>}}`、最大256件・ticketは4,096 byte以下。丸ごと置換してメモリだけに持つ（deviceファイルへは書かない）。`{accepted:true}`。送信時に`sha256(token)`で引き、あれば`ticket`で送る（APNs `{ticket, device, payload, id}`）、無ければ従来の`signedTransaction`。旧childは未知methodとして拒否し、本体は黙って次のtickで再送 |
 | unregister | usage HTTP `:67` / Push `publish:119` → `:77` | HTTPは `{token}`、4,096 byte上限。失効時はdeviceを渡す。削除/save後 `{registered:false}` |
 | direct | `src/conversation-services.mjs:25`、`src/conversation-writer.mjs:25` → Push `:84` | 保存recordのschemaがdirect-message.v1、target=user、fromがuser/scheduler以外だけ。delivery_id/from、親bots.getのnameを使用。interim/status/Bot間連絡は通知しない |
 | room | `src/conversation-services.mjs:58`、`src/room-messenger.mjs:80` → Push `:91` | 保存済み投稿のid/sender.id/name/room.id/nameだけ。user/schedulerを除く |
