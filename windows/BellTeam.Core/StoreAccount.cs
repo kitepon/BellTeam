@@ -84,7 +84,7 @@ public static class StoreAccountText
         "pass_invalid" => "サインインし直してください。",
         "signin_cancelled" => "サインインをやめました。",
         "return_not_received" => "サインインの結果が戻ってきませんでした。もう一度お試しください。",
-        "pass_store_unavailable" => "この端末のサインイン情報を読めません。サインアウトにはなっていません。ファイルの権限を確かめて、もう一度お試しください。",
+        "pass_store_unavailable" => "この端末のサインイン情報を読めません。いったんサインアウトしてから、もう一度サインインしてください。",
         _ => "うまくいきませんでした（" + code + (reason is { } number ? " " + number : "") + "）。",
     };
 }
