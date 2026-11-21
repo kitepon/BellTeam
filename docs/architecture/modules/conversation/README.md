@@ -37,7 +37,7 @@
 
 membership-cleanupの対象Bot画像prepare/drain/opaque lease/cancelと初回readRemovalStates providerは[保存画像の削除境界](delivery.md#対象bot削除の保存境界)、RoomRegistryのclaimDue/skipDueは[予定の消化保存](rooms.md#部屋予定の消化保存)を正本とする。両方とも同じ親実体を保持し、membersは公開窓口だけを呼ぶ。
 
-HTTPの機能固有handlerは`http-conversation-api.mjs`（Bot履歴/投稿/queue、export、SSE/保存画像）、`http-room-api.mjs`、`http-delivery-api.mjs`に置く。MCPの会話/部屋toolは`mcp-conversation-tools.mjs`のconversationTools/callConversationToolにschema・説明・処理をまとめる。部屋予定のMCP schema/handlerはmembersが持ち、room-accessを使う。
+HTTPの機能固有handlerは`http-conversation-api.mjs`（Bot履歴/投稿/queue、export、SSE/保存画像）。queueの`running`行へ作業中の言葉`workingWord`を付ける契約は[working-word.md](working-word.md)が正本、`http-room-api.mjs`、`http-delivery-api.mjs`に置く。MCPの会話/部屋toolは`mcp-conversation-tools.mjs`のconversationTools/callConversationToolにschema・説明・処理をまとめる。部屋予定のMCP schema/handlerはmembersが持ち、room-accessを使う。
 
 保存画像GETの関数接続・DFD・FileHandleの所有と終端は[保存画像GETの読取り寿命](delivery.md#保存画像getの読取り寿命)を正本とする。
 

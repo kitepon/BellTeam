@@ -1,4 +1,5 @@
 import { json, readJson } from './http-response.mjs'
+import { withWorkingWord } from './working-words.mjs'
 
 // Sends are seat-only: the sender is the internal seat (conversation authority), never the Owner listener's body (audit H2).
 export function createDeliveryApi({ messenger, roomMessenger, transport, internal = false }) {
@@ -24,7 +25,7 @@ export function createDeliveryApi({ messenger, roomMessenger, transport, interna
       return json(response, 200, await roomMessenger.sendroommessage(await readJson(request)))
     }
     if (request.method === 'GET' && url.pathname === '/api/queue') {
-      return json(response, 200, { items: transport.queueItems() })
+      return json(response, 200, { items: withWorkingWord(await transport.queueItems()) })
     }
 
     return false

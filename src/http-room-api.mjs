@@ -1,5 +1,6 @@
 import { readCurrentWork } from './current-work-contract.mjs'
 import { json, readJson } from './http-response.mjs'
+import { withWorkingWord } from './working-words.mjs'
 import { recentTimeline } from './timeline-index.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
 import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
@@ -89,7 +90,7 @@ export function createRoomApi({ bots, rooms, transport, sources, messagePage, ro
     if (request.method === 'GET' && roomQueueMatch) {
       await rooms.refresh()
       if (!rooms.has(roomQueueMatch[1])) return json(response, 404, { error: 'ROOM_NOT_FOUND' })
-      return json(response, 200, { items: transport.queueItems({ roomId: roomQueueMatch[1] }) })
+      return json(response, 200, { items: withWorkingWord(await transport.queueItems({ roomId: roomQueueMatch[1] })) })
     }
 
     return false
