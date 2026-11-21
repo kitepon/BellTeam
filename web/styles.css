@@ -2033,3 +2033,11 @@ button.reply-quote { cursor: pointer; }
 .login-check { text-align: center; font-size: 18px; }
 .login-console { display: grid; gap: 10px; }
 .login-console-input { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; font: inherit; letter-spacing: .08em; }
+.app-sessions:empty { display: none; }
+.app-sessions h4 { margin: 14px 0 6px; font-size: 14px; }
+.app-session-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.app-session-text { display: grid; gap: 2px; min-width: 0; }
+.app-session-text small { color: var(--muted); }
+.login-requests { display: grid; gap: 8px; margin: 8px 0; }
+.login-request { padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff7e6; }
+.login-requests[hidden] { display: none; }

@@ -64,6 +64,7 @@ flowchart LR
 | Function | Screen | Reads | Writes | Owner of the data |
 | --- | --- | --- | --- | --- |
 | Code login (a485, usage/app-sessions.md section 7) | shell, `#login-screen` | `GET /api/session` (`login` key), `GET /api/login/{id}` | `POST /api/login/start {kind:'web', carrier:'cookie'}`, `POST /api/login/{id}/cancel`, `POST /api/login/console {code, kind, carrier}`; the server sets the HttpOnly cookie | usage |
+| Login requests, session list, 「アプリを追加」 (a485, app-sessions.md 7c/7e) | roster card, 接続 page | `GET /api/login/requests`, `GET /api/sessions`, events `login.requested` / `session.created` / `session.ended` | `POST /api/login/{id}/approve`, `…/deny`, `POST /api/login/code`, `DELETE /api/sessions/{id}` | usage |
 | Boot, session, setup phase | shell | `GET /api/session`, `GET /api/settings`, `GET /api/setup` | — | integration, onboarding |
 | Live updates | shell | `GET /api/events` (SSE) | — | integration |
 | Member and room list | roster | `GET /api/bots?avatar=omit`, `GET /api/rooms`, `GET /api/owner`, avatars `GET /api/bots/:id/avatar` | — | members |
