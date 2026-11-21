@@ -16,6 +16,8 @@ final class StoreAccount: ObservableObject {
     @Published private(set) var entitlements: [Entitlement] = []
     @Published private(set) var devices: [LinkedDevice] = []
     @Published private(set) var otherAccountProducts: [String] = []
+    /// 直近の購入に対するサーバーの答え（attached / other_account / not_confirmed / invalid / ended）。読み戻しを画面に出す。
+    @Published private(set) var purchaseWord: String?
     @Published private(set) var signedIn = false
     @Published private(set) var busy = false
     @Published private(set) var message: String?
@@ -80,7 +82,9 @@ final class StoreAccount: ObservableObject {
 
     func purchase() async {
         await run { client in
-            switch try await client.purchase(self.productId) {
+            let result = try await client.purchase(self.productId)
+            self.purchaseWord = Self.word(result)
+            switch result {
             case .attached: self.message = "購読が有効になりました。"
             case .otherAccount: throw LoginBillingError(code: "other_account")
             case .notConfirmed: self.message = "購入を受け付けました。確認が済み次第、反映します。"
@@ -170,6 +174,18 @@ final class StoreAccount: ObservableObject {
         catch { errorText = Self.words(error) }
         busy = false
         await reload()
+    }
+
+    static func word(_ result: PurchaseResult) -> String {
+        switch result {
+        case .attached: "attached"
+        case .otherAccount: "other_account"
+        case .notConfirmed: "not_confirmed"
+        case .invalid: "invalid"
+        case .ended: "ended"
+        case .cancelled: "cancelled"
+        case .pending: "pending"
+        }
     }
 
     static func words(_ error: Error) -> String {

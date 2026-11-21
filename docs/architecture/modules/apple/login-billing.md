@@ -65,6 +65,7 @@ flowchart TD
 - 運営のWorkerの接続先は`Info.plist`の`BellTeamLoginBillingURL`（ビルド設定`BELLTEAM_LOGIN_BILLING_URL`）。空の間はカードを出さない（ブレディのWorkerが決まるまで）。
 - 契約の無いまま承認しようとするとライブラリが`no_entitlement`を返し、画面は7eの文（「先に購読してください。…」）を出す。
 - 権限：`com.apple.developer.applesignin`（アプリ本体のentitlements、Macは`BellBot-Mac.entitlements`）。Apple側のアプリID（dev.kitepon.bellbot）のSign in with Appleは有効（ASC APIの実測、capability APPLE_ID_AUTH、2026-11-22 JST）。
+- 購入の読み戻し（a493）：購入のあと、サーバーの答え（attached / other_account / not_confirmed / invalid / ended）と、返った権利（商品・ストア・期限）を「BellTeamのアカウント」のカードにそのまま出す（`purchaseWord`・`entitlements`）。Mintの適合確認で「見つかって有効」を読み戻した証拠にする。
 - この版では従来の購入（StoreKit直接・`/api/subscription/verify`・Stripe・Google Playの行）を残す。外すのは切替の版（サーバーが契約をパスで確かめる時）で、トロニーの出荷順に従う。旧サーバーはこの版のアプリでも今までの証明の送信が要るため。
 
 ## ホームサーバーへの接続（a492、login-billing 0.17.0）
