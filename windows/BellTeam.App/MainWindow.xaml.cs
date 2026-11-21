@@ -59,7 +59,7 @@ public partial class MainWindow : Window, IInspectorHost
             await PrefetchOlderAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => { approvals.Dispose(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { loginRequestsLife?.Cancel(); approvals.Dispose(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         // a471-open-newest: the view is anchored to the newest end (BottomAnchoredScroller), so a new row at the end moves nothing to follow. Opening or sending anchors it there again; a reader elsewhere is told.
@@ -70,7 +70,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Quote)) UpdateQuoteBar();
             // Mac requireLogin: whenever the server asks for a login, the login screen takes the window.
             if (args.PropertyName == nameof(Workspace.NeedsLogin) && model.NeedsLogin && !connecting) { if (Dispatcher.CheckAccess()) RouteToLogin(); else Dispatcher.BeginInvoke(RouteToLogin); }
-            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } }
+            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } Dispatcher.BeginInvoke(UpdateLoginRequests); }
             // Without a selection (the welcome screen) there is no inspector column, as on the Mac.
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible && page is null) ProfileLayout();
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
@@ -80,9 +80,12 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => await PrefetchOlderAsync(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
-            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
+            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { UpdateStrip(); ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
+        // a485 7c: a request for this app's hand arrives on the stream; a failed read is tried again when the stream next reads everything.
+        model.LoginEvent += () => Dispatcher.BeginInvoke(() => { if (loginRequests is { } view) _ = view.RefreshAsync(); });
+        model.ServerChanged += () => Dispatcher.BeginInvoke(() => { if (loginRequests is { NeedsRetry: true } view) _ = view.RefreshAsync(); });
         PreviewKeyDown += Window_KeyDown;
         // Mac scenePhase .active: coming back to the window reads the goals again.
         Activated += (_, _) => { GoalBar.Reload(); (page as GoalsWindow)?.Reload(); };
@@ -313,6 +316,20 @@ public partial class MainWindow : Window, IInspectorHost
     {
         _ = CropAsync(image, variant, null, false); return cropView!;
     }
+    private LoginRequestsView? loginRequests; private CancellationTokenSource? loginRequestsLife;
+    // The requests for this app's hand sit in the strip over the window, so they are seen on any screen; only a server that enforces sessions has them.
+    private void UpdateLoginRequests()
+    {
+        loginRequestsLife?.Cancel(); loginRequestsLife = null; loginRequests = null; LoginRequestHost.Children.Clear();
+        if (model.Connected && model.SessionLoginRequired)
+        {
+            loginRequestsLife = new(); var view = loginRequests = new LoginRequestsView(new LoginApi(model.Management.Api), UpdateStrip, loginRequestsLife.Token);
+            LoginRequestHost.Children.Add(view); _ = view.RefreshAsync();
+        }
+        UpdateStrip();
+    }
+    private void UpdateStrip() => ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null && loginRequests?.HasContent != true ? Visibility.Collapsed : Visibility.Visible;
+
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;

@@ -112,6 +112,8 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // Mac eventRevision: the server events that make an open goal view read its goals again (see GoalEvents).
     public event Action? GoalEvent;
     public event Action? UpdatesChanged;
+    // a485 7c: login.requested / login.* / session.* on the stream; an app with a session reads its requests and session list again.
+    public event Action? LoginEvent;
     public event Action<MessageNotification>? MessageArrived;
     public ConversationEntry[] Conversations => all.ToArray();
     public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
@@ -311,7 +313,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                     if (recovered && ConnectionError == reconnecting) ConnectionError = null;
                     reconnecting = null;
                     ConnectionStatus = "接続済み・新着を受信中";
-                    if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
+                    var typeName = item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String ? type.GetString() : null;
+                    if (typeName == "updates") UpdatesChanged?.Invoke();
+                    else if (typeName is not null && (typeName.StartsWith("login.") || typeName.StartsWith("session."))) LoginEvent?.Invoke();
                     // Events may have been missed while the stream was down, so the first event after a reconnect reads everything again.
                     if (recovered || item.EnumerateObject().Any()) { if (GoalEvents.ShouldReload(item, hadError)) GoalEvent?.Invoke(); await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
                 }

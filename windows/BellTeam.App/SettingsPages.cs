@@ -490,6 +490,14 @@ public sealed partial class SettingsWindow
         Action? change = changeServer is null ? null : () => { if (new ConfirmationWindow("接続", "接続先を変えますか？ この端末の通知も止まります。サーバーの会話や設定は消えません。", "接続先を変える") { Owner = DialogOwner }.ShowDialog() == true) changeServer(); };
         page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", "別のサーバーにつなぎ直す", Violet, change))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
         if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
+        // a485 7d: an app that logged in by session lists the apps that are in, revokes them, and issues the "add an app" code.
+        if (workspace.SessionLoginRequired)
+        {
+            var sessions = new AppSessionsView(new LoginApi(workspace.Management.Api), () => signOut?.Invoke(), Token);
+            Action again = () => Dispatcher.BeginInvoke(() => _ = sessions.RefreshAsync());
+            workspace.LoginEvent += again; Token.Register(() => workspace.LoginEvent -= again);
+            page.Children.Add(FormSection(null, new GroupCard(Row(sessions, 0))));
+        }
         return Task.CompletedTask;
     }
 
