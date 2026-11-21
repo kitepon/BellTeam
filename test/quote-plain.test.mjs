@@ -14,6 +14,14 @@ const cases = [
   // not marks: snake_case, a lone asterisk, a product 2*3*4, plain text
   ['file_name_here と 2*3*4 と a * b', 'file_name_here と 2*3*4 と a * b'],
   ['ふつうの文です。', 'ふつうの文です。'],
+  // a selection that cuts a span (production Z145 cases) and lookalikes that are not marks
+  ['ログインね。\n\n**GoogleとAppleのログイ', 'ログインね。\n\nGoogleとAppleのログイ'],
+  ['説明が出るの。\n**Android', '説明が出るの。\nAndroid'],
+  ['途中から太字になる**ところ', '途中から太字になるところ'],
+  ['太字の終わりまで**', '太字の終わりまで'],
+  ['~~消す途中', '消す途中'],
+  ['\n*斜体の途中', '\n斜体の途中'],
+  ['2**3 と a__b と x_y_z', '2**3 と a__b と x_y_z'],
 ]
 for (const [input, expected] of cases) test(`plain quote: ${JSON.stringify(input)}`, () => {
   assert.equal(plainQuoteText(input), expected)
