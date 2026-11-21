@@ -431,3 +431,14 @@ Data ownership: unchanged. The page keeps no new storage; the request lives in c
 `stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](../../web-final-gaps.md)に記録する。
 
 確認先：`conversation-composer`、`timeline-open-queue`、`message-images`、`web-event-refresh`、`chat-input`、`http-server`の局所試験。実Web＋人工APIで入力の回収とPOST回数も確認した。実配送やApple画面の成功の証明ではない。現在の分離の検証範囲と実行方法は[担当正本](README.md)を参照する。
+
+## Working word (a471-spinner-words-web, 2026-11-21)
+
+Contract: [conversation/working-word.md](../conversation/working-word.md) (N102). Web only draws; it keeps no word list, never chooses or rotates a word.
+
+| Function | Input → output | Notes |
+| --- | --- | --- |
+| `renderQueueStatus` (+ local `workingWord`) | running queue row with `workingWord` → line `<bot>が作業中・<word>` with the existing animated "…" (`queue-working::after`) | Rooms use the same line per member. No `workingWord` (queued, failed, older server) → today's text |
+| `renderTail` → `renderThinking(botId, word)` | first running row's `workingWord` → the bubble shows `<word>…` (same animated "…") instead of the three dots | No word → three dots as before |
+
+DFD: existing queue read (`state.timelineQueue.items`, already unchanged rows) → `renderTail` → text only. No new request, SSE topic, storage, guard or asset; module.json and the whole-system diagram are unchanged. The word is a display label: not saved, not sent to the seat. Reduced motion keeps the static "…" (existing rule). Source reach: `web/conversation-timeline.js`, `test/timeline-open-queue.test.mjs`.
