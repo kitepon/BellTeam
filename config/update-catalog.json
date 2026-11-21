@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T07:49:03Z",
-  "expiresAt": "2026-11-28T07:49:03Z",
+  "publishedAt": "2026-11-21T08:33:39Z",
+  "expiresAt": "2026-11-28T08:33:39Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "63934be1215f83e19b5f9a7e1f4342bb8ac40225",
-      "versionId": "26ddc9111c638bf3e2690c5ad6a6d55a8ecb11cd4e1b91f88deed8b958a7d508",
+      "sourceCommit": "7195a31ae74748bbd7a06e38fba9abeb51db52ff",
+      "versionId": "a57f24e014dc6418485d5f0c6c06068ecf6cc0382e96593c5983b63b62cb6f70",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T064249Z/web-gateway-63934be1215f83e19b5f9a7e1f4342bb8ac40225-linux-amd64.tar.gz",
-          "bytes": 5511598,
-          "sha256": "26ddc9111c638bf3e2690c5ad6a6d55a8ecb11cd4e1b91f88deed8b958a7d508"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T083315Z/web-gateway-7195a31ae74748bbd7a06e38fba9abeb51db52ff-linux-amd64.tar.gz",
+          "bytes": 5514275,
+          "sha256": "a57f24e014dc6418485d5f0c6c06068ecf6cc0382e96593c5983b63b62cb6f70"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T064249Z/web-gateway-63934be1215f83e19b5f9a7e1f4342bb8ac40225-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10735,
-          "sha256": "35574b837ec94b2b088d629e301e069c094ea5aaeae1c673d67e54050adba72d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T083315Z/web-gateway-7195a31ae74748bbd7a06e38fba9abeb51db52ff-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10923,
+          "sha256": "cb35c63c3a3dac5d8875f1e71df88ba873ec6b2f5f05af0ef93e379b3aa86d0e"
         },
-        "signerCommit": "63934be1215f83e19b5f9a7e1f4342bb8ac40225"
+        "signerCommit": "7195a31ae74748bbd7a06e38fba9abeb51db52ff"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webのチャットを、いちばん新しい行から並べる作りに変えます。開いた瞬間に最新が下に出て、新しい行や更新でも画面が飛びません。古い行は上に足され、見ている場所は動きません。送信しても会話を開き直さず、自分の吹き出しがすぐ出ます。"
+        "Webで、上へスクロールしたあとに送信しても、自分の吹き出しが見えない場所に残らないようにします。送信すると、いちばん新しい行へ移って、そのまま追いかけます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "63934be1215f83e19b5f9a7e1f4342bb8ac40225",
-      "versionId": "0213bcad21dfb7b091479883ee77e976eb4b315202e52280b199450cdfff832f",
+      "sourceCommit": "7195a31ae74748bbd7a06e38fba9abeb51db52ff",
+      "versionId": "7e1bc2678b65ecd2695467b40ff9b48e216e05e1f89971b08286c64e99cfd463",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T064249Z/web-gateway-63934be1215f83e19b5f9a7e1f4342bb8ac40225-linux-arm64.tar.gz",
-          "bytes": 5511598,
-          "sha256": "0213bcad21dfb7b091479883ee77e976eb4b315202e52280b199450cdfff832f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T083315Z/web-gateway-7195a31ae74748bbd7a06e38fba9abeb51db52ff-linux-arm64.tar.gz",
+          "bytes": 5514275,
+          "sha256": "7e1bc2678b65ecd2695467b40ff9b48e216e05e1f89971b08286c64e99cfd463"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T064249Z/web-gateway-63934be1215f83e19b5f9a7e1f4342bb8ac40225-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11021,
-          "sha256": "e6fedf0a10bc6892f1985788d0025fe40bcd4110add2c2b11605050de3684535"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T083315Z/web-gateway-7195a31ae74748bbd7a06e38fba9abeb51db52ff-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10876,
+          "sha256": "91738da736c19e0952ab253ccec04ff2155c977db70c5ee916443239c330c2a6"
         },
-        "signerCommit": "63934be1215f83e19b5f9a7e1f4342bb8ac40225"
+        "signerCommit": "7195a31ae74748bbd7a06e38fba9abeb51db52ff"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webのチャットを、いちばん新しい行から並べる作りに変えます。開いた瞬間に最新が下に出て、新しい行や更新でも画面が飛びません。古い行は上に足され、見ている場所は動きません。送信しても会話を開き直さず、自分の吹き出しがすぐ出ます。"
+        "Webで、上へスクロールしたあとに送信しても、自分の吹き出しが見えない場所に残らないようにします。送信すると、いちばん新しい行へ移って、そのまま追いかけます。"
       ]
     },
     {
