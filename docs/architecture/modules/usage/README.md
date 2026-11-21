@@ -23,6 +23,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 [会話子へのusage限定接点](conversation-effects.md)にrouting一資格の供給・失効と、親の通知/秘密カード境界を置く。会話独立更新のRoot固定契約v1に従い、実装の公開接点をN102・共通組立て担当と合わせる。
 [残るusageの単体更新](usage-process.md)に6service factory・閉dispatcher・安定facadeとread-only restore/volatile handoffの接点を置く。runtime/通常assembly/同source実物への接続は別工程として区別する。
 
+[サーバー上のアプリのセッション（a485）](app-sessions.md)に、ログイン・課金ライブラリの「自分の本体の中で動く部品」を子へ載せる接点（`/api/home`・`home.*` system呼出・`homeLogin`行・body側のguardとconsole）を置く。部品の仕組みと配線はライブラリ側、BellTeamは組み込むだけ。
+
 [Web Pushの廃止（a487n）](web-push.md)（以前の別providerと公開契約はアーカイブ）。
 
 [正式更新候補の端末通知](update-push.md)は工程Lの最小payload・共通候補判定との接続・既通知許可/重複/失敗と、同接続先Updateへの受入口の正本。
@@ -55,6 +57,7 @@ flowchart TD
 | settings | GET/PATCH settings、get_settings/update_settings → FeatureSettings | 公開値は秘密を伏せる。各fieldは`required`（有効化に必須か）を持つ。詳細は[flows](flows.md#任意機能設定を保存したことと適用できたことを分ける)。内部は本人の提出済みsecretRequestIdだけ。保存後の適用失敗はFEATURE_APPLY_FAILEDで保存値と公開エラーが残る |
 | notify | Messenger/RoomMessengerのdirect/roomとカード作成のsecret/question callback、notifications端末HTTP | 本文/秘密値なしの通知。通知失敗を会話保存失敗へ変換しない。端末表示完了は保証しない |
 | 質問/秘密 | ask_owner/request_secret/get_secret_request/cancel_secret_request/use_secretとowner-questions/secret-requests HTTP | 作成は内部、提出/回答は公開。Bot取下げは本人のpending/submitted依頼（submittedは値を消す）。秘密はsubmitted + notification failedを返し、質問はanswered保存後の会話受付例外をそのまま共通HTTPエラー変換へ渡す |
+| home login | Apple/Windows/Linux/Androidの`/api/home/*`（nonce・prove・console・session・sessions・addresses）。bodyがpeerとbearerだけを`home.handle`へ渡す。hostの`bellteam-console` → body所有のunix socket → `home.console` | ライブラリのhome wire v1そのまま（`{error: CODE}`、判定不能は503でtokenを消さない）。Enforcedではbodyのguardが`Authorization: Bearer`を判定し、Cloudflare JWTはもう持ち主の証明にならない。別の端末の持ち主・パスは持たない |
 | 購読 | Appleのsubscription GET/verify/refresh/setup-test、Stripeのstripe/checkout・stripe/verify・stripe/manage（購読の解約・管理のURL） | 外部検証/保存結果、期限と購読状態（`source`は購入元、`isTrial`は無料期間中）。動作確認はexecution.turnを使用。WebのAI利用可否を購読で止めない |
 
 HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・prefix判定・method拒否・本文byte上限・秘密値のHTTPS/Content-Type/cross-site確認を保持する。共通HTTPの認証前処理、制御系の台帳refresh前の早期返却、秘密専用エラーと一般500の変換順は変更しない。
@@ -69,6 +72,7 @@ HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・pref
 | SecretRequests | state/secret-requests/*.json、state/secret-values/<toolId>/secrets/<id>（0600、新規作成）、private secret-sources/secret-credentials、state/secret-module-values/<handle>（0600、module-written。R7）、parent-only secret-native-credentials、busy、表示索引 |
 | OwnerQuestions | state/owner-questions/*.json、busy、表示索引。通知例外でも回答済み状態は残る |
 | PushNotifications | state/push-devices.json、provider/inflight/設定エラー。APNs設定を読み、鍵ごとに`.p8`ファイルか1Password参照から得る（[notification-process](notification-process.md#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故)） |
+| HomeLogin（a485） | shared/login-home.json（0600・原子的置換・子だけが書く）：持ち主（アカウントkまたはconsole）・enforced・登録済み接続先・nonce秘密・セッション（tokenのhash・ticket・権利・最終使用）。bodyのstate/login-enforcedは一度書いたら消さないmarker。setup code/console codeはメモリだけ |
 | Subscriptions | 通常shared/subscription.json、seatRuntimeではstate/subscription.json。検証結果/期限/保存失敗 |
 
 秘密値と依頼状態は単一transactionではない。値ファイル作成後の状態保存失敗は「値が無い」と判断しない。保存先・永続形式・再送方針は今回変更しない。
