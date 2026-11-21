@@ -81,6 +81,34 @@ const server = createServer((request, response) => {
     for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
     return json({ id })
   }
+  if (path === '/test/grow') {
+    // 既存の行（id）の本文を長くする。上の行の高さが後から変わる場合（畳んだ群の伸び・本文の描き直し）の再現。
+    const id = url.searchParams.get('id')
+    const row = messages.find(item => item.id === id)
+    if (!row) return json({ error: 'NOT_FOUND' }, 404)
+    row.message = row.message + '\n\n' + '後から足された長い続きの文です。'.repeat(20)
+    const payload = { at: new Date().toISOString(), all: false, topics: ['timeline'], botIds: ['bot-one'], roomIds: [] }
+    for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
+    return json({ id })
+  }
+  if (path === '/test/burst') {
+    // 働いている機械席：道具・フック・思考・言葉の行が続けざまに届く。畳む行は同じfold_groupで束ねられて育つ。
+    const n = Number(url.searchParams.get('n') ?? 30), interval = Number(url.searchParams.get('interval') ?? 250)
+    const kinds = ['tool_use', 'tool_use', 'hook', 'thinking', 'tool_use', 'words']
+    for (let i = 0; i < n; i++) setTimeout(() => {
+      const kind = kinds[i % kinds.length]
+      const id = `b${String(i + 1).padStart(3, '0')}`
+      const folded = kind === 'tool_use' || kind === 'hook'
+      messages.push({
+        id, kind: 'machine_event', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), delivery: 'delivered',
+        message: folded ? `${kind} ${id}` : `${kind} ${id} 作業の途中経過です`,
+        machine_event: { seq: 1000 + i, view: kind, display: folded ? 'fold' : 'show', fold_group: kind, fold_count: 1, title: kind, text: `${kind} ${id} 作業の途中経過です。`, ...(kind === 'tool_use' ? { tool: { name: 'Bash', summary: 'ls' } } : {}) },
+      })
+      const payload = { at: new Date().toISOString(), all: false, topics: ['timeline'], botIds: ['bot-one'], roomIds: [] }
+      for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
+    }, i * interval)
+    return json({ n })
+  }
   if (path === '/test/notify') {
     const bot = url.searchParams.get('bot')
     if (bot !== 'bot-one' && bot !== 'bot-two') return json({ error: 'UNKNOWN_BOT' }, 400)

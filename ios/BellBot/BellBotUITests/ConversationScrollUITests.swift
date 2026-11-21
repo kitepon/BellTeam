@@ -119,6 +119,66 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertGreaterThan(try requests().count, before)
     }
 
+    private func waitForSubscriber() throws {
+        for _ in 0..<50 {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data("/test/proof")) as? [String: Any])
+            if (proof["subscribers"] as? Int ?? 0) > 0 { return }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTFail("試験用SSEへ接続できない")
+    }
+
+    /// a471-scroll-jump：少し上を読んでいる間に、働いている席の道具・フック・思考・言葉の行が続けざまに届いても、読んでいる行は動かない。
+    func testBurstOfMachineRowsWhileReadingAboveKeepsPosition() throws {
+        try openConversation("ユキ", failBefore: false, total: 60, events: true)
+        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+        try waitForSubscriber()
+        let scroll = conversationScroll()
+        for _ in 0..<2 { scroll.swipeDown() }
+        Thread.sleep(forTimeInterval: 2)
+        let reading = try XCTUnwrap((1...59).reversed().map { text(String(format: "m%03d", $0)) }.first { $0.exists && $0.isHittable }, "読んでいる行")
+        let id = reading.identifier
+        let before = reading.frame.minY
+        _ = try data("/test/burst?n=36&interval=300")
+        Thread.sleep(forTimeInterval: 14)
+        let after = app.descendants(matching: .any)[id].firstMatch
+        XCTAssertEqual(after.frame.minY, before, accuracy: 2, "働いている席の行が続けて届いても、読んでいる位置が動かない")
+        XCTAssertTrue(app.buttons["新着メッセージ"].exists, "上を読んでいる間は新着ボタンを出す")
+    }
+
+    /// a471-scroll-jump：読んでいる行より上の行の高さが後から変わっても（畳んだ群の伸び・本文の描き直し）、読んでいる行の上端は動かない。
+    func testRowAboveTheReadingRowGrowingKeepsItsPosition() throws {
+        try openConversation("ユキ", failBefore: false, total: 60, events: true)
+        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+        try waitForSubscriber()
+        let scroll = conversationScroll()
+        for _ in 0..<3 { scroll.swipeDown() }
+        Thread.sleep(forTimeInterval: 2)
+        let visible = (31...59).map { text(String(format: "m%03d", $0)) }.filter { $0.exists && $0.isHittable }
+        let reading = try XCTUnwrap(visible.last, "読んでいる行")
+        let above = try XCTUnwrap(visible.first, "その上の行")
+        XCTAssertNotEqual(above.identifier, reading.identifier)
+        let aboveId = String(above.identifier.dropFirst("message-text-".count))
+        let before = reading.frame.minY
+        _ = try data("/test/grow?id=\(aboveId)")
+        Thread.sleep(forTimeInterval: 4)
+        XCTAssertEqual(app.descendants(matching: .any)[reading.identifier].firstMatch.frame.minY, before, accuracy: 2,
+                       "上の行（\(aboveId)）が伸びても、読んでいる行の上端が動かない")
+    }
+
+    /// a471-scroll-jump：末尾にいる時に行が続けて届いたら、末尾を追い続ける（瞬時に動かさず、なめらかに送る）。
+    func testBurstOfMachineRowsAtBottomFollowsToTheNewestRow() throws {
+        try openConversation("ユキ", failBefore: false, total: 60, events: true)
+        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+        try waitForSubscriber()
+        _ = try data("/test/burst?n=36&interval=300")
+        Thread.sleep(forTimeInterval: 14)
+        let last = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'b036' OR value CONTAINS 'b036'")).firstMatch
+        XCTAssertTrue(last.waitForExistence(timeout: 5), "最後に届いた言葉の行が見える")
+        XCTAssertTrue(last.isHittable)
+        XCTAssertFalse(app.buttons["新着メッセージ"].exists, "末尾を追えている間は新着ボタンを出さない")
+    }
+
     /// a471-fill-drawn：読んだ頁が全部畳まれる行で、描かれる行がほとんど増えなくても、描かれた量が足りるまで頁を読み続ける。
     /// 最新の100件は先頭90件が畳まれた道具の行、次の500件も畳まれた行（先頭の畳んだ行へ束ねられ、行の並びが変わらない）、その先の500件は普通の行。
     func testAllFoldedPageDoesNotEndTheFillLoop() throws {
