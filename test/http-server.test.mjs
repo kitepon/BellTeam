@@ -101,7 +101,7 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
   assert.equal(botsResponse.status, 200)
   assert.deepEqual(await botsResponse.json(), { bots: [{
     id: bot.id, displayName: bot.displayName, harness: 'grok', color: 'rose', online: true,
-    name: bot.name, model: '', reasoningEffort: '', fastMode: false, configurationLocked: false, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarLarge: '', avatarSource: '', avatarLargeSource: '', avatarVersion: '',
+    name: bot.name, model: '', reasoningEffort: '', fastMode: false, configurationLocked: false, pinned: false, pinnedAt: null, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarLarge: '', avatarSource: '', avatarLargeSource: '', avatarVersion: '',
     avatarLargeVersion: '', avatarSourceVersion: '',
     avatarLargeSourceVersion: '', avatarCrop: null, avatarLargeCrop: null, terminalId: '', projectRoot: '',
     currentWork: { state: 'unknown', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: null, source: null },
