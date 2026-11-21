@@ -17,7 +17,7 @@ internal sealed class FakeServer(string session = """{"authenticated":true,"auth
             "/api/rooms?avatar=omit" => """{"rooms":[]}""",
             "/api/queue" => """{"items":[]}""",
             "/api/owner?avatar=omit" => """{"owner":{"name":"利用者"}}""",
-            "/api/bots/b1/messages?limit=30" or "/api/bots/b1/messages?limit=100" => """{"items":[{"id":"m1","at":"2026-11-12T00:00:00Z","message":"hi","direction":"incoming"}],"has_more":false}""",
+            "/api/bots/b1/messages?limit=30" or "/api/bots/b1/messages?limit=1000" => """{"items":[{"id":"m1","at":"2026-11-12T00:00:00Z","message":"hi","direction":"incoming"}],"has_more":false}""",
             _ => null
         };
         return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
