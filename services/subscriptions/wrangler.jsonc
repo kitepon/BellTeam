@@ -8,27 +8,34 @@
   // Privacy rule 2026-11-19: no request metadata (IP, UA, URL) is kept by Cloudflare Workers Logs.
   "observability": { "enabled": false },
   "durable_objects": {
-    "bindings": [{ "name": "SUBSCRIPTION_VERIFIER", "class_name": "SubscriptionVerifier" }]
+    "bindings": [{ "name": "LOGIN_BILLING_STORAGE", "class_name": "LoginBillingStorage" }]
   },
-  "migrations": [{ "tag": "subscription-verifier-v1", "new_sqlite_classes": ["SubscriptionVerifier"] }],
+  "migrations": [
+    { "tag": "subscription-verifier-v1", "new_sqlite_classes": ["SubscriptionVerifier"] },
+    { "tag": "login-billing-storage-v2", "new_sqlite_classes": ["LoginBillingStorage"], "deleted_classes": ["SubscriptionVerifier"] }
+  ],
   "vars": {
-    "APPLE_ENVIRONMENT": "Production",
     "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
-    "STRIPE_PRICE_ID": "price_1UckaILlZAF5ymoyTtNpI5pK",
-    "STRIPE_RETURN_URL": "https://kitepon.dev/support/",
-    "STRIPE_AUTOMATIC_TAX": "true",
-    "STRIPE_REQUIRE_TERMS": "true"
+    "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
+    "GOOGLE_SIGNIN_AUDIENCES": "",
+    "LB_PASS_KEY_CURRENT_ID": "k1"
   },
   "env": {
     "sandbox": {
       "name": "bellteam-subscriptions-sandbox",
       "observability": { "enabled": false },
       "durable_objects": {
-        "bindings": [{ "name": "SUBSCRIPTION_VERIFIER", "class_name": "SubscriptionVerifier" }]
+        "bindings": [{ "name": "LOGIN_BILLING_STORAGE", "class_name": "LoginBillingStorage" }]
       },
+      "migrations": [
+        { "tag": "subscription-verifier-v1", "new_sqlite_classes": ["SubscriptionVerifier"] },
+        { "tag": "login-billing-storage-v2", "new_sqlite_classes": ["LoginBillingStorage"], "deleted_classes": ["SubscriptionVerifier"] }
+      ],
       "vars": {
-        "APPLE_ENVIRONMENT": "Sandbox",
-        "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83"
+        "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
+        "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
+        "GOOGLE_SIGNIN_AUDIENCES": "",
+        "LB_PASS_KEY_CURRENT_ID": "k1"
       }
     }
   }

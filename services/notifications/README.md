@@ -1,6 +1,6 @@
 # 運営の通知中継
 
-利用者のコンテナはAPNsの秘密鍵を持たず、通知先端末に登録された本人の署名付き購入情報と通知をこのサービスへ送る。共有サーバーに保存された別の端末の購入情報は使わない。このサービスは `services/subscriptions/worker.mjs` の公開検証入口を呼び、Appleの署名検証と最新の購読状態の照会を行う。有効な購読だけを `APNsProvider` へ渡し、APNsのHTTP 200を確認してから `{accepted:true}` を返す。APNsが受理した後の端末への表示は端末で確認する。Webの会話とサーバーの予定実行は、この通知の購読確認にかかわらず無料で継続する。
+利用者のコンテナはAPNsの秘密鍵を持たず、利用者のサーバーが持つログインのパス（login-billing、a485）と通知をこのサービスへ送る。パスの中身は読めない。このサービスはWorkerの `POST /v1/entitlement` へパスを `Authorization: Bearer` で渡し、答えの `entitled` だけを見る。パスが無効なら401（`PASS_INVALID`・`PASS_EXPIRED`・`PASS_REFUSED`）、契約が無ければ402（`SUBSCRIPTION_REQUIRED`）、Workerに届かなければ502（`SUBSCRIPTION_CHECK_FAILED`）を返す。APNsの要求は `pass`、FCMの要求は `proof: { pass }`（運営の公開契約では1つの文字列を持つ不透明な組）で送る。有効な購読だけを `APNsProvider` へ渡し、APNsのHTTP 200を確認してから `{accepted:true}` を返す。APNsが受理した後の端末への表示は端末で確認する。Webの会話とサーバーの予定実行は、この通知の購読確認にかかわらず無料で継続する。
 
 追加の利用者ID・端末台帳・配送キューは持たず、失敗の再試行もしない。端末登録は利用者のコンテナが既存の保存先で所有する。サービスのエラーはコンテナへ返し、既存の通知診断へ記録する。会話本文・秘密入力値・Appleの鍵は通知の送信データへ含めない。
 
@@ -8,7 +8,7 @@
 
 リポジトリ直下で `npm ci` し、`node services/notifications/index.mjs` で起動する。運営のHTTPS公開先からこのNode.jsサービスへ転送する。`HOST` と `PORT` はNode.jsの待受設定に使う。
 
-`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）か `{keyId, reference}`（`op://<保管庫のID>/<アイテムのID>/<フィールド>`、値は `.p8` の全文）を選べる。referenceを使う時は `op`（PATH上か `OP_CLI_PATH`）と `OP_SERVICE_ACCOUNT_TOKEN` を起動環境に置く。鍵を替える時は `config.json` を書き換えてサービスを再起動する。購読確認には `APPLE_ENVIRONMENT`・`APPLE_ISSUER_ID`・`APPLE_KEY_ID`・`APPLE_PRIVATE_KEY` が必要で、意味と取得方法は [購読確認サービス](../subscriptions/README.md) に従う。ProductionとSandboxの購読確認はそれぞれ別の実行環境にする。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
+`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）か `{keyId, reference}`（`op://<保管庫のID>/<アイテムのID>/<フィールド>`、値は `.p8` の全文）を選べる。referenceを使う時は `op`（PATH上か `OP_CLI_PATH`）と `OP_SERVICE_ACCOUNT_TOKEN` を起動環境に置く。鍵を替える時は `config.json` を書き換えてサービスを再起動する。購読の確認には `BELLTEAM_ENTITLEMENT_URL`（Workerの `POST /v1/entitlement`、例 `https://bellteam-subscriptions.kitepon.workers.dev/v1/entitlement`）が必要で、Workerの仕様は [ログイン・課金Worker](../subscriptions/README.md) に従う。ProductionとSandboxの中継はそれぞれ別のWorkerを指す。中継はApple・Googleの鍵もkKeyも持たない。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
 
 利用者は追加機能の通知設定へこのサービスのルートURLを登録する。通知設定の変更時は `GET /v1/notifications/status` で実接続とAPNsの設定済み環境を確認する。`POST /v1/notifications/send` は `{signedTransaction,device,payload,id}` を受け取る。`device` と `payload` は `src/push-notifications.mjs` の共通実装が生成する。
 

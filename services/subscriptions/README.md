@@ -1,73 +1,73 @@
-# Apple購読確認Worker
+# BellTeam login and billing Worker (operator side)
 
-利用者のサーバーからAppleの署名付き取引を受け取り、Appleの最新状態を照会する。会話本文・AIの認証情報は受け取らない。無料のDurable Objectsで検証を行い、ストレージAPIとアラームは使わない。Cloudflare内部にはSQLiteを伴う。商品・アプリの識別子は`product.json`が正本。
+Owner: Bready (bot-823b56e9). Since a485 this Worker is the server part of the shared login/billing library `@kitepon/login-billing` (pinned **0.7.2**, contract 1.16, `vendor/kitepon-login-billing-0.7.2.tgz`, sha256 `cd65aeef2f1ffcffb0faa299185e4c1fc74be5ea9a3d6e3005a5234e95bcb848`). Mechanism: Mint's `docs/login-billing/design-qr-pass.md`; ruling for BellTeam: `rulings/bellteam.md`. Owner decisions: App Store + Google Play only, Stripe abolished (2026-11-20), D1 = B, D2 no cap on servers per contract, D3 developer mode stays the user server's own switch.
 
-## 照会
+The Worker holds the library's secrets (kKey, pass keys, store keys). It runs only at the operator and is never embedded in a user's BellTeam server: the user's server is a *device that the owner's phone logs in*, and it calls the Worker; the operator never calls a user's server.
 
-`POST /v1/subscriptions/verify`へ次のJSONを送る。
-
-```json
-{ "signedTransaction": "Appleの署名付き取引（JWS）" }
+## Function diagram
+```mermaid
+flowchart LR
+  Phone["Phone app (iPhone/iPad/Mac, later Android)<br/>Apple/Google sign-in, store purchase"]
+  Srv["User's BellTeam server<br/>holds one handoff pass (file, 0600)"]
+  Relay["Notification relay (operator)"]
+  subgraph W["Worker bellteam-subscriptions"]
+    Front["fetch(): routing, per-caller rate limit"]
+    Lib["library server part<br/>createLoginBilling + createHandler(/auth/v1)"]
+    Ent["POST /v1/entitlement<br/>pass -> {entitled, validUntil, source}"]
+    Pages["public pages (public-pages.mjs)"]
+  end
+  Store[("Durable Object LoginBillingStorage<br/>nonces, handoff slots, refused pass ids, notBefore, each with an expiry")]
+  Stores["Apple App Store Server API / Google Play Developer API"]
+  Phone -->|"/auth/v1/signin, receipt, handoff/approve, confirm, refuse"| Front
+  Srv -->|"/auth/v1/handoff/start, take, signout"| Front
+  Srv -->|"POST /v1/entitlement (Bearer pass), hourly"| Front
+  Front --> Lib --> Store
+  Front --> Ent --> Lib
+  Lib --> Stores
+  Srv -->|"push: payload, device token, pass"| Relay
+  Relay -->|"POST /v1/entitlement (Bearer pass)"| Front
 ```
+Gone since a485: `POST /v1/subscriptions/verify` (verify by receipt), Stripe checkout / portal / verify, the Stripe and Apple/Google receipt code the library replaces, `STRIPE_*` and `APPLE_ENVIRONMENT` variables. Kept untouched, not used by the Worker: `apple-jwt.mjs`, `apple-roots.json` and the Apple library dependency (the probes under `experiments/subscription-worker-probe` and `test/subscription-native-verifier.test.mjs` use them); `endpoints.json` and `product.json` stay because the user server's `src/subscriptions.mjs` reads them until a485-lb-server changes it.
 
-Sandboxの実応答では`appAppleId`が省略されるため、Sandboxに限り省略を認める。値がある場合は商品設定との一致を確認し、Productionでは必須とする。
+## Data flow
+| Data | Created by | Held where | Lifetime | Notes |
+|---|---|---|---|---|
+| Sign-in nonce | `signin/nonce` | LoginBillingStorage | 5 min, single use | tied to no account |
+| Handoff slot (slot id, short code, take secret, label, payloads) | `handoff/start` | LoginBillingStorage | 5 min or pickup | label is a fixed app kind, no person's name |
+| Refused pass id | `refuse`, `signout`, `signin` with `replaces` | LoginBillingStorage | until the pass would have ended (14 days) | random number |
+| `{K, notBefore}` for "stop all others" | `signin` with `stopOthers` | LoginBillingStorage | notBefore + 14 days | K is a number from the provider id and kKey |
+| Pass (sealed) | library | the device or the user's server | 14 days, renewed on use | never stored at the operator |
+| Store answer | Apple / Google | Worker isolate memory | 10 min | best effort, not needed for correctness |
+| Caller rate counters | `fetch()` | Worker isolate memory | 1 min | key = hash of the connecting address, never persisted or logged |
+Nothing else is written: no account row, no subscription row, no e-mail, no IP address, no id token. Cloudflare Workers Logs stay off (`observability.enabled: false`).
 
-Apple公式ライブラリで提出取引を検証し、元の取引IDで`Get All Subscription Statuses`を呼ぶ。最新取引と更新情報も検証する。有効な購読では`entitled: true`と`validUntil`を返す。更新停止は支払済み期間を短縮せず、期限切れ・支払い再試行・返金では`entitled: false`を返す。Appleが示す支払い猶予期間はその期限まで有効にする。
+## Routes
+All answers are JSON, `Cache-Control: no-store` for the product route.
+| Route | Pass | Answer |
+|---|---|---|
+| `POST /auth/v1/*` | per library | the library's wire contract v1 (`docs/wire-v1.md` of the library): `signin/nonce`, `signin`, `receipt`, `handoff/start`, `handoff/approve`, `handoff/confirm`, `handoff/take`, `refuse`, `signout`; errors `{error: <code>}` |
+| `POST /v1/entitlement` | any live pass (`Authorization: Bearer`) | `{entitled, validUntil?, source?}`. `entitled` is true when the pass's account has a live `dev.kitepon.bellbot.monthly` subscription (`apple` or `google`); `validUntil` is its end (ISO 8601, no trial flag: entitlement is the store contract only); a renewed pass comes in the `Login-Billing-Pass` header. Errors are the library's codes (`pass_invalid`, `pass_expired`, `pass_refused`: 401). A live pass with no contract answers 200 `{entitled:false}` |
+| `GET /`, `/support`, `/privacy`, `/server/*` | - | unchanged redirects and server install files (`public-pages.mjs`) |
+Rate limit on the two anonymous writers (`signin/nonce`, `handoff/start`): per caller, 30 per minute, in the isolate's memory. `rate_limited` (429) also when the storage cap (100 000 rows) is reached. shortcut: per-isolate counters, upgrade to a Durable Object counter if abuse appears.
 
-Appleとの通信失敗・設定不足・署名の不一致は、それぞれエラー応答とする。期限切れの応答へ置き換えず、再試行や本番からSandboxへの切替もしない。端末数・サーバー数の台帳は作らない。
+## Configuration
+Product values are in `product.json` (bundle id / package name / product id) and `wrangler.jsonc` vars; secrets are set with `wrangler secret put` through the shared 1Password tool, never printed.
+| Name | Kind | Meaning |
+|---|---|---|
+| `LB_KKEY` | secret | kKey (32 random bytes, base64url). **Different for the test Worker and production** (contract 1.13); a lost kKey cannot be repaired |
+| `LB_PASS_KEY_CURRENT`, `LB_PASS_KEY_CURRENT_ID`, optional `LB_PASS_KEY_PREVIOUS`, `LB_PASS_KEY_PREVIOUS_ID` | secret / var | pass sealing keys (rotation: previous stays for 14 days) |
+| `APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | var, secret, secret | App Store Server API in-app purchase key (existing) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT` | secret | Play Developer API service account JSON (existing) |
+| `APPLE_SIGNIN_AUDIENCES` | var | comma list: Apple bundle ids accepted as id-token audience |
+| `GOOGLE_SIGNIN_AUDIENCES` | var | comma list: Google OAuth client ids accepted as audience |
+Without `LB_KKEY` or the pass key every route answers 503 `{error: "not_configured"}`. A store whose key is missing is left out of the library's configuration: its receipts come back `invalid` and no entitlement is listed. The Worker never uses billing "off" and so never opens a free path.
 
-Apple公式クライアントの認証・応答解析は維持し、HTTP通信の拡張点だけを標準`fetch`へ置き換える。Workersの`node-fetch`変換では、公式ライブラリのCommonJSの`default`参照が関数にならず、Appleへの通信前に失敗するため。
+## Durable Object
+`LoginBillingStorage` (SQLite-backed, one instance `login-billing`): `get`, `put(key, value, ttlMs)`, `delete`; expired rows are swept on write (no alarms); `put` answers `full` at the cap and the front throws the library's `StorageFull`. The old class `SubscriptionVerifier` is removed by migration `login-billing-storage-v2` (it never stored anything).
 
-## Stripe
+## Release order and environments
+- Test Worker `bellteam-subscriptions-sandbox` first, with its own kKey. Production `bellteam-subscriptions` is switched only when all apps and the user server ship (Tronie's release order). Real-store runs go to production from TestFlight / the internal track (contract 1.13 section "Test servers"); the test Worker is for the wire, the storage and the relay.
+- Deploy: `npm exec --yes --package wrangler@latest -- wrangler deploy --env sandbox` (production `--env ""`), from a commit that is an ancestor of `origin/main`; Cloudflare key use is approved by the Owner each time. Rollback: `wrangler rollback <version>`.
 
-同じ`POST /v1/subscriptions/verify`へ`{ "stripeSessionId": "cs_..." }`または`{ "stripeSubscriptionId": "sub_..." }`を送ると、Stripe APIで購読を照会し、Appleと同じ形（`state`・`entitled`・`validUntil`・`autoRenewing`）に加えて`source: "stripe"`・`subscriptionId`・`isTrial`を返す。Session IDは購読IDへ引き当てる。価格が`STRIPE_PRICE_ID`と一致しない購読は`INVALID_PRODUCT`、Stripeとの通信失敗は`STRIPE_API_ERROR`とし、期限切れへ置き換えない。`trialing`・`active`は有効、`past_due`は`billing_retry`、それ以外は`expired`。環境は購読の`livemode`で決める（本番Workerには本番キー、Sandbox Workerにはテストキーを置く）。
-
-`POST /v1/subscriptions/stripe/checkout`はCheckout Session（購読、無料1か月。料金は税込。`STRIPE_AUTOMATIC_TAX`が`true`の時は`automatic_tax[enabled]=true`を送り、Stripe Taxで税を計算する。価格は`tax_behavior=inclusive`で金額は変えない）を作り`{ url, sessionId }`を返す。Google Playを足す時は、`verify`の購入元の振り分けへ分岐を一つ足す。
-
-`stripe/checkout`へ`{ "sessionId": "cs_..." }`を送ると新しいSessionを作らず、そのSessionの現在の状態`{ sessionId, status: "open"|"complete"|"expired", url }`を返す（`url`は`open`の時だけ）。利用者のサーバーが同じ購入画面を使い回して二重に作らないための照会。`POST /v1/subscriptions/stripe/portal`へ`{ "stripeSubscriptionId": "sub_..." }`を送ると、その購読の価格が`STRIPE_PRICE_ID`と一致することを確かめた上で、購読の顧客のStripe顧客ポータルのURL`{ url }`を返す（利用者が自分で解約・再開・支払い方法の変更をする入口。戻り先は`STRIPE_RETURN_URL`）。制限付きキーにはCustomer portalの書込権限が要る。
-
-設定は`STRIPE_SECRET_KEY`（制限付きキー: Checkout Sessions書込・Subscriptions読取。secret）、`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`（var）、任意の`STRIPE_AUTOMATIC_TAX`（var。本部住所をStripeへ登録した後に`true`）、任意の`STRIPE_REQUIRE_TERMS`（var。StripeのアカウントへTerms URL `https://kitepon.dev/terms/` を登録した後に`true`。`true`の時、Checkoutは`consent_collection[terms_of_service]=required`と、付属規約・特商法`#bellteam`へのリンクを含む同意文を付ける。a460）。必須のどれかが無ければ`SUBSCRIPTION_NOT_CONFIGURED`。本番Workerは2026-11-18に配備し、本物のCheckout Sessionが開くことを確認済み（`STRIPE_PRICE_ID`・`STRIPE_RETURN_URL`は`wrangler.jsonc`、戻り先は`https://kitepon.dev/support/`）。
-
-## Google Play
-
-同じ`POST /v1/subscriptions/verify`へ`{ "googlePurchaseToken": "..." }`を送ると、Play Developer APIの`purchases.subscriptionsv2.get`（`applications/{product.json の bundleId}/purchases/subscriptionsv2/tokens/{token}`）で購読を照会し、Apple・Stripeと同じ形（`state`・`entitled`・`validUntil`・`autoRenewing`・`isTrial`）に`source: "google"`を足して返す。購入トークンは返さない。商品が`product.json`の`productId`と一致する項目が無ければ`INVALID_PRODUCT`。Googleが無効・不明の購入トークンとして断った時（400・404・410）は`INVALID_GOOGLE_PROOF`、それ以外の通信・応答の失敗は`GOOGLE_API_ERROR`とし、期限切れへ置き換えない。購読の状態は`ACTIVE`→`active`、`CANCELED`で期限が先→`active`（`autoRenewing:false`）、`IN_GRACE_PERIOD`→`grace`、`ON_HOLD`→`billing_retry`（有効にしない）、`EXPIRED`・`PAUSED`・`PENDING_PURCHASE_CANCELED`→`expired`。`SUBSCRIPTION_STATE_PENDING`は購入が確定していないため`GOOGLE_PURCHASE_PENDING`（409）。期限は項目の`expiryTime`。`offerPhase.freeTrial`がある間は`isTrial: true`。環境は`testPurchase`があれば`Sandbox`、無ければ`Production`（ライセンステスターの購入はSandbox。利用者のサーバーの環境と合わない結果は本体が断る）。
-
-認証は`GOOGLE_PLAY_SERVICE_ACCOUNT`（secret。サービスアカウントのJSON）から作る。JWT（RS256、scope `androidpublisher`）をWebCryptoで署名してアクセストークンを得て、期限の手前までWorkerの実行環境内に保持する。保存先・台帳は作らない。未設定なら`SUBSCRIPTION_NOT_CONFIGURED`。サービスアカウントにはPlay Consoleの「財務データ・注文・キャンセルアンケートの回答の表示」の権限が要る。確認済み（acknowledge）はAndroidアプリが行い、Workerは購入を変更しない。
-
-## 証明書の検証
-
-`apple-roots.json`はApple公式PKIから取得した実サービス用のルート証明書。署名・証明書チェーン・Appleの拡張OID・アプリ・実行環境を確認する。公式ライブラリのオフライン検証を使い、証明書の有効期間は署名日時で確認する。OCSPによる証明書のオンライン失効照会は行わない。購読の失効・返金はAppleの最新購読状態と検証済みの取引から判定する。
-
-公開CPU試験・自動試験の証明書と鍵は、実サービスの信頼ルートに含めない。
-
-## 設定と公開
-
-App Store Connectの管理用キーとは別に、「ユーザとアクセス → 統合 → アプリ内課金」で作成したキーが必要。本文をリポジトリやアプリへ含めない。
-
-```sh
-npm ci
-npm exec --yes --package wrangler@latest -- wrangler secret put APPLE_KEY_ID --env sandbox
-npm exec --yes --package wrangler@latest -- wrangler secret put APPLE_PRIVATE_KEY --env sandbox < /absolute/path/SubscriptionKey_KEYID.p8
-```
-
-本番では`--env ""`を使う。Issuer IDと実行環境は`wrangler.jsonc`、キーIDと秘密鍵はCloudflareのsecretに置く。本番とSandboxは別のWorkerとし、各Workerは設定された環境だけを認める。
-
-公開は対象commitが`origin/main`の祖先であることを確認してから行う。
-
-```sh
-npm exec --yes --package wrangler@latest -- wrangler deploy --env sandbox
-```
-
-入口のWorkerはDurable Objectを呼び出し、検証はDurable Objectの標準CPU上限で実行する。無料プランへ配置できない`limits.cpu_ms`は指定しない。オーナーの承認を得た購入専用キーは本番とSandboxへ登録済み。両環境への配置と不正リクエスト・署名へのエラー応答は確認済み。照会先は`endpoints.json`、配置と検証の状況は`../../docs/subscription-setup.json`が正本。Sandboxの実購入情報を公開WorkerとiPhoneからのサーバー反映で検証済み。端末の復元ボタンの確認とProduction APIの認証確認は未完了。
-
-## 試験
-
-リポジトリ直下で`npm ci`してから、対象だけを実行する。
-
-```sh
-node --test test/subscription-worker.test.mjs
-```
-
-Stripeは通信相手だけを試験応答に置き換えて確かめる。
-
-試験専用に生成した公開証明書・鍵を使い、実際の公式検証器を通す。Apple APIの通信相手だけを試験応答に置き換える。実購入・端末からの復元・Apple APIへの実通信はこの試験の範囲外。
+## Tests
+`node --test test/subscription-worker.test.mjs test/notification-relay.test.mjs test/fcm-notifications.test.mjs` run the Worker against the library's testing entry (fake sign-in keys and store answers, same code paths) and an in-memory SQLite stand-in for the Durable Object. The real stores are not called by tests.
