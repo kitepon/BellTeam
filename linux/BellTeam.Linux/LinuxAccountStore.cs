@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BellTeam.Core;
 using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.Linux;
@@ -9,5 +10,8 @@ internal static class LinuxAccountStore
 {
     private static DesktopLoginBilling? billing;
     private static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
+    private static IHomeLink? home;
+    // The one home connection of the app (library rule: one per home server); its record is home.json beside the other per-user files.
+    public static IHomeLink? Home => home ??= Billing is { } lb ? new LinuxHomeLink(lb, new FileHomeStore(Path.Combine(SettingsStore.UserDirectory, "home.json"))) : null;
     public static DesktopLoginBilling? Billing => billing ??= Product("loginBillingWorkerUrl") is { } worker ? new DesktopLoginBilling(worker, FilePassStore.ForApp("BellTeam")) : null;
 }

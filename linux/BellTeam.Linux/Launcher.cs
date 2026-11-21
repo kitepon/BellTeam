@@ -69,11 +69,12 @@ internal static partial class Launcher
         instance = new SingleInstance(() => Dispatcher.UIThread.Post(() => main?.Raise()));
         if (!instance.IsPrimary) { desktop.Shutdown(0); return; }
         SettingsWindow.AccountEntry = token => new LinuxAccountCard(token);
-        var tokens = new FileSessionTokenStore(SettingsStore.UserDirectory);
+        var home = LinuxAccountStore.Home;
+        ISessionTokenStore tokens = home is null ? new FileSessionTokenStore(SettingsStore.UserDirectory) : new CompositeSessionTokenStore(home, new FileSessionTokenStore(SettingsStore.UserDirectory));
         var workspace = new LinuxWorkspace(origin => new BellApi(origin) { SessionToken = tokens.Load(origin) });
         // Desktop notifications: default off, only while the app runs; a click opens the conversation (or the Update sheet) in the window.
         var notifications = new DesktopNotifications(new FreedesktopNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.UIThread.Post(() => _ = main!.OpenNotificationAsync(server, target)));
-        main = new MainWindow(workspace, notifications: notifications, tokens: tokens);
+        main = new MainWindow(workspace, notifications: notifications, tokens: tokens, home: home);
         desktop.MainWindow = main;
         main.Closed += (_, _) => { workspace.Dispose(); instance.Dispose(); };
         // The window is already gone here, so the bus calls that close the open notifications get a few seconds before the process ends.

@@ -16,7 +16,10 @@ namespace BellTeam.Android;
 public sealed class PhoneShell : UserControl, IMessageHost
 {
     private readonly AccessSession access = new();
-    private readonly ISessionTokenStore tokens = new KeystoreSessionTokenStore();
+    private readonly ISessionTokenStore tokens = AccountStore.Home is { } home ? new CompositeSessionTokenStore(home, new KeystoreSessionTokenStore()) : new KeystoreSessionTokenStore();
+    // a492: a home server (login-billing HomeConnection); the login screen of one that has no kept login yet.
+    private readonly IHomeLink? home = AccountStore.Home;
+    private HomeProbe? homeBinding;
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settings = new(SettingsStore.UserDirectory);
     private readonly Border startupHost = new() { IsVisible = false };
@@ -415,7 +418,11 @@ public sealed class PhoneShell : UserControl, IMessageHost
             case nameof(LinuxWorkspace.Selected): unreadNew = false; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
-            case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
+            case nameof(LinuxWorkspace.NeedsLogin):
+                if (!model.NeedsLogin || phase == StartupPhase.SignIn) break;
+                // A home server's 401: the library has dropped its record; connecting again asks to log in at the home server.
+                if (home?.Token(ServerOrigin.Parse(model.Server).AbsoluteUri) is not null) { tokens.Clear(ServerOrigin.Parse(model.Server)); _ = ConnectAsync(model.Server); break; }
+                ShowStartup(StartupPhase.SignIn); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): { var text = model.ActionError ?? model.ConnectionError; status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); break; }
             case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => await PrefetchOlderAsync(), DispatcherPriority.Background); break;
             case nameof(LinuxWorkspace.SendError): sendError.Text = model.SendError; sendError.IsVisible = !string.IsNullOrEmpty(model.SendError); break;
@@ -459,7 +466,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, () => { }, model.Server),
             StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
-            StartupPhase.SignIn => model.SessionLoginRequired ? SessionSignIn() : new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
+            StartupPhase.SignIn => homeBinding is { } probe ? new HomeConnectView(home!, probe, "android", ServerOrigin.Parse(model.Server), () => { homeBinding = null; _ = ConnectAsync(model.Server); }, () => ShowStartup(StartupPhase.Setup)) : model.SessionLoginRequired ? SessionSignIn() : new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, async ready => { await model.ReconnectAsync(); await EnterAsync(generation, ready); }, () => ShowStartup(StartupPhase.Setup), model.ConnectionToken)
         };
         startupHost.IsVisible = next != StartupPhase.Ready;
@@ -483,7 +490,20 @@ public sealed class PhoneShell : UserControl, IMessageHost
         retry?.Cancel();
         var mine = ++generation;
         if (!(automatic && phase == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
-        try { await model.ConnectAsync(address); await EnterAsync(mine); }
+        try
+        {
+            var origin = ServerOrigin.Parse(address);
+            // a492: a home server with no kept login is answered by its own login screen before anything else is read.
+            if (home is not null && await HomeGate.MustBindAsync(home, origin, CancellationToken.None) is { } probe) { homeBinding = probe; ShowStartup(StartupPhase.SignIn); return; }
+            await model.ConnectAsync(address);
+            // A 401 on the first read: the kept home login is gone; ask for it again.
+            if (model.NeedsLogin && home?.Token(origin.AbsoluteUri) is not null)
+            {
+                tokens.Clear(origin);
+                if (await HomeGate.MustBindAsync(home, origin, CancellationToken.None) is { } again) { homeBinding = again; ShowStartup(StartupPhase.SignIn); return; }
+            }
+            await EnterAsync(mine);
+        }
         catch (ArgumentException error) { if (mine == generation) ShowStartup(StartupPhase.Failure, error.Message); }
     }
     private async Task EnterAsync(int mine, SetupState? known = null)

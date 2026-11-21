@@ -29,8 +29,8 @@
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
-    <!-- a485 (contract 1.20): Google sign-in, the pass and Play purchases through the library's android part. 0.14.0 is a development release: nothing built on it ships. -->
-    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.14.0" />
+    <!-- a485 (contract 1.20): Google sign-in, the pass and Play purchases through the library's android part. 0.16.0 is a development release: nothing built on it ships. -->
+    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.16.0" />
     <!-- Approving another device: Google's code scanner reads the QR (Play services, no camera permission of ours). -->
     <PackageReference Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.17" />
     <!-- The binding gives the QR text only (LoginStart.QrPayload); this pure managed encoder (MIT) draws it. -->

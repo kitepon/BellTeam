@@ -17,6 +17,9 @@ public static class AccountStore
     {
         return Product("loginBillingWebReturn");
     }
+    private static IHomeLink? home;
+    // The one home connection of the app (library rule: one per home server).
+    public static IHomeLink? Home => home ??= Billing is { } lb ? new AndroidHomeLink(lb, new KeystoreHomeStore()) : null;
     public static LoginBilling? Billing => billing ??= Product("loginBillingWorkerUrl") is { } worker ? new LoginBilling(MainActivity.Current, ServerClientId, worker, WebReturn()) : null;
 
     // At launch and on every foreground; a failure is not swallowed into a screen state here, it surfaces on the account card by the next action.

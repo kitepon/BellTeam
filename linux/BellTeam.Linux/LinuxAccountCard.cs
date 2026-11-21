@@ -108,7 +108,7 @@ public sealed class LinuxAccountCard : StackPanel
             foreach (var entitlement in checkedEntitlements ?? lb.Entitlements ?? [])
                 if (entitled && SubscriptionText.StoreOf(entitlement.Store) is { } store) Children.Add(Text(SubscriptionText.Active(store), 14, Ink, FontWeight.SemiBold, new Thickness(0, 10, 0, 0)));
             if (state == StoreAccountState.Signed) RenderSigned(entitled);
-            Children.Add(Button(StoreAccountText.SignOut, () => RunAsync((b, cancel) => b.SignOutAsync(cancel)), Look.Secondary));
+            Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(async (b, cancel) => { if (LinuxAccountStore.Home is { } home) await home.EndAsync(cancel); await b.SignOutAsync(cancel); }), Look.Secondary));   // the library's signOut does not end the home session
             RenderDanger();
         }
         if (busy && webSignIn is not null) Children.Add(Waiting());
