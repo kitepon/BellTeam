@@ -616,7 +616,7 @@ test('a471-scroll-smooth-web: rows arriving at the bottom are followed with a sm
   f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, 'smooth', 'new content at the bottom is followed smoothly')
   f.timeline.scrollTop = 0; f.timeline.listeners.scroll() // the animation is on its way: not at the bottom yet
   f.timeline.lastBehavior = ''; f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, 'smooth', 'still following')
-  f.timeline.listeners.wheel() // the Owner touches the view
+  f.timeline.listeners.pointerdown() // the Owner grabs the scrollbar (it fires no wheel / touch / key)
   f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); f.timeline.lastBehavior = ''
   f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, '', 'no longer following')
 })
