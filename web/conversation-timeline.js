@@ -342,7 +342,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
 
   timeline.addEventListener('scroll', () => {
     const atBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
-    if (atBottom) following = false
+    if (atBottom || timeline.scrollTop < lastTop) following = false // the glide only goes down: any move up is not ours (a programmatic jump fires no wheel/touch/key/pointer)
     state.stickToBottom = atBottom || following
     latestButton.hidden = !target || state.stickToBottom
     if (selectionPick) onSelectionChange() // 選択は残る：位置だけ追う（タッチでは下に固定）

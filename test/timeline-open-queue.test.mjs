@@ -621,6 +621,17 @@ test('a471-scroll-smooth-web: rows arriving at the bottom are followed with a sm
   f.resizers.at(-2)(); assert.equal(f.timeline.lastBehavior, '', 'no longer following')
 })
 
+test('a471-scroll-smooth-web: a scroll up with no input event (a programmatic jump) also stops the following', async t => {
+  const f = fixture(t, () => ({ items: [{ id: 'm1', message: 'x', direction: 'incoming' }], has_more: false }))
+  await f.open('a'); await settle()
+  f.timeline.clientHeight = 100; Object.defineProperty(f.timeline, 'scrollHeight', { value: 1000 })
+  f.resizers.at(-2)() // following
+  f.timeline.scrollTop = 600; f.timeline.listeners.scroll() // the glide is on its way
+  f.timeline.scrollTop = 200; f.timeline.listeners.scroll() // a direct scrollTop write moves the view up: no wheel / touch / key / pointer
+  f.timeline.lastBehavior = ''; f.resizers.at(-2)()
+  assert.equal(f.timeline.lastBehavior, '', 'the next growth does not glide the view to the bottom')
+})
+
 test('a471-scrollback-web: the first page asks 100, an older page 500 with before_at (the at of the oldest loaded row); no at, no before_at', async t => {
   const f = fixture(t, path => path.includes('before=') ? { items: [], has_more: false } : { items: [{ id: 'm4', at: '2026-11-21T01:02:03Z', message: 'x', direction: 'incoming' }], has_more: true })
   await f.open('a'); await settle()
