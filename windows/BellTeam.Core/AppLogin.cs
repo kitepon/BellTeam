@@ -21,7 +21,8 @@ public sealed record LoginPhone { public string ShortCode { get; init; } = ""; p
 
 public sealed class LoginApi(BellApi api)
 {
-    public Task<LoginStatus> StartAsync(string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/start", new { kind }, token);    public Task<LoginStatus> PollAsync(string loginId, CancellationToken token = default) => api.GetAsync<LoginStatus>("/api/login/" + Uri.EscapeDataString(loginId), token);
+    public Task<LoginStatus> StartAsync(string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/start", new { kind }, token);
+    public Task<LoginStatus> PollAsync(string loginId, CancellationToken token = default) => api.GetAsync<LoginStatus>("/api/login/" + Uri.EscapeDataString(loginId), token);
     public Task CancelAsync(string loginId, CancellationToken token = default) => api.PostAsync<System.Text.Json.JsonElement>("/api/login/" + Uri.EscapeDataString(loginId) + "/cancel", new { }, token);
     // "use a code from the server console" (section 2a): the answer carries the session token at once.
     public Task<LoginStatus> ConsoleAsync(string code, string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/console", new { code = code.Trim(), kind }, token);
