@@ -7,6 +7,8 @@ public sealed class ManagementApi(BellApi api)
     // createFolder (members S5) rides on this one save only (the server never stores it), so it joins the body and not `changes`, which the read-back compares.
     public Task<BotSettingsResponse> SaveBotAsync(string id, Dictionary<string, object?> changes, CancellationToken token = default, bool createFolder = false)
         => Api.WriteAsync<BotSettingsResponse>(HttpMethod.Patch, new ChatTarget(id, false).Path, createFolder ? new Dictionary<string, object?>(changes) { ["createFolder"] = true } : changes, token);
+    // a480 (members/profiles.md): the pin is the one field; an already pinned member stays where it is.
+    public Task<BotSettingsResponse> SetPinnedAsync(string id, bool pinned, CancellationToken token = default) => SaveBotAsync(id, new() { ["pinned"] = pinned }, token);
     public async Task<AvatarProfile> GetAvatarProfileAsync(string id, CancellationToken token = default) => (await Api.GetAsync<AvatarProfileResponse>(new ChatTarget(id, false).Path, token)).Bot;
     public async Task<AvatarSaveResult> SaveAvatarAsync(string id, AvatarVariant variant, AvatarSelection selection, CancellationToken token = default)
     {

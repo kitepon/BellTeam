@@ -23,9 +23,10 @@ public sealed class FeatureEditor : EditorWindow
         {
             var original = (await workspace.Planning.FeaturesAsync(Token)).Single(setting => setting.Id == id); Token.ThrowIfCancellationRequested();
             var enabled = SettingsUi.Violeted(new CheckBox { Content = "有効にする", IsChecked = original.Enabled, Margin = new Thickness(0, 10, 0, 14) }); Body.Children.Add(enabled);
-            Body.Children.Add(new TextBlock { Text = "必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。", TextWrapping = TextWrapping.Wrap });
+            // A feature with no fields (thinkingDisplay) is the switch alone: nothing to register, so no guide and no empty 設定 heading.
+            if (original.Fields.Length > 0) Body.Children.Add(new TextBlock { Text = "必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。", TextWrapping = TextWrapping.Wrap });
             if (original.ApplyFailed) Body.Children.Add(new TextBlock { Text = "設定を保存しましたが、反映できませんでした。設定を確認して再度保存してください。", TextWrapping = TextWrapping.Wrap, Foreground = BellTheme.Red });
-            Heading("設定");
+            if (original.Fields.Length > 0) Heading("設定");
             foreach (var field in original.Fields)
             {
                 if (!field.Secret) { inputs.Add((field, TextField(field.Label, field.Value), null, null)); continue; }

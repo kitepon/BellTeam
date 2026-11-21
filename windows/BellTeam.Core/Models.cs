@@ -42,6 +42,8 @@ public sealed record Bot
     public bool FastMode { get; init; }
     // a311: absent on a BellTeam that predates it, which reads as false.
     public bool ConfigurationLocked { get; init; }
+    // a480: when the Owner pinned this member (server pinnedAt); null/absent (an older server) is not pinned.
+    public DateTimeOffset? PinnedAt { get; init; }
     public string Color { get; init; } = "violet";
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";
