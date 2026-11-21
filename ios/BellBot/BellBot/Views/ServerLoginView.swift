@@ -26,7 +26,7 @@ struct ServerLoginView: View {
                     }
                     phoneWay
                     codeWay
-                    Text("購読していない場合は、サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで入れます。")
+                    Text("このアプリは購読が必要です。購読していない場合は、ブラウザー版が無料で使えます。サーバーのコンソールで出したコード、またはすでに入っているアプリの「アプリを追加」で出したコードで、ブラウザー版に入れます。")
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                         .accessibilityIdentifier("login-no-contract")
                     if let notice = model.notice { Text(notice).font(.footnote).foregroundStyle(.orange) }
