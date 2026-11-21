@@ -49,6 +49,8 @@ flowchart TD
 
 過去取得（machine-stream.md「History pages of a long stream」「Fill rule」、オーナー 2026-11-21「過去の頁は上へスクロールした時だけ」）：最初の頁も過去の頁も`limit=1000`（本体の上限。更新は`refreshPage`の30件とafter）で、持っている最古の行の`id`と`at`を`before`と`before_at`（URLエンコード）で送る。過去の頁を頼むのは二つの時だけ（`ConversationList.Coordinator.prefetchIfLow`）：(1) 利用者が動かしている間に、見ている行より上の読込済みが`max(3画面, 150行, 2秒分のスクロール速度)`に満たなくなった時（`ConversationHistoryPage.needsOlder`）。(2) 描いた中身が表示域に満たず動かせない時（畳んだ行ばかりの頁。頁が読めるたびに`olderPagesRead`が増えて判定をやり直し、満たすまで読み続ける）。開いただけ・止まっているだけでは読まない。同時に頼むのは一つで、失敗は次のスクロールの動きまで繰り返さない。指を離すのを待っている間（上の位置の節）は頼まない。`hasMore`が偽で止まる。
 
+送信（a471-send-follow-apple）：送った吹き出しは直ちに一覧の末尾へ入り（受付前の本人発言、`ConversationTimelineState.beginSend`）、送る操作で最新の端へ移って固定する（`scrollToBottom`）。受付後に履歴の行へ置き換わり、席の答え（思考・道具・フック・言葉の行）が届き続けても、固定が内容の伸びごとに最新の端へ合わせ直すので追い続ける。上を読んでいる位置から送っても同じ。
+
 開き直し（a471-iphone-flash-jump-177）：`AppStore.conversationPages`の控えは「いま持っている最新の側」（最大`firstPage`行。`rememberPage`が最初の頁を読めた時と会話を出る時に書く）。開き直すと控えをすぐ出し、届いた最初の頁は差し替えずに`ConversationTimelineState.mergeLatestPage`で重なる所から後ろだけを足す（持っている行を消さない）。一つも重ならない時だけ頁へ入れ替え、一覧は最新の端から出し直す。控えを最初に読んだ時の頁のままにすると、開き直すたびに過去だけが出て、頁が届いてから最新へ入れ替わる（オーナー実機「12:04の行が先に出て、そこから末尾へ動く」）。更新（最新の頁の読み直し・afterの読み足し・再接続・前面復帰）も持っている行を消さない（`mergeRefresh`はidで直し、足すだけ）。
 
 ## 本文と一覧への反映
@@ -58,7 +60,7 @@ flowchart LR
   Model["TimelineMessage / queue"] --> Prepare["Coordinator.present<br/>未先読sourceをMessageText.prerender"]
   Prepare --> Latest["先読中の更新は最新の組だけ保持"]
   Latest --> Apply["ChatLayoutDiffableDataSource<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは一覧に触らない"]
-  Apply --> Position["位置はCollectionViewChatLayoutだけが保つ（アプリは最新の端に居続けるためのスクロール・アニメーションを出さない）<br/>末尾にいる時：新着・行の伸び・過去の追加のどれでも末尾のまま（keepContentOffsetAtBottomOnBatchUpdates）<br/>上を読んでいる時：上への追加・上の行の実高変化・下への新着・幅変更のどれでも、表示中の行は動かない<br/>開いた時：最初の行を入れて最新の端に置いてから見せる（restoreContentOffset、見える前）<br/>アプリが位置を動かすのは利用者の操作だけ：送信・最新へ（レイアウトの位置決めで一度に最新の端へ）、引用元へ（scrollToItem）<br/>上への追加は、指を載せたスクロール（isTracking）の間は入れず、指を離した時（scrollViewDidEndDragging）に入れる（a426: 指の下では位置が毎フレーム指から決め直され、レイアウトの補正が打ち消されて飛ぶ）。上への追加かは「残る行の最初より上に新しい行があるか」で決める（畳んだ束の先頭の行は過去の頁で替わる）<br/>前の行と一つも重ならない更新（開き直した間に頁より多く進んだ）は、別の内容として最新の端から出し直す"]
+  Apply --> Position["位置はCollectionViewChatLayoutだけが保つ（アプリは最新の端に居続けるためのスクロール・アニメーションを出さない）<br/>末尾にいる時：新着・行の伸び・過去の追加のどれでも末尾のまま（keepContentOffsetAtBottomOnBatchUpdates）<br/>上を読んでいる時：上への追加・上の行の実高変化・下への新着・幅変更のどれでも、表示中の行は動かない<br/>開いた時：最初の行を入れて最新の端に置いてから見せる（restoreContentOffset、見える前）<br/>アプリが位置を動かすのは利用者の操作だけ：送信・最新へ（レイアウトの位置決めで一度に最新の端へ移り、以後は固定）、引用元へ（scrollToItem）<br/>最新の端への固定（`pinned`）：最新の端にいる／送信・最新へで移った間、内容が伸びる（新しい行・入れた後に実高へ測り直された行・余白）たびに、同じ配置の中でアニメーション無し・行き先無しで最新の端へ合わせ直す（`pinIfNeeded`）。外れるのは利用者の指・慣性が最新の端から離れた時だけ（距離は内容の変化では測らない：行の高さは入れた後に伸びるので、距離で決めると伸びた分だけ「最新の端にいない」と見なして追えなくなる＝build 178の送信後）<br/>上への追加は、指を載せたスクロール（isTracking）の間は入れず、指を離した時（scrollViewDidEndDragging）に入れる（a426: 指の下では位置が毎フレーム指から決め直され、レイアウトの補正が打ち消されて飛ぶ）。上への追加かは「残る行の最初より上に新しい行があるか」で決める（畳んだ束の先頭の行は過去の頁で替わる）<br/>前の行と一つも重ならない更新（開き直した間に頁より多く進んだ）は、別の内容として最新の端から出し直す"]
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```
 

@@ -87,6 +87,8 @@ let legacyServer = false
 let shortTotal = shortMessages.length
 let beforeDelay = 0
 let firstDelay = 0
+let sendDelay = 0
+let replyRows = 0
 let firstCap = 0
 let olderCap = 0
 let requests = []
@@ -95,7 +97,7 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); for (const subscriber of subscribers) subscriber.end(); subscribers = []; firstDelay = 0; beforeDelay = Number(url.searchParams.get('beforeDelay') ?? 0); firstCap = Number(url.searchParams.get('firstCap') ?? 0); olderCap = Number(url.searchParams.get('olderCap') ?? 0); requests = []; diagnosticReports = []; messages = url.searchParams.get('boundary') === '1' ? boundaryHistory.slice() : url.searchParams.get('thinking') === '1' ? [...history.slice(0, 12), thinkingRow] : url.searchParams.get('fold') === '1' ? foldHistory.slice() : history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); for (const subscriber of subscribers) subscriber.end(); subscribers = []; firstDelay = 0; sendDelay = 0; replyRows = 0; beforeDelay = Number(url.searchParams.get('beforeDelay') ?? 0); firstCap = Number(url.searchParams.get('firstCap') ?? 0); olderCap = Number(url.searchParams.get('olderCap') ?? 0); requests = []; diagnosticReports = []; messages = url.searchParams.get('boundary') === '1' ? boundaryHistory.slice() : url.searchParams.get('thinking') === '1' ? [...history.slice(0, 12), thinkingRow] : url.searchParams.get('fold') === '1' ? foldHistory.slice() : history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })
@@ -109,6 +111,8 @@ const server = createServer((request, response) => {
   if (path === '/test/config') {
     // 履歴を作り直さずに、応答の遅れだけを変える（会話を開き直す場合の再現）。
     firstDelay = Number(url.searchParams.get('firstDelay') ?? 0)
+    if (url.searchParams.has('sendDelay')) sendDelay = Number(url.searchParams.get('sendDelay'))
+    if (url.searchParams.has('replyRows')) replyRows = Number(url.searchParams.get('replyRows'))
     if (url.searchParams.has('firstCap')) firstCap = Number(url.searchParams.get('firstCap'))
     return json({ firstDelay, firstCap })
   }
@@ -175,11 +179,26 @@ const server = createServer((request, response) => {
     // 送信：受け付けて履歴へ足す（Botの会話は delivery_id が履歴の行のid）。
     let body = ''
     request.on('data', chunk => { body += chunk })
-    request.on('end', () => {
+    request.on('end', () => setTimeout(() => {
       const id = `sent-${messages.length + 1}`
       messages.push({ id, kind: 'message', direction: 'outgoing', sender: { id: 'user', name: '利用者' }, at: new Date().toISOString(), message: JSON.parse(body).message, delivery: 'queued' })
       json({ delivery_id: id })
-    })
+      const payload = { at: new Date().toISOString(), all: false, topics: ['timeline'], botIds: ['bot-one'], roomIds: [] }
+      for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
+      // 本物の席と同じく、受け付けた後に道具・フック・思考・言葉の行で答え始める。
+      const kinds = ['thinking', 'tool_use', 'tool_use', 'hook', 'tool_use', 'words']
+      for (let i = 0; i < replyRows; i++) setTimeout(() => {
+        const kind = kinds[i % kinds.length]
+        const rid = `r${String(i + 1).padStart(3, '0')}`
+        const folded = kind === 'tool_use' || kind === 'hook'
+        messages.push({
+          id: rid, kind: 'machine_event', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), delivery: 'delivered',
+          message: `${kind} ${rid}`,
+          machine_event: { seq: 2000 + i, view: kind, display: folded ? 'fold' : 'show', fold_group: kind, fold_count: 1, title: kind, text: `${kind} ${rid} 答えの途中経過です。` + (kind === 'words' ? '\n続きの行です。'.repeat(6) : ''), ...(kind === 'tool_use' ? { tool: { name: 'Bash', summary: 'ls' } } : {}) },
+        })
+        for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
+      }, 600 + i * 350)
+    }, sendDelay))
     return
   }
   if (path === '/api/bots/bot-one/messages' && request.method === 'GET') {

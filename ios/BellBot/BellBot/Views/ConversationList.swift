@@ -143,6 +143,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var scrollSpeed: CGFloat = 0
         private var lastScrollTime: CFTimeInterval = 0
         private var atBottom = true
+        /// 最新の端に固定している（利用者が最新の端にいる／送信・最新へで移った）間。内容が伸びても（新しい行・測り直された行の高さ・余白）、同じ配置の中で最新の端へ合わせ直す。
+        /// 利用者の指・慣性が最新の端から離れた時だけ外れる。内容の変化では外れない：行の高さは入れた後に測り直されて伸びるので、距離で決めると伸びた分だけ「最新の端にいない」と見なして追えなくなる（build 178 の送信後）。
+        private var pinned = true
         private var shown: Set<ConversationRow> = []
         private var prepared: Set<String> = []
         private var preparing = false
@@ -164,13 +167,13 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self?.configure(cell, row: row)
                 return cell
             }
-            view.onLayout = { [weak self] in self?.prefetchIfLow() }
+            view.onLayout = { [weak self] in
+                self?.pinIfNeeded()
+                self?.prefetchIfLow()
+            }
             view.onReveal = { [weak self] in self?.reveal() }
             // キーボードや入力欄で下の余白が変わる時、末尾にいたなら末尾に残す（レイアウトはこれを自動では補わない）。
-            view.onInsetChange = { [weak self] in
-                guard let self, atBottom else { return }
-                self.view?.pinToBottom()
-            }
+            view.onInsetChange = { [weak self] in self?.pinIfNeeded() }
             #if targetEnvironment(macCatalyst)
             wheel = WheelScrollSmoother(scrollView: view, onStart: {}, onStop: { [weak self] in self?.report() })
             #endif
@@ -259,6 +262,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                     }
                 }
                 atBottom = true
+                pinned = true
             } else {
                 // 位置はレイアウトが保つ：末尾にいれば末尾のまま、上を読んでいれば見ている行のまま。アプリはスクロールを指示しない。
                 UIView.performWithoutAnimation {
@@ -317,10 +321,17 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             }
         }
 
+        /// 固定している間、内容が伸びて最新の端から離れたら、その場で（アニメーション無し・行き先を持たず）最新の端へ合わせ直す。
+        private func pinIfNeeded() {
+            guard pinned, let view, !view.isDragging, !view.isDecelerating, view.distanceFromBottom > 0.5 else { return }
+            view.pinToBottom()
+        }
+
         /// 利用者の操作（送信・最新へ）で最新の端へ移る。レイアウトの位置決めで一度に移し、行き先を持つアニメーションは使わない
         /// （アニメーションの途中に行が入ると行き先が古い座標のまま残り、過去へ飛ぶ。build 176 で実測）。
         func scrollToBottom() {
             guard let view, let count = dataSource?.snapshot?.itemIdentifiers.count, count > 0 else { return }
+            pinned = true
             UIView.performWithoutAnimation {
                 view.layoutIfNeeded()
                 layout?.restoreContentOffset(with: ChatLayoutPositionSnapshot(indexPath: IndexPath(item: count - 1, section: 0), edge: .bottom))
@@ -433,6 +444,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             #if targetEnvironment(macCatalyst)
             userDriven = userDriven || wheel?.isActive == true
             #endif
+            // 固定の入り切りは利用者の動きだけで決める（内容が伸びた分の距離では決めない）。
+            if userDriven { pinned = view.distanceFromBottom <= 48 }
             guard userDriven else { return }
             prefetchRequested = false
             prefetchIfLow(moving: true)
