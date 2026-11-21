@@ -265,6 +265,10 @@ flowchart LR
   Eff --> Snap["snapshot {sender, at, text} saved on the new row"]
 ```
 
+## One-line labels never carry raw JSON (a471-raw-lifecycle-row)
+
+Seen 2026-11-21 12:35 JST on production Web (Z147) and in Anis's Windows 0.6.8 shot: a folded row labelled `command_lifecycle: {"type":"command_lifecycle","command_uuid":"...","state":"queued",...}` showed raw JSON to the Owner. Cause: the label (`message`) of a row is its title plus the first 120 characters of its text, and an `unknown` view keeps the whole raw line as its text. Rule: an `unknown` row of a JSON line has the label `<type>` or `<type>: <state>` (the first of the line's `state`, `phase` or `subtype`), a plain word, never JSON; the raw line stays in `machine_event.text` (shown when the Owner opens the folded line) and by `seq`. A line that is not JSON keeps `not-json: <its first characters>`. The display table is unchanged (`unknown` is still folded into the `background` group). Body only; no client change, since the clients draw `message` as served.
+
 ## Thinking is always shown whole (a471-thinking-full)
 
 Owner 2026-11-21 10:2x JST chose 「ア：いつも全部出す」 (「あと、thinkingの内容も貴重だよね」): every thinking row of a machine seat shows its whole text, always, on all four apps. His iPhone screenshot showed thinking cut after about 150 characters (「Then I'll get back to K」, 「with t」) with no way to open it, while the stream line carries the whole summary (939 characters in `bot-7b140b27.jsonl` seq 907).
