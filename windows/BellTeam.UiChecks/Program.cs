@@ -62,6 +62,10 @@ public static class UiChecks {
     closing = new(); typeof(Window).GetMethod("OnClosing",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[closing]); Check(!closing.Cancel,"書込後も窓を閉じられません。");
     var list = (ListBox)window.FindName("ConversationList"); var entry = workspace.Entries.Single(); list.SelectedItem = entry; await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Collapsed,"一覧から会話へ戻れません。");
+    // a480: a member row carries the pin menu (the label comes from the entry) and no 📌 while unpinned.
+    var pinRow = Descendants<Grid>(list).First(row => row.ContextMenu is not null); var pinItem = pinRow.ContextMenu!.Items.OfType<MenuItem>().Single();
+    pinRow.ContextMenu.DataContext = pinRow.DataContext; await Layout();
+    Check(pinItem.Header as string == "ピン留め" && Descendants<TextBlock>(pinRow).All(text => !text.Text.Contains("📌")),"メンバーの行にピン留めのメニューがありません。");
     var corner = (StackPanel)window.FindName("CornerButtons");
     // Mac toolbar: no avatar+name row over the conversation; the inspector toggle then the export are the two violet circles at the top right.
     Check(corner.Visibility==Visibility.Visible && corner.Children.OfType<Button>().Select(button=>System.Windows.Automation.AutomationProperties.GetName(button)).SequenceEqual(["詳細パネル","会話を書き出す"]),"会話の右上に詳細パネルと書き出しのボタンが並びません。");

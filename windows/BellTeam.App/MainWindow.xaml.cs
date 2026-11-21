@@ -116,6 +116,14 @@ public partial class MainWindow : Window, IInspectorHost
             await model.SelectAsync(entry);
         }
     }
+    private void Row_ContextMenuOpening(object sender, ContextMenuEventArgs e) { if (sender is FrameworkElement { DataContext: ConversationEntry { IsMember: false } }) e.Handled = true; }
+    // a480: one PATCH per click, never resent on failure (a repeat gives the same result); the roster comes back in the server's order.
+    private async void Pin_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ConversationEntry entry }) return;
+        try { await model.SetPinnedAsync(entry.Target.Id, !entry.Pinned); }
+        catch (Exception error) when (error is not OperationCanceledException) { model.ReportActionError("ピン留めを変えられませんでした。" + error.Message); }
+    }
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
     // a471-scrollback (machine-stream.md "History pages of a long stream"): older pages are read from the scroll motion, before the Owner runs out of rows, never only when the list is empty.
     // Speed is how fast the view moves up (px/s, smoothed); only a user's move counts (a move that comes with an extent change is the anchor or a new row).

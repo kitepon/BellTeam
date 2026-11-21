@@ -13,6 +13,8 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public bool FastMode => Bot?.FastMode == true;
     public bool IsMember => Bot is not null;
     public bool Pinned => Bot?.PinnedAt is not null;
+    public string PinBadge => Pinned ? "  📌" : "";
+    public string PinMenuText => Pinned ? "ピン留めを外す" : "ピン留め";
     // The red line under a member's summary and on top of its conversation; null for a room and for a member with no notice.
     public string? SeatLaunchLine => Bot?.SeatLaunch?.Line;
     public string PreviewText => TextContent.Normalize(Subtitle).Replace('\n', ' ');
