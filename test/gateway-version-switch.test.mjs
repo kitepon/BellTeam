@@ -39,7 +39,7 @@ async function fixture(t, handler = (_request, response) => response.end('{"auth
 test('確認済版だけへ同じportで交換し、拒否は旧版維持、起動失敗は旧版に戻す', { timeout: 5000 }, async t => {
   const { socketPath, releases } = await fixture(t)
   let prepareCalls = 0
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => {
       prepareCalls++
       if (!releases.has(id)) throw new Error('SYNTHETIC_RELEASE_REJECTED')
@@ -73,7 +73,7 @@ test('確認済版だけへ同じportで交換し、拒否は旧版維持、起�
 test('親closeはprepare待ちを止めて旧子を回収し、遅いprepare完了後に新子を起こさない', { timeout: 5000 }, async t => {
   const { socketPath, releases } = await fixture(t)
   const waiting = Promise.withResolvers(), prepared = Promise.withResolvers()
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async (_id, { signal }) => { waiting.resolve(signal); return prepared.promise } })
   t.after(() => gateway.close())
   await gateway.start()
@@ -90,7 +90,7 @@ test('親closeはprepare待ちを止めて旧子を回収し、遅いprepare完�
 
 test('不正portのreadyを拒否して新子を回収し、元の公開portで旧版へ戻す', { timeout: 5000 }, async t => {
   const { root, socketPath, releases } = await fixture(t)
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   await gateway.start()
@@ -120,7 +120,7 @@ test('readyを返さない新子を期限で回収して旧版へ戻す', { time
   const { socketPath, releases } = await fixture(t)
   const blocked = releases.get(ids.broken)
   await writeFile(join(blocked.appRoot, 'src/http-gateway-entry.mjs'), 'setInterval(() => {}, 1000)\n')
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   await gateway.start()
@@ -135,7 +135,7 @@ test('readyを返さない新子を期限で回収して旧版へ戻す', { time
 test('ready後だけ採用版を保存し、再起動でcurrent/previousを再確認、破損はfallbackしない', { timeout: 5000 }, async t => {
   const { root, socketPath, releases } = await fixture(t)
   const adoptionPath = join(root, 'adoption.json'), prepared = []
-  const create = () => createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+  const create = () => createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => { prepared.push(id); return releases.get(id) } })
   const first = create(); t.after(() => first.close())
   await first.start()
@@ -164,7 +164,7 @@ test('ready後だけ採用版を保存し、再起動でcurrent/previousを再�
 
 test('採用recordを書けない時は新子を回収して旧版へ戻す', { timeout: 5000 }, async t => {
   const { socketPath, releases } = await fixture(t)
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     adoptionPath: `/proc/${process.pid}/synthetic-gateway-adoption.json`, prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   await gateway.start()
@@ -177,7 +177,7 @@ test('採用recordを書けない時は新子を回収して旧版へ戻す', { 
 
 test('automatic recovery restarts the same gateway version and port', async t => {
   const { releases, socketPath } = await fixture(t)
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot })
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot })
   t.after(() => gateway.close())
   const address = await gateway.start(), oldPid = gateway.pid
   process.kill(oldPid, 'SIGKILL')
@@ -195,7 +195,7 @@ test('a request still running in the old gateway cannot veto the exchange: the d
     response.end('{"authenticated":true}')
   })
   t.after(() => { for (const response of held) response.destroy() })
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot, prepareRelease: async id => releases.get(id) })
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot, prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   await gateway.start()
   const base = `http://127.0.0.1:${gateway.address.port}`, oldPid = gateway.pid
@@ -230,7 +230,7 @@ const exited = pid => { try { process.kill(pid, 0); return false } catch (error)
 test('an exchange never leaves the public port without a listener, and stopping the old child is not a crash', { timeout: 10000 }, async t => {
   const { socketPath, releases } = await fixture(t)
   const exits = []
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id), onModuleChildExit: exit => exits.push(exit) })
   t.after(() => gateway.close())
   const { port } = await gateway.start(), oldPid = gateway.pid
@@ -250,7 +250,7 @@ test('a child bound without SO_REUSEPORT on either side falls back to stop-then-
   // Release one stands for the entry before 95eef79b (the child live in production when this ships).
   const legacy = join(releases.get(ids.one).appRoot, 'src/http-gateway-entry.mjs')
   await writeFile(legacy, (await readFile(legacy, 'utf8')).replace('reusePort: true', 'reusePort: false'))
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   const { port } = await gateway.start()
@@ -270,7 +270,7 @@ test('a child bound without SO_REUSEPORT on either side falls back to stop-then-
 test('a new child that fails to start or to answer its own ready read leaves the old child serving untouched', { timeout: 10000 }, async t => {
   const { root, socketPath, releases } = await fixture(t)
   const adoptionPath = join(root, 'adoption.json'), exits = []
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id), onModuleChildExit: exit => exits.push(exit) })
   t.after(() => gateway.close())
   const { port } = await gateway.start(), oldPid = gateway.pid
@@ -307,7 +307,7 @@ test('close() during an exchange stops both the old child and the new one', { ti
     writeFileSync(${JSON.stringify(pidPath)}, String(process.pid))
     process.on('message', () => process.exit(0))
   `)
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   await gateway.start()
@@ -334,7 +334,7 @@ test('during the overlap the old child resolves the new ?v= assets and the new c
   const marker = join(root, 'candidate-started'), candidate = join(releases.get(ids.two).appRoot, 'src/http-gateway-entry.mjs')
   await writeFile(candidate, `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(marker)}, '')\n`
     + `await new Promise(resolve => setTimeout(resolve, 1500))\n${await readFile(candidate, 'utf8')}`)
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   const { port } = await gateway.start(), oldPid = gateway.pid, base = `http://127.0.0.1:${port}`
@@ -355,7 +355,7 @@ test('an old child that never acknowledges the shared asset version falls back t
   const handler = "process.on('message', message => { if (message?.type === 'asset-version') void shareAssetVersion(message) })"
   assert.ok(source.includes(handler))
   await writeFile(entry, source.replace(handler, ''))
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id) })
   t.after(() => gateway.close())
   const { port } = await gateway.start(), oldPid = gateway.pid
@@ -378,7 +378,7 @@ test('a candidate that exits during the adoption write is not committed: the old
     await writeAtomic(path, value)
     if (pause && value.currentVersionId === ids.one) { pause.entered.resolve(); await pause.released.promise }
   }
-  const gateway = createHttpGatewayProcess({ socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
+  const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, adoptionPath, appRoot: releases.get(ids.one).appRoot,
     prepareRelease: async id => releases.get(id), writeAdoption })
   t.after(() => gateway.close())
   const { port } = await gateway.start()

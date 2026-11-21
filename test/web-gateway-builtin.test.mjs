@@ -39,7 +39,7 @@ async function fixture(t, backend = createServer((_request, response) => respons
     await writeFile(join(directory, 'web/app.js'), `${name}:__ASSET_VERSION__`)
   }
   const create = (options = {}) => {
-    const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: roots.builtin, adoptionPath,
+    const gateway = createHttpGatewayProcess({ browserUi: true, socketPath, port: 0, appRoot: roots.builtin, adoptionPath,
       prepareRelease: async id => {
         prepared.push(id)
         assert.equal(id, signed, 'the reader only accepts signed SHA, never builtin/null')

@@ -24,8 +24,17 @@ export async function socketPeer(socket, readTable = () => readFile('/proc/net/t
   return uids.size === 0 ? peer : { ...peer, 'x-bellteam-peer-uid': uids.size === 1 ? [...uids][0] : 'unknown' }
 }
 
+// a487: the browser UI has ended. Every page that is not /api/* or /healthz answers this one plain notice (no session read, no file);
+// everything the native apps call (/api/*, /healthz) is forwarded as before. `browserUi` keeps the old static branch only for the
+// gateway tests that tell versions apart by page content; it is off in production and goes with the static code in the full removal.
+const ENDED_NOTICE = Buffer.from('BellTeamのブラウザ版は終了しました。アプリをお使いください。\n')
+function endedNotice(request, response, assetVersion) {
+  response.writeHead(410, { 'content-type': 'text/plain; charset=utf-8', 'content-length': ENDED_NOTICE.length, 'cache-control': 'no-store', 'x-bellteam-gateway-version': assetVersion })
+  response.end(request.method === 'HEAD' ? undefined : ENDED_NOTICE)
+}
+
 // Only the business process authenticates requests and owns accepted work.
-export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.now().toString(36), assetVersions = new Map() }) {
+export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.now().toString(36), assetVersions = new Map(), browserUi = false }) {
   const streams = new Set(), peers = new WeakMap()
   let closing = null, stopping = false
   const server = createServer(async (request, response) => {
@@ -40,6 +49,7 @@ export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.
     catch (error) { return respondHttpError(request, response, error) }
     const { pathname } = url
     const staticRequest = pathname !== '/healthz' && !pathname.startsWith('/api/')
+    if (staticRequest && !browserUi) return endedNotice(request, response, assetVersion)
     let peer = peers.get(request.socket)
     if (!peer) peers.set(request.socket, peer = socketPeer(request.socket))
     const peerHeaders = await peer
