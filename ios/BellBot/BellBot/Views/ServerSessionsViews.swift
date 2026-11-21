@@ -23,7 +23,7 @@ enum ServerLoginWords {
         }
     }
 
-    static let addAppNote = "この画面のコードは1回だけ使えて、10分で切れます。このコードで入ったアプリは、このアプリが終わると一緒に終わります。"
+    static let addAppNote = "この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。"
 
     static func date(_ text: String?) -> String? {
         guard let text else { return nil }

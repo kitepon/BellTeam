@@ -143,6 +143,10 @@ final class ServerLoginTests: XCTestCase {
         XCTAssertNotNil(ServerLoginView.qrImage("lbq1:AbCdEfGhIjKlMnOpQrStUv"))
     }
 
+    func testAddAppNoteIsTheRuledText() {
+        XCTAssertEqual(ServerLoginWords.addAppNote, "この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。")
+    }
+
     func testServerNotReadyKeepsTheTokenAndRetries() async {
         ServerLoginProtocol.script["GET /api/session"] = [.json(503, #"{"error":"SESSION_STORE_UNAVAILABLE"}"#)]
         let api = makeAPI(token: "keep-me")
