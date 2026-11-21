@@ -47,6 +47,8 @@ public sealed class AccountCard : StackPanel
         handoffAsked = true;
         try
         {
+            // Contract 1.20: ask the server first; a device that already has a contract shows no QR (the stored entitlements can be stale after the operator's state changed).
+            if ((await lb.CheckAsync()).Entitlements.Count != 0) { alreadyEntitled = true; if (!token.IsCancellationRequested) Render(); return; }
             handoff = await lb.StartLoginAsync(); alreadyEntitled = handoff is null;
             if (!token.IsCancellationRequested) Render();
             if (handoff is null) return;
