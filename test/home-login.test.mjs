@@ -1,0 +1,174 @@
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { createConnection } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+import { createHomeLogin } from '../src/usage/home-login.mjs'
+import { createHomeFront } from '../src/home-login-front.mjs'
+
+// The vendored library files are byte-identical to the development release (v0.16.0); a repin changes these two lines.
+const PINS = {
+  'src/usage/vendor/login-billing-home.mjs': '9d6c3f1d26bbcb1f6a4f93766d7adcde22952c738705c4f282c6cd6e678d3a3f',
+  'src/vendor/login-billing-home-guard.mjs': '959ac108f19ac792e67e1b0d49b7589a9dab09661ef158781b110bd317f23917',
+}
+const GOOD = 'A'.repeat(22)
+const ORIGIN = 'http://192.168.1.2:18893'
+
+async function setup({ operatorStatus = { prove: 200, check: 200 } } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'home-login-'))
+  const prints = []
+  const operator = { calls: [], status: operatorStatus }
+  const operatorFetch = async (url, init) => {
+    const path = new URL(url).pathname.replace(/^.*\//u, '')
+    const body = JSON.parse(init.body)
+    operator.calls.push([path, body])
+    if (path === 'prove/take' || url.endsWith('prove/take')) {
+      if (body.code !== GOOD) return new Response('{}', { status: 404 })
+      return new Response(JSON.stringify({ k: 'account-1', passId: 'pass-1', ticket: 'ticket-1', entitlements: [{ productId: 'p', kind: 'subscription', store: 'apple' }] }), { status: operator.status.prove })
+    }
+    return new Response('{}', { status: operator.status.check })
+  }
+  const clock = { t: Date.now() }
+  const home = createHomeLogin({ path: join(dir, 'login-home.json'), operator: 'https://operator.test/auth/v1', fetch: operatorFetch, now: () => clock.t })
+  const methods = { 'home.handle': p => home.handle(p), 'home.sweep': p => home.sweep(p), 'home.setupCode': () => home.setupCode(), 'home.publish': () => home.publish(), 'home.console': p => home.console(p) }
+  const front = createHomeFront({ call: (name, params) => methods[name](params), markerPath: join(dir, 'login-enforced'), print: line => prints.push(line), now: () => clock.t, setTimer: () => ({ unref() {} }), clearTimer() {} })
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url, 'http://x')
+    if (await front.route(request, response, url)) return
+    const who = await front.judge(request.headers)
+    response.writeHead(who === 'unavailable' ? 503 : who === 'none' ? 401 : 200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ who }))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const api = async (method, path, { body, token } = {}) => {
+    const response = await fetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined })
+    return { status: response.status, body: await response.json() }
+  }
+  const login = async ({ setupCode, kind = 'android', ticketFor = 'a'.repeat(64) } = {}) => {
+    const { body: { nonce } } = await api('POST', '/api/home/login/nonce', { body: {} })
+    return api('POST', '/api/home/login/prove', { body: { code: GOOD, audience: ORIGIN, nonce, kind, ticketFor, ...(setupCode ? { setupCode } : {}) } })
+  }
+  return { dir, prints, operator, clock, home, front, server, api, login, async close() { server.closeAllConnections(); server.close(); front.stop(); await rm(dir, { recursive: true, force: true }) } }
+}
+const code = prints => /code: (\S+) /u.exec(prints.at(-1))[1]
+
+test('the vendored library files are the pinned development release', async () => {
+  for (const [path, hash] of Object.entries(PINS)) assert.equal(createHash('sha256').update(await readFile(new URL(`../${path}`, import.meta.url))).digest('hex'), hash)
+})
+
+test('unbound: Legacy, the setup code is printed by the body, the first proof binds and enforces', async () => {
+  const t = await setup()
+  try {
+    await t.front.start()
+    assert.equal(await t.front.judge({}), 'legacy')
+    assert.equal(t.prints.length, 1)
+    assert.match(t.prints[0], /setup code/u)
+    assert.deepEqual((await t.api('GET', '/api/home/session')).body, { capability: 'login-billing-home/1', bound: false, enforced: false })
+    assert.equal((await t.login()).body.error, 'SETUP_CODE_REQUIRED')
+    assert.equal((await t.login({ setupCode: 'WRONGCODE' })).body.error, 'LOGIN_CODE_INVALID')
+    const first = await t.login({ setupCode: code(t.prints) })
+    assert.equal(first.status, 200)
+    assert.equal(first.body.state, 'active')
+    await access(join(t.dir, 'login-enforced'))
+    assert.deepEqual((await t.api('GET', '/api/home/session')).body, { capability: 'login-billing-home/1', bound: true, enforced: true })
+    // Enforced: the guard, no call to the child
+    assert.deepEqual(await t.front.judge({ authorization: `Bearer ${first.body.token}` }), { sessionId: first.body.sessionId })
+    assert.equal(await t.front.judge({ authorization: 'Bearer nope' }), 'none')
+    assert.equal(await t.front.judge({}), 'none')
+    assert.equal(t.front.stateOf(first.body.sessionId), 'active')
+    // a second app (any app kind), the same account: no setup code now
+    const second = await t.login({ kind: 'apple', ticketFor: 'b'.repeat(64) })
+    assert.equal(second.status, 200)
+    assert.notEqual(second.body.sessionId, first.body.sessionId)
+    // the audience is the registered address only
+    const { body: { nonce } } = await t.api('POST', '/api/home/login/nonce', { body: {} })
+    assert.equal((await t.api('POST', '/api/home/login/prove', { body: { code: GOOD, audience: 'http://10.0.0.9:18893', nonce, kind: 'apple' } })).body.error, 'AUDIENCE_UNKNOWN')
+  } finally { await t.close() }
+})
+
+test('a stop from the phone ends the session at the next ticket check; only a 401 answer ends it', async () => {
+  const t = await setup()
+  try {
+    await t.front.start()
+    const first = await t.login({ setupCode: code(t.prints) })
+    const token = first.body.token
+    // the operator cannot be reached: nothing ends, the state is kept
+    t.operator.status.check = 503
+    await t.api('GET', '/x', { token }) // marks use
+    t.clock.t += 11 * 60_000
+    await t.front.tick()
+    assert.deepEqual(await t.front.judge({ authorization: `Bearer ${token}` }), { sessionId: first.body.sessionId })
+    assert.equal(t.front.stateOf(first.body.sessionId), 'active')
+    // the operator answers "that device stopped" (401): the session ends, the guard says none, the next request is 401
+    t.operator.status.check = 401
+    await t.api('GET', '/x', { token })
+    t.clock.t += 11 * 60_000
+    await t.front.tick()
+    assert.equal(await t.front.judge({ authorization: `Bearer ${token}` }), 'none')
+    assert.equal((await t.api('GET', '/x', { token })).status, 401)
+  } finally { await t.close() }
+})
+
+test('Enforced marker with no row is 503, never Legacy and never 401 (a usage rolled back or not yet loaded)', async () => {
+  const t = await setup()
+  try {
+    await t.front.start()
+    await t.login({ setupCode: code(t.prints) })
+    const restarted = createHomeFront({ call: async () => { throw new Error('child down') }, markerPath: join(t.dir, 'login-enforced') })
+    assert.equal(await restarted.judge({ authorization: 'Bearer anything' }), 'unavailable')
+    assert.equal(await restarted.judge({}), 'unavailable')
+  } finally { await t.close() }
+})
+
+test('console: issue a code, log in as a console session (no pass), list, revoke, reset-owner', async () => {
+  const t = await setup()
+  try {
+    await t.front.start()
+    const closeConsole = await t.front.listenConsole(join(t.dir, 'console.sock'))
+    const ask = request => new Promise((resolve, reject) => {
+      const socket = createConnection(join(t.dir, 'console.sock'))
+      let text = ''
+      socket.setEncoding('utf8')
+      socket.on('connect', () => socket.write(`${JSON.stringify(request)}\n`))
+      socket.on('data', chunk => { text += chunk })
+      socket.on('end', () => resolve(JSON.parse(text)))
+      socket.on('error', reject)
+    })
+    const { code: issued } = await ask({ op: 'issue' })
+    const consoleLogin = await t.api('POST', '/api/home/login/console', { body: { code: issued } })
+    assert.equal(consoleLogin.status, 200)
+    assert.equal((await t.api('POST', '/api/home/login/console', { body: { code: issued } })).body.error, 'LOGIN_CODE_INVALID') // single use
+    assert.equal(t.front.stateOf(consoleLogin.body.sessionId), 'none') // a console session has no contract
+    const listed = await ask({ op: 'list' })
+    assert.equal(listed.sessions.length, 1)
+    assert.equal((await ask({ op: 'revoke', id: consoleLogin.body.sessionId })).ok, true)
+    assert.equal(await t.front.judge({ authorization: `Bearer ${consoleLogin.body.token}` }), 'none')
+    assert.equal((await ask({ op: 'nonsense' })).ok, false)
+    await ask({ op: 'reset-owner' })
+    assert.deepEqual((await t.api('GET', '/api/home/session')).body, { capability: 'login-billing-home/1', bound: false, enforced: true })
+    await closeConsole()
+  } finally { await t.close() }
+})
+
+test('a proof that did not bind but spent the setup code (event setup.needed, contract 1.22) shows a new code', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'home-login-'))
+  const prints = []
+  const home = createHomeLogin({ path: join(dir, 'login-home.json'), operator: 'https://operator.test/auth/v1', fetch: async () => new Response('{}', { status: 404 }) })
+  // The 1.22 handler is not vendored yet: a stand-in child answers like it will.
+  const call = async (name, params) => name === 'home.handle' ? { status: 403, headers: {}, body: '{"error":"PROOF_REFUSED"}', setupNeeded: true } : home[name.slice(5)](params)
+  const front = createHomeFront({ call, markerPath: join(dir, 'login-enforced'), print: line => prints.push(line), setTimer: () => ({ unref() {} }) })
+  const server = createServer(async (request, response) => { await front.route(request, response, new URL(request.url, 'http://x')) })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    await front.start()
+    const before = prints.length
+    const answer = await fetch(`http://127.0.0.1:${server.address().port}/api/home/login/prove`, { method: 'POST', body: '{}' })
+    assert.equal(answer.status, 403)
+    assert.equal(prints.length, before + 1)
+    assert.match(prints.at(-1), /setup code/u)
+  } finally { server.closeAllConnections(); server.close(); await rm(dir, { recursive: true, force: true }) }
+})
