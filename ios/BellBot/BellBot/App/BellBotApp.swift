@@ -197,7 +197,7 @@ private struct RootView: View {
             case .checking:
                 ZStack {
                     BellBackground()
-                    ProgressView("BellTeamを開いています")
+                    ProgressView(store.serverPreparing ? "サーバーの準備中です" : "BellTeamを開いています")
                         .font(.subheadline)
                 }
             case .setup:
@@ -206,6 +206,8 @@ private struct RootView: View {
                 OnboardingView()
             case .signIn:
                 LoginView()
+            case .serverLogin:
+                if let model = store.serverLogin { ServerLoginView(model: model) }
             case .ready:
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-avatar-crop") {

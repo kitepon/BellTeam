@@ -56,6 +56,7 @@ struct ShareClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 60
+        if let token = credentials.sessionToken { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let cookie = credentials.cookieHeader { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
         if let body {
             request.httpBody = body

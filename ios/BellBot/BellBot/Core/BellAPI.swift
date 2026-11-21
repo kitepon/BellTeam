@@ -108,6 +108,8 @@ struct BellEvent: Sendable {
 
 final class BellAPI {
     var baseURL: URL?
+    /// サーバーのセッショントークン（app-sessions.md）。あれば全要求に`Authorization: Bearer`で付ける。
+    var sessionToken: String?
     // 背景で止まった端末の死んだ接続を前面復帰時に捨てるため、flush できる専用セッションを持つ。
     private let session: URLSession
     let diagnostics: BellDiagnostics
@@ -468,6 +470,7 @@ final class BellAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let sessionToken { request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization") }
         if let cookies = cookieStorage.cookies(for: url), !cookies.isEmpty {
             request.setValue(HTTPCookie.requestHeaderFields(with: cookies)["Cookie"], forHTTPHeaderField: "Cookie")
         }
@@ -490,6 +493,20 @@ final class BellAPI {
         guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
         if http.statusCode == 401 { throw BellAPIError.unauthorized }
         return (data, http.statusCode)
+    }
+
+    /// ログインの呼び出し：403（コードが違う等）も本文で分かれるため、状態・本文・Retry-Afterをそのまま返す。
+    func loginResponse(path: String, method: String, body: Data? = nil) async throws -> (Data, Int, TimeInterval?) {
+        var request = try request(path: path, method: method)
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let (data, response, trace) = try await load(request)
+        do { try validate(response, data: data, keepStatus: true) }
+        catch { throw traced(error, with: trace, body: data) }
+        guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
+        return (data, http.statusCode, http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init))
     }
 
     private func validate(_ response: URLResponse, data: Data = Data(), keepStatus: Bool = false) throws {
