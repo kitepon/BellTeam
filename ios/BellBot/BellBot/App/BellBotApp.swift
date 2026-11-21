@@ -180,6 +180,10 @@ private struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @ViewBuilder private var readyView: some View {
+        ReadyGate(billing: store.billing) { appView }
+    }
+
+    @ViewBuilder private var appView: some View {
         #if targetEnvironment(macCatalyst)
         DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
         #else
