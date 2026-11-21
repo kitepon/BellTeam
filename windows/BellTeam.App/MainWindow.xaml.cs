@@ -75,8 +75,8 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
             if (args.PropertyName is nameof(Workspace.Selected) or nameof(Workspace.Connected)) UpdateGoalBar();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected) or nameof(Workspace.LoadFailed) or nameof(Workspace.HasActivity)) UpdateWelcome();
-            // a471-thinking-windows: the first page may not fill the screen; older rows are otherwise read only by scrolling up.
-            if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); await PrefetchOlderAsync(); }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            // a471-thinking-windows: the first page may not fill the screen; older rows are otherwise read only by scrolling up (nothing is read ahead once one screen is drawn).
+            if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => await PrefetchOlderAsync(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
             if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
@@ -119,7 +119,7 @@ public partial class MainWindow : Window, IInspectorHost
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
     // a471-scrollback (machine-stream.md "History pages of a long stream"): older pages are read from the scroll motion, before the Owner runs out of rows, never only when the list is empty.
     // Speed is how fast the view moves up (px/s, smoothed); only a user's move counts (a move that comes with an extent change is the anchor or a new row).
-    private double scrollSpeed; private long lastScrollUp; private ChatTarget? readOnceFor;
+    private double scrollSpeed; private long lastScrollUp;
     private void NoteScrollUp(ScrollChangedEventArgs args)
     {
         if (args.VerticalChange >= 0 || args.ExtentHeightChange != 0) return;
@@ -137,25 +137,22 @@ public partial class MainWindow : Window, IInspectorHost
         prefetching = true;
         try
         {
-            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(MessageScroll.VerticalOffset, MessageScroll.ViewportHeight, ScrollSpeed))
+            while (CanReadOlder() && NeedsOlder())
             {
-                var before = model.Messages.Count;
+                var (before, oldest) = (model.Messages.Count, model.Messages.FirstOrDefault()?.Message.Id);
                 await LoadOlderPreservingPositionAsync();
                 await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background); // the new rows are laid out and input is handled before the next page
                 MessageScroll.UpdateLayout();
-                if (model.Messages.Count == before) break;
+                if (model.Messages.Count == before && model.Messages.FirstOrDefault()?.Message.Id == oldest) break; // no page landed (a failed read leaves its error); a folded page merges into the oldest run, which still changes its first row
             }
         }
         finally { prefetching = false; }
     }
     private bool prefetching;
-    // After the first paint, with no scroll, one older page is read in the background (once for each conversation shown).
-    private async Task ReadOlderAfterFirstPaintAsync()
-    {
-        if (!CanReadOlder() || readOnceFor == model.Selected?.Target || loadingOlder) return;
-        readOnceFor = model.Selected?.Target;
-        await LoadOlderPreservingPositionAsync();
-    }
+    // At the newest (the open, nothing scrolled) an older page is read only while the drawn rows do not fill one screen; once the reader scrolls up, the margin rule applies (machine-stream.md "Fill rule").
+    private bool NeedsOlder() => MessageHost.IsNewest
+        ? HistoryPaging.NeedsFirstScreen(MessageList.ActualHeight, MessageScroll.ViewportHeight)
+        : HistoryPaging.NeedsOlderPage(MessageScroll.VerticalOffset, MessageScroll.ViewportHeight, ScrollSpeed);
     private async Task LoadOlderPreservingPositionAsync()
     {
         if (loadingOlder) return;
