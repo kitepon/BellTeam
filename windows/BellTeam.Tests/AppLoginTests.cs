@@ -163,6 +163,15 @@ public sealed class AppLoginTests
         server.CodeLimited = true; Click(view, "アプリを追加するコードを出す"); Until(() => Texts(view).Contains(SessionText.CodeLimit));
     });
 
+    [Fact]
+    public void ThePaywallSaysThatTheAppNeedsASubscriptionAndOffersTheBrowserARecheckAndAServerChange() => RunSta(() =>
+    {
+        int rechecked = 0, changed = 0; var view = new PaywallView(new Uri("http://localhost/"), () => rechecked++, () => changed++);
+        Assert.Contains("このアプリは購読が必要です。無料で使うならブラウザから", Texts(view));
+        Assert.Single(Descendants<Button>(view), button => System.Windows.Automation.AutomationProperties.GetName(button) == "ブラウザーで開く");
+        Click(view, "再確認"); Click(view, "接続先を変更"); Assert.Equal((1, 1), (rechecked, changed));
+    });
+
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
     private static void Click(DependencyObject root, string name) => Descendants<Button>(root).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject { if (root is T found) yield return found; foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach (var item in Descendants<T>(child)) yield return item; }

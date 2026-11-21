@@ -297,6 +297,13 @@ public sealed class AccessSetupTests
         var setup = setupPhase is null ? null : new SetupState { Phase = setupPhase, Harnesses = [], Complete = false };
         Assert.Equal(expected, StartupRoute.AfterConnect(needsLogin, connected, setup));
     }
+    [Theory]
+    [InlineData(false, true, "ready", StartupPhase.Paywall)]
+    [InlineData(false, true, "select_harness", StartupPhase.Paywall)]
+    [InlineData(true, true, "ready", StartupPhase.SignIn)]
+    [InlineData(false, false, "ready", StartupPhase.Failure)]
+    public void APaywalledServerShowsThePaywallAfterTheLoginAndFailureChecks(bool needsLogin, bool connected, string setupPhase, StartupPhase expected)
+        => Assert.Equal(expected, StartupRoute.AfterConnect(needsLogin, connected, new SetupState { Phase = setupPhase, Harnesses = [], Complete = false }, paywalled: true));
     private static Button Named(DependencyObject root, string name) => Descendants<Button>(root).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name);
     private static void Click(DependencyObject root, string name) => Named(root, name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Settle(OnboardingView view) { var until = DateTime.UtcNow.AddSeconds(5); Pump(); while (view.Busy) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }
