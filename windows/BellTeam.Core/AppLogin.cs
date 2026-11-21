@@ -16,13 +16,15 @@ public sealed record LoginStatus
     public string? SessionId { get; init; }
     public string? Reason { get; init; }
 }
-// shortCode and checkNumber are shown exactly as given (leading zeros kept); qr/qrPng are optional for the app.
-public sealed record LoginPhone { public string ShortCode { get; init; } = ""; public string CheckNumber { get; init; } = ""; public string? Qr { get; init; } public string? QrPng { get; init; } }
+// shortCode and checkNumber are shown exactly as given (leading zeros kept); qr/qrSvg are optional for the app.
+public sealed record LoginPhone { public string ShortCode { get; init; } = ""; public string CheckNumber { get; init; } = ""; public string? Qr { get; init; } public string? QrSvg { get; init; } }
 
 public sealed class LoginApi(BellApi api)
 {
     public Task<LoginStatus> StartAsync(string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/start", new { kind }, token);
     public Task<LoginStatus> PollAsync(string loginId, CancellationToken token = default) => api.GetAsync<LoginStatus>("/api/login/" + Uri.EscapeDataString(loginId), token);
+    // Sign-out (app-sessions.md 7c): DELETE the app's own session; the id is SessionInfo.SessionId from the probe.
+    public Task EndSessionAsync(string sessionId, CancellationToken token = default) => api.DeleteAsync("/api/sessions/" + Uri.EscapeDataString(sessionId), token);
     public Task CancelAsync(string loginId, CancellationToken token = default) => api.PostAsync<System.Text.Json.JsonElement>("/api/login/" + Uri.EscapeDataString(loginId) + "/cancel", new { }, token);
     // "use a code from the server console" (section 2a): the answer carries the session token at once.
     public Task<LoginStatus> ConsoleAsync(string code, string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/console", new { code = code.Trim(), kind }, token);
