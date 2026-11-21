@@ -302,6 +302,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             guard let id = pendingJump, let view, let dataSource,
                   let indexPath = dataSource.indexPath(for: .message(id)) else { return }
             pendingJump = nil
+            // 引用元へ飛ぶのは利用者の操作：最新の端への固定を外す（固定のままだと、配置のたびに最新の端へ引き戻される）。
+            pinned = false
             view.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
             let flashes = pendingFlash
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reveal(.message(id), flash: flashes) }
