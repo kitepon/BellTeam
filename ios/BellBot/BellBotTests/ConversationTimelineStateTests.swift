@@ -39,9 +39,25 @@ final class ConversationTimelineStateTests: XCTestCase {
         XCTAssertEqual(state.visibleMessages.map(\.id), ["older", "first", "next"])
     }
 
+    /// a471-refresh-jump：最新の頁の読み直しが短い・空でも、持っている行は一つも消えず、並びも変わらない。新着は末尾へ足すだけ。
+    func testRefreshWithAShortOrEmptyLatestPageRemovesNoHeldRow() throws {
+        var state = ConversationTimelineState()
+        let held = try (1...40).map { try message("m\($0)", text: "行\($0)", delivery: "delivered") }
+        state.replaceReceived(held)
+        XCTAssertEqual(state.mergeRefresh(latest: [], after: []), 0)
+        XCTAssertEqual(state.receivedMessages.map(\.id), held.map(\.id), "空の頁で何も消えない")
+        XCTAssertEqual(state.mergeRefresh(latest: Array(held.suffix(3)), after: []), 0)
+        XCTAssertEqual(state.receivedMessages.map(\.id), held.map(\.id), "短い頁で何も消えない")
+        let fresh = try message("m41", text: "新着", delivery: "delivered")
+        XCTAssertEqual(state.mergeRefresh(latest: [fresh], after: [fresh]), 1)
+        XCTAssertEqual(state.receivedMessages.map(\.id), held.map(\.id) + ["m41"], "新着は末尾へ足すだけ")
+        _ = state.prependReceived(try (1...3).map { try message("o\($0)", text: "過去\($0)", delivery: "delivered") })
+        XCTAssertEqual(state.receivedMessages.suffix(41).map(\.id), held.map(\.id) + ["m41"], "過去を足しても最新の部分は残る")
+    }
+
     func testPrefetchKeepsMaxOfThreeScreensOneFiftyRowsAndTwoSecondsAbove() {
         let page = ConversationHistoryPage.self
-        XCTAssertEqual([page.firstPage, page.refreshPage, page.pageSize], [100, 30, 500])
+        XCTAssertEqual([page.firstPage, page.refreshPage, page.pageSize], [1000, 30, 1000])
         // 画面800pt: 3画面=2400pt。行も点も足りていれば頼まない。
         XCTAssertFalse(page.needsOlder(rowsAbove: 150, pointsAbove: 2400, viewHeight: 800, speed: 0))
         XCTAssertTrue(page.needsOlder(rowsAbove: 149, pointsAbove: 9000, viewHeight: 800, speed: 0), "150行に満たない")

@@ -625,13 +625,19 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testLatestMessageStaysVisibleAfterMarkdownRendering](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L21) | 初回10件だけ取得しMarkdown後も最新行が入力欄に隠れない |
-| [testOlderPageIsPrefetchedAfterFirstPaintAndKeepsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L35) | 最初の頁は100件、開いた直後に過去500件（before＋before_at）を一度だけ先読み、末尾の位置を保持 |
+| [testOlderPageIsPrefetchedAfterFirstPaintAndKeepsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L35) | 最初の頁は1000件を頼み（fixtureの`firstCap=100`で頁の境目を作る）、開いた直後に過去の頁（before＋before_at）を一度だけ先読み、末尾の位置を保持 |
 | [testAllFoldedPageDoesNotEndTheFillLoop](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 読んだ500件が全部畳まれる道具の行で行が増えなくても、描かれた量が足りるまで次の頁を読む（fixture `fold=1`、a471-fill-drawn） |
 | [testBurstOfMachineRowsWhileReadingAboveKeepsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 少し上を読んでいる間に、働いている席の道具・フック・思考・言葉の行が続けざまに届いても、読んでいる行の上端が動かない（fixture `/test/burst`、a471-scroll-jump） |
 | [testRowAboveTheReadingRowGrowingKeepsItsPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 読んでいる行より上の行が後から伸びても、読んでいる行の上端が動かない（fixture `/test/grow`） |
 | [testBurstOfMachineRowsAtBottomFollowsToTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 末尾にいる時に行が続けて届くと末尾を追い、新着ボタンを出さない。追いはなめらかなスクロール（試験中に動きの更新が1回の追いで500回以上、1回0.3〜3ptずつ出ることを一時のログで確認。コミットしていない） |
+| [testOlderPageArrivingDuringTheFollowDoesNotThrowTheViewIntoThePast](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 末尾を追うアニメーションの途中に過去の頁（6秒遅れ）が届いても、過去の行（m200より前）が画面に出ず、行が届き終わった後は最新の行にいて新着ボタンも出ない。build 176 の実装では3回中3回失敗（過去 m163 に取り残される）、修理後は3回中3回成功（fixture `beforeDelay`・`/test/burst?tall=1`、a471-refresh-jump） |
+| [testForegroundReturnWhileReadingOlderKeepsHeldRowsAndPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上を読んでいる間に背景へ回して戻し、その間に新着が3件あっても、読んでいた行は残り、上端が動かない |
+| [testRefreshesWhileReadingOlderKeepHeldRowsAndPosition](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 上を読んでいる間に更新の通知と新着が8回続いても、読んでいた行は残り、上端が動かない |
+| [testFirstPageOfAThousandRowsOpensAtTheNewestRow](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 1000件の最初の頁（1100行の機械席）でも最新の行から開き、残りの過去を1回で読む |
+| [testThinkingRowIsDrawnWholeInABubble](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift) | 中身のあるthinkingの行が、答えと同じ吹き出しで全文（message-text-<id>）出る（fixture `thinking=1`、a471-thinking-bubble） |
+| ConversationTimelineStateTests.testRefreshWithAShortOrEmptyLatestPageRemovesNoHeldRow | 最新の頁の読み直しが短い・空でも持っている行は消えず並びも変わらない。新着は末尾へ足すだけ。過去を足しても最新の部分は残る |
 | [testOlderFailureIsShownAndNotRetriedWithoutScrolling](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L53) | 過去GET失敗はerror表示、スクロールの動きが無い間は再取得無し |
-| [testShortHistoryReadsNoOlderPage](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L63) | 全部が最初の頁（100件）に入る履歴はhas_more偽で過去GETしない |
+| [testShortHistoryReadsNoOlderPage](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L63) | 全部が最初の頁（1000件）に入る履歴はhas_more偽で過去GETしない |
 | [testNewMessageWhileReadingOlderDoesNotJumpToBottom](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L75) | 過去閲覧中の新着はoffset保持と新着ボタン、押すと最新へ |
 | [testTargetedEventDoesNotReloadAnotherConversation](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L105) | 別Botの対象通知は会話GET無し、対象Bot新着は取得表示 |
 | [testReadingUpAfterPrefetchKeepsPositionAndAsksNoMorePages](../../../../ios/BellBot/BellBotUITests/ConversationScrollUITests.swift#L125) | 先読みで160件になった後に上へ読み進めても位置は動かず、過去の頁を重ねて取らない |
