@@ -1,6 +1,6 @@
 # ログインと購読の共通基盤への切替（a485-lb-apple）
 
-[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md)。正本の契約：Mint `login-billing/rulings/bellteam.md`（計画）、ライブラリ契約1.17（Swift package `kitepon/login-billing`、a492でv0.16.0（開発版）へ上げた。Mintの受け入れまで出荷しない）、サーバー側の契約は[app-sessions.md](../usage/app-sessions.md)の7章（PR #2206）。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：設計。コードはこの文書の後。
+[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md)。正本の契約：Mint `login-billing/rulings/bellteam.md`（計画）、ライブラリ契約1.17（Swift package `kitepon/login-billing`、a492でv0.17.0（開発版。0.16.0の監査指摘の修理版、契約1.22）へ上げた。Mintの受け入れまで出荷しない）、サーバー側の契約は[app-sessions.md](../usage/app-sessions.md)の7章（PR #2206）。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：設計。コードはこの文書の後。
 
 ## 責務（機能図）
 
@@ -67,9 +67,9 @@ flowchart TD
 - 権限：`com.apple.developer.applesignin`（アプリ本体のentitlements、Macは`BellBot-Mac.entitlements`）。Apple側のアプリID（dev.kitepon.bellbot）のSign in with Appleは有効（ASC APIの実測、capability APPLE_ID_AUTH、2026-11-22 JST）。
 - この版では従来の購入（StoreKit直接・`/api/subscription/verify`・Stripe・Google Playの行）を残す。外すのは切替の版（サーバーが契約をパスで確かめる時）で、トロニーの出荷順に従う。旧サーバーはこの版のアプリでも今までの証明の送信が要るため。
 
-## ホームサーバーへの接続（a492、login-billing 0.16.0）
+## ホームサーバーへの接続（a492、login-billing 0.17.0）
 
-正本の契約：ライブラリ`docs/home-wire-v1.md`（Swift tag v0.16.0、これは開発版で、Mintの受け入れまで出荷しない）。ホームサーバーは接続先の`/api/home`にライブラリのホーム部品を置く。この契約を持つ本体では、上のS1（`/api/login/*`・電話の承認）は使わない。
+正本の契約：ライブラリ`docs/home-wire-v1.md`（Swift tag v0.17.0、これは開発版で、Mintの受け入れまで出荷しない）。ホームサーバーは接続先の`/api/home`にライブラリのホーム部品を置く。この契約を持つ本体では、上のS1（`/api/login/*`・電話の承認）は使わない。
 
 | 部品 | すること | 担当 |
 | --- | --- | --- |
@@ -95,6 +95,7 @@ flowchart TD
 ```
 
 - 失敗の言葉：503 `SESSION_STORE_UNAVAILABLE`は「サーバーの準備中です」、429はしばらく待つ、届かない時は「つながりません」（「ログインし直してください」にはしない）。`AUDIENCE_UNKNOWN`・`PROOF_REFUSED`・`NOT_OWNER_ACCOUNT`は理由を出す。
+- 最初の結びつけで運営の確認が通らなかった時（PROOF_REFUSED・届かない）は、セットアップコードは使われている（契約1.22のsetup.needed）ので、新しいコードを出すよう言う。
 - 接続できたのに本体の画面を読めない時（ホームの契約だけを持つ試験用サーバーなど）は、「ホームサーバーにはつながっています（状態）が、画面を読み込めませんでした」を出す。
 - 家の本体では`/api/login/*`と`/api/sessions`が無いので、承認待ちの帯・「アプリを追加」・セッション一覧は出さない（`usesServerSessions`）。
 - ATS：家のサーバーへの平文httpは、`Info.plist`の`NSAllowsLocalNetworking`と私的アドレス帯の例外（10/8、172.16/12、192.168/16、169.254/16、::1、fc00::/7、fe80::/10）で通る（製品の務め）。公開ホスト名のhttpは通らない。

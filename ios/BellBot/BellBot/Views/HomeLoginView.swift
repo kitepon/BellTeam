@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// ホームサーバーに入る画面（login-billing 0.16.0のホームの契約）。Appleのパスで証明するので、先にAppleでサインインする。
+/// ホームサーバーに入る画面（login-billing 0.17.0のホームの契約）。Appleのパスで証明するので、先にAppleでサインインする。
 struct HomeLoginView: View {
     @ObservedObject var model: HomeLoginModel
     @ObservedObject var account: StoreAccount

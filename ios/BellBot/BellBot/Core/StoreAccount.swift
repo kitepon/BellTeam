@@ -3,7 +3,7 @@ import LoginBilling
 import SwiftUI
 import UIKit
 
-/// 店の側（Appleのレシートと店のパス）。ライブラリ（login-billing 0.16.0）をそのまま使い、仕組みを横に作らない。
+/// 店の側（Appleのレシートと店のパス）。ライブラリ（login-billing 0.17.0）をそのまま使い、仕組みを横に作らない。
 /// パスは運営のWorkerのoriginにだけ行き、ユーザーのサーバーへは行かない（docs/architecture/modules/apple/login-billing.md）。
 @MainActor
 final class StoreAccount: ObservableObject {
@@ -24,7 +24,7 @@ final class StoreAccount: ObservableObject {
     @Published private(set) var approval: ApprovalPrompt?
     private var decision: CheckedContinuation<Bool, Never>?
     private let client: LoginBillingClient?
-    /// このアプリのホームサーバーへの接続（ライブラリ0.16.0）。パスを持つこの部品に1つだけ置く。
+    /// このアプリのホームサーバーへの接続（ライブラリ0.17.0）。パスを持つこの部品に1つだけ置く。
     let home: HomeConnection?
     let productId: String
 

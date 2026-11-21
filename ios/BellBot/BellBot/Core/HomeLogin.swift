@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import LoginBilling
 
-/// ホームサーバーの契約（login-billing 0.16.0、docs/home-wire-v1.md）。アプリが持つのはホームのセッショントークンだけで、
+/// ホームサーバーの契約（login-billing 0.17.0、docs/home-wire-v1.md）。アプリが持つのはホームのセッショントークンだけで、
 /// 店のパスは運営のWorkerだけへ行く。トークンはライブラリのHomeConnectionが預かり、アプリは接続先のオリジンへだけ付ける。
 struct HomeProbe: Decodable, Equatable {
     static let capabilityName = "login-billing-home/1"
@@ -44,7 +44,13 @@ final class HomeLoginModel: ObservableObject {
         defer { busy = false }
         let code = setupCode?.trimmingCharacters(in: .whitespacesAndNewlines)
         do { try await connect(code?.isEmpty == false ? code : nil) }
-        catch { errorText = Self.words(error) }
+        catch {
+            errorText = Self.words(error)
+            // 最初の結びつけで運営の確認が通らなかった時、セットアップコードは使われている（契約1.22）。
+            if setupCodeNeeded, let e = error as? LoginBillingError, ["PROOF_REFUSED", "LOGIN_OPERATOR_UNREACHABLE"].contains(e.code) {
+                errorText = (errorText ?? "") + "セットアップコードは使われました。サーバーのコンソールで新しいコードを出してください。"
+            }
+        }
     }
 
     static func words(_ error: Error) -> String {

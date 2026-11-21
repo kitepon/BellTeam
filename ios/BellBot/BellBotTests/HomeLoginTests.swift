@@ -33,6 +33,15 @@ final class HomeLoginTests: XCTestCase {
         XCTAssertFalse(model.busy)
     }
 
+    func testSpentSetupCodeIsSaidWhenTheFirstProofFails() async {
+        let model = HomeLoginModel(setupCodeNeeded: true) { _ in throw LoginBillingError(code: "PROOF_REFUSED", status: 403) }
+        await model.start(setupCode: "x")
+        XCTAssertTrue(model.errorText?.hasSuffix("セットアップコードは使われました。サーバーのコンソールで新しいコードを出してください。") == true)
+        let later = HomeLoginModel(setupCodeNeeded: false) { _ in throw LoginBillingError(code: "PROOF_REFUSED", status: 403) }
+        await later.start(setupCode: nil)
+        XCTAssertFalse(later.errorText?.contains("セットアップコード") == true)
+    }
+
     func testUnreachableAndSignedOutAreNotMixedUp() {
         XCTAssertEqual(HomeLoginModel.words(LoginBillingError(code: "network")), "つながりません。ネットワークを確かめて、もう一度お試しください。")
         XCTAssertEqual(HomeLoginModel.words(LoginBillingError(code: "not_signed_in")), "先にAppleでサインインしてください。")
