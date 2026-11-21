@@ -51,7 +51,6 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
     private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
     private readonly TextBlock sendError = new() { Foreground = BellTheme.Red, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly Button older = new() { Classes = { "plain" }, Content = "以前のメッセージを読む", HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.White, IsVisible = false };
     private readonly Button edit;
     private readonly Button attach = new() { Classes = { "plain" }, Content = Icons.Draw(Icons.Paperclip, 22, BellTheme.Violet), Background = Brushes.Transparent, Width = 44, Height = 44, Padding = default, VerticalAlignment = VerticalAlignment.Bottom };
     private readonly StackPanel attachments = new() { Orientation = Orientation.Horizontal };
@@ -93,8 +92,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
         search.TextChanged += (_, _) => model.Search = search.Text ?? "";
 
         var messages = new ItemsControl { ItemsSource = model.Messages, ItemTemplate = new FuncDataTemplate<MessageItem>((item, _) => new MessageCard(item, model)) };
-        older.Click += async (_, _) => await model.LoadOlderAsync();
-        messageScroll.Content = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 12), Children = { older, messages } };
+        messageScroll.ScrollChanged += (_, args) => { NoteScrollUp(args); FillScreen(); };
+        messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) FillScreen(); };
+        messageScroll.Content = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 12), Children = { messages } };
         Grid.SetRow(messageScroll, 1);
         composer.TextChanged += (_, _) => { if (syncingComposer) return; syncingComposer = true; try { model.DraftText = composer.Text ?? ""; } finally { syncingComposer = false; } };
         send.Click += (_, _) => _ = model.SendAsync();
@@ -328,17 +328,65 @@ public sealed class PhoneShell : UserControl, IMessageHost
     // The page's reads end when it is left.
     private void EndSettings() { settingsLife?.Cancel(); settingsLife = null; if (settingsBody is not null) { settingsPage.Children.Remove(settingsBody); settingsBody = null; } }
 
+    // a471-linux-android-older-button: there is no button; older pages are read from the scroll motion (machine-stream.md "History pages of a long stream", the same spec and the same
+    // HistoryPaging as the Linux window): while less than max(3 screens, 150 rows, 2 s of the scroll speed) is loaded above the view. A failed page leaves its error and the next scroll movement asks again.
+    private double scrollSpeed; private long lastScrollUp; private bool loadingOlder, prefetching; private ChatTarget? readOnceFor;
+    private void NoteScrollUp(ScrollChangedEventArgs args)
+    {
+        if (args.OffsetDelta.Y >= 0 || args.ExtentDelta.Y != 0) return;   // a move that comes with an extent change is the anchor or a new row, not the Owner's
+        var now = Environment.TickCount64; var seconds = Math.Max(0.016, (now - lastScrollUp) / 1000.0);
+        scrollSpeed = (ScrollSpeed - args.OffsetDelta.Y / seconds) / 2; lastScrollUp = now;
+    }
+    private double ScrollSpeed => Environment.TickCount64 - lastScrollUp < 500 ? scrollSpeed : 0;
+    private bool CanReadOlder() => model.HasSelection && model.HasMore && !model.Loading;
+    private void FillScreen() => _ = PrefetchOlderAsync();
+    private async Task PrefetchOlderAsync()
+    {
+        if (loadingOlder || prefetching) return;
+        prefetching = true;
+        try
+        {
+            while (CanReadOlder() && HistoryPaging.NeedsOlderPage(messageScroll.Offset.Y, messageScroll.Viewport.Height, messageScroll.Extent.Height, model.Messages.Count, ScrollSpeed))
+            {
+                var before = model.Messages.Count;
+                await LoadOlderPreservingPositionAsync();
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);   // the new rows are laid out and input is handled before the next page
+                if (model.Messages.Count == before) break;
+            }
+        }
+        finally { prefetching = false; }
+    }
+    // After the first paint, with no scroll, one older page is read in the background (once for each conversation shown).
+    private async Task ReadOlderAfterFirstPaintAsync()
+    {
+        if (!CanReadOlder() || readOnceFor == model.Selected?.Target || loadingOlder) return;
+        readOnceFor = model.Selected?.Target;
+        await LoadOlderPreservingPositionAsync();
+    }
+    private async Task LoadOlderPreservingPositionAsync()
+    {
+        if (loadingOlder) return;
+        loadingOlder = true; var target = model.Selected?.Target; var offset = messageScroll.Offset.Y; var height = messageScroll.Extent.Height; var count = model.Messages.Count;
+        try
+        {
+            await model.LoadOlderAsync();
+            if (model.Selected?.Target == target) { messageScroll.UpdateLayout(); messageScroll.Offset = new Vector(0, offset + messageScroll.Extent.Height - height); }
+        }
+        finally { loadingOlder = false; }
+        if (model.Messages.Count != count) FillScreen();
+    }
+
     private void ModelChanged(string? name)
     {
         switch (name)
         {
             case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.Sync(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
-            case nameof(LinuxWorkspace.Selected): title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
+            case nameof(LinuxWorkspace.Selected): readOnceFor = null; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): { var text = model.ActionError ?? model.ConnectionError; status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); break; }
-            case nameof(LinuxWorkspace.HasMore): older.IsVisible = model.HasMore; break;
+            case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => { await PrefetchOlderAsync(); await ReadOlderAfterFirstPaintAsync(); }, DispatcherPriority.Background); break;
             case nameof(LinuxWorkspace.SendError): sendError.Text = model.SendError; sendError.IsVisible = !string.IsNullOrEmpty(model.SendError); break;
             case nameof(LinuxWorkspace.DraftText): if (!syncingComposer) { syncingComposer = true; try { composer.Text = model.DraftText; } finally { syncingComposer = false; } } break;
             case nameof(LinuxWorkspace.CanSend) or nameof(LinuxWorkspace.SendLabel): send.IsEnabled = model.CanSend; send.Content = model.SendLabel; break;

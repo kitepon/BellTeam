@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
+using Avalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using BellTeam.Core;
 
 namespace BellTeam.Linux;
@@ -54,6 +56,8 @@ public sealed class ScrollbackTests
             Assert.Equal(settled, server.Reads.Count(read => read.Contains("before=")));   // enough is loaded above the view: no more reads
             Assert.True(model.HasMore);                                          // the history goes on; reading stopped because the view has enough
             Assert.True(model.Messages.Count >= 150);
+            // a471-linux-android-older-button: with more history to read there is still no button; the scroll motion is the only way.
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), button => button.Content as string == "以前のメッセージを読む");
         }
         window.Close();
     });
