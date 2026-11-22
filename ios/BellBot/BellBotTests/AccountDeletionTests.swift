@@ -13,6 +13,7 @@ final class AccountDeletionTests: XCTestCase {
         XCTAssertEqual(AccountDeletionWords.cancel, "やめる")
         XCTAssertTrue(AccountDeletionWords.message.contains("ログインの運営は、名前・メールアドレス・購入の記録を持っていません。"), "what is not held")
         XCTAssertTrue(AccountDeletionWords.message.contains("止めたパスのランダムな番号") && AccountDeletionWords.message.contains("最長14日"), "what stays, and for how long")
+        XCTAssertTrue(AccountDeletionWords.message.contains("ログインの運営に残るのは、止めたパスの"), "the same subject as the sentence before (Poli: a bare 運営 reads as the whole operator)")
         XCTAssertFalse(AccountDeletionWords.message.contains("結びつけた情報を持っていません"), "says nothing untrue")
         XCTAssertTrue(AccountDeletionWords.message.contains("購読はAppleのものなので、この操作では解約されません。"))
         XCTAssertEqual(AccountDeletionWords.doneTitle, "アカウントを削除しました")
