@@ -66,7 +66,7 @@ export class MessageAssets {
   }
 
   async #save({ owner, id, image, lease }) {
-    return this.#write({ owner, id, bytes: await this.readImage(image, this.maxBytes, lease) })
+    return this.#write({ owner, id, bytes: await this.readImage(image, this.maxBytes, lease, owner) })
   }
 
   async #write({ owner, id, bytes }) {

@@ -66,3 +66,22 @@ test('resolveBotImagePath still guards a remote seat relative path', async () =>
   const bot = { id: 'bot-r', terminalId: 'win', projectRoot: 'C:\\p', project: '/srv/p' }
   await assert.rejects(resolveBotImagePath(bot, '../x.png'), /IMAGE_PATH_INVALID/)
 })
+
+// a521d: a seat's sendmessage saves through the parent's MessageAssets, so the same reader must route a remote seat's path to its terminal (Z180 lab 1b: IMAGE_FILE_NOT_FOUND).
+test('MessageAssets reads a remote seat path image on its terminal and every other image on the body', async t => {
+  const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os'), { join } = await import('node:path')
+  const { MessageAssets } = await import('../src/message-assets.mjs'), { seatImageReader } = await import('../src/bot-image-path.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'a521d-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const png = Buffer.from('89504e470d0a1a0a00', 'hex'), terminal = [], local = []
+  const bots = new Map([['bot-remote', { id: 'bot-remote', terminalId: 'mac', projectRoot: '/Users/x/p' }], ['bot-local', { id: 'bot-local' }]])
+  const transport = { readSeatImage: async (bot, path, max) => { terminal.push([bot.id, path, max]); return png } }
+  const make = transport => new MessageAssets({ root, botsAssetsRoot: join(root, 'bots'),
+    readImage: seatImageReader({ bots, transport, local: async image => { local.push(image); return png } }) })
+  const assets = make(transport)
+  await assets.save({ owner: 'bot-remote', id: 'r1', image: { path: '/Users/x/shot.png' } })
+  await assets.save({ owner: 'bot-local', id: 'l1', image: { path: '/tmp/a.png' } })
+  await assets.save({ owner: 'bot-remote', id: 'r2', image: { mime: 'image/png', data: png.toString('base64') } })
+  assert.deepEqual(terminal, [['bot-remote', '/Users/x/shot.png', assets.maxBytes]])
+  assert.deepEqual(local, [{ path: '/tmp/a.png' }, { mime: 'image/png', data: png.toString('base64') }])
+  await assert.rejects(make({}).save({ owner: 'bot-remote', id: 'r3', image: { path: '/Users/x/shot.png' } }), /IMAGE_REMOTE_READ_UNAVAILABLE/)
+})
