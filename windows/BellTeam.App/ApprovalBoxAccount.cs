@@ -25,7 +25,7 @@ internal sealed class ApprovalBoxAccount
 
     /// <summary>The system browser opens Approval Box's web sign-in and the loopback return brings the pass back (Windows, Nayuta/Delta).</summary>
     // open = null: the system browser. A test passes its own opener (approval-box's dev server answers the browser's part itself).
-    internal Task SignInAsync(string provider, CancellationToken ct, Func<Uri, Task>? open = null) => billing.SignInWebAsync(provider, open, false, ct);
+    internal Task SignInAsync(string provider, CancellationToken ct, Func<Uri, Task>? open = null) => billing.SignInWebAsync(provider, open ?? TestBrowser.Open, false, ct);
     internal Task SignOutAsync(CancellationToken ct) => billing.SignOutAsync(ct);
     // The account was deleted (4410): the pass of this instance goes too.
     internal void ClearPass() => store.Delete();

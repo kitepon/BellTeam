@@ -95,7 +95,7 @@ internal sealed class AccountView : StackPanel, IDisposable
         if (busy || billing is null) return;
         busy = true; confirmingStop = false; Failure = null; Phase = SignInPhase.Waiting;
         var mine = browser = CancellationTokenSource.CreateLinkedTokenSource(life.Token); Render();
-        try { await billing.SignInWebAsync(provider, null, stopOthers, mine.Token); serverEntitled = null; checkedEntitlements = null; handoffAsked = false; Phase = SignInPhase.Entry; }
+        try { await billing.SignInWebAsync(provider, TestBrowser.Open, stopOthers, mine.Token); serverEntitled = null; checkedEntitlements = null; handoffAsked = false; Phase = SignInPhase.Entry; }
         catch (OperationCanceledException) { Phase = SignInPhase.Entry; }
         catch (LoginBillingException error) { Failure = Describe(error); Phase = error.Code == "return_not_received" ? SignInPhase.ReturnNotReceived : SignInPhase.Entry; }
         browser = null; busy = false;
