@@ -40,4 +40,11 @@
     <PackageReference Include="Avalonia.Android" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
   </ItemGroup>
+  <!-- A test build points at another Worker: dotnet build -p:LoginBillingWorkerUrl=https://.../auth/v1 (Release builds for the store leave it empty and use product.json). -->
+  <ItemGroup Condition="'$(LoginBillingWorkerUrl)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LoginBillingWorkerUrl</_Parameter1>
+      <_Parameter2>$(LoginBillingWorkerUrl)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>
