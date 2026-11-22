@@ -67,14 +67,21 @@ State ownership is unchanged: the updater volume stays root-private; the data/ho
 
 ## State transitions of one run
 
-One `emergency-body.sh` run is one container and one pass; there is no state kept between runs except what the installer already keeps (operation directory and `installation/normal.json`). Every row of the diagram ends in exactly one of: nothing changed (refused), swapped and verified, or failed with the old model restored or not restorable. No refusal waits for anything: each exits at once with a closed code, so the next run starts from whatever the previous one left.
+One `emergency-body.sh` run is one container and one pass; there is no state kept between runs except what the installer already keeps (operation directory and `installation/normal.json`). Every path of the diagram ends in exactly one of: refused (nothing swapped), aborted by an exception, swapped and verified, or failed with the old model restored or not restorable. No refusal waits for anything: each exits at once with a closed code (the wrapper's own checks exit 2 with a message), so the next run starts from whatever the previous one left.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Parsing
+  [*] --> Wrapper
+  Wrapper --> Refused: emergency-body.sh: usage, BELLTEAM_PROJECT invalid, or published image not ghcr.io/kitepon/bellteam-server@sha256 (exit 2, message only)
+  Wrapper --> WrapperPull: published reference
+  Wrapper --> Resolving: --local, image id read from the local image
+  WrapperPull --> Refused: docker pull fails (docker's own error; no time bound of ours, the operator can stop it)
+  WrapperPull --> Resolving
+  Resolving --> Refused: updater volume not found (docker volume inspect fails)
+  Resolving --> Parsing: docker run of the target image starts emergency-body.py
   Parsing --> Refused: reference not a pinned ghcr digest, or local without --local (EMERGENCY_REFERENCE_INVALID)
   Parsing --> Loading
-  Loading --> Refused: config.json / updater volume binding invalid (HOST_UPDATE_CONFIG_INVALID, HOST_UPDATE_STORAGE_BINDING)
+  Loading --> Refused: config.json, updater volume binding or host checks fail (HOST_UPDATE_CONFIG_INVALID, HOST_UPDATE_STORAGE_BINDING, HOST_UPDATE_ROOT_REQUIRED, HOST_UPDATE_TRUST)
   Loading --> Identity
   Identity --> Refused: running image is not the reference image (EMERGENCY_IMAGE_MISMATCH)
   Identity --> Exclusive
@@ -84,14 +91,16 @@ stateDiagram-v2
   OldBody --> Planned: snapshot taken in any state (running, restarting, exited)
   Planned --> Pulling: published reference
   Planned --> Verifying: local image, no pull
-  Pulling --> Verifying
+  Pulling --> Verifying: image already local, pull is a no-op
   Verifying --> Refused: image id, source or old body changed meanwhile (HOST_UPDATE_IMAGE_INVALID, HOST_UPDATE_CURRENT_CHANGED)
+  Verifying --> Aborted: a docker command fails (EMERGENCY_BODY_STOPPED)
   Verifying --> Preflight
   Preflight --> Failed: target image preflight answers fail (HOST_UPDATE_PREFLIGHT_FAILED); old body untouched
   Preflight --> Swapping: pass or unknown
-  Swapping --> RollingBack: installer exit non-zero, timeout (1800 s) or new body not confirmed
+  Swapping --> Aborted: installer runs over 1800 s or floods its output (HOST_UPDATE_INSTALL_TIMEOUT, HOST_UPDATE_INSTALL_OUTPUT_LIMIT): process group killed, the exception leaves, no rollback is attempted
+  Swapping --> RollingBack: installer exit non-zero
   Swapping --> Confirming: installer exit 0
-  Confirming --> RollingBack: new body not running, healthy, same image and source, or storage binding differs (3 tries, 10 s apart)
+  Confirming --> RollingBack: new body not running and healthy, other image or source, or storage binding differs (an inspection error is retried 3 x 10 s; an unhealthy answer is not, the installer already waited for readiness)
   Confirming --> Saving: confirmed
   Saving --> Cleaning: installation/normal.json and current-runtime.json saved
   Cleaning --> Succeeded: old image removed
@@ -99,7 +108,8 @@ stateDiagram-v2
   Cleaning --> Failed: the installer reported the Aiterm state step failed (HOST_UPDATE_AITERM_STATE_FAILED); the new body is kept
   RollingBack --> Failed: installer --recover run; rollback is succeeded only when the old body is healthy again, otherwise failed
   RollingBack --> Failed: no saved previous model (rollback unavailable)
-  Refused --> [*]: exit 1, stderr code, nothing created or changed
+  Refused --> [*]: exit 1 (exit 2 for the wrapper's own checks), a code or message on stderr, nothing swapped
+  Aborted --> [*]: exit 1, one code on stderr, no result JSON; operation directory and installer.log are kept
   Failed --> [*]: exit 1, JSON result and installer log tail
   Succeeded --> [*]: exit 0, JSON result
 ```
@@ -109,13 +119,14 @@ How each end is left:
 | End | What exists afterwards | Next step for the operator |
 | --- | --- | --- |
 | Refused (before `Planned`) | no operation directory, no container touched | fix the cause named by the code and run again |
+| Aborted (installer timeout or output flood, or a docker command failing) | operation directory with `installer.log`; no rollback was attempted, so the project may have a half-swapped or no body | read `installer.log`, then run again with a body that starts |
 | Refused at `Verifying` / Failed at `Preflight` | an operation directory (empty or with the preflight record); old body untouched | read the code, run again (an image change needs a new reference) |
 | Failed after `Swapping`, rollback succeeded | old model restored (the old body may itself be down) | run again with a body that starts |
 | Failed, rollback failed or unavailable | operation directory with `installer.log` and `recover.log`; the project may have no running body | run again; the result JSON carries the installer log tail |
 | Failed at `Aiterm state` | new body kept and healthy, Aiterm state step reported failed | decide with the Aiterm owner; do not treat as complete |
 | Succeeded | new body healthy, model saved, old image removed | none; a cleanup failure is only reported |
 
-Self-exit: every state leaves by a closed code or a bounded wait (pull 900 s, preflight 120 s, installer 1800 s, confirmation 3 x 10 s); no state waits for an operator, a peer or a running body.
+Self-exit: every state in the container leaves by a closed code or a bounded wait (pull 900 s, preflight 120 s, installer 1800 s, inspection retries 3 x 10 s); no state waits for an operator, a peer or a running body. The one wait without a bound of ours is the wrapper's own `docker pull` of a published image before the container starts; it ends by docker's network errors or by the operator stopping it, and it changes nothing on the box.
 
 ## Contract
 
