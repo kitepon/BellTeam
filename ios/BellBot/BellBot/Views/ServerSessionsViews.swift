@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum ServerLoginWords {
     static func kind(_ kind: String) -> String {
@@ -22,6 +23,13 @@ enum ServerLoginWords {
         default: origin
         }
     }
+
+    static let consoleTitle = "サーバーのコンソールのコード"
+    static let sectionTitle = "このサーバーに入っている端末"
+    static let lockOutConfirm = "この端末は、もう一度サインインするまで使えなくなります。"
+
+    /// 一覧の上の一行。台数は自分の行も数える。
+    static func summary(_ count: Int) -> String { count == 1 ? "この端末だけが入っています" : "\(count)台が入っています" }
 
     static let addAppNote = "この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。"
 
@@ -83,24 +91,12 @@ struct ServerSessionsSection: View {
                 Button("アプリを追加", systemImage: "plus.app") { addingApp = true }
                     .accessibilityIdentifier("sessions-add-app")
             }
-            Section("このサーバーに入っているアプリ") {
+            Section {
+                DeviceSummaryLine(count: model.sessions.count)
                 ForEach(model.sessions) { entry in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(ServerLoginWords.kind(entry.kind)).font(.headline)
-                            if entry.current { BellBadge(text: "このアプリ", tone: .violet) }
-                        }
-                        Text("\(ServerLoginWords.origin(entry.origin))・\(ServerLoginWords.network(entry.networkClass))").font(.footnote).foregroundStyle(BellTheme.muted)
-                        Text("入った日時 \(ServerLoginWords.date(entry.createdAt) ?? "")" + (ServerLoginWords.date(entry.lastUsedAt).map { "・最後に使った日時 \($0)" } ?? ""))
-                            .font(.footnote).foregroundStyle(BellTheme.muted)
-                        Button(entry.current ? "ログアウト" : "取り消す", role: .destructive) {
-                            Task { if entry.current { await store.signOut() } else { await model.revoke(entry) } }
-                        }
-                        .buttonStyle(.bordered).disabled(model.busy)
-                        .accessibilityIdentifier("session-revoke-\(entry.id)")
-                    }
+                    DeviceRowView(info: DeviceRowInfo(entry), busy: model.busy, onEnd: { Task { if entry.current { await store.signOut() } else { await model.revoke(entry) } } }, onLockOut: nil)
                 }
-            }
+            } header: { Text(ServerLoginWords.sectionTitle) }
             if let error = model.errorText { Section { Text(error).font(.footnote).foregroundStyle(.red) } }
         }
         .task { await model.refresh() }
@@ -135,5 +131,150 @@ struct AddAppView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("閉じる") { dismiss() } } }
         }
+    }
+}
+
+
+/// 一覧の1行分の表示（旧ログインの行もホームの行も同じ見た目にする）。
+struct DeviceRowInfo: Identifiable, Equatable {
+    enum Icon: Equatable { case phone, tablet, laptop, desktop, web, console }
+    let id: String
+    let title: String
+    let icon: Icon
+    let current: Bool
+    let originLine: String?
+    let times: String
+    let passId: String?
+
+    /// 種類ごとの一般の端末の字形（ブランドの印は使わない）。自分の行だけiPad・Macを区別できる（ライブラリは区別しない）。
+    static func icon(kind: String, current: Bool) -> Icon {
+        switch kind {
+        case "apple":
+            guard current else { return .phone }
+            #if targetEnvironment(macCatalyst)
+            return .laptop
+            #else
+            return UIDevice.current.userInterfaceIdiom == .pad ? .tablet : .phone
+            #endif
+        case "android": return .phone
+        case "windows", "linux": return .desktop
+        case "web": return .web
+        default: return .desktop
+        }
+    }
+
+    private static func times(created: String?, lastUse: String?) -> String {
+        "入った日時 \(ServerLoginWords.date(created) ?? "")" + (ServerLoginWords.date(lastUse).map { "・最後に使った日時 \($0)" } ?? "")
+    }
+
+    init(_ entry: ServerLoginClient.SessionEntry) {
+        let console = entry.origin == "console"
+        id = entry.id
+        title = console ? ServerLoginWords.consoleTitle : ServerLoginWords.kind(entry.kind)
+        icon = console ? .console : Self.icon(kind: entry.kind, current: entry.current)
+        current = entry.current
+        originLine = "\(ServerLoginWords.origin(entry.origin))・\(ServerLoginWords.network(entry.networkClass))"
+        times = Self.times(created: entry.createdAt, lastUse: entry.lastUsedAt)
+        passId = nil
+    }
+
+    /// ホームの一覧には入り方・ネットワークが無いので、1行目は作らない。
+    init(_ row: HomeSessionRow) {
+        let console = row.kind == "console"
+        id = row.id
+        title = console ? ServerLoginWords.consoleTitle : ServerLoginWords.kind(row.appKind ?? "")
+        icon = console ? .console : Self.icon(kind: row.appKind ?? "", current: row.current)
+        current = row.current
+        originLine = nil
+        times = Self.times(created: row.created, lastUse: row.lastUse)
+        passId = row.passId
+    }
+}
+
+private extension DeviceRowInfo.Icon {
+    var symbol: String {
+        switch self {
+        case .phone: "iphone"
+        case .tablet: "ipad"
+        case .laptop: "laptopcomputer"
+        case .desktop: "desktopcomputer"
+        case .web: "globe"
+        case .console: "terminal"
+        }
+    }
+}
+
+struct DeviceSummaryLine: View {
+    let count: Int
+    var body: some View {
+        Text(ServerLoginWords.summary(count)).font(.footnote).foregroundStyle(BellTheme.muted)
+            .accessibilityIdentifier("sessions-summary")
+    }
+}
+
+/// 端末の1行: 字形のタイル、種類名と「このアプリ」、入った日時、ボタン。ボタンはどれも破壊的で、囲み線つき。
+struct DeviceRowView: View {
+    let info: DeviceRowInfo
+    let busy: Bool
+    let onEnd: () -> Void
+    /// 店のパスを持つスマホだけが渡す。行にpassIdが無ければ出さない。
+    let onLockOut: (() -> Void)?
+    @State private var confirmingLockOut = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: info.icon.symbol).font(.system(size: 16)).foregroundStyle(BellTheme.muted)
+                .frame(width: 32, height: 32).background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityLabel(info.title)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(info.title).font(.headline)
+                    if info.current { BellBadge(text: "このアプリ", tone: .violet) }
+                }
+                if let line = info.originLine { Text(line).font(.footnote).foregroundStyle(BellTheme.muted) }
+                Text(info.times).font(.footnote).foregroundStyle(BellTheme.muted)
+                HStack {
+                    Button(info.current ? "ログアウト" : "ログアウトさせる", role: .destructive, action: onEnd)
+                        .accessibilityIdentifier("session-revoke-\(info.id)")
+                    if !info.current, info.passId != nil, onLockOut != nil {
+                        Button("締め出す", role: .destructive) { confirmingLockOut = true }
+                            .accessibilityIdentifier("session-lockout-\(info.id)")
+                    }
+                }
+                .buttonStyle(.bordered).disabled(busy)
+            }
+        }
+        .confirmationDialog(ServerLoginWords.lockOutConfirm, isPresented: $confirmingLockOut, titleVisibility: .visible) {
+            Button("締め出す", role: .destructive) { onLockOut?() }
+            Button("やめる", role: .cancel) { }
+        }
+    }
+}
+
+/// 設定の「接続」: ホームサーバーに入っている端末の一覧（a529a）。ホームの端末ログインがある時だけ出す。
+struct HomeSessionsSection: View {
+    @EnvironmentObject private var store: AppStore
+    @ObservedObject var model: HomeSessionsModel
+    @ObservedObject var account: StoreAccount
+
+    private var canLockOut: Bool { account.signedIn && UIDevice.current.userInterfaceIdiom == .phone }
+
+    var body: some View {
+        Group {
+            Section {
+                DeviceSummaryLine(count: model.rows.count)
+                ForEach(model.rows) { row in
+                    DeviceRowView(info: DeviceRowInfo(row), busy: model.busy,
+                                  onEnd: { Task { if row.current { await store.signOut() } else { await model.end(row) } } },
+                                  onLockOut: canLockOut ? { Task { await model.lockOut(row) } } : nil)
+                }
+            } header: { Text(ServerLoginWords.sectionTitle) }
+            Section {
+                if let error = model.errorText { Text(error).font(.footnote).foregroundStyle(.red) }
+                Button("読み直す", systemImage: "arrow.clockwise") { Task { await model.refresh() } }
+                    .disabled(model.busy).accessibilityIdentifier("sessions-reload")
+            }
+        }
+        .task { await model.refresh() }
     }
 }

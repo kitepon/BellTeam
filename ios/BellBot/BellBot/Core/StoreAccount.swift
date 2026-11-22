@@ -79,6 +79,12 @@ final class StoreAccount: ObservableObject {
         do { devices = try await client.linkedDevices() } catch { devices = []; errorText = Self.words(error) }
     }
 
+    /// 一覧の「締め出す」: 事業者側で1台のパスを止める（ライブラリのstop(passId)）。
+    func stopLogin(passId: String) async throws {
+        guard let client else { throw LoginBillingError(code: "not_configured") }
+        try await client.stop(passId: passId)
+    }
+
     #if DEBUG
     /// 開発専用（login-billing 契約1.25）: `-bellbot-dev-operator <url>` で起動した時だけ、Appleのシートの代わりに開発用オペレーターのid tokenでサインインする。リリースには入らない。
     static var devOperatorURL: URL? { UserDefaults.standard.string(forKey: "bellbot-dev-operator").flatMap(URL.init(string:)) }
@@ -91,12 +97,6 @@ final class StoreAccount: ObservableObject {
         let (data, _) = try await URLSession.shared.data(for: request)
         guard let token = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["id_token"] as? String else { throw LoginBillingError(code: "signin_failed") }
         return token
-    }
-
-    /// 開発専用（live試験）: 1台だけ運営側で止める。画面の「締め出す」と同じ呼び出し（stop(passId)）。
-    func devStop(passId: String) async throws {
-        guard let client else { return }
-        try await client.stop(passId: passId)
     }
     #endif
 

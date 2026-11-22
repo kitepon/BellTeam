@@ -85,6 +85,9 @@ final class AppStore: ObservableObject {
     @Published private(set) var serverLogin: ServerLoginModel?
     /// 入っているアプリ側: 承認待ち・アプリを追加・セッション一覧。
     private(set) lazy var serverSessions = ServerSessionsModel(api: api)
+    /// ホームサーバーに入っている端末の一覧（a529a）。
+    private(set) lazy var homeSessions = HomeSessionsModel(api: api, stopPass: { [storeAccount] in try await storeAccount.stopLogin(passId: $0) })
+    var usesHomeSessions: Bool { homeProbe?.enforced == true && api.sessionToken != nil }
     /// このサーバーがセッションで入る本体か（トークンがある、またはenforced）。
     var usesServerSessions: Bool { homeProbe == nil && (api.sessionToken != nil || loginProbe?.enforced == true) }
     /// 店の側のアカウント（ライブラリ）。運営のWorkerの接続先が設定された時だけ動く。
@@ -1089,6 +1092,7 @@ final class AppStore: ObservableObject {
         api.sessionToken = nil
         self.sessionID = nil
         serverSessions.reset()
+        homeSessions.reset()
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
         let store = webDataStore.httpCookieStore
         for cookie in await store.allCookies() { await store.deleteCookie(cookie) }

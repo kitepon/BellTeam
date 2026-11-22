@@ -505,6 +505,7 @@ private struct ConnectionSettingsPage: View {
                 LabeledContent("ログイン方法", value: store.usesServerSessions ? "このサーバーのログイン" : store.authMode == "cloudflare" ? "Cloudflare Access" : "同じネットワークから直接")
             }
             if store.usesServerSessions { ServerSessionsSection(model: store.serverSessions) }
+            if store.usesHomeSessions { HomeSessionsSection(model: store.homeSessions, account: store.storeAccount) }
             Section {
                 Button("別のサーバーにつなぎ直す", systemImage: "arrow.triangle.2.circlepath") { confirmingChange = true }
                     .accessibilityIdentifier("connection-change-server")
