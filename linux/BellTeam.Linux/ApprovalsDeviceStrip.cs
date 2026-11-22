@@ -61,6 +61,15 @@ internal sealed partial class ApprovalsWindow
                 break;
             case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
         }
+        // The server read's own trouble, while the device's list stays on screen (instead of a full-window refusal).
+        if (DeviceUsable && !legacyOpen)
+        {
+            if (Status == ApprovalFeedStatus.NoCredential) Line(Approvals.ServerSideNoCredential, "つなぐ", () => { legacyOpen = true; Render(); });
+            else if (Status is ApprovalFeedStatus.Old or ApprovalFeedStatus.NotEntitled or ApprovalFeedStatus.Expired
+                && Approvals.StatusText(Status switch { ApprovalFeedStatus.Old => ApprovalFailure.Old, ApprovalFeedStatus.NotEntitled => ApprovalFailure.NotEntitled, _ => ApprovalFailure.Expired }) is { } text) Line(text);
+            else if (Status == ApprovalFeedStatus.LoginRequired) Line("ログインが必要です。ログインし直すと、自動で表示します。");
+        }
+        else if (DeviceUsable && legacyOpen) Line("決裁箱につなぐ画面を開いています。", "一覧へ戻る", () => { legacyOpen = false; Render(); });
         return panel.Children.Count == 0 ? null : panel;
     }
 }

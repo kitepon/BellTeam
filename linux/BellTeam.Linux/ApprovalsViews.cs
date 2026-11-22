@@ -50,14 +50,15 @@ internal sealed partial class ApprovalsWindow
     {
         // A phone's detail view gives the whole page to the detail: no tabs and counters above it.
         toolbarHost.Content = Compact && Selected is not null && Status == ApprovalFeedStatus.Live ? null : Toolbar();
-        body.Content = Strip(Status switch
+        // The device's list is usable: it shows whatever the server read says; the server's own trouble becomes a note above it (DeviceStrip) instead of replacing the list.
+        body.Content = Strip(DeviceUsable && !(legacyOpen && Status == ApprovalFeedStatus.NoCredential) ? Columns() : Status switch
         {
             ApprovalFeedStatus.Old => Gate(Globe, Approvals.Old, [("閉じる", false, Close)]),
             ApprovalFeedStatus.NotEntitled => Gate(Lock, Approvals.NotEntitled, [("契約を確かめる", true, hub.ReadAgain), ("閉じる", false, Close)]),
             ApprovalFeedStatus.Expired => Gate(Lock, Approvals.Expired, [("読み直す", true, hub.ReadAgain), ("閉じる", false, Close)]),
             ApprovalFeedStatus.NoCredential => ConnectGate(),
             ApprovalFeedStatus.LoginRequired => Gate(Lock, "ログインが必要です。ログインし直すと、自動で表示します。", [("読み直す", true, hub.ReadAgain), ("閉じる", false, Close)]),
-            _ when open is null && tab != "done" => Loading(),
+            _ when open is null && tab != "done" && !DeviceUsable => Loading(),
             _ => Columns()
         });
     }
@@ -118,7 +119,7 @@ internal sealed partial class ApprovalsWindow
     }
     private Control Segmented(ApprovalCounts counts)
     {
-        var held = open?.Count(item => item.Status == "held") ?? counts.Held; var pending = open?.Count(item => item.Status == "pending") ?? counts.Pending;
+        var shownOpen = DeviceUsable ? OpenView : open; var held = shownOpen?.Count(item => item.Status == "held") ?? counts.Held; var pending = shownOpen?.Count(item => item.Status == "pending") ?? counts.Pending;
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         void Add(string value, string label, int n)
         {
@@ -126,7 +127,7 @@ internal sealed partial class ApprovalsWindow
             var button = Plain(new Border { Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(10), Background = on ? Brushes.White : Brushes.Transparent, Child = Text(n < 0 ? label : $"{label}  {n}", 13, on ? Ink : Muted, on ? FontWeight.SemiBold : FontWeight.Normal) }, n < 0 ? label : $"{label} {n}件");
             button.Click += (_, _) => SetTab(value); row.Children.Add(button);
         }
-        Add("pending", "待ち", pending); Add("held", "保留", held); Add("done", "済み", doneRead ? done.Count : -1);
+        Add("pending", "待ち", pending); Add("held", "保留", held); Add("done", "済み", doneRead || DeviceUsable ? DoneView.Count : -1);
         return new Border { Background = Brush(Muted, 0x1A), CornerRadius = new CornerRadius(12), Padding = new Thickness(3), Child = row };
     }
 
@@ -159,9 +160,9 @@ internal sealed partial class ApprovalsWindow
     private Control ListColumn()
     {
         var stack = new StackPanel { Margin = new Thickness(4, 0, 12, 12), Spacing = 10 };
-        var pendingAll = (open ?? []).Where(item => item.Status == "pending").ToList(); var heldAll = (open ?? []).Where(item => item.Status == "held").ToList();
-        var baseList = tab == "done" ? done : tab == "held" ? heldAll : pendingAll;
-        var counts = Approvals.OriginCounts(tab == "done" ? done : tab == "held" ? heldAll : pendingAll);
+        var pendingAll = OpenView.Where(item => item.Status == "pending").ToList(); var heldAll = OpenView.Where(item => item.Status == "held").ToList();
+        var baseList = tab == "done" ? DoneView : tab == "held" ? heldAll : pendingAll;
+        var counts = Approvals.OriginCounts(baseList);
         stack.Children.Add(OriginRow(counts));
         if (filter != "all" && (filter == "bellteam" ? counts.External : counts.Bellteam) is > 0 and var hidden)
         {
@@ -171,7 +172,7 @@ internal sealed partial class ApprovalsWindow
         var shown = Approvals.OriginFilter(baseList, filter);
         if (tab == "done")
         {
-            if (!doneRead) stack.Children.Add(Loading());
+            if (!doneRead && !DeviceUsable) stack.Children.Add(Loading());
             else if (shown.Count == 0) stack.Children.Add(Text(Approvals.EmptyDone, 13.5, Muted, wrap: true));
             foreach (var group in Approvals.GroupDone(shown, Now()))
             {
