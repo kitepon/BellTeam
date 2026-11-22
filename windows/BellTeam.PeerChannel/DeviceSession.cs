@@ -106,7 +106,7 @@ public sealed class DeviceSession : IAsyncDisposable
     {
         wait = target;
         var turn = await SignalHttp.FetchTurnAsync(http, server, ct);
-        var peer = pc = new PeerConnection(turn);
+        var peer = pc = new PeerConnection(await IceServers.SelectAsync(turn));
         peer.StateChanged += state => Trace?.Invoke("pc state " + state);
         peer.LocalDescription += (sdp, type) => Post(() => { localFp = Sdp.Fingerprint(sdp) ?? ""; Signal(type == "offer" ? "offer" : "answer", "\"sdp\":" + JsonSerializer.Serialize(sdp)); });
         peer.LocalCandidate += candidate => Post(() => Signal("candidate", "\"candidate\":" + JsonSerializer.Serialize(candidate)));

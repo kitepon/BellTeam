@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -21,6 +23,42 @@ public static partial class Sdp
     public static string Mid(string sdp) => MidLine().Match(sdp) is { Success: true } m ? m.Groups[1].Value : "0";
 }
 
+// Ice servers in the form libjuice can use (contract 11): the first STUN URL and the first two UDP TURN URLs, each host name resolved to an IPv4 address (IPv6 only when there is none).
+// libjuice dials only the first address of a name, so an AAAA first on a host without an IPv6 route gives no relay (2026-11-22). A name that does not resolve is left out. A port of ts/src/webrtc.ts iceServers.
+public static partial class IceServers
+{
+    [GeneratedRegex(@"^(turn|stun):([^:?]+)(?::(\d+))?(?:\?transport=(udp|tcp))?$")]
+    private static partial Regex Url();
+
+    private static async Task<IPAddress[]> SystemLookup(string host)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2)); // a slow resolver never holds a session
+        try { return await Dns.GetHostAddressesAsync(host, cts.Token); } catch (Exception error) when (error is SocketException or OperationCanceledException) { return []; }
+    }
+
+    // libdatachannel URLs: stun:host:port and turn:user:pass@host:port?transport=udp (user and password percent-encoded).
+    public static async Task<string[]> SelectAsync(TurnCredentials? turn, Func<string, Task<IPAddress[]>>? resolve = null)
+    {
+        resolve ??= SystemLookup;
+        var result = new List<string>(); int stun = 0, relays = 0;
+        foreach (var url in turn?.Urls ?? [])
+        {
+            var m = Url().Match(url);
+            if (!m.Success || m.Groups[4].Value == "tcp") continue;
+            var isStun = m.Groups[1].Value == "stun";
+            if (isStun ? stun == 1 : relays == 2) continue;
+            var host = m.Groups[2].Value;
+            var addresses = IPAddress.TryParse(host, out var literal) ? [literal] : await resolve(host);
+            var address = addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) ?? addresses.FirstOrDefault();
+            if (address is null) continue;
+            var endpoint = (address.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + address + "]" : address.ToString()) + ":" + (m.Groups[3].Success ? m.Groups[3].Value : "3478");
+            if (isStun) { stun++; result.Add("stun:" + endpoint); }
+            else { relays++; result.Add("turn:" + Uri.EscapeDataString(turn!.Username) + ":" + Uri.EscapeDataString(turn.Credential) + "@" + endpoint + "?transport=udp"); }
+        }
+        return [.. result];
+    }
+}
+
 // One peer connection with a fresh DTLS certificate (libdatachannel makes one per connection). Callbacks arrive on libdatachannel's threads; the owner posts them to its own loop.
 internal sealed class PeerConnection : IDisposable
 {
@@ -35,13 +73,10 @@ internal sealed class PeerConnection : IDisposable
 
     private static string Text(IntPtr pointer) => Marshal.PtrToStringUTF8(pointer) ?? "";
 
-    // TURN/STUN of the server's answer as libdatachannel URLs: turn:user:pass@host:port?transport=...; user and password are percent-encoded.
-    private static IEnumerable<string> IceUrls(TurnCredentials? turn) => (turn?.Urls ?? []).Select(u =>
-        u.StartsWith("stun:", StringComparison.Ordinal) ? u : u.Replace(":", ":" + Uri.EscapeDataString(turn!.Username) + ":" + Uri.EscapeDataString(turn.Credential) + "@", StringComparison.Ordinal).Replace("::", ":"));
-
-    public PeerConnection(TurnCredentials? turn)
+    // iceUrls: what IceServers.SelectAsync made of the server's TURN answer.
+    public PeerConnection(string[] iceUrls)
     {
-        var urls = IceUrls(turn).ToArray();
+        var urls = iceUrls;
         var config = new Native.Configuration();
         if (urls.Length > 0)
         {
