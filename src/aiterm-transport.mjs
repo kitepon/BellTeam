@@ -1494,15 +1494,15 @@ export class AitermTransport {
   async readTurnAnswer(delivery, completion, client = this.client) {
     // Bind the read to this delivery's Claude input: a next input to the seat must not change which answer is read (wait-contract.md).
     const inputId = !completion.operation_id && /^[a-f0-9]{32}$/u.test(delivery.receipt?.input_id ?? '') ? delivery.receipt.input_id : null
-    // A steer that started the next turn has no input_id; its steer_id binds the read the same way (a445).
-    const steerId = !completion.operation_id && !inputId && completion.steer?.placement === 'next_turn'
-      && delivery.receipt?.vendor === 'claude' ? delivery.steer?.steerId ?? null : null
+    // A steer that started the next turn has no input_id; its input_ref binds the read the same way (a445).
+    const inputRef = !completion.operation_id && !inputId && completion.steer?.placement === 'next_turn'
+      && delivery.receipt?.vendor === 'claude' ? delivery.steer?.inputRef ?? null : null
     return transcriptText(await client.call('pty_read', {
       session_id: delivery.session,
       agent_transcript: true,
       ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
       ...(inputId ? { input_id: inputId } : {}),
-      ...(steerId ? { steer_id: steerId } : {}),
+      ...(inputRef ? { [delivery.steer.inputRefKey]: inputRef } : {}),
     }), completion)
   }
 
@@ -2550,7 +2550,10 @@ function steerFollow(result) {
   const reference = result._meta?.['aiterm/steer']
   if (!Number.isInteger(receipt.event_cursor) || !receipt.wait_process) return null
   if (reference?.schema !== 'aiterm.steer-ref.v1' || typeof reference.interim_from !== 'string') return null
-  return { interimFrom: reference.interim_from, steerId: /^[a-f0-9]{16}$/u.test(reference.steer_id ?? '') ? reference.steer_id : null }
+  // shortcut: an Aiterm before 0.70.105 names it steer_id and strips an unknown pty_read argument, so the read sends the key the reference carried; drop steer_id once container and terminals are >= 0.70.105 and Elegg removes it.
+  const inputRefKey = reference.input_ref === undefined ? 'steer_id' : 'input_ref'
+  const inputRef = reference[inputRefKey]
+  return { interimFrom: reference.interim_from, inputRef: /^[a-f0-9]{16}$/u.test(inputRef ?? '') ? inputRef : null, inputRefKey }
 }
 
 // fork.md "failure after accept" (a533): conversation keeps only a token reason, so a free-text message must not be the reason.
