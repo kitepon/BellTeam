@@ -12,7 +12,7 @@ struct ApprovalsRunner: ViewModifier {
     func body(content: Content) -> some View {
         content.task(id: "\(scenePhase == .active)-\(model.readRequest)") {
             guard scenePhase == .active else { return }
-            await model.run()
+            await model.run(api: store.api)
         }
     }
 }
@@ -85,7 +85,7 @@ private struct ApprovalOriginFace: View {
             if let bot = store.bots.first(where: { $0.id == decision.requester?.botId }) {
                 AvatarView(name: bot.displayName, avatar: bot.avatar, color: BellTheme.accent(bot.color), size: size)
             } else {
-                tile("?", symbol: nil)
+                tile(nil, symbol: decision.origin.tileSymbol)
             }
         } else {
             tile(nil, symbol: decision.origin.tileSymbol)
