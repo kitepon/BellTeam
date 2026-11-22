@@ -516,28 +516,33 @@ public partial class MainWindow : Window, IInspectorHost
     }
     // Test and render seam: the result alert.
     internal Action<string, string> ShowResult { get; set; } = (title, body) => MessageBox.Show(Application.Current?.MainWindow, body, title, MessageBoxButton.OK);
-    // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md): Approval Box sign-in and device data, then the server session, notifications, web login and the saved address, then the library's signOut; one result alert on the first screen.
-    // Each step reaches as far as it can; what could not be finished is told instead of the result. Other devices are not stopped.
+    // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md). Order: the server session (the one step that reaches the network), the Approval Box sign-in and device data, the home record, notifications, web login,
+    // the library's signOut (local only: it returns without a call, offline too), the saved address; then the first screen and one result. Other devices are not stopped.
+    // The result is told only when every step returned. A step that fails stops here, names what it could not remove and why, and keeps the page: pressing again runs the steps again (each one is safe to repeat).
     internal async Task DeleteAccountAsync()
     {
-        ShowConversation(); signingOut = true;
-        var problems = new List<string>();
-        async Task Step(Func<Task> run) { try { await run(); } catch (Exception error) { problems.Add(error.Message); } }
+        signingOut = true;
         try
         {
-            if (approvalBox is not null) await Step(() => approvalBox.DeleteLocalDataAsync(CancellationToken.None));
-            if (await EndServerSessionAsync() is { } ended) problems.Add(ended);
-            await Step(() => { AccountStore.ForgetHome(); return Task.CompletedTask; });
-            await Step(() => { model.SignOut(); return Task.CompletedTask; });
-            if (notifications is not null) await Step(() => notifications.SetEnabledAsync(false, persist: false));
-            if (access is not null) await Step(access.SignOutAsync);
-            await Step(() => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; });
-            if (AccountStore.Billing is { } billing) await Step(() => billing.SignOutAsync(CancellationToken.None));
+            (string What, Func<Task> Run)[] steps =
+            [
+                ("サーバー側のログイン", () => AccountStore.Home is { } home ? home.EndHomeSessionAsync() : Task.CompletedTask),
+                ("決裁箱のサインインと鍵", () => approvalBox?.DeleteLocalDataAsync(CancellationToken.None) ?? Task.CompletedTask),
+                ("サーバーのトークン", () => { AccountStore.ForgetHome(); return Task.CompletedTask; }),
+                ("通知の登録", () => notifications?.SetEnabledAsync(false, persist: false) ?? Task.CompletedTask),
+                ("Webのログイン", () => access?.SignOutAsync() ?? Task.CompletedTask),
+                ("店のパスとアカウントの番号", () => AccountStore.Billing?.SignOutAsync(CancellationToken.None) ?? Task.CompletedTask),
+                ("保存した接続先", () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; }),
+            ];
+            foreach (var (what, run) in steps)
+            {
+                try { await run(); }
+                catch (Exception error) { ShowResult(AccountDeletionText.FailedTitle, AccountDeletionText.Failed(what, error.Message)); return; }
+            }
+            ShowConversation(); model.SignOut(); ShowAccount();
         }
         finally { signingOut = false; }
-        ShowAccount();
-        if (problems.Count == 0) ShowResult(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
-        else ShowResult(AccountDeletionText.FailedTitle, string.Join("\n", problems));
+        ShowResult(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
     }
     private async Task ChangeServerAsync(string address)
     {

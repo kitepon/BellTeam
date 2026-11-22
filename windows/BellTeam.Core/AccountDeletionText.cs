@@ -22,6 +22,8 @@ public static class AccountDeletionText
     public const string Subscription = "購読は購入した先（AppleやGoogle Playなど）のものなので、この操作では解約されません。解約は、購入した先の購読の管理から行ってください。";
     public const string Cancel = "購読を止めるには、購入した先の購読の管理から解約してください。";
 
-    // Windows-only: a step the deletion could not finish (the Mac reference has none: its steps cannot fail on this side).
+    // a485 follow-up (Tronie, from Mint): the result is told only when every step returned; otherwise this names what could not be removed and why, and pressing again finishes it.
     public const string FailedTitle = "アカウントの削除を終えられませんでした";
+    public static string Failed(string what, string why) =>
+        what + "を消せませんでした。理由：" + why.TrimEnd('。', ' ') + "。ここまでに消したものは、消えたままです。もう一度「" + Button + "」を押すと、続きを行います。";
 }

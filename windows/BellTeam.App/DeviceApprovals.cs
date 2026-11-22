@@ -75,11 +75,12 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
     }
 
     // The Approval Box account was deleted (4410): this device's keys, trusted head and history go with it (the pass is the second instance's own to clear).
-    // a485 「アカウントを削除」 uses it too; the attachments (SealedBlobFiles) go with the rest.
-    internal void ClearLocal()
+    // a485 「アカウントを削除」 uses it too (strict: a file that cannot be removed throws, so the deletion is never told as done); the attachments (SealedBlobFiles) go with the rest.
+    internal void ClearLocal(bool strict = false)
     {
-        foreach (var file in new[] { Path.Combine(directory, "peer-channel-device.key"), AnchorPath, HistoryPath }) try { File.Delete(file); } catch (IOException) { }
-        try { Directory.Delete(Path.Combine(directory, "approvals-files"), true); } catch (DirectoryNotFoundException) { } catch (IOException) { }
+        void Try(Action remove) { try { remove(); } catch (Exception error) when (!strict && error is IOException) { } }
+        foreach (var file in new[] { Path.Combine(directory, "peer-channel-device.key"), AnchorPath, HistoryPath }) Try(() => File.Delete(file));
+        Try(() => { if (Directory.Exists(Path.Combine(directory, "approvals-files"))) Directory.Delete(Path.Combine(directory, "approvals-files"), true); });
     }
 
     private (string Account, SignedSnapshot Snapshot)? LoadAnchor()
