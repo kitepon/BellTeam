@@ -88,6 +88,9 @@ try {
   await writeFile(join(output, 'distribution/server/updater/root-code-manifest.json'), JSON.stringify({
     schema: 'bellteam.host-updater.code-manifest.v1', sourceCommit, files: codeFiles,
   }, null, 2) + '\n')
+  // a518: the commit order of this build, so the update screen can tell a published module row that is older than the builtin from a newer one.
+  // shortcut: 5000 commits back; a row older than that reads update_available, raise the count if a train is ever that old.
+  await writeFile(join(output, 'config/source-history.txt'), (await exec('git', ['rev-list', '-n', '5000', sourceCommit], { cwd: root, maxBuffer: 1 << 20 })).stdout)
   await writeFile(join(output, 'distribution.json'), JSON.stringify({
     schema: 'bellteam.server.distribution.v1', sourceCommit, profile: 'public',
   }, null, 2) + '\n')

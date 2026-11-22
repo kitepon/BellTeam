@@ -129,6 +129,24 @@ flowchart LR
   Compat -->|yes| Compare[up_to_date / update_available]
 ```
 
+### A published row is never "new" next to a newer builtin (a518, 2026-11-22)
+
+Found live after Z179: notifications ran the body's builtin (`8904aff7`) and the catalog's notifications row was `a28397fc` (cut at the Z170 train, its files unchanged since). The compare step above called that `update_available` ("新しい版（a28397f）があります"), so the screen offered an OLDER row as an update. Which side is wrong: **the compare**. A row stays at the commit where its module's files last changed on purpose (a module restart for an identical archive is a cost, so unchanged modules are not re-rowed, `integrations/train-rows/rows.py`); a row is not "lagging", and a catalog row carries no time or order of its own (selection() has the catalog's `publishedAt` only). Equality of commit ids is the only test the compare had, so every builtin module whose row was cut before the body would show a false update after each body swap.
+
+The body therefore carries its own commit order: `package-server.mjs` writes `config/source-history.txt` (the newest 5000 commits reachable from the packaged commit, one 40-hex id per line, the packaged commit first) from the full checkout the image build already has (`fetch-depth: 0`). `src/source-history.mjs` reads it once; the file is absent in a repository run, then the compare is unchanged.
+
+```mermaid
+flowchart TD
+  Pack["package-server.mjs: git rev-list -n 5000 HEAD"] --> File[("config/source-history.txt in the image")]
+  File --> Load["source-history.mjs: Set of ids, or null (no file or empty)"]
+  Load --> Compare
+  Row["selected row: release.sourceCommit"] --> Compare{"current.origin == builtin AND history has current.sourceCommit AND history has release.sourceCommit?"}
+  Compare -->|yes| UpToDate["up_to_date: the row was cut at or before the body's own source, so it is not newer than the builtin"]
+  Compare -->|no| Old["digest equality, as before: up_to_date / update_available"]
+```
+
+Rules: (1) only a builtin current is judged by history; a module running a release is still compared by digest. (2) A row whose commit is NOT in the body's history (published after the body was built) stays `update_available`: it is newer or unknown. (3) The history is trusted only when it contains the builtin's own commit (same build), else it is ignored. (4) `shortcut: 5000 commits back, a row older than that reads update_available; raise the count if a train is ever that old`. State transitions: none added; `comparison.state` of a builtin component moves only when the body or the catalog changes (a body swap changes `current.sourceCommit`, a new catalog changes `release`), as today.
+
 private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<component>.adoption.v1`。module/allのdurable requestId ledgerや公開source identityはMollyが所有し、このrecordから捏造しない。reserveはcompletionを返し、実replace終端又はcancelまで同親mutexを保持できる。
 
 このsourceの限定fake-child境界と、各作者の実IPC fixture、Centi同imageの実UID/署名/OS交換は別の証拠。初回親組立とmountはimage導入が必要で、未登録moduleを既imageへ無再起動追加できるとは扱わない。導入後の登録済controller経由コード交換が対象。
