@@ -1,4 +1,3 @@
-using Android.Gms.Extensions;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -85,7 +84,11 @@ public sealed class ApprovePanel : StackPanel
         try
         {
             var options = new GmsBarcodeScannerOptions.Builder().SetBarcodeFormats(Barcode.FormatQrCode).Build();
-            raw = (await GmsBarcodeScanning.GetClient(MainActivity.Current, options).StartScan().AsAsync<Barcode>())?.RawValue;
+            // Not AsAsync: the binding's listener passes a cancelled task's null Exception to SetException and kills the app when the person closes the scanner.
+            var done = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var listener = new ScanListener(done);
+            GmsBarcodeScanning.GetClient(MainActivity.Current, options).StartScan().AddOnSuccessListener(listener).AddOnFailureListener(listener).AddOnCanceledListener(listener);
+            raw = await done.Task;
         }
         catch (Exception error) when (!token.IsCancellationRequested)
         {
@@ -94,6 +97,13 @@ public sealed class ApprovePanel : StackPanel
             return;
         }
         if (raw is { Length: > 0 }) await ApproveAsync(raw);
+    }
+
+    private sealed class ScanListener(TaskCompletionSource<string?> done) : Java.Lang.Object, global::Android.Gms.Tasks.IOnSuccessListener, global::Android.Gms.Tasks.IOnFailureListener, global::Android.Gms.Tasks.IOnCanceledListener
+    {
+        public void OnSuccess(Java.Lang.Object? result) => done.TrySetResult((result as Barcode)?.RawValue);
+        public void OnFailure(Java.Lang.Exception error) => done.TrySetException(new InvalidOperationException(error.Message));
+        public void OnCanceled() => done.TrySetResult(null);   // closing the scanner is not a failure
     }
 
     private Task<bool> Confirm(string label, string number)
