@@ -16,6 +16,29 @@ public sealed class HomeSessionsTests
     [InlineData("account", "unknown-kind", "アプリ")]
     public void TheDeviceIsNamedByTheKindTheAppSent(string kind, string? appKind, string expected) => Assert.Equal(expected, HomeSessionWords.Device(Row(kind, appKind)));
 
+    [Theory]
+    [InlineData(1, "この端末だけが入っています")]
+    [InlineData(2, "2台が入っています")]
+    [InlineData(5, "5台が入っています")]
+    public void TheSummaryCountsEveryRowIncludingThisDevice(int count, string expected) => Assert.Equal(expected, HomeSessionWords.Summary(count));
+
+    [Theory]
+    [InlineData("account", "apple", HomeSessionIcons.Phone)]
+    [InlineData("account", "android", HomeSessionIcons.Phone)]
+    [InlineData("account", "windows", HomeSessionIcons.Desktop)]
+    [InlineData("account", "linux", HomeSessionIcons.Desktop)]
+    [InlineData("account", "web", HomeSessionIcons.Web)]
+    [InlineData("console", null, HomeSessionIcons.Console)]
+    public void EachKindHasItsGenericGlyph(string kind, string? appKind, string expected) => Assert.Equal(expected, HomeSessionIcons.Of(kind, appKind));
+
+    [Fact]
+    public void AnUnknownKindHasNoGlyphAndNoBrandMarkExists()
+    {
+        Assert.Null(HomeSessionIcons.Of("account", "unknown-kind"));
+        Assert.NotEqual(HomeSessionIcons.Phone, HomeSessionIcons.Desktop);
+        Assert.DoesNotContain(typeof(HomeSessionIcons).GetFields(), f => f.Name is "Apple" or "Linux" or "Windows" or "Android");
+    }
+
     [Fact]
     public void OnlyAStoreDeviceShutsOutAnotherAccountRowThatHasAPassId()
     {

@@ -29,6 +29,8 @@ public sealed record HomeSessionList { public List<HomeSessionRow> Sessions { ge
 public static class HomeSessionWords
 {
     public static string Device(HomeSessionRow row) => row.Kind == "console" ? "サーバーのコンソール" : row.AppKind switch { "apple" => "iPhone・iPad・Mac", "windows" => "Windows", "linux" => "Linux", "android" => "Android", _ => "アプリ" };
+    // The summary under the title (Tronie 2026-11-23): every row counts, this device included.
+    public static string Summary(int count) => count == 1 ? "この端末だけが入っています" : $"{count}台が入っています";
     public static string? StateLine(string state) => state switch { "none" => "契約がありません", "unknown" => "契約を確認できません", _ => null };
     public static string? Date(string? iso) => DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var time) ? time.ToLocalTime().ToString("M/d HH:mm", CultureInfo.InvariantCulture) : null;
     // The own row is the sign-out (the account card); a console row has no pass to stop; the stop needs the row's passId and a store device.
@@ -93,13 +95,13 @@ public sealed class HomeSessionsCard : StackPanel
     {
         Children.Clear();
         Children.Add(Text("このサーバーに入っている端末", 17, Ink, FontWeight.Bold));
-        Children.Add(Text("ここに並ぶのは、このサーバーにログインしているすべての端末です。「ログアウトさせる」はその端末をいま出します（パスが生きていれば入り直せます）。", 13, Muted, null, new Thickness(0, 8, 0, 4)));
+        Children.Add(Text(HomeSessionWords.Summary(rows?.Count ?? 0), 12, Muted, null, new Thickness(0, 4, 0, 4)));   // muted footnote, no button
         foreach (var row in rows ?? [])
         {
             var box = new StackPanel { Spacing = 2 };
             var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             head.Children.Add(Text(HomeSessionWords.Device(row), 15, Ink, FontWeight.SemiBold));
-            if (row.Current) head.Children.Add(Badge("この端末", SettingsTone.Violet));
+            if (row.Current) head.Children.Add(Badge("このアプリ", SettingsTone.Violet));
             box.Children.Add(head);
             var times = "入った " + (HomeSessionWords.Date(row.Created) ?? "—") + (HomeSessionWords.Date(row.LastUse) is { } last ? "・最後に使った " + last : "");
             box.Children.Add(Text(times, 12, Muted));
@@ -125,7 +127,12 @@ public sealed class HomeSessionsCard : StackPanel
                 var own = Action("ログアウト", Red, () => _ = LogoutAsync()); own.HorizontalAlignment = HorizontalAlignment.Left; own.Margin = new Thickness(0, 6, 0, 0);
                 box.Children.Add(own);
             }
-            Children.Add(new Border { Child = box, Background = Fill, CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Margin = new Thickness(0, 8, 0, 0) });
+            // The kind's icon in a 32 pt rounded tile (radius 8, the card's secondary fill) left of the title; the accessibility name is the kind's name.
+            var tile = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(8), Background = Fill, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 12, 0) };
+            if (HomeSessionIcons.Of(row.Kind, row.AppKind) is { } glyph) tile.Child = new Border { Child = Glyph(glyph, 18, Muted, filled: true), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            Avalonia.Automation.AutomationProperties.SetName(tile, HomeSessionWords.Device(row));
+            var line = new StackPanel { Orientation = Orientation.Horizontal }; line.Children.Add(tile); line.Children.Add(box);
+            Children.Add(new Border { Child = line, BorderBrush = Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 10), Margin = new Thickness(0, 8, 0, 0) });
         }
         if (rows is { Count: 0 }) Children.Add(Text("まだ端末はありません。", 13, Muted, null, new Thickness(0, 8, 0, 0)));
         if (failure is not null) Children.Add(Banner(failure));
