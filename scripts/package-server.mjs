@@ -25,7 +25,7 @@ try {
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'distribution/server', 'distribution/lattice/package.json', 'distribution/lattice/package-lock.json', 'distribution/approval-box/package.json', 'distribution/approval-box/package-lock.json',
-    'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh', 'scripts/bellteam-console.mjs',
     'scripts/module-start.c', 'scripts/conversation-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/lattice-sensor-init', 'scripts/approval-box-extension-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c', 'scripts/notifications-start.c', 'scripts/members-start.c',
     'scripts/assert-state-writers-stopped.sh',

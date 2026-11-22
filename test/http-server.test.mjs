@@ -951,3 +951,30 @@ test('止める時に処理中だった接続は、応答を返し終えたら�
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('接続が閉じない')), 3000).unref())
   await Promise.race([closed, timeout])
 })
+
+test('a485: with the home front, Enforced admits only a session, 503 when it cannot judge, Legacy keeps the old authorizer, seats are untouched', async (t) => {
+  const answers = { legacy: 'legacy', none: 'none', unavailable: 'unavailable', session: { sessionId: 's1' } }
+  let mode = 'legacy'
+  const homeFront = { async route() { return false }, async judge() { return answers[mode] }, stateOf: id => id === 's1' ? 'none' : undefined }
+  const server = createBellTeamServer({ bots: new Map(), authorize: mockAuthorize, messenger: {}, store: {}, transport: {}, homeFront,
+    subscriptions: { async current() { return { entitled: true, entitlementState: 'active' } } } })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => server.close())
+  const base = `http://127.0.0.1:${server.address().port}`
+  const jwt = { 'cf-access-jwt-assertion': 'test-assertion' }
+  const status = async (path, headers = {}) => (await fetch(`${base}${path}`, { headers })).status
+  assert.equal(await status('/api/subscription', jwt), 200) // Legacy: the old authorizer
+  assert.equal(await status('/api/subscription'), 401)
+  mode = 'none'
+  assert.equal(await status('/api/subscription', jwt), 401) // Enforced: a Cloudflare JWT no longer proves the owner
+  assert.deepEqual(await (await fetch(`${base}/api/session`, { headers: jwt })).json().then(body => body.authenticated), false)
+  mode = 'unavailable'
+  const unavailable = await fetch(`${base}/api/subscription`, { headers: jwt })
+  assert.equal(unavailable.status, 503)
+  assert.deepEqual(await unavailable.json(), { error: 'SESSION_STORE_UNAVAILABLE' })
+  mode = 'session'
+  const body = await (await fetch(`${base}/api/subscription`)).json()
+  assert.equal(body.subscription.entitlementState, 'none') // the session's own state, not the server's
+  assert.equal(await status('/healthz'), 200)
+})

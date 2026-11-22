@@ -142,6 +142,8 @@ BUSINESS_FILES = {
         'src/usage/state-compatibility.mjs',
         'src/usage/fcm-schema.mjs',
         'src/usage/harness-cli-notice.mjs',
+        'src/usage/home-login.mjs',
+        'src/usage/vendor/login-billing-home.mjs',
     )},
     'diagnostics': {'payload/' + name for name in (
         'package-lock.json',

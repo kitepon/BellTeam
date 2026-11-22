@@ -31,7 +31,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
     ...['bellteam-container-update-host.service.in', 'bellteam-update-catalog-refresh.service.in', 'bellteam-update-catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
-    'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh', 'scripts/bellteam-console.mjs',
     'scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
@@ -80,7 +80,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
   for (const name of bridgeFiles) assert.ok(pathsInArchive.includes(`bridge/${name}`))
   assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
-  for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
+  for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh', 'scripts/bellteam-console.mjs']) assert.ok(pathsInArchive.includes(path))
   for (const path of ['scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(pathsInArchive.includes('scripts/install-sce-headers.py'))
   assert.ok(pathsInArchive.includes('scripts/import-call-bridge.mjs'))

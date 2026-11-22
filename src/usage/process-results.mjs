@@ -12,6 +12,17 @@ const timeline = (kind, value) => Array.isArray(value) && value.every(row => exa
   && row.kind === kind && row.direction === 'incoming' && typeof row.message === 'string'
   && exact(row.sender, ['id', 'name']) && typeof row.sender.name === 'string' && record(kind === 'secret_request' ? 'secret' : 'question', row[kind]))
 
+// a485: the home part's answers. `row` is the guard's set for the body; it is never a projection row (the body keeps it in memory).
+const homeRow = value => exact(value, ['v', 'bound', 'enforced', 'hashes', 'states']) && value.v === 1 && typeof value.bound === 'boolean' && typeof value.enforced === 'boolean'
+  && object(value.hashes) && object(value.states) && Object.values(value.hashes).every(id => typeof id === 'string') && Object.values(value.states).every(state => ['active', 'none', 'unknown'].includes(state))
+const homeWithRow = (value, names) => object(value) && Object.keys(value).every(key => key === 'row' || names.includes(key)) && (!Object.hasOwn(value, 'row') || value.row === undefined || homeRow(value.row))
+function homeResultValid(method, value) {
+  if (method === 'home.handle') return homeWithRow(value, ['status', 'headers', 'body', 'setupNeeded']) && Number.isSafeInteger(value.status) && typeof value.body === 'string' && object(value.headers)
+  if (method === 'home.sweep' || method === 'home.publish') return homeWithRow(value, [])
+  if (method === 'home.setupCode') return exact(value, ['code', 'expiresAt', 'bound']) && typeof value.code === 'string' && typeof value.expiresAt === 'string' && typeof value.bound === 'boolean'
+  return object(value) && Object.keys(value).length <= 8 // home.console: a small private answer for the host's user
+}
+
 // The channel validates a reply before it becomes a successful public business result.
 export function usageResultValid(method, value, params = {}) {
   if (!Object.hasOwn(usageMethods, method)) return false
@@ -22,6 +33,7 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'settings.configuration') return usageConfigurationValid(params.id, value)
   if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id
   if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null
+  if (method.startsWith('home.')) return homeResultValid(method, value)
   if (method === 'secrets.refresh') return exact(value, ['recoveryNeeded']) && typeof value.recoveryNeeded === 'boolean'
   if (['secrets.revokeTerminalRequests', 'secrets.erase'].includes(method)) return value === null
   if (method === 'secrets.requestTerminalKey') return exact(value, ['secretRequest']) && record('secret', value.secretRequest) && value.secretRequest.botId === null

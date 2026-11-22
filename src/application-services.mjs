@@ -75,6 +75,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { createRemoteSeatListener, remoteSeatPort } from './remote-seat-port.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 import { roomForwardSource } from './origin-reference.mjs'
+import { createHomeFront } from './home-login-front.mjs'
 
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
 export const conversationDiagnosticPort = diagnostics => report => Promise.resolve()
@@ -300,6 +301,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     refresh: () => usageAssembly.credentials.refresh(), watch: listener => usageAssembly.credentials.watch(listener),
     ...(usageAssembly.credentials.watchRecovery ? { watchRecovery: listener => usageAssembly.credentials.watchRecovery(listener) } : {}),
     report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
+  // a485: the login-billing home part's body side. Always built when usage exists (an Enforced marker must outlive any configuration);
+  // answers 404 on /api/home until an operator is configured and the owner has bound the server.
+  const homeFront = usageAssembly?.home ? createHomeFront({ enabled: Boolean(environment.BELLTEAM_HOME_OPERATOR), markerPath: join(root, 'state/login-enforced'),
+    call: (name, params) => usageAssembly.home[name.slice('home.'.length)](params) }) : null
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
   // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.
   const remoteSeatListener = createRemoteSeatListener()
@@ -569,7 +574,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
+    homeFront, aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
@@ -577,7 +582,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
-      afterListenReady: async () => { directMessages.start(); void credentialRefresh?.refreshNow(); await execution?.lifecycle?.afterListenReady?.() } },
+      afterListenReady: async () => { directMessages.start(); void credentialRefresh?.refreshNow(); void homeFront?.start(environment.BELLTEAM_CONSOLE_SOCKET ?? '/run/bellteam-server/console.sock').catch(() => {}); await execution?.lifecycle?.afterListenReady?.() } },
   }
   } catch (error) {
     const failures = []

@@ -7,7 +7,7 @@ import { USAGE_STATE_COMPATIBILITY } from './state-compatibility.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
-const environmentKeys = ['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY']
+const environmentKeys = ['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY', 'BELLTEAM_HOME_OPERATOR']
 const bootstrapValid = value => keys(value, ['environment', 'seatRuntime', 'subscription']) && keys(value.environment, [], environmentKeys)
   && Object.values(value.environment).every(value => typeof value === 'string') && typeof value.seatRuntime === 'boolean'
   && keys(value.subscription, [], ['environment', 'accessMode', 'developerAccessAllowed'])

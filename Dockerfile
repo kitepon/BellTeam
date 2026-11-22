@@ -85,7 +85,8 @@ RUN mkdir /tmp/abx && cp distribution/approval-box/package.json distribution/app
 # Seats reach the code graph through these two (E1 lattice, config/lattice-harness-entries.json): lattice-mcp is registered for every CLI, lattice-sensor-init indexes the member's own clone.
 RUN ln -s /app/src/lattice/node_modules/@quolu/lattice/bin/lattice-mcp.mjs /usr/local/bin/lattice-mcp \
   && install -o root -g root -m 0755 scripts/lattice-sensor-init /usr/local/bin/lattice-sensor-init
-RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor
+RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor \
+  && install -o root -g root -m 0755 scripts/bellteam-console.mjs /usr/local/bin/bellteam-console
 RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && /usr/sbin/useradd -u 1001 -g 1001 -d /run/bellteam-server -M -s /usr/sbin/nologin bellteam-server \
   && mkdir -p /usr/local/libexec \

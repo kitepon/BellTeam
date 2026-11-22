@@ -12,6 +12,7 @@ import { authReceipt, authUi } from '../auth-ui.mjs'
 import { usageError, validateUsageRequest } from './process-schema.mjs'
 import { BackgroundAgentSettings } from './background-agent-settings.mjs'
 import { createOnePasswordSource } from './onepassword-source.mjs'
+import { createHomeLogin } from './home-login.mjs'
 
 const clone = value => structuredClone(value)
 const receiptKeys = ['loggedIn', 'slot', 'account_label', 'schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
@@ -52,6 +53,9 @@ function volatileState(value) {
 // Runtime owns the process/lock and supplies only fixed parent effects and registry ports.
 export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {}, onePassword, secretProviders,
   environment = {}, seatRuntime = false, subscription = {} }) {
+  // a485: mounted only when the operator is configured; without it every home call is unavailable and the body stays Legacy.
+  const home = environment.BELLTEAM_HOME_OPERATOR ? createHomeLogin({ path: join(root, 'shared/login-home.json'), operator: environment.BELLTEAM_HOME_OPERATOR }) : null
+  const homeReady = () => home ?? (() => { throw usageError('SESSION_STORE_UNAVAILABLE') })()
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
   let projectionFailed = false, projectionFailures = 0, projectionTail = Promise.resolve()
@@ -193,6 +197,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'questions.get': ({ id }, actor) => getOwned(ownerQuestions, id, actor, 'OWNER_QUESTION_NOT_FOUND'),
     'questions.answer': ({ id, input }) => ownerQuestions.answer(id, input),
     'questions.timeline': ({ target }) => ownerQuestions.timeline(target),
+    'home.handle': params => homeReady().handle(params), 'home.sweep': params => homeReady().sweep(params),
+    'home.setupCode': () => homeReady().setupCode(), 'home.publish': () => homeReady().publish(), 'home.console': params => homeReady().console(params),
     'subscriptions.status': () => subscriptions.status(), 'subscriptions.current': () => subscriptions.current(),
     'subscriptions.install': ({ signedTransaction }) => subscriptions.install(signedTransaction),
     'subscriptions.installStripe': ({ stripeSessionId }) => subscriptions.installStripe(stripeSessionId),

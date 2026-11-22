@@ -9,7 +9,8 @@
     "notify",
     "auth",
     "secrets",
-    "harnessCli (installed, watch)"
+    "harnessCli (installed, watch)",
+    "homeLogin (/api/home, bellteam-console)"
   ],
   "uses": [
     {
