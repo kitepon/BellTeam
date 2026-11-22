@@ -147,6 +147,13 @@ final class StoreAccount: ObservableObject {
     /// 端末をなくした時: Appleのシートを1回通し、そのアカウントの他のログインをすべて止める。
     func stopAllOthers() async {
         await run { client in
+            #if DEBUG
+            if let operatorURL = Self.devOperatorURL {
+                try await client.signIn(deviceLabel: Self.deviceLabel, stopOthers: true) { try await Self.devIdToken(operatorURL, nonce: $0) }
+                self.message = "ほかのログインをすべて止めました（開発用オペレーター）。"
+                return
+            }
+            #endif
             try await client.stopAllOthers(anchor: Self.anchor, deviceLabel: Self.deviceLabel)
             self.message = "ほかのログインをすべて止めました。"
         }
