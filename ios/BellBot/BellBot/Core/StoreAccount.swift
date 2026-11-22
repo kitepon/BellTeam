@@ -64,8 +64,11 @@ final class StoreAccount: ObservableObject {
     /// 起動時と前面に戻る時: 遅れて完了した購入を送り、状態を読み直す。
     func start() async {
         guard let client else { return }
+        let before = (entitlements.map(\.productId), hasLiveContract)
         do { try await client.start() } catch { errorText = Self.words(error) }
         await reload()
+        // message is the last action's line; when the server's state moved on its own it would contradict the card.
+        if (entitlements.map(\.productId), hasLiveContract) != before { message = nil }
     }
 
     func reload() async {

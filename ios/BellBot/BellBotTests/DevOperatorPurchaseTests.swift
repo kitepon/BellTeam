@@ -16,6 +16,12 @@ final class DevOperatorPurchaseTests: XCTestCase {
         defer { withExtendedLifetime(session) {} } // the test session ends when it is released
         session.disableDialogs = true
         session.clearTransactions()
+        var reset = URLRequest(url: operatorURL.appending(path: "dev/store-reset"))
+        reset.httpMethod = "POST"
+        reset.setValue("application/json", forHTTPHeaderField: "content-type")
+        reset.httpBody = Data("{}".utf8)
+        let (_, resetResponse) = try await URLSession.shared.data(for: reset) // fresh fake-store records: StoreKit's test ids restart every run
+        XCTAssertEqual((resetResponse as? HTTPURLResponse)?.statusCode, 200)
         let account = StoreAccount(baseURL: operatorURL.appending(path: "auth/v1"), productId: "dev.kitepon.bellbot.monthly")
         XCTAssertTrue(account.configured)
         await account.signIn()
@@ -24,8 +30,7 @@ final class DevOperatorPurchaseTests: XCTestCase {
         print("PRODUCTS-FOUND: \(found)")
         await account.purchase()
         print("PURCHASE-WORD: \(account.purchaseWord ?? "nil") | contract live: \(account.hasLiveContract) | entitlements: \(account.entitlements.map(\.productId)) | error: \(account.errorText ?? "-")")
-        // The operator remembers a transaction id it has ended; StoreKit's test ids restart, so a repeated run answers "ended" (the real word for it).
-        XCTAssertTrue(["attached", "ended"].contains(account.purchaseWord ?? ""), "purchase word: \(account.purchaseWord ?? "nil")")
+        XCTAssertEqual(account.purchaseWord, "attached")
         let latest = await Transaction.latest(for: "dev.kitepon.bellbot.monthly")
         let id = try XCTUnwrap(latest).payloadValue.id
         var request = URLRequest(url: operatorURL.appending(path: "dev/store-end"))
@@ -35,6 +40,7 @@ final class DevOperatorPurchaseTests: XCTestCase {
         let (_, response) = try await URLSession.shared.data(for: request)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
         await account.start()
+        XCTAssertNil(account.message, "a stale message must not outlive the state it described")
         print("AFTER-END: contract live: \(account.hasLiveContract) | entitlements: \(account.entitlements.map(\.productId)) | message: \(account.message ?? "-") | error: \(account.errorText ?? "-")")
     }
 }
