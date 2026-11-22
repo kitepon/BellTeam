@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T02:20:30Z",
-  "expiresAt": "2026-11-29T02:20:30Z",
+  "publishedAt": "2026-11-22T03:08:41Z",
+  "expiresAt": "2026-11-29T03:08:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -291,8 +291,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
-      "versionId": "16b9823d963d64bac269342ff2a41e8be8c1d95dfcb1060d12428726b3bb8dc6",
+      "sourceCommit": "a28397fc1ad972dfbb159cfbe155b9c7cc748d64",
+      "versionId": "c17dc9b2935f2f8ce9d0aaea5f8d042b1da643160167a982e80fdb9182fa54d0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-amd64.tar.gz",
-          "bytes": 4514645,
-          "sha256": "16b9823d963d64bac269342ff2a41e8be8c1d95dfcb1060d12428726b3bb8dc6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T030713Z/notifications-a28397fc1ad972dfbb159cfbe155b9c7cc748d64-linux-amd64.tar.gz",
+          "bytes": 4514716,
+          "sha256": "c17dc9b2935f2f8ce9d0aaea5f8d042b1da643160167a982e80fdb9182fa54d0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10896,
-          "sha256": "abad04c4b3354f59e2e82b71bad30c9ad5197e068cdd1d5b9d7cc807a21d9b36"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T030713Z/notifications-a28397fc1ad972dfbb159cfbe155b9c7cc748d64-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11084,
+          "sha256": "54c3b194c068a240954474f31c1dbfa71cfbf6f58d2d4858c4f2a659816de7fa"
         },
-        "signerCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff"
+        "signerCommit": "a28397fc1ad972dfbb159cfbe155b9c7cc748d64"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -318,13 +318,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の鍵を、再試行や再起動のたびに1Passwordから読み直しません。1Passwordの「Too many requests」は、10分の保留つきで、鍵の読み取り制限として表示します。"
+        "通知の鍵を、再試行や再起動のたびに1Passwordから読み直しません。1Passwordの「Too many requests」は、10分の保留つきで、鍵の読み取り制限として表示します。Appleが鍵を拒否した時は、保持している鍵を捨てて、次に読み直します。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
-      "versionId": "fdc96854bc2df03b08287b96e36bcf9e76e74cb7ca749dda1340b0b217f5a4b3",
+      "sourceCommit": "a28397fc1ad972dfbb159cfbe155b9c7cc748d64",
+      "versionId": "d270c0c535202ff533c8912954c38baf52f3b9c74a048b9519de6b2697c4f1fd",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-arm64.tar.gz",
-          "bytes": 4514646,
-          "sha256": "fdc96854bc2df03b08287b96e36bcf9e76e74cb7ca749dda1340b0b217f5a4b3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T030713Z/notifications-a28397fc1ad972dfbb159cfbe155b9c7cc748d64-linux-arm64.tar.gz",
+          "bytes": 4514719,
+          "sha256": "d270c0c535202ff533c8912954c38baf52f3b9c74a048b9519de6b2697c4f1fd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10896,
-          "sha256": "12dd61c0159ac9ae63163311f5d68128c702efa0f546cc1725f27cc2f300239d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T030713Z/notifications-a28397fc1ad972dfbb159cfbe155b9c7cc748d64-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11072,
+          "sha256": "02842fb97736d1711c8b4805bed448554b45d99a632454184013d9d1487826e2"
         },
-        "signerCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff"
+        "signerCommit": "a28397fc1ad972dfbb159cfbe155b9c7cc748d64"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -350,7 +350,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の鍵を、再試行や再起動のたびに1Passwordから読み直しません。1Passwordの「Too many requests」は、10分の保留つきで、鍵の読み取り制限として表示します。"
+        "通知の鍵を、再試行や再起動のたびに1Passwordから読み直しません。1Passwordの「Too many requests」は、10分の保留つきで、鍵の読み取り制限として表示します。Appleが鍵を拒否した時は、保持している鍵を捨てて、次に読み直します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
-      "versionId": "sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7",
+      "sourceCommit": "a28397fc1ad972dfbb159cfbe155b9c7cc748d64",
+      "versionId": "sha256:7ded9b80cd9f98774c052a6e5dcb430131f4aba4c0a150d0156e465053fa850e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7ded9b80cd9f98774c052a6e5dcb430131f4aba4c0a150d0156e465053fa850e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -729,15 +729,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
-      "versionId": "sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7",
+      "sourceCommit": "a28397fc1ad972dfbb159cfbe155b9c7cc748d64",
+      "versionId": "sha256:7ded9b80cd9f98774c052a6e5dcb430131f4aba4c0a150d0156e465053fa850e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7ded9b80cd9f98774c052a6e5dcb430131f4aba4c0a150d0156e465053fa850e"
       },
       "compatibility": {
         "nodeMajor": null,
