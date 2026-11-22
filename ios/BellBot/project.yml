@@ -195,6 +195,7 @@ targets:
           - "*.entitlements"
       - path: Shared/ShareCredentials.swift
       - path: Shared/ShareClient.swift
+      - path: Shared/BearerRedirectGuard.swift
     info:
       path: ShareExtension/Info.plist
       properties:
