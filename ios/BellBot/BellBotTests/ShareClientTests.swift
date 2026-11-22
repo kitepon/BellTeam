@@ -16,10 +16,10 @@ final class ShareClientTests: XCTestCase {
         override func stopLoading() {}
     }
 
-    private func client(cookie: String? = "CF_Authorization=abc", expires: Date? = nil, entitled: Date? = nil) -> ShareClient {
+    private func client(cookie: String? = "CF_Authorization=abc", expires: Date? = nil) -> ShareClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [Stub.self]
-        return ShareClient(credentials: .init(serverURL: "https://bell.example", cookieHeader: cookie, cookieExpiresAt: expires, entitledUntil: entitled),
+        return ShareClient(credentials: .init(serverURL: "https://bell.example", cookieHeader: cookie, cookieExpiresAt: expires),
                            session: URLSession(configuration: configuration))
     }
 
@@ -54,12 +54,16 @@ final class ShareClientTests: XCTestCase {
         XCTAssertNoThrow(try client(cookie: nil).validate())
     }
 
-    func testAccessNeedsDeveloperModeOrAnActiveSubscription() async throws {
+    /// B2: only the server's own word opens the share (developer mode or entitlementState active); no date kept on the device.
+    func testAccessNeedsDeveloperModeOrTheServersActiveWord() async throws {
         respond(200, #"{"subscription":{"accessMode":"developer"}}"#)
         try await client().requireAccess()
-        respond(200, #"{"subscription":{"accessMode":"apple"}}"#)
-        do { try await client().requireAccess(); XCTFail("no entitlement") } catch { XCTAssertEqual(error as? ShareClient.Failure, .subscription) }
-        try await client(entitled: Date(timeIntervalSinceNow: 3600)).requireAccess()
+        respond(200, #"{"subscription":{"accessMode":"subscription","entitlementState":"active"}}"#)
+        try await client().requireAccess()
+        for state in [#""none""#, #""unknown""#, "null"] {
+            respond(200, #"{"subscription":{"accessMode":"subscription","entitlementState":"# + state + "}}")
+            do { try await client().requireAccess(); XCTFail("the server did not say active") } catch { XCTAssertEqual(error as? ShareClient.Failure, .subscription) }
+        }
     }
 
     func testADifferentHostAnswerMeansTheLoginExpired() async {

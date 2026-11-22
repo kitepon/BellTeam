@@ -53,3 +53,27 @@ test('reviewAccounts moves a recorded seat the engine did not launch', async () 
   await transport.reviewAccounts()
   assert.deepEqual(moved, ['bot-a', 'bot-b'])
 })
+
+// a496m (harness-accounts.md "Idle-boundary moves"): an unconfirmed move is retried by the shared timer, and the retry stops once the move works.
+test('an unconfirmed seat move is reviewed again after moveRetryMs and stops once the move succeeds', async () => {
+  const slots = { 'bot-a': '1st' }, attempts = []
+  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: slots }, seatSlot: id => slots[id] ?? null,
+    effectiveSlot: async () => '2nd', freeSlot: async () => '2nd', renewDue: async () => false }
+  const bot = { id: 'bot-a', harness: 'claude', model: 'fable' }
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: () => bot })
+  transport.moveRetryMs = 10
+  transport.isIdle = () => true
+  transport.switchAccount = async () => {
+    attempts.push(Date.now())
+    if (attempts.length < 3) throw Object.assign(new Error('x'), { code: 'MEMBERS_NOT_ACCEPTED' })
+    slots['bot-a'] = '2nd'
+  }
+  const stderr = process.stderr.write.bind(process.stderr); process.stderr.write = () => true
+  try {
+    transport.moveAtBoundary('bot-a')
+    await new Promise(resolve => setTimeout(resolve, 300))
+  } finally { process.stderr.write = stderr }
+  assert.equal(attempts.length, 3, 'two failures, then one success, then no more attempts')
+  assert.equal(transport.moveRetryTimer, null)
+  await transport.close()
+})

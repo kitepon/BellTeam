@@ -14,7 +14,7 @@ streamed:trueのendpointは既open/data/credit/end/closed/abort/rejected/control
 
 root呼び出しは同時64を超えると、拒否せず種類別root専用のFIFO待ち列で空きを待つ（BugHub ef83d4ee: 一覧画面のavatar約123件が同時に来て67件が503になった）。待ちの期限は呼び出した時刻から数えるcaller deadline（既定60秒）で、期限切れは未送信のまま`MODULE_IPC_TIMEOUT`/`not_accepted`で列を抜ける。断線・fail()は待ち全件を`MODULE_IPC_DISCONNECTED`/`not_accepted`で返す（これが待ちから抜ける道）。空きは実completion（`finish`）とissue失敗の全出口で返し、期限切れで呼び手へは失敗を返したin-flightも、実resultが来た時点で次の待ちへ空きを渡す。次の発行は1ターン後で、相手が同じ空きを解放してから送る。effect/callback/projection/control等は従来どおり上限で即拒否する（root実行中の入れ子で、待たせると同じ上限を待って詰まるため）。受け側の上限確認と業務buffer64MiBの確認は変えない。
 
-Owner PR319により親admission・親子root/effect/callback（会話event含む）はMODULE_CONCURRENCY=64を共有する。projection1/control・diagnostic16とstream通常4/全8は別の予約予算。業務buffer64MiBは未送信・dispatch待ちframeの予算であり、稼働中64処理の総RSS上限ではない。
+Owner PR319により親子root/effect/callback（会話event含む）はMODULE_CONCURRENCY=64を共有する。親admissionのleaseは件数を数えない（a505b）。projection1/control・diagnostic16とstream通常4/全8は別の予約予算。業務buffer64MiBは未送信・dispatch待ちframeの予算であり、稼働中64処理の総RSS上限ではない。
 
 ## Records between halves that ship apart (2026-11-18, a399)
 

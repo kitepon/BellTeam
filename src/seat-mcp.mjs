@@ -108,11 +108,13 @@ export function createRemoteSeatIngress({ credentials, bots, seatMcp, userTools 
   }
 }
 
-// RS05: the container-loopback listener that Aiterm's SSH reverse forward targets. Only the seat MCP paths (bellteam, call-bridge, user/<name>); no other API.
-export function createRemoteSeatServer(ingress) {
+// RS05: the container-loopback listener that Aiterm's SSH reverse forward targets. Only the seat MCP paths (bellteam, call-bridge, user/<name>) and the Approval Box door's line (a516m); no other API.
+// door: a516m, the Approval Box door's line to the hosted daemon (approval-box-door-route.mjs); absent -> that path is 404 as before.
+export function createRemoteSeatServer(ingress, { door = null } = {}) {
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url, 'http://bellteam.local')
+      if (door && url.pathname === `${REMOTE_SEAT_MCP_PATH}/approval-box/local`) return await door(request, response)
       if (url.pathname !== REMOTE_SEAT_MCP_PATH && url.pathname !== `${REMOTE_SEAT_MCP_PATH}/call-bridge` && !USER_TOOL_PATH.test(url.pathname)) return reply(response, 404, { error: 'NOT_FOUND' })
       return await ingress(request, response, url)
     } catch (error) {

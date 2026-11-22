@@ -1073,9 +1073,9 @@ function steerReceipt({ cursor = 40, steerId = '0123456789abcdef' } = {}) {
   return {
     structuredContent: {
       schema: 'aiterm.pty-send-result.v1', mode: 'agent_steer', session_id: 'bot-a', event_cursor: cursor,
-      wait_process: { executable: '/node', args: ['aiterm-wait', '--session', 'bot-a', '--cursor', String(cursor), '--steer', steerId] },
+      wait_process: { executable: '/node', args: ['aiterm-wait', '--session', 'bot-a', '--cursor', String(cursor), '--input-ref', steerId] },
     },
-    _meta: { 'aiterm/steer': { schema: 'aiterm.steer-ref.v1', steer_id: steerId, interim_from: `v1:${cursor}:b:900` } },
+    _meta: { 'aiterm/steer': { schema: 'aiterm.steer-ref.v1', input_ref: steerId, interim_from: `v1:${cursor}:b:900` } },
   }
 }
 
@@ -1118,7 +1118,7 @@ test('BellTeamが始めていないターンへの差し込みは、その文を
   assert.deepEqual(sendOptions, { meta: { 'aiterm/caller': 'BellTeam' } })
   assert.deepEqual(calls.find(([name]) => name === 'pty_observe')[2],
     { meta: { 'aiterm/caller': 'BellTeam', 'aiterm/interim_after': 0, 'aiterm/interim_from': 'v1:40:b:900' } })
-  assert.deepEqual(waits[0].args.slice(-2), ['--steer', '0123456789abcdef'])
+  assert.deepEqual(waits[0].args.slice(-2), ['--input-ref', '0123456789abcdef'])
   assert.deepEqual(transport.queueItems({ botId: bot.id }), [])
 })
 
@@ -1168,7 +1168,7 @@ test('追っているターンへの差し込みは、合間の言葉も回答�
       throw new Error(`unexpected ${name}`)
     } },
     handoffContext: noMemory, interimInterval: 5,
-    waitProcess: async process => process.args.includes('--steer') ? steerDone : turnDone,
+    waitProcess: async process => process.args.includes('--input-ref') ? steerDone : turnDone,
   })
   const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
   const first = transport.turn(bot, '最初')
@@ -1380,7 +1380,7 @@ test('見つけたターンを追っている席への差し込みは、その�
       throw new Error(`unexpected ${name}`)
     } },
     handoffContext: noMemory, interimInterval: 5,
-    waitProcess: async process => process.args.includes('--steer')
+    waitProcess: async process => process.args.includes('--input-ref')
       ? { outcome: 'done', turn_id: 'turn-x', steer: { placement: 'same_turn', taken_at: null } } : turnDone,
   })
   const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }

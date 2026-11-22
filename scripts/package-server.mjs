@@ -18,14 +18,14 @@ const temporary = await mkdtemp(join(tmpdir(), 'bellteam-distribution-'))
 const archive = join(temporary, 'source.tar')
 try {
   await exec('git', ['archive', '--format=tar', '-o', archive, sourceCommit,
-    'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src', 'web', 'integrations',
+    'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src', 'integrations',
     'config/common-agents.md', 'config/harness-products.json', 'config/lattice-harness-entries.json', 'config/setup-guide.json', 'config/ponytail-LICENSE',
     'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
     'config/notifications-verification.json', 'config/members-verification.json', 'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/approval-box-extension-verification.json', 'config/execution-verification.json', 'config/conversation-verification.json', 'config/update-catalog-verification.json',
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
-    'distribution/server', 'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
-    'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'distribution/server', 'distribution/lattice/package.json', 'distribution/lattice/package-lock.json', 'distribution/approval-box/package.json', 'distribution/approval-box/package-lock.json',
+    'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh', 'scripts/bellteam-console.mjs',
     'scripts/module-start.c', 'scripts/conversation-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/lattice-sensor-init', 'scripts/approval-box-extension-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c', 'scripts/notifications-start.c', 'scripts/members-start.c',
     'scripts/assert-state-writers-stopped.sh',
@@ -38,6 +38,7 @@ try {
     'scripts/container-update-service.py', 'scripts/container-update-compose.mjs',
     'scripts/read-container-update-normal.mjs', 'scripts/body-quiesce-helper.mjs',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
+    'scripts/emergency-body.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))
@@ -56,11 +57,17 @@ try {
   await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rename(join(output, 'distribution/server/updater'), join(output, 'updater'))
   await rename(join(output, 'distribution/lattice'), join(output, 'lattice-manifests'))
+  await rename(join(output, 'distribution/approval-box'), join(output, 'approval-box-pin'))
+  // a505: the emergency wrapper must be in the image (distribution/server is rebuilt below from named files only).
+  const emergencyBody = await readFile(join(output, 'distribution/server/emergency-body.sh'))
   await rm(join(output, 'distribution'), { recursive: true })
   await mkdir(join(output, 'distribution/server'), { recursive: true })
+  await writeFile(join(output, 'distribution/server/emergency-body.sh'), emergencyBody, { mode: 0o755 })
   await rename(join(output, 'updater'), join(output, 'distribution/server/updater'))
   // Dockerfile installs the builtin lattice child's pinned CLI from these two manifests.
   await rename(join(output, 'lattice-manifests'), join(output, 'distribution/lattice'))
+  // Dockerfile installs the pinned hosted Approval Box connector from these two files.
+  await rename(join(output, 'approval-box-pin'), join(output, 'distribution/approval-box'))
   // Dockerfile uses the same two source paths in repository and public contexts.
   for (const name of ['install-resume-state.sh', 'compose.aiterm-checkpoint.yaml'])
     await copyFile(join(output, name), join(output, 'distribution/server', name))
@@ -81,6 +88,9 @@ try {
   await writeFile(join(output, 'distribution/server/updater/root-code-manifest.json'), JSON.stringify({
     schema: 'bellteam.host-updater.code-manifest.v1', sourceCommit, files: codeFiles,
   }, null, 2) + '\n')
+  // a518: the commit order of this build, so the update screen can tell a published module row that is older than the builtin from a newer one.
+  // shortcut: 5000 commits back; a row older than that reads update_available, raise the count if a train is ever that old.
+  await writeFile(join(output, 'config/source-history.txt'), (await exec('git', ['rev-list', '-n', '5000', sourceCommit], { cwd: root, maxBuffer: 1 << 20 })).stdout)
   await writeFile(join(output, 'distribution.json'), JSON.stringify({
     schema: 'bellteam.server.distribution.v1', sourceCommit, profile: 'public',
   }, null, 2) + '\n')

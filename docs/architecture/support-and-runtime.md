@@ -73,7 +73,7 @@ PushNotificationsは保存後に通知を依頼し、本文/秘密値をpayload�
 ```mermaid
 flowchart TB
   Supervisor["supervisor"] --> Bootstrap["bootstrap<br/>設置・設定・席実行の準備<br/>Bot setup.shは背景で開始(待たない)"]
-  Bootstrap --> Services["application-services<br/>同じサービス実体とcallbackを組む"]
+  Bootstrap --> Services["application-services<br/>同じサービス実体とcallbackを組む<br/>任意の通知子は初回起動に失敗しても待たず、会話・実行・usage・web-gatewayへ進む(a500)"]
   Services --> Runtime["application-runtime"]
   Runtime --> HTTP["公開HTTP・内部HTTP・MCP"]
   Runtime --> Watch["予定・履歴・自主ターン・idleの監視"]
@@ -81,6 +81,8 @@ flowchart TB
   Features --> External["Bridge・診断・公開接続など"]
   Runtime --> Close["close<br/>各終了処理を集めて結果を返す"]
 ```
+
+Optional module start (a500, 2026-11-22): `application-services` awaits `notifications.initialize()` only for the first start attempt. When that attempt fails (corrupt adoption record, identity, prepare, launch, ready or resume), the controller is `unavailable`, logs one fixed `NOTIFICATIONS_START_FAILED` line, returns its snapshot and the body continues to conversation, execution, usage and web-gateway. Recovery keeps retrying on the shared 1-30 s schedule with no attempt limit and ends at the first available child or at close; requests that need notifications wait up to `MODULE_HOLD_MS` and then get `PUSH_NOT_ACCEPTING`. Required modules (members, memory, execution) keep the waiting start.
 
 Bot setup.shのデータの流れ：`bootstrap → restoreBotEnvironmentsInBackground（背景、Bot順に一回ずつ）→ 各Botのready promise → AitermTransport.wake/resumePreviouslyActive（members lease取得前に待つ）→ AitermClient.launchOptions(project)（席のagent_launch前に待つ）`。listenと/healthzはsetupを待たない。登録の無いBotのpromiseは無く、待たない。`environment/setup.sh`の無いBotのpromiseは走査の前に解け、他Botのsetupを待たない（a149d）。
 

@@ -166,20 +166,20 @@ def configure():
         host.atomic(PREFIX / 'config.json', config)
 
 
-def load():
+def load(updater_class=None, release_must_match=True):
     source, native = distribution()
     config = host.read_json(PREFIX / 'config.json')
     keys = 'schema,release,platform,projectName,workerImage,volumeName,docker,python,shell,volumeRoot,installRoot'
     # channel is absent in configs written before the candidate channel existed (= stable).
     host.check((host.exact(config, keys) or host.exact(config, keys + ',channel') and config['channel'] in ('stable', 'candidate'))
-               and config['schema'] == 'bellteam.bundled-container-updater.v1' and config['release'] == source
+               and config['schema'] == 'bellteam.bundled-container-updater.v1' and (config['release'] == source or not release_must_match)
                and config['platform'] == native and config['docker'] == DOCKER
                and config['python'] == '/usr/bin/python3' and config['shell'] == '/bin/sh'
                and type(config['projectName']) is str and re.fullmatch('[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}', config['projectName'])
                and type(config['workerImage']) is str and re.fullmatch('sha256:[a-f0-9]{64}', config['workerImage'])
                and config['volumeName'] == config['projectName'] + '-container-updater'
                and config['installRoot'] == config['volumeRoot'] + '/installation/work', 'HOST_UPDATE_CONFIG_INVALID')
-    updater = ContainerUpdater(PREFIX, config)
+    updater = (updater_class or ContainerUpdater)(PREFIX, config)
     host.check(volume(updater, config['volumeName'], config['projectName']) == config['volumeRoot'], 'HOST_UPDATE_STORAGE_BINDING')
     return updater
 

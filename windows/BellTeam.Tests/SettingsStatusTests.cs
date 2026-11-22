@@ -187,7 +187,7 @@ public sealed class SettingsStatusTests
     [Fact]
     public void FeaturesSummaryCountsUsedAndUnsetWithoutOnePassword()
     {
-        var list = new[] { Feature("routing", "enabled", true), Feature("callBridge", "enabled", true), Feature("webPush", "unconfigured", false), Feature("onePassword", "unconfigured", false) };
+        var list = new[] { Feature("routing", "enabled", true), Feature("callBridge", "enabled", true), Feature("notifications", "unconfigured", false), Feature("onePassword", "unconfigured", false) };
         Assert.Equal("2つ使用中・1つ未設定", SettingsSummary.Features(list).Line);
         Assert.Null(SettingsSummary.Features([]).Badge); // an older body without the list keeps the calm line
     }

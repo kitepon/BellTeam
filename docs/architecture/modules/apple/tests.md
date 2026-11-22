@@ -1076,7 +1076,6 @@ Xcode targetのTests登録はproject.ymlにはない。`@main`からprecondition
 
 | ファイル | 確認する契約 |
 | --- | --- |
-| [AppleSubscriptionAccessChecks.swift](../../../../ios/BellBot/Tests/AppleSubscriptionAccessChecks.swift#L3) | 12条件：期限直前/同時刻、猶予期限、権利無し、developer、初期guide免除。guideはID一致・初期設定未完が必要、Bot/guide ID無しは不可 |
 | [BotStopContractChecks.swift](../../../../ios/BellBot/Tests/BotStopContractChecks.swift#L3) | 202/stop_sentと200/interrupted+sessionPreservedの正例、HTTP/status不一致・session終了・Bot ID不一致の6組と必須ID欠損decodeの1組 |
 
 ## fixtureと起動引数

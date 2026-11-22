@@ -1,0 +1,105 @@
+{
+  "_about" : "Swift-built snapshots (RegistryBuilderTests.writesBuiltCases) on top of s2 of registry-cases.json; same schema and keys as that file, so every part runs it the same way.",
+  "account" : "K-test",
+  "cases" : [
+    {
+      "expect" : {
+        "active" : [
+          "d1",
+          "d2",
+          "d3"
+        ],
+        "tombstoned" : [
+
+        ],
+        "version" : 3
+      },
+      "init" : "s2",
+      "name" : "swift-built-add-device",
+      "steps" : [
+        {
+          "snapshots" : [
+            "swift-add-d3"
+          ],
+          "source" : "mirror"
+        }
+      ]
+    },
+    {
+      "expect" : {
+        "active" : [
+          "d1"
+        ],
+        "tombstoned" : [
+          "d2"
+        ],
+        "version" : 3
+      },
+      "init" : "s2",
+      "name" : "swift-built-remove-device",
+      "steps" : [
+        {
+          "snapshots" : [
+            "swift-remove-d2"
+          ],
+          "source" : "mirror"
+        }
+      ]
+    }
+  ],
+  "keys" : {
+    "c1" : {
+      "key_id" : "zSsSaEWel-sCfE1I9ZEIPg",
+      "sig_pub" : "BGu-yHlblm9E_hbFWrQ-J4YUNMIkAfhcYgNzxeLVtIeAiRov-pIBPv29qVj2B79SvqAiFdJl1i6hIACaL8WU4W8"
+    },
+    "d1" : {
+      "key_id" : "2hGoJk6sTRBHWBKaXeWpmw",
+      "sig_pub" : "BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU"
+    },
+    "d2" : {
+      "key_id" : "JD0vt-FoE_L3HuFXoPDeLw",
+      "sig_pub" : "BOi5g18LBMDpl9vVX-6n51w-292vyWy5lUZ68CmUeyL2jrN8allCIZBsOyq4TyB7E86zPgMLxtAD_As5g877B6k"
+    },
+    "d3" : {
+      "key_id" : "sG1jK1FsUMpbv8pHgJ4W0g",
+      "sig_pub" : "BFMaIVjyX5qosj87o5QBlraHB8WCV-YgMj_zEvogBSG8bz4yNBCgeailKITrLDqgThnchAHYcZSASpGr8_oOHGc"
+    },
+    "d4" : {
+      "key_id" : "cTdC4YvdaG1Mht05WQTrKg",
+      "sig_pub" : "BJjc4kKvBiZLPYQYNiYhq3P5oZCZcQJczdOx0EFuVpIZiKWpPH0ySBBokHzoAiRuIbhcfVyPhPPWkhXoNbsKHrU"
+    },
+    "e" : {
+      "key_id" : "hwnTt33kpLdArFofam-5hA",
+      "sig_pub" : "BKvcvwlQNKWyK_HJihs-jLMn8y7tkshFx1XQ1XB1gM_kjf_RZllehLbPjKMr6e2gFjeji1FSI8kfKL8wBsrcj4s"
+    },
+    "other" : {
+      "key_id" : "MVQ6SRXiEX1Xontbs6HbXA",
+      "sig_pub" : "BFsfoi4hiUIDiuboq3g7XzmUjI_gdDCg6-OPTv2TvTAfIZlk7oi4T4kcPtbd8goYKaCT0bX8mp-4LyOsAiDHBT0"
+    },
+    "x" : {
+      "key_id" : "u_jLw5MuF8NuCwIz8EqEBA",
+      "sig_pub" : "BJXwPCE6lklvE9GbqOTcJRjwpoizIdaYUJ9Dfz-zIkbD7S4QhiT7n6gYPIsYB149Q46ZDuAaDZz1jIEnAPq3xpw"
+    }
+  },
+  "now_ms" : 1700000000000,
+  "snapshots" : {
+    "s2" : {
+      "body_utf8" : "{\"v\":\"pc1-registry\",\"account\":\"K-test\",\"version\":2,\"prev\":[\"nvUiNicUkCw6024BJvp0IEVEDqM2ZKFBbUHdd9zkpSw\"],\"created_at\":0,\"devices\":[{\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"},{\"key_id\":\"JD0vt-FoE_L3HuFXoPDeLw\",\"sig_pub\":\"BOi5g18LBMDpl9vVX-6n51w-292vyWy5lUZ68CmUeyL2jrN8allCIZBsOyq4TyB7E86zPgMLxtAD_As5g877B6k\",\"seal_pub\":\"BDGgYjIueWeFlNbWkvRqGyd8cyiXhIm0RK9jO6qlbYk6MHZEpyfwsSEIcVdoUDLqZldKHqgJxNFJHWHDmc8iLA8\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"}],\"connectors\":[],\"removed\":[]}",
+      "hash" : "e079bbfa15ecc81828dd1ec7da7a3b38afe42c6a4137b28efe49cb402d21cd75",
+      "sig" : "36f9da7703a2e2aae953bde6b89a2ea0b387a65e281a55c000baa934b468fba6cdd798ff4b9cf652b6e1176b32be285aeec6ad90701651585800251f319e2e27",
+      "signer" : "2hGoJk6sTRBHWBKaXeWpmw"
+    },
+    "swift-add-d3" : {
+      "body_utf8" : "{\"account\":\"K-test\",\"connectors\":[],\"created_at\":1700000000000,\"devices\":[{\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"key_id\":\"JD0vt-FoE_L3HuFXoPDeLw\",\"platform\":\"android\",\"protection\":\"hardware\",\"seal_pub\":\"BDGgYjIueWeFlNbWkvRqGyd8cyiXhIm0RK9jO6qlbYk6MHZEpyfwsSEIcVdoUDLqZldKHqgJxNFJHWHDmc8iLA8\",\"sig_pub\":\"BOi5g18LBMDpl9vVX-6n51w-292vyWy5lUZ68CmUeyL2jrN8allCIZBsOyq4TyB7E86zPgMLxtAD_As5g877B6k\"},{\"added_at\":1700000000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"key_id\":\"sG1jK1FsUMpbv8pHgJ4W0g\",\"platform\":\"ios\",\"protection\":\"hardware\",\"seal_pub\":\"BLUMe-llDGqR3WXcedwu4kwvE9iiCerCpbqGJrjH-1txMhOLgPYtMPjLDNYthc7Z-U3bYFH1khhqOR79DS9n-K0\",\"sig_pub\":\"BFMaIVjyX5qosj87o5QBlraHB8WCV-YgMj_zEvogBSG8bz4yNBCgeailKITrLDqgThnchAHYcZSASpGr8_oOHGc\"},{\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"platform\":\"android\",\"protection\":\"hardware\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\"}],\"prev\":[\"4Hm7-hXsyBgo3R7H2no7OK_kLGpBN7KO_knLQC0hzXU\"],\"removed\":[],\"v\":\"pc1-registry\",\"version\":3}",
+      "hash" : "fb79a4ac520cd9bd92f57b93d53b3703a73099cb0f66b5c8dccdd6a42f734fbc",
+      "sig" : "745ee055bb8330d2365bd0aee44e70187b5becee7a9f5de7bfa4aedb422da8f39563f392d986d6e6970f883316c8e7e323e524e4702ba72c2f227ebf00447271",
+      "signer" : "2hGoJk6sTRBHWBKaXeWpmw"
+    },
+    "swift-remove-d2" : {
+      "body_utf8" : "{\"account\":\"K-test\",\"connectors\":[],\"created_at\":1700000000000,\"devices\":[{\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"platform\":\"android\",\"protection\":\"hardware\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\"}],\"prev\":[\"4Hm7-hXsyBgo3R7H2no7OK_kLGpBN7KO_knLQC0hzXU\"],\"removed\":[{\"key_id\":\"JD0vt-FoE_L3HuFXoPDeLw\",\"removed_at\":1700000000000,\"removed_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"}],\"v\":\"pc1-registry\",\"version\":3}",
+      "hash" : "2210a3093b4ff634ca6fc1ab3bb6bb32d9e5ae0eba24763dd0cc82ef468b72b1",
+      "sig" : "3f1d6209a965eb9d1d0607617fa339dce98dd7749453d7e59c09190625ca52bc56fb5c82ee88dbfe5e002fc0f5f85cc6ecc9b0ac45b5f92be679d3c62507a315",
+      "signer" : "2hGoJk6sTRBHWBKaXeWpmw"
+    }
+  }
+}

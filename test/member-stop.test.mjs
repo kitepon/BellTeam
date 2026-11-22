@@ -7,7 +7,6 @@ import test from 'node:test'
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { ConversationStore } from '../src/conversation-store.mjs'
-import { requestMemberStop } from '../web/member-stop.js'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 function deferred() {
@@ -67,22 +66,6 @@ test('停止状態は会話を消さず、再読込したタイムラインに�
   await appendFile(logPath, JSON.stringify({ schema: 'bellteam.delivery-status.v1', delivery_id: 'a', delivery: 'stopped' }) + '\n')
   assert.deepEqual((await new ConversationStore({ logPath }).timeline('bot-a')).map(item => [item.message, item.delivery]), [['作業', 'stopped']])
 })
-
-test('Webは対象ID付きの停止確認だけを成功とし、不明な結果を再送しない', async () => {
-  for (const result of [{ botId: 'bot-a', status: 'stopped', online: false }, { botId: 'bot-a', status: 'interrupted', sessionPreserved: false }, { botId: 'other', status: 'interrupted', sessionPreserved: true }, { botId: 'bot-a', status: 'stopping', online: false }, { botId: 'bot-a', status: 'stopped', online: true }, null]) {
-    const calls = []
-    await assert.rejects(requestMemberStop('bot-a', async (...args) => { calls.push(args); return result }), /確認できません/u)
-    assert.deepEqual(calls, [['/api/bots/bot-a/stop', { method: 'POST' }]])
-  }
-  let calls = 0
-  await assert.rejects(requestMemberStop('bot-a', async () => { calls++; throw new Error('connection lost') }))
-  assert.equal(calls, 1)
-  const result = { botId: 'bot-a', status: 'interrupted', sessionPreserved: true, online: true }
-  assert.equal(await requestMemberStop('bot-a', async () => result), result)
-  const sent = { botId: 'bot-a', status: 'stop_sent' }
-  assert.equal(await requestMemberStop('bot-a', async () => sent), sent)
-})
-
 
 test('HTTPは旧close結果や会話維持欠測を200へ流用しない', async t => {
   let result

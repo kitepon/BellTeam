@@ -1,11 +1,12 @@
+import { createHash } from 'node:crypto'
+import { unlink } from 'node:fs/promises'
+import { join } from 'node:path'
 import { PushNotifications, validatePushDevice } from '../push-notifications.mjs'
-import { WebPushNotifications } from '../web-push-notifications.mjs'
-import { validateWebPushParams } from './web-push-schema.mjs'
 import { FcmNotifications } from '../fcm-notifications.mjs'
 import { validateFcmParams } from './fcm-schema.mjs'
 import { validateUpdateAttemptQuery } from '../update-push-attempts.mjs'
 
-const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
+const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish', 'tickets'])
 const printable = value => typeof value === 'string' && Boolean(value.trim()) && !/[\u0000-\u001f\u007f]/u.test(value)
 const failure = (code, outcome = 'not_accepted') => Object.assign(new Error(code), { code, outcome })
 
@@ -15,11 +16,18 @@ function object(value, required, optional = []) {
     || Object.keys(value).some(key => !required.includes(key) && !optional.includes(key))) throw failure('PUSH_INPUT_INVALID')
 }
 
+// a485: { tickets: { sha256hex(device token): operator ticket } }, replaced whole; the child keeps it in memory only.
+function validateTickets(params) {
+  object(params, ['tickets'])
+  const entries = params.tickets && typeof params.tickets === 'object' && !Array.isArray(params.tickets) ? Object.entries(params.tickets) : null
+  if (!entries || entries.length > 256 || entries.some(([hash, ticket]) => !/^[a-f0-9]{64}$/u.test(hash) || !printable(ticket) || Buffer.byteLength(ticket) > 4096)) throw failure('PUSH_INPUT_INVALID')
+}
+
 export function validateNotificationRequest(method, params) {
   if (!methods.has(method)) throw failure('PUSH_INPUT_INVALID')
   if (Buffer.byteLength(JSON.stringify(params) ?? '') > 65536) throw failure('PUSH_INPUT_INVALID')
+  if (method === 'tickets') { validateTickets(params); return }
   if (method !== 'publish') {
-    if (params?.provider === 'webPush') { validateWebPushParams(method, params); return }
     if (params?.provider === 'fcm') { validateFcmParams(method, params); return }
     if (params?.provider !== 'apns') throw failure('PUSH_INPUT_INVALID')
     const { provider, ...value } = params
@@ -69,22 +77,29 @@ function notificationEvent(event) {
         : event.type === 'room' ? 'ルームに新しいメッセージが届きました。' : '返信が届きました。' }
 }
 
-export function createNotificationsDispatcher({ root, diagnostic, provider, webPushProvider, fcmFetch }) {
+// a487n: the VAPID keys and the browsers' subscriptions of the abolished Web push are removed (a missing file is fine).
+async function removeWebPushFiles(root) {
+  for (const name of ['web-push-keys.json', 'web-push-subscriptions.json']) {
+    try { await unlink(join(root, 'state', name)) } catch (error) { if (error.code !== 'ENOENT') process.stderr.write('BellTeam: 旧Web通知のファイルを消せませんでした\n') }
+  }
+}
+
+export function createNotificationsDispatcher({ root, diagnostic, provider, fcmFetch }) {
   const diagnostics = { async record(report) {
     try { await diagnostic(report) }
     catch { process.stderr.write('BellTeam: 通知の診断を保存できませんでした (PUSH_DIAGNOSTIC_FAILED)\n') }
   } }
-  const service = new PushNotifications({ root, provider, diagnostics })
-  const fcm = new FcmNotifications({ root, diagnostics, ...(fcmFetch ? { fetch: fcmFetch } : {}) })
-  const web = new WebPushNotifications({ root, diagnostic,
-    ...(webPushProvider ? { createProvider: () => webPushProvider } : {}) })
+  let tickets = new Map()
+  const ticketFor = token => typeof token === 'string' ? tickets.get(createHash('sha256').update(token).digest('hex')) : undefined
+  const service = new PushNotifications({ root, provider, diagnostics, ticketFor })
+  const fcm = new FcmNotifications({ root, diagnostics, ticketFor, ...(fcmFetch ? { fetch: fcmFetch } : {}) })
   let initialized = false, initializationStarted = false, accepting = false, quiesced = false, exiting = false, epoch = 0
   const active = new Set()
   const drain = async () => {
     do {
-      await Promise.allSettled([...active, ...service.inflight, ...web.inflight, ...fcm.inflight])
-      await Promise.all([service.saving, web.saving, fcm.saving])
-    } while (active.size || service.inflight.size || web.inflight.size || fcm.inflight.size)
+      await Promise.allSettled([...active, ...service.inflight, ...fcm.inflight])
+      await Promise.all([service.saving, fcm.saving])
+    } while (active.size || service.inflight.size || fcm.inflight.size)
   }
   const validateRequest = (method, params) => {
     validateNotificationRequest(method, params)
@@ -94,9 +109,9 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, webP
     // The channel has already accepted this operation, even if quiesce now closes its gate.
     validateNotificationRequest(method, params)
     const task = Promise.resolve().then(() => {
-      if (method === 'publish') { const event = notificationEvent(params); service.publish(event); web.publish(params); fcm.publish(event); return { accepted: true } }
+      if (method === 'tickets') { tickets = new Map(Object.entries(params.tickets)); return { accepted: true } }
+      if (method === 'publish') { const event = notificationEvent(params); service.publish(event); fcm.publish(event); return { accepted: true } }
       const { provider, ...value } = params
-      if (provider === 'webPush') return web[method](value)
       if (provider === 'fcm') return fcm[method](value)
       // The Owner's notification setting is one on/off for every platform; FCM follows it before APNs applies it.
       if (method === 'configure') return fcm.configure(value).then(() => service.configure(value))
@@ -110,26 +125,20 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, webP
     if (method === 'initialize') {
       object(params, ['configuration'])
       if (initialized || exiting) throw failure('PUSH_CONTROL_INVALID')
-      object(params.configuration, ['apns', 'webPush'])
+      object(params.configuration, ['apns'], ['webPush'])
       object(params.configuration.apns, ['enabled', 'relayUrl'])
-      object(params.configuration.webPush, ['enabled', 'subject'])
+      // a487n: a parent that still sends webPush (an older body) is accepted and ignored
+      if (params.configuration.webPush !== undefined) object(params.configuration.webPush, ['enabled', 'subject'])
       validateNotificationRequest('configure', { ...params.configuration.apns, provider: 'apns' })
-      validateNotificationRequest('configure', { ...params.configuration.webPush, provider: 'webPush' })
       await service.initialize()
-      await web.initialize()
+      await removeWebPushFiles(root)
       await fcm.initialize()
       initialized = true
-      const applyError = { apns: null, webPush: null }
-      for (const [name, target] of [['apns', service], ['webPush', web]]) {
-        try { await target.configure(params.configuration[name]) }
-        catch (error) {
-          const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : name === 'apns' ? 'PUSH_CONFIGURATION_FAILED' : 'WEB_PUSH_CONFIGURATION_FAILED'
-          applyError[name] = code
-          if (name === 'webPush') web.setError(code)
-        }
-      }
+      const applyError = { apns: null }
+      try { await service.configure(params.configuration.apns) }
+      catch (error) { applyError.apns = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_CONFIGURATION_FAILED' }
       await fcm.configure(params.configuration.apns)
-      return { status: { apns: service.status(), webPush: web.status() }, applyError }
+      return { status: { apns: service.status() }, applyError }
     }
     object(params, [])
     if (!initialized || exiting) throw failure('PUSH_CONTROL_INVALID')
@@ -149,7 +158,7 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, webP
     if (method === 'exit') {
       if (!quiesced) throw failure('PUSH_NOT_QUIESCED')
       exiting = true
-      await Promise.all([service.close(), web.close(), fcm.close()])
+      await Promise.all([service.close(), fcm.close()])
       return { closed: true }
     }
     throw failure('PUSH_CONTROL_INVALID')
@@ -168,7 +177,7 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, webP
     exiting = true
     epoch++
     await drain()
-    await Promise.all([service.close(), web.close(), fcm.close()])
+    await Promise.all([service.close(), fcm.close()])
   }
   return { validateRequest, dispatch, control, disconnect }
 }

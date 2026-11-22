@@ -11,8 +11,8 @@ namespace BellTeam.Linux;
 // What windows/BellTeam.App/App.xaml.cs OnStartup does: the render modes, otherwise the single window.
 internal static partial class Launcher
 {
-    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login> <PNG>、--render-startup <onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-page <updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-inspector <場面> <URL> <会話ID> <PNG>、--render-screen <場面> <URL> <会話ID> <PNG>、--render-editors <場面> <URL> <会話ID> <PNG>、--render-editor member <URL> <メンバーID> <PNG>、--render-approvals <main|answer|write|external|unknown|held|done|empty|not-connected|waiting|not-entitled|expired|old> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found|narrow|connections|connections-end> <PNG>、--render-gallery <fit|zoomed|saved|failed> <URL> <会話ID> <PNG>、--render-workgraph <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|terminals|features|notifications|connection|display|billing|update|about|stop>|onepassword-<not-linked|checking|success|failure>> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-editor <settings|profile|feature|authentication> <URL> <ID> <PNG>" + RequestsRender.Usage + " のいずれかです。";
-    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] or ["--render-startup", _, _, _] or ["--render-page", _, _, _] or ["--render-inspector", _, _, _, _] or ["--render-screen", _, _, _, _] or ["--render-editors", _, _, _, _] or ["--render-editor", _, _, _, _] or ["--render-lattice", _, _] or ["--render-approvals", _, _] or ["--render-workgraph", _, _] or ["--render-gallery", _, _, _, _] or ["--render-terminals", _, _, _] || RequestsRender.IsKnown(args);
+    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login> <PNG>、--render-startup <onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-page <updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-inspector <場面> <URL> <会話ID> <PNG>、--render-screen <場面> <URL> <会話ID> <PNG>、--render-editors <場面> <URL> <会話ID> <PNG>、--render-editor member <URL> <メンバーID> <PNG>、--render-approvals <main|answer|write|external|unknown|held|done|empty|not-connected|waiting|not-entitled|expired|old> <PNG>、--render-approvals-device <device-signedout|device-passended|device-needsapproval|device-waiting|device-expired|device-notentitled|device-reconnecting|device-live|device-answered|device-on-device|device-deleted|device-removed> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found|narrow|connections|connections-end> <PNG>、--render-gallery <fit|zoomed|saved|failed> <URL> <会話ID> <PNG>、--render-workgraph <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|terminals|features|notifications|connection|display|billing|update|about|stop>|onepassword-<not-linked|checking|success|failure>> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-editor <settings|profile|feature|authentication> <URL> <ID> <PNG>" + RequestsRender.Usage + " のいずれかです。";
+    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] or ["--render-startup", _, _, _] or ["--render-page", _, _, _] or ["--render-inspector", _, _, _, _] or ["--render-screen", _, _, _, _] or ["--render-editors", _, _, _, _] or ["--render-editor", _, _, _, _] or ["--render-lattice", _, _] or ["--render-approvals", _, _] or ["--render-approvals-device", _, _] or ["--render-workgraph", _, _] or ["--render-gallery", _, _, _, _] or ["--render-terminals", _, _, _] || RequestsRender.IsKnown(args);
     public static bool IsRender(string[] args) => args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal));
 
     public static void Start(IClassicDesktopStyleApplicationLifetime desktop)
@@ -48,6 +48,7 @@ internal static partial class Launcher
                 case ["--render-editor", var kind, var address, var id, var output]: await SettingsRender.EditorAsync(kind, address, id, output); break;
                 case ["--render-lattice", var scene, var output]: await LatticeRender.LatticeAsync(scene, output); break;
                 case ["--render-approvals", var scene, var output]: await LatticeRender.ApprovalsAsync(scene, output); break;
+                case ["--render-approvals-device", var scene, var output]: await ApprovalsDeviceRender.RunAsync(scene, output); break;
                 case ["--render-gallery", var scene, var address, var id, var output]: await RenderGalleryAsync(scene, address, id, output); break;
                 case ["--render-workgraph", var address, var output]: await LatticeRender.WorkGraphAsync(address, output); break;
                 case []: await RunWindowAsync(desktop); return;
@@ -68,10 +69,14 @@ internal static partial class Launcher
         MainWindow? main = null;
         instance = new SingleInstance(() => Dispatcher.UIThread.Post(() => main?.Raise()));
         if (!instance.IsPrimary) { desktop.Shutdown(0); return; }
-        var workspace = new LinuxWorkspace();
+        SettingsWindow.AccountEntry = token => new LinuxAccountCard(token);
+        SettingsWindow.HomeLogout = token => LinuxAccountStore.Home?.EndAsync(token) ?? Task.CompletedTask;
+        var home = LinuxAccountStore.Home;
+        ISessionTokenStore tokens = home is null ? new FileSessionTokenStore(SettingsStore.UserDirectory) : new CompositeSessionTokenStore(() => home, new FileSessionTokenStore(SettingsStore.UserDirectory));
+        var workspace = new LinuxWorkspace(origin => new BellApi(origin) { SessionToken = tokens.Load(origin) });
         // Desktop notifications: default off, only while the app runs; a click opens the conversation (or the Update sheet) in the window.
         var notifications = new DesktopNotifications(new FreedesktopNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.UIThread.Post(() => _ = main!.OpenNotificationAsync(server, target)));
-        main = new MainWindow(workspace, notifications: notifications);
+        main = new MainWindow(workspace, notifications: notifications, tokens: tokens, home: home);
         desktop.MainWindow = main;
         main.Closed += (_, _) => { workspace.Dispose(); instance.Dispose(); };
         // The window is already gone here, so the bus calls that close the open notifications get a few seconds before the process ends.
@@ -82,7 +87,7 @@ internal static partial class Launcher
         };
         main.Show();
         var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
-        if (StartupRoute.Initial(settings.ServerUrl) == StartupPhase.Setup) main.ShowServerSetup(); else await main.ConnectAsync(settings.ServerUrl!);
+        await main.StartAfterAccountAsync(settings.ServerUrl);
     }
 
     // The preview fixture or a live server's read-only data, drawn into a PNG without a screen.

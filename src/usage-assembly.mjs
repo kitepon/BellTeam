@@ -167,7 +167,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     },
     ...(prepareRelease ? { prepareRelease } : {}), ...(spawnProcess ? { spawnProcess } : {}),
     bootstrap: {
-      environment: Object.fromEntries(['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY']
+      environment: Object.fromEntries(['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY', 'BELLTEAM_HOME_OPERATOR']
         .filter(key => typeof environment[key] === 'string').map(key => [key, environment[key]])),
       seatRuntime: Boolean(seatRuntime),
       subscription: { environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production', accessMode,
@@ -199,6 +199,12 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       return token
     },
     systemContext,
+    // a485: what the body's home front calls; each call is a system root call (the body's own mechanism, never an owner's or a Bot's act).
+    home: {
+      handle: params => facade.home.handle(params, systemContext('home.handle')), sweep: params => facade.home.sweep(params, systemContext('home.sweep')),
+      setupCode: () => facade.home.setupCode(systemContext('home.setupCode')), pushTickets: () => facade.home.pushTickets(systemContext('home.pushTickets')), publish: () => facade.home.publish(systemContext('home.publish')),
+      console: params => facade.home.console(params, systemContext('home.console')),
+    },
     initializeSettings: () => controller.start(),
     initializeSubscriptions: () => controller.initialize('subscriptions'),
     async initializeServices() { await controller.initialize('services'); await controller.activate() },

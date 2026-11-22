@@ -69,7 +69,7 @@ def run_fixture(image, output, supply):
     guest = REPO / 'test/helpers/notifications-runtime-guest.mjs'
     shutil.copyfile(guest, work / 'guest.mjs'); (work / 'guest.mjs').chmod(0o644)
     fixture_dir = work / 'fixtures'; fixture_dir.mkdir()
-    for name in ['notifications-web-push-state.mjs', 'notifications-usage-child.mjs']:
+    for name in ['notifications-usage-child.mjs']:
         shutil.copyfile(REPO / 'test/fixtures' / name, fixture_dir / name); (fixture_dir / name).chmod(0o644)
     shutil.copyfile(REPO / 'test/helpers/notifications-drain-companion.mjs', work / 'drain.mjs'); (work / 'drain.mjs').chmod(0o644)
     save(work / 'fixture-input.json', dict(b=inputs['b']['versionId'], source=source)); (work / 'fixture-input.json').chmod(0o644)
@@ -94,11 +94,10 @@ def run_fixture(image, output, supply):
                  'src/notifications-release.mjs', 'src/web-gateway-release.mjs', 'src/notifications-process.mjs', 'src/module-child-restart.mjs',
                  'src/notifications-ipc.mjs', 'src/notifications-locks.mjs', 'src/notifications-entry.mjs',
                  'src/usage/notifications.mjs', 'src/usage/notifications-dispatcher.mjs', 'src/push-notifications.mjs',
-                 'src/web-push-notifications.mjs', 'src/web-push-provider.mjs', 'src/usage/web-push-schema.mjs',
                  'src/server-address.mjs', 'src/application-runtime.mjs', 'src/application-services.mjs',
                  'src/http-application-api.mjs', 'config/notifications-verification.json', 'config/web-gateway-trusted-root.jsonl']
         binding = {}
-        save(output / 'fixture-source-binding.json', {str(path.relative_to(REPO)): dict(bytes=path.stat().st_size, sha256=sha(path.read_bytes())) for path in [guest, REPO / 'test/helpers/notifications-drain-companion.mjs', *[REPO / 'test/fixtures' / name for name in ['notifications-web-push-state.mjs', 'notifications-usage-child.mjs']]]})
+        save(output / 'fixture-source-binding.json', {str(path.relative_to(REPO)): dict(bytes=path.stat().st_size, sha256=sha(path.read_bytes())) for path in [guest, REPO / 'test/helpers/notifications-drain-companion.mjs', *[REPO / 'test/fixtures' / name for name in ['notifications-usage-child.mjs']]]})
         for name in paths + ['install.sh']:
             raw = docker('run', '--pull', 'never', '--rm', '--network', 'none', '--read-only', '--entrypoint', '/bin/cat', image_id, '/app/' + name).stdout
             path = 'distribution/server/install.sh' if name == 'install.sh' else name
@@ -188,7 +187,7 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
             assert final[key] == held[key], key
         assert final['clientCloses'] == 0 and final['currentVersionId'] is None
         assert held['configurationEpoch'] < active['configurationEpoch'] < final['configurationEpoch']
-        assert final['webConfiguration'] == dict(enabled=True, subject='mailto:latest@example.com')
+        assert final['notificationsConfiguration'] == dict(enabled=False, relayUrl='https://relay-latest.example.test')
         assert active['notification'] != held['notification'] and final['notification'] != active['notification']
         installed = snapshot()
         assert installed['versions'] == [inputs['b']['versionId']] and installed['staging'] == []

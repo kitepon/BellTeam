@@ -44,10 +44,14 @@ if (mode === 'initialize') {
   const ids = JSON.parse(await readFile('/fixture-input.json', 'utf8'))
   assert.match(ids.b, /^[a-f0-9]{64}$/); assert.match(ids.source, /^[a-f0-9]{40}$/)
   const devicesPath = `${state}/push-devices.json`, lockPath = `${state}/notifications.lock`
-  const { writeNotificationsWebFixture } = await import('/app/test/fixtures/notifications-web-push-state.mjs')
-  const fixture = await writeNotificationsWebFixture('/srv/bellteam')
+  // a487n: Web push is gone; the synthetic state is one APNs device.
+  const { PushNotifications } = await import('/app/src/push-notifications.mjs')
+  const seed = new PushNotifications({ root: '/srv/bellteam', provider: { environments: ['production'], close() {} }, diagnostics: { async record() {} } })
+  await seed.initialize()
+  await seed.register({ token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam-fixture.example', signedTransaction: 'ARTIFICIAL_NOT_AN_APPLE_TRANSACTION' })
+  await seed.close()
   const devicesHash = hash(await readFile(devicesPath))
-  const savedState = async () => Object.fromEntries(await Promise.all(['push-devices.json', 'web-push-keys.json', 'web-push-subscriptions.json'].map(async name => {
+  const savedState = async () => Object.fromEntries(await Promise.all(['push-devices.json'].map(async name => {
     const path = `${state}/${name}`, info = await stat(path)
     assert.equal(info.uid, 1001); assert.equal(info.mode & 0o7777, 0o600); assert.equal(info.nlink, 1)
     return [name, hash(await readFile(path))]
@@ -104,49 +108,21 @@ if (mode === 'initialize') {
     const snapshot = await value()
     assert.equal(snapshot.available, true); assert.equal(snapshot.status.apns.configured, false)
     assert.equal(snapshot.protocolVersion, 2); assert.equal(snapshot.stateSchema, 2)
-    assert.equal(snapshot.status.webPush.enabled, true)
-    assert.equal(snapshot.status.webPush.publicKey, fixture.applicationServerKey)
-    assert.equal(snapshot.applyError.webPush, null)
-    assert.equal(snapshot.appliedEpoch.webPush, snapshot.configurationEpoch)
+    assert.equal(snapshot.applyError.apns, null)
+    assert.equal(snapshot.appliedEpoch.apns, snapshot.configurationEpoch)
     assert.equal(snapshot.builtinSourceCommit, ids.source)
     const record = { ...evidence, phase, parent: parentIdentity, business: businessIdentity, gateway: gatewayIdentity,
       notification: await childIdentity('src/notifications-entry.mjs'), port, currentVersionId: snapshot.currentVersionId,
       currentTarget: snapshot.currentTarget, configurationEpoch: snapshot.configurationEpoch, appliedEpoch: snapshot.appliedEpoch,
-      webConfiguration: settings.configuration('webPush'), stateSha256: await savedState(), devicesSha256: devicesHash, writerLock: await inspectLock(), clientCloses }
+      notificationsConfiguration: settings.configuration('notifications'), stateSha256: await savedState(), devicesSha256: devicesHash, writerLock: await inspectLock(), clientCloses }
     await write(statusPath + '.tmp', record); await rename(statusPath + '.tmp', statusPath)
   }
-  const originChecks = async (replace = false) => {
-    const notifications = runtime.services.notifications
-    const endpoint = replace ? fixture.subscription.endpoint : fixture.replacementSubscription.endpoint
-    const before = await savedState(), settingsBefore = hash(await readFile(settings.path))
-    assert.deepEqual(await notifications.webStatus(endpoint, fixture.origin), { registered: true })
-    assert.deepEqual(await notifications.webStatus(endpoint, fixture.otherOrigin), { registered: false })
-    assert.deepEqual(await notifications.webUnregister({ endpoint }, fixture.otherOrigin), { registered: false })
-    const input = { subscription: replace ? fixture.subscription : fixture.replacementSubscription, applicationServerKey: fixture.applicationServerKey }
-    await assert.rejects(notifications.webStatus(endpoint), { code: 'WEB_PUSH_INPUT_INVALID' })
-    for (const origin of [undefined, 'https://bellteam-fixture.example/path'])
-      await assert.rejects(notifications.webRegister(input, origin), { code: 'WEB_PUSH_INPUT_INVALID' })
-    await assert.rejects(notifications.webRegister(input, fixture.otherOrigin), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT', status: 409 })
-    for (const previousEndpoint of [fixture.foreignSubscription.endpoint, 'https://fcm.googleapis.com/missing'])
-      await assert.rejects(notifications.webRegister({ ...input, previousEndpoint }, fixture.origin), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT', status: 409 })
-    assert.deepEqual(await savedState(), before)
-    assert.equal(hash(await readFile(settings.path)), settingsBefore)
-    if (replace) {
-      assert.deepEqual(await notifications.webRegister({ subscription: fixture.replacementSubscription,
-        applicationServerKey: fixture.applicationServerKey, previousEndpoint: fixture.subscription.endpoint }, fixture.origin), { registered: true })
-      assert.deepEqual(await notifications.webStatus(fixture.subscription.endpoint, fixture.origin), { registered: false })
-      assert.deepEqual(await notifications.webStatus(fixture.replacementSubscription.endpoint, fixture.origin), { registered: true })
-      retainedState = await savedState()
-      assert.equal(retainedState['push-devices.json'], seeded['push-devices.json'])
-      assert.equal(retainedState['web-push-keys.json'], seeded['web-push-keys.json'])
-    }
-    evidence.checks.push({ originOwnership: true, malformedOriginRejected: true, conflict409AllFilesUnchanged: true, sameOriginReplacement: replace })
-  }
-  const latestConfiguration = async subject => {
-    await settings.update('webPush', { enabled: true, values: { subject } })
+  const latestConfiguration = async relayUrl => {
+    // a saved (disabled) notifications setting changes the configuration epoch; the controller applies the latest one and refuses an older one
+    await settings.update('notifications', { enabled: false, values: { relayUrl } })
     const current = runtime.services.notifications.controller.snapshot()
-    assert.equal(current.appliedEpoch.webPush, current.configurationEpoch)
-    await assert.rejects(runtime.services.notifications.configureWebPush({ enabled: false, subject: '' }), { code: 'PUSH_CONFIGURATION_STALE', status: 409 })
+    assert.equal(current.appliedEpoch.apns, current.configurationEpoch)
+    await assert.rejects(runtime.services.notifications.configure({ enabled: true, relayUrl: '' }), { code: 'PUSH_CONFIGURATION_STALE', status: 409 })
     return current.configurationEpoch
   }
   const command = async action => {
@@ -192,10 +168,10 @@ if (mode === 'initialize') {
     assert.equal((await fetch(internal, { method: 'POST', body: JSON.stringify({ versionId: ids.b }) })).status, 403)
     const second = spawn('/usr/local/libexec/bellteam-notifications-start', ['builtin'], { env: {}, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
     assert.deepEqual(await once(second, 'close'), [126, null]); evidence.checks.push({ concurrentWriterRejectedByRealLock: true })
-    await latestConfiguration('mailto:first@example.com'); await originChecks(true)
+    await latestConfiguration('https://relay-first.example.test')
     await publish('ready')
-    await command('adopt-b'); await latestConfiguration('mailto:archive@example.com'); await select(ids.b); await originChecks(); await publish('b-active')
-    await command('return-a'); await latestConfiguration('mailto:latest@example.com'); await select('builtin'); await originChecks(); await publish('done')
+    await command('adopt-b'); await latestConfiguration('https://relay-archive.example.test'); await select(ids.b); await publish('b-active')
+    await command('return-a'); await latestConfiguration('https://relay-latest.example.test'); await select('builtin'); await publish('done')
     await new Promise(() => {})
   } catch (error) {
     await write(statusPath, { ...evidence, phase: 'failed', error: error.message }); throw error

@@ -8,6 +8,7 @@ using BellTeam.Core;
 using Firebase;
 using Firebase.Messaging;
 using BellTeam.Linux;
+using BellTeam.Android;
 
 [assembly: UsesPermission(Android.Manifest.Permission.PostNotifications)]
 
@@ -83,6 +84,10 @@ public static class PushRegistration
     public static async Task OnNewTokenAsync(string token)
     {
         if (Workspace?.Invoke() is { Connected: true } workspace) try { await PostAsync(workspace, token); } catch (Exception error) { Log.Warn("BellPush", "registration of a new token failed: " + error.Message); }
+        // a492: a home server finds this session's push ticket by this value (a hash: the token itself is longer than the library's 64 bytes); a changed value proves again.
+        if (AccountStore.Home is { } home)
+            try { await home.ReproveIfDueAsync(System.Buffers.Text.Base64Url.EncodeToString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))), default); }
+            catch (HomeLinkException error) { Log.Warn("BellPush", "home reprove failed: " + error.Code); }
     }
 
     private static async Task PostAsync(LinuxWorkspace workspace, string token)

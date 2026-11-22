@@ -13,30 +13,48 @@ export const APNS_IDLE_TIMEOUT_MS = 5 * 60 * 1000
 const keyErrors = {
   APNS_KEY_REFERENCE_INVALID: 'APNsの鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
   APNS_KEY_UNAVAILABLE: '1PasswordからAPNsの鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。',
+  APNS_KEY_RATE_LIMITED: '1Passwordが、短い間に多く読まれたため、鍵の読み取りを一時的に断っています。10分ほど待ってから、通知の設定を保存し直してください。',
   APNS_KEY_INVALID: '1Passwordから読んだ値がAPNsの鍵（.p8）ではありません。.p8ファイルの中身をそのまま保存し直してください。',
 }
 
-// Resolves op:// references through the usage 1Password source; one short-lived source per load.
-export function onePasswordKeyReader(root, { create = () => createOnePasswordSource({ autoRetry: false }) } = {}) {
-  return async references => {
-    const source = create()
-    // The token is the usage settings' own: read it for each op call and keep it nowhere.
-    // Without root (the operator relay) op takes OP_SERVICE_ACCOUNT_TOKEN from the process env instead.
-    if (root) source.setToken?.(async () => {
-      try {
-        const { onePassword: entry } = JSON.parse(await readFile(join(root, 'shared/tools/bellteam-settings/settings.json'), 'utf8'))
-        return entry?.enabled === true && typeof entry.token === 'string' && entry.token.trim() ? entry.token.trim() : null
-      } catch { return null }
-    })
-    try { return new Map(await Promise.all(references.map(async reference => [reference, await source.resolve(reference)]))) }
-    catch { throw pushError('APNS_KEY_UNAVAILABLE') }
-    finally { source.close() }
+// Resolves op:// references through the usage 1Password source; one short-lived source per load that has something to read.
+// a500: a value read once stays in memory (never on disk) so a retry or a later apply does not read 1Password again, and after 1Password refuses
+// with "Too many requests" the reader does not call it again for REFUSED_MS (the shared account's limit is not ours to spend).
+// shortcut: a key rotated inside 1Password is picked up at the next child restart or after a value that is not a key; upgrade when rotation must apply live.
+const REFUSED_MS = 10 * 60 * 1000
+export function onePasswordKeyReader(root, { create = () => createOnePasswordSource({ autoRetry: false }), now = Date.now } = {}) {
+  const known = new Map(), state = { refusedUntil: 0 }
+  const read = async references => {
+    const missing = [...new Set(references)].filter(reference => !known.has(reference))
+    if (missing.length && now() < state.refusedUntil) throw pushError('APNS_KEY_RATE_LIMITED')
+    if (missing.length) {
+      const source = create()
+      // The token is the usage settings' own: read it for each op call and keep it nowhere.
+      // Without root (the operator relay) op takes OP_SERVICE_ACCOUNT_TOKEN from the process env instead.
+      if (root) source.setToken?.(async () => {
+        try {
+          const { onePassword: entry } = JSON.parse(await readFile(join(root, 'shared/tools/bellteam-settings/settings.json'), 'utf8'))
+          return entry?.enabled === true && typeof entry.token === 'string' && entry.token.trim() ? entry.token.trim() : null
+        } catch { return null }
+      })
+      // One at a time, so a refusal on the first reference costs one call, not one per reference.
+      try { for (const reference of missing) known.set(reference, await source.resolve(reference)) }
+      catch (error) {
+        if (error?.reason !== 'rate_limited') throw pushError('APNS_KEY_UNAVAILABLE')
+        state.refusedUntil = now() + REFUSED_MS
+        throw pushError('APNS_KEY_RATE_LIMITED')
+      } finally { source.close() }
+    }
+    return new Map(references.map(reference => [reference, known.get(reference)]))
   }
+  read.forget = () => known.clear()
+  return read
 }
 
 export class PushNotifications {
-  constructor({ root, bots, diagnostics, provider = null, fetch: request = fetch, readKeys = onePasswordKeyReader(root) }) {
+  constructor({ root, bots, diagnostics, provider = null, fetch: request = fetch, readKeys = onePasswordKeyReader(root), ticketFor = () => undefined }) {
     this.root = root
+    this.ticketFor = ticketFor
     this.readKeys = readKeys
     this.injected = Boolean(provider)
     this.keyError = null
@@ -103,7 +121,7 @@ export class PushNotifications {
         this.provider = this.directProvider
         return this.status()
       }
-      const provider = new NotificationRelayProvider({ relayUrl, fetch: this.request })
+      const provider = new NotificationRelayProvider({ relayUrl, fetch: this.request, ticketFor: this.ticketFor })
       await provider.initialize()
       this.provider = provider
       return this.status()
@@ -226,6 +244,8 @@ export class PushNotifications {
   async recordFailure(error, report = 'SERVER_PUSH_SEND_FAILED') {
     // 接続URL・端末トークン・署名付き取引・秘密鍵は診断へ含めない。
     const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_SEND_FAILED'
+    // a495b: Apple rejecting the key is the one send failure that drops the kept key; the next load reads 1Password again.
+    if (code === 'APNS_HTTP_403_INVALIDPROVIDERTOKEN') this.readKeys.forget?.()
     this.error = { code, message: keyErrors[code] ?? '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。' }
     await this.diagnostics.record({ code: report, module: 'notifications', diagnostic_log: code })
   }
@@ -275,7 +295,8 @@ export function validatePushDevice({ token, environment, server, signedTransacti
 }
 
 export class NotificationRelayProvider {
-  constructor({ relayUrl, fetch: request = fetch }) {
+  constructor({ relayUrl, fetch: request = fetch, ticketFor = () => undefined }) {
+    this.ticketFor = ticketFor
     let url
     try { url = new URL(relayUrl) } catch { throw pushError('PUSH_RELAY_URL_INVALID') }
     if (!isSupportedServerURL(url)) throw pushError('PUSH_RELAY_URL_INVALID')
@@ -293,9 +314,11 @@ export class NotificationRelayProvider {
 
   async send(device, payload, id) {
     const { signedTransaction, ...destination } = device
-    if (typeof signedTransaction !== 'string' || !signedTransaction) throw pushError('SUBSCRIPTION_REQUIRED')
+    // a485: the ticket of the app session that registered this device (the relay checks it against the token's hash); without one, the store proof as before.
+    const ticket = this.ticketFor(device.token)
+    if (!ticket && (typeof signedTransaction !== 'string' || !signedTransaction)) throw pushError('SUBSCRIPTION_REQUIRED')
     const result = await this.call('/v1/notifications/send', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ signedTransaction, device: destination, payload, id }) })
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(ticket ? { ticket } : { signedTransaction }), device: destination, payload, id }) })
     if (result?.accepted !== true) throw pushError('PUSH_RELAY_RESPONSE_INVALID')
   }
 
@@ -334,7 +357,7 @@ export class APNsProvider {
     for (const [environment, item] of entries) {
       if (Object.hasOwn(item, 'file')) { keys.set(environment, { keyId: item.keyId, key: await importPKCS8(await readFile(join(directory, item.file), 'utf8'), 'ES256') }); continue }
       let key
-      try { key = await importPKCS8(values.get(item.reference).trim(), 'ES256') } catch { throw pushError('APNS_KEY_INVALID') }
+      try { key = await importPKCS8(values.get(item.reference).trim(), 'ES256') } catch { readKeys.forget?.(); throw pushError('APNS_KEY_INVALID') }
       keys.set(environment, { keyId: item.keyId, key })
     }
     return new APNsProvider(config, keys)

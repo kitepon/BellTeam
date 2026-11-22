@@ -57,7 +57,7 @@ class IsolatedWriterTest(unittest.TestCase):
 
     def archive(self, extra=None, changed=False):
         files = {'payload/src/http-gateway-entry.mjs': b'export {}\n', 'payload/package.json': b'{}\n',
-                 'payload/package-lock.json': b'{}\n', 'payload/web/assets.mjs': b'export {}\n'}
+                 'payload/package-lock.json': b'{}\n', 'payload/src/http-gateway.mjs': b'export {}\n'}
         manifest = dict(schema='bellteam.web-gateway.artifact.v1', component='web-gateway', sourceCommit='a' * 40,
                         entry='payload/src/http-gateway-entry.mjs', runtime=dict(os='linux', arch='amd64', nodeMajor=26, parentProtocol=1),
                         files=[dict(path=k, bytes=len(v), sha256=hashlib.sha256(v).hexdigest()) for k, v in files.items()])

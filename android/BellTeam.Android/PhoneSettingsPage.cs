@@ -35,10 +35,17 @@ public sealed class PhoneSettingsPage : ScrollViewer
         }
         column.Children.Add(Card(connection));
 
+        column.Children.Add(Card(new AccountCard(token)));
+        column.Children.Add(Card(new HomeSessionsCard(workspace.Management.Api, token, AccountStore.Billing is { PassKind: Kitepon.LoginBilling.PassKind.Store } store ? async passId =>
+        {
+            try { await store.StopAsync(passId); }
+            catch (Kitepon.LoginBilling.LoginBillingException error) { throw new InvalidOperationException(StoreAccountText.Failure(error.Code, error.Reason)); }
+        } : null, logout: async () => { if (AccountStore.Home is { } home) await home.EndAsync(token); signOut(); })));   // a529n: the phone (store pass) can shut a device out; the card hides itself on a server without the route
+
         var billing = new StackPanel();
         billing.Children.Add(CardTitle(SettingsIcons.Card, "利用と課金", 17));
         billing.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
-        var purchase = new PurchaseEntry(workspace.Management.Api, new PlayBilling(MainActivity.Current), () => MainActivity.Current, token);
+        var purchase = new BellTeam.Linux.PurchaseEntry(new SubscriptionApi(workspace.Management.Api), token);
         billing.Children.Add(purchase);
         var notice = new StackPanel();
         billing.Children.Add(Link("プライバシー方針", "privacyPolicyUrl", notice)); billing.Children.Add(Link("サポート", "supportUrl", notice)); billing.Children.Add(notice);

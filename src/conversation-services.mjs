@@ -6,6 +6,7 @@ import { RoomMessenger } from './room-messenger.mjs'
 import { RoomRegistry } from './room-registry.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { SeatTurns } from './seat-turns.mjs'
+import { seatImageReader } from './bot-image-path.mjs'
 import { SelfTurns, readObserverTurns } from './self-turns.mjs'
 import { checkObserverProjects } from './observer-check.mjs'
 import { chooseRoomResponder } from './room-routing.mjs'
@@ -18,7 +19,7 @@ export function createConversationServices({ root, bots, transport, notification
   const store = new ConversationStore({ logPath, onCorruption: onLogCorruption })
   const assets = new MessageAssets({ root, readRemovalStates, ...(seatRuntime ? {
     botsAssetsRoot: join(root, 'state/bots'),
-    readImage: (image, maxBytes) => seatRuntime.readImage(image, maxBytes),
+    readImage: seatImageReader({ bots, transport, local: (image, maxBytes) => seatRuntime.readImage(image, maxBytes) }),
   } : {}) })
   let sourceRooms = null
   const forwardSource = ({ kind, id, messageId }) => kind === 'bot' ? store.forwardSource(id, messageId) : sourceRooms?.forwardSource(id, messageId)

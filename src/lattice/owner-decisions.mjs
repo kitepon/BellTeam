@@ -46,6 +46,8 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     let value
     try { value = await effect('decisions.read', { decisionId: item.decisionId }) } catch (error) {
       log(`lattice-owner-read ${key} ${error?.code ?? 'FAILED'}`)
+      // Gone (a490f): nobody can answer it any more; dropping the record lets the hand-over below ask the creator once if the card is still open.
+      if (error?.code === 'LATTICE_DECISIONS_GONE') { delete record[key]; await records.write(record); log(`lattice-owner-gone ${key}`); continue }
       if (goesOn(error)) continue
       return out
     }

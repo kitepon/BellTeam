@@ -6,10 +6,10 @@ import { APPROVALS_DECISION_ID } from '../approval-box-extension-protocol.mjs'
 const MESSAGES = {
   not_entitled: '決裁箱の拡張は、まだ使えません。', not_connected: '決裁箱につながっていません。', subscription_expired: '決裁箱の契約が切れています。',
   not_found: '見つかりません。', rate_limited: 'しばらく待って、もう一度お試しください。', validation_failed: '内容を確かめてください。', unavailable: 'いまは決裁箱を読めません。',
-  conflict: '答える前に、内容が直されました。',
+  conflict: '答える前に、内容が直されました。', answer_on_device: 'この決裁は、決裁箱のアプリで答えてください。',
 }
 const FAILS = { APPROVALS_NOT_ENTITLED: [403, 'not_entitled'], APPROVALS_NOT_CONNECTED: [409, 'not_connected'], APPROVALS_SUBSCRIPTION_EXPIRED: [402, 'subscription_expired'],
-  APPROVALS_NOT_FOUND: [404, 'not_found'], APPROVALS_RATE_LIMITED: [429, 'rate_limited'], APPROVALS_VALIDATION_FAILED: [400, 'validation_failed'] }
+  APPROVALS_NOT_FOUND: [404, 'not_found'], APPROVALS_RATE_LIMITED: [429, 'rate_limited'], APPROVALS_VALIDATION_FAILED: [400, 'validation_failed'], APPROVALS_ANSWER_ON_DEVICE: [409, 'answer_on_device'] }
 const IDEMPOTENCY = /^[A-Za-z0-9-]{8,64}$/u
 
 export function createApprovalsApi({ facade, internal, heartbeatMs = 15000 }) {
@@ -57,6 +57,13 @@ export function createApprovalsApi({ facade, internal, heartbeatMs = 15000 }) {
       const project = url.searchParams.get('project'), plan = url.searchParams.get('plan'), task = url.searchParams.get('task')
       if (!project || !plan || !task) return error(response, 400, 'validation_failed')
       const found = await facade.byTask({ project, plan, task }).catch(() => null)
+      return found ? json(response, 200, found) : error(response, 404, 'not_found')
+    }
+    if (first === 'by-decision' && !second) { // ids and state only (peer-channel-feed.md section 5)
+      if (method !== 'GET') return wrongMethod()
+      const id = url.searchParams.get('id')
+      if (!id || !APPROVALS_DECISION_ID.test(id)) return error(response, 400, 'validation_failed')
+      const found = await facade.byDecision({ id }).catch(() => null)
       return found ? json(response, 200, found) : error(response, 404, 'not_found')
     }
     if (first === 'events' && !second) {

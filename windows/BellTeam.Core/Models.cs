@@ -7,7 +7,12 @@ public sealed record SessionInfo
 {
     public required bool Authenticated { get; init; }
     public required string AuthMode { get; init; }
+    // a485 (app-sessions.md section 4): absent on a server that has no app sessions, which is how an app tells and keeps today's path.
+    public LoginInfo? Login { get; init; }
+    // Present when this request is authenticated by an app session (DELETE /api/sessions/{id} ends it).
+    public string? SessionId { get; init; }
 }
+public sealed record LoginInfo { public bool Capability { get; init; } public bool Bound { get; init; } public bool Enforced { get; init; } }
 public sealed record Member
 {
     public required string Id { get; init; }

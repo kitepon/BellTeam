@@ -10,7 +10,7 @@ const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/
 const code = value => Object.assign(new Error(value), { code: value })
 const terminal = { ref: 'owner-macbook', target: { host: 'mac', user: 'quo', port: 22 }, trustRevision: 't1', credentialRevision: 'c1' }
 
-function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {}, os } = {}) {
+function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {}, os, doorHook } = {}) {
   const log = [], watchers = new Set(), queued = []
   const terminals = {
     connection: { async target(request) {
@@ -18,7 +18,7 @@ function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {
       onTarget(request)
       const failure = targetErrors.shift()
       if (failure) throw Object.assign(code(failure), { effect: 'not_started' })
-      return { terminal, cwd: request.projectRoot, accountOwner, ...(os ? { os } : {}) }
+      return { terminal, cwd: request.projectRoot, accountOwner, ...(os ? { os } : {}), ...(doorHook ? { doorHook } : {}) }
     } },
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },
   }
@@ -54,6 +54,17 @@ test('prepare: the same agent_launch args plus terminal target, folder, context 
   const theirs = await other.seats.prepare(bot, launchArgs, { slot: '2nd', harness: 'claude-code' })
   assert.equal(theirs.claudeLogin, null)
   assert.deepEqual(theirs.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+})
+
+test('a532b1: the door hook of the terminal target rides on a main seat\'s launch unchanged and never on a fork', async () => {
+  const doorHook = { post_launch: { command: ['node', '-e', 'x'] } }
+  const { seats } = fixture({ doorHook })
+  const main = await seats.prepare(bot, launchArgs, { slot: '2nd', harness: 'claude-code' })
+  assert.deepEqual(main.args.post_launch, doorHook.post_launch)
+  const fork = await seats.prepare(bot, { ...launchArgs, session_name: 'bot-aaaa1111-fork-ffffffffffff' }, { harness: 'claude-code', kind: 'fork' })
+  assert.equal(Object.hasOwn(fork.args, 'post_launch'), false)
+  const none = await fixture().seats.prepare(bot, launchArgs, { harness: 'claude-code' })
+  assert.equal(Object.hasOwn(none.args, 'post_launch'), false, 'no hook for a terminal whose Aiterm cannot run it')
 })
 
 test('asleep terminal: not started without a credential, then the availability event drains the same Bot', async () => {

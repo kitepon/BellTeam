@@ -15,6 +15,7 @@ const MESSAGES = {
   FCM_CONFIG_INVALID: 'Android通知の設定（shared/tools/fcm/config.json）の形が正しくありません。',
   FCM_KEY_REFERENCE_INVALID: 'Android通知の鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
   FCM_KEY_UNAVAILABLE: 'Android通知の鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。',
+  FCM_KEY_RATE_LIMITED: 'Android通知の鍵の読み取りを、1Passwordが一時的に断っています。10分ほど待ってから、通知の設定を保存し直してください。',
   FCM_KEY_INVALID: 'Android通知の鍵（Firebaseのサービスアカウント）の中身が正しくありません。Firebaseから取得したJSONをそのまま保存し直してください。',
   FCM_STATE_INVALID: 'Android端末の登録ファイルを読めませんでした。',
 }
@@ -108,7 +109,7 @@ export async function loadFcmProvider(directory, { readKeys, fetch: request = fe
   if (file) text = await readFile(join(directory, source.file), 'utf8').catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })
   else {
     try { validateOnePasswordReference(source.reference) } catch { throw fcmError('FCM_KEY_REFERENCE_INVALID') }
-    text = (await readKeys([source.reference]).catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })).get(source.reference)
+    text = (await readKeys([source.reference]).catch(error => { throw fcmError(error?.code === 'APNS_KEY_RATE_LIMITED' ? 'FCM_KEY_RATE_LIMITED' : 'FCM_KEY_UNAVAILABLE') })).get(source.reference)
   }
   let account
   try { account = JSON.parse(text) } catch { throw fcmError('FCM_KEY_INVALID') }
@@ -117,28 +118,32 @@ export async function loadFcmProvider(directory, { readKeys, fetch: request = fe
 
 // Sends through the operator relay: the device's stored subscription proof goes along; the relay verifies it and sends with its own credential.
 export class FcmRelayProvider {
-  static async create(relayUrl, request) {
+  static async create(relayUrl, request, ticketFor) {
     const relay = new NotificationRelayProvider({ relayUrl, fetch: request })
     const status = await relay.call('/v1/notifications/status', { method: 'GET' })
     if (status?.android !== true) throw fcmError('FCM_RELAY_UNSUPPORTED')
-    return new FcmRelayProvider(relay)
+    return new FcmRelayProvider(relay, ticketFor)
   }
 
-  constructor(relay) { this.relay = relay }
+  constructor(relay, ticketFor = () => undefined) { this.relay = relay; this.ticketFor = ticketFor }
 
   async send(device, event) {
-    if (!device.proof) throw fcmError('SUBSCRIPTION_REQUIRED')
+    // a485: the ticket of the app session that registered this device wins; without one, the stored store proof as before.
+    const ticket = this.ticketFor(device.token)
+    const proof = ticket ? { ticket } : device.proof
+    if (!proof) throw fcmError('SUBSCRIPTION_REQUIRED')
     const { server, token } = device
     await this.relay.call('/v1/notifications/fcm/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proof: device.proof, device: { token, server }, id: event.id, message: fcmMessage(event, device).message }) })
+      body: JSON.stringify({ proof, device: { token, server }, id: event.id, message: fcmMessage(event, device).message }) })
   }
 
   close() {}
 }
 
 export class FcmNotifications {
-  constructor({ root, diagnostics, readKeys = onePasswordKeyReader(root), fetch: request = fetch }) {
+  constructor({ root, diagnostics, readKeys = onePasswordKeyReader(root), fetch: request = fetch, ticketFor = () => undefined }) {
     this.root = root
+    this.ticketFor = ticketFor
     this.diagnostics = diagnostics
     this.readKeys = readKeys
     this.request = request
@@ -168,7 +173,7 @@ export class FcmNotifications {
   async load() {
     this.provider?.close(); this.provider = null
     try {
-      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request)
+      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request, this.ticketFor)
         : await loadFcmProvider(join(this.root, 'shared/tools/fcm'), { readKeys: this.readKeys, fetch: this.request })
       this.error = null
     // The relay being unreachable is the cause the APNs apply already reports; FCM only shows it on its status.

@@ -453,7 +453,7 @@ struct SettingsPageView: View {
             case .exclusions: RunningExclusionsPage()
             case .connection: ConnectionSettingsPage()
             case .display: DisplaySettingsPage()
-            case .billing: SettingsCardPage(page: page) { SubscriptionCard() }
+            case .billing: SettingsCardPage(page: page) { StoreAccountCard(); SubscriptionCard() }
             case .update:
                 ScrollView {
                     if navigator != nil { Text(page.title).font(.title2.bold()).frame(maxWidth: 620, alignment: .leading).padding(.horizontal, 18).padding(.top, 18) }
@@ -502,13 +502,15 @@ private struct ConnectionSettingsPage: View {
         Form {
             Section { SettingsPageHeader(page: .connection) }.listRowBackground(Color.clear)
             Section {
-                LabeledContent("ログイン方法", value: store.authMode == "cloudflare" ? "Cloudflare Access" : "同じネットワークから直接")
+                LabeledContent("ログイン方法", value: store.usesServerSessions ? "このサーバーのログイン" : store.authMode == "cloudflare" ? "Cloudflare Access" : "同じネットワークから直接")
             }
+            if store.usesServerSessions { ServerSessionsSection(model: store.serverSessions) }
+            if store.usesHomeSessions { HomeSessionsSection(model: store.homeSessions, account: store.storeAccount) }
             Section {
                 Button("別のサーバーにつなぎ直す", systemImage: "arrow.triangle.2.circlepath") { confirmingChange = true }
                     .accessibilityIdentifier("connection-change-server")
             }
-            if store.authMode == "cloudflare" {
+            if store.authMode == "cloudflare" || store.usesServerSessions {
                 Section {
                     Button("ログアウト", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                         Task { await store.signOut() }

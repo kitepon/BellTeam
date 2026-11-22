@@ -7,11 +7,11 @@ Docker Engine 26以降とvolume subpathに対応したDocker Composeを使い、
 アプリから初めて使う場合は、[サーバーの導入ガイド](https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md)でDockerの準備・ファイルの取得・アプリへの接続を確認してください。
 
 1. 設置用ファイルを展開し、そのフォルダで`sh install.sh`を実行します。イメージの取得、空の保存先の所有権設定、起動と正常稼働の確認まで行います。`.env`の作成や追加機能の設定は不要です。
-2. installerが表示するURLをブラウザで開きます。同じマシンでは`http://localhost:18891`、iPhone・iPadや別のMacでは`http://このマシンのLANアドレス:18891`へ接続できます。アプリの接続先にも同じURLを指定します。
-3. 最初に使うClaude・Codex・Grok・Cursorを画面で選びます。AIのCLIはこのイメージに含まれていません。AIの認証の「最新版を入れる」を押して入れ、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。BellTeamのメンバーは、コンテナの中で、Claude Codeの「Bypass Permissions」（操作のたびに許可を求めない）モードで動きます。そのため、BellTeamはメンバー用のClaude Codeの初回案内と、このモードの確認画面に、自分で答えます（`~/.claude.json`の`hasCompletedOnboarding`と`~/.claude/settings.json`の`skipDangerousModePermissionPrompt`を書きます）。利用規約の更新への同意は書きません。
+2. installerが表示するURLを、BellTeamのアプリの接続先に指定します（ブラウザ版は終了しました）。同じマシンでは`http://localhost:18891`、iPhone・iPadや別のMacでは`http://このマシンのLANアドレス:18891`へ接続できます。
+3. 最初に使うClaude・Codex・Grok・Cursorをアプリの画面で選びます。AIのCLIはこのイメージに含まれていません。AIの認証の「最新版を入れる」を押して入れ、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。BellTeamのメンバーは、コンテナの中で、Claude Codeの「Bypass Permissions」（操作のたびに許可を求めない）モードで動きます。そのため、BellTeamはメンバー用のClaude Codeの初回案内と、このモードの確認画面に、自分で答えます（`~/.claude.json`の`hasCompletedOnboarding`と`~/.claude/settings.json`の`skipDangerousModePermissionPrompt`を書きます）。利用規約の更新への同意は書きません。
 4. 認証後、案内役との会話が始まります。メンバーや追加機能など、希望する使い方を案内役へ伝えて設定します。
 
-Webアプリとサーバーは無料です。初期設定の後も、すべてのメンバーとの会話、メンバー間の配送、予定の実行を購読なしで使えます。AI各社や追加機能に使う外部サービスの契約は自分で用意します。
+サーバーは無料です（MITライセンスのオープンソース）。アプリ（iPhone・Mac・Windows・Linux・Android）の利用には購読が必要です。無料で使いたい場合は、ソースから自分でビルドして使えます。自分でビルドした場合も、メンバーとの会話、メンバー間の配送、予定の実行はすべて使えます（運営側を通るスマホへの通知には購読が必要です）。AI各社や追加機能に使う外部サービスの契約は自分で用意します。
 
 ## 設置先とイメージの指定
 
@@ -260,6 +260,28 @@ sh install.sh --recover .bellteam-compose.対象世代
 
 WindowsではWSLのLinux filesystem内へ設置してください。Mac Docker Desktopでは本体専用データをEngine内volumeへ分離します。環境ごとの実移行・復旧の受入状況は対応するリリース記録を確認してください。
 
+
+### 本体が起動しないときに、直した本体を入れる
+
+アプリの更新（App Update）は、動いている本体を窓口にします。本体が起動しない間は使えません。その間に、直した本体を入れる手順です。Dockerを使えるユーザーで、箱のあるマシン上で実行します。
+
+公開された版を入れる場合（`@sha256:`の値は、公開されたカタログまたは受け取った案内の値を使います）:
+
+```sh
+docker pull ghcr.io/kitepon/bellteam-server@sha256:<digest>
+docker run --rm --entrypoint cat ghcr.io/kitepon/bellteam-server@sha256:<digest> /app/distribution/server/emergency-body.sh > emergency-body.sh
+sh emergency-body.sh ghcr.io/kitepon/bellteam-server@sha256:<digest>
+```
+
+自分でbuildした本体を入れる場合は、`docker build -t bellteam-local .`のあと、`sh emergency-body.sh --local bellteam-local`を実行します。この手順を実行することが承認になり、カタログの署名確認は通りません。通常の更新が使える間は、アプリの更新を使ってください。
+
+- 入れるimageの中のinstallerが、通常の更新と同じ順で本体を入れ替えます。古い本体が止まっていても、状態（data・home・Aiterm）はそのまま引き継がれます。処理待ち一覧の保存は、本体が無いので行いません。
+- 最後に新しい本体のimage・版・健全性・保存先を確かめ、結果をJSONで出します。確認できたときだけ終了コード0です。
+- 本体が1つも無い状態（入れ替えが途中で止まったあとなど）でも、同じ手順を実行すれば、保存済みの設定と状態から本体を起動します。この場合は戻す先が無く、Aiterm の状態は引き継がれず新しい世代で始まります（前の世代のAitermのvolumeは、使われないまま箱に残ります）。
+- 新しい本体も起動しないときは、古い本体の構成へ戻します。古い本体も動かない場合は、そのまま止まっています。起動する本体で、もう一度実行してください。
+- 更新中の作業（worker）が残っているときは、何も変えずに終わります（`EMERGENCY_UPDATE_RUNNING`）。
+
+設計と確認範囲: `docs/architecture/modules/runtime/emergency-body.md`。
 
 ### 機能導入の結果不明を保持したservice更新
 

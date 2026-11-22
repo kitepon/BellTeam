@@ -20,11 +20,9 @@ import { createServer } from 'node:http'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { crossSiteWrite, json } from './http-response.mjs'
 import { logWriteRequest, logReadRequest, recordSlowOrAborted } from './http-request-log.mjs'
-import { staticFile } from './http-assets.mjs'
 import { respondHttpError } from './http-errors.mjs'
 import { createMessageViews } from './http-messages.mjs'
 import { createMessageEvents, EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS } from './http-events.mjs'
-import { createWebPushOrigin } from './web-push-origin.mjs'
 import { validateConversationAdmissionDiagnostic } from './conversation-lifetimes.mjs'
 import { captureInstallInspectionOwner } from './update-install-inspection.mjs'
 
@@ -36,7 +34,7 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, machineStream = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, approvals = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, assets, models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, machineStream = null, ownerSecretGuide = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, lattice = null, approvals = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, homeFront, authMode = () => 'cloudflare', internal = false, seatMcp = null, terminals = () => null, runningExclusions = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   // SK07: execution's live fork registry; engines without it have no forks.
@@ -45,13 +43,12 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream,
     ownerSecretGuide: internal ? null : ownerSecretGuide })
 
-  const assertWebPushOrigin = createWebPushOrigin({ settings })
   const captureUsageContext = usageAssembly ? async (request, method) => {
     const botId = internal ? (await resolveInternalSeat(request, bots, forkSeat)).botId : null
     if (internal && !botId) throw Object.assign(new Error('BELLTEAM_SEAT_UNRESOLVED'), { code: 'BELLTEAM_SEAT_UNRESOLVED', status: 403 })
     return usageAssembly.capture(method, { kind: internal ? 'bot' : 'owner', botId })
   } : undefined
-  const controlApi = createControlApi({ captureUsageContext, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : undefined, submittedSecretConsumer, captureSubmittedSecretContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin,
+  const controlApi = createControlApi({ homeFront, captureUsageContext, resolveSeat: internal ? request => resolveInternalSeat(request, bots, forkSeat) : undefined, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter,
     captureInstallInspectionOwner: request => captureInstallInspectionOwner(async () => !internal && await authorize(request) === true) })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
@@ -90,10 +87,20 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     try {
       const url = new URL(request.url, 'http://bellteam.local')
       if (request.method === 'GET' && url.pathname === '/healthz') return json(response, 200, { status: 'ok' })
+      // a485: the login-billing home part. /api/home/* judges itself; once the server is Enforced a session is the only owner proof
+      // (a stateless guard on the published set), and "cannot judge" is 503, never 401. Seats on the internal listener are unchanged.
+      if (homeFront && !internal && await homeFront.route(request, response, url)) return
       stage = 'authorize'
-      const authenticated = await authorize(request)
+      let authenticated
+      if (homeFront && !internal) {
+        const judged = await homeFront.judge(request.headers)
+        if (judged === 'unavailable') return json(response, 503, { error: 'SESSION_STORE_UNAVAILABLE' })
+        if (judged !== 'legacy') { authenticated = Boolean(judged.sessionId); request.bellteamSession = judged.sessionId }
+      }
+      authenticated ??= await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
+      if (request.bellteamSession && request.method === 'GET' && url.pathname === '/api/events') homeFront.trackStream(request.bellteamSession, response)
       if (!internal && crossSiteWrite(request, (() => { try { return new URL(settings?.configuration('cloudflare')?.publicUrl).origin } catch { return null } })()))
         return json(response, 403, { error: 'CROSS_SITE_REQUEST_FORBIDDEN' })
       if (url.pathname === '/api/diagnostics/conversation-admission') {
@@ -148,8 +155,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (url.pathname.startsWith('/api/')) return await dispatchApi()
 
       if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-      stage = 'static'
-      return staticFile(response, staticRoot, url.pathname, assetVersion)
+      // a487: no browser UI behind this server; the public gateway answers non-API pages itself.
+      return json(response, 404, { error: 'NOT_FOUND' })
     } catch (error) {
       return respondHttpError(request, response, error, diagnostics, { stage, startedAt })
     } finally {

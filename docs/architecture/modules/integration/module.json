@@ -36,10 +36,6 @@
       "port": "lifecycle"
     },
     {
-      "module": "web",
-      "port": "assets"
-    },
-    {
       "module": "runtime",
       "port": "update"
     },
@@ -135,7 +131,6 @@
     "src/members-owner-proxy.mjs",
     "src/update-module-catalog.mjs",
     "src/current-work-contract.mjs",
-    "src/web-push-origin.mjs",
     "src/update-module-adapters.mjs",
     "src/update-module-executor.mjs",
     "src/update-install-inspection.mjs",
@@ -162,7 +157,6 @@
     "src/seat-credentials.mjs",
     "src/http-terminals-api.mjs",
     "src/terminals-mcp.mjs",
-    "src/secret-credential-refresh.mjs",
-    "src/submitted-secret-caller.mjs"
+    "src/secret-credential-refresh.mjs"
   ]
 }

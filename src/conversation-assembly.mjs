@@ -8,6 +8,7 @@ import { createConversationAuthority } from './conversation-authority.mjs'
 import { createModuleOperationContext } from './module-operation-context.mjs'
 import { createConversationAssetGate, createConversationAssetReader } from './conversation-assets.mjs'
 import { createConversationParentEffects } from './conversation-parent-effects.mjs'
+import { seatImageReader } from './bot-image-path.mjs'
 import { createConversationObserverParentEffects } from './conversation/observer-parent.mjs'
 import { checkObserverProjects } from './observer-check.mjs'
 import { readObserverTurns } from './self-turns.mjs'
@@ -43,7 +44,8 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
   const gate = createConversationAssetGate({ readRemovalStates: () => getBots().readRemovalStates(),
     assertContext: context => receiptAssetContexts.has(context) ? membersAdmission.assertLease(context.membersLease) : moduleOperations.assert(context) })
   const receiptAssets = new MessageAssets({ root, botsAssetsRoot: join(root, 'state/bots'),
-    ...(getServices().seatRuntime ? { readImage: (image, maxBytes) => getServices().seatRuntime.readImage(image, maxBytes) } : {}) })
+    ...(getServices().seatRuntime ? { readImage: (...args) => seatImageReader({ bots: getBots(), transport: getServices().transport,
+      local: (image, maxBytes) => getServices().seatRuntime.readImage(image, maxBytes) })(...args) } : {}) })
   // Every direct-path write (images, files, forwarded images) takes the same members lease and deletion-gate save lease.
   const leased = write => input => membersAdmission.withLease(async membersLease => {
     const context = { membersLease }; receiptAssetContexts.add(context)

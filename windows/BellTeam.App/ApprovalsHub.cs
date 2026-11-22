@@ -6,6 +6,9 @@ using static BellTeam.App.LatticeLook;
 
 namespace BellTeam.App;
 
+/// <summary>What the Waiting screen shows (peer-channel-signin.md section 3): the typed code (16 characters, grouped), the QR text and when they stop being valid.</summary>
+internal sealed record ApprovalOffer(string Code, string Qr, DateTimeOffset ExpiresAt);
+
 /// <summary>
 /// The one reader of 決裁箱 for this app (screen-spec "入口", README F-feed): owns the <see cref="ApprovalsFeed"/> of the connected server and tells the entry row and
 /// the window on the UI thread. Starts when the workspace is connected, restarts on another server, saves nothing.
@@ -18,6 +21,26 @@ internal sealed class ApprovalsHub : IDisposable
     private readonly Workspace workspace;
     private readonly bool autostart;
     internal ApprovalsFeed? Feed { get; private set; }
+    /// <summary>This device's peer-channel session while both ways are open (null: only the server read, nothing changes).</summary>
+    internal IDeviceDecisions? Device { get; }
+    /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
+    internal Action? SignInApprovalBox { get; set; }
+    /// <summary>The Approval Box web sign-in is open in the browser (SigningIn); 「やめる」 calls CancelSignIn. The note is why the last try ended, if it did not end by the person's own choice.</summary>
+    internal bool SigningIn { get; private set; }
+    internal string? SignInNote { get; private set; }
+    internal Action? CancelSignIn { get; set; }
+    /// <summary>NeedsApproval -> Waiting: the code and QR this device shows while a verified device admits it (5.3). Null offer = none open; the note says why the last one ended.</summary>
+    internal ApprovalOffer? Offer { get; private set; }
+    internal string? OfferNote { get; private set; }
+    internal Action? RequestApproval { get; set; }
+    internal Action? CancelApproval { get; set; }
+    internal void SetOffer(ApprovalOffer? offer, string? note = null) { Offer = offer; OfferNote = note; Notify(); }
+    internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Notify(); }
+    internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of)];
+    /// <summary>The counts of the entry row: the server's summary plus what only the device holds (Core DecisionUnion).</summary>
+    internal ApprovalSummary? Summary => Device is null ? Feed?.Summary : DecisionUnion.Summary(Feed?.Summary, [], DeviceViews, DateTimeOffset.UtcNow);
+    /// <summary>The device's book or connection changed: the open window repaints.</summary>
+    internal event Action? DeviceChanged;
     internal Workspace Workspace => workspace;
     /// <summary>Opens the 決裁箱 window (null = the list, an id = that decision's 詳細). Set by the main window.</summary>
     internal Action<string?>? Show { get; set; }
@@ -28,9 +51,10 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>A decision changed on the server (id, version), or the stream came back (id null): the open window reads again.</summary>
     internal event Action<string?>? DecisionChanged;
 
-    internal ApprovalsHub(Workspace workspace, bool autostart = true)
+    internal ApprovalsHub(Workspace workspace, bool autostart = true, IDeviceDecisions? device = null)
     {
-        this.workspace = workspace; this.autostart = autostart;
+        this.workspace = workspace; this.autostart = autostart; Device = device;
+        if (device is not null) device.Changed += () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); });
         workspace.PropertyChanged += WorkspaceChanged;
         if (workspace.Connected) Reset();
     }
@@ -84,7 +108,7 @@ internal sealed class ApprovalsEntryRow : Button
         this.hub = hub; hub.Changed += Paint; Paint();
     }
 
-    internal ApprovalEntryView View => Approvals.EntryView(hub?.Feed?.Summary, hub?.Feed?.Failure);
+    internal ApprovalEntryView View => Approvals.EntryView(hub?.Summary, hub?.Feed?.Failure);
 
     private void Paint()
     {

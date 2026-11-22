@@ -12,6 +12,7 @@ import { authReceipt, authUi } from '../auth-ui.mjs'
 import { usageError, validateUsageRequest } from './process-schema.mjs'
 import { BackgroundAgentSettings } from './background-agent-settings.mjs'
 import { createOnePasswordSource } from './onepassword-source.mjs'
+import { createHomeLogin } from './home-login.mjs'
 
 const clone = value => structuredClone(value)
 const receiptKeys = ['loggedIn', 'slot', 'account_label', 'schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
@@ -39,9 +40,9 @@ function volatileState(value) {
     }
     return result
   }
-  // a479: a handoff from a usage module that predates thinkingDisplay carries 7 epochs; the new one starts at 0.
+  // a479 / a487n stage 1: a handoff from a usage module that predates thinkingDisplay, or that has dropped webPush, carries fewer epochs; the six core ones are required.
   const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
-  if (epochs.size !== 7 + Number(epochs.has('thinkingDisplay'))) throw usageError('USAGE_HANDOFF_INVALID')
+  if (epochs.size !== 6 + Number(epochs.has('webPush')) + Number(epochs.has('thinkingDisplay'))) throw usageError('USAGE_HANDOFF_INVALID')
   const sessions = map(value.sessions, (key, session) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && typeof session === 'string' && session.length > 0)
   const receipts = map(value.receipts, (key, item) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && item !== null
     && (item.slot === undefined ? key !== 'claude:2nd' : item.slot === (key === 'claude:2nd' ? '2nd' : '1st')) && Boolean(receipt(item, sessions.get(key))))
@@ -52,10 +53,13 @@ function volatileState(value) {
 // Runtime owns the process/lock and supplies only fixed parent effects and registry ports.
 export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {}, onePassword, secretProviders,
   environment = {}, seatRuntime = false, subscription = {} }) {
+  // a485: mounted only when the operator is configured; without it every home call is unavailable and the body stays Legacy.
+  const home = environment.BELLTEAM_HOME_OPERATOR ? createHomeLogin({ path: join(root, 'shared/login-home.json'), operator: environment.BELLTEAM_HOME_OPERATOR }) : null
+  const homeReady = () => home ?? (() => { throw usageError('SESSION_STORE_UNAVAILABLE') })()
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
-  let projectionFailed = false, projectionTail = Promise.resolve()
-  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
+  let projectionFailed = false, projectionFailures = 0, projectionTail = Promise.resolve()
+  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
   const pending = new Set(), effectScope = new AsyncLocalStorage()
   const track = run => {
     const result = Promise.resolve().then(run)
@@ -193,6 +197,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'questions.get': ({ id }, actor) => getOwned(ownerQuestions, id, actor, 'OWNER_QUESTION_NOT_FOUND'),
     'questions.answer': ({ id, input }) => ownerQuestions.answer(id, input),
     'questions.timeline': ({ target }) => ownerQuestions.timeline(target),
+    'home.handle': params => homeReady().handle(params), 'home.sweep': params => homeReady().sweep(params),
+    'home.setupCode': () => homeReady().setupCode(), 'home.pushTickets': () => homeReady().pushTickets(), 'home.publish': () => homeReady().publish(), 'home.console': params => homeReady().console(params),
     'subscriptions.status': () => subscriptions.status(), 'subscriptions.current': () => subscriptions.current(),
     'subscriptions.install': ({ signedTransaction }) => subscriptions.install(signedTransaction),
     'subscriptions.installStripe': ({ stripeSessionId }) => subscriptions.installStripe(stripeSessionId),
@@ -210,13 +216,25 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     return callEffect('auth.prepareAccount', { harness, slot })
   },
     list: () => callEffect('auth.listAccounts', {}) } })
-  const publish = record => {
+  const publish = (record, { quiet = false } = {}) => {
     const row = clone({ ...record, revision: ++revision }), previous = projectionTail
     const result = scoped(async () => { await previous; await onProjection(row) })
-    projectionTail = result.catch(() => { projectionFailed = true })
+    projectionTail = result.catch(() => { projectionFailures++; if (!quiet) projectionFailed = true })
     return result
   }
+  // a500: a failed publish leaves the parent's copy stale for that row; the exit is to publish the whole current state again.
+  // The closing lifts only when every row was acknowledged and no other publish failed meanwhile; otherwise the next entry tries again.
+  let resyncing = null
+  const resync = () => resyncing ??= (async () => {
+    const failures = projectionFailures
+    try {
+      for (const row of fullProjection()) await publish(row, { quiet: true })
+      if (projectionFailures === failures) projectionFailed = false
+    } catch {} finally { resyncing = null }
+  })()
   const settingsProjection = () => ({ type: 'settings', epochs: Object.fromEntries(epochs), list: settings.list(), configurations: Object.fromEntries(settings.list().map(({ id }) => [id, settings.configuration(id)])), ...backgroundAgent.projection() })
+  const fullProjection = () => [...baseProjection(), ...[...secretRequests.items.keys()].map(id => ({ type: 'secret', value: secretRequests.get(id) })),
+    ...[...ownerQuestions.items.values()].map(item => ({ type: 'question', value: item }))]
   const baseProjection = () => [{ ...settingsProjection() }, { type: 'onboarding', value: onboarding.snapshot() }, { type: 'auth', value: harnessAuth.list() }, { type: 'subscription', value: subscriptions.status() }]
   secretRequests.watch(event => { if (initialized) publish({ type: 'event', value: event }) })
   secretRequests.watchCredentials(value => { if (initialized) publish({ type: 'credential', value }) })
@@ -257,18 +275,20 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       await secretRequests.initialize({ readOnly: restore })
       await ownerQuestions.initialize({ readOnly: restore })
       if (state) {
-        for (const [id, epoch] of state.epochs) epochs.set(id, epoch)
+        // a487n: a handoff from an older child may carry a feature this child no longer has (webPush); only the ids of this child's own list are taken.
+        for (const [id, epoch] of state.epochs) if (epochs.has(id)) epochs.set(id, epoch)
         if (Object.hasOwn(settings, 'routingEpoch')) settings.routingEpoch = epochs.get('routing')
-        for (const [id, code] of state.errors) settings.setError(id, { code })
+        for (const [id, code] of state.errors) if (epochs.has(id)) settings.setError(id, { code })
         harnessAuth.sessions = state.sessions; harnessAuth.receipts = state.receipts; onboarding.auth = receipt(state.onboardingAuth, onboarding.state.authSession)
       }
       syncOnePassword(); await onePasswordConnection()
       await cli.probeAll()
       initialized = true; accepting = true
     },
-    request(method, params, actor) {
-      try { validateUsageRequest(method, params, actor); assertOpen(method, actor); params = clone(params); actor = { ...actor } }
-      catch (error) { return Promise.reject(error) }
+    async request(method, params, actor) {
+      validateUsageRequest(method, params, actor)
+      if (projectionFailed && initialized && accepting && !stopped) await resync()
+      assertOpen(method, actor); params = clone(params); actor = { ...actor }
       return dispatch(method, params, actor)
     },
     callback(method, params, actor) {
@@ -294,10 +314,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     },
     *snapshot() {
       if (!initialized || stopped) throw usageError('USAGE_UNAVAILABLE')
-      const rows = baseProjection(), secrets = [...secretRequests.items.keys()].map(id => secretRequests.get(id)), questions = [...ownerQuestions.items.values()], captured = revision
-      for (const row of rows) yield clone({ ...row, revision: captured })
-      for (const item of secrets) yield clone({ type: 'secret', value: item, revision: captured })
-      for (const item of questions) yield clone({ type: 'question', value: item, revision: captured })
+      const captured = revision
+      for (const row of fullProjection()) yield clone({ ...row, revision: captured })
     },
     close() {
       if (!quiesced || pending.size) throw usageError('USAGE_NOT_QUIESCED', 409)

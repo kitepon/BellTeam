@@ -11,7 +11,7 @@ const fixture = new URL('./fixtures/notifications-usage-child.mjs', import.meta.
 const device = { token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam.example', signedTransaction: 'PRIVATE_TRANSACTION' }
 const event = { type: 'direct', id: 'slow', botId: 'bot-a', senderName: 'ミカ' }
 
-async function start(t, { mode = '', configuration = { enabled: false, relayUrl: '' }, webConfiguration = { enabled: false, subject: '' }, onDiagnostic = async () => {} } = {}) {
+async function start(t, { mode = '', configuration = { enabled: false, relayUrl: '' }, webConfiguration = null, onDiagnostic = async () => {} } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'notifications-usage-ipc-'))
   const child = spawn(process.execPath, [fixture, 'builtin', root, mode], { env: {}, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
   const ended = waitNotificationsChildClose(child)
@@ -19,7 +19,7 @@ async function start(t, { mode = '', configuration = { enabled: false, relayUrl:
   child.stderr.on('data', chunk => { stderr += chunk })
   const channel = createNotificationsParentChannel(child, { onDiagnostic })
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose(); await rm(root, { recursive: true, force: true }) })
-  await channel.control('initialize', { configuration: { apns: configuration, webPush: webConfiguration } })
+  await channel.control('initialize', { configuration: webConfiguration === null ? { apns: configuration } : { apns: configuration, webPush: webConfiguration } })
   const ready = await channel.ready
   return { channel, ready, root, child, ended, stderr: () => stderr }
 }
@@ -51,7 +51,7 @@ test('update receipt IPC returns concurrent saved attempts and quiesce waits the
 test('実IPCとusage dispatcherは未設定ready・resume前拒否・正常exitを接続する', async t => {
   const { channel, ready, ended } = await start(t)
   assert.deepEqual(ready, { type: 'ready', versionId: null, protocolVersion: 2, stateSchema: 2,
-    status: { apns: { configured: false, environments: [] }, webPush: { enabled: false, configured: false, publicKey: null, error: null } }, applyError: { apns: null, webPush: null } })
+    status: { apns: { configured: false, environments: [] } }, applyError: { apns: null } })
   await assert.rejects(channel.request('status', { provider: 'apns' }), { outcome: 'not_accepted' })
   await channel.control('resume')
   assert.deepEqual(await channel.request('status', { provider: 'apns' }), ready.status.apns)
@@ -112,34 +112,28 @@ test('親IPC切断後もusage送信終端を待ち、OS/IPC/pipe回収barrierで
   assert.deepEqual(JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8')), [device])
 })
 
-test('ABI2 real IPC correlates Web origin/409 and drains both artificial providers before exit', async t => {
-  const { channel, root, ready, ended } = await start(t, { mode: 'both-providers', configuration: { enabled: true, relayUrl: '' },
-    webConfiguration: { enabled: true, subject: 'mailto:fixture@example.com' } })
-  const keyBytes = await readFile(join(root, 'state/web-push-keys.json'))
+test('a487n stage 2: the child ignores the webPush configuration of an older body, reports no webPush, and removes the old Web push files', async t => {
+  const { writeFile, mkdir } = await import('node:fs/promises')
+  const root = await mkdtemp(join(tmpdir(), 'notifications-usage-ipc-old-'))
+  await mkdir(join(root, 'state'), { recursive: true })
+  for (const name of ['web-push-keys.json', 'web-push-subscriptions.json']) await writeFile(join(root, 'state', name), '{}', { mode: 0o600 })
+  const child = spawn(process.execPath, [fixture, 'builtin', root, ''], { env: {}, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
+  const ended = waitNotificationsChildClose(child)
+  const channel = createNotificationsParentChannel(child)
+  t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose(); await rm(root, { recursive: true, force: true }) })
+  await channel.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' }, webPush: { enabled: true, subject: 'mailto:ops@example.com' } } })
+  const ready = await channel.ready
+  assert.deepEqual(Object.keys(ready.status), ['apns'])
+  assert.deepEqual(ready.applyError, { apns: null })
+  const names = await readdir(join(root, 'state'))
+  assert.ok(!names.some(name => name.startsWith('web-push')))
+})
+
+test('a485: tickets goes through the real IPC (parent and child checks), bounded and exact', async t => {
+  const { channel } = await start(t, { configuration: { enabled: false, relayUrl: '' } })
   await channel.control('resume')
-  await channel.request('register', { provider: 'apns', ...device })
-  const receiver = createECDH('prime256v1'); receiver.generateKeys()
-  const origin = 'https://fixture.example'
-  const subscription = { endpoint: 'https://fcm.googleapis.com/artificial', expirationTime: null,
-    keys: { p256dh: receiver.getPublicKey().toString('base64url'), auth: randomBytes(16).toString('base64url') } }
-  const params = { provider: 'webPush', origin, subscription, applicationServerKey: ready.status.webPush.publicKey }
-  assert.deepEqual(await channel.request('register', params), { registered: true })
-  assert.deepEqual(await channel.request('status', { provider: 'webPush', origin: 'https://other.example', endpoint: subscription.endpoint }), { registered: false })
-  assert.deepEqual(await channel.request('unregister', { provider: 'webPush', origin: 'https://other.example', endpoint: subscription.endpoint }), { registered: false })
-  await assert.rejects(channel.request('register', { ...params, origin: 'https://other.example' }), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT', status: 409 })
-  await assert.rejects(channel.request('status', { provider: 'webPush', endpoint: subscription.endpoint }), { code: 'WEB_PUSH_INPUT_INVALID', outcome: 'not_accepted' })
-  await channel.request('publish', event)
-  let done = false
-  const draining = channel.control('quiesce').then(value => { done = true; return value })
-  await writeFile(join(root, 'release'), '')
-  await new Promise(resolve => setTimeout(resolve, 20))
-  assert.equal(done, false)
-  await writeFile(join(root, 'web-release'), '')
-  assert.deepEqual(await draining, { quiesced: true })
-  const webEvent = JSON.parse((await readFile(join(root, 'web-sent.jsonl'), 'utf8')).trim())
-  assert.equal(webEvent.messageId, event.id)
-  assert.equal(webEvent.schema, 'bellteam.web-push.v1')
-  assert.deepEqual(await readFile(join(root, 'state/web-push-keys.json')), keyBytes)
-  await channel.control('exit')
-  assert.deepEqual(await ended, { code: 0, signal: null })
+  assert.deepEqual(await channel.request('tickets', { tickets: { ['a'.repeat(64)]: 'ticket' } }), { accepted: true })
+  assert.deepEqual(await channel.request('tickets', { tickets: {} }), { accepted: true })
+  for (const bad of [{ tickets: { short: 'ticket' } }, { tickets: { ['a'.repeat(64)]: '' } }, { tickets: {}, provider: 'apns' }, {}])
+    await assert.rejects(channel.request('tickets', bad), error => ['PUSH_IPC_ARGUMENTS', 'PUSH_INPUT_INVALID'].includes(error.code))
 })

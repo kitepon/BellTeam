@@ -23,7 +23,7 @@ const item = await service.create({ botId: 'bot-one', toolId: 'example', label: 
 const server = createBellTeamServer({ bots, rooms, secretRequests: service,
   authorize: () => true, store: { timeline: async () => [], watch: async () => () => {} },
   transport: { queueItems: () => [], isRunning: async () => false },
-  ownerProfile: { get: async () => ({ name: '試験利用者', links: [] }) }, staticRoot: new URL('../web/', import.meta.url).pathname })
+  ownerProfile: { get: async () => ({ name: '試験利用者', links: [] }) } })
 server.listen(0, '127.0.0.1')
 await once(server, 'listening')
 await server.startMessageWatch()
