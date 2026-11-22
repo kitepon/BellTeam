@@ -15,6 +15,9 @@
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Linux.Tests" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
+    <!-- a520: the pc/1 device part for the 決裁箱 view; its native engine is linux/native/README.md (x64 only). -->
+    <ProjectReference Include="../../windows/BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
+    <None Include="../native/prebuilt/linux-x64/libdatachannel.so" Condition="'$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'linux-x64'" Link="libdatachannel.so" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Avalonia" Version="12.1.6" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
