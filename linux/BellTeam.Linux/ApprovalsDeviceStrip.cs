@@ -1,0 +1,66 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
+using BellTeam.Core;
+using BellTeam.PeerChannel;
+using static BellTeam.Linux.LatticeLook;
+
+namespace BellTeam.Linux;
+
+// The device's states in the 決裁箱 window (design peer-channel-signin.md sections 2 and 3, a520): one note above the list for SignedOut, SigningIn, Joining, NeedsApproval, Waiting (code + QR),
+// NotEntitled and Reconnecting; Live shows nothing. The words are Core's `Approvals.Device*` (the same on every platform). Every note leaves by its own action or by the next launch.
+internal sealed partial class ApprovalsWindow
+{
+    private Control Strip(Control content)
+    {
+        if (DeviceStrip() is not { } strip) return content;
+        var dock = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(strip, Dock.Top); dock.Children.Add(strip); dock.Children.Add(content);
+        return dock;
+    }
+
+    internal Control? DeviceStrip()
+    {
+        if (hub.Device is not { } device) return null;
+        var panel = new StackPanel(); var n = 0;
+        Border Frame(Control child, double vertical, string name)
+        {
+            var border = new Border { Child = child, CornerRadius = new CornerRadius(14), Padding = new Thickness(16, vertical, 16, vertical), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
+            Avalonia.Automation.AutomationProperties.SetAutomationId(border, name); return border;
+        }
+        void Line(string text, string? label = null, Action? act = null)
+        {
+            var row = Row(Icon(Globe, 16, Muted), Spaced(Text(text, 13, Ink, FontWeight.SemiBold, wrap: true), 10));
+            if (label is not null && act is not null) { var button = Action(label, null); button.Margin = new Thickness(12, 0, 0, 0); button.Click += (_, _) => act(); row.Children.Add(button); }
+            panel.Children.Add(Frame(row, 8, "approvals-device-note-" + n++));
+        }
+        void Waiting(ApprovalOffer offer)
+        {
+            var code = Text(offer.Code, 22, Ink, FontWeight.Bold); code.FontFamily = new FontFamily("monospace");
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
+            info.Children.Add(code);
+            info.Children.Add(Text(Approvals.DeviceApprovalHow, 13, Ink, FontWeight.SemiBold, wrap: true));
+            info.Children.Add(Text(Approvals.DeviceApprovalLeft(offer.ExpiresAt - Now()), 12, Muted));
+            var stop = Action("やめる", null); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(stop);
+            panel.Children.Add(Frame(Row(new QrView(offer.Qr, 150), info), 16, "approvals-device-waiting"));
+        }
+        switch (device.State.Status)
+        {
+            case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
+            case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting(device.State.Reason), "今すぐ試す", device.Refresh); break;
+            case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
+            case RuntimeStatus.NeedsAdmission:
+                if (hub.OfferNote is { } ended) Line(ended);
+                Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
+                break;
+            case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
+            case RuntimeStatus.SignedOut:
+                if (hub.SignInNote is { } why) Line(why);
+                Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke());
+                break;
+            case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
+        }
+        return panel.Children.Count == 0 ? null : panel;
+    }
+}

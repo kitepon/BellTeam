@@ -50,7 +50,7 @@ internal sealed partial class ApprovalsWindow
     {
         // A phone's detail view gives the whole page to the detail: no tabs and counters above it.
         toolbarHost.Content = Compact && Selected is not null && Status == ApprovalFeedStatus.Live ? null : Toolbar();
-        body.Content = Status switch
+        body.Content = Strip(Status switch
         {
             ApprovalFeedStatus.Old => Gate(Globe, Approvals.Old, [("閉じる", false, Close)]),
             ApprovalFeedStatus.NotEntitled => Gate(Lock, Approvals.NotEntitled, [("契約を確かめる", true, hub.ReadAgain), ("閉じる", false, Close)]),
@@ -59,7 +59,7 @@ internal sealed partial class ApprovalsWindow
             ApprovalFeedStatus.LoginRequired => Gate(Lock, "ログインが必要です。ログインし直すと、自動で表示します。", [("読み直す", true, hub.ReadAgain), ("閉じる", false, Close)]),
             _ when open is null && tab != "done" => Loading(),
             _ => Columns()
-        };
+        });
     }
     private Control Loading() => new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Spacing = 12, Children = { Spinner(22), Text(Approvals.Loading, 14, Muted) } };
 
