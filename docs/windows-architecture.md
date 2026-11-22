@@ -408,7 +408,10 @@ flowchart TD
 - **失敗の見え方**: 接続できない間は最後の一覧を薄くして理由と手動再試行を出す。答えの送信が失敗しても決裁の状態は変えず、同じボタンをもう一度出す。結果が分からない送信は「不明」と出す。
 - **端末の履歴**: 受けた request と result を端末にだけ保つ（契約10.1）。保管期間の設定は端末側。他の端末にしか届かなかった決裁は、この端末に無いことがある（Ownerの許容済み）。
 - **この段でやらないこと**: 端末の取り外し画面（SEC-086は画面を足す時）、コネクタの追加の承認画面（BellTeamのサーバーの常駐 daemon は、Ownerのスマホで一度だけ承認する。Nayutaの手順）、サーバー側の報告（D7b。経路は設計の Q5 で決まってから）。端末の追加の承認（5.3）の画面は、この端末が2台目の時に必要になるので別の工程で行う。
-- **検証**: 純粋な部分（`DecisionBook`・`DeviceDecisionView`）は、契約のテストデータと既存の画面モデルの試験へつなぐ。通しは foxで、決裁箱のローカル開発サーバー（`npm run dev:server`・実験用の承認役 `dev:approve`、127.0.0.1だけ）とコネクタの daemon を立て、AIの要求 → この端末の画面 → 答え → AIの受け取りまでを人手なしで動かす。
+- **2つ目のサインイン（ミント 契約1.24、ナユタ・デルタの裁定）**: 決裁箱は自分のログイン・課金のpassだけを受ける。アプリはBellTeamのインスタンス（`AccountStore`）とは別に、ベースが決裁箱の `/auth/v1` の2つ目のインスタンス `ApprovalBoxAccount` を持つ。保管場所は別名の `FilePassStore`（`BellTeam-ApprovalBox`）、ウェブサインインのみ（システムブラウザーとループバック）、購入・レシートなし。2つのKは同じ記録・ログへ混ぜない。`ApprovalBoxDevice`（環境変数 `BELLTEAM_APPROVAL_BOX_DEVICE=1` の時だけ有効）が、2つ目のインスタンス・`DeviceApprovals`・画面（`ApprovalsHub`）をつなぐ。公開の裁定は未了なので、本番の画面は変わらない。
+- **承認（5.3 の起動側）**: NeedsApproval から「承認をお願いする」で `DeviceAdmission` が `verify.open`（QRの秘密と打ち込む秘密の2つ）→ `pc1-join`（platform は windows、protection は os_store）→ `pc1-admit` の確認 → 名簿のスナップショットを採用、までを行う。画面は Waiting（コード・QR・読み方・残り時間・やめる）。承認が済むと基点を保存して接続を試し直す。
+- **添付（リクエストの画像）**: 台帳は添付の名前だけを持ち、実体は `SealedBlobFiles`（DPAPIで封じた1枚1ファイル、名前はblobのSHA-256）に置く。画面は端末の決裁なら端末から読み、旧経路の決裁なら今までどおりサーバーから読む。
+- **検証**: 純粋な部分（`DecisionBook`・`DeviceFrames`・`DeviceDecisionView`・`DecisionUnion`）は単体の試験。通しは3つ、どれも環境変数を指した時だけ動く：`DeviceRuntimeE2eTests`（TSのコネクタ、`harness-rt.mjs`）、`DeviceAdmissionE2eTests`（TSの承認役、`harness-admit.mjs`）、`ApprovalBoxDevServerE2eTests`（決裁箱の開発サーバー `npm run dev:server`＋その `/dev/websignin` で2つ目のサインイン→genesis→接続、`PC_E2E_ABX_URL=http://127.0.0.1:8788`。127.0.0.1だけ）。本物のコネクタ daemon との通しは、承認の流れ（ナユタの実験用の承認役はコネクタ専用）の都合でまだ行っていない。
 
 
 ## 変更時の手順
