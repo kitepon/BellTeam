@@ -2010,7 +2010,7 @@ export class AitermTransport {
         onTurnEnd?.({ startedAt, endedAt: this.now() })
       } catch (error) {
         process.stderr.write(`BellTeam fork: turn failed: ${sessionName}: ${error.message}\n`)
-        await Promise.resolve(onStatus?.('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: error?.code ?? error?.message ?? 'unknown' }))
+        await Promise.resolve(onStatus?.('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: forkFailureReason(error) }))
           .catch(() => {})
       } finally {
         // remote-seat.md C7: the fork's transcript once, labelled from the launch receipt, before its seat closes.
@@ -2582,6 +2582,9 @@ function steerFollow(result) {
   return { interimFrom: reference.interim_from, steerId: /^[a-f0-9]{16}$/u.test(reference.steer_id ?? '') ? reference.steer_id : null }
 }
 
+// fork.md "failure after accept" (a533): conversation keeps only a token reason, so a free-text message must not be the reason.
+const FORK_REASON = /^[A-Za-z][A-Za-z0-9_]{0,99}$/u
+export const forkFailureReason = error => [error?.code, error?.failureCategory, error?.waitOutcome].find(value => typeof value === 'string' && FORK_REASON.test(value)) ?? 'unknown'
 const forkUnavailable = cause => Object.assign(new Error('FORK_UNAVAILABLE: readonly_unenforceable', cause ? { cause } : {}),
   { code: 'FORK_UNAVAILABLE', reason: 'readonly_unenforceable', effect: 'not_started', status: 503 })
 
