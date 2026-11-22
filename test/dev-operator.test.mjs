@@ -90,11 +90,12 @@ test('a client signs in with a fake id token, buys in the fake store, and a rest
     assert.equal((await post('/dev/store-purchase', { provider: 'x' })).status, 400)
     assert.equal((await post('/dev/id-token', { provider: 'x' })).status, 400)
     assert.match(lines.join('\n'), /wire base http:\/\/127\.0\.0\.1:\d+\/auth\/v1/)
+    const kept = (await (await post('/auth/v1/signin/nonce', {})).json()).nonce
     await op.close()
     // Same data dir, same keys: the same person has the same account number.
     op = await startDevOperator({ publicUrl, dataDir: dir, log: () => {} })
     const post2 = (path, body) => fetch(`${op.url}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-    const { nonce } = await (await post2('/auth/v1/signin/nonce', {})).json()
+    const nonce = kept // issued before the restart: the file storage kept it
     const { id_token } = await (await post2('/dev/id-token', { provider: 'apple', sub: 'buyer-apple', nonce })).json()
     assert.equal((await (await post2('/auth/v1/signin', { provider: 'apple', idToken: id_token, nonce })).json()).k, k.apple)
   } finally { await op.close(); rmSync(dir, { recursive: true, force: true }) }

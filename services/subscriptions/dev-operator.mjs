@@ -11,9 +11,30 @@ import { createTestKit } from '@kitepon/login-billing/testing'
 import product from './product.json' with { type: 'json' }
 import { createLoginBillingWorker } from './worker.mjs'
 
-export const DEV_GOOGLE_CLIENT = 'dev-google-client.apps.local'
+// The full form: since login-billing 0.18.2 the library completes a Google audience that does not end with .apps.googleusercontent.com.
+export const DEV_GOOGLE_CLIENT = 'dev-google-client.apps.googleusercontent.com'
 
 // http on loopback or a private address only (contract 1.25: the product refuses to start a dev server with a public origin).
+// The library's Storage on one JSON file, so a restart (a body swap) keeps nonces, slots and above all the refused-pass and notBefore records a stop test relies on.
+// shortcut: whole-file rewrite on every change and counters in memory only, fine for a dev operator's few records; not for a deployed origin.
+class FileStorage extends MemoryStorage {
+  constructor(file) {
+    super()
+    this.file = file
+    this.rows = new Map(existsSync(file) ? Object.entries(JSON.parse(readFileSync(file, 'utf8'))) : [])
+    this.queued = false
+  }
+  save() {
+    if (this.queued) return
+    this.queued = true
+    setImmediate(() => { this.queued = false; writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.rows)), { mode: 0o600 }) })
+  }
+  async get(key) { const row = this.rows.get(key); if (row && row.until > Date.now()) return row.value; this.rows.delete(key) }
+  async put(key, value, ttlMs) { this.rows.set(key, { value, until: Date.now() + ttlMs }); this.save() }
+  async delete(key) { this.rows.delete(key); this.save() }
+  async take(key) { const value = await this.get(key); if (value !== undefined) { this.rows.delete(key); this.save() } return value }
+}
+
 export function assertPrivateHttp(publicUrl) {
   let url
   try { url = new URL(publicUrl) } catch { throw new Error(`PUBLIC_URL is not a URL: ${publicUrl}`) }
@@ -61,7 +82,7 @@ export async function startDevOperator({ port = 8790, publicUrl, dataDir = '.dev
     return kit.fetch(input, init)
   }
   // storeAnswerMinutes 0: a store answer is never kept, so /dev/store-end shows at the next read (the library keeps one for 10 minutes by default).
-  const storage = new MemoryStorage()
+  const storage = new FileStorage(join(dir, 'storage.json'))
   const worker = createLoginBillingWorker({
     storage: () => storage,
     extra: { storeAnswerMinutes: 0, fetch: fakeFetch, stores: { apple: kit.appleStore(product.bundleId), google: kit.googleStore(product.bundleId) } },
