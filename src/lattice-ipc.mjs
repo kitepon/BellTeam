@@ -11,7 +11,7 @@ const deferred = () => {
   return { promise, resolve, reject }
 }
 const READS = new Set(['charts', 'chart', 'history', 'refresh', 'blockers'])
-const passed = new Map([['LATTICE_DECISIONS_REFUSED', 409], ['LATTICE_DECISIONS_UNAVAILABLE', 503]])
+const passed = new Map([['LATTICE_DECISIONS_REFUSED', 409], ['LATTICE_DECISIONS_GONE', 404], ['LATTICE_DECISIONS_UNAVAILABLE', 503]])
 const acknowledged = value => latticeObject(value, ['acknowledged']) && value.acknowledged === true
 
 export function createLatticeParentChannel(child, { generation, onEffect }) {

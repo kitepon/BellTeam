@@ -190,8 +190,12 @@ test('parent: root calls validate first, run gets a longer timeout, effects map 
   effect(4, 'members.list', {})
   await tick()
   assert.deepEqual(sent.at(-1).error, { code: 'LATTICE_DECISIONS_REFUSED', outcome: 'unknown', status: 409 })
-  answer = async () => { throw Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 418 }) }
+  answer = async () => { throw Object.assign(new Error('LATTICE_DECISIONS_GONE'), { code: 'LATTICE_DECISIONS_GONE', status: 404 }) }
   effect(5, 'members.list', {})
+  await tick()
+  assert.deepEqual(sent.at(-1).error, { code: 'LATTICE_DECISIONS_GONE', outcome: 'unknown', status: 404 }, 'a490f: gone crosses the effect wire like refused')
+  answer = async () => { throw Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 418 }) }
+  effect(6, 'members.list', {})
   await tick()
   assert.deepEqual(sent.at(-1).error, { code: 'LATTICE_DECISIONS_UNAVAILABLE', outcome: 'unknown', status: 503 })
   effect(8, 'members.list', { x: 1 })
