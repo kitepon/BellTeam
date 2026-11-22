@@ -36,7 +36,7 @@ flowchart TD
   Loc --> Self
   Self --> Idle{"any update worker running?"}
   Idle -->|yes| Refuse[EMERGENCY_UPDATE_RUNNING, nothing touched]
-  Idle -->|no| Old["snapshot of the old body: id, image, storage binding, any state (running, restarting, exited, absent health)"]
+  Idle -->|no| Old["snapshot of the old body: id, image, storage binding, any state (running, restarting, exited, absent health); no container at all = ABSENT (no previous model, no rollback); more than one = EMERGENCY_BODY_NOT_FOUND"]
   Old --> Inst["ContainerUpdater.install -> execute_installer (pull skipped for local)"]
   Inst --> Pre["target image preflight (unknown allowed)"]
   Pre -->|fail| Out
@@ -147,6 +147,7 @@ Compared by reading `distribution/server/install.sh` and `install-resume-state.s
 
 - `resume_prepare` (worker mode) tries to keep the old body's Aiterm backing: it needs the old body present and the only container referencing that volume. Any mismatch takes the reset path and prints `aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED`. With no old body (the absent case above) preserve cannot apply, so a run from no body is a reset run: seats' Aiterm sessions start fresh. This is the same rule App Update already follows when preserve is unconfirmed.
 - `resume_initialize` -> `resume_apply` failing prints `aiterm-state-apply=failed` and the installer goes on; `execute_installer` then reports `verification: failed` with `HOST_UPDATE_AITERM_STATE_FAILED` after the swap succeeded. This is the `Cleaning --> Failed` edge. `resume_initialize` itself refusing (for example `RESUME_PRESERVE_UNCONFIRMED`) returns non-zero, `install.sh` exits non-zero, and the run goes to `RollingBack` (or ends as a failed install when there is no previous model).
+- A run from no body starts a new Aiterm generation; the previous generation's Aiterm volume stays on the box, unreferenced (not copied, not deleted).
 - Not run on a box with no container: the absent-body start and its Aiterm reset path are covered by unit tests with a fixture installer only; Centi's lab has to run it once (stop the body, remove the container, run the wrapper).
 
 ## Contract
