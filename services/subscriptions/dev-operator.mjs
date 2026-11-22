@@ -40,17 +40,15 @@ export async function startDevOperator({ port = 8790, publicUrl, dataDir = '.dev
 
   const kit = await createTestKit()
   const { google, apple } = kit.webClients()
-  const webSignIn = /^(localhost|127\.0\.0\.1)$/.test(url.hostname)
+  // The callback origin is the address a device sees: loopback (a port forward from another machine, contract 1.25); the library takes http for it only there.
+  const webOrigin = /^(localhost|127\.0\.0\.1)$/.test(url.hostname) ? origin : `http://127.0.0.1:${url.port || port}`
   const env = {
     LB_KKEY: keys.k, LB_PASS_KEY_CURRENT: keys.pass, LB_PASS_KEY_CURRENT_ID: 'dev',
     APPLE_SIGNIN_AUDIENCES: product.bundleId, GOOGLE_SIGNIN_AUDIENCES: DEV_GOOGLE_CLIENT,
     LB_BILLING: billing,
-    // The library takes http for web sign-in only at localhost / 127.0.0.1, so a dev operator at another private address has no web sign-in.
-    ...(webSignIn ? {
-      LB_PUBLIC_ORIGIN: origin,
-      WEBSIGNIN_GOOGLE_CLIENT_ID: google.clientId, WEBSIGNIN_GOOGLE_CLIENT_SECRET: google.clientSecret,
-      WEBSIGNIN_APPLE_SERVICES_ID: apple.servicesId, WEBSIGNIN_APPLE_TEAM_ID: apple.teamId, WEBSIGNIN_APPLE_KEY_ID: apple.keyId, WEBSIGNIN_APPLE_PRIVATE_KEY: apple.privateKey,
-    } : {}),
+    LB_PUBLIC_ORIGIN: webOrigin,
+    WEBSIGNIN_GOOGLE_CLIENT_ID: google.clientId, WEBSIGNIN_GOOGLE_CLIENT_SECRET: google.clientSecret,
+    WEBSIGNIN_APPLE_SERVICES_ID: apple.servicesId, WEBSIGNIN_APPLE_TEAM_ID: apple.teamId, WEBSIGNIN_APPLE_KEY_ID: apple.keyId, WEBSIGNIN_APPLE_PRIVATE_KEY: apple.privateKey,
   }
   const storage = new MemoryStorage()
   const worker = createLoginBillingWorker({
@@ -110,7 +108,7 @@ export async function startDevOperator({ port = 8790, publicUrl, dataDir = '.dev
   await new Promise((ok, fail) => { server.once('error', fail); server.listen(Number(url.port || port), url.hostname.replace(/^\[|\]$/g, ''), ok) })
   const actual = server.address().port
   const base = origin.replace(/:\d+$/, '') + `:${actual}`
-  log(`listening on ${base} (wire base ${base}/auth/v1; fake sign-in subject "${subject}"; Apple aud ${product.bundleId}, Google aud ${DEV_GOOGLE_CLIENT}; billing ${billing}; web sign-in ${webSignIn ? 'on' : 'off (not loopback)'}; keys ${dir})`)
+  log(`listening on ${base} (wire base ${base}/auth/v1; fake sign-in subject "${subject}"; Apple aud ${product.bundleId}, Google aud ${DEV_GOOGLE_CLIENT}; billing ${billing}; web sign-in callback ${webOrigin}; keys ${dir})`)
   return { url: base, close: () => new Promise(ok => { server.close(ok); server.closeAllConnections?.() }) }
 }
 

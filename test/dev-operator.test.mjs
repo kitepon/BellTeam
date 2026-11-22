@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -16,14 +17,25 @@ test('the dev operator refuses a public origin and starts nothing', async () => 
   for (const ok of ['http://127.0.0.1:8790', 'http://localhost:1', 'http://[::1]:1', 'http://10.1.2.3:1', 'http://172.16.0.1:1', 'http://172.31.255.1:1', 'http://192.168.1.2:1']) assert.doesNotThrow(() => assertPrivateHttp(ok), ok)
 })
 
-test('at a private address (not loopback) it starts with web sign-in off', async () => {
+test('at a private address web sign-in works through /dev/websignin with a loopback callback origin', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'dev-operator-'))
   const lines = []
-  const op = await startDevOperator({ publicUrl: 'http://127.0.0.2:0', dataDir: dir, log: l => lines.push(l) })
+  const port = await freePort()
+  const op = await startDevOperator({ publicUrl: `http://127.0.0.2:${port}`, dataDir: dir, log: l => lines.push(l) })
   try {
-    assert.match(lines.join('\n'), /web sign-in off/)
-    const { nonce } = await (await fetch(`${op.url}/auth/v1/signin/nonce`, { method: 'POST', body: '{}' })).json()
-    assert.ok(nonce)
+    assert.match(lines.join('\n'), new RegExp(`web sign-in callback http://127\\.0\\.0\\.1:${port}`))
+    const post = (path, body) => fetch(`${op.url}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const secret = 'device-secret-0123456789abcdef'
+    const ret = 'http://127.0.0.1:51234/abcdefghijklmnopqrstuv'
+    const started = await (await post('/auth/v1/websignin/start', { provider: 'google', return: ret, secretHash: createHash('sha256').update(secret).digest('hex') })).json()
+    assert.ok(started.loginId, JSON.stringify(started))
+    const { location } = await (await post('/dev/websignin', { providerUrl: started.providerUrl, sub: 'desktop-person' })).json()
+    assert.equal(new URL(location).origin, `http://127.0.0.1:${port}`)
+    const back = await fetch(`${op.url}${new URL(location).pathname}${new URL(location).search}`, { redirect: 'manual' })
+    assert.equal(back.status, 302)
+    const result = new URL(back.headers.get('location')).searchParams.get('result')
+    const taken = await (await post('/auth/v1/websignin/take', { loginId: started.loginId, secret, resultCode: result })).json()
+    assert.ok(taken.pass && taken.k)
   } finally { await op.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 
