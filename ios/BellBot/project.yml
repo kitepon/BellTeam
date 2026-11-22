@@ -26,7 +26,7 @@ packages:
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
-    exactVersion: 0.18.8
+    exactVersion: 0.18.9
   PeerChannel:
     url: https://github.com/kitepon/peer-channel.git
     revision: 0886f976a1e4e3417392dc820b1718c34a51a5c3
@@ -47,7 +47,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '187'
+        CFBundleVersion: '188'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -157,7 +157,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '187'
+        CFBundleVersion: '188'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -201,7 +201,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '187'
+        CFBundleVersion: '188'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services

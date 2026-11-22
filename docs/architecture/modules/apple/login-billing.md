@@ -139,3 +139,4 @@ stateDiagram-v2
 - B6 出す製品の`BellTeamLoginBillingURL`は`https://bellteam-login.kitepon.dev/auth/v1`。ビルド設定`BELLTEAM_LOGIN_BILLING_URL`で入れ、出荷の手順（ship.sh）が、できたアーカイブの`Info.plist`から読んで`BELLTEAM_EXPECT_LOGIN_URL`と一致を確かめる。associated domainsは本番のホストと`-real`の両方。
 - Keychain（Tronieの裁定1）：店のパス・K・購入の印・承認した端末の一覧・ホームのトークン（`KeychainPassStore`）と、決裁箱の2つ目のパスは、アプリ自身のグループ（`$(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER)`、Info.plistの`BellTeamPassKeychainGroup`）に置く。共有拡張が持つ`.share`グループには置かない。置き場が変わるので、この版では全員が1回だけサインインし直す。
 - アカウントの削除（Tronieの裁定2）：[account-deletion.md](account-deletion.md)。置き場と文の基準。
+- 0.18.9（契約1.31、Tronieの裁定、Mint受け入れ）：Swift tag v0.18.9へ上げる。サインアウトとアカウントの削除が、通信が無くても端末側は終わる（全プラットフォームで同じ振る舞い）。アプリの削除の順序と文（R1・R2）はそのまま（両方の版で正しい）。`signOut()`は`@discardableResult`で、コードは変えずにコンパイルできた。出荷はビルド188。
