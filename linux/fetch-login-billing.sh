@@ -1,9 +1,9 @@
 #!/bin/sh
-# Puts Kitepon.LoginBilling.Desktop 0.17.2 in linux/packages-local, checked against the sha256 Mint published (a485). A mismatch removes the file and fails.
+# Puts Kitepon.LoginBilling.Desktop 0.18.8 in linux/packages-local, checked against the sha256 Mint published (a485). A mismatch removes the file and fails.
 set -eu
 cd "$(dirname "$0")"
-VERSION=0.17.2
-SHA256=4d2951d489e41c52658fe242217c773c285b6ed8521221965c39602fe7dd9ba2
+VERSION=0.18.8
+SHA256=57481f820e5b3ae24bd260f57a32ddb533f401d2eed0eee4cb14a527215ab5bf
 FILE=Kitepon.LoginBilling.Desktop.$VERSION.nupkg
 mkdir -p packages-local
 gh release download "v$VERSION" -R kitepon/login-billing -p "$FILE" -D packages-local --clobber

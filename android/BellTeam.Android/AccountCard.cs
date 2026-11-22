@@ -205,6 +205,9 @@ public sealed class AccountCard : StackPanel
             row.Children.Add(Button(StoreAccountText.StopAllOthersGoogle, () => { confirmingStop = false; return RunAsync(async b => await b.SignInWebAsync(MainActivity.Current, "google", stopOthers: true)); }, Look.DangerFilled));
             row.Children.Add(Button(StoreAccountText.StopAllOthersApple, () => { confirmingStop = false; return RunAsync(async b => await b.SignInWebAsync(MainActivity.Current, "apple", stopOthers: true)); }, Look.DangerFilled));
         }
+#if DEBUG
+        else if (DevOperator.Url is not null) row.Children.Add(Button(StoreAccountText.StopAllOthersConfirm, () => { confirmingStop = false; return RunAsync(async b => await b.SignInForTestingAsync("google", DevOperator.IdToken("google"), stopOthers: true)); }, Look.DangerFilled));   // 0.18.7: the stop-all-others sign-in without Google's sheet
+#endif
         else row.Children.Add(Button(StoreAccountText.StopAllOthersConfirm, () => { confirmingStop = false; return RunAsync(async b => await b.StopAllOthersAsync(MainActivity.Current)); }, Look.DangerFilled));
         row.Children.Add(Button(StoreAccountText.StopAllOthersCancel, () => { confirmingStop = false; Render(); return Task.CompletedTask; }, Look.Secondary));
         Children.Add(row);
