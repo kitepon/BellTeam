@@ -123,7 +123,7 @@ export function validateApprovalsResult(method, value) {
 const knownErrors = new Map([
   ['APPROVALS_INVALID', 400], ['APPROVALS_CONTROL_INVALID', 400], ['APPROVALS_VALIDATION_FAILED', 400], ['APPROVALS_NOT_FOUND', 404], ['APPROVALS_NOT_ACCEPTED', 503],
   ['APPROVALS_UNAVAILABLE', 503], ['APPROVALS_NOT_QUIESCED', 503], ['APPROVALS_EFFECT_FAILED', 503], ['APPROVALS_NOT_ENTITLED', 403], ['APPROVALS_NOT_CONNECTED', 409],
-  ['APPROVALS_SUBSCRIPTION_EXPIRED', 402], ['APPROVALS_RATE_LIMITED', 429],
+  ['APPROVALS_SUBSCRIPTION_EXPIRED', 402], ['APPROVALS_RATE_LIMITED', 429], ['APPROVALS_ANSWER_ON_DEVICE', 409],
 ])
 export function approvalsWireError(error, outcome) {
   const code = knownErrors.has(error?.code) ? error.code : knownErrors.has(error?.message) ? error.message : 'APPROVALS_OPERATION_FAILED'

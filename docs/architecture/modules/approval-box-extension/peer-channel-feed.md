@@ -71,6 +71,12 @@ Rules that stay: one task per decision (`dec-<id>`), L1-L10 as in v0.1, rows wri
 | 「工程表とのつながり」 panel and the badge | `GET /api/approvals/by-decision?id=<decisionId>` -> 200 `{project, plan, task, state: linked\|answered\|closed\|diverged, attached}` or 404; `by-task` loses `title` at the `/v1` close and returns `{decisionId, status}` |
 | The connect screen (server connection for `/v1/me` entitlement) | unchanged while `/v1/me` stays (Nayuta 2026-11-22). Whether the pairing start `POST /connector/v1/pairing {client:"bellteam"}` survives the close is Q2 |
 
+## 5a. BellTeam's own view until the device path is live (a490j, Tronie 2026-11-22)
+
+After the sitting turns PC_OFFER on, new decisions live in the hosted daemon, and the apps' current view reads `/api/approvals/*`, which read `/v1` only. So the child serves the **daemon's decisions through the same routes**: `list` (first page only, the daemon has no cursor), `get` (fallback when `/v1` answers 404) and `summary` (counts include them) merge the daemon records (read through the read-only parent effects, up to 200, cached 3 s) with `/v1`, in the contract order (急ぎ, nearer 期限, older first). The data stays on the person's own server; nothing goes to another product.
+
+The connector cannot sign for the person, so `answer`, `hold` and `unhold` of a decision only the daemon holds answer `409 answer_on_device` (「この決裁は、決裁箱のアプリで答えてください。」); a `/v1` decision is answered as before. A device (the apps' own device session, v0.2) answers them. The badge refreshes at the catch-up cadence (5 min) while the daemon holds decisions; opening the list reads at once. Removed together with F1/F2/F5 in the last code step.
+
 ## 6. Removals (only in the PR that flips the feed, after the apps report decisions over peer-channel)
 
 F1 reader and F2 answer writer of v0.1 (server `/v1` decisions, events, answer): removed. `/api/approvals/` list, one, answer, hold, attachments, events, summary: removed (content). Kept: `by-task`, `by-decision`, `connection`, `connect` (F6/F7, subject to Q2). No removal before Rapi, Anis and Neon report decisions shown and answered over peer-channel.

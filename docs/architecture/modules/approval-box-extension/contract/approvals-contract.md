@@ -85,6 +85,7 @@ Visibility never depends on `kind`. A decision whose `session_label` names a Bel
 | 403 | `not_entitled` (`state`: none\|expired\|revoked, `validUntil?`; trial and billing-off are entitled, Owner decision (d)) | failure view 1 (none) or 2 (expired / revoked) |
 | 409 | `not_connected` | the module holds no usable Approval Box session (never connected, expired, revoked or rejected; `state` says which) → view 4 (決裁箱につなぐ) |
 | 409 | `conflict` (`decision` = latest ViewDecision) | the amended banner; replace the screen |
+| 409 | `answer_on_device` (a490j) | a decision the hosted daemon holds (filed after PC_OFFER) is listed and read here, but it is answered, held and unheld on a device: show 「この決裁は、決裁箱のアプリで答えてください。」 on the card; no retry |
 | 402 | `subscription_expired` | view 2 |
 | 404 | `not_found` | drop it from the list; `by-task`: no block |
 | 429 | `rate_limited` (`Retry-After`) | wait, same button |

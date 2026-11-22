@@ -149,6 +149,33 @@ test('daemon feed: a linked row whose decision left the daemon list is still rea
   assert.equal([...plain.writes.values()][0].input.tasks[0].task_id, 'dec-k-aaaa')
 })
 
+// a490j: BellTeam's own view also shows what the hosted daemon holds (PC_OFFER on: new decisions live there); answering those happens on a device.
+test('view from the daemon: list merges both sources in contract order, get falls back, summary counts both, the cursor page adds nothing', async () => {
+  const daemon = new Map([['K-DDDD', held('K-DDDD', { urgency: 'high', createdAt: '2026-11-15T02:00:00Z' })], ['K-DONE', held('K-DONE', { status: 'answered', version: 2, answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:30:00Z' } })]])
+  const h = harness({ decisions: [raw('K-AAAA')], daemon })
+  const page = await h.core.list({ status: ['pending', 'held'] }, h.effect)
+  assert.deepEqual(page.items.map(item => item.id), ['K-DDDD', 'K-AAAA'], '急ぎ first, then older first; the answered one is not in the pending list')
+  assert.equal(page.items[0].origin.kind, 'bellteam') // roster-name match (no requester_bot_id in the daemon record)
+  const answered = await h.core.list({ status: ['answered'] }, h.effect)
+  assert.ok(answered.items.some(item => item.id === 'K-DONE'))
+  const paged = await h.core.list({ status: ['pending', 'held'], cursor: 'c1' }, h.effect)
+  assert.ok(!paged.items.some(item => item.id === 'K-DDDD'))
+  assert.equal((await h.core.get({ id: 'K-DDDD' }, h.effect)).id, 'K-DDDD')
+  await assert.rejects(() => h.core.get({ id: 'K-NONE' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
+  const summary = await h.core.summary({}, h.effect)
+  assert.equal(summary.pending, 2); assert.equal(summary.urgent, 1)
+})
+
+test('view from the daemon: answer, hold and unhold of a daemon-only decision answer "on a device", a /v1 decision is unchanged', async () => {
+  const h = harness({ decisions: [raw('K-AAAA')], daemon: new Map([['K-DDDD', held('K-DDDD')]]) })
+  for (const call of [() => h.core.answer({ id: 'K-DDDD', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect), () => h.core.hold({ id: 'K-DDDD' }, h.effect), () => h.core.unhold({ id: 'K-DDDD' }, h.effect)])
+    await assert.rejects(call, { code: 'APPROVALS_ANSWER_ON_DEVICE', status: 409 })
+  assert.deepEqual(approvalsWireError({ code: 'APPROVALS_ANSWER_ON_DEVICE' }, 'x'), { code: 'APPROVALS_ANSWER_ON_DEVICE', status: 409, outcome: 'x' })
+  const done = await h.core.answer({ id: 'K-AAAA', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect)
+  assert.equal(done.outcome, 'answered')
+  await assert.rejects(() => h.core.answer({ id: 'K-NONE', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
+})
+
 test('byDecision: ids and state of a linked decision, null for none; never calls Approval Box', async () => {
   const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'answered', attached: true, sessionLabel: 'x', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
   const h = harness({ decisions: [], rowsText: JSON.stringify({ version: 1, rows: [row] }) })
