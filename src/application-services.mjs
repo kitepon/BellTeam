@@ -520,7 +520,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // R5: Approval Box extension child (runtime/approval-box-extension-child.md). Optional like lattice; its routes answer APPROVALS_UNAVAILABLE until the child serves.
   if (approvalsFactory && lattice) {
     approvalsModule = approvalsFactory({ root, exchangeMutex, prepareRelease: prepareApprovals,
-      onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null }),
+      onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null, daemon: approvalBoxDaemon }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
     approvals = createApprovalsFacade({ controller: approvalsModule })
     void approvalsModule.start().catch(() => {})

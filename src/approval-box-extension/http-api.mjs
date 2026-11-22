@@ -59,6 +59,13 @@ export function createApprovalsApi({ facade, internal, heartbeatMs = 15000 }) {
       const found = await facade.byTask({ project, plan, task }).catch(() => null)
       return found ? json(response, 200, found) : error(response, 404, 'not_found')
     }
+    if (first === 'by-decision' && !second) { // ids and state only (peer-channel-feed.md section 5)
+      if (method !== 'GET') return wrongMethod()
+      const id = url.searchParams.get('id')
+      if (!id || !APPROVALS_DECISION_ID.test(id)) return error(response, 400, 'validation_failed')
+      const found = await facade.byDecision({ id }).catch(() => null)
+      return found ? json(response, 200, found) : error(response, 404, 'not_found')
+    }
     if (first === 'events' && !second) {
       if (method !== 'GET') return wrongMethod()
       let closed = false, heartbeat

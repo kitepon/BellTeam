@@ -24,7 +24,7 @@ const existsAlready = result => /EXIST|ALREADY|UNCHANGED/iu.test(result?.code ??
 
 export function createApprovalBoxExtensionCore({ client = createApprovalBoxClient(), now = Date.now, stateDir = STATE_DIR, files = fileOps, streamBackoffMs = 1000 } = {}) {
   let session, unsaved = false, rows = null, pairing = null, connectState = 'not_connected', entitlement = null, entitlementAt = 0, roster = null, rosterAt = 0
-  let seq = 0, ring = [], dirty = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
+  let seq = 0, ring = [], dirty = new Set(), daemonIds = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
   const rowsPath = join(stateDir, 'links.json')
 
   const loadRows = async () => {
@@ -131,6 +131,19 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     if (response.status !== 200) throw mapped(response)
     return response.json
   }
+  // a490g (peer-channel-feed.md): decisions held by the hosted daemon, read through the parent. The daemon record is mapped to the /v1 Decision shape the planner already reads;
+  // it carries no context, no attachments and no history (so no L4 amend note from this source), and no requester_bot_id: the roster-name match classifies it (README, shortcut).
+  const fromDaemon = rec => ({ id: rec.id, title: rec.title, context: '', options: rec.options, urgency: rec.urgency, ...(rec.deadline ? { deadline: rec.deadline } : {}), status: rec.status,
+    answer: rec.answer && { option_id: rec.answer.optionId, text: rec.answer.text, answered_at: rec.answer.answeredAt }, version: rec.version, created_at: rec.createdAt, updated_at: rec.updatedAt,
+    cancel_reason: rec.cancelReason, ...(rec.recommendation ? { recommendation: rec.recommendation } : {}), resume_phrase: '', history: [], request_attachments: [],
+    source: { client: 'other', session_label: rec.sessionLabel, ...(rec.requester ? { requester: rec.requester } : {}) } })
+  const readDaemon = async (effect, id) => { const rec = await effect('daemon.decisions.read', { id }).catch(() => null); return rec ? fromDaemon(rec) : null }
+  // One decision for the engine: the source that listed it first, the other as the fallback (an old decision leaves the daemon's 24 h list but stays readable by id for 30 days).
+  const readEngine = async (effect, id) => {
+    const viaV1 = () => read(effect, id).catch(error => { if (error.code === 'APPROVALS_NOT_FOUND') return null; throw error })
+    if (daemonIds.has(id)) return (await readDaemon(effect, id)) ?? viaV1()
+    return (await viaV1()) ?? readDaemon(effect, id)
+  }
 
   const summaryOf = async effect => {
     const decisions = []
@@ -189,7 +202,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     }
   }
   const process_ = async (effect, id, memo) => {
-    const decision = await read(effect, id).catch(error => { if (error.code === 'APPROVALS_NOT_FOUND') return null; throw error })
+    const decision = await readEngine(effect, id)
     if (!decision) return
     const list = await loadRows(), row = list.find(item => item.decisionId === id) ?? null
     const d = toViewDecision(decision, { roster: await members(effect) })
@@ -222,6 +235,10 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         if (!(cursor = response.json.next_cursor)) break
       }
     }
+    // a490g: what BellTeam's seats and the body filed into the hosted daemon (empty until it is paired, or when the parent cannot read it: the /v1 feed above still runs).
+    const held = await effect('daemon.decisions.list', {}).catch(() => [])
+    daemonIds = new Set(held.map(item => item.id))
+    held.forEach(item => dirty.add(item.id))
     list.filter(row => row.state === 'linked' || row.state === 'diverged').forEach(row => dirty.add(row.decisionId))
     caughtUp = true; lastCatchUp = now()
   }
@@ -300,6 +317,14 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         const decision = await read(effect, row.decisionId)
         return { decisionId: decision.id, status: decision.status, title: decision.title }
       } catch { return null } // any failure draws no block
+    },
+    // a490g: ids and state only, for the apps' 「工程とのつながり」 panel and badge (peer-channel-feed.md section 5); no Approval Box call, so it works after the content routes close.
+    async byDecision({ id }, effect) {
+      try {
+        await gate(effect)
+        const row = (await loadRows()).find(item => item.decisionId === id)
+        return row ? { project: row.projectId, plan: row.plan, task: row.taskId, state: row.state, attached: Boolean(row.attached) } : null
+      } catch { return null } // any failure draws no badge
     },
     async refresh({ since }, effect) {
       await ready(effect)
