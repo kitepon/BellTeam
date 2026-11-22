@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
-import { AitermTransport } from '../src/aiterm-transport.mjs'
+import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { dispatchExecution } from '../src/execution-transport.mjs'
 
 const SWEEP = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.'
@@ -32,17 +35,68 @@ test('not tight, or no gate, refuses nothing', async () => {
   await transport(undefined).refuseSweepUnderPressure(job('scheduler', SWEEP))
 })
 
-test('dispatchExecution refuses before wake for a cold seat, and never asks for a warm one', async () => {
+test('both sweep heads count: the not-running prompt and the reassign prompt', async () => {
+  const t = transport(true)
+  for (const head of [SWEEP, 'Lattice: on charts you created, these tasks are in progress or can start, but their lane is not a BellTeam Bot or the Owner.'])
+    await assert.rejects(t.refuseSweepUnderPressure(job('scheduler', head)), { code: 'BOT_MEMORY_PRESSURE' })
+})
+
+test('dispatchExecution hands the job to wake, where every launch passes (a505d)', async () => {
+  const wakes = []
+  const seat = { imageFiles: async () => [], removeTemporaryImages: async () => {}, session: () => 's1', wake: async (bot, options) => { wakes.push(options.job); return 's1' } }
+  const cold = { executionWasPresent: false, execution: { invoke: async () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: {} } }) } }
+  await dispatchExecution(seat, cold, { id: 'b' }, 'm', [], { check() {} })
+  assert.deepEqual(wakes, [cold])
+  wakes.length = 0
+  await dispatchExecution(seat, { ...cold, executionWasPresent: true }, { id: 'b' }, 'm', [], { check() {} })
+  assert.deepEqual(wakes, [], 'a running seat is not woken')
+})
+
+// The production path (createManagedTransport has executionBridge null): send first, wake when the seat has no registration.
+const unregistered = "aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。"
+function neverLaunchedClient() {
   const calls = []
-  const seat = {
-    imageFiles: async () => [], removeTemporaryImages: async () => calls.push('removed'), session: () => 's1',
-    refuseSweepUnderPressure: async () => { calls.push('refuse'); throw Object.assign(new Error('BOT_MEMORY_PRESSURE'), { code: 'BOT_MEMORY_PRESSURE' }) },
-    wake: async () => { calls.push('wake'); return 's1' },
+  const classifier = new AitermClient()
+  const client = { call: (name, args) => classifier.call(name, args) }
+  classifier.client = { async callTool({ name, arguments: args }) {
+    calls.push(name)
+    if (name === 'pty_send' && !calls.includes('agent_launch')) return { isError: true, content: [{ type: 'text', text: unregistered }] }
+    if (name === 'pty_send') return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } }
+    if (name === 'pty_observe') return { structuredContent: { schema: 'aiterm.pty-observe-result.v1', session_id: 'bot-a', exists: false, launch_id: null } }
+    if (name === 'pty_list') return { content: [{ type: 'text', text: '' }] }
+    if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
+    if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
+    if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: 'ok' } }
+    throw new Error(`unexpected tool: ${name}`)
+  } }
+  return { client, calls }
+}
+
+async function deliver(t, { from, message, tight }) {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-sweep-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = neverLaunchedClient()
+  const launched = []
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }),
+    launchGate: { tight: async () => tight, launched: () => launched.push(1) } })
+  t.mock.method(process.stderr, 'write', () => true)
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
+  const result = await transport.notify(bot, message, { queue: { context: 'direct', contextId: 'bot-a', groupId: 'g1', from, fromName: 'x', target: 'bot-a', message } }).then(() => null, error => error)
+  return { calls, result, launched }
+}
+
+test('real path: a sweep prompt to a never-launched seat is refused under pressure and launches nothing', async t => {
+  const { calls, result, launched } = await deliver(t, { from: 'scheduler', message: SWEEP, tight: true })
+  assert.equal(result?.code, 'BOT_MEMORY_PRESSURE')
+  assert.equal(calls.includes('agent_launch'), false)
+  assert.equal(launched.length, 0)
+})
+
+test('real path: the same seat under the same pressure is woken for the Owner, a Bot and another schedule; the sweep goes through when not tight', async t => {
+  for (const [from, message, tight] of [['user', 'hi', true], ['bot-7b140b27', SWEEP, true], ['scheduler', '[BellTeam schedule x] run', true], ['scheduler', SWEEP, false]]) {
+    const { calls, result, launched } = await deliver(t, { from, message, tight })
+    assert.equal(result, null, `${from} ${message.slice(0, 20)} tight=${tight}`)
+    assert.equal(calls.includes('agent_launch'), true)
+    assert.equal(launched.length, 1)
   }
-  await assert.rejects(dispatchExecution(seat, { executionWasPresent: false, execution: {} }, { id: 'b' }, 'm', [], { check() {} }), { code: 'BOT_MEMORY_PRESSURE' })
-  assert.deepEqual(calls, ['refuse', 'removed'], 'refused before wake; temporary files cleaned')
-  calls.length = 0
-  const warm = { executionWasPresent: true, execution: { invoke: async () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: {} } }) } }
-  await dispatchExecution(seat, warm, { id: 'b' }, 'm', [], { check() {} })
-  assert.deepEqual(calls, [], 'a running seat is neither refused nor woken')
 })

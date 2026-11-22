@@ -80,10 +80,7 @@ export async function dispatchExecution(seat, job, bot, message, images, { setup
     check()
     const execution = job.execution
     let session = seat.session(bot)
-    if (!job.executionWasPresent) {
-      await seat.refuseSweepUnderPressure(job)
-      session = await seat.wake(bot, { setupTest, execution, membersLease })
-    }
+    if (!job.executionWasPresent) session = await seat.wake(bot, { setupTest, execution, membersLease, job })
     job.deliveryStage = 'BOT_SEND_FAILED'
     check()
     job.nativeSession = session
