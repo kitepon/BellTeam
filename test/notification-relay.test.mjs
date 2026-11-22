@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { generateKeyPairSync, sign } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -155,4 +155,44 @@ test('Node.jsの正規入口で運営の鍵を読み、HTTPの設定確認と未
   assert.equal((await invalid.json()).error.code, 'PUSH_RELAY_REQUEST_INVALID')
   child.kill('SIGTERM')
   assert.deepEqual(await once(child, 'exit'), [0, null])
+})
+
+// Session ticket beside the old receipt path (a485-relay-ticket-live): the operator's ticket/check is a fake fetcher here.
+function ticketFixture({ verdict, status = 200 } = {}) {
+  const checks = [], pushes = []
+  const fetcher = async (url, init) => {
+    checks.push({ url, body: JSON.parse(init.body) })
+    return Response.json(verdict ?? { entitlements: [{ productId: product.productId, store: 'apple', expiresAt: new Date(now + 3600000).toISOString() }],
+      value: createHash('sha256').update(device.token).digest('hex') }, { status })
+  }
+  const provider = { environments: ['production'], send: async (...args) => { pushes.push(args) } }
+  const relay = createNotificationRelay({ provider, ticketCheckUrl: 'https://login.example/auth/v1/ticket/check', fetcher, clock: () => now })
+  return { relay, checks, pushes, input: { ticket: 'sealed-ticket', device, payload: notificationPayload(event, device.server), id: event.id } }
+}
+
+test('券つきの送信は運営のticket/checkだけで受理し、レシート経路を通らない', async () => {
+  const { relay, input, checks, pushes } = ticketFixture()
+  const result = await send(relay, input)
+  assert.deepEqual([result.status, result.body], [200, { accepted: true }])
+  assert.deepEqual(checks, [{ url: 'https://login.example/auth/v1/ticket/check', body: { ticket: 'sealed-ticket' } }])
+  assert.equal(pushes.length, 1)
+})
+
+test('券の端末と送り先が違う・購読が無い・券が無効なら送らない', async () => {
+  let { relay, input, pushes } = ticketFixture({ verdict: { entitlements: [{ productId: product.productId, store: 'apple' }], value: 'f'.repeat(64) } })
+  assert.equal((await send(relay, input)).body.error.code, 'TICKET_DEVICE_MISMATCH')
+  ;({ relay, input, pushes } = ticketFixture({ verdict: { entitlements: [], value: createHash('sha256').update(device.token).digest('hex') } }))
+  assert.deepEqual([(await send(relay, input)).status, (await send(relay, input)).body.error.code], [402, 'SUBSCRIPTION_REQUIRED'])
+  ;({ relay, input, pushes } = ticketFixture({ verdict: { error: 'ticket_ended' }, status: 401 }))
+  assert.deepEqual([(await send(relay, input)).status, (await send(relay, input)).body.error.code], [401, 'TICKET_ENDED'])
+  assert.equal(pushes.length, 0)
+})
+
+test('接続先が無ければ券は503、券なしの旧形は従来どおり', async () => {
+  const { input } = ticketFixture()
+  const relay = createNotificationRelay({ provider: { environments: ['production'], send: async () => {} }, clock: () => now })
+  assert.equal((await send(relay, input)).status, 503)
+  const old = fixture()
+  assert.equal((await send(old.relay, old.input)).status, 200)
+  assert.equal(old.pushes.length, 1)
 })

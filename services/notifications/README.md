@@ -14,6 +14,21 @@
 
 BellTeamは `await notifications.configure({enabled,relayUrl})` で保存済み設定を起動時と変更時に反映する。既存のAPNs設定がある個人環境は初回だけ通知ONへ移行し、relayURLが空なら直送する。画面でOFFを保存すると次回起動もOFFを守る。空の公開volumeは未設定・OFFから始まる。relayの接続確認と送信の失敗は `notifications.status().error` と既存の `SERVER_PUSH_FAILED` 診断へ残す。
 
+## 券とレシートの二本立て（a485-relay-ticket-live）
+
+本番の中継は、アプリのスイッチ版（セッション券）と、入っている1.0.xのアプリ（購入レシート）の両方を受ける。要求の形で分ける。
+
+```mermaid
+flowchart LR
+  S["利用者のサーバー"] -->|"APNs: ticket / FCM: proof.ticket"| R["中継 relay.mjs"]
+  S -->|"APNs: signedTransaction / FCM: 他のproof"| R
+  R -->|"券あり: POST ticket/check（BELLTEAM_TICKET_CHECK_URL）"| L["ログイン運営 bellteam-login"]
+  R -->|"券なし: 従来のレシート検証（同じプロセスの旧Worker）"| W["旧Worker bellteam-subscriptions"]
+  R --> P["APNs / FCM"]
+```
+
+券の経路は端末トークンのSHA-256（`value`）と期限内の購読（apple・google・exempt）だけを見る。`BELLTEAM_TICKET_CHECK_URL` が無ければ券つきの要求は503（`SUBSCRIPTION_NOT_CONFIGURED`）で、券なしの旧形は影響を受けない。データの流れは変わらず、中継は券もレシートも保存しない。旧形は a485-lb-release のあと、#2211 の中継（券だけ）で置き換える。
+
 ## Android（FCM）
 
 `BELLTEAM_FCM_DIRECTORY` に運営のFirebaseサービスアカウントの設定（`config.json` と鍵のJSON、形式は [fcm-push](../../docs/architecture/modules/usage/fcm-push.md) の「Server configuration」）を置くと、`POST /v1/notifications/fcm/send` が有効になり、`GET /v1/notifications/status` に `android:true` が付く。無ければ従来の応答のまま。`{proof,device,id,message}` を受け取り、`proof`（購読確認サービスがそのまま受け取る1つの証明）を検証入口へ変更せず渡して、有効な購読だけを送る。`message` は閉じた形（利用者の端末のtokenとserver、固定チャンネル）だけを通す。Appleの経路は変えない。
