@@ -110,7 +110,9 @@ test('effects: the hosted daemon is read through fixed, narrowed methods; not ru
   assert.deepEqual(await effects('daemon.decisions.list', {}), [{ id: 'K-AAAA' }])
   const read = await effects('daemon.decisions.read', { id: 'K-AAAA' })
   validateApprovalsEffectResult('daemon.decisions.read', read)
-  assert.ok(!JSON.stringify(read).includes('SECRET CONTEXT'), 'no context crosses to the child')
+  assert.equal(read.context, 'SECRET CONTEXT') // the view needs the body text (a490k); attachments and history still do not cross
+  assert.ok(!JSON.stringify(read).includes('"x"'), 'no attachments cross')
+  assert.ok(!JSON.stringify(await effects('daemon.decisions.list', {})).includes('SECRET'), 'the list carries ids only')
   assert.deepEqual(read.answer, { optionId: 'o1', text: null, answeredAt: 'a' })
   assert.equal(await effects('daemon.decisions.read', { id: 'K-ZZZZ' }), null)
   const down = createApprovalBoxExtensionEffects({ lattice, bots: {}, daemon: { route: async () => { throw Object.assign(new Error('x'), { status: 503, code: 'not_paired' }) } } })
