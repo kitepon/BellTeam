@@ -45,6 +45,9 @@ public sealed class AccountCard : StackPanel
         }
         if (billing is { PassKind: PassKind.Signed }) { await HandoffAsync(billing); return; }
         if (billing is not { PassKind: PassKind.Store }) { handoffAsked = false; return; }
+#if DEBUG
+        if (DevOperator.Url is not null) return;   // a dev operator has no Play: the product lookup would only answer billing_unavailable and hide the action's own result
+#endif
         try { product = (await billing.ProductDetailsAsync([AccountStore.ProductId], subscription: true)).FirstOrDefault(); }
         catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code, error.Reason); }
         if (!token.IsCancellationRequested) Render();
@@ -102,8 +105,18 @@ public sealed class AccountCard : StackPanel
         if (state != StoreAccountState.SignedOut) Children.Add(AccountRow(state));
         if (state == StoreAccountState.SignedOut)
         {
+#if DEBUG
+            if (DevOperator.Url is not null)   // dev operator run (contract 1.25): the id token comes from the operator's own process
+            {
+                Children.Add(Button(StoreAccountText.SignIn, () => RunAsync(async b => await b.SignInForTestingAsync("google", DevOperator.IdToken("google"))), Look.Primary));
+                Children.Add(Button(StoreAccountText.SignInApple, () => RunAsync(async b => await b.SignInForTestingAsync("apple", DevOperator.IdToken("apple"))), Look.Primary));
+            }
+            else
+#endif
+            {
             Children.Add(Button(StoreAccountText.SignIn, () => RunAsync(async b => await b.SignInAsync(MainActivity.Current)), Look.Primary));
             Children.Add(Button(StoreAccountText.SignInApple, () => RunAsync(async b => await b.SignInWebAsync(MainActivity.Current, "apple")), Look.Primary));
+            }
         }
         else
         {
@@ -119,6 +132,9 @@ public sealed class AccountCard : StackPanel
             }
             if (state == StoreAccountState.Signed) RenderSigned(entitled);
             if (state is StoreAccountState.SignedInNeedsPurchase or StoreAccountState.SignedInEntitled) Children.Add(Button(StoreAccountText.Refresh, () => RunAsync(async b => await b.RefreshAsync()), Look.Secondary));
+#if DEBUG
+            if (DevOperator.Url is not null && state == StoreAccountState.SignedInNeedsPurchase) Children.Add(Button("（開発）擬似購入", () => RunAsync(b => DevOperator.FakePurchaseAsync(b, "google")), Look.Secondary));   // dev operator only
+#endif
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(async b => { if (AccountStore.Home is { } home) await home.EndAsync(token); await b.SignOutAsync(); }), Look.Secondary));   // the library's signOut does not end the home session
             if (lb.PassKind == PassKind.Store) Children.Add(new ApprovePanel(lb, token));   // only a store pass may approve and list (the library keeps the list on the store device only)
             RenderDanger();

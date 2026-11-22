@@ -20,6 +20,8 @@ public sealed class ApprovePanel : StackPanel
     private readonly LoginBilling lb;
     private readonly CancellationToken token;
     private readonly TextBox code = FormKit.Field(StoreAccountText.ApproveCodeLabel, "");
+    // Built once: a control has one parent, and Render() redraws the panel (a second Border around the same TextBox crashed the app, found on the emulator).
+    private readonly Border codeBox;
     private bool busy;
     private string? result, failure;
     private (string Label, string Number, TaskCompletionSource<bool> Answer)? asking;
@@ -27,6 +29,7 @@ public sealed class ApprovePanel : StackPanel
     public ApprovePanel(LoginBilling lb, CancellationToken token)
     {
         this.lb = lb; this.token = token; Spacing = 0;
+        codeBox = new Border { Child = code, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 4), Margin = new Thickness(0, 12, 0, 0) };
         Render();
     }
 
@@ -38,7 +41,6 @@ public sealed class ApprovePanel : StackPanel
         if (asking is { } ask) { RenderAsking(ask); return; }
         Children.Add(Text(StoreAccountText.ApproveLead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
         Children.Add(Button(StoreAccountText.ApproveScan, ScanAsync, true));
-        var codeBox = new Border { Child = code, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 4), Margin = new Thickness(0, 12, 0, 0) };
         Children.Add(codeBox);
         Children.Add(Button(StoreAccountText.ApproveCodeGo, () => code.Text is { Length: > 0 } text ? ApproveAsync(text) : Task.CompletedTask, false));
         if (result is not null) Children.Add(Text(result, 14, Ink, FontWeight.SemiBold, new Thickness(0, 12, 0, 0)));
