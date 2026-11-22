@@ -413,6 +413,7 @@ public sealed partial class SettingsWindow
         page.Children.Add(FormSection("いまの接続", new GroupCard(Row(LabeledRow("サーバー", host.Length == 0 ? "未設定" : host)), Row(LabeledRow("ログイン方法", cloudflare ? "Cloudflare Access" : "同じネットワークから直接")))));
         page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow(SettingsIcons.Refresh, "別のサーバーにつなぎ直す", Violet, changeServer))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
         if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow(SettingsIcons.SignOut, "ログアウト", Red, signOut)))));
+        if (lifetime is not null) page.Children.Add(Card(new HomeSessionsCard(workspace.Management.Api, lifetime.Token)));   // a529n: hides itself on a server without the route
         return Task.CompletedTask;
     }
 
