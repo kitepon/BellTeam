@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-  New[新root要求] --> Enter[MembersAdmission.enter / 最大64（MODULE_CONCURRENCY）]
+  New[新root要求] --> Enter[MembersAdmission.enter / 件数上限なし]
   Enter --> Lease[opaque lease / generation・epoch・相関]
   Lease --> Work[prepare→native→session/fast保存]
   Work --> Finish[finish / 実終端]
@@ -16,7 +16,7 @@ flowchart TD
   Lease -->|持ち越し後もlive中| Carried[assertLease: 自分か現在のgeneration<br/>finishで終わる・相関不変]
 ```
 
-`MembersAdmission(generation)`を親が一つ所有し、runtime controller/channelとtransportへ同じ実体を注入する。captureは待機開始時のgeneration/epoch、enter(expected?,correlation?)は親の信頼済み受付でだけ呼ぶ。最大64（MODULE_CONCURRENCY）root、上限/交換/世代不一致は503・not_accepted/not_started。opaque objectは親内Setで同一性検査し、wireから再構成しない。runtimeはleaseIdを自分の固定channel相関へ対応付け、assertLease(opaque,{generation,correlation})で既effect/callbackを通す。live leaseのepochは比較しない。終了/別generation/相関違い/偽objectを拒否する。
+`MembersAdmission(generation)`を親が一つ所有し、runtime controller/channelとtransportへ同じ実体を注入する。captureは待機開始時のgeneration/epoch、enter(expected?,correlation?)は親の信頼済み受付でだけ呼ぶ。leaseの件数上限は持たない（a505b、2026-11-22。守るものが無く、87席の同時起動で23席が503になった）。同時に処理するroot数はIPCのroot枠（MODULE_CONCURRENCY=64、超過はFIFOで待ち、各callの期限60秒で終わる）だけが抑える。交換/世代不一致は503・not_accepted/not_started。opaque objectは親内Setで同一性検査し、wireから再構成しない。runtimeはleaseIdを自分の固定channel相関へ対応付け、assertLease(opaque,{generation,correlation})で既effect/callbackを通す。live leaseのepochは比較しない。終了/別generation/相関違い/偽objectを拒否する。
 
 finishは所有rootの終了要請。runtimeはwire送信試行前に`trackCompletion(opaque,realCompletionPromise)`で実終端を登録する。callerへtimeout/unknownを返した後も実completionがpendingなら、finish要請済みでもleaseをliveのまま保持し旧callbackを許す。後続依存completionもlive中は追加でき、全登録completionの実終端とfinish要請の両方で最後に解放する。callback deadlineは実completionをsettleしない。OScloseだけで未終端の親effectまで取消済みにしない。withLease(operation,{lease?,expected?})は既leaseなら再root化せず、所有時だけPromise終端でfinishを要請する。callbacksへ渡す引数は`{membersLease: opaque}`で、同root operationのprepare/session/fast保存に保持する。新root枠やmutation lockを取り直して折り返さない。
 
