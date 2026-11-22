@@ -21,6 +21,15 @@ public sealed class AbxDeviceFilesTests : IDisposable
     }
 
     [Fact]
+    public void AStaleTemporaryFileDoesNotKeepItsOldMode()
+    {
+        var path = Path.Combine(dir, "device.key"); Directory.CreateDirectory(dir);
+        File.WriteAllText(path + ".tmp", "old"); File.SetUnixFileMode(path + ".tmp", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        SecretFile.Write(path, [1]);
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+    }
+
+    [Fact]
     public void AKeyFileThatDoesNotParseGivesNewKeys()
     {
         var path = Path.Combine(dir, "device.key"); Directory.CreateDirectory(dir); File.WriteAllText(path, "not a key");
