@@ -63,6 +63,7 @@ import { IdleSessions } from './idle-sessions.mjs'
 import { memoryPressure } from './memory-pressure.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
+import { createApprovalBoxDaemon } from './approval-box-daemon.mjs'
 import { createUpdateClients } from './container-update-client.mjs'
 import { createHostUpdateAdapter } from './update-host-adapter.mjs'
 import { createModuleUpdateCatalog } from './update-module-catalog.mjs'
@@ -539,6 +540,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
       scope: Object.freeze({ terminalId: 'running-exclusions', purpose: 'approval-box.connector' }),
       secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS' }) })
+  // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests).
+  const approvalBoxDaemon = createApprovalBoxDaemon({ root })
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
@@ -581,7 +584,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, approvalBoxDaemon, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
