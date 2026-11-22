@@ -2,11 +2,13 @@ using System.Text.Json;
 
 namespace BellTeam.PeerChannel;
 
-public enum RuntimeStatus { Stopped, Connecting, Live, Retrying, NeedsAdmission, SignedOut }
+public enum RuntimeStatus { Stopped, Connecting, Live, Retrying, NeedsAdmission, SignedOut, NotEntitled }
 public sealed record RuntimeState(RuntimeStatus Status, string? Reason = null);
 // What the connector said to an answer or hold: "ok", "refused:<code>", or "unknown" (no ack within the wait; the frame is never sent again by itself).
 public sealed record SendOutcome(string Ack);
 public sealed class NoSessionException() : InvalidOperationException("no_session");
+// The Access seam throws this when the person is not signed in to Approval Box (no pass in its own store): the state is SignedOut, left by Refresh after a sign-in.
+public sealed class SignedOutException() : InvalidOperationException("signed_out");
 
 // Keeps this device connected to the connectors that wait for it and feeds the DecisionBook (design peer-channel-v0.2 section 7). Everything about the registry (trust, genesis, admission) is the caller's: it hands over the holder.
 public sealed class DeviceRuntime : IAsyncDisposable
@@ -71,6 +73,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
                 reason = "socket_closed";
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+            catch (SignedOutException) { Set(RuntimeStatus.SignedOut, "signed_out"); try { await Pause(null, ct); } catch (OperationCanceledException) { break; } attempt = 0; continue; }
             // An abnormal setting or answer is shown with its reason and tried again later, never a reason to stop (project rule on recoverable failures).
             catch (Exception error) { reason = error.GetType().Name + ": " + error.Message; }
             Set(RuntimeStatus.Retrying, reason);
@@ -85,6 +88,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
         {
             var root = doc.RootElement; var type = root.GetProperty("type").GetString();
             if (type == "waits") foreach (var w in root.GetProperty("waits").EnumerateArray()) Dial(new(w.GetProperty("wait_id").GetString()!, w.GetProperty("connection_id").GetString()!), holder, access, ct);
+            else if (type == "error" && root.TryGetProperty("of", out var of) && of.GetString() == "join" && root.TryGetProperty("code", out var code) && code.GetString() is "no_entitlement" or "not_entitled") Set(RuntimeStatus.NotEntitled, code.GetString());
             else if (type == "wait.available") Dial(new(root.GetProperty("wait_id").GetString()!, root.GetProperty("connection_id").GetString()!), holder, access, ct);
         }
     }

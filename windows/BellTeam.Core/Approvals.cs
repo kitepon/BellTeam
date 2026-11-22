@@ -84,6 +84,15 @@ public static class Approvals
         ChartLate = "答えは決裁箱に送れました。工程表への反映は少し遅れています。つながり次第、自動で済みになります。",
         Waiting = "決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。", Denied = "許可されませんでした。もう一度つなげます。",
         ConnectFailed = "いまは決裁箱につなげませんでした。少し待って、もう一度押してください。";
+    // The Approval Box device states (design peer-channel-signin.md section 3, Delta: the Japanese copy is the contract).
+    public const string DeviceSignedOut = "決裁箱を使うには、Approval Boxにサインインします。BellTeamのサインインとは別です。",
+        DevicePassEnded = "サインインの期限が切れました",
+        DeviceJoining = "この端末を決裁箱につないでいます…",
+        DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
+        DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",
+        DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。",
+        ServerSideNoCredential = "サーバー経由の決裁箱には、まだつながっていません。";
+    public static string DeviceReconnecting(string? reason) => "つなぎ直しています" + (string.IsNullOrEmpty(reason) ? "" : $"（{reason}）");
     public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";
 
     // ---- failure: HTTP answer -> kind of view
@@ -174,6 +183,7 @@ public static class Approvals
         var origin = OriginOf(decision); var badges = BadgesOf(decision); var note = LinkNote(decision); var chips = new List<string>();
         if (At(decision.Deadline) is not null && Open(decision)) chips.Add($"期限 {LatticeStops.StopTime(decision.Deadline, now)}");
         if (decision.Options?.Any(option => option.Recommended) == true) chips.Add("推奨あり");
+        if (decision.Source is { } source) chips.Add(source == DecisionUnion.Device ? "端末で受信" : "サーバー経由");
         var done = decision.Status is "answered" or "cancelled";
         var label = string.Join("、", badges.Select(b => b.Text).Append(decision.Title ?? "").Append(origin.Name).Append(chips.FirstOrDefault(chip => chip.StartsWith("期限", StringComparison.Ordinal)) ?? "").Append(note.Text).Where(part => part.Length > 0));
         return new(decision.Id ?? "", decision.Status ?? "", decision.Title ?? "", badges, note, chips, origin, decision.Urgency == "high" && !done,

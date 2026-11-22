@@ -11,13 +11,19 @@ namespace BellTeam.App;
 /// The decisions of this Windows device (design peer-channel-v0.2 section 7): its keys (DPAPI), the trusted registry head, the history of decisions (DPAPI) and the <see cref="DeviceRuntime"/> that keeps it connected.
 /// How the pass reaches approval-box is the caller's: <paramref name="access"/> gives the server and its header, <paramref name="account"/> gives K for a first registry.
 /// </summary>
-internal sealed class DeviceApprovals : IAsyncDisposable
+internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
 {
     private static readonly byte[] HistoryEntropy = Encoding.UTF8.GetBytes("BellTeam-peer-channel-history");
     private readonly string directory; private readonly DeviceIdentity me; private readonly Func<CancellationToken, Task<string>> account;
     private readonly object saving = new();
     internal DeviceRuntime Runtime { get; }
-    internal DecisionBook Book => Runtime.Book;
+    public DecisionBook Book => Runtime.Book;
+    public RuntimeState State => Runtime.State;
+    public event Action? Changed;
+    public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) => Runtime.AnswerAsync(decisionId, optionId, text);
+    public Task<SendOutcome> HoldAsync(string decisionId, bool held) => Runtime.HoldAsync(decisionId, held);
+    public void Refresh() => Runtime.Refresh();
+    internal void Start() => Runtime.Start();
     private string AnchorPath => Path.Combine(directory, "peer-channel-registry.json");
     private string HistoryPath => Path.Combine(directory, "approvals-history.bin");
 
@@ -26,8 +32,9 @@ internal sealed class DeviceApprovals : IAsyncDisposable
         this.directory = directory; this.account = account;
         me = DeviceKeyStore.LoadOrCreate(Path.Combine(directory, "peer-channel-device.key"));
         var book = LoadHistory(HistoryPath);
-        book.Changed += () => SaveHistory(HistoryPath, book);
+        book.Changed += () => { SaveHistory(HistoryPath, book); Changed?.Invoke(); };
         Runtime = new DeviceRuntime(new(me, label, access, RegistryAsync, book));
+        Runtime.StateChanged += () => Changed?.Invoke();
     }
 
     // The registry this device trusts: the head it kept (its own genesis or an admission) brought up to date from the mirror. No head and an empty mirror: this is the first device and makes the genesis (5.1).

@@ -18,6 +18,15 @@ internal sealed class ApprovalsHub : IDisposable
     private readonly Workspace workspace;
     private readonly bool autostart;
     internal ApprovalsFeed? Feed { get; private set; }
+    /// <summary>This device's peer-channel session while both ways are open (null: only the server read, nothing changes).</summary>
+    internal IDeviceDecisions? Device { get; }
+    /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
+    internal Action? SignInApprovalBox { get; set; }
+    internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of)];
+    /// <summary>The counts of the entry row: the server's summary plus what only the device holds (Core DecisionUnion).</summary>
+    internal ApprovalSummary? Summary => Device is null ? Feed?.Summary : DecisionUnion.Summary(Feed?.Summary, [], DeviceViews, DateTimeOffset.UtcNow);
+    /// <summary>The device's book or connection changed: the open window repaints.</summary>
+    internal event Action? DeviceChanged;
     internal Workspace Workspace => workspace;
     /// <summary>Opens the 決裁箱 window (null = the list, an id = that decision's 詳細). Set by the main window.</summary>
     internal Action<string?>? Show { get; set; }
@@ -28,9 +37,10 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>A decision changed on the server (id, version), or the stream came back (id null): the open window reads again.</summary>
     internal event Action<string?>? DecisionChanged;
 
-    internal ApprovalsHub(Workspace workspace, bool autostart = true)
+    internal ApprovalsHub(Workspace workspace, bool autostart = true, IDeviceDecisions? device = null)
     {
-        this.workspace = workspace; this.autostart = autostart;
+        this.workspace = workspace; this.autostart = autostart; Device = device;
+        if (device is not null) device.Changed += () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); });
         workspace.PropertyChanged += WorkspaceChanged;
         if (workspace.Connected) Reset();
     }
@@ -84,7 +94,7 @@ internal sealed class ApprovalsEntryRow : Button
         this.hub = hub; hub.Changed += Paint; Paint();
     }
 
-    internal ApprovalEntryView View => Approvals.EntryView(hub?.Feed?.Summary, hub?.Feed?.Failure);
+    internal ApprovalEntryView View => Approvals.EntryView(hub?.Summary, hub?.Feed?.Failure);
 
     private void Paint()
     {
