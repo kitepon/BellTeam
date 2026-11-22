@@ -23,6 +23,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settings = new(SettingsStore.UserDirectory);
     private readonly Border startupHost = new() { IsVisible = false };
+    private readonly Grid deletedLayer = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false };
     // Sheets (forward, peer message) and the image gallery cover the page, like the Linux window's sheet and gallery.
     private readonly Grid sheetLayer = new() { Background = BellTheme.Canvas, IsVisible = false, RowDefinitions = new RowDefinitions("52,*") };
     private readonly TextBlock sheetTitle = new() { FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
@@ -74,7 +75,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies) { SessionToken = tokens.Load(origin) }, access.PrepareAsync);
         approvals = new ApprovalsHub(model); approvals.Changed += UpdateApprovalsEntry;
-        PushRegistration.Workspace = () => model; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
+        PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
@@ -136,7 +137,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         pageBack.Click += (_, _) => GoBackPage();
         var pageHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { pageBack, pageTitle } }; Grid.SetColumn(pageTitle, 1);
         pageLayer.Children.Add(pageHeader); Grid.SetRow(pageBody, 1); pageLayer.Children.Add(pageBody);
-        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer } };
+        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer, deletedLayer } };
         Content = root;
 
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
@@ -189,6 +190,27 @@ public sealed class PhoneShell : UserControl, IMessageHost
         }
         catch (Kitepon.LoginBilling.LoginBillingException) { Begin(); return; }
         startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None); startupHost.IsVisible = true;
+    }
+
+    // 「アカウントを削除」 (a485 switch; the order is Rapi's Mac reference, docs/architecture/modules/apple/account-deletion.md): this phone's Approval Box sign-in (the device part with keys is not on Android),
+    // then the server connection (push registration, home session, tokens, Access login, saved address), then the library's sign-out (pass, K, purchase mark), then the first screen with one result alert.
+    // It never stops the other devices.
+    private async Task DeleteAccountAsync()
+    {
+        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException) { }   // best effort: the person may be offline; the library keeps its own record
+        CloseAllPages();
+        await PushRegistration.UnregisterAsync(model);
+        if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (HomeLinkException) { }
+        if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _)) tokens.Clear(ServerOrigin.Parse(server));
+        access.SignOut();
+        model.SignOut();
+        settings.Save(settings.Load() with { ServerUrl = null });
+        if (AccountStore.Billing is { } lb) await lb.SignOutAsync();
+        ShowList();
+        deletedLayer.Children.Clear();
+        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionWords.DoneTitle, AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.IsVisible = true;
+        await BeginAfterAccountAsync();
     }
 
     private void Begin()

@@ -11,6 +11,8 @@ public sealed class FileSessionTokenStore(string directory) : ISessionTokenStore
     public string? Load(Uri origin) => Read().GetValueOrDefault(origin.AbsoluteUri);
     public void Save(Uri origin, string token) => Write(map => map[origin.AbsoluteUri] = token);
     public void Clear(Uri origin) { if (File.Exists(FilePath)) Write(map => map.Remove(origin.AbsoluteUri)); }
+    // 「アカウントを削除」: every server's token goes, not only the connected one.
+    public static void DeleteAll(string directory) => File.Delete(Path.Combine(directory, "sessions.json"));
     private void Write(Action<Dictionary<string, string>> change)
     {
         var map = Read(); change(map);

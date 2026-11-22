@@ -58,6 +58,17 @@ internal sealed class LinuxApprovalBoxDevice : IAsyncDisposable
         finally { approve = null; mine.Dispose(); hub?.SetOffer(null, note); }
     }
 
+    // 「アカウントを削除」 (a485): this device's Approval Box sign-in, keys, trusted head, history and attachments go; the Approval Box account itself is not deleted. The sign-out call is best effort
+    // (the person may be offline): the pass file goes either way.
+    internal async Task DeleteLocalAsync()
+    {
+        signIn?.Cancel(); approve?.Cancel();
+        try { await Account.SignOutAsync(CancellationToken.None); } catch (LoginBillingException) { }
+        Account.ClearPass();
+        await Device.DisposeAsync();
+        Device.ClearLocal();
+    }
+
     // The words of a failed sign-in; signin_cancelled says nothing (the person's own choice).
     internal static string? Describe(LoginBillingException error) => error.Code == "signin_cancelled" ? null : StoreAccountText.Failure(error.Code, error.Status);
 
