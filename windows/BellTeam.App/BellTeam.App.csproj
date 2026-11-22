@@ -17,6 +17,7 @@
     <InternalsVisibleTo Include="BellTeam.Tests" />
     <InternalsVisibleTo Include="BellTeam.UiChecks" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
+    <ProjectReference Include="../BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.17.1" />
     <PackageReference Include="QRCoder" Version="1.8.1" />
