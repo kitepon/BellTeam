@@ -33,7 +33,7 @@ public static class AccountStore
 
 // a515n (login-billing 0.18.0, contract 1.24): Approval Box's own instance, "foreign": its own base origin, its own storage (storageName: folder and Keystore alias apart from BellTeam's), web sign-in only,
 // never a native sheet, a purchase or a receipt. The two instances share nothing; signing out of one leaves the other. product.json: approvalBoxAuthUrl, approvalBoxWebReturn (the address Approval Box's operator lists:
-// the session scheme approvalbox-websignin for the Auth Tab; unset until Nayuta gives the exact address, and then the web sign-in cannot return). serverClientId is empty: the native Google route is never used here.
+// exactly approvalbox-websignin://return, Nayuta 2026-11-22: the server compares only the scheme, one fixed string for every BellTeam app; never the https /app/websignin link, which is for Approval Box's own apps). serverClientId is empty: the native Google route is never used here.
 public static class ApprovalBoxAccount
 {
     public const string StorageName = "approvalbox";
