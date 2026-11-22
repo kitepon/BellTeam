@@ -41,7 +41,10 @@ struct ShareClient {
     }
 
     let credentials: ShareCredentials.Snapshot
-    var session: URLSession = .shared
+    /// トークンを付けた要求はリダイレクトを辿らない（BellAPIと同じ規則、Mintの適合確認 c）。
+    var session: URLSession = ShareClient.guarded
+
+    static let guarded = URLSession(configuration: .default, delegate: BearerRedirectGuard(), delegateQueue: nil)
 
     var base: URL? { URL(string: credentials.serverURL) }
 

@@ -76,6 +76,8 @@ final class AppStore: ObservableObject {
     @Published var phase: Phase = .checking
     /// 「アカウントを削除」が終わった。最初の画面に戻った上で、結果を1回だけ伝える。
     @Published var accountDeleted = false
+    /// 終えられなかった時の本文（どの部分が・なぜ）。設定の画面に残り、押し直しで続きから終える。
+    @Published var accountDeletionFailure: String?
     @Published private(set) var serverURL: URL?
     /// 本体のログイン契約の探査結果（GET /api/session）。古い本体はnilで、従来のAccess経路を使う。
     private(set) var loginProbe: SessionResponse.Login?
@@ -1057,12 +1059,20 @@ final class AppStore: ObservableObject {
         requireLogin()
     }
 
-    /// 「アカウントを削除」（a485 switch、Tronieの裁定。App Reviewの要件）。この端末のサインインをここで届く限りすべて終え、パス・鍵・保存したデータを消す。
-    /// 運営のログイン部品はこのアカウントに結びつけた情報を持たない。購読はAppleのものなので、自動では解約しない。
+    /// 「アカウントを削除」（a485 switch、Tronieの裁定。App Reviewの要件）。
+    /// 先に、ライブラリの2つのサインアウト（決裁箱・BellTeam）を終える。どちらかが運営に届かなければ、ここで止めて理由を出し、押し直しで続きから終える（終えた手順はそのまま）。
+    /// 両方が通った時だけ、端末の鍵・保存したデータを消して最初の画面へ戻り、「削除しました」を1回だけ出す。消えていないものを「消えた」とは言わない。
     func deleteAccount() async {
+        accountDeletionFailure = nil
+        if let failure = await AccountDeletion.removePasses([
+            .init(part: AccountDeletionWords.partApprovalBox) { try await self.approvals.link.removePass() },
+            .init(part: AccountDeletionWords.partBellTeam) { try await self.storeAccount.removePass() },
+        ]) {
+            accountDeletionFailure = failure
+            return
+        }
         await approvals.link.deleteLocalData()
         await changeServer()
-        await storeAccount.deleteLocalAccount()
         UserDefaults.standard.removeObject(forKey: "bellbot.pushToken")
         accountDeleted = true
     }

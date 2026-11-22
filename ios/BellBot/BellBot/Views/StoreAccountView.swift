@@ -9,9 +9,38 @@ enum AccountDeletionWords {
     static let title = "アカウントを削除しますか？"
     static let confirm = "削除する"
     static let cancel = "やめる"
-    static let message = "この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、このアカウントに結びつけた情報を持っていません。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。"
+    static let message = "この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、名前・メールアドレス・購入の記録を持っていません。運営に残るのは、止めたパスのランダムな番号と、「ほかの端末をすべて止める」を使った時のアカウントの番号とその時刻だけで、どちらも最長14日で消えます。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。"
     static let doneTitle = "アカウントを削除しました"
-    static let done = "この端末のサインインとデータを消しました。ログインの運営には、このアカウントの情報は残っていません。購読を止めるには、Apple Accountの購読の管理から解約してください。"
+    static let done = "この端末のサインインとデータを消しました。ログインの運営に残るのは、止めたパスのランダムな番号と、「ほかの端末をすべて止める」を使った時のアカウントの番号とその時刻だけで、どちらも最長14日で消えます。購読を止めるには、Apple Accountの購読の管理から解約してください。"
+    static let failedTitle = "アカウントの削除を終えられませんでした"
+    static let partApprovalBox = "決裁箱のサインイン"
+    static let partBellTeam = "BellTeamのサインイン"
+    static let retryNote = "つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。"
+
+    /// 終えられなかった部分と理由。通信が無い・運営に届かない・そのほか、の3つだけ。
+    static func reason(_ error: Error) -> String {
+        if (error as? URLError)?.code == .notConnectedToInternet || (error as? LoginBillingError)?.code == "network" { return "ネットワークにつながっていません" }
+        if let e = error as? LoginBillingError, e.status >= 500 || e.code == "internal" { return "ログインの運営に届きません" }
+        return "処理できませんでした"
+    }
+
+    static func failure(parts: [String], reason: String) -> String {
+        "\(parts.joined(separator: "と"))を消せませんでした（\(reason)）。\(retryNote)"
+    }
+}
+
+/// 削除の1段目。全部を試し（終えられる手順は終える）、1つでも失敗したら、どの部分がなぜかの本文を返す。全部通ればnil。
+enum AccountDeletion {
+    struct Step { let part: String; let run: () async throws -> Void }
+
+    static func removePasses(_ steps: [Step]) async -> String? {
+        var failed: [(part: String, error: Error)] = []
+        for step in steps {
+            do { try await step.run() } catch { failed.append((step.part, error)) }
+        }
+        guard let first = failed.first else { return nil }
+        return AccountDeletionWords.failure(parts: failed.map(\.part), reason: AccountDeletionWords.reason(first.error))
+    }
 }
 
 struct StoreAccountCard: View {
@@ -49,6 +78,9 @@ struct StoreAccountCard: View {
                     Button(AccountDeletionWords.confirm, role: .destructive) { Task { await appStore.deleteAccount() } }
                     Button(AccountDeletionWords.cancel, role: .cancel) { }
                 } message: { Text(AccountDeletionWords.message) }
+                .alert(AccountDeletionWords.failedTitle, isPresented: Binding(get: { appStore.accountDeletionFailure != nil }, set: { if !$0 { appStore.accountDeletionFailure = nil } })) {
+                    Button("閉じる", role: .cancel) { }
+                } message: { Text(appStore.accountDeletionFailure ?? "") }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20).bellCard()
                 .task { await account.start() }
