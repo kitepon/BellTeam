@@ -107,6 +107,8 @@ export function createApprovalDecisions({ credentials, secretRequests, fetchImpl
     },
     async read({ decisionId }) {
       const { ok, status, json } = await byId('GET', `/decisions/${encodeURIComponent(decisionId)}`)
+      // 404 after the fallback = unknown to the daemon and to the token path (or purged): the child drops the record and the hand-over asks once (Flora, a490f-lattice-gone).
+      if (!ok && status === 404) throw Object.assign(new Error(`${code}_GONE`), { code: `${code}_GONE`, status: 404 })
       if (!ok) throw failedBy(status)
       if (idOf(json) !== decisionId || !['pending', 'held', 'answered', 'cancelled'].includes(json.status)) throw unavailable()
       const answer = json.answer ? { ...(typeof json.answer.option_id === 'string' && { optionId: json.answer.option_id }),
