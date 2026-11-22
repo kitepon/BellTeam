@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T10:48:39Z",
-  "expiresAt": "2026-11-29T10:48:39Z",
+  "publishedAt": "2026-11-22T11:47:13Z",
+  "expiresAt": "2026-11-29T11:47:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
-      "versionId": "27ebf1de5a80caae7d563a35dab2d0cc563cb81c4cb23b0750abf689dadbb076",
+      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
+      "versionId": "f196db839a7f10603977e520655db7e82ed76d7d5e14c92e47d3cf7397e10bfa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz",
-          "bytes": 4518740,
-          "sha256": "27ebf1de5a80caae7d563a35dab2d0cc563cb81c4cb23b0750abf689dadbb076"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz",
+          "bytes": 4521360,
+          "sha256": "f196db839a7f10603977e520655db7e82ed76d7d5e14c92e47d3cf7397e10bfa"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11017,
-          "sha256": "37697c0bfff9137188324fb5876fc540fc75ac50b953db0dd8d1a2fd06e5bbbf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10876,
+          "sha256": "3f452d802298eb72f2219b83251cd296955d38fc9bf47c0c0c96d6a34beae802"
         },
-        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
+        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "決裁箱のコネクタの道具と、Latticeとの通信の符号が新しくなります。"
+        "決裁の画面の受付が、デーモンの決裁の読み取りと新しい符号に対応します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
-      "versionId": "c083d00e614fad02596e29e2c13257374fa87021c0abf16fa0338d704c43de01",
+      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
+      "versionId": "25c76816200ffd5bcca1a6d3d61f9d71a3f1ff90be3a1c1ca91ea6ce99328089",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz",
-          "bytes": 4518740,
-          "sha256": "c083d00e614fad02596e29e2c13257374fa87021c0abf16fa0338d704c43de01"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz",
+          "bytes": 4521361,
+          "sha256": "25c76816200ffd5bcca1a6d3d61f9d71a3f1ff90be3a1c1ca91ea6ce99328089"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10829,
-          "sha256": "402dbab7cdfdad1f70d60154459228303b006bc54af69d1086f24e9d639b06d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "bf944d9ab8dad2df2888f7c70d5add79876ad5dfe1c0467acbaf4521682b01c2"
         },
-        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
+        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "決裁箱のコネクタの道具と、Latticeとの通信の符号が新しくなります。"
+        "決裁の画面の受付が、デーモンの決裁の読み取りと新しい符号に対応します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
-      "versionId": "sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78",
+      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
+      "versionId": "sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱のコネクタを新しい版（0.2.0-pc.2）に上げ、席が開けられる入口を足します。承認箱の古い消費の仕組みを呼び出し口から外し、決裁の読み手は接続後に本体のデーモンを使います。"
+        "決裁箱の画面が、本体のデーモンが持つ決裁も表示します。デーモンの決裁に答えようとすると、端末で答えるよう案内します。申請の背景の文も、この画面に出ます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
-      "versionId": "sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78",
+      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
+      "versionId": "sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱のコネクタを新しい版（0.2.0-pc.2）に上げ、席が開けられる入口を足します。承認箱の古い消費の仕組みを呼び出し口から外し、決裁の読み手は接続後に本体のデーモンを使います。"
+        "決裁箱の画面が、本体のデーモンが持つ決裁も表示します。デーモンの決裁に答えようとすると、端末で答えるよう案内します。申請の背景の文も、この画面に出ます。"
       ]
     },
     {
@@ -821,8 +821,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c",
-      "versionId": "10c8f66a50b5b39b68a13aae60a8fe2f9bba85379fb16a5ffb563ea8a4380fcd",
+      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
+      "versionId": "888932292ec67681b9b517c56c55f41e300bf58f60c6ae6f85f448bae1b88638",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -830,16 +830,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-amd64.tar.gz",
-          "bytes": 3837362,
-          "sha256": "10c8f66a50b5b39b68a13aae60a8fe2f9bba85379fb16a5ffb563ea8a4380fcd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz",
+          "bytes": 3717908,
+          "sha256": "888932292ec67681b9b517c56c55f41e300bf58f60c6ae6f85f448bae1b88638"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11233,
-          "sha256": "1ad7188741f305037df2034481550f2714cc31349bc7a019a59eea88c698fc3b"
+          "sha256": "47ac6bb66711a9d9f215e9ec8306e8f7e626e157bc31505cd4e1f76a9465cdb8"
         },
-        "signerCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c"
+        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -851,13 +851,13 @@
         }
       },
       "changes": [
-        "課金が免除されたアカウントを、有効期限がなくても有料として扱うようにしました。"
+        "決裁箱の画面が、デーモンが持つ決裁も読めるようになります。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c",
-      "versionId": "9986a31451468862032407875614fd703dc8029002853e4d431204e1b4143342",
+      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
+      "versionId": "764830de80775285d23e36839aac8f9dc21adc8c94078d0d02ba0fb7b9876907",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -865,16 +865,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-arm64.tar.gz",
-          "bytes": 3837362,
-          "sha256": "9986a31451468862032407875614fd703dc8029002853e4d431204e1b4143342"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz",
+          "bytes": 3717908,
+          "sha256": "764830de80775285d23e36839aac8f9dc21adc8c94078d0d02ba0fb7b9876907"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261116T023755Z/approval-box-extension-9ea41caa39f335f191b24d03c6308aab8a45cf4c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "5636428e28ee86958884db7439abcd488e3be539622490279860d1ce9a1c5c23"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11374,
+          "sha256": "563874c58fa2bfe7e41b58f47895c58a202059de4f0e664c52c27a544f643568"
         },
-        "signerCommit": "9ea41caa39f335f191b24d03c6308aab8a45cf4c"
+        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -886,7 +886,7 @@
         }
       },
       "changes": [
-        "課金が免除されたアカウントを、有効期限がなくても有料として扱うようにしました。"
+        "決裁箱の画面が、デーモンが持つ決裁も読めるようになります。"
       ]
     }
   ],
