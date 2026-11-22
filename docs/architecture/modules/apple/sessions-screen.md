@@ -3,6 +3,10 @@
 Status: wording ruled by Tronie/Mint 2026-11-23 (this doc follows it; the code in ServerSessionsViews.swift is changed to match in a529a). Describes the screen the Apple/Mac app shows today (ServerSessionsViews.swift, built in a485 S2/S3). a529a moves its data to the home part's sessions
 (Mika's a529m API) and adds `endSession`; placement and strings below do not change with that. Anis and Neon copy this screen.
 
+## Summary line and icons (Tronie, 2026-11-23: every platform, text-only rows are returned)
+- One summary line above the list, under the title 「このサーバーに入っている端末」: 「<n>台が入っています」 (n counts every row including this device); when n = 1: 「この端末だけが入っています」. Muted footnote style, no button.
+- Every row starts with its app kind's icon (32 pt tile, left of the title): apple.svg (iPhone・iPad・Mac), linux.svg, windows.svg, android.svg, web.svg (Web). The files are in `sessions-icons/` next to this document (README there: size, colour, licence). The row title keeps the kind's name next to the icon.
+
 ## Placement
 - Settings > 接続 (the connection page): the section group `ServerSessionsSection`, under the server's own rows.
 - A pending login request also shows as a banner above every ready screen (`LoginRequestBanner`), so it is seen from any page.
