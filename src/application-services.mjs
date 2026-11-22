@@ -3,10 +3,6 @@ import { fileURLToPath } from 'node:url'
 import { goalFailureCause } from './execution-failure-report.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { createDirectReceiptAssembly, directFailureReport } from './direct-receipt-assembly.mjs'
-import { createSubmittedSecretApprovalBridge } from './submitted-secret-approval-bridge.mjs'
-import { createSubmittedSecretConsumer } from './usage/submitted-secret-consumer.mjs'
-import { createSubmittedSecretRabbitClient } from './usage/submitted-secret-rabbit-client.mjs'
-import { createSubmittedSecretCaller } from './submitted-secret-caller.mjs'
 import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { mkdir } from 'node:fs/promises'
 import { createSeatProcessRunner } from './seat-process.mjs'
@@ -167,8 +163,8 @@ export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = nul
   return wrapped
 }
 
-export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, createApprovalBoxExtensionProcess: approvalsFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), prepareApprovalBoxExtensionRelease: prepareApprovals = (versionId, options) => prepareModuleRelease('approval-box-extension', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
-  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, createApprovalBoxExtensionProcess: approvalsFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), prepareApprovalBoxExtensionRelease: prepareApprovals = (versionId, options) => prepareModuleRelease('approval-box-extension', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
+  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, directMessages = null
   let scheduleTurns = null
   // a164: the members assembly reads the scheduler lazily; it is built after the members child starts.
   let scheduler = null
@@ -493,13 +489,6 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (!usageAssembly) await secretRequests.initialize()
   if (seatRuntime) secretRequests.useValue = createSecretUse({ projectPath: id => bots.projectPath(id),
     secretRequests: usage?.secretRequests ?? secretRequests, systemContext: usageAssembly?.systemContext ?? null })
-  if (submittedSecretManagement === undefined && seatRuntime) submittedSecretManagement = {
-    assertOwnerAuthorized: createSubmittedSecretApprovalBridge({ project: root }),
-    createConsumer: createSubmittedSecretConsumer, consume: createSubmittedSecretRabbitClient({ project: root }),
-  }
-  submittedSecretCaller = submittedSecretManagement ? createSubmittedSecretCaller({
-    root, secretRequests, usageAssembly, aiControl, bots, ...submittedSecretManagement,
-  }) : null
   const ownerQuestions = usage?.ownerQuestions ?? new OwnerQuestions({
     root, bots,
     onRequest: item => notifications.question(item),
@@ -584,7 +573,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, approvalBoxDaemon, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, approvalBoxDaemon, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
@@ -592,7 +581,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close(), () => approvals?.close(), () => approvalsModule?.close(), () => latticeModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }
