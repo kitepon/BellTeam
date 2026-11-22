@@ -191,6 +191,30 @@ A pending AskUserQuestion of a machine seat and the whole stream of a machine se
 
 Not in BellTeam: the minimum Aiterm version (the harness `claude-machine` needs aiterm-mcp 0.70.85 on a remote terminal, `stream_read` / `stream_send` keep their 0.70.84 gate; Aiterm's constants: a terminal below refuses with `REMOTE_AITERM_TOO_OLD` by name, the container's own Aiterm below it does not list the harness, which the probe shows, so BellTeam keeps no version constant of its own; 0.70.82 to 0.70.84 are the removed `interface` form and are never used), Code Mode inside machine mode (not available in `-p`: the test seat loses it while it runs machine), usage-limit mapping (`rate_limited` as today), asyncRewake and Stop-hook order (Aiterm).
 
+## Reading an image the remote seat saved (a521-exec-image-read, N102 / Elegg, Aiterm 0.70.97 `image_read`)
+
+Outbound half of seat images: a remote seat's `sendmessage` names an image file on its own terminal; conversation asks execution for the bytes (`runtime.image.read`, N102), execution reads them through Aiterm. Execution only reads: no wake, no relaunch, no delivery, nothing is stored; a missing or closed seat fails at once.
+
+```mermaid
+flowchart LR
+  Conv["conversation: runtime.image.read(bot, path)"] -->|"dispatch transport.readSeatImage(bot, path, maxBytes)"| RS["AitermTransport.readSeatImage"]
+  RS -->|"image_read({session_id, path, offset, length 6 MiB}) until total_bytes"| Aiterm["Aiterm: the seat's terminal"]
+  Aiterm -->|"structuredContent {chunk_base64, offset, total_bytes, sha256}"| RS
+  RS -->|"Buffer (whole sha256 checked, size <= maxBytes)"| Conv
+  RS -->|"Error(code), mapped below"| Conv
+```
+
+| Aiterm answer | `readSeatImage` throws |
+| --- | --- |
+| `IMAGE_NOT_FOUND` | `IMAGE_FILE_NOT_FOUND` |
+| `IMAGE_TOO_LARGE`, or `total_bytes` over `maxBytes` (checked on the first chunk, before more is read) | `IMAGE_FILE_TOO_LARGE` |
+| `IMAGE_NOT_AN_IMAGE`, `IMAGE_PATH_INVALID` | `IMAGE_FILE_INVALID` |
+| `IMAGE_PATH_NOT_ALLOWED` | `IMAGE_PATH_NOT_ALLOWED` |
+| no session for the Bot, a closed seat or terminal, an Aiterm without `image_read`, any other error, a chunk that does not continue the read (offset, total or sha256 changed, empty chunk) | `IMAGE_REMOTE_READ_UNAVAILABLE` |
+| the assembled bytes do not match the first chunk's `sha256` | `IMAGE_REMOTE_READ_UNAVAILABLE` |
+
+Data: nothing is kept. The bytes live in the returned Buffer only (one MCP result stays under 10 MiB, so each call asks for at most 6 MiB). Not a guard: nothing is refused that Aiterm would deliver except past `maxBytes`, which the caller names (25 MiB); the call ends by itself (loop ends at `total_bytes`, every error is thrown). Cross-contract with conversation (N102): the method is absent on an engine without it, and the caller then keeps `IMAGE_REMOTE_READ_UNAVAILABLE`.
+
 ## Target revision (member terminal/folder change)
 
 Member updates reach the registry by two paths: the HTTP profile PATCH (`administration.update`) and members' MCP `update_bot`/`update_self`, which saves `terminalId`/`projectRoot` straight to the registry without execution. The delivery is the boundary both share, so the move is in `dispatch` (before the send): when the launch record's `target` of the current session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), `dispatch` observes the seat; an idle or absent seat is closed (`pty_close`; a remote close revokes its credential) and woken on the new target through the existing `memberOperation` + `wake`, then the message is sent there. A seat whose turn is running keeps today's delivery (the same rule as the wake-first recovery: never close a running turn); the next delivery moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.

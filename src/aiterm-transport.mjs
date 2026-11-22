@@ -120,6 +120,11 @@ const SWAP_CODES = ['CONVERSATION_NOT_ACCEPTED', 'EXECUTION_GENERATION_RETIRED',
 const swapNotStarted = () => ({ schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STALE_GENERATION', effect: 'not_started', follow_up: 'none' })
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
+// a521 image_read (remote-seat.md): Aiterm's codes as the names conversation already returns to the seat; the rest is "unavailable".
+const IMAGE_READ_CHUNK = 6 * 2 ** 20
+const IMAGE_READ_CODES = { IMAGE_NOT_FOUND: 'IMAGE_FILE_NOT_FOUND', IMAGE_TOO_LARGE: 'IMAGE_FILE_TOO_LARGE', IMAGE_NOT_AN_IMAGE: 'IMAGE_FILE_INVALID',
+  IMAGE_PATH_INVALID: 'IMAGE_FILE_INVALID', IMAGE_PATH_NOT_ALLOWED: 'IMAGE_PATH_NOT_ALLOWED' }
+const IMAGE_READ_FINAL = new Set(['IMAGE_FILE_TOO_LARGE', 'IMAGE_FILE_INVALID'])
 
 const configurationNeedsRestart = (current, next, reapply) => current.harness !== next.harness
   || (current.model && !next.model) || (current.reasoningEffort && !next.reasoningEffort)
@@ -350,6 +355,33 @@ export class AitermTransport {
     if (!Array.isArray(lines) || lines.length < 1 || lines.length > 20 || lines.some(line => !line || typeof line !== 'object' || Array.isArray(line)))
       throw Object.assign(new Error('STREAM_SEND_INVALID'), { code: 'STREAM_SEND_INVALID', status: 400 })
     return (await this.client.call('stream_send', { session_id: this.session(bot), lines })).structuredContent
+  }
+
+  // remote-seat.md "Reading an image the remote seat saved" (a521): one image file on the seat's terminal, chunked, no wake and no relaunch.
+  async readSeatImage(bot, path, maxBytes) {
+    const fail = code => Object.assign(new Error(code), { code })
+    const session = this.session(bot)
+    if (!session) throw fail('IMAGE_REMOTE_READ_UNAVAILABLE')
+    if (typeof path !== 'string' || !path || !(maxBytes > 0)) throw fail('IMAGE_FILE_INVALID')
+    const parts = []
+    let offset = 0, total = 0, sha256 = null
+    try {
+      do {
+        const chunk = (await this.client.call('image_read', { session_id: session, path, offset, length: IMAGE_READ_CHUNK })).structuredContent
+        if (typeof chunk?.chunk_base64 !== 'string' || !Number.isSafeInteger(chunk.total_bytes) || chunk.offset !== offset
+          || (offset > 0 && (chunk.total_bytes !== total || chunk.sha256 !== sha256))) throw fail('IMAGE_REMOTE_READ_UNAVAILABLE')
+        if (chunk.total_bytes > maxBytes) throw fail('IMAGE_FILE_TOO_LARGE')
+        if (offset === 0) { total = chunk.total_bytes; sha256 = chunk.sha256 }
+        const bytes = Buffer.from(chunk.chunk_base64, 'base64')
+        if (!bytes.length && offset < total) throw fail('IMAGE_REMOTE_READ_UNAVAILABLE')
+        parts.push(bytes); offset += bytes.length
+      } while (offset < total)
+    } catch (error) {
+      throw fail(IMAGE_READ_CODES[error?.aitermErrorCode] ?? (IMAGE_READ_FINAL.has(error?.code) ? error.code : 'IMAGE_REMOTE_READ_UNAVAILABLE'))
+    }
+    const image = Buffer.concat(parts)
+    if (image.length !== total || createHash('sha256').update(image).digest('hex') !== sha256) throw fail('IMAGE_REMOTE_READ_UNAVAILABLE')
+    return image
   }
 
   async screenKey(bot, key) {
