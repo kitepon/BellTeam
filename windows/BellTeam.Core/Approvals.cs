@@ -98,7 +98,8 @@ public static class Approvals
         DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
     public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
     public const string DeviceSigningIn = "ブラウザでサインインしています…";
-    public static string DeviceReconnecting(string? reason) => "つなぎ直しています" + (string.IsNullOrEmpty(reason) ? "" : $"（{reason}）");
+    // Delta (a490j review): never the runtime's own reason (an exception text); one fixed line.
+    public const string DeviceReconnecting = "つなぎ直しています（決裁箱に届きません）";
     public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";
 
     // ---- failure: HTTP answer -> kind of view
