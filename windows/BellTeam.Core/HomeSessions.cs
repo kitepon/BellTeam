@@ -27,7 +27,7 @@ public static class HomeSessionText
     public static string Time(DateTimeOffset time) => time.ToLocalTime().ToString("yyyy/M/d H:mm");
     // Summary line under the title (Tronie 2026-11-23, apple/sessions-screen.md): n counts every row, this device included.
     public static string Summary(int count) => count == 1 ? "この端末だけが入っています" : $"{count}台が入っています";
-    // The icon of a row is its app kind's (apple, linux, windows, android, web) or console for the server-console row; an unknown kind takes the neutral web glyph.
-    public static string IconKey(HomeSessionEntry row) => row.Kind == "console" ? "console" : row.AppKind is "apple" or "linux" or "windows" or "android" ? row.AppKind : "web";
+    // Generic device glyphs, no brand marks (Tronie 2026-11-23): apple and android -> phone (the library does not say iPad or Mac), windows and linux -> desktop, web, console; an unknown kind takes web.
+    public static string IconKey(HomeSessionEntry row) => row.Kind == "console" ? "console" : row.AppKind switch { "apple" or "android" => "phone", "windows" or "linux" => "desktop", _ => "web" };
     public static string Button(HomeSessionEntry row) => row.Current ? OwnRow : EndHere;
 }

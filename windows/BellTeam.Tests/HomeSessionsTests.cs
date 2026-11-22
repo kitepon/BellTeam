@@ -21,7 +21,7 @@ public class HomeSessionsTests
     }
 
     [Fact]
-    public void TheSharedSvgFilesOfTheFourPlatformIconsAreEmbeddedAndDrawable() => Assert.All(new[] { "apple", "linux", "windows", "android" }, key => Assert.False(BellTeam.App.SessionIcons.Geometry(key).Bounds.IsEmpty));
+    public void TheSharedSvgFilesOfTheFourGenericIconsAreEmbeddedAndDrawable() => Assert.All(new[] { "phone", "desktop", "web", "console" }, key => Assert.False(BellTeam.App.SessionIcons.Geometry(key).Bounds.IsEmpty));
 
     [Fact]
     public async Task EveryDeviceOfTheServerIsListedWithItsKindAndAnOwnRowAndAnotherOneIsEndedAtTheHome()
@@ -33,7 +33,7 @@ public class HomeSessionsTests
         Assert.Equal("入った日時 " + HomeSessionText.Time(rows[0].Created!.Value) + "・最後に使った日時 " + HomeSessionText.Time(rows[0].LastUse!.Value), HomeSessionText.Times(rows[0]));
         Assert.Equal("入った日時 " + HomeSessionText.Time(rows[1].Created!.Value), HomeSessionText.Times(rows[1]));
         Assert.Equal("", HomeSessionText.Times(rows[2]));
-        Assert.Equal(["windows", "apple", "console"], rows.Select(HomeSessionText.IconKey));
+        Assert.Equal(["desktop", "phone", "console"], rows.Select(HomeSessionText.IconKey));
         Assert.Equal("web", HomeSessionText.IconKey(new HomeSessionEntry { Id = "S9", AppKind = "" }));
         Assert.Equal(["この端末だけが入っています", "3台が入っています"], [HomeSessionText.Summary(1), HomeSessionText.Summary(rows.Length)]);
         await new PlanningApi(api).EndHomeSessionAsync("S 2");
