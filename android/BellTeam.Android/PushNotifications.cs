@@ -104,7 +104,7 @@ public static class PushRegistration
 
     // Before logout or a changed server, on the connection that is still open; a server that cannot be reached does not hold the sign-out back.
     // Returns null when nothing is left registered, else why the server still holds the token (the account deletion lists it; the other callers go on).
-    public static async Task<string?> UnregisterAsync(LinuxWorkspace workspace)
+    public static async Task<Exception?> UnregisterAsync(LinuxWorkspace workspace)
     {
         var prefs = MainActivity.Current.GetSharedPreferences(Prefs, FileCreationMode.Private)!;
         var token = prefs.GetString(TokenKey, null);
@@ -116,7 +116,7 @@ public static class PushRegistration
             prefs.Edit()!.Remove(TokenKey)!.Apply();
             return null;
         }
-        catch (Exception error) { Log.Warn("BellPush", "unregister failed: " + error.Message); return error.Message; }
+        catch (Exception error) { Log.Warn("BellPush", "unregister failed: " + error.Message); return error; }
     }
 }
 

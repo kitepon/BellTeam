@@ -22,9 +22,9 @@ public sealed partial class MainWindow
     private async Task DeleteAccountAsync()
     {
         var failed = new DeletionFailures();
-        if (approvalBox is { } box) try { await box.DeleteLocalAsync(); } catch (LoginBillingException error) { failed.Add("決裁箱のサインイン", StoreAccountText.Failure(error.Code, error.Status)); }
+        if (approvalBox is { } box) try { await box.DeleteLocalAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as LoginBillingException)?.Status ?? 0); }
         var homeEnded = true;
-        if (home is not null) try { await home.EndAsync(CancellationToken.None); } catch (HomeLinkException error) { homeEnded = false; failed.Add("サーバーのサインイン", StoreAccountText.Failure(error.Code, error.Status)); }
+        if (home is not null) try { await home.EndAsync(CancellationToken.None); } catch (Exception error) { homeEnded = false; failed.Add("サーバーのサインイン", error, (error as HomeLinkException)?.Status ?? 0); }
         if (homeEnded)
         {
             if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _)) tokens.Clear(ServerOrigin.Parse(server));
@@ -33,7 +33,7 @@ public sealed partial class MainWindow
         FileSessionTokenStore.DeleteAll(SettingsStore.UserDirectory);
         model.SignOut();
         settingsStore.Save(settingsStore.Load() with { ServerUrl = null });
-        if (LinuxAccountStore.Billing is { } lb) try { await lb.SignOutAsync(); } catch (LoginBillingException error) { failed.Add("BellTeamのサインイン", StoreAccountText.Failure(error.Code, error.Status)); }
+        if (LinuxAccountStore.Billing is { } lb) try { await lb.SignOutAsync(); } catch (Exception error) { failed.Add("BellTeamのサインイン", error, (error as LoginBillingException)?.Status ?? 0); }
         if (settingsPage is not null) ShowConversation();
         deletedLayer.Children.Clear();
         deletedLayer.Children.Add(FormKit.AlertFrame(failed.Any ? AccountDeletionText.FailedTitle : AccountDeletionText.ResultTitle, failed.Any ? failed.Text : LinuxAccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
