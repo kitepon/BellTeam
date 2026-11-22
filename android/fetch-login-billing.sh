@@ -1,9 +1,9 @@
 #!/bin/sh
-# Puts Kitepon.LoginBilling.Android 0.18.1 in android/packages-local, checked against the sha256 Mint published (a485). A mismatch removes the file and fails.
+# Puts Kitepon.LoginBilling.Android 0.18.4 in android/packages-local, checked against the sha256 Mint published (a485). A mismatch removes the file and fails.
 set -eu
 cd "$(dirname "$0")"
-VERSION=0.18.1
-SHA256=f464610613bddc64d39db7ff0e9d1201a0237ba53e7e90089367a3bc40aa5a5c
+VERSION=0.18.4
+SHA256=e9ed4c6d498a3c9abf6c10b49326380a0e252d1cb63d600d180e2f9bc7dcf351
 FILE=Kitepon.LoginBilling.Android.$VERSION.nupkg
 mkdir -p packages-local
 gh release download "v$VERSION" -R kitepon/login-billing -p "$FILE" -D packages-local --clobber

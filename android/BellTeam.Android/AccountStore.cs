@@ -58,6 +58,23 @@ internal static class DevOperator
         get { var path = Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "dev-operator.txt"); return File.Exists(path) ? File.ReadAllText(path).Trim() : null; }
     }
 
+    // Contract 1.25 (0.18.4): a dev purchase through the library's own receipt path, so the store pass with the contract is kept. The token is first put into the operator's fake Play (/dev/store-purchase,
+    // bound to this account by K: files/dev-k.txt, the same account's K read by another device), then AttachReceiptForTestingAsync sends it.
+    public static async Task FakePurchaseAsync(LoginBilling lb)
+    {
+        try
+        {
+            var k = File.ReadAllText(Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "dev-k.txt")).Trim();
+            using var http = new HttpClient();
+            using var made = await http.PostAsync(new Uri(Url!).GetLeftPart(UriPartial.Authority) + "/dev/store-purchase", new StringContent(JsonSerializer.Serialize(new { provider = "google", k }), System.Text.Encoding.UTF8, "application/json"));
+            made.EnsureSuccessStatusCode();
+            var receipt = JsonDocument.Parse(await made.Content.ReadAsStringAsync()).RootElement.GetProperty("receipts")[0];
+            await lb.AttachReceiptForTestingAsync(receipt.GetProperty("productId").GetString()!, receipt.GetProperty("purchaseToken").GetString()!);
+        }
+        catch (LoginBillingException) { throw; }
+        catch (Exception error) { throw new LoginBillingException("dev_" + error.GetType().Name, 0); }   // a debug helper's own failure is shown on the card, never a crash
+    }
+
     public static Func<string, Task<string>> IdToken(string provider) => async nonce =>
     {
         var origin = new Uri(Url!).GetLeftPart(UriPartial.Authority);
