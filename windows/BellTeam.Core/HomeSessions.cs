@@ -19,11 +19,15 @@ public static class HomeSessionText
 {
     public const string Title = "このサーバーに入っている端末", ThisApp = "このアプリ", OwnRow = "ログアウト", EndHere = "ログアウトさせる", Loading = "読み込んでいます…";
     // shortcut: an appKind the table does not know is shown as sent, when a new platform appears add its row here.
-    public static string KindOf(HomeSessionEntry row) => row.Kind == "console" ? "サーバーのコンソールのコード" : row.AppKind switch
+    public static string KindOf(HomeSessionEntry row) => row.Kind == "console" ? "サーバーのコンソール" : row.AppKind switch
     {
         "apple" => "iPhone・iPad・Mac", "windows" => "Windows", "linux" => "Linux", "android" => "Android", "web" => "Web", var other => other.Length == 0 ? "Web" : other
     };
     public static string Times(HomeSessionEntry row) => (row.Created is { } created ? "入った日時 " + Time(created) : "") + (row.LastUse is { } last ? (row.Created is null ? "" : "・") + "最後に使った日時 " + Time(last) : "");
     public static string Time(DateTimeOffset time) => time.ToLocalTime().ToString("yyyy/M/d H:mm");
+    // Summary line under the title (Tronie 2026-11-23, apple/sessions-screen.md): n counts every row, this device included.
+    public static string Summary(int count) => count == 1 ? "この端末だけが入っています" : $"{count}台が入っています";
+    // The icon of a row is its app kind's (apple, linux, windows, android, web) or console for the server-console row; an unknown kind takes the neutral web glyph.
+    public static string IconKey(HomeSessionEntry row) => row.Kind == "console" ? "console" : row.AppKind is "apple" or "linux" or "windows" or "android" ? row.AppKind : "web";
     public static string Button(HomeSessionEntry row) => row.Current ? OwnRow : EndHere;
 }
