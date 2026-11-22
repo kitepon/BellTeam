@@ -24,6 +24,17 @@ const KEEP_ENV = ['HOME', 'USERPROFILE', 'USER', 'USERNAME', 'LOGNAME', 'PATH', 
 export const doorAddress = (platform = process.platform, home = os.homedir(), user = os.userInfo().username) =>
   platform === 'win32' ? `\\\\.\\pipe\\bellteam-approval-box-door-${user.replace(/[^A-Za-z0-9_.-]/g, '_')}` : path.posix.join(home, '.bellteam', 'approval-box-door.sock')
 
+// A small non-secret record next to the program (session names, ports, exit codes, reasons; never a bearer), because a detached
+// door and an exit-0 hook have no other way to say why a seat got no door (fox 2026-11-23). Capped; never throws.
+const LOG_MAX = 64 * 1024
+export function writeLog(line, file = path.join(os.homedir(), '.bellteam', 'approval-box-door.log')) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
+    if (fs.existsSync(file) && fs.statSync(file).size > LOG_MAX) fs.writeFileSync(file, '', { mode: 0o600 })
+    fs.appendFileSync(file, `${new Date().toISOString()} pid=${process.pid} ${line}\n`, { mode: 0o600 })
+  } catch { /* the record never fails the door */ }
+}
+
 const errorLine = (status, code, message) => JSON.stringify({ ok: false, status, code, message, body: {} })
 const bodyCode = text => { try { const code = JSON.parse(text).error; return typeof code === 'string' ? code : null } catch { return null } }
 const validAlive = alive => Array.isArray(alive) && alive.length >= 1 && alive.length <= 8 && alive.every(item => typeof item === 'string' && item && !item.includes('\0'))
@@ -35,12 +46,13 @@ export const runAlive = alive => new Promise(resolve => {
 
 export class Door {
   seats = new Map()
-  constructor(check = runAlive, send = fetch) { this.check = check; this.send = send }
+  constructor(check = runAlive, send = fetch, log = () => {}) { this.check = check; this.send = send; this.log = log }
 
   // A new registration replaces the session's old bearer at once (one token per session name, RS02); the newest is tried first.
   register(session, port, bearer, alive) {
     this.seats.delete(session)
     this.seats.set(session, { port, bearer, alive, misses: 0 })
+    this.log(`registered session=${session} port=${port} alive=${JSON.stringify(alive)}`)
   }
   get size() { return this.seats.size }
 
@@ -49,7 +61,8 @@ export class Door {
     for (const [session, seat] of [...this.seats]) {
       const code = await this.check(seat.alive)
       if (code !== 1) seat.misses = 0
-      else if (++seat.misses >= 2) this.seats.delete(session)
+      else if (++seat.misses >= 2) { this.seats.delete(session); this.log(`dropped session=${session}: alive check exited 1 twice in a row`); continue }
+      if (code !== 0) this.log(`sweep session=${session} alive-exit=${code} misses=${seat.misses}`)
     }
     return this.seats.size
   }
@@ -65,7 +78,7 @@ export class Door {
       } catch { unreachable = true; continue }
       if (response.status === 200) return text.replace(/\r?\n$/, '') // the daemon's own reply, a down daemon included
       const code = bodyCode(text)
-      if (response.status === 400 && code === 'BELLTEAM_SEAT_UNRESOLVED') { this.seats.delete(session); continue } // replaced or revoked: dead
+      if (response.status === 400 && code === 'BELLTEAM_SEAT_UNRESOLVED') { this.seats.delete(session); this.log(`dropped session=${session}: the body no longer knows its bearer`); continue } // replaced or revoked: dead
       if (response.status === 403 && code === 'APPROVAL_BOX_DOOR_NOT_ALLOWED') continue // a fork seat's bearer
       return errorLine(response.status, code ?? 'APPROVAL_DOOR_HTTP_ERROR', `the body answered HTTP ${response.status}`)
     }
@@ -126,6 +139,7 @@ const answers = address => new Promise(resolve => {
 
 // Starts serving; resolves to null when another door already holds the address. Closes and calls onEmpty when no seat counts.
 export async function serveDoor(door, address = doorAddress(), onEmpty = () => {}, sweepMs = SWEEP_MS, idleMs = IDLE_MS) {
+  door.log(`serve start address=${address}`)
   if (process.platform !== 'win32') fs.mkdirSync(path.dirname(address), { recursive: true, mode: 0o700 })
   const server = net.createServer({ allowHalfOpen: true }, socket => serveConnection(door, socket, idleMs))
   try { await listen(server, address) } catch (error) {
@@ -137,7 +151,7 @@ export async function serveDoor(door, address = doorAddress(), onEmpty = () => {
   // The listening server keeps the door process alive; the sweep must not keep a test process alive.
   const timer = setInterval(async () => {
     if (await door.sweep() !== 0) return
-    clearInterval(timer); server.close()
+    door.log('exit: no registered seat counts'); clearInterval(timer); server.close()
     if (process.platform !== 'win32') fs.rmSync(address, { force: true })
     onEmpty()
   }, sweepMs)
@@ -180,32 +194,37 @@ export function bearerOf(env) {
 
 // The post_launch hook of a launch or resume. A seat with no bearer, no forward port or no alive check has no door and still works,
 // so this reports and never throws (Aiterm never fails a launch for the hook either).
-export async function registerFromEnv(env = process.env, address = doorAddress(), tries = 24) {
+export async function registerFromEnv(env = process.env, address = doorAddress(), tries = 24, log = () => {}) {
   const port = Number(env.AITERM_SEAT_FORWARD_PORT)
   let alive = null
   try { alive = JSON.parse(env.AITERM_SESSION_ALIVE ?? 'null') } catch {}
   const bearer = bearerOf(env)
-  if (!env.AITERM_SESSION_ID || !Number.isInteger(port) || !bearer || !validAlive(alive)) return false
+  if (!env.AITERM_SESSION_ID || !Number.isInteger(port) || !bearer || !validAlive(alive)) {
+    const missing = [!env.AITERM_SESSION_ID && 'AITERM_SESSION_ID', !Number.isInteger(port) && 'AITERM_SEAT_FORWARD_PORT', !bearer && 'bearer', !validAlive(alive) && 'AITERM_SESSION_ALIVE'].filter(Boolean)
+    log(`register skipped (${env.AITERM_HOOK_EVENT ?? 'event unknown'}): missing or invalid ${missing.join(', ')}`)
+    return false
+  }
   const line = JSON.stringify({ bellteam_door: 'register', session: env.AITERM_SESSION_ID, port, authorization: bearer, alive })
   let started = false, last = null
   for (let attempt = 0; attempt < tries; attempt++) {
-    try { await sendControl(address, line); return true } catch (error) {
+    try { await sendControl(address, line); log(`register sent (${env.AITERM_HOOK_EVENT ?? 'event unknown'}) session=${env.AITERM_SESSION_ID} port=${port}`); return true } catch (error) {
       last = error
       if (!started) { startDoor(); started = true }
       await new Promise(resolve => setTimeout(resolve, 250))
     }
   }
   process.stderr.write(`bellteam approval door: registration failed: ${last instanceof Error ? last.message : String(last)}\n`)
+  log(`register failed after ${tries} tries: ${last instanceof Error ? last.message : String(last)}`)
   return false
 }
 
 const here = fileURLToPath(import.meta.url)
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(here)) {
   if (process.argv[2] === 'serve') {
-    serveDoor(new Door(), doorAddress(), () => process.exit(0)).then(server => { if (!server) process.exit(0) }, error => {
+    serveDoor(new Door(runAlive, fetch, writeLog), doorAddress(), () => process.exit(0)).then(server => { if (!server) process.exit(0) }, error => {
       process.stderr.write(`bellteam approval door: ${error instanceof Error ? error.message : String(error)}\n`); process.exit(1)
     })
   } else if (process.argv[2] === 'register') {
-    registerFromEnv().then(() => process.exit(0))
+    registerFromEnv(process.env, doorAddress(), 24, writeLog).then(() => process.exit(0))
   }
 }

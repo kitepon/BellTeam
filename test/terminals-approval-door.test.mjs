@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { atLeast, doorHook, DOOR_MIN_AITERM } from '../src/terminals/approval-door.mjs'
-import { Door, bearerOf, registerFromEnv, serveDoor, doorAddress } from '../src/terminals/approval-door-host.mjs'
+import { Door, bearerOf, registerFromEnv, serveDoor, doorAddress, writeLog } from '../src/terminals/approval-door-host.mjs'
 import { createTerminalConnection } from '../src/terminals/connection.mjs'
 import { fakeNative, fakeSecrets } from './helpers/terminals-native-double.mjs'
 
@@ -137,6 +137,31 @@ test('the hook on a real host process: writes the program under ~/.bellteam, sta
   const ask = line => new Promise((resolve, reject) => { const socket = net.connect(address); let out = ''; socket.setEncoding('utf8').on('data', c => { out += c }).on('end', () => resolve(out)).on('error', reject); socket.end(`${line}\n`) })
   assert.equal(await ask('{"method":"GET","path":"/status","body":{}}'), '{"ok":true,"auth":"true"}\n')
   assert.equal(await run(), 0, 'a second launch finds the door and registers again')
+  const record = await readFile(join(home, '.bellteam', 'approval-box-door.log'), 'utf8')
+  assert.match(record, /serve start/)
+  assert.match(record, /register sent \(event unknown\) session=bot-x-1/)
+  assert.equal(record.includes('A'.repeat(43)), false, 'the record never holds a bearer or the seat token')
   // no bearer in the hook env: nothing registers, nothing fails
   assert.equal(await registerFromEnv({ ...env, BELLTEAM_MCP_TOKEN: '' }, address, 1), false)
+})
+
+test('a registration that is skipped says which field was missing, and the record is capped', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'door-log-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  const file = join(home, 'door.log'), lines = []
+  const log = line => { lines.push(line); writeLog(line, file) }
+  assert.equal(await registerFromEnv({ AITERM_HOOK_EVENT: 'launch', AITERM_SESSION_ID: 's', AITERM_SESSION_ALIVE: '[]' }, join(home, 'x.sock'), 1, log), false)
+  assert.match(lines[0], /^register skipped \(launch\): missing or invalid AITERM_SEAT_FORWARD_PORT, bearer, AITERM_SESSION_ALIVE$/)
+  assert.match(await readFile(file, 'utf8'), /missing or invalid AITERM_SEAT_FORWARD_PORT/)
+  writeLog('x'.repeat(70 * 1024), file); writeLog('after', file)
+  assert.ok((await readFile(file, 'utf8')).length < 1024, 'a record over 64 KiB starts over')
+})
+
+test('a seat dropped by its alive check says so with the exit codes seen', async () => {
+  const lines = [], codes = [1, 1]
+  const door = new Door(async () => codes.shift(), fetch, line => lines.push(line))
+  door.register('s', 40001, BEARER, ['x'])
+  await door.sweep(); await door.sweep()
+  assert.deepEqual(lines.map(line => line.replace(/ alive=.*/, '')), ['registered session=s port=40001', 'sweep session=s alive-exit=1 misses=1', 'dropped session=s: alive check exited 1 twice in a row'])
+  assert.equal(lines.join('\n').includes('A'.repeat(43)), false)
 })
