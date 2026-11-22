@@ -362,12 +362,17 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | ファイル | 主な型・機能・接続先 |
 | --- | --- |
 | [BellBot/App/BellBotApp.swift](../../../../ios/BellBot/BellBot/App/BellBotApp.swift) | BellBotApp/RootView/BellTabs、Mac MemberEditorWindowとgeometry、phase・platform配置・起動 |
-| [BellBot/Core/AppleSubscriptionAccess.swift](../../../../ios/BellBot/BellBot/Core/AppleSubscriptionAccess.swift) | AppleSubscriptionEntitlement、期限/猶予/初期guide/開発者のAI利用判定 |
 | [BellBot/Core/AvatarImage.swift](../../../../ios/BellBot/BellBot/Core/AvatarImage.swift) | crop型、AvatarActionLifetime、AvatarImageの読取・寸法・切抜き・JPEG・復元 |
 | [BellBot/Core/BackgroundMessageSend.swift](../../../../ios/BellBot/BellBot/Core/BackgroundMessageSend.swift) | 背景実行時間確保、期限とcaller取消、終了 |
 | [BellBot/Core/BellAPI+BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift) | BellAPI extensionの[saveBotAvatarSelection](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L4) / [confirmBotAvatarSelection](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L24) / [saveBotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L43) / [confirmBotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L64) |
 | [BellBot/Core/BellDiagnostics.swift](../../../../ios/BellBot/BellBot/Core/BellDiagnostics.swift) | DecodingError.located、BellRequestTrace、BellDiagnosticObservation、BellDiagnostics。通信記録・影響・MetricKit・POST /api/diagnostics |
 | [BellBot/Core/BellNotifications.swift](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift) | BellNotificationRoute、BellUpdateRoute、BellNotifications、UIApplication delegate。push登録・解除・表示抑制・移動 |
+| [BellBot/Core/ServerLogin.swift](../../../../ios/BellBot/BellBot/Core/ServerLogin.swift) / [BellBot/Views/ServerLoginView.swift](../../../../ios/BellBot/BellBot/Views/ServerLoginView.swift) | a485：サーバーのセッションログイン（契約・状態機械・画面）と、入っているアプリ側（ServerSessionsModel、Views/ServerSessionsViews.swift：承認待ちの帯・アプリを追加・セッション一覧）。試験は[ServerLoginTests.swift](../../../../ios/BellBot/BellBotTests/ServerLoginTests.swift) |
+| [BellBot/Core/HomeLogin.swift](../../../../ios/BellBot/BellBot/Core/HomeLogin.swift) / [BellBot/Views/HomeLoginView.swift](../../../../ios/BellBot/BellBot/Views/HomeLoginView.swift) | a492：ホームサーバー（login-billing 0.17.0）の探査・接続画面・チケットの目印。試験は[HomeLoginTests.swift](../../../../ios/BellBot/BellBotTests/HomeLoginTests.swift)と[ServerLoginTests.swift](../../../../ios/BellBot/BellBotTests/ServerLoginTests.swift) |
+| [BellBot/Core/PeerApprovals/](../../../../ios/BellBot/BellBot/Core/PeerApprovals/) | a490h2r：決裁箱の端末側。ApprovalBoxLink（サインインと端末の状態機械）・PeerDevice（peer-channelの端末の核）・PeerDeviceStore（鍵とレジストリのKeychain）・PeerDecisionRecord／PeerDecisionHistory（端末の決裁と履歴）。流れは[approvals.md](approvals.md)、試験は[ApprovalBoxLinkTests.swift](../../../../ios/BellBot/BellBotTests/ApprovalBoxLinkTests.swift) |
+| [BellBot/Core/HomeSessions.swift](../../../../ios/BellBot/BellBot/Core/HomeSessions.swift) / [BellBot/Views/ServerSessionsViews.swift](../../../../ios/BellBot/BellBot/Views/ServerSessionsViews.swift) | a529a：ホームサーバーに入っている端末の一覧と終わらせ方（HomeSessionsModel：GET /api/home/sessions、ログアウトさせる＝DELETE、締め出す＝stop(passId)してからDELETE。行は旧ログインの一覧と共通のDeviceRowView）。仕様は[sessions-screen.md](sessions-screen.md)、試験は[ServerLoginTests.swift](../../../../ios/BellBot/BellBotTests/ServerLoginTests.swift) |
+| [account-deletion.md](account-deletion.md) | a485 switch：「アカウントを削除」の置き場と文の基準（`AccountDeletionWords`、`AppStore.deleteAccount`、試験は[AccountDeletionTests.swift](../../../../ios/BellBot/BellBotTests/AccountDeletionTests.swift)） |
+| [BellBot/Core/StoreAccount.swift](../../../../ios/BellBot/BellBot/Core/StoreAccount.swift) / [BellBot/Views/StoreAccountView.swift](../../../../ios/BellBot/BellBot/Views/StoreAccountView.swift) | a485 B1：店の側（ライブラリのサインイン・購入・承認・端末一覧）。試験は[StoreAccountTests.swift](../../../../ios/BellBot/BellBotTests/StoreAccountTests.swift) |
 | [BellBot/Core/BillingStore.swift](../../../../ios/BellBot/BellBot/Core/BillingStore.swift) | 購読status/entitlement/product、本人権利照会、purchase/restore/recheck、stripeManageURL（a389）、verify/finish |
 | [BellBot/Core/BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | BotProfileResponse、BotSettings.normalized/withSmallAvatar/withLargeAvatar/withAvatarSelection、BotEditorDraft、AvatarSelectionDrafts、BotSettingsRequest.encode、BotSaveResult |
 | [BellBot/Core/ConversationDocument.swift](../../../../ios/BellBot/BellBot/Core/ConversationDocument.swift) | JSON FileDocumentの読込・書出し |
@@ -477,7 +482,6 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 | ファイル | 本文で確認した対象・構成 |
 | --- | --- |
-| [Tests/AppleSubscriptionAccessChecks.swift](../../../../ios/BellBot/Tests/AppleSubscriptionAccessChecks.swift) | @main、precondition12件。本人権利/期限/猶予、developer、初回guideの境界 |
 | [Tests/BotStopContractChecks.swift](../../../../ios/BellBot/Tests/BotStopContractChecks.swift) | @main、HTTP/status/Bot ID/sessionPreservedの6組照合と欠損decodeの1件 |
 | [project.yml](../../../../ios/BellBot/project.yml) | 4target、resource、Swift package、通知拡張embed、App Group、Mac Catalyst、scheme |
 | [BellTeam.xcscheme](../../../../ios/BellBot/BellBot.xcodeproj/xcshareddata/xcschemes/BellTeam.xcscheme) | Debugの2試験target・preview起動引数 |

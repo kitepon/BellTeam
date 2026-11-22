@@ -22,7 +22,7 @@ flowchart LR
   m_runtime["実行環境・更新復旧 / モリー"]
   m_terminals["端末接続 / クラスト"]
   m_usage["利用設定・通知 / ミカ"]
-  m_web["Webアプリ / アドミ"]
+  m_web["Web受付（アプリ用の公開入口） / アドミ"]
   m_work_graph["相関図 / アークレンジャー・ブラック"]
   m_approval_box_extension -->|"lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"| m_lattice
   m_approval_box_extension -->|"secrets"| m_usage
@@ -54,7 +54,6 @@ flowchart LR
   m_integration -->|"settings"| m_usage
   m_integration -->|"memory"| m_memory
   m_integration -->|"lifecycle"| m_runtime
-  m_integration -->|"assets"| m_web
   m_integration -->|"update"| m_runtime
   m_integration -->|"auth"| m_usage
   m_integration -->|"notify"| m_usage
@@ -101,7 +100,6 @@ flowchart LR
   m_usage -->|"seat-process"| m_runtime
   m_usage -->|"accounts"| m_execution
   m_web -->|"HTTP/SSE"| m_integration
-  m_web -->|"lattice-chart"| m_lattice
   m_work_graph -->|"observation"| m_execution
   m_work_graph -->|"registry"| m_members
   m_work_graph -->|"history"| m_conversation
@@ -200,7 +198,7 @@ flowchart LR
 | [testgate](modules/testgate/README.md) | シラツル | registration v1 (item in RTK harness-entries.json) |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context CLI / storage: THROUGHLINE_HOME, locate, export |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets / harnessCli (installed, watch) |
-| [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
+| [Web受付（アプリ用の公開入口）](modules/web/README.md) | アドミ | gateway |
 | [Windowsアプリ](modules/windows/README.md) | アニス | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |
 

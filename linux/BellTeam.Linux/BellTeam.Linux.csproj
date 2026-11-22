@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <!-- Same assembly name as the Windows app: BellTeam.Core's InternalsVisibleTo("BellTeam") reaches the same render hooks. -->
     <AssemblyName>BellTeam</AssemblyName>
-    <Version>0.2.23</Version>
+    <Version>0.2.24</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
@@ -15,11 +15,18 @@
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Linux.Tests" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
+    <!-- a520: the pc/1 device part for the 決裁箱 view; its native engine is linux/native/README.md (x64 only). -->
+    <ProjectReference Include="../../windows/BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
+    <None Include="../native/prebuilt/linux-x64/libdatachannel.so" Condition="'$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'linux-x64'" Link="libdatachannel.so" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Avalonia" Version="12.1.6" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
+    <!-- a485 (contract 1.20): web sign-in, the pass file and the handoff QR login through the library's desktop part. 0.18.8 is accepted by Mint; a product ships on it after Mint conformity check of its embedding. -->
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.18.8" />
+    <!-- The library gives the QR text only (LoginStart.QrPayload); this pure managed encoder (MIT) draws it. Android uses the same one. -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
   </ItemGroup>

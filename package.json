@@ -2,6 +2,7 @@
   "name": "bellteam",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs"
@@ -9,8 +10,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "croner": "^10.0.1",
-    "jose": "6.2.13",
-    "web-push": "3.6.7"
+    "jose": "6.2.13"
   },
   "engines": {
     "node": ">=24"

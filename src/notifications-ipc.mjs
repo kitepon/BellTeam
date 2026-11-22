@@ -1,9 +1,8 @@
 export { verifyNotificationsLocks } from './notifications-locks.mjs'
-import { validateWebPushParams, webPushStatusValid } from './usage/web-push-schema.mjs'
 import { validateFcmParams, fcmStatusValid } from './usage/fcm-schema.mjs'
 export const NOTIFICATIONS_MESSAGE_LIMIT = 64 * 1024
 export const NOTIFICATIONS_REQUEST_LIMIT = 64
-const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
+const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish', 'tickets'])
 const controls = new Set(['initialize', 'quiesce', 'resume', 'exit'])
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, names) => object(value) && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')
@@ -19,22 +18,24 @@ const jsonValid = value => value === null || ['string', 'boolean'].includes(type
 const statusValid = value => object(value) && jsonValid(value)
   && typeof value.configured === 'boolean' && Array.isArray(value.environments)
   && value.environments.every(item => ['development', 'production'].includes(item))
+  // The message is display text chosen by the child (e.g. the 1Password key wording); a fixed-string match here dropped the child on every unreadable key.
   && (value.error === undefined || keys(value.error, 'code,message') && safeCode(value.error.code)
-    && value.error.message === '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。')
-const pair = value => keys(value, 'apns,webPush')
-const applyErrorValid = value => pair(value) && [value.apns, value.webPush].every(error => error === null || safeCode(error))
+    && typeof value.error.message === 'string' && value.error.message.length > 0 && value.error.message.length <= 1000)
+// a487n stage 1: webPush is leaving. Readers accept the pair with or without it; writers still send it until every half reads without it.
+const pair = value => keys(value, 'apns,webPush') || keys(value, 'apns') // webPush: an older half (a rolled-back module) still sends it
+const webPushLegacyValid = value => keys(value, 'enabled,configured,publicKey,error')
+const applyErrorValid = value => pair(value) && [value.apns, value.webPush].every(error => error === undefined || error === null || safeCode(error))
 const initializedValid = value => keys(value, 'status,applyError') && pair(value.status)
-  && statusValid(value.status.apns) && webPushStatusValid(value.status.webPush) && applyErrorValid(value.applyError)
+  && statusValid(value.status.apns) && (!Object.hasOwn(value.status, 'webPush') || webPushLegacyValid(value.status.webPush)) && applyErrorValid(value.applyError)
+export const notificationsReadyValid = initializedValid // a487n: exported for the reader test
 const resultValid = (method, params, value, control) => control
   ? method === 'initialize' ? initializedValid(value)
     : method === 'quiesce' ? keys(value, 'quiesced') && typeof value.quiesced === 'boolean'
       : method === 'resume' ? keys(value, 'resumed') && value.resumed === true
         : keys(value, 'closed') && value.closed === true
-  : method === 'publish' ? keys(value, 'accepted') && value.accepted === true
+  : method === 'publish' || method === 'tickets' ? keys(value, 'accepted') && value.accepted === true
     : params.provider === 'apns' && ['status', 'configure'].includes(method) ? statusValid(value)
-      : params.provider === 'webPush' && (method === 'configure' || method === 'status' && !Object.hasOwn(params, 'endpoint'))
-        ? webPushStatusValid(value)
-        : params.provider === 'fcm' && method === 'status' ? fcmStatusValid(value)
+      : params.provider === 'fcm' && method === 'status' ? fcmStatusValid(value)
         : keys(value, 'registered') && (method === 'status' ? typeof value.registered === 'boolean' : value.registered === (method === 'register'))
 const validateParams = (method, params, control) => {
   if (control) {
@@ -42,14 +43,18 @@ const validateParams = (method, params, control) => {
     if (!keys(params, 'configuration') || !pair(params.configuration)
       || !keys(params.configuration.apns, 'enabled,relayUrl') || typeof params.configuration.apns.enabled !== 'boolean'
       || typeof params.configuration.apns.relayUrl !== 'string' || params.configuration.apns.relayUrl.includes('\0')
-      || !keys(params.configuration.webPush, 'enabled,subject'))
+      || Object.hasOwn(params.configuration, 'webPush') && !keys(params.configuration.webPush, 'enabled,subject'))
       throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
-    validateWebPushParams('configure', { provider: 'webPush', ...params.configuration.webPush })
     return
   }
   if (method === 'publish') return
-  if (!['apns', 'webPush', 'fcm'].includes(params.provider)) throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
-  if (params.provider === 'webPush') validateWebPushParams(method, params)
+  if (method === 'tickets') {
+    if (!keys(params, 'tickets') || !object(params.tickets) || Object.keys(params.tickets).length > 256
+      || Object.entries(params.tickets).some(([hash, ticket]) => !/^[a-f0-9]{64}$/u.test(hash) || typeof ticket !== 'string' || !ticket || ticket.length > 4096))
+      throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
+    return
+  }
+  if (!['apns', 'fcm'].includes(params.provider)) throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
   if (params.provider === 'fcm') {
     try { validateFcmParams(method, params) } catch (error) { throw notificationError(error.code, 'not_accepted', 400) }
   }

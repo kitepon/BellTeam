@@ -344,6 +344,21 @@ test('private projection ACK precedes parent effects and replies; publication fa
 })
 
 
+test('a500: one failed publish closes admission only until the next entry publishes the whole state again and every row is acknowledged', async t => {
+  const f = await fixture(t), seen = []
+  let failing = false
+  const service = createUsageServices({ ...f.options, onProjection: row => { if (failing) throw error('PRIVATE_CHANNEL_LOST'); seen.push(row) } })
+  await service.initializeSettings({ restore: true }); await service.initialize({ restore: true })
+  failing = true
+  await assert.rejects(service.request('settings.update', { id: 'routing', input: { enabled: false } }, owner), { code: 'USAGE_PROJECTION_UNAVAILABLE' })
+  await assert.rejects(service.request('settings.list', {}, owner), { code: 'USAGE_PROJECTION_UNAVAILABLE' }) // still failing: stays closed and tries again
+  failing = false; seen.length = 0
+  assert.ok(Array.isArray(await service.request('settings.list', {}, owner))) // the next entry goes through
+  assert.deepEqual(['settings', 'onboarding', 'auth', 'subscription'].filter(type => !seen.some(row => row.type === type)), [])
+  assert.ok(seen.every((row, at) => at === 0 || row.revision > seen[at - 1].revision))
+  assert.ok(Array.isArray(await service.request('settings.list', {}, owner))) // and stays open
+})
+
 test('reply validators reject leaked values and foreign IDs before public success', async t => {
   const f = await fixture(t)
   const item = await f.service.request('secrets.create', { toolId: 'synthetic', label: '鍵', message: '入力' }, bot)
@@ -408,6 +423,12 @@ test('購読の記録は、billingSources・canPurchaseが無い古い形も有�
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: old, revision: 0 }), true)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, canPurchase: 'yes' }, revision: 0 }), false)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, billingSources: [1] }, revision: 0 }), false)
+  // a486c: entitlementState is optional (an older usage sends none) and one of three words
+  const { entitlementState, ...before } = old
+  assert.equal(entitlementState, 'unknown')
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: before, revision: 0 }), true)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, entitlementState: 'none' }, revision: 0 }), true)
+  assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, entitlementState: 'maybe' }, revision: 0 }), false)
   // a399: a field a newer usage adds is not refused; a missing required one still is. Rows served as stored with secrets nearby stay closed.
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, unknown: 1 }, revision: 0 }), true)
   const { entitled, ...short } = old

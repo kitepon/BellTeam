@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
+using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
@@ -113,6 +114,19 @@ internal sealed class StartupFailureView : StartupBackdrop
         if (!string.IsNullOrEmpty(message)) { var detail = MacUi.Text(message, 13, BellTheme.Secondary, margin: new Thickness(0, 6, 0, 0)); detail.TextAlignment = TextAlignment.Center; stack.Children.Add(detail); }
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0), Spacing = 10 };
         actions.Children.Add(MacUi.Prominent("もう一度試す", retry)); actions.Children.Add(MacUi.Bordered("接続先を変更", changeServer));
+        stack.Children.Add(actions); Children.Add(stack);
+    }
+}
+
+// a485 7e: the server's entitlement is "none", so the native app shows this instead of itself; the browser version is abolished. Linux and Android share it.
+internal sealed class PaywallView : StartupBackdrop
+{
+    public PaywallView(Action recheck, Action changeServer)
+    {
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, Margin = new Thickness(30) };
+        var title = MacUi.Text(SubscriptionText.Paywall, 17, BellTheme.Ink, FontWeight.Bold); title.TextAlignment = TextAlignment.Center; title.TextWrapping = TextWrapping.Wrap; stack.Children.Add(title);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0), Spacing = 10 };
+        actions.Children.Add(MacUi.Prominent("再確認", recheck)); actions.Children.Add(MacUi.Bordered("接続先を変更", changeServer));
         stack.Children.Add(actions); Children.Add(stack);
     }
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "1d95b3dff7b821b9c42ec200d53459d5738025bc1582cc6a023893eeece4b63d",
+  "originHash" : "d6acc22d48b70c09af58caba9f8c3893a8413709375a1e14a7b969f429625b00",
   "pins" : [
     {
       "identity" : "chatlayout",
@@ -15,6 +15,32 @@
       "location" : "https://github.com/quolu/enriched-markdown-ios.git",
       "state" : {
         "revision" : "9f7204661671717ef90c701a23c8cba9ed54c613"
+      }
+    },
+    {
+      "identity" : "login-billing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kitepon/login-billing.git",
+      "state" : {
+        "revision" : "4fd34050bdd4824f7b9e34e75130aa807e30f7c7",
+        "version" : "0.18.8"
+      }
+    },
+    {
+      "identity" : "peer-channel",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kitepon/peer-channel.git",
+      "state" : {
+        "revision" : "0886f976a1e4e3417392dc820b1718c34a51a5c3"
+      }
+    },
+    {
+      "identity" : "webrtc-xcframework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/livekit/webrtc-xcframework.git",
+      "state" : {
+        "revision" : "b34647c69f8f048d5ed1df3ddcb478f346621653",
+        "version" : "150.7871.8"
       }
     }
   ],

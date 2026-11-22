@@ -9,6 +9,8 @@
     <None Include="../../docs/architecture/modules/approval-box-extension/contract/fixtures/*.json" Link="approvals-fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <ProjectReference Include="../BellTeam.App/BellTeam.App.csproj" />
+    <ProjectReference Include="../BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
+    <None Include="fixtures/peer-channel/*.json" Link="peer-channel/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference>

@@ -16,7 +16,7 @@ flowchart LR
   Reader --> Generation[本人wrapper / 共通controller / 親assembly]
 ```
 
-usageはentryから到達する固定inventory（設定guideとsubscriptions JSON2、背景agent設定とその依存src/json-file.mjsを含む）とpackage/lock。src/distribution-profile.mjsだけは既public packageと同じ配布版へ置き換える。Node組込のみでnpm実行0。diagnosticsは固定12fileとpackage/lock、SDK/types依存は同Git lockの通常npm ci --omit=devで固定し、他componentのsrcを収録しない。未知srcや任意追加payloadを拒否する。完全inventoryで全Node依存を確認し、私有state/資格/本文/DBは収録しない。
+usageはentryから到達する固定inventory（a485: ログイン・課金ライブラリのhome part一file `src/usage/vendor/login-billing-home.mjs` と、bodyと共有する`src/vendor/login-billing-home-guard.mjs`を、版とsha256をheaderに書いて含む。npmは使わない。設定guideとsubscriptions JSON2、背景agent設定とその依存src/json-file.mjsを含む）とpackage/lock。src/distribution-profile.mjsだけは既public packageと同じ配布版へ置き換える。Node組込のみでnpm実行0。diagnosticsは固定12fileとpackage/lock、SDK/types依存は同Git lockの通常npm ci --omit=devで固定し、他componentのsrcを収録しない。未知srcや任意追加payloadを拒否する。完全inventoryで全Node依存を確認し、私有state/資格/本文/DBは収録しない。
 
 背景agent設定の業務source・唯一writer・閉I/Oはusage所有。配布はBUSINESS_FILES['usage']へ上の2fileだけを追加し、同じ固定sourceのpackage生成と完全inventory検証へ渡す。既6設定の保存形式・互換値や他componentのclosureは変更しない。新backendのsourceと同じ通常候補へ接続し、closureだけを先行配布しない。
 

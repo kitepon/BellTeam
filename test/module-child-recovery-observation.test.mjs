@@ -8,13 +8,13 @@ import { createModuleProcess } from '../src/module-process.mjs'
 import { moduleRecoveryLog } from '../src/module-exchange-diagnostic.mjs'
 import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 
-const settle = () => new Promise(resolve => setImmediate(resolve))
+// Recovery rereads the adoption file (real fs I/O) before prepare, so one turn is not enough.
+const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)) }
 
 async function fixture(t, { holdActual = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'module-recovery-'))
   await mkdir(join(root, 'state'))
   const admission = new ConversationLifetimes(), children = []
-  if (holdActual) admission.recoverFailedGeneration = undefined
   let resolveActual, requests = 0
   const actual = new Promise(resolve => { resolveActual = resolve })
   const reap = child => {
@@ -25,6 +25,8 @@ async function fixture(t, { holdActual = false } = {}) {
   }
   const controller = createModuleProcess({ component: 'conversation', root, admission,
     prepareRelease: async () => assert.fail('builtin recovery must not prepare another release'), validateReady: () => {},
+    // Every start and recovery needs a passing ready probe (module-ready-probe, 7971c7a5); conversation has no default.
+    probeCandidate: async () => {},
     spawnProcess: () => {
       const child = Object.assign(new EventEmitter(), { connected: true, exitCode: null, signalCode: null,
         stdout: Object.assign(new EventEmitter(), { closed: false, resume() {} }),
@@ -43,35 +45,25 @@ async function fixture(t, { holdActual = false } = {}) {
   return { controller, admission, children, reap, resolveActual, requests: () => requests }
 }
 
-test('legacy recovery reveals pending actual work and gate refusal, then resumes only after both end without replay', async t => {
+// Owner 2026-11-07 (module-process.md "Current conversation lifecycle"): pending actual work never gates conversation recovery.
+test('recovery records each stage once and completes while actual work is pending, without replay', async t => {
   const logs = []
   t.mock.method(console, 'error', line => logs.push(JSON.parse(line)))
-  const f = await fixture(t, { holdActual: true }), original = f.children[0]
+  const f = await fixture(t, { holdActual: true })
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const native = f.admission.enter()
   await f.controller.request('synthetic', {})
-  f.reap(original); await settle()
+  f.reap(f.children[0]); await settle()
   t.mock.timers.tick(1000); await settle()
-  const evidence = () => logs.filter(value => value.code === 'MODULE_CHILD_RECOVERY')
-  assert.equal(evidence().at(-1).stage, 'runner')
-  assert.equal(evidence().at(-1).runnerActive, 1)
-  assert.equal(evidence().at(-1).admissionActive, 1)
-  assert.equal(f.children.length, 1)
-  f.resolveActual(); await settle()
-  const refused = evidence().at(-1)
-  assert.equal(refused.stage, 'recover_admission'); assert.equal(refused.event, 'failed')
-  assert.equal(refused.failureCode, 'CONVERSATION_NOT_ACCEPTED')
-  assert.equal(refused.runnerActive, 0); assert.equal(refused.admissionActive, 1)
-  assert.equal(f.children.length, 1); assert.equal(f.controller.snapshot().available, false)
-  f.admission.finish(native)
-  t.mock.timers.tick(1999); await settle(); assert.equal(f.children.length, 1)
-  t.mock.timers.tick(1); await settle()
+  const evidence = logs.filter(value => value.code === 'MODULE_CHILD_RECOVERY')
   assert.equal(f.children.length, 2); assert.equal(f.controller.snapshot().available, true)
   assert.equal(f.requests(), 1)
-  assert.equal(evidence().filter(value => value.attempt === 2 && value.stage === 'operation').length, 0, 'retry does not repeat an observed lifecycle stage')
-  assert.equal(evidence().at(-1).event, 'completed')
-  assert.equal(evidence().at(-1).admissionClosed, false)
-  assert.doesNotMatch(JSON.stringify(evidence()), /generation|lease|correlation|synthetic|message|stack/)
+  assert.equal(evidence.at(-1).event, 'completed')
+  assert.equal(evidence.at(-1).runnerActive, 1); assert.equal(evidence.at(-1).admissionActive, 1)
+  assert.equal(evidence.filter(value => value.event === 'failed').length, 0)
+  assert.equal(new Set(evidence.map(value => `${value.stage}:${value.event}`)).size, evidence.length, 'each stage is recorded once')
+  assert.doesNotMatch(JSON.stringify(evidence), /generation|lease|correlation|synthetic|message|stack/)
+  f.admission.finish(native)
 })
 
 test('recovery evidence is finite and refuses arbitrary codes, snapshot text and invalid stages', () => {

@@ -1,4 +1,5 @@
 import { OS_LABEL, childPath, isEntryName, isTerminalPath, parentPath } from './paths.mjs'
+import { doorHook } from './approval-door.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
 const MESSAGES = {
@@ -47,6 +48,8 @@ const trustAction = (target, reason) => APP_ATTESTS.has(target.os) && reason ===
 const REGISTRY_REASONS = new Set(['SSH_KEY_UNSET', 'BINDING_UNSET'])
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
+// The container's Aiterm version seen by the open that made an `aiterm` evidence object; not part of the evidence itself.
+const containerVersions = new WeakMap()
 const parseVersion = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number)
 // Unreadable on either side is not older: an unknown version never starts an install.
 const isOlder = (remote, local) => {
@@ -208,6 +211,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         const before = session.remoteVersion ?? null, local = session.localVersion
         const outcome = !parseVersion(before) || !parseVersion(local) ? 'unknown' : !isOlder(before, local) ? 'current' : typeof native.provision === 'function' ? 'updating' : 'failed'
         Object.assign(aiterm, { before, after: before, outcome })
+        containerVersions.set(aiterm, local)
         // A run already going on this terminal is joined, never doubled. The run completes this launch's evidence when it ends.
         if (outcome === 'updating') provisionOnce(target.terminalId, binding.ref).then(
           result => { const after = typeof result?.version === 'string' ? result.version : null; Object.assign(aiterm, { after, outcome: isOlder(after, local) ? 'failed' : 'updated' }) },
@@ -272,6 +276,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     try {
       const binding = await resolveBinding(record, memberId)
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      let doorFields = {}
       if (Object.hasOwn(CLI_NAMES, harness)) {
         // Shared only within one registry generation, so a launch never waits on a run against an older target.
         const key = `${terminalId}\0${harness}`
@@ -281,9 +286,10 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
           shared = { generation, run }
           upkeep.set(key, shared)
         }
-        const { loggedIn } = await shared.run
+        const { loggedIn, aiterm } = await shared.run
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         if (loggedIn === false) throw loginRequired(harness, record.os)
+        doorFields = doorHook(aiterm?.before, containerVersions.get(aiterm))
       }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       return {
@@ -292,7 +298,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
           ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) },
         cwd: projectRoot,
         os: record.os,
-        accountOwner: record.accountOwner
+        accountOwner: record.accountOwner,
+        // a532b1: the Approval Box door's post_launch field, only for a terminal whose Aiterm (and the container's) can run it; execution passes it on unchanged.
+        ...(doorFields.post_launch ? { doorHook: doorFields } : {})
       }
     } catch (error) { if (error.code !== 'TARGET_MISMATCH' && error.code !== 'AGENT_AUTH_REQUIRED' && current()) want(terminalId); throw error }
   }

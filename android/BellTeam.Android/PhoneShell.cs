@@ -16,9 +16,14 @@ namespace BellTeam.Android;
 public sealed class PhoneShell : UserControl, IMessageHost
 {
     private readonly AccessSession access = new();
+    private readonly ISessionTokenStore tokens = new CompositeSessionTokenStore(() => AccountStore.Home, new KeystoreSessionTokenStore());
+    // a492: a home server (login-billing HomeConnection); the login screen of one that has no kept login yet.
+    private IHomeLink? home => AccountStore.Home;   // at use: the library needs the activity
+    private HomeProbe? homeBinding;
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settings = new(SettingsStore.UserDirectory);
     private readonly Border startupHost = new() { IsVisible = false };
+    private readonly Grid deletedLayer = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false };
     // Sheets (forward, peer message) and the image gallery cover the page, like the Linux window's sheet and gallery.
     private readonly Grid sheetLayer = new() { Background = BellTheme.Canvas, IsVisible = false, RowDefinitions = new RowDefinitions("52,*") };
     private readonly TextBlock sheetTitle = new() { FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
@@ -68,9 +73,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
     public PhoneShell()
     {
-        model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies), access.PrepareAsync);
+        model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies) { SessionToken = tokens.Load(origin) }, access.PrepareAsync);
         approvals = new ApprovalsHub(model); approvals.Changed += UpdateApprovalsEntry;
-        PushRegistration.Workspace = () => model; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
+        PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
@@ -132,7 +137,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         pageBack.Click += (_, _) => GoBackPage();
         var pageHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { pageBack, pageTitle } }; Grid.SetColumn(pageTitle, 1);
         pageLayer.Children.Add(pageHeader); Grid.SetRow(pageBody, 1); pageLayer.Children.Add(pageBody);
-        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer } };
+        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer, deletedLayer } };
         Content = root;
 
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
@@ -147,7 +152,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         // A field that gets focus scrolls into view once the keyboard has taken its space.
         AddHandler(GotFocusEvent, (_, e) => { if (e.Source is TextBox box) { Dispatcher.UIThread.Post(() => Reveal(box), DispatcherPriority.Background); DispatcherTimer.RunOnce(() => Reveal(box), TimeSpan.FromMilliseconds(350)); } });
         AttachedToVisualTree += (_, _) => Attached();
-        Loaded += (_, _) => Begin();
+        Loaded += (_, _) => _ = BeginAfterAccountAsync();
     }
 
     // The whole field plus some room under it, not only the caret line, so the field and the button below it are not left under the keyboard.
@@ -171,10 +176,47 @@ public sealed class PhoneShell : UserControl, IMessageHost
         };
     }
 
+    // First run order (app-sessions.md 7e): the account (sign-in, purchase or QR handoff) comes before any server. A device that already has a contract goes straight on; when the library cannot be asked
+    // (offline, no Worker configured) the app goes on too: an unknown state is not a reason to stop.
+    private async Task BeginAfterAccountAsync()
+    {
+        var lb = AccountStore.Billing;
+        if (lb is null) { Begin(); return; }
+        try
+        {
+            // Asked of the server: the library keeps no entitlement list across a restart.
+            var entitled = lb.PassKind != Kitepon.LoginBilling.PassKind.None && (await lb.CheckAsync()).Entitlements.Count != 0;
+            if (entitled) { Begin(); return; }
+        }
+        catch (Kitepon.LoginBilling.LoginBillingException) { Begin(); return; }
+        startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None); startupHost.IsVisible = true;
+    }
+
+    // 「アカウントを削除」 (a485 switch; the order is Rapi's Mac reference, docs/architecture/modules/apple/account-deletion.md): this phone's Approval Box sign-in (the device part with keys is not on Android),
+    // then the server connection (push registration, home session, tokens, Access login, saved address), then the library's sign-out (pass, K, purchase mark), then the first screen with one result alert.
+    // It never stops the other devices.
+    private async Task DeleteAccountAsync()
+    {
+        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException) { }   // best effort: the person may be offline; the library keeps its own record
+        CloseAllPages();
+        await PushRegistration.UnregisterAsync(model);
+        if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (HomeLinkException) { }
+        if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _)) tokens.Clear(ServerOrigin.Parse(server));
+        access.SignOut();
+        model.SignOut();
+        settings.Save(settings.Load() with { ServerUrl = null });
+        if (AccountStore.Billing is { } lb) await lb.SignOutAsync();
+        ShowList();
+        deletedLayer.Children.Clear();
+        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionText.ResultTitle, AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.IsVisible = true;
+        await BeginAfterAccountAsync();
+    }
+
     private void Begin()
     {
         var saved = settings.Load().ServerUrl;
-        if (StartupRoute.Initial(saved) == StartupPhase.Setup) ShowStartup(StartupPhase.Setup); else _ = ConnectAsync(saved!);
+        if (StartupRoute.Initial(saved, signedIn: true) != StartupPhase.Checking) ShowStartup(StartupPhase.Setup); else _ = ConnectAsync(saved!);   // the account gate has run before Begin
     }
 
     // ---- the pages of the linked screens ----
@@ -398,7 +440,11 @@ public sealed class PhoneShell : UserControl, IMessageHost
             case nameof(LinuxWorkspace.Selected): unreadNew = false; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;
-            case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && phase != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); break;
+            case nameof(LinuxWorkspace.NeedsLogin):
+                if (!model.NeedsLogin || phase == StartupPhase.SignIn) break;
+                // A home server's 401: the library has dropped its record; connecting again asks to log in at the home server.
+                if (home?.Token(ServerOrigin.Parse(model.Server).AbsoluteUri) is not null) { tokens.Clear(ServerOrigin.Parse(model.Server)); _ = ConnectAsync(model.Server); break; }
+                ShowStartup(StartupPhase.SignIn); break;
             case nameof(LinuxWorkspace.ConnectionError) or nameof(LinuxWorkspace.ActionError): { var text = model.ActionError ?? model.ConnectionError; status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); break; }
             case nameof(LinuxWorkspace.Loading): if (!model.Loading && !loadingOlder) Dispatcher.UIThread.Post(async () => await PrefetchOlderAsync(), DispatcherPriority.Background); break;
             case nameof(LinuxWorkspace.SendError): sendError.Text = model.SendError; sendError.IsVisible = !string.IsNullOrEmpty(model.SendError); break;
@@ -441,10 +487,17 @@ public sealed class PhoneShell : UserControl, IMessageHost
             StartupPhase.Checking => new StartupOpeningView(),
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, () => { }, model.Server),
-            StartupPhase.SignIn => new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
+            StartupPhase.SignIn => homeBinding is { } probe ? new HomeConnectView(home!, probe, "android", ServerOrigin.Parse(model.Server), () => { homeBinding = null; _ = ConnectAsync(model.Server); }, () => ShowStartup(StartupPhase.Setup)) : model.SessionLoginRequired ? SessionSignIn() : new AccessLoginPage(access, ServerOrigin.Parse(model.Server), () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup)),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, async ready => { await model.ReconnectAsync(); await EnterAsync(generation, ready); }, () => ShowStartup(StartupPhase.Setup), model.ConnectionToken)
         };
         startupHost.IsVisible = next != StartupPhase.Ready;
+    }
+    // a485: the server's own login (the code screen); the token it refused is deleted, a token it merely could not judge (503) never reaches here.
+    private Control SessionSignIn()
+    {
+        var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
+        return new ConnectView(new LoginApi(model.Management.Api), "android", origin, tokens, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup));
     }
     private async void ConnectToAddress(string text)
     {
@@ -459,7 +512,20 @@ public sealed class PhoneShell : UserControl, IMessageHost
         retry?.Cancel();
         var mine = ++generation;
         if (!(automatic && phase == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
-        try { await model.ConnectAsync(address); await EnterAsync(mine); }
+        try
+        {
+            var origin = ServerOrigin.Parse(address);
+            // a492: a home server with no kept login is answered by its own login screen before anything else is read.
+            if (home is not null && await HomeGate.MustBindAsync(home, origin, CancellationToken.None) is { } probe) { homeBinding = probe; ShowStartup(StartupPhase.SignIn); return; }
+            await model.ConnectAsync(address);
+            // A 401 on the first read: the kept home login is gone; ask for it again.
+            if (model.NeedsLogin && home?.Token(origin.AbsoluteUri) is not null)
+            {
+                tokens.Clear(origin);
+                if (await HomeGate.MustBindAsync(home, origin, CancellationToken.None) is { } again) { homeBinding = again; ShowStartup(StartupPhase.SignIn); return; }
+            }
+            await EnterAsync(mine);
+        }
         catch (ArgumentException error) { if (mine == generation) ShowStartup(StartupPhase.Failure, error.Message); }
     }
     private async Task EnterAsync(int mine, SetupState? known = null)
@@ -469,14 +535,17 @@ public sealed class PhoneShell : UserControl, IMessageHost
             try { setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken); }
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        var paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken);
         if (mine != generation) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) attempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); ShowList(); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowStartup(StartupPhase.SignIn); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleRetry(mine); break;
         }
     }

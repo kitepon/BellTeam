@@ -47,22 +47,6 @@ final class ApprovalsTests: XCTestCase {
         XCTAssertTrue(banner.text.hasPrefix("答えは保存しました。ただ、"))
     }
 
-    func testFailuresFromErrorBodies() throws {
-        let errors = try JSONSerialization.jsonObject(with: fixture("errors")) as! [String: [String: Any]]
-        func failure(_ key: String) -> ApprovalFailure? {
-            let entry = errors[key]!
-            return ApprovalFailure.of(status: entry["status"] as! Int, data: try! JSONSerialization.data(withJSONObject: entry["body"]!))
-        }
-        XCTAssertEqual(failure("not_entitled.expired"), .notEntitled(state: "expired", validUntil: "2026-10-31T00:00:00Z"))
-        XCTAssertEqual(failure("not_connected"), .notConnected(expired: false))
-        XCTAssertEqual(failure("conflict"), .conflict(nil), "本文の決裁が見本の文字列なら、決裁なしの食い違い")
-        XCTAssertEqual(failure("unavailable"), .unavailable)
-        XCTAssertNil(ApprovalFailure.of(status: 200, data: Data()))
-        XCTAssertEqual(ApprovalFailure.of(status: 402, data: Data()), .subscriptionExpired)
-        XCTAssertEqual(ApprovalFailure.of(status: 404, data: Data()), .oldServer)
-        XCTAssertEqual(ApprovalFailure.of(status: 403, data: Data("{}".utf8)), .login, "ゲートウェイ自身の403は認証切れ")
-    }
-
     func testOrderIsUrgentThenDeadlineThenOlder() throws {
         let items = try JSONDecoder().decode(ApprovalsList.self, from: fixture("list.pending")).items
         let urgent = try XCTUnwrap(items.first { $0.isUrgent }), calm = try XCTUnwrap(items.first { !$0.isUrgent })

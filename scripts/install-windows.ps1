@@ -25,6 +25,15 @@ $taskPublish = Join-Path $taskRepository "windows\artifacts\publish-win-$taskArc
 & dotnet publish (Join-Path $taskRepository 'windows\BellTeam.App\BellTeam.App.csproj') -c Release -r "win-$taskArchitecture" --self-contained true -o $taskPublish --nologo
 if ($LASTEXITCODE -ne 0) { throw '.NET同梱ビルドに失敗しました。' }
 
+# The prebuilt libdatachannel of the Approval Box device part (windows/native/README.md): never built on this machine, placed with the app only when its SHA-256 matches the committed one.
+$taskDll = Join-Path $taskPublish 'datachannel.dll'
+if ($taskArchitecture -eq 'x64') {
+    $taskDllHash = (Get-Content -LiteralPath (Join-Path $taskRepository 'windows\native\prebuilt\win-x64\datachannel.dll.sha256') -Raw).Trim()
+    if (!(Test-Path -LiteralPath $taskDll) -or (Get-FileHash -LiteralPath $taskDll -Algorithm SHA256).Hash.ToLowerInvariant() -ne $taskDllHash) { throw 'datachannel.dllがありません、またはSHA-256が一致しません。' }
+} else {
+    Write-Warning '決裁箱の端末部品（datachannel.dll）はarm64用がまだ無いため入れていません。'
+}
+
 if ($ServerUrl) {
     $taskConfigure = Start-Process -FilePath (Join-Path $taskPublish 'BellTeam.exe') -ArgumentList @('--configure', $ServerUrl) -WindowStyle Hidden -Wait -PassThru
     if ($taskConfigure.ExitCode -ne 0) { throw '接続先を保存できませんでした。HTTPS、またはlocalhost・LANのHTTP接続先URLを指定してください。' }

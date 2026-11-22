@@ -24,10 +24,10 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   const adoptionPath = join(root, 'state/notifications-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, phase = 'unavailable'
   let builtinSourceCommit = null
-  let status = null, applyError = { apns: null, webPush: null }, available = false, exchanging = false, update = null, closed = false
+  let status = null, applyError = { apns: null }, available = false, exchanging = false, update = null, closed = false
   let configurationEpoch = -1, capturedConfiguration = null
-  const desiredEpoch = { apns: -1, webPush: -1 }, appliedEpoch = { apns: null, webPush: null }, errorEpoch = { apns: -1, webPush: -1 }
-  const providers = ['apns', 'webPush']
+  const desiredEpoch = { apns: -1 }, appliedEpoch = { apns: null }, errorEpoch = { apns: -1 }
+  const providers = ['apns']
   let operation = null, cancellation = null, closing = null, configuring = 0, initialized = false
   const recovery = createModuleChildRestart(async () => {
     await operation?.catch(() => {})
@@ -58,7 +58,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   }, 'notifications', onModuleRestartLimit)
   const captureConfiguration = (provider, expected) => {
     const next = structuredClone(configuration())
-    if (!next || Object.keys(next).sort().join(',') !== 'apns,webPush') throw failure('NOTIFICATIONS_CONFIGURATION_INVALID')
+    if (!next || Object.keys(next).sort().join(',') !== 'apns') throw failure('NOTIFICATIONS_CONFIGURATION_INVALID')
     if (provider && !isDeepStrictEqual(next[provider], expected)) throw failure('PUSH_CONFIGURATION_STALE', 409)
     if (provider || !isDeepStrictEqual(next, capturedConfiguration)) {
       configurationEpoch++
@@ -214,6 +214,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     return exclusive(async signal => {
       if (initialized) throw failure('NOTIFICATIONS_ALREADY_STARTED')
       state('starting')
+      try {
       let metadata
       try {
         metadata = await open('/app/distribution.json', constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -229,21 +230,23 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
         await prepare(record.previousVersionId, signal)
         currentVersionId = record.currentVersionId; previousVersionId = record.previousVersionId
       }
-      try {
-        const target = await launch(currentVersionId, signal)
-        await resume(target, signal)
-        initialized = true
-        state('running', true)
-        return { versionId: currentVersionId, protocolVersion: 2, stateSchema: 2, status, applyError: { ...applyError } }
+      const target = await launch(currentVersionId, signal)
+      await resume(target, signal)
+      initialized = true
+      state('running', true)
+      return { versionId: currentVersionId, protocolVersion: 2, stateSchema: 2, status, applyError: { ...applyError } }
       } catch (error) {
+        // Every failed start (record, identity, prepare, launch, resume) registers lifecycle recovery; none may stay in 'starting'.
         try { await killAndReap(instance) } finally { state('unavailable') }
         throw error
       }
     })
   }
+  // Notifications is optional: a failed first start never holds the body. The unavailable state already registered recovery (1-30 s, no attempt limit).
   const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
-    if (closed || phase !== 'unavailable') throw error
-    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
+    if (closed) throw error
+    try { console.error(JSON.stringify({ code: 'NOTIFICATIONS_START_FAILED', reason: /^[A-Z_0-9]+$/.test(error?.code ?? error?.message ?? '') ? (error.code ?? error.message) : 'UNKNOWN' })) } catch {}
+    return snapshot()
   })
   const request = async (method, params) => {
     if (closed) throw failure('PUSH_NOT_ACCEPTING')

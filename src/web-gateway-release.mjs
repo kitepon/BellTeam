@@ -78,7 +78,7 @@ function validateManifest(manifest, component, executionCompatibility) {
     : component === 'approval-box-extension'
     ? ['approval-box-extension-ipc', 'approval-box-extension-dispatcher', 'approval-box-extension-protocol', 'approval-box-extension/core']
     : ['diagnostics-ipc', 'diagnostics-dispatcher', 'diagnostics-protocol', 'diagnostics-locks']
-  for (const required of [manifest.entry, ...(memory ? ['payload/src/memory/dispatcher.mjs', 'payload/src/memory/state-compatibility.mjs', 'payload/src/memory-service.mjs', 'payload/src/memory-search.mjs'] : ['payload/package.json', 'payload/package-lock.json', ...(module ? [...moduleFiles, ...(execution ? [] : conversation ? ['module-streams'] : ['module-ipc', 'module-streams', 'module-locks'])].map(name => `payload/src/${name}.mjs`) : members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])])
+  for (const required of [manifest.entry, ...(memory ? ['payload/src/memory/dispatcher.mjs', 'payload/src/memory/state-compatibility.mjs', 'payload/src/memory-service.mjs', 'payload/src/memory-search.mjs'] : ['payload/package.json', 'payload/package-lock.json', ...(module ? [...moduleFiles, ...(execution ? [] : conversation ? ['module-streams'] : ['module-ipc', 'module-streams', 'module-locks'])].map(name => `payload/src/${name}.mjs`) : members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/src/http-gateway.mjs'])])])
     if (!names.has(required)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   return manifest
 }

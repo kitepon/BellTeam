@@ -9,7 +9,7 @@ const directFailureCodes = new Set([...diagnosticCauseCodes,
   'BOT_SESSION_UNCONFIRMED', 'BOT_INPUT_NOT_READY', 'BOT_SEND_OUTCOME_UNKNOWN', 'AGENT_SESSION_REQUIRED',
   'BOT_LAUNCH_FAILED', 'BOT_SEND_FAILED', 'BOT_DELIVERY_FAILED',
   'BOT_NOT_FOUND', 'AI_GLOBAL_PAUSED', 'MEMBERS_NOT_ACCEPTED', 'CONVERSATION_NOT_ACCEPTED',
-  'CONVERSATION_RECOVERY_UNAVAILABLE', 'DISPATCH_ACCEPTANCE_UNAVAILABLE', 'CONTINUATION_SUPERSEDED',
+  'CONVERSATION_RECOVERY_UNAVAILABLE', 'DISPATCH_ACCEPTANCE_UNAVAILABLE', 'CONTINUATION_SUPERSEDED', 'BOT_MEMORY_PRESSURE',
   'CONFIGURATION_UNAVAILABLE', 'CONFIGURATION_PREPARATION_UNCONFIRMED', 'CONFIGURATION_NOT_APPLIED',
   'EXECUTION_UNCONFIRMED', 'AGENT_RESUME_UNAVAILABLE', -32602, -32601, -32603,
 ])
@@ -105,6 +105,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (!accepted && (evidence?.code === 'BOT_UPDATE_HOLD' || swapNotStarted(evidence))) return
       // a463: a designed refusal of the input (an image for a remote seat): the sender reads it in the failed status; not a launch or tracking failure.
       if (!accepted && evidence?.code === 'BOT_IMAGE_UNSUPPORTED') return
+      // a505c: a Lattice sweep prompt refused while the container's memory is full; the sweep asks again, the receipt says failed. Not a launch failure.
+      if (!accepted && evidence?.code === 'BOT_MEMORY_PRESSURE') return
       // The status-stage failure object carries no mcp_request; the thrown error does (a444n).
       const unknown = !accepted && stage !== 'preflight' && sendOutcomeUnknown(evidence)
       report(unknown ? evidence : error, { delivery_id: record.delivery_id, target: record.target, stage, accepted, ...(unknown ? { outcome: 'unknown' } : {}) })

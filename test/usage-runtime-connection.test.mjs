@@ -47,7 +47,7 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
         finally { authority.release(token) }
       })
     } })
-    controller = createUsageProcess({ root, admission, authorizeActor: authority.authorizeActor, spawnProcess,
+    controller = createUsageProcess({ root, admission, authorizeActor: authority.authorizeActor, spawnProcess, probeCandidate: async () => {},
       ...(prepareRelease ? { prepareRelease } : {}), bootstrap: { environment: {}, seatRuntime: false, subscription: {} },
       onEffect: (method, params, context) => effectScope.run(context, async () => {
         if (method === 'members.read') return [...bots.values()]
@@ -65,15 +65,19 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
     const token = (method, kind = 'owner') => authority.capture(method, { kind, botId: kind === 'bot' ? 'bot-a' : null })
     const parent = { controller, facade, token, async start() {
       const starting = await controller.start(); assert.equal(starting.available, false); assert.equal(starting.phase, 'initializing')
-      assert.equal(facade.settings.list().length, 8)
+      assert.equal(facade.settings.list().length, 7)
       features = createApplicationFeatures({ services: { bots, settings: facade.settings, messenger: {}, diagnostics: { record: async row => { stopFailures.push(row) } },
         notifications: { initialStatus: async () => null }, transport: { runningBots: async members => new Set(stopPending ? members.map(bot => bot.id) : []), stopForConfiguration: async () => { stopStarted.resolve(); return stopped.promise } } }, home: '/unused', environment: {},
         configureHarnessConfig: async () => {}, notify: () => {}, usageContext: method => {
           const capturedAuthorization = token(method, 'system'), context = effectScope.getStore()
           return context ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
         } })
-      await assert.rejects(controller.request('settings.list', {}), /NOT_ACCEPTING/)
-      await controller.initialize('subscriptions'); await controller.initialize('services'); await controller.activate(); await features.initialize()
+      // module-process.md hold contract (0a88b7bb): a request before activation waits for running(), then retries once.
+      let early = 'pending'
+      const held = controller.request('settings.list', {}).then(() => { early = 'resolved' }, error => { early = error.code })
+      await controller.initialize('subscriptions'); await controller.initialize('services'); assert.equal(early, 'pending')
+      await controller.activate(); await features.initialize()
+      await held; assert.equal(early, 'MEMBERS_NOT_ACCEPTED') // retried without a usage lease
       assert.equal(controller.snapshot().available, true)
     }, async close() { await features.close(); await controller.close() } }
     parents.push(parent); return parent

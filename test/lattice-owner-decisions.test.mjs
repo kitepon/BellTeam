@@ -202,3 +202,19 @@ test('owner hand-over a145: the request names the task in its session_label', as
   await x.go()
   assert.ok(x.calls.find(([method]) => method === 'messages.send')[1].message.includes('session_label to `Lattice alpha p1/t1`'))
 })
+
+test('owner filing a490f: a legacy request the Approval Box no longer knows is dropped and its still-open task is handed to the creator once', async () => {
+  const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'ready'), card('t9', 'done')] }]
+  const record = {
+    'alpha/p1/t1': { projectId: 'alpha', plan: 'p1', taskId: 't1', title: 'Task t1', decisionId: 'K-AAAA01', status: 'open', filedAt: 'x' },
+    'alpha/p1/t9': { projectId: 'alpha', plan: 'p1', taskId: 't9', title: 'Task t9', decisionId: 'K-AAAA09', status: 'open', filedAt: 'x' },
+  }
+  const x = rig({ charts, record, readFails: 'LATTICE_DECISIONS_GONE' })
+  assert.deepEqual(await x.go(), { filed: 1, routed: 0 }, 'the open task is asked once')
+  assert.deepEqual(Object.keys(x.stored()), ['alpha/p1/t1'], 'the gone t9 (done) is dropped and not asked; t1 holds the new asked record')
+  assert.equal(x.stored()['alpha/p1/t1'].status, 'asked')
+  assert.deepEqual(x.logs, ['lattice-owner-read alpha/p1/t1 LATTICE_DECISIONS_GONE', 'lattice-owner-gone alpha/p1/t1', 'lattice-owner-read alpha/p1/t9 LATTICE_DECISIONS_GONE', 'lattice-owner-gone alpha/p1/t9'])
+  const again = rig({ charts, record: x.stored(), readFails: 'LATTICE_DECISIONS_GONE' })
+  assert.deepEqual(await again.go(), { filed: 0, routed: 0 }, 'asked is final: not asked again, no read every tick')
+  assert.deepEqual(again.calls, [])
+})

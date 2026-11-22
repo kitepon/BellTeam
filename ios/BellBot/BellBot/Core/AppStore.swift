@@ -1,4 +1,5 @@
 import Foundation
+import LoginBilling
 import WebKit
 import OSLog
 import SwiftUI
@@ -66,12 +67,37 @@ final class AppStore: ObservableObject {
         case setup
         case onboarding
         case signIn
+        /// サーバーのセッションログイン（app-sessions.md）。modelはserverLoginが持つ。
+        case serverLogin
         case ready
         case failure(String)
     }
 
     @Published var phase: Phase = .checking
+    /// 「アカウントを削除」が終わった。最初の画面に戻った上で、結果を1回だけ伝える。
+    @Published var accountDeleted = false
     @Published private(set) var serverURL: URL?
+    /// 本体のログイン契約の探査結果（GET /api/session）。古い本体はnilで、従来のAccess経路を使う。
+    private(set) var loginProbe: SessionResponse.Login?
+    private(set) var sessionID: String?
+    /// 接続先がホームの契約（GET /api/home/session）を持つ時の探査結果。無い本体はnilで、従来の経路を使う。
+    private(set) var homeProbe: HomeProbe?
+    private var homeSession: HomeSession?
+    @Published private(set) var homeLogin: HomeLoginModel?
+    @Published private(set) var serverLogin: ServerLoginModel?
+    /// 入っているアプリ側: 承認待ち・アプリを追加・セッション一覧。
+    private(set) lazy var serverSessions = ServerSessionsModel(api: api)
+    /// ホームサーバーに入っている端末の一覧（a529a）。
+    private(set) lazy var homeSessions = HomeSessionsModel(api: api, stopPass: { [storeAccount] in try await storeAccount.stopLogin(passId: $0) })
+    var usesHomeSessions: Bool { homeProbe?.enforced == true && api.sessionToken != nil }
+    /// このサーバーがセッションで入る本体か（トークンがある、またはenforced）。
+    var usesServerSessions: Bool { homeProbe == nil && (api.sessionToken != nil || loginProbe?.enforced == true) }
+    /// 店の側のアカウント（ライブラリ）。運営のWorkerの接続先が設定された時だけ動く。
+    let storeAccount = StoreAccount(baseURL: StoreAccount.configuredBaseURL, productId: BillingStore.configuration.productId)
+    /// 本体が今はセッションを判断できない（503 SESSION_STORE_UNAVAILABLE）。トークンは残し、1・2・4…30秒で読み直す。
+    @Published private(set) var serverPreparing = false
+    private var preparingDelay: TimeInterval = 1
+    private var preparingTask: Task<Void, Never>?
     @Published var setup: SetupResponse?
     @Published private(set) var setupAuthNeedsRefresh = false
     private var setupAuthRevision = 0
@@ -180,8 +206,11 @@ final class AppStore: ObservableObject {
         let url = suppliedAPI == nil ? saved.flatMap { ServerOrigin.url($0) } : suppliedAPI?.baseURL
         serverURL = url
         api = suppliedAPI ?? BellAPI(baseURL: url)
+        if suppliedAPI == nil, let url, let shared = try? ShareCredentials.load(), shared.serverURL == url.absoluteString {
+            api.sessionToken = shared.sessionToken
+        }
         self.webDataStore = webDataStore
-        billing = suppliedBilling ?? BillingStore(api: api)
+        billing = suppliedBilling ?? BillingStore(api: api, account: storeAccount)
         updates = UpdateStore(api: api)
         billing.onSetupRequired = { [weak self] in
             guard let self else { return }
@@ -193,12 +222,8 @@ final class AppStore: ObservableObject {
             self.selectedTab = 0
             self.chatPath = [.bot(guide)]
         }
-        billing.onEntitlementChange = { [weak self] in
-            guard let self else { return }
-            await BellNotifications.shared.updateSignedTransaction(self.billing.notificationSignedTransaction)
-            self.publishShareCredentials()
-        }
         api.diagnostics.configure(serverURL: url)
+        BellNotifications.shared.onTokenChange = { [weak self] in Task { await self?.reproveHome() } }
         BellNotifications.shared.onOpen = { [weak self] route in
             self?.pendingNotification = route
             Task { await self?.openPendingNotification() }
@@ -230,6 +255,8 @@ final class AppStore: ObservableObject {
             resetAIControl()
             updates.reset()
         }
+        // トークンはその接続先のものだけ。別の接続先へは持ち越さない。
+        if serverURL != url { api.sessionToken = nil; sessionID = nil; loginProbe = nil; serverLogin = nil; homeProbe = nil; homeSession = nil; homeLogin = nil }
         serverURL = url
         api.baseURL = url
         api.diagnostics.configure(serverURL: url)
@@ -241,6 +268,8 @@ final class AppStore: ObservableObject {
 
     func changeServer() async {
         await signOut()
+        preparingTask?.cancel(); serverPreparing = false
+        loginProbe = nil; serverLogin = nil; homeProbe = nil; homeSession = nil; homeLogin = nil
         UserDefaults.standard.removeObject(forKey: "bellbot.serverURL")
         serverURL = nil
         api.baseURL = nil
@@ -266,16 +295,40 @@ final class AppStore: ObservableObject {
         guard serverURL != nil else { phase = .setup; return }
         await syncCookies()
         do {
+            homeProbe = try await probeHome()
             let session: SessionResponse = try await api.get("/api/session")
             authMode = session.authMode
-            guard session.authenticated else { throw BellAPIError.unauthorized }
+            loginProbe = session.login
+            sessionID = session.sessionId
+            serverPreparing = false
+            preparingDelay = 1
+            guard session.authenticated else {
+                // ログイン契約のある本体: 確定した未認証だけがトークンを捨て、サーバーに入る画面へ進む。
+                if session.login?.capability == true || homeProbe != nil { showServerLogin(); return }
+                throw BellAPIError.unauthorized
+            }
+            // 持ち主が決まっていないホームサーバーは、セットアップコードで最初の結びつけをする。
+            if let probe = homeProbe, !probe.bound, api.sessionToken == nil { showServerLogin(); return }
             try await loadInitialState(origin: .bootstrap)
         } catch let error where BellAPIError.isAuthenticationError(error) {
             requireLogin(for: error)
+        } catch BellAPIError.httpStatus(503, let code, _) where code == "SESSION_STORE_UNAVAILABLE" {
+            retryBootstrapSoon()
         } catch {
-            phase = .failure(error.localizedDescription)
+            // 接続できた（ホームのセッションがある）のに本体の画面を読めない時は、そのことを言う。
+            let reached = homeSession.map { "ホームサーバーにはつながっています（\($0.state)）が、BellTeamの画面を読み込めませんでした。" }
+            phase = .failure([reached, error.localizedDescription].compactMap { $0 }.joined(separator: "\n"))
             api.diagnostics.report(error, path: "/api/session", method: "GET", observation: .startup)
         }
+    }
+
+    /// 404（ホームの契約が無い旧本体）と、JSONでない応答だけが「ホームではない」。接続の失敗などは呼び出し元の失敗として返す。
+    private func probeHome() async throws -> HomeProbe? {
+        do {
+            let probe: HomeProbe = try await api.get("/api/home/session")
+            return probe.capability == HomeProbe.capabilityName ? probe : nil
+        } catch BellAPIError.httpStatus(404, _, _) { return nil }
+        catch is DecodingError { return nil }
     }
 
     func completeWebLogin() async {
@@ -489,7 +542,7 @@ final class AppStore: ObservableObject {
     func authorizeAIUse(target: ChatTarget) async throws {
         let botID: String? = if case .bot(let id) = target { id } else { nil }
         if botID == setup?.guideBotId, botID != nil { try await refreshSetup() }
-        let initialGuide = AppleSubscriptionAccess.isInitialGuide(botID: botID, guideBotID: setup?.guideBotId, setupComplete: setup?.complete ?? true)
+        let initialGuide = AppAccess.isInitialGuide(botID: botID, guideBotID: setup?.guideBotId, setupComplete: setup?.complete ?? true)
         try await billing.requirePaidAccess(initialGuide: initialGuide)
     }
 
@@ -501,7 +554,7 @@ final class AppStore: ObservableObject {
     }
 
     func activateNotifications() async {
-        await BellNotifications.shared.activate(api: api, signedTransaction: billing.notificationSignedTransaction)
+        await BellNotifications.shared.activate(api: api)
     }
 
     func refresh(origin: MemberListReadOrigin = .unspecified) async throws {
@@ -771,9 +824,11 @@ final class AppStore: ObservableObject {
                 if Task.isCancelled { return }
                 await refreshFromView(origin: .sceneForeground)
                 if Task.isCancelled { return }
+                await reproveHome()
+                if Task.isCancelled { return }
                 await refreshAIControl()
                 if Task.isCancelled { return }
-                await billing.refreshAppleAccess()
+                await billing.refreshAccess()
                 if Task.isCancelled { return }
                 if scenePhase == .active, case .ready = phase {
                     startEvents()
@@ -805,9 +860,11 @@ final class AppStore: ObservableObject {
                         self.updateConnectionError()
                         switch event.type {
                         case "ready":
+                            if self.usesServerSessions { await self.serverSessions.refresh() }
                             self.eventRevision += 1
                             self.requestRefreshFromEvent()
                             self.requestSideRefresh([.updates])
+                        case "login.requested", "session.created", "session.ended": await self.serverSessions.refresh()
                         case "updates": self.requestSideRefresh([.updates])
                         case "settings": self.requestSideRefresh([.settings])
                         case "setup": self.requestSideRefresh([.setup])
@@ -931,13 +988,83 @@ final class AppStore: ObservableObject {
         eventsError = nil
         notificationError = nil
         updateConnectionError()
+        if api.sessionToken != nil || loginProbe?.enforced == true { showServerLogin(); return }
         phase = authMode == "cloudflare" ? .signIn : .failure("接続先が認証を拒否しました。サーバーの設定を確認してください。")
+    }
+
+    /// 本体が確定した401・未認証を返した。古いトークンは捨てて、サーバーに入る画面を出す。
+    private func showServerLogin() {
+        api.sessionToken = nil
+        sessionID = nil
+        publishShareCredentials()
+        if let probe = homeProbe {
+            serverLogin = nil
+            homeLogin = HomeLoginModel(setupCodeNeeded: !probe.bound) { [weak self] setupCode in
+                try await self?.connectHome(setupCode: setupCode)
+            }
+        } else {
+            homeLogin = nil
+            serverLogin = ServerLoginModel(api: api, setupCodeNeeded: loginProbe?.bound == false) { [weak self] token, id in
+                await self?.completeServerLogin(token: token, sessionId: id)
+            }
+        }
+        phase = .serverLogin
+    }
+
+    /// ホームサーバーへ入る: Appleのパスで証明し、返ったトークンをBellAPIが付ける。失敗はモデルが理由を出す（自動では再送しない）。
+    private func connectHome(setupCode: String?) async throws {
+        guard let url = serverURL else { throw LoginBillingError(code: "bad_request") }
+        let session = try await storeAccount.connectHome(url, setupCode: setupCode, pushToken: BellNotifications.shared.pushToken)
+        guard let token = storeAccount.homeToken(for: url) else { throw LoginBillingError(code: "internal") }
+        homeSession = session
+        await completeServerLogin(token: token, sessionId: session.sessionId)
+    }
+
+    /// 通知トークンが変わった時と前面に戻る時: 間隔が来ていれば証明し直す。確定した401だけがログインへ戻し、それ以外は理由を診断へ残してトークンを保つ。
+    func reproveHome() async {
+        guard homeProbe != nil, api.sessionToken != nil else { return }
+        do { if let session = try await storeAccount.reproveHome(pushToken: BellNotifications.shared.pushToken) { homeSession = session } }
+        catch let error as LoginBillingError where error.status == 401 { requireLogin() }
+        catch { api.diagnostics.report(error, path: "/api/home/session/prove", method: "POST", observation: .write) }
+    }
+
+    private func completeServerLogin(token: String, sessionId: String?) async {
+        api.sessionToken = token
+        sessionID = sessionId
+        publishShareCredentials()
+        serverLogin = nil
+        homeLogin = nil
+        phase = .checking
+        await bootstrap()
+    }
+
+    private func retryBootstrapSoon() {
+        serverPreparing = true
+        phase = .checking
+        let delay = preparingDelay
+        preparingDelay = min(preparingDelay * 2, 30)
+        preparingTask?.cancel()
+        preparingTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.bootstrap()
+        }
     }
 
     func requireLogin(for error: Error) {
         if case BellAPIError.accessLoginRequired = error { authMode = "cloudflare" }
         openLoginAutomatically = authMode == "cloudflare"
         requireLogin()
+    }
+
+    /// 「アカウントを削除」（a485 switch、Tronieの裁定。App Reviewの要件）。この端末のサインインをここで届く限りすべて終え、パス・鍵・保存したデータを消す。
+    /// 運営のログイン部品はこのアカウントに結びつけた情報を持たない。購読はAppleのものなので、自動では解約しない。
+    func deleteAccount() async {
+        await approvals.link.deleteLocalData()
+        await changeServer()
+        await storeAccount.deleteLocalAccount()
+        UserDefaults.standard.removeObject(forKey: "bellbot.pushToken")
+        accountDeleted = true
     }
 
     func signOut() async {
@@ -960,6 +1087,19 @@ final class AppStore: ObservableObject {
         updatePresented = false
         notificationSecret = nil
         pendingNotification = nil
+        // 自分のセッションを終える（本体は次の要求で401）。届かなくてもトークンは消す。理由は診断へ。
+        if homeProbe != nil, api.sessionToken != nil {
+            // ホームのセッションはライブラリのendHomeSessionで終える（ライブラリのsignOutは終えない）。
+            do { try await storeAccount.endHome() }
+            catch { api.diagnostics.report(error, path: "/api/home/sessions", method: "DELETE", observation: .write) }
+        } else if let sessionID, api.sessionToken != nil {
+            do { try await api.delete("/api/sessions/\(sessionID)") }
+            catch { api.diagnostics.report(error, path: "/api/sessions", method: "DELETE", observation: .write) }
+        }
+        api.sessionToken = nil
+        self.sessionID = nil
+        serverSessions.reset()
+        homeSessions.reset()
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
         let store = webDataStore.httpCookieStore
         for cookie in await store.allCookies() { await store.deleteCookie(cookie) }
@@ -1066,7 +1206,7 @@ final class AppStore: ObservableObject {
         publishShareCredentials()
     }
 
-    /// 共有拡張が使う接続先・クッキー・購読の期限を、共有Keychainへ書く（拡張は自分でログインしない）。
+    /// 共有拡張が使う接続先・クッキー・セッショントークンを、共有Keychainへ書く（拡張は自分でログインしない）。
     /// 接続先が無い・ログアウト後は消す。書けなければ診断へ出す（拡張は「アプリを開いてログインし直してください」と案内する）。
     func publishShareCredentials() {
         do {
@@ -1076,7 +1216,7 @@ final class AppStore: ObservableObject {
                 serverURL: url.absoluteString,
                 cookieHeader: cookies.isEmpty ? nil : HTTPCookie.requestHeaderFields(with: cookies)["Cookie"],
                 cookieExpiresAt: cookies.compactMap(\.expiresDate).min(),
-                entitledUntil: billing.entitlement?.validUntil)
+                sessionToken: api.sessionToken)
             // 同じ内容は書き直さない（書き直しは消してから足すので、読む側に一瞬の空白ができる）。
             if try ShareCredentials.load() == snapshot { return }
             try ShareCredentials.save(snapshot)

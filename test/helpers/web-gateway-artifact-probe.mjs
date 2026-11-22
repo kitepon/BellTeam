@@ -35,10 +35,13 @@ try {
   assert.equal(ready.assetVersion, versionId)
   const base = `http://127.0.0.1:${ready.address.port}`
   assert.deepEqual(await (await fetch(base + '/healthz')).json(), { status: 'ok' })
-  assert.match(await (await fetch(base + '/')).text(), /<html/u)
+  // a487: the browser UI has ended; the packaged gateway answers the one notice (410) at every page and names its version in a header
+  const notice = await fetch(base + '/')
+  assert.equal(notice.status, 410)
+  assert.equal(notice.headers.get('x-bellteam-gateway-version'), versionId)
+  assert.match(await notice.text(), /ブラウザ版は終了しました/u)
   const previous = await fetch(base + '/?v=' + previousVersionId)
-  assert.equal(previous.status, 200)
-  assert.ok((await previous.text()).includes(previousVersionId))
+  assert.equal(previous.status, 410)
   console.log(JSON.stringify({ protocolVersion: 1, fixedAssetVersionReady: true, previousAssetCatalog: true,
     packagedHealthAndHtml: true, sdkInsidePayload: true, authenticated: false }))
 } finally {

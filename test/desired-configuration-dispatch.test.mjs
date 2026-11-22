@@ -60,13 +60,7 @@ async function fixture(t, exists, harness = 'codex') {
   } }
   const intents = new ConfigurationIntents(join(root, 'configuration-intents'), { ownerUid: process.getuid() })
   const requests = new ConfigurationRequests({ client, intents })
-  const bridge = { async reserve(input) {
-    const issued = new Set()
-    return { issued, reservation: { request: input.request, target: { session_id: input.targetSession, expected_launch_id: input.expectedLaunch } },
-      binding: { target: { launch: { session_id: input.targetSession, launch_id: input.expectedLaunch }, boundary: null } },
-      async invoke(name, args) { issued.add(name); return client.call(name, args) }, async finish() {} }
-  } }
-  const transport = createManagedTransport({ client, executionBridge: bridge, configurationRequests: requests,
+  const transport = createManagedTransport({ client, configurationRequests: requests,
     handoffContext: async () => '', waitProcess: async () => { await f.onWait?.(); return { outcome: 'done' } }, reportError: value => f.diagnostics.push(value) })
   const logPath = join(root, 'messages.jsonl')
   const messenger = new BellTeamMessenger({ bots: new Map([[bot.id, bot]]), transport, logPath })

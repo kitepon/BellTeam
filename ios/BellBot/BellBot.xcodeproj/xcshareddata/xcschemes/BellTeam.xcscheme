@@ -44,6 +44,17 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "1AF4E8E399519AD259C61EFD"
+               BuildableName = "BellBotStoreKitPrime.xctest"
+               BlueprintName = "BellBotStoreKitPrime"
+               ReferencedContainer = "container:BellBot.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "18B0053E7F71471C63C6EAFE"
                BuildableName = "BellBotTests.xctest"
                BlueprintName = "BellBotTests"

@@ -73,7 +73,7 @@ sequenceDiagram
 
 `OwnerQuestions.answer`は秘密入力の`finish`と違い、通知失敗を保存した`failed`値に変換せず例外を返す。画面の「送れませんでした」は回答未保存の証明ではない。再取得したカードはansweredになり得る。共通化できるのは既存の表示索引であり、回答・秘密値・通知失敗の状態機械は同一にしない。秘密入力にも質問にも新しい永続配送キューはない。
 
-提出済みrequestを新認証へ流さず元sessionへ入力する候補は[一回消費の図と契約](submitted-secret-consumption.md)を参照する。通常の秘密保存/通知と既setup入力の内部拒否は保持する。
+提出済みrequestを元sessionへ入力する一回消費の経路は退役した（[退役の記録](submitted-secret-consumption.md)）。通常の秘密保存/通知と既setup入力の内部拒否は保持する。
 
 ## Rabbit認証consumer候補
 
@@ -204,10 +204,41 @@ flowchart LR
 | 二重請求の防止 | HTTP stripe/checkout → `Subscriptions.checkout`（`change`内で`refreshLocked(force)`→`billingSources`→保留Session照会→作成） | 守るもの：同じ人が同じBellTeamの権利に二重に課金されること。購入元のどれかが課金中（`active`・`grace`・`billing_retry`。解約予約中の期間内も含む）ならCheckoutを作らず`SUBSCRIPTION_ALREADY_ACTIVE`（409）。照会できない時は作らず照会のエラーを返す（接続が戻れば再実行でき、自分で抜ける）。作ったCheckout Session IDは`stripePendingSessionId`へ保存し、次の要求では新規作成せず同じSessionが`open`なら同じURLを返し、`complete`なら取り込んで拒否する。`GET /api/subscription`は`canPurchase`（課金中の購入元が無く開発者モードでもない時だけtrue）と`billingSources`（課金中の購入元）を返し、各アプリは`canPurchase:false`の間、購入ボタンを出さない（Apple・Google Playの購入はサーバーが止められないため、この値で止める）。この二つはusage↔本体のIPCの購読の記録では**任意の項目**で、読む側（`usageProjectionRecordValid`）は有る時だけ型を見て、無い記録（古いusageの記録）も受け入れる。本体と部品は別々に配られ、古い本体は知らない項目を断るため、入れ替えの順は本体→usage→web-gateway（a394f。他の項目と同じ規則はcurrent-designの「入れ替えの順」）。項目が無い応答（古いサーバー）を読むクライアントは、`canPurchase`を`state`が`not_purchased`・`expired`・`revoked`のどれかの時だけtrue、`billingSources`を空として扱い、失敗にしない |
 | 購読の管理・解約（Stripe） | HTTP stripe/manage → `Subscriptions.manageStripe/post` → Worker `POST /v1/subscriptions/stripe/portal` | 保存済みの`stripeSubscriptionId`を運営のWorkerへ送り、Workerは購読の価格を確かめてStripeの顧客ポータルのURLを作り`{url}`を返す。利用者はそこで解約・再開・支払い方法変更・請求書の確認をする。メールは使わない。解約後もStripe側の期間終了まで`entitled`は続き、反映は次の照会。Stripeの購読が無ければ`NO_STRIPE_SUBSCRIPTION`（409）。URLを返すだけで状態は変えない。Appleの購読の解約はApple、Google Playの購読の解約はGoogle Playで行う |
 | 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripe・Google Playそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。`billingSources`は購入元に依らず同じ規則（`active`・`grace`・`billing_retry`）なので、Google Playの課金中もStripeのCheckoutを止め、`canPurchase:false`を返す |
+| サーバー自身の契約の状態（a486c） | `Subscriptions.status().entitlementState` → 購読の投影 → `GET /api/subscription` | `active`（契約が生きている、または開発者モード）/ `none`（サーバーが自分のパスを持ち、運営が契約なしと答えた。ライブラリを組み込んでから）/ `unknown`（まだ決まっていない）。ネイティブのアプリ（Apple・Windows・Linux・Android）はログイン後にこれを読み、`none`のときだけ「このアプリは購読が必要です。無料で使うならブラウザから」を出す。`unknown`や項目なし（古い本体）では出さない。Web版は縛らない。アプリごとの購入の関門は無い。任意の項目で、古い部品の記録も受け入れる |
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
 運営のWorker（services/subscriptions。a485以降はログイン・課金の共通ライブラリ0.10.0のサーバー部分）はこの本体図の境界外。Workerは`/auth/v1/*`（ライブラリの通信契約1.20。サインイン、Webサインイン、受け渡し、証明`prove/*`、札`ticket/check`）だけを持ち、保存するのは使い捨てのnonce・枠・Webログイン記録・証明コード・拒否したパスID・notBeforeだけ（期限付き、ライブラリのDurable Object）。Apple・Googleの鍵とkKey・パス鍵は運営Workerのsecretだけに置く。通知中継もこの本体図の外で、本体が渡す札を`ticket/check`で確かめて答えだけを読む（詳細は[Worker README](../../../../services/subscriptions/README.md)）。受領書の確認・Stripeは無くなった。 BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+
+## サーバー上のアプリのセッション（a485）
+
+[app-sessions](app-sessions.md)が正本。ライブラリのhome part（vendored）を子が持ち、bodyは配線だけを持つ。
+
+```mermaid
+flowchart TD
+  App["アプリ<br/>POST /api/home/login/prove など"] --> GW["gateway<br/>peerとauthorizationを転送"]
+  GW --> Body["body http-server<br/>/api/home/* は認証前に子へ"]
+  Body -->|"home.handle{method,path,bearer,body,peer}"| Child["usage child<br/>createHomeHandler + createHomePart"]
+  Child -->|"prove/take, ticket/check（匿名）"| Worker["Operator Worker"]
+  Child -->|"shared/login-home.json（原子的置換）"| File[("login-home.json")]
+  Child -->|"publish: homeLogin{bound,enforced,hashes,states}"| Row["body projection"]
+  Row --> Guard["authorize: Legacyは従来どおり<br/>Enforcedはguard(set, headers)"]
+  Row -->|"first enforced"| Marker[("state/login-enforced")]
+  Timer["body timer 60 s"] -->|"home.sweep{used, streaming}"| Child
+  Timer -->|"unbound: home.setupCode"| Print["body stderr（docker logs）"]
+  Console["bellteam-console（host）"] -->|"unix socket 0600"| Body
+  Body -->|"home.console{op}"| Child
+  Row -->|"states[sessionId]"| Sub["GET /api/subscription の entitlementState 上書き"]
+  Row -->|"集合から消えたsession"| SSE["そのsessionの/api/eventsを閉じる"]
+```
+
+| 順序 | 保証 |
+| --- | --- |
+| 先に保存、後で公開 | 子はlogin-home.jsonを置換してから`homeLogin`行をpublishする。保存失敗は503 `SESSION_STORE_UNAVAILABLE`で、集合は変わらない |
+| bodyが先、usageが後 | 行は任意項目。行が無い子（旧usage）はLegacyのまま。enforced markerがあるのに行が無い・未読込は503で、開かない |
+| 判定不能は終わりではない | operatorに届かない間は最後の権利を保つ（上限なし）。確定した401だけがsessionを終わらせる。tokenを消すのもアプリ側の401だけ |
+| 通知のチケット（a485） | 子は自分のセッションの`{ticketFor: ticket}`を返し（`home.pushTickets`）、bodyはそれを丸ごと通知の子へ送る（proof後と毎tick）。子はメモリだけに持ち、送信時にdeviceのtokenのhashで結ぶ。deviceファイルには書かない。旧childは拒否して従来の形のまま |
+| 子は時計もstderrも持たない | sweep・setup code・consoleはbody駆動のsystem呼出。usage交換でメモリのcodeは消え、次のtickで新しいsetup codeを出す |
 
 ## 確認範囲
 

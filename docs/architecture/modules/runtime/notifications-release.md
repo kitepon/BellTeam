@@ -1,6 +1,6 @@
 # 通知の固定資材・起動・writer排他 / ABI2
 
-Startup, exchange, and retained-child failures use the [single module lifecycle recovery contract](module-process.md#shared-automatic-lifecycle-recovery-owner-2026-11-07), restoring the latest configuration epochs without replaying notification sends.
+Startup, exchange, and retained-child failures use the [single module lifecycle recovery contract](module-process.md#shared-automatic-lifecycle-recovery-owner-2026-11-07), restoring the latest configuration epochs without replaying notification sends. Notifications is optional for the body: a failed first start returns the unavailable snapshot and recovery continues in the background; it never blocks the start of conversations, execution, usage or web-gateway (a500).
 
 runtime所有：エピネル。基準03c952bf。Rootの固定通知契約とWebPush v1.1/b64a `/srv/bellteam/bots/bot-7b140b27/docs/web-push-contract-20261103.md` に従う。[全体図](../../feature-map.md)→[runtime](README.md)、通知内部は[usage](../usage/README.md)、組立ては[integration](../integration/README.md)、署名供給は[distribution](../distribution/README.md)。同UID1001の協調writerと寿命を分ける。別UIDのOS隔離は残る。
 
@@ -63,7 +63,7 @@ Root WebPushv1.1/b64aにより親子protocol2/stateSchema2。既APNs file1とHTT
 
 ### 親設定の相関と公開epoch
 
-`configuration()`は両設定 `{apns:{enabled,relayUrl},webPush:{enabled,subject}}` を一回で返す。親だけがcaptureごとの`configurationEpoch`とprovider別desired/applied/error epochを保持する。`snapshot()/onState`は既status/applyErrorのprovider pairに`configurationEpoch:number`と`appliedEpoch:{apns:number|null,webPush:number|null}`を加える。設定保存側に第二epoch writerを作らない。
+`configuration()`は設定 `{apns:{enabled,relayUrl}}` を一回で返す（a487n 2026-11-22以降。以前は`webPush:{enabled,subject}`も返した。古い親が送る`webPush`は子が読み捨てる）。親だけがcaptureごとの`configurationEpoch`とprovider別desired/applied/error epochを保持する。`snapshot()/onState`は既status/applyErrorのprovider pairに`configurationEpoch:number`と`appliedEpoch:{apns:number|null,webPush:number|null}`を加える。設定保存側に第二epoch writerを作らない。
 
 設定保存後の`request('configure',{provider,...保存済設定})`は現在snapshotとの一致を先に検査し、古いparamsは`PUSH_CONFIGURATION_STALE`409で送信しない。交換中の要求もsnapshotを捕捉してそのproviderへBUSYを記録し、保存済設定は残す。initialize control-resultを実適用ACKとしreadyの同status/applyError pairを照合する。ready nullだけ、status読取、又は古いepochのconfigure成功で、新しいepochのapplyErrorを消さない。
 

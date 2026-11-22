@@ -121,21 +121,3 @@ test('files: an invalid file removes the images and files already created, nothi
   for (const request of requests.slice(0, 2)) await assert.rejects(access(request.path), { code: 'ENOENT' })
 })
 
-test('files: the execution bridge path sends images in `image` and files as paths in the text (a288)', async () => {
-  const { dispatchExecution } = await import('../src/execution-transport.mjs')
-  const removed = [], sent = []
-  const seat = {
-    imageFiles: async (images, files) => [{ path: '/t/bellteam-image-x.png', temporary: true },
-      ...files.map(file => ({ path: '/t/bellteam-file-x.pdf', temporary: true, attachment: { name: file.name, mime: file.mime, size: 3 } }))],
-    removeTemporaryImages: async list => removed.push(list), session: () => 's1',
-  }
-  const job = { executionWasPresent: true, execution: { invoke: async (name, args) => {
-    sent.push(args)
-    return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: {} } }
-  } } }
-  const delivery = await dispatchExecution(seat, job, { id: 'b' }, 'm', [{}], { check() {}, files: [{ name: 'a.pdf', mime: 'application/pdf' }] })
-  assert.deepEqual(sent[0].image, ['/t/bellteam-image-x.png'])
-  assert.match(sent[0].text, /^m\n\n添付ファイル.*\n- a\.pdf（application\/pdf、3バイト）: \/t\/bellteam-file-x\.pdf$/su)
-  assert.equal(delivery.imageFiles.length, 2)
-  assert.equal(removed.length, 0)
-})

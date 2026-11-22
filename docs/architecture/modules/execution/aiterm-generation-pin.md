@@ -20,7 +20,7 @@ Not pinned (per-RPC on the current generation):
 | `agent_launch`, `pty_close`, cursor-less `observe`, `pty_list`, `screen()`, goal reads | single RPC; the facade holds a temporary reference to its real completion |
 | `ConfigurationRequests.apply` / `reconcile` (`agent_configure`) | each is one RPC with no SDK/transport identity binding (`expectedConfiguration` has no caller). Reconcile is a same-ID seat-level read; live generations share native ownership (Elegg A3 overlap), so it is valid on the current generation. A lease cannot be stored in the handover-cloned request record |
 | seat-level stops (`sendSessionStop`) | Elegg A3: seat-level stops share native ownership across live generations |
-| execution reservations / `interruptExecutions` | only with `executionBridge`, which the dispatcher's managed transport does not assemble (`executionBridge: null`) |
+| execution reservations / `interruptExecutions` | removed (a532b2 stage 1); the dispatcher's managed transport never assembled them |
 
 ```mermaid
 stateDiagram-v2

@@ -33,6 +33,12 @@ public sealed class BellApi : IDisposable
     private readonly HttpClient client;
     public Uri Origin { get; }
     public event Action? AuthenticationRequired;
+    // a485: the server's own session token (app-sessions.md), sent on every request of this client (the only HttpClient, so the update stream and images carry it too). Null sends none.
+    public string? SessionToken
+    {
+        get => client.DefaultRequestHeaders.Authorization?.Parameter;
+        set => client.DefaultRequestHeaders.Authorization = string.IsNullOrEmpty(value) ? null : new AuthenticationHeaderValue("Bearer", value);
+    }
 
     public BellApi(Uri origin, HttpMessageHandler? handler = null, CookieContainer? cookies = null)
     {

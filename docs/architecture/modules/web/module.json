@@ -1,25 +1,22 @@
 {
-  "title": "Webアプリ",
+  "title": "Web受付（アプリ用の公開入口）",
   "owner": "アドミ",
   "botId": "bot-1f622329",
-  "scope": "Web一覧・編集・会話・下書き・表示・接続・更新通知。サーバー正本は機能担当、Appleはベル。Web受付のbuiltin選択/戻しと固有adapter、共通controllerはruntime・認可/台帳はintegration",
+  "scope": "ネイティブアプリが使う公開入口（web-gateway）: /api/*と/healthzの転送、終了のお知らせ、版交換の内蔵版選択/採用と固有adapter。ブラウザ画面は2026-11-22に終了。役割文言の改訂はトロニー",
   "external": false,
   "provides": [
-    "ui",
-    "assets"
+    "gateway"
   ],
   "uses": [
     {
       "module": "integration",
       "port": "HTTP/SSE"
-    },
-    {
-      "module": "lattice",
-      "port": "lattice-chart"
     }
   ],
   "source": [
-    "web/",
+    "src/http-gateway.mjs",
+    "src/http-gateway-entry.mjs",
+    "src/http-gateway-process.mjs",
     "src/web-gateway-update-adapter.mjs"
   ]
 }

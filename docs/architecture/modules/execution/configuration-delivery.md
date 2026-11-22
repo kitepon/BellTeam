@@ -68,7 +68,7 @@ The allowed protection names below are data loss, wrong target, secret exposure,
 | BOT_SEND_OUTCOME_UNKNOWN / resume error versus unsent classification | Keep: overwriting state from duplicate external effects | That input ends with original fact; independent later inputs remain admissible |
 | Known missing-seat/registration wake and bounded just-woken readiness retry | Keep minimal: wrong target, data loss; retry only explicit not-sent | Wake or bounded refusal ends the attempt; no blind retry after uncertainty |
 | Status callback before acceptance return and completion receipt tracking | Keep: data loss of durable result | Save settles before ACK; completion runs separately, does not serialize subsequent input |
-| Legacy ExecutionBridge reservation/registration | Not on ordinary path (`createManagedTransport` fixes null); preserve compatibility validation for injected callers | Its existing bound receipt/error ends that optional request; no new ordinary-input prerequisite |
+| Legacy ExecutionBridge reservation/registration | Removed (a532b2 stage 1, 2026-11-23); it was never on the ordinary path | none |
 
 Aiterm owns its native locks, queue, readiness and refusal audit. BellTeam does not duplicate those internals or use a valid caller-side proof to claim native/live success.
 

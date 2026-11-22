@@ -65,7 +65,7 @@ flowchart LR
 | Diagnostics/OwnerProfile/RoomRegistry/UserRules → BotRegistry | `writeAtomic/exists` | 専用fileへそのまま移し直接import。BotRegistry側exportは互換のため残す。固定tmpへ変更しない |
 | RoomRegistry → BotRegistry | `normalizeSchedule/scheduleDocument/validateAvatar` | 予定定義とアバター値検証をそれぞれ所有する小moduleへ。room targetsの検証はRoomRegistryのまま |
 | ModelCatalog/ApplicationServices → AitermTransport | `AitermClient`だけ（Servicesはtransport生成も必要） | clientは既存`aiterm-client.mjs`から直接import。transportの既互換exportは保持。全callerの新経路移行を強制しない |
-| AitermClient/HTTP診断/停止診断 → ExecutionBridge | `returnedExecutionError/ERROR_META` | 純粋なreceipt検証をadapterから分離。ExecutionBridgeの既exportとcodesの厳密性は維持。通常構成へ旧registerを復活させない |
+| AitermClient/HTTP診断/停止診断 → 実行エラー | `returnedExecutionError/ERROR_META`（`execution-error.mjs`） | 純粋なreceipt検証。ExecutionBridgeは削除済み（a532b2 stage 1）。通常構成へ旧registerを復活させない |
 | Onboarding/HarnessAuth | auth失敗→schema/status判定の重複 | 既存auth-uiへ小関数。保存/Map/CLI寿命/公開エラーはそれぞれのserviceに残す |
 | Webの各画面 → 巨大app state | 選択・編集中対象・取得世代が混在していた | composer/timeline/schedule/memory/readviews/Bot・room・Owner editorへ状態を分離済み。一覧・規範読取・任意機能入力の順序も[G1〜G3](web-final-gaps.md)で修理済み |
 
