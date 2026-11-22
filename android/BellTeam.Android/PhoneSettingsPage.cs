@@ -40,7 +40,7 @@ public sealed class PhoneSettingsPage : ScrollViewer
         {
             try { await store.StopAsync(passId); }
             catch (Kitepon.LoginBilling.LoginBillingException error) { throw new InvalidOperationException(StoreAccountText.Failure(error.Code, error.Reason)); }
-        } : null)));   // a529n: the phone (store pass) can shut a device out; the card hides itself on a server without the route
+        } : null, logout: async () => { if (AccountStore.Home is { } home) await home.EndAsync(token); signOut(); })));   // a529n: the phone (store pass) can shut a device out; the card hides itself on a server without the route
 
         var billing = new StackPanel();
         billing.Children.Add(CardTitle(SettingsIcons.Card, "利用と課金", 17));

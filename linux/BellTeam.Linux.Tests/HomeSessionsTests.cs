@@ -24,7 +24,7 @@ public sealed class HomeSessionsTests
         Assert.False(HomeSessionWords.CanShutOut(Row(kind: "console", passId: null), true));   // a console row can only be ended
         Assert.False(HomeSessionWords.CanShutOut(Row(passId: null), true));               // saved before library 0.18.5
         Assert.False(HomeSessionWords.CanShutOut(Row(current: true), true));
-        Assert.False(HomeSessionWords.CanEnd(Row(current: true)));                        // the own row is the sign-out
+        Assert.False(HomeSessionWords.CanEnd(Row(current: true)));                        // the own row has ログアウト, not ログアウトさせる
     }
 
     [Fact]
