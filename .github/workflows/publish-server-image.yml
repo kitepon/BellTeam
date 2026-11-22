@@ -33,6 +33,7 @@ on:
       - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
+      - scripts/bellteam-console.mjs
       - scripts/seat-exec.c
       - scripts/module-start.c
       - scripts/usage-start.c
