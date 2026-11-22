@@ -38,6 +38,7 @@ try {
     'scripts/container-update-service.py', 'scripts/container-update-compose.mjs',
     'scripts/read-container-update-normal.mjs', 'scripts/body-quiesce-helper.mjs',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
+    'scripts/emergency-body.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))
@@ -56,8 +57,11 @@ try {
   await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rename(join(output, 'distribution/server/updater'), join(output, 'updater'))
   await rename(join(output, 'distribution/lattice'), join(output, 'lattice-manifests'))
+  // a505: the emergency wrapper must be in the image (distribution/server is rebuilt below from named files only).
+  const emergencyBody = await readFile(join(output, 'distribution/server/emergency-body.sh'))
   await rm(join(output, 'distribution'), { recursive: true })
   await mkdir(join(output, 'distribution/server'), { recursive: true })
+  await writeFile(join(output, 'distribution/server/emergency-body.sh'), emergencyBody, { mode: 0o755 })
   await rename(join(output, 'updater'), join(output, 'distribution/server/updater'))
   // Dockerfile installs the builtin lattice child's pinned CLI from these two manifests.
   await rename(join(output, 'lattice-manifests'), join(output, 'distribution/lattice'))

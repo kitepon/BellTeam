@@ -25,6 +25,9 @@ on:
       - scripts/container-update-compose.mjs
       - scripts/read-container-update-normal.mjs
       - scripts/body-quiesce-helper.mjs
+      - scripts/emergency-body.py
+      - scripts/lattice-sensor-init
+      - config/lattice-harness-entries.json
       - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
