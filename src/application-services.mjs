@@ -60,6 +60,7 @@ import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { MachineStream } from './machine-stream.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
+import { memoryPressure } from './memory-pressure.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
 import { createUpdateClients } from './container-update-client.mjs'
@@ -397,7 +398,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
   scheduleTurns = transport
   if (!members) bots.currentTurn = botId => transport.currentTurn(botId)
-  const idleSessions = execution ? null : new IdleSessions({ bots, transport })
+  const idleSessions = execution ? null : new IdleSessions({ bots, transport, pressure: memoryPressure() })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
   conversationPorts.transport = transport
   const conversation = conversationAssembly ? { ...conversationAssembly.facade, assets: conversationAssembly.assets }
