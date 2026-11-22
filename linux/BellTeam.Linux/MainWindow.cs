@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly Button updateBadge;
     // 決裁箱 entry (screen-spec entry A): the pinned row at the top of the left column; its count is the pending count of every origin.
     private readonly ApprovalsHub approvals;
+    private readonly LinuxApprovalBoxDevice? approvalBox;
     private readonly Button approvalsEntry;
     private readonly Border accountsBanner = new() { Background = new SolidColorBrush(Color.Parse("#1FFF9500")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 7), Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock accountsText = new() { Foreground = new SolidColorBrush(Color.Parse("#C77700")), FontSize = 13, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
@@ -112,7 +113,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
         addMenu = BuildAddMenu();
         updateBadge = BuildUpdateBadge();
-        approvals = new ApprovalsHub(model); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
+        // a520: the Approval Box device of this PC (off unless BELLTEAM_APPROVAL_BOX_DEVICE=1 on x64: the go-live ruling of Delta and Nayuta is not given yet).
+        approvalBox = LinuxApprovalBoxDevice.Enabled ? new LinuxApprovalBoxDevice(SettingsStore.UserDirectory) : null;
+        approvals = new ApprovalsHub(model, approvalBox?.Device); approvalBox?.Attach(approvals); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
         clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
         attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, "画像を添付", AttachAsync, "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます");
@@ -130,7 +133,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         WireModel(); UpdateAll(); approvals.Sync();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
         // The separate windows read through this workspace, so they end with the main window.
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { _ = approvalBox?.DisposeAsync(); CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
         // Mac scenePhase .active: coming back to the window reads the goals again.
         Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); LinuxAccountStore.NoteForeground(); };
         if (persistPlacement) RestorePlacement();

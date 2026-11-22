@@ -12,15 +12,33 @@ internal sealed class ApprovalsHub : IDisposable
 {
     private readonly LinuxWorkspace workspace;
     private string origin = "";
+    /// <summary>This device's peer-channel session while both ways are open (null: only the server read, nothing changes: Android, arm64, the switch off).</summary>
+    internal IDeviceDecisions? Device { get; }
+    /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
+    internal Action? SignInApprovalBox { get; set; }
+    /// <summary>The Approval Box web sign-in is open in the browser (SigningIn); 「やめる」 calls CancelSignIn. The note is why the last try ended, if it did not end by the person's own choice.</summary>
+    internal bool SigningIn { get; private set; }
+    internal string? SignInNote { get; private set; }
+    internal Action? CancelSignIn { get; set; }
+    /// <summary>NeedsApproval -> Waiting: the code and QR this device shows while a verified device admits it (5.3). Null offer = none open; the note says why the last one ended.</summary>
+    internal ApprovalOffer? Offer { get; private set; }
+    internal string? OfferNote { get; private set; }
+    internal Action? RequestApproval { get; set; }
+    internal Action? CancelApproval { get; set; }
+    internal void SetOffer(ApprovalOffer? offer, string? note = null) { Offer = offer; OfferNote = note; Run(() => Changed?.Invoke()); }
+    internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Run(() => Changed?.Invoke()); }
+    /// <summary>The device's book or connection changed: the open window repaints.</summary>
+    internal event Action? DeviceChanged;
     public ApprovalsFeed? Feed { get; private set; }
     /// <summary>The summary, the status or the feed itself changed (UI thread).</summary>
     public event Action? Changed;
     /// <summary>A decision was created / updated / deleted, or the stream came back (UI thread): the open window reads again.</summary>
     public event Action? DecisionsChanged;
 
-    public ApprovalsHub(LinuxWorkspace workspace)
+    public ApprovalsHub(LinuxWorkspace workspace, IDeviceDecisions? device = null)
     {
-        this.workspace = workspace;
+        this.workspace = workspace; Device = device;
+        if (device is not null) device.Changed += () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); });
         workspace.PropertyChanged += OnWorkspace;
     }
 

@@ -25,6 +25,8 @@
     <AvaloniaResource Include="../../linux/BellTeam.Linux/Theme.axaml" Link="Theme.axaml" />
     <Using Remove="Android.Widget" />
     <Using Remove="Android.Views" />
+    <!-- a520: the shared 決裁箱 screen names the device session's types; Android has no device part (no native engine yet), the hub's device stays null. -->
+    <ProjectReference Include="../../windows/BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />

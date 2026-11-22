@@ -50,10 +50,10 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
         this.hub = hub; this.workspace = workspace; this.openCard = openCard; this.openChat = openChat;
         Title = "決裁箱"; Width = 1360; Height = 860; MinWidth = 1100; MinHeight = 640; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
         root.RowDefinitions = new RowDefinitions("Auto,*"); root.Children.Add(toolbarHost); Grid.SetRow(body, 1); root.Children.Add(body); Content = root;
-        hub.Changed += OnHub; hub.DecisionsChanged += OnDecisions;
+        hub.Changed += OnHub; hub.DecisionsChanged += OnDecisions; hub.DeviceChanged += OnDevice;
         Activated += (_, _) => hub.Refresh();
         AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape && Back()) e.Handled = true; }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        Closed += (_, _) => { hub.Changed -= OnHub; hub.DecisionsChanged -= OnDecisions; life.Cancel(); connectLoop?.Cancel(); if (ReferenceEquals(Current, this)) Current = null; };
+        Closed += (_, _) => { hub.Changed -= OnHub; hub.DecisionsChanged -= OnDecisions; hub.DeviceChanged -= OnDevice; life.Cancel(); connectLoop?.Cancel(); if (ReferenceEquals(Current, this)) Current = null; };
         hub.Sync(); hub.Refresh();
         Render();
         if (Status == ApprovalFeedStatus.Live) _ = ReadOpenAsync();
@@ -90,6 +90,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     }
 
     // ---- reading
+    private void OnDevice() => Render();
     private void OnHub() { if (hub.Feed?.Status == ApprovalFeedStatus.Live) { listProblem = null; if (open is null) _ = ReadOpenAsync(); } Render(); }
     private void OnDecisions() { if (Status != ApprovalFeedStatus.Live) return; _ = ReadOpenAsync(); if (tab == "done" || doneRead) { doneRead = false; if (tab == "done") _ = ReadDoneAsync(false); } }
 
