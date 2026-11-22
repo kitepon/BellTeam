@@ -25,6 +25,7 @@ service = load_module('container_service', 'container-update-service.py')
 host = service.host
 PUBLISHED = 'ghcr.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}'
 LOCAL = 'sha256:[a-f0-9]{64}'
+ABSENT = {'storageBinding': 'absent', 'containerId': '0' * 64, 'imageId': 'sha256:' + '0' * 64, 'imageRef': None, 'health': 'unavailable', 'sourceCommit': '0' * 40}
 
 
 class EmergencyUpdater(service.ContainerUpdater):
@@ -38,6 +39,11 @@ class EmergencyUpdater(service.ContainerUpdater):
 
     def snapshot_old(self):
         ids = self.project_containers()
+        if not ids:
+            # An aborted or killed earlier run can leave no body at all (install.sh removes the old one before it starts the new one).
+            # The saved model and the state volumes are intact, so the same installer starts a body from them (no rollback exists).
+            self.old = dict(ABSENT)
+            return self.old, 'absent'
         host.check(len(ids) == 1 and re.fullmatch('[a-f0-9]{64}', ids[0]), 'EMERGENCY_BODY_NOT_FOUND')
         docker = self.config['docker']
         row = host.decode(self.command([docker, 'container', 'inspect', '--format',
@@ -52,8 +58,8 @@ class EmergencyUpdater(service.ContainerUpdater):
 
     def inspect_current(self):
         ids = self.project_containers()
-        if self.old and ids == [self.old['containerId']]:
-            return self.old  # the body being replaced, whatever its state
+        if self.old and ids == ([] if self.old == ABSENT else [self.old['containerId']]):
+            return self.old  # the body being replaced, whatever its state (or no body at all)
         return super().inspect_current()  # a new or restored body must be running and healthy
 
     def progress(self, directory, state):
