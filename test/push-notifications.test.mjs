@@ -429,6 +429,33 @@ test('APNs keys come per key from a .p8 file or a 1Password reference; an unread
   await service.close()
 })
 
+test('a500: a read key stays in memory, a 1Password refusal shows as rate limited and is not retried for ten minutes, and a value that is not a key is read again', async () => {
+  const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
+  const { createOnePasswordSource } = await import('../src/usage/onepassword-source.mjs')
+  const first = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/notesPlain`, second = `op://${'c'.repeat(26)}/${'d'.repeat(26)}/notesPlain`
+  let clock = 1000, calls = [], refuse = false
+  const read = onePasswordKeyReader(null, { now: () => clock, create: () => ({ close() {},
+    resolve: async reference => { calls.push(reference); if (refuse) throw Object.assign(new Error('SECRET_SOURCE_UNAVAILABLE'), { reason: 'rate_limited' }); return `PEM:${reference.slice(5, 6)}` } }) })
+  assert.deepEqual([...await read([first])], [[first, 'PEM:a']])
+  assert.deepEqual([...await read([first])], [[first, 'PEM:a']])
+  assert.deepEqual(calls, [first]) // the second read came from memory
+  refuse = true
+  await assert.rejects(read([first, second]), { code: 'APNS_KEY_RATE_LIMITED' })
+  assert.deepEqual(calls, [first, second]) // only the missing reference was asked, and stopped at the refusal
+  refuse = false; clock += 9 * 60 * 1000
+  await assert.rejects(read([second]), { code: 'APNS_KEY_RATE_LIMITED' })
+  assert.equal(calls.length, 2) // inside the ten minutes 1Password is not called at all
+  assert.deepEqual([...await read([first])], [[first, 'PEM:a']]) // a key already known needs no call, even while refused
+  clock += 2 * 60 * 1000
+  assert.deepEqual([...await read([second])], [[second, 'PEM:c']]) // after the ten minutes it reads again
+  read.forget(); calls = []
+  await read([first]); assert.deepEqual(calls, [first]) // forget() (a value that was not a key) drops what was kept
+  // the source tells op's "Too many requests" from any other failure, without carrying op's text
+  const limited = createOnePasswordSource({ command: '/bin/sh', execute: async () => { throw Object.assign(new Error('boom'), { stderr: Buffer.from('[ERROR] Too many requests. Your client has been rate-limited.') }) } })
+  await assert.rejects(limited.resolve(first), error => error.code === 'SECRET_SOURCE_UNAVAILABLE' && error.reason === 'rate_limited' && !/Too many/u.test(error.message))
+  limited.close()
+})
+
 test('the operator relay reader leaves the token to the process env', async () => {
   const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
   let setToken = false, closed = false
