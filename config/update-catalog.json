@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T06:45:09Z",
-  "expiresAt": "2026-11-29T06:45:09Z",
+  "publishedAt": "2026-11-22T07:10:32Z",
+  "expiresAt": "2026-11-29T07:10:32Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d",
-      "versionId": "sha256:34a4994481cd8a967dd74bd311e525bdd0d02385a47224030d4aa2923f0ce746",
+      "sourceCommit": "20b74e5baafb568bbb5f8ce53b6e3eca56c18557",
+      "versionId": "sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:34a4994481cd8a967dd74bd311e525bdd0d02385a47224030d4aa2923f0ce746"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体が起動しないときに、直した本体を入れる手順（emergency-body.sh）を追加します。メモリが逼迫したとき、休止と起動の制限で席の一斉起動によるメモリ不足を防ぎます。多数の席を同時に起動しても断らず、再起動の上限の古い表示は自動で消えます。"
+        "本体が起動しない状態で入れ替えが途中で止まり、本体が1つも無くなっても、緊急の入れ替えの手順をもう一度実行すれば、保存済みの設定と状態から本体を起動できます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d",
-      "versionId": "sha256:34a4994481cd8a967dd74bd311e525bdd0d02385a47224030d4aa2923f0ce746",
+      "sourceCommit": "20b74e5baafb568bbb5f8ce53b6e3eca56c18557",
+      "versionId": "sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:34a4994481cd8a967dd74bd311e525bdd0d02385a47224030d4aa2923f0ce746"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体が起動しないときに、直した本体を入れる手順（emergency-body.sh）を追加します。メモリが逼迫したとき、休止と起動の制限で席の一斉起動によるメモリ不足を防ぎます。多数の席を同時に起動しても断らず、再起動の上限の古い表示は自動で消えます。"
+        "本体が起動しない状態で入れ替えが途中で止まり、本体が1つも無くなっても、緊急の入れ替えの手順をもう一度実行すれば、保存済みの設定と状態から本体を起動できます。"
       ]
     },
     {
