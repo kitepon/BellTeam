@@ -259,6 +259,17 @@ The closed trees' finished cards, newest first, one page per call (Owner 2026-11
 - Errors: 400 `LATTICE_INVALID`, 404 `LATTICE_CHART_NOT_FOUND`, 503 `LATTICE_UNAVAILABLE`, 403 for the internal server, 405 other methods. An older server answers 404 on this route: the app then shows what the snapshot holds.
 - **The four clients (Web, Apple, Windows, Linux) must change** (a457 contract): see the snapshot note `history` above; without the change 過去ログ loses every closed-tree card and its count. Open tree and lane views, counts, depth, edges are unchanged.
 
+**Client rules for 過去ログ (all four apps; Tronie's ruling 2026-11-19: clients first, no gap in 過去ログ):**
+
+1. **Works against today's server.** An older server answers 404 on the route and its snapshot still holds the closed cards in `cards` with no `history` key: the app then lists the snapshot's finished cards only, with no page request after the first 404 of that chart (try again at the next opening). The count formula below needs no special case (`history` missing = 0).
+2. **Count** (the switch label) = finished cards in `cards` (`state` done or retired, archived or not) + `history.closed`. No request is needed for it.
+3. **Pages.** Nothing is requested before 過去ログ is opened. On opening: one request `GET .../history?limit=50`; then the next page (`before` = the last `next`, URL-encoded) when the list scrolls to its end while `next` is not null. A page is never asked twice with the same `before`.
+4. **Merge.** Rows = finished cards of the snapshot + the pages' cards, newest `doneAt` first (a null `doneAt` last), then `id` ascending; the same `id` in both: the snapshot's card wins (a reopened tree is in `cards` again). Members for faces and names: the snapshot's `members` plus each page's `members` by `botId`; a producer in neither is 名簿にないメンバー; `producer` `owner` is the Owner as everywhere.
+5. **Staying current.** History is not pushed. While 過去ログ is open and a new snapshot's `history.closed` differs from the value the loaded pages were read at, drop the loaded pages and read the first page again (keep the scroll position if the row is still there). No timer.
+6. **Failures** (503, network, a 400 for the cursor): the rows already known stay; one plain row 「続きを読めませんでした。」 with 読み直す ends the list; 読み直す asks the same page again (after a 400, from the first page). A page whose `state` is not `verified` or `last_verified` has no cards: the list shows what it has, with no error row.
+7. **詳細** of a history row opens the card as the page sent it: no 前の工程 or 接続 (a closed card's edges are not read), the owner rule as for any card.
+8. **No cache across opens.** Pages are kept only while 過去ログ of that chart is open; leaving it or changing chart drops them (the server keeps nothing either).
+
 ### `GET /api/lattice/charts/:projectId/events` (SSE)
 
 `event: snapshot` with the snapshot on connect and again whenever `version` changes; `: hb` every 15 s; a client treats 35 s of silence as a drop and reconnects; no replay; a new `epoch` means the child restarted.
