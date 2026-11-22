@@ -75,6 +75,7 @@ stateDiagram-v2
   Wrapper --> Refused: emergency-body.sh: usage, BELLTEAM_PROJECT invalid, or published image not ghcr.io/kitepon/bellteam-server@sha256 (exit 2, message only)
   Wrapper --> WrapperPull: published reference
   Wrapper --> Resolving: --local, image id read from the local image
+  Wrapper --> Refused: --local image not found (docker image inspect fails, exit 1, docker's message)
   WrapperPull --> Refused: docker pull fails (docker's own error; no time bound of ours, the operator can stop it)
   WrapperPull --> Resolving
   Resolving --> Refused: updater volume not found (docker volume inspect fails)
@@ -96,6 +97,7 @@ stateDiagram-v2
   Verifying --> Aborted: a docker command fails (EMERGENCY_BODY_STOPPED)
   Verifying --> Preflight
   Preflight --> Failed: target image preflight answers fail (HOST_UPDATE_PREFLIGHT_FAILED); old body untouched
+  Preflight --> Refused: the body changed during the preflight (second check, HOST_UPDATE_CURRENT_CHANGED); no swap yet
   Preflight --> Swapping: pass or unknown
   Swapping --> Aborted: installer runs over 1800 s or floods its output (HOST_UPDATE_INSTALL_TIMEOUT, HOST_UPDATE_INSTALL_OUTPUT_LIMIT): process group killed, the exception leaves, no rollback is attempted
   Swapping --> RollingBack: installer exit non-zero
@@ -103,6 +105,7 @@ stateDiagram-v2
   Confirming --> RollingBack: new body not running and healthy, other image or source, or storage binding differs (an inspection error is retried 3 x 10 s; an unhealthy answer is not, the installer already waited for readiness)
   Confirming --> Saving: confirmed
   Saving --> Cleaning: installation/normal.json and current-runtime.json saved
+  Saving --> Aborted: a write fails (installation/normal.json or current-runtime.json); the new body is running and verified, the saved model is not updated
   Cleaning --> Succeeded: old image removed
   Cleaning --> Succeeded: cleanup failed, kept as HOST_UPDATE_CLEANUP_FAILED
   Cleaning --> Failed: the installer reported the Aiterm state step failed (HOST_UPDATE_AITERM_STATE_FAILED); the new body is kept
@@ -119,14 +122,15 @@ How each end is left:
 | End | What exists afterwards | Next step for the operator |
 | --- | --- | --- |
 | Refused (before `Planned`) | no operation directory, no container touched | fix the cause named by the code and run again |
-| Aborted (installer timeout or output flood, or a docker command failing) | operation directory with `installer.log`; no rollback was attempted, so the project may have a half-swapped or no body | read `installer.log`, then run again with a body that starts |
-| Refused at `Verifying` / Failed at `Preflight` | an operation directory (empty or with the preflight record); old body untouched | read the code, run again (an image change needs a new reference) |
+| Aborted at `Swapping` or `Verifying` (installer timeout or output flood, a docker command failing, or the operator's Ctrl-C: EMERGENCY_BODY_STOPPED) | operation directory with `installer.log`; no rollback was attempted, so the project may have a half-swapped or no body | read `installer.log`, then run again with a body that starts |
+| Aborted at `Saving` (a write of the model fails) | operation directory; the new body runs and is verified, but `installation/normal.json` and `current-runtime.json` still describe the old body | do not treat as complete; fix the cause named by the code (disk, permission) and run again with the same image |
+| Refused at `Verifying` / `Preflight` (a changed body) / Failed at `Preflight` | an operation directory (empty or with the preflight record); old body untouched | read the code, run again (an image change needs a new reference) |
 | Failed after `Swapping`, rollback succeeded | old model restored (the old body may itself be down) | run again with a body that starts |
 | Failed, rollback failed or unavailable | operation directory with `installer.log` and `recover.log`; the project may have no running body | run again; the result JSON carries the installer log tail |
 | Failed at `Aiterm state` | new body kept and healthy, Aiterm state step reported failed | decide with the Aiterm owner; do not treat as complete |
 | Succeeded | new body healthy, model saved, old image removed | none; a cleanup failure is only reported |
 
-Self-exit: every state in the container leaves by a closed code or a bounded wait (pull 900 s, preflight 120 s, installer 1800 s, inspection retries 3 x 10 s); no state waits for an operator, a peer or a running body. The one wait without a bound of ours is the wrapper's own `docker pull` of a published image before the container starts; it ends by docker's network errors or by the operator stopping it, and it changes nothing on the box.
+Self-exit: every state in the container leaves by a closed code or a bounded wait (pull 900 s, preflight 120 s, installer 1800 s, inspection retries 3 x 10 s, cleanup of the old image 600 s, whose failure is only reported); no state waits for an operator, a peer or a running body. The one wait without a bound of ours is the wrapper's own `docker pull` of a published image before the container starts; it ends by docker's network errors or by the operator stopping it, and it changes nothing on the box.
 
 ## Contract
 
