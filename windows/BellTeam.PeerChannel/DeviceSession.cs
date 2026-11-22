@@ -75,6 +75,8 @@ public sealed class DeviceSession : IAsyncDisposable
     public async Task OpenAsync(CancellationToken ct)
     {
         socket = await SignalSocket.OpenAsync(server, ct);
+        var opened = socket;
+        opened.Closed += () => { if (opened.CloseCode == SignalSocket.PassEnded) Post(() => Error?.Invoke("pass_ended")); };
         socket.Message += doc => Post(() =>
         {
             var type = doc.RootElement.GetProperty("type").GetString();

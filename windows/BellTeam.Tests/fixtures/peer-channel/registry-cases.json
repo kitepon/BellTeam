@@ -180,6 +180,30 @@
       "signer": "JD0vt-FoE_L3HuFXoPDeLw",
       "sig": "56a097b55148494f62e4cee6048da8b00b64ff0c51efd1154032db9f1449f7f1a4a17a76f3e255b0e62d2f971de055a676cb590f6f37acc9885ef17d0d8ac69a",
       "hash": "96b92bb39e900bac2088fcaa8cc137d21ba6f74dce13ef030aa5b02f0b509909"
+    },
+    "ab-s2": {
+      "body_utf8": "{\"v\":\"pc1-registry\",\"account\":\"K-test\",\"version\":2,\"prev\":[\"nvUiNicUkCw6024BJvp0IEVEDqM2ZKFBbUHdd9zkpSw\"],\"created_at\":0,\"devices\":[{\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"},{\"key_id\":\"u_jLw5MuF8NuCwIz8EqEBA\",\"sig_pub\":\"BJXwPCE6lklvE9GbqOTcJRjwpoizIdaYUJ9Dfz-zIkbD7S4QhiT7n6gYPIsYB149Q46ZDuAaDZz1jIEnAPq3xpw\",\"seal_pub\":\"BFJx0O_qQz21zD9EqOW6MqolKxMcVn2_es2fhMb1XJfIV5eKQ6xHfiWRx9qlJpJqZkD9-U5CEmeDboFi8c4Jbg8\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"}],\"connectors\":[],\"removed\":[]}",
+      "signer": "2hGoJk6sTRBHWBKaXeWpmw",
+      "sig": "5ab232037cf23d48127b6e6e47014bc6e6d73ac2a6b0a23e95e48447ff4a9303506d2f6b9fc9876dc597a12c26196ac884932cd21cdf5f5efe3066adb2b3dc7a",
+      "hash": "35eef12c56bd038ca2b1c14764297a99983d5313412174b1ea9c142164c516a7"
+    },
+    "ab-s3": {
+      "body_utf8": "{\"v\":\"pc1-registry\",\"account\":\"K-test\",\"version\":3,\"prev\":[\"Ne7xLFa9A4yiscFHZCl6mZg9UxNBIXSx6pwUIWTFFqc\"],\"created_at\":0,\"devices\":[{\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"},{\"key_id\":\"u_jLw5MuF8NuCwIz8EqEBA\",\"sig_pub\":\"BJXwPCE6lklvE9GbqOTcJRjwpoizIdaYUJ9Dfz-zIkbD7S4QhiT7n6gYPIsYB149Q46ZDuAaDZz1jIEnAPq3xpw\",\"seal_pub\":\"BFJx0O_qQz21zD9EqOW6MqolKxMcVn2_es2fhMb1XJfIV5eKQ6xHfiWRx9qlJpJqZkD9-U5CEmeDboFi8c4Jbg8\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"},{\"key_id\":\"hwnTt33kpLdArFofam-5hA\",\"sig_pub\":\"BKvcvwlQNKWyK_HJihs-jLMn8y7tkshFx1XQ1XB1gM_kjf_RZllehLbPjKMr6e2gFjeji1FSI8kfKL8wBsrcj4s\",\"seal_pub\":\"BFDqqy77ds-Oi25MQTv9bDcsaATTvfYLnmffeXqOst-9KrYFAuNDG-Njwdy1_I9_E_UW-ofVS9Uzh-5q-dNJsYg\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"u_jLw5MuF8NuCwIz8EqEBA\"}],\"connectors\":[],\"removed\":[]}",
+      "signer": "u_jLw5MuF8NuCwIz8EqEBA",
+      "sig": "2885a62865621ad14f96587964959523172a869f0c37eb70a0ed923a2e5758c9ea360f0cf854d5a5c1d109b4d80c3998310a3ae76a893973fdbbf8d420f615c3",
+      "hash": "0a7bc0d711e6e597541ed4924617656814fb2f12c08287ded2c14a7e2274d52e"
+    },
+    "ab-e-removes-x": {
+      "body_utf8": "{\"v\":\"pc1-registry\",\"account\":\"K-test\",\"version\":4,\"prev\":[\"CnvA1xHm5ZdUHtSSRhdlaBT7LxLAgofe0sFKfiJ01S4\"],\"created_at\":0,\"devices\":[{\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"},{\"key_id\":\"hwnTt33kpLdArFofam-5hA\",\"sig_pub\":\"BKvcvwlQNKWyK_HJihs-jLMn8y7tkshFx1XQ1XB1gM_kjf_RZllehLbPjKMr6e2gFjeji1FSI8kfKL8wBsrcj4s\",\"seal_pub\":\"BFDqqy77ds-Oi25MQTv9bDcsaATTvfYLnmffeXqOst-9KrYFAuNDG-Njwdy1_I9_E_UW-ofVS9Uzh-5q-dNJsYg\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"u_jLw5MuF8NuCwIz8EqEBA\"}],\"connectors\":[],\"removed\":[{\"key_id\":\"u_jLw5MuF8NuCwIz8EqEBA\",\"removed_at\":1700000000000,\"removed_by\":\"hwnTt33kpLdArFofam-5hA\"}]}",
+      "signer": "hwnTt33kpLdArFofam-5hA",
+      "sig": "b91618b852a39d470db68761248c47dddc961ac5da232753491c70c6a01d8bfddc9ba01f7ed800e07effac378cb2a43384abeb059053c6ea6e38f7ded87f0678",
+      "hash": "4a20751fa69c0381569e9afa4a9d4c7da09aaddc931b5b0f2b11569c9f98c3f0"
+    },
+    "ab-d1-removes-x": {
+      "body_utf8": "{\"v\":\"pc1-registry\",\"account\":\"K-test\",\"version\":5,\"prev\":[\"SiB1H6acA4FWnpr6Sp1MfaCardyTG1sPKxFWnJ-Yw_A\"],\"created_at\":0,\"devices\":[{\"key_id\":\"2hGoJk6sTRBHWBKaXeWpmw\",\"sig_pub\":\"BOEW5KdLWRMBqUAz54rwtayx1WAIn3cwzbdu-iOt-uEQrEQbuM-KHtC7aWIS2simsUhfVc_GMkJT9Ymuh_-kKPU\",\"seal_pub\":\"BMc6CPTUjLXl2RGMMQFd4se5LUzHGa1oHoMabsm-EUo3AxMLrLSNpEyIE0PGfxd36kKeFTj_bBu-FuUE60b2Ot4\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"},{\"key_id\":\"hwnTt33kpLdArFofam-5hA\",\"sig_pub\":\"BKvcvwlQNKWyK_HJihs-jLMn8y7tkshFx1XQ1XB1gM_kjf_RZllehLbPjKMr6e2gFjeji1FSI8kfKL8wBsrcj4s\",\"seal_pub\":\"BFDqqy77ds-Oi25MQTv9bDcsaATTvfYLnmffeXqOst-9KrYFAuNDG-Njwdy1_I9_E_UW-ofVS9Uzh-5q-dNJsYg\",\"platform\":\"android\",\"protection\":\"hardware\",\"added_at\":1699136000000,\"added_by\":\"u_jLw5MuF8NuCwIz8EqEBA\"}],\"connectors\":[],\"removed\":[{\"key_id\":\"u_jLw5MuF8NuCwIz8EqEBA\",\"removed_at\":1700000000000,\"removed_by\":\"2hGoJk6sTRBHWBKaXeWpmw\"}]}",
+      "signer": "2hGoJk6sTRBHWBKaXeWpmw",
+      "sig": "de837ce21abbee0aa898b9fe1306ac5afcae22b29e2a65b33fc4a4e1f292b4a8f5d396a7550cb03ba5c1064ffb8cff168451af78d376adc8e83b08ddecab88ee",
+      "hash": "4dd6fa76b313db2568659a3bf788e5f56b32f131fa953e264fcc11ebe50273b1"
     }
   },
   "cases": [
@@ -720,6 +744,40 @@
           "x"
         ],
         "version": 4
+      }
+    },
+    {
+      "name": "added-key-removes-parent-keeps-itself",
+      "init": "ab-s2",
+      "steps": [
+        {
+          "source": "mirror",
+          "snapshots": [
+            "ab-s3"
+          ]
+        },
+        {
+          "source": "mirror",
+          "snapshots": [
+            "ab-e-removes-x"
+          ]
+        },
+        {
+          "source": "mirror",
+          "snapshots": [
+            "ab-d1-removes-x"
+          ]
+        }
+      ],
+      "expect": {
+        "active": [
+          "d1",
+          "e"
+        ],
+        "tombstoned": [
+          "x"
+        ],
+        "version": 5
       }
     },
     {

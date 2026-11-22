@@ -1,1 +1,1 @@
-Copied unchanged from kitepon/peer-channel vectors/ at e95b332dcef08adf1b9b55f0bcbfede5e39a6539 (contract draft 0.5.6). The RFC 9180 known answers are in PeerChannelHpkeTests.cs, copied from ts/test/rfc9180.test.ts (CFRG test-vectors.json, mode 0 / 16 / 1 / 2).
+Copied unchanged from kitepon/peer-channel vectors/ at 2df08c15cfd97bd798d022883d3757cb2c3c8ecb (contract 0.5.8). The RFC 9180 known answers are in PeerChannelHpkeTests.cs, copied from ts/test/rfc9180.test.ts (CFRG test-vectors.json, mode 0 / 16 / 1 / 2).
