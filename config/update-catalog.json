@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T01:26:54Z",
-  "expiresAt": "2026-11-29T01:26:54Z",
+  "publishedAt": "2026-11-22T02:01:04Z",
+  "expiresAt": "2026-11-29T02:01:04Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "257194fbbf4ab4a1ee9c9aaca9082ba87752c99d",
-      "versionId": "7e67d976a3cb827925d28fa219da80df118be74fa42698d4f81791ca1cc17406",
+      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
+      "versionId": "711ee6c1bd35486639f477bb5001e3a045bb3406fc80543168520b99dcd093b5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T165725Z/usage-257194fbbf4ab4a1ee9c9aaca9082ba87752c99d-linux-amd64.tar.gz",
-          "bytes": 89638,
-          "sha256": "7e67d976a3cb827925d28fa219da80df118be74fa42698d4f81791ca1cc17406"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz",
+          "bytes": 89988,
+          "sha256": "711ee6c1bd35486639f477bb5001e3a045bb3406fc80543168520b99dcd093b5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T165725Z/usage-257194fbbf4ab4a1ee9c9aaca9082ba87752c99d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10858,
-          "sha256": "e8aa0195e8b1c5d77ea14153c3bd1ce2c9a649eebbd1c5b490315a08b0f7af85"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10721,
+          "sha256": "32490c49177ec36b34ecd74e2e09493657c68feab264e9441d8445bd68c11131"
         },
-        "signerCommit": "257194fbbf4ab4a1ee9c9aaca9082ba87752c99d"
+        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "Webの通知の設定を、通知の設定の一覧から取り除きます。アプリへの通知は変わりません。"
+        "使用量の反映が一度失敗しても、全体を公開し直して自分で戻ります。1Passwordの読み取り制限を、保留つきの状態として扱います。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "257194fbbf4ab4a1ee9c9aaca9082ba87752c99d",
-      "versionId": "4b0cee7e1b310eac9dc48dd1cb7e9e1c759df0288172e704ff9fa68b2be15826",
+      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
+      "versionId": "6564476303893273a52aaccdc824c04dae4eb4b69a2b59194a5c2a3e3fd2b5d1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T165725Z/usage-257194fbbf4ab4a1ee9c9aaca9082ba87752c99d-linux-arm64.tar.gz",
-          "bytes": 89638,
-          "sha256": "4b0cee7e1b310eac9dc48dd1cb7e9e1c759df0288172e704ff9fa68b2be15826"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz",
+          "bytes": 89988,
+          "sha256": "6564476303893273a52aaccdc824c04dae4eb4b69a2b59194a5c2a3e3fd2b5d1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T165725Z/usage-257194fbbf4ab4a1ee9c9aaca9082ba87752c99d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10909,
-          "sha256": "ab019c6a4f5269ddf65867314d526fb76bad6cdae7491bf02f2bc7703d55742c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10682,
+          "sha256": "a5bb60f571742e1e7a557d45b2bef77e6c0cee03c2f576401e319e9f4a6a46c7"
         },
-        "signerCommit": "257194fbbf4ab4a1ee9c9aaca9082ba87752c99d"
+        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "Webの通知の設定を、通知の設定の一覧から取り除きます。アプリへの通知は変わりません。"
+        "使用量の反映が一度失敗しても、全体を公開し直して自分で戻ります。1Passwordの読み取り制限を、保留つきの状態として扱います。"
       ]
     },
     {
@@ -291,8 +291,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
-      "versionId": "f8ff156f566684889cc887c6aea9ad359165af1a98e200f7e0f47939534ee4a8",
+      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
+      "versionId": "b0edebac32d9f7b9353c43fe339fdf48a240c1d69fd4d556d3166cdd50833eb2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-amd64.tar.gz",
-          "bytes": 4513200,
-          "sha256": "f8ff156f566684889cc887c6aea9ad359165af1a98e200f7e0f47939534ee4a8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz",
+          "bytes": 4515027,
+          "sha256": "b0edebac32d9f7b9353c43fe339fdf48a240c1d69fd4d556d3166cdd50833eb2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10947,
-          "sha256": "4933d3b7aaf748d9c1014c211f3195862957480d60a6ca93a8814776a5c648c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11025,
+          "sha256": "63db9223e4f3a298c95fd525b32ea6bfdff8b6cc63e01a52ca8930f19134bf5a"
         },
-        "signerCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a"
+        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -318,13 +318,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの通知の送信を取り除き、古い鍵と購読のファイルを最初の起動で消します。アプリへの通知は変わりません。"
+        "通知の鍵を、再試行や再起動のたびに1Passwordから読み直しません。1Passwordの「Too many requests」は、10分の保留つきで、鍵の読み取り制限として表示します。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
-      "versionId": "5534a90b87c6993ca114231d1b80c552cce365fd17309ba93f713f8a941cf5e2",
+      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
+      "versionId": "fc595abdc83d4e5b7f34e61eb5fc7f25e37f56e642e68535420c1774b40be1a3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-arm64.tar.gz",
-          "bytes": 4513200,
-          "sha256": "5534a90b87c6993ca114231d1b80c552cce365fd17309ba93f713f8a941cf5e2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz",
+          "bytes": 4515027,
+          "sha256": "fc595abdc83d4e5b7f34e61eb5fc7f25e37f56e642e68535420c1774b40be1a3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T163054Z/notifications-96292f2cfc37e81b96a2d007c68c94231a1c045a-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz.sigstore.json",
           "bytes": 10943,
-          "sha256": "82c6f7d72462ec54d8b1c1dd34993bf1ad6ecf1667d446a77eb5a2c839ff8b4e"
+          "sha256": "feee6961f742c895069893bd4b1987069e754694f6338e1fe2f097a42e0dc4b2"
         },
-        "signerCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a"
+        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -350,7 +350,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webの通知の送信を取り除き、古い鍵と購読のファイルを最初の起動で消します。アプリへの通知は変わりません。"
+        "通知の鍵を、再試行や再起動のたびに1Passwordから読み直しません。1Passwordの「Too many requests」は、10分の保留つきで、鍵の読み取り制限として表示します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f709ad6d0516404ae04a62ab0d5b74db1ff9a572",
-      "versionId": "sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839",
+      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
+      "versionId": "sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "通知の部品が起動できなくても、本体は会話・実行・使用量・Webの入口を始めます。通知の部品は、裏で起動をやり直し続けます。"
+        "通知の部品が起動できなくても、本体は会話・実行・使用量・Webの入口を始めます。席の一覧の取得を速くし、止まった画面の確認が増えて箱のメモリを使い切る問題を直します。1Passwordの読み取り制限を、通知の鍵の状態として扱います。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f709ad6d0516404ae04a62ab0d5b74db1ff9a572",
-      "versionId": "sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839",
+      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
+      "versionId": "sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,13 +746,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "通知の部品が起動できなくても、本体は会話・実行・使用量・Webの入口を始めます。通知の部品は、裏で起動をやり直し続けます。"
+        "通知の部品が起動できなくても、本体は会話・実行・使用量・Webの入口を始めます。席の一覧の取得を速くし、止まった画面の確認が増えて箱のメモリを使い切る問題を直します。1Passwordの読み取り制限を、通知の鍵の状態として扱います。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
-      "versionId": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3",
+      "sourceCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb",
+      "versionId": "36fda49fe7c58267b4a956d7e30607df1bad528ef6690784b8236740db1a15a5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +760,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz",
-          "bytes": 15348472,
-          "sha256": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-amd64.tar.gz",
+          "bytes": 15348835,
+          "sha256": "36fda49fe7c58267b4a956d7e30607df1bad528ef6690784b8236740db1a15a5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10839,
-          "sha256": "5418ac174ff43e64bc548d890e0669b1e232a19949e6840c4a90f45a9067706b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "2851bef96ea0db9c37eb24f6b7cfa011e5073bda582236aea82ab2e82bb0b958"
         },
-        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
+        "signerCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +781,13 @@
         }
       },
       "changes": [
-        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
+        "Latticeの催促は、同じ内容をメンバーへ何度も送らず、変更ごとに一度だけにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
-      "versionId": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f",
+      "sourceCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb",
+      "versionId": "f733fdd9ca7b2afa4061b13a4bb8e74488c6058cf1874ebb6ab18d6f74ed1b3d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +795,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz",
-          "bytes": 15348472,
-          "sha256": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-arm64.tar.gz",
+          "bytes": 15348835,
+          "sha256": "f733fdd9ca7b2afa4061b13a4bb8e74488c6058cf1874ebb6ab18d6f74ed1b3d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10745,
-          "sha256": "7e79e5bda02acb08ea31a1f73b9a4c68976f7c1a1cdc74fcd36b68acb4d87ce0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10855,
+          "sha256": "f5bd6c63df012aff1598e32f4de360f31262fd2b516b532381cb50d4d1c0d6ec"
         },
-        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
+        "signerCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +816,7 @@
         }
       },
       "changes": [
-        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
+        "Latticeの催促は、同じ内容をメンバーへ何度も送らず、変更ごとに一度だけにします。"
       ]
     },
     {
