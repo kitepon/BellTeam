@@ -47,7 +47,7 @@ flowchart LR
 flowchart TD
   AI["AI seat"] -- "D1 request body (sealed over peer-channel by the daemon)" --> DM["hosted daemon store (state/pc/decisions.json)"]
   DM -- "D2 list: every open decision plus anything updated in the last 24 h; per id: full record incl. status, answer, session_label, requester_bot_id" --> PAR["parent effect (read only)"]
-  PAR -- "D3 view for the engine: id, status, version, session_label, requester_bot_id, title, answer label (no context, no attachments)" --> F3["F3 link engine"]
+  PAR -- "D3 view for the engine: id, status, version, session_label, requester_bot_id, title, answer label; the read also carries the context text (max 20000 chars) for the view only, a490k: never stored, the engine ignores it; no attachments, no history" --> F3["F3 link engine"]
   F3 <-- "D4 link rows (ids, state, handled version)" --> F4[("F4 link record")]
   F3 -- "D5 task add/start/done/retire/note (ids + short Japanese text)" --> LP["Lattice port"]
   APP["app on the device session"] -- "D6 by-decision / by-task (ids only)" --> F5["F5"]

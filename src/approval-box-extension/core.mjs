@@ -132,8 +132,8 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     return response.json
   }
   // a490g (peer-channel-feed.md): decisions held by the hosted daemon, read through the parent. The daemon record is mapped to the /v1 Decision shape the planner already reads;
-  // it carries no context, no attachments and no history (so no L4 amend note from this source), and no requester_bot_id: the roster-name match classifies it (README, shortcut).
-  const fromDaemon = rec => ({ id: rec.id, title: rec.title, context: '', options: rec.options, urgency: rec.urgency, ...(rec.deadline ? { deadline: rec.deadline } : {}), status: rec.status,
+  // it carries the context text for the view (a490k) but no attachments and no history (so no L4 amend note from this source), and no requester_bot_id: the roster-name match classifies it (README, shortcut).
+  const fromDaemon = rec => ({ id: rec.id, title: rec.title, context: rec.context ?? '', options: rec.options, urgency: rec.urgency, ...(rec.deadline ? { deadline: rec.deadline } : {}), status: rec.status,
     answer: rec.answer && { option_id: rec.answer.optionId, text: rec.answer.text, answered_at: rec.answer.answeredAt }, version: rec.version, created_at: rec.createdAt, updated_at: rec.updatedAt,
     cancel_reason: rec.cancelReason, ...(rec.recommendation ? { recommendation: rec.recommendation } : {}), resume_phrase: '', history: [], request_attachments: [],
     source: { client: 'other', session_label: rec.sessionLabel, ...(rec.requester ? { requester: rec.requester } : {}) } })

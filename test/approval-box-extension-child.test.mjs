@@ -161,6 +161,7 @@ test('view from the daemon: list merges both sources in contract order, get fall
   const paged = await h.core.list({ status: ['pending', 'held'], cursor: 'c1' }, h.effect)
   assert.ok(!paged.items.some(item => item.id === 'K-DDDD'))
   assert.equal((await h.core.get({ id: 'K-DDDD' }, h.effect)).id, 'K-DDDD')
+  assert.equal((await h.core.get({ id: 'K-CCCC' }, harness({ decisions: [], daemon: new Map([['K-CCCC', held('K-CCCC', { context: '背景の本文' })]]) }).effect)).context ?? '', '背景の本文')
   await assert.rejects(() => h.core.get({ id: 'K-NONE' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
   const summary = await h.core.summary({}, h.effect)
   assert.equal(summary.pending, 2); assert.equal(summary.urgent, 1)
@@ -190,7 +191,9 @@ test('byDecision: ids and state of a linked decision, null for none; never calls
   assert.throws(() => validateApprovalsEffect('daemon.decisions.read', { id: 'x' }))
   validateApprovalsEffectResult('daemon.decisions.list', [{ id: 'K-AAAA' }])
   validateApprovalsEffectResult('daemon.decisions.read', held('K-AAAA')); validateApprovalsEffectResult('daemon.decisions.read', null)
-  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: 'leaks' }), { code: 'APPROVALS_IPC_INVALID' })
+  validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: '本文' })
+  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: 'x'.repeat(20001) }), { code: 'APPROVALS_IPC_INVALID' })
+  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), attachments: [] }), { code: 'APPROVALS_IPC_INVALID' })
 })
 
 test('connect: the request code opens the hosted page, the poll hands over the session once, the child stores it with session.put', async () => {

@@ -68,8 +68,9 @@ export function validateApprovalsEffectResult(method, value) {
   else if (method === 'session.put' || method === 'session.erase') need(approvalsObject(value, ['ok']) && value.ok === true)
   // a490g: what the link engine reads from the hosted daemon. No context and no attachments cross: the chart needs ids, status, title, options and the answer only.
   else if (method === 'daemon.decisions.list') need(Array.isArray(value) && value.length <= 500 && value.every(item => approvalsObject(item, ['id']) && decisionId(item.id)))
-  else if (method === 'daemon.decisions.read') need(value === null || approvalsObject(value, ['id', 'title', 'status', 'version', 'urgency', 'options', 'sessionLabel', 'requester', 'answer', 'cancelReason', 'createdAt', 'updatedAt'], ['recommendation', 'deadline'])
+  else if (method === 'daemon.decisions.read') need(value === null || approvalsObject(value, ['id', 'title', 'status', 'version', 'urgency', 'options', 'sessionLabel', 'requester', 'answer', 'cancelReason', 'createdAt', 'updatedAt'], ['recommendation', 'deadline', 'context'])
     && decisionId(value.id) && str(value.title) && STATUSES.includes(value.status) && Number.isInteger(value.version) && str(value.urgency) && str(value.sessionLabel) && strOrNull(value.requester) && strOrNull(value.cancelReason)
+    && (value.context === undefined || str(value.context) && value.context.length <= 20000)
     && Array.isArray(value.options) && value.options.every(option => approvalsObject(option, ['id', 'label']) && str(option.id) && str(option.label))
     && (value.answer === null || approvalsObject(value.answer, ['optionId', 'text', 'answeredAt']) && strOrNull(value.answer.optionId) && strOrNull(value.answer.text) && strOrNull(value.answer.answeredAt)))
   else invalid()
