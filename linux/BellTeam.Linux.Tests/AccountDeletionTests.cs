@@ -1,3 +1,4 @@
+using BellTeam.Core;
 using Xunit;
 
 namespace BellTeam.Linux;
@@ -11,10 +12,10 @@ public sealed class AccountDeletionTests
     [Fact]
     public void TheWordsAreTheMacReferenceWithOnlyTheStoreSentencesChanged()
     {
-        Assert.Equal(AppleMessage, AccountDeletionWords.Message("Apple", "「設定」のApple Accountの購読"));
-        Assert.Equal(AppleDone, AccountDeletionWords.Done("Apple Accountの購読の管理"));
+        Assert.Equal(AppleMessage, AccountDeletionText.ConfirmBody("購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。"));
+        Assert.Equal(AppleDone, AccountDeletionText.ResultBody("購読を止めるには、Apple Accountの購読の管理から解約してください。"));
         Assert.Equal(("アカウントを削除", "アカウントを削除しますか？", "削除する", "やめる", "アカウントを削除しました"),
-            (AccountDeletionWords.Button, AccountDeletionWords.Title, AccountDeletionWords.Confirm, AccountDeletionWords.Cancel, AccountDeletionWords.DoneTitle));
+            (AccountDeletionText.Button, AccountDeletionText.ConfirmTitle, AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo, AccountDeletionText.ResultTitle));
     }
 
     [Fact]

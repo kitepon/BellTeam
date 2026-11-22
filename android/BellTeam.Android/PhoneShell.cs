@@ -208,7 +208,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (AccountStore.Billing is { } lb) await lb.SignOutAsync();
         ShowList();
         deletedLayer.Children.Clear();
-        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionWords.DoneTitle, AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionText.ResultTitle, AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
         deletedLayer.IsVisible = true;
         await BeginAfterAccountAsync();
     }
