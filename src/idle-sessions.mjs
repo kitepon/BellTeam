@@ -13,10 +13,11 @@ const INTERVAL_MS = 2 * 60_000
 const PRESSURE_INTERVAL_MS = 15_000
 
 export class IdleSessions {
-  constructor({ bots, transport, pressure = null, pendingDecisions = approvalBoxWakeDecisions(), allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
+  constructor({ bots, transport, pressure = null, record = null, pendingDecisions = approvalBoxWakeDecisions(), allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
     this.bots = bots
     this.transport = transport
     this.pressure = pressure
+    this.record = record
     this.hot = false
     // その席が出したApproval Boxの未決・保留の申請のうち、Aitermの観測では分からないものの数。分からない時はnull。
     this.allowClose = allowClose
@@ -48,7 +49,9 @@ export class IdleSessions {
 
   async check() {
     // Unknown is not pressure: no reading leaves the Owner's 10 minutes in force.
-    this.hot = (await this.pressure?.().catch(() => null))?.ratio >= SOFT
+    const reading = await this.pressure?.().catch(() => null)
+    this.hot = reading?.ratio >= SOFT
+    if (reading) this.record?.peak(reading.ratio)
     // bd03: the Approval Box capability is read once per check and shared by every Bot in it; the next check reads it again.
     this.pendingDecisions.begin?.()
     for (const bot of [...this.bots.values()]) {
@@ -87,6 +90,7 @@ export class IdleSessions {
     if (await this.pendingDecisions(bot) !== 0) return
     if (!this.allowClose() || !await this.transport.closeIdle(bot)) return
     this.seen.delete(bot.id)
+    if (this.hot) this.record?.earlySleep()
     this.report(`BellTeam idle sessions: ${bot.id} を止めました（${Math.round((now - since) / 60_000)}分動きなし）`)
   }
 }

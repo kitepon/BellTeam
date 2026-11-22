@@ -2,8 +2,8 @@
 import { HOLD, SEAT_BYTES } from './memory-pressure.mjs'
 
 export class LaunchGate {
-  constructor({ pressure, hold = HOLD, seatBytes = SEAT_BYTES, settleMs = 30_000, now = Date.now } = {}) {
-    Object.assign(this, { pressure, hold, seatBytes, settleMs, now })
+  constructor({ pressure, hold = HOLD, seatBytes = SEAT_BYTES, settleMs = 30_000, now = Date.now, record = null } = {}) {
+    Object.assign(this, { pressure, hold, seatBytes, settleMs, now, record })
     this.recent = []
   }
 
@@ -16,6 +16,8 @@ export class LaunchGate {
     if (!sample) return false
     const now = this.now()
     this.recent = this.recent.filter(at => now - at < this.settleMs)
-    return (sample.anon + this.recent.length * this.seatBytes) / sample.max >= this.hold
+    const effective = (sample.anon + this.recent.length * this.seatBytes) / sample.max
+    this.record?.peak(effective)
+    return effective >= this.hold
   }
 }

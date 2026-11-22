@@ -94,3 +94,20 @@ The refusal is a give-up, so its exit is stated as a transition, not as a hope:
 ## Why a505c did not fire in lab Z172 (a505d, 2026-11-22)
 
 `createManagedTransport` builds the production transport with `executionBridge: null` and nothing sets it later, so production delivers through the legacy path of `AitermTransport.dispatch` (send first, wake when the seat has no registration), never through `dispatchExecution`. a505c asked in `dispatchExecution` only. The refusal now sits in `wakeNow`, which both paths and the resume path of a hibernated seat go through, and the tests drive the production path (`createManagedTransport`'s shape: no bridge, a never-launched seat) as well as the bridge path.
+
+## The record (a525, 2026-11-23)
+
+Question it answers (Tronie, Owner): did the memory control act, and how full did the container get? Nothing recorded it: an early sleep was one stderr line, a refusal only a failed delivery, the peak nowhere. Reader: whoever asks (Tronie, the Owner, Kiro), with `sudo cat /srv/bellteam/state/memory-budget.json` like the other execution state files.
+
+The record protects nothing and blocks nothing (not a guard): a write that fails is dropped, and delivery, sleep and refusal never wait for it.
+
+```mermaid
+flowchart LR
+  IS["IdleSessions.check: reading each check; early sleep = closeIdle done while hot"] -->|"peak(ratio) / earlySleep()"| MR["MemoryBudgetRecord (memory in the process)"]
+  LG["LaunchGate.tight(): effective share; refused sweep = refuseSweepUnderPressure threw"] -->|"peak(effective) / refusal()"| MR
+  MR -->|"write only when a count changes or the peak rises 1 point or more (tmp + rename)"| F["state/memory-budget.json: bellteam.memory-budget.v1"]
+```
+
+Data: `{ schema, since, early_sleep: { count, last_at }, refusal: { count, last_at }, peak: { share, at } }`. Counts and `since` are for this body process (a restart starts a new record: `since` says when); the file holds the last record until the next change. Times are ISO UTC; read them in JST.
+
+State: one record per process, no transitions other than the counters going up and `peak` rising; nothing reads the file back, and nothing leaves a state it could be stuck in.
