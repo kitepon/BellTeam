@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
-import { dispatchExecution } from '../src/execution-transport.mjs'
 
 const SWEEP = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.'
 const transport = tight => new AitermTransport({ client: { call: async () => ({}) }, launchGate: tight === undefined ? null : { tight: async () => tight, launched() {} } })
@@ -41,18 +40,7 @@ test('both sweep heads count: the not-running prompt and the reassign prompt', a
     await assert.rejects(t.refuseSweepUnderPressure(job('scheduler', head)), { code: 'BOT_MEMORY_PRESSURE' })
 })
 
-test('dispatchExecution hands the job to wake, where every launch passes (a505d)', async () => {
-  const wakes = []
-  const seat = { imageFiles: async () => [], removeTemporaryImages: async () => {}, session: () => 's1', wake: async (bot, options) => { wakes.push(options.job); return 's1' } }
-  const cold = { executionWasPresent: false, execution: { invoke: async () => ({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: {} } }) } }
-  await dispatchExecution(seat, cold, { id: 'b' }, 'm', [], { check() {} })
-  assert.deepEqual(wakes, [cold])
-  wakes.length = 0
-  await dispatchExecution(seat, { ...cold, executionWasPresent: true }, { id: 'b' }, 'm', [], { check() {} })
-  assert.deepEqual(wakes, [], 'a running seat is not woken')
-})
-
-// The production path (createManagedTransport has executionBridge null): send first, wake when the seat has no registration.
+// The production path (createManagedTransport): send first, wake when the seat has no registration.
 const unregistered = "aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。"
 function neverLaunchedClient() {
   const calls = []

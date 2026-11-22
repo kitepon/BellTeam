@@ -268,7 +268,7 @@ test('受理されたが追う手がかりの無い返りは、失敗にせず�
 test('通常構成の回復値は親の照合を通り、通常のdispatchで同じ配送IDのまま届く', async t => {
   const { isDeepStrictEqual } = await import('node:util')
   const { BotSessionState } = await import('../src/bot-session-state.mjs')
-  const state = new BotSessionState({ assertWorkAllowed() {}, executionBridge: () => null, call: async () => ({}), invalidateRunning() {},
+  const state = new BotSessionState({ assertWorkAllowed() {}, call: async () => ({}), invalidateRunning() {},
     activity: { configuration: () => false, interruption: () => false, waking: () => false, hasJobs: () => false, idle: () => true } })
   const target = { session_id: 'bot-a', launch_id: 'a'.repeat(32) }
   const value = await state.reconcileLaunch({ id: 'bot-a' }, { kind: 'delivery', delivery_id: 'd-1', target_session_id: 'bot-a' }, target)

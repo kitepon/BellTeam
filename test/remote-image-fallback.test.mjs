@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
-import { IMAGE_NOT_DELIVERED_LINE, dispatchExecution } from '../src/execution-transport.mjs'
+import { IMAGE_NOT_DELIVERED_LINE } from '../src/execution-transport.mjs'
 
 const refused = 'aiterm: REMOTE_IMAGE_UNSUPPORTED: 別端末への画像添付には未対応です'
 const png = { mime: 'image/png', data: Buffer.from('synthetic image bytes').toString('base64') }
@@ -63,16 +63,3 @@ test('a send WITHOUT an image refused with the same error still fails (no resend
   assert.equal(sends.length, 1)
 })
 
-test('the bridge path does the same through execution.invoke', async () => {
-  const sent = []
-  const seat = { imageFiles: async () => [{ path: '/t/bellteam-image-x.png', temporary: true }], removeTemporaryImages: async () => {}, session: () => 's1', wake: async () => 's1' }
-  const job = { executionWasPresent: true, execution: { invoke: async (name, args) => {
-    sent.push(args)
-    if (args.image) throw Object.assign(new Error('REMOTE_IMAGE_UNSUPPORTED'), { code: 'BOT_IMAGE_UNSUPPORTED' })
-    return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: {} } }
-  } } }
-  await dispatchExecution(seat, job, { id: 'b' }, 'm', [{}], { check() {} })
-  assert.equal(sent.length, 2)
-  assert.equal('image' in sent[1], false)
-  assert.equal(sent[1].text, `m\n\n${IMAGE_NOT_DELIVERED_LINE}`)
-})
