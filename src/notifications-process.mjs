@@ -214,6 +214,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     return exclusive(async signal => {
       if (initialized) throw failure('NOTIFICATIONS_ALREADY_STARTED')
       state('starting')
+      try {
       let metadata
       try {
         metadata = await open('/app/distribution.json', constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -229,21 +230,23 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
         await prepare(record.previousVersionId, signal)
         currentVersionId = record.currentVersionId; previousVersionId = record.previousVersionId
       }
-      try {
-        const target = await launch(currentVersionId, signal)
-        await resume(target, signal)
-        initialized = true
-        state('running', true)
-        return { versionId: currentVersionId, protocolVersion: 2, stateSchema: 2, status, applyError: { ...applyError } }
+      const target = await launch(currentVersionId, signal)
+      await resume(target, signal)
+      initialized = true
+      state('running', true)
+      return { versionId: currentVersionId, protocolVersion: 2, stateSchema: 2, status, applyError: { ...applyError } }
       } catch (error) {
+        // Every failed start (record, identity, prepare, launch, resume) registers lifecycle recovery; none may stay in 'starting'.
         try { await killAndReap(instance) } finally { state('unavailable') }
         throw error
       }
     })
   }
+  // Notifications is optional: a failed first start never holds the body. The unavailable state already registered recovery (1-30 s, no attempt limit).
   const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
-    if (closed || phase !== 'unavailable') throw error
-    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
+    if (closed) throw error
+    try { console.error(JSON.stringify({ code: 'NOTIFICATIONS_START_FAILED', reason: /^[A-Z_0-9]+$/.test(error?.code ?? error?.message ?? '') ? (error.code ?? error.message) : 'UNKNOWN' })) } catch {}
+    return snapshot()
   })
   const request = async (method, params) => {
     if (closed) throw failure('PUSH_NOT_ACCEPTING')
