@@ -65,6 +65,58 @@ flowchart LR
 
 State ownership is unchanged: the updater volume stays root-private; the data/home/Aiterm state volumes are untouched by this entry (the image's `install.sh` handles Aiterm state exactly as in App Update). No queue backup is taken: with no body there is no queue API, and the state volume is not touched.
 
+## State transitions of one run
+
+One `emergency-body.sh` run is one container and one pass; there is no state kept between runs except what the installer already keeps (operation directory and `installation/normal.json`). Every row of the diagram ends in exactly one of: nothing changed (refused), swapped and verified, or failed with the old model restored or not restorable. No refusal waits for anything: each exits at once with a closed code, so the next run starts from whatever the previous one left.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Parsing
+  Parsing --> Refused: reference not a pinned ghcr digest, or local without --local (EMERGENCY_REFERENCE_INVALID)
+  Parsing --> Loading
+  Loading --> Refused: config.json / updater volume binding invalid (HOST_UPDATE_CONFIG_INVALID, HOST_UPDATE_STORAGE_BINDING)
+  Loading --> Identity
+  Identity --> Refused: running image is not the reference image (EMERGENCY_IMAGE_MISMATCH)
+  Identity --> Exclusive
+  Exclusive --> Refused: an update worker of this project is running (EMERGENCY_UPDATE_RUNNING)
+  Exclusive --> OldBody
+  OldBody --> Refused: not exactly one bellteam container (EMERGENCY_BODY_NOT_FOUND)
+  OldBody --> Planned: snapshot taken in any state (running, restarting, exited)
+  Planned --> Pulling: published reference
+  Planned --> Verifying: local image, no pull
+  Pulling --> Verifying
+  Verifying --> Refused: image id, source or old body changed meanwhile (HOST_UPDATE_IMAGE_INVALID, HOST_UPDATE_CURRENT_CHANGED)
+  Verifying --> Preflight
+  Preflight --> Failed: target image preflight answers fail (HOST_UPDATE_PREFLIGHT_FAILED); old body untouched
+  Preflight --> Swapping: pass or unknown
+  Swapping --> RollingBack: installer exit non-zero, timeout (1800 s) or new body not confirmed
+  Swapping --> Confirming: installer exit 0
+  Confirming --> RollingBack: new body not running, healthy, same image and source, or storage binding differs (3 tries, 10 s apart)
+  Confirming --> Saving: confirmed
+  Saving --> Cleaning: installation/normal.json and current-runtime.json saved
+  Cleaning --> Succeeded: old image removed
+  Cleaning --> Succeeded: cleanup failed, kept as HOST_UPDATE_CLEANUP_FAILED
+  Cleaning --> Failed: the installer reported the Aiterm state step failed (HOST_UPDATE_AITERM_STATE_FAILED); the new body is kept
+  RollingBack --> Failed: installer --recover run; rollback is succeeded only when the old body is healthy again, otherwise failed
+  RollingBack --> Failed: no saved previous model (rollback unavailable)
+  Refused --> [*]: exit 1, stderr code, nothing created or changed
+  Failed --> [*]: exit 1, JSON result and installer log tail
+  Succeeded --> [*]: exit 0, JSON result
+```
+
+How each end is left:
+
+| End | What exists afterwards | Next step for the operator |
+| --- | --- | --- |
+| Refused (before `Planned`) | no operation directory, no container touched | fix the cause named by the code and run again |
+| Refused at `Verifying` / Failed at `Preflight` | an operation directory (empty or with the preflight record); old body untouched | read the code, run again (an image change needs a new reference) |
+| Failed after `Swapping`, rollback succeeded | old model restored (the old body may itself be down) | run again with a body that starts |
+| Failed, rollback failed or unavailable | operation directory with `installer.log` and `recover.log`; the project may have no running body | run again; the result JSON carries the installer log tail |
+| Failed at `Aiterm state` | new body kept and healthy, Aiterm state step reported failed | decide with the Aiterm owner; do not treat as complete |
+| Succeeded | new body healthy, model saved, old image removed | none; a cleanup failure is only reported |
+
+Self-exit: every state leaves by a closed code or a bounded wait (pull 900 s, preflight 120 s, installer 1800 s, confirmation 3 x 10 s); no state waits for an operator, a peer or a running body.
+
 ## Contract
 
 - Input: one reference. Published: `ghcr.io/kitepon/bellteam-server@sha256:<64 hex>`. Local: `--local sha256:<64 hex>` (an image ID the operator built, e.g. `docker build -t bellteam-local . && docker image inspect --format '{{.Id}}' bellteam-local`). Running the command is the approval; there is no catalog, signature or ledger check (the signed catalog is the normal path; this one exists for when it cannot be used).
