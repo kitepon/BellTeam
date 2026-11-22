@@ -69,16 +69,19 @@ flowchart LR
   Dev["DEV operator (dev-operator.mjs): fake keys, fake stores, BellTeam's own code"]
   Test["bellteam-login-test: billing off, real Apple/Google sign-in, no store read"]
   Real["bellteam-login-real: billing on, own kKey, real store read-back, no exempt account"]
-  Prod["bellteam-subscriptions: production"]
+  Prod["bellteam-subscriptions: production (old Worker, untouched)"]
+  Login["bellteam-login: production login operator (a485-bready-prod-operator)"]
   Apple["App Store Server API (production host first, then sandbox)"]
   Play["Google Play Developer API"]
   Real --> Apple
   Real --> Play
   Prod --> Apple
+  Login --> Apple
   Prod --> Play
   Test -.->|"no store call"| Apple
 ```
 Data flow of `bellteam-login-real`: as the Worker above (the library's storage object holds only the short-lived records; nothing about a person is kept). New here: the Apple private key and the Play service account are secrets of this Worker only (read once from 1Password at deploy, piped to `wrangler secret put`, never printed); the sign-in audiences, Google web client and app links are the test Worker's, with this Worker's own origin. The Google web client must list `https://bellteam-login-real.kitepon.dev/auth/v1/websignin/callback` as a redirect URI before web sign-in works here (Pinocchio, project `bellteam-515414`); native sign-in needs nothing more. The Worker's Play calls are the token call, `subscriptionsv2.get` and `acknowledge` (library 0.17.0, `stores/google.js`; `consume` only for one-time products, which BellTeam has none of): it never cancels or revokes an order, so the service account's `MANAGE_ORDERS` on the package (per package, so it also reaches production orders; Pinocchio, 2026-11-23) is used only by test-run scripts, and those may act only on a purchase the API marks `testPurchase`. An app that uses this Worker lists its host in its associated domains (Apple) and the host's assetlinks are served by the Worker (`LB_ASSETLINKS`).
+- **Production login operator** `bellteam-login` at `https://bellteam-login.kitepon.dev/auth/v1` (`--env prod`; a485-bready-prod-operator, Mint C1): the origin the App Store build carries, so App Review signs in and buys against it. Additive: a new Worker beside `bellteam-subscriptions`, which stays as it is with every installed app. Billing **on** (`LB_BILLING` unset = `store`) with the production Apple IAP key (secret `APPLE_PRIVATE_KEY`, key id `J7KXVR6DSV`); its own kKey and pass key (`p1`), generated once at deploy and piped to `wrangler secret put` (never printed, never replaced: a lost kKey cannot be repaired). Not set here: the Play service account, `LB_ASSETLINKS` (needs the upload and Play signing certificate fingerprints), `LB_EXEMPT_K` and `LB_OLD_HANDOFF` (a485-lb-release), the Apple web sign-in Services ID/key (Owner via Mint). The Google web sign-in needs the redirect URI of this origin registered on the web client first. Data flow is that of the Worker above; nothing is added.
 - `bellteam-subscriptions-sandbox` and `bellteam-subscriptions` (production) are configured in `wrangler.jsonc` for the same code but **not deployed by this change**; production switches only when all apps and the user server ship (Tronie's release order), on the Owner's domain that Mint asks for.
 - Deploy: `npm exec --yes --package wrangler@latest -- wrangler deploy --env test` from `services/subscriptions`; the Cloudflare key is read from 1Password by the deploy step and never printed; use is approved by Tronie. Rollback: `wrangler rollback <version> --env test`.
 

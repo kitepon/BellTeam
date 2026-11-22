@@ -105,6 +105,33 @@
         // Neon's DEBUG signing certificate, for this test host only; production lists the upload and Play signing certificates instead.
         "LB_ASSETLINKS": "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"dev.kitepon.bellbot\",\"sha256_cert_fingerprints\":[\"32:38:26:CF:84:B5:17:5A:E3:A0:88:85:BB:29:44:2D:64:BE:2D:E3:A9:C3:2E:5D:DC:EC:7D:96:FA:76:61:B0\"]}}]"
       }
+    },
+    // Production login operator (a485-bready-prod-operator, Tronie 2026-11-23): the origin the App Store build carries (Mint C1).
+    // Additive: a new Worker beside bellteam-subscriptions (untouched). Own kKey and pass key (p1), billing "store" (LB_BILLING unset),
+    // the production Apple IAP key. LB_EXEMPT_K and LB_OLD_HANDOFF belong to a485-lb-release. No Play key and no assetlinks yet (not asked).
+    "prod": {
+      "name": "bellteam-login",
+      "workers_dev": false,
+      "routes": [{ "pattern": "bellteam-login.kitepon.dev", "custom_domain": true }],
+      "observability": { "enabled": false },
+      "durable_objects": {
+        "bindings": [{ "name": "LB_STORAGE", "class_name": "LBStorage" }]
+      },
+      "migrations": [
+        { "tag": "login-billing-storage-v1", "new_sqlite_classes": ["LBStorage"] }
+      ],
+      "vars": {
+        "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
+        "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
+        "LB_PASS_KEY_CURRENT_ID": "p1",
+        "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
+        "APPLE_KEY_ID": "J7KXVR6DSV",
+        "LB_PUBLIC_ORIGIN": "https://bellteam-login.kitepon.dev",
+        "WEBSIGNIN_GOOGLE_CLIENT_ID": "316260984663-lofu7qohq45fhbfup8k3ottlgat415pk.apps.googleusercontent.com",
+        "LB_RETURN_SCHEMES": "kitepon-bellbot",
+        "LB_RETURN_LINKS": "https://bellteam-login.kitepon.dev/auth/return/android,https://bellteam-login.kitepon.dev/auth/return/apple",
+        "LB_APPLE_APP_SITE_ASSOCIATION": "{\"applinks\":{\"details\":[{\"appIDs\":[\"TPWX489GV4.dev.kitepon.bellbot\"],\"components\":[{\"/\":\"/auth/return/apple\"}]}]},\"webcredentials\":{\"apps\":[\"TPWX489GV4.dev.kitepon.bellbot\"]}}"
+      }
     }
   }
 }
