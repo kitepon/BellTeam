@@ -226,9 +226,13 @@ public static class Approvals
         var head = text.Length > 0 ? "この指示を送りますか？ " : $"「{label}」で答えますか？ ";
         return origin.External && decision.Link is null || string.IsNullOrEmpty(title) ? $"{head}答えると、{origin.Who}に届きます。" : $"{head}答えると、{origin.Who}が続きに進み、工程「{title}」が済みになります。";
     }
+    /// <summary>409 answer_on_device (a490j, peer-channel-feed.md): a decision only the hosted daemon holds is listed here but answered, held and unheld on the device. Not a failure: one line, the person answers in the Approval Box app.</summary>
+    public const string AnswerOnDevice = "この決裁は、決裁箱のアプリで答えてください。";
+    public static bool IsAnswerOnDevice(int status, JsonElement? body) => status == 409 && Str(ErrorOf(body), "code") == "answer_on_device";
     public static ApprovalOutcome AnswerOutcome(int status, JsonElement? body)
     {
         if (status == 200) return new("ok");
+        if (IsAnswerOnDevice(status, body)) return new("device", Message: AnswerOnDevice);
         var kind = FailureOf(status, body); var message = Str(ErrorOf(body), "message");
         return kind switch
         {

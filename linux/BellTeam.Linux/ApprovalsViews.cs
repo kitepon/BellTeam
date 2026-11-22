@@ -142,7 +142,7 @@ internal sealed partial class ApprovalsWindow
         var list = ListColumn(); var detail = DetailColumn(Selected); var chain = ChainColumn(Selected);
         Grid.SetColumn(detail, 1); Grid.SetColumn(chain, 2);
         grid.Children.Add(list); grid.Children.Add(detail); grid.Children.Add(chain);
-        grid.Opacity = Status == ApprovalFeedStatus.Drop || listProblem is not null ? .6 : 1;
+        grid.Opacity = Status == ApprovalFeedStatus.Drop || listProblem is not null || Device?.State.Status == BellTeam.PeerChannel.RuntimeStatus.Retrying ? .6 : 1;
         return grid;
     }
 
