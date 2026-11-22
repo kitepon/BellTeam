@@ -560,3 +560,49 @@ flowchart LR
 State: no door --first registration--> serving (entries >= 1) --every entry dead twice--> no door (address removed, process exits). Failure exits: registration that cannot reach or start the door is a stderr line and the hook ends 0 (the launch is never failed, the next launch or resume registers again); a refused hook field is prevented by the version condition above; a bearer the body drops is dropped at once and the next entry tried; with no live entry the connector gets `door_unavailable` and retries (10 s in its tools, 2 s by its daemon). Protected: the bearer (memory only, 0600 socket and 0700 directory, never argv or log), wrong target (only `127.0.0.1:P`, the seat's own forward), privilege (a fork's bearer is never registered, a body 403 is skipped). No other guard; nothing is refused or stopped for an unknown state.
 
 Order: (1) diagrams agreed here and in Aiterm (Elegg: generic post-launch hook, hook env facts, alive-check bin, P); (2) Aiterm 0.70.100 with those additions (0.70.99 goes first, Elegg); (3) the body route live (Molly, next train after Z181); (4) this door and `doorHook`, one launch each on macbook, fox and rabbit with one request filed through the door per OS (an unpaired daemon answering `503 not_paired` through the whole path is already proof of the path); (5) Aiterm drops `approval-door.ts` and `registerDoor` in the next release after that proof. Aiterm's own door stays untouched until (5), so no remote seat changes behaviour before this one is proven.
+
+## Terminals on Aiterm's generic remote surface (Tronie ruling a532, task a532b4, stage 0 design 2026-11-23)
+
+Plan and ruling: Crust's plan `docs/a532b4-remote-terminal-move-plan.md` (Crust's project docs), reviewed by Elegg and accepted by Tronie 2026-11-23; this section is the BellTeam-side contract of that plan. Principle: Aiterm only drives a machine over SSH, standalone; refs, revisions, trust decisions, the credential agent, the seat route and the wording are BellTeam's, so they live here. Today Aiterm holds them (`remote-terminal.ts`, about 575 of 2,624 lines by function role, Elegg's count). This section draws the target. **No behaviour changes in stage 0.**
+
+```mermaid
+flowchart LR
+  Reg[terminals.registry: target, key handles, host identity]
+  Trust[terminals.trust: known_hosts material per terminal + revision, first use, Owner confirm]
+  Agent[terminals.credential: one ssh-agent per terminal, key bytes only from Mika's callback]
+  Conn[terminals.connection: target = remote + ssh options + forward ids, per-terminal input switch]
+  Exec[execution remote-seats: final mcp_config with http://127.0.0.1:P, post_launch, session names]
+  subgraph Aiterm[Aiterm, generic: drive a machine over SSH]
+    Remote[remote input + caller-given ssh options]
+    Fwd[ensure_forward / release_forward / forward_status: detached keeper, lock, grace, P, ready_at]
+    Tools[tools by session: launch, send, read, wait, transcript, image, path ops, CLI ops]
+    Install[install-key, install-Aiterm: neutral names]
+  end
+  Host[(terminal host: remote Aiterm, seat, door)]
+  Reg --> Trust
+  Reg --> Conn
+  Trust -->|known_hosts file path, revision| Conn
+  Agent -->|stable agent socket path| Conn
+  Conn -->|remote + ssh options + forward ids| Exec
+  Exec -->|ensure_forward id = terminal ref, to 127.0.0.1:D -> P, ready_at| Fwd
+  Exec -->|agent_launch remote + ssh + mcp_config final + post_launch| Tools
+  Remote --> Tools
+  Tools <-->|ssh with the caller's pinned options| Host
+  Fwd <-->|ssh -N -R 127.0.0.1:P:127.0.0.1:D| Host
+  Conn -->|install key / install Aiterm with the Owner's one-time password on stdin| Install
+  Install --> Host
+```
+
+| Piece | Owner after the move | Contract |
+| --- | --- | --- |
+| Host trust per terminal | terminals (`terminals.trust`) | One known_hosts file per terminal under terminals' state (0600, public host-key lines only) and its revision `sha256:<digest>`; first use accepts a new key (as the Owner's accept-new ruling today), a changed key stops, never re-first-used. The files and revision are the host identity README already lists as terminals' state; Aiterm gets the file path in `ssh.known_hosts_file` and the alias in `ssh.host_key_alias` |
+| Credential agent | terminals | One private ssh-agent process per terminal (UID1000); key bytes come only from Mika's callback on stdin and never reach disk; the socket path is stable across keeper restarts (the detached keeper restarts ssh on its own) and goes to Aiterm as `ssh.identity_agent`. Dies with the container: the existing "load once per terminal that has a recorded seat after a body restart" step reloads it |
+| Binding check and revisions | terminals | Replaces T1: the revision of the trust file and of the key are checked by terminals before it hands the input out; Aiterm no longer checks refs |
+| Seat route | terminals + execution | execution calls `ensure_forward({id: <terminal ref>, remote, to: {host: 127.0.0.1, port: D}})` before the launch, receives P and `ready_at`, writes the seat URLs `http://127.0.0.1:P/api/seat-mcp...` itself and passes them as final `mcp_config`; headers stay `${NAME}` templates with values on Aiterm's private-env channel (kept generic). `route_since` of a seat = `forward_status.ready_at` read through Aiterm's `pty_list` as today. `id` = the existing binding ref at first, so the call joins the keeper, lock and P a running seat already uses: no second keeper, no new P, no seat touched |
+| Launch input | terminals returns, execution passes unchanged | `remote: {host, user, port, ssh: {known_hosts_file, host_key_alias, identity_agent, strict_host_key: true}}` where `terminal: {ref, target, os?, trustRevision, credentialRevision}` is returned today. Sent only when both Aiterms carry the surface (the container's schema refuses an unknown field; an older terminal Aiterm strips it silently) |
+| Self-service | terminals + Aiterm | install-key (the Owner's password on stdin, only once) and install-Aiterm stay in Aiterm under neutral names, called with the same `ssh` options; the card flow and the words are terminals' / Mika's |
+| Wording | terminals | The Japanese actions and `TERMINAL_*` codes move here; Aiterm keeps typed codes and `aiterm/launch_error` structure. `remote-seats.mjs` already classifies them |
+
+State of each terminal's input: `terminal` (today) --switch recorded in terminals' state after a check and C8 ran on `remote` for that terminal--> `remote`; any failure of the switch or of a later `remote` operation on that terminal --fallback--> `terminal` for that terminal. Switch order: the Mac first, then rabbit, then fox. A seat that runs keeps its forward and P at every step (same keeper, same id); a launch that cannot get P launches nothing new and is drained by the existing observer. Guard: none added; the exit of the per-terminal switch is the fallback.
+
+Stages (plan, Tronie): 0 this section and RT25; 1 Aiterm additive release (Elegg: `remote.ssh`, forward tools, `export --ref R`, neutral install names; `terminal` untouched); 2 terminals copies the registry material (known_hosts lines, alias, revision) from `export` and creates the agent, reading nothing of Aiterm's files; 3 check and C8 on `remote`; 4 launches on `remote` (with execution's seam); 5 self-service; 6 Aiterm drops the old input only after the three terminals ran a real period and Tronie confirms. Existing tests already pin the observable contract the stages must keep: `terminals-connection.test.mjs` (target shape, C8, lastCheck, evidence), `terminals-remote-process.test.mjs` (what terminals reads from Aiterm's open/status), `remote-seats.test.mjs` (launch args, refusal classes, notices), `terminals-self-service.test.mjs`; Aiterm pins its own results (R18/R19 fields, status, P stability, `route_since`) in its repo.
