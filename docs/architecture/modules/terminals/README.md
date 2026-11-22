@@ -607,3 +607,36 @@ flowchart LR
 State of each terminal's input: `terminal` (today) --switch recorded in terminals' state after a check and C8 ran on `remote` for that terminal--> `remote`; any failure of the switch or of a later `remote` operation on that terminal --fallback--> `terminal` for that terminal. Switch order: the Mac first, then rabbit, then fox. A seat that runs keeps its forward and P at every step (same keeper, same id); a launch that cannot get P launches nothing new and is drained by the existing observer. Guard: none added; the exit of the per-terminal switch is the fallback.
 
 Stages (plan, Tronie): 0 this section and RT25; 1 Aiterm additive release (Elegg: `remote.ssh`, forward tools, `export --ref R`, neutral install names; `terminal` untouched); 2 terminals copies the registry material (known_hosts lines, alias, revision) from `export` and creates the agent, reading nothing of Aiterm's files; 3 check and C8 on `remote`; 4 launches on `remote` (with execution's seam); 5 self-service; 6 Aiterm drops the old input only after the three terminals ran a real period and Tronie confirms. Existing tests already pin the observable contract the stages must keep: `terminals-connection.test.mjs` (target shape, C8, lastCheck, evidence), `terminals-remote-process.test.mjs` (what terminals reads from Aiterm's open/status), `remote-seats.test.mjs` (launch args, refusal classes, notices), `terminals-self-service.test.mjs`; Aiterm pins its own results (R18/R19 fields, status, P stability, `route_since`) in its repo.
+
+### Stage 2: host trust copy and the per-terminal credential agent (Tronie go 2026-11-23; design)
+
+Tronie's conditions: diagrams first, in both products; key material stays in the per-terminal agent and is never printed or logged; Aiterm's store stays the live path until a later stage switches it. Aiterm's side of the connection is drawn in Aiterm's `remote-terminal.md` (R26-R29: `aiterm-remote export --ref R`, `ensure_forward`, `remote.ssh`). Nothing a seat uses changes in stage 2.
+
+```mermaid
+flowchart LR
+  Open[connection.withProcess: the open already reads remote_terminal_status]
+  Copy[trust.copy: aiterm-remote export --ref R, run as UID1000 through the seat process runner]
+  Reg[(terminals.json: terminal.trustCopy)]
+  File[trust.file: known_hosts for one terminal, written when a call needs it, stage 3]
+  Load[connection.loadKey: Mika's callback, key bytes on stdin]
+  Agent[credential.agent: one ssh-agent per terminal, UID1000, socket under /tmp]
+  Aiterm[Aiterm: binding store and its own credential agent, still the live path]
+  Open -->|trust revision differs from the copy or no copy| Copy
+  Copy <-->|aiterm.remote-binding-export.v1: public host-key lines, alias, fingerprints, trust revision| Aiterm
+  Copy --> Reg
+  Reg --> File
+  Load -->|credential-load, as today| Aiterm
+  Load -->|ssh-add - on stdin, best effort| Agent
+```
+
+| Piece | Contract |
+| --- | --- |
+| `trust.copy(terminal)` | Runs once per terminal and registry generation, in the background of the C8 open that saw a different trust revision (or no copy), joined by every other launch of that terminal, never awaited by a launch, never vetoing it (the same shape as the Aiterm provision, a442j). Calls `aiterm-remote export --ref <binding ref>` through the seat process runner (UID1000, the way `credential-load` and `provision` already run). The answer must be `schema: "aiterm.remote-binding-export.v1"` with the asked `ref`, a `known_hosts_lines` array of at most 8 public host-key lines (`<host-pattern> <type> <base64>`, no private key text), `host_key_alias`, `fingerprints` and `trust_revision` (`sha256:<64 hex>`); anything else is `failed` and nothing is stored. It reads no file of Aiterm's, and no key, handle or key path is in the answer |
+| `terminal.trustCopy` | Stored in `terminals.json` by the one registry writer: `{ref, alias, lines, fingerprints, revision, copiedAt}`. Public data only (the host identity this README already lists as terminals' state). The copy follows Aiterm's trust: a host key Aiterm accepted or the Owner confirmed is copied once its revision changes; a changed key still stops in Aiterm today and is never accepted by this copy on its own, never re-first-used. Registry change of the terminal (host, user, port) clears it, like `lastCheck` |
+| Evidence | `maintenance.last(terminalId, harness).trust = {revision, outcome}`: `current` (copy equals Aiterm's revision), `copied` (this run stored it), `failed` (+ `reason` = Aiterm's code). Read by stage 3 (terminals' own switch decision) and by whoever debugs it; no screen shows it |
+| `credential.agent(terminal)` | One `ssh-agent` per terminal, started as UID1000 by the seat process runner (`ssh-agent -a <socket>`, daemonizing; the same way Aiterm's keeper already outlives its starter), socket `/tmp/bellteam-terminals/agent/<terminalId>.sock` (directory 0700 made by UID1000). `/tmp` and the key both end with the container, which is the key agent's life today (R13 "body restart" reload). A live agent is detected with `ssh-add -l` (exit 0 or 1 = alive, 2 = none) and reused, so the socket path is stable across keeper restarts and body restarts within a container life. Not killed on removal: its keys are deleted (`ssh-add -D`) and the socket path is left; an idle agent costs nothing |
+| Key load | In `connection.loadKey`, after the existing `credential-load` into Aiterm succeeded, the same bytes from Mika's callback are fed to `sh -c 'SSH_AUTH_SOCK=$1 exec ssh-add -' sh <socket>` on stdin (the seat runner takes no env, so the socket path is the only argument). The key never reaches argv, env, a file or a log; the error keeps only a code and never `ssh-add`'s text. A failure is best effort: it never fails `loadKey`, the launch or the check; it is recorded as `agent: failed` in the evidence. A revision change deletes the loaded identity first (`ssh-add -D`), then adds the new key |
+| Protections | Named: the SSH key (bytes only in Mika's callback, ssh-add's stdin and the agent's memory), the wrong target (nothing in stage 2 connects anywhere; the copy is public lines), the Owner's trust decision (copied, never created). No guard is added: every failure leaves the live path (Aiterm's store) untouched, and the next C8 open retries |
+| Not in stage 2 | No seat, launch, check or forward uses the copy or the agent yet (stage 3 switches the check and C8 for one terminal at a time with fallback). Aiterm's binding store, `terminal` input and keeper are unchanged |
+
+State: no copy --C8 open, status revision seen--> copying (background) --valid export--> `trustCopy` = Aiterm's revision (`current` on the next open); invalid or failed export --> no change, `failed` + reason, the next open retries once the run ended. Registry change --> copy cleared. Agent: none --first key load--> started and loaded; loaded --revision change--> `ssh-add -D`, loaded again; agent gone (container restart) --next key load--> started again. Self-exit of every failure state: the next open or key load. 
