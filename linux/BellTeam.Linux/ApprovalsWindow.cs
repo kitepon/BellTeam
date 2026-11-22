@@ -63,6 +63,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     private ApprovalFeedStatus Status => hub.Feed?.Status ?? ApprovalFeedStatus.Connecting;
     private ApprovalSummary? Summary => hub.Summary;
     private IDeviceDecisions? Device => hub.Device;
+    private readonly HashSet<string> answeredOnDevice = [];   // decisions the server refused with 409 answer_on_device: shown with the line, without 答える and 保留
     private bool DeviceLive => Device?.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live;
     /// <summary>The device's list can be shown: it is live, or it already holds decisions (a held list stays while the connection is down).</summary>
     internal bool DeviceUsable => Device is { } d && (d.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live || d.Book.All.Count > 0);
@@ -214,8 +215,9 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
                 Put(latest); ResetStep(); banner = Approvals.Amended(Approvals.OriginOf(latest).Who); note = null; break;
             case "gone":
                 open?.RemoveAll(item => item.Id == decision.Id); SelectedId = null; ResetStep(); break;
-            case "device":   // 409 answer_on_device: the line, the step stays so the person can leave it; nothing to read again
-                step = wasText ? Step.Confirm : Step.Choose; stepMessage = outcome.Message; break;
+            case "device":   // 409 answer_on_device: this card is answered on the device; the line replaces the answer controls (a second try would only be refused again)
+                if (decision.Id is { } deviceOnly) answeredOnDevice.Add(deviceOnly);
+                ResetStep(); break;
             case "retry" or "stop":
                 step = wasText ? Step.Confirm : Step.Choose; stepMessage = outcome.Message ?? Approvals.Retry;
                 if (outcome.Kind == "stop") hub.ReadAgain();
@@ -237,7 +239,8 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
         }
         var read = await workspace.Management.Api.ApprovalHoldAsync(decision.Id!, decision.Status != "held", life.Token);
         if (read.Decision is { } updated) { Put(updated); stepMessage = null; ResetStep(); }
-        else stepMessage = Approvals.IsAnswerOnDevice(read.Status, read.Body) ? Approvals.AnswerOnDevice : Approvals.HoldFailed;
+        else if (Approvals.IsAnswerOnDevice(read.Status, read.Body) && decision.Id is { } deviceOnly) answeredOnDevice.Add(deviceOnly);
+        else stepMessage = Approvals.HoldFailed;
         Render();
     }
 
