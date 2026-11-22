@@ -56,6 +56,10 @@ test('an unknown App Store transaction id (an Xcode StoreKit test purchase) is r
     assert.equal((await post('/dev/store-end', { transactionId: '2000000987654321' })).status, 200)
     const ended = await (await post('/auth/v1/receipt', { receipts }, bought.pass ?? signed.pass)).json()
     assert.equal(ended.receiptResults[0].result, 'ended')
+    assert.equal((await post('/dev/store-reset', {})).status, 200)
+    const fresh = await (await post('/auth/v1/receipt', { receipts }, signed.pass)).json()
+    assert.equal(fresh.receiptResults[0].result, 'attached', 'after store-reset the same id is read as a fresh live one')
+    await post('/dev/store-end', { transactionId: '2000000987654321' })
     const checked = await (await post('/auth/v1/check', {}, ended.pass ?? bought.pass ?? signed.pass)).json()
     assert.equal(checked.entitlements?.length ?? 0, 0, 'check shows no entitlement right after store-end (no kept answer)')
   } finally { await op.close(); rmSync(dir, { recursive: true, force: true }) }

@@ -70,11 +70,16 @@ export async function startDevOperator({ port = 8790, publicUrl, dataDir = '.dev
   // Dev-only routes: the fake keys live in this process, so the id token for this server is made here.
   const dev = async request => {
     const path = new URL(request.url).pathname
-    if (request.method !== 'POST' || !['/dev/id-token', '/dev/websignin', '/dev/store-purchase', '/dev/store-end'].includes(path)) return undefined
+    if (request.method !== 'POST' || !['/dev/id-token', '/dev/websignin', '/dev/store-purchase', '/dev/store-end', '/dev/store-reset'].includes(path)) return undefined
     const body = await request.json().catch(() => ({}))
     if (path === '/dev/websignin') {
       if (typeof body.providerUrl !== 'string') return Response.json({ error: 'providerUrl' }, { status: 400 })
       return Response.json({ location: await kit.signInAtProvider(body.providerUrl, { sub: body.sub ?? subject }) })
+    }
+    if (path === '/dev/store-reset') {
+      // Forgets every fake store record (not accounts or passes), so the next StoreKit-test id is read as a fresh live one without a restart.
+      for (const table of [kit.apple.transactions, kit.apple.status, kit.apple.renewal, kit.google.subscriptions, kit.google.products]) for (const key of Object.keys(table)) delete table[key]
+      return Response.json({ reset: true })
     }
     if (path === '/dev/store-end') {
       // The App Store now says "expired" for this transaction (status 2), so the server answers ended at the next read.
