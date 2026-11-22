@@ -29,6 +29,9 @@ internal sealed class ApprovalsHub : IDisposable
     internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Run(() => Changed?.Invoke()); }
     /// <summary>The device's book or connection changed: the open window repaints.</summary>
     internal event Action? DeviceChanged;
+    internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of)];
+    /// <summary>The counts of the entry row and the toolbar: the server's summary plus what only the device holds (Core DecisionUnion). Without a device it is exactly the feed's summary.</summary>
+    internal ApprovalSummary? Summary => Device is null ? Feed?.Summary : DecisionUnion.Summary(Feed?.Summary, [], DeviceViews, DateTimeOffset.UtcNow);
     public ApprovalsFeed? Feed { get; private set; }
     /// <summary>The summary, the status or the feed itself changed (UI thread).</summary>
     public event Action? Changed;

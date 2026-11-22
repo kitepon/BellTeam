@@ -640,7 +640,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     }
     private void UpdateApprovalsEntry()
     {
-        var summary = approvals.Feed?.Summary; var view = Approvals.EntryView(summary, approvals.Feed?.Failure);
+        var summary = approvals.Summary; var view = Approvals.EntryView(summary, approvals.Feed?.Failure);
         var lit = view.Pending > 0; var violet = LatticeLook.Violet;
         var tile = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(10), Background = LatticeLook.Brush(violet, lit ? (byte)0x26 : (byte)0x14), Child = LatticeLook.Icon(ApprovalsWindow.Inbox, 19, violet) };
         var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(11, 0, 0, 0), Children = { LatticeLook.Text("決裁箱", 15, LatticeLook.Ink, FontWeight.SemiBold), LatticeLook.Text(view.Sub, 12, LatticeLook.Muted) } };

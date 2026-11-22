@@ -61,10 +61,23 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     private readonly Action<string> openChat;
 
     private ApprovalFeedStatus Status => hub.Feed?.Status ?? ApprovalFeedStatus.Connecting;
-    private ApprovalSummary? Summary => hub.Feed?.Summary;
-    private IEnumerable<ViewDecision> All => (open ?? []).Concat(done);
+    private ApprovalSummary? Summary => hub.Summary;
+    private IDeviceDecisions? Device => hub.Device;
+    private bool DeviceLive => Device?.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live;
+    /// <summary>The device's list can be shown: it is live, or it already holds decisions (a held list stays while the connection is down).</summary>
+    internal bool DeviceUsable => Device is { } d && (d.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live || d.Book.All.Count > 0);
+    private bool legacyOpen;   // the server connect screen opened by hand while the device list is usable
+    // Until the /v1 close (Delta 2026-11-22) the list is the union of the server read and the device's session, by decision id, the device copy winning (Core DecisionUnion). No device: exactly the server read.
+    private List<ViewDecision> Merged()
+    {
+        List<ViewDecision> server = [.. (open ?? []), .. done.Where(old => (open ?? []).All(item => item.Id != old.Id))];
+        return Device is null ? server : [.. DecisionUnion.Merge(server, hub.DeviceViews)];
+    }
+    private List<ViewDecision> OpenView => Device is null ? (open ?? []) : Sorted(Merged().Where(item => item.Status is "pending" or "held"));
+    private List<ViewDecision> DoneView => Device is null ? done : [.. Merged().Where(item => item.Status is not ("pending" or "held")).OrderByDescending(item => Approvals.DoneAt(item))];
+    private IEnumerable<ViewDecision> All => Device is null ? (open ?? []).Concat(done) : Merged();
     /// <summary>The render seam: true once the first read of the shown tab is drawn, or a failure view stands.</summary>
-    internal bool Settled => Status is not (ApprovalFeedStatus.Connecting or ApprovalFeedStatus.Drop or ApprovalFeedStatus.Live) || Status == ApprovalFeedStatus.Live && open is not null && (tab != "done" || doneRead);
+    internal bool Settled => DeviceUsable || Status is not (ApprovalFeedStatus.Connecting or ApprovalFeedStatus.Drop or ApprovalFeedStatus.Live) || Status == ApprovalFeedStatus.Live && open is not null && (tab != "done" || doneRead);
     internal async Task PreviewAsync(string tabName, string? id, int? option, bool writing = false)
     {
         SetTab(tabName); if (tabName == "done") for (var i = 0; i < 200 && !doneRead; i++) await Task.Delay(20);
@@ -90,7 +103,13 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     }
 
     // ---- reading
-    private void OnDevice() => Render();
+    // A device answer stays "sending" until the connector's result frame closes the decision in the book; then the step ends here.
+    private void OnDevice()
+    {
+        if (step == Step.Sending && SelectedId is { } id && All.FirstOrDefault(item => item.Id == id) is { Source: DecisionUnion.Device } decision && decision.Status is not ("pending" or "held"))
+        { ResetStep(); note = Approvals.DeliveryNote(decision); noteFor = decision.Id; banner = null; tab = "pending"; }
+        Render();
+    }
     private void OnHub() { if (hub.Feed?.Status == ApprovalFeedStatus.Live) { listProblem = null; if (open is null) _ = ReadOpenAsync(); } Render(); }
     private void OnDecisions() { if (Status != ApprovalFeedStatus.Live) return; _ = ReadOpenAsync(); if (tab == "done" || doneRead) { doneRead = false; if (tab == "done") _ = ReadDoneAsync(false); } }
 
@@ -156,8 +175,30 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     private void StartWriting() { step = Step.Writing; chosenId = null; chosenLabel = null; key = null; stepMessage = null; Render(); }
     private void ConfirmWriting() { step = Step.Confirm; key ??= Guid.NewGuid().ToString(); stepMessage = null; Render(); }
 
+    // An answer goes through the source that holds the copy on screen, never through both (Delta, transition rule).
+    private async Task SendDeviceAsync(IDeviceDecisions device, ViewDecision decision)
+    {
+        var text = step == Step.Confirm ? writeText : null; var optionId = step == Step.Confirm ? null : chosenId; var wasText = text is not null;
+        step = Step.Sending; stepMessage = null; Render();
+        BellTeam.PeerChannel.SendOutcome outcome;
+        try { outcome = await device.AnswerAsync(decision.Id!, optionId, text); }
+        catch (BellTeam.PeerChannel.NoSessionException) { outcome = new("no_session"); }
+        catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or ArgumentException) { outcome = new("gone"); }
+        if (life.IsCancellationRequested) return;
+        switch (outcome.Ack)
+        {
+            case "ok": break;   // stays "sending" until the result frame closes the decision in the book (OnDevice)
+            case "refused:stale_version": ResetStep(); banner = Approvals.Amended(Approvals.OriginOf(decision).Who); note = null; break;
+            case "refused:already_decided" or "gone": ResetStep(); break;
+            case "unknown": step = wasText ? Step.Confirm : Step.Choose; stepMessage = Approvals.DeviceUnknown; break;
+            default: step = wasText ? Step.Confirm : Step.Choose; stepMessage = Approvals.Retry; break;
+        }
+        Render();
+    }
+
     private async Task SendAsync(ViewDecision decision)
     {
+        if (decision.Source == DecisionUnion.Device && Device is { } device) { await SendDeviceAsync(device, decision); return; }
         var text = step == Step.Confirm ? writeText : null; var optionId = step == Step.Confirm ? null : chosenId; var sendKey = key ?? Guid.NewGuid().ToString(); key = sendKey;
         step = Step.Sending; stepMessage = null; Render();
         ApprovalResponse reply;
@@ -184,6 +225,14 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
 
     private async Task ToggleHoldAsync(ViewDecision decision)
     {
+        if (decision.Source == DecisionUnion.Device && Device is { } device)
+        {
+            BellTeam.PeerChannel.SendOutcome outcome;
+            try { outcome = await device.HoldAsync(decision.Id!, decision.Status != "held"); }
+            catch (Exception error) when (error is BellTeam.PeerChannel.NoSessionException or InvalidOperationException or KeyNotFoundException) { outcome = new("no_session"); }
+            ResetStep(); stepMessage = outcome.Ack == "ok" ? null : Approvals.HoldFailed; Render();
+            return;
+        }
         var read = await workspace.Management.Api.ApprovalHoldAsync(decision.Id!, decision.Status != "held", life.Token);
         if (read.Decision is { } updated) { Put(updated); stepMessage = null; ResetStep(); }
         else stepMessage = Approvals.HoldFailed;
