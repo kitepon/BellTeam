@@ -59,7 +59,7 @@ public sealed class DecisionBook
         if (!entries.TryGetValue(rid, out var e) || !e.IsOpen) return;
         var next = status switch { "answered" => DecisionStatus.Answered, "expired" => DecisionStatus.Expired, _ => DecisionStatus.Cancelled };
         var answer = next == DecisionStatus.Answered && answerContent is { } c ? new DecisionAnswer(Str(c, "option_id"), Str(c, "text"), decidedBy) : null;
-        entries[rid] = e with { Status = next, Answer = answer, CancelReason = next == DecisionStatus.Expired ? "expired" : e.CancelReason, UpdatedAt = now };
+        entries[rid] = e with { Status = next, Answer = answer, CancelReason = next == DecisionStatus.Expired ? "expired" : status == "closed" ? "closed" : e.CancelReason, UpdatedAt = now };
         Changed?.Invoke();
     }
 
