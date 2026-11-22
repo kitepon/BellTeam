@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T07:49:12Z",
-  "expiresAt": "2026-11-29T07:49:12Z",
+  "publishedAt": "2026-11-22T09:42:39Z",
+  "expiresAt": "2026-11-29T09:42:39Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "20b74e5baafb568bbb5f8ce53b6e3eca56c18557",
-      "versionId": "sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879",
+      "sourceCommit": "74cd80f960ca3dee7a51b2e2e64062a65c6d9089",
+      "versionId": "sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体が起動しない状態で入れ替えが途中で止まり、本体が1つも無くなっても、緊急の入れ替えの手順をもう一度実行すれば、保存済みの設定と状態から本体を起動できます。"
+        "決裁箱のコネクタを本体が常駐させ、つなぐ手順と外向き通信の確認の道具を足します。本体が起動しないときの緊急の入れ替えの結果表示も直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "20b74e5baafb568bbb5f8ce53b6e3eca56c18557",
-      "versionId": "sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879",
+      "sourceCommit": "74cd80f960ca3dee7a51b2e2e64062a65c6d9089",
+      "versionId": "sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6e73705ae27504efe8fd938aa766a61d8059935745f19038d4f06acfc5a8e879"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体が起動しない状態で入れ替えが途中で止まり、本体が1つも無くなっても、緊急の入れ替えの手順をもう一度実行すれば、保存済みの設定と状態から本体を起動できます。"
+        "決裁箱のコネクタを本体が常駐させ、つなぐ手順と外向き通信の確認の道具を足します。本体が起動しないときの緊急の入れ替えの結果表示も直します。"
       ]
     },
     {
