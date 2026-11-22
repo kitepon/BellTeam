@@ -37,4 +37,8 @@ flowchart LR
 
 状態の出口（signin.md 2章）：Live の切れ方は、4401 pass_ended・/pc/v1 の 401＝サインアウト（期限とは言わない）、4410＝パス・端末の鍵・レジストリ・履歴を消してサインアウト、レジストリから外された＝NeedsApproval、中継に届かない＝Reconnecting（1,2,4…30秒の待ち、回数の上限なし、手動の「今すぐ試す」は待っている次の1回を直ちに実行し並列には増やさない）。購読が無い＝NotEntitled（「確かめ直す」で再確認）。サインアウトしても BellTeam のサインインは残る。端末の削除画面は作らない（SEC-086 は対象外）。
 
-この版に入れていないもの（次の段）：工程表とのつながり（by-decision の結合と「決裁を開く」の行き先）、通知拡張（NSE）による本文なしの起こし、Nayuta のサーバーに対するライブ試験。
+サインインは Apple を先に出し（Owner の Approval Box のアカウントは Apple ID）、Google は2つ目（Nayuta 2026-11-23）。戻りは scheme `approvalbox-websignin` だけ（確認済みリンクは Approval Box 自身のアプリ専用）。
+
+ライブ試験（2026-11-23 04:40 JST、approval-box 9e26153 のローカル開発サーバー 127.0.0.1:8788、iOS シミュレータ。`ApprovalBoxLiveTests`、`PEER_DEV_URL` が無ければ何もしない）：ラボの承認者（dev:approve）が作った登録簿に対し、ApprovalBoxLink が NeedsApproval → 16文字のコードを出す Waiting → dev:admit で承認 → Live → コネクタ経由の依頼が届く → 先頭の選択肢で答える → コネクタ側が answered。Web ブラウザの段は試験で動かせないため、パスは開発サーバーの偽サインインからライブラリの Testing の口で取り、同じパスの置き場を ApprovalBoxLink が読む。`ApprovalBoxLive` は実機・本番・通知・TURN を含まない。
+
+この版に入れていないもの（次の段）：工程表とのつながり（by-decision の結合と「決裁を開く」の行き先）、通知拡張（NSE）による本文なしの起こし、実機 iPhone での確認。

@@ -213,6 +213,7 @@
 		F26ECC124135C0421E970DA4 /* SettingsNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A113AE7E3F745B4DD64764EB /* SettingsNavigation.swift */; };
 		F30ED3800A3A5C3EA05D379F /* WorkGraphTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBC8C5C4354549F8CDE70F2 /* WorkGraphTapUITests.swift */; };
 		F4168A23679901FBCD893B9E /* LatticeChartUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D57EF59E97FCE6C1EA9805 /* LatticeChartUITests.swift */; };
+		F4A1A6C4D5F3893842A41C3A /* ApprovalBoxLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE37937D59AFF2E08B20113D /* ApprovalBoxLiveTests.swift */; };
 		F4DE428FC58C42684BD79050 /* UserRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = C575D107F7787F699274D3E1 /* UserRules.swift */; };
 		F4E28EAECE529EA885542A2D /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */; };
 		F5BD3CF8DF8448911A5619E8 /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */; };
@@ -457,6 +458,7 @@
 		DB0122377D6B8287375EEC71 /* NetworkRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkRecoveryTests.swift; sourceTree = "<group>"; };
 		DBAD1D13AC6EF3C06BF561FB /* product.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = product.json; sourceTree = "<group>"; };
 		DD3112A4CF72FD70FD1B34C3 /* MachineEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineEvent.swift; sourceTree = "<group>"; };
+		DE37937D59AFF2E08B20113D /* ApprovalBoxLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalBoxLiveTests.swift; sourceTree = "<group>"; };
 		DEE043EEA88EF36CB0E9EA2F /* PreviewFixtureRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtureRelay.swift; sourceTree = "<group>"; };
 		E054635E82AFF40C54FA96A0 /* SettingsStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStatus.swift; sourceTree = "<group>"; };
 		E18B998FC06A5BE8997CC48B /* AuthenticationInstructions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationInstructions.swift; sourceTree = "<group>"; };
@@ -547,6 +549,7 @@
 			children = (
 				32531494CC727C6D89D3A94F /* AIControlTests.swift */,
 				D15EFB50FA62BBBDE16CDF8A /* ApprovalBoxLinkTests.swift */,
+				DE37937D59AFF2E08B20113D /* ApprovalBoxLiveTests.swift */,
 				1506528175F1B446FCBED20E /* ApprovalsTests.swift */,
 				CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */,
 				66A26CF8840BC42D2E270C99 /* AuthSetupOrderingTests.swift */,
@@ -1289,6 +1292,7 @@
 			files = (
 				21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */,
 				DB41E6B7215CC96BDB79D741 /* ApprovalBoxLinkTests.swift in Sources */,
+				F4A1A6C4D5F3893842A41C3A /* ApprovalBoxLiveTests.swift in Sources */,
 				823ED4141BA6256BC55D2A52 /* ApprovalsTests.swift in Sources */,
 				C23530D8DE7BBE5CC1EB7275 /* AuthSetupOrderingTests.swift in Sources */,
 				054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */,

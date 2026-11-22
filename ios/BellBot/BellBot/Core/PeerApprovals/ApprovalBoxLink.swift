@@ -30,6 +30,8 @@ final class ApprovalBoxLink: ObservableObject {
 
     @Published private(set) var state: State = .signedOut(note: nil)
     @Published private(set) var decisions: [PeerDecisionRecord] = []
+    /// The technical reason of the last drop to retry (diagnostics only; the person sees the plain line).
+    private(set) var lastFailureDetail: String?
 
     private let origin: URL
     private let client: LoginBillingClient?
@@ -83,10 +85,11 @@ final class ApprovalBoxLink: ObservableObject {
     }
 
     /// 「Approval Boxにサインイン」: the system browser, web sign-in only. A cancel leaves the screen as it was.
-    func signIn(anchor: @escaping @MainActor () -> ASPresentationAnchor) async {
+    /// Provider: Apple is the Owner's Approval Box account (Apple ID); Google lands in a different account, so it is only the second choice (Nayuta 2026-11-23).
+    func signIn(provider: String = "apple", anchor: @escaping @MainActor () -> ASPresentationAnchor) async {
         guard let client, state != .signingIn else { return }
         state = .signingIn
-        do { try await client.signInWeb(anchor: anchor) }
+        do { try await client.signInWeb(provider: provider, anchor: anchor) }
         catch let error as LoginBillingError where error.code == "signin_cancelled" { state = .signedOut(note: nil); return }
         catch { state = .signedOut(note: ApprovalBoxWords.signInFailed); return }
         started = true
@@ -148,6 +151,10 @@ final class ApprovalBoxLink: ObservableObject {
 
     func blob(_ id: String) -> Data? { history?.blob(id) }
 
+    #if DEBUG
+    func stopForTest() { Task { await stopPeer() } }
+    #endif
+
     // MARK: Joining
 
     private func join() async {
@@ -179,7 +186,7 @@ final class ApprovalBoxLink: ObservableObject {
         case .passEnded: passEnded()
         case .accountDeleted: await accountDeleted()
         case .notEntitled: await stopPeer(); state = .notEntitled
-        case .failed: await stopPeer(); state = .reconnecting(reason: ApprovalBoxWords.unreachable); scheduleRetry()
+        case .failed(let detail): lastFailureDetail = detail; await stopPeer(); state = .reconnecting(reason: ApprovalBoxWords.unreachable); scheduleRetry()
         }
     }
 
@@ -228,6 +235,7 @@ final class ApprovalBoxLink: ObservableObject {
 enum ApprovalBoxWords {
     static let signedOut = "決裁箱を使うには、Approval Boxにサインインします。BellTeamのサインインとは別です。"
     static let signIn = "Approval Boxにサインイン"
+    static let signInGoogle = "Googleでサインイン"
     static let signingIn = "ブラウザでサインインしています…"
     static let joining = "この端末を決裁箱につないでいます…"
     static let needsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。"
