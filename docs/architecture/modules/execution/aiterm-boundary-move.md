@@ -16,7 +16,7 @@ flowchart LR
   end
   subgraph AT["Aiterm (Elegg)"]
     GEN["generic tools: pty_*, agent_launch/configure/goal, stream_*, image_*"]
-    STEER["steer-follow: wait_process, steer_id, input_id, aiterm-wait --steer"]
+    STEER["steer-follow: wait_process, input_ref (was steer_id), input_id, aiterm-wait --input-ref (was --steer)"]
     SEATV["seat_turns, route_since, unread in pty_list"]
     ESRV["execution-native-server / parent-worker / native-setup; agent_stop; bellteam.harness-entries.v1"]
     ESTORE["agent_execution, agent_execution_roots, execution store (most of 33 execution-*.ts)"]
@@ -44,7 +44,7 @@ Nothing here adds a data path. Each stage replaces an Aiterm-shaped fact by one 
 | 1 | `throughline_*` launch options | none in `src` | No | none needed | **Stay in Aiterm** as a generic cross-harness fork feature if they carry no BellTeam names (Tronie ruling 2026-11-23) |
 | 2 | `mcp_config` seat-route rewriting | `remote-seats.mjs` builds the config | Yes (remote seats) | BellTeam builds the final config, Aiterm passes it unchanged; lab remote-seat run | after that |
 | 3 | `seat_turns` / `route_since` / `unread` | `#seatTurns`, route resume | Yes (seat view, current work, remote route) | BellTeam derives them from generic facts; shadow run with zero differences | after the shadow run |
-| 4 | steer-follow outputs (`wait_process`, `steer_id`, `input_id`, `aiterm-wait --steer`) | `waitProcess`, `steerFollow`, `waitUntilDone` | Yes, every delivery | **Not a move (Tronie ruling A, 2026-11-23):** steer-follow stays in Aiterm as a neutral machine-mouth feature: `steer_id` -> `input_ref`, `--steer` -> `--input-ref`, no BellTeam wording and no caller gating; BellTeam keeps only its consumer and adopts the new names | Elegg's rename; BellTeam adopts it before the old names go |
+| 4 | steer-follow outputs (`wait_process`, `steer_id`, `input_id`, `aiterm-wait --steer`) | `waitProcess`, `steerFollow`, `waitUntilDone` | Yes, every delivery | **Not a move (Tronie ruling A, 2026-11-23):** steer-follow stays in Aiterm as a neutral machine-mouth feature: `steer_id` -> `input_ref`, `--steer` -> `--input-ref`, no BellTeam wording and no caller gating; BellTeam keeps only its consumer and adopts the new names | Elegg's rename (Aiterm 0.70.105 offers both names); BellTeam reads `input_ref` and falls back to `steer_id` only for an older Aiterm (2026-11-23, a532b2k); Elegg drops the old names once container and terminals are >= 0.70.105 |
 | 5 | `agent_stop` | `sendSessionStop` | Yes (Owner's stop) | BellTeam stops through `pty_key` + the seat's child lineage; lab-compared | after that |
 | 5 | `execution-native-server`, `execution-parent-worker`, `execution-native-setup`, `bellteam.harness-entries.v1` | `aiterm-hooks.mjs` (runtime bd06), `harness-entries.mjs` (bd14) | Yes | runtime runs on a generic Aiterm entry (Molly) | after that |
 
