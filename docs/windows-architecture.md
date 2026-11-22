@@ -354,12 +354,16 @@ flowchart LR
   rtc --> dll[datachannel.dll<br/>libdatachannel v0.24.6・ビルド済み]
   keys[DeviceKeyStore: 端末鍵<br/>DPAPI・BellTeam.App] --> sig
   sig --> server[決裁箱サーバー 合図のみ・中身なし]
+  server -->|POST /pc/v1/turn の urls| ice[IceServers: 契約11の選別<br/>最初のSTUN1つ + UDPのTURN先頭2つ<br/>名前はIPv4に解決]
+  ice --> rtc
   repo[(windows/native/prebuilt/win-x64<br/>datachannel.dll + .sha256)] -->|csprojが複写| dll
   build[build-libdatachannel.ps1<br/>開発者の機械でだけ実行] -.->|更新時にだけ置き換え| repo
   install[install-windows.ps1] -->|SHA-256を照合して<br/>アプリの隣へ置く| dll
 ```
 
 BellTeam.PeerChannel（net10.0、OS非依存。LinuxのNeonも使う）は peer-channel 契約0.5.6（kitepon/peer-channel e95b332）の端末側をC#で持つ。段階は、1) HPKE（RFC 9180 mode_base、DHKEM(P-256,HKDF-SHA256)/HKDF-SHA256/AES-256-GCMの1スイートだけを.NET標準の暗号部品で実装。新しい依存なし）→ 2) 契約のテストデータ全件（バイト列・鍵・名簿・封筒・フレーム）→ 3) WebRTC・シグナリング・承認（`SignalClient`・`DeviceSession`。TSのコネクタ相手の通し試験は `PC_E2E_FILE` を指した時だけ動く `PeerChannelE2eTests`）→ 4) 決裁箱画面の接続替え（デルタの設計 a490e の合流後）。段階1は、RFC 9180の既知値、`pc1-hpke.json`と`pc1-envelope.json`の全件、C#で封印した出力をTS側（hpke-js 1.10.1）が開けること、をアイリの受け入れ前の条件にする。テストデータは `windows/BellTeam.Tests/fixtures/peer-channel/` に固定commitのまま置く。端末鍵（署名鍵・封印鍵）は `DeviceIdentity` が作り、`BellTeam.App/DeviceKeyStore` が DPAPI（CurrentUser・固有のentropy）で `%LOCALAPPDATA%\BellTeam` のファイルに封じる（名簿の保護区分は `os_store`）。読めないファイルは鍵が無いものとして新しい鍵を作る。
+
+**中継（TURN）の選び方（契約0.5.7 第11章、ナユタ 2026-11-22）**：libjuiceは名前の最初のアドレスだけにつなぎ、TURNは2つまで、中継はUDPだけなので、`IceServers.Select`（`WebRtc.cs`。TSの`iceServers`の移植）が `POST /pc/v1/turn` の `urls` から、最初の `stun:` を1つと、UDPの `turn:`（`transport=tcp`は除く）の先頭2つだけを取り、それぞれのホスト名をIPv4に解決して（IPv4が無い時だけIPv6。解決できない名前は外す。解決は2秒で打ち切る）libdatachannelのICEサーバーに渡す。
 
 **datachannel.dll の届け方（トロニー裁定 2026-11-22）**：利用者の機械ではビルドしない（MSVC・vcpkgは要らない）。WebRTCは libdatachannel v0.24.6（commit 6b1e2e62）を `Native.cs` のP/Invokeで呼ぶ。ビルド済みの `datachannel.dll`（x64。OpenSSL 3.6.5を静的に含み、Visual C++ ランタイムだけを要する）を `windows/native/prebuilt/win-x64/` に **SHA-256（`datachannel.dll.sha256`）と一緒にリポジトリへ置く**。Windows用のCIがまだ無いため（既存のCIはLinuxとサーバーだけ）、リポジトリ内の置き場にしている。CIができたら、固定ソースからそこでビルドしてリリースへ添付する形に替える。置き換えるのは、ピン（libdatachannel・5つのサブモジュール・vcpkg 2026.10.16・OpenSSL）を上げる時だけで、`windows/native/build-libdatachannel.ps1`（開発者の機械でだけ実行。MSVC・CMake・Ninja・vcpkgが要り、固定commit以外は停止）が `prebuilt/win-x64` へDLLと `.sha256` を書く。ビルドは同じバイト列を再現しないので、置き換えたcommitの `.sha256` が正本になる。`BellTeam.PeerChannel.csproj` が `prebuilt/win-x64/datachannel.dll` をビルド出力と`dotnet publish`の出力へ複写し（`win-arm64`のpublishには複写しない）、`scripts/install-windows.ps1` が publish の直後に、複写された `datachannel.dll` のSHA-256を `.sha256` と照合して一致しなければ導入を止め、一致すればアプリの他のファイルと同じ手で導入先へ置く。**win-arm64 にはDLLが無い**（x64のDLLはarm64のプロセスに読めない）：導入は警告を出し、決裁箱の端末部品はarm64では動かない（arm64のビルドが要る時に別途）。`PeerChannelNativeTests`（同一プロセスの2接続がデータチャネルで往復する）はこの複写されたDLLでP/Invokeを確かめる。同梱するのは libdatachannel（MPL-2.0）、libjuice（MPL-2.0）、libsrtp・usrsctp（BSD）、plog・nlohmann/json（MIT）、OpenSSL（Apache-2.0）で、ソースは上のピンのcommitから取れる。
 
