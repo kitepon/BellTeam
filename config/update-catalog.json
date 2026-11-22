@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T18:35:17Z",
-  "expiresAt": "2026-11-29T18:35:17Z",
+  "publishedAt": "2026-11-22T19:27:00Z",
+  "expiresAt": "2026-11-29T19:27:00Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f58d3b4c7c311615e24a7ba24607fd518ed9c08a",
-      "versionId": "sha256:84d5620cdbdf87dab99cbb834f03aa68271906e9984c01512835bb830dfcaf31",
+      "sourceCommit": "375af15808f20b8068ed2644112d38c1676d8afc",
+      "versionId": "sha256:f24813991f6eb571ff5f241d9f5a3ce4705cfa574311f46bc6853ea3c53ed994",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:84d5620cdbdf87dab99cbb834f03aa68271906e9984c01512835bb830dfcaf31"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f24813991f6eb571ff5f241d9f5a3ce4705cfa574311f46bc6853ea3c53ed994"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の image に入れる Aiterm を 0.70.100 にします。端末側の決裁箱の入口が動き出す条件になります。使われていない橋の道を取り除きます。"
+        "端末側の決裁箱の入口が、Windows でも接続の終了後に残るようにします。入口の動きを小さく記録して、原因を読めるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f58d3b4c7c311615e24a7ba24607fd518ed9c08a",
-      "versionId": "sha256:84d5620cdbdf87dab99cbb834f03aa68271906e9984c01512835bb830dfcaf31",
+      "sourceCommit": "375af15808f20b8068ed2644112d38c1676d8afc",
+      "versionId": "sha256:f24813991f6eb571ff5f241d9f5a3ce4705cfa574311f46bc6853ea3c53ed994",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:84d5620cdbdf87dab99cbb834f03aa68271906e9984c01512835bb830dfcaf31"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f24813991f6eb571ff5f241d9f5a3ce4705cfa574311f46bc6853ea3c53ed994"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の image に入れる Aiterm を 0.70.100 にします。端末側の決裁箱の入口が動き出す条件になります。使われていない橋の道を取り除きます。"
+        "端末側の決裁箱の入口が、Windows でも接続の終了後に残るようにします。入口の動きを小さく記録して、原因を読めるようにします。"
       ]
     },
     {
