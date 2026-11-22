@@ -45,6 +45,10 @@ flowchart TD
   Back --> Out
 ```
 
+## Packaging (a506m2)
+
+The image is built from the public package, not from the whole repository: `scripts/package-server.mjs` archives an explicit file list, rebuilds `distribution/` from named files only, and `publish-server-image.yml` builds on pushes to its `paths` list (`test/server-image-paths.test.mjs` keeps the two aligned). `scripts/emergency-body.py` is in both lists and `distribution/server/emergency-body.sh` is copied into the rebuilt `distribution/server/` (test: `test/server-distribution.test.mjs`). Z172 lab found both files missing from image `dfe6686f` for this reason.
+
 ## Data flow
 
 ```mermaid
