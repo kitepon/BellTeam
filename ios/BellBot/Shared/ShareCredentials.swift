@@ -11,8 +11,6 @@ enum ShareCredentials {
         var cookieExpiresAt: Date?
         /// サーバーのセッショントークン（app-sessions.md）。あれば`Authorization: Bearer`で使う。
         var sessionToken: String?
-        /// Appleの購読が有効な期限。サーバーが開発者モードの接続先では使わない。
-        var entitledUntil: Date?
     }
 
     enum Failure: Error, LocalizedError {

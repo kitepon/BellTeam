@@ -29,7 +29,6 @@
 		0B2097D93D1D0E40E9287CAC /* HomeLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4616CF2C747C0ADCE7B97C /* HomeLoginView.swift */; };
 		0D4A7550D7A1CB322AF04B68 /* ConversationAppearanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */; };
 		0DA1D18D904869960DA78C0B /* ConversationTimelineStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111BABF39834B4AAC46442D0 /* ConversationTimelineStateTests.swift */; };
-		0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */; };
 		0F7F0DC278294B4B73B70940 /* StoreAccountTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151A2D993A5D8B4056326A78 /* StoreAccountTests.swift */; };
 		10F1A7F0147C0A132F9C422B /* MachineEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BE949F19FB2ADC006BBCC19 /* MachineEventView.swift */; };
 		133234E2BCD1D74FC8C7FE93 /* LatticeTabletUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD6192EB2C414C2CFE144DCD /* LatticeTabletUITests.swift */; };
@@ -302,7 +301,6 @@
 		176EA930767EE44E1A60E29B /* BackgroundAgentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundAgentSettingsView.swift; sourceTree = "<group>"; };
 		1944A57E482DF484C82340C9 /* ApprovalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalsView.swift; sourceTree = "<group>"; };
 		19964D1F37185563CBBACBFB /* BotStopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotStopTests.swift; sourceTree = "<group>"; };
-		19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSubscriptionAccess.swift; sourceTree = "<group>"; };
 		1A349EE234D1444D7643C961 /* BotScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotScreenView.swift; sourceTree = "<group>"; };
 		1AC9DE69D9AA70D53EE0364D /* BellTeamMonthly.storekit */ = {isa = PBXFileReference; path = BellTeamMonthly.storekit; sourceTree = "<group>"; };
 		1B50F1ABC10F99B3ECE4BD42 /* ApprovalBoxLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalBoxLink.swift; sourceTree = "<group>"; };
@@ -630,7 +628,6 @@
 		410C9BB56D3B67991287629F /* Core */ = {
 			isa = PBXGroup;
 			children = (
-				19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */,
 				9B97F8421A396D42F5D9493F /* Approvals.swift */,
 				9D505AA366C00647C21E6CE8 /* AppStore.swift */,
 				7B0E5A8B0B797AF624E5874E /* AppStore+Terminals.swift */,
@@ -1176,7 +1173,6 @@
 			files = (
 				4CB610ECF2ED98695D3DA0AD /* AppStore+Terminals.swift in Sources */,
 				67C076EDA84BC9E653993332 /* AppStore.swift in Sources */,
-				0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */,
 				3958583313FE3D055F09FC22 /* ApprovalBoxLink.swift in Sources */,
 				FD4922427001F91C9F1E7BCD /* ApprovalLinks.swift in Sources */,
 				159A25EECCC168D86730E69B /* Approvals.swift in Sources */,

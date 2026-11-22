@@ -73,7 +73,6 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     var pushToken: String? { token }
     /// 通知トークンが変わった時（ホームのチケットを新しい値で証明し直す）。
     var onTokenChange: (() -> Void)?
-    private var signedTransaction: String?
     private var attached = false
     private var activating = false
     private var registrationTask: Task<Void, Never>?
@@ -82,13 +81,12 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         authorization = OSNotificationAuthorization(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
     }
 
-    func activate(api: BellAPI, signedTransaction: String?) async {
+    func activate(api: BellAPI) async {
         guard !activating else { return }
         activating = true
         defer { activating = false }
         attached = true
         self.api = api
-        self.signedTransaction = signedTransaction
         errorText = nil
         failure = nil
         var stage = "server_status"
@@ -125,11 +123,6 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         }
     }
 
-    func updateSignedTransaction(_ value: String?) async {
-        signedTransaction = value
-        if attached { await registerToken() }
-    }
-
     func receivedToken(_ data: Data) {
         token = data.map { String(format: "%02x", $0) }.joined()
         onTokenChange?()
@@ -143,7 +136,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         do {
             let previous = UserDefaults.standard.string(forKey: "bellbot.pushToken")
             let _: PushRegistration = try await api.post("/api/notifications/devices",
-                body: PushDevice(token: token, environment: try Self.environment(), server: server, previousToken: previous, signedTransaction: signedTransaction))
+                body: PushDevice(token: token, environment: try Self.environment(), server: server, previousToken: previous))
             UserDefaults.standard.set(token, forKey: "bellbot.pushToken")
             statusText = "返信・入力要求を通知します"
             errorText = nil
@@ -180,7 +173,6 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         }
         api = nil
         token = nil
-        signedTransaction = nil
         pendingRoute = nil
         pendingUpdateRoute = nil
         visibleConversation = nil
@@ -238,6 +230,6 @@ final class BellNotificationAppDelegate: NSObject, UIApplicationDelegate {
 }
 
 private struct PushServerStatus: Decodable { let configured: Bool; let environments: [String] }
-private struct PushDevice: Encodable { let token: String; let environment: String; let server: String; let previousToken: String?; let signedTransaction: String? }
+private struct PushDevice: Encodable { let token: String; let environment: String; let server: String; let previousToken: String? }
 private struct PushToken: Encodable { let token: String }
 private struct PushRegistration: Decodable { let registered: Bool }

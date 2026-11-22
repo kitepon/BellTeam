@@ -208,7 +208,7 @@ final class AppStore: ObservableObject {
             api.sessionToken = shared.sessionToken
         }
         self.webDataStore = webDataStore
-        billing = suppliedBilling ?? BillingStore(api: api)
+        billing = suppliedBilling ?? BillingStore(api: api, account: storeAccount)
         updates = UpdateStore(api: api)
         billing.onSetupRequired = { [weak self] in
             guard let self else { return }
@@ -219,11 +219,6 @@ final class AppStore: ObservableObject {
             }
             self.selectedTab = 0
             self.chatPath = [.bot(guide)]
-        }
-        billing.onEntitlementChange = { [weak self] in
-            guard let self else { return }
-            await BellNotifications.shared.updateSignedTransaction(self.billing.notificationSignedTransaction)
-            self.publishShareCredentials()
         }
         api.diagnostics.configure(serverURL: url)
         BellNotifications.shared.onTokenChange = { [weak self] in Task { await self?.reproveHome() } }
@@ -545,7 +540,7 @@ final class AppStore: ObservableObject {
     func authorizeAIUse(target: ChatTarget) async throws {
         let botID: String? = if case .bot(let id) = target { id } else { nil }
         if botID == setup?.guideBotId, botID != nil { try await refreshSetup() }
-        let initialGuide = AppleSubscriptionAccess.isInitialGuide(botID: botID, guideBotID: setup?.guideBotId, setupComplete: setup?.complete ?? true)
+        let initialGuide = AppAccess.isInitialGuide(botID: botID, guideBotID: setup?.guideBotId, setupComplete: setup?.complete ?? true)
         try await billing.requirePaidAccess(initialGuide: initialGuide)
     }
 
@@ -557,7 +552,7 @@ final class AppStore: ObservableObject {
     }
 
     func activateNotifications() async {
-        await BellNotifications.shared.activate(api: api, signedTransaction: billing.notificationSignedTransaction)
+        await BellNotifications.shared.activate(api: api)
     }
 
     func refresh(origin: MemberListReadOrigin = .unspecified) async throws {
@@ -831,7 +826,7 @@ final class AppStore: ObservableObject {
                 if Task.isCancelled { return }
                 await refreshAIControl()
                 if Task.isCancelled { return }
-                await billing.refreshAppleAccess()
+                await billing.refreshAccess()
                 if Task.isCancelled { return }
                 if scenePhase == .active, case .ready = phase {
                     startEvents()
@@ -1199,7 +1194,7 @@ final class AppStore: ObservableObject {
         publishShareCredentials()
     }
 
-    /// 共有拡張が使う接続先・クッキー・購読の期限を、共有Keychainへ書く（拡張は自分でログインしない）。
+    /// 共有拡張が使う接続先・クッキー・セッショントークンを、共有Keychainへ書く（拡張は自分でログインしない）。
     /// 接続先が無い・ログアウト後は消す。書けなければ診断へ出す（拡張は「アプリを開いてログインし直してください」と案内する）。
     func publishShareCredentials() {
         do {
@@ -1209,8 +1204,7 @@ final class AppStore: ObservableObject {
                 serverURL: url.absoluteString,
                 cookieHeader: cookies.isEmpty ? nil : HTTPCookie.requestHeaderFields(with: cookies)["Cookie"],
                 cookieExpiresAt: cookies.compactMap(\.expiresDate).min(),
-                sessionToken: api.sessionToken,
-                entitledUntil: billing.entitlement?.validUntil)
+                sessionToken: api.sessionToken)
             // 同じ内容は書き直さない（書き直しは消してから足すので、読む側に一瞬の空白ができる）。
             if try ShareCredentials.load() == snapshot { return }
             try ShareCredentials.save(snapshot)
