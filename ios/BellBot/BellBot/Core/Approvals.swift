@@ -175,7 +175,10 @@ enum ApprovalText {
         return "\(head) 答えると、\(d.origin.isExternal ? d.origin.toolName : d.addressee)に届きます。"
     }
 
-    static func originCaption(_ d: ApprovalDecision) -> String { d.origin.isBellTeam ? (d.requester?.name ?? "名簿にないメンバー") : d.origin.line }
+    static func originCaption(_ d: ApprovalDecision) -> String {
+        if d.origin.isBellTeam, let name = d.requester?.name, !name.isEmpty { return name }
+        return d.origin.line
+    }
 
     static func filter(hidden: Int) -> String { "外部の決裁 \(hidden)件を隠しています。" }
 
@@ -189,8 +192,8 @@ enum ApprovalText {
 // MARK: Records as the view's decisions
 
 extension ApprovalDecision {
-    /// A decision as this device holds it (peer-channel): content only from the device; no chart link here (the id-level lookup joins it later), origin external.
-    init(record r: PeerDecisionRecord) {
+    /// A decision as this device holds it (peer-channel): content only from the device. With a link (the id-level lookup found the engine's row) it is BellTeam's own decision; without one it counts as external.
+    init(record r: PeerDecisionRecord, link: ApprovalLink? = nil) {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let answer = r.answer.map {
@@ -206,8 +209,8 @@ extension ApprovalDecision {
                       ApprovalAttachment(id: $0.id, name: $0.name, contentType: $0.contentType, size: $0.size,
                                          sha256: (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
                   },
-                  origin: ApprovalOrigin(kind: "external", client: r.client, tool: Self.toolName(r.client), sessionLabel: r.sessionLabel, via: r.via),
-                  requester: nil, link: nil)
+                  origin: ApprovalOrigin(kind: link == nil ? "external" : "bellteam", client: r.client, tool: Self.toolName(r.client), sessionLabel: r.sessionLabel, via: r.via),
+                  requester: link == nil ? nil : ApprovalRequester(botId: nil, name: nil), link: link)
     }
 
     static func toolName(_ client: String) -> String {
@@ -247,6 +250,11 @@ final class ApprovalsModel: ObservableObject {
     /// Decisions that left 待ち/保留 in this session (answered here): their 詳細 stays on screen until the Owner closes it.
     private var settled: [String: ApprovalDecision] = [:]
     private var subscriptions: [AnyCancellable] = []
+    private var records: [PeerDecisionRecord] = []
+    /// decision id -> the engine's answer at the time: a link, or nil for 404 (external / not linked yet).
+    private var links: [String: (link: ApprovalLink?, at: Date)] = [:]
+    private let resolver = ApprovalLinkResolver()
+    static let linkRetry: TimeInterval = 30
 
     init(link: ApprovalBoxLink? = nil) {
         let link = link ?? ApprovalBoxLink()
@@ -278,13 +286,41 @@ final class ApprovalsModel: ObservableObject {
         }
     }
 
-    /// Keeps the entry count and the screen current while the app is in front (a started link is left alone).
-    func run() async { await link.start() }
+    /// Keeps the entry count and the screen current while the app is in front (a started link is left alone), and the 工程表とのつながり of each decision current.
+    func run(api: BellAPI) async {
+        await link.start()
+        while !Task.isCancelled {
+            await refreshLinks(api: api)
+            try? await Task.sleep(for: .seconds(Self.linkRetry))
+        }
+    }
+
+    /// One lookup per decision that is open or recent: a found link is read again each round (the chart moves), a 404 is asked again after \(Int(linkRetry)) s (the engine links at its own cadence).
+    func refreshLinks(api: BellAPI) async {
+        let wanted = records.filter { $0.canAnswer || Date().timeIntervalSince($0.updatedAt) < 3600 }.prefix(60)
+        var changed = false
+        for r in wanted {
+            let known = links[r.id]
+            if let known, known.link == nil, Date().timeIntervalSince(known.at) < Self.linkRetry { continue }
+            switch await resolver.lookup(r.id, api: api) {
+            case .linked(let l): if known?.link != l { changed = true }; links[r.id] = (l, Date())
+            case .notLinked: if known?.link != nil { changed = true }; links[r.id] = (nil, Date())
+            case .unknown: break
+            }
+            if Task.isCancelled { return }
+        }
+        if changed { rebuild() }
+    }
 
     // MARK: Local state
 
     func apply(_ records: [PeerDecisionRecord]) {
-        let all = records.map(ApprovalDecision.init(record:))
+        self.records = records
+        rebuild()
+    }
+
+    private func rebuild() {
+        let all = records.map { ApprovalDecision(record: $0, link: links[$0.id]?.link) }
         let tokyo = LatticeTime.tokyo
         let today = tokyo.startOfDay(for: Date())
         let isToday = { (text: String?) in LatticeTime.date(text).map { tokyo.startOfDay(for: $0) == today } ?? false }

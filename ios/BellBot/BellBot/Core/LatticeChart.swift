@@ -56,7 +56,16 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
 struct LatticeDecision: Decodable, Equatable {
     let decisionId: String
     let status: String
+    /// `by-task` loses the title at the `/v1` close (content lives on the devices); then the block says only the state.
     let title: String
+
+    private enum Keys: String, CodingKey { case decisionId, status, title }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        decisionId = try c.decode(String.self, forKey: .decisionId)
+        status = try c.decode(String.self, forKey: .status)
+        title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
+    }
 
     static let stateWords = ["pending": "待ち", "held": "保留", "answered": "回答済み", "cancelled": "取り下げ"]
     var stateText: String? { Self.stateWords[status] }

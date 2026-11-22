@@ -225,6 +225,7 @@
 		FB51090B3C666789FD722B3A /* ApprovalsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2875588A7AB24B89B700CB74 /* ApprovalsUITests.swift */; };
 		FBB5374AF788223F144EA209 /* BackgroundAgentSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D8B7EA92DE81A89E5F7552 /* BackgroundAgentSettingsTests.swift */; };
 		FCDE197B84EDF95C61684414 /* SSHHostKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0578B483DDFB2C9E74B797 /* SSHHostKeyTests.swift */; };
+		FD4922427001F91C9F1E7BCD /* ApprovalLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA48855D888D20BD5226966F /* ApprovalLinks.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -448,6 +449,7 @@
 		C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationList.swift; sourceTree = "<group>"; };
 		C89DE09C565167FBCD28C4A5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSend.swift; sourceTree = "<group>"; };
+		CA48855D888D20BD5226966F /* ApprovalLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalLinks.swift; sourceTree = "<group>"; };
 		CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationRecoveryTests.swift; sourceTree = "<group>"; };
 		CBF4C4E203D07386DF665746 /* BellBotStoreKitPrime.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotStoreKitPrime.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1086F9E0B3BEE6FEE07D172 /* ShareClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareClient.swift; sourceTree = "<group>"; };
@@ -714,6 +716,7 @@
 			isa = PBXGroup;
 			children = (
 				1B50F1ABC10F99B3ECE4BD42 /* ApprovalBoxLink.swift */,
+				CA48855D888D20BD5226966F /* ApprovalLinks.swift */,
 				A605C887D02BB877D614167B /* PeerDecisionRecord.swift */,
 				97195E70D40EFA1826B27A39 /* PeerDevice.swift */,
 				4012D6AA3D96484D24BE2678 /* PeerDeviceStore.swift */,
@@ -1175,6 +1178,7 @@
 				67C076EDA84BC9E653993332 /* AppStore.swift in Sources */,
 				0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */,
 				3958583313FE3D055F09FC22 /* ApprovalBoxLink.swift in Sources */,
+				FD4922427001F91C9F1E7BCD /* ApprovalLinks.swift in Sources */,
 				159A25EECCC168D86730E69B /* Approvals.swift in Sources */,
 				1C6579253FE8FA670475A823 /* ApprovalsView.swift in Sources */,
 				A5300355DA897C634FFB0DE8 /* AuthenticationInstructions.swift in Sources */,

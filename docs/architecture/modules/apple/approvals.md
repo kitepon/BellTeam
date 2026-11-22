@@ -41,4 +41,6 @@ flowchart LR
 
 ライブ試験（2026-11-23 04:40 JST、approval-box 9e26153 のローカル開発サーバー 127.0.0.1:8788、iOS シミュレータ。`ApprovalBoxLiveTests`、`PEER_DEV_URL` が無ければ何もしない）：ラボの承認者（dev:approve）が作った登録簿に対し、ApprovalBoxLink が NeedsApproval → 16文字のコードを出す Waiting → dev:admit で承認 → Live → コネクタ経由の依頼が届く → 先頭の選択肢で答える → コネクタ側が answered。Web ブラウザの段は試験で動かせないため、パスは開発サーバーの偽サインインからライブラリの Testing の口で取り、同じパスの置き場を ApprovalBoxLink が読む。`ApprovalBoxLive` は実機・本番・通知・TURN を含まない。
 
-この版に入れていないもの（次の段）：工程表とのつながり（by-decision の結合と「決裁を開く」の行き先）、通知拡張（NSE）による本文なしの起こし、実機 iPhone での確認。
+工程表とのつながり（a490h2r、`Core/PeerApprovals/ApprovalLinks.swift` の `ApprovalLinkResolver`）：決裁の中身は端末だけにあり、BellTeam のサーバーに聞くのは ID と状態だけ。`GET /api/approvals/by-decision?id=` が {project, plan, task, state} を返せば BellTeam の決裁（出どころ bellteam、つながりあり）、404 なら外部または未接続（破線の「つながっていません」）、それ以外の失敗は何も足さない。工程の名前と前後は、アプリが読める工程表（`/api/lattice/charts/:project`、20秒の写し）の札とエッジから描く。見つかったつながりは30秒ごとに読み直し、404は30秒後にもう一度聞く（サーバーのつなぎ込みは自分の間隔で動く）。工程表の詳細の「決裁を開く」は `by-task`（ID と状態だけ。件名が無い時は「決裁（待ち）」）から同じ決裁の詳細を開く。
+
+この版に入れていないもの（次の段）：通知拡張（NSE）による本文なしの起こし、実機 iPhone での確認、BellTeam のサーバーへ「この端末が見せた決裁」を知らせる D7b の報告。

@@ -80,6 +80,34 @@ final class ApprovalBoxLinkTests: XCTestCase {
         XCTAssertEqual(model.summary?.byOrigin.bellteam, 0)
     }
 
+    func testChartLinkFromTheIdsAndTheChart() throws {
+        let json = #"{"epoch":"e","version":1,"projectId":"p1","name":"BellTeam開発","state":"verified","cards":[{"id":"pl/a","plan":"pl","taskId":"a","title":"前の工程","state":"done"},{"id":"pl/dec-1","plan":"pl","taskId":"dec-1","title":"この決裁の工程","state":"in-progress"},{"id":"pl/c","plan":"pl","taskId":"c","title":"次の工程","state":"pending"}],"edges":[{"from":"pl/a","to":"pl/dec-1","waiting":false},{"from":"pl/dec-1","to":"pl/c","waiting":true}]}"#
+        let snapshot = try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
+        let link = try XCTUnwrap(ApprovalLinkResolver.link(ApprovalByDecision(project: "p1", plan: "pl", task: "dec-1", state: "linked"), in: snapshot))
+        XCTAssertEqual(link.chart.name, "BellTeam開発")
+        XCTAssertEqual(link.task.title, "この決裁の工程")
+        XCTAssertEqual(link.task.cardId, "pl/dec-1")
+        XCTAssertEqual(link.previous.map(\.title), ["前の工程"])
+        XCTAssertEqual(link.next.map(\.title), ["次の工程"])
+        XCTAssertNil(ApprovalLinkResolver.link(ApprovalByDecision(project: "p1", plan: "pl", task: "nope", state: "linked"), in: snapshot), "a task the chart does not have draws no link")
+        let d = ApprovalDecision(record: record("d9"), link: link)
+        XCTAssertTrue(d.origin.isBellTeam)
+        XCTAssertEqual(d.linkNote, "工程表「この決裁の工程」が、この回答を待っています")
+        XCTAssertEqual(ApprovalText.originCaption(d), "Claude Code · Macのレシート整理")
+        XCTAssertTrue(ApprovalDecision(record: record("d9")).origin.isExternal)
+    }
+
+    func testByTaskWithoutATitleStillDecodes() throws {
+        let d = try JSONDecoder().decode(LatticeDecision.self, from: Data(#"{"decisionId":"K-1","status":"pending"}"#.utf8))
+        XCTAssertTrue(d.valid)
+        XCTAssertEqual(d.title, "")
+    }
+
+    func testByDecisionPathEncodesTheId() {
+        XCTAssertEqual(ApprovalLinkResolver.path("K-RHFHF8"), "/api/approvals/by-decision?id=K-RHFHF8")
+        XCTAssertEqual(ApprovalLinkResolver.path("a b&c"), "/api/approvals/by-decision?id=a%20b%26c")
+    }
+
     func testHistoryKeepsTheNewerVersionAndRoundTrips() throws {
         let history = PeerDecisionHistory(directory: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString))
         defer { history.erase() }
