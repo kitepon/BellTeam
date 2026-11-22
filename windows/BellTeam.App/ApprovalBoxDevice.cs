@@ -60,7 +60,7 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
     internal async Task DeleteLocalDataAsync(CancellationToken ct)
     {
         signIn?.Cancel(); approve?.Cancel();
-        try { await Account.SignOutAsync(ct); } finally { Device.ClearLocal(); }
+        try { await Account.SignOutAsync(ct); } finally { Device.ClearLocal(strict: true); }
     }
 
     public ValueTask DisposeAsync() { signIn?.Cancel(); approve?.Cancel(); return Device.DisposeAsync(); }
