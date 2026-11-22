@@ -969,7 +969,7 @@ shared/toolsは1000:1000/0711のため通常本体から直接作成しない。
 
 ## 提出済secretの管理caller
 
-[同requestの管理callerと認可捕捉](submitted-secret-caller.md)が親側の正本。usage固定consumerと既Owner技術許可の両方が注入された時だけ接続し、未供給は503で閉じる。
+[退役の記録](submitted-secret-caller.md)（a490q4）: 親側のcallerと認可捕捉は外した。consume routeは503で閉じ、消費側はミカの第二PRで外す。
 
 ## 共通JSON保存
 
