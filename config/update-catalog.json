@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T07:10:32Z",
-  "expiresAt": "2026-11-29T07:10:32Z",
+  "publishedAt": "2026-11-22T07:49:12Z",
+  "expiresAt": "2026-11-29T07:49:12Z",
   "releases": [
     {
       "componentId": "usage",
@@ -751,8 +751,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
-      "versionId": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3",
+      "sourceCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2",
+      "versionId": "5adaf8f8074426ed655937c493da60b4aaa23bf17d1118dab5153c372fb7a25c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +760,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz",
-          "bytes": 15348472,
-          "sha256": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-amd64.tar.gz",
+          "bytes": 15348574,
+          "sha256": "5adaf8f8074426ed655937c493da60b4aaa23bf17d1118dab5153c372fb7a25c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10839,
-          "sha256": "5418ac174ff43e64bc548d890e0669b1e232a19949e6840c4a90f45a9067706b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "1c038f5eb280876b2cc4318f6dd9f321a46345225a86f89be1f7a39c9cf42c25"
         },
-        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
+        "signerCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +781,13 @@
         }
       },
       "changes": [
-        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
+        "Latticeの子が起動してから最初の催促を3分後にし、途中で切れたターンの自動再開を先に動かします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
-      "versionId": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f",
+      "sourceCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2",
+      "versionId": "b80f793f8bad01e8ce6ce6959791de58933ebdebc3ae3d6add8270418a0a9175",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +795,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz",
-          "bytes": 15348472,
-          "sha256": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-arm64.tar.gz",
+          "bytes": 15348574,
+          "sha256": "b80f793f8bad01e8ce6ce6959791de58933ebdebc3ae3d6add8270418a0a9175"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10745,
-          "sha256": "7e79e5bda02acb08ea31a1f73b9a4c68976f7c1a1cdc74fcd36b68acb4d87ce0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "62b56a51c08569b1940d507cf63892ead9a4cf7476ad4b15f3a1c3117473e55b"
         },
-        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
+        "signerCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +816,7 @@
         }
       },
       "changes": [
-        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
+        "Latticeの子が起動してから最初の催促を3分後にし、途中で切れたターンの自動再開を先に動かします。"
       ]
     },
     {
