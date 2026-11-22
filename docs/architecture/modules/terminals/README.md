@@ -38,7 +38,7 @@ flowchart LR
   Privilege --> State
 ```
 
-`uses` names existing provider envelopes, not already implemented remote methods. The secret resolver is a proposed extension under usage.settings, where submitted-secret consumption is documented today; Mika and Trony must settle its exact typed method. Elegg must settle the remote adapter under aiterm.native. Incoming dependencies from execution, UI/common entry and members are proposed below; their owners add their own `uses` as they implement the adopted contracts. Their descriptors are unchanged in this PR.
+`uses` names existing provider envelopes, not already implemented remote methods. The secret resolver is a proposed extension under usage.settings, where the secret resolver and one-time values are documented ([secret-credentials](../usage/secret-credentials.md)); Mika and Trony must settle its exact typed method. Elegg must settle the remote adapter under aiterm.native. Incoming dependencies from execution, UI/common entry and members are proposed below; their owners add their own `uses` as they implement the adopted contracts. Their descriptors are unchanged in this PR.
 
 ## Owned state and public projections
 
