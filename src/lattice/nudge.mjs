@@ -1,6 +1,5 @@
 // Prompt sweep (README L13-L15; Owner 2026-11-12, the whole spec): every chart's cards from the memo projection (the screens' read,
-// no `todo nudge`) -> ONE prompt per lane Bot that is not running, for its in-progress or startable tasks it was not yet told about (a502, Owner 2026-11-22:
-// only the endless repetition stops). No other condition.
+// no `todo nudge`) -> ONE prompt per lane Bot that is not running and has an in-progress or a startable task. No other condition.
 // A card whose lane is no Bot and not the Owner goes to the chart's creator Bot instead, asking it to reassign the card (a145).
 const LIMIT = 4000
 const HEAD = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.\n'
@@ -46,13 +45,12 @@ export function nudgeMessage(entries) {
   return left ? text + more(left) : text
 }
 
-// charts: [{projectId, createdBy, cards, degraded?}] from the memo (cards as projection.mjs makes them); laneOf(lane) -> roster Bot id | 'owner' | null.
-// `warned`: what was already told (key = chart/plan/task/lane[/state] -> the Bot told), so one task reaches its Bot once and again only when it changes
-// (b25: the creator warning, state in its key; a502: the lane Bot's own prompt, a start does not count as a change). The caller keeps it across child restarts.
-// A chart whose read is degraded keeps its keys: an unread chart has not 'left'.
+// charts: [{projectId, createdBy, cards}] from the memo (cards as projection.mjs makes them); laneOf(lane) -> roster Bot id | 'owner' | null.
+// `warned`: the reassign warnings already delivered (key = chart/plan/task/lane/state -> creator), so one task's warning reaches its creator once
+// and again only when the task changes (b25, Shiratsuru: three warnings in minutes, each delivery starting a turn). The in-prompt tasks repeat by
+// design (the Owner's nudge); only the creator warning is once. shortcut: kept in memory per child generation, so a child restart warns once more; upgrade if restarts get frequent.
 export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map() }) {
   const lanes = new Map(), orphans = new Set(), current = new Set(), out = { charts: charts.length, prompted: 0, skipped: 0, failed: 0 }
-  const unread = new Set(charts.filter(chart => chart.degraded?.length).map(chart => chart.projectId))
   for (const { projectId, createdBy, cards } of charts) for (const card of cards) {
     if (card.state !== 'in-progress' && card.state !== 'ready') continue
     const bot = laneOf(card.lane)
@@ -60,12 +58,11 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
     // A lane that is no Bot goes to the chart's creator (a roster Bot), in its one message (a145).
     const target = bot ?? laneOf(createdBy)
     if (!target || target === 'owner') { orphans.add(projectId); continue }
-    const key = `${projectId}\0${card.plan}\0${card.taskId}\0${card.lane ?? ''}${bot ? '' : `\0${card.state}`}`
-    current.add(key)
-    if (warned.get(key) === target) continue
+    const key = bot ? null : `${projectId}\0${card.plan}\0${card.taskId}\0${card.lane ?? ''}\0${card.state}`
+    if (key) { current.add(key); if (warned.get(key) === target) continue }
     lanes.set(target, [...lanes.get(target) ?? [], { projectId, card, reassign: !bot, key }])
   }
-  for (const key of warned.keys()) if (!current.has(key) && !unread.has(key.split('\0', 1)[0])) warned.delete(key)
+  for (const key of warned.keys()) if (!current.has(key)) warned.delete(key)
   for (const projectId of orphans) log(`lattice-nudge-lane ${projectId} no-creator`)
   if (!lanes.size) return out
   // Only 'working' proves the Bot is running (script/CI waits included, bellteam-running); unknown or a failed read is prompted.
@@ -76,7 +73,7 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
     const now = await effect('turns.read', { botIds: [bot] }).then(value => value.turns[bot], () => turns[bot])
     if (now === 'working') { out.skipped++; continue }
     const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
-    if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) { out.prompted++; for (const entry of entries) warned.set(entry.key, bot) }
+    if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) { out.prompted++; for (const entry of entries) if (entry.key) warned.set(entry.key, bot) }
     else { out.failed++; log(`lattice-nudge-send ${bot} not accepted`) }
   }
   return out

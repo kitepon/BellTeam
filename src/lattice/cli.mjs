@@ -31,28 +31,9 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     catch { throw latticeError('LATTICE_UNAVAILABLE', 503) }
   }
   // BellTeam's own record (README L18), in BellTeam's own state dir, never inside Lattice's charts root (a102).
-  const recordFile = join(stateDir, 'owner-decisions.json'), toldFile = join(stateDir, 'nudge-told.json')
+  const recordFile = join(stateDir, 'owner-decisions.json')
   // Only a missing path means "nothing yet"; any other I/O error is LATTICE_UNAVAILABLE and nothing is cached.
   const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
-
-  async function readRecord(path) {
-    const link = await lstat(path).catch(error => failed(error))
-    let value = null
-    if (link && !link.isSymbolicLink()) try { value = JSON.parse(await readFile(path, 'utf8')) } catch {}
-    if (!link) return {}
-    if (value && typeof value === 'object' && !Array.isArray(value)) return value
-    await rename(path, `${path}.invalid-${Date.now()}`)
-    return {}
-  }
-  async function writeRecord(path, value) {
-    await mkdir(stateDir, { recursive: true, mode: 0o700 })
-    const temp = `${path}.${process.pid}.tmp`
-    const file = await open(temp, 'wx', 0o600)
-    try {
-      try { await file.writeFile(JSON.stringify(value) + '\n') } finally { await file.close() }
-      await rename(temp, path)
-    } catch (error) { await rm(temp, { force: true }); throw error }
-  }
 
   // Spawn gate (a466f): one child on bellteam is 451-540 MB, and 8 at once pushed the box over its memory bound. A slot is held only while the child runs; waiters go in arrival order.
   let running = 0
@@ -120,11 +101,24 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     repoSync: id => host(id, ['chart', 'repo', 'sync', '--json'], {}, 120000),
     // Owner-lane filing record (README L18): one JSON object. Missing = {}.
     // A symlink or malformed file is moved aside (`.invalid-<ms>`) and starts empty; the body adopts a request already filed for the task by its session_label (L18), so nothing is filed twice.
-    readOwnerRecord: () => readRecord(recordFile),
-    writeOwnerRecord: value => writeRecord(recordFile, value),
-    // The nudge record (README L14, a502): which tasks each Bot was already told. Same file rules as the filing record.
-    readNudgeRecord: () => readRecord(toldFile),
-    writeNudgeRecord: value => writeRecord(toldFile, value),
+    async readOwnerRecord() {
+      const link = await lstat(recordFile).catch(error => failed(error))
+      let value = null
+      if (link && !link.isSymbolicLink()) try { value = JSON.parse(await readFile(recordFile, 'utf8')) } catch {}
+      if (!link) return {}
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value
+      await rename(recordFile, `${recordFile}.invalid-${Date.now()}`)
+      return {}
+    },
+    async writeOwnerRecord(value) {
+      await mkdir(stateDir, { recursive: true, mode: 0o700 })
+      const temp = `${recordFile}.${process.pid}.tmp`
+      const file = await open(temp, 'wx', 0o600)
+      try {
+        try { await file.writeFile(JSON.stringify(value) + '\n') } finally { await file.close() }
+        await rename(temp, recordFile)
+      } catch (error) { await rm(temp, { force: true }); throw error }
+    },
     // shortcut: one-time move of what BellTeam kept inside Lattice's charts root before a102 (names, creators, the filing record); remove after the release that ran it everywhere.
     async migrateLegacy(rows) {
       const moved = { names: 0, record: false }
