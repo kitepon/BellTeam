@@ -27,8 +27,12 @@ internal static class AccountStore
         get { try { return Billing is { } b && b.PassKind != PassKind.None; } catch (LoginBillingException) { return false; } }
     }
     private static HomeConnection? home;
+    // Test seam: where home.bin lives (default: this Windows user's BellTeam folder).
+    internal static string HomeDirectory { get; set; } = SettingsStore.UserDirectory;
     // The one HomeConnection of the app (library rule: one per home server). Its record (base, token, session id) is sealed with DPAPI for this Windows user.
-    public static HomeConnection? Home => home ??= Billing?.HomeConnection(new DpapiHomeStore(Path.Combine(SettingsStore.UserDirectory, "home.bin")));
+    public static HomeConnection? Home => home ??= Billing?.HomeConnection(new DpapiHomeStore(Path.Combine(HomeDirectory, "home.bin")));
+    // a485 「アカウントを削除」: the record of this PC goes even when the server could not be reached to end its session.
+    public static void ForgetHome() { new DpapiHomeStore(Path.Combine(HomeDirectory, "home.bin")).Delete(); home = null; }
     // The Bearer token for a URL of the home server's own origin, else null (the library hands it out for that origin only).
     public static string? HomeToken(Uri origin) => Home?.HomeHeader(origin.AbsoluteUri) is { } header ? header["Bearer ".Length..] : null;
     private static DesktopLoginBilling? Make()

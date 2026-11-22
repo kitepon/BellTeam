@@ -12,7 +12,7 @@ public sealed partial class SettingsWindow : EditorWindow
 {
     private readonly Workspace workspace;
     private readonly Action? changeServer;
-    private readonly Action? signOut;
+    private readonly Action? signOut, deleteAccount;
     private readonly DesktopNotifications? notifications;
     private readonly Dictionary<SettingsPage, Border> rows = [];
     private readonly Dictionary<SettingsPage, (TextBlock Line, ContentControl Badge)> rowStates = [];
@@ -43,9 +43,9 @@ public sealed partial class SettingsWindow : EditorWindow
     private (UpdateKind Kind, string Title)? update;
     private Window? host;
 
-    public SettingsWindow(Workspace workspace, Action? changeServer = null, DesktopNotifications? notifications = null, Action? signOut = null) : base("設定", workspace.ConnectionToken)
+    public SettingsWindow(Workspace workspace, Action? changeServer = null, DesktopNotifications? notifications = null, Action? signOut = null, Action? deleteAccount = null) : base("設定", workspace.ConnectionToken)
     {
-        this.workspace = workspace; this.changeServer = changeServer; this.notifications = notifications; this.signOut = signOut;
+        this.workspace = workspace; this.changeServer = changeServer; this.notifications = notifications; this.signOut = signOut; this.deleteAccount = deleteAccount;
         profileName.Text = workspace.OwnerName;
         var layout = new Grid { Background = SettingsUi.Canvas };
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) }); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) }); layout.ColumnDefinitions.Add(new ColumnDefinition());

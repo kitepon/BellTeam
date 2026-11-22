@@ -167,6 +167,30 @@ public sealed class AppLoginTests
         unbound.Dispose(); bound.Dispose();
     });
 
+    // a485 「アカウントを削除」: Rapi's reference words, the subscription sentences replaced by the Windows ones (a PC buys nothing).
+    [Fact]
+    public void TheDeletionWordsAreRapisReferenceWithOnlyTheSubscriptionSentencesChanged()
+    {
+        Assert.Equal("アカウントを削除", AccountDeletionText.Button); Assert.Equal("アカウントを削除しますか？", AccountDeletionText.ConfirmTitle);
+        Assert.Equal(("削除する", "やめる"), (AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo)); Assert.Equal("アカウントを削除しました", AccountDeletionText.ResultTitle);
+        Assert.Equal("この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、このアカウントに結びつけた情報を持っていません。ほかの端末のサインインは、その端末で終えてください。"
+            + AccountDeletionText.Subscription + "サーバーの会話や設定は消えません。", AccountDeletionText.ConfirmBody(AccountDeletionText.Subscription));
+        Assert.Equal("この端末のサインインとデータを消しました。ログインの運営には、このアカウントの情報は残っていません。" + AccountDeletionText.Cancel, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
+        Assert.DoesNotContain("Apple Account", AccountDeletionText.Subscription + AccountDeletionText.Cancel);
+    }
+
+    [Fact]
+    public void TheDeleteButtonIsTheLastItemOfTheCardSignedInOrNotAndOnlyWhereAWayToDeleteIsGiven() => RunSta(() =>
+    {
+        var deleted = 0; var worker = new Kitepon.LoginBilling.Desktop.DesktopLoginBilling("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore());
+        var card = new AccountView(worker, () => deleted++); Until(() => card.SignedOut);
+        Assert.Equal(AccountDeletionText.Button, System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(card).Last()));   // last, below the sign-in entry
+        Click(card, AccountDeletionText.Button); Assert.Equal(1, deleted);
+        Assert.DoesNotContain(Descendants<Button>(new AccountView(worker)), b => System.Windows.Automation.AutomationProperties.GetName(b) == AccountDeletionText.Button);   // the first-run gate has none
+        Assert.DoesNotContain(Descendants<Button>(new AccountView(null, () => deleted++)), b => System.Windows.Automation.AutomationProperties.GetName(b) == AccountDeletionText.Button);   // no Worker: no card to delete from
+        card.Dispose();
+    });
+
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
     private static void Click(DependencyObject root, string name) => Descendants<Button>(root).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject { if (root is T found) yield return found; foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach (var item in Descendants<T>(child)) yield return item; }
