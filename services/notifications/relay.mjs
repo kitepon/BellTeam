@@ -77,9 +77,10 @@ export function createNotificationRelay({ provider, fcmProvider = null, subscrip
       const path = new URL(request.url).pathname
       if (path === '/v1/notifications/status') {
         if (request.method !== 'GET') return failure('METHOD_NOT_ALLOWED', 405, 'GETを使ってください。')
-        if (!['Production', 'Sandbox'].includes(subscriptionEnvironment?.APPLE_ENVIRONMENT)
-          || !subscriptionEnvironment.APPLE_ISSUER_ID || !subscriptionEnvironment.APPLE_KEY_ID || !subscriptionEnvironment.APPLE_PRIVATE_KEY) {
-          return failure('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスのApple設定が完了していません。')
+        // Configured when the ticket check has its address (the operator relay) or the old receipt path has its Apple key.
+        if (!ticketCheckUrl && (!['Production', 'Sandbox'].includes(subscriptionEnvironment?.APPLE_ENVIRONMENT)
+          || !subscriptionEnvironment.APPLE_ISSUER_ID || !subscriptionEnvironment.APPLE_KEY_ID || !subscriptionEnvironment.APPLE_PRIVATE_KEY)) {
+          return failure('SUBSCRIPTION_NOT_CONFIGURED', 503, '購読確認サービスの接続先もApple設定も整っていません。')
         }
         return Response.json({ configured: true, environments: provider.environments, ...(fcmProvider ? { android: true } : {}) }, { headers: { 'Cache-Control': 'no-store' } })
       }

@@ -196,3 +196,11 @@ test('接続先が無ければ券は503、券なしの旧形は従来どおり',
   assert.equal((await send(old.relay, old.input)).status, 200)
   assert.equal(old.pushes.length, 1)
 })
+
+test('状態の確認は、券の接続先かAppleの旧設定のどちらかが整っていれば成功する', async () => {
+  const provider = { environments: ['production'], send: async () => {} }
+  const status = relay => relay.fetch(new Request('https://relay.example/v1/notifications/status')).then(response => response.status)
+  assert.equal(await status(createNotificationRelay({ provider, ticketCheckUrl: 'https://login.example/auth/v1/ticket/check' })), 200)
+  assert.equal(await status(createNotificationRelay({ provider, subscriptionEnvironment: {} })), 503)
+  assert.equal(await status(createNotificationRelay({ provider, subscriptionEnvironment: env })), 200)
+})
