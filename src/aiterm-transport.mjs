@@ -141,9 +141,9 @@ export function turnFailureWords(message) {
   return 'このターンの終わりを確かめられませんでした。'
 }
 
-export function createManagedTransport({ client = new AitermClient(), pressure = memoryPressure(), ...options } = {}) {
+export function createManagedTransport({ client = new AitermClient(), pressure = memoryPressure(), memoryRecord = null, ...options } = {}) {
   // a505c (memory-budget.md): the production transport has the launch gate; tests build AitermTransport directly and get none.
-  return new AitermTransport({ launchGate: new LaunchGate({ pressure }), ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
+  return new AitermTransport({ launchGate: new LaunchGate({ pressure, record: memoryRecord }), ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
 }
 
 // One native.pin() for an execution operation and the operations bound to its native values
@@ -421,6 +421,7 @@ export class AitermTransport {
   // asks again next minute, so there is no line. Anything else (Owner, members, rooms, calls, other schedules) is never refused (11-07 ruling).
   async refuseSweepUnderPressure(job) {
     if (job.info?.from !== 'scheduler' || !SWEEP_PROMPT.test(job.info.message ?? '') || !await this.launchGate?.tight()) return
+    this.launchGate.record?.refusal()
     job.deliveryStage = 'BOT_MEMORY_PRESSURE'
     throw Object.assign(new Error('BOT_MEMORY_PRESSURE'), { code: 'BOT_MEMORY_PRESSURE', status: 503, effect: 'not_started',
       executionError: { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_BUSY', effect: 'not_started', follow_up: 'none' } })

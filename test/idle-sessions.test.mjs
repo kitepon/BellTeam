@@ -188,7 +188,7 @@ function pressured(ratio, observations, opts = {}) {
     async closeIdle(bot) { closed.push(bot.id); return true },
   }
   const idle = new IdleSessions({ bots: new Map([['bot-a', { id: 'bot-a' }]]), transport, pendingDecisions: async () => 0,
-    idleMs: 10 * MINUTE, now: () => 0, report: () => {}, pressure: async () => (ratio === null ? null : { anon: ratio, max: 1, ratio }) })
+    idleMs: 10 * MINUTE, now: () => 0, report: () => {}, pressure: async () => (ratio === null ? null : { anon: ratio, max: 1, ratio }), record: opts.record })
   return { idle, closed }
 }
 
@@ -205,4 +205,13 @@ test('メモリが苦しい時は、ターンが終わった席をすぐ休止�
   const busy = pressured(0.9, [quiet({ state: 'busy', reason: 'turn_running' })])
   await busy.idle.check()
   assert.deepEqual(busy.closed, [], 'a running turn is never closed')
+})
+
+test('a525: an early sleep and the peak are recorded; a sleep after the Owner\'s 10 minutes is not an early one', async () => {
+  const calls = []; const record = { earlySleep: () => calls.push('early'), peak: share => calls.push(`peak ${share}`) }
+  await pressured(0.6, [quiet()], { record }).idle.check()
+  assert.deepEqual(calls, ['peak 0.6', 'early'])
+  calls.length = 0
+  await pressured(0.4, [quiet()], { record }).idle.check()
+  assert.deepEqual(calls, ['peak 0.4'], 'below SOFT nothing sleeps')
 })

@@ -258,6 +258,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/members-admission.mjs',
     'src/members/deletion.mjs',
     'src/members/instructions.mjs',
+    'src/memory-budget-record.mjs',
     'src/memory-pressure.mjs',
     'src/model-handoff.mjs',
     'src/module-ipc.mjs',
