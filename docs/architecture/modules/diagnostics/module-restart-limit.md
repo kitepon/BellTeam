@@ -7,7 +7,7 @@ Signal owns validation, the diagnostics intake/facade/dispatcher method, storage
 | Function | Input -> output | State / failure / owner |
 | --- | --- | --- |
 | Runtime observation | 5 actual restarts in rolling 1800 seconds -> active DTO | Epinel; one emit until a full healthy window; unlimited restarts continue |
-| Runtime recovery | 1800 seconds continuously healthy -> clear DTO | Epinel; no diagnostics timer or inferred recovery |
+| Runtime recovery | 1800 seconds continuously healthy -> clear DTO | Epinel; no diagnostics timer or inferred recovery. A process that never emitted an active DTO still tells one clear after its first healthy window, because an earlier body process (restart or swap) may have left the row open (a503); the intake ignores a clear that has no open row |
 | Public intake | `recordModuleRestartLimit(problem)` -> saved diagnostic row, or null for a clear with no saved row | Signal; closed validation prevents arbitrary private fields entering storage/GET |
 | Serialized persistence | validated input -> stable per-module fingerprint -> existing `logs/diagnostics.json` atomic writer -> ACK | Signal; same pending chain and drain as record. Failed save restores the previous in-memory row and rejects |
 | Read | existing list/status filter and authenticated admin GET -> same diagnostic row | Signal; `row.problem` preserves the exact active DTO; no second storage/API |
