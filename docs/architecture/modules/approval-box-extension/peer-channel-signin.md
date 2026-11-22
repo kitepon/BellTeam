@@ -13,7 +13,7 @@ Facts that bind the design (Mint 1.24, via Tronie):
 3. The two products' account identities (K) are never mixed in a server, a record or a log line. **BellTeam's server never sees the Approval Box pass, the Approval Box account id or K.** (The id-level report of v0.2 section 4a carries decision ids, status, session_label and an answer label only, over the BellTeam session.)
 4. The app's contract with Approval Box comes like any signed device: approval from the phone that holds the Approval Box store pass (the 1.20 handoff / the 16-character typed code of 5.3), or automatically for an exempt account. The first device of a person finds an empty mirror and creates genesis (5.1).
 5. Signing out of one leaves the other.
-6. Build order by platform: Windows and Linux can build on login-billing 0.17.2 now; Apple by the part's API with a return Approval Box's operator lists; Android only after login-billing 0.18.0.
+6. Build order by platform: Windows and Linux can build on login-billing 0.17.2 now; Apple by the part's API; Android only after login-billing 0.18.0. Returns of the web sign-in (Nayuta 2026-11-22; production lists exactly three: loopback, the session scheme `approvalbox-websignin`, and the link `https://approval-box.kitepon.dev/app/websignin`, which is for Approval Box's own apps only, BellTeam's ids are not added): **Windows/Linux = system browser + loopback; Apple = ASWebAuthenticationSession with callbackURLScheme `approvalbox-websignin`; Android (after 0.18.0) = Auth Tab with the same scheme.** No server change. If a library part can only take a verified link, tell Nayuta before building (new path, Mint's ruling).
 7. The phone-app returns are a product-to-product connection with Nayuta (section 4).
 
 ## 2. State diagram (one machine, all platforms)
@@ -24,6 +24,8 @@ stateDiagram-v2
   SignedOut --> SigningIn: person taps 決裁箱にサインイン (system browser, web sign-in only)
   SigningIn --> SignedOut: cancelled / failed (reason shown, button again)
   SigningIn --> Joining: pass received (stored in the app's own foreign store)
+  Live --> SignedOut: close 4410 (account deleted, contract 13): clear this instance's pass and device keys
+  Live --> NeedsApproval: another device removed this one from the registry (5.5): still signed in, no longer verified
   Joining --> NotEntitled: device join answers no_entitlement / POST /pc/v1/turn 403 not_entitled
   Joining --> NeedsApproval: registry has slots this device cannot verify (5.1, 5.7)
   Joining --> Live: empty mirror, genesis created (5.1) or exempt account admitted
@@ -32,13 +34,13 @@ stateDiagram-v2
   Waiting --> NeedsApproval: code expired or refused (reason shown, ask again)
   Live --> Reconnecting: relay unreachable (not signed out)
   Reconnecting --> Live: relay back (backoff 1,2,4..30 s, no cap) or manual retry
-  Live --> SignedOut: socket closed 4401 pass_ended, or the person signs out of Approval Box
+  Live --> SignedOut: socket closed 4401 pass_ended, a 401 from any /pc/v1 HTTP call (turn, registry), or the person signs out of Approval Box
   NotEntitled --> SignedOut: person signs out
   NotEntitled --> Joining: entitlement changed (manual check, or the next launch)
   Waiting --> SignedOut: person signs out
 ```
 
-Every state leaves by an action on the same screen or by the next launch; none waits for an operator. A device that finds slots it cannot verify never makes a genesis alone. `4401 pass_ended` is signed out, not a network drop.
+Every state leaves by an action on the same screen or by the next launch; none waits for an operator. A device that finds slots it cannot verify never makes a genesis alone. `4401 pass_ended` is signed out, not a network drop; the server sends it on expiry but also when the person stops this device from the Approval Box phone app, signs out elsewhere, uses stop-all-others, or the pass is replaced, so the copy never claims an expiry. A 401 from any `/pc/v1` HTTP call is treated the same (a socket may not be open when the pass ends). `4403` is for connectors only; a device never receives it.
 
 ## 3. Screen per state (what the person sees; Japanese copy is the design contract)
 
@@ -52,7 +54,9 @@ Every state leaves by an action on the same screen or by the next launch; none w
 | NotEntitled | 「Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。」 No price, no purchase button, no receipt in BellTeam | 「確かめ直す」 |
 | Live | The decisions screens of screen-spec.md, unchanged | |
 | Reconnecting | The last view dimmed, the reason in one line, 「つなぎ直しています」 | 「今すぐ試す」 |
-| Signed out by pass end | Same as SignedOut with one line 「サインインの期限が切れました」 | 「Approval Boxにサインイン」 |
+| Signed out by pass end (4401 or a 401) | Same as SignedOut with one line 「Approval Boxのサインインが終わりました。もう一度サインインしてください。」 | 「Approval Boxにサインイン」 |
+| Account deleted (4410) | Same as SignedOut with one line 「Approval Boxのアカウントは削除されました」; this instance's pass and device keys are cleared | 「Approval Boxにサインイン」 |
+| Removed from the registry (5.5) | The NeedsApproval screen with one line 「この端末は、ほかの端末から外されました。」 (still signed in) | 「承認をお願いする」 |
 
 Rules for every screen: no raw ids, codes or paths except the approval code the person must type; the Approval Box account name may be shown on the 決裁箱 header only; a separate 「Approval Boxからサインアウト」 sits in the screen's menu and never touches BellTeam's sign-in. There is **no device-removal screen** here (SEC-086 stays not applicable).
 
@@ -80,7 +84,7 @@ flowchart LR
   UI -. "no flow" .- BLOGIN
 ```
 
-Product-to-product rows with Nayuta: the app opens Approval Box's web sign-in and receives the return through the part's return mechanism (Apple: the return Approval Box's operator lists; Windows/Linux: system browser and loopback return; Android after 0.18.0); the app's device approval by the phone app. Both are drawn in Approval Box's `docs/architecture` and in the app module docs.
+Product-to-product rows with Nayuta: the app opens Approval Box's web sign-in and receives the return through the part's return mechanism (Windows/Linux: system browser and loopback; Apple: ASWebAuthenticationSession with scheme `approvalbox-websignin`; Android after 0.18.0: Auth Tab with the same scheme); the app's device approval by the phone app. Both are drawn in Approval Box's `docs/architecture` and in the app module docs.
 
 ## 5. Data and secrets
 
@@ -93,5 +97,5 @@ Product-to-product rows with Nayuta: the app opens Approval Box's web sign-in an
 
 ## 6. Decisions left to others
 
-- Nayuta and Mint: the exact return mechanism per platform and the pass lifetime shown on 「サインインの期限が切れました」 (copy stays; only the trigger is theirs).
+- Nayuta and Mint: any change to the three returns or the close codes. The hosted connector daemon (a490h) has no 4401/4403 handling after its channel is up; this state machine is for the apps, the daemon side is a question for Nayuta (runtime/approval-box-daemon.md).
 - Rapi, Anis, Neon: draw these states with the BellTeam design language; pictures are due with the first build. If a real choice only the Owner can make appears, one line to Tronie.
