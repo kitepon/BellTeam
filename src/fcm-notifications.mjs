@@ -15,6 +15,7 @@ const MESSAGES = {
   FCM_CONFIG_INVALID: 'Android通知の設定（shared/tools/fcm/config.json）の形が正しくありません。',
   FCM_KEY_REFERENCE_INVALID: 'Android通知の鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
   FCM_KEY_UNAVAILABLE: 'Android通知の鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。',
+  FCM_KEY_RATE_LIMITED: 'Android通知の鍵の読み取りを、1Passwordが一時的に断っています。10分ほど待ってから、通知の設定を保存し直してください。',
   FCM_KEY_INVALID: 'Android通知の鍵（Firebaseのサービスアカウント）の中身が正しくありません。Firebaseから取得したJSONをそのまま保存し直してください。',
   FCM_STATE_INVALID: 'Android端末の登録ファイルを読めませんでした。',
 }
@@ -108,7 +109,7 @@ export async function loadFcmProvider(directory, { readKeys, fetch: request = fe
   if (file) text = await readFile(join(directory, source.file), 'utf8').catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })
   else {
     try { validateOnePasswordReference(source.reference) } catch { throw fcmError('FCM_KEY_REFERENCE_INVALID') }
-    text = (await readKeys([source.reference]).catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })).get(source.reference)
+    text = (await readKeys([source.reference]).catch(error => { throw fcmError(error?.code === 'APNS_KEY_RATE_LIMITED' ? 'FCM_KEY_RATE_LIMITED' : 'FCM_KEY_UNAVAILABLE') })).get(source.reference)
   }
   let account
   try { account = JSON.parse(text) } catch { throw fcmError('FCM_KEY_INVALID') }
