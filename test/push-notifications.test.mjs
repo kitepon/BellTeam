@@ -456,6 +456,17 @@ test('a500: a read key stays in memory, a 1Password refusal shows as rate limite
   limited.close()
 })
 
+test('a495b: only Apple rejecting the provider token drops the kept key; other send failures keep it', async () => {
+  let forgotten = 0
+  const readKeys = Object.assign(async () => new Map(), { forget: () => { forgotten++ } })
+  const service = new PushNotifications({ root: '/synthetic-parent-only', bots: new Map(), diagnostics: { record: async () => {} }, readKeys })
+  await service.recordFailure({ code: 'APNS_HTTP_403_EXPIREDPROVIDERTOKEN' })
+  await service.recordFailure({ code: 'APNS_HTTP_500' })
+  assert.equal(forgotten, 0)
+  await service.recordFailure({ code: 'APNS_HTTP_403_INVALIDPROVIDERTOKEN' })
+  assert.equal(forgotten, 1)
+})
+
 test('the operator relay reader leaves the token to the process env', async () => {
   const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
   let setToken = false, closed = false

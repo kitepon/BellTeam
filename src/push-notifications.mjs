@@ -243,6 +243,8 @@ export class PushNotifications {
   async recordFailure(error, report = 'SERVER_PUSH_SEND_FAILED') {
     // 接続URL・端末トークン・署名付き取引・秘密鍵は診断へ含めない。
     const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_SEND_FAILED'
+    // a495b: Apple rejecting the key is the one send failure that drops the kept key; the next load reads 1Password again.
+    if (code === 'APNS_HTTP_403_INVALIDPROVIDERTOKEN') this.readKeys.forget?.()
     this.error = { code, message: keyErrors[code] ?? '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。' }
     await this.diagnostics.record({ code: report, module: 'notifications', diagnostic_log: code })
   }
