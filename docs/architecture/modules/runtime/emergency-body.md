@@ -25,7 +25,9 @@ It starts the TARGET image itself as a short-lived root container laid out exact
 ```mermaid
 flowchart TD
   Owner[Box owner with Docker access] --> Wrapper["emergency-body.sh [--local] image"]
-  Wrapper --> Run["docker run --rm: TARGET image, root, updater volume x2, docker.sock"]
+  Wrapper -->|published| WPull["docker pull (no bound of ours, changes nothing on the box)"]
+  WPull --> Run
+  Wrapper -->|"--local"| Run["docker run --rm: TARGET image, root, updater volume x2, docker.sock"]
   Run --> Entry["scripts/emergency-body.py"]
   Entry --> Ref{"reference"}
   Ref -->|"ghcr.io/kitepon/bellteam-server@sha256:digest"| Pub[published body]
@@ -37,7 +39,10 @@ flowchart TD
   Idle -->|no| Old["snapshot of the old body: id, image, storage binding, any state (running, restarting, exited, absent health)"]
   Old --> Inst["ContainerUpdater.install -> execute_installer (pull skipped for local)"]
   Inst --> Pre["target image preflight (unknown allowed)"]
+  Pre -->|fail| Out
   Pre --> Swap["image install.sh --no-pull: quiesce is unconfirmed (no body), stop old, start new, configure updater"]
+  Swap -->|installer exit non-zero| Back
+  Swap -->|over 1800 s or output flood| Abort["exception: one closed code on stderr, no result JSON, no rollback"]
   Swap --> Verify["new body: id, image, source, healthy, storage binding (strict)"]
   Verify -->|ok| Save["installation/normal.json + current-runtime.json saved, old image cleanup"]
   Verify -->|fail| Back["installer --recover restores the old (non-working) body; fix forward"]
@@ -54,13 +59,15 @@ The image is built from the public package, not from the whole repository: `scri
 ```mermaid
 flowchart LR
   Ops[argv: reference, --local] --> Entry[emergency-body.py]
-  Vol[(updater volume: config.json, installation/normal.json)] --> Entry
+  Vol[(updater volume: config.json, installation/normal.json)] -->|config.json| Entry
+  Vol -->|installation/normal.json| Inst
   Dock[(docker: old body container, target image)] --> Entry
   Entry -->|plan: planId, expected = old body snapshot, target = reference + own sourceCommit| Inst[execute_installer]
   Inst -->|COMPOSE_FILE = input-normal.json, image = reference| Install[image install.sh]
   Install -->|saved-compose, previous-normal.json| Inst
   Inst -->|normal.json, current-runtime.json| Vol
   Entry --> Result[stdout: result DTO + installer.log tail]
+  Entry --> Err[stderr: one closed code on a refusal or an abort]
 ```
 
 State ownership is unchanged: the updater volume stays root-private; the data/home/Aiterm state volumes are untouched by this entry (the image's `install.sh` handles Aiterm state exactly as in App Update). No queue backup is taken: with no body there is no queue API, and the state volume is not touched.
