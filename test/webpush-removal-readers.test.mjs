@@ -46,3 +46,9 @@ test('the notifications ready answer is read with and without webPush in status 
   assert.equal(notificationsReadyValid({ status: { webPush: web }, applyError: { apns: null } }), false)
   assert.equal(notificationsReadyValid({ status: { apns }, applyError: { apns: null, other: null } }), false)
 })
+
+test('an APNs key that 1Password cannot give still yields a valid ready answer', () => {
+  const error = { code: 'APNS_KEY_UNAVAILABLE', message: '1PasswordからAPNsの鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。' }
+  assert.equal(notificationsReadyValid({ status: { apns: { configured: false, environments: [], error } }, applyError: { apns: null } }), true)
+  assert.equal(notificationsReadyValid({ status: { apns: { configured: false, environments: [], error: { code: 'APNS_KEY_UNAVAILABLE', message: '' } } }, applyError: { apns: null } }), false)
+})
