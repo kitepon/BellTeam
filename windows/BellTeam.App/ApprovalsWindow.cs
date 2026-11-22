@@ -62,6 +62,7 @@ internal sealed class ApprovalsPage : Grid
     private int pendingToken, doneToken, connectToken, attempt;
     private readonly Dictionary<string, ViewDecision> extra = [];
     private readonly Dictionary<string, string> holdNotes = [];
+    private readonly HashSet<string> onDevice = [];   // 409 answer_on_device: answered, held and unheld only in the Approval Box app (Delta, a490j)
     private readonly Dictionary<string, Task<BitmapSource?>> thumbs = [];
     private Connect connect = new("idle");
     private (string Step, string? Note)? drop;
@@ -291,6 +292,7 @@ internal sealed class ApprovalsPage : Grid
         }
         else if (outcome is { Kind: "conflict", Decision: { } latest }) { Put(latest); answer = null; bannerId = decision.Id; bannerText = Approvals.Amended(Approvals.OriginOf(latest).Who); }
         else if (outcome.Kind == "gone") { SelectedId = null; answer = null; Reading = LoadPendingAsync(); }
+        else if (outcome.Kind == "device") { onDevice.Add(decision.Id!); answer = null; }
         else { mine.Step = "confirm"; mine.Note = outcome.Message; if (reply.LoginRequired) mine.Note = Approvals.Retry; }
         Paint();
     }
@@ -512,7 +514,7 @@ internal sealed class ApprovalsPage : Grid
             switch (device.State.Status)
             {
                 case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
-                case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting(device.State.Reason), "今すぐ試す", device.Refresh); break;
+                case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting, "今すぐ試す", device.Refresh); break;
                 case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
                 case RuntimeStatus.NeedsAdmission:
                     if (hub.OfferNote is { } ended) Line(ended);
@@ -682,11 +684,13 @@ internal sealed class ApprovalsPage : Grid
         Attachments(stack, decision);
         if (open && decision.Options?.FirstOrDefault(option => option.Recommended) is { } rec)
         { var line = Row(ApprovalsLook.Glyph("check", 14, Violet), Spaced(Text($"{origin.Who}の推奨：{rec.Label}", 13, Violet, FontWeights.SemiBold), 8)); line.Margin = new Thickness(0, 14, 0, 0); stack.Children.Add(line); }
-        if (open) AnswerArea(stack, decision, origin); else Answered(stack, decision, origin);
+        var elsewhere = open && decision.Id is { } decisionId && onDevice.Contains(decisionId);
+        if (elsewhere) { var line = Text(Approvals.AnswerOnDevice, 14, Ink, FontWeights.SemiBold, TextWrapping.Wrap); line.Margin = new Thickness(0, 14, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(line, "approvals-answer-on-device"); stack.Children.Add(line); }
+        else if (open) AnswerArea(stack, decision, origin); else Answered(stack, decision, origin);
         if (open)
         {
             var acts = new WrapPanel { Margin = new Thickness(0, 16, 0, 0) };
-            var hold = Action(decision.Status == "held" ? "保留を戻す" : "保留にする", ""); hold.Click += (_, _) => _ = HoldAsync(decision); acts.Children.Add(Key(hold, "hold"));
+            if (!elsewhere) { var hold = Action(decision.Status == "held" ? "保留を戻す" : "保留にする", ""); hold.Click += (_, _) => _ = HoldAsync(decision); acts.Children.Add(Key(hold, "hold")); }
             if (Approvals.LinkPanel(decision).Ids is { } ids) { var chart = Action("工程表で見る", ""); chart.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, ids.CardId); acts.Children.Add(Key(chart, "chart")); }
             stack.Children.Add(acts);
             if (holdNotes.GetValueOrDefault(decision.Id!) is { } holdNote) stack.Children.Add(FailLine(holdNote, "approvals-hold-note"));

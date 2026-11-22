@@ -413,7 +413,7 @@ flowchart TD
 - **承認（5.3 の起動側）**: NeedsApproval から「承認をお願いする」で `DeviceAdmission` が `verify.open`（QRの秘密と打ち込む秘密の2つ）→ `pc1-join`（platform は windows、protection は os_store）→ `pc1-admit` の確認 → 名簿のスナップショットを採用、までを行う。画面は Waiting（コード・QR・読み方・残り時間・やめる）。承認が済むと基点を保存して接続を試し直す。
 - **添付（リクエストの画像）**: 台帳は添付の名前だけを持ち、実体は `SealedBlobFiles`（DPAPIで封じた1枚1ファイル、名前はblobのSHA-256）に置く。画面は端末の決裁なら端末から読み、旧経路の決裁なら今までどおりサーバーから読む。
 - **検証**: 純粋な部分（`DecisionBook`・`DeviceFrames`・`DeviceDecisionView`・`DecisionUnion`）は単体の試験。通しは3つ、どれも環境変数を指した時だけ動く：`DeviceRuntimeE2eTests`（TSのコネクタ、`harness-rt.mjs`）、`DeviceAdmissionE2eTests`（TSの承認役、`harness-admit.mjs`）、`ApprovalBoxDevServerE2eTests`（決裁箱の開発サーバー `npm run dev:server`＋その `/dev/websignin` で2つ目のサインイン→genesis→接続、`PC_E2E_ABX_URL=http://127.0.0.1:8788`。127.0.0.1だけ）。本物のコネクタ daemon との通しは、承認の流れ（ナユタの実験用の承認役はコネクタ専用）の都合でまだ行っていない。
-- **サーバー経由の答えが409 `answer_on_device` の時**（デルタ、a490j）：`Approvals.AnswerOutcome`は失敗にせず、種類`device`と1行「この決裁は、決裁箱のアプリで答えてください。」（`Approvals.AnswerOnDevice`）を返す。デーモンだけが持つ決裁はBellTeamのサーバー経由では答えられず、端末で答えるため。Windowsの画面は種類を知らなくても、その1行を答えの下に出す（既存の「その他」の枝）。Linuxの画面は、同じ1行を答えの手順に残し、保留の409にも同じ1行を出す（a520の画面確認、Neon。Coreの小さな変更なのでアニスに見てもらう）。
+- **サーバー経由の答えが409 `answer_on_device` の時**（デルタ、a490j）：`Approvals.AnswerOutcome`は失敗にせず、種類`device`と1行「この決裁は、決裁箱のアプリで答えてください。」（`Approvals.AnswerOnDevice`）を返す。デーモンだけが持つ決裁はBellTeamのサーバー経由では答えられず、端末で答えるため。Windowsの画面は種類を知らなくても、その1行を答えの下に出す（既存の「その他」の枝）。Linuxの画面は、同じ1行を答えの手順に残し、保留の409にも同じ1行を出す（a520の画面確認、Neon。Coreの小さな変更なのでアニスに見てもらう）。 決裁箱の窓は、その決裁のカードに1行だけを出し（`approvals-answer-on-device`）、「答える」の選択と「保留にする」は出さない（a535w）。端末が「つなぎ直し中」の行は、ランタイム自身の理由（例外文）を出さず、固定の1行「つなぎ直しています（決裁箱に届きません）」だけを出す（デルタ、a490jの確認）。
 
 
 ## 変更時の手順

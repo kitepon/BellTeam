@@ -12,7 +12,7 @@ namespace BellTeam.App;
 /// Render seam for the 決裁箱 window (--render-approvals): an in-process server in the app contract shape (docs/architecture/modules/approval-box-extension/contract),
 /// the roster and session of <see cref="LatticeFixture"/> behind it. Eight decisions: four to answer (モリー 急ぎ and linked, アドミ linked, a Claude Code decision from outside BellTeam with an image,
 /// one from a member not on the roster), one held, three finished (delivered, delivery unknown, withdrawn). Scenes pick the state of the module:
-/// not-connected, waiting, denied, expired-session, not-entitled, expired (contract), old (404), empty, reconnecting (503), unreadable summary, conflict (the first answer meets 409), unknown-delivery.
+/// not-connected, waiting, denied, expired-session, not-entitled, expired (contract), old (404), empty, reconnecting (503), unreadable summary, conflict (the first answer meets 409), on-device (every answer meets 409 answer_on_device), unknown-delivery.
 /// 答える answers 200 with the answered decision; 保留 flips it. Nothing is stored.
 /// </summary>
 internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
@@ -115,6 +115,7 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
                 var latest = (JsonObject)found.DeepClone(); latest["version"] = 3; latest["amended"] = new JsonObject { ["is"] = true, ["fields"] = new JsonArray("options"), ["note"] = "選択肢を直しました", ["at"] = Ago(1) };
                 return Task.FromResult(Error(HttpStatusCode.Conflict, "conflict", "答える前に、内容が直されました。", new JsonObject { ["decision"] = latest }));
             }
+            if (scene == "on-device") return Task.FromResult(Error(HttpStatusCode.Conflict, "answer_on_device", "この決裁は端末で答えます。"));
             if (scene == "retry" && answers++ == 0) return Task.FromResult(Error(HttpStatusCode.ServiceUnavailable, "unavailable", "いまは決裁箱を読めません。"));
             found["status"] = "answered"; found["delivery"] = scene == "unknown-delivery" ? "unknown" : "delivered"; found["version"] = found["version"]!.GetValue<int>() + 1;
             found["answer"] = new JsonObject { ["optionId"] = "o1", ["text"] = null, ["attachments"] = new JsonArray(), ["answeredAt"] = Ago(0) };

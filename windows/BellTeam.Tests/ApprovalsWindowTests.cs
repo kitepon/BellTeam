@@ -99,6 +99,16 @@ public sealed class ApprovalsWindowTests
     });
 
     [Fact]
+    public void AnAnswerThatOnlyTheDeviceMayGiveShowsOneLineAndNeitherAnswerNorHold() => RunSta(() =>
+    {
+        using var rig = Open("on-device"); Until(() => rig.Page.Settled);
+        rig.Page.Select("K-1"); rig.Page.Choose("o1"); Press(Find(rig.Window, "confirm"));
+        Until(() => Texts(rig.Window).Contains(Approvals.AnswerOnDevice));
+        Assert.Null(rig.Page.AnswerStep);
+        Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string is "答える" or "保留にする");
+    });
+
+    [Fact]
     public void FilteringByOriginNeverChangesTheCountsAndSaysWhatItHides() => RunSta(() =>
     {
         using var rig = Open("main"); Until(() => rig.Page.Settled);
@@ -277,7 +287,7 @@ public sealed class ApprovalsWindowTests
     {
         var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.Retrying, "接続できません") };
         using var rig = Open("main", device); Until(() => rig.Page.Settled);
-        Assert.Contains(Approvals.DeviceReconnecting("接続できません"), Texts(rig.Window));
+        Assert.Contains(Approvals.DeviceReconnecting, Texts(rig.Window)); Assert.DoesNotContain(Texts(rig.Window), text => text.Contains("接続できません"));
         Assert.Equal(5, rig.Page.Pending.Count);
         device.State = new(BellTeam.PeerChannel.RuntimeStatus.NeedsAdmission); device.Raise();
         Assert.Contains(Approvals.DeviceNeedsApproval, Texts(rig.Window));
