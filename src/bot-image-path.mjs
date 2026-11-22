@@ -4,8 +4,6 @@ import { runtimeHome } from './runtime-home.mjs'
 
 export async function resolveBotImagePath(bot, input, { home = runtimeHome() } = {}) {
   if (typeof input !== 'string' || input.length === 0) throw new Error('IMAGE_PATH_INVALID')
-  // a521: a remote seat's path is in its terminal's own form (a Windows 'C:\\x.png' is not absolute here); the terminal read judges it.
-  if (bot?.terminalId && bot?.projectRoot) return input
   if (isAbsolute(input)) return input
   const relative = normalize(input)
   if (relative === '..' || relative.startsWith(`..${sep}`)) throw new Error('IMAGE_PATH_INVALID')
