@@ -43,4 +43,6 @@ flowchart LR
 
 工程表とのつながり（a490h2r、`Core/PeerApprovals/ApprovalLinks.swift` の `ApprovalLinkResolver`）：決裁の中身は端末だけにあり、BellTeam のサーバーに聞くのは ID と状態だけ。`GET /api/approvals/by-decision?id=` が {project, plan, task, state} を返せば BellTeam の決裁（出どころ bellteam、つながりあり）、404 なら外部または未接続（破線の「つながっていません」）、それ以外の失敗は何も足さない。工程の名前と前後は、アプリが読める工程表（`/api/lattice/charts/:project`、20秒の写し）の札とエッジから描く。見つかったつながりは30秒ごとに読み直し、404は30秒後にもう一度聞く（サーバーのつなぎ込みは自分の間隔で動く）。工程表の詳細の「決裁を開く」は `by-task`（ID と状態だけ。件名が無い時は「決裁（待ち）」）から同じ決裁の詳細を開く。
 
-この版に入れていないもの（次の段）：通知拡張（NSE）による本文なしの起こし、実機 iPhone での確認、BellTeam のサーバーへ「この端末が見せた決裁」を知らせる D7b の報告。
+プッシュ通知は無い（Nayuta 2026-11-23、Delta の設計 v0.1 10章）：BellTeam アプリの決裁箱の画面は、開いている間に join / wait.available で決裁を受ける。Approval Box のサーバーは BellTeam アプリの通知トークンを登録も起こしもしない（送り先の topic が Approval Box のアプリ1つに固定のため）ので、通知拡張（NSE）も共有 Keychain グループも作らない。通知は Approval Box 自身のアプリが出す。BellTeam の bundle id に push の道ができたら、普通の公開として NSE を足す。BellTeam のサーバーへ「この端末が見せた決裁」を知らせる報告（D7b）は設計から外れた（v0.4）。
+
+この版に入れていないもの：実機 iPhone での確認（TestFlight のビルドと Owner の Apple ID が要る）。
