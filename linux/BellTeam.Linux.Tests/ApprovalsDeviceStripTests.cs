@@ -36,7 +36,7 @@ public sealed class ApprovalsDeviceStripTests
 
     [Theory]
     [InlineData(RuntimeStatus.Connecting, null, "この端末を決裁箱につないでいます")]
-    [InlineData(RuntimeStatus.Retrying, "relay", "つなぎ直しています（relay）")]
+    [InlineData(RuntimeStatus.Retrying, "HttpRequestException: Connection refused", "つなぎ直しています（決裁箱に届きません）")]
     [InlineData(RuntimeStatus.NeedsAdmission, "not_verified", "まだ承認されていません")]
     [InlineData(RuntimeStatus.NeedsAdmission, "removed", "ほかの端末から外されました")]
     [InlineData(RuntimeStatus.SignedOut, null, "Approval Boxにサインインします")]

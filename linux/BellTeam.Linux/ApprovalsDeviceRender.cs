@@ -50,7 +50,7 @@ internal static class ApprovalsDeviceRender
             "device-needsapproval" or "device-waiting" or "device-expired" => new(RuntimeStatus.NeedsAdmission, "not_verified"),
             "device-removed" => new(RuntimeStatus.NeedsAdmission, "removed"),
             "device-notentitled" => new(RuntimeStatus.NotEntitled),
-            "device-reconnecting" => new(RuntimeStatus.Retrying, "リレーに届きません"),
+            "device-reconnecting" => new(RuntimeStatus.Retrying, "HttpRequestException: Connection refused"),
             _ => new(RuntimeStatus.Live),
         };
         using var hub = new ApprovalsHub(model, device); hub.Sync();

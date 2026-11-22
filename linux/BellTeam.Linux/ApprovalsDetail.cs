@@ -102,6 +102,12 @@ internal sealed partial class ApprovalsWindow
     private Control Answering(ViewDecision decision)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        if (decision.Id is { } id && answeredOnDevice.Contains(id))
+        {
+            stack.Children.Add(Text(Approvals.AnswerOnDevice, 13.5, Amber, wrap: true));
+            if (decision.Link?.Chart?.ProjectId is { Length: > 0 } chartProject && decision.Link.Task?.CardId is { Length: > 0 } chartCard) { var chartButton = Action("工程表で見る", ForwardGlyph); chartButton.Margin = new Thickness(0, 12, 0, 0); chartButton.Click += (_, _) => openCard(chartProject, chartCard); stack.Children.Add(chartButton); }
+            return stack;
+        }
         if (decision.Status == "held") stack.Children.Add(Text("保留中です。戻すと、また答えられます。", 13.5, Muted, wrap: true));
         else switch (step)
         {

@@ -48,7 +48,7 @@ internal sealed partial class ApprovalsWindow
         switch (device.State.Status)
         {
             case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
-            case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting(device.State.Reason), "今すぐ試す", device.Refresh); break;
+            case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting("決裁箱に届きません"), "今すぐ試す", device.Refresh); break;   // the runtime's reason is an exception text: never shown to the person (Delta)
             case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
             case RuntimeStatus.NeedsAdmission:
                 if (hub.OfferNote is { } ended) Line(ended);
