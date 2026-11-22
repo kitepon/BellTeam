@@ -66,5 +66,25 @@ Without `LB_KKEY` or the pass key every route answers 503 `{error: "not_configur
 - `bellteam-subscriptions-sandbox` and `bellteam-subscriptions` (production) are configured in `wrangler.jsonc` for the same code but **not deployed by this change**; production switches only when all apps and the user server ship (Tronie's release order), on the Owner's domain that Mint asks for.
 - Deploy: `npm exec --yes --package wrangler@latest -- wrangler deploy --env test` from `services/subscriptions`; the Cloudflare key is read from 1Password by the deploy step and never printed; use is approved by Tronie. Rollback: `wrangler rollback <version> --env test`.
 
+## Dev operator (a522, contract 1.25 "Dev servers and test sign-in")
+App tests that need a sign-in or a purchase run against a **dev operator**, never against the test Worker (which only ever sees real Apple/Google sign-ins). `dev-operator.mjs` is this Worker's own mount (`createLoginBillingWorker`) with `@kitepon/login-billing/testing` as its fetch and stores, run under Node 22+ with the library's `MemoryStorage`. It is a local process, never a deployed origin.
+```mermaid
+flowchart LR
+  Test["Test client: iOS simulator (localhost), Android emulator / Linux (port forward), dev home server (private address)"]
+  subgraph D["dev-operator.mjs (one Node process)"]
+    Gate["assertPrivateHttp(PUBLIC_URL): http + loopback or private address only, else refuses to start"]
+    Dev["/dev/id-token, /dev/store-purchase, /dev/websignin (POST, dev only)"]
+    Mount["createLoginBillingWorker(storage=MemoryStorage, fetch=kit.fetch, stores=kit fake App Store / Play) on /auth/v1"]
+    Kit["createTestKit(): fake Apple/Google keys, fake stores (in this process only)"]
+  end
+  Keys[("DEV_DATA/dev-keys.json (0600): own kKey and pass key")]
+  Test -->|"/dev/id-token {provider, nonce, sub?}"| Dev --> Kit
+  Test -->|"/auth/v1/signin, receipt, handoff, prove, ticket"| Mount --> Kit
+  Dev -->|"/dev/store-purchase {provider, k}: a subscription in the fake store"| Kit
+  Keys --> Mount
+```
+Data flow: id tokens are signed by the fake key that lives only in this process; the library's server part checks signature, issuer, audience and nonce exactly as on a deployed Worker, so a token or pass from here is accepted by no other server (own random kKey and pass key, no real store key, fake provider keys regenerated at every start). Storage is memory: a restart drops nonces, slots and refused-pass records; the kKey and pass key persist in `DEV_DATA` so a restart keeps account numbers (K) and unexpired passes. No CF-Connecting-IP is set, so the library's per-caller limit does not apply to tests. Web sign-in (`websignin/*`, `/dev/websignin`) is on only when `PUBLIC_URL` is `localhost` or `127.0.0.1` (the library takes http for the callback origin nowhere else); at another private address the id-token and handoff routes work and web sign-in answers `provider_unknown`. Billing is `store` against the fake stores (`DEV_BILLING=off` for the entitlement-free case).
+Run: `PUBLIC_URL=http://127.0.0.1:8790 node services/subscriptions/dev-operator.mjs` (needs `npm ci` at the repo root for `@kitepon/login-billing`). Wire base = `PUBLIC_URL/auth/v1`; it listens on the host of `PUBLIC_URL` (a private address such as the container's, or loopback). A device on another machine reaches it through a local port forward (contract 1.25). Variables: `PUBLIC_URL` (default `http://127.0.0.1:8790`), `DEV_DATA` (default `.dev-operator`), `DEV_BILLING`.
+
 ## Tests
-`node --test test/subscription-worker.test.mjs` covers the mount: configuration, routing, billing mode, the callback GET, the strict return check, that the library's limit answers 429 per caller. The library's behaviour is the library's suite; the Durable Object storage is checked on Cloudflare itself (see the a485 evidence).
+`node --test test/subscription-worker.test.mjs test/dev-operator.test.mjs` covers the mount: configuration, routing, billing mode, the callback GET, the strict return check, that the library's limit answers 429 per caller. The library's behaviour is the library's suite; the Durable Object storage is checked on Cloudflare itself (see the a485 evidence).
