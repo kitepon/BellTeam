@@ -1386,8 +1386,12 @@ export class AitermTransport {
           ...(detail ? { mcp_error: detail } : {}),
           ...(error.turnCompleted === true ? { turnCompleted: true } : {}) }
         if (!job.receipt && !job.stopped && !awaitingUser) this.activity.recordFailure(job, stage)
+        // a526 (harness-accounts.md "A delivery whose turn ends at the usage limit"): the seat took the text and only the TURN stopped at the
+        // limit, so the delivery is delivered; the limit words, the registry entry and the one continuation at the reset are unchanged.
+        const limited = error.turnCompleted === true && Boolean(job.receipt) && !job.stopped
+          && (error.waitOutcome === 'rate_limited' || error.failureCategory === 'rate_limited')
         try {
-          await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
+          await (limited ? onStatus?.('delivered') : onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking))
           failureStatusSaved = true
           if (!acknowledged && !job.stopped && !awaitingUser && !swapped && error.code !== 'BOT_IMAGE_UNSUPPORTED' && error.code !== 'BOT_MEMORY_PRESSURE') await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
         } catch (callbackError) { if (!conversationDelivery) throw callbackError }
