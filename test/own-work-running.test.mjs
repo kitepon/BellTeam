@@ -81,6 +81,26 @@ test('facade: own work reads working in currentWork and runningState; an older e
   assert.equal(transport.runningState('b1'), 'idle')
 })
 
+test('facade: a turn BellTeam itself follows reads working before the native read does (a485); only false counts', () => {
+  let native = 'idle', follows = null
+  const controller = { dispatch() {}, close() {}, project: ({ method }) => {
+    if (method === 'transport.currentTurn') return { state: native, turnId: null }
+    if (method === 'transport.ownWork') return null
+    if (method === 'transport.isIdle') { if (follows === 'throws') throw new Error('down'); return follows }
+    return {}
+  } }
+  const { transport } = createExecutionFacade({ getController: () => controller, client: {}, membersAdmission: {}, requestStop() {}, watchQueue: () => () => {} })
+  assert.equal(transport.runningState('b1'), 'idle')
+  follows = false
+  assert.equal(transport.runningState('b1'), 'working', 'native idle, BellTeam follows a turn')
+  native = 'unknown'
+  assert.equal(transport.runningState('b1'), 'working', 'native unknown, BellTeam follows a turn')
+  follows = true; native = 'idle'
+  assert.equal(transport.runningState('b1'), 'idle', 'nothing followed')
+  follows = 'throws'
+  assert.equal(transport.runningState('b1'), 'idle', 'a failed call says nothing')
+})
+
 test('own work keeps its own read clock: a turn completion does not extend an old own observation', () => {
   let clock = 0
   const work = new CurrentWork({ monotonic: () => clock })

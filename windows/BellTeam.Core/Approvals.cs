@@ -42,6 +42,8 @@ public sealed record ViewDecision
     public string? CreatedAt { get; init; } public string? UpdatedAt { get; init; } public string? CancelReason { get; init; }
     public ApprovalAmended? Amended { get; init; } public ApprovalHistoryItem[]? History { get; init; } public ApprovalAttachment[]? RequestAttachments { get; init; }
     public ApprovalOrigin? Origin { get; init; } public ApprovalRequester? Requester { get; init; } public ApprovalLink? Link { get; init; }
+    /// <summary>Where this copy was read from while both ways are open (<see cref="DecisionUnion"/>): "server" = /api/approvals/*, "device" = this device's peer-channel session. Never on the wire.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string? Source { get; init; }
 }
 public sealed record ApprovalList { public ViewDecision[]? Items { get; init; } public string? NextCursor { get; init; } }
 /// <summary>GET /api/approvals/connection: connected | waiting | denied | not_connected | expired.</summary>
@@ -82,6 +84,22 @@ public static class Approvals
         ChartLate = "答えは決裁箱に送れました。工程表への反映は少し遅れています。つながり次第、自動で済みになります。",
         Waiting = "決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。", Denied = "許可されませんでした。もう一度つなげます。",
         ConnectFailed = "いまは決裁箱につなげませんでした。少し待って、もう一度押してください。";
+    // The Approval Box device states (design peer-channel-signin.md section 3, Delta: the Japanese copy is the contract).
+    public const string DeviceSignedOut = "決裁箱を使うには、Approval Boxにサインインします。BellTeamのサインインとは別です。",
+        DevicePassEnded = "Approval Boxのサインインが終わりました。もう一度サインインしてください。",
+        DeviceAccountDeleted = "Approval Boxのアカウントは削除されました",
+        DeviceRemoved = "この端末は、ほかの端末から外されました。",
+        DeviceJoining = "この端末を決裁箱につないでいます…",
+        DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
+        DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",
+        DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。",
+        ServerSideNoCredential = "サーバー経由の決裁箱には、まだつながっていません。";
+    public const string DeviceAskApproval = "承認をお願いする", DeviceApprovalHow = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。",
+        DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
+    public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
+    public const string DeviceSigningIn = "ブラウザでサインインしています…";
+    // Delta (a490j review): never the runtime's own reason (an exception text); one fixed line.
+    public const string DeviceReconnecting = "つなぎ直しています（決裁箱に届きません）";
     public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";
 
     // ---- failure: HTTP answer -> kind of view
@@ -172,6 +190,7 @@ public static class Approvals
         var origin = OriginOf(decision); var badges = BadgesOf(decision); var note = LinkNote(decision); var chips = new List<string>();
         if (At(decision.Deadline) is not null && Open(decision)) chips.Add($"期限 {LatticeStops.StopTime(decision.Deadline, now)}");
         if (decision.Options?.Any(option => option.Recommended) == true) chips.Add("推奨あり");
+        if (decision.Source is { } source) chips.Add(source == DecisionUnion.Device ? "端末で受信" : "サーバー経由");
         var done = decision.Status is "answered" or "cancelled";
         var label = string.Join("、", badges.Select(b => b.Text).Append(decision.Title ?? "").Append(origin.Name).Append(chips.FirstOrDefault(chip => chip.StartsWith("期限", StringComparison.Ordinal)) ?? "").Append(note.Text).Where(part => part.Length > 0));
         return new(decision.Id ?? "", decision.Status ?? "", decision.Title ?? "", badges, note, chips, origin, decision.Urgency == "high" && !done,
@@ -208,9 +227,13 @@ public static class Approvals
         var head = text.Length > 0 ? "この指示を送りますか？ " : $"「{label}」で答えますか？ ";
         return origin.External && decision.Link is null || string.IsNullOrEmpty(title) ? $"{head}答えると、{origin.Who}に届きます。" : $"{head}答えると、{origin.Who}が続きに進み、工程「{title}」が済みになります。";
     }
+    /// <summary>409 answer_on_device (a490j, peer-channel-feed.md): a decision only the hosted daemon holds is listed here but answered, held and unheld on the device. Not a failure: one line, the person answers in the Approval Box app.</summary>
+    public const string AnswerOnDevice = "この決裁は、決裁箱のアプリで答えてください。";
+    public static bool IsAnswerOnDevice(int status, JsonElement? body) => status == 409 && Str(ErrorOf(body), "code") == "answer_on_device";
     public static ApprovalOutcome AnswerOutcome(int status, JsonElement? body)
     {
         if (status == 200) return new("ok");
+        if (IsAnswerOnDevice(status, body)) return new("device", Message: AnswerOnDevice);
         var kind = FailureOf(status, body); var message = Str(ErrorOf(body), "message");
         return kind switch
         {

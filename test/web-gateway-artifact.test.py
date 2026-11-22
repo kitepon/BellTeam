@@ -29,7 +29,7 @@ class GatewayArtifactTest(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.payload = self.root / 'payload'; self.payload.mkdir()
         for name in ['package.json', 'package-lock.json', 'src/http-gateway-entry.mjs',
-                     'web/assets.mjs', 'node_modules/@modelcontextprotocol/sdk/package.json',
+                     'src/http-gateway.mjs', 'node_modules/@modelcontextprotocol/sdk/package.json',
                      'services/subscriptions/product.json', 'services/subscriptions/endpoints.json']:
             f = self.payload / name; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(name + '\n')
         self.archive = self.root / 'archive.tar.gz'
@@ -71,7 +71,7 @@ class GatewayArtifactTest(unittest.TestCase):
 
     def test_internal_npm_file_link_is_flattened_but_external_link_is_rejected(self):
         link = self.payload / 'node_modules/link.js'
-        link.symlink_to('../web/assets.mjs')
+        link.symlink_to('../package.json')
         output = self.root / 'linked.tar.gz'
         write_archive(self.payload, output, SOURCE, ARCH)
         with tarfile.open(output, 'r:gz') as tar:

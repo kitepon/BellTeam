@@ -1,21 +1,12 @@
 import { json, readJson } from '../http-response.mjs'
 import { SubscriptionAccessError } from '../subscriptions.mjs'
-import { webPushError, webPushFields, validateWebPushOrigin } from './web-push-schema.mjs'
 import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
-import { authCodeChallenge } from '../auth-ui.mjs'
 import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 import { cliNotice } from './harness-cli-notice.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE, harnessNoticeFor } from '../retired-harness.mjs'
 
-export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext, resolveSeat }) {
-  const webOrigin = request => {
-    if (!assertWebPushOrigin) throw webPushError('WEB_PUSH_ORIGIN_UNAVAILABLE', 503)
-    return validateWebPushOrigin(assertWebPushOrigin(request))
-  }
-  const webJson = request => {
-    if (!/^application\/json(?:\s*;|$)/iu.test(request.headers['content-type'] ?? '')) throw webPushError('WEB_PUSH_INPUT_INVALID')
-  }
+export function createUsageApi({ homeFront, onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, captureUsageContext, resolveSeat }) {
   // a374: the setup record crosses the usage IPC with its six fields; the notice for a retired AI is added here.
   // a451: an install takes minutes and is one long usage operation. Answer when it has visibly started (the parent copy shows busy) or has ended.
   const started = pending => {
@@ -103,38 +94,20 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     const settingsMatch = url.pathname.match(/^\/api\/settings\/([A-Za-z]+)$/u)
     if (settingsMatch && request.method === 'PATCH') {
       if (!settings) return json(response, 404, { error: 'NOT_FOUND' })
-      if (settingsMatch[1] === 'webPush') {
-        if (internal) return json(response, 403, { error: 'WEB_PUSH_OWNER_REQUIRED' })
-        webOrigin(request)
-        webJson(request)
-      }
-      const body = await readJson(request, settingsMatch[1] === 'webPush' ? 16384 : 32768)
+      const body = await readJson(request, 32768)
       const botId = internal ? body.botId : undefined
       if (internal) delete body.botId
       const setting = await settings.update(settingsMatch[1], body, { secretRequests, botId, allowSecretValues: !internal, usageContext: await context('settings.update') })
       return json(response, 200, { setting })
     }
-    if (url.pathname.startsWith('/api/web-push/')) {
-      if (internal) return json(response, 403, { error: 'WEB_PUSH_OWNER_REQUIRED' })
-      if (!['/api/web-push/status', '/api/web-push/subscriptions', '/api/web-push/unregister'].includes(url.pathname)) return json(response, 404, { error: 'NOT_FOUND' })
-      if (url.search) throw webPushError('WEB_PUSH_INPUT_INVALID')
-      if (request.method !== 'POST' && !(request.method === 'GET' && url.pathname === '/api/web-push/status')) return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-      const origin = request.method === 'POST' ? webOrigin(request) : null
-      if (!notifications?.webStatus) throw webPushError('WEB_PUSH_UNAVAILABLE', 503)
-      if (request.method === 'GET') return json(response, 200, await notifications.webStatus())
-      webJson(request)
-      const body = await readJson(request, 16384)
-      if (url.pathname === '/api/web-push/subscriptions') {
-        webPushFields(body, ['subscription', 'applicationServerKey'], ['previousEndpoint'])
-        return json(response, 200, await notifications.webRegister(body, origin))
-      }
-      webPushFields(body, ['endpoint'])
-      return json(response, 200, url.pathname === '/api/web-push/status'
-        ? await notifications.webStatus(body.endpoint, origin) : await notifications.webUnregister(body, origin))
-    }
     if (url.pathname.startsWith('/api/subscription')) {
       if (!subscriptions) return json(response, 503, { error: 'SUBSCRIPTION_NOT_CONFIGURED' })
-      if (request.method === 'GET' && url.pathname === '/api/subscription') return json(response, 200, { subscription: await subscriptions.current(await context('subscriptions.current')) })
+      if (request.method === 'GET' && url.pathname === '/api/subscription') {
+        const subscription = await subscriptions.current(await context('subscriptions.current'))
+        // a485: Enforced, the gate is the session's own entitlement (the home part), never the request's claim.
+        const state = homeFront?.stateOf(request.bellteamSession)
+        return json(response, 200, { subscription: state === undefined ? subscription : { ...subscription, entitlementState: state } })
+      }
       if (request.method === 'POST' && url.pathname === '/api/subscription/verify')
         return json(response, 200, { subscription: await subscriptions.install((await readJson(request, 32768)).signedTransaction, await context('subscriptions.install')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/checkout')
@@ -189,21 +162,6 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     }
     if (url.pathname.startsWith('/api/secret-requests')) {
       if (!secretRequests) return json(response, 404, { error: 'NOT_FOUND' })
-      const consumeMatch = url.pathname.match(/^\/api\/secret-requests\/([a-f0-9-]+)\/consume-claude-code$/u)
-      if (consumeMatch) {
-        if (!internal) return json(response, 403, { error: 'SECRET_CONSUMER_INTERNAL_REQUIRED' })
-        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-        if (url.search || !/^application\/json(?:\s*;|$)/iu.test(request.headers['content-type'] ?? ''))
-          return json(response, 400, { error: 'SECRET_CHALLENGE_INVALID' })
-        if (!submittedSecretConsumer || !captureSubmittedSecretContext) return json(response, 503, { error: 'SECRET_CONSUMER_UNAVAILABLE' })
-        const requestId = consumeMatch[1]
-        let admission, challenge
-        try { admission = await captureSubmittedSecretContext(request, requestId) }
-        catch (error) { return json(response, error.status === 503 ? 503 : 403, { error: error.status === 503 ? 'SECRET_CONSUMER_UNAVAILABLE' : 'SECRET_CONSUMER_FORBIDDEN' }) }
-        try { challenge = authCodeChallenge(await readJson(request, 8192)) }
-        catch { return json(response, 400, { error: 'SECRET_CHALLENGE_INVALID' }) }
-        return json(response, 200, { receipt: await submittedSecretConsumer.execute({ requestId, challenge, admission }) })
-      }
       if (request.method === 'POST' && url.pathname === '/api/secret-requests' && internal) {
         return json(response, 201, { request: await secretRequests.create(await readJson(request, 8192), await context('secrets.create')) })
       }

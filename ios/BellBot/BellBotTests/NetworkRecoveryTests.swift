@@ -520,8 +520,7 @@ final class NetworkRecoveryTests: XCTestCase {
         let api = makeAPI(scenario)
         let path = "/api/notifications/devices"
         let body = SyntheticPushDevice(token: "artificial-token", environment: "Sandbox",
-                                       server: "https://network.test.invalid", previousToken: nil,
-                                       signedTransaction: nil)
+                                       server: "https://network.test.invalid", previousToken: nil)
         do {
             let _: SyntheticPushRegistration = try await api.post(path, body: body)
             XCTFail("通知登録の時間切れを成功にしない")
@@ -815,7 +814,7 @@ final class NetworkRecoveryTests: XCTestCase {
         let api = makeAPI(scenario)
         api.diagnostics.configure(serverURL: api.baseURL)
         let notifications = BellNotifications()
-        await notifications.activate(api: api, signedTransaction: nil)
+        await notifications.activate(api: api)
         XCTAssertEqual(scenario.count("/api/notifications"), 2)
         XCTAssertEqual(scenario.reports.count, 1)
         XCTAssertEqual(scenario.reports.first?.code, "IOS_PUSH_FAILED")
@@ -865,7 +864,6 @@ private struct SyntheticPushDevice: Encodable {
     let environment: String
     let server: String
     let previousToken: String?
-    let signedTransaction: String?
 }
 private struct SyntheticPushRegistration: Decodable { let registered: Bool }
 

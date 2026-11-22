@@ -1,4 +1,3 @@
-import { isDeepStrictEqual as same } from 'node:util'
 import { stoppedError } from './bot-execution-errors.mjs'
 
 // Only typed status fields cross into logs; launch text can contain credentials.
@@ -24,9 +23,8 @@ function changeReport(bot, name, args, result, error) {
 // BellTeam owns session-slot changes and their pending operations.
 // Delivery/job state is supplied as observations; native execution stays in Aiterm.
 export class BotSessionState {
-  constructor({ assertWorkAllowed, executionBridge, call, invalidateRunning, invalidateWork = () => {}, activity, writeLog = line => process.stderr.write(line) }) {
+  constructor({ assertWorkAllowed, call, invalidateRunning, invalidateWork = () => {}, activity, writeLog = line => process.stderr.write(line) }) {
     this.assertWorkAllowed = assertWorkAllowed
-    this.bridge = executionBridge
     this.call = call
     this.invalidateRunning = invalidateRunning
     this.invalidateWork = invalidateWork
@@ -37,8 +35,6 @@ export class BotSessionState {
     this.stopSessions = new Map()
     this.sessionChanges = new Map()
   }
-
-  get executionBridge() { return this.bridge() }
 
   requireStopVersion(botId, version) {
     this.assertWorkAllowed()
@@ -62,27 +58,12 @@ export class BotSessionState {
   }
 
   captureStopVersion(bot) {
-    if (this.executionBridge) this.stopSessions.set(bot.id, this.session(bot))
     return this.stopVersions.get(bot.id)
-  }
-
-  async awaitUnboundAdmission(bot, version, barrier = this.stopping) {
-    while (barrier) {
-      let result
-      try { result = await barrier } catch (cause) {
-        try { this.writeLog('BellTeam stop result: BOT_STOP_UNCONFIRMED\n') } catch {}
-      }
-      if (barrier.rootIds?.has(bot.id) || result?.cascade?.targets.some(value => value.launch.session_id === this.session(bot)))
-        throw Object.assign(stoppedError(), { effect: 'not_started' })
-      barrier = this.stopping !== barrier ? this.stopping : null
-    }
-    if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
   }
 
   changeSession(bot, name, args, options) {
     if (name !== 'pty_close') this.assertWorkAllowed()
     const { execution, configurationRequest: _auditBinding, ...clientOptions } = options ?? {}
-    const version = this.captureStopVersion(bot), barrier = this.stopping
     let issued = false
     const invoke = () => {
       if (name !== 'pty_close') this.assertWorkAllowed()
@@ -91,13 +72,7 @@ export class BotSessionState {
       this.invalidateRunning()
       return execution ? execution.invoke(name, args, clientOptions) : this.call(name, args, clientOptions)
     }
-    const pending = this.executionBridge && !execution ? (async () => {
-      await this.awaitUnboundAdmission(bot, version, barrier)
-      // A new stop can start between async admission and this continuation.
-      while (this.stopping) await this.awaitUnboundAdmission(bot, version)
-      if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
-      return invoke()
-    })() : Promise.resolve(invoke())
+    const pending = Promise.resolve(invoke())
     pending.executionBound = Boolean(execution)
     Object.defineProperty(pending, 'executionIssued', { get: () => issued })
     pending.executionSession = args.session_id ?? args.session_name
@@ -124,78 +99,28 @@ export class BotSessionState {
   async reconcileLaunch(bot, request, target) {
     this.assertWorkAllowed()
     const session = this.session(bot) ?? bot.id
-    const version = this.captureStopVersion(bot)
-    const busy = () => this.stopping || this.sessionChanges.has(bot.id) || this.activity.configuration(bot.id)
-      || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
     if (target?.session_id !== session || request?.target_session_id !== session)
       throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
-    // Normal configuration (no bridge): the saved delivery is redelivered on the ordinary path, which wakes the seat
+    // The ordinary path: the saved delivery is redelivered on the ordinary path, which wakes the seat
     // and keeps per-seat order. The value carries the identity the parent seam checks (binding.target.launch) and
     // tells submit to take ordinary dispatch; there is no registered execution to reconcile.
-    if (!this.executionBridge) return { ordinary: true, reservation: { request: structuredClone(request) }, binding: { target: { launch: structuredClone(target) } } }
-    if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
-    // 既存の席変更一覧へ載せ、照合と設定変更・停止が交差しても不明を勝手に解除しない。
-    const pending = this.executionBridge.reconcileLaunch(request, target)
-    pending.executionBound = true
-    pending.executionIssued = true
-    pending.executionSession = session
-    const changes = new Set([pending])
-    this.sessionChanges.set(bot.id, changes)
-    try {
-      const execution = await pending
-      this.requireStopVersion(bot.id, version)
-      if (this.stopping || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
-        || this.activity.hasJobs(bot.id))
-        throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
-      if (!same(execution.binding?.target?.launch, target)) throw Object.assign(new Error('回復対象の起動世代が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
-      this.sessions.set(bot.id, session)
-      return execution
-    } finally {
-      changes.delete(pending)
-      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
-    }
+    return { ordinary: true, reservation: { request: structuredClone(request) }, binding: { target: { launch: structuredClone(target) } } }
   }
 
   async closeLaunch(bot, inputRequest, inputTarget) {
     const { request, target } = structuredClone({ request: inputRequest, target: inputTarget })
     this.assertWorkAllowed()
     const session = this.session(bot) ?? bot.id
-    const version = this.captureStopVersion(bot)
     const busy = () => this.stopping || this.sessionChanges.has(bot.id) || this.activity.configuration(bot.id)
       || this.activity.waking(bot.id) || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
     if (target?.session_id !== session || request?.target_session_id !== session)
       throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
     // Never close a seat whose turn is running; the turn ends and the close can be asked again.
     if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
-    // Normal configuration (no bridge): close the seat's terminal and launch record; the next delivery wakes it.
-    if (!this.executionBridge) {
-      const receipt = await this.changeSession(bot, 'pty_close', { session_id: session })
-      this.sessions.delete(bot.id)
-      return receipt?.structuredContent ?? { session_id: session, outcome: 'closed' }
-    }
-    // No session-only close, registration or body dispatch belongs here. The
-    // product owns atomic original-request / expected-generation validation.
-    const pending = this.executionBridge.closeLaunch(request, target)
-    pending.executionBound = true
-    pending.executionIssued = true
-    pending.executionSession = session
-    const changes = new Set([pending])
-    this.sessionChanges.set(bot.id, changes)
-    try {
-      const receipt = await pending
-      this.requireStopVersion(bot.id, version)
-      if (this.stopping || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
-        || this.activity.configuration(bot.id) || this.activity.waking(bot.id)
-        || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
-        || (this.session(bot) ?? bot.id) !== session)
-        throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
-      this.sessions.delete(bot.id)
-      this.invalidateRunning()
-      return receipt
-    } finally {
-      changes.delete(pending)
-      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
-    }
+    // Close the seat's terminal and launch record; the next delivery wakes it.
+    const receipt = await this.changeSession(bot, 'pty_close', { session_id: session })
+    this.sessions.delete(bot.id)
+    return receipt?.structuredContent ?? { session_id: session, outcome: 'closed' }
   }
 
   session(bot) {

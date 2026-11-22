@@ -36,7 +36,7 @@ verify-notifications-image.yml→test/helpers/notifications-real-boundary.pyが�
 
 Root Web Push v1.1（b64a7c27）により通知だけparentProtocol2/stateSchema2へ更新する。既artifact/receipt schemaと専用OIDC workflow/信頼根/完全inventoryは維持する。catalogは既4keyのままnodeMajor26/parentProtocol2/stateSchema2/containerUpdate:nullを厳密照合し、公式資材のsource/arch/runtimeとの不一致も拒否する。旧P1受入は履歴であり新ABIの証拠にせず、戻しは同P2の固定builtinと最新鍵/登録/settings。親settingsの旧image互換は別判定。
 
-web-pushはMika固定prod dependencyとlockからnpm ciで自己完結収録する。親probeはarchive配置後の/app/scriptsへ同source同bytesを追加し、readonly化して/app/srcとprod node_modulesで解決する。probe自体は署名payload inventoryへ混ぜない。ready鍵生成/外部call0、実OSclose後のみ成功JSONとする。runtimeのABI2 entry/channel/probe完成sourceと原本が揃う前は署名可能/実物成功としない。
+（a487n 2026-11-22：`web-push`依存は外れた。以下の収録は当時の記録。）web-pushはMika固定prod dependencyとlockからnpm ciで自己完結収録する。親probeはarchive配置後の/app/scriptsへ同source同bytesを追加し、readonly化して/app/srcとprod node_modulesで解決する。probe自体は署名payload inventoryへ混ぜない。ready鍵生成/外部call0、実OSclose後のみ成功JSONとする。runtimeのABI2 entry/channel/probe完成sourceと原本が揃う前は署名可能/実物成功としない。
 
 private登録照会/register/unregisterだけに親検証済canonical HTTPS originを必須とする。公開状態status/configureへoriginを増やさず、公開bodyのoriginは拒否する。probe/nativeの人工登録はorigin付きで、欠測/非canonical拒否、別origin照会/解除falseかつ保持、同endpoint別origin/previousEndpoint非所有・欠測は同409で全保存不変、同origin置換成功を作者原本へ結合する。鍵0600/再生成0/設定epoch保持、APNs-Web全inflightとsavingの実終端、同source builtin→署名→builtinを両nativeで測る。実鍵/実送信/Host本番0。
 

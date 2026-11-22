@@ -128,7 +128,7 @@ flowchart TD
 
 ### 受付後の追跡故障を未達へ読み替えない
 
-契約は[Web](../web/conversation.md#受付後の追跡故障を未達へ読み替えない)と[配送](../conversation/delivery.md)に同じ。Appleは`Delivery.deliveryTracking`と直接行の`TimelineMessage.deliveryTracking`を任意で読む。`DeliveryTracking`の復号は失敗せず、型違い・欠落はfieldなしになる。
+契約は[Web](../../../archive/web-ui/conversation.md#受付後の追跡故障を未達へ読み替えない)と[配送](../conversation/delivery.md)に同じ。Appleは`Delivery.deliveryTracking`と直接行の`TimelineMessage.deliveryTracking`を任意で読む。`DeliveryTracking`の復号は失敗せず、型違い・欠落はfieldなしになる。
 
 ```mermaid
 flowchart TD

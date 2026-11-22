@@ -112,6 +112,8 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // Mac eventRevision: the server events that make an open goal view read its goals again (see GoalEvents).
     public event Action? GoalEvent;
     public event Action? UpdatesChanged;
+    // a485 7c: login.requested / login.* / session.* on the stream; an app with a session reads its requests and session list again.
+    public event Action? LoginEvent;
     public event Action<MessageNotification>? MessageArrived;
     public ConversationEntry[] Conversations => all.ToArray();
     public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
@@ -144,6 +146,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public AttachmentPreview<TImage>[] Attachments => Draft?.Attachments.Select((image, index) => new AttachmentPreview<TImage>(image, attachmentPreviews[image], index + 1)).ToArray() ?? [];
     public string Search { get => search; set { search = value; Changed(); Filter(); } }
     public string? ConnectionError { get => connectionError; private set { connectionError = value; Changed(); } }
+    // a485: what the server said about app sessions on the last read (null = a server without them: today's login path). When it enforces them, a missing or refused session is answered by the server's own login (LoginFlow), not by Access.
+    public LoginInfo? Login { get; private set; }
+    public bool SessionLoginRequired => Login?.Enforced == true;
     public bool NeedsLogin { get => needsLogin; private set { needsLogin = value; Changed(); } }
     public string ConnectionStatus { get => connectionStatus; private set { connectionStatus = value; Changed(); } }
     public ConversationEntry? Selected => selected;
@@ -269,14 +274,16 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             if (prepareConnection is not null) await prepareConnection(origin);
             token.ThrowIfCancellationRequested();
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
-            AuthMode = session.AuthMode; Changed(nameof(AuthMode));
-            if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare"; throw new BellApiException(NeedsLogin ? "Cloudflare Accessへログインしてください。" : "接続先が認証を拒否しました。サーバーの設定を確認してください。"); }
+            AuthMode = session.AuthMode; Login = session.Login; Changed(nameof(AuthMode)); Changed(nameof(Login));
+            if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare" || SessionLoginRequired; throw new BellApiException(SessionLoginRequired ? "このサーバーにログインしてください。" : NeedsLogin ? "Cloudflare Accessへログインしてください。" : "接続先が認証を拒否しました。サーバーの設定を確認してください。"); }
             await RefreshAsync(current, token);
             ready = true; Changed(nameof(Connected));
             ConnectionStatus = "接続済み";
             if (listen) _ = ListenAsync(current, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        // a485 (app-sessions.md 7a): the server cannot judge a session right now (restart, rollback). The stored token stays; the page retries on the backoff.
+        catch (BellApiException unavailable) when (unavailable.Code == "SESSION_STORE_UNAVAILABLE") { if (api == current) { ConnectionError = "サーバーの準備中です。"; ConnectionStatus = "接続できませんでした。"; } }
         catch (Exception error) { if (api == current) { if (error is BellApiException { RequiresLogin: true }) ConnectionRetryable = false; ConnectionError = error.Message; ConnectionStatus = "接続できませんでした。"; } }
     }
 
@@ -306,7 +313,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                     if (recovered && ConnectionError == reconnecting) ConnectionError = null;
                     reconnecting = null;
                     ConnectionStatus = "接続済み・新着を受信中";
-                    if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
+                    var typeName = item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String ? type.GetString() : null;
+                    if (typeName == "updates") UpdatesChanged?.Invoke();
+                    else if (typeName is not null && (typeName.StartsWith("login.") || typeName.StartsWith("session."))) LoginEvent?.Invoke();
                     // Events may have been missed while the stream was down, so the first event after a reconnect reads everything again.
                     if (recovered || item.EnumerateObject().Any()) { if (GoalEvents.ShouldReload(item, hadError)) GoalEvent?.Invoke(); await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
                 }
@@ -760,7 +769,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     {
         connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null; terminals = null;
         all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); Owner = null; OwnerName = "あなた"; AccountsBanner = ""; Changed(nameof(AccountsBanner));
-        HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
+        HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare" || SessionLoginRequired; ConnectionStatus = "ログアウトしました。";
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
         DraftChanged();
     }

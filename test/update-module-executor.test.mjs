@@ -309,16 +309,15 @@ test('Owner plan/start/get and individual rollback exchange all three real contr
   const webRoots = new Map()
   for (const id of ['builtin', digest, 'f'.repeat(64)]) {
     const path = join(root, id)
-    await fs.mkdir(join(path, 'src'), { recursive: true }); await fs.mkdir(join(path, 'web'))
+    await fs.mkdir(join(path, 'src'), { recursive: true })
     await fs.copyFile(new URL('../src/http-gateway-entry.mjs', import.meta.url), join(path, 'src/http-gateway-entry.mjs'))
     await fs.symlink(new URL('../src/http-gateway.mjs', import.meta.url).pathname, join(path, 'src/http-gateway.mjs'))
-    await fs.copyFile(new URL('../web/assets.mjs', import.meta.url), join(path, 'web/assets.mjs'))
-    await fs.writeFile(join(path, 'web/index.html'), `<h1>${id}</h1>`); webRoots.set(id, path)
+    webRoots.set(id, path)
   }
   const descriptor = (id, versionId) => ({ versionId, sourceCommit: nextSource, platform: { os: 'linux', arch: 'amd64' },
     appRoot: id === 'web-gateway' ? webRoots.get(versionId) : `/run/bellteam-maintenance/${id}/releases/${versionId}/payload`,
     protocolVersion: id === 'notifications' ? 2 : 1, ...(id === 'notifications' ? { stateSchema: 2 } : id === 'members' ? { stateCompatibility: MEMBERS_STATE_COMPATIBILITY } : {}) })
-  push = createNotificationsProcess({ root, configuration: () => ({ apns: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } }), prepareRelease: async id => descriptor('notifications', id) })
+  push = createNotificationsProcess({ root, configuration: () => ({ apns: { enabled: false, relayUrl: '' } }), prepareRelease: async id => descriptor('notifications', id) })
   members = createMembersProcess({ root, prepareRelease: async id => descriptor('members', id) })
   await push.start(); await members.start()
   await push.request('register', { provider: 'apns', token: 'retained artificial token' })

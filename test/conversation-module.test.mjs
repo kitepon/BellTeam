@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { ConversationWriter, deliveryFailureFields } from '../src/conversation-writer.mjs'
 import { conversationTools, callConversationTool } from '../src/mcp-conversation-tools.mjs'
+import { resolveBotImagePath } from '../src/bot-image-path.mjs'
 import { requireRoomMember, requireRepresentative } from '../src/room-access.mjs'
 
 test('会話writerは保存後に通知し、失敗結果と表示用の言葉を発言に変えない', async t => {
@@ -50,4 +51,37 @@ test('部屋予定も同じ公開資格検証を使える', () => {
   assert.throws(() => requireRepresentative(rooms, room.id, 'bot-b'), /ROOM_REPRESENTATIVE_REQUIRED/u)
   assert.throws(() => requireRoomMember(rooms, room.id, 'bot-c'), /ROOM_MEMBER_REQUIRED/u)
   assert.throws(() => requireRoomMember(rooms, 'missing', 'bot-a'), /ROOM_NOT_FOUND/u)
+})
+
+// a521: a remote seat's image path is passed unchanged (terminal's own form, e.g. Windows 'C:\x.png'); the terminal read judges it.
+test('sendmessage keeps a remote seat image path as given', async () => {
+  const registry = new Map([['bot-r', { id: 'bot-r', name: 'R', terminalId: 'win', projectRoot: 'C:\\p' }], ['bot-b', { id: 'bot-b', name: 'B' }]])
+  const calls = []
+  for (const image of ['C:\\Users\\x\\a.png', 'shot.png']) await callConversationTool({ name: 'sendmessage', from: 'bot-r', registry, args: { target: 'B', message: 'm', image }, deliverMessage: async value => { calls.push(value.image) } })
+  assert.deepEqual(calls, [{ path: 'C:\\Users\\x\\a.png' }, { path: 'shot.png' }])
+})
+
+// a521b: the shared resolver (also set_avatar's) keeps refusing a remote seat's '..' path; only the conversation tools skip it.
+test('resolveBotImagePath still guards a remote seat relative path', async () => {
+  const bot = { id: 'bot-r', terminalId: 'win', projectRoot: 'C:\\p', project: '/srv/p' }
+  await assert.rejects(resolveBotImagePath(bot, '../x.png'), /IMAGE_PATH_INVALID/)
+})
+
+// a521d: a seat's sendmessage saves through the parent's MessageAssets, so the same reader must route a remote seat's path to its terminal (Z180 lab 1b: IMAGE_FILE_NOT_FOUND).
+test('MessageAssets reads a remote seat path image on its terminal and every other image on the body', async t => {
+  const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os'), { join } = await import('node:path')
+  const { MessageAssets } = await import('../src/message-assets.mjs'), { seatImageReader } = await import('../src/bot-image-path.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'a521d-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const png = Buffer.from('89504e470d0a1a0a00', 'hex'), terminal = [], local = []
+  const bots = new Map([['bot-remote', { id: 'bot-remote', terminalId: 'mac', projectRoot: '/Users/x/p' }], ['bot-local', { id: 'bot-local' }]])
+  const transport = { readSeatImage: async (bot, path, max) => { terminal.push([bot.id, path, max]); return png } }
+  const make = transport => new MessageAssets({ root, botsAssetsRoot: join(root, 'bots'),
+    readImage: seatImageReader({ bots, transport, local: async image => { local.push(image); return png } }) })
+  const assets = make(transport)
+  await assets.save({ owner: 'bot-remote', id: 'r1', image: { path: '/Users/x/shot.png' } })
+  await assets.save({ owner: 'bot-local', id: 'l1', image: { path: '/tmp/a.png' } })
+  await assets.save({ owner: 'bot-remote', id: 'r2', image: { mime: 'image/png', data: png.toString('base64') } })
+  assert.deepEqual(terminal, [['bot-remote', '/Users/x/shot.png', assets.maxBytes]])
+  assert.deepEqual(local, [{ path: '/tmp/a.png' }, { mime: 'image/png', data: png.toString('base64') }])
+  await assert.rejects(make({}).save({ owner: 'bot-remote', id: 'r3', image: { path: '/Users/x/shot.png' } }), /IMAGE_REMOTE_READ_UNAVAILABLE/)
 })

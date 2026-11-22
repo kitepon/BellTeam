@@ -192,3 +192,35 @@ An input taken into a running turn ends with final status `delivered`. Its recor
 | `ConversationStore` / `RoomHistory` | Latest same-ID status → direct item `steered: true` / room `deliveries[*].steered: true` | Exposed only while the latest status is `delivered` with the key; a later status clears it. Room top level never carries it. `list_messages` and history pages use these items |
 
 Deployment order: the conversation module child accepts the key before any body forwards it. A body built from this source normalizes the callback and validates `direct.log.append` in the parent, so it must not go live before a conversation module from the same or a later source. An older body drops the key in normalize, and nothing changes. Kiro's execution may go live first: today's normalize drops the key.
+
+## Images between the Owner and a remote seat (a521-remote-seat-images)
+
+Reported by Rapi (remote seat on a Mac), 2026-11-22. Trony asked that an image travels both ways between the Owner and every seat, local or remote, on every OS and harness. Conversation owner: N102. Moving bytes to and from a terminal belongs to Aiterm (Elegg, `terminal-bound` calls); the Aiterm client call is execution's (Kiro); the parent effect wiring is Molly's. Nothing here changes a message, a tool argument or an app: `image` stays a path in `sendmessage`, the Owner still sends `images[{mime,data}]`, rows stay `image: true` with `image_assets`.
+
+Two defects, two owners of the fix:
+
+| Direction | Today | Cause | Fix |
+| --- | --- | --- | --- |
+| Owner → remote seat | 配達失敗, text lost too | Text and image travel in one `pty_send`; Aiterm refuses `image` for a terminal session (`REMOTE_IMAGE_UNSUPPORTED`, nothing typed), execution rethrows it as `BOT_IMAGE_UNSUPPORTED` and the receipt ends `failed` (a463). It protects no data and the text alone could be delivered, so it is a give-up guard (common rule `guards.remove-unnamed`). | Execution resends the same turn once without `image`, with one note line, until Aiterm lifts the refusal (task `a521-exec-image-fallback`, Kiro). Aiterm uploads the saved image to the terminal's temp folder and attaches it there, as for a local seat (task `a521-aiterm-remote-image`, Elegg). Conversation sends the same `{mime,data}` bytes as today; nothing changes in the saved record. |
+| Remote seat → Owner | `IMAGE_FILE_NOT_FOUND` | `callConversationTool` resolves the `image` path on the body (`resolveBotImagePath`) and `readImageBytes` opens it on the container's disk; a Mac path is not there. | A caller that is a remote seat (`isRemoteBot(bot)`: `terminalId` and `projectRoot`) names a path on its own terminal. the three conversation tools (`sendmessage`, `sendroommessage`, `respond_to_room`) skip `resolveBotImagePath` for such a caller and keep the path as given (the terminal's own form; a Windows `C:\x.png` is not absolute on the body). The shared resolver is unchanged, so `set_avatar`, which reads the body's disk, keeps its relative-path guard. The tool sends `image: { path }` as before: no new field. Every `MessageAssets` that saves a seat's image reads through one function, `seatImageReader` (`bot-image-path.mjs`; `MessageAssets` passes the saving owner to `readImage`): the parent's direct receipts (a seat's `sendmessage` takes this path, built in `conversation-assembly.mjs`), the legacy `conversation-services.mjs`, and the module child's effect `runtime.image.read`. It decides by the saving owner: a path image whose owner is a remote seat is not opened on the body but read on that seat's terminal: the effect calls `services.transport.readSeatImage(bot, path, 25 MiB)` (execution's Aiterm client call, task `a521-exec-image-read`), which uses Aiterm 0.70.97 `image_read` (aiterm-mcp `remote-terminal.md` R24: absolute path inside the seat's folder, the OS temp folder, `/tmp` or the uploaded-image folder; png/jpeg/gif/webp; chunked by `offset`/`length` <= 6 MiB because one MCP message must stay under 10 MiB; sha256 checked); the bytes then go through the existing `MessageAssets` save (type from magic bytes, 25 MiB cap, 0600/wx). Data images (`{mime,data}`) and local seats are untouched. |
+
+```mermaid
+flowchart LR
+  Owner["Owner app: images [{mime,data}]"] -->|POST /api/bots/:id/messages| Save["receive: MessageAssets.saveAll (body disk)"]
+  Save --> Run["runSaved: dispatch images {mime,data}"]
+  Run --> Exec["execution: temp file, pty_send image [server path]"]
+  Exec -->|"local seat"| Local["seat reads the path"]
+  Exec -->|"remote seat, Aiterm lifted (Elegg)"| Put["Aiterm: upload to the terminal temp folder, attach the remote path"]
+  Exec -.->|"old Aiterm: REMOTE_IMAGE_UNSUPPORTED"| Fallback["execution: resend once without image + note line (Kiro); no failed status"]
+  Seat["seat: sendmessage image=path"] --> Tool["callConversationTool"]
+  Tool -->|"local seat"| Read["resolveBotImagePath + readImageBytes on the body"]
+  Tool -->|"remote seat: image {path}, path on the terminal"| Eff["parent effect runtime.image.read: owner is a remote seat (Molly wires)"]
+  Eff -->|"transport.readSeatImage: Aiterm image_read on the seat's terminal (Elegg 0.70.97; client Kiro)"| Bytes["bytes"]
+  Read --> Assets["MessageAssets: magic bytes, 25 MiB, 0600/wx"]
+  Bytes --> Assets
+  Assets --> Row["row image:true, image_assets: apps unchanged"]
+```
+
+Data flow: bytes live on the body (saved assets) or on the terminal (the seat's own file); they cross only through Aiterm's terminal-bound calls, never through the seat MCP (4 MiB body, no base64 from the model) and never by the body reading a terminal path directly. Failure handling: an Aiterm read refusal (not found, too large, not an image, not readable by the seat) is returned to the calling seat as the coded tool error (`IMAGE_FILE_NOT_FOUND`, `IMAGE_FILE_TOO_LARGE`, `IMAGE_FILE_INVALID`) with nothing stored; a body whose transport has no `readSeatImage` (or an Aiterm older than 0.70.97) answers `IMAGE_REMOTE_READ_UNAVAILABLE` (`conversation-parent-effects.mjs`); the transport maps Aiterm's `IMAGE_NOT_FOUND`/`IMAGE_TOO_LARGE`/`IMAGE_NOT_AN_IMAGE`/`IMAGE_PATH_INVALID`/`IMAGE_PATH_NOT_ALLOWED` to those names (the seat is told to ask the Owner, not told the file is missing). This changes no delivery state and adds no guard: nothing was accepted, so nothing is given up.
+
+Product boundary (both products' diagrams): Conversation → Aiterm: `pty_send image` (existing call) and the terminal-bound image read (new). The conversation module reads no terminal path itself.

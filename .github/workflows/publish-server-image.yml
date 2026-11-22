@@ -15,6 +15,8 @@ on:
       - distribution/server/**
       - distribution/lattice/package.json
       - distribution/lattice/package-lock.json
+      - distribution/approval-box/package.json
+      - distribution/approval-box/package-lock.json
       - scripts/package-server.mjs
       - scripts/web_gateway_artifact.py
       - scripts/module-worker-termination.py
@@ -25,9 +27,13 @@ on:
       - scripts/container-update-compose.mjs
       - scripts/read-container-update-normal.mjs
       - scripts/body-quiesce-helper.mjs
+      - scripts/emergency-body.py
+      - scripts/lattice-sensor-init
+      - config/lattice-harness-entries.json
       - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
+      - scripts/bellteam-console.mjs
       - scripts/seat-exec.c
       - scripts/module-start.c
       - scripts/usage-start.c
@@ -267,13 +273,16 @@ jobs:
           const session = await (await fetch(base + "/api/session")).json();
           assert.equal(session.authMode, "local");
           const settings = await (await fetch(base + "/api/settings")).json();
-          assert.deepEqual(settings.settings.map(setting => setting.id), ["routing", "callBridge", "cloudflare", "diagnostics", "notifications", "webPush", "onePassword", "thinkingDisplay"]);
+          assert.deepEqual(settings.settings.map(setting => setting.id), ["routing", "callBridge", "cloudflare", "diagnostics", "notifications", "onePassword", "thinkingDisplay"]);
           assert.ok(settings.settings.every(setting => setting.enabled === false));
           const { subscription } = await (await fetch(base + "/api/subscription")).json();
           assert.equal(subscription.entitled, false);
           assert.equal(subscription.accessMode, "subscription");
           assert.equal(subscription.canUseAI, true);
-          assert.equal((await fetch(base)).status, 200);
+          // a487: the browser UI has ended; the public gateway answers every page with one notice.
+          const root = await fetch(base);
+          assert.equal(root.status, 410);
+          assert.match(await root.text(), /ブラウザ版は終了しました/);
           '
       - name: 失敗時の本体・module-installer・container-updaterの状態と記録
         if: failure()

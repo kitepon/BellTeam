@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createExecutionDispatcher, EXECUTION_METHODS } from '../src/execution-dispatcher.mjs'
@@ -58,6 +59,14 @@ test('the engine native allowlist lets the machine seat stream_send through (a47
   const f = await fixture(t, name => name === 'stream_send' ? { structuredContent: { accepted: 1 } } : undefined)
   assert.deepEqual(await f.engine.dispatch(request('transport.streamSend', bot, { lines: [{ type: 'control_response' }] })), { accepted: 1 })
   assert.ok(f.calls.includes('stream_send'))
+})
+
+test('a521: the engine dispatches readSeatImage and image_read passes its native allowlist', async t => {
+  const data = Buffer.from('png-bytes')
+  const f = await fixture(t, name => name === 'image_read' ? { structuredContent: { chunk_base64: data.toString('base64'), offset: 0, total_bytes: data.length,
+    sha256: createHash('sha256').update(data).digest('hex'), mime_type: 'image/png', path: '/a.png' } } : undefined)
+  assert.ok((await f.engine.dispatch(request('transport.readSeatImage', bot, '/a.png', 1024))).equals(data))
+  assert.ok(f.calls.includes('image_read'))
 })
 
 test('quiesce does not retire an actual native read after its caller has stopped waiting, and old engine can resume', async t => {

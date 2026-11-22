@@ -108,6 +108,8 @@ struct BellEvent: Sendable {
 
 final class BellAPI {
     var baseURL: URL?
+    /// サーバーのセッショントークン（app-sessions.md）。あれば全要求に`Authorization: Bearer`で付ける。
+    var sessionToken: String?
     // 背景で止まった端末の死んだ接続を前面復帰時に捨てるため、flush できる専用セッションを持つ。
     private let session: URLSession
     let diagnostics: BellDiagnostics
@@ -118,7 +120,7 @@ final class BellAPI {
         return decoder
     }()
 
-    init(baseURL: URL?, session: URLSession = URLSession(configuration: .default), diagnostics: BellDiagnostics = .shared, cookieStorage: HTTPCookieStorage = .shared) {
+    init(baseURL: URL?, session: URLSession = URLSession(configuration: .default, delegate: BearerRedirectGuard(), delegateQueue: nil), diagnostics: BellDiagnostics = .shared, cookieStorage: HTTPCookieStorage = .shared) {
         self.baseURL = baseURL
         self.session = session
         self.diagnostics = diagnostics
@@ -468,18 +470,16 @@ final class BellAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let sessionToken { request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization") }
         if let cookies = cookieStorage.cookies(for: url), !cookies.isEmpty {
             request.setValue(HTTPCookie.requestHeaderFields(with: cookies)["Cookie"], forHTTPHeaderField: "Cookie")
         }
         return request
     }
 
-    /// 決裁箱の呼び出し：応答の状態と本文をそのまま返す（403 not_entitled・409 conflict などは本文の {error:{code,…}} で分かれるため）。
-    /// Accessのログイン・別ホストへの転送・401だけ認証切れとして投げる。
-    func approvalsResponse(path: String, method: String = "GET", body: Data? = nil,
-                           headers: [String: String] = [:]) async throws -> (Data, Int) {
+    /// ログインの呼び出し：403（コードが違う等）も本文で分かれるため、状態・本文・Retry-Afterをそのまま返す。
+    func loginResponse(path: String, method: String, body: Data? = nil) async throws -> (Data, Int, TimeInterval?) {
         var request = try request(path: path, method: method)
-        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -488,8 +488,7 @@ final class BellAPI {
         do { try validate(response, data: data, keepStatus: true) }
         catch { throw traced(error, with: trace, body: data) }
         guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
-        if http.statusCode == 401 { throw BellAPIError.unauthorized }
-        return (data, http.statusCode)
+        return (data, http.statusCode, http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init))
     }
 
     private func validate(_ response: URLResponse, data: Data = Data(), keepStatus: Bool = false) throws {
@@ -503,12 +502,23 @@ final class BellAPI {
               responseURL.host == baseURL.host,
               responseURL.port == baseURL.port else { throw BellAPIError.unauthorized }
         if keepStatus { return }
-        if http.statusCode == 401 || http.statusCode == 403 { throw BellAPIError.unauthorized }
+        // 本体のセッションが有効なまま拒まれた403（FORBIDDEN）はトークンを消さない。確定した401だけが認証切れ（Accessの旧経路は403も認証切れ）。
+        if http.statusCode == 401 || (http.statusCode == 403 && sessionToken == nil) { throw BellAPIError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
             struct ErrorBody: Decodable { let error: String; let message: String?; let reason: String? }
             let body = try? decoder.decode(ErrorBody.self, from: data)
             throw BellAPIError.httpStatus(http.statusCode, body?.message ?? body?.reason ?? body?.error)
         }
+    }
+}
+
+/// B5（Mintの適合確認）: セッションのトークンを付けた要求は、どこへのリダイレクトも辿らない（トークンを別のホストへ渡さない）。
+/// 付けていない要求（Cloudflare Accessの旧経路の最初の読み取りなど）は今までどおり辿る。
+final class BearerRedirectGuard: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(task.originalRequest?.value(forHTTPHeaderField: "Authorization") == nil ? request : nil)
     }
 }
 

@@ -33,6 +33,19 @@ test('healthy minute resets the interval and repeated loss never duplicates a ti
   recovery.close()
 })
 
+test('a503: a healthy window is told once even when this process reported no limit (an earlier process left the row), and again only after a new limit', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+  const told = []
+  let recovery
+  recovery = createModuleChildRestart(async () => { recovery.running() }, 'notifications', value => told.push(value))
+  recovery.running()
+  t.mock.timers.tick(1_799_999); assert.deepEqual(told, [])
+  t.mock.timers.tick(1); assert.deepEqual(told, [{ kind: 'module_restart_limit', moduleId: 'notifications', cleared: true }])
+  recovery.lost(); t.mock.timers.tick(1000); await settle(); recovery.running(); t.mock.timers.tick(1_800_000)
+  assert.equal(told.length, 1) // told once per process, not on every healthy stretch
+  recovery.close()
+})
+
 test('stderr observation retains only a finite set of fixed codes', () => {
   const stderr = new EventEmitter(), stdout = { resume() {} }
   stderr.resume = () => {}

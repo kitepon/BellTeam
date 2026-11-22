@@ -8,15 +8,17 @@ export const MODULE_HOLD_MS = 60000
 
 export function createModuleChildRestart(restart, component = null, onModuleRestartLimit) {
   let timer = null, closed = false, delay = 1000, healthySince = null, attempting = false, state = null
-  let quietTimer = null, reported = false, attempts = [], lastExit = { code: null, signal: null }, lastReason = 'recovery_failed'
+  let quietTimer = null, reported = false, told = false, attempts = [], lastExit = { code: null, signal: null }, lastReason = 'recovery_failed'
   const emit = value => { try { Promise.resolve(onModuleRestartLimit?.(value)).catch(() => {}) } catch {} }
   const clearQuiet = () => { clearTimeout(quietTimer); quietTimer = null }
+  // a503: an open row may be left by an earlier body process (a restart or swap) that this one never reported, so a healthy window is
+  // told once even when this process emitted no limit; the intake ignores a clear that has no open row.
   const quiet = () => {
-    if (quietTimer || !reported || closed || healthySince === null) return
+    if (quietTimer || (!reported && told) || closed || healthySince === null) return
     quietTimer = setTimeout(() => {
       quietTimer = null
       if (closed || healthySince === null || Date.now() - healthySince < 1_800_000) return
-      reported = false; attempts = []
+      reported = false; told = true; attempts = []
       emit({ kind: 'module_restart_limit', moduleId: component, cleared: true })
     }, Math.max(1, 1_800_000 - (Date.now() - healthySince)))
     quietTimer.unref?.()
@@ -61,7 +63,7 @@ export function createModuleChildRestart(restart, component = null, onModuleRest
       attempts = attempts.filter(at => Date.now() - at < 1_800_000)
       attempts.push(Date.now())
       if (!reported && attempts.length >= 5 && component) {
-        reported = true
+        reported = true; told = false
         emit({ kind: 'module_restart_limit', moduleId: component, count: attempts.length, windowSeconds: 1800,
           lastExit: { ...lastExit }, lastReason })
       }

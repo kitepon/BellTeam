@@ -1,19 +1,6 @@
-import { webAssetFiles, versionedWebAssets } from '../web/assets.mjs'
 import { avatarVersion } from './avatar-value.mjs'
 export { avatarVersion } from './avatar-value.mjs'
-import { createReadStream } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
-import { extname, join } from 'node:path'
 import { json } from './http-response.mjs'
-
-const contentTypes = new Map([
-  ['.html', 'text/html; charset=utf-8'],
-  ['.css', 'text/css; charset=utf-8'],
-  ['.js', 'text/javascript; charset=utf-8'],
-  ['.svg', 'image/svg+xml'],
-  ['.png', 'image/png'],
-  ['.webmanifest', 'application/manifest+json'],
-])
 
 // 一覧の `?avatar=omit` は画像本体を外す。指定の無い古いアプリには今までどおり本体を返す。
 export function listAvatar(avatar, url) {
@@ -37,32 +24,4 @@ export function sendAvatar(request, response, avatar, url) {
   const body = Buffer.from(match[2], 'base64')
   response.writeHead(200, { ...headers, 'content-type': match[1], 'content-length': body.length })
   response.end(body)
-}
-
-// a119 (clickjacking): no other site may frame BellTeam's pages. The apps open login pages top-level, never in a frame.
-const NO_FRAMING = { 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" }
-
-export async function staticFile(response, root, pathname, assetVersion, { files = webAssetFiles, versioned = versionedWebAssets } = {}) {
-  if (!root) return json(response, 404, { error: 'NOT_FOUND' })
-  const name = files.get(pathname)
-  if (!name) return json(response, 404, { error: 'NOT_FOUND' })
-  const file = join(root, name)
-  const info = await stat(file)
-  if (versioned.has(name)) {
-    const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
-    response.writeHead(200, {
-      ...NO_FRAMING,
-      'content-type': contentTypes.get(extname(file)),
-      'content-length': Buffer.byteLength(body),
-      'cache-control': name === 'index.html' || name === 'sw.js' ? 'no-cache' : 'public, max-age=31536000, immutable',
-    })
-    return response.end(body)
-  }
-  response.writeHead(200, {
-    ...NO_FRAMING,
-    'content-type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
-    'content-length': info.size,
-    'cache-control': name === 'sw.js' ? 'no-cache' : 'public, max-age=31536000, immutable',
-  })
-  createReadStream(file).pipe(response)
 }

@@ -18,6 +18,10 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
+    private readonly ISessionTokenStore tokens;
+    // a492: a home server (login-billing HomeConnection); null in tests and renders, which then connect as before.
+    private readonly IHomeLink? home;
+    private HomeProbe? homeBinding;
     private readonly DesktopNotifications? notifications;
     private StartupPhase startup = StartupPhase.Ready;
     private int connectGeneration;
@@ -44,6 +48,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly Button updateBadge;
     // 決裁箱 entry (screen-spec entry A): the pinned row at the top of the left column; its count is the pending count of every origin.
     private readonly ApprovalsHub approvals;
+    private readonly LinuxApprovalBoxDevice? approvalBox;
     private readonly Button approvalsEntry;
     private readonly Border accountsBanner = new() { Background = new SolidColorBrush(Color.Parse("#1FFF9500")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 7), Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock accountsText = new() { Foreground = new SolidColorBrush(Color.Parse("#C77700")), FontSize = 13, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
@@ -90,6 +95,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly TextBlock actionError = new() { TextAlignment = TextAlignment.Center, Foreground = BellTheme.Red, TextWrapping = TextWrapping.Wrap, FontSize = 10 };
     private readonly Button reconnect, changeServer;
     private readonly Border startupHost = new() { IsVisible = false };
+    private readonly Grid deletedLayer = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false };
     private readonly Grid sheet = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false, Focusable = true };
     private readonly Border sheetFrame = new();
     private readonly TextBlock sheetTitle = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink };
@@ -100,15 +106,17 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // The open settings page (hosted content of a never-shown EditorWindow) and its notification switch; the notification delivery port supplies its own switch.
     private SettingsWindow? settingsPage;
 
-    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null)
+    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null, ISessionTokenStore? tokens = null, IHomeLink? home = null)
     {
-        this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
+        this.home = home; this.tokens = tokens ?? new MemorySessionTokenStore(); this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
         model.ThisPc = new NoThisPc(); // 16c reads the Windows OpenSSH host-key path
         Title = "BellTeam"; Width = 1280; Height = 820; MinWidth = 1100; MinHeight = 640;
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
         addMenu = BuildAddMenu();
         updateBadge = BuildUpdateBadge();
-        approvals = new ApprovalsHub(model); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
+        // a520: the Approval Box device of this PC (off unless BELLTEAM_APPROVAL_BOX_DEVICE=1 on x64: the go-live ruling of Delta and Nayuta is not given yet).
+        approvalBox = LinuxApprovalBoxDevice.Enabled ? new LinuxApprovalBoxDevice(SettingsStore.UserDirectory) : null;
+        approvals = new ApprovalsHub(model, approvalBox?.Device); approvalBox?.Attach(approvals); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
         clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
         attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, "画像を添付", AttachAsync, "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます");
@@ -126,9 +134,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         WireModel(); UpdateAll(); approvals.Sync();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
         // The separate windows read through this workspace, so they end with the main window.
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { _ = approvalBox?.DisposeAsync(); CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
         // Mac scenePhase .active: coming back to the window reads the goals again.
-        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); };
+        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); LinuxAccountStore.NoteForeground(); };
         if (persistPlacement) RestorePlacement();
     }
 
@@ -179,8 +187,8 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         sheetFrame.Child = new DockPanel { Children = { header, line, sheetHost } };
         sheet.Children.Add(sheetFrame);
         var root = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Background = BellTheme.Canvas };
-        Grid.SetRowSpan(startupHost, 2); Grid.SetRowSpan(sheet, 2); Grid.SetRowSpan(galleryHost, 2); Grid.SetRowSpan(cropSheet, 2);
-        root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(cropSheet); root.Children.Add(galleryHost);
+        Grid.SetRowSpan(startupHost, 2); Grid.SetRowSpan(sheet, 2); Grid.SetRowSpan(galleryHost, 2); Grid.SetRowSpan(cropSheet, 2); Grid.SetRowSpan(deletedLayer, 2);
+        root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(cropSheet); root.Children.Add(galleryHost); root.Children.Add(deletedLayer);
         return root;
     }
 
@@ -633,7 +641,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     }
     private void UpdateApprovalsEntry()
     {
-        var summary = approvals.Feed?.Summary; var view = Approvals.EntryView(summary, approvals.Feed?.Failure);
+        var summary = approvals.Summary; var view = Approvals.EntryView(summary, approvals.Feed?.Failure);
         var lit = view.Pending > 0; var violet = LatticeLook.Violet;
         var tile = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(10), Background = LatticeLook.Brush(violet, lit ? (byte)0x26 : (byte)0x14), Child = LatticeLook.Icon(ApprovalsWindow.Inbox, 19, violet) };
         var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(11, 0, 0, 0), Children = { LatticeLook.Text("決裁箱", 15, LatticeLook.Ink, FontWeight.SemiBold), LatticeLook.Text(view.Sub, 12, LatticeLook.Muted) } };
@@ -728,7 +736,8 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             StartupPhase.Checking => new StartupOpeningView(),
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(lastAddress ?? model.Server), OpenConnectionSettings),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
-            StartupPhase.SignIn => new LoginView(OpenConnectionSettings),
+            StartupPhase.SignIn => SignInView(),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         startupHost.IsVisible = phase != StartupPhase.Ready;
@@ -743,7 +752,28 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
         ShowConversation(); ShowServerSetup();
     }
-    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); }
+    // a485: a server that enforces app sessions is answered by its own login (the code screen); a server without them keeps today's view. A refused stored token is gone for good.
+    private Control SignInView()
+    {
+        if (homeBinding is { } probe) return new HomeConnectView(home!, probe, "linux", ServerOrigin.Parse(model.Server), () => { homeBinding = null; _ = ConnectAsync(model.Server); }, OpenConnectionSettings);
+        if (!model.SessionLoginRequired) return new LoginView(OpenConnectionSettings);
+        var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
+        return new ConnectView(new LoginApi(model.Management.Api), "linux", origin, tokens, () => _ = ConnectAsync(model.Server), OpenConnectionSettings);
+    }
+    private void RouteToLogin()
+    {
+        if (!model.NeedsLogin || connecting || startup == StartupPhase.SignIn) return;
+        // A home server's 401: the library has dropped its record; connecting again asks to log in at the home server (the gate in ConnectAsync).
+        if (home?.Token(ServerOrigin.Parse(model.Server).AbsoluteUri) is not null) { tokens.Clear(ServerOrigin.Parse(model.Server)); _ = ConnectAsync(model.Server); return; }
+        ShowStartup(StartupPhase.SignIn);
+    }
+
+    // a492: a home server with no kept login is answered by its own login screen before anything else is read; true when that screen is up.
+    private async Task<bool> BindFirstAsync(Uri origin)
+    {
+        if (home is null || await HomeGate.MustBindAsync(home, origin, CancellationToken.None) is not { } probe) return false;
+        homeBinding = probe; ShowStartup(StartupPhase.SignIn); return true;
+    }
 
     // Mac changeServer: the server entry screen replaces the window. The saved address stays until a new one is entered, so it is offered again.
     private async Task ChangeServerAsync(string address)
@@ -771,7 +801,11 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         if (!(automatic && startup == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
         try
         {
+            var origin = ServerOrigin.Parse(address);
+            if (await BindFirstAsync(origin)) return;
             await model.ConnectAsync(address);
+            // A 401 on the first read: the kept home login is gone; ask for it again.
+            if (model.NeedsLogin && home?.Token(origin.AbsoluteUri) is not null) { tokens.Clear(origin); if (await BindFirstAsync(origin)) return; }
             await EnterAsync(generation);
         }
         catch (ArgumentException error) { if (generation == connectGeneration) ShowStartup(StartupPhase.Failure, error.Message); }
@@ -784,14 +818,17 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             try { setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken); }
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        var paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken);
         if (generation != connectGeneration) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) startupAttempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowStartup(StartupPhase.SignIn); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
     }
