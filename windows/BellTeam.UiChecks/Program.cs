@@ -20,7 +20,10 @@ public static class UiChecks {
     Dispatcher.Run();
   }
   private static async Task Run() {
-    await DeleteAccountChecks(); await StartupChecks();
+    await DeleteAccountChecks();
+    // The retry scene must not reach the real login Worker or the home probe on localhost (each refused probe takes ~4 s): no billing, so MainWindow.ConnectAsync skips HomeGate.
+    var billing = AccountStore.Billing; AccountStore.Billing = null;
+    try { await StartupChecks(); } finally { AccountStore.Billing = billing; }
     await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await ReconnectChecks(); await NewestChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
