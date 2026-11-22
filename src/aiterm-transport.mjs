@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
-import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations, sendText, withoutImageText, imagePaths, plainLine } from './execution-transport.mjs'
+import { sendStopOperations, sendText, withoutImageText, imagePaths, plainLine } from './execution-transport.mjs'
 import { sendSessionStop, confirmedSessionClosure } from './session-interruption.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
@@ -148,7 +148,7 @@ export function turnFailureWords(message) {
 
 export function createManagedTransport({ client = new AitermClient(), pressure = memoryPressure(), memoryRecord = null, ...options } = {}) {
   // a505c (memory-budget.md): the production transport has the launch gate; tests build AitermTransport directly and get none.
-  return new AitermTransport({ launchGate: new LaunchGate({ pressure, record: memoryRecord }), ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
+  return new AitermTransport({ launchGate: new LaunchGate({ pressure, record: memoryRecord }), ...options, client,  requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
 }
 
 // One native.pin() for an execution operation and the operations bound to its native values
@@ -181,7 +181,7 @@ const resumedRunningFastKept = (bot, receipt) => bot.fastMode === true && receip
   && receipt.startup?.reason === 'turn_running' && receipt.fast_error?.code === 'FAST_MODE_UNCONFIRMED'
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchGate = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchGate = null } = {}) {
     this.launchGate = launchGate
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
@@ -194,7 +194,6 @@ export class AitermTransport {
     this.membersAdmission = membersAdmission
     this.requireMember = requireMember
     this.client = client
-    this.executionBridge = executionBridge
     this.requestStop = requestStop
     this.interimInterval = interimInterval
     this.tempRoot = tempRoot
@@ -256,7 +255,6 @@ export class AitermTransport {
     this.restarts = new Map()
     this.sessionState = new BotSessionState({
       assertWorkAllowed: () => this.assertWorkAllowed(),
-      executionBridge: () => this.executionBridge,
       call: (name, args, options) => this.client.call(name, args, options),
       invalidateRunning: () => { this.runningSnapshot = null },
       invalidateWork: id => { this.workState.invalidate(id); this.backgroundSummary?.invalidate(id) },
@@ -273,7 +271,6 @@ export class AitermTransport {
       sessionState: this.sessionState,
       // An engine handover may replace the registry with the predecessor's live one.
       get activity() { return transport.activity },
-      get executionBridge() { return transport.executionBridge },
       requestStop: (sessions, options) => this.requestStop(sessions, options),
       session: bot => this.session(bot),
       observe: bot => this.observe(bot),
@@ -422,7 +419,6 @@ export class AitermTransport {
   async ensure(bot) {
     this.assertWorkAllowed()
     const version = this.captureStopVersion(bot)
-    if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
     this.requireStopVersion(bot.id, version)
@@ -465,7 +461,6 @@ export class AitermTransport {
     // a505d (memory-budget.md): the one place every cold launch and resume passes; a Lattice sweep prompt is refused here while memory is full.
     if (job) await this.refuseSweepUnderPressure(job)
     const version = this.captureStopVersion(bot)
-    if (this.executionBridge && !execution) await this.awaitUnboundAdmission(bot, version)
     await this.requireAccess({ setupTest, botId: bot.id })
     await mkdir(bot.project, { recursive: true })
     const harness = HARNESS.get(bot.harness)
@@ -771,7 +766,6 @@ export class AitermTransport {
     const pending = (async () => {
       await this.requireMember(bot, { membersLease })
       this.membersAdmission.assertLease(membersLease)
-      if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
       await retiring.issued
       this.requireStopVersion(bot.id, version)
       const session = await this.restartNow(bot, version, retiring.closed, membersLease)
@@ -863,7 +857,6 @@ export class AitermTransport {
     this.membersAdmission.assertOpen(expected)
     this.assertWorkAllowed()
     const version = this.captureStopVersion(current)
-    if (this.executionBridge) await this.awaitUnboundAdmission(current, version)
     await this.requireAccess({ setupTest: false, botId: next.id })
     const restarting = this.restarts.get(current.id)
     if (restarting) await restarting
@@ -928,7 +921,6 @@ export class AitermTransport {
     // harness-accounts.md "Member DELETE": deletion does not wait for the running turn; it closes like an explicit restart.
     const retiring = allSessions ? this.retireSeatWork(bot) : null
     if (retiring) version = retiring.version
-    if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     // harness-accounts.md: a stop ends the member's interrupted turn, so no continuation is sent for it later.
     if (this.claudeAccountBot(bot)) await this.accounts.setStopped(bot.id).catch(() => {})
     await (retiring ? retiring.issued : this.idle(bot.id))
@@ -981,7 +973,7 @@ export class AitermTransport {
 
   // 会話を残した現在処理の中断。通常の停止配送か旧追跡adapterを使う。
   interrupt(bot) {
-    if (!this.requestStop && !this.executionBridge) {
+    if (!this.requestStop) {
       this.modelHandoff?.ownerStop(bot.id)
       return Promise.reject(Object.assign(new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' }))
     }
@@ -995,15 +987,8 @@ export class AitermTransport {
 
   interruptMany(bots, options = {}) {
     for (const bot of bots) this.modelHandoff?.ownerStop(bot.id)
-    if (this.requestStop) {
-      const stopping = sendStopOperations(this.seat, bots, options)
-      return stopping
-    }
-    if (!this.executionBridge) throw Object.assign(new Error('EXECUTION_BRIDGE_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
-    const stopping = interruptExecutions(this.seat, bots)
-    // The historical adapter still interrupts the turn, but cannot confirm
-    // native goal pause. Keep the owner's global stop visibly unconfirmed.
-    return options.pauseGoals ? stopping.then(result => ({ ...result, unconfirmedBotIds: [...new Set(bots.map(bot => bot.id))] })) : stopping
+    if (!this.requestStop) throw Object.assign(new Error('STOP_REQUEST_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
+    return sendStopOperations(this.seat, bots, options)
   }
 
   requireStopVersion(botId, version) {
@@ -1013,10 +998,6 @@ export class AitermTransport {
   // session_idだけに作用する変更の発行と返却を追う。応答待ちのcloseを残したまま同じ席を起こさない。
   captureStopVersion(bot) {
     return this.sessionState.captureStopVersion(bot)
-  }
-
-  awaitUnboundAdmission(bot, version, barrier) {
-    return this.sessionState.awaitUnboundAdmission(bot, version, barrier)
   }
 
   changeSession(bot, name, args, options) {
@@ -1098,9 +1079,7 @@ export class AitermTransport {
     if (!membersLease) this.membersAdmission.assertOpen(expected)
     else this.membersAdmission.assertLease(membersLease)
     const version = this.captureStopVersion(bot)
-    const barrier = this.executionStopping
     const run = async () => {
-      if (this.executionBridge) await this.awaitUnboundAdmission(bot, version, barrier)
       return this.stop(bot, version, { membersLease, expected })
     }
     const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
@@ -2072,14 +2051,6 @@ export class AitermTransport {
   async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease, files = [] } = {}) {
     const check = checkAdmission
     bot = this.resolveBot?.(bot.id) ?? bot
-    if (this.executionBridge) {
-      const observed = await this.observeForDispatch(bot, check)
-      if (!observed) throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
-      if (!executionJob.execution) await reserveExecution(this.seat, executionJob, observed)
-      if (executionJob) executionJob.deliveryStage = observed.exists ? 'BOT_SEND_FAILED' : 'BOT_LAUNCH_FAILED'
-      const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check, membersLease, files })
-      return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }
-    }
     check()
     const imageFiles = await this.imageFiles(images, files)
     try {

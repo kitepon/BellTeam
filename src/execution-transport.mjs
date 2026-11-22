@@ -1,12 +1,8 @@
-// Execution registration stays in Aiterm. The immediate stop-button path below
-// sends one session/batch request without waiting for the older proof adapter.
-import { isDeepStrictEqual as same } from 'node:util'
-import { confirmedSessionInterruption } from './session-interruption.mjs'
-import { callExecutionRef, deliveryExecutionRef, roomExecutionRef } from './execution-bridge.mjs'
+// The stop-button path and the helpers every delivery shares. a532b2 stage 1: the older execution-registration adapter
+// (reserveExecution, dispatchExecution, interruptExecutions) is gone; production never used it.
 
 export { applyExecutionStop, applyExecutionCancellation, finishExecution } from './delivery-job.mjs'
 
-const unknown = cause => Object.assign(new Error('停止を確認できませんでした。', { cause }), { code: 'BOT_STOP_UNCONFIRMED' })
 
 // 停止操作の骨格。経路（停止ボタンの一括停止と、実行登録ごとの中断）で共通: 根のBotの停止世代を進め、
 // 配送jobへ停止要求を付け、進行中の停止として公開し、終わったら止まらなかったjobを解放して一覧を更新する。
@@ -45,28 +41,10 @@ export function sendStopOperations(seat, bots, options = {}) {
   })
 }
 
-export async function reserveExecution({ observe, session, executionBridge }, job, observed = null) {
-  observed ??= await observe(job.bot)
-  if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== session(job.bot)
-    || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[0-9a-f]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
-    throw unknown()
-  const deliveryId = job.info.groupId ?? job.id
-  const request = job.info.call
-    ? callExecutionRef({ ...job.info.call, deliveryId }, observed.session_id)
-    : (job.info.context === 'room' ? roomExecutionRef : deliveryExecutionRef)(deliveryId, observed.session_id)
-  const source = job.executionSource?.source ?? { launch: null, boundary: null }
-  job.execution = await executionBridge.reserve({
-    request,
-    sourceSession: job.executionSource?.sourceSession ?? null, source,
-    targetSession: observed.session_id, expectedLaunch: observed.launch_id,
-  }, { sourceContext: source.launch ? source : null })
-  job.executionWasPresent = observed.exists
-}
-
 // One temporary list holds images and attached files; only images go to Aiterm's `image`, files reach the seat as paths in the text.
 export const imagePaths = files => files.filter(file => !file.attachment).map(file => file.path)
 // a521: Aiterm refuses an image for a remote seat before typing (REMOTE_IMAGE_UNSUPPORTED). The same text goes once more without the image and says so.
-// shortcut: retire this and its two callers when Aiterm accepts images for remote seats (Elegg a521-aiterm-remote-image).
+// shortcut: retire this and its caller when Aiterm accepts images for remote seats (Elegg a521-aiterm-remote-image).
 export const IMAGE_NOT_DELIVERED_LINE = '（画像が添付されましたが、この席は別の端末にあるため、まだ画像を届けられません。）'
 export const withoutImageText = text => `${text}\n\n${IMAGE_NOT_DELIVERED_LINE}`
 export const plainLine = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, max)
@@ -75,99 +53,4 @@ export function sendText(message, files) {
   if (!attached.length) return message
   const lines = attached.map(({ path, attachment: { name, mime, size } }) => `- ${name}（${mime || '種類不明'}、${size}バイト）: ${path}`)
   return `${message}\n\n添付ファイル（次のパスで読めます。今回のやりとりのあとで消えます）:\n${lines.join('\n')}`
-}
-
-export async function dispatchExecution(seat, job, bot, message, images, { setupTest, check, membersLease, files = [] }) {
-  check()
-  const imageFiles = await seat.imageFiles(images, files)
-  try {
-    check()
-    const execution = job.execution
-    let session = seat.session(bot)
-    if (!job.executionWasPresent) session = await seat.wake(bot, { setupTest, execution, membersLease, job })
-    job.deliveryStage = 'BOT_SEND_FAILED'
-    check()
-    job.nativeSession = session
-    const send = (text, image) => execution.invoke('pty_send', { session_id: session, text, require_agent: true, ...(image.length ? { image } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })
-    const image = imagePaths(imageFiles)
-    const result = await send(sendText(message, imageFiles), image).catch(error => {
-      if (error?.code !== 'BOT_IMAGE_UNSUPPORTED' || !image.length) throw error
-      return send(withoutImageText(sendText(message, imageFiles)), [])
-    })
-    const receipt = result.structuredContent
-    if (receipt?.mode !== 'agent_steer'
-      && (receipt?.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process))
-      throw unknown()
-    return { receipt, result, imageFiles, session }
-  } catch (error) {
-    await seat.removeTemporaryImages(imageFiles)
-    throw error
-  }
-}
-
-export function interruptExecutions(seat, bots) {
-  const { sessionState, session } = seat
-  if (sessionState.stopping) return Promise.reject(unknown())
-  return stopOperation(seat, bots, ({ roots, rootIds, jobs }) => Promise.resolve().then(async () => {
-    const executionBridge = seat.executionBridge
-    const reads = new Map(), expected = new Map()
-    const legacyGaps = new Set()
-    const knownSession = id => sessionState.stopSessions.get(id) ?? sessionState.sessions.get(id)
-      ?? jobs.find(job => job.bot.id === id)?.bot.session ?? roots.find(bot => bot.id === id)?.session ?? id
-    const gapSessions = new Map([...legacyGaps].map(id => [id, knownSession(id)]))
-    const captureLegacy = () => {
-      for (const [id, pending] of sessionState.sessionChanges) {
-        const unbound = [...pending].find(value => !value.executionBound && value.executionIssued !== false)
-        if (unbound) { legacyGaps.add(id); gapSessions.set(id, unbound.executionSession ?? sessionState.sessions.get(id) ?? id) }
-      }
-    }
-    captureLegacy()
-    try {
-      // Dispatch promises include queues/preflight, not just native issuance.
-      // Send stop first; Aiterm cancels preparing and drains actual issuance.
-      for (const bot of roots) {
-        try {
-          const read = await executionBridge.roots(session(bot))
-          reads.set(bot.id, read)
-          for (const root of read.roots) expected.set(JSON.stringify(root), root)
-        } catch { reads.set(bot.id, null) }
-      }
-      const result = expected.size ? await executionBridge.interrupt([...expected.values()]) : null
-      captureLegacy()
-      // Idle restart/configuration preparations are not jobs. Invalidate their
-      // captured version too when the stop reaches that exact session slot.
-      const reachedBots = sessionState.invalidateReached(value => result?.targets.some(target => target.launch.session_id === value) ?? false, rootIds)
-      const confirmed = result?.targets.filter(confirmedSessionInterruption).map(target => target.launch) ?? []
-      const confirmedBots = new Set()
-      for (const job of jobs) {
-        const stopped = await job.applyStopResult(result)
-        const unsentRoot = rootIds.has(job.bot.id) && job.unsent
-        if (!stopped && !unsentRoot) continue
-        confirmedBots.add(job.bot.id)
-        if (!stopped) {
-          job.markStopped()
-          await job.finishExecution('not_sent')
-        }
-      }
-      // Self-turn watchers and retained images belong to a run; do not
-      // clear every watcher/image for a preserved session by Bot ID.
-      for (const botId of confirmedBots) if (!rootIds.has(botId) && !reachedBots.has(botId)) sessionState.invalidate(botId)
-      captureLegacy()
-      const affectedLegacy = [...legacyGaps].filter(id => rootIds.has(id)
-        || result?.targets.some(target => target.launch.session_id === gapSessions.get(id)))
-      const unconfirmedBotIds = roots.filter(bot => {
-        const read = reads.get(bot.id)
-        // Only the final v2 receipt proves the interruption and preserved
-        // session across the complete relation set. Empty roots remain unknown.
-        return !read?.roots.length || read.observation === 'unknown' || result?.status !== 'confirmed'
-          || affectedLegacy.length > 0
-          || read.roots.some(root => !confirmed.some(launch => same(launch, root)))
-      }).map(bot => bot.id)
-      return { unconfirmedBotIds, cascade: result }
-    } catch (cause) {
-      // A missing key receipt is not a delayed close. Do not permanently
-      // forbid new work in the same launch; Aiterm owns temporary run fences.
-      throw unknown(cause)
-    }
-  }), { acceptedOnly: true })
 }

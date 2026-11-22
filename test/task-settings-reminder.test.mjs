@@ -51,17 +51,6 @@ test('dispatch and steering preserve the caller text across all harnesses, setup
  }
 })
 
-test('execution bridge dispatch preserves the caller text',async()=>{
- const calls=[],transport=new AitermTransport({executionBridge:{},waitProcess:async()=>({outcome:'done'})}),bot={id:'bot-a',session:'live-session',harness:'codex'}
- transport.observeForDispatch=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
- const job={executionWasPresent:true,execution:{invoke:async(name,args,options)=>{calls.push({name,args,options});return{structuredContent:receipt('agent_dispatch')}}}}
- await transport.dispatch(bot,'元のbridge依頼',[],{executionJob:job})
- assert.equal(calls.length,1);assert.equal(calls[0].name,'pty_send');assert.equal(calls[0].args.session_id,'live-session')
- assert.equal(calls[0].args.text,'元のbridge依頼')
- assert.equal(calls[0].args.require_agent,true)
- await transport.close()
-})
-
 test('messenger persists and sends the same original statement',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'model-policy-message-'));t.after(()=>rm(dir,{recursive:true,force:true}))
  const calls=[],transport=new AitermTransport({client:clientFor(calls),waitProcess:async()=>({outcome:'done'}),interimInterval:1})

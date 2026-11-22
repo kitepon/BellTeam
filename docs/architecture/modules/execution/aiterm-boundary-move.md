@@ -29,7 +29,7 @@ flowchart LR
   STOP --> ESRV
   REG --> ESRV
   RSEAT --> MCPC
-  BRIDGE -. "production: executionBridge null; tests only" .-> ESTORE
+  BRIDGE -. "removed in 1a (never used in production)" .-> ESTORE
 ```
 
 ## Data flow
@@ -40,11 +40,11 @@ Nothing here adds a data path. Each stage replaces an Aiterm-shaped fact by one 
 
 | Stage | Piece | BellTeam caller today | Live in production? | BellTeam-live condition | Aiterm drops when |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `agent_execution`, `agent_execution_roots`, execution store | `execution-bridge.mjs` only | **No**: `createManagedTransport` passes `executionBridge: null`; `new ExecutionBridge` only in tests | BellTeam deletes the bridge path (legacy path unchanged); one live delivery | after that train is live |
-| 1 | `throughline_*` launch options | none in `src` | No | (Elegg confirms other callers) | no other caller |
+| 1 | `agent_execution`, `agent_execution_roots`, execution store | `execution-bridge.mjs` (class removed in the 1a PR; only the reference builders stay) | **No**: production never built an `ExecutionBridge` (`executionBridge` was always null; tests only) | BellTeam deleted the bridge path (1a, this change); one live delivery after the train | Elegg's 1b, after BellTeam's 1a is live |
+| 1 | `throughline_*` launch options | none in `src` | No | none needed | **Stay in Aiterm** as a generic cross-harness fork feature if they carry no BellTeam names (Tronie ruling 2026-11-23) |
 | 2 | `mcp_config` seat-route rewriting | `remote-seats.mjs` builds the config | Yes (remote seats) | BellTeam builds the final config, Aiterm passes it unchanged; lab remote-seat run | after that |
 | 3 | `seat_turns` / `route_since` / `unread` | `#seatTurns`, route resume | Yes (seat view, current work, remote route) | BellTeam derives them from generic facts; shadow run with zero differences | after the shadow run |
-| 4 | steer-follow outputs (`wait_process`, `steer_id`, `input_id`, `aiterm-wait --steer`) | `waitProcess`, `steerFollow`, `waitUntilDone` | Yes, every delivery | BellTeam follows the turn end from generic facts in parallel; compare every delivery; switch on zero differences (limit and steer cases in lab) | after the switch is live |
+| 4 | steer-follow outputs (`wait_process`, `steer_id`, `input_id`, `aiterm-wait --steer`) | `waitProcess`, `steerFollow`, `waitUntilDone` | Yes, every delivery | **Not a move (Tronie ruling A, 2026-11-23):** steer-follow stays in Aiterm as a neutral machine-mouth feature: `steer_id` -> `input_ref`, `--steer` -> `--input-ref`, no BellTeam wording and no caller gating; BellTeam keeps only its consumer and adopts the new names | Elegg's rename; BellTeam adopts it before the old names go |
 | 5 | `agent_stop` | `sendSessionStop` | Yes (Owner's stop) | BellTeam stops through `pty_key` + the seat's child lineage; lab-compared | after that |
 | 5 | `execution-native-server`, `execution-parent-worker`, `execution-native-setup`, `bellteam.harness-entries.v1` | `aiterm-hooks.mjs` (runtime bd06), `harness-entries.mjs` (bd14) | Yes | runtime runs on a generic Aiterm entry (Molly) | after that |
 

@@ -21,7 +21,6 @@ flowchart LR
   IS -->|"idle time 0, 15 s tick"| CI["transport.closeIdle (hibernate; busy refused by Aiterm)"]
   MP --> LG["LaunchGate.tight(): (anon + recent x 0.75 GB) / max >= HOLD"]
   DL["AitermTransport.dispatch (legacy path = production: send first, wake when there is no seat)"] -->|"wake(bot, {job})"| WK["wakeNow"]
-  DE["dispatchExecution (execution bridge path, tests)"] -->|"seat.wake(bot, {job})"| WK
   WK --> RS["refuseSweepUnderPressure(job)"]
   RS -->|"sweep prompt AND tight"| RF["throw BOT_MEMORY_PRESSURE (not_started; receipt failed)"]
   RS -->|"anything else, or not tight"| AL["agent_launch"]
@@ -93,7 +92,7 @@ The refusal is a give-up, so its exit is stated as a transition, not as a hope:
 
 ## Why a505c did not fire in lab Z172 (a505d, 2026-11-22)
 
-`createManagedTransport` builds the production transport with `executionBridge: null` and nothing sets it later, so production delivers through the legacy path of `AitermTransport.dispatch` (send first, wake when the seat has no registration), never through `dispatchExecution`. a505c asked in `dispatchExecution` only. The refusal now sits in `wakeNow`, which both paths and the resume path of a hibernated seat go through, and the tests drive the production path (`createManagedTransport`'s shape: no bridge, a never-launched seat) as well as the bridge path.
+`createManagedTransport` builds the production transport, which delivers through `AitermTransport.dispatch` (send first, wake when the seat has no registration); the former `dispatchExecution` bridge path no longer exists (a532b2 stage 1). a505c asked in `dispatchExecution` only. The refusal now sits in `wakeNow`, which both paths and the resume path of a hibernated seat go through, and the tests drive the production path (`createManagedTransport`'s shape: no bridge, a never-launched seat) as well as the bridge path.
 
 ## The record (a525, 2026-11-23)
 

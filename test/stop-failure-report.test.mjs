@@ -7,7 +7,7 @@ import { createBellTeamServer } from '../src/http-server.mjs'
 test('partial stop retains root acceptance and descendant refusal without exposing raw details or retrying', async t => {
   const bot = { id: 'bot-a', session: 'bot-a' }, logs = []
   let calls = 0
-  const transport = new AitermTransport({ executionBridge: {}, requestStop: async () => {
+  const transport = new AitermTransport({ requestStop: async () => {
     calls++
     return { status: 'partial', targets: [
       { session_id: bot.id, status: 'sent' },

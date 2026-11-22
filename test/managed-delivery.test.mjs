@@ -26,7 +26,6 @@ test('managed factory submits 11 ordinary deliveries without tracking RPC; ten f
     return steer()
   } }
   const transport = createManagedTransport({ client })
-  assert.equal(transport.executionBridge, null)
   const first = transport.submit(group[0], 'fixture text 0')
   await entered.promise
   try {
