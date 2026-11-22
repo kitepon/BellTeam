@@ -30,6 +30,7 @@ public static class SignalHttp
     public static async Task<IReadOnlyList<SignedSnapshot>> FetchMirrorAsync(HttpClient http, ServerAccess a, CancellationToken ct)
     {
         using var response = await http.SendAsync(Request(a, HttpMethod.Get, "/pc/v1/registry"), ct);
+        if ((int)response.StatusCode == 401) throw new SignedOutException("pass_ended"); // a 401 from any /pc/v1 call is the same as 4401
         if (!response.IsSuccessStatusCode) throw new HttpRequestException("mirror " + (int)response.StatusCode);
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         return doc.RootElement.GetProperty("slots").EnumerateArray()
@@ -41,6 +42,7 @@ public static class SignalHttp
     {
         var json = "{\"body\":\"" + Bytes.B64Url(s.Body) + "\",\"signer\":\"" + Bytes.B64Url(s.Signer) + "\",\"sig\":\"" + Bytes.B64Url(s.Sig) + "\"}";
         using var response = await http.SendAsync(Request(a, HttpMethod.Put, "/pc/v1/registry", new StringContent(json, Encoding.UTF8, "application/json")), ct);
+        if ((int)response.StatusCode == 401) throw new SignedOutException("pass_ended");
         if (response.IsSuccessStatusCode) return null;
         try { using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct)); return doc.RootElement.GetProperty("error").GetString(); }
         catch (Exception error) when (error is JsonException or KeyNotFoundException) { return ((int)response.StatusCode).ToString(); }
@@ -49,6 +51,7 @@ public static class SignalHttp
     public static async Task<TurnCredentials> FetchTurnAsync(HttpClient http, ServerAccess a, CancellationToken ct)
     {
         using var response = await http.SendAsync(Request(a, HttpMethod.Post, "/pc/v1/turn"), ct);
+        if ((int)response.StatusCode == 401) throw new SignedOutException("pass_ended");
         if (!response.IsSuccessStatusCode)
         {
             var code = "";
@@ -65,6 +68,7 @@ public static class SignalHttp
 public sealed class SignalSocket : IAsyncDisposable
 {
     public const int MaxMessageBytes = 8 * 1024;
+    public const int AccountDeleted = 4410; // the person's Approval Box account was deleted: signed out, this instance's pass and device keys are cleared (Delta/Nayuta, signin design)
     public const int PassEnded = 4401; // the server ended the device's pass: the owner treats it as signed out, not as a network drop
     public int? CloseCode => (int?)socket.CloseStatus;
     private readonly ClientWebSocket socket;

@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace BellTeam.PeerChannel;
 
 // Holder-side registry rules (contract 4.1-4.4): one rule set for every holder and every source. A port of ts/src/registry.ts and the body parsing of ts/src/snapshot.ts.
-public sealed record Entry(string KeyId, string SigPub, string SealPub, string AddedBy, string? Platform, string? Protection)
+public sealed record Entry(string KeyId, string SigPub, string SealPub, string AddedBy, string? Platform, string? Protection, string? ConnectionId = null)
 {
     public bool IsDevice => Platform is not null;
 }
@@ -37,7 +37,7 @@ public sealed record SnapshotBody(string Account, long Version, IReadOnlyList<En
         items = v.EnumerateArray().ToList();
         return true;
     }
-    private static Entry Read(JsonElement e) => new(Text(e, "key_id") ?? "", Text(e, "sig_pub") ?? "", Text(e, "seal_pub") ?? "", Text(e, "added_by") ?? "", Text(e, "platform"), Text(e, "protection"));
+    private static Entry Read(JsonElement e) => new(Text(e, "key_id") ?? "", Text(e, "sig_pub") ?? "", Text(e, "seal_pub") ?? "", Text(e, "added_by") ?? "", Text(e, "platform"), Text(e, "protection"), Text(e, "connection_id"));
 }
 
 public sealed record Head(string Hash, SnapshotBody Body, string Signer); // Hash = hex SHA-256 of the body bytes

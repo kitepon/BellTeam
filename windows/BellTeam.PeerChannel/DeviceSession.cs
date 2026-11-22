@@ -42,7 +42,7 @@ public sealed record Received(string T, JsonDocument Body, byte[] Bytes, Frame F
 // The offerer side of 7.3: open the socket, join, dial a wait, exchange hello, then frames. Every native callback and socket message is posted to one loop, so state needs no locks. A port of ts/src/testing/device.ts as a product part.
 public sealed class DeviceSession : IAsyncDisposable
 {
-    private readonly ServerAccess server; private readonly DeviceIdentity me; private readonly ConnectorPeer connector; private readonly DeviceHello hello;
+    private readonly ServerAccess server; private readonly DeviceIdentity me; private readonly ConnectorPeer connector; private readonly DeviceHello hello; private readonly Func<string, byte[]?>? deviceKeys;
     private readonly HttpClient http = new();
     private readonly Channel<Action> loop = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions { SingleReader = true });
     private readonly Task loopTask;
@@ -63,20 +63,36 @@ public sealed class DeviceSession : IAsyncDisposable
     public event Action<string>? Error; // a short code for the app to show; the session stays usable where it can
     public event Action<string>? Trace; // what happened, for the failure reason the app shows and for tests
 
-    public DeviceSession(ServerAccess server, DeviceIdentity me, ConnectorPeer connector, DeviceHello hello)
+    // Frames land in the inbox for NextAsync unless the app sets Delivered, which then takes every verified frame (and the session keeps no inbox).
+    public event Action<Received>? Delivered;
+    // The session is over (data channel closed, socket closed, pass ended); said once, with a short reason.
+    public event Action<string>? Ended;
+    private int endedOnce;
+    private void End(string reason) { if (Interlocked.Exchange(ref endedOnce, 1) == 0) Ended?.Invoke(reason); }
+
+    // deviceKeys resolves the signing key of any device of the registry (a result can carry another device's answer); without it only this device's own key is known.
+    public DeviceSession(ServerAccess server, DeviceIdentity me, ConnectorPeer connector, DeviceHello hello, Func<string, byte[]?>? deviceKeys = null)
     {
-        this.server = server; this.me = me; this.connector = connector; this.hello = hello;
+        this.server = server; this.me = me; this.connector = connector; this.hello = hello; this.deviceKeys = deviceKeys;
         loopTask = Task.Run(async () => { await foreach (var action in loop.Reader.ReadAllAsync()) { try { action(); } catch (Exception error) { Error?.Invoke("loop:" + error.GetType().Name); } } });
     }
 
     private void Post(Action action) => loop.Writer.TryWrite(action);
+
+    // Runs f on the session loop (where the channel is touched) and returns its value.
+    public Task<T> OnLoop<T>(Func<T> f)
+    {
+        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() => { try { tcs.SetResult(f()); } catch (Exception e) { tcs.SetException(e); } });
+        return tcs.Task;
+    }
     public byte[] Sid => sid;
 
     public async Task OpenAsync(CancellationToken ct)
     {
         socket = await SignalSocket.OpenAsync(server, ct);
         var opened = socket;
-        opened.Closed += () => { if (opened.CloseCode == SignalSocket.PassEnded) Post(() => Error?.Invoke("pass_ended")); };
+        opened.Closed += () => { if (opened.CloseCode == SignalSocket.PassEnded) Post(() => Error?.Invoke("pass_ended")); End(opened.CloseCode == SignalSocket.PassEnded ? "pass_ended" : "socket_closed"); };
         socket.Message += doc => Post(() =>
         {
             var type = doc.RootElement.GetProperty("type").GetString();
@@ -113,7 +129,7 @@ public sealed class DeviceSession : IAsyncDisposable
         peer.LocalDescription += (sdp, type) => Post(() => { localFp = Sdp.Fingerprint(sdp) ?? ""; Signal(type == "offer" ? "offer" : "answer", "\"sdp\":" + JsonSerializer.Serialize(sdp)); });
         peer.LocalCandidate += candidate => Post(() => Signal("candidate", "\"candidate\":" + JsonSerializer.Serialize(candidate)));
         var channel = dc = peer.CreateDataChannel(Sdp.ChannelLabel);
-        channel.Closed += () => Trace?.Invoke("data channel closed");
+        channel.Closed += () => { Trace?.Invoke("data channel closed"); End("channel_closed"); };
         channel.Opened += () => Post(() =>
         {
             Trace?.Invoke("data channel open");
@@ -201,6 +217,7 @@ public sealed class DeviceSession : IAsyncDisposable
 
     private void Deliver(Received r)
     {
+        if (Delivered is not null) { Delivered(r); return; }
         var i = waiters.FindIndex(w => w.T == r.T);
         if (i >= 0) { var w = waiters[i]; waiters.RemoveAt(i); w.Source.SetResult(r); } else inbox.Add(r);
     }
@@ -215,23 +232,26 @@ public sealed class DeviceSession : IAsyncDisposable
 
     public void Ack(string of, string result = "ok") => Send("ack", Json(("id", Id()), ("at", Now()), ("of", of), ("result", result)));
 
-    public Frame Answer(Received request, string schema, string contentJson)
+    public Frame Answer(Received request, string schema, string contentJson) => Answer(request.Body.RootElement.GetProperty("rid").GetString()!, request.Body.RootElement.GetProperty("rv").GetInt64(), request.Frame.B, schema, contentJson);
+
+    // The answer to the request version whose exact body bytes the person saw (the book keeps them).
+    public Frame Answer(string rid, long rv, byte[] requestBody, string schema, string contentJson)
     {
-        var r = request.Body.RootElement;
         return Send("answer", "{" + string.Join(",", [
-            "\"id\":" + JsonSerializer.Serialize(Id()), "\"at\":" + Now(), "\"rid\":" + JsonSerializer.Serialize(r.GetProperty("rid").GetString()), "\"rv\":" + r.GetProperty("rv").GetRawText(),
-            "\"request_hash\":" + JsonSerializer.Serialize(Bytes.B64Url(Frame.RequestHash(request.Frame.B))), "\"schema\":" + JsonSerializer.Serialize(schema), "\"content\":" + contentJson, "\"blobs\":[]",
+            "\"id\":" + JsonSerializer.Serialize(Id()), "\"at\":" + Now(), "\"rid\":" + JsonSerializer.Serialize(rid), "\"rv\":" + rv,
+            "\"request_hash\":" + JsonSerializer.Serialize(Bytes.B64Url(Frame.RequestHash(requestBody))), "\"schema\":" + JsonSerializer.Serialize(schema), "\"content\":" + contentJson, "\"blobs\":[]",
             "\"device_key_id\":" + JsonSerializer.Serialize(Bytes.B64Url(me.KeyId))]) + "}");
     }
 
-    public Frame Hold(Received request, bool held)
+    public Frame Hold(Received request, bool held) => Hold(request.Body.RootElement.GetProperty("rid").GetString()!, request.Body.RootElement.GetProperty("rv").GetInt64(), held);
+
+    public Frame Hold(string rid, long rv, bool held)
     {
-        var r = request.Body.RootElement;
-        return Send("hold", "{\"id\":" + JsonSerializer.Serialize(Id()) + ",\"at\":" + Now() + ",\"rid\":" + JsonSerializer.Serialize(r.GetProperty("rid").GetString()) + ",\"rv\":" + r.GetProperty("rv").GetRawText() + ",\"held\":" + (held ? "true" : "false") + ",\"device_key_id\":" + JsonSerializer.Serialize(Bytes.B64Url(me.KeyId)) + "}");
+        return Send("hold", "{\"id\":" + JsonSerializer.Serialize(Id()) + ",\"at\":" + Now() + ",\"rid\":" + JsonSerializer.Serialize(rid) + ",\"rv\":" + rv + ",\"held\":" + (held ? "true" : "false") + ",\"device_key_id\":" + JsonSerializer.Serialize(Bytes.B64Url(me.KeyId)) + "}");
     }
 
     public (JsonDocument? Body, JsonDocument? Answer, FrameChecks.ResultCode? Code) CheckResult(Received result) =>
-        FrameChecks.CheckResult(result.Frame, new ResultContext(sid, Bytes.FromB64Url(connector.SigPub), id => id == Bytes.B64Url(me.KeyId) ? me.SigPub : null));
+        FrameChecks.CheckResult(result.Frame, new ResultContext(sid, Bytes.FromB64Url(connector.SigPub), id => id == Bytes.B64Url(me.KeyId) ? me.SigPub : deviceKeys?.Invoke(id)));
 
     public string LocalFingerprint => localFp;
     public string RemoteFingerprint => remoteFp;
