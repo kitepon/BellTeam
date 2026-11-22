@@ -84,18 +84,19 @@ public sealed class LinuxAccountCard : StackPanel
         Children.Clear();
         var lb = billing;
         var held = serverEntitled is { } asked ? (asked ? 1 : 0) : lb?.Entitlements?.Count ?? 0;
+        var unknown = lb is { PassKind: not PassKind.None } && serverEntitled is null && lb.Entitlements is null;   // null = the server has not answered in this run: not known yet, never "none" (Mint)
         var state = lb is null ? StoreAccountState.SignedOut : StoreAccount.Of(lb.PassKind switch { PassKind.Store => "store", PassKind.Handoff => "handoff", PassKind.Signed => "signed", _ => "none" }, held);
         var entitled = lb is not null && state != StoreAccountState.SignedOut && held != 0;
         var status = StoreAccount.Status(entitled);
-        if (Entitled != entitled) { Entitled = entitled; EntitledChanged?.Invoke(); }
+        if (!unknown && Entitled != entitled) { Entitled = entitled; EntitledChanged?.Invoke(); }
 
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         var tile = Tile(SettingsPage.Billing, 36); var title = Text(StoreAccountText.Title, 17, Ink, FontWeight.Bold, new Thickness(12, 0, 8, 0)); title.VerticalAlignment = VerticalAlignment.Center;
-        var badge = Badge(status.Badge, status.Tone);
-        Grid.SetColumn(title, 1); Grid.SetColumn(badge, 2); head.Children.Add(tile); head.Children.Add(title); head.Children.Add(badge);
+        Grid.SetColumn(title, 1); head.Children.Add(tile); head.Children.Add(title);
+        if (!unknown) { var badge = Badge(status.Badge, status.Tone); Grid.SetColumn(badge, 2); head.Children.Add(badge); }
         Children.Add(head);
         if (lb is null) { Children.Add(Text(StoreAccountText.NotConfigured, 14, Muted, null, new Thickness(0, 10, 0, 0))); return; }
-        Children.Add(Text(state == StoreAccountState.SignedOut ? StoreAccountText.SignedOut : status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
+        if (!unknown) Children.Add(Text(state == StoreAccountState.SignedOut ? StoreAccountText.SignedOut : status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
 
         if (state != StoreAccountState.SignedOut) Children.Add(AccountRow());
         if (state == StoreAccountState.SignedOut)
@@ -107,7 +108,7 @@ public sealed class LinuxAccountCard : StackPanel
         {
             foreach (var entitlement in checkedEntitlements ?? lb.Entitlements ?? [])
                 if (entitled && SubscriptionText.StoreOf(entitlement.Store) is { } store) Children.Add(Text(SubscriptionText.Active(store), 14, Ink, FontWeight.SemiBold, new Thickness(0, 10, 0, 0)));
-            if (state == StoreAccountState.Signed) RenderSigned(entitled);
+            if (state == StoreAccountState.Signed && !unknown) RenderSigned(entitled);
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(async (b, cancel) => { if (LinuxAccountStore.Home is { } home) await home.EndAsync(cancel); await b.SignOutAsync(cancel); }), Look.Secondary));   // the library's signOut does not end the home session
             RenderDanger();
         }
