@@ -86,7 +86,9 @@ public static class Approvals
         ConnectFailed = "いまは決裁箱につなげませんでした。少し待って、もう一度押してください。";
     // The Approval Box device states (design peer-channel-signin.md section 3, Delta: the Japanese copy is the contract).
     public const string DeviceSignedOut = "決裁箱を使うには、Approval Boxにサインインします。BellTeamのサインインとは別です。",
-        DevicePassEnded = "サインインの期限が切れました",
+        DevicePassEnded = "Approval Boxのサインインが終わりました。もう一度サインインしてください。",
+        DeviceAccountDeleted = "Approval Boxのアカウントは削除されました",
+        DeviceRemoved = "この端末は、ほかの端末から外されました。",
         DeviceJoining = "この端末を決裁箱につないでいます…",
         DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
         DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",

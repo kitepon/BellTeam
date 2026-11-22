@@ -34,7 +34,7 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
         var book = LoadHistory(HistoryPath);
         book.Changed += () => { SaveHistory(HistoryPath, book); Changed?.Invoke(); };
         Runtime = new DeviceRuntime(new(me, label, access, RegistryAsync, book));
-        Runtime.StateChanged += () => Changed?.Invoke();
+        Runtime.StateChanged += () => { if (Runtime.State is { Status: RuntimeStatus.SignedOut, Reason: "account_deleted" }) ClearLocal(); Changed?.Invoke(); };
     }
 
     // The registry this device trusts: the head it kept (its own genesis or an admission) brought up to date from the mirror. No head and an empty mirror: this is the first device and makes the genesis (5.1).
@@ -58,7 +58,14 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
         else accountId = holder.Account;
         var (next, _) = Registry.ApplyBatch(holder, Source.Mirror, slots);
         if (slots.FirstOrDefault(s => Convert.ToHexStringLower(s.Hash()) == next.Heads[0].Hash) is { } head) SaveAnchor(accountId, head);
-        return next.Active.ContainsKey(Bytes.B64Url(me.KeyId)) ? next : null;
+        if (!next.Active.ContainsKey(Bytes.B64Url(me.KeyId))) throw new NeedsApprovalException("removed"); // listed once and now gone: removed by another device (5.5)
+        return next;
+    }
+
+    // The Approval Box account was deleted (4410): this device's keys, trusted head and history go with it (the pass is the second instance's own to clear).
+    private void ClearLocal()
+    {
+        foreach (var file in new[] { Path.Combine(directory, "peer-channel-device.key"), AnchorPath, HistoryPath }) try { File.Delete(file); } catch (IOException) { }
     }
 
     private (string Account, SignedSnapshot Snapshot)? LoadAnchor()

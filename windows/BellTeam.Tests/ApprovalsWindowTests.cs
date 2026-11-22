@@ -282,6 +282,21 @@ public sealed class ApprovalsWindowTests
         rig.Page.Reload(); Assert.Equal(1, device.Refreshed);
     });
 
+    [Fact]
+    public void TheDeviceStatesShowDeltasCopyForEndedSignInDeletedAccountAndRemovedDevice() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.SignedOut, "pass_ended") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        Assert.Contains(Approvals.DevicePassEnded, Texts(rig.Window));
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.SignedOut, "account_deleted"); device.Raise();
+        Assert.Contains(Approvals.DeviceAccountDeleted, Texts(rig.Window));
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.NeedsAdmission, "removed"); device.Raise();
+        Assert.Contains(Approvals.DeviceRemoved, Texts(rig.Window));
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.NotEntitled, "no_entitlement"); device.Raise();
+        Assert.Contains(Approvals.DeviceNotEntitled, Texts(rig.Window));
+        Assert.Equal(5, rig.Page.Pending.Count);                                  // no state hides a decision
+    });
+
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void Until(Func<bool> done) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }

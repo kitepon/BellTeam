@@ -8,7 +8,9 @@ public sealed record RuntimeState(RuntimeStatus Status, string? Reason = null);
 public sealed record SendOutcome(string Ack);
 public sealed class NoSessionException() : InvalidOperationException("no_session");
 // The Access seam throws this when the person is not signed in to Approval Box (no pass in its own store): the state is SignedOut, left by Refresh after a sign-in.
-public sealed class SignedOutException() : InvalidOperationException("signed_out");
+public sealed class SignedOutException(string reason = "signed_out") : InvalidOperationException(reason) { public string Reason { get; } = reason; }
+// The registry no longer lists this device (removed by another device, 5.5) or never did (slots it cannot verify): NeedsAdmission with this reason ("removed" / "not_verified").
+public sealed class NeedsApprovalException(string reason) : InvalidOperationException(reason) { public string Reason { get; } = reason; }
 
 // Keeps this device connected to the connectors that wait for it and feeds the DecisionBook (design peer-channel-v0.2 section 7). Everything about the registry (trust, genesis, admission) is the caller's: it hands over the holder.
 public sealed class DeviceRuntime : IAsyncDisposable
@@ -70,10 +72,12 @@ public sealed class DeviceRuntime : IAsyncDisposable
                 var code = await closed.Task.WaitAsync(ct);
                 cycle.Cancel();
                 if (code == SignalSocket.PassEnded) { Set(RuntimeStatus.SignedOut, "pass_ended"); await Pause(null, ct); attempt = 0; continue; }
+                if (code == SignalSocket.AccountDeleted) { Set(RuntimeStatus.SignedOut, "account_deleted"); await Pause(null, ct); attempt = 0; continue; }
                 reason = "socket_closed";
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
-            catch (SignedOutException) { Set(RuntimeStatus.SignedOut, "signed_out"); try { await Pause(null, ct); } catch (OperationCanceledException) { break; } attempt = 0; continue; }
+            catch (SignedOutException signedOut) { Set(RuntimeStatus.SignedOut, signedOut.Reason); try { await Pause(null, ct); } catch (OperationCanceledException) { break; } attempt = 0; continue; }
+            catch (NeedsApprovalException needs) { Set(RuntimeStatus.NeedsAdmission, needs.Reason); try { await Pause(null, ct); } catch (OperationCanceledException) { break; } attempt = 0; continue; }
             // An abnormal setting or answer is shown with its reason and tried again later, never a reason to stop (project rule on recoverable failures).
             catch (Exception error) { reason = error.GetType().Name + ": " + error.Message; }
             Set(RuntimeStatus.Retrying, reason);
@@ -96,7 +100,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
     private void Dial(Wait wait, Holder holder, ServerAccess access, CancellationToken ct)
     {
         lock (gate) if (!dialing.Add(wait.WaitId)) return;
-        _ = Task.Run(async () => { try { await SessionAsync(wait, holder, access, ct); } catch (Exception e) when (e is OperationCanceledException || ct.IsCancellationRequested) { } catch (Exception e) { Trace?.Invoke("session " + e.GetType().Name + ": " + e.Message); } finally { lock (gate) dialing.Remove(wait.WaitId); } });
+        _ = Task.Run(async () => { try { await SessionAsync(wait, holder, access, ct); } catch (Exception e) when (e is OperationCanceledException || ct.IsCancellationRequested) { } catch (SignedOutException e) { Set(RuntimeStatus.SignedOut, e.Reason); } catch (Exception e) { Trace?.Invoke("session " + e.GetType().Name + ": " + e.Message); } finally { lock (gate) dialing.Remove(wait.WaitId); } });
     }
 
     // One connector's wait. After a session that got frames the wait is dialed again after a backoff; one that never got a hello is dropped (the wait is gone; a new wait.available brings it back).
