@@ -5,10 +5,12 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir } from 'node:fs/promises'
 import { connect as netConnect, createConnection } from 'node:net'
 import { join } from 'node:path'
+import { createSeatsSocket } from './approval-box-seats-socket.mjs'
 import { createChildStderrLog, createModuleChildRestart } from './module-child-restart.mjs'
 
 // Hosted Approval Box connector daemon (docs/architecture/modules/runtime/approval-box-daemon.md, a490h).
-export const DAEMON_ENTRY = '/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.1/cli.mjs'
+export const DAEMON_ENTRY = '/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/cli.mjs'
+export const SEATS_SOCKET = 'approval-box-hosted.sock'
 export const APPROVAL_BOX_SERVER = 'https://approval-box.kitepon.dev'
 const READY_MS = 15000, STATUS_MS = 2000, PAIR_LINE_MS = 20000, PAIR_GRACE_MS = 5 * 60 * 1000, STOP_MS = 5000, EGRESS_MS = 3000
 const PAIR_MAX_MS = 7 * 24 * 60 * 60 * 1000 + PAIR_GRACE_MS
@@ -94,6 +96,9 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
   connect = createConnection, onModuleRestartLimit, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, exists = existsSync, egress = egressCheck } = {}) {
   const home = join(root, 'state', 'approval-box-daemon')
   const socketPath = join(home, 'state', 'pc', 'daemon.sock')
+  // a514m: the seats' door (a relay; the daemon's own directory stays 0700). `seatsReady` is shown in status so a failed listen is visible before the sitting.
+  let seatsReady = false
+  const seats = createSeatsSocket({ path: join(root, 'state', SEATS_SOCKET), target: socketPath, available: () => exists(entry) })
   const stderrLog = createChildStderrLog(join(root, 'state', 'approval-box-daemon-stderr.jsonl'))
   const env = () => ({ PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', HOME: home, APPROVAL_BOX_HOME: home, APPROVAL_BOX_SERVER: server })
   let child = null, closed = false, started = false, run = null
@@ -147,6 +152,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
     start() {
       if (started || closed || !exists(entry)) return
       started = true
+      seats.start().then(() => { seatsReady = !closed }, () => {})
       launch().catch(() => { if (!closed) recovery.lost() })
     },
     async status({ withEgress = false } = {}) {
@@ -154,7 +160,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       if (!available) return { available: false, running: false, daemon: null }
       let daemon = null, reachable = false
       try { const reply = await statusOnce(); reachable = reply?.ok === true; if (reachable) daemon = closedStatus(reply.result) } catch {}
-      return { available: true, running: child !== null, reachable, daemon,
+      return { available: true, running: child !== null, reachable, daemon, seats: { path: seats.path, listening: seatsReady },
         pairing: run ? { state: run.state, startedAt: run.startedAt, lines: run.lines.map(safeLine) } : null,
         ...(withEgress ? { egress: await egress() } : {}) }
     },
@@ -208,8 +214,9 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       if (closed) return
       closed = true
       recovery.close()
+      seatsReady = false
       clearTimer(run?.timer)
-      await Promise.all([stopChild(child), stopChild(run?.process)])
+      await Promise.all([stopChild(child), stopChild(run?.process), seats.close()])
       await stderrLog.flush()
     },
   }

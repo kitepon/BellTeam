@@ -1,12 +1,12 @@
 # Approval Box hosted connector daemon in the body (a490h, 2026-11-22)
 
-Owner: Molly (body container). Design source: [peer-channel v0.2](../approval-box-extension/peer-channel-v0.2.md) sections 3-6 (Delta, a490e; Q3 answered there). Package contract: Nayuta, `approval-box@0.2.0-pc.1` (npm dist-tag `next`), `daemon --hosted`, local socket `GET /status`, `pair --json`, `pair status --json`.
+Owner: Molly (body container). Design source: [peer-channel v0.2](../approval-box-extension/peer-channel-v0.2.md) sections 3-6 (Delta, a490e; Q3 answered there). Package contract: Nayuta, `approval-box@0.2.0-pc.2` (npm dist-tag `next`), `daemon --hosted`, local socket `GET /status`, `pair --json`, `pair status --json`.
 
 ## What this adds
 
 The body hosts and supervises ONE connector daemon for the four server-side readers and pairs it once (design 5.4). In this change:
 
-1. **Image**: the exact package from a lock (`distribution/approval-box/`), installed with its own `install-runtime` so the runtime copy has the native `node-datachannel` next to `cli.mjs` (the npm copy does not; checked). Runs from `/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.1/cli.mjs`.
+1. **Image**: the exact package from a lock (`distribution/approval-box/`), installed with its own `install-runtime` so the runtime copy has the native `node-datachannel` next to `cli.mjs` (the npm copy does not; checked). Runs from `/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/cli.mjs`.
 2. **Child** `src/approval-box-daemon.mjs`: spawns `node cli.mjs daemon --hosted` as the body's own uid (1001), state under `/srv/bellteam/state/approval-box-daemon/` (0700, no new mount), restarts with the shared 1-30 s backoff, never blocks the body start.
 3. **Local API** (parent side): `status()` and `route(method, path, body)` over the daemon's unix socket (`state/pc/daemon.sock`, NDJSON `{method,path,body}` -> `{ok,result|status,code,message}`). **a490f (reader switch)**: the two readers that share `createApprovalDecisions` (`src/lattice-approval.mjs`: the Lattice effects `decisions.file/read/cancel` and the running-exclusions check) ask `status()`; when the daemon is paired (`daemon.mode === 'pc'`, the answer is reused 3 s) they use `route()` for the decision routes, otherwise the token path on `/connector/v1`, unchanged. A read or cancel of an id the daemon never filed (status 404 code `not_found`, and only that) falls back to the token path, so a decision filed before the pairing is read until the close; `file()` lists the daemon, then looks once at the token-path list (best effort) so nothing is filed twice. `route()` now carries the box's structured error `body` (`{check_token, decisions}` of `confirm_required`, `{existing}`), which filing needs. Error codes (`*_UNAVAILABLE` 503, `*_REFUSED` 409) and the 5 s bound per request are as before (Flora). Both purposes now share the daemon's one connection (Nayuta's ruling; their `session_label`s do not overlap). `olrw-management-caller.mjs` verifies a decision of another connection and is not switched here (OLRW caller owner, chart a490q4).
 4. **Pairing step** (design 5.4, Owner's one sitting): MCP tools `approval_box_pair`, `approval_box_pair_status`, `approval_box_daemon_status` for the body's own Bot only. They run `pair --json` and return the `waiting` line (code, typed_secret, qr_text, expires_at) so the Owner's phone step can be put in his card, then the claimed / bound lines.
@@ -81,11 +81,48 @@ Pair run (inside `Pairing`): `Idle -> Waiting` (waiting line read within 20 s; e
 
 How each refusal is left: not the body's Bot, a fork seat, or no package: refused with a closed code, nothing started. A pair child that cannot start: `PAIR_FAILED`, state back to `NotPaired`, the daemon untouched.
 
+## Seats on the hosted daemon (a514m, 2026-11-22)
+
+Contract: Nayuta, [peer-channel-adoption section 7, "Seats on a hosted daemon"](https://github.com/kitepon/approval-box) (`approval-box@0.2.0-pc.2`, Tronie's ruling: one pairing for BellTeam, no second seat connector). The hosted daemon (uid 1001) now keeps only the decision store and the peer-channel endpoint and runs no delivery loop; each seat's own connector daemon (uid 1000, the shared `/home/bell/.approval-box`) delivers into the seat channels by polling `GET /deliveries` on the hosted socket every 2 s. The seat's MCP tools call the hosted socket once `approval-box use-hosted --socket <path>` has written `~/.approval-box/hosted.json`.
+
+What the body adds (this change): the pin moves to `0.2.0-pc.2`, and **the seats' door**: a relay socket `/srv/bellteam/state/approval-box-hosted.sock` (mode 0666; `/srv/bellteam/state` is 0711, the daemon's own directory stays 0700) that passes one request line to the daemon's `state/pc/daemon.sock` and the one reply line back. It parses and keeps nothing; the daemon's protocol, 32 MiB cap and error shapes are unchanged. Daemon down: the seat gets `{ok:false,status:503,code:APPROVAL_BOX_DAEMON_UNAVAILABLE}`. Open to every user of the container on purpose: every local seat is uid 1000 with sudo and already shares one connector identity (a124 residual); the socket has no caller identity (Nayuta), so "who can open it" is exactly "who could read the shared `~/.approval-box` token today". At most 64 connections, 30 s idle.
+
+Not done by the body (seat-side, uid 1000, the shared `/home/bell`, so a seat runs it at the sitting): installing the `0.2.0-pc.2` runtime into `~/.approval-box` (`npx -y approval-box@0.2.0-pc.2 install-runtime`; the E1 `~/.approval-box/bin/approval-box harness-entries --json` then names the new runtime and the next harness registration writes it into every seat's MCP and hook entries; without `hosted.json` a pc.2 connector still takes today's `/mcp` path, so this step may come first) and the switch itself.
+
+```mermaid
+flowchart TD
+  Seat["seat MCP tool (uid 1000), approval-box runtime 0.2.0-pc.2"] -->|"hosted.json present: every tool call"| Door[("state/approval-box-hosted.sock, 0666, relay")]
+  SeatDaemon["seat connector daemon (uid 1000): no token, no keys"] -->|"GET /deliveries every 2 s, POST /deliveries/:id"| Door
+  Door -->|"one NDJSON line, one reply line"| Sock[("pc/daemon.sock, 0700 dir, uid 1001")]
+  Sock --> Hosted["hosted daemon: decision store + peer-channel endpoint (no delivery loop)"]
+  SeatDaemon -->|"answers"| Channels["seat channels (steer, hooks, wakes, attachment copies, uid 1000)"]
+  Door -. "daemon down: 503 APPROVAL_BOX_DAEMON_UNAVAILABLE" .-> Seat
+  Boot["body start / close"] --> Door
+  Status["approval_box_daemon_status"] -->|"seats: {path, listening}"| Door
+```
+
+Data flow: AI -> seat MCP -> door -> hosted LocalBox -> peer-channel -> device -> answer -> hosted `deliveries` -> seat daemon polls through the door -> seat channel -> AI. Request images go `POST /uploads` (base64, up to 32 MiB per line) and answer attachments `GET /decisions/:id/attachments/:aid` through the same door. The door holds nothing: no log of lines, no file but the socket. The decision content stays in the hosted store (`state/approval-box-daemon/state/pc/`, 0600 files, 0700 directory) and passes through the door in memory only.
+
+```mermaid
+stateDiagram-v2
+  [*] --> NoDoor
+  NoDoor --> Door: start() and the package is in the image (listen, chmod 0666)
+  NoDoor --> NoDoor: no package (dev, tests): no door; or the listen failed: status seats.listening false, the seats keep their own connector (nothing was switched)
+  Door --> Door: a request: relay one line and the reply; daemon down: 503 by name; idle 30 s: that connection is closed
+  Door --> NoDoor: close() (the socket file is removed)
+```
+
+Sitting order (Tronie / Nayuta): (1) the body with this door is swapped in; (2) `approval_box_daemon_status` shows `seats.listening: true`; (3) the Owner's pairing (a490p) until the hosted daemon says `mode: pc`; (4) a seat installs the pc.2 runtime into `~/.approval-box` and runs `approval-box use-hosted --socket /srv/bellteam/state/approval-box-hosted.sock` (prints `approval-box.use-hosted.v1`; stops the running seat daemon, the next tool call restarts it in relay mode) and one harness registration pass; (5) `PC_OFFER` on. Never switch before (3): before the pairing the hosted daemon answers `503 not_paired` and every seat's request tool would fail. Roll back: `approval-box use-hosted --off` (the seat returns to its token path until the /v1 close).
+
+How each state is left: the door never waits for an operator: it is created at start and removed at close; a failed listen leaves the seats untouched and visible in status.
+
+Open: seats on other hosts (`remote-seat-ingress`) cannot open a unix socket of this container; they keep their own connector and its `/mcp` token path, which stops working at the Approval Box `/v1` close. Their route (a network door, or each host's own pairing) is not designed here; asked of Tronie and Nayuta.
+
 ## Diagram check against the code (a490h)
 
-Compared line by line with `src/approval-box-daemon.mjs` and the package's `startHosted` / `serveLocal` (read from the 0.2.0-pc.1 bundle): status modes `not_paired | starting | pc`, the 2 s config poll, socket path `state/pc/daemon.sock`, request shape and error shape. Not run: a real pairing against production (Nayuta gives the go at the sitting).
+Compared line by line with `src/approval-box-daemon.mjs` and the package's `startHosted` / `serveLocal` (read from the 0.2.0-pc.1 bundle, and `serveLocal` of 0.2.0-pc.2 re-read for a514m: one line in, one reply and end, cap 32 MiB, the added `/uploads` and attachment routes): status modes `not_paired | starting | pc`, the 2 s config poll, socket path `state/pc/daemon.sock`, request shape and error shape. Not run: a real pairing against production (Nayuta gives the go at the sitting).
 
-## Not in the 0.2.0-pc.1 daemon (read from the bundle, a490h)
+## Not in the 0.2.0-pc.1 daemon (read from the bundle, a490h; not re-read for pc.2)
 
 Once the peer channel is up (`mode: pc`), `startHosted` returns and the daemon has no loop back to `not_paired`: the bundle has no handling of the server closing the signal socket with 4401 `pass_ended` or 4403 `connection_removed` (no such code appears in `cli.mjs` or the chunks). So "paired but removed" after the channel is up is not shown by the daemon's status today. This is a question for Nayuta (daemon side of contract 0.5.8), not something the body can detect without reading the socket itself.
 

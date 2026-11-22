@@ -20,7 +20,7 @@ if (command === 'daemon') {
   const path = join(home, 'state', 'pc', 'daemon.sock'); rmSync(path, { force: true })
   net.createServer(socket => { let t = ''; socket.setEncoding('utf8'); socket.on('data', c => { t += c; if (!t.includes('\\n')) return
     const { method, path: route } = JSON.parse(t.split('\\n')[0])
-    socket.end(JSON.stringify(route === '/status' ? { ok: true, result: { schema: 'x', mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.1', pid: process.pid } }
+    socket.end(JSON.stringify(route === '/status' ? { ok: true, result: { schema: 'x', mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.2', pid: process.pid } }
       : route === '/decisions' ? { ok: true, result: { items: [] } } : route === '/confirm' ? { ok: false, status: 409, code: 'confirm_required', message: 'x', body: { check_token: 'ct', decisions: [] } } : { ok: false, status: 404, code: 'not_found', message: 'x' }) + '\\n') }) }).listen(path)
   process.stderr.write('daemon up secret-looking-text-should-be-masked-' + 'x'.repeat(50) + '\\n')
   setInterval(() => {}, 1000)
@@ -47,7 +47,7 @@ test('start does not wait, the child answers /status over its socket, the home i
   daemon.start()
   assert.ok(Date.now() - begun < 500, 'start() returned at once')
   const status = await until(async () => { const s = await daemon.status(); return s.reachable ? s : null })
-  assert.deepEqual({ ...status.daemon }, { mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.1' })
+  assert.deepEqual({ ...status.daemon }, { mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.2' })
   assert.equal((await stat(daemon.home)).mode & 0o777, 0o700)
   const keys = JSON.parse(await readFile(join(daemon.home, 'env-keys.json'), 'utf8'))
   for (const key of keys) assert.ok(['APPROVAL_BOX_HOME', 'APPROVAL_BOX_SERVER', 'HOME', 'LANG', 'PATH', 'PWD', 'SHLVL', '_', 'OLDPWD'].includes(key), `unexpected env key ${key}`)
@@ -138,4 +138,32 @@ test('the entry path, the Dockerfile step and the pin agree on one package versi
   assert.match(JSON.parse(lock).packages['node_modules/approval-box'].integrity, /^sha512-/)
   assert.equal(DAEMON_ENTRY, `/app/distribution/approval-box/runtime-home/runtime/${version}/cli.mjs`)
   assert.ok(dockerfile.includes('APPROVAL_BOX_HOME=/app/distribution/approval-box/runtime-home') && dockerfile.includes(`runtime/${version}/cli.mjs`))
+})
+
+test('the seats\' door relays one request line to the daemon and the reply back, is open to every user, and answers by name when the daemon is down (a514m)', async t => {
+  const { daemon, root } = await setup(t)
+  daemon.start()
+  const door = join(root, 'state', 'approval-box-hosted.sock')
+  await until(async () => (await daemon.status()).seats.listening && (await daemon.status()).reachable)
+  assert.equal((await stat(door)).mode & 0o777, 0o666)
+  assert.equal((await stat(daemon.home)).mode & 0o777, 0o700, 'the daemon\'s own directory stays closed')
+  assert.deepEqual((await localCall(door, 'GET', '/decisions', undefined, { timeoutMs: 3000 })).result, { items: [] })
+  assert.equal((await localCall(door, 'GET', '/status', undefined, { timeoutMs: 3000 })).result.mode, 'not_paired')
+  assert.deepEqual(await localCall(door, 'POST', '/confirm', { big: 'x'.repeat(300000) }, { timeoutMs: 3000 }), { ok: false, status: 409, code: 'confirm_required', message: 'x', body: { check_token: 'ct', decisions: [] } })
+  const { createSeatsSocket } = await import('../src/approval-box-seats-socket.mjs')
+  const dead = createSeatsSocket({ path: join(root, 'dead.sock'), target: join(root, 'nothing.sock') })
+  await dead.start()
+  const answer = await localCall(join(root, 'dead.sock'), 'GET', '/decisions', undefined, { timeoutMs: 3000 })
+  assert.equal(answer.ok, false); assert.equal(answer.status, 503); assert.equal(answer.code, 'APPROVAL_BOX_DAEMON_UNAVAILABLE')
+  await dead.close()
+  await assert.rejects(stat(join(root, 'dead.sock')), { code: 'ENOENT' })
+  await daemon.close()
+  await assert.rejects(stat(door), { code: 'ENOENT' }, 'close removes the door')
+})
+
+test('no package in the image: no door either (dev and tests)', async t => {
+  const { daemon, root } = await setup(t, { missing: true })
+  daemon.start()
+  assert.equal((await daemon.status()).available, false)
+  await assert.rejects(stat(join(root, 'state', 'approval-box-hosted.sock')), { code: 'ENOENT' })
 })
