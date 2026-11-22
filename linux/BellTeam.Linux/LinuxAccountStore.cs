@@ -16,5 +16,7 @@ internal static class LinuxAccountStore
     // Raised when the window comes to the front: the account card reads the server's answer again (Tronie 2026-11-23, same spec as the Apple app).
     public static event Action? Foreground;
     public static void NoteForeground() => Foreground?.Invoke();
-    public static DesktopLoginBilling? Billing => billing ??= Product("loginBillingWorkerUrl") is { } worker ? new DesktopLoginBilling(worker, FilePassStore.ForApp("BellTeam")) : null;
+    // BELLTEAM_LOGIN_BILLING_URL points a development or test run at another Worker (the same rule as the Windows app); a build with neither set uses product.json.
+    private static string? WorkerUrl() => Environment.GetEnvironmentVariable("BELLTEAM_LOGIN_BILLING_URL") is { Length: > 0 } over ? over : Product("loginBillingWorkerUrl");
+    public static DesktopLoginBilling? Billing => billing ??= WorkerUrl() is { } worker ? new DesktopLoginBilling(worker, FilePassStore.ForApp("BellTeam")) : null;
 }

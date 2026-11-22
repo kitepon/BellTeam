@@ -25,7 +25,7 @@ public static class AccountStore
 #if DEBUG
         if (DevOperator.Url is { } dev) return dev;
 #endif
-        return Product("loginBillingWorkerUrl");
+        return System.Reflection.CustomAttributeExtensions.GetCustomAttributes<System.Reflection.AssemblyMetadataAttribute>(typeof(AccountStore).Assembly).FirstOrDefault(a => a.Key == "LoginBillingWorkerUrl")?.Value is { Length: > 0 } over ? over : Product("loginBillingWorkerUrl");
     }
     public static LoginBilling? Billing => billing ??= WorkerUrl() is { } worker ? new LoginBilling(MainActivity.Current, ServerClientId, worker, WebReturn()) : null;
 
