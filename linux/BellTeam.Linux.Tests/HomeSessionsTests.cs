@@ -22,13 +22,21 @@ public sealed class HomeSessionsTests
     [InlineData(5, "5台が入っています")]
     public void TheSummaryCountsEveryRowIncludingThisDevice(int count, string expected) => Assert.Equal(expected, HomeSessionWords.Summary(count));
 
+    [Theory]
+    [InlineData("account", "apple", HomeSessionIcons.Phone)]
+    [InlineData("account", "android", HomeSessionIcons.Phone)]
+    [InlineData("account", "windows", HomeSessionIcons.Desktop)]
+    [InlineData("account", "linux", HomeSessionIcons.Desktop)]
+    [InlineData("account", "web", HomeSessionIcons.Web)]
+    [InlineData("console", null, HomeSessionIcons.Console)]
+    public void EachKindHasItsGenericGlyph(string kind, string? appKind, string expected) => Assert.Equal(expected, HomeSessionIcons.Of(kind, appKind));
+
     [Fact]
-    public void EveryAppKindHasItsIconAndAConsoleHasNone()
+    public void AnUnknownKindHasNoGlyphAndNoBrandMarkExists()
     {
-        foreach (var kind in new[] { "apple", "linux", "windows", "android", "web" }) Assert.False(string.IsNullOrEmpty(HomeSessionIcons.Of(kind)), kind);
-        Assert.NotEqual(HomeSessionIcons.Linux, HomeSessionIcons.Android);
-        Assert.Null(HomeSessionIcons.Of(null));
-        Assert.Null(HomeSessionIcons.Of("unknown-kind"));
+        Assert.Null(HomeSessionIcons.Of("account", "unknown-kind"));
+        Assert.NotEqual(HomeSessionIcons.Phone, HomeSessionIcons.Desktop);
+        Assert.DoesNotContain(typeof(HomeSessionIcons).GetFields(), f => f.Name is "Apple" or "Linux" or "Windows" or "Android");
     }
 
     [Fact]

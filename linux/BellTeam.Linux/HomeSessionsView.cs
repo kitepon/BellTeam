@@ -129,7 +129,7 @@ public sealed class HomeSessionsCard : StackPanel
             }
             // The kind's icon in a 32 pt rounded tile (radius 8, the card's secondary fill) left of the title; the accessibility name is the kind's name.
             var tile = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(8), Background = Fill, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 12, 0) };
-            if (HomeSessionIcons.Of(row.Kind == "console" ? null : row.AppKind) is { } glyph) tile.Child = new Border { Child = Glyph(glyph, 18, Muted, filled: true), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            if (HomeSessionIcons.Of(row.Kind, row.AppKind) is { } glyph) tile.Child = new Border { Child = Glyph(glyph, 18, Muted, filled: true), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             Avalonia.Automation.AutomationProperties.SetName(tile, HomeSessionWords.Device(row));
             var line = new StackPanel { Orientation = Orientation.Horizontal }; line.Children.Add(tile); line.Children.Add(box);
             Children.Add(new Border { Child = line, BorderBrush = Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 10), Margin = new Thickness(0, 8, 0, 0) });
