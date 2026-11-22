@@ -54,7 +54,7 @@ profiles.readはfresh ACK snapshotを全件送った後の小さい{revision}だ
 ```mermaid
 flowchart LR
   Fresh[共通facade: 固定read method] --> Pin[execution: enterReadPin / method固定の親opaque]
-  AI[既AI logical lease最大64] --> Channel[既IPC root64 / 同wire5field]
+  AI[既AI logical lease / 件数上限なし] --> Channel[既IPC root64 / 同wire5field]
   Pin --> Channel
   Channel --> Snapshot[profiles.readだけprojection許可]
   Channel --> Room[schedules.list roomだけroom.schedules.list effect]
