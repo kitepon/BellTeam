@@ -11,6 +11,7 @@ internal static class SecretFile
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + ".tmp";
+        File.Delete(temporary);   // a stale .tmp from a crash would keep its old mode: the file is made new with 0600
         var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
         if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         using (var stream = new FileStream(temporary, options)) stream.Write(bytes);
