@@ -477,24 +477,6 @@ final class BellAPI {
         return request
     }
 
-    /// 決裁箱の呼び出し：応答の状態と本文をそのまま返す（403 not_entitled・409 conflict などは本文の {error:{code,…}} で分かれるため）。
-    /// Accessのログイン・別ホストへの転送・401だけ認証切れとして投げる。
-    func approvalsResponse(path: String, method: String = "GET", body: Data? = nil,
-                           headers: [String: String] = [:]) async throws -> (Data, Int) {
-        var request = try request(path: path, method: method)
-        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
-        if let body {
-            request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        let (data, response, trace) = try await load(request)
-        do { try validate(response, data: data, keepStatus: true) }
-        catch { throw traced(error, with: trace, body: data) }
-        guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
-        if http.statusCode == 401 { throw BellAPIError.unauthorized }
-        return (data, http.statusCode)
-    }
-
     /// ログインの呼び出し：403（コードが違う等）も本文で分かれるため、状態・本文・Retry-Afterをそのまま返す。
     func loginResponse(path: String, method: String, body: Data? = nil) async throws -> (Data, Int, TimeInterval?) {
         var request = try request(path: path, method: method)
