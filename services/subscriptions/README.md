@@ -63,6 +63,22 @@ Without `LB_KKEY` or the pass key every route answers 503 `{error: "not_configur
 
 ## Environments and release order
 - **Test Worker** `bellteam-login-test` at `https://bellteam-login-test.kitepon.dev` (custom domain in the Owner's zone, `--env test`): its own kKey and pass key, `LB_BILLING=off`, no store keys. For the apps' first device runs and the Worker's own real-service checks. Real-store purchases are never run against it.
+- **Real-path test Worker** `bellteam-login-real` at `https://bellteam-login-real.kitepon.dev` (`--env real`; a523b, contract 1.26 item 3, Mint's `rulings/real-path-tests.md`): the same code as the test Worker with billing **on** (`LB_BILLING` unset = `store`), the Apple IAP key (sandbox and production hosts) and the Play service account `bellteam-play-server` (secret `GOOGLE_PLAY_SERVICE_ACCOUNT`, the key Pinocchio made and Sakura vaulted; its right to cancel test subscriptions is Pinocchio's, contract 1.26); its own kKey and pass key (`r1`); `LB_EXEMPT_K` unset, so a test account has no entitlement until a real sandbox or Play test purchase is read back. A second Worker, not a switch of the test Worker, because the runs on the test Worker (the dev home server, the TestFlight build 181) rely on billing off and a switch would change them all at once. Nothing issued by one is accepted by the other (different kKey and pass key). Test accounts are dedicated ones, never the Owner's own (contract section 2, Test servers, condition b); production builds never run against it.
+```mermaid
+flowchart LR
+  Dev["DEV operator (dev-operator.mjs): fake keys, fake stores, BellTeam's own code"]
+  Test["bellteam-login-test: billing off, real Apple/Google sign-in, no store read"]
+  Real["bellteam-login-real: billing on, own kKey, real store read-back, no exempt account"]
+  Prod["bellteam-subscriptions: production"]
+  Apple["App Store Server API (production host first, then sandbox)"]
+  Play["Google Play Developer API"]
+  Real --> Apple
+  Real --> Play
+  Prod --> Apple
+  Prod --> Play
+  Test -.->|"no store call"| Apple
+```
+Data flow of `bellteam-login-real`: as the Worker above (the library's storage object holds only the short-lived records; nothing about a person is kept). New here: the Apple private key and the Play service account are secrets of this Worker only (read once from 1Password at deploy, piped to `wrangler secret put`, never printed); the sign-in audiences, Google web client and app links are the test Worker's, with this Worker's own origin. The Google web client must list `https://bellteam-login-real.kitepon.dev/auth/v1/websignin/callback` as a redirect URI before web sign-in works here (Pinocchio, project `bellteam-515414`); native sign-in needs nothing more. The Worker's Play calls are the token call, `subscriptionsv2.get` and `acknowledge` (library 0.17.0, `stores/google.js`; `consume` only for one-time products, which BellTeam has none of): it never cancels or revokes an order, so the service account's `MANAGE_ORDERS` on the package (per package, so it also reaches production orders; Pinocchio, 2026-11-23) is used only by test-run scripts, and those may act only on a purchase the API marks `testPurchase`. An app that uses this Worker lists its host in its associated domains (Apple) and the host's assetlinks are served by the Worker (`LB_ASSETLINKS`).
 - `bellteam-subscriptions-sandbox` and `bellteam-subscriptions` (production) are configured in `wrangler.jsonc` for the same code but **not deployed by this change**; production switches only when all apps and the user server ship (Tronie's release order), on the Owner's domain that Mint asks for.
 - Deploy: `npm exec --yes --package wrangler@latest -- wrangler deploy --env test` from `services/subscriptions`; the Cloudflare key is read from 1Password by the deploy step and never printed; use is approved by Tronie. Rollback: `wrangler rollback <version> --env test`.
 

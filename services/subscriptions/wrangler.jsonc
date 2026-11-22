@@ -72,6 +72,39 @@
         // Neon's DEBUG signing certificate, for this test host only; production lists the upload and Play signing certificates instead.
         "LB_ASSETLINKS": "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"dev.kitepon.bellbot\",\"sha256_cert_fingerprints\":[\"32:38:26:CF:84:B5:17:5A:E3:A0:88:85:BB:29:44:2D:64:BE:2D:E3:A9:C3:2E:5D:DC:EC:7D:96:FA:76:61:B0\"]}}]"
       }
+    },
+    // Real-path test Worker (a523b, contract 1.26 item 3): billing ON ("store": LB_BILLING unset), real store keys (App Store; Play once the key exists), its own kKey and pass key,
+    // no exempt accounts, so a test account has no entitlement until a real sandbox/test purchase is read back. The test Worker above stays billing off for the runs that use it.
+    "real": {
+      "name": "bellteam-login-real",
+      "workers_dev": false,
+      "routes": [{ "pattern": "bellteam-login-real.kitepon.dev", "custom_domain": true }],
+      "observability": { "enabled": false },
+      "durable_objects": {
+        "bindings": [{ "name": "LB_STORAGE", "class_name": "LBStorage" }]
+      },
+      "migrations": [
+        { "tag": "login-billing-storage-v1", "new_sqlite_classes": ["LBStorage"] }
+      ],
+      "vars": {
+        "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
+        "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
+        "LB_PASS_KEY_CURRENT_ID": "r1",
+        // BellTeam subscriptions In-App Purchase key (team-wide, vaulted by Sakura: 開発工場 item ogevy6dw…); the private key is the secret APPLE_PRIVATE_KEY.
+        // Used only while LB_BILLING is "store" (the nocontract mode); with billing off no store is asked.
+        "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
+        "APPLE_KEY_ID": "J7KXVR6DSV",
+        "LB_PUBLIC_ORIGIN": "https://bellteam-login-real.kitepon.dev",
+        // The Google web client of the code flow (project bellteam-515414, redirect = this origin + /auth/v1/websignin/callback). Not the Android serverClientId.
+        "WEBSIGNIN_GOOGLE_CLIENT_ID": "316260984663-lofu7qohq45fhbfup8k3ottlgat415pk.apps.googleusercontent.com",
+        // Where a web sign-in may return (Tronie's ruling for Neon's Android run): the Auth Tab scheme and the https fallback; loopback is always on.
+        "LB_RETURN_SCHEMES": "kitepon-bellbot",
+        "LB_RETURN_LINKS": "https://bellteam-login-real.kitepon.dev/auth/return/android,https://bellteam-login-real.kitepon.dev/auth/return/apple",
+        // Apple: app TPWX489GV4.dev.kitepon.bellbot; applinks for /auth/return/apple and webcredentials (the https callback of ASWebAuthenticationSession).
+        "LB_APPLE_APP_SITE_ASSOCIATION": "{\"applinks\":{\"details\":[{\"appIDs\":[\"TPWX489GV4.dev.kitepon.bellbot\"],\"components\":[{\"/\":\"/auth/return/apple\"}]}]},\"webcredentials\":{\"apps\":[\"TPWX489GV4.dev.kitepon.bellbot\"]}}",
+        // Neon's DEBUG signing certificate, for this test host only; production lists the upload and Play signing certificates instead.
+        "LB_ASSETLINKS": "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"dev.kitepon.bellbot\",\"sha256_cert_fingerprints\":[\"32:38:26:CF:84:B5:17:5A:E3:A0:88:85:BB:29:44:2D:64:BE:2D:E3:A9:C3:2E:5D:DC:EC:7D:96:FA:76:61:B0\"]}}]"
+      }
     }
   }
 }
