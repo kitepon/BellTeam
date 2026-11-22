@@ -16,6 +16,21 @@ public sealed class HomeSessionsTests
     [InlineData("account", "unknown-kind", "アプリ")]
     public void TheDeviceIsNamedByTheKindTheAppSent(string kind, string? appKind, string expected) => Assert.Equal(expected, HomeSessionWords.Device(Row(kind, appKind)));
 
+    [Theory]
+    [InlineData(1, "この端末だけが入っています")]
+    [InlineData(2, "2台が入っています")]
+    [InlineData(5, "5台が入っています")]
+    public void TheSummaryCountsEveryRowIncludingThisDevice(int count, string expected) => Assert.Equal(expected, HomeSessionWords.Summary(count));
+
+    [Fact]
+    public void EveryAppKindHasItsIconAndAConsoleHasNone()
+    {
+        foreach (var kind in new[] { "apple", "linux", "windows", "android", "web" }) Assert.False(string.IsNullOrEmpty(HomeSessionIcons.Of(kind)), kind);
+        Assert.NotEqual(HomeSessionIcons.Linux, HomeSessionIcons.Android);
+        Assert.Null(HomeSessionIcons.Of(null));
+        Assert.Null(HomeSessionIcons.Of("unknown-kind"));
+    }
+
     [Fact]
     public void OnlyAStoreDeviceShutsOutAnotherAccountRowThatHasAPassId()
     {
