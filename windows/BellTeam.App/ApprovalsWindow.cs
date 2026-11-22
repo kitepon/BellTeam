@@ -503,7 +503,8 @@ internal sealed class ApprovalsPage : Grid
                 case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
                 case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting(device.State.Reason), "今すぐ試す", device.Refresh); break;
                 case RuntimeStatus.NeedsAdmission: Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval); break; // 「承認をお願いする」 comes with the 5.3 starter step
-                case RuntimeStatus.SignedOut: Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke()); break;
+                case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
+                case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke()); break;
                 case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
             }
         if (DeviceUsable && !legacyOpen)

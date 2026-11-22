@@ -297,6 +297,20 @@ public sealed class ApprovalsWindowTests
         Assert.Equal(5, rig.Page.Pending.Count);                                  // no state hides a decision
     });
 
+    [Fact]
+    public void SigningInShowsTheBrowserLineWithAnUndoAndAFailedTryShowsItsReason() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.SignedOut, "signed_out") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        var cancelled = 0; rig.Hub.CancelSignIn = () => cancelled++; rig.Hub.SignInApprovalBox = () => { }; device.Raise();
+        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Assert.NotNull(Find(rig.Window, "legacy:Approval Boxにサインイン"));
+        rig.Hub.SetSignIn(true);
+        Assert.Contains(Approvals.DeviceSigningIn, Texts(rig.Window)); Assert.DoesNotContain(Approvals.DeviceSignedOut, Texts(rig.Window));
+        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
+        rig.Hub.SetSignIn(false, "サインインできませんでした。");
+        Assert.Contains("サインインできませんでした。", Texts(rig.Window)); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
+    });
+
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void Until(Func<bool> done) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }

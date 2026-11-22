@@ -45,7 +45,7 @@ internal sealed class AccountView : StackPanel, IDisposable
     }
 
     // signin_cancelled is the person's own choice and says nothing.
-    private static string? Describe(LoginBillingException error) => error.Code switch
+    internal static string? Describe(LoginBillingException error) => error.Code switch
     {
         "signin_cancelled" => null,
         "return_not_received" => SignInText.ReturnNotReceived,

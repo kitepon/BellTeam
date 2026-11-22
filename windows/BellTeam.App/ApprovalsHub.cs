@@ -22,6 +22,11 @@ internal sealed class ApprovalsHub : IDisposable
     internal IDeviceDecisions? Device { get; }
     /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
     internal Action? SignInApprovalBox { get; set; }
+    /// <summary>The Approval Box web sign-in is open in the browser (SigningIn); 「やめる」 calls CancelSignIn. The note is why the last try ended, if it did not end by the person's own choice.</summary>
+    internal bool SigningIn { get; private set; }
+    internal string? SignInNote { get; private set; }
+    internal Action? CancelSignIn { get; set; }
+    internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Notify(); }
     internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of)];
     /// <summary>The counts of the entry row: the server's summary plus what only the device holds (Core DecisionUnion).</summary>
     internal ApprovalSummary? Summary => Device is null ? Feed?.Summary : DecisionUnion.Summary(Feed?.Summary, [], DeviceViews, DateTimeOffset.UtcNow);
