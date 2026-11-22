@@ -1781,7 +1781,7 @@
 			repositoryURL = "https://github.com/kitepon/login-billing.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.18.1;
+				version = 0.18.8;
 			};
 		};
 		95DA1D5A1953054EF7D3C094 /* XCRemoteSwiftPackageReference "ChatLayout" */ = {
