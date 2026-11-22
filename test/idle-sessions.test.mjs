@@ -178,3 +178,40 @@ test('a478: 休止までの時間は10分で、観測は2分ごと（オーナ�
   const { IDLE_CLOSE_MS } = await import('../src/idle-sessions.mjs')
   assert.equal(IDLE_CLOSE_MS, 10 * 60_000)
 })
+
+// a505b (memory-budget.md): at SOFT or above the Owner's idle time does not apply; a busy seat is still never closed.
+function pressured(ratio, observations, opts = {}) {
+  const closed = []
+  const transport = {
+    isIdle: () => !opts.busy,
+    async observeChain() { return { observation: observations.shift(), generation: null } },
+    async closeIdle(bot) { closed.push(bot.id); return true },
+  }
+  const idle = new IdleSessions({ bots: new Map([['bot-a', { id: 'bot-a' }]]), transport, pendingDecisions: async () => 0,
+    idleMs: 10 * MINUTE, now: () => 0, report: () => {}, pressure: async () => (ratio === null ? null : { anon: ratio, max: 1, ratio }), record: opts.record })
+  return { idle, closed }
+}
+
+test('メモリが苦しい時は、ターンが終わった席をすぐ休止する（閉じる条件の「動いていない」は変えない）', async () => {
+  const hot = pressured(0.6, [quiet()])
+  await hot.idle.check()
+  assert.deepEqual(hot.closed, ['bot-a'])
+  const cool = pressured(0.4, [quiet()])
+  await cool.idle.check()
+  assert.deepEqual(cool.closed, [], 'below SOFT the 10 minutes apply')
+  const unknown = pressured(null, [quiet()])
+  await unknown.idle.check()
+  assert.deepEqual(unknown.closed, [], 'no reading is no pressure')
+  const busy = pressured(0.9, [quiet({ state: 'busy', reason: 'turn_running' })])
+  await busy.idle.check()
+  assert.deepEqual(busy.closed, [], 'a running turn is never closed')
+})
+
+test('a525: an early sleep and the peak are recorded; a sleep after the Owner\'s 10 minutes is not an early one', async () => {
+  const calls = []; const record = { earlySleep: () => calls.push('early'), peak: share => calls.push(`peak ${share}`) }
+  await pressured(0.6, [quiet()], { record }).idle.check()
+  assert.deepEqual(calls, ['peak 0.6', 'early'])
+  calls.length = 0
+  await pressured(0.4, [quiet()], { record }).idle.check()
+  assert.deepEqual(calls, ['peak 0.4'], 'below SOFT nothing sleeps')
+})

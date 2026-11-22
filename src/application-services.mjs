@@ -3,10 +3,6 @@ import { fileURLToPath } from 'node:url'
 import { goalFailureCause } from './execution-failure-report.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { createDirectReceiptAssembly, directFailureReport } from './direct-receipt-assembly.mjs'
-import { createSubmittedSecretApprovalBridge } from './submitted-secret-approval-bridge.mjs'
-import { createSubmittedSecretConsumer } from './usage/submitted-secret-consumer.mjs'
-import { createSubmittedSecretRabbitClient } from './usage/submitted-secret-rabbit-client.mjs'
-import { createSubmittedSecretCaller } from './submitted-secret-caller.mjs'
 import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { mkdir } from 'node:fs/promises'
 import { createSeatProcessRunner } from './seat-process.mjs'
@@ -60,8 +56,10 @@ import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { MachineStream } from './machine-stream.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
+import { memoryPressure } from './memory-pressure.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
+import { createApprovalBoxDaemon } from './approval-box-daemon.mjs'
 import { createUpdateClients } from './container-update-client.mjs'
 import { createHostUpdateAdapter } from './update-host-adapter.mjs'
 import { createModuleUpdateCatalog } from './update-module-catalog.mjs'
@@ -77,6 +75,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { createRemoteSeatListener, remoteSeatPort } from './remote-seat-port.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 import { roomForwardSource } from './origin-reference.mjs'
+import { createHomeFront } from './home-login-front.mjs'
 
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
 export const conversationDiagnosticPort = diagnostics => report => Promise.resolve()
@@ -165,8 +164,8 @@ export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = nul
   return wrapped
 }
 
-export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, createApprovalBoxExtensionProcess: approvalsFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), prepareApprovalBoxExtensionRelease: prepareApprovals = (versionId, options) => prepareModuleRelease('approval-box-extension', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
-  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, createApprovalBoxExtensionProcess: approvalsFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), prepareApprovalBoxExtensionRelease: prepareApprovals = (versionId, options) => prepareModuleRelease('approval-box-extension', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
+  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, directMessages = null
   let scheduleTurns = null
   // a164: the members assembly reads the scheduler lazily; it is built after the members child starts.
   let scheduler = null
@@ -208,10 +207,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     bots = members.bots; ownerProfile = members.ownerProfile; userRules = members.userRules
   }
   const notifications = createNotifications({ root, bots, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit,
-    configuration: () => ({ apns: settings.configuration('notifications'), webPush: settings.configuration('webPush') }), createProcess,
+    configuration: () => ({ apns: settings.configuration('notifications') }), createProcess,
     onState: state => {
       // Usage applies errors through its captured settings.changed epoch, never a later snapshot.
-      if (!usageAssembly) for (const [provider, feature] of [['apns', 'notifications'], ['webPush', 'webPush']]) {
+      if (!usageAssembly) for (const [provider, feature] of [['apns', 'notifications']]) {
         if (state.applyError?.[provider]) settings.setError(feature, { code: state.applyError[provider] })
       }
       updateCenter?.notify()
@@ -302,6 +301,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     refresh: () => usageAssembly.credentials.refresh(), watch: listener => usageAssembly.credentials.watch(listener),
     ...(usageAssembly.credentials.watchRecovery ? { watchRecovery: listener => usageAssembly.credentials.watchRecovery(listener) } : {}),
     report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
+  // a485: the login-billing home part's body side. Always built when usage exists (an Enforced marker must outlive any configuration);
+  // answers 404 on /api/home until an operator is configured and the owner has bound the server.
+  const homeFront = usageAssembly?.home ? createHomeFront({ enabled: Boolean(environment.BELLTEAM_HOME_OPERATOR), markerPath: join(root, 'state/login-enforced'), onTickets: tickets => notifications.setTickets(tickets),
+    call: (name, params) => usageAssembly.home[name.slice('home.'.length)](params) }) : null
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
   // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.
   const remoteSeatListener = createRemoteSeatListener()
@@ -397,7 +400,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
   scheduleTurns = transport
   if (!members) bots.currentTurn = botId => transport.currentTurn(botId)
-  const idleSessions = execution ? null : new IdleSessions({ bots, transport })
+  const idleSessions = execution ? null : new IdleSessions({ bots, transport, pressure: memoryPressure() })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
   conversationPorts.transport = transport
   const conversation = conversationAssembly ? { ...conversationAssembly.facade, assets: conversationAssembly.assets }
@@ -491,13 +494,6 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (!usageAssembly) await secretRequests.initialize()
   if (seatRuntime) secretRequests.useValue = createSecretUse({ projectPath: id => bots.projectPath(id),
     secretRequests: usage?.secretRequests ?? secretRequests, systemContext: usageAssembly?.systemContext ?? null })
-  if (submittedSecretManagement === undefined && seatRuntime) submittedSecretManagement = {
-    assertOwnerAuthorized: createSubmittedSecretApprovalBridge({ project: root }),
-    createConsumer: createSubmittedSecretConsumer, consume: createSubmittedSecretRabbitClient({ project: root }),
-  }
-  submittedSecretCaller = submittedSecretManagement ? createSubmittedSecretCaller({
-    root, secretRequests, usageAssembly, aiControl, bots, ...submittedSecretManagement,
-  }) : null
   const ownerQuestions = usage?.ownerQuestions ?? new OwnerQuestions({
     root, bots,
     onRequest: item => notifications.question(item),
@@ -513,11 +509,13 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, ownWork: workGraphEffects.ownWork })
     void workGraphModule.start().catch(() => {})
   }
+  // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests). a490f: the decision readers below use it once it is paired.
+  const approvalBoxDaemon = createApprovalBoxDaemon({ root })
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
     latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots, messenger, transport,
-      decisions: createLatticeDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null }),
+      decisions: createLatticeDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null, daemon: approvalBoxDaemon }),
       runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() }),
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
@@ -527,7 +525,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // R5: Approval Box extension child (runtime/approval-box-extension-child.md). Optional like lattice; its routes answer APPROVALS_UNAVAILABLE until the child serves.
   if (approvalsFactory && lattice) {
     approvalsModule = approvalsFactory({ root, exchangeMutex, prepareRelease: prepareApprovals,
-      onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null }),
+      onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null, daemon: approvalBoxDaemon }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
     approvals = createApprovalsFacade({ controller: approvalsModule })
     void approvalsModule.start().catch(() => {})
@@ -537,7 +535,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const runningExclusions = createRunningExclusions({ path: join(root, 'state', 'execution-running-exclusions.json'),
     decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
       scope: Object.freeze({ terminalId: 'running-exclusions', purpose: 'approval-box.connector' }),
-      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS' }) })
+      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS', daemon: approvalBoxDaemon }) })
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
@@ -576,19 +574,19 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
+    homeFront, aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, accounts, terminals, terminalKeys, runningExclusions, approvalBoxDaemon, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
-      afterListenReady: async () => { directMessages.start(); void credentialRefresh?.refreshNow(); await execution?.lifecycle?.afterListenReady?.() } },
+      afterListenReady: async () => { directMessages.start(); void credentialRefresh?.refreshNow(); void homeFront?.start(environment.BELLTEAM_CONSOLE_SOCKET ?? '/run/bellteam-server/console.sock').catch(() => {}); await execution?.lifecycle?.afterListenReady?.() } },
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close(), () => approvals?.close(), () => approvalsModule?.close(), () => latticeModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }

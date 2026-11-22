@@ -82,7 +82,9 @@ internal sealed partial class ApprovalsWindow
     {
         try
         {
-            var bytes = await workspace.Management.Api.ApprovalAttachmentAsync(decisionId, attachment.Id!, life.Token);
+            var bytes = All.FirstOrDefault(item => item.Id == decisionId) is { Source: DecisionUnion.Device } && Device is { } device
+                ? await device.AttachmentAsync(decisionId, attachment.Id!) ?? throw new InvalidOperationException("no image held")
+                : await workspace.Management.Api.ApprovalAttachmentAsync(decisionId, attachment.Id!, life.Token);
             if (attachment.Size > 0 && bytes.LongLength != attachment.Size) return;
             if (attachment.Sha256 is { Length: 64 } sha && !string.Equals(Convert.ToHexString(SHA256.HashData(bytes)), sha, StringComparison.OrdinalIgnoreCase)) return;
             using var stream = new MemoryStream(bytes); pictures[id] = new Bitmap(stream); Render();
@@ -100,6 +102,12 @@ internal sealed partial class ApprovalsWindow
     private Control Answering(ViewDecision decision)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        if (decision.Id is { } id && answeredOnDevice.Contains(id))
+        {
+            stack.Children.Add(Text(Approvals.AnswerOnDevice, 13.5, Amber, wrap: true));
+            if (decision.Link?.Chart?.ProjectId is { Length: > 0 } chartProject && decision.Link.Task?.CardId is { Length: > 0 } chartCard) { var chartButton = Action("工程表で見る", ForwardGlyph); chartButton.Margin = new Thickness(0, 12, 0, 0); chartButton.Click += (_, _) => openCard(chartProject, chartCard); stack.Children.Add(chartButton); }
+            return stack;
+        }
         if (decision.Status == "held") stack.Children.Add(Text("保留中です。戻すと、また答えられます。", 13.5, Muted, wrap: true));
         else switch (step)
         {

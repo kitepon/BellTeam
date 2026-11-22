@@ -51,11 +51,9 @@ test('実公開受付の202後に同port交換し、短い業務drain/保存/旧
   const releases = new Map()
   for (const id of ids) {
     const directory = join(root, id)
-    await mkdir(join(directory, 'src'), { recursive: true }); await mkdir(join(directory, 'web'))
+    await mkdir(join(directory, 'src'), { recursive: true })
     await copyFile(join(appRoot, 'src/http-gateway-entry.mjs'), join(directory, 'src/http-gateway-entry.mjs'))
     await symlink(join(appRoot, 'src/http-gateway.mjs'), join(directory, 'src/http-gateway.mjs'))
-    await copyFile(join(appRoot, 'web/assets.mjs'), join(directory, 'web/assets.mjs'))
-    await writeFile(join(directory, 'web/index.html'), `<h1>${id}</h1>`)
     releases.set(id, { versionId: id, appRoot: directory, protocolVersion: 1 })
   }
   const adoptionPath = join(root, 'state/web-gateway-release.json')

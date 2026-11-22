@@ -55,7 +55,7 @@ test('SEC-049: 受付は利用者が送った相手名を捨て、実際の相�
   const seen = []
   const upstream = createServer((incoming, response) => { seen.push(incoming.headers); response.end('{}') })
   upstream.listen(socketPath); await once(upstream, 'listening')
-  const gateway = createHttpGateway({ socketPath, staticRoot: root })
+  const gateway = createHttpGateway({ socketPath })
   gateway.server.listen(0, '127.0.0.1'); await once(gateway.server, 'listening')
   t.after(async () => { await gateway.close(); upstream.close(); await rm(root, { recursive: true, force: true }) })
   await (await fetch(`http://127.0.0.1:${gateway.server.address().port}/api/settings`, {

@@ -613,7 +613,14 @@ struct ScheduleSource: Equatable, Sendable {
     }
 }
 struct ScheduleResponse: Decodable { let schedule: Schedule }
-struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
+struct SessionResponse: Decodable {
+    /// 本体のログイン契約（app-sessions.md 7a）。古い本体には無く、その時は従来のAccess経路を使う。
+    struct Login: Decodable, Equatable { let capability: Bool; let bound: Bool; let enforced: Bool }
+    let authenticated: Bool
+    let authMode: String
+    var login: Login? = nil
+    var sessionId: String? = nil
+}
 struct HarnessOption: Decodable, Identifiable {
     let id: String
     let name: String

@@ -101,7 +101,7 @@ test('公開受付の終了・kill・起動失敗から業務実行を止めず�
   await assert.rejects(stat(socket), { code: 'ENOENT' })
 })
 
-test('gatewayは認証・Host・日本語bytes・応答headerを保ち、資材だけを自分の版から返す', { timeout: 5000 }, async t => {
+test('gatewayは認証・Host・日本語bytes・応答headerを保ち、画面は返さず終了のお知らせだけを返す', { timeout: 5000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-gateway-wire-'))
   const socketPath = join(root, 'backend.sock')
   const seen = []
@@ -123,7 +123,18 @@ test('gatewayは認証・Host・日本語bytes・応答headerを保ち、資材�
   t.after(async () => { await gateway.close(); await new Promise(resolve => backend.close(resolve)); await rm(root, { recursive: true, force: true }) })
   await gateway.start()
   const base = `http://127.0.0.1:${gateway.address.port}`
-  assert.equal((await fetch(base + '/')).status, 401)
+  // a487: the browser UI has ended. Any page that is not /api/* or /healthz is the one notice: no session read, no file, whatever the method or credentials.
+  const NOTICE = 'BellTeamのブラウザ版は終了しました。\nBellTeamはアプリ（iPhone・Mac・Windows・Linux・Android）でお使いください。無料で使うには、公開されているソースコード（https://github.com/kitepon/BellTeam 、MITライセンス）から自分でビルドしてください。\n'
+  const before = seen.length
+  for (const path of ['/', '/index.html', '/app.js?v=x', '/missing', '/sw.js']) {
+    const page = await fetch(base + path)
+    assert.equal(page.status, 410); assert.equal(await page.text(), NOTICE)
+    assert.match(page.headers.get('content-type'), /^text\/plain; charset=utf-8$/u); assert.ok(page.headers.get('x-bellteam-gateway-version'))
+  }
+  assert.equal((await fetch(base + '/', { headers: { authorization: 'synthetic' } })).status, 410)
+  assert.equal((await fetch(base + '/', { method: 'POST', body: 'x' })).status, 410)
+  assert.equal((await fetch(base + '/', { method: 'HEAD' })).status, 410)
+  assert.equal(seen.length, before, 'the notice never reaches the business process')
   const headers = { authorization: 'synthetic', host: 'synthetic.example', 'content-type': 'application/octet-stream' }
   const bytes = Buffer.from('日本語\u0000test')
   const response = await new Promise((resolve, reject) => {
@@ -140,8 +151,7 @@ test('gatewayは認証・Host・日本語bytes・応答headerを保ち、資材�
   assert.equal(response.headers['x-synthetic-result'], 'accepted')
   assert.deepEqual(response.body, bytes)
   assert.deepEqual(seen.at(-1), { url: '/api/synthetic?x=1', host: 'synthetic.example', auth: 'synthetic', method: 'PATCH' })
-  assert.match(await (await fetch(base + '/', { headers })).text(), /<html/u)
-  assert.equal((await fetch(base + '/missing', { headers })).status, 404)
+  assert.equal(seen.at(-1).url, '/api/synthetic?x=1')
   const unknown = await fetch(base + '/api/disconnect', { method: 'POST', body: 'once' })
   assert.equal(unknown.status, 502)
   assert.equal((await unknown.json()).error, 'GATEWAY_RESPONSE_UNKNOWN')

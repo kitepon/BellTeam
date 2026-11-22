@@ -13,7 +13,7 @@
 | 利用機能群 | 入口 → 詳細図/関数 → 所有と結果 | 今回の境界・残件 |
 | --- | --- | --- |
 | HTTP/MCP・接続 | [入口索引](entrypoints.md)の各handler/tool→同じ本体service | 認証・内部席の名札・公開/内部mutationを区別。入口索引だけで各機能の完了にしない |
-| Owner会話・Bot間・通話 | [会話](conversation-flow.md)→[配送詳細](delivery-details.md) | Messengerの発言保存、DeliveryJobの受付/停止、native結果、背景回答を分離。通常executionBridge=null |
+| Owner会話・Bot間・通話 | [会話](conversation-flow.md)→[配送詳細](delivery-details.md) | Messengerの発言保存、DeliveryJobの受付/停止、native結果、背景回答を分離。旧ExecutionBridgeは削除済み（a532b2 stage 1） |
 | 部屋・reply/silent | [配送詳細](delivery-details.md)→RoomMessenger/MCP | 参加者snapshot・全員配送・返信資格・routing失敗。部分配送失敗でも元投稿は残る |
 | 履歴・添付・書出し・SSE | [会話](conversation-flow.md)と[Web](web-details.md) | JSONL writer、読取store/index、表示projection、Web token/queue/URLを分離。一覧の読取順と受理済み変更による失効を保持 |
 | Bot/部屋・プロフィール・規範 | [台帳](registry-details.md)→[Web管理](web-management-details.md) | 台帳保存と指示生成・背景削除・設定反映を区別。未読規範の保存を発行せず、背景削除は受付と表示 |

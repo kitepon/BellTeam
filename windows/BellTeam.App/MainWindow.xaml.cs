@@ -11,6 +11,9 @@ public partial class MainWindow : Window, IInspectorHost
 {
     private readonly Workspace model;
     private readonly DesktopAccess? access;
+    private HomeProbe? homeBinding;
+    // The home server this sign-in screen is for: model.Server is empty until the first connect, so it cannot name it.
+    private Uri? homeOrigin;
     private readonly DesktopNotifications? notifications;
     private readonly SettingsStore settingsStore;
     private StartupPhase startup = StartupPhase.Ready;
@@ -30,16 +33,16 @@ public partial class MainWindow : Window, IInspectorHost
     private bool loadingOlder;
     private bool unreadNew; // a message arrived while the reader was away from the bottom
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null, ApprovalBoxDevice? approvalBox = null)
     {
         this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory);
-        this.access = access;
-        this.notifications = notifications;
+        this.access = access;        this.notifications = notifications;
         SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent(); ProfilePanel.Host = this;
         DataContext = model;
-        approvals = new ApprovalsHub(model) { Show = decisionId => ShowApprovals(decisionId), OpenChart = (project, card) => ShowLattice()?.OpenCard(project, card) };
-        ApprovalsHub.Current = approvals; ApprovalsEntry.Attach(approvals);
+        this.approvalBox = approvalBox;
+        approvals = new ApprovalsHub(model, device: approvalBox?.Device) { Show = decisionId => ShowApprovals(decisionId), OpenChart = (project, card) => ShowLattice()?.OpenCard(project, card) };
+        ApprovalsHub.Current = approvals; ApprovalsEntry.Attach(approvals); approvalBox?.Attach(approvals);
         if (notifications is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Error) && notifications.Error is { } error) Dispatcher.Invoke(() => model.ReportActionError(error)); };
         model.MessageArrived += async message =>
         {
@@ -58,7 +61,7 @@ public partial class MainWindow : Window, IInspectorHost
             await PrefetchOlderAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => { approvals.Dispose(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { approvals.Dispose(); if (approvalBox is not null) _ = approvalBox.DisposeAsync().AsTask(); CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         // a471-open-newest: the view is anchored to the newest end (BottomAnchoredScroller), so a new row at the end moves nothing to follow. Opening or sending anchors it there again; a reader elsewhere is told.
@@ -69,7 +72,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Quote)) UpdateQuoteBar();
             // Mac requireLogin: whenever the server asks for a login, the login screen takes the window.
             if (args.PropertyName == nameof(Workspace.NeedsLogin) && model.NeedsLogin && !connecting) { if (Dispatcher.CheckAccess()) RouteToLogin(); else Dispatcher.BeginInvoke(RouteToLogin); }
-            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } }
+            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } Dispatcher.BeginInvoke(UpdateStrip); }
             // Without a selection (the welcome screen) there is no inspector column, as on the Mac.
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible && page is null) ProfileLayout();
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
@@ -79,9 +82,10 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.Loading) && !model.Loading) Dispatcher.BeginInvoke(async () => await PrefetchOlderAsync(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
-            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
+            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { UpdateStrip(); ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
+        // a485 7c: a request for this app's hand arrives on the stream; a failed read is tried again when the stream next reads everything.
         PreviewKeyDown += Window_KeyDown;
         // Mac scenePhase .active: coming back to the window reads the goals again.
         Activated += (_, _) => { GoalBar.Reload(); (page as GoalsWindow)?.Reload(); };
@@ -312,6 +316,8 @@ public partial class MainWindow : Window, IInspectorHost
     {
         _ = CropAsync(image, variant, null, false); return cropView!;
     }
+    private void UpdateStrip() => ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible;
+
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;
@@ -345,6 +351,7 @@ public partial class MainWindow : Window, IInspectorHost
         return window;
     }
     private readonly ApprovalsHub approvals;
+    private readonly ApprovalBoxDevice? approvalBox;
     // The 決裁箱 window, one at a time like 工程表: null opens the list, an id opens that decision's 詳細 (the 工程表 詳細's 決裁を開く).
     internal ApprovalsWindow? ShowApprovals(string? decisionId = null)
     {
@@ -367,7 +374,7 @@ public partial class MainWindow : Window, IInspectorHost
     // Render seam: the schedule page when it is the open page.
     internal SchedulesWindow? SchedulesPage => page as SchedulesWindow;
     internal SettingsWindow? SettingsPageWindow => page as SettingsWindow;
-    public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
+    public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync(), () => _ = DeleteAccountAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
     private bool ShowPage(EditorWindow editor)
     {
         if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
@@ -493,14 +500,44 @@ public partial class MainWindow : Window, IInspectorHost
         ShowConversation(); ShowServerSetup();
     }
     public void ShowServerSetup() => ShowStartup(StartupPhase.Setup);
+    // a487, app-sessions.md 7d: the first screen is sign-in and the account; サーバーにつなぐ leaves it for the saved server, or for the address entry when none is saved.
+    public void ShowAccount() => ShowStartup(StartupPhase.Account);
+    private void ConnectFromAccount() { if (settingsStore.Load().ServerUrl is { Length: > 0 } saved) _ = ConnectAsync(saved); else ShowServerSetup(); }
     // Render seam: the opening screen.
     public void ShowOpeningForRender() => ShowStartup(StartupPhase.Checking);
     private async Task SignOutAsync()
     {
         ShowConversation(); signingOut = true;
+        var ended = await EndServerSessionAsync();
         try { model.SignOut(); } finally { signingOut = false; }
+        if (ended is not null) model.ReportActionError(ended);
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
+    }
+    // Test and render seam: the result alert.
+    internal Action<string, string> ShowResult { get; set; } = (title, body) => MessageBox.Show(Application.Current?.MainWindow, body, title, MessageBoxButton.OK);
+    // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md): Approval Box sign-in and device data, then the server session, notifications, web login and the saved address, then the library's signOut; one result alert on the first screen.
+    // Each step reaches as far as it can; what could not be finished is told instead of the result. Other devices are not stopped.
+    internal async Task DeleteAccountAsync()
+    {
+        ShowConversation(); signingOut = true;
+        var problems = new List<string>();
+        async Task Step(Func<Task> run) { try { await run(); } catch (Exception error) { problems.Add(error.Message); } }
+        try
+        {
+            if (approvalBox is not null) await Step(() => approvalBox.DeleteLocalDataAsync(CancellationToken.None));
+            if (await EndServerSessionAsync() is { } ended) problems.Add(ended);
+            await Step(() => { AccountStore.ForgetHome(); return Task.CompletedTask; });
+            await Step(() => { model.SignOut(); return Task.CompletedTask; });
+            if (notifications is not null) await Step(() => notifications.SetEnabledAsync(false, persist: false));
+            if (access is not null) await Step(access.SignOutAsync);
+            await Step(() => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; });
+            if (AccountStore.Billing is { } billing) await Step(() => billing.SignOutAsync(CancellationToken.None));
+        }
+        finally { signingOut = false; }
+        ShowAccount();
+        if (problems.Count == 0) ShowResult(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
+        else ShowResult(AccountDeletionText.FailedTitle, string.Join("\n", problems));
     }
     private async Task ChangeServerAsync(string address)
     {
@@ -533,17 +570,33 @@ public partial class MainWindow : Window, IInspectorHost
             StartupPhase.Checking => new StartupOpeningView(),
             // A manual retry keeps this page (the automatic path) so 「接続しています…」 shows instead of the opening view.
             StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
+            StartupPhase.Account => new AccountGateView(AccountStore.Billing, ConnectFromAccount),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
-            StartupPhase.SignIn => new LoginView(OpenLoginSheet),
+            StartupPhase.SignIn => homeBinding is { } probe && homeOrigin is { } at && AccountStore.Home is { } home ? new HomeConnectView(home, probe, at, () => { homeBinding = null; _ = ConnectAsync(at.AbsoluteUri, openLogin: false); }, OpenConnectionSettings) : new LoginView(OpenLoginSheet),
+            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
     }
     private bool AskServerChange() => new ConfirmationWindow("接続先を変更しますか？", "今のサーバーからログアウトして、接続先の入力に戻ります。", "接続先を変更") { Owner = this }.ShowDialog() == true;
     public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
-    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
+    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) _ = RouteToLoginAsync(); }
+    private async Task RouteToLoginAsync() { if (!await ShowHomeSignInAsync()) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
+    // a487: a home server (GET /api/home/session) is answered by this app's own sign-in at it, never by Access; true when that screen is up.
+    private async Task<bool> ShowHomeSignInAsync()
+    {
+        if (AccountStore.Home is null || await HomeGate.ProbeAsync(ServerOrigin.Parse(model.Server), CancellationToken.None) is not { } probe) return false;
+        homeBinding = probe; homeOrigin = ServerOrigin.Parse(model.Server); ShowStartup(StartupPhase.SignIn); return true;
+    }
     // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).
-    private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
+    private void ShowSignIn(bool openLogin) { homeBinding = null; ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
+    // Sign-out ends this app's own session at the home server (the library's signOut does not); a failure is told after the sign-out and the record stays for a retry.
+    private static async Task<string?> EndServerSessionAsync()
+    {
+        if (AccountStore.Home is not { } home) return null;
+        try { await home.EndHomeSessionAsync(); return null; }
+        catch (Exception error) { return "サーバー側のログインを終了できませんでした。" + error.Message; }
+    }
     private void OpenLoginSheet()
     {
         if (access is null) return;
@@ -567,6 +620,8 @@ public partial class MainWindow : Window, IInspectorHost
         if (!(automatic && startup == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
         try
         {
+            // A home server with no kept login is answered by its own sign-in before anything else is read.
+            if (AccountStore.Home is { } home && await HomeGate.MustBindAsync(home, ServerOrigin.Parse(address), CancellationToken.None) is { } probe) { homeBinding = probe; homeOrigin = ServerOrigin.Parse(address); ShowStartup(StartupPhase.SignIn); return; }
             await model.ConnectAsync(address);
             await EnterAsync(generation, openLogin, null);
         }
@@ -581,13 +636,19 @@ public partial class MainWindow : Window, IInspectorHost
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
         if (generation != connectGeneration) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
+        bool paywalled;
+        try { paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken); }
+        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
+        if (generation != connectGeneration) return;
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
         if (route != StartupPhase.Failure) startupAttempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
-            case StartupPhase.SignIn: ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
+            case StartupPhase.SignIn: if (!await ShowHomeSignInAsync()) ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
+            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
     }

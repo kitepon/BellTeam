@@ -594,68 +594,18 @@ test('Bot作成APIは偽の初回会話を作らず、作成結果を一度だ�
   assert.equal(created, 1)
 })
 
-test('HTMLへ起動単位のasset versionを埋め込み、古いJavaScriptとの混在を防ぐ', async (t) => {
-  const staticRoot = await mkdtemp(join(tmpdir(), 'bellteam-static-'))
-  await writeFile(join(staticRoot, 'index.html'), '<link href="/styles.css?v=__ASSET_VERSION__"><script src="/app.js?v=__ASSET_VERSION__"></script>')
-  await writeFile(join(staticRoot, 'app.js'), 'import "./chat-input.js?v=__ASSET_VERSION__"; import "./activity-order.js?v=__ASSET_VERSION__"')
-  await writeFile(join(staticRoot, 'chat-input.js'), 'export const ok = true')
-  await writeFile(join(staticRoot, 'activity-order.js'), 'export const ok = true')
-  await writeFile(join(staticRoot, 'styles.css'), 'body{}')
-  const server = createBellTeamServer({
-    bots: new Map(), authorize: mockAuthorize, staticRoot, assetVersion: 'release-123',
-    messenger: {}, store: {}, transport: {},
-  })
+test('a487: 本体の公開受付は画面を持たず、API以外のpathは認可の後に404を返す', async (t) => {
+  const server = createBellTeamServer({ bots: new Map(), authorize: mockAuthorize, messenger: {}, store: {}, transport: {} })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   t.after(() => server.close())
   const base = `http://127.0.0.1:${server.address().port}`
-
   const headers = { 'cf-access-jwt-assertion': 'test-assertion' }
   assert.equal((await fetch(`${base}/`)).status, 401)
-  const response = await fetch(`${base}/`, { headers })
-  const html = await response.text()
-  assert.match(html, /app\.js\?v=release-123/u)
-  assert.match(html, /styles\.css\?v=release-123/u)
-  assert.doesNotMatch(html, /__ASSET_VERSION__/u)
-  assert.equal(response.headers.get('cache-control'), 'no-cache')
-  const app = await (await fetch(`${base}/app.js?v=release-123`, { headers })).text()
-  assert.match(app, /chat-input\.js\?v=release-123/u)
-  assert.match(app, /activity-order\.js\?v=release-123/u)
-  assert.doesNotMatch(app, /__ASSET_VERSION__/u)
-  assert.equal((await fetch(`${base}/chat-input.js`, { headers })).status, 200)
-  assert.equal((await fetch(`${base}/activity-order.js`, { headers })).status, 200)
-})
-
-test('Webアプリがimportする実ファイルを同じ版で最後まで配信する', async t => {
-  const server = createBellTeamServer({
-    bots: new Map(), authorize: mockAuthorize,
-    staticRoot: fileURLToPath(new URL('../web/', import.meta.url)), assetVersion: 'import-graph-test',
-    messenger: {}, store: {}, transport: {},
-  })
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
-  t.after(() => server.close())
-  const base = `http://127.0.0.1:${server.address().port}`
-  const pending = [new URL('/app.js?v=import-graph-test', base)]
-  const visited = new Set()
-  while (pending.length) {
-    const url = pending.pop()
-    if (visited.has(url.pathname)) continue
-    visited.add(url.pathname)
-    const response = await fetch(url, { headers: { 'cf-access-jwt-assertion': 'test-assertion' } })
-    assert.equal(response.status, 200, `${url.pathname}を配信できない`)
-    assert.match(response.headers.get('content-type'), /javascript/u)
-    const module = await response.text()
-    assert.doesNotMatch(module, /__ASSET_VERSION__/u, `${url.pathname}の版が未置換`)
-    for (const match of module.matchAll(/(?:from\s*|^\s*import\s*)['"](\.[^'"]+)['"]/gmu)) {
-      const dependency = new URL(match[1], url)
-      assert.equal(dependency.searchParams.get('v'), 'import-graph-test')
-      pending.push(dependency)
-    }
+  for (const path of ['/', '/index.html', '/app.js?v=x', '/missing']) {
+    const response = await fetch(base + path, { headers })
+    assert.equal(response.status, 404); assert.deepEqual(await response.json(), { error: 'NOT_FOUND' })
   }
-  assert.ok(visited.has('/onboarding.js'))
-  assert.ok(visited.has('/auth-flow.js'))
-  assert.ok(visited.has('/server-origin.js'))
 })
 
 test('Web APIからルーム作成・設定・会話・予定を操作できる', async (t) => {
@@ -1000,4 +950,31 @@ test('止める時に処理中だった接続は、応答を返し終えたら�
   assert.equal((await pending).status, 200)
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('接続が閉じない')), 3000).unref())
   await Promise.race([closed, timeout])
+})
+
+test('a485: with the home front, Enforced admits only a session, 503 when it cannot judge, Legacy keeps the old authorizer, seats are untouched', async (t) => {
+  const answers = { legacy: 'legacy', none: 'none', unavailable: 'unavailable', session: { sessionId: 's1' } }
+  let mode = 'legacy'
+  const homeFront = { async route() { return false }, async judge() { return answers[mode] }, stateOf: id => id === 's1' ? 'none' : undefined }
+  const server = createBellTeamServer({ bots: new Map(), authorize: mockAuthorize, messenger: {}, store: {}, transport: {}, homeFront,
+    subscriptions: { async current() { return { entitled: true, entitlementState: 'active' } } } })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => server.close())
+  const base = `http://127.0.0.1:${server.address().port}`
+  const jwt = { 'cf-access-jwt-assertion': 'test-assertion' }
+  const status = async (path, headers = {}) => (await fetch(`${base}${path}`, { headers })).status
+  assert.equal(await status('/api/subscription', jwt), 200) // Legacy: the old authorizer
+  assert.equal(await status('/api/subscription'), 401)
+  mode = 'none'
+  assert.equal(await status('/api/subscription', jwt), 401) // Enforced: a Cloudflare JWT no longer proves the owner
+  assert.deepEqual(await (await fetch(`${base}/api/session`, { headers: jwt })).json().then(body => body.authenticated), false)
+  mode = 'unavailable'
+  const unavailable = await fetch(`${base}/api/subscription`, { headers: jwt })
+  assert.equal(unavailable.status, 503)
+  assert.deepEqual(await unavailable.json(), { error: 'SESSION_STORE_UNAVAILABLE' })
+  mode = 'session'
+  const body = await (await fetch(`${base}/api/subscription`)).json()
+  assert.equal(body.subscription.entitlementState, 'none') // the session's own state, not the server's
+  assert.equal(await status('/healthz'), 200)
 })

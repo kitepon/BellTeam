@@ -456,7 +456,7 @@ public partial class App : Application
             if (e.Args.Length == 0 && await ShareActivation.ReadAsync() is { } shared)
             {
                 var shareAccess = new DesktopAccess();
-                var shareWorkspace = new Workspace(origin => new BellApi(origin, cookies: shareAccess.Cookies), shareAccess.RestoreAsync);
+                var shareWorkspace = new Workspace(origin => new BellApi(origin, cookies: shareAccess.Cookies) { SessionToken = AccountStore.HomeToken(origin) }, shareAccess.RestoreAsync);
                 var shareWindow = new ShareWindow(shareWorkspace, shared.Content, shared.Images, shared.Skipped) { Completed = () => shared.Operation?.ReportCompleted() };
                 shareWindow.Closed += (_, _) => { shareWorkspace.Dispose(); Shutdown(0); };
                 MainWindow = shareWindow; shareWindow.Show();
@@ -467,14 +467,14 @@ public partial class App : Application
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
             if (!instance.IsPrimary) { Shutdown(0); return; }
             var access = new DesktopAccess();
-            var workspace = new Workspace(origin => new BellApi(origin, cookies: access.Cookies), access.RestoreAsync);
+            var workspace = new Workspace(origin => new BellApi(origin, cookies: access.Cookies) { SessionToken = AccountStore.HomeToken(origin) }, access.RestoreAsync);
             var notifications = new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.BeginInvoke(() => _ = main!.OpenNotificationAsync(server, target)));
-            main = new MainWindow(workspace, access: access, notifications: notifications);
+            main = new MainWindow(workspace, access: access, notifications: notifications, approvalBox: ApprovalBoxDevice.Enabled ? new ApprovalBoxDevice(SettingsStore.UserDirectory) : null);
             MainWindow = main;
             main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show("通知の終了処理を完了できませんでした。" + error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
             main.Show();
             var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
-            if (StartupRoute.Initial(settings.ServerUrl) == StartupPhase.Setup) main.ShowServerSetup(); else await main.ConnectAsync(settings.ServerUrl!);
+            if (StartupRoute.Initial(settings.ServerUrl, AccountStore.SignedIn) == StartupPhase.Account) main.ShowAccount(); else await main.ConnectAsync(settings.ServerUrl!);
         }
         catch (Exception error)
         {

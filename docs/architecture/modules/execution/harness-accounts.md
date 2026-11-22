@@ -203,6 +203,36 @@ flowchart LR
 
 Seat name format (public contract with integration `seat-mcp`, #759): a Bot's seat is `<botId>` or `<botId>-<slot>-<base36>`, slot in `ACCOUNT_SLOTS` (`1st`, `2nd`), base36 `[a-z0-9]+`. The seat's `X-Bellteam-Seat` header is that name (`AITERM_SESSION_ID`); `seat-mcp` resolves the exact name first, then the account form to `<botId>`, and keeps the full name as `launch.session_id`. Any other suffixed name (child seats) stays unresolved. Adding a slot changes the `seat-mcp` pattern in the same release. Without this resolution an account seat has no BellTeam identity (production 2026-11-09 11:5x JST: Trony's and Black's 2nd seats got `BELLTEAM_SEAT_UNRESOLVED` on bellteam and call-bridge).
 
+### A delivery whose turn ends at the usage limit (a526, 2026-11-23)
+
+Production 2026-11-22 15:06:33-15:07:37Z: the 2nd account's weekly limit (both slots limited, `allLimited` until 11-25 19:00Z) ended the turns of ~21 seats at once. 11 deliveries, among them the Owner's own to Nayuta and Hansel, were recorded `failed` (`BOT_SEND_FAILED` / `BOT_LAUNCH_FAILED`) although the seat had taken the text (an `input` in its activity 1-11 s before the failure) and only the TURN stopped at the limit. The Owner re-sent them. A "failed" for a text that arrived is a give-up with no protection behind it, so it is removed.
+
+| State of the delivery | Event | Next state | What the Owner sees |
+| --- | --- | --- | --- |
+| queued -> dispatching | input typed and accepted by the seat | running | the message, as sent |
+| running | the turn ends `rate_limited` (wait outcome `rate_limited`, or `failure.category: rate_limited`), receipt present (input accepted), not stopped | **delivered** (was: `failed`) | the message as delivered, plus the seat's own words: 「利用上限に達したため、このターンはここで止まりました。」(a443, from the seat's record or this sentence). No 配達失敗, no re-send needed |
+| running | the turn ends any other way (error, closed, not taken) | failed (unchanged) | 配達失敗 |
+| not accepted | the seat could not be started or typed into | failed (unchanged) | 配達失敗 |
+
+What keeps the work: nothing new. `recordAccountLimit` still writes the limit into the registry, Aiterm's `limit_end` (`at`, `continued: false`) on that seat still arms the one continuation, and the registry timer clearing the limit at `resetAt` (or any slot becoming free) runs `reviewAccounts` -> `recoverMember`, which sends ONE continuation message (`（継続キー: <limit_end.at>）`) to every seat whose last turn is that limit end. So an Owner message that arrived while both slots were limited is continued by the seat after the reset, not lost and not to be re-sent.
+
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> dispatching
+  dispatching --> running: input accepted by the seat
+  dispatching --> failed: not started or not typed
+  running --> delivered: turn ends normally
+  running --> delivered: turn ends rate_limited (a526)
+  running --> failed: turn ends in another error
+  delivered --> continued: limit end seen: ONE continuation at reset or when a slot is free (recoverMember)
+  continued --> [*]
+  delivered --> [*]
+  failed --> [*]
+```
+
+Self-exit: the limit entry clears at its `resetAt` (timer) or when a slot is logged in and not limited; the continuation then runs once per limit end (the claim at the input boundary). Named limit: a seat whose last turn did not end at a limit end Aiterm can see (no `limit_end` row) gets no continuation; its message stays answered by the limit words only.
+
 ## Deployment order (one login per slot, cross-cutting, 2026-11-11)
 
 1. Aiterm with E6 and E7, in the body and on every terminal (rabbit, Mac, fox; Elegg). Without E7 a hibernated seat whose recipe lacks the variable gets `AGENT_RESUME_CONFLICT` once the variable is named, and a renewed token would not reach a resumed seat.
@@ -229,7 +259,9 @@ The link-based `prepare` (only the execution module ships `src/harness-accounts.
 | Limit signal → registry | `AitermTransport.recordAccountLimit` from the delivery completion (wait outcome `rate_limited` or `failure.category` `rate_limited`; text = `rate_limit` or `error`) |
 | Failover | `CapacityContinuation.continue`: an account limit asks the transport for the member's account recovery (`transport.recoverAccount`); the continuation text is `CapacityContinuation.resume`. The existing harness switch stays for a capacity failure with Aiterm's terminal proof and no account limit |
 | Limit end, recovery | `AitermTransport.limitEnds` (one `pty_list`: the member's Claude rows with `last_input_at` / `limit_end`), `recoverMember` (table above: `pty_key Escape` on armed holds, `HarnessAccounts.intendResume`, `switchAccount` when on another slot, `CapacityContinuation.resume` with `continuationKey`); `AitermTransport.claimContinuation` in `#notify` → `HarnessAccounts.claimResume` / `releaseResume`; the accepted input in `#notify` (time taken before `dispatchInOrder`) → `HarnessAccounts.recordInput` (memory at once, then `inputs`; read by `continuationDue` via `inputAt`); a self-started turn's limit word → `HarnessAccounts.recordLimit` in `watchTurn` |
-| Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change and after a model change applied in place (`reconfigureNow`); it waits for the member's running turn to end, never stops it, then calls `switchAccount` (a new seat; nothing for Aiterm to refuse). A retired engine closes its registry timers (an old engine's timer must not write its stale registry at a later reset) |
+| Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change and after a model change applied in place (`reconfigureNow`); it waits for the member's running turn to end, never stops it, then calls `switchAccount` (a new seat; nothing for Aiterm to refuse). A retired engine closes its registry timers (an old engine's timer must not write its stale registry at a later reset). **A move that ends unconfirmed (a2026-11-22, a496m)** is a give-up and so a guard: `moveAtBoundary` logs `seat move unconfirmed` and starts ONE shared timer (`moveRetryMs`, 60 s, unref'd, cleared in `close`) that runs `reviewAccounts` again. The review moves only a seat whose recorded slot differs from the effective slot (or that is due a renewal or recovery), so the retry repeats while a move keeps failing and stops by itself when a move succeeds (`setSeat` equalises the slot): no cap, no hot loop (at most one review per minute, one `pty_list`). Before this, a failed move waited for the next registry change, which can be days (production 11-22: ~35 members' moves to the 2nd ended unconfirmed in the 17:37Z mass move). |
+| Which account a seat really uses | The slot inside the seat name (`<botId>-<slot>-<base36>`) is the slot it was LAUNCHED on. A resume (`resumeRestartedSeat`, E7) keeps the name and the conversation but takes the registry slot's token into the process env, then records that slot (`setSeat`). So name and registry can differ, and the registry (= the token the process carries) is the truth: checked 2026-11-22 on the container, Nayuta's `bot-4366a50b-1st-mwoovd1e` carries the 2nd token (sha256 prefix compared, never printed); 17 live seats, all on the 2nd. Nothing compares names with the registry. |
+| Display label and usage | `HarnessAccounts.label` reads the e-mail from the slot's `.credentials.json` and the usage fallback in `recordLimit` reads its OAuth token. Both slots log in with the setup-token file `oauth-token` (one login per slot, 11-11), whose token has no profile scope (`/api/oauth/profile` 403) and gets 429 on `/api/oauth/usage`; the old `.credentials.json` files are expired (1st 11-11, 2nd 11-15). So the label is null and the usage fallback is empty by design: the limit text of the seat's own turn (`recordLimit` text, `rate_limit_event`) decides scope and time. Clients already tolerate `label: null`. No code reads the expired file for a decision. |
 | Successful-turn exit | `AitermTransport.accountTurnDone` on delivery completion |
 | Parent Aiterm env | `AitermClient` (parent clients): `AITERM_CLAUDE_CONFIG_ROOTS` in its own env and in the seat launcher's process env, never in `env_vars`. In production the parent connection starts through the seat command (`/usr/bin/env VAR=… aiterm`), which does not carry `this.env`, so the variable is also an `env` argument there (`seatConnectionEnvironment`). Without it Aiterm rejects every 2nd-root call (`agent_auth` status/start: production 2026-11-08 22:3x JST, USAGE_OPERATION_FAILED). Parent-image source: it goes live with a body swap |
 | MCP registration and settings of slot roots | nothing to copy: `writeHarnessConfig` writes the 1st `.claude.json`, which the 2nd links to (it no longer writes into slot roots: an atomic rename there would replace the link). A failed `prepare` is logged; the launch goes on with the links already there |

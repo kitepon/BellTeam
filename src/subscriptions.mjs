@@ -75,6 +75,9 @@ export class Subscriptions {
       accessMode: this.accessMode,
       setupComplete: this.state.setupComplete,
       entitled,
+      // a486c: the server's own contract as the native apps show it (the Web version is never gated). 'none' is set only once the server holds its own pass
+      // and the operator says there is no contract (the library mount); until then a server that is not entitled is 'unknown', so no app shows a paywall by guess.
+      entitlementState: entitled || this.accessMode === 'developer' ? 'active' : 'unknown',
       // Webと共有サーバーのAI利用は無料。Appleアプリの購入状態はentitledで返す。
       canUseAI: true,
       state: verification?.state ?? 'not_purchased',

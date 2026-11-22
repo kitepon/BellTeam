@@ -157,8 +157,9 @@ export function createOnePasswordSource({ command, environment = process.env, ex
       const output = typeof result === 'string' ? Buffer.from(result) : result?.stdout
       if (!Buffer.isBuffer(output) || output.length === 0 || output.includes(0) || output.length > maxBuffer) throw unavailable()
       return output.toString('utf8')
-    } catch {
-      throw unavailable()
+    } catch (error) {
+      // a500: 1Password's account-wide limit is told apart (op prints "Too many requests"); op's own text never leaves here.
+      throw /too many requests|rate.?limit/iu.test(String(error?.stderr ?? '')) ? Object.assign(unavailable(), { reason: 'rate_limited' }) : unavailable()
     }
   }
 

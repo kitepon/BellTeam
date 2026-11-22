@@ -1,7 +1,6 @@
 import { access, chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { isSupportedServerURL } from './server-address.mjs'
-import { validateWebPushSubject } from './usage/web-push-schema.mjs'
 
 const features = [
   { id: 'routing', title: 'AIによるルーム応答の振り分け', fields: [{ key: 'apiKey', label: 'TypeSafe APIキー', secret: true }] },
@@ -14,7 +13,6 @@ const features = [
   ] },
   { id: 'diagnostics', title: '診断情報の連携', fields: [{ key: 'key', label: 'BugHubの合鍵', secret: true }] },
   { id: 'notifications', title: 'プッシュ通知', fields: [{ key: 'relayUrl', label: '通知中継URL', url: true }] },
-  { id: 'webPush', title: 'ブラウザーの通知', fields: [{ key: 'subject', label: '通知運用の公開連絡先' }] },
   { id: 'onePassword', title: '1Password連携', fields: [{ key: 'token', label: 'サービスアカウントのトークン', secret: true }],
     guide: {
       steps: [
@@ -30,7 +28,7 @@ const features = [
   { id: 'thinkingDisplay', title: 'AIの考えの表示', fields: [] },
 ]
 // Features added after the first release; a stored file without them gains their disabled default.
-const lateFeatures = ['webPush', 'onePassword', 'thinkingDisplay']
+const lateFeatures = ['onePassword', 'thinkingDisplay']
 const onePasswordErrors = {
   ONEPASSWORD_TOKEN_REJECTED: 'このトークンで1Passwordに接続できませんでした。トークンを貼り直してください。サービスアカウントが無効になっていないか、通信ができるかも確かめてください。',
   ONEPASSWORD_CLI_MISSING: 'この本体には1Passwordに接続する道具がありません。BellTeamを更新してください。',
@@ -70,10 +68,6 @@ function validateValues(feature, values) {
     }
     if (feature.id === 'onePassword' && value.trim() && !/^ops_\S+$/u.test(value.trim())) {
       throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, 'サービスアカウントのトークンは「ops_」で始まる文字です。1Passwordで表示されたトークンをそのまま貼ってください。')
-    }
-    if (feature.id === 'webPush' && value !== '') {
-      try { validateWebPushSubject(value) }
-      catch { throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '通知運用の公開連絡先の形式が正しくありません。') }
     }
     if (!value.trim()) continue
     if (field.url || field.domain) {
@@ -118,6 +112,9 @@ export class FeatureSettings {
       try {
         const settings = JSON.parse(text)
         if (!object(settings)) throw new Error('設定項目が一致しません。')
+        // a487n: Web push is gone (the browser version is abolished); an entry written by an older version is dropped.
+        const droppedWebPush = Object.hasOwn(settings, 'webPush')
+        delete settings.webPush
         const missing = features.filter(feature => !Object.hasOwn(settings, feature.id))
         if (missing.some(feature => !lateFeatures.includes(feature.id))) throw new Error('設定項目が一致しません。')
         const expected = features.filter(feature => Object.hasOwn(settings, feature.id))
@@ -132,7 +129,7 @@ export class FeatureSettings {
         }
         this.settings = { ...settings, ...Object.fromEntries(missing.map(feature => [feature.id, {
           enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])) }])) }
-        if (missing.length && !readOnly) await this.save(this.settings)
+        if ((missing.length || droppedWebPush) && !readOnly) await this.save(this.settings)
       } catch (cause) {
         throw new FeatureSettingsError('FEATURE_SETTINGS_INVALID', 500, '保存済みの設定を読み取れません。', cause)
       }

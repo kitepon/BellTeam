@@ -114,6 +114,10 @@ export const conversationTools = Object.freeze([
   },
 ])
 
+// a521: a remote seat's path is in its terminal's own form (a Windows 'C:\\x.png' is not absolute on the body), so it skips the body-side resolver; the terminal read judges it.
+// Only these tools: set_avatar reads the body's disk and keeps resolveBotImagePath's guard.
+const imagePath = (bot, image) => bot?.terminalId && bot?.projectRoot ? image : resolveBotImagePath(bot, image)
+
 // 呼出元のidentity・引数キー・台帳refreshは共通MCP入口で確認する。
 export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued }) {
   if (name === 'sendmessage') {
@@ -121,7 +125,7 @@ export async function callConversationTool({ name, args, from, registry, messeng
     return (deliverMessage ?? (value => messenger.sendmessage(value)))({
       from, ...message,
       target: args.target === 'user' ? 'user' : resolveBotTarget(registry, args.target),
-      image: image ? { path: await resolveBotImagePath(registry.get(from), image) } : null,
+      image: image ? { path: await imagePath(registry.get(from), image) } : null,
     })
   }
   if (name === 'ask_readonly') {
@@ -171,7 +175,7 @@ export async function callConversationTool({ name, args, from, registry, messeng
     return (deliverRoomMessage ?? (value => roomMessenger.sendroommessage(value)))({
       from, ...message,
       ...(args.targets ? { targets: args.targets.map(target => resolveBotTarget(registry, target)) } : {}),
-      image: image ? { path: await resolveBotImagePath(registry.get(from), image) } : null,
+      image: image ? { path: await imagePath(registry.get(from), image) } : null,
     })
   }
   if (name === 'respond_to_room') {
@@ -211,7 +215,7 @@ export async function callConversationTool({ name, args, from, registry, messeng
     const result = await (deliverRoomMessage ?? (value => roomMessenger.sendroommessage(value)))({
       from, room: roomId, responseTo: active.groupId, ...message,
       ...(replyTargets ? { targets: replyTargets } : {}),
-      image: image ? { path: await resolveBotImagePath(registry.get(from), image) } : null,
+      image: image ? { path: await imagePath(registry.get(from), image) } : null,
     })
     return { id: result.id, delivery: result.delivery ?? 'posted', ...(result.failedTargets ? { failedTargets: result.failedTargets } : {}) }
   }

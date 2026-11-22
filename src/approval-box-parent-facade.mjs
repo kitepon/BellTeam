@@ -4,8 +4,8 @@
 const unavailable = () => Object.assign(new Error('APPROVALS_UNAVAILABLE'), { code: 'APPROVALS_UNAVAILABLE', status: 503 })
 // Request errors the app can act on keep the child's code; anything else means the child is not serving.
 const PASS = new Map([['APPROVALS_NOT_ENTITLED', 403], ['APPROVALS_NOT_CONNECTED', 409], ['APPROVALS_SUBSCRIPTION_EXPIRED', 402], ['APPROVALS_NOT_FOUND', 404],
-  ['APPROVALS_RATE_LIMITED', 429], ['APPROVALS_VALIDATION_FAILED', 400]])
-const ROOTS = ['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment', 'byTask', 'connection', 'connect', 'cancelConnect', 'disconnect']
+  ['APPROVALS_RATE_LIMITED', 429], ['APPROVALS_VALIDATION_FAILED', 400], ['APPROVALS_ANSWER_ON_DEVICE', 409]])
+const ROOTS = ['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment', 'byTask', 'byDecision', 'connection', 'connect', 'cancelConnect', 'disconnect']
 
 export function createApprovalsFacade({ controller, activeMs = 2000, idleMs = 30000, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Set()

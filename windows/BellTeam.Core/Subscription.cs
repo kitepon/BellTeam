@@ -17,6 +17,8 @@ public sealed record SubscriptionState
     public string? AccessMode { get; init; }
     public bool SetupComplete { get; init; }
     public JsonElement? Error { get; init; }
+    // a485 7e: the server's own entitlement, "active" | "none" | "unknown"; an older server has no field.
+    public string? EntitlementState { get; init; }
 }
 public sealed record SubscriptionResponse { public required SubscriptionState Subscription { get; init; } }
 // POST /api/subscription/stripe/checkout: the URL to open and the Session ID that stripe/verify takes after the return.
@@ -28,6 +30,12 @@ public sealed record StripeManage { public required string Url { get; init; } }
 public sealed class SubscriptionApi(BellApi api)
 {
     public async Task<SubscriptionState> GetAsync(CancellationToken token = default) => (await api.GetAsync<SubscriptionResponse>("/api/subscription", token)).Subscription;
+    // a485 7e (Tronie): only "none" shows the paywall. A server without the field, "active", "unknown" and a failed read all show the app: the paywall is the server's answer, never a guess.
+    public async Task<bool> PaywalledAsync(CancellationToken token = default)
+    {
+        try { return (await GetAsync(token)).EntitlementState == "none"; }
+        catch (Exception error) when (error is not OperationCanceledException) { return false; }
+    }
     public async Task<SubscriptionState> RefreshAsync(CancellationToken token = default) => (await api.PostAsync<SubscriptionResponse>("/api/subscription/refresh", new { }, token)).Subscription;
     // Each call makes a new Stripe Checkout (the server changes no state). 503 SUBSCRIPTION_NOT_CONFIGURED (Stripe not set up) and 409 SUBSCRIPTION_NOT_REQUIRED (developer server) mean there is nothing to buy: see OffersPurchase.
     public Task<StripeCheckout> CheckoutAsync(CancellationToken token = default) => api.PostAsync<StripeCheckout>("/api/subscription/stripe/checkout", new { }, token);
@@ -47,6 +55,8 @@ public static class SubscriptionText
 {
     // docs/billing-client-contract.md (a358): Windows and Linux list Stripe first, then the other two stores, as equal rows; only Stripe can be bought here.
     public static readonly string[] Stores = ["Stripe", "App Store", "Google Play"];
+    // a485/a486 7e (Owner 2026-11-22): shown instead of the native app when the server's entitlement is "none"; there is no browser version.
+    public const string Paywall = "このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。";
     public const string Start = "購入";
     public const string Price = "月980円（税込）";
     public const string FreeMonth = "最初の1か月無料";
@@ -63,6 +73,8 @@ public static class SubscriptionText
     public static string NotRenewingRow(DateTimeOffset until) => $"次回の更新はありません。{until.ToLocalTime():yyyy年M月d日 H:mm}まで使えます。";
     public const string Verify = "購入を確認";
     public const string Recheck = "再確認";
+    // a485 (Bready's final wording): where the server has no live contract or is not logged in, no app buys anything here.
+    public const string BuyOnApple = "iPhone・iPad・Macで購入し、このサーバーをログインさせてください。";
     public const string Trial = "無料期間中です。";
     public static string ValidUntil(DateTimeOffset value) => "有効期限：" + value.ToLocalTime().ToString("yyyy年M月d日 H:mm");
     // The state lines of a plan that is active: expiry, then the trial note when it applies (the non-renewing line sits on the source's row: NotRenewingRow).

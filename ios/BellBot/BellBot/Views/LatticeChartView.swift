@@ -1521,7 +1521,7 @@ struct LatticeDetailPanel: View {
                 }
                 if let decision, let state = decision.stateText {
                     section("決裁") {
-                        Label { Text(verbatim: "\(decision.title)（\(state)）").fixedSize(horizontal: false, vertical: true) } icon: {
+                        Label { Text(verbatim: decision.title.isEmpty ? "決裁（\(state)）" : "\(decision.title)（\(state)）").fixedSize(horizontal: false, vertical: true) } icon: {
                             Image(systemName: "checkmark.seal").foregroundStyle(LatticePalette.amber)
                         }
                         .font(.system(size: 13.5, weight: .medium)).foregroundStyle(LatticePalette.ink)

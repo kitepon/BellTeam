@@ -14,7 +14,7 @@ flowchart TD
   Store --> Prepare[runtime prepareGatewayRelease<br/>root受入記録・manifest・file実bytesを再確認]
   Prepare --> Descriptor[versionId / appRoot / protocolVersion 1]
   Descriptor --> Share[integration: 旧受付子へasset-version 新版key/root → ack]
-  Share -->|ack| Ready[新受付子を同portへreusePortで起動・自分のprobePortでGET / ready]
+  Share -->|ack| Ready[新受付子を同portへreusePortで起動・自分のprobePortで/api/sessionを読んでready]
   Ready --> Adopt[親UID1001: 採用版記録をatomic更新]
   Adopt --> Alive{新受付子はまだ生存}
   Alive -->|生存| Commit[新子を採用・旧受付子へclose 5秒drain]
