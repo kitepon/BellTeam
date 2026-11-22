@@ -27,7 +27,7 @@ flowchart LR
   R --> P["APNs / FCM"]
 ```
 
-券の経路は端末トークンのSHA-256（`value`）と期限内の購読（apple・google・exempt）だけを見る。`BELLTEAM_TICKET_CHECK_URL` が無ければ券つきの要求は503（`SUBSCRIPTION_NOT_CONFIGURED`）で、券なしの旧形は影響を受けない。データの流れは変わらず、中継は券もレシートも保存しない。旧形は a485-lb-release のあと、#2211 の中継（券だけ）で置き換える。
+券の経路は端末トークンのSHA-256（`value`）と期限内の購読（apple・google・exempt）だけを見る。`BELLTEAM_TICKET_CHECK_URL` が無ければ券つきの要求は503（`SUBSCRIPTION_NOT_CONFIGURED`）で、券なしの旧形は影響を受けない。`GET /v1/notifications/status`（認証なし、運営の死活確認にも使う）は、`BELLTEAM_TICKET_CHECK_URL` があるか、旧形のAppleの設定が整っていれば200で、どちらも無ければ503。データの流れは変わらず、中継は券もレシートも保存しない。旧形は a485-lb-release のあと、#2211 の中継（券だけ）で置き換える。
 
 ## Android（FCM）
 
