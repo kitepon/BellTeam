@@ -31,6 +31,27 @@ public sealed class LinuxAccountCard : StackPanel
         this.token = token; Spacing = 0;
         Render();
         _ = LoadAsync();
+        LinuxAccountStore.Foreground += OnForeground; token.Register(() => LinuxAccountStore.Foreground -= OnForeground);
+    }
+
+    private void OnForeground() => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = ReloadAsync());
+
+    // Foreground: show what the server says now; when the state changed by itself the last action's line no longer fits it, so it goes.
+    private async Task ReloadAsync()
+    {
+        if (token.IsCancellationRequested || busy) return;
+        var before = (billing?.PassKind, serverEntitled);
+        string? fresh = null;
+        if (billing is { PassKind: not PassKind.None } lb)
+        {
+            try { var check = await lb.CheckAsync(token); serverEntitled = check.Entitlements.Count != 0; checkedEntitlements = check.Entitlements; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (LoginBillingException error) { fresh = StoreAccountText.Failure(error.Code, error.Status); }
+        }
+        else serverEntitled = null;
+        if (token.IsCancellationRequested) return;
+        failure = fresh ?? ((billing?.PassKind, serverEntitled) != before ? null : failure);
+        Render();
     }
 
     private async Task LoadAsync()

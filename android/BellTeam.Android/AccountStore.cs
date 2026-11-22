@@ -35,7 +35,11 @@ public static class AccountStore
         if (Billing is not { } lb) return;
         try { await lb.StartAsync(); }
         catch (LoginBillingException error) { global::Android.Util.Log.Warn("BellTeam", "login-billing start: " + error.Code); }
+        Started?.Invoke();
     }
+
+    // Raised after every start (foreground): the account card shows what the server says now (Tronie 2026-11-23, same spec as the Apple app's start()).
+    public static event Action? Started;
 }
 
 // a515n (login-billing 0.18.0, contract 1.24): Approval Box's own instance, "foreign": its own base origin, its own storage (storageName: folder and Keystore alias apart from BellTeam's), web sign-in only,

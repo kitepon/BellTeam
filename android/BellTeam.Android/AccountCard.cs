@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using BellTeam.Core;
 using BellTeam.Linux;
 using Kitepon.LoginBilling;
@@ -33,6 +34,26 @@ public sealed class AccountCard : StackPanel
         this.token = token; Spacing = 0;
         Render();
         _ = LoadAsync();
+        AccountStore.Started += OnStarted; token.Register(() => AccountStore.Started -= OnStarted);
+    }
+
+    private void OnStarted() => Dispatcher.UIThread.Post(() => _ = ReloadAsync());
+
+    // Foreground: the library's start() has run; read the server's answer again and show it. When the state changed by itself the last action's line no longer fits it, so it goes.
+    private async Task ReloadAsync()
+    {
+        if (token.IsCancellationRequested || busy) return;
+        var before = (billing?.PassKind, serverEntitled);
+        string? fresh = null;
+        if (billing is { PassKind: not PassKind.None } lb)
+        {
+            try { var check = await lb.CheckAsync(); serverEntitled = check.Entitlements.Count != 0; checkedEntitlements = check.Entitlements; }
+            catch (LoginBillingException error) { fresh = StoreAccountText.Failure(error.Code, error.Reason); }
+        }
+        else serverEntitled = null;
+        if (token.IsCancellationRequested) return;
+        failure = fresh ?? ((billing?.PassKind, serverEntitled) != before ? null : failure);
+        Render();
     }
 
     private async Task LoadAsync()

@@ -132,7 +132,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         // The separate windows read through this workspace, so they end with the main window.
         Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
         // Mac scenePhase .active: coming back to the window reads the goals again.
-        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); };
+        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); LinuxAccountStore.NoteForeground(); };
         if (persistPlacement) RestorePlacement();
     }
 
