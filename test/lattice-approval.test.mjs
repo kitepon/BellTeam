@@ -76,7 +76,8 @@ test('decisions: 5 s per request; timeout, network or 5xx is unavailable, 4xx is
   assert.equal(seen.length, 1, 'no second POST after a connection failure')
   assert.ok(seen[0] instanceof AbortSignal)
   await assert.rejects(rig({ current: live, responses: [[503, {}]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
-  await assert.rejects(rig({ current: live, responses: [[404, { error: { code: 'not_found' } }]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_REFUSED' })
+  await assert.rejects(rig({ current: live, responses: [[404, { error: { code: 'not_found' } }]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_GONE', status: 404 })
+  await assert.rejects(rig({ current: live, responses: [[403, { error: { code: 'forbidden' } }]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_REFUSED' })
   await assert.rejects(rig({ current: live, responses: [[400, { error: { code: 'invalid' } }]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_REFUSED' })
   await assert.rejects(rig({ current: live, responses: [[502, {}]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
 })
@@ -158,4 +159,11 @@ test('daemon paired: cancel goes through the daemon; the request is bounded at 5
   const x = daemonRig({ replies: [{ result: { id: 'K-D1', status: 'cancelled' } }] })
   assert.deepEqual(await x.decisions.cancel({ decisionId: 'K-D1', reason: 'r' }), { status: 'cancelled' })
   assert.deepEqual(x.calls[0], ['POST', '/decisions/K-D1/cancel', { reason: 'r' }])
+})
+
+test('a read of an id unknown to both the daemon and the token path is GONE; cancel keeps REFUSED', async () => {
+  const both = daemonRig({ replies: [{ error: { code: 'not_found', status: 404 } }], tokenResponses: [[404, { error: { code: 'not_found' } }]] })
+  await assert.rejects(both.decisions.read({ decisionId: 'K-NONE' }), { code: 'LATTICE_DECISIONS_GONE', status: 404 })
+  const cancel = rig({ current: { handle: 'h', revision: 1, available: true, requestId: 's' }, responses: [[404, {}]] })
+  await assert.rejects(cancel.decisions.cancel({ decisionId: 'K-NONE', reason: 'r' }), { code: 'LATTICE_DECISIONS_REFUSED' })
 })
