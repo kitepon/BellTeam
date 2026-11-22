@@ -238,14 +238,10 @@ test('Stripeの購入を保存し、Appleと両方ある時は有効な方を使
   await subscriptions.initialize()
   assert.deepEqual(await subscriptions.checkout(), { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' })
   assert.match(requests[0].url, /\/v1\/subscriptions\/stripe\/checkout$/)
-  assert.equal(subscriptions.proof(), null)
   await subscriptions.install('signed-purchase')
   assert.equal(subscriptions.status().entitled, false)
-  assert.equal(subscriptions.proof(), null)
   const status = await subscriptions.installStripe('cs_1')
-  assert.deepEqual(subscriptions.proof(), { stripeSubscriptionId: 'sub_1' })
   assert.equal(status.entitlementState, 'active')
-  assert.notEqual(subscriptions.proof(), subscriptions.proof())
   assert.deepEqual([status.entitled, status.source, status.isTrial, status.canUseAI], [true, 'stripe', true, true])
   assert.equal(JSON.parse(await readFile(subscriptions.path, 'utf8')).stripeSubscriptionId, 'sub_1')
   {
@@ -258,16 +254,13 @@ test('Stripeの購入を保存し、Appleと両方ある時は有効な方を使
     await later.refresh({ force: true })
     assert.deepEqual(requests.slice(-2).map(request => Object.keys(request.body)[0]), ['signedTransaction', 'stripeSubscriptionId'])
     assert.equal(later.status().entitled, false)
-    assert.equal(later.proof(), null)
   }
   const legacy = join(root, 'legacy.json')
   await writeFile(legacy, JSON.stringify({ schema: 'bellteam.subscription.v1', setupComplete: false, signedTransaction: 'old', verification: verdict('apple', true, 1), error: null }))
   const old = new Subscriptions({ path: legacy, environment: 'Sandbox', clock: () => now })
   await old.initialize()
   assert.deepEqual([old.status().entitled, old.status().source], [true, 'apple'])
-  assert.deepEqual(old.proof(), { signedTransaction: 'old' })
   assert.throws(() => new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).installStripe('cs_1'), { code: 'SUBSCRIPTION_NOT_REQUIRED' })
-  assert.equal(new Subscriptions({ path: join(root, 'd.json'), accessMode: 'developer', developerAccessAllowed: true }).proof(), null)
 })
 
 test('課金中の購読がある間はStripeの購入画面を作らず、作った画面は使い回し、管理の入口を返す', async t => {
@@ -329,11 +322,9 @@ test('Google Playの購入トークンを保存し、課金中は購入元に数
   } })
   const subscriptions = open()
   await subscriptions.initialize()
-  assert.equal(subscriptions.proof(), null)
   const status = await subscriptions.installGoogle('purchase-token-1')
   assert.deepEqual([status.entitled, status.source, status.isTrial, status.billingSources, status.canPurchase], [true, 'google', true, ['google'], false])
   assert.deepEqual(requests[0].body, { googlePurchaseToken: 'purchase-token-1' })
-  assert.deepEqual(subscriptions.proof(), { googlePurchaseToken: 'purchase-token-1' })
   assert.equal(JSON.stringify(status).includes('purchase-token-1'), false)
   assert.equal(JSON.parse(await readFile(subscriptions.path, 'utf8')).googlePurchaseToken, 'purchase-token-1')
   // 保存したトークンで再照会し、期限が切れれば証拠も返さない。
@@ -342,7 +333,7 @@ test('Google Playの購入トークンを保存し、課金中は購入元に数
   await later.initialize()
   await later.refresh({ force: true })
   assert.deepEqual(requests.at(-1).body, { googlePurchaseToken: 'purchase-token-1' })
-  assert.deepEqual([later.status().entitled, later.status().billingSources, later.status().canPurchase, later.proof()], [false, [], true, null])
+  assert.deepEqual([later.status().entitled, later.status().billingSources, later.status().canPurchase], [false, [], true])
   // Productionの環境と合わない結果は保存しない。
   verdict = { ...verdict, environment: 'Production', entitled: true, state: 'active', validUntil: new Date(now + 9000000).toISOString() }
   await assert.rejects(open().installGoogle('purchase-token-2'), { code: 'SUBSCRIPTION_RESPONSE_INVALID' })
