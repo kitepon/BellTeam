@@ -18,7 +18,7 @@ public sealed partial class MainWindow
 
     // 「アカウントを削除」 (a485 switch; the order is Rapi's Mac reference, docs/architecture/modules/apple/account-deletion.md): this device's Approval Box keys and sign-out, then the server connection
     // (home session, tokens, window state, saved address), then the library's sign-out (pass, K, purchase mark), then the first screen with one result alert. It never stops the other devices.
-    // A sign-out that reaches a server and fails keeps its record (the library's rule) and is listed in the result instead of 「削除しました」; pressing again finishes it, so a failure shows the account screen again.
+    // The home-server end that fails keeps its record (the library's rule); it, the push removal and a library sign-out that cannot remove its record (pass_store_unavailable) are listed in the result instead of 「削除しました」; pressing again finishes it, so a failure shows the account screen again.
     private async Task DeleteAccountAsync()
     {
         var failed = new DeletionFailures();

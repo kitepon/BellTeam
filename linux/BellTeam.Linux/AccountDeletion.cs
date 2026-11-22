@@ -9,7 +9,7 @@ public static class AccountDeletion
     public static Func<Task>? Run { get; set; }
 }
 
-// The steps that reach a server (push registration, Approval Box, home server, login service) are not swallowed: the library keeps everything when the server was not reached, so pressing again finishes them.
+// The steps that reach a server (push registration, Approval Box, home server, login service) are not swallowed: the home-server end keeps its record when the server was not reached, so pressing again finishes it. The library's own sign-out (0.18.9, contract 1.31) removes the pass offline too and only throws pass_store_unavailable; its Delivered/NotDelivered result needs no extra words (the result text already says what the operator keeps for up to 14 days).
 // 「削除しました」 is shown only when this list is empty; otherwise the result says which part could not be removed and why, in Rapi's words (Core's AccountDeletionText.Failed; Tronie 2026-11-23, R1/R2).
 public sealed class DeletionFailures
 {
