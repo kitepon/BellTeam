@@ -39,6 +39,26 @@ test('at a private address web sign-in works through /dev/websignin with a loopb
   } finally { await op.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 
+test('an unknown App Store transaction id (an Xcode StoreKit test purchase) is read back as live, then ended by /dev/store-end', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dev-operator-'))
+  const port = await freePort()
+  const op = await startDevOperator({ publicUrl: `http://127.0.0.1:${port}`, dataDir: dir, log: () => {} })
+  try {
+    const post = (path, body, pass) => fetch(`${op.url}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(pass ? { authorization: `Bearer ${pass}` } : {}) }, body: JSON.stringify(body) })
+    const { nonce } = await (await post('/auth/v1/signin/nonce', {})).json()
+    const { id_token } = await (await post('/dev/id-token', { provider: 'apple', nonce })).json()
+    const signed = await (await post('/auth/v1/signin', { provider: 'apple', idToken: id_token, nonce })).json()
+    const receipts = [{ store: 'apple', transactionId: '2000000987654321' }]
+    const bought = await (await post('/auth/v1/receipt', { receipts }, signed.pass)).json()
+    assert.equal(bought.receiptResults[0].result, 'attached')
+    assert.ok(bought.entitlements.length > 0)
+    assert.equal((await post('/dev/store-end', { transactionId: 'x' })).status, 400)
+    assert.equal((await post('/dev/store-end', { transactionId: '2000000987654321' })).status, 200)
+    const ended = await (await post('/auth/v1/receipt', { receipts }, bought.pass ?? signed.pass)).json()
+    assert.equal(ended.receiptResults[0].result, 'ended')
+  } finally { await op.close(); rmSync(dir, { recursive: true, force: true }) }
+})
+
 test('a client signs in with a fake id token, buys in the fake store, and a restart keeps the keys', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'dev-operator-'))
   const port = await freePort()

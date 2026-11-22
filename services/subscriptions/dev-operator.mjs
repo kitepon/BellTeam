@@ -50,20 +50,36 @@ export async function startDevOperator({ port = 8790, publicUrl, dataDir = '.dev
     WEBSIGNIN_GOOGLE_CLIENT_ID: google.clientId, WEBSIGNIN_GOOGLE_CLIENT_SECRET: google.clientSecret,
     WEBSIGNIN_APPLE_SERVICES_ID: apple.servicesId, WEBSIGNIN_APPLE_TEAM_ID: apple.teamId, WEBSIGNIN_APPLE_KEY_ID: apple.keyId, WEBSIGNIN_APPLE_PRIVATE_KEY: apple.privateKey,
   }
+  // An App Store lookup for a transaction id the kit does not hold is answered as a live 30-day subscription of this product, so the app's own purchase
+  // (a local .storekit transaction on the simulator, signed by Xcode and unknown to the App Store) is read back through the real path. The lookup carries only the id.
+  const lookup = /\/inApps\/v1\/transactions\/(\d+)$/
+  const fakeFetch = (input, init) => {
+    const id = lookup.exec(new URL(typeof input === 'string' || input instanceof URL ? input : input.url).pathname)?.[1]
+    if (id && !kit.apple.transactions[id]) {
+      kit.apple.transactions[id] = { transactionId: id, originalTransactionId: id, productId: product.productId, bundleId: product.bundleId, type: 'Auto-Renewable Subscription', expiresDate: Date.now() + 30 * 24 * 3600_000 }
+    }
+    return kit.fetch(input, init)
+  }
   const storage = new MemoryStorage()
   const worker = createLoginBillingWorker({
     storage: () => storage,
-    extra: { fetch: kit.fetch, stores: { apple: kit.appleStore(product.bundleId), google: kit.googleStore(product.bundleId) } },
+    extra: { fetch: fakeFetch, stores: { apple: kit.appleStore(product.bundleId), google: kit.googleStore(product.bundleId) } },
   })
 
   // Dev-only routes: the fake keys live in this process, so the id token for this server is made here.
   const dev = async request => {
     const path = new URL(request.url).pathname
-    if (request.method !== 'POST' || !['/dev/id-token', '/dev/websignin', '/dev/store-purchase'].includes(path)) return undefined
+    if (request.method !== 'POST' || !['/dev/id-token', '/dev/websignin', '/dev/store-purchase', '/dev/store-end'].includes(path)) return undefined
     const body = await request.json().catch(() => ({}))
     if (path === '/dev/websignin') {
       if (typeof body.providerUrl !== 'string') return Response.json({ error: 'providerUrl' }, { status: 400 })
       return Response.json({ location: await kit.signInAtProvider(body.providerUrl, { sub: body.sub ?? subject }) })
+    }
+    if (path === '/dev/store-end') {
+      // The App Store now says "expired" for this transaction (status 2), so the server answers ended at the next read.
+      if (typeof body.transactionId !== 'string' || !/^\d{1,32}$/.test(body.transactionId)) return Response.json({ error: 'transactionId' }, { status: 400 })
+      kit.apple.status[body.transactionId] = 2
+      return Response.json({ ended: body.transactionId })
     }
     if (body.provider !== 'apple' && body.provider !== 'google') return Response.json({ error: 'provider' }, { status: 400 })
     if (path === '/dev/store-purchase') {
