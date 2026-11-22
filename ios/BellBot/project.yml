@@ -44,7 +44,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '182'
+        CFBundleVersion: '183'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -146,7 +146,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '182'
+        CFBundleVersion: '183'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -189,7 +189,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '182'
+        CFBundleVersion: '183'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
