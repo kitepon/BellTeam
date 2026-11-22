@@ -25,7 +25,7 @@ flowchart LR
   A -->|other refusal| E[launch error as-is]
   OK --> W["background (tracked): followInterim, waitUntilDone, readTurnAnswer"]
   W -->|done| D["onAnswer(text), onStatus delivered, onTurnEnd"]
-  W -->|failed| X["onStatus failed {code FORK_FAILED, reason}"]
+  W -->|failed| X["onStatus failed {code FORK_FAILED, reason = typed token: error code, else the turn's failure category or wait outcome}"]
   D --> T{"remote?"}
   X --> T
   T -->|"yes: RemoteSeats.forward(forkSeat) once"| TL["throughline remote-ingest --fork --json<br/>{sessionKind fork, parentSessionId = fork_of.vendor_session_id, forkId}"]
@@ -51,7 +51,7 @@ flowchart LR
 | account | Claude: the main's slot (`accounts.seatSlot`); a 2nd slot passes the same `claudeLogin` as the main. Codex: Aiterm uses the main's account |
 | accept | Receipt has `fork_of.write_ban` and `wait_process`: `onStatus('running')`, then resolve `{delivery:'running', forkId}` |
 | observe | `followInterim` -> `onInterim`; `waitUntilDone(receipt)`; `readTurnAnswer({session, receipt})` -> `onAnswer(text)` when non-empty; `onStatus('delivered')`; `onTurnEnd({startedAt, endedAt})` |
-| failure after accept | `onStatus('failed', {code:'FORK_FAILED', delivery_error:{code:'FORK_FAILED'}, reason})`. Conversation relays its one `FORK_FAILED` message |
+| failure after accept | `onStatus('failed', {code:'FORK_FAILED', delivery_error:{code:'FORK_FAILED'}, reason})`. `reason` is always a token conversation accepts (`^[A-Za-z][A-Za-z0-9_]{0,99}$`): the error's `code` when it is one, else the turn's failure category from Aiterm (`rate_limited`, `authentication`, `capacity`, `transient`, `other`), else the wait outcome (`error`, `closed`, ...), else `unknown` (a533: a free-text message was dropped by conversation, so the caller saw `FORK_FAILED: FORK_FAILED`). Conversation relays its one `FORK_FAILED: <reason>` message |
 | failure before accept | Reject. `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}` (`effect: not_started`) for Aiterm's `READONLY_UNENFORCEABLE`, an Aiterm whose `agent_launch` has no `fork_from`, or a receipt without `write_ban`. An uncoded Aiterm refusal whose text is `aiterm: FORK_*: ...` (`FORK_SOURCE_UNAVAILABLE`, `FORK_INVALID`, `FORK_UNSUPPORTED`; Aiterm sends no `_meta` code for them) gets that `code`, `effect: not_started` (nothing to close) and `status` 400 for `FORK_INVALID`, else 409 (the target's state refuses a fork; not a server outage, so no `SERVER_HTTP_503` diagnostic). Other errors as they are |
 | remote transcript | Once after the turn (answer or failure), before close: `RemoteSeats.forward` with the fork labels ([remote-seat C7](remote-seat.md#capture-c7)). Throughline 0.17.0 refuses the `--fork` argv and stores nothing. Local forks are labelled by Aiterm's seat env (`THROUGHLINE_SESSION_KIND` etc.) |
 | close | Always `pty_close(name)` after the turn end or any failure once a launch was issued; remote credential revoked; registry entry removed. No resume, no follow-up turn, no requeue |
@@ -64,3 +64,7 @@ Guard (guards.named-protection): `FORK_UNAVAILABLE` protects the project folder 
 ## Tests
 
 `test/execution-fork.test.mjs`: local launch args and registry, accept/answer/close order, failure after accept, `READONLY_UNENFORCEABLE` mapping, text-only `FORK_*` refusal code, remote fork credential kind.
+
+## Why forks ended `FORK_FAILED` within a second (a533, 2026-11-23)
+
+Seen 00:13, 01:34, 01:35 and 01:45 JST; the fork had started answering (prompt and API request in its transcript) when BellTeam closed it. A Claude fork's transcript starts as a copy of the main's whole conversation under the fork's own session id. Aiterm's turn wait reads the transcript from the operation marker's cursor, which is 0 for a fork (its file did not exist at dispatch), so every copied line counts as this turn's, and a copied API error row (here the main's 15:06Z weekly-limit message, same session id after the copy) ends the wait at once as `rate_limited`. Forks whose copied history had no API error row answered (checked: 3 failing copies carry the row, 2 working ones do not). Root fix is in Aiterm's wait (start a fork's first turn after the copied history; Elegg). BellTeam's part: the failure carries a typed reason, so a real limit reads `FORK_FAILED: rate_limited`, not a bare `FORK_FAILED`.

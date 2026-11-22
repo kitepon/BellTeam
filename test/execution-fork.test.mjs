@@ -81,6 +81,24 @@ test('failure after accept: one failed status with FORK_FAILED, the fork is clos
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('a533: the failure reason is a token conversation keeps (category, else wait outcome), never the free-text message', async () => {
+  const cases = [
+    [{ outcome: 'rate_limited', rate_limit: "You've hit your weekly limit", failure: { category: 'rate_limited' } }, 'rate_limited'],
+    [{ outcome: 'error', error: 'API Error: 529', failure: { category: 'capacity' } }, 'capacity'],
+    [{ outcome: 'error', error: 'boom' }, 'error'],
+    [{ outcome: 'closed' }, 'closed'],
+  ]
+  for (const [result, reason] of cases) {
+    const { root, tracked, transport, member } = await fixture({ wait: async () => result })
+    try {
+      const failures = []
+      await transport.forkInquiry(member, 'question', { forkId: `f-${reason}`, onStatus: async (status, error) => { if (status === 'failed') failures.push(error.reason) } })
+      await Promise.all(tracked)
+      assert.deepEqual(failures, [reason])
+    } finally { await rm(root, { recursive: true, force: true }) }
+  }
+})
+
 test('READONLY_UNENFORCEABLE and a receipt without write_ban are FORK_UNAVAILABLE; nothing stays registered', async () => {
   for (const launch of [() => { throw Object.assign(new Error('aiterm: READONLY_UNENFORCEABLE: windows'), { effect: 'not_started' }) },
     args => ({ structuredContent: receiptOf(args, { fork_of: undefined }) })]) {
