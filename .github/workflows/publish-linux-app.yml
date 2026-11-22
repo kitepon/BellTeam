@@ -20,6 +20,10 @@ jobs:
           curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
           bash "$RUNNER_TEMP/dotnet-install.sh" --channel 10.0 --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+      - name: Fetch the pinned login-billing package (sha256-checked)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: linux/fetch-login-billing.sh
       - name: Test
         run: dotnet test linux/BellTeam.Linux.slnx -c Release
       - name: Package
