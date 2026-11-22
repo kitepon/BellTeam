@@ -381,7 +381,8 @@ flowchart LR
   dev --> keys[DeviceKeyStore: 端末鍵 DPAPI]
   book --> hist[(端末の履歴ファイル<br/>DPAPI・固有のentropy・%LOCALAPPDATA%\\BellTeam)]
   dev --> map[DeviceDecisionView: decision@1 → ViewDecision<br/>既存の画面モデル Approvals.cs を使い回す]
-  win --> link[工程表のつながり: BellTeamサーバー<br/>by-task / by-decision（IDと状態だけ）]
+  win --> link[工程表のつながり: BellTeamサーバー<br/>by-task（今ある）/ by-decision（デルタの a490f で出来るまでバッジなし）]
+  win -. "/v1の閉鎖まで: 和集合の片方" .-> old[旧経路 /api/approvals/*<br/>BellTeamサーバー経由。接続画面もここ]
   ses --> abx[決裁箱サーバー /pc/v1<br/>合図・名簿・TURNだけ。中身は見えない]
   ses <-.->|DTLSのデータチャネル| con[AIのPCのコネクタ<br/>（BellTeamのサーバーの常駐 daemon も同じ）]
 ```
@@ -400,6 +401,7 @@ flowchart TD
   W -. "決裁のID" .-> L[BellTeamサーバー: つながりの引き（IDと状態だけ）]
 ```
 
+- **移行期の規則（デルタ 2026-11-22、/v1の閉鎖まで）**: 一覧は旧経路 `/api/approvals/*` とデバイスの**和集合**で、同じ決裁ID（`decision@1` の `decision_id` ＝ K-…）はデバイス側が勝つ。カードごとに出どころの小さなタグを付ける。旧経路にだけある決裁は、端末が検証済みになっても消さない。答え・保留は、その決裁を持つ出どころにだけ送り、両方へは送らない。IDが契約で突き合わせられない時は推測で統合せず、両方をタグ付きで出してデルタとナユタへ伝える。閉鎖の後はデバイスだけ。旧経路の接続画面と Old・Expired・NoCredential の状態は、デルタの a490f の知らせまで消さず、新しく何も載せない。デバイス側の `no_entitlement` は NotEntitled として出す。
 - **所有と入口**: `DecisionBook`（OS非依存。Linuxも使う）が決裁の状態の持ち主。画面は `ViewDecision`（既存の `Approvals` モデル）を受けるだけで、ID・署名・バージョンの扱いは持たない。
 - **接続の維持**: 画面の有無に関わらず、サインイン済みの間は `DeviceApprovals` が合図の接続を保つ。`join` で待ち（wait）が来たらダイヤルし、切れたら 1・2・4…30秒の上限つきバックオフで回数の上限なしに自動で再接続する。手動の再試行は待機中の次の試行を直ちに行う（並列は増やさない）。サインアウト・接続先の変更・`pass_ended`（4401）では旧処理を終える。`not_entitled`・名簿が確かめられない状態は、理由を出して待つ（自動で変わらないので）。
 - **失敗の見え方**: 接続できない間は最後の一覧を薄くして理由と手動再試行を出す。答えの送信が失敗しても決裁の状態は変えず、同じボタンをもう一度出す。結果が分からない送信は「不明」と出す。
