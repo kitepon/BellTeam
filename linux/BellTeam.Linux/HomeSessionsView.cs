@@ -10,7 +10,7 @@ using static BellTeam.Linux.SettingsUi;
 namespace BellTeam.Linux;
 
 // a529n (docs/architecture/modules/usage/app-sessions.md 4a, Mint ruling 2026-11-23): every device logged in to the user's server, one row each, read from GET /api/home/sessions with this app's own session.
-// 終了 = DELETE /api/home/sessions/{id} (that session ends at once; the device may sign in again). 締め出す = the phone's library stop(passId), then the same DELETE: only a store device (the phone) has a stop,
+// ログアウトさせる = DELETE /api/home/sessions/{id} (that session ends at once; the device may sign in again). The own row has ログアウト (the app's own sign-out). 締め出す = the phone's library stop(passId), then the same DELETE: only a store device (the phone) has a stop,
 // so the Linux app passes no shutOut. This list is the home part's sessions, not 承認した端末 (that is only this phone's own approvals). Linux and Android share this file.
 public sealed record HomeSessionRow
 {
@@ -41,15 +41,17 @@ public sealed class HomeSessionsCard : StackPanel
     private readonly BellApi api;
     private readonly CancellationToken token;
     private readonly Func<string, Task>? shutOut;
+    private readonly Func<Task>? logout;
     private IReadOnlyList<HomeSessionRow>? rows;
     private string? failure;
     private (string Id, bool LockOut)? confirming;
     private bool busy;
 
     // shutOut: the phone's library stop(passId); null where the device has no stop (Linux, a web-signed phone). It throws with a sentence for the card when it fails.
-    public HomeSessionsCard(BellApi api, CancellationToken token, Func<string, Task>? shutOut = null)
+    // logout: this app's own sign-out (it ends the home session and returns to the login screen); null hides the own row's button.
+    public HomeSessionsCard(BellApi api, CancellationToken token, Func<string, Task>? shutOut = null, Func<Task>? logout = null)
     {
-        this.api = api; this.token = token; this.shutOut = shutOut;
+        this.api = api; this.token = token; this.shutOut = shutOut; this.logout = logout;
         IsVisible = false;   // shown when the server answers the list: an older server has no such route (404)
         _ = LoadAsync();
     }
@@ -73,16 +75,25 @@ public sealed class HomeSessionsCard : StackPanel
             catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { }   // already gone: the wish is met
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception error) { failure = (lockOut ? "締め出せませんでした。" : "終了できませんでした。") + error.Message; }
+        catch (Exception error) { failure = (lockOut ? "締め出せませんでした。" : "ログアウトさせられませんでした。") + error.Message; }
         busy = false;
         await LoadAsync();
+    }
+
+    private async Task LogoutAsync()
+    {
+        busy = true; failure = null; Render();
+        try { await logout!(); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception error) { failure = "ログアウトできませんでした。" + error.Message; }
+        busy = false; Render();
     }
 
     private void Render()
     {
         Children.Clear();
         Children.Add(Text("このサーバーに入っている端末", 17, Ink, FontWeight.Bold));
-        Children.Add(Text("ここに並ぶのは、このサーバーにログインしているすべての端末です。「終了」はその端末をいま出します（パスが生きていれば入り直せます）。", 13, Muted, null, new Thickness(0, 8, 0, 4)));
+        Children.Add(Text("ここに並ぶのは、このサーバーにログインしているすべての端末です。「ログアウトさせる」はその端末をいま出します（パスが生きていれば入り直せます）。", 13, Muted, null, new Thickness(0, 8, 0, 4)));
         foreach (var row in rows ?? [])
         {
             var box = new StackPanel { Spacing = 2 };
@@ -98,16 +109,21 @@ public sealed class HomeSessionsCard : StackPanel
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
                 if (confirming is { } asked && asked.Id == row.Id)
                 {
-                    actions.Children.Add(Text(asked.LockOut ? "この端末を締め出します（入り直せなくなります）" : "この端末を出します", 12, Red));
-                    actions.Children.Add(Action(asked.LockOut ? "締め出す" : "終了", Red, () => _ = EndAsync(row, asked.LockOut)));
+                    actions.Children.Add(Text(asked.LockOut ? "この端末は、もう一度サインインするまで使えなくなります。" : "この端末をログアウトさせます。", 12, Red));
+                    actions.Children.Add(Action(asked.LockOut ? "締め出す" : "ログアウトさせる", Red, () => _ = EndAsync(row, asked.LockOut)));
                     actions.Children.Add(Action("やめる", Ink, () => { confirming = null; Render(); }));
                 }
                 else
                 {
-                    actions.Children.Add(Action("終了", Red, () => { confirming = (row.Id, false); Render(); }));
+                    actions.Children.Add(Action("ログアウトさせる", Red, () => { confirming = (row.Id, false); Render(); }));
                     if (HomeSessionWords.CanShutOut(row, shutOut is not null)) actions.Children.Add(Action("締め出す", Red, () => { confirming = (row.Id, true); Render(); }));
                 }
                 box.Children.Add(actions);
+            }
+            else if (logout is not null)
+            {
+                var own = Action("ログアウト", Red, () => _ = LogoutAsync()); own.HorizontalAlignment = HorizontalAlignment.Left; own.Margin = new Thickness(0, 6, 0, 0);
+                box.Children.Add(own);
             }
             Children.Add(new Border { Child = box, Background = Fill, CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Margin = new Thickness(0, 8, 0, 0) });
         }

@@ -69,6 +69,7 @@ internal static partial class Launcher
         instance = new SingleInstance(() => Dispatcher.UIThread.Post(() => main?.Raise()));
         if (!instance.IsPrimary) { desktop.Shutdown(0); return; }
         SettingsWindow.AccountEntry = token => new LinuxAccountCard(token);
+        SettingsWindow.HomeLogout = token => LinuxAccountStore.Home?.EndAsync(token) ?? Task.CompletedTask;
         var home = LinuxAccountStore.Home;
         ISessionTokenStore tokens = home is null ? new FileSessionTokenStore(SettingsStore.UserDirectory) : new CompositeSessionTokenStore(() => home, new FileSessionTokenStore(SettingsStore.UserDirectory));
         var workspace = new LinuxWorkspace(origin => new BellApi(origin) { SessionToken = tokens.Load(origin) });
