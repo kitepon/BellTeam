@@ -132,9 +132,6 @@ public sealed class AccountCard : StackPanel
             }
             if (state == StoreAccountState.Signed) RenderSigned(entitled);
             if (state is StoreAccountState.SignedInNeedsPurchase or StoreAccountState.SignedInEntitled) Children.Add(Button(StoreAccountText.Refresh, () => RunAsync(async b => await b.RefreshAsync()), Look.Secondary));
-#if DEBUG
-            if (DevOperator.Url is not null && state == StoreAccountState.SignedInNeedsPurchase) Children.Add(Button("（開発）擬似購入", () => RunAsync(b => DevOperator.FakePurchaseAsync(b, "google")), Look.Secondary));   // dev operator only
-#endif
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(async b => { if (AccountStore.Home is { } home) await home.EndAsync(token); await b.SignOutAsync(); }), Look.Secondary));   // the library's signOut does not end the home session
             if (lb.PassKind == PassKind.Store) Children.Add(new ApprovePanel(lb, token));   // only a store pass may approve and list (the library keeps the list on the store device only)
             RenderDanger();

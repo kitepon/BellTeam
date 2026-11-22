@@ -58,31 +58,6 @@ internal static class DevOperator
         get { var path = Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "dev-operator.txt"); return File.Exists(path) ? File.ReadAllText(path).Trim() : null; }
     }
 
-    // The dev operator's fake store (/dev/store-purchase) bound to this account's K (files/dev-k.txt: the same account's K read by another device), then the receipt goes to /auth/v1/receipt with this device's store pass (the library's own handler adds it).
-    public static async Task FakePurchaseAsync(LoginBilling lb, string provider)
-    {
-        try { await FakePurchaseCoreAsync(lb, provider); }
-        catch (LoginBillingException) { throw; }
-        catch (Exception error) { throw new LoginBillingException("dev_" + error.GetType().Name, 0); }   // a debug helper's own failure is shown on the card, never a crash
-    }
-
-    private static async Task FakePurchaseCoreAsync(LoginBilling lb, string provider)
-    {
-        var dir = global::Android.App.Application.Context.FilesDir!.AbsolutePath; var k = File.ReadAllText(Path.Combine(dir, "dev-k.txt")).Trim();
-        var origin = new Uri(Url!).GetLeftPart(UriPartial.Authority);
-        using var plain = new HttpClient();
-        using var made = await plain.PostAsync(origin + "/dev/store-purchase", new StringContent(JsonSerializer.Serialize(new { provider, k }), System.Text.Encoding.UTF8, "application/json"));
-        made.EnsureSuccessStatusCode();
-        var answer = JsonDocument.Parse(await made.Content.ReadAsStringAsync()).RootElement;
-        using var authed = new HttpClient(lb.CreateHttpHandler());
-        using var sent = await authed.PostAsync(origin + answer.GetProperty("route").GetString(), new StringContent(JsonSerializer.Serialize(new { receipts = answer.GetProperty("receipts") }), System.Text.Encoding.UTF8, "application/json"));
-        var body = await sent.Content.ReadAsStringAsync();
-        File.WriteAllText(Path.Combine(dir, "dev-receipt.txt"), (int)sent.StatusCode + " " + body);   // dev evidence for the run (adb run-as cat), never a secret: fake store only
-        if (!sent.IsSuccessStatusCode) throw new LoginBillingException("dev_receipt_" + (int)sent.StatusCode, (int)sent.StatusCode);
-        // The server's word per receipt (attached, other_account, invalid, ...): anything but attached is shown, so a wrong mark is not read as success.
-        if (JsonDocument.Parse(body).RootElement.TryGetProperty("receiptResults", out var results) && !results.GetRawText().Contains("attached")) throw new LoginBillingException("dev_receipt_" + results.GetRawText().Replace(" ", "")[..Math.Min(60, results.GetRawText().Length)], 200);
-    }
-
     public static Func<string, Task<string>> IdToken(string provider) => async nonce =>
     {
         var origin = new Uri(Url!).GetLeftPart(UriPartial.Authority);
