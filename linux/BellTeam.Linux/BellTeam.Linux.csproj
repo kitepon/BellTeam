@@ -20,8 +20,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
-    <!-- a485 (contract 1.20): web sign-in, the pass file and the handoff QR login through the library's desktop part. 0.17.1 is a development release: nothing built on it ships. -->
-    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.17.1" />
+    <!-- a485 (contract 1.20): web sign-in, the pass file and the handoff QR login through the library's desktop part. 0.17.2 is a development release: nothing built on it ships. -->
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.17.2" />
     <!-- The library gives the QR text only (LoginStart.QrPayload); this pure managed encoder (MIT) draws it. Android uses the same one. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->
