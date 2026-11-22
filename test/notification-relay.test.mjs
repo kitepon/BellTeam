@@ -1,46 +1,35 @@
 import assert from 'node:assert/strict'
-import { createHash, generateKeyPairSync, sign } from 'node:crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import test from 'node:test'
-import fixtures from './fixtures/subscriptions/certificates.json' with { type: 'json' }
 import product from '../services/subscriptions/product.json' with { type: 'json' }
-import { createSubscriptionWorker } from '../services/subscriptions/worker.mjs'
 import { createNotificationRelay } from '../services/notifications/relay.mjs'
 import { notificationPayload, PushNotifications } from '../src/push-notifications.mjs'
 
-const now = fixtures.signedDate + 3600000
-const env = { APPLE_ENVIRONMENT: 'Sandbox', APPLE_ISSUER_ID: 'test', APPLE_KEY_ID: 'test', APPLE_PRIVATE_KEY: fixtures.signingKey }
-const transaction = { bundleId: product.bundleId, environment: 'Sandbox', productId: product.productId,
-  type: 'Auto-Renewable Subscription', originalTransactionId: '100000000000001', signedDate: fixtures.signedDate, expiresDate: now + 3600000 }
-const renewal = { environment: 'Sandbox', productId: product.productId, originalTransactionId: transaction.originalTransactionId,
-  signedDate: fixtures.signedDate, autoRenewStatus: 1 }
+const now = Date.parse('2026-11-21T12:00:00Z')
+const ticketCheckUrl = 'https://worker.example/auth/v1/ticket/check'
 const device = { token: 'a'.repeat(64), environment: 'production', server: 'http://192.168.1.2:18891' }
 const event = { id: 'message-a', kind: 'reply', botId: 'bot-a', title: 'メンバー', body: '返信が届きました。' }
+const TICKET = 'sealed.ticket.value'
+const hashOf = token => createHash('sha256').update(token).digest('hex')
+const live = [{ productId: product.productId, kind: 'subscription', store: 'apple', expiresAt: new Date(now + 3600000).toISOString() }]
 
-function signed(payload) {
-  const header = Buffer.from(JSON.stringify({ alg: 'ES256', x5c: fixtures.x5c })).toString('base64url')
-  const message = `${header}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
-  return `${message}.${sign('sha256', Buffer.from(message), { key: fixtures.signingKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')}`
-}
-
-function fixture({ status = 1, tx = {}, send = async () => {}, appleFailure = false } = {}) {
-  const appleCalls = [], pushes = []
-  const subscriptionWorker = createSubscriptionWorker({ rootCertificates: [Buffer.from(fixtures.rootCertificate, 'base64')],
-    clock: () => now, createAPIClient: () => ({ getAllSubscriptionStatuses: async id => {
-      appleCalls.push(id)
-      if (appleFailure) throw new Error('Apple接続の失敗')
-      return { bundleId: product.bundleId, appAppleId: product.appAppleId, environment: 'Sandbox',
-        data: [{ lastTransactions: [{ status, originalTransactionId: id,
-          signedTransactionInfo: signed({ ...transaction, ...tx }), signedRenewalInfo: signed(renewal) }] }] }
-    } }) })
+// The Worker's ticket/check, replaced by an answer per test: the relay reads the entitlements and the value the ticket is bound to.
+function fixture({ entitlements = live, value = hashOf(device.token), status = 200, body, send = async () => {}, unreachable = false } = {}) {
+  const asked = [], pushes = []
+  const fetcher = async (url, init) => {
+    asked.push({ url, body: init.body })
+    if (unreachable) throw new Error('network')
+    return Response.json(body ?? { entitlements, value }, { status })
+  }
   const provider = { environments: ['production'], send: async (...args) => { pushes.push(args); await send(...args) } }
-  const relay = createNotificationRelay({ provider, subscriptionWorker, subscriptionEnvironment: env, clock: () => now })
-  const input = { signedTransaction: signed(transaction), device, payload: notificationPayload(event, device.server), id: event.id }
-  return { relay, input, pushes, appleCalls, provider }
+  const relay = createNotificationRelay({ provider, ticketCheckUrl, fetcher, clock: () => now })
+  const input = { ticket: TICKET, device, payload: notificationPayload(event, device.server), id: event.id }
+  return { relay, input, pushes, asked, provider }
 }
 
 async function send(relay, input) {
@@ -48,62 +37,70 @@ async function send(relay, input) {
   return { status: response.status, body: await response.json() }
 }
 
-test('公式署名検証と最新の購読照会を通し、APNs受理まで成功を返さない', async () => {
+test('the push ticket is asked at the Worker and APNs is not reached before the answer', async () => {
   let release, entered
   const started = new Promise(resolve => { entered = resolve })
   const barrier = new Promise(resolve => { release = resolve })
-  const { relay, input, pushes, appleCalls } = fixture({ send: async () => { entered(); await barrier } })
-  input.signedTransaction = signed({ ...transaction, expiresDate: now - 1 })
+  const { relay, input, pushes, asked } = fixture({ send: async () => { entered(); await barrier } })
   let complete = false
   const result = send(relay, input).then(value => { complete = true; return value })
   await started
   assert.equal(complete, false)
-  assert.deepEqual(appleCalls, [transaction.originalTransactionId])
+  assert.deepEqual(asked, [{ url: ticketCheckUrl, body: JSON.stringify({ ticket: TICKET }) }])
   assert.deepEqual(pushes[0], [device, input.payload, input.id])
   release()
   assert.deepEqual(await result, { status: 200, body: { accepted: true } })
 })
 
-test('購読切れ・返金・署名不正ではAPNsへ送信しない', async () => {
-  for (const options of [{ status: 2, tx: { expiresDate: now - 1 } }, { status: 5 }, { tx: { revocationDate: now - 1 } }]) {
+test('no contract, an ended contract, another device\'s ticket or a dead ticket sends nothing to APNs', async () => {
+  const ended = [{ ...live[0], expiresAt: new Date(now - 1).toISOString() }]
+  const other = [{ productId: 'other.product', kind: 'subscription', store: 'apple' }]
+  for (const options of [{ entitlements: [] }, { entitlements: ended }, { entitlements: other }]) {
     const { relay, input, pushes } = fixture(options)
     const result = await send(relay, input)
     assert.equal(result.status, 402)
     assert.equal(result.body.error.code, 'SUBSCRIPTION_REQUIRED')
     assert.equal(pushes.length, 0)
   }
-  const { relay, input, pushes, appleCalls } = fixture()
-  input.signedTransaction = signed({ ...transaction, bundleId: 'com.other' })
-  const result = await send(relay, input)
-  assert.equal(result.status, 400)
-  assert.equal(result.body.error.code, 'INVALID_APPLE_SIGNATURE')
-  assert.equal(pushes.length, 0)
-  assert.equal(appleCalls.length, 0)
+  const mismatch = fixture({ value: hashOf('b'.repeat(64)) })
+  assert.equal((await send(mismatch.relay, mismatch.input)).body.error.code, 'TICKET_DEVICE_MISMATCH')
+  assert.equal(mismatch.pushes.length, 0)
+  for (const [code, want] of [['ticket_invalid', 'TICKET_INVALID'], ['ticket_ended', 'TICKET_ENDED']]) {
+    const { relay, input, pushes } = fixture({ status: 401, body: { error: code } })
+    const result = await send(relay, input)
+    assert.equal(result.status, 401)
+    assert.equal(result.body.error.code, want)
+    assert.equal(pushes.length, 0)
+  }
+  const exempt = fixture({ entitlements: [{ productId: product.productId, kind: 'subscription', store: 'exempt' }] })
+  assert.equal((await send(exempt.relay, exempt.input)).status, 200, 'the exempt account counts')
 })
 
-test('AppleとAPNsの失敗を返し、再試行しない', async () => {
-  const apple = fixture({ appleFailure: true })
-  const failed = await send(apple.relay, apple.input)
-  assert.equal(failed.status, 502)
-  assert.equal(failed.body.error.code, 'APPLE_API_ERROR')
-  assert.equal(apple.appleCalls.length, 1)
-  assert.equal(apple.pushes.length, 0)
+test('a Worker that cannot be reached or answers badly is 502, and APNs failures are returned without a retry', async () => {
+  for (const options of [{ unreachable: true }, { status: 503, body: { error: 'not_configured' } }, { body: { entitlements: 'yes' } }]) {
+    const { relay, input, pushes } = fixture(options)
+    const result = await send(relay, input)
+    assert.equal(result.status, 502)
+    assert.equal(result.body.error.code, 'SUBSCRIPTION_CHECK_FAILED')
+    assert.equal(pushes.length, 0)
+  }
   for (const [code, status] of [['APNS_CONNECTION_FAILED', 502], ['APNS_UNREGISTERED', 410]]) {
     const item = fixture({ send: async () => { throw Object.assign(new Error('PRIVATE_TOKEN'), { code }) } })
     const result = await send(item.relay, item.input)
     assert.equal(result.status, status)
     assert.equal(result.body.error.code, code)
     assert.equal(item.pushes.length, 1)
+    assert.equal(item.asked.length, 1)
     assert.ok(!JSON.stringify(result).includes('PRIVATE_TOKEN'))
   }
 })
 
-test('空の購読設定と不正な通知入力は成功応答にしない', async () => {
+test('an unset Worker address and invalid notification input are never a success', async () => {
   const { relay, input, pushes, provider } = fixture()
-  const missing = createNotificationRelay({ provider, subscriptionEnvironment: {} })
+  const missing = createNotificationRelay({ provider })
   const status = await missing.fetch(new Request('https://relay.example/v1/notifications/status'))
   assert.equal(status.status, 503)
-  for (const patch of [{ signedTransaction: '' }, { device: { ...device, server: 'http://public.example' } },
+  for (const patch of [{ ticket: '' }, { ticket: undefined }, { pass: 'a pass is not a ticket', ticket: undefined }, { device: { ...device, server: 'http://public.example' } },
     { id: 'a'.repeat(65) }, { payload: {} }]) {
     const result = await send(relay, { ...input, ...patch })
     assert.equal(result.status, 400)
@@ -111,17 +108,22 @@ test('空の購読設定と不正な通知入力は成功応答にしない', as
   assert.equal(pushes.length, 0)
 })
 
-test('利用者の通知入口からrelayへ送り、失効した端末を既存登録から削除する', async t => {
+test('the user\'s notification entrance sends through the relay and removes a revoked device from its registry', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-relay-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const { relay, input, pushes, provider } = fixture()
   const reports = []
   const service = new PushNotifications({ root, bots: new Map([['bot-a', { name: 'メンバー' }]]),
     diagnostics: { record: async record => reports.push(record) },
-    fetch: (url, options) => relay.fetch(new Request(url, options)) })
+    // The server still names the proof field signedTransaction; the relay's wire field is `ticket` (a485-lb-server renames it).
+    fetch: (url, options) => {
+      if (!options.body) return relay.fetch(new Request(url, options))
+      const body = JSON.parse(options.body)
+      return relay.fetch(new Request(url, { ...options, body: JSON.stringify({ ...body, ticket: body.signedTransaction, signedTransaction: undefined }) }))
+    } })
   await service.initialize()
   await service.configure({ enabled: true, relayUrl: 'http://localhost:18920' })
-  await service.register({ ...device, signedTransaction: input.signedTransaction })
+  await service.register({ ...device, signedTransaction: input.ticket })
   service.secret({ id: 'request-a', botId: 'bot-a' })
   await service.close()
   assert.equal(pushes.length, 1)
@@ -132,7 +134,7 @@ test('利用者の通知入口からrelayへ送り、失効した端末を既存
   assert.equal(service.devices.size, 0)
 })
 
-test('Node.jsの正規入口で運営の鍵を読み、HTTPの設定確認と未購入エラーを返す', async t => {
+test('the Node.js entrance reads the operator key, answers the status check and refuses a request with no ticket', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'bellteam-relay-server-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
@@ -140,7 +142,7 @@ test('Node.jsの正規入口で運営の鍵を読み、HTTPの設定確認と未
   await writeFile(join(directory, 'config.json'), JSON.stringify({ teamId: 'TESTTEAM01', topic: product.bundleId,
     keys: { production: { keyId: 'TESTKEY001', file: 'test.p8' } } }))
   const child = spawn(process.execPath, ['services/notifications/index.mjs'], {
-    env: { ...process.env, ...env, HOST: '127.0.0.1', PORT: '0', BELLTEAM_APNS_DIRECTORY: directory },
+    env: { ...process.env, BELLTEAM_TICKET_CHECK_URL: ticketCheckUrl, HOST: '127.0.0.1', PORT: '0', BELLTEAM_APNS_DIRECTORY: directory },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => { if (child.exitCode === null) child.kill('SIGTERM') })
@@ -155,52 +157,4 @@ test('Node.jsの正規入口で運営の鍵を読み、HTTPの設定確認と未
   assert.equal((await invalid.json()).error.code, 'PUSH_RELAY_REQUEST_INVALID')
   child.kill('SIGTERM')
   assert.deepEqual(await once(child, 'exit'), [0, null])
-})
-
-// Session ticket beside the old receipt path (a485-relay-ticket-live): the operator's ticket/check is a fake fetcher here.
-function ticketFixture({ verdict, status = 200 } = {}) {
-  const checks = [], pushes = []
-  const fetcher = async (url, init) => {
-    checks.push({ url, body: JSON.parse(init.body) })
-    return Response.json(verdict ?? { entitlements: [{ productId: product.productId, store: 'apple', expiresAt: new Date(now + 3600000).toISOString() }],
-      value: createHash('sha256').update(device.token).digest('hex') }, { status })
-  }
-  const provider = { environments: ['production'], send: async (...args) => { pushes.push(args) } }
-  const relay = createNotificationRelay({ provider, ticketCheckUrl: 'https://login.example/auth/v1/ticket/check', fetcher, clock: () => now })
-  return { relay, checks, pushes, input: { ticket: 'sealed-ticket', device, payload: notificationPayload(event, device.server), id: event.id } }
-}
-
-test('券つきの送信は運営のticket/checkだけで受理し、レシート経路を通らない', async () => {
-  const { relay, input, checks, pushes } = ticketFixture()
-  const result = await send(relay, input)
-  assert.deepEqual([result.status, result.body], [200, { accepted: true }])
-  assert.deepEqual(checks, [{ url: 'https://login.example/auth/v1/ticket/check', body: { ticket: 'sealed-ticket' } }])
-  assert.equal(pushes.length, 1)
-})
-
-test('券の端末と送り先が違う・購読が無い・券が無効なら送らない', async () => {
-  let { relay, input, pushes } = ticketFixture({ verdict: { entitlements: [{ productId: product.productId, store: 'apple' }], value: 'f'.repeat(64) } })
-  assert.equal((await send(relay, input)).body.error.code, 'TICKET_DEVICE_MISMATCH')
-  ;({ relay, input, pushes } = ticketFixture({ verdict: { entitlements: [], value: createHash('sha256').update(device.token).digest('hex') } }))
-  assert.deepEqual([(await send(relay, input)).status, (await send(relay, input)).body.error.code], [402, 'SUBSCRIPTION_REQUIRED'])
-  ;({ relay, input, pushes } = ticketFixture({ verdict: { error: 'ticket_ended' }, status: 401 }))
-  assert.deepEqual([(await send(relay, input)).status, (await send(relay, input)).body.error.code], [401, 'TICKET_ENDED'])
-  assert.equal(pushes.length, 0)
-})
-
-test('接続先が無ければ券は503、券なしの旧形は従来どおり', async () => {
-  const { input } = ticketFixture()
-  const relay = createNotificationRelay({ provider: { environments: ['production'], send: async () => {} }, clock: () => now })
-  assert.equal((await send(relay, input)).status, 503)
-  const old = fixture()
-  assert.equal((await send(old.relay, old.input)).status, 200)
-  assert.equal(old.pushes.length, 1)
-})
-
-test('状態の確認は、券の接続先かAppleの旧設定のどちらかが整っていれば成功する', async () => {
-  const provider = { environments: ['production'], send: async () => {} }
-  const status = relay => relay.fetch(new Request('https://relay.example/v1/notifications/status')).then(response => response.status)
-  assert.equal(await status(createNotificationRelay({ provider, ticketCheckUrl: 'https://login.example/auth/v1/ticket/check' })), 200)
-  assert.equal(await status(createNotificationRelay({ provider, subscriptionEnvironment: {} })), 503)
-  assert.equal(await status(createNotificationRelay({ provider, subscriptionEnvironment: env })), 200)
 })

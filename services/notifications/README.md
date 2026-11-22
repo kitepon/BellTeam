@@ -1,6 +1,6 @@
 # 運営の通知中継
 
-利用者のコンテナはAPNsの秘密鍵を持たず、通知先端末に登録された本人の署名付き購入情報と通知をこのサービスへ送る。共有サーバーに保存された別の端末の購入情報は使わない。このサービスは `services/subscriptions/worker.mjs` の公開検証入口を呼び、Appleの署名検証と最新の購読状態の照会を行う。有効な購読だけを `APNsProvider` へ渡し、APNsのHTTP 200を確認してから `{accepted:true}` を返す。APNsが受理した後の端末への表示は端末で確認する。Webの会話とサーバーの予定実行は、この通知の購読確認にかかわらず無料で継続する。
+利用者のコンテナはAPNsの秘密鍵を持たず、利用者のサーバーが、アプリから受け取ったプッシュ券（ticket、login-billing 0.10.0）と通知をこのサービスへ送る。券は封がしてあって中身は読めず、サーバーはパスを持たない。このサービスはWorkerの `POST /auth/v1/ticket/check` へ `{ ticket }` を渡し、答えの `entitlements`（このアプリの商品が apple・google・exempt で期限内か）と `value`（アプリが券に結んだ端末トークンのSHA-256、小文字16進）だけを見る。`value` が送り先の端末トークンのハッシュと違えば、他の端末へは送らない。券が無効・期限切れなら401（`TICKET_INVALID`・`TICKET_ENDED`）、端末違いは401（`TICKET_DEVICE_MISMATCH`）、契約が無ければ402（`SUBSCRIPTION_REQUIRED`）、Workerに届かなければ502（`SUBSCRIPTION_CHECK_FAILED`）を返す。APNsの要求は `ticket`、FCMの要求は `proof: { ticket }` で送る。
 
 追加の利用者ID・端末台帳・配送キューは持たず、失敗の再試行もしない。端末登録は利用者のコンテナが既存の保存先で所有する。サービスのエラーはコンテナへ返し、既存の通知診断へ記録する。会話本文・秘密入力値・Appleの鍵は通知の送信データへ含めない。
 
@@ -8,26 +8,15 @@
 
 リポジトリ直下で `npm ci` し、`node services/notifications/index.mjs` で起動する。運営のHTTPS公開先からこのNode.jsサービスへ転送する。`HOST` と `PORT` はNode.jsの待受設定に使う。
 
-`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）か `{keyId, reference}`（`op://<保管庫のID>/<アイテムのID>/<フィールド>`、値は `.p8` の全文）を選べる。referenceを使う時は `op`（PATH上か `OP_CLI_PATH`）と `OP_SERVICE_ACCOUNT_TOKEN` を起動環境に置く。鍵を替える時は `config.json` を書き換えてサービスを再起動する。購読確認には `APPLE_ENVIRONMENT`・`APPLE_ISSUER_ID`・`APPLE_KEY_ID`・`APPLE_PRIVATE_KEY` が必要で、意味と取得方法は [購読確認サービス](../subscriptions/README.md) に従う。ProductionとSandboxの購読確認はそれぞれ別の実行環境にする。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
+`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）か `{keyId, reference}`（`op://<保管庫のID>/<アイテムのID>/<フィールド>`、値は `.p8` の全文）を選べる。referenceを使う時は `op`（PATH上か `OP_CLI_PATH`）と `OP_SERVICE_ACCOUNT_TOKEN` を起動環境に置く。鍵を替える時は `config.json` を書き換えてサービスを再起動する。購読の確認には `BELLTEAM_TICKET_CHECK_URL`（Workerの `POST /auth/v1/ticket/check`、例 `https://bellteam-login-test.kitepon.dev/auth/v1/ticket/check`）が必要で、Workerの仕様は [ログイン・課金Worker](../subscriptions/README.md) に従う。ProductionとSandboxの中継はそれぞれ別のWorkerを指す。中継はApple・Googleの鍵もkKeyも持たない。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
 
 利用者は追加機能の通知設定へこのサービスのルートURLを登録する。通知設定の変更時は `GET /v1/notifications/status` で実接続とAPNsの設定済み環境を確認する。`POST /v1/notifications/send` は `{signedTransaction,device,payload,id}` を受け取る。`device` と `payload` は `src/push-notifications.mjs` の共通実装が生成する。
 
 BellTeamは `await notifications.configure({enabled,relayUrl})` で保存済み設定を起動時と変更時に反映する。既存のAPNs設定がある個人環境は初回だけ通知ONへ移行し、relayURLが空なら直送する。画面でOFFを保存すると次回起動もOFFを守る。空の公開volumeは未設定・OFFから始まる。relayの接続確認と送信の失敗は `notifications.status().error` と既存の `SERVER_PUSH_FAILED` 診断へ残す。
 
-## 券とレシートの二本立て（a485-relay-ticket-live）
+## 運営の公開先
 
-本番の中継は、アプリのスイッチ版（セッション券）と、入っている1.0.xのアプリ（購入レシート）の両方を受ける。要求の形で分ける。
-
-```mermaid
-flowchart LR
-  S["利用者のサーバー"] -->|"APNs: ticket / FCM: proof.ticket"| R["中継 relay.mjs"]
-  S -->|"APNs: signedTransaction / FCM: 他のproof"| R
-  R -->|"券あり: POST ticket/check（BELLTEAM_TICKET_CHECK_URL）"| L["ログイン運営 bellteam-login"]
-  R -->|"券なし: 従来のレシート検証（同じプロセスの旧Worker）"| W["旧Worker bellteam-subscriptions"]
-  R --> P["APNs / FCM"]
-```
-
-券の経路は端末トークンのSHA-256（`value`）と期限内の購読（apple・google・exempt）だけを見る。`BELLTEAM_TICKET_CHECK_URL` が無ければ券つきの要求は503（`SUBSCRIPTION_NOT_CONFIGURED`）で、券なしの旧形は影響を受けない。`GET /v1/notifications/status`（認証なし、運営の死活確認にも使う）は、`BELLTEAM_TICKET_CHECK_URL` があるか、旧形のAppleの設定が整っていれば200で、どちらも無ければ503。データの流れは変わらず、中継は券もレシートも保存しない。旧形は a485-lb-release のあと、#2211 の中継（券だけ）で置き換える。
+本番の中継は `https://bellteam-push.kitepon.dev`（main-server の独立したサービス `bellteam-push`、`HOST=172.18.0.1`、`PORT=18920`、Cloudflare Tunnel と Caddy の先）。券だけを受け、`BELLTEAM_TICKET_CHECK_URL=https://bellteam-login.kitepon.dev/auth/v1/ticket/check` を向く。Appleの課金鍵は持たないので、旧形の `signedTransaction` の要求は受けない。`GET /v1/notifications/status` は認証なしで、`BELLTEAM_TICKET_CHECK_URL` があれば200、無ければ503（運営の死活確認に使う）。APNsの鍵は起動時に1回だけ読んでメモリに持つ。再配置は main の `services`・`src`・パッケージ定義を `/home/kite/bellteam-push` へ置いて `npm ci --omit=dev` し、再起動を依頼する。
 
 ## Android（FCM）
 

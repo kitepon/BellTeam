@@ -208,7 +208,7 @@ flowchart LR
 | 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
-購読の外部検証サービス/Apple署名検証/Stripe照会/Google Play照会内部はこの本体図の境界外（Stripeの鍵・価格とGoogle Playのサービスアカウントは運営Workerのsecretだけに置く。StripeのCheckoutは、Workerの`STRIPE_AUTOMATIC_TAX=true`で`automatic_tax[enabled]=true`を送る）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+運営のWorker（services/subscriptions。a485以降はログイン・課金の共通ライブラリ0.10.0のサーバー部分）はこの本体図の境界外。Workerは`/auth/v1/*`（ライブラリの通信契約1.20。サインイン、Webサインイン、受け渡し、証明`prove/*`、札`ticket/check`）だけを持ち、保存するのは使い捨てのnonce・枠・Webログイン記録・証明コード・拒否したパスID・notBeforeだけ（期限付き、ライブラリのDurable Object）。Apple・Googleの鍵とkKey・パス鍵は運営Workerのsecretだけに置く。通知中継もこの本体図の外で、本体が渡す札を`ticket/check`で確かめて答えだけを読む（詳細は[Worker README](../../../../services/subscriptions/README.md)）。受領書の確認・Stripeは無くなった。 BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
 
 ## サーバー上のアプリのセッション（a485）
 

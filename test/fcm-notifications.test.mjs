@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { generateKeyPairSync } from 'node:crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { FcmNotifications, fcmMessage } from '../src/fcm-notifications.mjs'
+import product from '../services/subscriptions/product.json' with { type: 'json' }
 import { createNotificationRelay } from '../services/notifications/relay.mjs'
 import { notificationPayload } from '../src/push-notifications.mjs'
 import { createNotificationsDispatcher, validateNotificationRequest } from '../src/usage/notifications-dispatcher.mjs'
@@ -175,31 +176,33 @@ test('the dispatcher routes provider fcm, the four events and the update notice,
 })
 
 // ---- operator relay (a381)
-const proofApple = { signedTransaction: 'synthetic.jws.value' }
+const proofPass = { ticket: 'synthetic.ticket.value' }
 function relayWorld({ entitled = true, android = true, answer = null } = {}) {
   const verified = [], posted = []
-  const subscriptionWorker = { async fetch(request) {
-    verified.push(await request.json())
-    return Response.json({ entitled, validUntil: new Date(Date.now() + 86400000).toISOString(), source: 'apple' })
-  } }
+  // The Worker's ticket/check: the relay sends the ticket and reads the entitlements and the device value the ticket is bound to.
+  const fetcher = async (url, init) => {
+    verified.push(JSON.parse(init.body).ticket)
+    return Response.json({ value: createHash('sha256').update(tokenA).digest('hex'), entitlements: entitled
+      ? [{ productId: product.productId, kind: 'subscription', store: 'apple', expiresAt: new Date(Date.now() + 86400000).toISOString() }] : [] })
+  }
   const fcmProvider = android ? { async post(message) { posted.push(message); if (answer) throw Object.assign(new Error(answer), { code: answer }) } } : null
-  const relay = createNotificationRelay({ provider: { environments: ['production'], send: async () => {} }, fcmProvider, subscriptionWorker,
-    subscriptionEnvironment: { APPLE_ENVIRONMENT: 'Sandbox', APPLE_ISSUER_ID: 'x', APPLE_KEY_ID: 'x', APPLE_PRIVATE_KEY: 'x' } })
+  const relay = createNotificationRelay({ provider: { environments: ['production'], send: async () => {} }, fcmProvider,
+    ticketCheckUrl: 'https://worker.example/auth/v1/ticket/check', fetcher })
   const call = (path, body, method = 'POST') => relay.fetch(new Request(`https://relay.example.com${path}`, { method, ...(method === 'GET' ? {} : { body: JSON.stringify(body) }) }))
   return { relay, call, verified, posted }
 }
-const goodRelayBody = (overrides = {}) => ({ proof: proofApple, device: { token: tokenA, server }, id: reply.id,
+const goodRelayBody = (overrides = {}) => ({ proof: proofPass, device: { token: tokenA, server }, id: reply.id,
   message: fcmMessage(reply, { token: tokenA, server }).message, ...overrides })
 
-test('the operator relay sends Android only after the Worker confirms the proof, and forwards the proof unchanged', async () => {
+test('the operator relay sends Android only after the Worker confirms the ticket, and forwards the ticket unchanged', async () => {
   const { call, verified, posted } = relayWorld()
   assert.equal((await (await call('/v1/notifications/status', null, 'GET')).json()).android, true)
   const sent = await call('/v1/notifications/fcm/send', goodRelayBody())
   assert.equal(sent.status, 200)
-  assert.deepEqual(verified, [proofApple]); assert.equal(posted.length, 1); assert.equal(posted[0].token, tokenA)
-  // any store: the proof is opaque to the relay, the Worker decides
-  await call('/v1/notifications/fcm/send', goodRelayBody({ proof: { stripeSubscriptionId: 'sub_synthetic' } }))
-  assert.deepEqual(verified.at(-1), { stripeSubscriptionId: 'sub_synthetic' })
+  assert.deepEqual(verified, [proofPass.ticket]); assert.equal(posted.length, 1); assert.equal(posted[0].token, tokenA)
+  // a proof that carries no ticket (an old receipt body) is refused before the Worker is asked
+  assert.equal((await call('/v1/notifications/fcm/send', goodRelayBody({ proof: { signedTransaction: 'old.jws' } }))).status, 400)
+  assert.equal(verified.length, 1)
 })
 
 test('the operator relay refuses Android sends that are unentitled, unsupported or not the closed message', async () => {
@@ -239,13 +242,13 @@ test('with the relay URL the child sends through the relay with the stored proof
   await service.initialize()
   await service.configure({ enabled: true, relayUrl: 'https://relay.example.com' })
   assert.deepEqual(service.status(), { configured: true })
-  await service.register({ token: tokenA, server, proof: proofApple })
+  await service.register({ token: tokenA, server, proof: proofPass })
   await service.register({ token: tokenB, server })
   service.publish(reply); await settle(service)
   assert.equal(relay.posted.length, 1); assert.equal(relay.posted[0].token, tokenA)
-  assert.deepEqual(relay.verified, [proofApple])
+  assert.deepEqual(relay.verified, [proofPass.ticket])
   assert.deepEqual(reports.map(report => report.diagnostic_log), ['SUBSCRIPTION_REQUIRED'])
-  assert.ok(!JSON.stringify(reports).includes('synthetic.jws'))
+  assert.ok(!JSON.stringify(reports).includes('synthetic.ticket'))
   answer = 'FCM_UNREGISTERED'
   service.publish(reply); await settle(service)
   assert.deepEqual([...service.devices.keys()], [tokenB])
