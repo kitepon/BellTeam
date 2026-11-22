@@ -118,6 +118,35 @@ How each state is left: the door never waits for an operator: it is created at s
 
 Open: seats on other hosts (`remote-seat-ingress`) cannot open a unix socket of this container; they keep their own connector and its `/mcp` token path, which stops working at the Approval Box `/v1` close. Their route (a network door, or each host's own pairing) is not designed here; asked of Tronie and Nayuta.
 
+## The door for seats on other hosts: the body route (a516m / a532b1m, 2026-11-23)
+
+Seats on other hosts cannot open this container's socket. The host-side door (BellTeam terminals, Krust a532b1, [terminals README "Approval Box door on terminals"](../terminals/README.md)) carries the connector's request line over the seat's existing ssh reverse forward to the remote seat listener (`127.0.0.1:4183`, RS05) with the seat's bearer. This change is the body end of that line: `POST /api/seat-mcp/approval-box/local` on the same listener. No new port, no new secret: the seat's bearer is the credential.
+
+```mermaid
+flowchart TD
+  Door["host door (terminals): one POST per connector line, Authorization: Bearer seat token"] --> Listener["remote seat listener 127.0.0.1:4183 (RS05)"]
+  Listener --> Path{"path == /api/seat-mcp/approval-box/local?"}
+  Path -->|no| Old["the existing seat MCP paths, unchanged"]
+  Path -->|yes| Method{"POST?"}
+  Method -->|no| M405["405 METHOD_NOT_ALLOWED"]
+  Method -->|yes| Verify{"credentials.verify(bearer), member still resolves to binding.botId (as /mcp does)?"}
+  Verify -->|no| E400["400 BELLTEAM_SEAT_UNRESOLVED"]
+  Verify -->|yes| Kind{"binding.kind == fork?"}
+  Kind -->|yes| E403["403 APPROVAL_BOX_DOOR_NOT_ALLOWED"]
+  Kind -->|no| Body{"body: JSON object, string method and path, at most 32 MiB?"}
+  Body -->|too large| E413["413 APPROVAL_BOX_DOOR_TOO_LARGE"]
+  Body -->|invalid| E400b["400 APPROVAL_BOX_DOOR_REQUEST_INVALID"]
+  Body -->|ok| Call["daemon.call(method, path, body): one line to pc/daemon.sock, one reply line"]
+  Call --> Reply["HTTP 200, application/json: the daemon's reply as it is ({ok:true,result} or {ok:false,status,code,message[,body]})"]
+  Call -. "daemon down / not started" .-> Down["HTTP 200: {ok:false,status:503,code:APPROVAL_BOX_DAEMON_UNAVAILABLE}"]
+```
+
+Data flow: seat host connector daemon -> door (host) -> ssh -R -> this route -> `approvalBoxDaemon.call` -> hosted daemon socket -> reply back the same way. The route reads the body in memory only and keeps nothing: no log of the line or the reply, no file. A decision's content passes through memory as it does through the seats' door (a514m). `approvalBoxDaemon.call` is the raw form of `route()`: it returns the daemon's reply object as it is (the readers' `route()` throws on `ok:false`), with a 30 s bound and a reply bound of 64 MiB (an attachment reply is base64; `localCall`'s 1 MB reply bound stays for `route()` and `status()`).
+
+State transitions: none added. Each request is stateless; every refusal is a closed code answered at once; a daemon that is down or not paired answers inside HTTP 200 and the door's connector retries on its own loop.
+
+Trust: a bearer of any live MAIN seat opens the route, exactly as any local seat opens the seats' door. The daemon has no caller identity (Nayuta), so a seat can file, read, cancel and amend any decision of the one connection (the accepted a124 residual). A fork seat is refused. Order (terminals README): the route is live before the door and `doorHook` are proven end to end; an unpaired daemon's `503 not_paired` through the whole path is already proof of the line.
+
 ## Diagram check against the code (a490h)
 
 Compared line by line with `src/approval-box-daemon.mjs` and the package's `startHosted` / `serveLocal` (read from the 0.2.0-pc.1 bundle, and `serveLocal` of 0.2.0-pc.2 re-read for a514m: one line in, one reply and end, cap 32 MiB, the added `/uploads` and attachment routes): status modes `not_paired | starting | pc`, the 2 s config poll, socket path `state/pc/daemon.sock`, request shape and error shape. Not run: a real pairing against production (Nayuta gives the go at the sitting).
