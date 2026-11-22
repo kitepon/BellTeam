@@ -1,5 +1,6 @@
 {
   "loginBillingWorkerUrl": "https://bellteam-login-test.kitepon.dev/auth/v1",
+  "approvalBoxAuthUrl": "https://approval-box.kitepon.dev/auth/v1",
   "appAppleId": 6816295589,
   "bundleId": "dev.kitepon.bellbot",
   "productId": "dev.kitepon.bellbot.monthly",

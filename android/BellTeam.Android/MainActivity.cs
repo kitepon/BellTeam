@@ -17,11 +17,12 @@ public class MainActivity : AvaloniaMainActivity
     {
         Current = this; base.OnCreate(savedInstanceState);
         PushChannel.Ensure(this); PushRouter.Accept(Intent);
-        AccountStore.Billing?.RegisterWebReturn(this); // login-billing duty: before the activity starts, so the Auth Tab can hand a web sign-in's return back
+        // login-billing duty: before the activity starts, so the Auth Tab can hand a web sign-in's return back. Each instance registers its own launcher (contract 1.24); the result returns to the one that opened it.
+        AccountStore.Billing?.RegisterWebReturn(this); ApprovalBoxAccount.Billing?.RegisterWebReturn(this);
         // Android 13+ asks before showing any notification.
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu && CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications) != Permission.Granted) RequestPermissions([global::Android.Manifest.Permission.PostNotifications], 1);
     }
-    protected override void OnNewIntent(Intent? intent) { base.OnNewIntent(intent); AccountStore.Billing?.OnWebReturn(intent); PushRouter.Accept(intent); }
+    protected override void OnNewIntent(Intent? intent) { base.OnNewIntent(intent); if (AccountStore.Billing?.OnWebReturn(intent) != true) ApprovalBoxAccount.Billing?.OnWebReturn(intent); PushRouter.Accept(intent); }
     protected override void OnResume() { base.OnResume(); PushRouter.Foreground = true; _ = AccountStore.StartAsync();
     }
     protected override void OnPause() { PushRouter.Foreground = false; base.OnPause(); }

@@ -4,13 +4,13 @@ using Kitepon.LoginBilling;
 
 namespace BellTeam.Android;
 
-// The one LoginBilling of the app (library rule: one instance per app). serverClientId is the Web client of Google project bellteam-515414 (not a secret). baseUrl is the operator's Worker,
+// BellTeam's own LoginBilling (library rule 1.24: one instance per deployment; Approval Box's second one is ApprovalBoxAccount below). serverClientId is the Web client of Google project bellteam-515414 (not a secret). baseUrl is the operator's Worker,
 // never the user's own server; it is the product.json key loginBillingWorkerUrl, and while Bready has not set it the store screens stay off (the Apple design does the same).
 public static class AccountStore
 {
     public const string ServerClientId = "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com";
     private static LoginBilling? billing;
-    private static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
+    internal static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
     public static string ProductId => Product("productId") ?? throw new InvalidOperationException("product.json に productId がありません。");
     // The web sign-in's return address the operator lists: product.json loginBillingWebReturn (a verified https App Link, or a session scheme only the Auth Tab sees).
     private static string? WebReturn()
@@ -29,4 +29,14 @@ public static class AccountStore
         try { await lb.StartAsync(); }
         catch (LoginBillingException error) { global::Android.Util.Log.Warn("BellTeam", "login-billing start: " + error.Code); }
     }
+}
+
+// a515n (login-billing 0.18.0, contract 1.24): Approval Box's own instance, "foreign": its own base origin, its own storage (storageName: folder and Keystore alias apart from BellTeam's), web sign-in only,
+// never a native sheet, a purchase or a receipt. The two instances share nothing; signing out of one leaves the other. product.json: approvalBoxAuthUrl, approvalBoxWebReturn (the address Approval Box's operator lists:
+// the session scheme approvalbox-websignin for the Auth Tab; unset until Nayuta gives the exact address, and then the web sign-in cannot return). serverClientId is empty: the native Google route is never used here.
+public static class ApprovalBoxAccount
+{
+    public const string StorageName = "approvalbox";
+    private static LoginBilling? billing;
+    public static LoginBilling? Billing => billing ??= AccountStore.Product("approvalBoxAuthUrl") is { } url ? new LoginBilling(MainActivity.Current, "", url, AccountStore.Product("approvalBoxWebReturn"), StorageName) : null;
 }
