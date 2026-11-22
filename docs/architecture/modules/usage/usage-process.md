@@ -111,6 +111,39 @@ createApplicationFeaturesは追加usageContext(method)を親capture factoryへ�
 
 Onboarding.authの任意scalarは既HarnessAuth同様null/booleanへ正規化し、JSON IPCでundefinedが消えて公開型が崩れないようにした。外部認証の開始/入力や資格発行を試験していない。
 
+## 入場と投影の状態遷移（a500 / a507c）
+
+状態はusage子のメモリだけにある。`accepting`・`quiesced`・`stopped`は入場の状態、`projectionFailed`（閉じ）は親の写しが古い印で、別の軸。
+
+```mermaid
+stateDiagram-v2
+  [*] --> 初期化中
+  初期化中 --> 受付中: initialize完了（accepting）
+  受付中 --> 静止: quiesce（新入場を閉じ、処理中を待つ）
+  静止 --> 受付中: resume
+  静止 --> 停止: close（pendingが0）
+
+  state "投影の状態" as Projection {
+    [*] --> 同期済み
+    同期済み --> 閉じ: 公開が1行失敗（ACK無し）
+    閉じ --> 再公開中: 受付中で停止前のrequestが来た（同時に1つ）
+    再公開中 --> 同期済み: 全行のACKが揃い、その間に別の失敗が無い
+    再公開中 --> 閉じ: 1行でも失敗、または別の公開が失敗
+    閉じ --> 閉じ: 静止中・停止後（再公開しない）
+  }
+```
+
+| 投影の状態 | 入力 | 次の状態 / 応答 |
+| --- | --- | --- |
+| 同期済み | 公開（settings・onboarding・auth・subscription・secret・question・event）がACKされる | 同期済み |
+| 同期済み | 公開が1行失敗 | 閉じ。保存済み状態は巻戻さない。その要求は`USAGE_PROJECTION_UNAVAILABLE` |
+| 閉じ | 受付中で停止前のrequest | 再公開中（settings・onboarding・auth・subscriptionと未決のsecret・questionを新しいrevisionでliveに全て公開） |
+| 再公開中 | 全行ACK、かつ再公開の間に他の公開失敗が無い | 同期済み。その要求はそのまま通る |
+| 再公開中 | 1行でも失敗 | 閉じのまま。その要求は`USAGE_PROJECTION_UNAVAILABLE`、次のrequestがもう一度やり直す |
+| 閉じ | quiesce・resume・close・callback | 再公開しない（入場が閉じているか停止後、callbackは入場ではない）。閉じの間のcallbackも、終わりに`USAGE_PROJECTION_UNAVAILABLE`で終わる |
+
+閉じの自力の出口は「次の入場による全状態の再公開」で、時間もプロセスの死も要らない（以前は出口が無く、利用量のプロセスが死ぬまで配達・起動・設定が全て断られた）。閉じが守るのは「親の写しが落ちた行の分だけ古いこと」で、再公開が全行ACKされるまで入場を閉じたままにすることでそれを保つ。
+
 ## usage固有channel/薄entry/probe（追加実装）
 
 Root21:55の並行分担で、closed parent/child adapterと`src/usage-entry.mjs`/`scripts/probe-usage-runtime.mjs`をミカが所有する。既factory/DTOを再利用し、parent公開口ready/request/callback/control/drainIncoming/reaped/snapshotを共通runnerへ接続する。C/固定FD3,4,5/排他/世代controllerはEpiの公開窓口に従う。membersの共通MODULE_CONCURRENCYのroot/effect/callback各64・実completionを再利用し、private大snapshotはconversation-streamsのcredit/chunkを使う。actorは親opaqueから同channelが閉actorへ写し、子の自己申告や診断への秘密反射を認めない。
