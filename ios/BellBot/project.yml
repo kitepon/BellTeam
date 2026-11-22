@@ -47,7 +47,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '184'
+        CFBundleVersion: '185'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -89,6 +89,7 @@ targets:
             "fe80::/10":
               NSExceptionAllowsInsecureHTTPLoads: true
         NSPhotoLibraryUsageDescription: 会話へ添付する画像を選ぶために写真を使います。
+        NSCameraUsageDescription: 承認用のQRコードを読み取るためにカメラを使います。
         NSPhotoLibraryAddUsageDescription: 会話の画像を写真に保存するために使います。
     settings:
       base:
@@ -151,7 +152,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '184'
+        CFBundleVersion: '185'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -194,7 +195,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '184'
+        CFBundleVersion: '185'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
