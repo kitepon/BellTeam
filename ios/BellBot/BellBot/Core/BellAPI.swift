@@ -520,7 +520,8 @@ final class BellAPI {
               responseURL.host == baseURL.host,
               responseURL.port == baseURL.port else { throw BellAPIError.unauthorized }
         if keepStatus { return }
-        if http.statusCode == 401 || http.statusCode == 403 { throw BellAPIError.unauthorized }
+        // 本体のセッションが有効なまま拒まれた403（FORBIDDEN）はトークンを消さない。確定した401だけが認証切れ（Accessの旧経路は403も認証切れ）。
+        if http.statusCode == 401 || (http.statusCode == 403 && sessionToken == nil) { throw BellAPIError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
             struct ErrorBody: Decodable { let error: String; let message: String?; let reason: String? }
             let body = try? decoder.decode(ErrorBody.self, from: data)

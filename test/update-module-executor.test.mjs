@@ -317,7 +317,7 @@ test('Owner plan/start/get and individual rollback exchange all three real contr
   const descriptor = (id, versionId) => ({ versionId, sourceCommit: nextSource, platform: { os: 'linux', arch: 'amd64' },
     appRoot: id === 'web-gateway' ? webRoots.get(versionId) : `/run/bellteam-maintenance/${id}/releases/${versionId}/payload`,
     protocolVersion: id === 'notifications' ? 2 : 1, ...(id === 'notifications' ? { stateSchema: 2 } : id === 'members' ? { stateCompatibility: MEMBERS_STATE_COMPATIBILITY } : {}) })
-  push = createNotificationsProcess({ root, configuration: () => ({ apns: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } }), prepareRelease: async id => descriptor('notifications', id) })
+  push = createNotificationsProcess({ root, configuration: () => ({ apns: { enabled: false, relayUrl: '' } }), prepareRelease: async id => descriptor('notifications', id) })
   members = createMembersProcess({ root, prepareRelease: async id => descriptor('members', id) })
   await push.start(); await members.start()
   await push.request('register', { provider: 'apns', token: 'retained artificial token' })

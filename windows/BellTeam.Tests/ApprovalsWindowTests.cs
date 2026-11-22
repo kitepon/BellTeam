@@ -28,12 +28,12 @@ public sealed class ApprovalsWindowTests
         public ApprovalsPage Page => Window.Page;
         public void Dispose() { Page.Stop(); Window.Close(); Hub.Dispose(); Workspace.Dispose(); }
     }
-    private static Rig Open(string scene)
+    private static Rig Open(string scene, IDeviceDecisions? device = null)
     {
         var spy = new Spy(new ApprovalsFixture(scene));
         var workspace = new Workspace(origin => new BellApi(origin, spy));
         Await(workspace.ConnectAsync("http://localhost", listen: false));
-        var hub = new ApprovalsHub(workspace); var window = new ApprovalsWindow(hub) { Rendering = true };
+        var hub = new ApprovalsHub(workspace, device: device); var window = new ApprovalsWindow(hub) { Rendering = true };
         window.Sync();
         return new Rig(workspace, hub, window, spy);
     }
@@ -196,6 +196,138 @@ public sealed class ApprovalsWindowTests
             chart.Stop(); window.Close();
         }
         finally { ApprovalsHub.Current = null; }
+    });
+
+    // The device side of the page: a book the test fills and an answer sink that records what the page sent.
+    private sealed class FakeDevice : IDeviceDecisions
+    {
+        public BellTeam.PeerChannel.DecisionBook Book { get; } = new();
+        public BellTeam.PeerChannel.RuntimeState State { get; set; } = new(BellTeam.PeerChannel.RuntimeStatus.Live);
+        public event Action? Changed;
+        public List<(string Id, string? Option, string? Text)> Answers { get; } = [];
+        public int Refreshed;
+        public Task<BellTeam.PeerChannel.SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) { Answers.Add((decisionId, optionId, text)); return Task.FromResult(new BellTeam.PeerChannel.SendOutcome("ok")); }
+        public Task<BellTeam.PeerChannel.SendOutcome> HoldAsync(string decisionId, bool held) => Task.FromResult(new BellTeam.PeerChannel.SendOutcome("ok"));
+        public void Refresh() => Refreshed++;
+        public List<(string Id, string Attachment)> Asked { get; } = [];
+        public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) { Asked.Add((decisionId, attachmentId)); return Task.FromResult<byte[]?>(null); }
+        public void Raise() => Changed?.Invoke();
+        public void Add(string rid, string decisionId, string title)
+        {
+            var json = "{\"rid\":\"" + rid + "\",\"rv\":1,\"schema\":\"approval-box/decision@1\",\"content\":{\"decision_id\":\"" + decisionId + "\",\"title\":\"" + title + "\",\"context\":\"本文\",\"options\":[{\"id\":\"o1\",\"label\":\"はい\"}],\"urgency\":\"normal\",\"source\":{\"client\":\"codex\",\"session_label\":\"端末の席\",\"work_label\":\"w\"},\"created_at\":\"" + DateTimeOffset.UtcNow.ToString("O") + "\",\"version\":1}}";
+            Book.Apply("request", JsonDocument.Parse(json).RootElement, System.Text.Encoding.UTF8.GetBytes(json), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        }
+    }
+
+    [Fact]
+    public void TheDeviceCopyWinsADeviceOnlyDecisionJoinsAndEachCardNamesItsSource() => RunSta(() =>
+    {
+        var device = new FakeDevice(); device.Add("r2", "K-2", "端末の写し"); device.Add("r9", "K-9", "端末だけの決裁");
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        Assert.Equal(["K-1", "K-2", "K-3", "K-4", "K-5", "K-9"], rig.Page.Pending.Select(item => item.Id).Order());
+        Assert.Equal(("device", "端末の写し"), (rig.Page.Pending.Single(item => item.Id == "K-2").Source, rig.Page.Pending.Single(item => item.Id == "K-2").Title));
+        Assert.Equal("server", rig.Page.Pending.Single(item => item.Id == "K-1").Source);
+        var texts = Texts(rig.Window);
+        Assert.Contains("端末で受信", texts); Assert.Contains("サーバー経由", texts);
+        Assert.Equal(1, rig.Page.Pending.Count(item => item.Id == "K-2"));
+    });
+
+    [Fact]
+    public void WithoutADeviceTheListHasNoSourceTagsAndAVerifiedEmptyDeviceRemovesNothing() => RunSta(() =>
+    {
+        using (var plain = Open("main")) { Until(() => plain.Page.Settled); Assert.All(plain.Page.Pending, item => Assert.Null(item.Source)); Assert.DoesNotContain("サーバー経由", Texts(plain.Window)); }
+        using var rig = Open("main", new FakeDevice()); Until(() => rig.Page.Settled);
+        Assert.Equal(["K-1", "K-2", "K-3", "K-4", "K-5"], rig.Page.Pending.Select(item => item.Id).Order());
+    });
+
+    [Fact]
+    public void AnAnswerGoesOnlyThroughTheSourceThatHoldsTheCopy() => RunSta(() =>
+    {
+        var device = new FakeDevice(); device.Add("r9", "K-9", "端末だけの決裁");
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        rig.Page.Select("K-9"); rig.Page.Choose("o1"); Press(Find(rig.Window, "confirm"));
+        Until(() => device.Answers.Count == 1);
+        Assert.Equal(("K-9", "o1", (string?)null), device.Answers[0]);
+        Assert.DoesNotContain(rig.Spy.Sent, call => call.Method == "POST");
+        Assert.Equal("sending", rig.Page.AnswerStep);                              // stays until the result frame closes it in the book
+        device.Book.Close("r9", "answered", JsonDocument.Parse("{\"option_id\":\"o1\"}").RootElement, "dev", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); device.Raise();
+        Until(() => rig.Page.AnswerStep is null);
+        Assert.Equal("answered", rig.Page.Done.Single(item => item.Id == "K-9").Status);
+        rig.Page.Select("K-1"); rig.Page.Choose("o1"); Press(Find(rig.Window, "confirm"));
+        Until(() => rig.Page.AnswerStep is null);
+        Assert.Single(rig.Spy.Sent, call => call.Method == "POST" && call.Path == "/api/approvals/K-1/answer");
+        Assert.Single(device.Answers);                                              // never the same answer through both
+    });
+
+    [Fact]
+    public void WhenTheServerIsNotConnectedTheDeviceListStaysAndTheConnectScreenIsOneButtonAway() => RunSta(() =>
+    {
+        var device = new FakeDevice(); device.Add("r9", "K-9", "端末だけの決裁");
+        using var rig = Open("not-connected", device); Until(() => rig.Page.Settled);
+        Assert.Equal(["K-9"], rig.Page.Pending.Select(item => item.Id));
+        Assert.Contains("端末だけの決裁", Texts(rig.Window)); Assert.Contains(Approvals.ServerSideNoCredential, Texts(rig.Window));
+        Press(Find(rig.Window, "legacy:つなぐ"));
+        Until(() => Texts(rig.Window).Contains(Approvals.NoCredential) || Texts(rig.Window).Contains(Approvals.Waiting));
+        Press(Find(rig.Window, "connect:back"));
+        Assert.Contains("端末だけの決裁", Texts(rig.Window));
+    });
+
+    [Fact]
+    public void ADeviceThatIsNotLiveSaysWhyAndKeepsEveryServerDecision() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.Retrying, "接続できません") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        Assert.Contains(Approvals.DeviceReconnecting("接続できません"), Texts(rig.Window));
+        Assert.Equal(5, rig.Page.Pending.Count);
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.NeedsAdmission); device.Raise();
+        Assert.Contains(Approvals.DeviceNeedsApproval, Texts(rig.Window));
+        rig.Page.Reload(); Assert.Equal(1, device.Refreshed);
+    });
+
+    [Fact]
+    public void TheDeviceStatesShowDeltasCopyForEndedSignInDeletedAccountAndRemovedDevice() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.SignedOut, "pass_ended") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        Assert.Contains(Approvals.DevicePassEnded, Texts(rig.Window));
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.SignedOut, "account_deleted"); device.Raise();
+        Assert.Contains(Approvals.DeviceAccountDeleted, Texts(rig.Window));
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.NeedsAdmission, "removed"); device.Raise();
+        Assert.Contains(Approvals.DeviceRemoved, Texts(rig.Window));
+        device.State = new(BellTeam.PeerChannel.RuntimeStatus.NotEntitled, "no_entitlement"); device.Raise();
+        Assert.Contains(Approvals.DeviceNotEntitled, Texts(rig.Window));
+        Assert.Equal(5, rig.Page.Pending.Count);                                  // no state hides a decision
+    });
+
+    [Fact]
+    public void SigningInShowsTheBrowserLineWithAnUndoAndAFailedTryShowsItsReason() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.SignedOut, "signed_out") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        var cancelled = 0; rig.Hub.CancelSignIn = () => cancelled++; rig.Hub.SignInApprovalBox = () => { }; device.Raise();
+        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Assert.NotNull(Find(rig.Window, "legacy:Approval Boxにサインイン"));
+        rig.Hub.SetSignIn(true);
+        Assert.Contains(Approvals.DeviceSigningIn, Texts(rig.Window)); Assert.DoesNotContain(Approvals.DeviceSignedOut, Texts(rig.Window));
+        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
+        rig.Hub.SetSignIn(false, "サインインできませんでした。");
+        Assert.Contains("サインインできませんでした。", Texts(rig.Window)); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
+    });
+
+    [Fact]
+    public void NeedsApprovalOffersTheAskThenShowsTheCodeAndQrAndTheNoteAfterItEnds() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.NeedsAdmission, "not_verified") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        var asked = 0; var cancelled = 0; rig.Hub.RequestApproval = () => asked++; rig.Hub.CancelApproval = () => cancelled++; device.Raise();
+        Assert.Contains(Approvals.DeviceNeedsApproval, Texts(rig.Window)); Press(Find(rig.Window, "legacy:" + Approvals.DeviceAskApproval)); Assert.Equal(1, asked);
+        rig.Hub.SetOffer(new ApprovalOffer("ABCD-EFGH-JKMN-PQRS", "PC1VERIFY:x", DateTimeOffset.UtcNow.AddMinutes(5)));
+        var texts = Texts(rig.Window);
+        Assert.Contains("ABCD-EFGH-JKMN-PQRS", texts); Assert.Contains(Approvals.DeviceApprovalHow, texts); Assert.DoesNotContain(Approvals.DeviceNeedsApproval, texts);
+        Assert.Contains(LogicalTree.Find<FrameworkElement>(rig.Window.Content), element => element is QrView);
+        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
+        rig.Hub.SetOffer(null, Approvals.DeviceApprovalExpired);
+        Assert.Contains(Approvals.DeviceApprovalExpired, Texts(rig.Window)); Press(Find(rig.Window, "legacy:もう一度")); Assert.Equal(2, asked);
+        Assert.Equal(5, rig.Page.Pending.Count);
     });
 
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }

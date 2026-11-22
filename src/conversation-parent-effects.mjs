@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { roomTurnsFromThroughline } from './room-routing.mjs'
+import { isRemoteBot } from './remote-seats.mjs'
 import { validateConversationEffect, validateConversationEffectResult } from './conversation/effects.mjs'
 
 const fail = code => { throw Object.assign(new Error(code), { code, status: 503, outcome: 'unknown' }) }
@@ -74,8 +75,15 @@ export function createConversationParentEffects({ getServices, observerEffects, 
       case 'runtime.image.read': {
         const entry = saved(params.leaseId, context)
         if (entry.ending) fail('IMAGE_SAVE_LEASE_INVALID')
-        if (typeof entry.seatRuntime?.readImage !== 'function') unavailable()
-        const read = Promise.resolve().then(() => entry.seatRuntime.readImage(params.image, 25 * 1024 * 1024))
+        // a521: a path image saved by a remote seat is on its own terminal: Aiterm reads it there (transport.readSeatImage, image_read), the body never opens it.
+        // A body whose transport has no such method says so, instead of IMAGE_FILE_NOT_FOUND.
+        const remote = typeof params.image.path === 'string' ? services.bots?.get?.(entry.owner) : null
+        if (!isRemoteBot(remote) && typeof entry.seatRuntime?.readImage !== 'function') unavailable()
+        const read = Promise.resolve().then(() => {
+          if (!isRemoteBot(remote)) return entry.seatRuntime.readImage(params.image, 25 * 1024 * 1024)
+          if (typeof services.transport?.readSeatImage !== 'function') throw new Error('IMAGE_REMOTE_READ_UNAVAILABLE')
+          return services.transport.readSeatImage(remote, params.image.path, 25 * 1024 * 1024)
+        })
         entry.gate.trackCompletion(entry.lease, read)
         result = { data: (await read).toString('base64') }
         break

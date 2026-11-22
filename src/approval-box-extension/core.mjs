@@ -24,7 +24,7 @@ const existsAlready = result => /EXIST|ALREADY|UNCHANGED/iu.test(result?.code ??
 
 export function createApprovalBoxExtensionCore({ client = createApprovalBoxClient(), now = Date.now, stateDir = STATE_DIR, files = fileOps, streamBackoffMs = 1000 } = {}) {
   let session, unsaved = false, rows = null, pairing = null, connectState = 'not_connected', entitlement = null, entitlementAt = 0, roster = null, rosterAt = 0
-  let seq = 0, ring = [], dirty = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
+  let seq = 0, ring = [], dirty = new Set(), daemonIds = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
   const rowsPath = join(stateDir, 'links.json')
 
   const loadRows = async () => {
@@ -131,6 +131,30 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     if (response.status !== 200) throw mapped(response)
     return response.json
   }
+  // a490g (peer-channel-feed.md): decisions held by the hosted daemon, read through the parent. The daemon record is mapped to the /v1 Decision shape the planner already reads;
+  // it carries the context text for the view (a490k) but no attachments and no history (so no L4 amend note from this source), and no requester_bot_id: the roster-name match classifies it (README, shortcut).
+  const fromDaemon = rec => ({ id: rec.id, title: rec.title, context: rec.context ?? '', options: rec.options, urgency: rec.urgency, ...(rec.deadline ? { deadline: rec.deadline } : {}), status: rec.status,
+    answer: rec.answer && { option_id: rec.answer.optionId, text: rec.answer.text, answered_at: rec.answer.answeredAt }, version: rec.version, created_at: rec.createdAt, updated_at: rec.updatedAt,
+    cancel_reason: rec.cancelReason, ...(rec.recommendation ? { recommendation: rec.recommendation } : {}), resume_phrase: '', history: [], request_attachments: [],
+    source: { client: 'other', session_label: rec.sessionLabel, ...(rec.requester ? { requester: rec.requester } : {}) } })
+  const readDaemon = async (effect, id) => { const rec = await effect('daemon.decisions.read', { id }).catch(() => null); return rec ? fromDaemon(rec) : null }
+  // a490j: every decision the hosted daemon holds, as /v1-shaped records (what BellTeam's seats and the body filed once PC_OFFER is on); cached 3 s so a screen refresh reads the socket once.
+  let daemonAllAt = -Infinity, daemonAllValue = []
+  const daemonAll = async effect => {
+    if (now() - daemonAllAt < 3000) return daemonAllValue
+    const listed = await effect('daemon.decisions.list', {}).catch(() => [])
+    const items = []
+    for (const item of listed.slice(0, 200)) { const decision = await readDaemon(effect, item.id); if (decision) items.push(decision) }
+    daemonAllAt = now(); daemonAllValue = items
+    return items
+  }
+  const byUrgency = (a, b) => (b.urgency === 'high') - (a.urgency === 'high') || (a.deadline ?? '9').localeCompare(b.deadline ?? '9') || a.created_at.localeCompare(b.created_at) // contract order: 急ぎ, nearer 期限, older first
+  // One decision for the engine: the source that listed it first, the other as the fallback (an old decision leaves the daemon's 24 h list but stays readable by id for 30 days).
+  const readEngine = async (effect, id) => {
+    const viaV1 = () => read(effect, id).catch(error => { if (error.code === 'APPROVALS_NOT_FOUND') return null; throw error })
+    if (daemonIds.has(id)) return (await readDaemon(effect, id)) ?? viaV1()
+    return (await viaV1()) ?? readDaemon(effect, id)
+  }
 
   const summaryOf = async effect => {
     const decisions = []
@@ -143,6 +167,8 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         if (!(cursor = response.json.next_cursor)) break
       }
     }
+    const known = new Set(decisions.map(decision => decision.id))
+    decisions.push(...(await daemonAll(effect)).filter(decision => !known.has(decision.id)))
     return summarize(decisions, { roster: await members(effect), today: iso => sameJstDay(iso, now()) })
   }
 
@@ -189,7 +215,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     }
   }
   const process_ = async (effect, id, memo) => {
-    const decision = await read(effect, id).catch(error => { if (error.code === 'APPROVALS_NOT_FOUND') return null; throw error })
+    const decision = await readEngine(effect, id)
     if (!decision) return
     const list = await loadRows(), row = list.find(item => item.decisionId === id) ?? null
     const d = toViewDecision(decision, { roster: await members(effect) })
@@ -222,6 +248,10 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         if (!(cursor = response.json.next_cursor)) break
       }
     }
+    // a490g: what BellTeam's seats and the body filed into the hosted daemon (empty until it is paired, or when the parent cannot read it: the /v1 feed above still runs).
+    const held = await effect('daemon.decisions.list', {}).catch(() => [])
+    daemonIds = new Set(held.map(item => item.id))
+    held.forEach(item => dirty.add(item.id))
     list.filter(row => row.state === 'linked' || row.state === 'diverged').forEach(row => dirty.add(row.decisionId))
     caughtUp = true; lastCatchUp = now()
   }
@@ -272,14 +302,25 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
       const response = await abx(effect, 'GET', `/v1/decisions?status=${status.join(',')}&limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
       if (response.status !== 200) throw mapped(response)
       const memo = {}, items = []
-      for (const decision of response.json.items) items.push(await view(decision, effect, memo))
+      const source = [...response.json.items]
+      if (!cursor) { // the daemon's decisions ride the first page only (it has no cursor)
+        const known = new Set(source.map(decision => decision.id))
+        const extra = (await daemonAll(effect)).filter(decision => status.includes(decision.status) && !known.has(decision.id))
+        if (extra.length) source.push(...extra), source.sort(byUrgency)
+      }
+      for (const decision of source) items.push(await view(decision, effect, memo))
       return { items: origin ? items.filter(item => (item.origin.kind === 'bellteam') === (origin === 'bellteam')) : items, ...(response.json.next_cursor ? { nextCursor: response.json.next_cursor } : {}) }
     },
-    async get({ id }, effect) { await gate(effect); return view(await read(effect, id), effect) },
+    async get({ id }, effect) {
+      await gate(effect)
+      const decision = await read(effect, id).catch(async error => { if (error.code === 'APPROVALS_NOT_FOUND') { const held = await readDaemon(effect, id); if (held) return held } throw error })
+      return view(decision, effect)
+    },
     async answer({ id, optionId, text, version, idempotencyKey }, effect) {
       await gate(effect)
       const response = await abx(effect, 'POST', `/v1/decisions/${id}/answer`, { json: { ...(optionId === undefined ? { text } : { option_id: optionId }), version }, headers: { 'idempotency-key': idempotencyKey } })
       if (response.status === 409 && response.json?.error?.decision) return { outcome: 'conflict', decision: await view(response.json.error.decision, effect) }
+      if (response.status === 404 && await readDaemon(effect, id)) throw fail('APPROVALS_ANSWER_ON_DEVICE', 409) // a decision of the hosted daemon is answered on a device (the connector cannot sign for the person)
       if (response.status !== 200) throw mapped(response)
       dirty.add(id) // the answer goes first; the task follows on the next tick
       return { outcome: 'answered', decision: await view(response.json, effect) }
@@ -301,6 +342,14 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         return { decisionId: decision.id, status: decision.status, title: decision.title }
       } catch { return null } // any failure draws no block
     },
+    // a490g: ids and state only, for the apps' 「工程とのつながり」 panel and badge (peer-channel-feed.md section 5); no Approval Box call, so it works after the content routes close.
+    async byDecision({ id }, effect) {
+      try {
+        await gate(effect)
+        const row = (await loadRows()).find(item => item.decisionId === id)
+        return row ? { project: row.projectId, plan: row.plan, task: row.taskId, state: row.state, attached: Boolean(row.attached) } : null
+      } catch { return null } // any failure draws no badge
+    },
     async refresh({ since }, effect) {
       await ready(effect)
       const idle = { seq, events: [], summary: null }
@@ -309,16 +358,18 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
       ensureStream()
       const fresh = ring.filter(event => event.seq > since)
       fresh.forEach(event => dirty.add(event.id))
-      if (!caughtUp || now() - lastCatchUp > CATCH_UP_MS) await catchUp(effect)
+      const catching = !caughtUp || now() - lastCatchUp > CATCH_UP_MS
+      if (catching) await catchUp(effect)
       const memo = {}
       for (const id of [...dirty].slice(0, PER_TICK)) {
         try { await process_(effect, id, memo); dirty.delete(id) } catch (error) { if (error?.code === 'APPROVALS_NOT_CONNECTED') return idle; dirty.delete(id); dirty.add(id) } // a failing id goes to the back so five stuck ones cannot starve the rest
       }
-      return { seq, events: fresh.map(({ type, id, version }) => ({ type, id, version })), summary: fresh.length || since === 0 ? await summaryOf(effect).catch(() => null) : null }
+      return { seq, events: fresh.map(({ type, id, version }) => ({ type, id, version })), summary: fresh.length || since === 0 || catching && daemonIds.size ? await summaryOf(effect).catch(() => null) : null } // a490j: the daemon pushes no events, so a catch-up that sees its decisions refreshes the badge
     },
   }
   async function hold(effect, id, verb) {
     const response = await abx(effect, 'POST', `/v1/decisions/${id}/${verb}`, { headers: { 'idempotency-key': crypto.randomUUID() } })
+    if (response.status === 404 && await readDaemon(effect, id)) throw fail('APPROVALS_ANSWER_ON_DEVICE', 409)
     if (response.status !== 200) throw mapped(response)
     return view(response.json, effect)
   }

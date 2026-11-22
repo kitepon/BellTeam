@@ -489,15 +489,7 @@ public sealed partial class SettingsWindow
         // B15: changing the server also stops this PC's notifications, so it asks first.
         Action? change = changeServer is null ? null : () => { if (new ConfirmationWindow("接続", "接続先を変えますか？ この端末の通知も止まります。サーバーの会話や設定は消えません。", "接続先を変える") { Owner = DialogOwner }.ShowDialog() == true) changeServer(); };
         page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", "別のサーバーにつなぎ直す", Violet, change))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
-        if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
-        // a485 7d: an app that logged in by session lists the apps that are in, revokes them, and issues the "add an app" code.
-        if (workspace.SessionLoginRequired)
-        {
-            var sessions = new AppSessionsView(new LoginApi(workspace.Management.Api), () => signOut?.Invoke(), Token);
-            Action again = () => Dispatcher.BeginInvoke(() => _ = sessions.RefreshAsync());
-            workspace.LoginEvent += again; Token.Register(() => workspace.LoginEvent -= again);
-            page.Children.Add(FormSection(null, new GroupCard(Row(sessions, 0))));
-        }
+        if (cloudflare || AccountStore.HomeToken(new Uri(workspace.Server)) is not null) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
         return Task.CompletedTask;
     }
 
@@ -529,22 +521,17 @@ public sealed partial class SettingsWindow
     }
 
     // ---- 利用と課金 ----
-    // a485: nothing is sold on Windows; the server's own contract state is read and shown, and the words say where to buy.
-    private const string BuyOnPhone = "Windowsでは購入できません。iPhone・iPad・MacのBellTeamアプリで購入し、その端末からこのサーバーにログインしてください。Androidはまだ購入できません。";
-    private async Task BillingPage()
+    // a487: the account of this PC (7f wording): sign-in, the handoff QR for a PC with no contract, 再確認, ほかの端末をすべて止める, サインアウト. Nothing is sold here.
+    private Task BillingPage()
     {
         var page = NewPage(SettingsPage.Billing);
-        var card = new StackPanel(); card.Children.Add(CardTitle("", "BellTeamの利用", 17));
-        card.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
-        var buy = Text(BuyOnPhone, 13, Muted, null, new Thickness(0, 0, 0, 6)); buy.TextWrapping = TextWrapping.Wrap; card.Children.Add(buy);
-        var state = new StackPanel(); card.Children.Add(state);
-        var notice = new StackPanel();
+        var account = new AccountView(AccountStore.Billing); lifetime!.Token.Register(account.Dispose);
+        var notice = new StackPanel(); var card = new StackPanel(); card.Children.Add(account);
         card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(OpenLink("サポート", SupportUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(notice);
         var holder = Card(card); holder.Margin = new Thickness(0, 16, 0, 0); page.Children.Add(holder);
-        try { foreach (var line in SubscriptionText.StateLines(await new SubscriptionApi(workspace.Management.Api).GetAsync(lifetime!.Token))) state.Children.Add(Text(line, 13, Ink, null, new Thickness(0, 0, 0, 4))); }
-        catch (Exception error) when (error is not OperationCanceledException) { state.Children.Add(Banner("契約の状態を読めませんでした。" + error.Message)); }
+        return Task.CompletedTask;
     }
 
     // ---- アップデート ----

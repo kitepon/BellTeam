@@ -76,6 +76,7 @@ flowchart TD
 | status | `src/usage/http-api.mjs:63` → Push `:37` | GET `/api/notifications`。同期で `{configured,environments,error?}`。token/取引/鍵を返さない |
 | configure | `src/usage/application-features.mjs:47,73` → Push `:42` | `{enabled,relayUrl}`。providerを外す→現inflight待ち→旧provider.close→OFF/直送復帰/relay status実照会。成功時status、失敗時診断後throw |
 | register | usage HTTP `:65` → Push `:66` | `{token,environment,server,previousToken?,signedTransaction?}`、32,768 byte上限。検証・環境照合→旧token除去/Map更新→save→`{registered:true}` |
+| tickets (a485) | body `home-login-front` → facade `setTickets` → IPC `tickets` | `{tickets:{<sha256 hex of a device token>: <operator ticket>}}`、最大256件・ticketは4,096 byte以下。丸ごと置換してメモリだけに持つ（deviceファイルへは書かない）。`{accepted:true}`。送信時に`sha256(token)`で引き、あれば`ticket`で送る（APNs `{ticket, device, payload, id}`）、無ければ従来の`signedTransaction`。旧childは未知methodとして拒否し、本体は黙って次のtickで再送 |
 | unregister | usage HTTP `:67` / Push `publish:119` → `:77` | HTTPは `{token}`、4,096 byte上限。失効時はdeviceを渡す。削除/save後 `{registered:false}` |
 | direct | `src/conversation-services.mjs:25`、`src/conversation-writer.mjs:25` → Push `:84` | 保存recordのschemaがdirect-message.v1、target=user、fromがuser/scheduler以外だけ。delivery_id/from、親bots.getのnameを使用。interim/status/Bot間連絡は通知しない |
 | room | `src/conversation-services.mjs:58`、`src/room-messenger.mjs:80` → Push `:91` | 保存済み投稿のid/sender.id/name/room.id/nameだけ。user/schedulerを除く |
@@ -240,10 +241,62 @@ flowchart LR
 | 項目 | 契約 |
 | --- | --- |
 | config.json | `keys.<development\|production>` は鍵ごとに `{keyId, file}`（config横の `.p8`）か `{keyId, reference}`（`op://<vault id>/<item id>/<field>`、値は `.p8` の全文。改行が落ちても読める）のどちらか一方。teamId/topic/keyId/file名と「どちらか一方」の不正は従来どおり `APNS_CONFIG_INVALID` |
-| 1Password参照の失敗 | 参照の形式不正 `APNS_KEY_REFERENCE_INVALID`、1Passwordに届かない・読めない `APNS_KEY_UNAVAILABLE`、値が鍵でない `APNS_KEY_INVALID`。子は落ちず、APNsは未設定（configured=false）、status.errorは平易文。relay・Web Push・端末登録fileはそのまま。fileの読取り失敗は従来どおり |
+| 1Password参照の失敗 | 参照の形式不正 `APNS_KEY_REFERENCE_INVALID`、1Passwordに届かない・読めない `APNS_KEY_UNAVAILABLE`、1Passwordが回数制限（op の「Too many requests」）で断った `APNS_KEY_RATE_LIMITED`（a500）、値が鍵でない `APNS_KEY_INVALID`。子は落ちず、APNsは未設定（configured=false）、status.errorは平易文。relay・Web Push・端末登録fileはそのまま。fileの読取り失敗は従来どおり |
 | 1Password接続 | `onePasswordKeyReader` は読む時だけ `createOnePasswordSource({autoRetry:false})` を作り、`resolve(reference)` だけを呼んでcloseする。tokenは呼ぶたびに `settings.json` の `onePassword`（enabled時のtokenだけ）を読み、その `op` 呼出しのenvだけに置く。FeatureSettingsが唯一writer |
-| 自力の出口 | 直送の `configure` は、子の起動直後の1回目を除き毎回config.jsonと鍵を読み直す。直した後は通知設定を保存し直すか、子の再起動（module更新を含む）で戻る |
+| 読み直しの抑え（a500） | `onePasswordKeyReader` は、読めた鍵の値を子のメモリだけに覚え（ディスクへは書かない）、再試行・再apply・同じ子の中では1Passwordを読まない。まだ覚えていない参照だけを1件ずつ読み、最初の拒否で止める。1Passwordが回数制限で断ったら10分間は1Passwordを呼ばず `APNS_KEY_RATE_LIMITED` を返す（10分で自力で解ける。共有アカウントの上限を通知が使い切らないための抑えで、他の失敗には掛けない）。値が鍵でなかった時と、AppleがAPNsの送信で鍵を断った時（`APNS_HTTP_403_INVALIDPROVIDERTOKEN`）は、覚えた値を捨て、次の読込み（設定の保存し直し・子の再起動）で読み直す。参照が変わった時は別の参照として読む（a495b）。鍵を1Password側で入れ替えた時は、子の再起動（module更新を含む）で反映する |
+| 自力の出口 | 直送の `configure` は、子の起動直後の1回目を除き毎回config.jsonを読み直し、鍵は上の覚えが無い分だけ読む。直した後は通知設定を保存し直すか、子の再起動（module更新を含む）で戻る |
 | 秘密の扱い | 鍵の値・参照・tokenはDTO・診断・status・ログへ出さない。KeyObjectはメモリだけ |
 | 互換 | file設定は何も変えずに動く。外部relay（`services/notifications/index.mjs`）も `onePasswordKeyReader(null)` を渡し、鍵ごとにfileかreferenceを選べる。relayはsettings.jsonを持たないので、`op` は起動環境の `OP_SERVICE_ACCOUNT_TOKEN` を使う。relayの鍵の入れ替えはconfig.jsonの書き換えと再起動 |
 | file→1Password | `.p8` の全文を1Passwordのアイテムへ保存→config.jsonの該当keyの `file` を `reference` へ置き換え（keyIdはそのkeyのもの）→通知設定を保存し直す（または子の再起動）→実通知を確認→`.p8` を消す |
 | 配布 | 通知子：変更fileは `src/push-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変なので、notifications moduleの更新だけで入れ替わり、本体の再起動は要らない。外部relay：`services/notifications/index.mjs` はmodule archiveの外の独立サービスで、運営がリポジトリのsourceを更新して `npm ci` 後にサービスを再起動すると入れ替わる（[relay README](../../../../services/notifications/README.md)）。鍵だけを替える時はconfig.jsonの書き換えと再起動 |
+
+### 状態遷移（a507c）
+
+状態は通知の子のメモリだけにある。保持する鍵は参照ごと、止め（hold）は子ごとに1つ。どちらもディスクへ書かない。
+
+```mermaid
+stateDiagram-v2
+  [*] --> 未読: 子の起動（メモリは空）
+  未読 --> 読取中: 読込みが未知の参照を要る（1件ずつ）
+  読取中 --> 保持: 値を読めた（参照ごとに覚える）
+  読取中 --> 未読: 1Passwordに届かない・読めない（APNS_KEY_UNAVAILABLE）
+  読取中 --> 止め: opが回数制限で断った（APNS_KEY_RATE_LIMITED）
+  保持 --> 保持: 再試行・再apply・同じ参照の読込み（1Passwordを呼ばない）
+  保持 --> 未読: 値が鍵でない（APNS_KEY_INVALID）→ 覚えた値を全て捨てる
+  保持 --> 未読: Appleが鍵を断った（APNS_HTTP_403_INVALIDPROVIDERTOKEN）→ 捨てる
+  止め --> 未読: 10分が過ぎた（refusedUntil）
+  止め --> 未読: 子の再起動（メモリごと消える）
+  止め --> 止め: 未知の参照の読込み（1Passwordを呼ばず APNS_KEY_RATE_LIMITED）
+```
+
+| 状態 | 意味 | 入力 → 次の状態 | 自力の出口 |
+| --- | --- | --- | --- |
+| 未読 | その参照の値を知らない | 未知の参照を要る読込み → 読取中 | 状態自体が出口（次の読込みで読む） |
+| 読取中 | `op read` を1件ずつ実行中 | 成功 → 保持／届かない・読めない → 未読／回数制限 → 止め | opの10秒timeoutで必ず結果が出る。最初の失敗で止めて残りは読まない |
+| 保持 | 値を子のメモリに覚えた | 同じ参照 → 呼び出し無しで返す／鍵でない値・Appleの拒否 → 未読 | 捨てる入力は2つだけ。参照が変われば別の参照として読む（未読） |
+| 止め | 回数制限の後、1Passwordを呼ばない | 未知の参照 → 止めのまま拒否（既知の参照は止め中も返す） | 10分（時間）か子の再起動。他の失敗には掛けない。共有アカウントの上限を通知が使い切らないための抑え |
+
+APNsの送信側は別の2状態。provider無し（鍵を得られない、`keyError` 固定code・status.errorは平易文）→ 直送の `configure`（設定の保存し直し・子の再起動）で鍵を読めればprovider有り。provider有り → 鍵が壊れる等で読込みが失敗すれば無しへ戻る。いずれも子は落ちず、relay・Web Push・端末登録fileはそのまま。
+
+部品の再起動と制限行の状態（a503）:
+
+```mermaid
+stateDiagram-v2
+  [*] --> backoff
+  backoff --> available: ready（running）
+  available --> backoff: 子が落ちた・probe失敗（lost）
+  available --> available: 1800秒続けて元気 → 閉じる合図を1回（このプロセスで未送信なら、他プロセスが残した行のため）
+  backoff --> backoff: 再起動を5回/1800秒 → 制限行を開く（1回だけ）
+  available --> closed: close
+  backoff --> closed: close
+```
+
+| 行（診断） | 入力 | 次 |
+| --- | --- | --- |
+| 無し | 5回目の再起動（1800秒窓） | 開く |
+| 開く | 同じ部品の追加の再起動 | 開くまま（同じ行・回数は増えない） |
+| 開く | 閉じる合図（このプロセスで1800秒続けて元気） | 解決済み |
+| 解決済み | 5回目の再起動 | 開く（回数+1） |
+| 解決済み/無し | 閉じる合図 | 何も書かない |
+
+自力の出口は時間（1800秒の元気）だけで、行を出したプロセスでも、本体の再起動・入れ替えの後の新しいプロセスでも働く（a503）。

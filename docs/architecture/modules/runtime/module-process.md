@@ -17,7 +17,7 @@ flowchart LR
 
 ## Shared automatic lifecycle recovery (Owner 2026-11-07)
 
-This is the single recovery contract for common module-process, members, notifications, memory, and execution-generation. The existing `module-child-restart` lifecycle owns one cancellable timer: 1/2/4/8/16/30 seconds, capped at30 seconds without an attempt limit; a healthy minute resets the delay. Initial failure also enables recovery. Public start waits for that same actor to become available, keeping parent bootstrap from tearing down the graph on a transient child failure; internal retry attempts release their operation before the next backoff. Close releases startup waiters without reopening a controller. An unavailable snapshot is transient: it always registers lifecycle recovery, including when an instance is retained. Closing cancels recovery and never reopens the controller.
+This is the single recovery contract for common module-process, members, notifications, memory, and execution-generation. The existing `module-child-restart` lifecycle owns one cancellable timer: 1/2/4/8/16/30 seconds, capped at30 seconds without an attempt limit; a healthy minute resets the delay. Initial failure also enables recovery. Public start waits for that same actor to become available, keeping parent bootstrap from tearing down the graph on a transient child failure, except for the optional notifications module: its start returns the unavailable snapshot after the first failed attempt (every failure stage registers recovery) so a child that cannot start never holds the body (a500, 2026-11-22); internal retry attempts release their operation before the next backoff. Close releases startup waiters without reopening a controller. An unavailable snapshot is transient: it always registers lifecycle recovery, including when an instance is retained. Closing cancels recovery and never reopens the controller.
 
 ```mermaid
 stateDiagram-v2
@@ -129,6 +129,24 @@ flowchart LR
   Compat -->|yes| Compare[up_to_date / update_available]
 ```
 
+### A published row is never "new" next to a newer builtin (a518, 2026-11-22)
+
+Found live after Z179: notifications ran the body's builtin (`8904aff7`) and the catalog's notifications row was `a28397fc` (cut at the Z170 train, its files unchanged since). The compare step above called that `update_available` ("新しい版（a28397f）があります"), so the screen offered an OLDER row as an update. Which side is wrong: **the compare**. A row stays at the commit where its module's files last changed on purpose (a module restart for an identical archive is a cost, so unchanged modules are not re-rowed, `integrations/train-rows/rows.py`); a row is not "lagging", and a catalog row carries no time or order of its own (selection() has the catalog's `publishedAt` only). Equality of commit ids is the only test the compare had, so every builtin module whose row was cut before the body would show a false update after each body swap.
+
+The body therefore carries its own commit order: `package-server.mjs` writes `config/source-history.txt` (the newest 5000 commits reachable from the packaged commit, one 40-hex id per line, the packaged commit first) from the full checkout the image build already has (`fetch-depth: 0`). `src/source-history.mjs` reads it once; the file is absent in a repository run, then the compare is unchanged.
+
+```mermaid
+flowchart TD
+  Pack["package-server.mjs: git rev-list -n 5000 HEAD"] --> File[("config/source-history.txt in the image")]
+  File --> Load["source-history.mjs: Set of ids, or null (no file or empty)"]
+  Load --> Compare
+  Row["selected row: release.sourceCommit"] --> Compare{"current.origin == builtin AND history has current.sourceCommit AND history has release.sourceCommit?"}
+  Compare -->|yes| UpToDate["up_to_date: the row was cut at or before the body's own source, so it is not newer than the builtin"]
+  Compare -->|no| Old["digest equality, as before: up_to_date / update_available"]
+```
+
+Rules: (1) only a builtin current is judged by history; a module running a release is still compared by digest. (2) A row whose commit is NOT in the body's history (published after the body was built) stays `update_available`: it is newer or unknown. (3) The history is trusted only when it contains the builtin's own commit (same build), else it is ignored. (4) `shortcut: 5000 commits back, a row older than that reads update_available; raise the count if a train is ever that old`. State transitions: none added; `comparison.state` of a builtin component moves only when the body or the catalog changes (a body swap changes `current.sourceCommit`, a new catalog changes `release`), as today.
+
 private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<component>.adoption.v1`。module/allのdurable requestId ledgerや公開source identityはMollyが所有し、このrecordから捏造しない。reserveはcompletionを返し、実replace終端又はcancelまで同親mutexを保持できる。
 
 このsourceの限定fake-child境界と、各作者の実IPC fixture、Centi同imageの実UID/署名/OS交換は別の証拠。初回親組立とmountはimage導入が必要で、未登録moduleを既imageへ無再起動追加できるとは扱わない。導入後の登録済controller経由コード交換が対象。
@@ -208,7 +226,7 @@ flowchart LR
   Stderr --> Observe[runtime bounded observer / 厳密行検証]
   Observe --> Closed[OS IPC pipe完了 / 同childSequence]
   Closed --> Log[MODULE_CHILD_EXIT_ORIGIN / 親console一回]
-  Closed --> Barrier[既incoming reaped lost / 制御は不変]
+  Closed --> Barrier[os_closedとlostを即記録 / incoming reapedは待たず失敗時だけ記録 / 制御は不変]
 ```
 
 親は同childのOS/IPC/全pipe終了後、正常closeや未受付candidateを含む会話子の各終了にexact6key `MODULE_CHILD_EXIT_ORIGIN/component:'conversation'/childSequence/observedAt/origin/failureCode`を一回記録する。未取得originはunknown/failureCode=null。console失敗はbarrierへ伝播しない。childSequenceは親process内の相関値であり、Centiは親CID/StartedAt/sourceと一組で扱い、再起動後の同整数を同世代にしない。この記録は固有peerが選んだ終了経路で、実OS終了原因・過去事故の根因・native終端の証明ではない。既`bellteam.module-child-exit.v1`、診断writer/HTTP/ledgerと再生成条件は変更しない。
@@ -285,19 +303,19 @@ flowchart LR
 
 既consoleのMODULE_CHILD_TERMINATIONは異常稼働子と未resume回復candidateのOS/IPC/pipe終了後だけ発行する。閉keyはcode/component/stage/event/childSequence/observedAt/failureCode/runnerActive/admissionActive/admissionClosed/admissionUnconfirmed。stageはos_closed/incoming/reaped/lost、eventはwaiting/completed/failed。childSequenceはcontroller内起動順の非負safe整数で、生generation/lease/本文は含めない。時刻はISO UTC（収集者がJSTへ変換）、不明code/件数/状態はnull。標準Docker logの固定JSONをread契約とし、新HTTP/別writerを作らない。
 
-os_closed completed→incoming waiting/completed→reaped waiting/completed→lost completedの順。lostは既recovery.lostの呼出完了であり、新子readyやtimer実発火の証明ではない。後続のMODULE_CHILD_RECOVERYを同container/親process/component/時刻で結ぶ。incoming/reapedが未完なら次段階へ進まず、拒否はその段階のfailedを残して元例外を保持。console/snapshot失敗は診断欠測として元制御を変えない。close/交換の意図終了はこの診断の対象外。欠測やsequenceを実終端証明にしない。
+os_closed completed→incoming waiting/completed→reaped waiting/completed→lost completedの順は、conversation以外のcreateModuleProcess利用component（usage、diagnostics、lattice、work-graph、approval-box-extension）が保つ。conversationは待たない（オーナー裁定2026-11-07「Current conversation lifecycle」、src/module-process.mjsのfinishTermination）：OS終了を観測したらos_closed completedを記録し、incomingとreapedは待たずに起動して（失敗した時だけその段階のfailedを記録）、そのままlost completedを記録する。conversationにincoming waiting/completedとreaped waiting/completedは出ない。lostは既recovery.lostの呼出完了であり、新子readyやtimer実発火の証明ではない。後続のMODULE_CHILD_RECOVERYを同container/親process/component/時刻で結ぶ。incoming/reapedが未完なら次段階へ進まない（conversation以外）。拒否はその段階のfailedを残して元例外を保持。console/snapshot失敗は診断欠測として元制御を変えない。close/交換の意図終了はこの診断の対象外。欠測やsequenceを実終端証明にしない。
 
 注入admission.close(source)は既引数無し互換のKiro契約で、module_start/module_replace/module_close/module_child_exit/module_recoveryを各既callerから渡す。ticket/failed/閉鎖主体の保持とinspectAdmissionの単一validatorはexecution担当。共通は既snapshotの安全な3scalarだけを投影し、生存gateの強制再開は行わない。
 
 ## 同ID closeの会話writer保持
 
-conversationのwithInstallReconciliationProof(operation)はlocal operation排他だけを保持する。親integrationが同共有exchangeMutex.runExclusiveを一回外側で保持し、execution proof→conversation proof→両assert合成operationの順へ接続する。共有mutex再入やbypass tokenを受け付けず、通常交換は既共有排他を維持。provider単体を全writer証明にしない。
+conversationのwithInstallReconciliationProof(operation)はlocal operation排他だけを保持する。親integrationが同共有exchangeMutex.runExclusiveを一回外側で保持し、execution proof→conversation proof→両assert合成operationの順へ接続する。共有mutex再入やbypass tokenを受け付けず、通常交換は既共有排他を維持。conversation側のlocal排他は順番待ちで、保持中のproofへ重ねたproofはUPDATE_IN_PROGRESSで断らず、前のproofの後に順に走る（オーナー2026-11-08。UPDATE_IN_PROGRESSは交換の予約中だけ）。provider単体を全writer証明にしない。
 
-利用可能でopenな同instance/generationだけを捕捉し、admission閉鎖→実runnerと両世代実drain→child quiesce ACKとcompletion→incoming/effectの実完了後だけcallback(assertQuiescent)を呼ぶ。callback前後と親のclaim/RPC前後に同じassertを使う。assertはcallback寿命外/instance変化/子終了/親closeで拒否。snapshot/診断で実終端を代用しない。生存子のquiescenceでありOS/reaped終端を主張せず、旧子終端不明は拒否する。
+利用可能でopenな同instance/generationだけを捕捉し、実runnerと両世代実drain（conversationはadmissionを閉じない: オーナー2026-11-07「Current conversation lifecycle」、closeAdmissionはconversationで何もしない）→child quiesce ACKとcompletion→incoming/effectの実完了後だけcallback(assertQuiescent)を呼ぶ。callback前後と親のclaim/RPC前後に同じassertを使う。assertはcallback寿命外/instance変化/子終了/親closeで拒否。snapshot/診断で実終端を代用しない。生存子のquiescenceでありOS/reaped終端を主張せず、旧子終端不明は拒否する。
 
 callback成功/失敗後とも同子の実resumeを試み、元失敗とresume失敗はAggregateErrorで両方保持する。親closeが始まった場合は再開しない。旧unknown/原Start/台帳作用はproviderに持ち込まない。会話固有drain/唯一writer意味とwrapperはN102、engine実参照はKiro、認可・同ID・共有排他と集約はMollyが所有する。
 
-callbackのcaller結果と任意.completionを両方settleまで保持する。callback期間はcontroller request/callbackも拒否し、終了後assertは失効。finallyのresume ACKと実completionの両方が終わり、同instance/generation/生存を再検査してからだけadmissionを開く。既閉ticket/failedは開始時assertOpenで拒否し借用しない。親は自身の会話leaseを持ってこの口へ入らず、callbackからwriterへ再入場しない。snapshotのactive/unconfirmedは拒否の追加guardだけで、実drain/quiesceの代用にはしない。
+callbackのcaller結果と任意.completionを両方settleまで保持する。callback期間のcontroller request/callbackはconversationでは拒否しない（拒否するのはconversation以外のcomponentだけ。オーナー2026-11-07）。ただしproof中に実作業が入るとactiveが残り、assertQuiescentがPROOF_UNAVAILABLEで拒否する。終了後assertは失効。finallyのresume ACKと実completionの両方が終わり、同instance/generation/生存を再検査してからだけadmissionを開く。開始時のassertOpenはconversationではgeneration不一致だけを拒否する（閉ticketという状態はconversationに無く、借用の問いが起きない）。親は自身の会話leaseを持ってこの口へ入らず、callbackからwriterへ再入場しない。snapshotのactive/unconfirmedは拒否の追加guardだけで、実drain/quiesceの代用にはしない。
 
 ## 生存protocol-failed writerの正式退役
 

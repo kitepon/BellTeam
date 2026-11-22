@@ -8,6 +8,8 @@ import { ConfigurationRequests } from './configuration-requests.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
 import { IdleSessions, approvalBoxWakeDecisions, approvalBoxVersionAsSeat } from './idle-sessions.mjs'
+import { memoryPressure } from './memory-pressure.mjs'
+import { MemoryBudgetRecord } from './memory-budget-record.mjs'
 import { SeatOomBias } from './seat-oom-bias.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 import { HarnessAccounts, seatFilesOver } from './harness-accounts.mjs'
@@ -36,7 +38,7 @@ const asyncMethods = {
   transport: ['isRunning', 'runningBots', 'screen', 'ensure', 'wake', 'restart', 'reconfigure',
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
     'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
-    'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval', 'forkInquiry', 'streamSend'],
+    'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval', 'forkInquiry', 'streamSend', 'readSeatImage'],
   administration: ['configureFromMcp', 'update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
   accounts: ['list', 'prepare'],
@@ -98,9 +100,10 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   }
   const native = Object.create(ports.native)
   // pty_key: the Owner's screen key (screen-input.md) and the Esc that cancels a limit hold (harness-accounts.md).
+  // image_read: the bytes of an image a remote seat saved (remote-seat.md, a521).
   // stream_read / stream_send: the machine seat reader and the Owner's answer (machine-stream.md); without them the reader's first read is refused and nothing is stored.
   const nativeMethods = new Set(['pty_list', 'pty_read', 'pty_observe', 'pty_send', 'pty_close', 'pty_key',
-    'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal', 'stream_read', 'stream_send'])
+    'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal', 'stream_read', 'stream_send', 'image_read'])
   native.call = (name, ...args) => {
     alive()
     if (!nativeMethods.has(name)) throw failure('EXECUTION_REQUEST_INVALID')
@@ -138,8 +141,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       notify: () => transport.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] }),
       seatCommand: ports.seat?.waitProcess ?? null,
       recorded: async session => (await transport.readRuntimeLaunches())[session] ?? null }) : null
+  const memoryRecord = new MemoryBudgetRecord({ path: join(dirname(root), 'memory-budget.json') })
   const transport = createManagedTransport({
-    ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null, seatStream: ports.seatStream ?? null,
+    memoryRecord, ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null, seatStream: ports.seatStream ?? null,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'), configurationLock,
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
@@ -182,7 +186,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     report: message => { alive(); ports.observer?.report?.(message) },
   })
   // bd03: the Approval Box capability is in the seat user's home; read it as the seat user (lab Z4: uid 1001 got EACCES).
-  const idle = new IdleSessions({ bots: ports.bots, transport, allowClose: () => phase === 'running',
+  const idle = new IdleSessions({ bots: ports.bots, transport, pressure: memoryPressure(), record: memoryRecord, allowClose: () => phase === 'running',
     ...(typeof ports.seat?.waitProcess === 'function'
       ? { pendingDecisions: approvalBoxWakeDecisions({ run: approvalBoxVersionAsSeat(ports.seat.waitProcess, runtimeHome()) }) } : {}),
     report: message => { alive(); ports.observer?.report?.(message) },

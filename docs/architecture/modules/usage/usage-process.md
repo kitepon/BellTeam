@@ -103,13 +103,46 @@ quiesceは新requestを閉じ、処理中と同root effectの実終端まで待�
 
 初回private投影は`projection.seed(initializeSettings返却,generation)`と`seed(initializeSubscriptions返却,generation)`で先行利用し、完全snapshotのcommitまでbootstrap順序を止めない。別の世代のseedが来た時は、commitしていない前の世代（途中で止まった候補）の仮置きと、その世代が進めたrevisionを捨てて受ける（a399。子は同時に一つ。commit済みの世代のやり直しは断る。状態図は`runtime/module-process.md`）。記録の読み方は`runtime/module-ipc.md`の「Records between halves that ship apart」に従う。`subscription`・`onboarding`・`auth`・`event`・`credentialRecovery`の行は、使う項目の有無と型だけを見て、知らない項目を断らない。`secret`・`question`・`settings`・`credential`の行は、親が保存した形のまま返すので、項目の一覧を閉じたままにする（秘密の近くへ余分な値を通さない）。full ready前に許すのはsystemによるsettings読取/epoch付きerror記録だけ。Owner/Bot業務はready後。
 
-`onProjection(record)`はprivate ACK完了までのPromiseを返す。factoryはrevision順に公開し、ACK前の親effect発行と要求成功を抑止する。投影失敗は保存済み状態を巻戻さず、USAGE_PROJECTION_UNAVAILABLEで新入場を閉じる。`usageResultValid(method,result,params)`と`usageProjectionRecordValid`をchannelの成功判定に再利用する。
+`onProjection(record)`はprivate ACK完了までのPromiseを返す。factoryはrevision順に公開し、ACK前の親effect発行と要求成功を抑止する。投影失敗は保存済み状態を巻戻さず、USAGE_PROJECTION_UNAVAILABLEで新入場を閉じる。閉じる理由は、親の写しが落ちた行の分だけ古いこと。出口は次の入場が行う全状態の再公開である（a500）: `snapshot()`と同じ行（settings・onboarding・auth・subscription・未決のsecret・question）を新しいrevisionでliveに公開し、全行のACKが揃った時だけ閉じを解く。途中で1行でも失敗すれば閉じたまま、次の入場がもう一度やり直す。再公開は同時に一つだけで、閉じていない時と、静止中・停止後には走らない。`usageResultValid(method,result,params)`と`usageProjectionRecordValid`をchannelの成功判定に再利用する。
 
 createApplicationFeaturesは追加usageContext(method)を親capture factoryへ接続し、settings.onChange(id,config,{epoch})を呼ぶ。callBridgeは席の有無を`transport.runningBots(全メンバー)`の1回のpty_listで読み（Botごとに読むと人数分のtmux起動が保存の返事に乗る。本番140人で49.5秒、2026-11-14）、動いている各メンバーのstopForConfigurationを予約した後、ターン終了を待たずに保存結果を返す（保存を流したBot自身のターンは結果が返るまで終わらないため、待つと必ずUSAGE_IPC_TIMEOUTになる）。席を閉じられなかった遅着失敗（例: 配送の結末が不明な席のAITERM_TURN_NOT_TAKEN）は、その席の状態であって設定の失敗ではない。設定は保存・反映済みで、その席は次のcloseIdle/再起動で新しい登録を読むので、設定のerror（FEATURE_APPLY_FAILED「再度保存してください」）には書かず、stderrと診断SERVER_CALL_CONFIGURATION_FAILED（diagnostic_log=error code）だけに残す（本番2026-11-14で1席の失敗が設定errorとして残った）。将来のnative実終端を同Promiseが表しているかはexecution/共通接続の本人結果で確認する。
 
 未採用会話作者95a7を同通常差分へ合わせる時は、factoryのrouting保存世代と既FeatureSettings.routingEpoch（同じrouting保存時に+1）を同じ値でhandoffする。facade.routingState()を既3effectへ接続する。会話readyで資格読取/全settings供給を追加しない。95a7採用や会話実結合の成立を本sourceから補完しない。
 
 Onboarding.authの任意scalarは既HarnessAuth同様null/booleanへ正規化し、JSON IPCでundefinedが消えて公開型が崩れないようにした。外部認証の開始/入力や資格発行を試験していない。
+
+## 入場と投影の状態遷移（a500 / a507c）
+
+状態はusage子のメモリだけにある。`accepting`・`quiesced`・`stopped`は入場の状態、`projectionFailed`（閉じ）は親の写しが古い印で、別の軸。
+
+```mermaid
+stateDiagram-v2
+  [*] --> 初期化中
+  初期化中 --> 受付中: initialize完了（accepting）
+  受付中 --> 静止: quiesce（新入場を閉じ、処理中を待つ）
+  静止 --> 受付中: resume
+  静止 --> 停止: close（pendingが0）
+
+  state "投影の状態" as Projection {
+    [*] --> 同期済み
+    同期済み --> 閉じ: 公開が1行失敗（ACK無し）
+    閉じ --> 再公開中: 受付中で停止前のrequestが来た（同時に1つ）
+    再公開中 --> 同期済み: 全行のACKが揃い、その間に別の失敗が無い
+    再公開中 --> 閉じ: 1行でも失敗、または別の公開が失敗
+    閉じ --> 閉じ: 静止中・停止後（再公開しない）
+  }
+```
+
+| 投影の状態 | 入力 | 次の状態 / 応答 |
+| --- | --- | --- |
+| 同期済み | 公開（settings・onboarding・auth・subscription・secret・question・event）がACKされる | 同期済み |
+| 同期済み | 公開が1行失敗 | 閉じ。保存済み状態は巻戻さない。その要求は`USAGE_PROJECTION_UNAVAILABLE` |
+| 閉じ | 受付中で停止前のrequest | 再公開中（settings・onboarding・auth・subscriptionと未決のsecret・questionを新しいrevisionでliveに全て公開） |
+| 再公開中 | 全行ACK、かつ再公開の間に他の公開失敗が無い | 同期済み。その要求はそのまま通る |
+| 再公開中 | 1行でも失敗 | 閉じのまま。その要求は`USAGE_PROJECTION_UNAVAILABLE`、次のrequestがもう一度やり直す |
+| 閉じ | quiesce・resume・close・callback | 再公開しない（入場が閉じているか停止後、callbackは入場ではない）。閉じの間のcallbackも、終わりに`USAGE_PROJECTION_UNAVAILABLE`で終わる |
+
+閉じの自力の出口は「次の入場による全状態の再公開」で、時間もプロセスの死も要らない（以前は出口が無く、利用量のプロセスが死ぬまで配達・起動・設定が全て断られた）。閉じが守るのは「親の写しが落ちた行の分だけ古いこと」で、再公開が全行ACKされるまで入場を閉じたままにすることでそれを保つ。
 
 ## usage固有channel/薄entry/probe（追加実装）
 

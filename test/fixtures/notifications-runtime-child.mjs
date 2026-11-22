@@ -2,9 +2,9 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createNotificationsChildChannel } from '../../src/notifications-ipc.mjs'
 const mode = process.argv[3]
 let config = {}, channel, resumes = 0
-const status = { apns: { configured: false, environments: [] }, webPush: { enabled: false, configured: false, publicKey: null, error: null } }
+const status = { apns: { configured: false, environments: [] } }
 if (mode === 'extended-status') status.apns.updateAttempts = { future: [null, true, 1.5, 'kept'], items: [{ extraAttemptField: { devices: [{ extraDeviceField: 'kept' }] } }] }
-const initialized = () => ({ status, applyError: { apns: null, webPush: null } })
+const initialized = () => ({ status, applyError: { apns: null } })
 channel = createNotificationsChildChannel({
   validateRequest() {},
   async dispatch(method, params) {

@@ -73,7 +73,7 @@ sequenceDiagram
 
 `OwnerQuestions.answer`は秘密入力の`finish`と違い、通知失敗を保存した`failed`値に変換せず例外を返す。画面の「送れませんでした」は回答未保存の証明ではない。再取得したカードはansweredになり得る。共通化できるのは既存の表示索引であり、回答・秘密値・通知失敗の状態機械は同一にしない。秘密入力にも質問にも新しい永続配送キューはない。
 
-提出済みrequestを新認証へ流さず元sessionへ入力する候補は[一回消費の図と契約](submitted-secret-consumption.md)を参照する。通常の秘密保存/通知と既setup入力の内部拒否は保持する。
+提出済みrequestを元sessionへ入力する一回消費の経路は退役した（[退役の記録](submitted-secret-consumption.md)）。通常の秘密保存/通知と既setup入力の内部拒否は保持する。
 
 ## Rabbit認証consumer候補
 
@@ -209,6 +209,36 @@ flowchart LR
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
 購読の外部検証サービス/Apple署名検証/Stripe照会/Google Play照会内部はこの本体図の境界外（Stripeの鍵・価格とGoogle Playのサービスアカウントは運営Workerのsecretだけに置く。StripeのCheckoutは、Workerの`STRIPE_AUTOMATIC_TAX=true`で`automatic_tax[enabled]=true`を送る）。BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+
+## サーバー上のアプリのセッション（a485）
+
+[app-sessions](app-sessions.md)が正本。ライブラリのhome part（vendored）を子が持ち、bodyは配線だけを持つ。
+
+```mermaid
+flowchart TD
+  App["アプリ<br/>POST /api/home/login/prove など"] --> GW["gateway<br/>peerとauthorizationを転送"]
+  GW --> Body["body http-server<br/>/api/home/* は認証前に子へ"]
+  Body -->|"home.handle{method,path,bearer,body,peer}"| Child["usage child<br/>createHomeHandler + createHomePart"]
+  Child -->|"prove/take, ticket/check（匿名）"| Worker["Operator Worker"]
+  Child -->|"shared/login-home.json（原子的置換）"| File[("login-home.json")]
+  Child -->|"publish: homeLogin{bound,enforced,hashes,states}"| Row["body projection"]
+  Row --> Guard["authorize: Legacyは従来どおり<br/>Enforcedはguard(set, headers)"]
+  Row -->|"first enforced"| Marker[("state/login-enforced")]
+  Timer["body timer 60 s"] -->|"home.sweep{used, streaming}"| Child
+  Timer -->|"unbound: home.setupCode"| Print["body stderr（docker logs）"]
+  Console["bellteam-console（host）"] -->|"unix socket 0600"| Body
+  Body -->|"home.console{op}"| Child
+  Row -->|"states[sessionId]"| Sub["GET /api/subscription の entitlementState 上書き"]
+  Row -->|"集合から消えたsession"| SSE["そのsessionの/api/eventsを閉じる"]
+```
+
+| 順序 | 保証 |
+| --- | --- |
+| 先に保存、後で公開 | 子はlogin-home.jsonを置換してから`homeLogin`行をpublishする。保存失敗は503 `SESSION_STORE_UNAVAILABLE`で、集合は変わらない |
+| bodyが先、usageが後 | 行は任意項目。行が無い子（旧usage）はLegacyのまま。enforced markerがあるのに行が無い・未読込は503で、開かない |
+| 判定不能は終わりではない | operatorに届かない間は最後の権利を保つ（上限なし）。確定した401だけがsessionを終わらせる。tokenを消すのもアプリ側の401だけ |
+| 通知のチケット（a485） | 子は自分のセッションの`{ticketFor: ticket}`を返し（`home.pushTickets`）、bodyはそれを丸ごと通知の子へ送る（proof後と毎tick）。子はメモリだけに持ち、送信時にdeviceのtokenのhashで結ぶ。deviceファイルには書かない。旧childは拒否して従来の形のまま |
+| 子は時計もstderrも持たない | sweep・setup code・consoleはbody駆動のsystem呼出。usage交換でメモリのcodeは消え、次のtickで新しいsetup codeを出す |
 
 ## 確認範囲
 

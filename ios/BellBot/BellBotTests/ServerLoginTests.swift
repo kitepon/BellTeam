@@ -28,6 +28,15 @@ final class ServerLoginTests: XCTestCase {
         XCTAssertEqual(ServerLoginProtocol.authorization.first, "Bearer tok-1")
     }
 
+    func testForbiddenKeepsTheSessionAndOnly401IsAuthExpiry() async {
+        ServerLoginProtocol.script["GET /api/x"] = [.json(403, #"{"error":"FORBIDDEN"}"#), .json(401, #"{"error":"UNAUTHORIZED"}"#), .json(403, "{}")]
+        let api = makeAPI(token: "tok")
+        do { let _: SessionResponse = try await api.get("/api/x"); XCTFail("403") } catch { XCTAssertFalse(BellAPIError.isAuthenticationError(error), "403 FORBIDDEN is not an auth expiry") }
+        do { let _: SessionResponse = try await api.get("/api/x"); XCTFail("401") } catch { XCTAssertTrue(BellAPIError.isAuthenticationError(error)) }
+        api.sessionToken = nil
+        do { let _: SessionResponse = try await api.get("/api/x"); XCTFail("403 gateway") } catch { XCTAssertTrue(BellAPIError.isAuthenticationError(error), "without a session the gateway's 403 stays an auth expiry") }
+    }
+
     func testPhoneApprovalKeepsTheTokenOnceAndStopsPolling() async {
         ServerLoginProtocol.script["POST /api/login/start"] = [.json(200, #"{"loginId":"L1","status":"waiting_phone","expiresAt":"2026-11-21T13:05:00.000Z","pollAfterMs":3000,"phone":{"shortCode":"0AB12CDE","checkNumber":"0042","qr":"lbq1:x","qrSvg":"<svg/>"}}"#)]
         ServerLoginProtocol.script["GET /api/login/L1"] = [.json(200, #"{"loginId":"L1","status":"waiting_phone","pollAfterMs":3000,"phone":{"shortCode":"0AB12CDE","checkNumber":"0042","qr":"lbq1:x"}}"#),
@@ -137,6 +146,26 @@ final class ServerLoginTests: XCTestCase {
         model.discardCode()
         XCTAssertNil(model.issued)
         XCTAssertEqual(ServerLoginProtocol.count("POST /api/login/code"), 1)
+    }
+
+    func testHomeServerOpensTheHomeLoginAndNeverTheSessionRoutes() async {
+        ServerLoginProtocol.script["GET /api/home/session"] = [.json(200, #"{"capability":"login-billing-home/1","bound":false,"enforced":false}"#)]
+        ServerLoginProtocol.script["GET /api/session"] = [.json(200, #"{"authenticated":true,"authMode":"local"}"#)]
+        let store = AppStore(api: makeAPI())
+        await store.bootstrap()
+        if case .serverLogin = store.phase {} else { XCTFail("unbound home server: connect screen") }
+        XCTAssertEqual(store.homeLogin?.setupCodeNeeded, true)
+        XCTAssertNil(store.serverLogin)
+        XCTAssertFalse(store.usesServerSessions, "the /api/login/* routes do not exist on a home server")
+    }
+
+    func testServerWithoutTheHomeContractKeepsTheOldPath() async {
+        ServerLoginProtocol.script["GET /api/session"] = [.json(200, #"{"authenticated":false,"authMode":"local","login":{"capability":true,"bound":true,"enforced":true}}"#)]
+        let store = AppStore(api: makeAPI(token: "old"))
+        await store.bootstrap()
+        XCTAssertNil(store.homeProbe)
+        XCTAssertNotNil(store.serverLogin)
+        XCTAssertNil(store.homeLogin)
     }
 
     func testQRImageIsDrawnFromThePayload() {

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { ConversationWriter, deliveryFailureFields } from '../src/conversation-writer.mjs'
 import { conversationTools, callConversationTool } from '../src/mcp-conversation-tools.mjs'
+import { resolveBotImagePath } from '../src/bot-image-path.mjs'
 import { requireRoomMember, requireRepresentative } from '../src/room-access.mjs'
 
 test('会話writerは保存後に通知し、失敗結果と表示用の言葉を発言に変えない', async t => {
@@ -50,4 +51,18 @@ test('部屋予定も同じ公開資格検証を使える', () => {
   assert.throws(() => requireRepresentative(rooms, room.id, 'bot-b'), /ROOM_REPRESENTATIVE_REQUIRED/u)
   assert.throws(() => requireRoomMember(rooms, room.id, 'bot-c'), /ROOM_MEMBER_REQUIRED/u)
   assert.throws(() => requireRoomMember(rooms, 'missing', 'bot-a'), /ROOM_NOT_FOUND/u)
+})
+
+// a521: a remote seat's image path is passed unchanged (terminal's own form, e.g. Windows 'C:\x.png'); the terminal read judges it.
+test('sendmessage keeps a remote seat image path as given', async () => {
+  const registry = new Map([['bot-r', { id: 'bot-r', name: 'R', terminalId: 'win', projectRoot: 'C:\\p' }], ['bot-b', { id: 'bot-b', name: 'B' }]])
+  const calls = []
+  for (const image of ['C:\\Users\\x\\a.png', 'shot.png']) await callConversationTool({ name: 'sendmessage', from: 'bot-r', registry, args: { target: 'B', message: 'm', image }, deliverMessage: async value => { calls.push(value.image) } })
+  assert.deepEqual(calls, [{ path: 'C:\\Users\\x\\a.png' }, { path: 'shot.png' }])
+})
+
+// a521b: the shared resolver (also set_avatar's) keeps refusing a remote seat's '..' path; only the conversation tools skip it.
+test('resolveBotImagePath still guards a remote seat relative path', async () => {
+  const bot = { id: 'bot-r', terminalId: 'win', projectRoot: 'C:\\p', project: '/srv/p' }
+  await assert.rejects(resolveBotImagePath(bot, '../x.png'), /IMAGE_PATH_INVALID/)
 })

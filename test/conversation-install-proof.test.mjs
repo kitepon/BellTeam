@@ -7,7 +7,9 @@ import { join } from 'node:path'
 import { createModuleProcess } from '../src/module-process.mjs'
 import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 const tick = () => new Promise(resolve => setImmediate(resolve))
-for (const mode of ['success', 'callback_failure', 'child_loss', 'completion_hold', 'already_closed']) test('held writer proof: '+mode, async t => {
+// Owner 2026-11-07 (module-process.md "Current conversation lifecycle"): a closed ticket and a held proof no longer gate
+// conversation operations, so the old 'already_closed' refusal and the enter/callback refusals during the proof are gone.
+for (const mode of ['success', 'callback_failure', 'child_loss', 'completion_hold']) test('held writer proof: '+mode, async t => {
   const root = await mkdtemp(join(tmpdir(),'writer-proof-')); await mkdir(join(root,'state'))
   const admission = new ConversationLifetimes(), calls = [], children = []
   const quiesceDone = Promise.withResolvers(), incoming = Promise.withResolvers(), release = Promise.withResolvers()
@@ -22,6 +24,8 @@ for (const mode of ['success', 'callback_failure', 'child_loss', 'completion_hol
   const controller = createModuleProcess({component:'conversation',root,admission,
     exchangeMutex:{runExclusive(){mutexCalls++; assert.fail('proof must not reacquire parent mutex')}},
     prepareRelease:async()=>{},validateReady:()=>{},
+    // Every start and recovery needs a passing ready probe (module-ready-probe, 7971c7a5); conversation has no default.
+    probeCandidate:async()=>{},
     spawnProcess:()=>{
       const child=Object.assign(new EventEmitter(),{connected:true,exitCode:null,signalCode:null,
         stdout:Object.assign(new EventEmitter(),{closed:false,resume(){}}),stderr:Object.assign(new EventEmitter(),{closed:false,resume(){}})})
@@ -41,15 +45,9 @@ for (const mode of ['success', 'callback_failure', 'child_loss', 'completion_hol
   })
   t.after(async()=>{quiesceDone.resolve();incoming.resolve();release.resolve();await controller.close().catch(()=>{});await rm(root,{recursive:true,force:true})})
   await controller.start()
-  if(mode==='already_closed'){
-    admission.close('module_replace')
-    await assert.rejects(controller.withInstallReconciliationProof(()=>assert.fail('borrowed closed ticket')),/NOT_ACCEPTED/)
-    assert.equal(calls.includes('quiesce'),false);return
-  }
   const proof=controller.withInstallReconciliationProof(check=>{
     const operation=(async()=>{
     entered=true;heldAssert=check;assert.equal(check(),true)
-    assert.throws(()=>admission.enter())
     await release.promise
     if(mode==='callback_failure')throw Error('callback failed')
     return 'fenced'
@@ -60,18 +58,21 @@ for (const mode of ['success', 'callback_failure', 'child_loss', 'completion_hol
   void proof.then(()=>{proofSettled=true},()=>{proofSettled=true})
   const outcome=['success','completion_hold'].includes(mode)?proof:assert.rejects(proof,mode==='callback_failure'?/callback failed/:/PROOF_UNAVAILABLE/)
   await tick();assert.ok(calls.includes('quiesce'));assert.equal(entered,false)
-  await assert.rejects(controller.withInstallReconciliationProof(()=>assert.fail('nested proof')),/UPDATE_IN_PROGRESS/)
+  // A nested proof queues behind the held one instead of answering UPDATE_IN_PROGRESS (Owner 2026-11-08, exclusive takes turns).
+  let nestedEntered=false
+  const nested=controller.withInstallReconciliationProof(()=>{nestedEntered=true;return 'nested'})
+  void nested.catch(()=>{})
   quiesceDone.resolve();await tick();assert.equal(entered,false,'incoming effects must finish after actual quiesce completion')
-  incoming.resolve();await tick();assert.equal(entered,true)
+  incoming.resolve();await tick();assert.equal(entered,true);assert.equal(nestedEntered,false,'the nested proof must not enter while the first one is held')
   if(mode==='child_loss'){end(children[0]);await tick();assert.throws(heldAssert,/PROOF_UNAVAILABLE/)}
-  await assert.rejects(controller.callback('synthetic',{}),/PROOF_UNAVAILABLE/)
   release.resolve()
   if(mode==='completion_hold'){
     await tick();assert.equal(proofSettled,false);assert.equal(calls.at(-1),'quiesce')
     actionDone.resolve();await tick();assert.equal(calls.at(-1),'resume');assert.equal(proofSettled,false)
-    assert.throws(()=>admission.enter());await assert.rejects(controller.callback('synthetic',{}),/PROOF_UNAVAILABLE/);resumeDone.resolve()
+    resumeDone.resolve()
   }
   const result=await outcome
+  if(mode==='child_loss')await assert.rejects(nested,/PROOF_UNAVAILABLE/);else assert.equal(await nested,'nested')
   if(['success','completion_hold'].includes(mode))assert.equal(result,'fenced')
   assert.throws(heldAssert,/PROOF_UNAVAILABLE/,'escaped assertion must expire')
   assert.equal(mutexCalls,0);assert.equal(children.length,1)

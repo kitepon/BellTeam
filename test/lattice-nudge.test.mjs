@@ -122,7 +122,7 @@ const bin = new URL('../distribution/lattice/node_modules/@quolu/lattice/bin/lat
 test('real Lattice: a predecessor on another chart holds the prompt until it is done, and the snapshot names it', { skip: !existsSync(bin) && 'distribution/lattice not installed' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'lattice-cross-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }), log: () => {} })
+  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }), firstNudgeMs: 0, log: () => {} })
   const sent = []
   const effect = async (method, params) => method === 'members.list' ? { members: ['bot-a', 'bot-b'].map(id => ({ id, name: id, color: 'c', avatarVersion: 'v', deleting: false })) }
     : method === 'turns.read' ? { turns: {} } : (sent.push(params), { delivery: 'queued', deliveryId: 'd' })
@@ -173,4 +173,21 @@ test('nudge b25: a warning that was not accepted is sent again at the next sweep
   const x = rig({ charts: [{ projectId: 'alpha', createdBy: 'bot-b', cards: [card('t1', 'ready', 'mac-bench')] }], deliveries: { 'bot-b': 'refused' } })
   await x.go(); await x.go()
   assert.equal(x.sent.length, 2)
+})
+
+test('nudge a509: a child answers the ticks of its first 3 minutes with the empty result and does nothing; from then on it sweeps', async () => {
+  const clock = { now: 1_000_000 }, calls = []
+  const cli = new Proxy({}, { get: (_, name) => async () => { calls.push(String(name)); throw Object.assign(new Error('down'), { code: 'LATTICE_UNAVAILABLE' }) } })
+  const core = createLatticeCore({ cli, now: () => clock.now, log: () => {} })
+  const effect = async method => { calls.push(method); return {} }
+  const empty = { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
+  for (const at of [0, 60_000, 179_999]) {
+    clock.now = 1_000_000 + at
+    assert.deepEqual(await core.nudge({}, effect), empty)
+  }
+  assert.deepEqual(calls, [], 'nothing read, nothing sent inside the first 3 minutes')
+  assert.doesNotThrow(() => validateLatticeResult('nudge', empty), 'the empty result is a valid nudge result')
+  clock.now = 1_000_000 + 180_000
+  await core.nudge({}, effect).catch(() => {})
+  assert.ok(calls.length > 0, 'at 3 minutes the sweep starts (it reaches for the CLI)')
 })

@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { createNotificationsParentChannel } from '../src/notifications-ipc.mjs'
 
+// a487n stage 2: Web push is gone; the provider is apns (and fcm). The readers still accept a ready from a rolled-back module that reports webPush.
 const apns = { configured: false, environments: [] }
-const webPush = { enabled: false, configured: false, publicKey: null, error: null }
-const statuses = () => ({ apns: structuredClone(apns), webPush: structuredClone(webPush) })
-const origin = 'https://owner.example', endpoint = 'https://fcm.googleapis.com/opaque'
+const legacyWebPush = { enabled: false, configured: false, publicKey: null, error: null }
+const statuses = () => ({ apns: structuredClone(apns) })
 function fixture() {
   const child = new EventEmitter(), sent = []
   child.connected = true
@@ -22,63 +22,53 @@ function fixture() {
   return { child, channel, sent, reply }
 }
 
-test('ABI2 correlates method/provider/endpoint form and captures params before caller mutation', async () => {
+test('ABI2 correlates method/provider form and captures params before caller mutation', async () => {
   const f = fixture()
-  const params = { provider: 'webPush' }, request = f.channel.request('status', params)
-  params.provider = 'apns'; f.reply(webPush)
-  assert.deepEqual(await request, webPush)
-  const lookup = f.channel.request('status', { provider: 'webPush', origin, endpoint })
-  f.reply({ registered: false }); assert.deepEqual(await lookup, { registered: false })
-  const apple = f.channel.request('status', { provider: 'apns' })
-  f.reply(apns); assert.deepEqual(await apple, apns)
+  const params = { provider: 'apns' }, request = f.channel.request('status', params)
+  params.provider = 'fcm'; f.reply(apns)
+  assert.deepEqual(await request, apns)
   f.channel.dispose()
 })
 
-test('wrong provider result or public-versus-registration shape is protocol failure/unknown', async () => {
-  for (const [params, result] of [[{ provider: 'webPush' }, apns], [{ provider: 'apns' }, webPush],
-    [{ provider: 'webPush', origin, endpoint }, webPush], [{ provider: 'webPush' }, { registered: true }]]) {
-    const f = fixture(), request = f.channel.request('status', params)
-    f.reply(result)
-    await assert.rejects(request, { code: 'PUSH_IPC_DISCONNECTED', outcome: 'unknown' })
-    assert.equal(f.child.connected, false)
-  }
+test('a result of the wrong provider shape is protocol failure/unknown, and the removed webPush provider is refused before it is sent', async () => {
+  const f = fixture(), request = f.channel.request('status', { provider: 'apns' })
+  f.reply({ registered: true })
+  await assert.rejects(request, { code: 'PUSH_IPC_DISCONNECTED', outcome: 'unknown' })
+  assert.equal(f.child.connected, false)
+  const g = fixture()
+  await assert.rejects(g.channel.request('status', { provider: 'webPush' }), { outcome: 'not_accepted' })
+  await assert.rejects(g.channel.request('status', {}), { outcome: 'not_accepted' })
+  assert.equal(g.sent.length, 0)
+  g.channel.dispose()
 })
 
-test('origin is required only for private Web registration requests, canonical and never inserted from endpoint', async () => {
-  const f = fixture()
-  for (const params of [{ provider: 'webPush', endpoint }, { provider: 'webPush', origin: origin + '/', endpoint },
-    { provider: 'webPush', origin: 'http://owner.example', endpoint }, { provider: 'webPush', origin }])
-    await assert.rejects(f.channel.request('status', params), { code: 'WEB_PUSH_INPUT_INVALID', status: 400, outcome: 'not_accepted' })
-  await assert.rejects(f.channel.request('status', {}), { outcome: 'not_accepted' })
-  assert.equal(f.sent.length, 0)
-  const configure = f.channel.request('configure', { provider: 'webPush', enabled: false, subject: '' })
-  f.reply(webPush); await configure
-  assert.equal(Object.hasOwn(f.sent.at(-1).params, 'origin'), false)
-  f.channel.dispose()
-})
-
-test('ABI2 ready requires both provider status/applyError and rejects legacy ABI1', async () => {
+test('ABI2 ready needs the apns status/applyError, reads webPush only as an optional legacy pair, and rejects legacy ABI1', async () => {
   const good = fixture()
   good.child.emit('message', { type: 'ready', versionId: null, protocolVersion: 2, stateSchema: 2,
-    status: statuses(), applyError: { apns: null, webPush: 'WEB_PUSH_KEY_INVALID' } })
-  assert.equal((await good.channel.ready).applyError.webPush, 'WEB_PUSH_KEY_INVALID')
+    status: statuses(), applyError: { apns: 'PUSH_CONFIGURATION_FAILED' } })
+  assert.equal((await good.channel.ready).applyError.apns, 'PUSH_CONFIGURATION_FAILED')
   good.channel.dispose()
+  const legacy = fixture()
+  legacy.child.emit('message', { type: 'ready', versionId: null, protocolVersion: 2, stateSchema: 2,
+    status: { ...statuses(), webPush: legacyWebPush }, applyError: { apns: null, webPush: 'WEB_PUSH_KEY_INVALID' } })
+  assert.equal((await legacy.channel.ready).applyError.webPush, 'WEB_PUSH_KEY_INVALID')
+  legacy.channel.dispose()
   for (const partial of [{ protocolVersion: 1, stateSchema: 1 }, { applyError: null }, { status: apns }]) {
     const f = fixture()
     f.child.emit('message', { type: 'ready', versionId: null, protocolVersion: 2, stateSchema: 2,
-      status: statuses(), applyError: { apns: null, webPush: null }, ...partial })
+      status: statuses(), applyError: { apns: null }, ...partial })
     await assert.rejects(f.channel.ready, { code: 'PUSH_IPC_DISCONNECTED' })
   }
 })
 
-test('private initialize shape is exact and transport errors preserve finite HTTP status without free text', async () => {
+test('private initialize shape is exact (apns, with an optional legacy webPush pair) and transport errors keep a finite HTTP status without free text', async () => {
   const f = fixture()
   await assert.rejects(f.channel.control('initialize', { configuration: { enabled: false, relayUrl: '' } }))
   await assert.rejects(f.channel.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' },
     webPush: { provider: 'webPush', enabled: false, subject: '' } } }))
   assert.equal(f.sent.length, 0)
-  const request = f.channel.request('unregister', { provider: 'webPush', origin, endpoint })
-  f.reply(null, { code: 'WEB_PUSH_REGISTRATION_CONFLICT', outcome: 'unknown', status: 409 })
-  await assert.rejects(request, { code: 'WEB_PUSH_REGISTRATION_CONFLICT', outcome: 'unknown', status: 409 })
+  const request = f.channel.request('unregister', { provider: 'apns', token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam.example' })
+  f.reply(null, { code: 'PUSH_DEVICE_INVALID', outcome: 'unknown', status: 409 })
+  await assert.rejects(request, { code: 'PUSH_DEVICE_INVALID', outcome: 'unknown', status: 409 })
   f.channel.dispose()
 })
