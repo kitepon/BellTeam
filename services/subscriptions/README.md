@@ -55,7 +55,7 @@ Product ids are in `product.json`; vars in `wrangler.jsonc`; secrets are set wit
 | `LB_APPLE_APP_SITE_ASSOCIATION` | var | the JSON served at `/.well-known/apple-app-site-association`: applinks for `/auth/return/apple` and webcredentials (the https callback of `ASWebAuthenticationSession`) for app `TPWX489GV4.dev.kitepon.bellbot` |
 | `LB_EXEMPT_K` | var | comma list of account numbers (K) that always get the product's entitlement (the Owner's account in production, contract 2.3; test accounts on the test Worker) |
 | `LB_BILLING` | var | `off` only on the test Worker: every signed-in account gets the product's entitlement and no store is asked (contract 1.13, option c). Anything else is `store` |
-| `LB_OLD_HANDOFF` | var | `off` refuses the old pass-less handoff once every app carries the new sign-in; default on |
+| `LB_OLD_HANDOFF` | var | `off` refuses the old pass-less handoff once every app carries the new sign-in; default on; **`off` on `bellteam-login` (production operator) from the start** (no installed app uses that origin; closes SEC-059 for BellTeam), the old Worker is unchanged |
 Without `LB_KKEY` or the pass key every route answers 503 `{error: "not_configured"}`. Web sign-in is on only with `LB_PUBLIC_ORIGIN` and at least one complete provider client; a provider without one answers `provider_unknown`. A store whose key is missing is left out: its receipts come back `invalid`. The Worker never uses billing "off" unless `LB_BILLING` says so.
 
 ## Durable Object

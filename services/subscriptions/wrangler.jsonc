@@ -124,6 +124,8 @@
         "APPLE_SIGNIN_AUDIENCES": "dev.kitepon.bellbot",
         "GOOGLE_SIGNIN_AUDIENCES": "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com",
         "LB_PASS_KEY_CURRENT_ID": "p1",
+        // Tronie 2026-11-23 (Mint SEC-059): no installed app talks to this origin, so the pass-less handoff stays off from the start.
+        "LB_OLD_HANDOFF": "off",
         "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83",
         "APPLE_KEY_ID": "J7KXVR6DSV",
         "LB_PUBLIC_ORIGIN": "https://bellteam-login.kitepon.dev",
