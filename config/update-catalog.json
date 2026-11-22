@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T02:01:04Z",
-  "expiresAt": "2026-11-29T02:01:04Z",
+  "publishedAt": "2026-11-22T02:20:30Z",
+  "expiresAt": "2026-11-29T02:20:30Z",
   "releases": [
     {
       "componentId": "usage",
@@ -291,8 +291,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
-      "versionId": "b0edebac32d9f7b9353c43fe339fdf48a240c1d69fd4d556d3166cdd50833eb2",
+      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
+      "versionId": "16b9823d963d64bac269342ff2a41e8be8c1d95dfcb1060d12428726b3bb8dc6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz",
-          "bytes": 4515027,
-          "sha256": "b0edebac32d9f7b9353c43fe339fdf48a240c1d69fd4d556d3166cdd50833eb2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-amd64.tar.gz",
+          "bytes": 4514645,
+          "sha256": "16b9823d963d64bac269342ff2a41e8be8c1d95dfcb1060d12428726b3bb8dc6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11025,
-          "sha256": "63db9223e4f3a298c95fd525b32ea6bfdff8b6cc63e01a52ca8930f19134bf5a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10896,
+          "sha256": "abad04c4b3354f59e2e82b71bad30c9ad5197e068cdd1d5b9d7cc807a21d9b36"
         },
-        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
+        "signerCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -323,8 +323,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
-      "versionId": "fc595abdc83d4e5b7f34e61eb5fc7f25e37f56e642e68535420c1774b40be1a3",
+      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
+      "versionId": "fdc96854bc2df03b08287b96e36bcf9e76e74cb7ca749dda1340b0b217f5a4b3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz",
-          "bytes": 4515027,
-          "sha256": "fc595abdc83d4e5b7f34e61eb5fc7f25e37f56e642e68535420c1774b40be1a3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-arm64.tar.gz",
+          "bytes": 4514646,
+          "sha256": "fdc96854bc2df03b08287b96e36bcf9e76e74cb7ca749dda1340b0b217f5a4b3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015854Z/notifications-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10943,
-          "sha256": "feee6961f742c895069893bd4b1987069e754694f6338e1fe2f097a42e0dc4b2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T021914Z/notifications-9a6446d5e1290b85f5d4bb049184f00de1f5d2ff-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10896,
+          "sha256": "12dd61c0159ac9ae63163311f5d68128c702efa0f546cc1725f27cc2f300239d"
         },
-        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
+        "signerCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
-      "versionId": "sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc",
+      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
+      "versionId": "sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -729,15 +729,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
-      "versionId": "sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc",
+      "sourceCommit": "9a6446d5e1290b85f5d4bb049184f00de1f5d2ff",
+      "versionId": "sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:30021ce1c4c8c4b3b59f094c9dbe041bb85dd6ec8e7cb2d56fb1c97acecf81dc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d974b85f88ad6f0653b609313664b292c3d1e8b02ce77b2dc714a4c83f3c6a7"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -751,8 +751,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb",
-      "versionId": "36fda49fe7c58267b4a956d7e30607df1bad528ef6690784b8236740db1a15a5",
+      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
+      "versionId": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +760,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-amd64.tar.gz",
-          "bytes": 15348835,
-          "sha256": "36fda49fe7c58267b4a956d7e30607df1bad528ef6690784b8236740db1a15a5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz",
+          "bytes": 15348472,
+          "sha256": "2ae336f9de96b94bd923e6217e8a011670bb4ea52c0dfa191fd8f7a00f77ffe3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10808,
-          "sha256": "2851bef96ea0db9c37eb24f6b7cfa011e5073bda582236aea82ab2e82bb0b958"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10839,
+          "sha256": "5418ac174ff43e64bc548d890e0669b1e232a19949e6840c4a90f45a9067706b"
         },
-        "signerCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb"
+        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +781,13 @@
         }
       },
       "changes": [
-        "Latticeの催促は、同じ内容をメンバーへ何度も送らず、変更ごとに一度だけにします。"
+        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb",
-      "versionId": "f733fdd9ca7b2afa4061b13a4bb8e74488c6058cf1874ebb6ab18d6f74ed1b3d",
+      "sourceCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76",
+      "versionId": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +795,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-arm64.tar.gz",
-          "bytes": 15348835,
-          "sha256": "f733fdd9ca7b2afa4061b13a4bb8e74488c6058cf1874ebb6ab18d6f74ed1b3d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz",
+          "bytes": 15348472,
+          "sha256": "b59726760f4281526fae102c29104c93108e6cab51e26712a740200f46cc124f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015903Z/lattice-4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "f5bd6c63df012aff1598e32f4de360f31262fd2b516b532381cb50d4d1c0d6ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T100725Z/lattice-7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10745,
+          "sha256": "7e79e5bda02acb08ea31a1f73b9a4c68976f7c1a1cdc74fcd36b68acb4d87ce0"
         },
-        "signerCommit": "4ee12f4c2732cce83ed5d7aeb742b8af1e8612bb"
+        "signerCommit": "7fc9e4e6f3fe68abfd9b902a16be4680c5f29b76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +816,7 @@
         }
       },
       "changes": [
-        "Latticeの催促は、同じ内容をメンバーへ何度も送らず、変更ごとに一度だけにします。"
+        "工程表の「動いていません」の通知を、送る直前に、その席の動作状態を読み直してから出します。実行中のターンの途中に、古い読みで通知が出ないようにします。"
       ]
     },
     {
