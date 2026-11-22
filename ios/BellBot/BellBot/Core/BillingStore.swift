@@ -2,36 +2,24 @@ import Foundation
 import StoreKit
 import SwiftUI
 
+/// The home server's own word about this app's access (GET /api/subscription). The app holds no purchase of its own: paid use opens on the library's
+/// entitlements (StoreAccount) or on this word (app-sessions.md 7e); developer mode is the server's switch.
 struct SubscriptionStatus: Decodable {
     enum AccessMode: String, Decodable { case subscription, developer }
     struct Issue: Decodable { let code: String; let status: Int; let message: String }
-    let productId: String
-    let environment: String
     let accessMode: AccessMode
     let setupComplete: Bool
-    let entitled: Bool
-    let source: String?
-    let isTrial: Bool?
-    let state: String
-    let checkedAt: String?
-    let expiresAt: String?
-    let validUntil: String?
-    let autoRenewing: Bool
-    // Since a389. Optional so an older server still decodes; a missing canPurchase means no purchase button (contract rule 6).
-    let billingSources: [String]?
-    let canPurchase: Bool?
-    /// The server's own word (app-sessions.md 7e): 'active' | 'none' | 'unknown'. Absent on older servers.
+    /// 'active' | 'none' | 'unknown'. Absent on older servers.
     let entitlementState: String?
     let error: Issue?
 
     /// Only a definite 'none' replaces the app; 'active', 'unknown' and no field show it (the Web is never gated).
     var requiresSubscription: Bool { entitlementState == "none" }
+    var serverSaysActive: Bool { entitlementState == "active" }
 }
 
 private struct SubscriptionResponse: Decodable { let subscription: SubscriptionStatus }
-private struct TransactionRequest: Encodable { let signedTransaction: String }
 private struct EmptyBillingRequest: Encodable {}
-private struct StripeManageResponse: Decodable { let url: URL }
 
 struct SubscriptionProductConfiguration: Decodable {
     let appAppleId: Int
@@ -43,22 +31,26 @@ struct SubscriptionProductConfiguration: Decodable {
     let privacyPolicyUrl: URL
 }
 
-struct AppleSubscriptionSnapshot {
-    let entitlement: AppleSubscriptionEntitlement?
-    let transaction: VerificationResult<StoreKit.Transaction>?
-}
-
 enum SubscriptionPresentation { case checking, active, inactive, unavailable }
-private enum EntitlementCheck { case checking, complete, failed }
 private enum BillingOperation {
-    case purchase, restore, check, manage
+    case restore, check
     var text: String {
         switch self {
-        case .purchase: "購入を確認しています"
         case .restore: "購入を復元しています"
         case .check: "購読を確認しています"
-        case .manage: "購読の管理ページを開いています"
         }
+    }
+}
+
+enum AppAccess {
+    /// What may use the AI from this app: the server's developer switch, the first guide conversation, the server's own word, or a live library entitlement.
+    static func permitsAI(developer: Bool, serverActive: Bool, libraryActive: Bool, initialGuide: Bool) -> Bool {
+        developer || initialGuide || serverActive || libraryActive
+    }
+
+    static func isInitialGuide(botID: String?, guideBotID: String?, setupComplete: Bool) -> Bool {
+        guard !setupComplete, let botID, let guideBotID else { return false }
+        return botID == guideBotID
     }
 }
 
@@ -70,128 +62,60 @@ final class BillingStore: ObservableObject {
     }()
 
     @Published private(set) var status: SubscriptionStatus?
-    @Published private(set) var entitlement: AppleSubscriptionEntitlement?
-    @Published private(set) var product: Product?
     @Published private var operation: BillingOperation?
-    @Published private var entitlementCheck: EntitlementCheck = .checking
+    @Published private var reading = true
     @Published private(set) var errorText: String?
     @Published private(set) var message: String?
-    var onEntitlementChange: (() async -> Void)?
     var onSetupRequired: (() async throws -> Void)?
     private let api: BellAPI
-    private var updatesTask: Task<Void, Never>?
-    private var currentTransaction: VerificationResult<StoreKit.Transaction>?
-    private var entitlementTask: Task<Void, Error>?
-    private let readAppleEntitlement: () async throws -> AppleSubscriptionSnapshot
-    private let syncPurchases: () async throws -> Void
+    private let account: StoreAccount?
+    private let readLibrary: () async -> Void
+    private var changes: Any?
 
     var working: Bool { operation != nil }
-    var checking: Bool { working || entitlementCheck == .checking }
+    var checking: Bool { working || reading }
     var progressText: String { operation?.text ?? "購読を確認しています" }
+    var isDeveloper: Bool { status?.accessMode == .developer }
+    var serverRequiresSubscription: Bool { status?.requiresSubscription == true }
+    var libraryActive: Bool { account?.hasLiveContract == true }
+    var hasPaidAccess: Bool { isDeveloper || status?.serverSaysActive == true || libraryActive }
     var presentation: SubscriptionPresentation {
         if checking { return .checking }
         if hasPaidAccess { return .active }
-        if entitlementCheck == .failed { return .unavailable }
         return status == nil ? .unavailable : .inactive
     }
-    var isDeveloper: Bool { status?.accessMode == .developer }
-    var serverRequiresSubscription: Bool { status?.requiresSubscription == true }
-    /// A Stripe or Google Play subscription the server verified; an Apple one only counts through this Apple Account's own StoreKit entitlement.
-    var otherStoreEntitled: Bool { status?.entitled == true && status?.source != nil && status?.source != "apple" }
-    var billingSources: [String] { status?.billingSources ?? [] }
-    var canPurchase: Bool { status?.canPurchase == true }
-    var hasPaidAccess: Bool { isDeveloper || otherStoreEntitled || entitlement?.isActive(at: Date()) == true }
-    var notificationSignedTransaction: String? {
-        entitlement?.isActive(at: Date()) == true ? currentTransaction?.jwsRepresentation : nil
-    }
 
-    init(api: BellAPI,
-         readAppleEntitlement: (() async throws -> AppleSubscriptionSnapshot)? = nil,
-         syncPurchases: (() async throws -> Void)? = nil) {
+    init(api: BellAPI, account: StoreAccount? = nil, readLibrary: (() async -> Void)? = nil) {
         self.api = api
-        self.readAppleEntitlement = readAppleEntitlement ?? Self.readCurrentEntitlement
-        self.syncPurchases = syncPurchases ?? { try await StoreKit.AppStore.sync() }
+        self.account = account
+        self.readLibrary = readLibrary ?? { await account?.start() }
+        // The library's entitlements come and go on the StoreAccount; this store's screens redraw with them.
+        changes = account?.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
     }
 
     func connect() async {
-        updatesTask?.cancel()
         errorText = nil
-        entitlementCheck = .checking
-        do {
-            try await readStatus()
-            if isDeveloper {
-                entitlementCheck = .complete
-                entitlement = nil
-                currentTransaction = nil
-                product = nil
-                await onEntitlementChange?()
-                return
-            }
-            updatesTask = Task { [weak self] in
-                for await transaction in StoreKit.Transaction.updates {
-                    if Task.isCancelled { return }
-                    guard let self else { return }
-                    do { try await self.deliver(transaction) }
-                    catch {
-                        self.errorText = error.localizedDescription
-                        self.api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-                        return
-                    }
-                }
-            }
-            try await refreshEntitlement()
-            if let currentTransaction { try await deliver(currentTransaction) }
-        } catch is CancellationError {
-            return
-        } catch {
-            entitlementCheck = .failed
-            errorText = error.localizedDescription
-            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-        }
+        reading = true
+        _ = await refreshFromServer()
     }
 
     func stop() {
-        entitlementTask?.cancel()
-        entitlementTask = nil
-        updatesTask?.cancel()
-        updatesTask = nil
         status = nil
-        entitlement = nil
-        currentTransaction = nil
-        product = nil
         errorText = nil
         message = nil
-        entitlementCheck = .checking
+        reading = true
     }
 
     func loadSubscription() async {
         guard !working else { return }
         operation = .check
         defer { operation = nil }
-        guard await refreshFromServer() else { entitlementCheck = .failed; return }
-        if isDeveloper { entitlementCheck = .complete; return }
-        await loadProduct()
-        do { try await refreshEntitlement() }
-        catch {
-            errorText = error.localizedDescription
-            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-        }
-    }
-
-    func loadProduct() async {
-        guard !isDeveloper, product == nil else { return }
-        do {
-            let products = try await Product.products(for: [Self.configuration.productId])
-            guard let product = products.first else { throw BellAPIError.server("App Storeから購読商品を取得できませんでした。") }
-            self.product = product
-        } catch {
-            errorText = error.localizedDescription
-            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-        }
+        _ = await refreshFromServer()
     }
 
     @discardableResult
     func refreshFromServer() async -> Bool {
+        defer { reading = false }
         do { try await readStatus(); return true }
         catch {
             errorText = error.localizedDescription
@@ -208,25 +132,15 @@ final class BillingStore: ObservableObject {
         }
     }
 
-    func refreshAppleAccess() async {
+    /// 前面に戻った時: 店のパスの権利を読み直す（ライブラリのstart）。購入はライブラリが運営に届けるので、アプリは何も終えない。
+    func refreshAccess() async {
         guard !isDeveloper, !working else { return }
-        do { try await refreshEntitlement() }
-        catch is CancellationError { return }
-        catch {
-            errorText = error.localizedDescription
-            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-        }
+        await readLibrary()
     }
 
     func requirePaidAccess(initialGuide: Bool = false) async throws {
-        if !isDeveloper && !initialGuide {
-            do { try await refreshEntitlement() }
-            catch {
-                if status == nil { throw unconfirmedAccessError }
-                throw error
-            }
-        }
-        guard AppleSubscriptionAccess.permitsAI(developer: isDeveloper || otherStoreEntitled, entitlement: entitlement, initialGuide: initialGuide, now: Date()) else {
+        if !isDeveloper && !initialGuide { await refreshFromServer() }
+        guard AppAccess.permitsAI(developer: isDeveloper, serverActive: status?.serverSaysActive == true, libraryActive: libraryActive, initialGuide: initialGuide) else {
             if status == nil { throw unconfirmedAccessError }
             throw BellAPIError.server("AppleアプリからのAI利用には月額購読が必要です。設定の「BellTeamの購読」で購入または復元してください。Web版と初期案内、会話の閲覧・書き出しは無料で使えます。")
         }
@@ -236,76 +150,21 @@ final class BillingStore: ObservableObject {
         .server("購読の状態を確認できませんでした。設定の「BellTeamの購読」で再確認してください。")
     }
 
-    func purchase(_ action: PurchaseAction) async {
-        guard !checking else { return }
-        guard !isDeveloper, let product else {
-            errorText = "App Storeの購読商品を確認してください。"
-            return
-        }
-        operation = .purchase
-        errorText = nil
-        message = nil
-        defer { operation = nil }
-        do {
-            try await readStatus()
-            guard status?.setupComplete == true else {
-                errorText = "案内役と初期設定を完了してから購読を開始してください。"
-                try await onSetupRequired?()
-                return
-            }
-            // Another store may still bill this server: refuse before the Apple sheet opens (a389, no double billing).
-            guard canPurchase else {
-                errorText = "すでにBellTeamの購読があります。二重に購入しないよう、新しい購入は受け付けません。"
-                return
-            }
-            switch try await action(product, options: []) {
-            case .success(let transaction):
-                try await deliver(transaction)
-                message = hasPaidAccess ? "このApple Accountの購読が有効になりました。" : "購入情報を確認しました。現在の購読は有効ではありません。"
-            case .pending: message = "Appleで購入の承認を待っています。"
-            case .userCancelled: break
-            @unknown default: throw BellAPIError.invalidResponse
-            }
-        } catch {
-            errorText = error.localizedDescription
-            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-        }
-    }
-
+    /// 「購入を復元」: App Storeの履歴をAppleに同期し、ライブラリの start が運営へ送る。アプリは取引を終えない。
     func restore() async {
-        guard !isDeveloper, !checking else { return }
+        guard !isDeveloper, !checking, let account else { return }
         operation = .restore
         errorText = nil
         message = nil
         defer { operation = nil }
         do {
-            try await syncPurchases()
-            try await refreshEntitlement()
-            if let currentTransaction {
-                try await deliver(currentTransaction)
-                message = hasPaidAccess ? "このApple Accountの購読を復元しました。" : "購入履歴を確認しました。現在の購読は有効ではありません。"
-            } else {
-                message = "このApple Accountに有効な購読はありません。"
-            }
+            try await StoreKit.AppStore.sync()
+            await account.start()
+            await refreshFromServer()
+            message = hasPaidAccess ? "購読を確認しました。" : "このApple Accountに有効な購読はありません。"
         } catch {
             errorText = error.localizedDescription
             api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
-        }
-    }
-
-    /// a389: the Stripe customer portal URL (cancel, undo, card, invoices). The caller opens it in the system browser.
-    func stripeManageURL() async -> URL? {
-        guard !checking else { return nil }
-        operation = .manage
-        errorText = nil
-        defer { operation = nil }
-        do {
-            let response: StripeManageResponse = try await api.post("/api/subscription/stripe/manage", body: EmptyBillingRequest())
-            return response.url
-        } catch {
-            errorText = error.localizedDescription
-            api.diagnostics.report(error, path: "/api/subscription/stripe/manage", method: "POST", observation: .subscription)
-            return nil
         }
     }
 
@@ -317,7 +176,7 @@ final class BillingStore: ObservableObject {
         do {
             let response: SubscriptionResponse = try await api.post("/api/subscription/refresh", body: EmptyBillingRequest())
             status = response.subscription
-            try await refreshEntitlement()
+            await account?.start()
             if let error = response.subscription.error { throw BellAPIError.server(error.message) }
         } catch {
             errorText = error.localizedDescription
@@ -329,87 +188,5 @@ final class BillingStore: ObservableObject {
         let response: SubscriptionResponse = try await api.get("/api/subscription")
         status = response.subscription
         errorText = isDeveloper ? nil : response.subscription.error?.message
-    }
-
-    private func refreshEntitlement() async throws {
-        if let entitlementTask { return try await entitlementTask.value }
-        entitlementCheck = .checking
-        let previousJWS = currentTransaction?.jwsRepresentation
-        let task = Task {
-            defer { if !Task.isCancelled { entitlementTask = nil } }
-            do {
-                let snapshot = try await readAppleEntitlement()
-                try Task.checkCancellation()
-                entitlement = snapshot.entitlement
-                currentTransaction = snapshot.transaction
-                entitlementCheck = .complete
-            } catch {
-                if Task.isCancelled { throw error }
-                entitlement = nil
-                currentTransaction = nil
-                entitlementCheck = .failed
-                throw error
-            }
-        }
-        entitlementTask = task
-        do { try await task.value }
-        catch is CancellationError { throw CancellationError() }
-        catch { await onEntitlementChange?(); throw error }
-        if previousJWS != notificationSignedTransaction { await onEntitlementChange?() }
-    }
-
-    private static func readCurrentEntitlement() async throws -> AppleSubscriptionSnapshot {
-        var next: AppleSubscriptionEntitlement?
-        var nextTransaction: VerificationResult<StoreKit.Transaction>?
-        do {
-            for await result in StoreKit.Transaction.currentEntitlements {
-                let transaction: StoreKit.Transaction
-                switch result {
-                case .verified(let value): transaction = value
-                case .unverified(let value, _):
-                    if value.productID == Self.configuration.productId { throw BellAPIError.server("Appleの購入情報を検証できませんでした。") }
-                    continue
-                }
-                guard transaction.productID == Self.configuration.productId,
-                      transaction.ownershipType == .purchased,
-                      transaction.revocationDate == nil, !transaction.isUpgraded,
-                      let expires = transaction.expirationDate,
-                      let group = transaction.subscriptionGroupID else { continue }
-                let statuses = try await Product.SubscriptionInfo.status(for: group)
-                for status in statuses {
-                    guard case .verified(let current) = status.transaction else {
-                        throw BellAPIError.server("Appleの購読状態を検証できませんでした。")
-                    }
-                    guard current.originalID == transaction.originalID,
-                          current.productID == Self.configuration.productId,
-                          current.ownershipType == .purchased, current.revocationDate == nil,
-                          !current.isUpgraded else { continue }
-                    guard case .verified(let renewal) = status.renewalInfo else {
-                        throw BellAPIError.server("Appleの購読更新情報を検証できませんでした。")
-                    }
-                    guard status.state == .subscribed || status.state == .inGracePeriod else { continue }
-                    let grace = status.state == .inGracePeriod ? renewal.gracePeriodExpirationDate : nil
-                    let candidate = AppleSubscriptionEntitlement(expiresAt: current.expirationDate ?? expires, gracePeriodExpiresAt: grace, autoRenewing: renewal.willAutoRenew)
-                    guard candidate.isActive(at: Date()) else { continue }
-                    next = candidate
-                    nextTransaction = status.transaction
-                }
-            }
-        }
-        return AppleSubscriptionSnapshot(entitlement: next, transaction: nextTransaction)
-    }
-
-    private func deliver(_ result: VerificationResult<StoreKit.Transaction>) async throws {
-        guard case .verified(let transaction) = result else {
-            try await refreshEntitlement()
-            throw BellAPIError.server("Appleの購入情報を検証できませんでした。")
-        }
-        guard transaction.productID == Self.configuration.productId else { return }
-        try await refreshEntitlement()
-        let response: SubscriptionResponse = try await api.post("/api/subscription/verify", body: TransactionRequest(signedTransaction: result.jwsRepresentation))
-        status = response.subscription
-        // 本人の権利をStoreKitで反映し、サーバーの検証も完了してから取引を終了する。
-        await transaction.finish()
-        if let error = response.subscription.error { throw BellAPIError.server(error.message) }
     }
 }

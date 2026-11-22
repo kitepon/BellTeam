@@ -126,3 +126,16 @@ stateDiagram-v2
 - 契約の無い人（Ownerの事実、Mint・Tronie経由、2026-11-21、app-sessions.md 7e）：無料なのはブラウザー版だけで、ネイティブのアプリ（iPhone・iPad・Mac・Windows・Linux・Android）は購読が要る。契約の無い人は、最初はサーバーのコンソールのコード、あとは既に入っているセッションの「アプリを追加」のコード（電話も契約も要らない）で**ブラウザー版**に入る。電話での承認は有効な契約が要るので、契約なしで試すと電話は「先に購読してください。購読しないで使うには、ブラウザー版を、サーバーのコンソールのコード、またはすでに入っているアプリの「アプリを追加」のコードで開いてください。」と出す。サーバーは「アプリは有料」を強制しない。関所は本体自身の契約の値で決まる（Tronie裁定）：ログイン後に`GET /api/subscription`の`entitlementState`を読み、'none'の時だけアプリの代わりに購読の壁（lifecycle-and-platform.mdの「購読の壁」）、'active'・'unknown'・項目なしはアプリ。サーバーに入る画面のコード欄は常に出す。文言は7eのとおり、全プラットフォームで同じ。
 - SEC-070の方向（既存アプリが1回限りのコードを出す）は「アプリを追加」の画面として入れる。`origin: added`のセッションは発行元が終わると終わる。
 - Real-path build (a523f, build 182): the iOS and Mac entitlements list applinks and webcredentials for `bellteam-login-real.kitepon.dev` (its apple-app-site-association names `TPWX489GV4.dev.kitepon.bellbot`, confirmed by Bready), and the build passes `BELLTEAM_LOGIN_BILLING_URL=https://bellteam-login-real.kitepon.dev/auth/v1`. Function and data flow are unchanged; only the host the existing login-billing client already talks to, and the entitlement that lets its return links open the app.
+
+## 切替の版（a485 switch、2026-11-23。Mintの適合確認 B1-B6、Tronieの裁定）
+
+状態：コードあり。出荷は、Breadyの本番の運営サーバー（Mint C1）とMintの1回の読み（a485-mint-switch-read）の後（行 a485-apple-submit）。
+
+- B1 旧StoreKitの経路は丸ごと外した：`Transaction.updates`の聞き取り、`deliver()`と`transaction.finish()`、`purchase`の`options []`、復元の`deliver`、`POST /api/subscription/verify`。購入はライブラリ（`StoreAccount.purchase`、購入の印つき）だけ。「購入を復元」は`AppStore.sync()`のあとライブラリの`start()`で、アプリは何も終えない（`BillingStore.restore`）。
+- B2 有料の利用が開くのは、ライブラリの権利（`StoreAccount.hasLiveContract`）か、ホームのサーバー自身の答え（`/api/subscription`の`entitlementState == "active"`）か、サーバーの開発者モードだけ（`AppAccess.permitsAI`）。端末のStoreKitの読み取りや保存した期限では開かない。共有拡張も同じ（`ShareClient.requireAccess`、期限の保存を廃止）。通知の登録に`signedTransaction`はもう付かない（ホームのチケットが使われる）。
+- B3 Stripe・Google Playの行、Stripeの管理の呼び出し、`entitled`／`source`／`billingSources`／`canPurchase`はアプリから外した。設定の購読のカードは、状態・「購入を復元」・Appleの購読の管理へのリンク・再確認だけ。購入は「BellTeamのアカウント」カード（`StoreAccountCard`）から。
+- B4 承認の確認の画面は、端末の名前を「この端末が名乗っている名前：「…」」と出し、「名前は相手が自分でつけたもので、確かめたものではありません。」を添える（SEC-059）。
+- B5 `BellAPI`の既定のセッションは、セッションのトークンを付けた要求ではどのリダイレクトも辿らない（`BearerRedirectGuard`）。付けていない要求（旧Accessの最初の読み取り）は今までどおり。
+- B6 出す製品の`BellTeamLoginBillingURL`は`https://bellteam-login.kitepon.dev/auth/v1`。ビルド設定`BELLTEAM_LOGIN_BILLING_URL`で入れ、出荷の手順（ship.sh）が、できたアーカイブの`Info.plist`から読んで`BELLTEAM_EXPECT_LOGIN_URL`と一致を確かめる。associated domainsは本番のホストと`-real`の両方。
+- Keychain（Tronieの裁定1）：店のパス・K・購入の印・承認した端末の一覧・ホームのトークン（`KeychainPassStore`）と、決裁箱の2つ目のパスは、アプリ自身のグループ（`$(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER)`、Info.plistの`BellTeamPassKeychainGroup`）に置く。共有拡張が持つ`.share`グループには置かない。置き場が変わるので、この版では全員が1回だけサインインし直す。
+- アカウントの削除（Tronieの裁定2）：[account-deletion.md](account-deletion.md)。置き場と文の基準。

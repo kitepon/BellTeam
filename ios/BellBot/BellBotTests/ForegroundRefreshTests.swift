@@ -91,10 +91,9 @@ final class ForegroundRefreshTests: XCTestCase {
         addTeardownBlock { session.invalidateAndCancel() }
         let api = BellAPI(baseURL: URL(string: "https://foreground.test.invalid")!, session: session)
         let reads = Counter()
-        let billing = BillingStore(api: api, readAppleEntitlement: {
+        let billing = BillingStore(api: api, readLibrary: {
             reads.value += 1
             billingRead?.fulfill()
-            return AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
         })
         let store = AppStore(api: api, billing: billing)
         store.phase = .ready

@@ -75,12 +75,12 @@ struct ShareClient {
         return data
     }
 
-    /// AIを使う送信は、サーバーが開発者モードか、Appleの購読が有効な時だけ（アプリの`authorizeAIUse`と同じ規則）。
-    func requireAccess(now: Date = Date()) async throws {
-        struct Status: Decodable { struct Inner: Decodable { let accessMode: String? }; let subscription: Inner? }
+    /// AIを使う送信は、サーバーが開発者モードか、サーバー自身が「有効」と答えた時だけ（B2: 端末のStoreKitや保存した期限では開かない）。
+    func requireAccess() async throws {
+        struct Status: Decodable { struct Inner: Decodable { let accessMode: String?; let entitlementState: String? }; let subscription: Inner? }
         let data = try await send(try request("/api/subscription", method: "GET"))
-        if (try? JSONDecoder().decode(Status.self, from: data))?.subscription?.accessMode == "developer" { return }
-        guard let until = credentials.entitledUntil, until > now else { throw Failure.subscription }
+        let inner = (try? JSONDecoder().decode(Status.self, from: data))?.subscription
+        guard inner?.accessMode == "developer" || inner?.entitlementState == "active" else { throw Failure.subscription }
     }
 
     func destinations() async throws -> [Destination] {

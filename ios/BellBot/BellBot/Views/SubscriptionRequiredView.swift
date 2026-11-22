@@ -24,6 +24,7 @@ struct SubscriptionRequiredView: View {
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(BellTheme.ink)
                         .accessibilityIdentifier("subscription-required")
+                    StoreAccountCard()
                     SubscriptionCard()
                     Button("接続先を変更") { confirmingChange = true }
                         .buttonStyle(.bordered)

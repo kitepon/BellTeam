@@ -234,6 +234,9 @@ private struct RootView: View {
             }
         }
         .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates).bellEditorSheet() }
+        .alert(AccountDeletionWords.doneTitle, isPresented: $store.accountDeleted) {
+            Button("閉じる", role: .cancel) { }
+        } message: { Text(AccountDeletionWords.done) }
         #if DEBUG
         .safeAreaInset(edge: .top) {
             if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-notification") {

@@ -36,6 +36,12 @@ final class StoreAccount: ObservableObject {
     /// 接続先が無い間は動かさない（運営のWorkerが決まるまで）。理由は画面に出す。
     var configured: Bool { client != nil }
 
+    /// アプリ自身のKeychainグループ（共有拡張が持つ.shareではない）。店のパス・K・購入の印・ホームのトークンはここに置く。未設定（試験の本体など）はnil＝既定。
+    nonisolated static var passGroup: String? {
+        guard let text = Bundle.main.object(forInfoDictionaryKey: "BellTeamPassKeychainGroup") as? String, !text.isEmpty, !text.contains("$(") else { return nil }
+        return text
+    }
+
     static var configuredBaseURL: URL? {
         guard let text = Bundle.main.object(forInfoDictionaryKey: "BellTeamLoginBillingURL") as? String,
               !text.isEmpty, !text.contains("$(") else { return nil }
@@ -46,7 +52,7 @@ final class StoreAccount: ObservableObject {
         self.productId = productId
         if let baseURL {
             do {
-                let passStore = KeychainPassStore()
+                let passStore = KeychainPassStore(accessGroup: Self.passGroup)
                 let made = try LoginBillingClient(baseURL: baseURL, store: passStore)
                 client = made
                 home = HomeConnection(client: made, store: passStore)
@@ -166,6 +172,17 @@ final class StoreAccount: ObservableObject {
             try await client.stopAllOthers(anchor: Self.anchor, deviceLabel: Self.deviceLabel)
             self.message = "ほかのログインをすべて止めました。"
         }
+    }
+
+    /// 「アカウントを削除」: 店のパス・K・購入の印・承認した端末の一覧をこの端末から消す。ライブラリのsignOutが運営へ伝わらなくても、端末の記録は消す（運営はこのアカウントに結びつけた情報を持たない）。
+    func deleteLocalAccount() async {
+        guard let client else { return }
+        busy = true
+        do { try await client.signOut() } catch { /* the pass is dropped on this device either way; the library keeps no copy */ }
+        busy = false
+        message = nil
+        errorText = nil
+        await reload()
     }
 
     func signOut() async {

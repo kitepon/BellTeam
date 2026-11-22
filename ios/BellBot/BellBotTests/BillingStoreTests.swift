@@ -1,14 +1,25 @@
 import XCTest
 @testable import BellBot
 
+/// 切替版（a485）: アプリは購入を持たない。AI利用はサーバー自身の答え（entitlementState）かライブラリの権利で開く。
 @MainActor
 final class BillingStoreTests: XCTestCase {
+    func testPaidUseOpensOnTheServersWordTheLibraryOrDeveloperModeOnly() {
+        XCTAssertTrue(AppAccess.permitsAI(developer: false, serverActive: true, libraryActive: false, initialGuide: false))
+        XCTAssertTrue(AppAccess.permitsAI(developer: false, serverActive: false, libraryActive: true, initialGuide: false))
+        XCTAssertTrue(AppAccess.permitsAI(developer: true, serverActive: false, libraryActive: false, initialGuide: false))
+        XCTAssertTrue(AppAccess.permitsAI(developer: false, serverActive: false, libraryActive: false, initialGuide: true))
+        XCTAssertFalse(AppAccess.permitsAI(developer: false, serverActive: false, libraryActive: false, initialGuide: false), "nothing on the device's own StoreKit or a kept date opens paid use (B2)")
+        XCTAssertTrue(AppAccess.isInitialGuide(botID: "bot-guide", guideBotID: "bot-guide", setupComplete: false))
+        XCTAssertFalse(AppAccess.isInitialGuide(botID: "bot-guide", guideBotID: "bot-guide", setupComplete: true))
+        XCTAssertFalse(AppAccess.isInitialGuide(botID: "bot-other", guideBotID: "bot-guide", setupComplete: false))
+        XCTAssertFalse(AppAccess.isInitialGuide(botID: nil, guideBotID: nil, setupComplete: false))
+    }
+
     func testInitialStatusFailureShowsUnknownAccessAndRetainsDraftWithoutSending() async {
-        let scenario = BillingScenario(responses: [.failure])
+        let scenario = BillingScenario(responses: [.failure, .failure])
         let api = makeAPI(scenario)
-        let billing = BillingStore(api: api, readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
+        let billing = BillingStore(api: api)
         let store = AppStore(api: api, billing: billing)
         let target = ChatTarget.bot("billing-test")
         store.draft(for: target).text = "送信前の本文"
@@ -27,115 +38,32 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertEqual(scenario.requests.filter { $0.method == "POST" }.count, 0)
     }
 
-    /// Contract a358: a Stripe or Google Play subscription on the server unlocks this app; an Apple one only counts through this Apple Account's StoreKit.
-    func testOtherStoreSubscriptionUnlocksButServerAppleDoesNot() async throws {
-        let stripe = BillingStore(api: makeAPI(BillingScenario(responses: [.entitled(source: "stripe"), .entitled(source: "stripe")])), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        await stripe.connect()
-        XCTAssertTrue(stripe.otherStoreEntitled)
-        XCTAssertEqual(stripe.status?.isTrial, true)
-        try await stripe.requirePaidAccess()
+    func testTheServersActiveWordUnlocksAndNoneOrUnknownDoNot() async throws {
+        let active = BillingStore(api: makeAPI(BillingScenario(responses: [.state("active"), .state("active")])))
+        await active.connect()
+        XCTAssertTrue(active.hasPaidAccess)
+        XCTAssertEqual(active.presentation, .active)
+        try await active.requirePaidAccess()
 
-        let apple = BillingStore(api: makeAPI(BillingScenario(responses: [.entitled(source: "apple"), .entitled(source: "apple")])), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        await apple.connect()
-        XCTAssertFalse(apple.otherStoreEntitled)
-        do { try await apple.requirePaidAccess(); XCTFail("別のApple Accountの購読では解錠しない") } catch {}
-    }
-
-    /// Contract a389: a store that still bills hides the purchase; Stripe's manage button gets the portal URL from the server.
-    func testBilledStoreBlocksPurchaseAndStripeManageReturnsPortalURL() async throws {
-        let scenario = BillingScenario(responses: [.entitled(source: "stripe"), .manage])
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        await billing.connect()
-        XCTAssertEqual(billing.billingSources, ["stripe"])
-        XCTAssertFalse(billing.canPurchase)
-        let url = await billing.stripeManageURL()
-        XCTAssertEqual(url?.host, "billing.stripe.com")
-        XCTAssertEqual(scenario.requests.last.map { $0.method + " " + $0.path }, "POST /api/subscription/stripe/manage")
-
-        let free = BillingStore(api: makeAPI(BillingScenario(responses: [.mode("subscription")])), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        await free.connect()
-        XCTAssertTrue(free.canPurchase)
-        XCTAssertEqual(free.billingSources, [])
+        for state in ["none", "unknown"] {
+            let billing = BillingStore(api: makeAPI(BillingScenario(responses: [.state(state), .state(state)])))
+            await billing.connect()
+            XCTAssertFalse(billing.hasPaidAccess)
+            XCTAssertEqual(billing.presentation, .inactive)
+            XCTAssertEqual(billing.serverRequiresSubscription, state == "none", "only a definite 'none' puts the wall up")
+            do { try await billing.requirePaidAccess(); XCTFail("\(state) must not open paid use") } catch { XCTAssertTrue(error.localizedDescription.contains("月額購読が必要")) }
+        }
     }
 
     func testRetryAfterInitialFailureRecognizesDeveloper() async throws {
         let scenario = BillingScenario(responses: [.failure, .mode("developer")])
-        let api = makeAPI(scenario)
-        let billing = BillingStore(api: api, readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
+        let billing = BillingStore(api: makeAPI(scenario))
         await billing.connect()
         await billing.loadSubscription()
         XCTAssertTrue(billing.isDeveloper)
         XCTAssertEqual(billing.presentation, .active)
         try await billing.requirePaidAccess()
         XCTAssertEqual(scenario.requests.filter { $0.path == "/api/subscription" }.count, 2)
-    }
-
-    func testVerifiedAppleSubscriptionStillWorksWhenInitialStatusFails() async throws {
-        let scenario = BillingScenario(responses: [.failure])
-        let active = activeEntitlement
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-        })
-        await billing.connect()
-        try await billing.requirePaidAccess()
-        XCTAssertTrue(billing.hasPaidAccess)
-        XCTAssertEqual(billing.presentation, .active)
-    }
-
-    func testRetryAfterInitialFailureFindsActiveSubscription() async throws {
-        let scenario = BillingScenario(responses: [.failure, .mode("subscription")])
-        let active = activeEntitlement
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-        })
-        await billing.connect()
-        let refreshed = await billing.refreshFromServer()
-        XCTAssertTrue(refreshed)
-        try await billing.requirePaidAccess()
-        XCTAssertEqual(billing.presentation, .active)
-    }
-
-    func testRetryAfterInitialFailureFindsConfirmedUnpurchased() async {
-        let scenario = BillingScenario(responses: [.failure, .mode("subscription")])
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        await billing.connect()
-        let refreshed = await billing.refreshFromServer()
-        XCTAssertTrue(refreshed)
-        do {
-            try await billing.requirePaidAccess()
-            XCTFail("確認済み未購入を許可しない")
-        } catch {
-            XCTAssertTrue(error.localizedDescription.contains("月額購読が必要"))
-        }
-        XCTAssertEqual(billing.presentation, .inactive)
-    }
-
-    func testUnknownStatusAndFailedAppleCheckStillOfferRecheck() async {
-        let scenario = BillingScenario(responses: [.failure])
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            throw BellAPIError.server("Appleへの照会に失敗")
-        })
-        await billing.connect()
-        do {
-            try await billing.requirePaidAccess()
-            XCTFail("確認不能を許可しない")
-        } catch {
-            XCTAssertTrue(error.localizedDescription.contains("確認できません"))
-            XCTAssertTrue(error.localizedDescription.contains("再確認"))
-            XCTAssertFalse(error.localizedDescription.contains("月額購読が必要"))
-        }
     }
 
     func testKnownDeveloperSurvivesLaterStatusFailure() async throws {
@@ -149,12 +77,9 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertTrue(billing.isDeveloper)
     }
 
-    func testKnownActiveSubscriptionSurvivesLaterStatusFailure() async throws {
-        let scenario = BillingScenario(responses: [.mode("subscription"), .failure])
-        let active = activeEntitlement
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-        })
+    func testKnownActiveWordSurvivesLaterStatusFailure() async throws {
+        let scenario = BillingScenario(responses: [.state("active"), .failure, .failure])
+        let billing = BillingStore(api: makeAPI(scenario))
         await billing.connect()
         let refreshed = await billing.refreshFromServer()
         XCTAssertFalse(refreshed)
@@ -162,150 +87,19 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertEqual(billing.presentation, .active)
     }
 
-    func testKnownAppleEntitlementStaysActiveWhenSubscriptionScreenGETTimesOut() async {
-        let scenario = BillingScenario(responses: [.mode("subscription"), .failure])
-        let active = activeEntitlement
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-        })
-        await billing.connect()
-        XCTAssertEqual(billing.presentation, .active)
-        await billing.loadSubscription()
-        XCTAssertEqual(billing.presentation, .active, "取得失敗は表示しつつ、確認済みの有効なApple権利は維持する")
-        XCTAssertNotNil(billing.errorText)
-        XCTAssertEqual(scenario.requests.filter { $0.path == "/api/subscription" }.count, 2)
-    }
-
-    func testConfirmedUnpurchasedKeepsSubscriptionGuidanceAfterLaterFailure() async {
-        let scenario = BillingScenario(responses: [.mode("subscription"), .failure])
-        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        await billing.connect()
-        XCTAssertEqual(billing.presentation, .inactive)
-        let refreshed = await billing.refreshFromServer()
-        XCTAssertFalse(refreshed)
-        do {
-            try await billing.requirePaidAccess()
-            XCTFail("確認済み未購入を許可しない")
-        } catch {
-            XCTAssertTrue(error.localizedDescription.contains("月額購読が必要"))
-        }
-    }
-
     func testConnectionFailureDoesNotLeaveCheckingForever() async {
         let billing = BillingStore(api: BellAPI(baseURL: nil))
+        XCTAssertEqual(billing.presentation, .checking)
         await billing.connect()
         XCTAssertEqual(billing.presentation, .unavailable)
         XCTAssertFalse(billing.checking)
         XCTAssertNotNil(billing.errorText)
-    }
-
-    func testInitialAndDelayedCheckDoNotReportNoSubscription() async {
-        var reads = 0
-        var continuation: CheckedContinuation<AppleSubscriptionSnapshot, Error>?
-        let started = expectation(description: "Appleへの照会開始")
-        let billing = BillingStore(api: BellAPI(baseURL: nil), readAppleEntitlement: {
-            reads += 1
-            started.fulfill()
-            return try await withCheckedThrowingContinuation { continuation = $0 }
-        })
-        XCTAssertEqual(billing.presentation, .checking)
-        let first = Task { await billing.refreshAppleAccess() }
-        await fulfillment(of: [started], timeout: 2)
-        let second = Task { await billing.refreshAppleAccess() }
-        await Task.yield()
-        XCTAssertEqual(reads, 1)
-        XCTAssertEqual(billing.presentation, .checking)
-        continuation?.resume(returning: AppleSubscriptionSnapshot(entitlement: activeEntitlement, transaction: nil))
-        await first.value
-        await second.value
-        XCTAssertEqual(reads, 1)
-        XCTAssertEqual(billing.presentation, .active)
-    }
-
-    func testCompletedEmptyAppleCheckStillNeedsServerStatus() async {
-        let billing = BillingStore(api: BellAPI(baseURL: nil), readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        XCTAssertEqual(billing.presentation, .checking)
-        await billing.refreshAppleAccess()
-        XCTAssertEqual(billing.presentation, .unavailable)
-    }
-
-    func testStoppingAnOldCheckDoesNotOverwriteTheNewConnection() async {
-        var reads = 0
-        var oldContinuation: CheckedContinuation<AppleSubscriptionSnapshot, Error>?
-        let started = expectation(description: "切断前の照会開始")
-        let active = activeEntitlement
-        let billing = BillingStore(api: BellAPI(baseURL: nil), readAppleEntitlement: {
-            reads += 1
-            if reads == 1 {
-                started.fulfill()
-                return try await withCheckedThrowingContinuation { oldContinuation = $0 }
-            }
-            return AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-        })
-        let oldCheck = Task { await billing.refreshAppleAccess() }
-        await fulfillment(of: [started], timeout: 2)
-        billing.stop()
-        await billing.refreshAppleAccess()
-        XCTAssertEqual(reads, 2)
-        XCTAssertEqual(billing.presentation, .active)
-        oldContinuation?.resume(returning: AppleSubscriptionSnapshot(entitlement: nil, transaction: nil))
-        await oldCheck.value
-        XCTAssertEqual(billing.presentation, .active)
-        XCTAssertNil(billing.errorText)
-    }
-
-    func testFailedCheckDoesNotReportNoSubscription() async {
-        let billing = BillingStore(api: BellAPI(baseURL: nil), readAppleEntitlement: {
-            throw BellAPIError.server("Appleへの照会が失敗しました。")
-        })
-        await billing.refreshAppleAccess()
-        XCTAssertEqual(billing.presentation, .unavailable)
-        XCTAssertNotNil(billing.errorText)
-        XCTAssertFalse(billing.checking)
-    }
-
-    func testRestoreKeepsCheckingThroughAuthenticationAndPreventsOverlap() async {
-        var reads = 0
-        var syncs = 0
-        var continuation: CheckedContinuation<Void, Error>?
-        let started = expectation(description: "復元の認証待ち")
-        let billing = BillingStore(api: BellAPI(baseURL: nil), readAppleEntitlement: {
-            reads += 1
-            return AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        }, syncPurchases: {
-            syncs += 1
-            started.fulfill()
-            try await withCheckedThrowingContinuation { continuation = $0 }
-        })
-        await billing.refreshAppleAccess()
-        let restore = Task { await billing.restore() }
-        await fulfillment(of: [started], timeout: 2)
-        XCTAssertEqual(billing.presentation, .checking)
-        XCTAssertEqual(billing.progressText, "購入を復元しています")
-        await billing.refreshAppleAccess()
-        await billing.restore()
-        XCTAssertEqual(reads, 1)
-        XCTAssertEqual(syncs, 1)
-        continuation?.resume()
-        await restore.value
-        XCTAssertEqual(reads, 2)
-        XCTAssertEqual(billing.presentation, .unavailable)
-        XCTAssertFalse(billing.working)
     }
 
     func testRestartConversationDeniedAccessDoesNotPost() async {
-        let scenario = BillingScenario(responses: [.mode("subscription")])
+        let scenario = BillingScenario(responses: [.state("none")])
         let api = makeAPI(scenario)
-        let billing = BillingStore(api: api, readAppleEntitlement: {
-            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        let refreshed = await billing.refreshFromServer()
-        XCTAssertTrue(refreshed)
-        let store = AppStore(api: api, billing: billing)
+        let store = AppStore(api: api, billing: BillingStore(api: api))
 
         do {
             try await store.restartConversation(target: .bot("restart-test"))
@@ -321,46 +115,32 @@ final class BillingStoreTests: XCTestCase {
 
     func testRestartConversationAuthorizedPostsEmptyJSONOnceToTarget() async throws {
         for target in [ChatTarget.bot("restart-test"), .room("restart-room")] {
-            let scenario = BillingScenario(responses: [.restart(.success)])
+            let scenario = BillingScenario(responses: [.state("active"), .restart(.success)])
             let api = makeAPI(scenario)
-            let active = activeEntitlement
-            var entitlementReads = 0
-            let billing = BillingStore(api: api, readAppleEntitlement: {
-                entitlementReads += 1
-                XCTAssertTrue(scenario.requests.isEmpty, "権限確認が終わるまでPOSTしない")
-                return AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-            })
-            let store = AppStore(api: api, billing: billing)
+            let store = AppStore(api: api, billing: BillingStore(api: api))
 
             try await store.restartConversation(target: target)
 
-            XCTAssertEqual(entitlementReads, 1)
-            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST " + target.path + "/restart"])
-            let body = try XCTUnwrap(scenario.requests.first?.body)
+            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/subscription", "POST " + target.path + "/restart"], "権限確認が終わるまでPOSTしない")
+            let body = try XCTUnwrap(scenario.requests.last?.body)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertTrue(object.isEmpty)
-            XCTAssertGreaterThanOrEqual(try XCTUnwrap(scenario.requests.first?.timeout), 120, "新しい席が立つまで待つ（既定の60秒では足りない）")
+            XCTAssertGreaterThanOrEqual(try XCTUnwrap(scenario.requests.last?.timeout), 120, "新しい席が立つまで待つ（既定の60秒では足りない）")
         }
     }
 
     func testRestartConversationCountsAnOlderBodys202AsSuccess() async throws {
-        let scenario = BillingScenario(responses: [.restart(.legacyAccepted)])
+        let scenario = BillingScenario(responses: [.state("active"), .restart(.legacyAccepted)])
         let api = makeAPI(scenario)
-        let active = activeEntitlement
-        let billing = BillingStore(api: api, readAppleEntitlement: { AppleSubscriptionSnapshot(entitlement: active, transaction: nil) })
-        try await AppStore(api: api, billing: billing).restartConversation(target: .bot("restart-test"))
-        XCTAssertEqual(scenario.requests.count, 1)
+        try await AppStore(api: api, billing: BillingStore(api: api)).restartConversation(target: .bot("restart-test"))
+        XCTAssertEqual(scenario.requests.count, 2)
     }
 
     func testRestartConversationPostFailuresPreserveErrorsWithoutRetry() async {
         for response in [BillingScenario.RestartResponse.timeout, .unauthorized, .invalidJSON] {
-            let scenario = BillingScenario(responses: [.restart(response)])
+            let scenario = BillingScenario(responses: [.state("active"), .restart(response)])
             let api = makeAPI(scenario)
-            let active = activeEntitlement
-            let billing = BillingStore(api: api, readAppleEntitlement: {
-                AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
-            })
-            let store = AppStore(api: api, billing: billing)
+            let store = AppStore(api: api, billing: BillingStore(api: api))
 
             do {
                 try await store.restartConversation(target: .bot("restart-test"))
@@ -381,38 +161,26 @@ final class BillingStoreTests: XCTestCase {
                 case .success, .legacyAccepted: XCTFail("成功応答はこの試験に含めない")
                 }
             }
-            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST /api/bots/restart-test/restart"])
+            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/subscription", "POST /api/bots/restart-test/restart"])
         }
     }
 
     func testRestartConversationInitialGuideRefreshesSetupBeforePost() async throws {
         let scenario = BillingScenario(responses: [.setup(complete: false), .restart(.success)])
         let api = makeAPI(scenario)
-        var entitlementReads = 0
-        let billing = BillingStore(api: api, readAppleEntitlement: {
-            entitlementReads += 1
-            return AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        let store = AppStore(api: api, billing: billing)
+        let store = AppStore(api: api, billing: BillingStore(api: api))
         store.setup = SetupResponse(phase: "ready", harness: nil, harnesses: [], guideBotId: "restart-guide", complete: true, auth: nil)
 
         try await store.restartConversation(target: .bot("restart-guide"))
 
         XCTAssertEqual(store.setup?.complete, false)
-        XCTAssertEqual(entitlementReads, 0, "初期guideは本人権利の照会を免除する")
-        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup", "POST /api/bots/restart-guide/restart"])
+        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup", "POST /api/bots/restart-guide/restart"], "the first guide conversation needs no paid access")
     }
 
     func testRestartConversationCompletedGuideRequiresPaidAccessAfterSetupRefresh() async {
-        let scenario = BillingScenario(responses: [.setup(complete: true)])
+        let scenario = BillingScenario(responses: [.setup(complete: true), .failure])
         let api = makeAPI(scenario)
-        var entitlementReads = 0
-        let billing = BillingStore(api: api, readAppleEntitlement: {
-            entitlementReads += 1
-            XCTAssertEqual(scenario.requests.map { $0.path }, ["/api/setup"])
-            return AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
-        })
-        let store = AppStore(api: api, billing: billing)
+        let store = AppStore(api: api, billing: BillingStore(api: api))
         store.setup = SetupResponse(phase: "ready", harness: nil, harnesses: [], guideBotId: "restart-guide", complete: false, auth: nil)
 
         do {
@@ -425,12 +193,7 @@ final class BillingStoreTests: XCTestCase {
             XCTAssertTrue(message.contains("確認できません"))
         }
         XCTAssertEqual(store.setup?.complete, true)
-        XCTAssertEqual(entitlementReads, 1)
-        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup"])
-    }
-
-    private var activeEntitlement: AppleSubscriptionEntitlement {
-        AppleSubscriptionEntitlement(expiresAt: Date().addingTimeInterval(3600), gracePeriodExpiresAt: nil, autoRenewing: true)
+        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup", "GET /api/subscription"])
     }
 
     private func makeAPI(_ scenario: BillingScenario) -> BellAPI {
@@ -447,7 +210,7 @@ final class BillingStoreTests: XCTestCase {
 
 private final class BillingScenario {
     enum RestartResponse { case success, legacyAccepted, timeout, unauthorized, invalidJSON }
-    enum Response { case failure, mode(String), entitled(source: String), manage, setup(complete: Bool), restart(RestartResponse) }
+    enum Response { case failure, mode(String), state(String), setup(complete: Bool), restart(RestartResponse) }
     private let lock = NSLock()
     private var responses: [Response]
     private(set) var requests: [(method: String, path: String, body: Data?, timeout: TimeInterval)] = []
@@ -466,14 +229,12 @@ private final class BillingScenario {
         case ("GET", "/api/subscription", .failure): throw URLError(.cannotConnectToHost)
         case ("GET", "/api/subscription", .mode(let mode)):
             return (200, Data("""
-                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"\(mode)","setup_complete":true,"entitled":false,"state":"inactive","auto_renewing":false,"billing_sources":[],"can_purchase":\(mode == "subscription")}}
+                {"subscription":{"access_mode":"\(mode)","setup_complete":true}}
                 """.utf8))
-        case ("GET", "/api/subscription", .entitled(let source)):
+        case ("GET", "/api/subscription", .state(let state)):
             return (200, Data("""
-                {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"subscription","setup_complete":true,"entitled":true,"source":"\(source)","is_trial":true,"state":"subscribed","auto_renewing":true,"billing_sources":["\(source)"],"can_purchase":false}}
+                {"subscription":{"access_mode":"subscription","setup_complete":true,"entitlement_state":"\(state)"}}
                 """.utf8))
-        case ("POST", "/api/subscription/stripe/manage", .manage):
-            return (200, Data(#"{"url":"https://billing.stripe.com/p/session/test"}"#.utf8))
         case ("GET", "/api/setup", .setup(let complete)):
             return (200, Data("""
                 {"phase":"ready","harnesses":[],"guide_bot_id":"restart-guide","complete":\(complete)}
