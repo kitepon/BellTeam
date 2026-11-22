@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-21T16:57:45Z",
-  "expiresAt": "2026-11-28T16:57:45Z",
+  "publishedAt": "2026-11-22T01:26:54Z",
+  "expiresAt": "2026-11-29T01:26:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
-      "versionId": "sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0",
+      "sourceCommit": "f709ad6d0516404ae04a62ab0d5b74db1ff9a572",
+      "versionId": "sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Webの通知の送信と、Webの通知の設定を取り除きます。アプリへの通知は変わりません。"
+        "通知の部品が起動できなくても、本体は会話・実行・使用量・Webの入口を始めます。通知の部品は、裏で起動をやり直し続けます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "96292f2cfc37e81b96a2d007c68c94231a1c045a",
-      "versionId": "sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0",
+      "sourceCommit": "f709ad6d0516404ae04a62ab0d5b74db1ff9a572",
+      "versionId": "sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:04532209bd64735e94defbd9912a639a3b0f7a45be75b43980b22b9b8b5ef3c0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c6de80c44dccb0a55f537b389f51a2ed3426aa04b8bd05a2bb698a6b9f077839"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Webの通知の送信と、Webの通知の設定を取り除きます。アプリへの通知は変わりません。"
+        "通知の部品が起動できなくても、本体は会話・実行・使用量・Webの入口を始めます。通知の部品は、裏で起動をやり直し続けます。"
       ]
     },
     {
