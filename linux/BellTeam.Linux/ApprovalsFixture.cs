@@ -77,6 +77,7 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
             "/api/approvals/events" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new OpenStream()) { Headers = { ContentType = new("text/event-stream") } } },
             "/api/approvals/connection" => Json(new { state = scene == "waiting" ? "waiting" : "not_connected" }),
             "/api/approvals/connect" => Json(new { authorizationUrl = "https://approval.example/consent?code=fixture", expiresAt = In(10) }),
+            _ when scene == "on-device" && path.EndsWith("/answer", StringComparison.Ordinal) && request.Method == HttpMethod.Post => Json(new { error = new { code = "answer_on_device", message = "この決裁は、決裁箱のアプリで答えてください。" } }, HttpStatusCode.Conflict),
             _ when path.EndsWith("/answer", StringComparison.Ordinal) && request.Method == HttpMethod.Post && Find(all, path["/api/approvals/".Length..^"/answer".Length]) is { } target => Json(Answered(target)),
             _ when path.StartsWith("/api/approvals/", StringComparison.Ordinal) && all.FirstOrDefault(item => JsonSerializer.SerializeToElement(item).GetProperty("id").GetString() == Uri.UnescapeDataString(path["/api/approvals/".Length..])) is { } found => Json(found),
             _ when path.Contains("/attachments/", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Png) { Headers = { ContentType = new("image/png") } } },

@@ -214,6 +214,8 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
                 Put(latest); ResetStep(); banner = Approvals.Amended(Approvals.OriginOf(latest).Who); note = null; break;
             case "gone":
                 open?.RemoveAll(item => item.Id == decision.Id); SelectedId = null; ResetStep(); break;
+            case "device":   // 409 answer_on_device: the line, the step stays so the person can leave it; nothing to read again
+                step = wasText ? Step.Confirm : Step.Choose; stepMessage = outcome.Message; break;
             case "retry" or "stop":
                 step = wasText ? Step.Confirm : Step.Choose; stepMessage = outcome.Message ?? Approvals.Retry;
                 if (outcome.Kind == "stop") hub.ReadAgain();
@@ -235,7 +237,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
         }
         var read = await workspace.Management.Api.ApprovalHoldAsync(decision.Id!, decision.Status != "held", life.Token);
         if (read.Decision is { } updated) { Put(updated); stepMessage = null; ResetStep(); }
-        else stepMessage = Approvals.HoldFailed;
+        else stepMessage = Approvals.IsAnswerOnDevice(read.Status, read.Body) ? Approvals.AnswerOnDevice : Approvals.HoldFailed;
         Render();
     }
 
