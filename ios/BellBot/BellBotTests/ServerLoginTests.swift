@@ -1,4 +1,5 @@
 import Foundation
+import LoginBilling
 import XCTest
 @testable import BellBot
 
@@ -157,6 +158,66 @@ final class ServerLoginTests: XCTestCase {
         XCTAssertEqual(store.homeLogin?.setupCodeNeeded, true)
         XCTAssertNil(store.serverLogin)
         XCTAssertFalse(store.usesServerSessions, "the /api/login/* routes do not exist on a home server")
+    }
+
+    private let homeRows = #"{"sessions":[{"id":"h1","kind":"account","appKind":"apple","passId":"P1","state":"active","created":"2026-11-23T01:00:00.000Z","lastUse":"2026-11-23T02:00:00.000Z","current":true},{"id":"h2","kind":"account","appKind":"linux","passId":"P2","state":"active","created":"2026-11-23T01:30:00.000Z","current":false},{"id":"h3","kind":"console","state":"none","created":"2026-11-23T01:40:00.000Z","current":false}]}"#
+
+    func testHomeSessionsListShowsEveryRowWithTheRuledWords() async {
+        ServerLoginProtocol.script["GET /api/home/sessions"] = [.json(200, homeRows)]
+        let model = HomeSessionsModel(api: makeAPI(token: "t"), stopPass: { _ in })
+        await model.refresh()
+        XCTAssertEqual(model.rows.map(\.id), ["h1", "h2", "h3"])
+        XCTAssertEqual(ServerLoginWords.summary(model.rows.count), "3台が入っています")
+        XCTAssertEqual(ServerLoginWords.summary(1), "この端末だけが入っています")
+        let infos = model.rows.map(DeviceRowInfo.init)
+        XCTAssertEqual(infos.map(\.title), ["iPhone・iPad・Mac", "Linux", "サーバーのコンソールのコード"])
+        XCTAssertEqual(infos[1].icon, .desktop)
+        XCTAssertEqual(infos[2].icon, .console)
+        XCTAssertNil(infos[2].passId, "a console row can only be ended")
+        XCTAssertNil(infos[1].originLine, "the home list has no origin or network")
+        XCTAssertTrue(infos[1].times.hasPrefix("入った日時 "))
+        XCTAssertFalse(infos[1].times.contains("最後に使った日時"))
+    }
+
+    func testEndingAnotherDeviceDeletesItOnceAndRereads() async {
+        ServerLoginProtocol.script["GET /api/home/sessions"] = [.json(200, homeRows), .json(200, #"{"sessions":[]}"#)]
+        ServerLoginProtocol.script["DELETE /api/home/sessions/h2"] = [.json(200, #"{"ok":true}"#)]
+        let model = HomeSessionsModel(api: makeAPI(token: "t"), stopPass: { _ in XCTFail("ending is not a lock-out") })
+        await model.refresh()
+        await model.end(model.rows[1])
+        XCTAssertEqual(ServerLoginProtocol.count("DELETE /api/home/sessions/h2"), 1)
+        XCTAssertEqual(ServerLoginProtocol.count("GET /api/home/sessions"), 2, "the result is shown by re-reading")
+        XCTAssertNil(model.errorText)
+    }
+
+    func testAlreadyEndedSessionIsNotAnError() async {
+        ServerLoginProtocol.script["GET /api/home/sessions"] = [.json(200, homeRows), .json(200, #"{"sessions":[]}"#)]
+        ServerLoginProtocol.script["DELETE /api/home/sessions/h2"] = [.json(404, #"{"error":"SESSION_NOT_FOUND"}"#)]
+        let model = HomeSessionsModel(api: makeAPI(token: "t"), stopPass: { _ in })
+        await model.refresh()
+        await model.end(model.rows[1])
+        XCTAssertNil(model.errorText)
+        XCTAssertTrue(model.rows.isEmpty)
+    }
+
+    func testLockOutStopsThePassThenEndsTheSession() async {
+        ServerLoginProtocol.script["GET /api/home/sessions"] = [.json(200, homeRows)]
+        ServerLoginProtocol.script["DELETE /api/home/sessions/h2"] = [.json(200, #"{"ok":true}"#)]
+        var stopped: [String] = []
+        let model = HomeSessionsModel(api: makeAPI(token: "t"), stopPass: { stopped.append($0) })
+        await model.refresh()
+        await model.lockOut(model.rows[1])
+        XCTAssertEqual(stopped, ["P2"])
+        XCTAssertEqual(ServerLoginProtocol.count("DELETE /api/home/sessions/h2"), 1)
+    }
+
+    func testFailedStopEndsNothingAndShowsTheReason() async {
+        ServerLoginProtocol.script["GET /api/home/sessions"] = [.json(200, homeRows)]
+        let model = HomeSessionsModel(api: makeAPI(token: "t"), stopPass: { _ in throw LoginBillingError(code: "network") })
+        await model.refresh()
+        await model.lockOut(model.rows[1])
+        XCTAssertEqual(ServerLoginProtocol.count("DELETE /api/home/sessions/h2"), 0, "the device is not ended when the pass was not stopped")
+        XCTAssertNotNil(model.errorText)
     }
 
     func testServerWithoutTheHomeContractKeepsTheOldPath() async {

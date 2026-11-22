@@ -32,7 +32,7 @@ final class DevOneDeviceStopTests: XCTestCase {
         let other = try XCTUnwrap(rows.first { ($0["current"] as? Bool) == false && $0["passId"] is String }, "no other row with a passId")
         let otherId = try XCTUnwrap(other["id"] as? String), otherPass = try XCTUnwrap(other["passId"] as? String)
         let t1 = stamp()
-        try await account.devStop(passId: otherPass)
+        try await account.stopLogin(passId: otherPass)
         print("STOP-PASSID at \(t1) (\(stamp()) done) for session \(otherId)")
         let deleteURL = homeURL.appending(path: "api/home/sessions/\(otherId)")
         var delete = URLRequest(url: deleteURL)

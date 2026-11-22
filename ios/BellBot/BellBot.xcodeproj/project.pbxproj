@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00A4B8EDEB78628E96BB5B58 /* HomeSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30968C64BD470645CDCA7A4 /* HomeSessions.swift */; };
 		011F6DEEAF2D68C50248123E /* LatticeChartModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4159C3582B4767E992BA897 /* LatticeChartModel.swift */; };
 		01B9F4FC0C70E3B3C7CA7788 /* BotScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A349EE234D1444D7643C961 /* BotScreenView.swift */; };
 		01EE1AAA3F62B64677CB85D4 /* AuthStatesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B4A337277F40F6EC5D3D1E /* AuthStatesUITests.swift */; };
@@ -409,6 +410,7 @@
 		9FF17AABDF93B527CD81DE09 /* BotPinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotPinTests.swift; sourceTree = "<group>"; };
 		A113AE7E3F745B4DD64764EB /* SettingsNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigation.swift; sourceTree = "<group>"; };
 		A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenKeyBarTests.swift; sourceTree = "<group>"; };
+		A30968C64BD470645CDCA7A4 /* HomeSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSessions.swift; sourceTree = "<group>"; };
 		A3281E543C1A6DA34F67CC1A /* ServerLoginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerLoginTests.swift; sourceTree = "<group>"; };
 		A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretRequestView.swift; sourceTree = "<group>"; };
 		A9B4A337277F40F6EC5D3D1E /* AuthStatesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStatesUITests.swift; sourceTree = "<group>"; };
@@ -633,6 +635,7 @@
 				E419904FFDE9D747772682A4 /* HarnessAccounts.swift */,
 				43A258F77FFF85F8B7D633F6 /* HarnessAuthenticationFlow.swift */,
 				2517B994347E709F9123CAB0 /* HomeLogin.swift */,
+				A30968C64BD470645CDCA7A4 /* HomeSessions.swift */,
 				FF98EC1BA8F9837664FF94DC /* LatticeChart.swift */,
 				E4159C3582B4767E992BA897 /* LatticeChartModel.swift */,
 				DD3112A4CF72FD70FD1B34C3 /* MachineEvent.swift */,
@@ -1187,6 +1190,7 @@
 				82DD83769DF3C32E792C46A0 /* HarnessAuthenticationView.swift in Sources */,
 				3AB060DD93934F58C6A68B31 /* HomeLogin.swift in Sources */,
 				0B2097D93D1D0E40E9287CAC /* HomeLoginView.swift in Sources */,
+				00A4B8EDEB78628E96BB5B58 /* HomeSessions.swift in Sources */,
 				E992CDB6DC20A9F43EC92CAC /* HomeView.swift in Sources */,
 				35D4110E1CAA25AA1B165C34 /* ImageViewerParts.swift in Sources */,
 				169017D0FE23C9B643775846 /* LatticeChart.swift in Sources */,

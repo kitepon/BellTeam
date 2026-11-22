@@ -1,6 +1,6 @@
 # The sessions screen (Apple; the reference for Windows, Linux, Android)
 
-Status: wording ruled by Tronie/Mint 2026-11-23 (this doc follows it; the code in ServerSessionsViews.swift is changed to match in a529a). Describes the screen the Apple/Mac app shows today (ServerSessionsViews.swift, built in a485 S2/S3). a529a moves its data to the home part's sessions
+Status: wording ruled by Tronie/Mint 2026-11-23. Built in a529a (2026-11-23): on a home server the screen reads `GET /api/home/sessions` (`HomeSessionsModel`, `HomeSessionsSection`, shown when the home has device logins and this app holds a session); rows, wording, summary line, icons (SF Symbols) and the buttons below are shared with the old-login section (`DeviceRowView`). The home list has no origin or network, so row line 1 is left out there (as on Windows); 承認待ち and 「アプリを追加」 stay on the old-login path only. 「締め出す」 shows only on an iPhone with a store pass (the iPad and Mac screens show 「ログアウトさせる」 only). Describes the screen the Apple/Mac app shows today (ServerSessionsViews.swift, built in a485 S2/S3). a529a moves its data to the home part's sessions
 (Mika's a529m API) and adds `endSession`; placement and strings below do not change with that. Anis and Neon copy this screen.
 
 ## Summary line and icons (Tronie, 2026-11-23: every platform, text-only rows are returned)
