@@ -28,6 +28,13 @@ public sealed class AccountDeletionTests
     }
 
     [Fact]
+    public void AFailedPushRemovalSaysNothingWasRemoved()
+    {
+        var failed = new DeletionFailures(); failed.Add("通知の登録", "届きません");
+        Assert.Equal("次のものを終えられませんでした。\n・通知の登録：届きません\nまだ何も消していません。もう一度「アカウントを削除」を押してください。", failed.TextUntouched);
+    }
+
+    [Fact]
     public void TheSessionTokenFileGoesForEveryServer()
     {
         var directory = Directory.CreateTempSubdirectory("bellteam-delete-").FullName; var store = new FileSessionTokenStore(directory);

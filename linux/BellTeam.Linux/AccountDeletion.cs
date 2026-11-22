@@ -14,5 +14,7 @@ public sealed class DeletionFailures
     private readonly List<string> lines = [];
     public bool Any => lines.Count != 0;
     public void Add(string what, string reason) => lines.Add($"・{what}：{reason}");
+    // The push registration is removed first, on the live connection: when it fails nothing else is touched, so pressing again can reach the server again.
+    public string TextUntouched => "次のものを終えられませんでした。\n" + string.Join('\n', lines) + "\nまだ何も消していません。もう一度「アカウントを削除」を押してください。";
     public string Text => "次のサインインは終えられませんでした。\n" + string.Join('\n', lines) + "\nもう一度「アカウントを削除」を押すと、残りを終えます。";
 }

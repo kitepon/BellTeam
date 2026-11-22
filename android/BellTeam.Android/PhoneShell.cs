@@ -199,9 +199,17 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private async Task DeleteAccountAsync()
     {
         var failed = new DeletionFailures();
+        // First, on the live connection: a device whose push token the server still holds would keep getting notifications after the screen said it was deleted (Tronie 2026-11-23). On failure nothing else is touched, so a retry can reach the server.
+        if (await PushRegistration.UnregisterAsync(model) is { } pushFailure)
+        {
+            failed.Add("通知の登録", pushFailure);
+            deletedLayer.Children.Clear();
+            deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionText.FailedTitle, failed.TextUntouched, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+            deletedLayer.IsVisible = true;
+            return;
+        }
         if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException error) { failed.Add("決裁箱のサインイン", StoreAccountText.Failure(error.Code, error.Reason)); }
         CloseAllPages();
-        await PushRegistration.UnregisterAsync(model);
         var homeEnded = true;
         if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (HomeLinkException error) { homeEnded = false; failed.Add("サーバーのサインイン", StoreAccountText.Failure(error.Code, error.Status)); }
         if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _))
