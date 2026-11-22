@@ -35,9 +35,11 @@
 		158521A7ACEF14BA3C0F151C /* BotAvatarCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */; };
 		159A25EECCC168D86730E69B /* Approvals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B97F8421A396D42F5D9493F /* Approvals.swift */; };
 		15ABF72E470915D08210186C /* product.json in Resources */ = {isa = PBXBuildFile; fileRef = DBAD1D13AC6EF3C06BF561FB /* product.json */; };
+		160C2A78C3BBF262F5BBFA44 /* PrimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AADF3A874E03D87F1757240 /* PrimeTests.swift */; };
 		1654E73C4B332B67D641E881 /* GoalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ACA35546635F6D2015D125D /* GoalModels.swift */; };
 		169017D0FE23C9B643775846 /* LatticeChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF98EC1BA8F9837664FF94DC /* LatticeChart.swift */; };
 		174CE7F8B18C3BDD5DF90939 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4EC0870BB12FFC119FCBB8E6 /* Assets.xcassets */; };
+		17C9189FABBBEEAA32DC682E /* StoreKitTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 847040873E4AA72CFA437663 /* StoreKitTest.framework */; };
 		1C6579253FE8FA670475A823 /* ApprovalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1944A57E482DF484C82340C9 /* ApprovalsView.swift */; };
 		1CC218461C68AD39DC83D02F /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */; };
 		1D0987B137B1F5F6708F731C /* CommunicationNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */; };
@@ -97,6 +99,7 @@
 		64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F156208B81C891BA501E7785 /* AvatarImagePicker.swift */; };
 		6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B87E22433703F49BF8DB76 /* ConversationView.swift */; };
 		66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */; };
+		6754D0FF2EBD21B6F4699F17 /* BellTeamMonthly.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1AC9DE69D9AA70D53EE0364D /* BellTeamMonthly.storekit */; };
 		67C076EDA84BC9E653993332 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D505AA366C00647C21E6CE8 /* AppStore.swift */; };
 		69E9BC12563E9EB63A76D270 /* ConversationScrollUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */; };
 		6DFD51FD8407166077C47F9D /* MemberActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */; };
@@ -120,6 +123,7 @@
 		82DD83769DF3C32E792C46A0 /* HarnessAuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2A8FB3518CD560089CC23F /* HarnessAuthenticationView.swift */; };
 		8499EDE3CC0C6A308B6AE026 /* BackgroundAgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176EA930767EE44E1A60E29B /* BackgroundAgentSettingsView.swift */; };
 		85EF32381AD5B89EE75F2AB6 /* ConversationImageViewerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A46AC41E8C3B106A493DE9E /* ConversationImageViewerUITests.swift */; };
+		86F2FDD4E4F27C6C7C9E7528 /* BellTeamMonthly.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1AC9DE69D9AA70D53EE0364D /* BellTeamMonthly.storekit */; };
 		8A43E9BCA8E26D57E771C76C /* HarnessAccountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81451EFF842934E5694C6329 /* HarnessAccountsTests.swift */; };
 		8C09B7052EA7EF57286D12A2 /* ShareModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20227FCE4704C75C93BD9 /* ShareModel.swift */; };
 		8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */; };
@@ -136,6 +140,7 @@
 		A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */; };
 		A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */; };
 		A1D52684ED7706BBBF0599FD /* LatticeChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73BE39705A7CEA2EA39465 /* LatticeChartView.swift */; };
+		A3F1D58C86B290D6CAECD68A /* DevOperatorPurchaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48695EEBE00BDFAF9EFCAE03 /* DevOperatorPurchaseTests.swift */; };
 		A41265D127DA205D62D0F239 /* ShareClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7B65BE00BB8FB2518E5666 /* ShareClientTests.swift */; };
 		A45B8D3EAE0E36A000548D59 /* ConversationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3899063BEB68B3C806D39EC8 /* ConversationDetailView.swift */; };
 		A5300355DA897C634FFB0DE8 /* AuthenticationInstructions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18B998FC06A5BE8997CC48B /* AuthenticationInstructions.swift */; };
@@ -207,6 +212,7 @@
 		F6CCC9A1F84957101D0EC760 /* StoreAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089134645C6C8AFF553F385 /* StoreAccount.swift */; };
 		F7A3610AB742DDF65F460171 /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */; };
 		F8CEC404D66D5C0D890F7698 /* TabletWorkspaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58852297683AC8B45153D2EB /* TabletWorkspaceUITests.swift */; };
+		F939675A3724EE3DF6C2FB67 /* StoreKitTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 847040873E4AA72CFA437663 /* StoreKitTest.framework */; };
 		FB51090B3C666789FD722B3A /* ApprovalsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2875588A7AB24B89B700CB74 /* ApprovalsUITests.swift */; };
 		FBB5374AF788223F144EA209 /* BackgroundAgentSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D8B7EA92DE81A89E5F7552 /* BackgroundAgentSettingsTests.swift */; };
 		FCDE197B84EDF95C61684414 /* SSHHostKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0578B483DDFB2C9E74B797 /* SSHHostKeyTests.swift */; };
@@ -221,6 +227,13 @@
 			remoteInfo = BellTeam;
 		};
 		2F52385CAC1EF4FB692FCFAA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C603972E184F4F0CAEC5D5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A56A7BC7B59035F2BD15DB4E;
+			remoteInfo = BellTeam;
+		};
+		3AE987EAE07ED4AA3193DD2A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 1C603972E184F4F0CAEC5D5C /* Project object */;
 			proxyType = 1;
@@ -281,6 +294,7 @@
 		19964D1F37185563CBBACBFB /* BotStopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotStopTests.swift; sourceTree = "<group>"; };
 		19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSubscriptionAccess.swift; sourceTree = "<group>"; };
 		1A349EE234D1444D7643C961 /* BotScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotScreenView.swift; sourceTree = "<group>"; };
+		1AC9DE69D9AA70D53EE0364D /* BellTeamMonthly.storekit */ = {isa = PBXFileReference; path = BellTeamMonthly.storekit; sourceTree = "<group>"; };
 		1DD1E02ACDCE28987E14A1A4 /* LatticeTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatticeTreeView.swift; sourceTree = "<group>"; };
 		2089134645C6C8AFF553F385 /* StoreAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreAccount.swift; sourceTree = "<group>"; };
 		21273DCBB039D2A2650ACE23 /* MachineEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineEventTests.swift; sourceTree = "<group>"; };
@@ -316,6 +330,7 @@
 		44A1C06CB19FF2B63144F176 /* RunningExclusionsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningExclusionsPage.swift; sourceTree = "<group>"; };
 		4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberActivityTests.swift; sourceTree = "<group>"; };
 		4834E37F4B591D8895261770 /* AuthenticationProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationProgress.swift; sourceTree = "<group>"; };
+		48695EEBE00BDFAF9EFCAE03 /* DevOperatorPurchaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevOperatorPurchaseTests.swift; sourceTree = "<group>"; };
 		490AA0A6D0C276CCC209A2DA /* UpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateView.swift; sourceTree = "<group>"; };
 		4964DCC459F81871D3F0C8F1 /* ImageViewerParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerParts.swift; sourceTree = "<group>"; };
 		4AA61C706892EF1E3090C7E6 /* CLIInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstall.swift; sourceTree = "<group>"; };
@@ -364,12 +379,14 @@
 		80B1EA5240E89312F64F9402 /* SelectableText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableText.swift; sourceTree = "<group>"; };
 		81451EFF842934E5694C6329 /* HarnessAccountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAccountsTests.swift; sourceTree = "<group>"; };
 		82FA18958963479A339A70F4 /* RoomDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomDeletionTests.swift; sourceTree = "<group>"; };
+		847040873E4AA72CFA437663 /* StoreKitTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKitTest.framework; path = System/Library/Frameworks/StoreKitTest.framework; sourceTree = SDKROOT; };
 		85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellDiagnosticsTests.swift; sourceTree = "<group>"; };
 		85DB5E741758089D810A8E49 /* MessageText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageText.swift; sourceTree = "<group>"; };
 		8700D379567AAFADB669AB4B /* WorkGraphModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphModel.swift; sourceTree = "<group>"; };
 		884428616564BE00EFB0370F /* BellBotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellBotApp.swift; sourceTree = "<group>"; };
 		8A46AC41E8C3B106A493DE9E /* ConversationImageViewerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationImageViewerUITests.swift; sourceTree = "<group>"; };
 		8A97AF12ADC39496A4688770 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
+		8AADF3A874E03D87F1757240 /* PrimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimeTests.swift; sourceTree = "<group>"; };
 		8F389F929181AEFB9BC90ACE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9154D4ED3669583CD9042D73 /* MemberDeletionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDeletionUITests.swift; sourceTree = "<group>"; };
 		91C2D56C62A49CE8FE1ABF39 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -417,6 +434,7 @@
 		C89DE09C565167FBCD28C4A5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSend.swift; sourceTree = "<group>"; };
 		CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationRecoveryTests.swift; sourceTree = "<group>"; };
+		CBF4C4E203D07386DF665746 /* BellBotStoreKitPrime.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotStoreKitPrime.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1086F9E0B3BEE6FEE07D172 /* ShareClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareClient.swift; sourceTree = "<group>"; };
 		D33FB8806A0ADA98A6BDC3BB /* Terminals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terminals.swift; sourceTree = "<group>"; };
 		D58A3CE120C4F244848F01B6 /* HarnessAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationTests.swift; sourceTree = "<group>"; };
@@ -469,6 +487,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C8C2FB10BC2B240558A22B26 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F939675A3724EE3DF6C2FB67 /* StoreKitTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC7E88E87D79AE03D1E41CF8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				17C9189FABBBEEAA32DC682E /* StoreKitTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		ED2C3329FC7109C7CE5A68A9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -503,6 +537,7 @@
 				30D8B7EA92DE81A89E5F7552 /* BackgroundAgentSettingsTests.swift */,
 				FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */,
 				85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */,
+				1AC9DE69D9AA70D53EE0364D /* BellTeamMonthly.storekit */,
 				4E89EE9A9585139D146052FD /* BillingStoreTests.swift */,
 				9FF17AABDF93B527CD81DE09 /* BotPinTests.swift */,
 				254EE50E23553FA4436C995B /* BotSaveTests.swift */,
@@ -512,6 +547,7 @@
 				FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */,
 				2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */,
 				111BABF39834B4AAC46442D0 /* ConversationTimelineStateTests.swift */,
+				48695EEBE00BDFAF9EFCAE03 /* DevOperatorPurchaseTests.swift */,
 				9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */,
 				4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */,
 				2A9EFE8F6BBB4199572FA56B /* ForwardTests.swift */,
@@ -558,6 +594,14 @@
 				91C2D56C62A49CE8FE1ABF39 /* ShareViewController.swift */,
 			);
 			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		3FD652414126BF1BB83F4C9B /* BellBotStoreKitPrime */ = {
+			isa = PBXGroup;
+			children = (
+				8AADF3A874E03D87F1757240 /* PrimeTests.swift */,
+			);
+			path = BellBotStoreKitPrime;
 			sourceTree = "<group>";
 		};
 		410C9BB56D3B67991287629F /* Core */ = {
@@ -630,6 +674,7 @@
 			isa = PBXGroup;
 			children = (
 				F8B86DADFA93B9B63A59EEF0 /* BellBot */,
+				3FD652414126BF1BB83F4C9B /* BellBotStoreKitPrime */,
 				295E5C10C2853D11253E5342 /* BellBotTests */,
 				A84F0B573DCFC15FB2609D5F /* BellBotUITests */,
 				FD6E90923B1F3416D4C18BB9 /* docs */,
@@ -766,6 +811,7 @@
 			isa = PBXGroup;
 			children = (
 				F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */,
+				847040873E4AA72CFA437663 /* StoreKitTest.framework */,
 				E9D3D74EF4A36F15C49C36CE /* UserNotifications.framework */,
 			);
 			name = Frameworks;
@@ -774,6 +820,7 @@
 		E2B2A1FC31361F643ACA41A9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				CBF4C4E203D07386DF665746 /* BellBotStoreKitPrime.xctest */,
 				F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */,
 				5240F7B27DBDA4893A69C997 /* BellBotUITests.xctest */,
 				21479869FD1BC24B77D65313 /* BellTeam.app */,
@@ -844,6 +891,7 @@
 			buildPhases = (
 				D87666CD143E8E9E3D7339EB /* Sources */,
 				DE1850F5C032E99B76B87BA1 /* Resources */,
+				C8C2FB10BC2B240558A22B26 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -855,6 +903,26 @@
 			);
 			productName = BellBotTests;
 			productReference = F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		1AF4E8E399519AD259C61EFD /* BellBotStoreKitPrime */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8BDC0D243B06279F71A4AA46 /* Build configuration list for PBXNativeTarget "BellBotStoreKitPrime" */;
+			buildPhases = (
+				7F409A54864667D8DC7CC52D /* Sources */,
+				EB968D91523DAC6928546CE8 /* Resources */,
+				EC7E88E87D79AE03D1E41CF8 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				23B0E5D4EF92EE2CD229EED7 /* PBXTargetDependency */,
+			);
+			name = BellBotStoreKitPrime;
+			packageProductDependencies = (
+			);
+			productName = BellBotStoreKitPrime;
+			productReference = CBF4C4E203D07386DF665746 /* BellBotStoreKitPrime.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		3D3689DA5100434AEEF3C9D0 /* NotificationService */ = {
@@ -963,6 +1031,7 @@
 				3D3689DA5100434AEEF3C9D0 /* NotificationService */,
 				B55F03F802A72EB91B925D51 /* ShareExtension */,
 				18B0053E7F71471C63C6EAFE /* BellBotTests */,
+				1AF4E8E399519AD259C61EFD /* BellBotStoreKitPrime */,
 				0A45E1FF5A1C4BFA2FDF838A /* BellBotUITests */,
 			);
 		};
@@ -985,7 +1054,16 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6754D0FF2EBD21B6F4699F17 /* BellTeamMonthly.storekit in Resources */,
 				B4B447031A0E5AFFCE90FF25 /* update-examples.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB968D91523DAC6928546CE8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				86F2FDD4E4F27C6C7C9E7528 /* BellTeamMonthly.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1159,6 +1237,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7F409A54864667D8DC7CC52D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				160C2A78C3BBF262F5BBFA44 /* PrimeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D87666CD143E8E9E3D7339EB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1180,6 +1266,7 @@
 				DEFD24E9AA5B34A031FA59A3 /* ConversationAppearanceTests.swift in Sources */,
 				EDDE752CCF33981F828EE435 /* ConversationDraftTests.swift in Sources */,
 				0DA1D18D904869960DA78C0B /* ConversationTimelineStateTests.swift in Sources */,
+				A3F1D58C86B290D6CAECD68A /* DevOperatorPurchaseTests.swift in Sources */,
 				82C939EA660C75EED3519805 /* EventStreamLiveTests.swift in Sources */,
 				1EB95B06637C5D8F0CF5C98E /* ForegroundRefreshTests.swift in Sources */,
 				367E2E784A378D9FC78E6525 /* ForwardTests.swift in Sources */,
@@ -1223,6 +1310,11 @@
 			isa = PBXTargetDependency;
 			target = A56A7BC7B59035F2BD15DB4E /* BellTeam */;
 			targetProxy = 2E9935004786FE3E42ABCF28 /* PBXContainerItemProxy */;
+		};
+		23B0E5D4EF92EE2CD229EED7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A56A7BC7B59035F2BD15DB4E /* BellTeam */;
+			targetProxy = 3AE987EAE07ED4AA3193DD2A /* PBXContainerItemProxy */;
 		};
 		5CB43FF25E35F9D63E71B430 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1461,6 +1553,23 @@
 			};
 			name = Debug;
 		};
+		3AB06AAC4DEA02B373FC6D66 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bellteam.bellbot.storekitprime;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BellTeam.app/BellTeam";
+			};
+			name = Debug;
+		};
 		62EDF4DFE235239AB3370DE5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1481,6 +1590,23 @@
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Release;
+		};
+		64F4D8B4E73F270C2F188CB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bellteam.bellbot.storekitprime;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BellTeam.app/BellTeam";
 			};
 			name = Release;
 		};
@@ -1616,6 +1742,15 @@
 			buildConfigurations = (
 				A26B62FBDC03120C43DFBA3B /* Debug */,
 				05FCE5C6E23B16EA7A9500A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8BDC0D243B06279F71A4AA46 /* Build configuration list for PBXNativeTarget "BellBotStoreKitPrime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3AB06AAC4DEA02B373FC6D66 /* Debug */,
+				64F4D8B4E73F270C2F188CB0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
