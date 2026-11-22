@@ -519,3 +519,44 @@ Z110 turned Code Mode on for every Claude seat, but Aiterm refuses it on a termi
 | Not changed | Aiterm's own minimum checks, host trust, credentials, the open-failure provision, running seats (provision keeps them and the previous install, per Elegg's contract) |
 
 State: terminal Aiterm older --launch C8--> launch goes on at once (`updating`), provision runs in the background --> newer (`updated`), next launch `current`; provision fails or stalls --> same Aiterm (`failed`), launches are never held, the next launch retries. Guard: none added (no refusal; the exit is the next launch). Protected: nothing is refused; the only write is the existing, staged `provision` on a terminal whose key and host trust are already verified.
+
+## Approval Box door on terminals (Tronie ruling a532, task a532b1, design 2026-11-23)
+
+Owner principle (a532): Aiterm only offers what a machine's mouth offers, standalone; BellTeam-specific features live in BellTeam. The host-side door that carries a seat's Approval Box connector line to the body (Aiterm 0.70.94 `approval-door.ts`, R22) names Approval Box and BellTeam's seat route, bearer and error codes, so it moves here. Nothing uses the old door today (no host runs `approval-box use-hosted`; the hosted daemon is not paired, Elegg 2026-11-23), and the body route it forwards to (`POST /api/seat-mcp/approval-box/local`, a516m) is not on main yet (the remote seat server answers 404 to every path but `/api/seat-mcp`, `/call-bridge`, `/user/<name>`). So this is built once, here, with no cutover of live traffic; the old door is dropped by Aiterm after this one is proven per OS.
+
+```mermaid
+flowchart LR
+  Conn[terminals.connection: launch target + doorHook]
+  Hook[approval-door.mjs: hook spec + door program text, version = sha256]
+  Exec[execution: agent_launch / resume with terminal + doorHook, unchanged pass-through]
+  Aiterm[Aiterm launch on the host: runs the post-launch hook, generic]
+  Reg[hook, register mode: writes door file if older, starts door if none, registers session + P + bearer]
+  Door[(host door: one process per host user, address below)]
+  Seat[seat on the host: its MCP config 127.0.0.1:P]
+  Daemon[Approval Box connector daemon on the host, nayuta: use-hosted --socket door address]
+  Route[body remote seat listener: POST /api/seat-mcp/approval-box/local, Molly]
+  Hosted[(state/approval-box-hosted.sock, hosted daemon)]
+  Conn --> Exec
+  Hook --> Conn
+  Exec -->|agent_launch terminal + doorHook| Aiterm
+  Aiterm -->|hook env: session id, P, alive check, node, seat private headers| Reg
+  Reg -->|register line| Door
+  Daemon -->|one NDJSON line per connection| Door
+  Door -->|POST via ssh -R 127.0.0.1:P with the seat bearer| Route
+  Route -->|one line| Hosted
+  Seat -.->|same P, same bearer, /api/seat-mcp| Route
+```
+
+| Item | Contract |
+| --- | --- |
+| Door program | `src/terminals/approval-door-host.mjs`: one ESM file, Node built-ins only, no BellTeam import. Same behaviour as R22 so the connector sees no change: one connection = one request: one `{method,path,body}` line in (up to 64 MiB read, the daemon's own cap is 32 MiB), one `POST http://127.0.0.1:P/api/seat-mcp/approval-box/local` with `content-type: application/json` and the registered seat's `Authorization`, the body's 200 text back plus `\n`, close. 30 s idle close before the line is complete. Newest registered seat first; `400 BELLTEAM_SEAT_UNRESOLVED` drops that bearer, `403 APPROVAL_BOX_DOOR_NOT_ALLOWED` skips it, other non-200 is one `{ok:false,status,code,message,body:{}}` line, none left or unreachable is `503 door_unavailable` (the connector's own code) |
+| Address | POSIX `~/.bellteam/approval-box-door.sock` (directory 0700, socket 0600); Windows `\\.\pipe\bellteam-approval-box-door-<user>`. Different from Aiterm's `~/.aiterm/approval-box-door.sock`, so both can serve while Aiterm still carries its door; the connector is pointed at one by `--socket` (Nayuta is told this address; the Windows pipe keeps the default DACL as accepted for R22: SYSTEM and Administrators full, Everyone read only, a read-only stranger is closed at 30 s) |
+| Where the file lives | The hook command is `node --input-type=module -e <bootstrap> <program text>` (argv total well under Aiterm's 24 KiB, 1-16 args). The bootstrap writes the text to `~/.bellteam/approval-box-door.mjs` (0600, directory 0700) when the file is missing or different, then runs `node <file> register`; `register` starts `node <file> serve` detached with a scrubbed environment (no `AITERM_*`, no token) when no door answers. So no separate deploy, no package, no `pty_send` heredoc. A running door keeps its old text until it exits (when no seat lives); the wire is stable, so an old door and a new hook still agree |
+| Registration | Aiterm runs the hook on the host after every launch and resume of the seat (generic post-launch hook, ask to Elegg below). The hook reads the facts from its environment, never argv: `AITERM_SESSION_ID`, `AITERM_HOOK_EVENT` (launch or resume), `AITERM_SEAT_FORWARD_PORT` (P), `AITERM_SESSION_ALIVE` (a JSON argv of the generic alive check) and the seat's private values; the bearer is the first private header value of exactly `Bearer ` + 43 of `[A-Za-z0-9_-]` (what the body accepts), or `Bearer ` + the seat token `BELLTEAM_MCP_TOKEN` the header names. It sends `{session, port, authorization, alive}` to the door and ends. The bearer is kept in the door's memory only; it is never written to disk, argv or a log. A seat with no such value or no P registers nothing and still works |
+| Liveness | The alive check is Aiterm's `aiterm-session-alive` argv (hook env `AITERM_SESSION_ALIVE`, run every 30 s, 5 s limit): exit 1 is a confirmed absence, exit 0 or 2 (cannot tell) ends any run of absences, so a live seat is never dropped on a flapping check. Two confirmed absences in a row drop the entry. No entry counts: the door removes its address and exits; the next launch or resume starts it again. This is the self-exit of the only guard here |
+| Launch side | `terminals.connection` returns `doorHook` beside the terminal target; execution passes it to `agent_launch` unchanged, as it does `terminal`. Sent only when both the terminal's Aiterm (`remoteVersion` of the open) and the container's (the version the same `serve` process reports) are at least 0.70.100: the container's schema refuses an unknown launch field and an older terminal strips it silently, so without the gate the door would never register. Never for a fork seat (the body refuses a fork bearer). The post_launch result field (`ok`/`failed`/`timeout`) is Aiterm's and never fails the launch |
+| Body route | `POST /api/seat-mcp/approval-box/local` on the remote seat listener, Molly (a516m, built in PR #2352; it did not exist before): not POST 405, verify the bearer as `/mcp` does (`400 BELLTEAM_SEAT_UNRESOLVED`), fork seat -> `403 APPROVAL_BOX_DOOR_NOT_ALLOWED`, a body that is not a JSON object with string `method` and `path` -> `400 APPROVAL_BOX_DOOR_REQUEST_INVALID`, over 32 MiB -> `413 APPROVAL_BOX_DOOR_TOO_LARGE`, otherwise the request line goes to `state/approval-box-hosted.sock` (a514m) and its one reply line comes back as HTTP 200 text; a down or unpaired daemon is that daemon's own `{ok:false,status:503,...}` line inside HTTP 200. Nothing is stored |
+
+State: no door --first registration--> serving (entries >= 1) --every entry dead twice--> no door (address removed, process exits). Failure exits: registration that cannot reach or start the door is a stderr line and the hook ends 0 (the launch is never failed, the next launch or resume registers again); a refused hook field is prevented by the version condition above; a bearer the body drops is dropped at once and the next entry tried; with no live entry the connector gets `door_unavailable` and retries (10 s in its tools, 2 s by its daemon). Protected: the bearer (memory only, 0600 socket and 0700 directory, never argv or log), wrong target (only `127.0.0.1:P`, the seat's own forward), privilege (a fork's bearer is never registered, a body 403 is skipped). No other guard; nothing is refused or stopped for an unknown state.
+
+Order: (1) diagrams agreed here and in Aiterm (Elegg: generic post-launch hook, hook env facts, alive-check bin, P); (2) Aiterm 0.70.100 with those additions (0.70.99 goes first, Elegg); (3) the body route live (Molly, next train after Z181); (4) this door and `doorHook`, one launch each on macbook, fox and rabbit with one request filed through the door per OS (an unpaired daemon answering `503 not_paired` through the whole path is already proof of the path); (5) Aiterm drops `approval-door.ts` and `registerDoor` in the next release after that proof. Aiterm's own door stays untouched until (5), so no remote seat changes behaviour before this one is proven.
