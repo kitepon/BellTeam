@@ -178,11 +178,11 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
     // First run order (app-sessions.md 7e): the account (sign-in, purchase or QR handoff) comes before any server. A device that already has a contract goes straight on; when the library cannot be asked
     // (offline, no Worker configured) the app goes on too: an unknown state is not a reason to stop.
-    private async Task BeginAfterAccountAsync()
+    private async Task BeginAfterAccountAsync(bool forceGate = false)
     {
         var lb = AccountStore.Billing;
         if (lb is null) { Begin(); return; }
-        try
+        if (!forceGate) try
         {
             // Asked of the server: the library keeps no entitlement list across a restart.
             var entitled = lb.PassKind != Kitepon.LoginBilling.PassKind.None && (await lb.CheckAsync()).Entitlements.Count != 0;
@@ -194,23 +194,29 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
     // 「アカウントを削除」 (a485 switch; the order is Rapi's Mac reference, docs/architecture/modules/apple/account-deletion.md): this phone's Approval Box sign-in (the device part with keys is not on Android),
     // then the server connection (push registration, home session, tokens, Access login, saved address), then the library's sign-out (pass, K, purchase mark), then the first screen with one result alert.
-    // It never stops the other devices.
+    // It never stops the other devices. A sign-out that reaches a server and fails keeps its record (the library's rule) and is listed in the result instead of 「削除しました」; pressing again finishes it,
+    // so a failure shows the account screen again.
     private async Task DeleteAccountAsync()
     {
-        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException) { }   // best effort: the person may be offline; the library keeps its own record
+        var failed = new DeletionFailures();
+        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException error) { failed.Add("決裁箱のサインイン", StoreAccountText.Failure(error.Code, error.Reason)); }
         CloseAllPages();
         await PushRegistration.UnregisterAsync(model);
-        if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (HomeLinkException) { }
-        if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _)) tokens.Clear(ServerOrigin.Parse(server));
+        var homeEnded = true;
+        if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (HomeLinkException error) { homeEnded = false; failed.Add("サーバーのサインイン", StoreAccountText.Failure(error.Code, error.Status)); }
+        if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _))
+        {
+            if (homeEnded) tokens.Clear(ServerOrigin.Parse(server)); else new KeystoreSessionTokenStore().Clear(ServerOrigin.Parse(server));   // the home record stays for the retry
+        }
         access.SignOut();
         model.SignOut();
         settings.Save(settings.Load() with { ServerUrl = null });
-        if (AccountStore.Billing is { } lb) await lb.SignOutAsync();
+        if (AccountStore.Billing is { } lb) try { await lb.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException error) { failed.Add("BellTeamのサインイン", StoreAccountText.Failure(error.Code, error.Reason)); }
         ShowList();
         deletedLayer.Children.Clear();
-        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionText.ResultTitle, AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.Children.Add(FormKit.AlertFrame(failed.Any ? AccountDeletionText.FailedTitle : AccountDeletionText.ResultTitle, failed.Any ? failed.Text : AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
         deletedLayer.IsVisible = true;
-        await BeginAfterAccountAsync();
+        await BeginAfterAccountAsync(forceGate: failed.Any);
     }
 
     private void Begin()
