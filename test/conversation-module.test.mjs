@@ -51,3 +51,11 @@ test('部屋予定も同じ公開資格検証を使える', () => {
   assert.throws(() => requireRoomMember(rooms, room.id, 'bot-c'), /ROOM_MEMBER_REQUIRED/u)
   assert.throws(() => requireRoomMember(rooms, 'missing', 'bot-a'), /ROOM_NOT_FOUND/u)
 })
+
+// a521: a remote seat's image path is passed unchanged (terminal's own form, e.g. Windows 'C:\x.png'); the terminal read judges it.
+test('sendmessage keeps a remote seat image path as given', async () => {
+  const registry = new Map([['bot-r', { id: 'bot-r', name: 'R', terminalId: 'win', projectRoot: 'C:\\p' }], ['bot-b', { id: 'bot-b', name: 'B' }]])
+  const calls = []
+  for (const image of ['C:\\Users\\x\\a.png', 'shot.png']) await callConversationTool({ name: 'sendmessage', from: 'bot-r', registry, args: { target: 'B', message: 'm', image }, deliverMessage: async value => { calls.push(value.image) } })
+  assert.deepEqual(calls, [{ path: 'C:\\Users\\x\\a.png' }, { path: 'shot.png' }])
+})

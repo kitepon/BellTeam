@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { roomTurnsFromThroughline } from './room-routing.mjs'
+import { isRemoteBot } from './remote-seats.mjs'
 import { validateConversationEffect, validateConversationEffectResult } from './conversation/effects.mjs'
 
 const fail = code => { throw Object.assign(new Error(code), { code, status: 503, outcome: 'unknown' }) }
@@ -75,6 +76,8 @@ export function createConversationParentEffects({ getServices, observerEffects, 
         const entry = saved(params.leaseId, context)
         if (entry.ending) fail('IMAGE_SAVE_LEASE_INVALID')
         if (typeof entry.seatRuntime?.readImage !== 'function') unavailable()
+        // a521: a remote seat's image path is on its own terminal, which the body cannot open; the terminal read arrives with Aiterm's call (a521-aiterm-remote-image).
+        if (typeof params.image.path === 'string' && isRemoteBot(services.bots?.get?.(entry.owner))) throw new Error('IMAGE_REMOTE_READ_UNAVAILABLE')
         const read = Promise.resolve().then(() => entry.seatRuntime.readImage(params.image, 25 * 1024 * 1024))
         entry.gate.trackCompletion(entry.lease, read)
         result = { data: (await read).toString('base64') }
