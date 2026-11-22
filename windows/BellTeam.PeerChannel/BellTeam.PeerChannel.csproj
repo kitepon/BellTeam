@@ -3,6 +3,7 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="BellTeam.Tests" />
+    <InternalsVisibleTo Include="BellTeam.Linux.Tests" />
     <!-- The prebuilt x64 DLL (windows/native/README.md); an arm64 process cannot load it, so a win-arm64 publish carries none. -->
     <None Include="../native/prebuilt/win-x64/datachannel.dll" Condition="'$(RuntimeIdentifier)' != 'win-arm64'" Link="datachannel.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

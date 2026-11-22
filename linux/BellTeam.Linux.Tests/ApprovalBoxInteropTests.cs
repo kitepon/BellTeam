@@ -21,6 +21,32 @@ public sealed class ApprovalBoxInteropTests(ITestOutputHelper output)
         using var callback = await http.GetAsync(location);
     }
 
+    // Phase "admit" (a520 step 4, the whole round): a registry made by the lab approver (dev:approve paired a connector) exists. This device shows its admission (the typed code goes to ABX_INTEROP_CODE_FILE),
+    // a person runs `npm run dev:admit -- <code>` (peer-channel-adoption.md section 8 step 6), the device becomes Live, a request filed through the connector reaches it, and it answers the first option itself.
+    private async Task AdmitAndAnswerAsync(LinuxApprovalBoxDevice device, List<string> states)
+    {
+        for (var wait = 0; wait < 300 && device.Device.State.Status != RuntimeStatus.NeedsAdmission; wait++) await Task.Delay(100);
+        Assert.Equal(RuntimeStatus.NeedsAdmission, device.Device.State.Status);
+        var admission = device.Device.NewAdmission();
+        File.WriteAllText(Environment.GetEnvironmentVariable("ABX_INTEROP_CODE_FILE") ?? Path.Combine(Path.GetTempPath(), "abx-interop-code.txt"), admission.TypedCode);
+        output.WriteLine($"{DateTimeOffset.Now:HH:mm:ss} waiting for dev:admit, code {admission.TypedCode}");
+        using var window = new CancellationTokenSource(TimeSpan.FromMinutes(4));
+        await device.Device.AdmitAsync(admission, window.Token);
+        output.WriteLine($"{DateTimeOffset.Now:HH:mm:ss} admitted");
+        for (var wait = 0; wait < 300 && device.Device.State.Status != RuntimeStatus.Live; wait++) await Task.Delay(100);
+        output.WriteLine("states: " + string.Join(" > ", states));
+        Assert.Equal(RuntimeStatus.Live, device.Device.State.Status);
+        DecisionEntry? request = null;
+        for (var wait = 0; wait < 1800 && request is null; wait++) { request = device.Device.Book.All.FirstOrDefault(e => e.IsOpen); await Task.Delay(100); }
+        Assert.NotNull(request);
+        output.WriteLine($"{DateTimeOffset.Now:HH:mm:ss} request {request!.DecisionId} \"{request.Title}\" options {string.Join("/", request.Options.Select(o => o.Id))}");
+        var outcome = await device.Device.AnswerAsync(request.DecisionId, request.Options[0].Id, null);
+        output.WriteLine($"{DateTimeOffset.Now:HH:mm:ss} answer ack {outcome.Ack}");
+        Assert.Equal("ok", outcome.Ack);
+        for (var wait = 0; wait < 100 && device.Device.Book.FindByDecision(request.DecisionId)?.Status != DecisionStatus.Answered; wait++) await Task.Delay(100);
+        Assert.Equal(DecisionStatus.Answered, device.Device.Book.FindByDecision(request.DecisionId)!.Status);
+    }
+
     [Fact]
     public async Task TheLinuxDeviceTalksToApprovalBoxLocalDevServer()
     {
@@ -36,6 +62,7 @@ public sealed class ApprovalBoxInteropTests(ITestOutputHelper output)
         output.WriteLine("signed in to the foreign instance; pass header available: " + (await account.AccessAsync(CancellationToken.None)).Headers.ContainsKey("authorization"));
         device.Device.Start();
         var want = Phase == "first" ? RuntimeStatus.Live : RuntimeStatus.NeedsAdmission;
+        if (Phase == "admit") { await AdmitAndAnswerAsync(device, states); try { Directory.Delete(dir, true); } catch (IOException) { } return; }
         for (var wait = 0; wait < 300 && device.Device.State.Status != want; wait++) await Task.Delay(100);
         output.WriteLine("states: " + string.Join(" > ", states));
         Assert.Equal(want, device.Device.State.Status);

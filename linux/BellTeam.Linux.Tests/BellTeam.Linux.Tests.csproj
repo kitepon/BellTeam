@@ -3,6 +3,9 @@
   <ItemGroup>
     <ProjectReference Include="../BellTeam.Linux/BellTeam.Linux.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <!-- a520: Anis's contract-vector test of the C# pc/1 core runs here too (same file, same fixtures): the Linux build of the device part is checked against the contract's bytes. -->
+    <Compile Include="../../windows/BellTeam.Tests/PeerChannelVectorTests.cs" LinkBase="Anis" />
+    <None Include="../../windows/BellTeam.Tests/fixtures/peer-channel/*.json" Link="peer-channel/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference>
     <Using Include="Xunit" />
