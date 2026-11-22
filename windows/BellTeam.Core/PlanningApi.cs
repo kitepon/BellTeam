@@ -31,6 +31,9 @@ public sealed class PlanningApi(BellApi api)
     public Task<AiControlResponse> SetAiControlAsync(bool paused, CancellationToken token = default) => api.WriteAsync<AiControlResponse>(HttpMethod.Patch, "/api/ai-control", AiControl.Body(paused), token);
     public Task<OwnerResponse> OwnerAsync(CancellationToken token = default) => api.GetAsync<OwnerResponse>("/api/owner", token);
     public Task<OwnerResponse> SaveOwnerAsync(Dictionary<string, object?> changes, CancellationToken token = default) => api.WriteAsync<OwnerResponse>(HttpMethod.Patch, "/api/owner", changes, token);
+    // a529x: the devices of the user's server (home part sessions) and ending one at once; the app's own row is the sign-out.
+    public async Task<HomeSessionEntry[]> HomeSessionsAsync(CancellationToken token = default) => (await api.GetAsync<HomeSessionList>("/api/home/sessions", token)).Sessions;
+    public Task EndHomeSessionAsync(string id, CancellationToken token = default) => api.DeleteAsync("/api/home/sessions/" + Uri.EscapeDataString(id), token);
     public Task<UserRulesResponse> RulesAsync(CancellationToken token = default) => api.GetAsync<UserRulesResponse>("/api/user-rules", token);
     public Task<UserRulesResponse> SaveRulesAsync(string text, CancellationToken token = default) => api.WriteAsync<UserRulesResponse>(HttpMethod.Put, "/api/user-rules", new { text = TextContent.Normalize(text) }, token);
     public async Task<FeatureSetting[]> FeaturesAsync(CancellationToken token = default)
