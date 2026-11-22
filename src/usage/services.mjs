@@ -198,7 +198,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'questions.answer': ({ id, input }) => ownerQuestions.answer(id, input),
     'questions.timeline': ({ target }) => ownerQuestions.timeline(target),
     'home.handle': params => homeReady().handle(params), 'home.sweep': params => homeReady().sweep(params),
-    'home.setupCode': () => homeReady().setupCode(), 'home.publish': () => homeReady().publish(), 'home.console': params => homeReady().console(params),
+    'home.setupCode': () => homeReady().setupCode(), 'home.pushTickets': () => homeReady().pushTickets(), 'home.publish': () => homeReady().publish(), 'home.console': params => homeReady().console(params),
     'subscriptions.status': () => subscriptions.status(), 'subscriptions.current': () => subscriptions.current(),
     'subscriptions.install': ({ signedTransaction }) => subscriptions.install(signedTransaction),
     'subscriptions.installStripe': ({ stripeSessionId }) => subscriptions.installStripe(stripeSessionId),

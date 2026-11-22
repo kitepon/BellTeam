@@ -118,28 +118,32 @@ export async function loadFcmProvider(directory, { readKeys, fetch: request = fe
 
 // Sends through the operator relay: the device's stored subscription proof goes along; the relay verifies it and sends with its own credential.
 export class FcmRelayProvider {
-  static async create(relayUrl, request) {
+  static async create(relayUrl, request, ticketFor) {
     const relay = new NotificationRelayProvider({ relayUrl, fetch: request })
     const status = await relay.call('/v1/notifications/status', { method: 'GET' })
     if (status?.android !== true) throw fcmError('FCM_RELAY_UNSUPPORTED')
-    return new FcmRelayProvider(relay)
+    return new FcmRelayProvider(relay, ticketFor)
   }
 
-  constructor(relay) { this.relay = relay }
+  constructor(relay, ticketFor = () => undefined) { this.relay = relay; this.ticketFor = ticketFor }
 
   async send(device, event) {
-    if (!device.proof) throw fcmError('SUBSCRIPTION_REQUIRED')
+    // a485: the ticket of the app session that registered this device wins; without one, the stored store proof as before.
+    const ticket = this.ticketFor(device.token)
+    const proof = ticket ? { ticket } : device.proof
+    if (!proof) throw fcmError('SUBSCRIPTION_REQUIRED')
     const { server, token } = device
     await this.relay.call('/v1/notifications/fcm/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proof: device.proof, device: { token, server }, id: event.id, message: fcmMessage(event, device).message }) })
+      body: JSON.stringify({ proof, device: { token, server }, id: event.id, message: fcmMessage(event, device).message }) })
   }
 
   close() {}
 }
 
 export class FcmNotifications {
-  constructor({ root, diagnostics, readKeys = onePasswordKeyReader(root), fetch: request = fetch }) {
+  constructor({ root, diagnostics, readKeys = onePasswordKeyReader(root), fetch: request = fetch, ticketFor = () => undefined }) {
     this.root = root
+    this.ticketFor = ticketFor
     this.diagnostics = diagnostics
     this.readKeys = readKeys
     this.request = request
@@ -169,7 +173,7 @@ export class FcmNotifications {
   async load() {
     this.provider?.close(); this.provider = null
     try {
-      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request)
+      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request, this.ticketFor)
         : await loadFcmProvider(join(this.root, 'shared/tools/fcm'), { readKeys: this.readKeys, fetch: this.request })
       this.error = null
     // The relay being unreachable is the cause the APNs apply already reports; FCM only shows it on its status.

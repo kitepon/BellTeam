@@ -237,6 +237,7 @@ flowchart TD
 | 先に保存、後で公開 | 子はlogin-home.jsonを置換してから`homeLogin`行をpublishする。保存失敗は503 `SESSION_STORE_UNAVAILABLE`で、集合は変わらない |
 | bodyが先、usageが後 | 行は任意項目。行が無い子（旧usage）はLegacyのまま。enforced markerがあるのに行が無い・未読込は503で、開かない |
 | 判定不能は終わりではない | operatorに届かない間は最後の権利を保つ（上限なし）。確定した401だけがsessionを終わらせる。tokenを消すのもアプリ側の401だけ |
+| 通知のチケット（a485） | 子は自分のセッションの`{ticketFor: ticket}`を返し（`home.pushTickets`）、bodyはそれを丸ごと通知の子へ送る（proof後と毎tick）。子はメモリだけに持ち、送信時にdeviceのtokenのhashで結ぶ。deviceファイルには書かない。旧childは拒否して従来の形のまま |
 | 子は時計もstderrも持たない | sweep・setup code・consoleはbody駆動のsystem呼出。usage交換でメモリのcodeは消え、次のtickで新しいsetup codeを出す |
 
 ## 確認範囲

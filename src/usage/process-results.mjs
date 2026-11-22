@@ -19,6 +19,7 @@ const homeWithRow = (value, names) => object(value) && Object.keys(value).every(
 function homeResultValid(method, value) {
   if (method === 'home.handle') return homeWithRow(value, ['status', 'headers', 'body', 'setupNeeded']) && Number.isSafeInteger(value.status) && typeof value.body === 'string' && object(value.headers)
   if (method === 'home.sweep' || method === 'home.publish') return homeWithRow(value, [])
+  if (method === 'home.pushTickets') return exact(value, ['tickets']) && object(value.tickets) && Object.entries(value.tickets).every(([hash, ticket]) => /^[a-f0-9]{64}$/u.test(hash) && typeof ticket === 'string' && ticket.length > 0)
   if (method === 'home.setupCode') return exact(value, ['code', 'expiresAt', 'bound']) && typeof value.code === 'string' && typeof value.expiresAt === 'string' && typeof value.bound === 'boolean'
   return object(value) && Object.keys(value).length <= 8 // home.console: a small private answer for the host's user
 }

@@ -8,7 +8,8 @@ const ID22 = /^[A-Za-z0-9_-]{22}$/u
 const ADDRESS_ACTIONS = new Set(['list', 'add', 'remove'])
 
 export function createHomeLogin({ path, operator, fetch, now }) {
-  const part = createHomePart({ operator, store: fileHomeStore(path), fetch, now, cannotJudgeMs: 'no limit', kinds: [...HOME_KINDS] })
+  const store = fileHomeStore(path)
+  const part = createHomePart({ operator, store, fetch, now, cannotJudgeMs: 'no limit', kinds: [...HOME_KINDS] })
   const handler = createHomeHandler(part)
   let published = null
 
@@ -46,6 +47,17 @@ export function createHomeLogin({ path, operator, fetch, now }) {
     async setupCode() {
       const { code, expiresAt } = await part.setupCode()
       return { code, expiresAt, bound: (await part.status()).bound }
+    },
+    /**
+     * a485: { sha256hex(device token): operator ticket } of the account sessions, read from the part's own document (HomeState, an exported type).
+     * The app gave `ticketFor` = that hash at prove/reprove; a rotated ticket replaces the old one here, an ended session is gone.
+     */
+    async pushTickets() {
+      await part.status() // makes sure the document exists
+      const state = await store.load()
+      const tickets = {}
+      for (const session of state?.sessions ?? []) if (session.kind === 'account' && session.ticket && /^[a-f0-9]{64}$/u.test(session.tv ?? '')) tickets[session.tv] = session.ticket
+      return { tickets }
     },
     async status() { return part.status() },
     /** The host console (bellteam-console): never over HTTP. */
