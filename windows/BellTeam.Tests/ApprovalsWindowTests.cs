@@ -209,6 +209,8 @@ public sealed class ApprovalsWindowTests
         public Task<BellTeam.PeerChannel.SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) { Answers.Add((decisionId, optionId, text)); return Task.FromResult(new BellTeam.PeerChannel.SendOutcome("ok")); }
         public Task<BellTeam.PeerChannel.SendOutcome> HoldAsync(string decisionId, bool held) => Task.FromResult(new BellTeam.PeerChannel.SendOutcome("ok"));
         public void Refresh() => Refreshed++;
+        public List<(string Id, string Attachment)> Asked { get; } = [];
+        public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) { Asked.Add((decisionId, attachmentId)); return Task.FromResult<byte[]?>(null); }
         public void Raise() => Changed?.Invoke();
         public void Add(string rid, string decisionId, string title)
         {

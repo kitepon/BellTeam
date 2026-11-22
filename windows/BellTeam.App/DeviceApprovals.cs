@@ -23,6 +23,7 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
     public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) => Runtime.AnswerAsync(decisionId, optionId, text);
     public Task<SendOutcome> HoldAsync(string decisionId, bool held) => Runtime.HoldAsync(decisionId, held);
     public void Refresh() => Runtime.Refresh();
+    public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult(Book.FindByDecision(decisionId)?.Blobs?.Any(b => b.BlobId == attachmentId) == true ? Runtime.Attachment(attachmentId) : null);
     internal void Start() => Runtime.Start();
     private string AnchorPath => Path.Combine(directory, "peer-channel-registry.json");
     private string HistoryPath => Path.Combine(directory, "approvals-history.bin");
@@ -33,7 +34,7 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
         me = DeviceKeyStore.LoadOrCreate(Path.Combine(directory, "peer-channel-device.key"));
         var book = LoadHistory(HistoryPath);
         book.Changed += () => { SaveHistory(HistoryPath, book); Changed?.Invoke(); };
-        Runtime = new DeviceRuntime(new(me, label, access, RegistryAsync, book));
+        Runtime = new DeviceRuntime(new(me, label, access, RegistryAsync, book, Files: new SealedBlobFiles(Path.Combine(directory, "approvals-files"))));
         Runtime.StateChanged += () => { if (Runtime.State is { Status: RuntimeStatus.SignedOut, Reason: "account_deleted" }) ClearLocal(); Changed?.Invoke(); };
     }
 

@@ -13,4 +13,6 @@ internal interface IDeviceDecisions
     Task<SendOutcome> HoldAsync(string decisionId, bool held);
     /// <summary>Manual retry of the waiting connection attempt.</summary>
     void Refresh();
+    /// <summary>The bytes of a request image (the blob id of the decision's attachment), or null when this device does not hold them.</summary>
+    Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId);
 }

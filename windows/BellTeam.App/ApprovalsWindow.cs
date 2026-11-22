@@ -746,7 +746,7 @@ internal sealed class ApprovalsPage : Grid
     {
         try
         {
-            var bytes = await Api.ApprovalAttachmentAsync(decisionId, item.Id ?? "");
+            var bytes = Known(decisionId) is { Source: DecisionUnion.Device } && Device is { } device ? await device.AttachmentAsync(decisionId, item.Id ?? "") ?? throw new InvalidOperationException("no image held") : await Api.ApprovalAttachmentAsync(decisionId, item.Id ?? "");
             if (bytes.Length != item.Size || !string.Equals(Convert.ToHexString(SHA256.HashData(bytes)), item.Sha256, StringComparison.OrdinalIgnoreCase)) return null;
             var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = new MemoryStream(bytes); image.EndInit(); image.Freeze(); return image;
         }

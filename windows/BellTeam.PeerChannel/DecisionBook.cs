@@ -12,7 +12,7 @@ public sealed record DecisionAnswer(string? OptionId, string? Text, string Decid
 // One request as this device holds it. Body = the exact bytes of the request/amend frame body the person sees (the answer's request_hash is made from them).
 public sealed record DecisionEntry(
     string Rid, long Rv, string DecisionId, string Title, string Context, IReadOnlyList<DecisionOption> Options, string? Recommendation, string Urgency, string? Deadline,
-    DecisionSource Source, string CreatedAt, long Version, byte[] Body, DecisionStatus Status, DecisionAnswer? Answer, string? CancelReason, long UpdatedAt, bool Amended)
+    DecisionSource Source, string CreatedAt, long Version, byte[] Body, DecisionStatus Status, DecisionAnswer? Answer, string? CancelReason, long UpdatedAt, bool Amended, IReadOnlyList<BlobMeta>? Blobs = null)
 {
     public bool IsOpen => Status is DecisionStatus.Pending or DecisionStatus.Held;
 }
@@ -31,7 +31,8 @@ public sealed class DecisionBook
     private static long? Num(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : null;
 
     // The ack result for the frame ("ok" or "refused:<code>"). A request or amend of a version the book already has or passed is ignored and acknowledged ok (contract 8.4); a closed request stays closed.
-    public string Apply(string type, JsonElement body, byte[] bodyBytes, long now)
+    // blobs = what the request/amend frame names (the bytes were kept by the caller before this call).
+    public string Apply(string type, JsonElement body, byte[] bodyBytes, long now, IReadOnlyList<BlobMeta>? blobs = null)
     {
         if (Str(body, "rid") is not { Length: > 0 } rid || Num(body, "rv") is not { } rv) return "refused:invalid";
         switch (type)
@@ -40,6 +41,7 @@ public sealed class DecisionBook
             case "amend":
                 if (Str(body, "schema") != DecisionSchema) return "refused:invalid";
                 if (!body.TryGetProperty("content", out var content) || Parse(rid, rv, content, bodyBytes, now) is not { } parsed) return "refused:invalid";
+                parsed = parsed with { Blobs = blobs };
                 if (entries.TryGetValue(rid, out var old))
                 {
                     if (rv <= old.Rv || !old.IsOpen) return "ok";

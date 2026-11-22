@@ -6,6 +6,8 @@ public enum RuntimeStatus { Stopped, Connecting, Live, Retrying, NeedsAdmission,
 public sealed record RuntimeState(RuntimeStatus Status, string? Reason = null);
 // What the connector said to an answer or hold: "ok", "refused:<code>", or "unknown" (no ack within the wait; the frame is never sent again by itself).
 public sealed record SendOutcome(string Ack);
+// Where the bytes of request images are kept (the app seals them); the book keeps only their names.
+public interface IBlobFiles { void Write(string blobId, byte[] bytes); byte[]? Read(string blobId); }
 public sealed class NoSessionException() : InvalidOperationException("no_session");
 // The Access seam throws this when the person is not signed in to Approval Box (no pass in its own store): the state is SignedOut, left by Refresh after a sign-in.
 public sealed class SignedOutException(string reason = "signed_out") : InvalidOperationException(reason) { public string Reason { get; } = reason; }
@@ -16,7 +18,7 @@ public sealed class NeedsApprovalException(string reason) : InvalidOperationExce
 public sealed class DeviceRuntime : IAsyncDisposable
 {
     public sealed record Setup(DeviceIdentity Me, string Label, Func<CancellationToken, Task<ServerAccess>> Access, Func<ServerAccess, CancellationToken, Task<Holder?>> Registry, DecisionBook Book,
-        Func<TimeSpan, CancellationToken, Task>? Delay = null, Func<double>? Random = null);
+        Func<TimeSpan, CancellationToken, Task>? Delay = null, Func<double>? Random = null, IBlobFiles? Files = null);
 
     private sealed class Live(string waitId) { public string WaitId = waitId; public DeviceSession? Session; public volatile bool GotFrame; public readonly TaskCompletionSource Hello = new(TaskCreationOptions.RunContinuationsAsynchronously); }
 
@@ -136,7 +138,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
         {
             if (r.T == "hello") { live.Hello.TrySetResult(); return; }
             if (r.T == "ack") { Acked(r); return; }
-            var result = DeviceFrames.Handle(r, s.Book, live.Session!.CheckResult, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            var result = DeviceFrames.Handle(r, s.Book, live.Session!.CheckResult, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), (meta, bytes) => s.Files?.Write(meta.BlobId, bytes));
             if (r.T is "request" or "amend" && result == "ok" && r.Body.RootElement.TryGetProperty("rid", out var rid)) lock (gate) owner[rid.GetString()!] = live;
             if (result is not null && DeviceFrames.IdOf(r) is { } id) live.Session.Ack(id, result);
         }
@@ -161,6 +163,8 @@ public sealed class DeviceRuntime : IAsyncDisposable
         try { return new(await waiter.Task.WaitAsync(AckWait)); }
         catch (TimeoutException) { lock (gate) ackWaiters.Remove(id); return new("unknown"); }
     }
+
+    public byte[]? Attachment(string blobId) => s.Files?.Read(blobId);
 
     // Answers the open decision with an option and/or text. Non-idempotent: a timeout is "unknown" and nothing is resent by itself.
     public async Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text)

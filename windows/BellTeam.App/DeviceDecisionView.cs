@@ -29,6 +29,7 @@ internal static class DeviceDecisionView
             CancelReason = cancelled ? e.CancelReason : null,
             Amended = e.Amended ? new ApprovalAmended { Is = true, At = Iso(e.UpdatedAt) } : null,
             Origin = new ApprovalOrigin { Kind = bellteam ? "bellteam" : "external", Client = s.Client, Tool = Tool(s.Client), SessionLabel = s.SessionLabel, WorkLabel = s.WorkLabel, Via = "connector" },
+            RequestAttachments = e.Blobs is { Count: > 0 } blobs ? [.. blobs.Select(b => new ApprovalAttachment { Id = b.BlobId, Name = b.Name, ContentType = b.ContentType, Size = b.Size, Sha256 = Convert.ToHexString(Bytes.FromB64Url(b.BlobId)) })] : null,
             Requester = bellteam ? new ApprovalRequester { BotId = s.RequesterBotId, Name = s.Requester } : null,
         };
     }
