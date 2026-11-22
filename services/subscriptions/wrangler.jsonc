@@ -108,7 +108,7 @@
     },
     // Production login operator (a485-bready-prod-operator, Tronie 2026-11-23): the origin the App Store build carries (Mint C1).
     // Additive: a new Worker beside bellteam-subscriptions (untouched). Own kKey and pass key (p1), billing "store" (LB_BILLING unset),
-    // the production Apple IAP key. LB_EXEMPT_K and LB_OLD_HANDOFF belong to a485-lb-release. No Play key and no assetlinks yet (not asked).
+    // the production Apple IAP key. LB_EXEMPT_K and LB_OLD_HANDOFF belong to a485-lb-release. Play key and assetlinks added 2026-11-23 (Tronie follow-up).
     "prod": {
       "name": "bellteam-login",
       "workers_dev": false,
@@ -128,6 +128,8 @@
         "APPLE_KEY_ID": "J7KXVR6DSV",
         "LB_PUBLIC_ORIGIN": "https://bellteam-login.kitepon.dev",
         "WEBSIGNIN_GOOGLE_CLIENT_ID": "316260984663-lofu7qohq45fhbfup8k3ottlgat415pk.apps.googleusercontent.com",
+        // Android App Links: the release upload key (Neon) and the Play app-signing key (Sielo, Play API generatedApks), both public values, package dev.kitepon.bellbot.
+        "LB_ASSETLINKS": "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"dev.kitepon.bellbot\",\"sha256_cert_fingerprints\":[\"20:9B:C3:2F:84:A9:7D:B9:F2:85:1B:43:1F:57:AA:B0:73:D2:C3:29:94:80:74:D2:43:BA:71:BB:7C:28:80:8F\",\"03:74:D7:4B:12:12:41:10:87:83:53:03:69:FF:64:20:C7:B5:44:80:DC:5D:BC:0F:D4:06:DD:29:44:DF:8E:59\"]}}]",
         "LB_RETURN_SCHEMES": "kitepon-bellbot",
         "LB_RETURN_LINKS": "https://bellteam-login.kitepon.dev/auth/return/android,https://bellteam-login.kitepon.dev/auth/return/apple",
         "LB_APPLE_APP_SITE_ASSOCIATION": "{\"applinks\":{\"details\":[{\"appIDs\":[\"TPWX489GV4.dev.kitepon.bellbot\"],\"components\":[{\"/\":\"/auth/return/apple\"}]}]},\"webcredentials\":{\"apps\":[\"TPWX489GV4.dev.kitepon.bellbot\"]}}"
