@@ -92,6 +92,12 @@ final class StoreAccount: ObservableObject {
         guard let token = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["id_token"] as? String else { throw LoginBillingError(code: "signin_failed") }
         return token
     }
+
+    /// 開発専用（live試験）: 1台だけ運営側で止める。画面の「締め出す」と同じ呼び出し（stop(passId)）。
+    func devStop(passId: String) async throws {
+        guard let client else { return }
+        try await client.stop(passId: passId)
+    }
     #endif
 
     func signIn() async {
