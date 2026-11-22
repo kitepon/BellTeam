@@ -100,9 +100,18 @@ test('startup validates current and previous; malformed adoption cannot start bu
 test('corrupt adoption rejects before any child is created',async t=>{
  const {controller,root,children}=await setup(t)
  await writeFile(join(root,'state/notifications-release.json'),'not-json',{mode:0o600})
- await assert.rejects(controller.start(),{code:'NOTIFICATIONS_ADOPTION_INVALID'})
+ const snapshot=await controller.start()
+ assert.equal(snapshot.available,false);assert.equal(snapshot.phase,'unavailable')
  assert.equal(children.length,0)
 })
+test('a first start that cannot run returns unavailable at once and keeps recovering (a500)',async t=>{
+ const {controller,children}=await setup(t,{mode:'bad-initialize'})
+ const snapshot=await controller.start()
+ assert.equal(snapshot.available,false);assert.equal(snapshot.phase,'unavailable')
+ assert.equal(children.length,1)
+ await new Promise(resolve=>setTimeout(resolve,1500))
+ assert.ok(children.length>=2,'recovery retried the start by itself')
+},{timeout:5000})
 test('quiesced exit has a five-second deadline and reaps the same child',async t=>{
  const {controller,children}=await setup(t,{mode:'hang-exit'})
  await controller.start();t.mock.timers.enable({apis:['setTimeout']})
