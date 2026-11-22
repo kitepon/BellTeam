@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T10:12:36Z",
-  "expiresAt": "2026-11-29T10:12:36Z",
+  "publishedAt": "2026-11-22T10:48:39Z",
+  "expiresAt": "2026-11-29T10:48:39Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a",
-      "versionId": "9a0940122158c6a26b10fe52264d4ba07e9898a877d1d3d21b5d336a57be9b58",
+      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
+      "versionId": "27ebf1de5a80caae7d563a35dab2d0cc563cb81c4cb23b0750abf689dadbb076",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153026Z/web-gateway-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-amd64.tar.gz",
-          "bytes": 4640034,
-          "sha256": "9a0940122158c6a26b10fe52264d4ba07e9898a877d1d3d21b5d336a57be9b58"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz",
+          "bytes": 4518740,
+          "sha256": "27ebf1de5a80caae7d563a35dab2d0cc563cb81c4cb23b0750abf689dadbb076"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153026Z/web-gateway-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10876,
-          "sha256": "e65da02e39064ea1271d59f624f49c0aee06d6a730a3db06bdcda20e09ecd51f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "37697c0bfff9137188324fb5876fc540fc75ac50b953db0dd8d1a2fd06e5bbbf"
         },
-        "signerCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a"
+        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "ブラウザ版の画面を、サーバーの部品から取り除きます。お知らせのページは、これまでどおり出ます。"
+        "決裁箱のコネクタの道具と、Latticeとの通信の符号が新しくなります。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a",
-      "versionId": "8f78af300bb2bf2487b2c3a790ef0c18ec0f2afe194146c6b741df8c348d6e3b",
+      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
+      "versionId": "c083d00e614fad02596e29e2c13257374fa87021c0abf16fa0338d704c43de01",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153026Z/web-gateway-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-arm64.tar.gz",
-          "bytes": 4640033,
-          "sha256": "8f78af300bb2bf2487b2c3a790ef0c18ec0f2afe194146c6b741df8c348d6e3b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz",
+          "bytes": 4518740,
+          "sha256": "c083d00e614fad02596e29e2c13257374fa87021c0abf16fa0338d704c43de01"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261121T153026Z/web-gateway-f3adc69e88f08c6891c8c34e715c338e928c948a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10782,
-          "sha256": "e978e28f9c65c47d0912e3412ad366925d8a68d28b40e100551e267f04586467"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104648Z/web-gateway-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10829,
+          "sha256": "402dbab7cdfdad1f70d60154459228303b006bc54af69d1086f24e9d639b06d5"
         },
-        "signerCommit": "f3adc69e88f08c6891c8c34e715c338e928c948a"
+        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "ブラウザ版の画面を、サーバーの部品から取り除きます。お知らせのページは、これまでどおり出ます。"
+        "決裁箱のコネクタの道具と、Latticeとの通信の符号が新しくなります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "74cd80f960ca3dee7a51b2e2e64062a65c6d9089",
-      "versionId": "sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272",
+      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
+      "versionId": "sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱のコネクタを本体が常駐させ、つなぐ手順と外向き通信の確認の道具を足します。本体が起動しないときの緊急の入れ替えの結果表示も直します。"
+        "決裁箱のコネクタを新しい版（0.2.0-pc.2）に上げ、席が開けられる入口を足します。承認箱の古い消費の仕組みを呼び出し口から外し、決裁の読み手は接続後に本体のデーモンを使います。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "74cd80f960ca3dee7a51b2e2e64062a65c6d9089",
-      "versionId": "sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272",
+      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
+      "versionId": "sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4099f605c3198cf5ad3e551349ccd3614967e7354709b200fe64c95857c5b272"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:7cdcaf913c302541440a03be7dc879bafc2681268e5f018fc0b127062283bc78"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,13 +746,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱のコネクタを本体が常駐させ、つなぐ手順と外向き通信の確認の道具を足します。本体が起動しないときの緊急の入れ替えの結果表示も直します。"
+        "決裁箱のコネクタを新しい版（0.2.0-pc.2）に上げ、席が開けられる入口を足します。承認箱の古い消費の仕組みを呼び出し口から外し、決裁の読み手は接続後に本体のデーモンを使います。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2",
-      "versionId": "5adaf8f8074426ed655937c493da60b4aaa23bf17d1118dab5153c372fb7a25c",
+      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
+      "versionId": "a7f6e88de765ec87a9e5d29a41b7eb2ef359bbe56d7dc0be5b83de5affc90f39",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +760,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-amd64.tar.gz",
-          "bytes": 15348574,
-          "sha256": "5adaf8f8074426ed655937c493da60b4aaa23bf17d1118dab5153c372fb7a25c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz",
+          "bytes": 15348684,
+          "sha256": "a7f6e88de765ec87a9e5d29a41b7eb2ef359bbe56d7dc0be5b83de5affc90f39"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "1c038f5eb280876b2cc4318f6dd9f321a46345225a86f89be1f7a39c9cf42c25"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "4837c578829ca16a6f13dc8faeb77fabc78cc218ae5fff9064b47d0b61bfe091"
         },
-        "signerCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2"
+        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +781,13 @@
         }
       },
       "changes": [
-        "Latticeの子が起動してから最初の催促を3分後にし、途中で切れたターンの自動再開を先に動かします。"
+        "決裁の読み手がデーモンに切り替わるのに合わせ、決裁が無くなった印を受け渡せるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2",
-      "versionId": "b80f793f8bad01e8ce6ce6959791de58933ebdebc3ae3d6add8270418a0a9175",
+      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
+      "versionId": "d279e21871186329f8ebb05cf24206b8c74ec870f7a19269f678b8c8c75494bc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +795,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-arm64.tar.gz",
-          "bytes": 15348574,
-          "sha256": "b80f793f8bad01e8ce6ce6959791de58933ebdebc3ae3d6add8270418a0a9175"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz",
+          "bytes": 15348684,
+          "sha256": "d279e21871186329f8ebb05cf24206b8c74ec870f7a19269f678b8c8c75494bc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T074846Z/lattice-90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "62b56a51c08569b1940d507cf63892ead9a4cf7476ad4b15f3a1c3117473e55b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "89fe4fa4f457b656f17518d0bf69750493f5ddb7932ebef7c35c8217702fd596"
         },
-        "signerCommit": "90af0ff05c4b0722e22ab8ee7d495cdbf7d43df2"
+        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +816,7 @@
         }
       },
       "changes": [
-        "Latticeの子が起動してから最初の催促を3分後にし、途中で切れたターンの自動再開を先に動かします。"
+        "決裁の読み手がデーモンに切り替わるのに合わせ、決裁が無くなった印を受け渡せるようにします。"
       ]
     },
     {
