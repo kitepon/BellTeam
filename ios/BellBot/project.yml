@@ -26,7 +26,7 @@ packages:
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
-    exactVersion: 0.17.0
+    exactVersion: 0.18.1
 targets:
   BellTeam:
     type: application
@@ -44,7 +44,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '181'
+        CFBundleVersion: '182'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -113,6 +113,9 @@ targets:
           - $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         com.apple.developer.applesignin:
           - Default
+        com.apple.developer.associated-domains:
+          - applinks:bellteam-login-real.kitepon.dev
+          - webcredentials:bellteam-login-real.kitepon.dev
     dependencies:
       - package: ChatLayout
         product: ChatLayout
@@ -143,7 +146,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '181'
+        CFBundleVersion: '182'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -186,7 +189,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '181'
+        CFBundleVersion: '182'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
@@ -220,10 +223,24 @@ targets:
       - path: BellBotTests
     dependencies:
       - target: BellTeam
+      - sdk: StoreKitTest.framework
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: app.bellteam.bellbot.tests
+  BellBotStoreKitPrime:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: BellBotStoreKitPrime
+      - path: BellBotTests/BellTeamMonthly.storekit
+    dependencies:
+      - target: BellTeam
+      - sdk: StoreKitTest.framework
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.bellteam.bellbot.storekitprime
   BellBotUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -243,6 +260,7 @@ schemes:
         BellTeam: all
     test:
       targets:
+        - BellBotStoreKitPrime
         - BellBotTests
         - BellBotUITests
       commandLineArguments:

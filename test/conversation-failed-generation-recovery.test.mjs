@@ -7,7 +7,8 @@ import { join } from 'node:path'
 import { createModuleProcess } from '../src/module-process.mjs'
 import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 
-const tick = () => new Promise(resolve => setImmediate(resolve))
+// Recovery rereads the adoption file (real fs I/O) before prepare, so one turn is not enough.
+const tick = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)) }
 const deferred = () => Promise.withResolvers()
 
 for (const mode of ['normal', 'candidate_failure', 'close_without_writer']) test('failed writer recovery retains old native references: ' + mode, async t => {
@@ -25,6 +26,8 @@ for (const mode of ['normal', 'candidate_failure', 'close_without_writer']) test
   }
   const controller = createModuleProcess({ component: 'conversation', root, admission,
     prepareRelease: async () => assert.fail('same builtin version must be retained'), validateReady: () => {},
+    // Every start and recovery needs a passing ready probe (module-ready-probe, 7971c7a5); conversation has no default.
+    probeCandidate: async () => {},
     spawnProcess: () => {
       const child = Object.assign(new EventEmitter(), { connected: true, exitCode: null, signalCode: null,
         stdout: Object.assign(new EventEmitter(), { closed: false, resume() {} }),
@@ -66,24 +69,21 @@ for (const mode of ['normal', 'candidate_failure', 'close_without_writer']) test
   admission.finish(operation)
   t.mock.timers.enable({ apis: ['setTimeout'] })
   endChild(children[0]); await tick()
-  t.mock.timers.tick(1000); await tick(); assert.equal(children.length, 1)
-  incoming.resolve(); await tick()
-  t.mock.timers.tick(1000); await tick(); assert.equal(children.length, 1)
-  reaped.resolve(); await tick()
+  // Owner 2026-11-07 (module-process.md "Current conversation lifecycle"): observed writer death permits the next child
+  // without waiting for the old child's incoming effects, reaping or native references.
   t.mock.timers.tick(1000); await tick()
-  assert.equal(children.length, 2, 'old native completion must not block a reaped writer generation')
+  assert.equal(children.length, 2, 'old incoming, reaping and native completion must not block the next writer generation')
+  incoming.resolve(); reaped.resolve(); await tick()
   if (failCandidate) {
     assert.equal(controller.snapshot().available, false)
     assert.equal(children[1].exitCode, 1)
     assert.equal(nativeSettled, false)
     if (mode === 'close_without_writer') {
-      let settled = false
-      const closing = controller.close().finally(() => { settled = true })
-      const timedOut = assert.rejects(closing, error => error.code === 'CONVERSATION_DRAIN_TIMEOUT')
-      await tick(); t.mock.timers.tick(59999); await tick(); assert.equal(settled, false)
-      t.mock.timers.tick(1); await timedOut
+      // Close no longer drains old native references (2026-11-07); it cancels recovery and keeps the reference.
+      await controller.close()
+      assert.equal(controller.snapshot().phase, 'closed')
+      t.mock.timers.tick(2000); await tick()
       assert.equal(nativeSettled, false); assert.equal(oldFinished, false)
-      assert.equal(controller.snapshot().phase, 'unavailable')
       native.resolve(); await oldDone
       assert.equal(children.length, 2, 'close must cancel recovery without dropping the retired reference')
       return
@@ -99,13 +99,11 @@ for (const mode of ['normal', 'candidate_failure', 'close_without_writer']) test
   await assert.rejects(async () => callbacks.onStatus('delivered'))
   assert.equal(channels.at(-1).calls.includes('callback'), false)
   assert.equal(controller.snapshot().available, true)
-  let closeSettled = false
-  const closing = controller.close().finally(() => { closeSettled = true })
-  const closeFailure = assert.rejects(closing, error => error.code === 'CONVERSATION_PROTOCOL_UNCONFIRMED')
-  await tick(); assert.equal(closeSettled, false, 'whole close must retain the old actual native reference')
-  assert.equal(nativeSettled, false)
-  native.resolve(); await oldDone; await closeFailure
-  assert.equal(oldFinished, true); assert.equal(closeSettled, true)
-  assert.equal(controller.snapshot().phase, 'unavailable', 'unconfirmed close must not be reported as closed success')
+  // Close no longer waits on old native references (2026-11-07); the reference outlives close and settles on its own.
+  await controller.close()
+  assert.equal(controller.snapshot().phase, 'closed')
+  assert.equal(nativeSettled, false); assert.equal(oldFinished, false)
+  native.resolve(); await oldDone
+  assert.equal(oldFinished, true)
   assert.equal(children.length, failCandidate ? 3 : 2)
 })

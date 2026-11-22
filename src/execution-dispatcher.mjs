@@ -8,6 +8,8 @@ import { ConfigurationRequests } from './configuration-requests.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
 import { IdleSessions, approvalBoxWakeDecisions, approvalBoxVersionAsSeat } from './idle-sessions.mjs'
+import { memoryPressure } from './memory-pressure.mjs'
+import { MemoryBudgetRecord } from './memory-budget-record.mjs'
 import { SeatOomBias } from './seat-oom-bias.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 import { HarnessAccounts, seatFilesOver } from './harness-accounts.mjs'
@@ -138,8 +140,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       notify: () => transport.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] }),
       seatCommand: ports.seat?.waitProcess ?? null,
       recorded: async session => (await transport.readRuntimeLaunches())[session] ?? null }) : null
+  const memoryRecord = new MemoryBudgetRecord({ path: join(dirname(root), 'memory-budget.json') })
   const transport = createManagedTransport({
-    ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null, seatStream: ports.seatStream ?? null,
+    memoryRecord, ...ports.seat, accounts, remoteSeats, harnessCli: ports.harnessCli ?? null, seatStream: ports.seatStream ?? null,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'), configurationLock,
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
@@ -182,7 +185,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     report: message => { alive(); ports.observer?.report?.(message) },
   })
   // bd03: the Approval Box capability is in the seat user's home; read it as the seat user (lab Z4: uid 1001 got EACCES).
-  const idle = new IdleSessions({ bots: ports.bots, transport, allowClose: () => phase === 'running',
+  const idle = new IdleSessions({ bots: ports.bots, transport, pressure: memoryPressure(), record: memoryRecord, allowClose: () => phase === 'running',
     ...(typeof ports.seat?.waitProcess === 'function'
       ? { pendingDecisions: approvalBoxWakeDecisions({ run: approvalBoxVersionAsSeat(ports.seat.waitProcess, runtimeHome()) }) } : {}),
     report: message => { alive(); ports.observer?.report?.(message) },

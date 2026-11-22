@@ -23,6 +23,8 @@ async function fixture(t,{busy=false,holding=null}={}){
  const controller=createModuleProcess({component:'conversation',root,admission,
   prepareRelease:async versionId=>({versionId,appRoot:'/run/bellteam-maintenance/conversation/releases/'+versionId+'/payload'}),
   validateReady:()=>{},
+  // Every start and recovery needs a passing ready probe (module-ready-probe, 7971c7a5); conversation has no default.
+  probeCandidate:async()=>{},
   spawnProcess:(_path,args)=>{
    const c=Object.assign(new EventEmitter(),{connected:true,exitCode:null,signalCode:null,versionId:args[0]==='builtin'?null:args[0],
     stdout:Object.assign(new EventEmitter(),{closed:false,resume(){}}),stderr:Object.assign(new EventEmitter(),{closed:false,resume(){}})})
@@ -38,22 +40,25 @@ async function fixture(t,{busy=false,holding=null}={}){
  return {controller,admission,children,controls,release}
 }
 
-test('explicit busy resumes the old generation without issuing quiesce or exiting the accepted writer',async t=>{
- const f=await fixture(t,{busy:true}),old=f.children[0],lease=f.admission.enter()
+// Superseded 2026-11-08 (module-process.md "The old module cannot veto its replacement", "旧exit前のdrain timeout"):
+// a busy or timed-out drain no longer resumes the old child or fails the update, so no drain diagnostic is attached.
+// Conversation has no parent drain (Owner 2026-11-07, "Current conversation lifecycle"): only the live writer is quiesced.
+const replaced=f=>{
+ assert.equal(f.controls.includes('quiesce'),true);assert.equal(f.controls.includes('exit'),true)
+ assert.equal(f.children.length,2);assert.notEqual(f.children[0].exitCode,null);assert.equal(f.children[1].exitCode,null)
+ assert.equal(f.controller.snapshot().available,true);assert.equal(f.controller.snapshot().currentVersionId,'a'.repeat(64))
+}
+
+test('explicit busy cannot veto: the old writer is quiesced and stopped and the candidate is adopted without a drain diagnostic',async t=>{
+ const f=await fixture(t,{busy:true}),lease=f.admission.enter()
  try{
-  await assert.rejects(f.controller.replace('a'.repeat(64)),error=>{
-   assert.equal(error.code,'CONVERSATION_DRAIN_TIMEOUT')
-   assert.deepEqual(error.moduleDiagnostic,{schema:'bellteam.module-drain-diagnostic.v1',component:'conversation',stage:'parent_drain',
-    runnerActive:0,admissionActive:1,admissionClosed:true,admissionUnconfirmed:false})
-   assert.equal(validateModuleExchangeDiagnostic(error.moduleDiagnostic),true);return true
-  })
-  assert.equal(f.controls.includes('quiesce'),false);assert.equal(f.controls.includes('exit'),false)
-  assert.equal(f.children.length,1);assert.equal(f.children[0],old);assert.equal(f.controller.snapshot().available,true)
-  assert.equal(f.controller.snapshot().currentVersionId,null)
+  const state=await f.controller.replace('a'.repeat(64))
+  assert.equal(state.currentVersionId,'a'.repeat(64));replaced(f)
+  assert.equal(f.admission.snapshot().active,1,'pending actual work is retained, never a gate')
  }finally{f.admission.finish(lease)}
 })
 
-for(const stage of ['parent_drain','child_quiesce'])test('timeout retains private '+stage+' counts before old resume without cancelling accepted completion',async t=>{
+for(const stage of ['parent_drain','child_quiesce'])test('held '+stage+' cannot veto: the exchange continues without a drain diagnostic or cancelling accepted completion',async t=>{
  t.mock.timers.enable({apis:['setTimeout']})
  const f=await fixture(t,{holding:stage})
  let request
@@ -61,16 +66,7 @@ for(const stage of ['parent_drain','child_quiesce'])test('timeout retains privat
  const replacing=f.controller.replace('a'.repeat(64));replacing.catch(()=>{})
  await new Promise(resolve=>setImmediate(resolve))
  t.mock.timers.tick(60000)
- await assert.rejects(replacing,error=>{
-  assert.equal(error.code,'CONVERSATION_DRAIN_TIMEOUT');assert.equal(error.moduleDiagnostic.stage,stage)
-  assert.equal(error.moduleDiagnostic.runnerActive,1);assert.equal(error.moduleDiagnostic.admissionActive,0)
-  assert.equal(error.moduleDiagnostic.admissionClosed,true);assert.equal(validateModuleDrainDiagnostic(error.moduleDiagnostic),true)
-  assert.doesNotMatch(JSON.stringify(error.moduleDiagnostic),/generation|lease|correlation|synthetic|stack|message/)
-  return true
- })
- assert.equal(f.controller.snapshot().available,true);assert.equal(f.admission.snapshot().closed,false)
- assert.equal(f.children.length,1);assert.equal(f.controls.includes('exit'),false)
- if(stage==='parent_drain')assert.equal(f.controls.includes('quiesce'),false)
+ await replacing;replaced(f)
  let settled=false;request?.then(()=>{settled=true});await Promise.resolve();assert.equal(settled,false)
  f.release({quiesced:true});if(request)await request
 })

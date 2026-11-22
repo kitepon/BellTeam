@@ -134,7 +134,7 @@ test('ABI1 adoption is rejected before spawning a child, without rewriting the a
   const record = JSON.stringify({schema:'bellteam.notifications.adoption.v1',currentVersionId:A,previousVersionId:null})
   const path = join(f.root, 'state/notifications-release.json')
   await writeFile(path, record, {mode:0o600})
-  await assert.rejects(f.controller.start(), {code:'NOTIFICATIONS_RELEASE_INVALID'})
+  assert.equal((await f.controller.start()).available, false)
   assert.equal(f.children.length, 0); assert.equal(await readFile(path,'utf8'), record)
 })
 

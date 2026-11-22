@@ -11,6 +11,7 @@ import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
 import { terminalTools, callTerminalTool } from './terminals-mcp.mjs'
 import { latticeTools, latticeToolHandlers } from './lattice/mcp.mjs'
 import { runningExclusionTools, callRunningExclusionTool } from './running-exclusions-mcp.mjs'
+import { approvalBoxDaemonTools, callApprovalBoxDaemonTool } from './approval-box-daemon-mcp.mjs'
 
 export const bellTeamTools = Object.freeze([
   {
@@ -113,6 +114,7 @@ export const bellTeamTools = Object.freeze([
   ...terminalTools,
   ...latticeTools,
   ...runningExclusionTools,
+  ...approvalBoxDaemonTools,
 ])
 
 // Owner 2026-11-10: a fork seat never writes inside any Bot project folder (/srv/bellteam/bots/*/), SQL stores included.
@@ -174,6 +176,7 @@ async function runBellTeamTool(context) {
     return { ...result, bot: { ...result.bot, currentWork: readCurrentWork(context, bot), currentWorkBinding: readCurrentWorkBinding(context.currentWorkBinding, bot) } }
   }
   if (name === 'list_models') return getModels(args.harness)
+  if (approvalBoxDaemonTools.some(tool => tool.name === name)) return callApprovalBoxDaemonTool({ name, args, from, fork: Boolean(context.fork), approvalBoxDaemon: context.approvalBoxDaemon?.() })
   if (runningExclusionTools.some(tool => tool.name === name)) return callRunningExclusionTool({ name, args, from, registry, runningExclusions: context.runningExclusions?.() })
   if (terminalTools.some(tool => tool.name === name)) return callTerminalTool({ name, args, terminals: context.terminals, terminalKeys: context.terminalKeys })
   if ([...memberReadTools, ...memberWriteTools].some(tool => tool.name === name))

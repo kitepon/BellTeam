@@ -157,7 +157,6 @@
     "src/seat-credentials.mjs",
     "src/http-terminals-api.mjs",
     "src/terminals-mcp.mjs",
-    "src/secret-credential-refresh.mjs",
-    "src/submitted-secret-caller.mjs"
+    "src/secret-credential-refresh.mjs"
   ]
 }

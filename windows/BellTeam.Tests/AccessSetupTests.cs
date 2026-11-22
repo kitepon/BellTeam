@@ -279,11 +279,14 @@ public sealed class AccessSetupTests
             Assert.True(Named(failure, "もう一度試す").IsEnabled); Assert.DoesNotContain(Descendants<TextBlock>(failure), text => text.Text.StartsWith("接続先 "));
         });
     }
+    // a487, app-sessions.md 7d: sign-in and the account come first; a signed-in app with a saved server checks it.
     [Theory]
-    [InlineData(null, StartupPhase.Setup)]
-    [InlineData("", StartupPhase.Setup)]
-    [InlineData("https://bell.example.com/", StartupPhase.Checking)]
-    public void StartupBeginsAtTheServerEntryOnlyWithoutASavedServer(string? saved, StartupPhase phase) => Assert.Equal(phase, StartupRoute.Initial(saved));
+    [InlineData(null, false, StartupPhase.Account)]
+    [InlineData("https://bell.example.com/", false, StartupPhase.Account)]
+    [InlineData(null, true, StartupPhase.Account)]
+    [InlineData("", true, StartupPhase.Account)]
+    [InlineData("https://bell.example.com/", true, StartupPhase.Checking)]
+    public void StartupBeginsAtSignInAndTheAccountNeverAtTheServerAddress(string? saved, bool signedIn, StartupPhase phase) => Assert.Equal(phase, StartupRoute.Initial(saved, signedIn));
     [Theory]
     [InlineData(false, false, null, StartupPhase.Failure)]
     [InlineData(false, true, null, StartupPhase.Failure)]

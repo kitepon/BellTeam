@@ -47,7 +47,7 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
         finally { authority.release(token) }
       })
     } })
-    controller = createUsageProcess({ root, admission, authorizeActor: authority.authorizeActor, spawnProcess,
+    controller = createUsageProcess({ root, admission, authorizeActor: authority.authorizeActor, spawnProcess, probeCandidate: async () => {},
       ...(prepareRelease ? { prepareRelease } : {}), bootstrap: { environment: {}, seatRuntime: false, subscription: {} },
       onEffect: (method, params, context) => effectScope.run(context, async () => {
         if (method === 'members.read') return [...bots.values()]
@@ -72,8 +72,12 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
           const capturedAuthorization = token(method, 'system'), context = effectScope.getStore()
           return context ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
         } })
-      await assert.rejects(controller.request('settings.list', {}), /NOT_ACCEPTING/)
-      await controller.initialize('subscriptions'); await controller.initialize('services'); await controller.activate(); await features.initialize()
+      // module-process.md hold contract (0a88b7bb): a request before activation waits for running(), then retries once.
+      let early = 'pending'
+      const held = controller.request('settings.list', {}).then(() => { early = 'resolved' }, error => { early = error.code })
+      await controller.initialize('subscriptions'); await controller.initialize('services'); assert.equal(early, 'pending')
+      await controller.activate(); await features.initialize()
+      await held; assert.equal(early, 'MEMBERS_NOT_ACCEPTED') // retried without a usage lease
       assert.equal(controller.snapshot().available, true)
     }, async close() { await features.close(); await controller.close() } }
     parents.push(parent); return parent

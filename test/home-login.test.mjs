@@ -9,10 +9,10 @@ import test from 'node:test'
 import { createHomeLogin } from '../src/usage/home-login.mjs'
 import { createHomeFront } from '../src/home-login-front.mjs'
 
-// The vendored library files are byte-identical to the development release (v0.17.0, the repair of Airi's audit); a repin changes these two lines.
+// The vendored library files are byte-identical to the accepted release v0.18.5 (selfhosted-form 1.0.3); a repin changes these two lines.
 const PINS = {
-  'src/usage/vendor/login-billing-home.mjs': 'a0ebdadae97d0b8dee113fd2b7138b30e17b681af32a30af67803e939ea9d109',
-  'src/vendor/login-billing-home-guard.mjs': '911236d0c2f8c9dd6c724f69962ddbaa8a8f45ea725b17965aa0971287c2994c',
+  'src/usage/vendor/login-billing-home.mjs': 'ae37de43550cc8d502c22501913997fa665d640a7e36b4b0fc0de51fc3d71ee0',
+  'src/vendor/login-billing-home-guard.mjs': 'a375769afe49af4149c289272185bdba5bd339a21aac9c50d5968136861591b3',
 }
 const GOOD = 'A'.repeat(22)
 const ORIGIN = 'http://192.168.1.2:18893'
@@ -56,7 +56,7 @@ async function setup({ operatorStatus = { prove: 200, check: 200 } } = {}) {
 }
 const code = prints => /code: (\S+) /u.exec(prints.at(-1))[1]
 
-test('the vendored library files are the pinned development release', async () => {
+test('the vendored library files are the pinned accepted release', async () => {
   for (const [path, hash] of Object.entries(PINS)) assert.equal(createHash('sha256').update(await readFile(new URL(`../${path}`, import.meta.url))).digest('hex'), hash)
 })
 
@@ -113,6 +113,28 @@ test('a stop from the phone ends the session at the next ticket check; only a 40
   } finally { await t.close() }
 })
 
+test('a529m: the device list carries passId on account rows only, marks the caller, and ends one device at once', async () => {
+  const t = await setup()
+  try {
+    await t.front.start()
+    const first = await t.login({ setupCode: code(t.prints), kind: 'linux' })
+    const second = await t.login({ kind: 'windows', ticketFor: 'b'.repeat(64) })
+    const list = await t.api('GET', '/api/home/sessions', { token: first.body.token })
+    assert.equal(list.status, 200)
+    const rows = Object.fromEntries(list.body.sessions.map(row => [row.id, row]))
+    assert.deepEqual(Object.keys(rows).sort(), [first.body.sessionId, second.body.sessionId].sort())
+    assert.deepEqual([rows[first.body.sessionId].current, rows[second.body.sessionId].current], [true, false])
+    assert.deepEqual([rows[first.body.sessionId].appKind, rows[second.body.sessionId].appKind], ['linux', 'windows'])
+    assert.ok(list.body.sessions.every(row => row.kind === 'account' && row.passId === 'pass-1' && row.state === 'active'))
+    assert.ok(list.body.sessions.every(row => !JSON.stringify(row).includes(first.body.token) && !('ticket' in row) && !('k' in row)))
+    // end the other device: at once, its token is none, the caller stays
+    assert.deepEqual((await t.api('DELETE', `/api/home/sessions/${second.body.sessionId}`, { token: first.body.token })).body, { ok: true })
+    assert.equal(await t.front.judge({ authorization: `Bearer ${second.body.token}` }), 'none')
+    assert.deepEqual(await t.front.judge({ authorization: `Bearer ${first.body.token}` }), { sessionId: first.body.sessionId })
+    assert.equal((await t.api('DELETE', `/api/home/sessions/${second.body.sessionId}`, { token: first.body.token })).body.error, 'SESSION_NOT_FOUND')
+  } finally { await t.close() }
+})
+
 test('Enforced marker with no row is 503, never Legacy and never 401 (a usage rolled back or not yet loaded)', async () => {
   const t = await setup()
   try {
@@ -145,6 +167,8 @@ test('console: issue a code, log in as a console session (no pass), list, revoke
     assert.equal(t.front.stateOf(consoleLogin.body.sessionId), 'none') // a console session has no contract
     const listed = await ask({ op: 'list' })
     assert.equal(listed.sessions.length, 1)
+    const apiList = (await t.api('GET', '/api/home/sessions', { token: consoleLogin.body.token })).body.sessions
+    assert.deepEqual([apiList.length, apiList[0].kind, 'passId' in apiList[0], apiList[0].current], [1, 'console', false, true]) // a console row has no pass id (a529m)
     assert.equal((await ask({ op: 'revoke', id: consoleLogin.body.sessionId })).ok, true)
     assert.equal(await t.front.judge({ authorization: `Bearer ${consoleLogin.body.token}` }), 'none')
     assert.equal((await ask({ op: 'nonsense' })).ok, false)

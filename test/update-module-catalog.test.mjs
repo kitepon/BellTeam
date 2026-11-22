@@ -94,3 +94,22 @@ test('production usage row built for an older body is incompatible, not invalid'
   value.release.compatibility.stateCompatibility = { ...USAGE_STATE_COMPATIBILITY, extra: 1 }
   await assert.rejects(createModuleUpdateCatalog({ client: { catalog: async () => value } }).select('usage'), { code: 'UPDATE_MODULE_CATALOG_INVALID' })
 })
+
+// a518: a row cut before the body's own source is not "new" next to the builtin; the image carries the commit order.
+test('a builtin module is not offered an older row as an update, only a newer or unknown one', async () => {
+  const body = 'e'.repeat(40), older = 'a'.repeat(40), newer = 'f'.repeat(40)
+  const state = async (rowSource, history) => {
+    const value = selection('members'); value.release.sourceCommit = rowSource
+    value.release.artifact.archive.url = value.release.artifact.archive.url.replace('a'.repeat(40), rowSource)
+    value.release.artifact.bundle.url = value.release.artifact.archive.url + '.sigstore.json'
+    const catalog = async id => id === 'members' ? value : { ...value, release: null }
+    return (await createUpdateCenter({ moduleCatalog: createModuleUpdateCatalog({ client: { catalog }, history }),
+      members: { controller: { snapshot: () => ({ available: true, builtinSourceCommit: body, currentVersionId: null }) } } }).snapshot()).components.find(item => item.id === 'members').comparison.state
+  }
+  const history = new Set([body, older, 'd'.repeat(40)])
+  assert.equal(await state(older, history), 'up_to_date', 'a row in the body\'s own history is not newer')
+  assert.equal(await state(body, history), 'up_to_date', 'the same commit stays equal')
+  assert.equal(await state(newer, history), 'update_available', 'a row published after the body was built is offered')
+  assert.equal(await state(older, new Set([older])), 'update_available', 'a history without the body\'s commit is not the same build and is ignored')
+  assert.equal(await state(older, null), 'update_available', 'no history (repository run): the old commit-equality rule')
+})

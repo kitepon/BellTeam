@@ -3,9 +3,9 @@
 export const APPROVAL_BOX_EXTENSION_PROTOCOL_VERSION = 1
 export const APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
 export const APPROVAL_BOX_EXTENSION_METHODS = Object.freeze(['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment', 'byTask',
-  'connection', 'connect', 'cancelConnect', 'disconnect', 'refresh'])
+  'connection', 'connect', 'cancelConnect', 'disconnect', 'refresh', 'byDecision'])
 export const APPROVAL_BOX_EXTENSION_EFFECTS = Object.freeze(['lattice.ownerTask', 'lattice.link', 'lattice.chart', 'lattice.charts', 'members.list',
-  'session.get', 'session.put', 'session.erase'])
+  'session.get', 'session.put', 'session.erase', 'daemon.decisions.list', 'daemon.decisions.read'])
 export const APPROVALS_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
 const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 const REF = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
@@ -25,7 +25,7 @@ const decisionId = value => str(value) && APPROVALS_DECISION_ID.test(value)
 const STATUSES = ['pending', 'held', 'answered', 'cancelled']
 
 // A read root changes nothing (the dispatcher lets reads run beside the one write at a time). refresh is the engine tick: it writes charts, so it is a write.
-export const approvalsRootReads = method => ['summary', 'list', 'get', 'attachment', 'byTask', 'connection'].includes(method)
+export const approvalsRootReads = method => ['summary', 'list', 'get', 'attachment', 'byTask', 'byDecision', 'connection'].includes(method)
 
 export function validateApprovalsRequest(method, params, context) {
   const check = condition => { if (!condition) throw approvalsError('APPROVALS_INVALID') }
@@ -35,7 +35,7 @@ export function validateApprovalsRequest(method, params, context) {
   else if (method === 'list') check(approvalsObject(params, ['status'], ['origin', 'cursor', 'limit']) && Array.isArray(params.status) && params.status.length >= 1
     && params.status.length <= 4 && params.status.every(item => STATUSES.includes(item)) && (params.origin === undefined || ['bellteam', 'external'].includes(params.origin))
     && (params.cursor === undefined || str(params.cursor) && params.cursor.length <= 512) && (params.limit === undefined || Number.isInteger(params.limit) && params.limit >= 1 && params.limit <= 100))
-  else if (method === 'get' || method === 'hold' || method === 'unhold') check(approvalsObject(params, ['id']) && decisionId(params.id))
+  else if (method === 'get' || method === 'hold' || method === 'unhold' || method === 'byDecision') check(approvalsObject(params, ['id']) && decisionId(params.id))
   else if (method === 'answer') check(approvalsObject(params, ['id', 'version', 'idempotencyKey'], ['optionId', 'text']) && decisionId(params.id) && Number.isInteger(params.version) && params.version >= 1
     && str(params.idempotencyKey) && /^[A-Za-z0-9-]{8,64}$/u.test(params.idempotencyKey) && (params.optionId === undefined) !== (params.text === undefined)
     && (params.optionId === undefined || str(params.optionId) && params.optionId.length >= 1 && params.optionId.length <= 64) && (params.text === undefined || str(params.text) && params.text.length >= 1 && params.text.length <= 20000))
@@ -52,7 +52,8 @@ export function validateApprovalsEffect(method, params) {
     : method === 'lattice.link' ? !approvalsObject(params, ['projectId', 'plan', 'taskId']) || !PROJECT_ID.test(params.projectId) || !REF.test(params.plan) || !REF.test(params.taskId)
     : method === 'lattice.chart' ? !approvalsObject(params, ['projectId']) || !PROJECT_ID.test(params.projectId)
     : method === 'session.put' ? !approvalsObject(params, ['value']) || !sendText(params.value, 8192)
-    : !approvalsObject(params, []) // lattice.charts, members.list, session.get, session.erase
+    : method === 'daemon.decisions.read' ? !approvalsObject(params, ['id']) || !decisionId(params.id)
+    : !approvalsObject(params, []) // lattice.charts, members.list, session.get, session.erase, daemon.decisions.list
   if (bad) throw approvalsError('APPROVALS_INVALID')
 }
 
@@ -65,6 +66,13 @@ export function validateApprovalsEffectResult(method, value) {
   else if (method === 'members.list') need(Array.isArray(value) && value.every(member => approvalsObject(member, ['id', 'name']) && str(member.id) && str(member.name)))
   else if (method === 'session.get') need(value === null || approvalsObject(value, ['value']) && str(value.value))
   else if (method === 'session.put' || method === 'session.erase') need(approvalsObject(value, ['ok']) && value.ok === true)
+  // a490g: what the link engine reads from the hosted daemon. No context and no attachments cross: the chart needs ids, status, title, options and the answer only.
+  else if (method === 'daemon.decisions.list') need(Array.isArray(value) && value.length <= 500 && value.every(item => approvalsObject(item, ['id']) && decisionId(item.id)))
+  else if (method === 'daemon.decisions.read') need(value === null || approvalsObject(value, ['id', 'title', 'status', 'version', 'urgency', 'options', 'sessionLabel', 'requester', 'answer', 'cancelReason', 'createdAt', 'updatedAt'], ['recommendation', 'deadline', 'context'])
+    && decisionId(value.id) && str(value.title) && STATUSES.includes(value.status) && Number.isInteger(value.version) && str(value.urgency) && str(value.sessionLabel) && strOrNull(value.requester) && strOrNull(value.cancelReason)
+    && (value.context === undefined || str(value.context) && value.context.length <= 20000)
+    && Array.isArray(value.options) && value.options.every(option => approvalsObject(option, ['id', 'label']) && str(option.id) && str(option.label))
+    && (value.answer === null || approvalsObject(value.answer, ['optionId', 'text', 'answeredAt']) && strOrNull(value.answer.optionId) && strOrNull(value.answer.text) && strOrNull(value.answer.answeredAt)))
   else invalid()
 }
 
@@ -102,6 +110,8 @@ export function validateApprovalsResult(method, value) {
   else if (method === 'get' || method === 'hold' || method === 'unhold') need(viewDecision(value))
   else if (method === 'answer') need(approvalsObject(value, ['outcome', 'decision']) && ['answered', 'conflict'].includes(value.outcome) && viewDecision(value.decision))
   else if (method === 'attachment') need(approvalsObject(value, ['contentType', 'size', 'etag', 'data']) && str(value.contentType) && count(value.size) && strOrNull(value.etag) && str(value.data))
+  else if (method === 'byDecision') need(value === null || approvalsObject(value, ['project', 'plan', 'task', 'state', 'attached']) && str(value.project) && PROJECT_ID.test(value.project) && str(value.plan) && REF.test(value.plan)
+    && str(value.task) && REF.test(value.task) && ['linked', 'answered', 'closed', 'diverged'].includes(value.state) && typeof value.attached === 'boolean')
   else if (method === 'byTask') need(value === null || approvalsObject(value, ['decisionId', 'status', 'title']) && decisionId(value.decisionId) && STATUSES.includes(value.status) && str(value.title))
   else if (method === 'connection' || method === 'cancelConnect' || method === 'disconnect') need(connection(value))
   else if (method === 'connect') need(approvalsObject(value, ['authorizationUrl', 'expiresAt']) && str(value.authorizationUrl) && /^https:\/\//u.test(value.authorizationUrl) && str(value.expiresAt))
@@ -114,7 +124,7 @@ export function validateApprovalsResult(method, value) {
 const knownErrors = new Map([
   ['APPROVALS_INVALID', 400], ['APPROVALS_CONTROL_INVALID', 400], ['APPROVALS_VALIDATION_FAILED', 400], ['APPROVALS_NOT_FOUND', 404], ['APPROVALS_NOT_ACCEPTED', 503],
   ['APPROVALS_UNAVAILABLE', 503], ['APPROVALS_NOT_QUIESCED', 503], ['APPROVALS_EFFECT_FAILED', 503], ['APPROVALS_NOT_ENTITLED', 403], ['APPROVALS_NOT_CONNECTED', 409],
-  ['APPROVALS_SUBSCRIPTION_EXPIRED', 402], ['APPROVALS_RATE_LIMITED', 429],
+  ['APPROVALS_SUBSCRIPTION_EXPIRED', 402], ['APPROVALS_RATE_LIMITED', 429], ['APPROVALS_ANSWER_ON_DEVICE', 409],
 ])
 export function approvalsWireError(error, outcome) {
   const code = knownErrors.has(error?.code) ? error.code : knownErrors.has(error?.message) ? error.message : 'APPROVALS_OPERATION_FAILED'

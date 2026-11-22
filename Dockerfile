@@ -73,6 +73,15 @@ RUN mkdir /tmp/lattice-deps && cp distribution/lattice/package.json distribution
   && npm ci --omit=dev --cache /root/.npm --prefix /tmp/lattice-deps \
   && mv /tmp/lattice-deps/node_modules src/lattice/node_modules && rm -rf /tmp/lattice-deps \
   && node -e 'console.log(require("module").createRequire("/app/src/lattice/cli.mjs").resolve("@quolu/lattice/bin/lattice.mjs"))'
+# The hosted Approval Box connector the body supervises (docs/architecture/modules/runtime/approval-box-daemon.md): the exact version from the lock, then its own
+# install-runtime (the runtime copy is what runs; the npm copy is dropped), because the peer-channel part imports the native node-datachannel from a node_modules next to the running cli.mjs (the runtime copy has it, the package dir does not).
+RUN mkdir /tmp/abx && cp distribution/approval-box/package.json distribution/approval-box/package-lock.json /tmp/abx/ \
+  && npm ci --omit=dev --cache /root/.npm --prefix /tmp/abx \
+  && mv /tmp/abx/node_modules distribution/approval-box/node_modules && rm -rf /tmp/abx \
+  && APPROVAL_BOX_HOME=/app/distribution/approval-box/runtime-home node distribution/approval-box/node_modules/approval-box/dist/cli.mjs install-runtime \
+  && test "$(APPROVAL_BOX_HOME=/tmp/abx-check node /app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/cli.mjs version --json | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).version))')" = 0.2.0-pc.2 \
+  && node --input-type=module -e 'import("node:fs").then(async fs=>{const d="/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/chunks/";await import(d+fs.readdirSync(d).find(f=>f.startsWith("pc-daemon")))})' \
+  && rm -rf /tmp/abx-check distribution/approval-box/node_modules
 # Seats reach the code graph through these two (E1 lattice, config/lattice-harness-entries.json): lattice-mcp is registered for every CLI, lattice-sensor-init indexes the member's own clone.
 RUN ln -s /app/src/lattice/node_modules/@quolu/lattice/bin/lattice-mcp.mjs /usr/local/bin/lattice-mcp \
   && install -o root -g root -m 0755 scripts/lattice-sensor-init /usr/local/bin/lattice-sensor-init

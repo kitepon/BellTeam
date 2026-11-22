@@ -59,14 +59,12 @@ test('closed root rejects new work while old live lease callbacks drain', async 
   const next = gate.enter(); assert.equal(next.generation, 'b'); gate.finish(next)
 })
 
-test('root capacity does not consume new credit for an existing lease', async () => {
+test('an existing lease reuses its credit and a count of leases refuses nothing (a505b)', async () => {
   const gate = new MembersAdmission(), leases = Array.from({ length: MODULE_CONCURRENCY }, () => gate.enter())
-  assert.throws(() => gate.enter(), { status: 503, outcome: 'not_accepted' })
   await gate.withLease(lease => gate.assertLease(lease), { lease: leases[0] })
   gate.assertLease(leases[0])
   const actual = Promise.withResolvers()
   gate.trackCompletion(leases[0], actual.promise); gate.finish(leases[0])
-  assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
   actual.resolve(); await actual.promise; await Promise.resolve()
   const next = gate.enter(); gate.finish(next)
   leases.slice(1).forEach(lease => gate.finish(lease))
@@ -100,10 +98,9 @@ test('operation errors retain identity and release only owned leases', async () 
   gate.assertLease(lease); gate.finish(lease)
 })
 
-test('read pins pass configured occupied AI leases without increasing the configured AI roots', async () => {
+test('read pins pass occupied AI leases', async () => {
   const gate = new MembersAdmission(), leases = Array.from({ length: MODULE_CONCURRENCY }, () => gate.enter())
   for (const method of MEMBERS_READ_PIN_METHODS) await gate.withReadPin(method, pin => gate.assertReadPin(pin, { method }))
-  assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
   leases.forEach(lease => gate.finish(lease))
 })
 

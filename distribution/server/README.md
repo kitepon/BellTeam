@@ -261,6 +261,28 @@ sh install.sh --recover .bellteam-compose.対象世代
 WindowsではWSLのLinux filesystem内へ設置してください。Mac Docker Desktopでは本体専用データをEngine内volumeへ分離します。環境ごとの実移行・復旧の受入状況は対応するリリース記録を確認してください。
 
 
+### 本体が起動しないときに、直した本体を入れる
+
+アプリの更新（App Update）は、動いている本体を窓口にします。本体が起動しない間は使えません。その間に、直した本体を入れる手順です。Dockerを使えるユーザーで、箱のあるマシン上で実行します。
+
+公開された版を入れる場合（`@sha256:`の値は、公開されたカタログまたは受け取った案内の値を使います）:
+
+```sh
+docker pull ghcr.io/kitepon/bellteam-server@sha256:<digest>
+docker run --rm --entrypoint cat ghcr.io/kitepon/bellteam-server@sha256:<digest> /app/distribution/server/emergency-body.sh > emergency-body.sh
+sh emergency-body.sh ghcr.io/kitepon/bellteam-server@sha256:<digest>
+```
+
+自分でbuildした本体を入れる場合は、`docker build -t bellteam-local .`のあと、`sh emergency-body.sh --local bellteam-local`を実行します。この手順を実行することが承認になり、カタログの署名確認は通りません。通常の更新が使える間は、アプリの更新を使ってください。
+
+- 入れるimageの中のinstallerが、通常の更新と同じ順で本体を入れ替えます。古い本体が止まっていても、状態（data・home・Aiterm）はそのまま引き継がれます。処理待ち一覧の保存は、本体が無いので行いません。
+- 最後に新しい本体のimage・版・健全性・保存先を確かめ、結果をJSONで出します。確認できたときだけ終了コード0です。
+- 本体が1つも無い状態（入れ替えが途中で止まったあとなど）でも、同じ手順を実行すれば、保存済みの設定と状態から本体を起動します。この場合は戻す先が無く、Aiterm の状態は引き継がれず新しい世代で始まります（前の世代のAitermのvolumeは、使われないまま箱に残ります）。
+- 新しい本体も起動しないときは、古い本体の構成へ戻します。古い本体も動かない場合は、そのまま止まっています。起動する本体で、もう一度実行してください。
+- 更新中の作業（worker）が残っているときは、何も変えずに終わります（`EMERGENCY_UPDATE_RUNNING`）。
+
+設計と確認範囲: `docs/architecture/modules/runtime/emergency-body.md`。
+
 ### 機能導入の結果不明を保持したservice更新
 
 新しい公開`install.sh`と同じ版の正式imageは、機能導入programを停止する前に旧workerの本人性と停止証拠を検査・保存します。元workerが生存中、旧namespaceを確認できない、保存先や元記録が不一致、対応helperがimageに無い、停止/証拠保存が不明の場合は非0で止まり、次の起動へ進みません。保存記録・旧container・元結果不明を手で消したり、再作成だけで解除したりしないでください。

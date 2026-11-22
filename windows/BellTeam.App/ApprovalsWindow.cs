@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BellTeam.Core;
+using BellTeam.PeerChannel;
 using static BellTeam.App.LatticeLook;
 
 namespace BellTeam.App;
@@ -66,7 +67,19 @@ internal sealed class ApprovalsPage : Grid
     private (string Step, string? Note)? drop;
     private (string? Id, string Text) draft = (null, "");
     private string? copied, bannerId, bannerText;
-    private List<ViewDecision> pending = [], done = [];
+    private List<ViewDecision> srvPending = [], srvDone = []; // the server read (/api/approvals/*); pending/done below are the union with the device (DecisionUnion)
+    private IDeviceDecisions? Device => hub.Device;
+    private IReadOnlyList<ViewDecision> DeviceViews => hub.DeviceViews;
+    private bool DeviceLive => Device?.State.Status == RuntimeStatus.Live;
+    private bool DeviceUsable => Device is { } d && (d.State.Status == RuntimeStatus.Live || d.Book.All.Count > 0);
+    private bool legacyOpen; // the server connect screen opened by hand while the device list is usable
+    private List<ViewDecision> Union()
+    {
+        List<ViewDecision> server = [.. srvPending, .. srvDone.Where(old => srvPending.All(item => item.Id != old.Id))];
+        return Device is null ? server : [.. DecisionUnion.Merge(server, DeviceViews)];   // no device: the list is exactly the server read, no source tags
+    }
+    private List<ViewDecision> pending => [.. Union().Where(item => item.Status is "pending" or "held")];
+    private List<ViewDecision> done => [.. Union().Where(item => item.Status is not ("pending" or "held"))];
     private string? doneNext;
     private bool loaded, doneLoaded, stale;
     internal Func<DateTimeOffset> Now { get; set; } = () => DateTimeOffset.UtcNow;
@@ -78,7 +91,7 @@ internal sealed class ApprovalsPage : Grid
     internal Task Reading { get; private set; } = Task.CompletedTask;
     internal string? AnswerStep => answer?.Step;
     /// <summary>The first read has an answer: the list is read, or a refusal / sign-in / connect view is on screen.</summary>
-    internal bool Settled => loaded || Blocked is not null || Feed?.Status == ApprovalFeedStatus.LoginRequired;
+    internal bool Settled => loaded || DeviceUsable || Blocked is not null || Feed?.Status == ApprovalFeedStatus.LoginRequired;
     /// <summary>Picks an option of the selected decision (the confirm opens in place).</summary>
     internal void Choose(string optionId)
     {
@@ -116,19 +129,19 @@ internal sealed class ApprovalsPage : Grid
     {
         if (Running || !Workspace.Connected) return;
         run = CancellationTokenSource.CreateLinkedTokenSource(Workspace.ConnectionToken);
-        hub.Changed += OnFeed; hub.DecisionChanged += OnDecision;
+        hub.Changed += OnFeed; hub.DecisionChanged += OnDecision; hub.DeviceChanged += OnDevice;
         loaded = false; stale = false; attempt = 0; connect = new("idle"); drop = null; Paint();
         if (Feed is { Status: ApprovalFeedStatus.Live }) Reading = LoadPendingAsync(); else { Feed?.Refresh(); if (Blocked == ApprovalFeedStatus.NoCredential) Reading = EnterConnectAsync(); }
     }
     internal void Stop()
     {
         if (run is null) return;
-        hub.Changed -= OnFeed; hub.DecisionChanged -= OnDecision;
+        hub.Changed -= OnFeed; hub.DecisionChanged -= OnDecision; hub.DeviceChanged -= OnDevice;
         pendingToken++; doneToken++; connectToken++; run.Cancel(); run.Dispose(); run = null;
     }
     internal void Reload()
     {
-        stale = false; Feed?.Refresh();
+        stale = false; Feed?.Refresh(); Device?.Refresh();
         if (Running) { Reading = LoadPendingAsync(); if (doneLoaded) _ = LoadDoneAsync(true); }
     }
     /// <summary>Esc: closes the answer confirm if open, else the 詳細.</summary>
@@ -146,6 +159,13 @@ internal sealed class ApprovalsPage : Grid
         if (Blocked == ApprovalFeedStatus.NoCredential && connect.Phase == "idle" && connect.Server is null) Reading = EnterConnectAsync();
         Paint();
     }
+    // The device's book or connection changed: a sent answer stays "sending" until the book shows the decision closed (the result frame), then the confirm leaves.
+    private void OnDevice()
+    {
+        if (!Running) return;
+        if (answer is { Step: "sending" } mine && Known(mine.Id) is { } known && known.Source == DecisionUnion.Device && known.Status is not ("pending" or "held")) { answer = null; draft = (null, ""); bannerId = null; }
+        Paint();
+    }
     private void OnDecision(string? id)
     {
         if (!Running) return;
@@ -160,7 +180,7 @@ internal sealed class ApprovalsPage : Grid
         if (run is not { } source) return; var mine = ++pendingToken;
         var reply = await Api.ApprovalListAsync("pending,held", null, source.Token);
         if (!Running || mine != pendingToken) return;
-        if (reply.List?.Items is { } items) { pending = [.. items]; loaded = true; stale = false; attempt = 0; Paint(); return; }
+        if (reply.List?.Items is { } items) { srvPending = [.. items]; loaded = true; stale = false; attempt = 0; Paint(); return; }
         if (reply.LoginRequired) { Paint(); return; }
         if (reply.Failure is ApprovalFailure.Reconnect or ApprovalFailure.Wait or ApprovalFailure.Refused || reply.Ok)
         {
@@ -178,7 +198,7 @@ internal sealed class ApprovalsPage : Grid
         if (!Running || mine != doneToken) return;
         if (reply.List?.Items is { } items)
         {
-            done = reset ? [.. items] : [.. done, .. items.Where(item => done.All(old => old.Id != item.Id))];
+            srvDone = reset ? [.. items] : [.. srvDone, .. items.Where(item => srvDone.All(old => old.Id != item.Id))];
             doneNext = reply.List.NextCursor; doneLoaded = true; stale = false;
         }
         else stale = true;
@@ -201,7 +221,7 @@ internal sealed class ApprovalsPage : Grid
     private void Put(ViewDecision decision)
     {
         ViewDecision Swap(ViewDecision item) => item.Id == decision.Id ? decision : item;
-        pending = [.. pending.Select(Swap)]; done = [.. done.Select(Swap)]; extra[decision.Id!] = decision;
+        srvPending = [.. srvPending.Select(Swap)]; srvDone = [.. srvDone.Select(Swap)]; extra[decision.Id!] = decision;
     }
 
     // MARK: choosing
@@ -237,8 +257,28 @@ internal sealed class ApprovalsPage : Grid
         var was = answer; answer = null; Paint(refocus && was is not null ? (was.OptionId is { } option ? $"o:{option}" : "send-text") : null);
     }
     internal Task SendAsync() => answer is { Step: "confirm" } mine && Known(mine.Id) is { } decision ? SendAsync(decision, mine) : Task.CompletedTask;
+    // An answer goes through the source that holds the copy on screen, never through both (Delta, transition rule).
+    private async Task SendDeviceAsync(IDeviceDecisions device, ViewDecision decision, Answer mine)
+    {
+        mine.Step = "sending"; mine.Note = null; Paint();
+        SendOutcome outcome;
+        try { outcome = await device.AnswerAsync(decision.Id!, mine.OptionId, mine.OptionId is null ? mine.Text : null); }
+        catch (NoSessionException) { outcome = new("no_session"); }
+        catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or ArgumentException) { outcome = new("gone"); }
+        if (!Running || !ReferenceEquals(answer, mine)) return;
+        switch (outcome.Ack)
+        {
+            case "ok": break; // stays "sending" until the result frame closes the decision in the book (OnDevice)
+            case "refused:stale_version": answer = null; bannerId = decision.Id; bannerText = Approvals.Amended(Approvals.OriginOf(decision).Who); break;
+            case "refused:already_decided" or "gone": answer = null; break;
+            case "unknown": mine.Step = "confirm"; mine.Note = Approvals.DeviceUnknown; break;
+            default: mine.Step = "confirm"; mine.Note = Approvals.Retry; break;
+        }
+        Paint();
+    }
     private async Task SendAsync(ViewDecision decision, Answer mine)
     {
+        if (decision.Source == DecisionUnion.Device && Device is { } device) { await SendDeviceAsync(device, decision, mine); return; }
         if (run is not { } source) return;
         mine.Step = "sending"; mine.Note = null; Paint();
         var reply = await Api.ApprovalAnswerAsync(decision.Id!, mine.OptionId, mine.OptionId is null ? mine.Text : null, mine.Version, mine.Key, source.Token);
@@ -257,6 +297,14 @@ internal sealed class ApprovalsPage : Grid
     private readonly Dictionary<string, ApprovalDeliveryNote> deliveryNotes = [];
     private async Task HoldAsync(ViewDecision decision)
     {
+        if (decision.Source == DecisionUnion.Device && Device is { } device)
+        {
+            SendOutcome outcome;
+            try { outcome = await device.HoldAsync(decision.Id!, decision.Status != "held"); } catch (Exception error) when (error is NoSessionException or InvalidOperationException or KeyNotFoundException) { outcome = new("no_session"); }
+            if (outcome.Ack == "ok") holdNotes.Remove(decision.Id!); else holdNotes[decision.Id!] = Approvals.HoldFailed;
+            if (Running) Paint();
+            return;
+        }
         if (run is not { } source) return;
         var reply = await Api.ApprovalHoldAsync(decision.Id!, decision.Status != "held", source.Token);
         if (!Running) return;
@@ -343,13 +391,17 @@ internal sealed class ApprovalsPage : Grid
         var state = Feed?.Status ?? ApprovalFeedStatus.Connecting; var blocked = Blocked;
         pill.Visibility = Running && (state == ApprovalFeedStatus.Drop || stale && blocked is null) ? Visibility.Visible : Visibility.Collapsed; pillText.Text = Approvals.Reconnect;
         var root = new Grid(); root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); root.RowDefinitions.Add(new RowDefinition());
-        root.Children.Add(Toolbar(blocked is null && state != ApprovalFeedStatus.LoginRequired));
-        if (bannerText is not null && bannerId == SelectedId && SelectedId is not null) { var banner = Banner(bannerText); SetRow(banner, 1); root.Children.Add(banner); }
+        var usable = DeviceUsable;
+        root.Children.Add(Toolbar((blocked is null && state != ApprovalFeedStatus.LoginRequired) || usable));
+        var notes = new StackPanel();
+        if (bannerText is not null && bannerId == SelectedId && SelectedId is not null) notes.Children.Add(Banner(bannerText));
+        if (DeviceStrip() is { } strip) notes.Children.Add(strip);
+        if (notes.Children.Count > 0) { SetRow(notes, 1); root.Children.Add(notes); }
         FrameworkElement main;
-        if (state == ApprovalFeedStatus.LoginRequired) main = LatticeWindow.Notice(LatticeChart.LoginRequired, null, null);
-        else if (blocked == ApprovalFeedStatus.NoCredential) main = ConnectView();
-        else if (blocked is { } kind) main = Refused(kind);
-        else main = Columns(stale || state == ApprovalFeedStatus.Drop);
+        if (state == ApprovalFeedStatus.LoginRequired && !usable) main = LatticeWindow.Notice(LatticeChart.LoginRequired, null, null);
+        else if (blocked == ApprovalFeedStatus.NoCredential && (!usable || legacyOpen)) main = ConnectView();
+        else if (blocked is { } kind && !usable) main = Refused(kind);
+        else main = Columns((stale || state == ApprovalFeedStatus.Drop) && !DeviceLive);
         SetRow(main, 2); root.Children.Add(main);
         body.Children.Clear(); body.Children.Add(root);
         if (keep is not null) Dispatcher.BeginInvoke(() => Focus(root, keep), System.Windows.Threading.DispatcherPriority.Input);
@@ -386,12 +438,12 @@ internal sealed class ApprovalsPage : Grid
     private WrapPanel Toolbar(bool full)
     {
         var bar = new WrapPanel { Margin = new Thickness(18, 14, 18, 10) };
-        var summary = Feed?.Summary; var counts = Approvals.CountsOf(summary);
+        var summary = Device is null ? Feed?.Summary : DecisionUnion.Summary(Feed?.Summary, [.. srvPending, .. srvDone], DeviceViews, Now()); var counts = Approvals.CountsOf(summary);
         var title = Row(ApprovalsLook.Glyph("inbox", 18, Violet), Spaced(Text("決裁箱", 20, Ink, FontWeights.Bold), 9));
         if (counts.Pending > 0) title.Children.Add(Spaced(Pill(Text(counts.Pending.ToString(), 13, Colors.White, FontWeights.Bold), Violet, 0xFF, new Thickness(9, 1, 9, 1)), 10));
         bar.Children.Add(Glass(title, 14, new Thickness(14, 8, 16, 8), 0xB3));
         if (!full) return bar;
-        var live = Feed?.Status == ApprovalFeedStatus.Live && !stale;
+        var live = (Feed?.Status == ApprovalFeedStatus.Live && !stale) || DeviceLive;
         var dot = new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = Brush(live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted) };
         var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? ApprovalsLook.Tone("ok") : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); bar.Children.Add(livePill);
@@ -404,7 +456,7 @@ internal sealed class ApprovalsPage : Grid
             return Key(button, "tab:" + tab);
         }
         var held = pending.Count(item => item.Status == "held"); var waiting = pending.Count(item => item.Status == "pending");
-        var seg = new Border { Child = Row(Segment("待ち", Tab.Pending, loaded ? waiting.ToString() : null), Segment("保留", Tab.Held, loaded ? held.ToString() : null), Segment("済み", Tab.Done, doneLoaded ? $"{done.Count}{(doneNext is not null ? "+" : "")}" : null)),
+        var seg = new Border { Child = Row(Segment("待ち", Tab.Pending, loaded || DeviceUsable ? waiting.ToString() : null), Segment("保留", Tab.Held, loaded || DeviceUsable ? held.ToString() : null), Segment("済み", Tab.Done, doneLoaded ? $"{done.Count}{(doneNext is not null ? "+" : "")}" : null)),
             CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         bar.Children.Add(seg);
         var ring = Row(new LatticeRing(counts.Answered, Math.Max(counts.Filed, counts.Answered), 40, false), Spaced(new StackPanel { Children = { Text("今日の回答", 11, Muted), Text($"{counts.Answered} / {counts.Filed}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8),
@@ -434,6 +486,50 @@ internal sealed class ApprovalsPage : Grid
         var unlink = Action("つなぎを外す", ""); unlink.Click += (_, _) => { drop = ("confirm", null); Paint("unlink-no"); }; row.Children.Add(Key(unlink, "unlink"));
         return row;
     }
+    // What the device and the server read say when they are not both fine; the list stays as long as a decision is held.
+    private FrameworkElement? DeviceStrip()
+    {
+        var panel = new StackPanel(); var n = 0;
+        void Line(string text, string? label = null, Action? act = null)
+        {
+            var row = Row(ApprovalsLook.Glyph("info", 16, Muted), Spaced(Text(text, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap), 10));
+            if (label is not null && act is not null) { var button = Action(label, ""); button.Margin = new Thickness(12, 0, 0, 0); button.Click += (_, _) => act(); row.Children.Add(Key(button, "legacy:" + label)); }
+            var border = new Border { Child = row, CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
+            System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-note-" + n++); panel.Children.Add(border);
+        }
+        void Waiting(ApprovalOffer offer)
+        {
+            var code = Text(offer.Code, 22, Ink, FontWeights.Bold); code.FontFamily = new FontFamily("Consolas");
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
+            info.Children.Add(code);
+            info.Children.Add(Text(Approvals.DeviceApprovalHow, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
+            info.Children.Add(Text(Approvals.DeviceApprovalLeft(offer.ExpiresAt - Now()), 12, Muted));
+            var stop = Action("やめる", ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(Key(stop, "legacy:やめる"));
+            var border = new Border { Child = Row(new QrView(offer.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
+            System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-waiting"); panel.Children.Add(border);
+        }
+        if (Device is { } device)
+            switch (device.State.Status)
+            {
+                case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
+                case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting(device.State.Reason), "今すぐ試す", device.Refresh); break;
+                case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
+                case RuntimeStatus.NeedsAdmission:
+                    if (hub.OfferNote is { } ended) Line(ended);
+                    Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
+                    break;
+                case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
+                case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke()); break;
+                case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
+            }
+        if (DeviceUsable && !legacyOpen)
+        {
+            if (Blocked == ApprovalFeedStatus.NoCredential) Line(Approvals.ServerSideNoCredential, "つなぐ", () => { legacyOpen = true; Paint(); if (connect.Phase == "idle" && connect.Server is null) Reading = EnterConnectAsync(); });
+            else if (Blocked is { } kind && Approvals.StatusText(kind switch { ApprovalFeedStatus.Old => ApprovalFailure.Old, ApprovalFeedStatus.NotEntitled => ApprovalFailure.NotEntitled, _ => ApprovalFailure.Expired }) is { } text) Line(text);
+            else if (Feed?.Status == ApprovalFeedStatus.LoginRequired) Line(LatticeChart.LoginRequired);
+        }
+        return panel.Children.Count > 0 ? panel : null;
+    }
     private Border Banner(string text)
     {
         var line = Row(ApprovalsLook.Glyph("info", 16, Violet), Spaced(Text(text, 14, Ink, FontWeights.SemiBold, TextWrapping.Wrap), 10));
@@ -454,6 +550,7 @@ internal sealed class ApprovalsPage : Grid
         if (phase == "waiting") { acts.Children.Add(Act("もう一度開く", () => _ = StartConnectAsync(), true, "connect:again")); acts.Children.Add(Act("やめる", () => _ = StopConnectAsync(), key: "connect:cancel")); }
         else if (phase == "denied") acts.Children.Add(Act("もう一度つなぐ", () => _ = StartConnectAsync(), true, "connect:retry"));
         else if (phase == "idle") { acts.Children.Add(Act("決裁箱につなぐ", () => _ = StartConnectAsync(), true, "connect:go")); acts.Children.Add(Act("読み直す", Reload, key: "connect:reload")); }
+        if (DeviceUsable && legacyOpen) acts.Children.Add(Act("一覧へ戻る", () => { legacyOpen = false; Paint(); }, key: "connect:back"));
         acts.Children.Add(Act("閉じる", window.Close)); stack.Children.Add(acts);
         if (connect.Note.Length > 0) { var note = Text(connect.Note, 13, Red, FontWeights.SemiBold, TextWrapping.Wrap); note.Margin = new Thickness(0, 12, 0, 0); note.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(note, "approvals-connect-note"); stack.Children.Add(note); }
         return stack;
@@ -490,7 +587,7 @@ internal sealed class ApprovalsPage : Grid
             var line = Row(ApprovalsLook.Glyph("info", 14, Amber), Spaced(Text($"{(Origin == "bellteam" ? "外部" : "BellTeam")}の決裁 {hidden}件を隠しています。", 12.5, Amber, FontWeights.SemiBold), 8));
             var all = Action("すべてを見る", ""); all.Margin = new Thickness(10, 0, 0, 0); all.Click += (_, _) => SetOrigin("all"); line.Children.Add(Key(all, "show-all")); line.Margin = new Thickness(6, 0, 0, 10); stack.Children.Add(line);
         }
-        if (!loaded && Current != Tab.Done) stack.Children.Add(LatticeWindow.Notice(Approvals.Loading, null, null));
+        if (!loaded && !DeviceUsable && Current != Tab.Done) stack.Children.Add(LatticeWindow.Notice(Approvals.Loading, null, null));
         else if (Current == Tab.Done) DoneRows(stack, shown);
         else if (shown.Count == 0)
         {
@@ -529,7 +626,7 @@ internal sealed class ApprovalsPage : Grid
     private Button Open(UIElement content, string label, string id) { var button = Plain(content, label); button.HorizontalContentAlignment = HorizontalAlignment.Stretch; button.Click += (_, _) => Select(id); return Key(button, "c:" + id); }
     private void DoneRows(StackPanel stack, IReadOnlyList<ViewDecision> shown)
     {
-        if (!doneLoaded) { stack.Children.Add(LatticeWindow.Notice(Approvals.Loading, null, null)); return; }
+        if (!doneLoaded && !DeviceUsable) { stack.Children.Add(LatticeWindow.Notice(Approvals.Loading, null, null)); return; }
         var groups = Approvals.GroupDone(shown, Now());
         if (groups.Count == 0) { var none = Text(Approvals.EmptyDone, 14, Muted); none.Margin = new Thickness(8, 6, 8, 10); System.Windows.Automation.AutomationProperties.SetAutomationId(none, "approvals-none"); stack.Children.Add(none); }
         foreach (var group in groups)
@@ -649,7 +746,7 @@ internal sealed class ApprovalsPage : Grid
     {
         try
         {
-            var bytes = await Api.ApprovalAttachmentAsync(decisionId, item.Id ?? "");
+            var bytes = Known(decisionId) is { Source: DecisionUnion.Device } && Device is { } device ? await device.AttachmentAsync(decisionId, item.Id ?? "") ?? throw new InvalidOperationException("no image held") : await Api.ApprovalAttachmentAsync(decisionId, item.Id ?? "");
             if (bytes.Length != item.Size || !string.Equals(Convert.ToHexString(SHA256.HashData(bytes)), item.Sha256, StringComparison.OrdinalIgnoreCase)) return null;
             var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = new MemoryStream(bytes); image.EndInit(); image.Freeze(); return image;
         }

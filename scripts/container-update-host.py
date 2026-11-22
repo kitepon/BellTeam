@@ -962,7 +962,8 @@ def execute_installer(updater, plan, directory):
           and 'bellteam' in normal['services'], 'HOST_UPDATE_MODEL_INVALID')
     target = plan['target']
     ref = target['artifact']['reference']
-    updater.command([config['docker'], 'pull', ref], timeout=900)
+    # An operator-built local image (emergency path) is already in the daemon; there is nothing to pull.
+    if not target['artifact'].get('local'): updater.command([config['docker'], 'pull', ref], timeout=900)
     updater.progress(directory, 'verifying')
     selected = updater.command([config['docker'], 'image', 'inspect', '--format', '{{.Id}}', ref]).decode().strip()
     check(re.fullmatch('sha256:[a-f0-9]{64}', selected), 'HOST_UPDATE_IMAGE_INVALID')

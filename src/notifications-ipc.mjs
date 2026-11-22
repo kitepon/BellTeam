@@ -18,8 +18,9 @@ const jsonValid = value => value === null || ['string', 'boolean'].includes(type
 const statusValid = value => object(value) && jsonValid(value)
   && typeof value.configured === 'boolean' && Array.isArray(value.environments)
   && value.environments.every(item => ['development', 'production'].includes(item))
+  // The message is display text chosen by the child (e.g. the 1Password key wording); a fixed-string match here dropped the child on every unreadable key.
   && (value.error === undefined || keys(value.error, 'code,message') && safeCode(value.error.code)
-    && value.error.message === '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。')
+    && typeof value.error.message === 'string' && value.error.message.length > 0 && value.error.message.length <= 1000)
 // a487n stage 1: webPush is leaving. Readers accept the pair with or without it; writers still send it until every half reads without it.
 const pair = value => keys(value, 'apns,webPush') || keys(value, 'apns') // webPush: an older half (a rolled-back module) still sends it
 const webPushLegacyValid = value => keys(value, 'enabled,configured,publicKey,error')

@@ -9,6 +9,7 @@ import { APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY } from './approval-box-exten
 import { MEMORY_STATE_COMPATIBILITY } from './memory/state-compatibility.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './members/state-compatibility.mjs'
 import { runtimeComponentIds } from './update-center-contract.mjs'
+import { loadSourceHistory } from './source-history.mjs'
 
 const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension']
 const stateIds = ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension']
@@ -70,7 +71,7 @@ export function moduleReleaseCompatible(id, release) {
 }
 
 // Trust and freshness belong to the Host catalog reader; this maps its closed selection only.
-export function createModuleUpdateCatalog({ client }) {
+export function createModuleUpdateCatalog({ client, history = loadSourceHistory() }) {
   const select = async id => { requireValue(ids.includes(id) || runtimeComponentIds.includes(id)); return selection(await client.catalog(id), id) }
   return {
     select,
@@ -88,8 +89,10 @@ export function createModuleUpdateCatalog({ client }) {
           component.published = { version: release.versionId, sourceCommit: release.sourceCommit, digest: 'sha256:' + release.versionId, origin: 'published' }
           component.changes = release.changes
           const compatible = moduleReleaseCompatible(id, release)
-          const same = component.current?.digest === component.published.digest
-            || component.current?.origin === 'builtin' && component.current.sourceCommit === release.sourceCommit
+          // a518: a row cut at or before the body's own source is never newer than the builtin (the image carries its commit order).
+          const builtinNotOlder = component.current?.origin === 'builtin' && (component.current.sourceCommit === release.sourceCommit
+            || history?.has(component.current.sourceCommit) && history.has(release.sourceCommit))
+          const same = component.current?.digest === component.published.digest || builtinNotOlder
           component.comparison = { state: !compatible ? 'incompatible' : same ? 'up_to_date' : component.current ? 'update_available' : 'unknown',
             reason: !compatible ? 'UPDATE_INCOMPATIBLE' : selected.publication.status === 'failed' ? selected.publication.error : null }
           component.capability = { supported: false, reason: !compatible ? 'UPDATE_INCOMPATIBLE' : 'UPDATE_EXECUTOR_UNAVAILABLE' }

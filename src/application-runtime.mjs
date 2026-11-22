@@ -53,8 +53,6 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     harnessAuth,
     notifications,
     secretRequests,
-    submittedSecretConsumer: services.submittedSecretCaller?.consumer,
-    captureSubmittedSecretContext: services.submittedSecretCaller ? (request, id) => services.submittedSecretCaller.capture(request, id) : undefined,
     ownerQuestions,
     machineStream,
     bots, rooms, roomMessenger,
@@ -105,7 +103,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     // SK01: engines without the registry have no fork seats.
     forkSeat: name => typeof transport.forkSeat === 'function' ? transport.forkSeat(name) : null,
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, runningExclusions: () => services.runningExclusions, internalUrl: `http://127.0.0.1:${internalPort}`, lattice: services.lattice, ...internalApi(internalPort) },
+    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, runningExclusions: () => services.runningExclusions, approvalBoxDaemon: () => services.approvalBoxDaemon, internalUrl: `http://127.0.0.1:${internalPort}`, lattice: services.lattice, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null
@@ -180,6 +178,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       seatTurns?.start()
       idleSessions?.start()
       services.runningExclusions?.start()
+      services.approvalBoxDaemon?.start() // does not wait: an optional child must not hold the body start (a500)
       started = true
     } catch (error) {
       if (error?.code === 'STARTUP_INTERRUPTED') throw error // stop() closes after its shutdown contact
@@ -204,11 +203,10 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => services.backgroundSummary?.close(),
         () => services.moduleChildExitReporter.close(),
         () => olrwAuthCaller?.close(),
-        () => services.submittedSecretCaller?.close(),
         () => services.updateCenter.close(),
         () => webGatewayControl.close(),
         () => gateway?.close(),
-        () => scheduler.stop(), () => services.runningExclusions?.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
+        () => scheduler.stop(), () => services.runningExclusions?.stop(), () => services.approvalBoxDaemon?.close(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => closeServer(remoteSeatServer), () => features.close(),
         // Before the providers they call (usage, diagnostics, native client) close.
         () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),

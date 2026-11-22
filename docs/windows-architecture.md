@@ -185,8 +185,11 @@ flowchart LR
 - 設定の作り直し（W-MAC 20、Mac #1114。正本は[設定の導線](architecture/modules/apple/settings-user-flow.md)）：項目・題名・順・旧来の一行はCoreの`SettingsPages`、各項目のいまの状態の一行と札（灰・緑・紫・橙）と要対応はCoreの`SettingsSummary`（認証の段階は`AuthenticationProgress`、決まりの読み分けは`UserRules.cs`）が決める。`SettingsWindow`は設定を開いた時と主窓が前面に戻った時に全項目を読み（AIの認証は`GET /api/harness-auth`・`/api/accounts`・各AIの状態、ほかは`/api/settings`・`/api/models`・`/api/user-rules`・`/api/ai-control`・`/api/updates`・`/api/terminals`）、読み終えるたびに左の行・要対応の帯・開いているページの先頭を描き直す。Updateの新着（`UpdatesChanged`）と端末の一覧の変化でも描き直す。要対応の行はその項目へ、AIの認証はそのAI・スロットのログインの窓へ直接行く。通知は、Windowsが端末の登録をせず起動中だけ通知するので、Macの4状態のうち「届きます」「未登録」（と登録の失敗）だけを使う。「利用と課金」はアプリ内で購読を売らないので旧来のWindowsの一行のまま。接続先を変える前に確認を出す。「このアプリについて」は版だけ。
 - AIのCLIの導入状態（a451。契約は[harness-cli](architecture/modules/usage/harness-cli.md)、サーバーはミカ）：Coreは`GET /api/harness-auth`の各項目の追加項目`install`を`HarnessCliInstall`として読み（無い本体は`null`＝動かせるものとして扱う）、`GET|POST /api/harness-auth/:id/install`（`HarnessAuthenticationApi.InstallStatusAsync`・`InstallAsync`）と`POST /api/setup/install`（`SetupApi.InstallAsync`。契約の「onboarding」はこの`/api/setup`）を呼ぶ。文（`message`）と状態はサーバーのまま出し、アプリは判断しない。`state`が`not_installed`・`failed`のAIだけを`SettingsSummary.Ai`が「<AI>がまだ入っていません」「<AI>を入れられませんでした」で要対応に数え（`installing`は自分で進むので、`checking`・`installed`は更新の失敗があっても数えない。Claudeは2アカウントでも1回。トロニー裁定 2026-11-19）、行は`HarnessRowState.FromInstall`で「最新版を入れる」を出す。ログインの操作は`installed`の時だけ出す。
 - 利用と課金（a485。Windowsでは何も売らない。a336・a360のStripeの購入入口`PurchaseEntry`は廃止）：ページは案内文の下に、買う場所を言う文（「Windowsでは購入できません。iPhone・iPad・MacのBellTeamアプリで購入し、その端末からこのサーバーにログインしてください。Androidはまだ購入できません。」）と、サーバーの`GET /api/subscription`の状態行（Coreの`SubscriptionText.StateLines`。有効期限・無料期間）だけを出す。読めなければ理由を帯に出す。購入・購読の管理・解約のボタンは無い。Coreの`SubscriptionApi`・`SubscriptionText`はLinux・Androidの画面が使うので残る（その撤去は各画面の担当）。
-- サーバーへのログイン（a485 shape 2。契約は[app-sessions.md](architecture/modules/usage/app-sessions.md)第7章、Coreは`LoginApi`・`LoginFlow`・`ISessionTokenStore`・`Workspace.SessionLoginRequired`）：`GET /api/session`が`login`を返し`enforced`で、本アプリが未ログインか鍵を断られたら、`MainWindow`の`SignIn`の段は埋め込みのCloudflare Access（`AccessLoginView`）でなく`ConnectView`を出す（`login`が無い古い本体は従来のAccessのまま）。`ConnectView`は`LoginFlow`で`POST /api/login/start {kind:"windows"}`を1回送り（再送しない）、3秒ごとに`GET /api/login/{id}`を読み、サーバーが出した確認コード（`shortCode`）と確認番号（`checkNumber`）をそのまま出す（QRの`qrSvg`は描かない。コードと番号で足りる）。ほかに「サーバーのコードで入る」の欄（常に出す）から`POST /api/login/console {code, kind}`で鍵を受ける。承認で受けた鍵（256bit、1回だけ届く）は`DpapiSessionTokenStore`が接続先ごとに`%LOCALAPPDATA%\BellTeam\sessions.bin`へDPAPI（CurrentUser）で保存し、`BellApi.SessionToken`が全リクエストと更新ストリームに`Authorization: Bearer`で付ける。鍵を断られた時（probeの`authenticated:false`）だけ鍵を消し、503 `SESSION_STORE_UNAVAILABLE`は鍵を残して「サーバーの準備中です。」と出し、既存の再接続の待ち時間で繰り返す。ログアウトは`GET /api/session`の`sessionId`で`DELETE /api/sessions/{id}`を呼んでサーバー側を終わらせ（失敗はログアウトの後に帯へ出す）、手元の鍵は成否にかかわらず消す。文言は共通（ミカ・Tronie裁定7e）。2026-11-22のOwner決定（login-billing、Mintの契約1.20）で、サーバーがアプリごとに始めるログイン・「アプリを追加」のコード・第二の手は無くなる：すでにログインしている側の要求画面（`LoginRequestsView`）と「アプリを追加するコードを出す」は削除済み。`ConnectView`の電話承認は、新しいサインイン入口（AppleとGoogleのシステムブラウザーでのサインイン、ライブラリのC#デスクトップ部品t4k）に置き換わるまで残し、部品が出たら入れ替える（コンソールコードは公式アプリに出さない：トロニー裁定、入れ替え時に外す）。新しい入口の画面は`SignInView`（文言は`SignInText`、app-sessions.md 7fの表）で、AppleとGoogleの2ボタン・ブラウザー待ち（やめる）・結果が届かない時・持ち主でない時・初回の紐付けだけのセットアップコード欄を描くだけにし、サインインそのものはライブラリのC#デスクトップ部品（t4k）に任せる（ピンが来たらつなぐ。QRの引き継ぎ画面もその時に作る）。`AppSessionsView`は設定の接続ページ（`login.enforced`の時だけ）に入っているアプリの一覧（種別・入り方・最後の利用）と「取り消す」（`DELETE /api/sessions/{id}`。このアプリの行は「ログアウト」で、既存のサインアウト経路が自分のセッションを終わらせて鍵を消す）を持つ（`/api/sessions`の通信の形はミントのt3hまで保留）。書込み（取り消し）は自動で再送しない。
-- 購読の関門（a485/a486 7e。Tronie裁定、2026-11-22のOwner決定でブラウザー版は廃止：ネイティブのアプリは本体の契約の状態を出す。Coreは`SubscriptionState.EntitlementState`・`SubscriptionApi.PaywalledAsync`・`SubscriptionText.Paywall`・`StartupPhase.Paywall`・`StartupRoute.AfterConnect(..., paywalled)`でネオンのa485-paywall）：`MainWindow.EnterAsync`が接続のたびに設定の読込み後に`GET /api/subscription`を1回読み（読めない時・項目が無い時・`active`・`unknown`は「アプリを出す」）、`entitlementState`が`none`の時だけ、`StartupPhase.Paywall`で全画面の`PaywallView`（「このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。」と「再確認」「接続先を変更」。ブラウザーで開くボタンは無い）をアプリの代わりに出す。ログイン要求が先（`needsLogin`が勝つ）で、オンボーディングより前。ブラウザー版は無い。購入の関門はWindowsに無い（`BuyOnPhone`の案内だけ）。
+- サーバーへのログイン（a485/a487、login-billing 0.17.0のホーム部品 `HomeConnection`、ホーム線 `docs/home-wire-v1.md`＝開発版）：ホームサーバーは`GET /api/home/session`（`capability: "login-billing-home/1"`・`bound`・`enforced`）で分かり、無ければ従来の道（Cloudflare Accessの`LoginView`）のまま。`HomeGate.MustBindAsync`が接続のたびに先に読み、ホームでトークンが無ければ`StartupPhase.SignIn`に`HomeConnectView`を出す（`MainWindow.ShowHomeSignInAsync`。401で`NeedsLogin`になった時も同じ）。`HomeConnectView`は紐付け前（`bound:false`）だけセットアップコード欄を出し、紐付け済みなら押さずに`ConnectHomeAsync(<接続先>/api/home, "windows", setupCode)`を1回呼ぶ（ライブラリが`login/nonce`→`ProveStartAsync`→`login/prove`。audienceは入力した接続先のorigin）。失敗はコードごとの文で出し、通信不良は「サーバーに届きません」で、サインインし直せとは言わない。トークンは`AccountStore.Home`の`HomeConnection`が持ち、記録（base・token・session id）は`DpapiHomeStore`が`%LOCALAPPDATA%\\BellTeam\\home.bin`へDPAPI（CurrentUser・固有のentropy）で封じ、`AccountStore.HomeToken`がそのoriginにだけ`BellApi.SessionToken`（`Authorization: Bearer`）として渡す。再証明は接続のたびに`ReproveIfDueAsync`（既定7日）。401だけがトークンを消し（ライブラリの呼出し内）、403・503・届かないは残す。ログアウトは`EndHomeSessionAsync`でサーバー側のセッションを終わらせ（ライブラリのsignOutは終わらせない）、失敗は後で帯に出して記録は再試行用に残す。設定の接続ページは、ホームで入っている時に「ログアウト」を出す。古い電話承認・コンソールコード（`ConnectView`・`SessionViews`・`DpapiSessionTokenStore`）は消した。Coreの`LoginApi`・`LoginFlow`・`ISessionTokenStore`はLinuxが使うため残す。
+- 最初の画面・サインインの入口は次のとおり。新しい入口の画面は`SignInView`（文言は`SignInText`、app-sessions.md 7fの表）で、使えるボタン（`AccountStore.Providers`。Appleは持ち主のApple席が済むまで出さない）・ブラウザー待ち（やめる）・結果が届かない時・持ち主でない時・初回の紐付けだけのセットアップコード欄を描くだけにする。
+- 最初の画面（a487、7d。ライブラリのC#デスクトップ部品`Kitepon.LoginBilling.Desktop` 0.17.0＝開発版、`windows/nuget.config`のpackages-local）：`StartupRoute.Initial(savedServer, signedIn)`は、パス（`AccountStore.SignedIn`）が無いか接続先が無ければ`StartupPhase.Account`、サインイン済みで接続先があれば`Checking`。`Account`は`AccountGateView`：パスが無い間は`SignInView`、その後は`AccountView`（アカウントと購読。契約が無い端末にはQRの引き継ぎ：`QrView`が`StartLoginAsync`の`QrPayload`を描き、`ShortCode`・`CheckNumber`を出し、`WaitForPassAsync`で待つ。契約があれば`サーバーにつなぐ`が出て、保存済みの接続先があれば`ConnectAsync`、無ければ`ServerSetupView`へ進む）。`AccountStore`がアプリで1つの`DesktopLoginBilling`（Workerの接続先は環境変数`BELLTEAM_LOGIN_BILLING_URL`、無ければ`product.json`の`loginBillingWorkerUrl`。未設定の間は「購読の接続先がまだ決まっていません。」）を持ち、パスはライブラリがDPAPIのファイルに持つ（アプリのコードは見ない）。`AccountView`は設定の「利用と課金」にも入り、サインアウト・再確認・ほかの端末をすべて止める（Appleのシート相当はブラウザー再サインイン）を持つ。Windowsは購入しない。サーバー側のproof（`ConnectHomeAsync`）の送り先は`/api/home`（ミカ）。セットアップコードは、紐付け前のホームサーバーの`HomeConnectView`で送る。`AppSessionsView`は設定の接続ページ（`login.enforced`の時だけ）に入っているアプリの一覧（種別・入り方・最後の利用）と「取り消す」（`DELETE /api/sessions/{id}`。このアプリの行は「ログアウト」で、既存のサインアウト経路が自分のセッションを終わらせて鍵を消す）を持つ（`/api/sessions`の通信の形はミントのt3hまで保留）。書込み（取り消し）は自動で再送しない。
+- 実プロバイダー試験用のブラウザー（a523h、real-path-tests 1.26）：Webサインインは既定でシステムブラウザーを開く。環境変数`BELLTEAM_TEST_CHROME_PROFILE`がディレクトリを指す時だけ、`TestBrowser.Open`がそのディレクトリを`--user-data-dir`にした別のChromeで開く（オーナー自身のプロファイルに触れないため。Chromeが無ければサインインは失敗し、システムブラウザーへは戻らない）。呼び出しは`AccountView.SignInAsync`（BellTeam）と`ApprovalBoxAccount.SignInAsync`（Approval Boxの2つ目）の2か所。
+- 購読の関門（a485/a486 7e。Tronie裁定、2026-11-22のOwner決定でブラウザー版は廃止：ネイティブのアプリは本体の契約の状態を出す。Coreは`SubscriptionState.EntitlementState`・`SubscriptionApi.PaywalledAsync`・`SubscriptionText.Paywall`・`StartupPhase.Paywall`・`StartupRoute.AfterConnect(..., paywalled)`でネオンのa485-paywall）：`MainWindow.EnterAsync`が接続のたびに設定の読込み後に`GET /api/subscription`を1回読み（読めない時・項目が無い時・`active`・`unknown`は「アプリを出す」）、`entitlementState`が`none`の時だけ、`StartupPhase.Paywall`で全画面の`PaywallView`（「このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。」と「再確認」「接続先を変更」。ブラウザーで開くボタンは無い）をアプリの代わりに出す。ログイン要求が先（`needsLogin`が勝つ）で、オンボーディングより前。ブラウザー版は無い。購入の関門はWindowsに無い（購入は店のスマホ側。Windowsは`AccountView`のQR引き継ぎで契約を受ける）。
 - 1Password連携の設定（W-MAC 15、20で独立した項目）：設定の「1Password」の行に状態の札（連携中・未連携・失敗）と平易な失敗の文を出し、開くと専用のページになる。状態・結果の一行・`ops_`の検査・https限定の案内リンクはCoreの`OnePassword.cs`。`guide`・`connection`は型の違う値を「無し」として読み、旧本体・崩れた本体でも一覧を壊さない（`onePassword`項目が無ければ何も足さない）。tokenは`PasswordBox`で、保存後も戻さず、ページを離れる・窓が非アクティブになる時に消す。保存は`PATCH /api/settings/onePassword`を1回だけ送り（自動再送なし）、応答の`setting`だけで結果の一行を決め、成功後に一覧を読み直してバッジを更新する。
 - 秘密の入力の窓（W-MAC 14）：`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordを上・既定にする（`preferred:'stored'`なら入力側が既定）。言い方は値の出どころだけを言う（1Passwordから選ぶ／読み出す、ここに入力する／貼り付ける）。保存するかどうかは欄の下の注意文だけが言う。`terminal.login`と`oneTime`は1Passwordを出さず、送信はログインが「パスワードを渡す」（Macと同じ）、`oneTime`が「渡して続ける」。`terminal.ssh`・`terminal.sudo`は`onepassword-items`の一覧から選ぶ（sudoは`/password`で終わる参照だけ。検索欄は題名・保管庫名、選択が外れたら解除）。`terminal.ssh`の入力は改行を保つ複数行の欄。値の欄と選択は、送信の直前・閉じた時・窓が非アクティブになった時に消す。検索語は秘密でなく送らない。状態と文言は`SecretInputModel`（Core）、窓は描くだけ。
 - 設定の「端末」（W-MAC 16a。契約は[terminals](architecture/modules/terminals/README.md)、Macは[apple/terminals](architecture/modules/apple/terminals.md)）：一覧は`GET /api/terminals`で、404・405（旧本体）は一行の案内、503 `TERMINALS_UNAVAILABLE`などの失敗は理由と「もう一度読み込む」で、読めていた一覧がある間は一覧を残して一行の注意だけを足す。詳細は接続先・確認結果・ホスト鍵・鍵・Claude Codeの更新（C8）・登録を消す。確認結果の理由の文（`CONNECTION_REFUSED`・`AUTH_FAILED`・`UNREACHABLE`ほか）はサーバーの`action`があればそれを、無ければOSごとの文（Mac・Windows PC・Linuxマシン）を出す。「ホスト鍵を確かめる」は確認結果がホスト鍵の理由の時（16cでは、このPCのホスト鍵のファイルを読めなかった時も）だけ「ほかの方法」の中に出し、指紋は`SHA256:`＋43文字で検査して`PUT /api/terminals/{id} {confirmHostKey}`（Macの手入力のシートと同じ。`POST …/trust`は16cの自分のホスト鍵の確かめ）で送る。鍵の行（SSH鍵・sudo鍵。sudo鍵は`os`がwindowsの端末では出さない）は`POST・DELETE …/keys/{ssh,sudo}`（本文は空）で、返った依頼（`botId:null`）を秘密の入力の窓で開く。`AUTH_FAILED`の「この端末にこの鍵を入れる」は`POST …/keys/ssh/authorize`（本文は空）→`terminal.login`の窓→`GET /api/terminals/{id}`を1秒ごと（上限なし。詳細を離れると止める）→結果の文、鍵が入ったら確かめを自動で1回。確かめ結果と導入の待ちはこのアプリの中だけで、`Workspace.Terminals`が接続ごとに持ち、つなぎ直し（接続先の変更を含む）とログアウトで空に戻す。書き込み（PUT・DELETE・POST）は自動で再送しない。
@@ -340,6 +343,77 @@ flowchart LR
 - 窓の接続先とサインインは主窓と同じ保存場所（`SettingsStore`・`DesktopAccess`）から読む。接続先が無い・接続できない時は理由を出す。
 - Windows SDK（makeappx・signtool）が要る。無い端末では、登録スクリプトが入れ方を言って止まり、導入スクリプトは登録を行わず入れ方を警告する（アプリの導入は成功のまま）。
 - Coreの追加は`ShareContent`・`BellApi.SendAsync(share)`・`Workspace.ShareAsync`・`Timeline.ShareRefusal`。LinuxにWindowsの共有先に当たるものは無い（a284は別の方式）。
+
+## peer-channel（決裁箱の端末部品。a498）
+
+```mermaid
+flowchart LR
+  approvals[決裁箱の画面・回答<br/>BellTeam.App（今は/v1経由）] -.->|a498でデザイン確定後に置換| pc[pc/1端末部品<br/>BellTeam.PeerChannel]
+  pc --> hpke[Hpke: 封筒の封印と開封<br/>pc1の1スイートだけ]
+  pc --> sig[SignalClient・DeviceSession<br/>/pc/v1の合図と署名済みフレーム]
+  pc --> rtc[Native.cs P/Invoke<br/>データチャネル peer-channel/1]
+  rtc --> dll[datachannel.dll<br/>libdatachannel v0.24.6・ビルド済み]
+  keys[DeviceKeyStore: 端末鍵<br/>DPAPI・BellTeam.App] --> sig
+  sig --> server[決裁箱サーバー 合図のみ・中身なし]
+  server -->|POST /pc/v1/turn の urls| ice[IceServers: 契約11の選別<br/>最初のSTUN1つ + UDPのTURN先頭2つ<br/>名前はIPv4に解決]
+  ice --> rtc
+  repo[(windows/native/prebuilt/win-x64<br/>datachannel.dll + .sha256)] -->|csprojが複写| dll
+  build[build-libdatachannel.ps1<br/>開発者の機械でだけ実行] -.->|更新時にだけ置き換え| repo
+  install[install-windows.ps1] -->|SHA-256を照合して<br/>アプリの隣へ置く| dll
+```
+
+BellTeam.PeerChannel（net10.0、OS非依存。LinuxのNeonも使う）は peer-channel 契約0.5.8（kitepon/peer-channel 2df08c1）の端末側をC#で持つ。段階は、1) HPKE（RFC 9180 mode_base、DHKEM(P-256,HKDF-SHA256)/HKDF-SHA256/AES-256-GCMの1スイートだけを.NET標準の暗号部品で実装。新しい依存なし）→ 2) 契約のテストデータ全件（バイト列・鍵・名簿・封筒・フレーム）→ 3) WebRTC・シグナリング・承認（`SignalClient`・`DeviceSession`。TSのコネクタ相手の通し試験は `PC_E2E_FILE` を指した時だけ動く `PeerChannelE2eTests`。運転役 `DeviceRuntime` の通し試験は `PC_E2E_RUNTIME_FILE` と `windows/BellTeam.Tests/e2e/harness-rt.mjs`（先頭に手順）で動く `DeviceRuntimeE2eTests`）→ 4) 決裁箱画面の接続替え（デルタの設計 a490e の合流後）。段階1は、RFC 9180の既知値、`pc1-hpke.json`と`pc1-envelope.json`の全件、C#で封印した出力をTS側（hpke-js 1.10.1）が開けること、をアイリの受け入れ前の条件にする。テストデータは `windows/BellTeam.Tests/fixtures/peer-channel/` に固定commitのまま置く。端末鍵（署名鍵・封印鍵）は `DeviceIdentity` が作り、`BellTeam.App/DeviceKeyStore` が DPAPI（CurrentUser・固有のentropy）で `%LOCALAPPDATA%\BellTeam` のファイルに封じる（名簿の保護区分は `os_store`）。読めないファイルは鍵が無いものとして新しい鍵を作る。
+
+**パスの終わりと中継の拒否（契約0.5.8 signaling 第2・3章）**：署名ソケットをサーバーが4401 `pass_ended` で閉じたら、ネットワーク切れではなくサインアウトとして扱う（`SignalSocket.CloseCode`、`DeviceSession` が `Error("pass_ended")` を出す）。`POST /pc/v1/turn` が権利の無いパスを拒むと403で、本文の `error` に製品の not_entitled コードが入る（`TurnRefusedException.Code`）。BellTeamの決裁箱画面には端末の取り外し画面が無いので、SEC-086（取り外し・紛失の時に、その端末が `added_by` の鎖でつないだ有効な鍵を全て並べて同じ手順で外せるようにする）は、その画面を足す時に適用する。
+
+**中継（TURN）の選び方（契約0.5.7 第11章、ナユタ 2026-11-22）**：libjuiceは名前の最初のアドレスだけにつなぎ、TURNは2つまで、中継はUDPだけなので、`IceServers.Select`（`WebRtc.cs`。TSの`iceServers`の移植）が `POST /pc/v1/turn` の `urls` から、最初の `stun:` を1つと、UDPの `turn:`（`transport=tcp`は除く）の先頭2つだけを取り、それぞれのホスト名をIPv4に解決して（IPv4が無い時だけIPv6。解決できない名前は外す。解決は2秒で打ち切る）libdatachannelのICEサーバーに渡す。
+
+**datachannel.dll の届け方（トロニー裁定 2026-11-22）**：利用者の機械ではビルドしない（MSVC・vcpkgは要らない）。WebRTCは libdatachannel v0.24.6（commit 6b1e2e62）を `Native.cs` のP/Invokeで呼ぶ。ビルド済みの `datachannel.dll`（x64。OpenSSL 3.6.5を静的に含み、Visual C++ ランタイムだけを要する）を `windows/native/prebuilt/win-x64/` に **SHA-256（`datachannel.dll.sha256`）と一緒にリポジトリへ置く**。Windows用のCIがまだ無いため（既存のCIはLinuxとサーバーだけ）、リポジトリ内の置き場にしている。CIができたら、固定ソースからそこでビルドしてリリースへ添付する形に替える。置き換えるのは、ピン（libdatachannel・5つのサブモジュール・vcpkg 2026.10.16・OpenSSL）を上げる時だけで、`windows/native/build-libdatachannel.ps1`（開発者の機械でだけ実行。MSVC・CMake・Ninja・vcpkgが要り、固定commit以外は停止）が `prebuilt/win-x64` へDLLと `.sha256` を書く。ビルドは同じバイト列を再現しないので、置き換えたcommitの `.sha256` が正本になる。`BellTeam.PeerChannel.csproj` が `prebuilt/win-x64/datachannel.dll` をビルド出力と`dotnet publish`の出力へ複写し（`win-arm64`のpublishには複写しない）、`scripts/install-windows.ps1` が publish の直後に、複写された `datachannel.dll` のSHA-256を `.sha256` と照合して一致しなければ導入を止め、一致すればアプリの他のファイルと同じ手で導入先へ置く。**win-arm64 にはDLLが無い**（x64のDLLはarm64のプロセスに読めない）：導入は警告を出し、決裁箱の端末部品はarm64では動かない（arm64のビルドが要る時に別途）。`PeerChannelNativeTests`（同一プロセスの2接続がデータチャネルで往復する）はこの複写されたDLLでP/Invokeを確かめる。同梱するのは libdatachannel（MPL-2.0）、libjuice（MPL-2.0）、libsrtp・usrsctp（BSD）、plog・nlohmann/json（MIT）、OpenSSL（Apache-2.0）で、ソースは上のピンのcommitから取れる。
+### 決裁箱画面の接続替え（段階4、a498。デルタの設計 v0.2 §3〜§5、peer-channel-v0.2.md）
+
+決裁箱の画面（`ApprovalsWindow`・入口の行 `ApprovalsEntryRow`・`ApprovalsHub`）は、BellTeamのサーバー（`/api/approvals/*`）から決裁を読むのをやめ、この端末の `DeviceSession` から読む。決裁の中身（題・本文・選択肢・答え・添付）はAIのPCのコネクタと、この端末の履歴にだけあり、BellTeamのサーバーには渡らない（Ownerの裁定 2026-11-21）。工程表とのつながり（バッジ・「決裁を開く」）に要る、IDと状態だけの引きは、BellTeamのサーバーに残る `/api/approvals/by-task`・`by-decision` を引き続き使う。
+
+```mermaid
+flowchart LR
+  win[ApprovalsWindow・入口の行<br/>BellTeam.App] --> hub[ApprovalsHub<br/>画面スレッドへの通知]
+  hub --> dev[DeviceApprovals<br/>BellTeam.App: 運転・再接続・状態の表示]
+  dev --> book[DecisionBook<br/>BellTeam.PeerChannel: 受けたフレームから決裁の状態を保つ<br/>request・amend・cancel・result・hold]
+  dev --> ses[DeviceSession<br/>合図・ダイヤル・フレームの送受]
+  dev --> keys[DeviceKeyStore: 端末鍵 DPAPI]
+  book --> hist[(端末の履歴ファイル<br/>DPAPI・固有のentropy・%LOCALAPPDATA%\\BellTeam)]
+  dev --> map[DeviceDecisionView: decision@1 → ViewDecision<br/>既存の画面モデル Approvals.cs を使い回す]
+  win --> link[工程表のつながり: BellTeamサーバー<br/>by-task（今ある）/ by-decision（デルタの a490f で出来るまでバッジなし）]
+  win -. "/v1の閉鎖まで: 和集合の片方" .-> old[旧経路 /api/approvals/*<br/>BellTeamサーバー経由。接続画面もここ]
+  ses --> abx[決裁箱サーバー /pc/v1<br/>合図・名簿・TURNだけ。中身は見えない]
+  ses <-.->|DTLSのデータチャネル| con[AIのPCのコネクタ<br/>（BellTeamのサーバーの常駐 daemon も同じ）]
+```
+
+```mermaid
+flowchart TD
+  C1[コネクタ] -- "request / amend / cancel（decision@1・添付はblob）" --> S[DeviceSession]
+  S -- "検証済みフレーム" --> B[DecisionBook]
+  B -- "状態: pending / held / answered / cancelled" --> H[(端末の履歴)]
+  B --> V[DeviceDecisionView]
+  V --> W[画面: 一覧・詳細]
+  W -- "答え {option_id|text}、保留 {held}" --> A[DeviceApprovals]
+  A -- "answer(approval-box/answer@1) / hold に署名" --> S
+  S -- "answer / hold" --> C1
+  C1 -- "result（確定した決裁。他の端末の答えも）" --> S
+  W -. "決裁のID" .-> L[BellTeamサーバー: つながりの引き（IDと状態だけ）]
+```
+
+- **移行期の規則（デルタ 2026-11-22、/v1の閉鎖まで）**: 一覧は旧経路 `/api/approvals/*` とデバイスの**和集合**で、同じ決裁ID（`decision@1` の `decision_id` ＝ K-…）はデバイス側が勝つ。カードごとに出どころの小さなタグを付ける。旧経路にだけある決裁は、端末が検証済みになっても消さない。答え・保留は、その決裁を持つ出どころにだけ送り、両方へは送らない。IDが契約で突き合わせられない時は推測で統合せず、両方をタグ付きで出してデルタとナユタへ伝える。閉鎖の後はデバイスだけ。旧経路の接続画面と Old・Expired・NoCredential の状態は、デルタの a490f の知らせまで消さず、新しく何も載せない。デバイス側の `no_entitlement` は NotEntitled として出す。
+- **所有と入口**: `DecisionBook`（OS非依存。Linuxも使う）が決裁の状態の持ち主。画面は `ViewDecision`（既存の `Approvals` モデル）を受けるだけで、ID・署名・バージョンの扱いは持たない。
+- **接続の維持**: 画面の有無に関わらず、サインイン済みの間は `DeviceApprovals` が合図の接続を保つ。`join` で待ち（wait）が来たらダイヤルし、切れたら 1・2・4…30秒の上限つきバックオフで回数の上限なしに自動で再接続する。手動の再試行は待機中の次の試行を直ちに行う（並列は増やさない）。サインアウト・接続先の変更・`pass_ended`（4401）では旧処理を終える。`not_entitled`・名簿が確かめられない状態は、理由を出して待つ（自動で変わらないので）。
+- **端末の状態の見え方（デルタの設計 peer-channel-signin.md §2・§3、文言は契約）**: 状態は SignedOut・SigningIn・Joining・NeedsApproval・Waiting・NotEntitled・Live・Reconnecting。`RuntimeStatus` との対応は、Connecting＝Joining、Retrying＝Reconnecting、NeedsAdmission＝NeedsApproval、SignedOut（`SignedOutException` と `pass_ended`）、NotEntitled（`join` の `no_entitlement`）、Live。SigningIn（2つ目のライブラリ＝ベースが決裁箱の `/auth/v1` の別インスタンス）と Waiting（2台目の承認 5.3 の起動側）は別の工程で足す。決裁箱のpassは、BellTeamのサインインとは別の保管場所（別名の `FilePassStore`）にだけ置き、BellTeamのサーバー・記録・ログへ出さない。
+- **失敗の見え方**: 接続できない間は最後の一覧を薄くして理由と手動再試行を出す。答えの送信が失敗しても決裁の状態は変えず、同じボタンをもう一度出す。結果が分からない送信は「不明」と出す。
+- **端末の履歴**: 受けた request と result を端末にだけ保つ（契約10.1）。保管期間の設定は端末側。他の端末にしか届かなかった決裁は、この端末に無いことがある（Ownerの許容済み）。
+- **この段でやらないこと**: 端末の取り外し画面（SEC-086は画面を足す時）、コネクタの追加の承認画面（BellTeamのサーバーの常駐 daemon は、Ownerのスマホで一度だけ承認する。Nayutaの手順）、サーバー側の報告（D7b。経路は設計の Q5 で決まってから）。端末の追加の承認（5.3）の画面は、この端末が2台目の時に必要になるので別の工程で行う。
+- **2つ目のサインイン（ミント 契約1.24、ナユタ・デルタの裁定）**: 決裁箱は自分のログイン・課金のpassだけを受ける。アプリはBellTeamのインスタンス（`AccountStore`）とは別に、ベースが決裁箱の `/auth/v1` の2つ目のインスタンス `ApprovalBoxAccount` を持つ。保管場所は別名の `FilePassStore`（`BellTeam-ApprovalBox`）、ウェブサインインのみ（システムブラウザーとループバック）、購入・レシートなし。2つのKは同じ記録・ログへ混ぜない。`ApprovalBoxDevice`（環境変数 `BELLTEAM_APPROVAL_BOX_DEVICE=1` の時だけ有効）が、2つ目のインスタンス・`DeviceApprovals`・画面（`ApprovalsHub`）をつなぐ。公開の裁定は未了なので、本番の画面は変わらない。
+- **承認（5.3 の起動側）**: NeedsApproval から「承認をお願いする」で `DeviceAdmission` が `verify.open`（QRの秘密と打ち込む秘密の2つ）→ `pc1-join`（platform は windows、protection は os_store）→ `pc1-admit` の確認 → 名簿のスナップショットを採用、までを行う。画面は Waiting（コード・QR・読み方・残り時間・やめる）。承認が済むと基点を保存して接続を試し直す。
+- **添付（リクエストの画像）**: 台帳は添付の名前だけを持ち、実体は `SealedBlobFiles`（DPAPIで封じた1枚1ファイル、名前はblobのSHA-256）に置く。画面は端末の決裁なら端末から読み、旧経路の決裁なら今までどおりサーバーから読む。
+- **検証**: 純粋な部分（`DecisionBook`・`DeviceFrames`・`DeviceDecisionView`・`DecisionUnion`）は単体の試験。通しは3つ、どれも環境変数を指した時だけ動く：`DeviceRuntimeE2eTests`（TSのコネクタ、`harness-rt.mjs`）、`DeviceAdmissionE2eTests`（TSの承認役、`harness-admit.mjs`）、`ApprovalBoxDevServerE2eTests`（決裁箱の開発サーバー `npm run dev:server`＋その `/dev/websignin` で2つ目のサインイン→genesis→接続、`PC_E2E_ABX_URL=http://127.0.0.1:8788`。127.0.0.1だけ）。本物のコネクタ daemon との通しは、承認の流れ（ナユタの実験用の承認役はコネクタ専用）の都合でまだ行っていない。
+
 
 ## 変更時の手順
 

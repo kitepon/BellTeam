@@ -22,9 +22,11 @@ const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
 
 // Chart state of one child generation: a memo per chart, re-read only when its token moves or it is dirty (README State it owns, task a95).
-export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000,
+// README L13 (a509, Owner 2026-11-22): the first sweep of a child generation waits 3 minutes, so the body's auto-resume of cut turns comes first.
+export const FIRST_NUDGE_MS = 180_000
+export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000, firstNudgeMs = FIRST_NUDGE_MS,
   log = line => process.stderr.write(line + '\n'), codeCharts = createCodeCharts({ cli, now, log }) }) {
-  const epoch = randomUUID(), memos = new Map(), locks = new Map(), warned = new Map()
+  const epoch = randomUUID(), startedAt = now(), memos = new Map(), locks = new Map(), warned = new Map()
   // Seat runs on one chart run one at a time, so a code chart's fast-forward and sensor sync never overlap a write.
   const locked = (id, fn) => {
     const next = (locks.get(id) ?? Promise.resolve()).then(fn, fn)
@@ -185,6 +187,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     },
     // Every minute (facade timer, README L13-L15): every chart's cards from the memo -> ONE prompt per lane Bot not running.
     async nudge(params, effect) {
+      if (now() - startedAt < firstNudgeMs) return { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
       const { ids, rows } = await listed()
       const memos = await syncAll(ids, effect, rows)
       const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))

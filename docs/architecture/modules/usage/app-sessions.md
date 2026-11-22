@@ -1,6 +1,6 @@
 # App sessions on the user's server — the login-billing home part mounted (reading 3)
 
-2026-11-22 JST, Mika (a485-lb-server). Status: **replaces the earlier draft** (login start/poll, second hand, network class, web cookie, Origin rule, lease, "add an app"; PR #2206 history keeps it). Under the Owner's reading 3 every device signs in itself with Apple or Google, the browser version is abolished (main #2239), and the mechanism is the library's **home part** (login-billing 0.17.0, development release, the repair of Airi's audit of 0.16.0; `docs/home-wire-v1.md` in that repo, contract 1.22 = selfhosted-form 1.0.2). BellTeam mounts it; it does not re-implement it. Section 7d–7f (first-run order, who may use BellTeam, wording) are unchanged and current.
+2026-11-22 JST, Mika (a485-lb-server). Status: **replaces the earlier draft** (login start/poll, second hand, network class, web cookie, Origin rule, lease, "add an app"; PR #2206 history keeps it). Under the Owner's reading 3 every device signs in itself with Apple or Google, the browser version is abolished (main #2239), and the mechanism is the library's **home part** (login-billing 0.18.5, accepted by Mint 2026-11-23: contract 1.28 = selfhosted-form 1.0.3; `docs/home-wire-v1.md` in that repo). BellTeam mounts it; it does not re-implement it. Section 7d–7f (first-run order, who may use BellTeam, wording) are unchanged and current.
 
 ## 1. Function split (who does what)
 
@@ -87,6 +87,56 @@ stateDiagram-v2
 | Pass | none on the server: no pass file, no Worker secret. The Worker is asked only through `prove/take` and `ticket/check` with the ticket the proof returned |
 | Events | none added: the second hand, requests and "add an app" are gone, and no app names an event it needs. A session that ends closes its own open `/api/events` |
 
+### 4a. The device list and the stop — one API for every client (a529m, Mint ruling 2026-11-23, selfhosted-form 1.0.3)
+
+The list of every device in the user's server is the home part's **sessions**: one row per device login ("every device, one by one"). The phone's list 承認した端末 is only that phone's own approvals and is not this list. No new route: the three operations below are the library wire already mounted under `/api/home`; the client libraries (`HomeConnection`) need no change. This section is the contract the four platform screens (Windows, Android, Linux, Apple) build on.
+
+**Function diagram**
+
+| Operation (user's words) | Route (Bearer = any session, account or console) | Answer | Effect and time |
+| --- | --- | --- | --- |
+| Show every device | `GET /api/home/sessions` | `{sessions:[{id, kind, appKind, passId?, state, created, lastUse, current}]}` | Read only. `kind` is `account` or `console`; `appKind` is what the app sent as `kind` when it signed in (`apple`, `windows`, `linux`, `android`); `passId` only on an `account` row (never on a console row, and absent on a row saved before library 0.18.5); `state` is `active`, `none` or `unknown` (the session's entitlement word, 7e); `created`/`lastUse` are ISO times; `current` is true on the caller's own row. No name, address, token, K or ticket |
+| End here, now | `DELETE /api/home/sessions/{id}` (any listed id; the caller's own id is the sign-out) | `200 {ok:true}`; `404 SESSION_NOT_FOUND` when it is already gone | That session ends **at once**: its token hash leaves the published set (the guard answers 401 for it from the next request), and the body closes its open `/api/events`. The device is not shut out: it can sign in again while its pass lives |
+| Shut this device out | the caller (a store device of the owner, e.g. the phone) calls the library `stop(passId)` with the row's `passId`, **then** `DELETE /api/home/sessions/{id}` | `stop` answers at the operator; the DELETE as above | `stop(passId)` makes the operator refuse that login's pass, so the device cannot sign in again and its session would also end at the next ticket check (at most 10 minutes per session, inside the 60 s sweep: observed 6 min 30 s on the 2026-11-23 run); the DELETE makes the stop felt at once. A console row has no `passId`: it can only be ended |
+| An app that is stopped or signs out | `DELETE /api/home/sessions/{own id}` | as above | The app calls it itself (the library `endHomeSession()`); 2xx, 401 and 404 delete the app's record, any other failure keeps it for a retry |
+
+Who may do what: any session of the owner's account may list and end any listed session (the owner's own devices); a console session may too. A request with no valid session is `401 UNAUTHORIZED` (the app keeps nothing but may delete its token), a server that cannot judge answers `503 SESSION_STORE_UNAVAILABLE` and the app keeps its token. `LOGIN_RATE_LIMITED`, `FORBIDDEN` and the rest of the wire's error table stay as in section 5.
+
+**Data flow**
+
+```mermaid
+sequenceDiagram
+  participant A as Any app (owner's session)
+  participant P as Phone (store pass)
+  participant B as Body (guard, /api/home route)
+  participant U as Usage child (home part)
+  participant W as Operator
+  A->>B: GET /api/home/sessions (Bearer)
+  B->>U: home.handle
+  U-->>A: sessions with current and passId (account rows)
+  P->>W: stop(passId) (shut this device out)
+  W-->>P: ok (that pass is refused from now on)
+  P->>B: DELETE /api/home/sessions/{id}
+  B->>U: home.handle -> endSession
+  U->>U: save login-home.json, publish row homeLogin without that token hash
+  U-->>P: {ok:true}
+  B->>B: accept(row): close that session's open /api/events
+  Note over B,W: without the DELETE the session ends at the next ticket check (operator answers 401), at most 10 min + one 60 s sweep
+```
+
+**State of one listed session** (extends section 3)
+
+```mermaid
+stateDiagram-v2
+  [*] --> listed: proof accepted (a row with passId)
+  listed --> ended: DELETE sessions/{id} (end here, now; the app's own stop or sign-out)
+  listed --> ended: the operator refused its pass (stop passId), seen at the next ticket check (at most 10 min + one sweep)
+  listed --> ended: 14 days without use
+  ended --> [*]: the row leaves the list; a later DELETE of the id answers 404 SESSION_NOT_FOUND
+```
+
+The self-exit of every wait here is time: a session whose pass was refused leaves by itself at the next ticket check, and the DELETE only shortens it. Nothing in this API needs a body or usage release beyond library 0.18.5 itself; the platform screens only call the routes above.
+
 ## 5. Wire (library wire v1 mounted under `/api/home`)
 
 Paths, bodies, answers and error codes are exactly `docs/home-wire-v1.md` of the library (the single source; not copied here): `GET session`, `POST login/nonce`, `POST login/prove`, `POST login/console`, `POST session/prove`, `GET sessions`, `DELETE sessions/{id}`, `GET|POST|DELETE addresses`. App kinds the server accepts: `apple`, `windows`, `linux`, `android`. Errors are `{error: CODE}`: `LOGIN_INPUT_INVALID` 400, `NONCE_INVALID` 400, `UNAUTHORIZED` 401, `AUDIENCE_UNKNOWN` 403, `SETUP_CODE_REQUIRED` 403, `LOGIN_CODE_INVALID` 403, `PROOF_REFUSED` 403, `NOT_OWNER_ACCOUNT` 403, `FORBIDDEN` 403 (a valid session refused an action: the app keeps its token), `SESSION_NOT_FOUND` 404, `LOGIN_RATE_LIMITED` 429, `LOGIN_OPERATOR_UNREACHABLE` 503, `SESSION_STORE_UNAVAILABLE` 503. "Cannot judge" is 503, never 401: only a definite 401 deletes the stored token. The app's audience is the origin of the address it connects to; the server never takes its own address from a request, and an address not in the list (an unbound server registers the first with the right setup code) is `AUDIENCE_UNKNOWN`.
@@ -95,7 +145,7 @@ Paths, bodies, answers and error codes are exactly `docs/home-wire-v1.md` of the
 
 1. This page, `flows.md`, `README.md`, `module.json`, `data-flow.md` and `business-artifacts.md` (same diff as the code).
 2. Body first, tolerant (a reader before the writer): the `homeLogin` row (optional, an old child publishes none and stays Legacy), the guard, the marker, `/api/home/*`, the `entitlementState` overlay, the sweep timer, the setup-code print, the console socket. Then the usage child (the part, its methods, the row). Then the console script and the image.
-3. Release order: apps first (they probe `/api/home/session`), body, usage. Enforcement only by the owner's first binding, never by a flag. The vendored library files are a development release (`0.17.0`: `home.mjs` sha256 `a0ebdada…`, `home-guard.mjs` `911236d0…`); the PR is ready only after Mint accepts the final library server version and the files are repinned (hash in the file header).
+3. Release order: apps first (they probe `/api/home/session`), body, usage. Enforcement only by the owner's first binding, never by a flag. The vendored library files are the accepted release `0.18.5` (`login-billing-home-0.18.5.mjs` sha256 `ae37de43550cc8d502c22501913997fa665d640a7e36b4b0fc0de51fc3d71ee0`, `login-billing-home-guard-0.18.5.mjs` sha256 `a375769afe49af4149c289272185bdba5bd339a21aac9c50d5968136861591b3`); they differ from the development release `0.17.0` only by `passId` in the session list (4a) and the version line in the header.
 4. Push tickets (a second change): `ticketFor` = lowercase hex SHA-256 of the device token; the device record in the notifications module keeps the ticket beside `signedTransaction`/`proof`. Starts when Bready fixes the relay request shape.
 5. Host callers (the rabbit secret client at `127.0.0.9`, `submitted-secret-rabbit-client.mjs`) send a console session token as Bearer when `~/.config/bellteam/console-session` of the host user exists, is owned by that user and is mode 0600 (anything looser is ignored). The host makes it once: `bellteam-console issue`, then `POST /api/home/login/console {code}`, and writes the answer's `token` to that file. Needed only once the server is Enforced.
 

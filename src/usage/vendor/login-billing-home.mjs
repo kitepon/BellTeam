@@ -1,4 +1,4 @@
-// @kitepon/login-billing 0.17.0 login-billing-home.mjs
+// @kitepon/login-billing 0.18.5 login-billing-home.mjs
 
 // dist/server/crypto.js
 var encoder = new TextEncoder();
@@ -307,7 +307,15 @@ function createHomePart(config) {
     return s?.ticket && s.tv !== void 0 ? { ticket: s.ticket, value: s.tv } : void 0;
   }
   async function sessions() {
-    return (await current()).sessions.map((s) => ({ id: s.id, kind: s.kind, appKind: s.appKind, state: s.state, created: new Date(s.created).toISOString(), lastUse: new Date(s.lastUse).toISOString() }));
+    return (await current()).sessions.map((s) => ({
+      id: s.id,
+      kind: s.kind,
+      appKind: s.appKind,
+      ...s.kind === "account" && s.pid ? { passId: s.pid } : {},
+      state: s.state,
+      created: new Date(s.created).toISOString(),
+      lastUse: new Date(s.lastUse).toISOString()
+    }));
   }
   async function endSession(sessionId) {
     const ended = await mutate((s) => {

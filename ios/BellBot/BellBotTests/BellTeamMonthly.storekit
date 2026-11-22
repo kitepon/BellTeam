@@ -1,0 +1,41 @@
+{
+  "identifier": "BellTeamMonthlyLocal",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {},
+  "subscriptionGroups": [
+    {
+      "id": "21000001",
+      "localizations": [],
+      "name": "BellTeam",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "980",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6F5A1B20-0000-4000-8000-000000000002",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "BellTeam monthly",
+              "displayName": "BellTeam monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "dev.kitepon.bellbot.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "monthly",
+          "subscriptionGroupID": "21000001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}
