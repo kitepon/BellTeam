@@ -19,12 +19,15 @@ public sealed class AccountDeletionTests
     }
 
     [Fact]
-    public void AFailedSignOutIsListedWithItsReasonAndTheRetryIsNamed()
+    public void AFailedStepIsListedInRapisWordsWithOneOfTheThreeReasons()
     {
         var failed = new DeletionFailures(); Assert.False(failed.Any);
-        failed.Add("BellTeamのサインイン", "届きません");
+        failed.Add("通知の登録", new HttpRequestException("offline"));
+        failed.Add("BellTeamのサインイン", new InvalidOperationException("x"), 503);
+        failed.Add("サーバーのサインイン", new InvalidOperationException("y"), 400);
         Assert.True(failed.Any);
-        Assert.Equal("次のサインインは終えられませんでした。\n・BellTeamのサインイン：届きません\nもう一度「アカウントを削除」を押すと、残りを終えます。", failed.Text);
+        Assert.Equal(string.Join('\n', AccountDeletionText.Failed("通知の登録", AccountDeletionText.NoNetwork), AccountDeletionText.Failed("BellTeamのサインイン", AccountDeletionText.OperatorUnreachable), AccountDeletionText.Failed("サーバーのサインイン", AccountDeletionText.NotProcessed)), failed.Text);
+        Assert.Equal(AccountDeletionText.NoNetwork, DeletionFailures.ReasonOf(new InvalidOperationException("z", new TimeoutException()), 0));
     }
 
     [Fact]

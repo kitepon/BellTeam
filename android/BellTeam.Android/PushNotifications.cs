@@ -103,18 +103,20 @@ public static class PushRegistration
     }
 
     // Before logout or a changed server, on the connection that is still open; a server that cannot be reached does not hold the sign-out back.
-    public static async Task UnregisterAsync(LinuxWorkspace workspace)
+    // Returns null when nothing is left registered, else why the server still holds the token (the account deletion lists it; the other callers go on).
+    public static async Task<Exception?> UnregisterAsync(LinuxWorkspace workspace)
     {
         var prefs = MainActivity.Current.GetSharedPreferences(Prefs, FileCreationMode.Private)!;
         var token = prefs.GetString(TokenKey, null);
-        if (token is null || !workspace.Connected) return;
+        if (token is null || !workspace.Connected) return null;   // shortcut: a server that is not connected cannot be told; revisit if the server expires push tokens itself
         try
         {
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken); limit.CancelAfter(TimeSpan.FromSeconds(3));
             await workspace.Management.Api.PostAsync<Dictionary<string, object?>>("/api/notifications/android/unregister", new { token }, limit.Token);
             prefs.Edit()!.Remove(TokenKey)!.Apply();
+            return null;
         }
-        catch (Exception error) { Log.Warn("BellPush", "unregister failed: " + error.Message); }
+        catch (Exception error) { Log.Warn("BellPush", "unregister failed: " + error.Message); return error; }
     }
 }
 

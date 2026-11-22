@@ -199,11 +199,19 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private async Task DeleteAccountAsync()
     {
         var failed = new DeletionFailures();
-        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException error) { failed.Add("決裁箱のサインイン", StoreAccountText.Failure(error.Code, error.Reason)); }
+        // First, on the live connection: a device whose push token the server still holds would keep getting notifications after the screen said it was deleted (Tronie 2026-11-23). On failure nothing else is touched, so a retry can reach the server.
+        if (await PushRegistration.UnregisterAsync(model) is { } pushFailure)
+        {
+            failed.Add("通知の登録", pushFailure);
+            deletedLayer.Children.Clear();
+            deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionText.FailedTitle, failed.Text, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+            deletedLayer.IsVisible = true;
+            return;
+        }
+        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
         CloseAllPages();
-        await PushRegistration.UnregisterAsync(model);
         var homeEnded = true;
-        if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (HomeLinkException error) { homeEnded = false; failed.Add("サーバーのサインイン", StoreAccountText.Failure(error.Code, error.Status)); }
+        if (home is { } link) try { await link.EndAsync(CancellationToken.None); } catch (Exception error) { homeEnded = false; failed.Add("サーバーのサインイン", error, (error as HomeLinkException)?.Status ?? 0); }
         if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _))
         {
             if (homeEnded) tokens.Clear(ServerOrigin.Parse(server)); else new KeystoreSessionTokenStore().Clear(ServerOrigin.Parse(server));   // the home record stays for the retry
@@ -211,7 +219,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         access.SignOut();
         model.SignOut();
         settings.Save(settings.Load() with { ServerUrl = null });
-        if (AccountStore.Billing is { } lb) try { await lb.SignOutAsync(); } catch (Kitepon.LoginBilling.LoginBillingException error) { failed.Add("BellTeamのサインイン", StoreAccountText.Failure(error.Code, error.Reason)); }
+        if (AccountStore.Billing is { } lb) try { await lb.SignOutAsync(); } catch (Exception error) { failed.Add("BellTeamのサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
         ShowList();
         deletedLayer.Children.Clear();
         deletedLayer.Children.Add(FormKit.AlertFrame(failed.Any ? AccountDeletionText.FailedTitle : AccountDeletionText.ResultTitle, failed.Any ? failed.Text : AccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
