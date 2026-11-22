@@ -32,6 +32,65 @@ flowchart LR
 
 `memory.max` + `memory.stat` (read-only, kernel) -> `memoryPressure` -> `IdleSessions` (sleep sooner) and `LaunchGate` (refuse a sweep prompt). `LaunchGate` keeps only the times of the last launches in memory (a body restart empties it). Nothing is written to Aiterm beyond the existing launch and hibernate calls; the refused delivery is recorded as `failed` with code `BOT_MEMORY_PRESSURE` in the existing receipt history.
 
+## State transitions (a507a)
+
+Two state machines meet at every delivery: the container's memory (what `memoryPressure` + `LaunchGate` read) and a seat (what Aiterm shows). Nothing is stored for either; each is recomputed from the cgroup and from Aiterm on every check or delivery.
+
+### Memory state
+
+`ratio` = cgroup anon / `memory.max` (read every check, 2 s cache). `effective` = (anon + seats launched in the last 30 s x 0.75 GB) / max (what `LaunchGate.tight()` uses: a launch shows in the reading only after it ran). Thresholds: `SOFT` 0.55, `HOLD` 0.70. No reading (`memory.max` is `max`, or the files cannot be read) = `NORMAL`.
+
+```mermaid
+stateDiagram-v2
+  [*] --> NORMAL
+  NORMAL --> SOFT: ratio >= 0.55 (seats launched, turns grow)
+  SOFT --> NORMAL: ratio < 0.55 (early sleep and finished turns freed memory)
+  SOFT --> TIGHT: effective >= 0.70 (more cold launches, or recent launches not yet in the reading)
+  TIGHT --> SOFT: effective < 0.70 (the 30 s window passes, seats sleep, turns end)
+  NORMAL --> TIGHT: effective >= 0.70 (a burst of launches: the recent-launch term alone can do it)
+  TIGHT --> NORMAL: effective and ratio fall below the thresholds
+  NORMAL --> NORMAL: no reading (unknown is not danger)
+```
+
+| State | What `IdleSessions` does | What a Lattice sweep prompt to a cold seat meets |
+| --- | --- | --- |
+| NORMAL (ratio < 55 %, effective < 70 %) | The Owner's rule: a quiet seat sleeps after 10 minutes, checks every 2 minutes | Wakes the seat |
+| SOFT (ratio >= 55 %) | A quiet seat sleeps at the next check (idle time 0), checks every 15 s | Wakes the seat while effective < 70 % |
+| TIGHT (effective >= 70 %) | Same as SOFT (TIGHT implies the early sleep is already running unless the recent-launch term alone made it tight) | Refused: `BOT_MEMORY_PRESSURE`, receipt `failed`, the seat stays as it was |
+
+### Seat state x delivery
+
+Seat states: **never launched** (no Aiterm record), **hibernated** (record, no process; wakes by resume), **dead** (pane left, harness exited, e.g. OOM-killed; wakes by a fresh launch), **warm, turn running**, **warm, turn ended** (quiet: no background work, no child delivery, no pending Approval Box decision). The first three are COLD: a delivery has to launch or resume them in `wakeNow`.
+
+```mermaid
+stateDiagram-v2
+  state "cold (never launched / hibernated / dead)" as COLD
+  state "warm, turn running" as RUN
+  state "warm, turn ended" as QUIET
+  [*] --> COLD
+  COLD --> RUN: delivery from the Owner, a member, a room, a call or another schedule (wakeNow always launches; launched() recorded)
+  COLD --> RUN: Lattice sweep prompt while NOT tight (launched() recorded)
+  COLD --> COLD: Lattice sweep prompt while TIGHT (refused in wakeNow, nothing launched, nothing recorded as a launch)
+  RUN --> QUIET: the turn ends
+  QUIET --> RUN: any delivery (no launch: the seat is warm)
+  QUIET --> COLD: closeIdle (hibernate): SOFT or TIGHT at the next 15 s check; NORMAL after 10 quiet minutes
+  RUN --> COLD: only by OOM kill or a stop (never by this budget: Aiterm refuses to hibernate a running turn)
+```
+
+| Delivery from | Seat COLD, memory not tight | Seat COLD, TIGHT | Seat warm |
+| --- | --- | --- | --- |
+| Owner, member/Bot, room, call, other schedule, other Lattice notice | Wakes it | Wakes it (11-07 ruling) | Sent into the turn or as a new turn, no launch |
+| Lattice sweep prompt (`Lattice: you are not running`, `Lattice: on charts you created`) | Wakes it | **Refused** | Delivered (no launch) |
+
+### How the refusal ends on its own (guards.self-exit)
+
+The refusal is a give-up, so its exit is stated as a transition, not as a hope:
+
+1. Each refusal costs the seat nothing: it stays COLD, no record is kept, nothing is queued. The Lattice sweep (unchanged, every minute) asks again; the first ask after the state left TIGHT goes through.
+2. TIGHT is left by one of: (a) the 30 s window of recent launches expiring (`launched()` times are dropped), (b) a warm seat's turn ending and the seat sleeping at the next 15 s check (SOFT/TIGHT early sleep), (c) memory becoming unreadable (no reading = NORMAL).
+3. The exit needs seat memory to be the part that is high. If the base (body, modules) alone stood at or above 70 % of the limit, no seat sleeping could bring the ratio down and sweep prompts to cold seats would stay refused; cold launches are not safe in that state either, and every other sender still wakes its seat. The base is about 6 of 20 GiB today (30 %); this is the named limit of the exit, not a case seen.
+4. A refused sweep prompt is recorded once per attempt as a failed delivery with `BOT_MEMORY_PRESSURE` and produces no BugHub report, so a long TIGHT period leaves history lines, not a pile of reports or a queue.
+
 ## Why a505c did not fire in lab Z172 (a505d, 2026-11-22)
 
 `createManagedTransport` builds the production transport with `executionBridge: null` and nothing sets it later, so production delivers through the legacy path of `AitermTransport.dispatch` (send first, wake when the seat has no registration), never through `dispatchExecution`. a505c asked in `dispatchExecution` only. The refusal now sits in `wakeNow`, which both paths and the resume path of a hibernated seat go through, and the tests drive the production path (`createManagedTransport`'s shape: no bridge, a never-launched seat) as well as the bridge path.
