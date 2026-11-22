@@ -60,10 +60,11 @@ export async function startDevOperator({ port = 8790, publicUrl, dataDir = '.dev
     }
     return kit.fetch(input, init)
   }
+  // storeAnswerMinutes 0: a store answer is never kept, so /dev/store-end shows at the next read (the library keeps one for 10 minutes by default).
   const storage = new MemoryStorage()
   const worker = createLoginBillingWorker({
     storage: () => storage,
-    extra: { fetch: fakeFetch, stores: { apple: kit.appleStore(product.bundleId), google: kit.googleStore(product.bundleId) } },
+    extra: { storeAnswerMinutes: 0, fetch: fakeFetch, stores: { apple: kit.appleStore(product.bundleId), google: kit.googleStore(product.bundleId) } },
   })
 
   // Dev-only routes: the fake keys live in this process, so the id token for this server is made here.
