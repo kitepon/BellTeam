@@ -219,6 +219,9 @@ private struct RootView: View {
                     PreviewAvatarCropView()
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-server-setup") {
                     ServerSetupView()
+                } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-billing") {
+                    // 切替の版の画面確認（a485）: 設定の「利用と課金」の2枚のカードだけ。本番の運営のURLで起動して見る。
+                    ScrollView { VStack(spacing: 16) { StoreAccountCard(); SubscriptionCard() }.padding() }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {
                     NavigationStack { ConversationView(target: .bot("bot-one")) }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
