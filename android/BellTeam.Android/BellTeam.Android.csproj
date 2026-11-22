@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-android</TargetFramework>
-    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
     <OutputType>Exe</OutputType>
     <!-- Same assembly name as the Windows and Linux apps: BellTeam.Core's InternalsVisibleTo("BellTeam") and avares://BellTeam/ resolve. -->
     <AssemblyName>BellTeam</AssemblyName>
@@ -16,7 +16,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../linux/BellTeam.Linux/*.cs" Exclude="../../linux/BellTeam.Linux/Program.cs;../../linux/BellTeam.Linux/App.cs;../../linux/BellTeam.Linux/MainWindow*.cs;../../linux/BellTeam.Linux/Launcher*.cs;../../linux/BellTeam.Linux/*Render.cs;../../linux/BellTeam.Linux/*Fixture.cs;../../linux/BellTeam.Linux/SingleInstance.cs" LinkBase="LinuxViews" />
+    <Compile Include="../../linux/BellTeam.Linux/*.cs" Exclude="../../linux/BellTeam.Linux/Program.cs;../../linux/BellTeam.Linux/App.cs;../../linux/BellTeam.Linux/MainWindow*.cs;../../linux/BellTeam.Linux/Launcher*.cs;../../linux/BellTeam.Linux/*Render.cs;../../linux/BellTeam.Linux/*Fixture.cs;../../linux/BellTeam.Linux/SingleInstance.cs;../../linux/BellTeam.Linux/LinuxAccount*.cs" LinkBase="LinuxViews" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeam.png" />
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
@@ -29,6 +29,12 @@
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
+    <!-- a485 (contract 1.20): Google sign-in, the pass and Play purchases through the library's android part. 0.18.4 is a development release: nothing built on it ships. -->
+    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.18.4" />
+    <!-- Approving another device: Google's code scanner reads the QR (Play services, no camera permission of ours). -->
+    <PackageReference Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.17" />
+    <!-- The binding gives the QR text only (LoginStart.QrPayload); this pure managed encoder (MIT) draws it. -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Firebase client settings from the Firebase console (Sielo, a379). Without the file the app builds and runs, and push registration stays off. -->
     <GoogleServicesJson Include="google-services.json" Condition="Exists('google-services.json')" />
     <PackageReference Include="Avalonia.Android" Version="12.1.6" />

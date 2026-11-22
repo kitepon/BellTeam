@@ -19,6 +19,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
     private readonly ISessionTokenStore tokens;
+    // a492: a home server (login-billing HomeConnection); null in tests and renders, which then connect as before.
+    private readonly IHomeLink? home;
+    private HomeProbe? homeBinding;
     private readonly DesktopNotifications? notifications;
     private StartupPhase startup = StartupPhase.Ready;
     private int connectGeneration;
@@ -101,9 +104,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // The open settings page (hosted content of a never-shown EditorWindow) and its notification switch; the notification delivery port supplies its own switch.
     private SettingsWindow? settingsPage;
 
-    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null, ISessionTokenStore? tokens = null)
+    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null, ISessionTokenStore? tokens = null, IHomeLink? home = null)
     {
-        this.tokens = tokens ?? new MemorySessionTokenStore(); this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
+        this.home = home; this.tokens = tokens ?? new MemorySessionTokenStore(); this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
         model.ThisPc = new NoThisPc(); // 16c reads the Windows OpenSSH host-key path
         Title = "BellTeam"; Width = 1280; Height = 820; MinWidth = 1100; MinHeight = 640;
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
@@ -129,7 +132,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         // The separate windows read through this workspace, so they end with the main window.
         Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); ApprovalsWindow.Current?.Close(); approvals.Dispose(); (startupHost.Child as IDisposable)?.Dispose(); };
         // Mac scenePhase .active: coming back to the window reads the goals again.
-        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); };
+        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); LinuxAccountStore.NoteForeground(); };
         if (persistPlacement) RestorePlacement();
     }
 
@@ -748,11 +751,25 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // a485: a server that enforces app sessions is answered by its own login (the code screen); a server without them keeps today's view. A refused stored token is gone for good.
     private Control SignInView()
     {
+        if (homeBinding is { } probe) return new HomeConnectView(home!, probe, "linux", ServerOrigin.Parse(model.Server), () => { homeBinding = null; _ = ConnectAsync(model.Server); }, OpenConnectionSettings);
         if (!model.SessionLoginRequired) return new LoginView(OpenConnectionSettings);
         var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
         return new ConnectView(new LoginApi(model.Management.Api), "linux", origin, tokens, () => _ = ConnectAsync(model.Server), OpenConnectionSettings);
     }
-    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); }
+    private void RouteToLogin()
+    {
+        if (!model.NeedsLogin || connecting || startup == StartupPhase.SignIn) return;
+        // A home server's 401: the library has dropped its record; connecting again asks to log in at the home server (the gate in ConnectAsync).
+        if (home?.Token(ServerOrigin.Parse(model.Server).AbsoluteUri) is not null) { tokens.Clear(ServerOrigin.Parse(model.Server)); _ = ConnectAsync(model.Server); return; }
+        ShowStartup(StartupPhase.SignIn);
+    }
+
+    // a492: a home server with no kept login is answered by its own login screen before anything else is read; true when that screen is up.
+    private async Task<bool> BindFirstAsync(Uri origin)
+    {
+        if (home is null || await HomeGate.MustBindAsync(home, origin, CancellationToken.None) is not { } probe) return false;
+        homeBinding = probe; ShowStartup(StartupPhase.SignIn); return true;
+    }
 
     // Mac changeServer: the server entry screen replaces the window. The saved address stays until a new one is entered, so it is offered again.
     private async Task ChangeServerAsync(string address)
@@ -780,7 +797,11 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         if (!(automatic && startup == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
         try
         {
+            var origin = ServerOrigin.Parse(address);
+            if (await BindFirstAsync(origin)) return;
             await model.ConnectAsync(address);
+            // A 401 on the first read: the kept home login is gone; ask for it again.
+            if (model.NeedsLogin && home?.Token(origin.AbsoluteUri) is not null) { tokens.Clear(origin); if (await BindFirstAsync(origin)) return; }
             await EnterAsync(generation);
         }
         catch (ArgumentException error) { if (generation == connectGeneration) ShowStartup(StartupPhase.Failure, error.Message); }

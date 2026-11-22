@@ -26,6 +26,13 @@ public static class StoreAccountText
     public const string SignedOut = "サインインしていません。";
     public const string SignIn = "Googleでサインイン";
     public const string SignedIn = "Googleでサインイン中";
+    // Desktop (Linux, Windows): the library signs in through the system browser and returns to a loopback address; no purchase happens here (login-billing 0.14.0). Provisional words, like the rest.
+    public const string SignInApple = "Appleでサインイン";
+    public const string SigningInWeb = "ブラウザーでのサインインを待っています…";
+    public const string SigningInWebCancel = "やめる";
+    public const string StopAllOthersWhyWeb = "このアカウントでログインしている、ほかのすべての端末を止めます。この端末は使い続けられます。ブラウザーでもう一度サインインします。サインインに使ったほうを選んでください。";
+    public const string StopAllOthersGoogle = "Googleで止める";
+    public const string StopAllOthersApple = "Appleで止める";
     public const string SignedInBrowser = "ブラウザーでサインイン中";
     public const string WebCannotBuy = "ブラウザーでサインインした端末では、ここで購入できません。購読しているスマホから引き継いでください。";
     public const string HandoffCancel = "やめる";
@@ -45,6 +52,25 @@ public static class StoreAccountText
     public const string HandoffCheckNumber = "確認番号";
     public const string HandoffCheckLine = "スマホに出る確認番号が同じか、見比べてください。";
     public const string HandoffWaiting = "スマホの承認を待っています…";
+    // The phone that holds the contract (a store pass) lets another device in, and lists and stops the devices it let in (contract 1.20; a desktop is only ever the device that gets approved). Provisional words.
+    public const string ApproveTitle = "ほかの端末のログインを許可する";
+    public const string ApproveLead = "ログインしたい端末に出ているQRを読み取るか、コードを入れてください。";
+    public const string ApproveScan = "QRを読み取る";
+    public const string ApproveCodeLabel = "コード";
+    public const string ApproveCodeGo = "続ける";
+    public const string ApproveCheckLine = "ログインしたい端末に出ている確認番号と同じか、見比べてください。";
+    public const string ApproveOwnLine = "自分で始めたログインだけ許可してください。";
+    public const string ApproveYes = "許可";
+    public const string ApproveNo = "許可しない";
+    public const string ApprovedLine = "許可しました。";
+    public const string DeclinedLine = "許可しませんでした。";
+    public const string NotNeededLine = "その端末はすでに使えます。";
+    public const string ApproveScanFailed = "QRを読み取れませんでした。コードを入れてください。";
+    public const string ApproveConfirmAsk = "このログインを許可しますか？";
+    public static string ApproveDevice(string label) => "端末：" + label;
+    public const string LinkedTitle = "許可した端末";
+    public const string LinkedNone = "許可した端末はありません。";
+    public const string LinkedStop = "止める";
     public const string AlreadyEntitled = "すでに使えます。";
     public const string GateNext = "サーバーにつなぐ";   // provisional (Tronie/Mika): the step after the account on first run
     public const string NotConfigured = "購読の接続先がまだ決まっていません。";
@@ -56,6 +82,9 @@ public static class StoreAccountText
     {
         "product_unknown" => "この商品はまだ読み込めていません。もう一度お試しください。",
         "pass_invalid" => "サインインし直してください。",
+        "signin_cancelled" => "サインインをやめました。",
+        "return_not_received" => "サインインの結果が戻ってきませんでした。もう一度お試しください。",
+        "pass_store_unavailable" => "この端末のサインイン情報を読めません。いったんサインアウトしてから、もう一度サインインしてください。",
         _ => "うまくいきませんでした（" + code + (reason is { } number ? " " + number : "") + "）。",
     };
 }
