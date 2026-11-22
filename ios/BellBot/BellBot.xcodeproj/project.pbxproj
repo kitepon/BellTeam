@@ -59,6 +59,7 @@
 		28EC3BBB6D3B44C9964AA634 /* WorkGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AA940588176E122E90B54C /* WorkGraphView.swift */; };
 		29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */; };
 		2DAAB4573CA415B796EC7919 /* BotPinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF17AABDF93B527CD81DE09 /* BotPinTests.swift */; };
+		30498C15A4812078C6CA0756 /* AccountDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF542E98581B0EB54522E39A /* AccountDeletionTests.swift */; };
 		304A7DC6BEF79E723AA6A0B9 /* ConversationList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */; };
 		32AD929CCD1343444987CFE1 /* StoreAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB6C3A43320220B41AE46E08 /* StoreAccountView.swift */; };
 		3391D0836BD773E3AEB65F67 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF09858FAA98BE09EEF4582 /* UpdateModels.swift */; };
@@ -491,6 +492,7 @@
 		FD0578B483DDFB2C9E74B797 /* SSHHostKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostKeyTests.swift; sourceTree = "<group>"; };
 		FD6192EB2C414C2CFE144DCD /* LatticeTabletUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatticeTabletUITests.swift; sourceTree = "<group>"; };
 		FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSendTests.swift; sourceTree = "<group>"; };
+		FF542E98581B0EB54522E39A /* AccountDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionTests.swift; sourceTree = "<group>"; };
 		FF98EC1BA8F9837664FF94DC /* LatticeChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatticeChart.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -547,6 +549,7 @@
 		295E5C10C2853D11253E5342 /* BellBotTests */ = {
 			isa = PBXGroup;
 			children = (
+				FF542E98581B0EB54522E39A /* AccountDeletionTests.swift */,
 				32531494CC727C6D89D3A94F /* AIControlTests.swift */,
 				D15EFB50FA62BBBDE16CDF8A /* ApprovalBoxLinkTests.swift */,
 				DE37937D59AFF2E08B20113D /* ApprovalBoxLiveTests.swift */,
@@ -1291,6 +1294,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */,
+				30498C15A4812078C6CA0756 /* AccountDeletionTests.swift in Sources */,
 				DB41E6B7215CC96BDB79D741 /* ApprovalBoxLinkTests.swift in Sources */,
 				F4A1A6C4D5F3893842A41C3A /* ApprovalBoxLiveTests.swift in Sources */,
 				823ED4141BA6256BC55D2A52 /* ApprovalsTests.swift in Sources */,

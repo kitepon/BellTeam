@@ -120,7 +120,7 @@ final class BellAPI {
         return decoder
     }()
 
-    init(baseURL: URL?, session: URLSession = URLSession(configuration: .default), diagnostics: BellDiagnostics = .shared, cookieStorage: HTTPCookieStorage = .shared) {
+    init(baseURL: URL?, session: URLSession = URLSession(configuration: .default, delegate: BearerRedirectGuard(), delegateQueue: nil), diagnostics: BellDiagnostics = .shared, cookieStorage: HTTPCookieStorage = .shared) {
         self.baseURL = baseURL
         self.session = session
         self.diagnostics = diagnostics
@@ -509,6 +509,16 @@ final class BellAPI {
             let body = try? decoder.decode(ErrorBody.self, from: data)
             throw BellAPIError.httpStatus(http.statusCode, body?.message ?? body?.reason ?? body?.error)
         }
+    }
+}
+
+/// B5（Mintの適合確認）: セッションのトークンを付けた要求は、どこへのリダイレクトも辿らない（トークンを別のホストへ渡さない）。
+/// 付けていない要求（Cloudflare Accessの旧経路の最初の読み取りなど）は今までどおり辿る。
+final class BearerRedirectGuard: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(task.originalRequest?.value(forHTTPHeaderField: "Authorization") == nil ? request : nil)
     }
 }
 

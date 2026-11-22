@@ -3,6 +3,17 @@ import SwiftUI
 
 /// 利用と課金の「BellTeamのアカウント」: Appleでサインイン・購入・サーバーの承認・承認した端末の一覧と停止。
 /// 接続先（運営のWorker）が設定されるまでは出さない。
+/// 「アカウントを削除」はこのカードの最後に置く（App Reviewの要件。Windows・Linux・Androidはこの置き場と文をそのまま写す）。
+enum AccountDeletionWords {
+    static let button = "アカウントを削除"
+    static let title = "アカウントを削除しますか？"
+    static let confirm = "削除する"
+    static let cancel = "やめる"
+    static let message = "この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、このアカウントに結びつけた情報を持っていません。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。"
+    static let doneTitle = "アカウントを削除しました"
+    static let done = "この端末のサインインとデータを消しました。ログインの運営には、このアカウントの情報は残っていません。購読を止めるには、Apple Accountの購読の管理から解約してください。"
+}
+
 struct StoreAccountCard: View {
     @EnvironmentObject private var appStore: AppStore
     var body: some View { Content(account: appStore.storeAccount) }
@@ -11,6 +22,8 @@ struct StoreAccountCard: View {
         @ObservedObject var account: StoreAccount
         @State private var code = ""
         @State private var scanning = false
+        @State private var deleting = false
+        @EnvironmentObject private var appStore: AppStore
 
         var body: some View {
             if account.configured {
@@ -27,7 +40,15 @@ struct StoreAccountCard: View {
                     }
                     if let message = account.message { Text(message).font(BellTheme.secondaryFont) }
                     if let error = account.errorText { Text(error).font(BellTheme.secondaryFont).foregroundStyle(.red) }
+                    Divider()
+                    Button(AccountDeletionWords.button, role: .destructive) { deleting = true }
+                        .buttonStyle(.bordered).disabled(account.busy)
+                        .accessibilityIdentifier("store-delete-account")
                 }
+                .confirmationDialog(AccountDeletionWords.title, isPresented: $deleting, titleVisibility: .visible) {
+                    Button(AccountDeletionWords.confirm, role: .destructive) { Task { await appStore.deleteAccount() } }
+                    Button(AccountDeletionWords.cancel, role: .cancel) { }
+                } message: { Text(AccountDeletionWords.message) }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20).bellCard()
                 .task { await account.start() }
@@ -117,10 +138,11 @@ struct StoreAccountCard: View {
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("ログインを許可しますか").font(.title2.bold())
-                Text(prompt.deviceLabel).font(.headline)
+                // 端末が自分でつけた名前。こちらで確かめた事実ではない（SEC-059）。
+                Text("この端末が名乗っている名前：「\(prompt.deviceLabel)」").font(.headline)
                 Text("確認番号 \(prompt.checkNumber)").font(.system(.title, design: .monospaced).bold())
                     .accessibilityIdentifier("store-check-number")
-                Text("自分で始めたログインだけ許可してください。その端末が目の前にあり、同じ番号が出ているか確かめてください。")
+                Text("名前は相手が自分でつけたもので、確かめたものではありません。自分で始めたログインだけ許可してください。その端末が目の前にあり、同じ番号が出ているか確かめてください。")
                     .font(.subheadline).foregroundStyle(BellTheme.muted)
                 HStack {
                     Button("許可") { onAnswer(true) }.buttonStyle(.bellPrimary).accessibilityIdentifier("store-allow")

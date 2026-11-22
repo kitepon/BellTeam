@@ -79,24 +79,21 @@ flowchart LR
 | imageData | 不正ID/未保存はnil、読取失敗/不正画像はthrow。IDは1〜64文字、先頭ハイフン不可、小文字英数字とハイフンだけ |
 | 途中失敗 | 複数fileとversionsを一括rollbackする処理はない。呼出元は失敗を受ける。通知拡張はその時の読取結果で元通知へ戻す |
 
-## 購読・復元とAI利用
+## 購読・復元とAI利用（a485 switch：購入はライブラリ、アプリは何も終えない）
 
 ```mermaid
 flowchart TD
-  Store["AppStore所有BillingStore"] --> Server["GET /api/subscription<br/>本体状態・developer判定"]
-  Server --> Apple["StoreKit currentEntitlements<br/>本人の購入・失効・更新状態確認"]
-  Apple --> Access["entitlement / currentTransaction<br/>UIとAI利用判定・push署名へ"]
-  Buy["SubscriptionView購入<br/>商品取得・setup完了を確認"] --> Transaction["StoreKit purchase / Transaction.updates"]
-  Restore["復元<br/>AppStore.sync → 本人権利確認"] --> Transaction
-  Transaction --> Verify["verified・対象商品<br/>権利再確認→POST /api/subscription/verify"]
-  Verify --> Finish["応答statusを適用→transaction.finish<br/>応答errorはその後検査"]
-  Server --> Sources["status.billingSources / canPurchase (a389)<br/>課金中の購入元と購入可否"]
-  Sources --> Manage["購入元の行に「購読を管理・解約」<br/>apple/google=各ストアのページを開く<br/>stripe=POST /api/subscription/stripe/manage→url→システムブラウザ"]
-  Manage --> Back["ブラウザから戻る(scenePhase active)<br/>POST /api/subscription/refresh"]
-  Sources --> Gate["canPurchase=falseなら購入ボタンを出さずpurchaseも拒否<br/>(二重請求を起こさない)"]
+  Store["AppStore所有BillingStore"] --> Server["GET /api/subscription&lt;br/&gt;サーバー自身の答え（entitlementState）・developer判定"]
+  Lib["StoreAccount（ライブラリ）&lt;br/&gt;店のパスの権利（hasLiveContract）"] --> Access
+  Server --> Access["AppAccess.permitsAI&lt;br/&gt;developer / 初期guide / サーバーがactive / ライブラリの権利のどれか"]
+  Buy["「BellTeamのアカウント」カードの購入&lt;br/&gt;StoreAccount.purchase（購入の印つき）"] --> Lib
+  Restore["復元&lt;br/&gt;AppStore.sync → ライブラリのstart（アプリは取引を終えない）"] --> Lib
+  Access --> UI["UI・AI送信・共有拡張（サーバーの答えで開く）"]
+  Server --> Wall["entitlementState none → 購読が要る画面（SubscriptionRequiredView）"]
 ```
 
-根拠：[BillingStore](../../../../ios/BellBot/BellBot/Core/BillingStore.swift#L54)、[AppleSubscriptionAccess](../../../../ios/BellBot/BellBot/Core/AppleSubscriptionAccess.swift#L3)、[SubscriptionContent](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift#L12)。
+
+根拠：[BillingStore](../../../../ios/BellBot/BellBot/Core/BillingStore.swift)、[SubscriptionContent](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift)、[login-billing.md](login-billing.md)の切替の版。
 
 | 操作・状態 | 契約 |
 | --- | --- |

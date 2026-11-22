@@ -74,6 +74,8 @@ final class AppStore: ObservableObject {
     }
 
     @Published var phase: Phase = .checking
+    /// 「アカウントを削除」が終わった。最初の画面に戻った上で、結果を1回だけ伝える。
+    @Published var accountDeleted = false
     @Published private(set) var serverURL: URL?
     /// 本体のログイン契約の探査結果（GET /api/session）。古い本体はnilで、従来のAccess経路を使う。
     private(set) var loginProbe: SessionResponse.Login?
@@ -1053,6 +1055,16 @@ final class AppStore: ObservableObject {
         if case BellAPIError.accessLoginRequired = error { authMode = "cloudflare" }
         openLoginAutomatically = authMode == "cloudflare"
         requireLogin()
+    }
+
+    /// 「アカウントを削除」（a485 switch、Tronieの裁定。App Reviewの要件）。この端末のサインインをここで届く限りすべて終え、パス・鍵・保存したデータを消す。
+    /// 運営のログイン部品はこのアカウントに結びつけた情報を持たない。購読はAppleのものなので、自動では解約しない。
+    func deleteAccount() async {
+        await approvals.link.deleteLocalData()
+        await changeServer()
+        await storeAccount.deleteLocalAccount()
+        UserDefaults.standard.removeObject(forKey: "bellbot.pushToken")
+        accountDeleted = true
     }
 
     func signOut() async {

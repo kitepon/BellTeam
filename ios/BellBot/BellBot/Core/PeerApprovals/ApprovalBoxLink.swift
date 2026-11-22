@@ -45,7 +45,7 @@ final class ApprovalBoxLink: ObservableObject {
     private var attempt = 0
     private var started = false
 
-    init(origin: URL = ApprovalBoxLink.origin, passStore: PassStore = KeychainPassStore(service: ApprovalBoxLink.passService), deviceStore: PeerDeviceStore = PeerDeviceStore(),
+    init(origin: URL = ApprovalBoxLink.origin, passStore: PassStore = KeychainPassStore(service: ApprovalBoxLink.passService, accessGroup: StoreAccount.passGroup), deviceStore: PeerDeviceStore = PeerDeviceStore(),
          historyRoot: URL = URL.applicationSupportDirectory.appending(path: "ApprovalBox/Peer"), label: String? = nil, platform: String? = nil,
          sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }) {
         self.origin = origin
@@ -197,6 +197,12 @@ final class ApprovalBoxLink: ObservableObject {
         Task { await stopPeer(); try? await client?.signOut() }
         started = false
         state = .signedOut(note: ApprovalBoxWords.passEnded)
+    }
+
+    /// 「アカウントを削除」（BellTeamのアカウントの削除）の一部: この端末の決裁箱のサインイン・端末の鍵・レジストリ・履歴を消す。Approval Box 自身のアカウントはここでは消さない。
+    func deleteLocalData() async {
+        await accountDeleted()
+        state = .signedOut(note: nil)
     }
 
     /// 4410: the account is gone. This instance's pass, the device keys, the registry copy and the history are cleared.

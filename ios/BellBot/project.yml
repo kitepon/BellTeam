@@ -66,6 +66,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
+        # 店のパス・K・決裁箱のパス・ホームのトークンは、共有拡張が持つ.shareではなく、アプリ自身のグループに置く（a485 switch、Tronieの裁定）。
+        BellTeamPassKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         # 運営のWorker（共通ログイン・課金ライブラリの接続先）。未設定の間は店の側の画面を出さない。
         BellTeamLoginBillingURL: $(BELLTEAM_LOGIN_BILLING_URL)
         NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するためにローカルネットワークを使います。
@@ -114,10 +116,13 @@ targets:
           - group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         com.apple.developer.usernotifications.communication: true
         keychain-access-groups:
+          - $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
           - $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         com.apple.developer.applesignin:
           - Default
         com.apple.developer.associated-domains:
+          - applinks:bellteam-login.kitepon.dev
+          - webcredentials:bellteam-login.kitepon.dev
           - applinks:bellteam-login-real.kitepon.dev
           - webcredentials:bellteam-login-real.kitepon.dev
     dependencies:
