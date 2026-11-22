@@ -142,6 +142,8 @@ class EmergencyBodyTests(unittest.TestCase):
         self.assertEqual(outcome['previous'], {'state': 'absent'})
         self.assertEqual(outcome['result']['verification'], 'succeeded', outcome)
         self.assertEqual(outcome['result']['rollback'], 'not_needed')
+        # the fixture, like install.sh, saves no previous-runtime.json without an old body: not a failed cleanup
+        self.assertEqual((outcome['result']['cleanup'], outcome['result']['error']), ('not_needed', None))
         self.assertEqual(self.updater.old, emergency.ABSENT)
         # the same run with a failing installer: no previous model was saved, so there is nothing to roll back to
         (self.install / 'applied').unlink(); shutil.rmtree(self.install / '.bellteam-compose.ABC123', ignore_errors=True)

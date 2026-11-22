@@ -88,6 +88,9 @@ def emergency(updater, reference, local, own_source, own_image):
     directory = updater.state / 'operations' / identifier
     directory.mkdir(mode=0o700, parents=True)
     result = updater.install(plan, directory)
+    if status == 'absent' and result.get('cleanup') == 'failed' and result.get('error') == 'HOST_UPDATE_CLEANUP_FAILED':
+        # No old body means no previous-runtime.json to name an old image: nothing was left to clean, not a failed cleanup.
+        result = {**result, 'cleanup': 'not_needed', 'error': None}
     log = directory / 'installer.log'
     return {'result': {key: result[key] for key in ('execution', 'verification', 'cleanup', 'rollback', 'error')},
             'previous': {'state': status}, 'installerLog': log.read_text(errors='replace')[-20000:] if log.exists() else ''}
