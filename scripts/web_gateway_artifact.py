@@ -252,7 +252,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/http-response.mjs',
     'src/idle-sessions.mjs',
     'src/json-file.mjs',
-    'src/launch-line.mjs',
+    'src/launch-gate.mjs',
     'src/machine-stream-reader.mjs',
     'src/mcp-request-context.mjs',
     'src/members-admission.mjs',

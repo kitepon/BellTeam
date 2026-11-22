@@ -21,7 +21,7 @@ import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuati
 import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
-import { LaunchLine } from './launch-line.mjs'
+import { LaunchGate } from './launch-gate.mjs'
 import { memoryPressure } from './memory-pressure.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { aitermFailureCause, baseHarness } from './agent-launch-error.mjs'
@@ -106,6 +106,8 @@ const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'u
 const WOKEN_SEND_ATTEMPTS = 3
 // Pre-input refusals of a live seat that clear by themselves (slow readiness, previous input still being taken).
 const RESENDABLE = ['BOT_INPUT_NOT_READY', 'BOT_SEND_BUSY']
+// The periodic Lattice sweep prompt to a Bot that is not running (the scheduler nudge); other Lattice notices are not it.
+const SWEEP_PROMPT = /^Lattice: you are not running\b/u
 // The words may already be in the CLI: Aiterm or the RPC could not tell, or Aiterm says not to resend.
 const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
   || String(error.message).includes('再送しないでください')
@@ -140,8 +142,8 @@ export function turnFailureWords(message) {
 }
 
 export function createManagedTransport({ client = new AitermClient(), pressure = memoryPressure(), ...options } = {}) {
-  // a505b (memory-budget.md): the production transport has the launch line; tests build AitermTransport directly and get none.
-  return new AitermTransport({ launchLine: new LaunchLine({ pressure }), ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
+  // a505c (memory-budget.md): the production transport has the launch gate; tests build AitermTransport directly and get none.
+  return new AitermTransport({ launchGate: new LaunchGate({ pressure }), ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
 }
 
 // One native.pin() for an execution operation and the operations bound to its native values
@@ -174,8 +176,8 @@ const resumedRunningFastKept = (bot, receipt) => bot.fastMode === true && receip
   && receipt.startup?.reason === 'turn_running' && receipt.fast_error?.code === 'FAST_MODE_UNCONFIRMED'
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchLine = null } = {}) {
-    this.launchLine = launchLine
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchGate = null } = {}) {
+    this.launchGate = launchGate
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -271,6 +273,7 @@ export class AitermTransport {
       session: bot => this.session(bot),
       observe: bot => this.observe(bot),
       wake: (bot, options) => this.wake(bot, options),
+      refuseSweepUnderPressure: job => this.refuseSweepUnderPressure(job),
       imageFiles: (images, files) => this.imageFiles(images, files),
       removeTemporaryImages: files => this.removeTemporaryImages(files),
     }
@@ -415,6 +418,15 @@ export class AitermTransport {
     }, options))
   }
 
+  // a505c (memory-budget.md): while the container's memory is full, a Lattice sweep prompt that would start a cold seat is refused. The sweep
+  // asks again next minute, so there is no line. Anything else (Owner, members, rooms, calls, other schedules) is never refused (11-07 ruling).
+  async refuseSweepUnderPressure(job) {
+    if (job.info?.from !== 'scheduler' || !SWEEP_PROMPT.test(job.info.message ?? '') || !await this.launchGate?.tight()) return
+    job.deliveryStage = 'BOT_MEMORY_PRESSURE'
+    throw Object.assign(new Error('BOT_MEMORY_PRESSURE'), { code: 'BOT_MEMORY_PRESSURE', status: 503, effect: 'not_started',
+      executionError: { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_BUSY', effect: 'not_started', follow_up: 'none' } })
+  }
+
   async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck, sessionName = null } = {}) {
     if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease, admissionCheck, sessionName }))
     this.membersAdmission.assertLease(membersLease)
@@ -444,11 +456,8 @@ export class AitermTransport {
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      // a505b (memory-budget.md): a cold launch waits its turn while the container's memory is full; it never fails the delivery.
-      await this.launchLine?.enter(bot.id)
-      this.membersAdmission.assertLease(membersLease)
-      this.requireStopVersion(bot.id, version)
-      admissionCheck?.()
+      // a505c (memory-budget.md): every cold launch counts for the next 30 s, so a refusal sees what is about to be used.
+      this.launchGate?.launched()
       let launchArgs = {
         harness,
         cwd: bot.project,
@@ -1379,7 +1388,7 @@ export class AitermTransport {
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
           failureStatusSaved = true
-          if (!acknowledged && !job.stopped && !awaitingUser && !swapped && error.code !== 'BOT_IMAGE_UNSUPPORTED') await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
+          if (!acknowledged && !job.stopped && !awaitingUser && !swapped && error.code !== 'BOT_IMAGE_UNSUPPORTED' && error.code !== 'BOT_MEMORY_PRESSURE') await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage, aitermFailureCause(error))
         } catch (callbackError) { if (!conversationDelivery) throw callbackError }
         finally { if (!acknowledged) rejectAcceptance(error) }
         throw error
