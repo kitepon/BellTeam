@@ -6,8 +6,8 @@ namespace BellTeam.Linux;
 public sealed class AccountDeletionTests
 {
     // Rapi's Mac reference (docs/architecture/modules/apple/account-deletion.md) is the contract: only the subscription sentences may differ per platform.
-    private const string AppleMessage = "この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、このアカウントに結びつけた情報を持っていません。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。";
-    private const string AppleDone = "この端末のサインインとデータを消しました。ログインの運営には、このアカウントの情報は残っていません。購読を止めるには、Apple Accountの購読の管理から解約してください。";
+    private const string AppleMessage = "この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、名前・メールアドレス・購入の記録を持っていません。ログインの運営に残るのは、止めたパスのランダムな番号と、「ほかの端末をすべて止める」を使った時のアカウントの番号とその時刻だけで、どちらも最長14日で消えます。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。";
+    private const string AppleDone = "この端末のサインインとデータを消しました。ログインの運営に残るのは、止めたパスのランダムな番号と、「ほかの端末をすべて止める」を使った時のアカウントの番号とその時刻だけで、どちらも最長14日で消えます。購読を止めるには、Apple Accountの購読の管理から解約してください。";
 
     [Fact]
     public void TheWordsAreTheMacReferenceWithOnlyTheStoreSentencesChanged()

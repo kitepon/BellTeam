@@ -519,6 +519,13 @@ public partial class MainWindow : Window, IInspectorHost
     // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md). Order: the server session (the one step that reaches the network), the Approval Box sign-in and device data, the home record, notifications, web login,
     // the library's signOut (local only: it returns without a call, offline too), the saved address; then the first screen and one result. Other devices are not stopped.
     // The result is told only when every step returned. A step that fails stops here, names what it could not remove and why, and keeps the page: pressing again runs the steps again (each one is safe to repeat).
+    // The three reasons the reference allows: a network failure anywhere in the chain, the login operator answering 5xx, anything else.
+    internal static string ReasonOf(Exception error)
+    {
+        for (var e = error; e is not null; e = e.InnerException)
+            if (e is System.Net.Http.HttpRequestException or System.Net.Sockets.SocketException or TimeoutException) return AccountDeletionText.NoNetwork;
+        return error is Kitepon.LoginBilling.Desktop.LoginBillingException { Status: >= 500 } ? AccountDeletionText.OperatorUnreachable : AccountDeletionText.NotProcessed;
+    }
     internal async Task DeleteAccountAsync()
     {
         signingOut = true;
@@ -526,18 +533,18 @@ public partial class MainWindow : Window, IInspectorHost
         {
             (string What, Func<Task> Run)[] steps =
             [
-                ("サーバー側のログイン", () => AccountStore.Home is { } home ? home.EndHomeSessionAsync() : Task.CompletedTask),
-                ("決裁箱のサインインと鍵", () => approvalBox?.DeleteLocalDataAsync(CancellationToken.None) ?? Task.CompletedTask),
+                ("BellTeamのサーバーのログイン", () => AccountStore.Home is { } home ? home.EndHomeSessionAsync() : Task.CompletedTask),
+                ("決裁箱のサインイン", () => approvalBox?.DeleteLocalDataAsync(CancellationToken.None) ?? Task.CompletedTask),
                 ("サーバーのトークン", () => { AccountStore.ForgetHome(); return Task.CompletedTask; }),
                 ("通知の登録", () => notifications?.SetEnabledAsync(false, persist: false) ?? Task.CompletedTask),
                 ("Webのログイン", () => access?.SignOutAsync() ?? Task.CompletedTask),
-                ("店のパスとアカウントの番号", () => AccountStore.Billing?.SignOutAsync(CancellationToken.None) ?? Task.CompletedTask),
+                ("BellTeamのサインイン", () => AccountStore.Billing?.SignOutAsync(CancellationToken.None) ?? Task.CompletedTask),
                 ("保存した接続先", () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; }),
             ];
             foreach (var (what, run) in steps)
             {
                 try { await run(); }
-                catch (Exception error) { ShowResult(AccountDeletionText.FailedTitle, AccountDeletionText.Failed(what, error.Message)); return; }
+                catch (Exception error) { ShowResult(AccountDeletionText.FailedTitle, AccountDeletionText.Failed(what, ReasonOf(error))); return; }
             }
             ShowConversation(); model.SignOut(); ShowAccount();
         }

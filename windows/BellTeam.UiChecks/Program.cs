@@ -128,7 +128,7 @@ public static class UiChecks {
       // R1: a file that cannot be removed stops the deletion, names it, keeps what comes after, and tells no success; pressing again finishes it.
       var held = new FileStream(Path.Combine(dir, "peer-channel-device.key"), FileMode.Open, FileAccess.Read, FileShare.None); var phase = window.Startup;
       await window.DeleteAccountAsync();
-      Check(shown.Count == 1 && shown[0].Item1 == AccountDeletionText.FailedTitle && shown[0].Item2.Contains("決裁箱のサインインと鍵") && shown[0].Item2.Contains("もう一度"), "消せないものがある時に、失敗の題と理由が1回出ません: " + string.Join(" / ", shown));
+      Check(shown.Count == 1 && shown[0].Item1 == AccountDeletionText.FailedTitle && shown[0].Item2.Contains("決裁箱のサインインを消せませんでした（処理できませんでした）") && shown[0].Item2.Contains("もう一度「アカウントを削除」"), "消せないものがある時に、失敗の題と理由が1回出ません: " + string.Join(" / ", shown));
       Check(File.Exists(Path.Combine(dir, "home.bin")) && settings.Load().ServerUrl is not null && window.Startup == phase, "失敗した削除が、あとの手順を進めたか、画面を動かしました。");
       held.Dispose(); shown.Clear();
       await window.DeleteAccountAsync();
