@@ -9,10 +9,10 @@ import test from 'node:test'
 import { createHomeLogin } from '../src/usage/home-login.mjs'
 import { createHomeFront } from '../src/home-login-front.mjs'
 
-// The vendored library files are byte-identical to the accepted release v0.18.5 (selfhosted-form 1.0.3); a repin changes these two lines.
+// The vendored library files are byte-identical to the accepted release v0.18.8 (selfhosted-form 1.0.3; contracts 1.29 and 1.30, no server change from 0.18.5); a repin changes these two lines.
 const PINS = {
-  'src/usage/vendor/login-billing-home.mjs': 'ae37de43550cc8d502c22501913997fa665d640a7e36b4b0fc0de51fc3d71ee0',
-  'src/vendor/login-billing-home-guard.mjs': 'a375769afe49af4149c289272185bdba5bd339a21aac9c50d5968136861591b3',
+  'src/usage/vendor/login-billing-home.mjs': '2f60b1b44e508b136065a5257ee3d0df393e6eef0ba84072e7e9cf8b4837bee9',
+  'src/vendor/login-billing-home-guard.mjs': '9dead298a5be6c8b233b2954a6eeb9e0ccb5310c8701b8c3a7727cd320f443ed',
 }
 const GOOD = 'A'.repeat(22)
 const ORIGIN = 'http://192.168.1.2:18893'

@@ -1,4 +1,4 @@
-// @kitepon/login-billing 0.18.5 login-billing-home.mjs
+// @kitepon/login-billing 0.18.8 login-billing-home.mjs
 
 // dist/server/crypto.js
 var encoder = new TextEncoder();

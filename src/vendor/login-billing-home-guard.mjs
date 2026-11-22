@@ -1,4 +1,4 @@
-// @kitepon/login-billing 0.18.5 login-billing-home-guard.mjs
+// @kitepon/login-billing 0.18.8 login-billing-home-guard.mjs
 
 // dist/home/guard.js
 async function guard(set, headers) {
