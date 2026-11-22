@@ -28,7 +28,7 @@ public class HomeSessionsTests
     {
         var home = new Home(); using var api = new BellApi(new("http://localhost/"), home) { SessionToken = "abc" };
         var rows = await new PlanningApi(api).HomeSessionsAsync();
-        Assert.Equal(["Windows", "iPhone・iPad・Mac", "サーバーのコンソール"], rows.Select(HomeSessionText.KindOf));
+        Assert.Equal(["Windows", "iPhone・iPad・Mac", "サーバーのコンソールのコード"], rows.Select(HomeSessionText.KindOf));
         Assert.Equal(["ログアウト", "ログアウトさせる", "ログアウトさせる"], rows.Select(HomeSessionText.Button));
         Assert.Equal("入った日時 " + HomeSessionText.Time(rows[0].Created!.Value) + "・最後に使った日時 " + HomeSessionText.Time(rows[0].LastUse!.Value), HomeSessionText.Times(rows[0]));
         Assert.Equal("入った日時 " + HomeSessionText.Time(rows[1].Created!.Value), HomeSessionText.Times(rows[1]));

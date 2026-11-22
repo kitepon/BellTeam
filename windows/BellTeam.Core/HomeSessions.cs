@@ -19,7 +19,7 @@ public static class HomeSessionText
 {
     public const string Title = "このサーバーに入っている端末", ThisApp = "このアプリ", OwnRow = "ログアウト", EndHere = "ログアウトさせる", Loading = "読み込んでいます…";
     // shortcut: an appKind the table does not know is shown as sent, when a new platform appears add its row here.
-    public static string KindOf(HomeSessionEntry row) => row.Kind == "console" ? "サーバーのコンソール" : row.AppKind switch
+    public static string KindOf(HomeSessionEntry row) => row.Kind == "console" ? "サーバーのコンソールのコード" : row.AppKind switch
     {
         "apple" => "iPhone・iPad・Mac", "windows" => "Windows", "linux" => "Linux", "android" => "Android", "web" => "Web", var other => other.Length == 0 ? "Web" : other
     };
