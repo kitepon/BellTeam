@@ -11,7 +11,7 @@ Extends [README.md](README.md) (v0.1). Where this document and v0.1 disagree abo
 - Nayuta's rulings 2026-11-22 (contract draft 0.5.6, peer-channel main e95b332), recorded here because they bind the design:
   1. .NET WebRTC = libdatachannel through P/Invoke on its C API, pinned v0.24.6 (the engine node-datachannel 0.33.6 bundles). Not SIPSorcery. A C# HPKE library is named and pinned by Anis and accepted by Airi before the C# core seals anything; vectors pc1-hpke and pc1-envelope (including the 91-byte info) pass first.
   2. One C# pc/1 core, built by Anis, reused by Neon for Linux; Neon checks the libdatachannel Android build for the same core before any Kotlin face is built. No sidecar, no second port.
-  3. Contract pin 0.5.6 at e95b332 for Swift and C#. A later change reaches the apps only through Nayuta, with the version named.
+  3. Contract pin 0.5.6 at e95b332 for Swift and C#. **Superseded 2026-11-22 by Nayuta: 0.5.8 at main 2df08c1** (Airi's c8 review). It adds: SEC-086 (a device UI that removes or reports a device lost lists every active key whose added_by chain leads to it; BellTeam's view has no removal screen, so builds none); the server closes a device socket with 4401 pass_ended (signed out, not a network drop); `POST /pc/v1/turn` answers 403 not_entitled for an unentitled pass; C# libdatachannel follows contract 11's relay pick (first STUN plus the first two UDP TURN URLs by IPv4). A later change reaches the apps only through Nayuta, with the version named.
   4. The first device of a person's K needs no admitter (finds an empty mirror, creates genesis, 5.1). Every later device is admitted by an already verified device through 5.3. An iPhone-only person with both apps on one phone uses the typed 16-character code. A device that cannot verify existing slots never makes a genesis alone (5.1, 5.7).
   5. The `/v1` and content routes stay open until BellTeam's three apps report decisions shown over peer-channel and the four server-side readers have moved. No dark period. Close date is set by Nayuta when the last report arrives; earliest about 2026-12-12.
 
@@ -115,7 +115,7 @@ A device that cannot reach the relay shows the last view dimmed with the visible
 ## 8. Order and gates
 
 1. Anis: C# HPKE library named and pinned, accepted by Airi; vectors pc1-hpke and pc1-envelope green; then the device core (dates in the chart: 11/25 vectors, 11/27 dev signaling, 11/29 real decisions if the server part is live by 11/28).
-2. Rapi: Apple on the Swift package, contract 0.5.6; dev/TestFlight 12/03, store 12/07.
+2. Rapi: Apple on the Swift package, contract 0.5.8; dev/TestFlight 12/03, store 12/07.
 3. Neon: Android and Linux on the shared C# core; firm date by 11/23 evening.
 4. This module: answers to Q3-Q5; then the reader base change (one PR per reader owner) and F3's new feed; the extension's server child F1/F2/F7/F5 are removed in the same PR that flips the feed, not before the apps report.
 5. Nayuta sets the `/v1` close date after the last app and the four readers have reported.
