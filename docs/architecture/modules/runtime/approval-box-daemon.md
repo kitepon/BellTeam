@@ -67,7 +67,7 @@ stateDiagram-v2
   Pairing --> Paired: bound; the daemon loop (2 s) reads the new config and starts the peer channel
   NotPaired --> Paired: config already present (restart of a paired body)
   Paired --> Backoff: the child exits
-  Paired --> NotPaired: server closes the socket 4401 pass_ended / 4403 connection_removed (daemon shows paired false, no silent fallback)
+  Starting --> Starting: GET /connection answers 401 (status reason connection_removed) or the server is unreachable (server_unreachable): the daemon's own loop pauses and tries again; mode stays starting
   Backoff --> Starting: 1, 2, 4, 8, 16, 30 s; a healthy minute resets (no attempt limit)
   Starting --> Closed: close()
   NotPaired --> Closed: close()
@@ -76,13 +76,17 @@ stateDiagram-v2
   Closed --> [*]
 ```
 
-Pair run (inside `Pairing`): `Idle -> Waiting` (waiting line read within 20 s; else the run is killed, `PAIR_NO_WAITING_LINE`) `-> Claimed -> Bound`; or `-> Ended` (child exit without bound, or `expires_at` + 5 minutes reached: killed). A second `approval_box_pair` while `Waiting` returns the same waiting line; after `Ended` or `Bound` it starts a new run (`rebind` only when asked). Every state leaves by a child exit, a bounded wait or `close()`; none waits for an operator.
+Pair run (inside `Pairing`): `Idle -> Waiting` (waiting line read within 20 s; else the run is killed, `PAIR_NO_WAITING_LINE`) `-> Claimed -> Bound`; or `-> Ended` (child exit without bound, or the parent's cap reached: 7 days + 5 minutes after the run started, then killed; the pair child itself also ends when the server reports expired or rejected). A second `approval_box_pair` while `Waiting` returns the same waiting line; after `Ended` or `Bound` it starts a new run (`rebind` only when asked). Every state leaves by a child exit, a bounded wait or `close()`; none waits for an operator.
 
 How each refusal is left: not the body's Bot, a fork seat, or no package: refused with a closed code, nothing started. A pair child that cannot start: `PAIR_FAILED`, state back to `NotPaired`, the daemon untouched.
 
 ## Diagram check against the code (a490h)
 
 Compared line by line with `src/approval-box-daemon.mjs` and the package's `startHosted` / `serveLocal` (read from the 0.2.0-pc.1 bundle): status modes `not_paired | starting | pc`, the 2 s config poll, socket path `state/pc/daemon.sock`, request shape and error shape. Not run: a real pairing against production (Nayuta gives the go at the sitting).
+
+## Not in the 0.2.0-pc.1 daemon (read from the bundle, a490h)
+
+Once the peer channel is up (`mode: pc`), `startHosted` returns and the daemon has no loop back to `not_paired`: the bundle has no handling of the server closing the signal socket with 4401 `pass_ended` or 4403 `connection_removed` (no such code appears in `cli.mjs` or the chunks). So "paired but removed" after the channel is up is not shown by the daemon's status today. This is a question for Nayuta (daemon side of contract 0.5.8), not something the body can detect without reading the socket itself.
 
 ## Open questions (design section 6)
 
