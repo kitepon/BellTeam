@@ -20,9 +20,10 @@ jobs:
           curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
           bash "$RUNNER_TEMP/dotnet-install.sh" --channel 10.0 --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+      # kitepon/login-billing is private: the run's own github.token cannot read its releases, so a read-only token (contents:read on that repo only) comes from the repository secret LOGIN_BILLING_READ_TOKEN.
       - name: Fetch the pinned login-billing package (sha256-checked)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.LOGIN_BILLING_READ_TOKEN }}
         run: linux/fetch-login-billing.sh
       - name: Test
         run: dotnet test linux/BellTeam.Linux.slnx -c Release
