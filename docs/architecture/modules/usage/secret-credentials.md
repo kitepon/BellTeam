@@ -281,7 +281,7 @@ A Bot's `request_secret` may ask for a value that is used once (for example a Cl
 | --- | --- |
 | Create | `request_secret` / `secrets.create` accept optional `oneTime: boolean`. Only `true` is recorded; the public request carries `oneTime: true`, absent otherwise. |
 | Input | `inputOptions` is always `{preferred:'stored', onePasswordAvailable:false}`. A `{source:'onepassword'}` submit is refused with SECRET_VALUE_INVALID. The Web card shows only the typed input, never 「保存」. |
-| Submit | The value is held only in the usage child's memory, keyed by requestId. Nothing is written under `state/secret-values`; the request record has no `path`. The completion notification therefore points the Bot to the approved resolver (for example `consume-claude-code`), not to a file. |
+| Submit | The value is held only in the usage child's memory, keyed by requestId. Nothing is written under `state/secret-values`; the request record has no `path`. The completion notification therefore points the Bot to the approved resolver, not to a file. |
 | Consume | `resolveValue(id)` takes the value out of memory once. A second or concurrent call gets SECRET_REQUEST_CLOSED; the value is gone whether the consumer succeeds or fails. |
 | Retention | Until the first resolve, or until the usage child restarts (then the value is lost and resolve gets SECRET_REQUEST_CLOSED). Cancelling or withdrawing a pending card never held a value. |
 
@@ -290,7 +290,7 @@ flowchart LR
   Bot[Bot request_secret oneTime:true] --> R[SecretRequests]
   R --> C[Owner card: typed input only]
   C -->|submit value| M[(child memory: requestId -> value)]
-  Consumer[approved resolver e.g. consume-claude-code] -->|resolveValue once| M
+  Consumer[approved resolver] -->|resolveValue once| M
   M -->|value, then deleted| Consumer
 ```
 
