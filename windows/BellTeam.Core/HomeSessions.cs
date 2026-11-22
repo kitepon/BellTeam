@@ -25,5 +25,9 @@ public static class HomeSessionText
     };
     public static string Times(HomeSessionEntry row) => (row.Created is { } created ? "入った日時 " + Time(created) : "") + (row.LastUse is { } last ? (row.Created is null ? "" : "・") + "最後に使った日時 " + Time(last) : "");
     public static string Time(DateTimeOffset time) => time.ToLocalTime().ToString("yyyy/M/d H:mm");
+    // Summary line under the title (Tronie 2026-11-23, apple/sessions-screen.md): n counts every row, this device included.
+    public static string Summary(int count) => count == 1 ? "この端末だけが入っています" : $"{count}台が入っています";
+    // Generic device glyphs, no brand marks (Tronie 2026-11-23): apple and android -> phone (the library does not say iPad or Mac), windows and linux -> desktop, web, console; an unknown kind takes web.
+    public static string IconKey(HomeSessionEntry row) => row.Kind == "console" ? "console" : row.AppKind switch { "apple" or "android" => "phone", "windows" or "linux" => "desktop", _ => "web" };
     public static string Button(HomeSessionEntry row) => row.Current ? OwnRow : EndHere;
 }

@@ -504,7 +504,8 @@ public sealed partial class SettingsWindow
             var rows = await workspace.Planning.HomeSessionsAsync(token); token.ThrowIfCancellationRequested();
             var card = new GroupCard();
             foreach (var row in rows) card.Add(Row(DeviceRow(row, () => EndDevice(row, host, token))));
-            host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, card));
+            var section = FormSection(HomeSessionText.Title, card); section.Children.Insert(1, Text(HomeSessionText.Summary(rows.Length), 13, Secondary, null, new Thickness(20, 0, 20, 7)));
+            host.Children.Clear(); host.Children.Add(section);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, new GroupCard())); host.Children.Add(Banner(ErrorText(error))); }
@@ -512,8 +513,9 @@ public sealed partial class SettingsWindow
     private Grid DeviceRow(HomeSessionEntry row, Action end)
     {
         var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; var title = new StackPanel { Orientation = Orientation.Horizontal };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var tile = SessionIcons.Tile(HomeSessionText.IconKey(row), HomeSessionText.KindOf(row), Fill, Secondary); tile.Margin = new Thickness(0, 0, 12, 0); grid.Children.Add(tile);
+        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(names, 1); var title = new StackPanel { Orientation = Orientation.Horizontal };
         title.Children.Add(Text(HomeSessionText.KindOf(row), 14, Ink));
         if (row.Current) { var badge = SettingsUi.Badge(HomeSessionText.ThisApp, SettingsTone.Gray); badge.Margin = new Thickness(10, 0, 0, 0); title.Children.Add(badge); }
         names.Children.Add(title);
@@ -521,7 +523,7 @@ public sealed partial class SettingsWindow
         grid.Children.Add(names);
         var button = Capsule(HomeSessionText.Button(row), Brushes.White, Red); button.BorderBrush = Red; button.BorderThickness = new Thickness(1); button.Margin = new Thickness(12, 0, 0, 0);
         System.Windows.Automation.AutomationProperties.SetAutomationId(button, "session-revoke-" + row.Id);
-        button.Click += (_, _) => end(); Grid.SetColumn(button, 1); grid.Children.Add(button);
+        button.Click += (_, _) => end(); Grid.SetColumn(button, 2); grid.Children.Add(button);
         return grid;
     }
     // The own row signs this app out (the existing sign-out); another row is ended at the home and never resent by itself: the list is read again to show what the server says.

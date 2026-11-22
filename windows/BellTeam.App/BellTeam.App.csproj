@@ -14,6 +14,10 @@
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
     <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
+    <EmbeddedResource Include="../../docs/architecture/modules/apple/sessions-icons/phone.svg" LogicalName="sessions-icons/phone.svg" />
+    <EmbeddedResource Include="../../docs/architecture/modules/apple/sessions-icons/desktop.svg" LogicalName="sessions-icons/desktop.svg" />
+    <EmbeddedResource Include="../../docs/architecture/modules/apple/sessions-icons/web.svg" LogicalName="sessions-icons/web.svg" />
+    <EmbeddedResource Include="../../docs/architecture/modules/apple/sessions-icons/console.svg" LogicalName="sessions-icons/console.svg" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
     <InternalsVisibleTo Include="BellTeam.UiChecks" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
