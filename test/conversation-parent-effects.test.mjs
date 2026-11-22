@@ -152,3 +152,19 @@ test('a remote seat image path is not read on the body; a local seat and a data 
   assert.equal((await read('bot-remote', { mime: 'image/png', data: 'iVBORw0KGgo=' })).data, Buffer.from('image').toString('base64'))
   assert.deepEqual(reads.length, 2)
 })
+
+// a521c: with Aiterm's terminal read on the transport, a remote seat's path image comes from the terminal; its refusal reaches the seat as is.
+test('a remote seat path image is read on its terminal through transport.readSeatImage', async () => {
+  const ctx = context(), actual = Promise.withResolvers(), asked = []
+  ctx.actualCompletion = actual.promise
+  const gate = { beginSave: async () => ({}), trackCompletion: () => {}, assertSave: () => {}, endSave: async () => {} }
+  const bot = { id: 'bot-remote', terminalId: 'mac', projectRoot: '/Users/x/p' }
+  const services = { conversationAssetGate: gate, conversationCompletion: () => actual.promise, bots: new Map([[bot.id, bot]]),
+    seatRuntime: { readImage: async () => assert.fail('the body must not open a terminal path') },
+    transport: { readSeatImage: async (seat, path, maxBytes) => { asked.push([seat, path, maxBytes]); if (path.endsWith('.txt')) throw new Error('IMAGE_PATH_NOT_ALLOWED'); return Buffer.from('shot') } } }
+  const adapter = createConversationParentEffects({ getServices: () => services })
+  const read = async path => adapter('runtime.image.read', { leaseId: (await adapter('assets.beginSave', { owner: bot.id }, ctx)).leaseId, image: { path } }, ctx)
+  assert.deepEqual(await read('/tmp/x.png'), { data: Buffer.from('shot').toString('base64') })
+  await assert.rejects(read('/etc/x.txt'), { message: 'IMAGE_PATH_NOT_ALLOWED' })
+  assert.deepEqual(asked, [[bot, '/tmp/x.png', 25 * 1024 * 1024], [bot, '/etc/x.txt', 25 * 1024 * 1024]])
+})
