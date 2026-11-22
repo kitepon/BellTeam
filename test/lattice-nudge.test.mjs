@@ -153,15 +153,15 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   assert.match(sent[0].message, /beta[\s\S]*p1\/t1 「p1 one」: can start/u)
 })
 
-test('nudge b25: the creator warning about one task is sent once; again only when the task changes; own tasks still repeat', async () => {
+test('nudge b25: the creator warning about one task is sent once; again only when the task changes', async () => {
   const x = rig({ charts: [{ projectId: 'alpha', createdBy: 'bot-b', cards: [card('t1', 'ready', 'mac-bench'), card('t2', 'ready', 'bot-a')] }], deliveries: { 'bot-b': 'running' } })
   await x.go()
   assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a'])
   await x.go(); await x.go()
-  assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a', 'bot-a', 'bot-a'], 'the creator is not warned again; the lane Bot is nudged every sweep (Owner design)')
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-a'], 'neither the creator nor the lane Bot is told again (a502)')
   x.charts[0].cards[0] = card('t1', 'in-progress', 'mac-bench')
   await x.go()
-  assert.equal(x.sent.at(-2).target, 'bot-b', 'a changed task (state) warns the creator again')
+  assert.equal(x.sent.at(-1).target, 'bot-b', 'a changed task (state) warns the creator again')
   x.charts[0].cards[0] = card('t1', 'ready', 'bot-c')
   await x.go()
   x.charts[0].cards[0] = card('t1', 'in-progress', 'mac-bench')
@@ -173,4 +173,53 @@ test('nudge b25: a warning that was not accepted is sent again at the next sweep
   const x = rig({ charts: [{ projectId: 'alpha', createdBy: 'bot-b', cards: [card('t1', 'ready', 'mac-bench')] }], deliveries: { 'bot-b': 'refused' } })
   await x.go(); await x.go()
   assert.equal(x.sent.length, 2)
+})
+
+test('nudge a502: a task is told to its Bot once; a start is no change; leaving and coming back, a moved lane or a new task tells again; a Bot with nothing new is not even read', async () => {
+  const x = rig({ charts: [{ projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a')] }] })
+  await x.go(); await x.go(); await x.go()
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-a'])
+  assert.equal(x.reads.length, 2, 'only the first tick reads turns (batch + the pre-send check, a481); later ticks have nothing new')
+  x.charts[0].cards[0] = card('t1', 'in-progress', 'bot-a')
+  await x.go()
+  assert.equal(x.sent.length, 1, 'the Bot started it itself: not told again')
+  x.charts[0].cards[0] = card('t1', 'pending', 'bot-a')
+  await x.go()
+  x.charts[0].cards[0] = card('t1', 'ready', 'bot-a')
+  await x.go()
+  assert.equal(x.sent.length, 2, 'retracted, then startable again: told again')
+  x.charts[0].cards.push(card('t2', 'ready', 'bot-a'))
+  await x.go()
+  assert.equal(x.sent.length, 3)
+  assert.ok(x.sent[2].message.includes('p1/t2') && !x.sent[2].message.includes('p1/t1'), 'only the new task is listed')
+  x.charts[0].cards[1] = card('t2', 'ready', 'bot-c')
+  await x.go()
+  assert.deepEqual(x.sent.at(-1).target, 'bot-c', 'a task moved to another lane is told to its new Bot')
+})
+
+test('nudge a502: a working Bot and an unaccepted send are not recorded; a degraded chart keeps what was told', async () => {
+  const x = rig({ charts: [{ projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a'), card('t2', 'ready', 'bot-b')] }], turns: { 'bot-a': 'working', 'bot-b': 'idle' }, deliveries: { 'bot-b': 'refused' } })
+  await x.go()
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-b'])
+  await x.go()
+  assert.equal(x.sent.length, 2, 'refused: tried again')
+  assert.equal(x.sent[1].target, 'bot-b')
+  const ok = rig({ charts: [{ projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a')] }] })
+  await ok.go()
+  ok.charts[0] = { projectId: 'alpha', cards: [], degraded: ['lattice-read'] }
+  await ok.go()
+  ok.charts[0] = { projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a')] }
+  await ok.go()
+  assert.equal(ok.sent.length, 1, 'an unread chart did not make the task leave')
+})
+
+test('nudge a502: the told record survives a new core (child restart) and a failed record read starts empty without writing', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'told-'))
+  try {
+    const cli = createLatticeCli({ bin: 'x', chartsRoot: dir, stateDir: dir })
+    assert.deepEqual(await cli.readNudgeRecord(), {})
+    await cli.writeNudgeRecord({ 'a\0p\0t\0bot-a': 'bot-a' })
+    assert.deepEqual(await createLatticeCli({ bin: 'x', chartsRoot: dir, stateDir: dir }).readNudgeRecord(), { 'a\0p\0t\0bot-a': 'bot-a' })
+    assert.deepEqual(await cli.readOwnerRecord(), {}, 'a separate file from the filing record')
+  } finally { await rm(dir, { recursive: true, force: true }) }
 })
