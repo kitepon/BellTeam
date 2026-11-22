@@ -1,5 +1,8 @@
 import AuthenticationServices
 import LoginBilling
+#if DEBUG
+@_spi(Testing) import LoginBilling
+#endif
 import SwiftUI
 import UIKit
 
@@ -73,8 +76,30 @@ final class StoreAccount: ObservableObject {
         do { devices = try await client.linkedDevices() } catch { devices = []; errorText = Self.words(error) }
     }
 
+    #if DEBUG
+    /// 開発専用（login-billing 契約1.25）: `-bellbot-dev-operator <url>` で起動した時だけ、Appleのシートの代わりに開発用オペレーターのid tokenでサインインする。リリースには入らない。
+    static var devOperatorURL: URL? { UserDefaults.standard.string(forKey: "bellbot-dev-operator").flatMap(URL.init(string:)) }
+
+    static func devIdToken(_ operatorURL: URL, nonce: String) async throws -> String {
+        var request = URLRequest(url: operatorURL.appending(path: "dev/id-token"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["provider": "apple", "nonce": nonce])
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let token = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["id_token"] as? String else { throw LoginBillingError(code: "signin_failed") }
+        return token
+    }
+    #endif
+
     func signIn() async {
         await run { client in
+            #if DEBUG
+            if let operatorURL = Self.devOperatorURL {
+                try await client.signIn(deviceLabel: Self.deviceLabel, stopOthers: false) { try await Self.devIdToken(operatorURL, nonce: $0) }
+                self.message = "開発用オペレーターでサインインしました。"
+                return
+            }
+            #endif
             try await client.signIn(anchor: Self.anchor, deviceLabel: Self.deviceLabel)
             self.message = "Appleでサインインしました。"
         }
