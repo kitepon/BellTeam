@@ -106,8 +106,8 @@ const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'u
 const WOKEN_SEND_ATTEMPTS = 3
 // Pre-input refusals of a live seat that clear by themselves (slow readiness, previous input still being taken).
 const RESENDABLE = ['BOT_INPUT_NOT_READY', 'BOT_SEND_BUSY']
-// The periodic Lattice sweep prompt to a Bot that is not running (the scheduler nudge); other Lattice notices are not it.
-const SWEEP_PROMPT = /^Lattice: you are not running\b/u
+// The periodic Lattice sweep prompt (src/lattice/nudge.mjs HEAD / REASSIGN); other Lattice notices are not it.
+const SWEEP_PROMPT = /^Lattice: (?:you are not running|on charts you created)\b/u
 // The words may already be in the CLI: Aiterm or the RPC could not tell, or Aiterm says not to resend.
 const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
   || String(error.message).includes('再送しないでください')
@@ -273,7 +273,6 @@ export class AitermTransport {
       session: bot => this.session(bot),
       observe: bot => this.observe(bot),
       wake: (bot, options) => this.wake(bot, options),
-      refuseSweepUnderPressure: job => this.refuseSweepUnderPressure(job),
       imageFiles: (images, files) => this.imageFiles(images, files),
       removeTemporaryImages: files => this.removeTemporaryImages(files),
     }
@@ -427,9 +426,11 @@ export class AitermTransport {
       executionError: { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_BUSY', effect: 'not_started', follow_up: 'none' } })
   }
 
-  async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck, sessionName = null } = {}) {
-    if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease, admissionCheck, sessionName }))
+  async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck, sessionName = null, job = null } = {}) {
+    if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease, admissionCheck, sessionName, job }))
     this.membersAdmission.assertLease(membersLease)
+    // a505d (memory-budget.md): the one place every cold launch and resume passes; a Lattice sweep prompt is refused here while memory is full.
+    if (job) await this.refuseSweepUnderPressure(job)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge && !execution) await this.awaitUnboundAdmission(bot, version)
     await this.requireAccess({ setupTest, botId: bot.id })
@@ -2061,7 +2062,7 @@ export class AitermTransport {
               await this.removeRetainedImages(bot.id)
             }
             check()
-            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check })
+            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check, job: executionJob })
           }, { membersLease })
           check()
         }
@@ -2104,7 +2105,7 @@ export class AitermTransport {
             // delivery-details.md (a49): a hibernated record holds the conversation; the wake resumes it, a close discards it.
             // Only a resume Aiterm answered with a refusal goes on to close and start fresh.
             if (live && observed.state === 'hibernated') {
-              try { check(); return await this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check }) } catch (error) {
+              try { check(); return await this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check, job: executionJob }) } catch (error) {
                 if (error?.aitermResponseReturned !== true) throw error
                 // A stop or admission change during the resume keeps the hibernated record (its conversation) untouched.
                 check()
@@ -2127,7 +2128,7 @@ export class AitermTransport {
               await this.removeRetainedImages(bot.id)
             }
             check()
-            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check })
+            return this.wake(bot, { setupTest, membersLease: lease, admissionCheck: check, job: executionJob })
           }, { membersLease })
           check()
           if (executionJob) executionJob.nativeSession = session
