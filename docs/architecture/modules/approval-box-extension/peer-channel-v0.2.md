@@ -93,7 +93,7 @@ Today all four use `/connector/v1` with a connection token (they work unchanged 
 | --- | --- | --- |
 | `src/lattice-approval.mjs` (Lattice effects decisions.file / read / cancel; also running-exclusions with its own connection, a41) | `ORIGIN` and the bearer-over-HTTPS call become the local socket; the per-purpose scope and "one connection per owner" rule stay (Flora 2026-11-13). The connection token goes away with the pairing; the secret card (`lattice-approval-box`) is retired when the daemon is live | Flora / Molly with this module |
 | running-exclusions check (~60 s) | same connector object as above; only the base changes | same |
-| `src/olrw-management-caller.mjs` | base changes; the 5 s timeout and the response shape stay | olrw module owner |
+| `src/olrw-management-caller.mjs` | base changes; the 10 s timeout, the 64 KiB body bound and the response shape stay (the 5 s timeout belongs to `lattice-approval.mjs`) | olrw module owner |
 | `src/submitted-secret-approval.mjs` (fixed read of K-3JM9PS) | **breaks at the purge** (the server forgets old decisions). Keep the answer already read (the checked 48-byte answer and its hashes are already the pre-request spec) or re-file it through the daemon. Decision needed before the close, see Q4 | this module with the OLRW owner |
 
 None of the four reads Approval Box content from the server except through the daemon; BellTeam's server never holds a device key.
