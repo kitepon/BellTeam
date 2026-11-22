@@ -54,7 +54,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   environment = {}, seatRuntime = false, subscription = {} }) {
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
-  let projectionFailed = false, projectionTail = Promise.resolve()
+  let projectionFailed = false, projectionFailures = 0, projectionTail = Promise.resolve()
   const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
   const pending = new Set(), effectScope = new AsyncLocalStorage()
   const track = run => {
@@ -210,13 +210,25 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     return callEffect('auth.prepareAccount', { harness, slot })
   },
     list: () => callEffect('auth.listAccounts', {}) } })
-  const publish = record => {
+  const publish = (record, { quiet = false } = {}) => {
     const row = clone({ ...record, revision: ++revision }), previous = projectionTail
     const result = scoped(async () => { await previous; await onProjection(row) })
-    projectionTail = result.catch(() => { projectionFailed = true })
+    projectionTail = result.catch(() => { projectionFailures++; if (!quiet) projectionFailed = true })
     return result
   }
+  // a500: a failed publish leaves the parent's copy stale for that row; the exit is to publish the whole current state again.
+  // The closing lifts only when every row was acknowledged and no other publish failed meanwhile; otherwise the next entry tries again.
+  let resyncing = null
+  const resync = () => resyncing ??= (async () => {
+    const failures = projectionFailures
+    try {
+      for (const row of fullProjection()) await publish(row, { quiet: true })
+      if (projectionFailures === failures) projectionFailed = false
+    } catch {} finally { resyncing = null }
+  })()
   const settingsProjection = () => ({ type: 'settings', epochs: Object.fromEntries(epochs), list: settings.list(), configurations: Object.fromEntries(settings.list().map(({ id }) => [id, settings.configuration(id)])), ...backgroundAgent.projection() })
+  const fullProjection = () => [...baseProjection(), ...[...secretRequests.items.keys()].map(id => ({ type: 'secret', value: secretRequests.get(id) })),
+    ...[...ownerQuestions.items.values()].map(item => ({ type: 'question', value: item }))]
   const baseProjection = () => [{ ...settingsProjection() }, { type: 'onboarding', value: onboarding.snapshot() }, { type: 'auth', value: harnessAuth.list() }, { type: 'subscription', value: subscriptions.status() }]
   secretRequests.watch(event => { if (initialized) publish({ type: 'event', value: event }) })
   secretRequests.watchCredentials(value => { if (initialized) publish({ type: 'credential', value }) })
@@ -267,9 +279,10 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       await cli.probeAll()
       initialized = true; accepting = true
     },
-    request(method, params, actor) {
-      try { validateUsageRequest(method, params, actor); assertOpen(method, actor); params = clone(params); actor = { ...actor } }
-      catch (error) { return Promise.reject(error) }
+    async request(method, params, actor) {
+      validateUsageRequest(method, params, actor)
+      if (projectionFailed && initialized && accepting && !stopped) await resync()
+      assertOpen(method, actor); params = clone(params); actor = { ...actor }
       return dispatch(method, params, actor)
     },
     callback(method, params, actor) {
@@ -295,10 +308,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     },
     *snapshot() {
       if (!initialized || stopped) throw usageError('USAGE_UNAVAILABLE')
-      const rows = baseProjection(), secrets = [...secretRequests.items.keys()].map(id => secretRequests.get(id)), questions = [...ownerQuestions.items.values()], captured = revision
-      for (const row of rows) yield clone({ ...row, revision: captured })
-      for (const item of secrets) yield clone({ type: 'secret', value: item, revision: captured })
-      for (const item of questions) yield clone({ type: 'question', value: item, revision: captured })
+      const captured = revision
+      for (const row of fullProjection()) yield clone({ ...row, revision: captured })
     },
     close() {
       if (!quiesced || pending.size) throw usageError('USAGE_NOT_QUIESCED', 409)
