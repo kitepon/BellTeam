@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T11:47:13Z",
-  "expiresAt": "2026-11-29T11:47:13Z",
+  "publishedAt": "2026-11-22T15:39:16Z",
+  "expiresAt": "2026-11-29T15:39:16Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
-      "versionId": "f196db839a7f10603977e520655db7e82ed76d7d5e14c92e47d3cf7397e10bfa",
+      "sourceCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf",
+      "versionId": "08e8904656787f6668d317389d4d36d33931198454bbcc65f06bf90dc951915b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz",
-          "bytes": 4521360,
-          "sha256": "f196db839a7f10603977e520655db7e82ed76d7d5e14c92e47d3cf7397e10bfa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153848Z/web-gateway-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-amd64.tar.gz",
+          "bytes": 4523754,
+          "sha256": "08e8904656787f6668d317389d4d36d33931198454bbcc65f06bf90dc951915b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10876,
-          "sha256": "3f452d802298eb72f2219b83251cd296955d38fc9bf47c0c0c96d6a34beae802"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153848Z/web-gateway-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10927,
+          "sha256": "fd2be9f682bd7c69d8179b0b3445cbace7c55f72bb50b566cf188794afe8fafd"
         },
-        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
+        "signerCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "決裁の画面の受付が、デーモンの決裁の読み取りと新しい符号に対応します。"
+        "別のホストの席の画像の道具を新しい形にします。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
-      "versionId": "25c76816200ffd5bcca1a6d3d61f9d71a3f1ff90be3a1c1ca91ea6ce99328089",
+      "sourceCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf",
+      "versionId": "7162eb87c1d1016cf7972bd42f86b045dbc0bdcd5ec77f0ebf3f260e7e3a4017",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz",
-          "bytes": 4521361,
-          "sha256": "25c76816200ffd5bcca1a6d3d61f9d71a3f1ff90be3a1c1ca91ea6ce99328089"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153848Z/web-gateway-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-arm64.tar.gz",
+          "bytes": 4523755,
+          "sha256": "7162eb87c1d1016cf7972bd42f86b045dbc0bdcd5ec77f0ebf3f260e7e3a4017"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114648Z/web-gateway-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "bf944d9ab8dad2df2888f7c70d5add79876ad5dfe1c0467acbaf4521682b01c2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153848Z/web-gateway-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11021,
+          "sha256": "531f9478e7027f5e441c659e0febe3f0df3dfd4e8281b82eefeabe0b8b573f66"
         },
-        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
+        "signerCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "決裁の画面の受付が、デーモンの決裁の読み取りと新しい符号に対応します。"
+        "別のホストの席の画像の道具を新しい形にします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d",
-      "versionId": "2d9282927422894b5308ccebef584009a7f883c3720c214512145d1f85db1588",
+      "sourceCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf",
+      "versionId": "bfcbc3bc9c3f07dea0de7bdadc60db197df30e6b202e83b2db2bd49a09164cb4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T064328Z/execution-0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d-linux-amd64.tar.gz",
-          "bytes": 3877187,
-          "sha256": "2d9282927422894b5308ccebef584009a7f883c3720c214512145d1f85db1588"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153841Z/execution-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-amd64.tar.gz",
+          "bytes": 3878540,
+          "sha256": "bfcbc3bc9c3f07dea0de7bdadc60db197df30e6b202e83b2db2bd49a09164cb4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T064328Z/execution-0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "a074c2c5eea959c72c6b7a4af365dc78e0c7be5151843155e9d2cfc46ae97b7d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153841Z/execution-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10832,
+          "sha256": "c46a2b3159a9d3392c26d44d65f85230a477df7bc18b7040547b0d0256d09e93"
         },
-        "signerCommit": "0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d"
+        "signerCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "メモリが逼迫したとき、ターンの終わった席を早めに休止し、Latticeの催促は起動していない席へ送らず断ります（次の催促で再び試します）。他の送信は断りません。"
+        "別のホストの席への画像の受け渡しと、利用上限で止まった発言を配達済みとして記録する直しに対応します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d",
-      "versionId": "ff57bf73317048c20fafe59af099e04a9ccb9a6bbd4873f1420ba2facebeab12",
+      "sourceCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf",
+      "versionId": "576d0c4610e1d4af9c289108bd5663930c9fd6c941876f3085f118cbc7850356",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T064328Z/execution-0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d-linux-arm64.tar.gz",
-          "bytes": 3877187,
-          "sha256": "ff57bf73317048c20fafe59af099e04a9ccb9a6bbd4873f1420ba2facebeab12"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153841Z/execution-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-arm64.tar.gz",
+          "bytes": 3878540,
+          "sha256": "576d0c4610e1d4af9c289108bd5663930c9fd6c941876f3085f118cbc7850356"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T064328Z/execution-0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "44f7f86acf7accb99eba5239f11677796fd34f980119ecbecf5195c8981c0500"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T153841Z/execution-c6749e20b8e4c9440a176d0dda42156fb5eebfcf-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10973,
+          "sha256": "27e01cf3b588e2ee9a73c16f95c676794bf96d0381faad5e77b5b0ab58a84bdf"
         },
-        "signerCommit": "0f46b5e15e5685afb4a3d84fe0dbb268ca566e9d"
+        "signerCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "メモリが逼迫したとき、ターンの終わった席を早めに休止し、Latticeの催促は起動していない席へ送らず断ります（次の催促で再び試します）。他の送信は断りません。"
+        "別のホストの席への画像の受け渡しと、利用上限で止まった発言を配達済みとして記録する直しに対応します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
-      "versionId": "sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084",
+      "sourceCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf",
+      "versionId": "sha256:e75914b7e7355cc9c7b08e71e93e1738aec29eb89defb3769f619c7f17da7390",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e75914b7e7355cc9c7b08e71e93e1738aec29eb89defb3769f619c7f17da7390"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱の画面が、本体のデーモンが持つ決裁も表示します。デーモンの決裁に答えようとすると、端末で答えるよう案内します。申請の背景の文も、この画面に出ます。"
+        "最初から入っている部品より古い公開版を、新しい版として案内しないようにします。別のホストの席との画像のやり取りと、利用上限で止まった発言の配達の記録を直します。記憶の制御が何をしたかを小さく記録します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
-      "versionId": "sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084",
+      "sourceCommit": "c6749e20b8e4c9440a176d0dda42156fb5eebfcf",
+      "versionId": "sha256:e75914b7e7355cc9c7b08e71e93e1738aec29eb89defb3769f619c7f17da7390",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ed9763187a8c3e2c4bec5d445d355c550d25ad9b5984f2d218cde084f19e4084"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e75914b7e7355cc9c7b08e71e93e1738aec29eb89defb3769f619c7f17da7390"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱の画面が、本体のデーモンが持つ決裁も表示します。デーモンの決裁に答えようとすると、端末で答えるよう案内します。申請の背景の文も、この画面に出ます。"
+        "最初から入っている部品より古い公開版を、新しい版として案内しないようにします。別のホストの席との画像のやり取りと、利用上限で止まった発言の配達の記録を直します。記憶の制御が何をしたかを小さく記録します。"
       ]
     },
     {
