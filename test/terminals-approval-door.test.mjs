@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { atLeast, doorHook, DOOR_MIN_AITERM } from '../src/terminals/approval-door.mjs'
-import { Door, bearerOf, registerFromEnv, serveDoor, doorAddress, writeLog } from '../src/terminals/approval-door-host.mjs'
+import { Door, bearerOf, registerFromEnv, serveDoor, doorAddress, writeLog, windowsStart } from '../src/terminals/approval-door-host.mjs'
 import { createTerminalConnection } from '../src/terminals/connection.mjs'
 import { fakeNative, fakeSecrets } from './helpers/terminals-native-double.mjs'
 
@@ -164,4 +164,25 @@ test('a seat dropped by its alive check says so with the exit codes seen', async
   await door.sweep(); await door.sweep()
   assert.deepEqual(lines.map(line => line.replace(/ alive=.*/, '')), ['registered session=s port=40001', 'sweep session=s alive-exit=1 misses=1', 'dropped session=s: alive check exited 1 twice in a row'])
   assert.equal(lines.join('\n').includes('A'.repeat(43)), false)
+})
+
+test('Windows starts the door through WMI (outside the ssh session job), with every path quoted', () => {
+  const [command, args] = windowsStart("C:\\Users\\o'brien\\node.exe", 'C:\\Users\\o\'brien\\.bellteam\\approval-box-door.mjs', "C:\\Users\\o'brien")
+  assert.equal(command, 'powershell.exe')
+  assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-EncodedCommand'])
+  const script = Buffer.from(args[3], 'base64').toString('utf16le')
+  assert.match(script, /Invoke-CimMethod -ClassName Win32_Process -MethodName Create/)
+  assert.ok(script.includes(`CommandLine='"C:\\Users\\o''brien\\node.exe" "C:\\Users\\o''brien\\.bellteam\\approval-box-door.mjs" serve'`), script)
+  assert.ok(script.includes(`CurrentDirectory='C:\\Users\\o''brien'`))
+})
+
+test('the alive check runs with the environment the hook registered (a door started outside the session has none)', async () => {
+  const seen = []
+  const door = new Door(async (alive, env) => { seen.push(env); return 0 })
+  const base = { bellteam_door: 'register', session: 's', port: 40001, authorization: BEARER, alive: ['x'] }
+  assert.deepEqual(JSON.parse(await door.handle(JSON.stringify({ ...base, env: { TEMP: 'C:\\Temp', TMP: 'C:\\Temp' } }))), { ok: true })
+  await door.sweep()
+  assert.deepEqual(seen[0], { TEMP: 'C:\\Temp', TMP: 'C:\\Temp' })
+  await door.handle(JSON.stringify({ ...base, env: { TEMP: 5 } })); await door.sweep()
+  assert.equal(seen[1], undefined, 'a malformed env is ignored, not trusted')
 })

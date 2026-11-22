@@ -5,7 +5,7 @@ import net from 'node:net'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { spawn, execFile } from 'node:child_process'
+import { spawn, execFile, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const ENDPOINT = '/api/seat-mcp/approval-box/local'
@@ -37,11 +37,14 @@ export function writeLog(line, file = path.join(os.homedir(), '.bellteam', 'appr
 
 const errorLine = (status, code, message) => JSON.stringify({ ok: false, status, code, message, body: {} })
 const bodyCode = text => { try { const code = JSON.parse(text).error; return typeof code === 'string' ? code : null } catch { return null } }
+// The environment the alive check runs with, from the hook's own (a door started outside the session has none: Windows TEMP/TMP).
+const validEnv = env => env && typeof env === 'object' && !Array.isArray(env) && Object.keys(env).length <= 32
+  && Object.values(env).every(value => typeof value === 'string') ? env : undefined
 const validAlive = alive => Array.isArray(alive) && alive.length >= 1 && alive.length <= 8 && alive.every(item => typeof item === 'string' && item && !item.includes('\0'))
 
 // Exit 0 = the native session exists, 1 = confirmed absent, anything else = cannot tell (aiterm-session-alive).
-export const runAlive = alive => new Promise(resolve => {
-  try { execFile(alive[0], alive.slice(1), { timeout: 5000, windowsHide: true }, error => resolve(error === null ? 0 : typeof error.code === 'number' ? error.code : 2)) } catch { resolve(2) }
+export const runAlive = (alive, env) => new Promise(resolve => {
+  try { execFile(alive[0], alive.slice(1), { timeout: 5000, windowsHide: true, ...(env ? { env } : {}) }, error => resolve(error === null ? 0 : typeof error.code === 'number' ? error.code : 2)) } catch { resolve(2) }
 })
 
 export class Door {
@@ -49,9 +52,9 @@ export class Door {
   constructor(check = runAlive, send = fetch, log = () => {}) { this.check = check; this.send = send; this.log = log }
 
   // A new registration replaces the session's old bearer at once (one token per session name, RS02); the newest is tried first.
-  register(session, port, bearer, alive) {
+  register(session, port, bearer, alive, env) {
     this.seats.delete(session)
-    this.seats.set(session, { port, bearer, alive, misses: 0 })
+    this.seats.set(session, { port, bearer, alive, env, misses: 0 })
     this.log(`registered session=${session} port=${port} alive=${JSON.stringify(alive)}`)
   }
   get size() { return this.seats.size }
@@ -59,7 +62,7 @@ export class Door {
   // Drops a seat whose native session was confirmed absent in two sweeps in a row (one failed check is not proof; "cannot tell" breaks the run, so a live seat is never dropped on a flapping check).
   async sweep() {
     for (const [session, seat] of [...this.seats]) {
-      const code = await this.check(seat.alive)
+      const code = await this.check(seat.alive, seat.env)
       if (code !== 1) seat.misses = 0
       else if (++seat.misses >= 2) { this.seats.delete(session); this.log(`dropped session=${session}: alive check exited 1 twice in a row`); continue }
       if (code !== 0) this.log(`sweep session=${session} alive-exit=${code} misses=${seat.misses}`)
@@ -95,7 +98,7 @@ export class Door {
       if (message.bellteam_door !== 'register' || typeof message.session !== 'string' || !message.session || message.session.length > 128
         || !Number.isInteger(message.port) || message.port < 1 || message.port > 65535
         || typeof message.authorization !== 'string' || !BEARER.test(message.authorization) || !validAlive(message.alive)) return invalid()
-      this.register(message.session, message.port, message.authorization, message.alive)
+      this.register(message.session, message.port, message.authorization, message.alive, validEnv(message.env))
       return JSON.stringify({ ok: true })
     } catch { return invalid() }
   }
@@ -161,8 +164,21 @@ export async function serveDoor(door, address = doorAddress(), onEmpty = () => {
 
 const cleanEnv = env => Object.fromEntries(KEEP_ENV.filter(name => typeof env[name] === 'string').map(name => [name, env[name]]))
 
+// On Windows a node child started inside an ssh session stops when the session ends (libuv does not break away from sshd's job;
+// Elegg measured it on fox 2026-11-23, and BellTeam launches through a one-shot ssh). A process created through WMI lives outside it.
+const psQuote = value => `'${value.replace(/'/g, "''")}'`
+export function windowsStart(node, file, home) {
+  const script = `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=${psQuote(`"${node}" "${file}" serve`)}; CurrentDirectory=${psQuote(home)}}; if ($r.ReturnValue -ne 0) { exit 1 }`
+  return ['powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')]]
+}
+
 function startDoor() {
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { detached: true, stdio: 'ignore', env: cleanEnv(process.env), windowsHide: true })
+  const file = fileURLToPath(import.meta.url)
+  if (process.platform === 'win32') {
+    const [command, args] = windowsStart(process.execPath, file, os.homedir())
+    try { execFileSync(command, args, { timeout: 5000, windowsHide: true, stdio: 'ignore' }); return } catch { /* fall back to the plain detached start below */ }
+  }
+  const child = spawn(process.execPath, [file, 'serve'], { detached: true, stdio: 'ignore', env: cleanEnv(process.env), windowsHide: true })
   child.on('error', () => { /* the next attempt of the registration loop reports it */ })
   child.unref()
 }
@@ -204,9 +220,11 @@ export async function registerFromEnv(env = process.env, address = doorAddress()
     log(`register skipped (${env.AITERM_HOOK_EVENT ?? 'event unknown'}): missing or invalid ${missing.join(', ')}`)
     return false
   }
-  const line = JSON.stringify({ bellteam_door: 'register', session: env.AITERM_SESSION_ID, port, authorization: bearer, alive })
+  const line = JSON.stringify({ bellteam_door: 'register', session: env.AITERM_SESSION_ID, port, authorization: bearer, alive, env: cleanEnv(env) })
+  // The hook ends within Aiterm's 10 s (the bootstrap stops this at 8 s): stay inside it however long the door start took.
+  const begun = Date.now()
   let started = false, last = null
-  for (let attempt = 0; attempt < tries; attempt++) {
+  for (let attempt = 0; attempt < tries && Date.now() - begun < 6500; attempt++) {
     try { await sendControl(address, line); log(`register sent (${env.AITERM_HOOK_EVENT ?? 'event unknown'}) session=${env.AITERM_SESSION_ID} port=${port}`); return true } catch (error) {
       last = error
       if (!started) { startDoor(); started = true }
