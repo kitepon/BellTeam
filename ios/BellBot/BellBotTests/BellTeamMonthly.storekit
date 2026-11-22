@@ -24,7 +24,7 @@
               "locale": "en_US"
             }
           ],
-          "productID": "dev.kitepon.bellteam.monthly",
+          "productID": "dev.kitepon.bellbot.monthly",
           "recurringSubscriptionPeriod": "P1M",
           "referenceName": "monthly",
           "subscriptionGroupID": "21000001",

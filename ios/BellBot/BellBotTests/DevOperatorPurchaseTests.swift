@@ -16,16 +16,17 @@ final class DevOperatorPurchaseTests: XCTestCase {
         defer { withExtendedLifetime(session) {} } // the test session ends when it is released
         session.disableDialogs = true
         session.clearTransactions()
-        let account = StoreAccount(baseURL: operatorURL.appending(path: "auth/v1"), productId: "dev.kitepon.bellteam.monthly")
+        let account = StoreAccount(baseURL: operatorURL.appending(path: "auth/v1"), productId: "dev.kitepon.bellbot.monthly")
         XCTAssertTrue(account.configured)
         await account.signIn()
         XCTAssertTrue(account.signedIn, account.errorText ?? "not signed in")
-        let found = (try? await Product.products(for: ["dev.kitepon.bellteam.monthly"]))?.count ?? -1
+        let found = (try? await Product.products(for: ["dev.kitepon.bellbot.monthly"]))?.count ?? -1
         print("PRODUCTS-FOUND: \(found)")
         await account.purchase()
         print("PURCHASE-WORD: \(account.purchaseWord ?? "nil") | contract live: \(account.hasLiveContract) | entitlements: \(account.entitlements.map(\.productId)) | error: \(account.errorText ?? "-")")
-        XCTAssertEqual(account.purchaseWord, "attached")
-        let latest = await Transaction.latest(for: "dev.kitepon.bellteam.monthly")
+        // The operator remembers a transaction id it has ended; StoreKit's test ids restart, so a repeated run answers "ended" (the real word for it).
+        XCTAssertTrue(["attached", "ended"].contains(account.purchaseWord ?? ""), "purchase word: \(account.purchaseWord ?? "nil")")
+        let latest = await Transaction.latest(for: "dev.kitepon.bellbot.monthly")
         let id = try XCTUnwrap(latest).payloadValue.id
         var request = URLRequest(url: operatorURL.appending(path: "dev/store-end"))
         request.httpMethod = "POST"
