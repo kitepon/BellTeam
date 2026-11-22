@@ -1,0 +1,9 @@
+{
+  "name": "approval-box-hosted-pin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins the hosted Approval Box connector the body supervises (docs/architecture/modules/runtime/approval-box-daemon.md). Exact version, integrity in package-lock.json (Nayuta, approval-box@0.2.0-pc.1, dist-tag next, trusted publishing from tag connector-v0.2.0-pc.1). A new version is a deliberate change here together with its lock.",
+  "dependencies": {
+    "approval-box": "0.2.0-pc.1"
+  }
+}
