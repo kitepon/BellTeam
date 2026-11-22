@@ -42,6 +42,8 @@ public sealed record ViewDecision
     public string? CreatedAt { get; init; } public string? UpdatedAt { get; init; } public string? CancelReason { get; init; }
     public ApprovalAmended? Amended { get; init; } public ApprovalHistoryItem[]? History { get; init; } public ApprovalAttachment[]? RequestAttachments { get; init; }
     public ApprovalOrigin? Origin { get; init; } public ApprovalRequester? Requester { get; init; } public ApprovalLink? Link { get; init; }
+    /// <summary>Where this copy was read from while both ways are open (<see cref="DecisionUnion"/>): "server" = /api/approvals/*, "device" = this device's peer-channel session. Never on the wire.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string? Source { get; init; }
 }
 public sealed record ApprovalList { public ViewDecision[]? Items { get; init; } public string? NextCursor { get; init; } }
 /// <summary>GET /api/approvals/connection: connected | waiting | denied | not_connected | expired.</summary>
