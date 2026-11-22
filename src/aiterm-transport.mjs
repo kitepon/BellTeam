@@ -21,6 +21,8 @@ import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuati
 import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
+import { LaunchLine } from './launch-line.mjs'
+import { memoryPressure } from './memory-pressure.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { aitermFailureCause, baseHarness } from './agent-launch-error.mjs'
 import { harnessCliWait, harnessCliRefusal, HARNESS_NOT_INSTALLED } from './harness-cli-wait.mjs'
@@ -137,8 +139,9 @@ export function turnFailureWords(message) {
   return 'このターンの終わりを確かめられませんでした。'
 }
 
-export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
-  return new AitermTransport({ ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
+export function createManagedTransport({ client = new AitermClient(), pressure = memoryPressure(), ...options } = {}) {
+  // a505b (memory-budget.md): the production transport has the launch line; tests build AitermTransport directly and get none.
+  return new AitermTransport({ launchLine: new LaunchLine({ pressure }), ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
 }
 
 // One native.pin() for an execution operation and the operations bound to its native values
@@ -171,7 +174,8 @@ const resumedRunningFastKept = (bot, receipt) => bot.fastMode === true && receip
   && receipt.startup?.reason === 'turn_running' && receipt.fast_error?.code === 'FAST_MODE_UNCONFIRMED'
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000 } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchLine = null } = {}) {
+    this.launchLine = launchLine
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -438,6 +442,11 @@ export class AitermTransport {
     const account = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
     let remote = null, issuedLaunch = false, machineLaunched = false
     try {
+      this.requireStopVersion(bot.id, version)
+      admissionCheck?.()
+      // a505b (memory-budget.md): a cold launch waits its turn while the container's memory is full; it never fails the delivery.
+      await this.launchLine?.enter(bot.id)
+      this.membersAdmission.assertLease(membersLease)
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
       let launchArgs = {

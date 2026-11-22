@@ -3,15 +3,21 @@
 // 休止した席は会話と1時間のプロンプトキャッシュを残し、次の配送が起こす。休止できない席（再開の記録が無い）だけは閉じ、起動し直す（docs/current-design.md「Botとプロジェクト」）。
 // 動いているかはAitermの観測（pty_observe）だけで決める。BellTeamが配送していないターンも席は自分で始めるため。
 
+import { SOFT } from './memory-pressure.mjs'
+
 // 続けて動きが無いと確かめられた時間がこれを超えたら休止する。
 export const IDLE_CLOSE_MS = 10 * 60_000
 // 観測の間隔。休止するのは、動きが止まってから10〜12分後になる。
 const INTERVAL_MS = 2 * 60_000
+// a505b (memory-budget.md): while the container's memory is at SOFT or above, a seat whose turn ended sleeps at the next check, and checks come this often.
+const PRESSURE_INTERVAL_MS = 15_000
 
 export class IdleSessions {
-  constructor({ bots, transport, pendingDecisions = approvalBoxWakeDecisions(), allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
+  constructor({ bots, transport, pressure = null, pendingDecisions = approvalBoxWakeDecisions(), allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
     this.bots = bots
     this.transport = transport
+    this.pressure = pressure
+    this.hot = false
     // その席が出したApproval Boxの未決・保留の申請のうち、Aitermの観測では分からないものの数。分からない時はnull。
     this.allowClose = allowClose
     this.pendingDecisions = pendingDecisions
@@ -29,7 +35,7 @@ export class IdleSessions {
     const tick = async () => {
       this.running = this.check().catch(error => this.report(`BellTeam idle sessions: ${error.message}`))
       await this.running
-      if (this.timer) this.timer = setTimeout(tick, this.intervalMs)
+      if (this.timer) this.timer = setTimeout(tick, this.hot ? Math.min(PRESSURE_INTERVAL_MS, this.intervalMs) : this.intervalMs)
     }
     this.timer = setTimeout(tick, this.intervalMs)
   }
@@ -41,6 +47,8 @@ export class IdleSessions {
   }
 
   async check() {
+    // Unknown is not pressure: no reading leaves the Owner's 10 minutes in force.
+    this.hot = (await this.pressure?.().catch(() => null))?.ratio >= SOFT
     // bd03: the Approval Box capability is read once per check and shared by every Bot in it; the next check reads it again.
     this.pendingDecisions.begin?.()
     for (const bot of [...this.bots.values()]) {
@@ -74,7 +82,7 @@ export class IdleSessions {
     const since = !quiet ? null
       : previous?.since != null && observation.activity.output_changed === false ? previous.since : now
     this.seen.set(bot.id, { cursor: observation.activity?.cursor, generation, since })
-    if (since === null || now - since < this.idleMs) return
+    if (since === null || now - since < (this.hot ? 0 : this.idleMs)) return
     // 答えを待っている席を閉じると、答えが出ても席が起きない（Approval Boxは閉じた席を起こさない）。
     if (await this.pendingDecisions(bot) !== 0) return
     if (!this.allowClose() || !await this.transport.closeIdle(bot)) return
