@@ -215,17 +215,17 @@ public sealed class AccountCard : StackPanel
     }
 
     // 「アカウントを削除」: the last item, under a divider (Rapi's Mac reference); only the subscription sentences name this platform's store.
-    private const string Store = "Google Play", Manage = "Google Playの「定期購入」", ManageDone = "Google Playの定期購入の管理";
+    private const string Subscription = "購読はGoogle Playのものなので、この操作では解約されません。解約はGoogle Playの「定期購入」から行ってください。", Cancel = "購読を止めるには、Google Playの定期購入の管理から解約してください。";
     private void RenderDelete()
     {
         if (AccountDeletion.Run is null) return;
         Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
-        if (!confirmingDelete) { Children.Add(Button(AccountDeletionWords.Button, () => { confirmingDelete = true; Render(); return Task.CompletedTask; }, Look.Danger)); return; }
-        Children.Add(Text(AccountDeletionWords.Title, 15, Ink, FontWeight.SemiBold, new Thickness(0, 8, 0, 0)));
-        Children.Add(Text(AccountDeletionWords.Message(Store, Manage), 13, Muted, null, new Thickness(0, 6, 0, 0)));
+        if (!confirmingDelete) { Children.Add(Button(AccountDeletionText.Button, () => { confirmingDelete = true; Render(); return Task.CompletedTask; }, Look.Danger)); return; }
+        Children.Add(Text(AccountDeletionText.ConfirmTitle, 15, Ink, FontWeight.SemiBold, new Thickness(0, 8, 0, 0)));
+        Children.Add(Text(AccountDeletionText.ConfirmBody(Subscription), 13, Muted, null, new Thickness(0, 6, 0, 0)));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        row.Children.Add(Button(AccountDeletionWords.Confirm, DeleteAsync, Look.DangerFilled));
-        row.Children.Add(Button(AccountDeletionWords.Cancel, () => { confirmingDelete = false; Render(); return Task.CompletedTask; }, Look.Secondary));
+        row.Children.Add(Button(AccountDeletionText.ConfirmYes, DeleteAsync, Look.DangerFilled));
+        row.Children.Add(Button(AccountDeletionText.ConfirmNo, () => { confirmingDelete = false; Render(); return Task.CompletedTask; }, Look.Secondary));
         Children.Add(row);
     }
 
@@ -239,7 +239,7 @@ public sealed class AccountCard : StackPanel
         if (!token.IsCancellationRequested) Render();
     }
 
-    public static string DoneText => AccountDeletionWords.Done(ManageDone);
+    public static string DoneText => AccountDeletionText.ResultBody(Cancel);
 
     private enum Look { Primary, Secondary, Danger, DangerFilled }
 

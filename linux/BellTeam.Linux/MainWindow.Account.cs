@@ -30,7 +30,7 @@ public sealed partial class MainWindow
         LinuxAccountStore.ForgetHome();
         if (settingsPage is not null) ShowConversation();
         deletedLayer.Children.Clear();
-        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionWords.DoneTitle, LinuxAccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.Children.Add(FormKit.AlertFrame(AccountDeletionText.ResultTitle, LinuxAccountCard.DoneText, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
         deletedLayer.IsVisible = true;
         await StartAfterAccountAsync(null);
     }
