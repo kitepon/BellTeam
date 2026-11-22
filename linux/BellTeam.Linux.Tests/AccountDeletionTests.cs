@@ -19,6 +19,15 @@ public sealed class AccountDeletionTests
     }
 
     [Fact]
+    public void AFailedSignOutIsListedWithItsReasonAndTheRetryIsNamed()
+    {
+        var failed = new DeletionFailures(); Assert.False(failed.Any);
+        failed.Add("BellTeamのサインイン", "届きません");
+        Assert.True(failed.Any);
+        Assert.Equal("次のサインインは終えられませんでした。\n・BellTeamのサインイン：届きません\nもう一度「アカウントを削除」を押すと、残りを終えます。", failed.Text);
+    }
+
+    [Fact]
     public void TheSessionTokenFileGoesForEveryServer()
     {
         var directory = Directory.CreateTempSubdirectory("bellteam-delete-").FullName; var store = new FileSessionTokenStore(directory);

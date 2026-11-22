@@ -1,4 +1,5 @@
 import Foundation
+import LoginBilling
 import XCTest
 @testable import BellBot
 
@@ -10,10 +11,34 @@ final class AccountDeletionTests: XCTestCase {
         XCTAssertEqual(AccountDeletionWords.title, "アカウントを削除しますか？")
         XCTAssertEqual(AccountDeletionWords.confirm, "削除する")
         XCTAssertEqual(AccountDeletionWords.cancel, "やめる")
-        XCTAssertTrue(AccountDeletionWords.message.contains("ログインの運営は、このアカウントに結びつけた情報を持っていません。"), "the plain statement")
+        XCTAssertTrue(AccountDeletionWords.message.contains("ログインの運営は、名前・メールアドレス・購入の記録を持っていません。"), "what is not held")
+        XCTAssertTrue(AccountDeletionWords.message.contains("止めたパスのランダムな番号") && AccountDeletionWords.message.contains("最長14日"), "what stays, and for how long")
+        XCTAssertFalse(AccountDeletionWords.message.contains("結びつけた情報を持っていません"), "says nothing untrue")
         XCTAssertTrue(AccountDeletionWords.message.contains("購読はAppleのものなので、この操作では解約されません。"))
         XCTAssertEqual(AccountDeletionWords.doneTitle, "アカウントを削除しました")
-        XCTAssertTrue(AccountDeletionWords.done.contains("ログインの運営には、このアカウントの情報は残っていません。"))
+        XCTAssertTrue(AccountDeletionWords.done.contains("最長14日"))
+        XCTAssertFalse(AccountDeletionWords.done.contains("情報は残っていません"))
+        XCTAssertEqual(AccountDeletionWords.failedTitle, "アカウントの削除を終えられませんでした")
+    }
+
+    /// R1 (Mint): never say deleted when a library sign-out did not go through. Both are tried; the text names what stayed and why; a retry runs only what is left.
+    func testAFailedSignOutIsNamedAndNothingIsSaidDeleted() async {
+        var ran: [String] = []
+        let failure = await AccountDeletion.removePasses([
+            .init(part: AccountDeletionWords.partApprovalBox) { ran.append("abx"); throw URLError(.notConnectedToInternet) },
+            .init(part: AccountDeletionWords.partBellTeam) { ran.append("store") },
+        ])
+        XCTAssertEqual(ran, ["abx", "store"], "the step that can finish still finishes")
+        let text = try! XCTUnwrap(failure)
+        XCTAssertTrue(text.contains("決裁箱のサインイン"))
+        XCTAssertFalse(text.contains("BellTeamのサインイン"), "the part that went through is not listed")
+        XCTAssertTrue(text.contains("ネットワークにつながっていません"))
+        XCTAssertTrue(text.contains("もう一度「アカウントを削除」を押すと、続きから終えます"))
+        let none = await AccountDeletion.removePasses([.init(part: "x") { }])
+        XCTAssertNil(none, "all through: no failure")
+        XCTAssertEqual(AccountDeletionWords.reason(LoginBillingError(code: "internal", status: 503)), "ログインの運営に届きません")
+        XCTAssertEqual(AccountDeletionWords.reason(LoginBillingError(code: "network")), "ネットワークにつながっていません")
+        XCTAssertEqual(AccountDeletionWords.reason(LoginBillingError(code: "x")), "処理できませんでした")
     }
 
     func testDeletionEndsTheSessionAndReturnsToTheFirstScreen() async {

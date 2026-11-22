@@ -129,6 +129,7 @@
 		8499EDE3CC0C6A308B6AE026 /* BackgroundAgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176EA930767EE44E1A60E29B /* BackgroundAgentSettingsView.swift */; };
 		85EF32381AD5B89EE75F2AB6 /* ConversationImageViewerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A46AC41E8C3B106A493DE9E /* ConversationImageViewerUITests.swift */; };
 		86F2FDD4E4F27C6C7C9E7528 /* BellTeamMonthly.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1AC9DE69D9AA70D53EE0364D /* BellTeamMonthly.storekit */; };
+		887B498BD2732FB415CEC8D0 /* BearerRedirectGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */; };
 		8A43E9BCA8E26D57E771C76C /* HarnessAccountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81451EFF842934E5694C6329 /* HarnessAccountsTests.swift */; };
 		8C09B7052EA7EF57286D12A2 /* ShareModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20227FCE4704C75C93BD9 /* ShareModel.swift */; };
 		8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */; };
@@ -142,6 +143,7 @@
 		988BFAD10B96323111424B11 /* AvatarTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B4C8B4F887C335AC863DBF /* AvatarTone.swift */; };
 		999E7A3BE9E56D258E64224E /* MemberDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F14724DCBA3365032470B8BF /* MemberDeletionTests.swift */; };
 		9C4A3C81496F5B940BAA6811 /* ForwardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFD37AE7C405B4689B50CAE /* ForwardSheet.swift */; };
+		9D45B473BFB06E7C27BF452D /* BearerRedirectGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */; };
 		A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */; };
 		A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */; };
 		A1D52684ED7706BBBF0599FD /* LatticeChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73BE39705A7CEA2EA39465 /* LatticeChartView.swift */; };
@@ -182,6 +184,7 @@
 		CB5DB93D2B75366DA743C33A /* LatticeChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ADDC06BA85B1C58006446F8 /* LatticeChartTests.swift */; };
 		CBED23E72761BA998161DD15 /* TerminalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3501344025EE9B87993700A4 /* TerminalsTests.swift */; };
 		CF86EA52EF3720485D3AB265 /* InstalledConversationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */; };
+		D2B825C0E1E37368F926DBF3 /* BearerRedirectGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */; };
 		D2C41EF2F6330CC13B43961C /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9CF9B993CAE157FD87092D72 /* NotificationService.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D4A130FFEA9A6AA802FFC42B /* TerminalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6781B9CADD0605237013A956 /* TerminalsView.swift */; };
 		D7F1C971318B3D8F639572B6 /* BotScreenKeyBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E6B86A44AFB7053F2260B5 /* BotScreenKeyBar.swift */; };
@@ -395,6 +398,7 @@
 		85DB5E741758089D810A8E49 /* MessageText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageText.swift; sourceTree = "<group>"; };
 		8700D379567AAFADB669AB4B /* WorkGraphModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphModel.swift; sourceTree = "<group>"; };
 		884428616564BE00EFB0370F /* BellBotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellBotApp.swift; sourceTree = "<group>"; };
+		887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BearerRedirectGuard.swift; sourceTree = "<group>"; };
 		8A46AC41E8C3B106A493DE9E /* ConversationImageViewerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationImageViewerUITests.swift; sourceTree = "<group>"; };
 		8A97AF12ADC39496A4688770 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
 		8AADF3A874E03D87F1757240 /* PrimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimeTests.swift; sourceTree = "<group>"; };
@@ -835,6 +839,7 @@
 		BCA3F3ACFE60A75083C353E5 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */,
 				1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */,
 				0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */,
 				549845AE12463CD143CDEEB8 /* ServerOrigin.swift */,
@@ -1113,6 +1118,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				887B498BD2732FB415CEC8D0 /* BearerRedirectGuard.swift in Sources */,
 				8CE949E6C3DCFA48F36C0023 /* ShareClient.swift in Sources */,
 				C703F13F4A5DE83ED123D771 /* ShareCredentials.swift in Sources */,
 				8C09B7052EA7EF57286D12A2 /* ShareModel.swift in Sources */,
@@ -1161,6 +1167,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D2B825C0E1E37368F926DBF3 /* BearerRedirectGuard.swift in Sources */,
 				D9090FD32702DDE687079C6D /* BellNotificationService.swift in Sources */,
 				35B76B910CE10F6396331A23 /* BotAvatarCache.swift in Sources */,
 				1D0987B137B1F5F6708F731C /* CommunicationNotification.swift in Sources */,
@@ -1188,6 +1195,7 @@
 				988BFAD10B96323111424B11 /* AvatarTone.swift in Sources */,
 				8499EDE3CC0C6A308B6AE026 /* BackgroundAgentSettingsView.swift in Sources */,
 				051328459388F592552BDFD5 /* BackgroundMessageSend.swift in Sources */,
+				9D45B473BFB06E7C27BF452D /* BearerRedirectGuard.swift in Sources */,
 				8F591999805F36BF68F0CED4 /* BellAPI+BotSettings.swift in Sources */,
 				8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */,
 				E7677801888A80651A3F97D1 /* BellBotApp.swift in Sources */,

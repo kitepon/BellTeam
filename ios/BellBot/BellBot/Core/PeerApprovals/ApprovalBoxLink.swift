@@ -199,9 +199,26 @@ final class ApprovalBoxLink: ObservableObject {
         state = .signedOut(note: ApprovalBoxWords.passEnded)
     }
 
-    /// 「アカウントを削除」（BellTeamのアカウントの削除）の一部: この端末の決裁箱のサインイン・端末の鍵・レジストリ・履歴を消す。Approval Box 自身のアカウントはここでは消さない。
+    /// 「アカウントを削除」の1段目: 決裁箱（2つ目のライブラリ）のサインインを外す。運営に届かなければ何も消さずに投げる（消えていないものを「消えた」と言わない）。
+    /// 外れるまでは端末の状態を止めない: 失敗したら、同じ状態のまま、押し直しで続きから終える。
+    func removePass() async throws {
+        guard let client else { return }
+        let pass = await client.pass, k = await client.k
+        guard pass != nil || k != nil else { return }
+        try await client.signOut()
+        await stopPeer()
+        started = false
+        state = .signedOut(note: nil)
+    }
+
+    /// 「アカウントを削除」の2段目（サインインが外れた後）: この端末の決裁箱の鍵・レジストリの写し・履歴を消す。Approval Box 自身のアカウントはここでは消さない。
     func deleteLocalData() async {
-        await accountDeleted()
+        await stopPeer()
+        try? deviceStore.eraseAll()
+        history?.erase()
+        history = nil
+        decisions = []
+        started = false
         state = .signedOut(note: nil)
     }
 

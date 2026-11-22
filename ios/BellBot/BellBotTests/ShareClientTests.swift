@@ -66,6 +66,11 @@ final class ShareClientTests: XCTestCase {
         }
     }
 
+    /// Mint c: the share extension's session follows no redirect for a request that carries the home token.
+    func testTheShareSessionRefusesRedirectsForTokenRequests() {
+        XCTAssertTrue(ShareClient.guarded.delegate is BearerRedirectGuard)
+    }
+
     func testADifferentHostAnswerMeansTheLoginExpired() async {
         respond(200, "{}", host: "team.cloudflareaccess.com")
         do { _ = try await client().destinations(); XCTFail("redirected") } catch { XCTAssertEqual(error as? ShareClient.Failure, .expired) }
