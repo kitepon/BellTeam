@@ -203,6 +203,36 @@ flowchart LR
 
 Seat name format (public contract with integration `seat-mcp`, #759): a Bot's seat is `<botId>` or `<botId>-<slot>-<base36>`, slot in `ACCOUNT_SLOTS` (`1st`, `2nd`), base36 `[a-z0-9]+`. The seat's `X-Bellteam-Seat` header is that name (`AITERM_SESSION_ID`); `seat-mcp` resolves the exact name first, then the account form to `<botId>`, and keeps the full name as `launch.session_id`. Any other suffixed name (child seats) stays unresolved. Adding a slot changes the `seat-mcp` pattern in the same release. Without this resolution an account seat has no BellTeam identity (production 2026-11-09 11:5x JST: Trony's and Black's 2nd seats got `BELLTEAM_SEAT_UNRESOLVED` on bellteam and call-bridge).
 
+### A delivery whose turn ends at the usage limit (a526, 2026-11-23)
+
+Production 2026-11-22 15:06:33-15:07:37Z: the 2nd account's weekly limit (both slots limited, `allLimited` until 11-25 19:00Z) ended the turns of ~21 seats at once. 11 deliveries, among them the Owner's own to Nayuta and Hansel, were recorded `failed` (`BOT_SEND_FAILED` / `BOT_LAUNCH_FAILED`) although the seat had taken the text (an `input` in its activity 1-11 s before the failure) and only the TURN stopped at the limit. The Owner re-sent them. A "failed" for a text that arrived is a give-up with no protection behind it, so it is removed.
+
+| State of the delivery | Event | Next state | What the Owner sees |
+| --- | --- | --- | --- |
+| queued -> dispatching | input typed and accepted by the seat | running | the message, as sent |
+| running | the turn ends `rate_limited` (wait outcome `rate_limited`, or `failure.category: rate_limited`), receipt present (input accepted), not stopped | **delivered** (was: `failed`) | the message as delivered, plus the seat's own words: 「利用上限に達したため、このターンはここで止まりました。」(a443, from the seat's record or this sentence). No 配達失敗, no re-send needed |
+| running | the turn ends any other way (error, closed, not taken) | failed (unchanged) | 配達失敗 |
+| not accepted | the seat could not be started or typed into | failed (unchanged) | 配達失敗 |
+
+What keeps the work: nothing new. `recordAccountLimit` still writes the limit into the registry, Aiterm's `limit_end` (`at`, `continued: false`) on that seat still arms the one continuation, and the registry timer clearing the limit at `resetAt` (or any slot becoming free) runs `reviewAccounts` -> `recoverMember`, which sends ONE continuation message (`（継続キー: <limit_end.at>）`) to every seat whose last turn is that limit end. So an Owner message that arrived while both slots were limited is continued by the seat after the reset, not lost and not to be re-sent.
+
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> dispatching
+  dispatching --> running: input accepted by the seat
+  dispatching --> failed: not started or not typed
+  running --> delivered: turn ends normally
+  running --> delivered: turn ends rate_limited (a526)
+  running --> failed: turn ends in another error
+  delivered --> continued: limit end seen: ONE continuation at reset or when a slot is free (recoverMember)
+  continued --> [*]
+  delivered --> [*]
+  failed --> [*]
+```
+
+Self-exit: the limit entry clears at its `resetAt` (timer) or when a slot is logged in and not limited; the continuation then runs once per limit end (the claim at the input boundary). Named limit: a seat whose last turn did not end at a limit end Aiterm can see (no `limit_end` row) gets no continuation; its message stays answered by the limit words only.
+
 ## Deployment order (one login per slot, cross-cutting, 2026-11-11)
 
 1. Aiterm with E6 and E7, in the body and on every terminal (rabbit, Mac, fox; Elegg). Without E7 a hibernated seat whose recipe lacks the variable gets `AGENT_RESUME_CONFLICT` once the variable is named, and a renewed token would not reach a resumed seat.

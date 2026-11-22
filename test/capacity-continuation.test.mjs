@@ -85,7 +85,7 @@ test('bound Fable limit closes old native, selects live latest Sol and sends a n
   assert.equal(f.bots.get(f.bot.id).harness, 'codex'); assert.equal(f.bots.get(f.bot.id).model, 'gpt-6.1-sol')
   assert.ok(f.calls.findIndex(x => x.name === 'pty_close') < f.calls.findIndex(x => x.name === 'agent_launch'))
   const rows = (await readFile(join(f.root, 'messages.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
-  assert.ok(rows.some(x => x.delivery_id === original.delivery_id && x.delivery === 'failed'))
+  assert.ok(rows.some(x => x.delivery_id === original.delivery_id && x.delivery === 'delivered'))
   assert.equal(rows.filter(x => x.schema === 'bellteam.direct-message.v1').length, 2)
 })
 
