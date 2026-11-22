@@ -25,7 +25,7 @@ const failure = (code, status = 503) => Object.assign(new Error(code), { code, s
 const timeoutError = () => failure('APPROVAL_BOX_DAEMON_TIMEOUT')
 
 // One NDJSON request over the daemon's unix socket: {method,path,body} -> {ok,result|status,code,message}.
-export function localCall(socketPath, method, path, body, { timeoutMs = STATUS_MS, connect = createConnection } = {}) {
+export function localCall(socketPath, method, path, body, { timeoutMs = STATUS_MS, connect = createConnection, maxReply = 1e6 } = {}) {
   return new Promise((resolve, reject) => {
     let text = '', settled = false
     const socket = connect(socketPath)
@@ -33,7 +33,7 @@ export function localCall(socketPath, method, path, body, { timeoutMs = STATUS_M
     const timer = setTimeout(() => done(reject, timeoutError()), timeoutMs)
     socket.setEncoding?.('utf8')
     socket.on('connect', () => socket.write(JSON.stringify({ method, path, ...(body === undefined ? {} : { body }) }) + '\n'))
-    socket.on('data', chunk => { text += chunk; if (text.length > 1e6) done(reject, failure('APPROVAL_BOX_DAEMON_REPLY_INVALID')) })
+    socket.on('data', chunk => { text += chunk; if (text.length > maxReply) done(reject, failure('APPROVAL_BOX_DAEMON_REPLY_INVALID')) })
     socket.on('end', () => { try { done(resolve, JSON.parse(text)) } catch { done(reject, failure('APPROVAL_BOX_DAEMON_REPLY_INVALID')) } })
     socket.on('error', () => done(reject, failure('APPROVAL_BOX_DAEMON_UNREACHABLE')))
   })
@@ -172,6 +172,13 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       if (reply?.ok !== true) throw Object.assign(failure(String(reply?.code ?? 'APPROVAL_BOX_DAEMON_REFUSED').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64) || 'APPROVAL_BOX_DAEMON_REFUSED', Number.isInteger(reply?.status) ? reply.status : 502),
         reply?.body && typeof reply.body === 'object' && !Array.isArray(reply.body) ? { body: reply.body } : {})
       return reply.result
+    },
+    // a516m: the daemon's reply as it is, for the seat door route on the remote seat listener (docs runtime/approval-box-daemon.md). Never throws: a daemon that is down or answers badly
+    // is the same {ok:false,status:503} line the daemon itself would send. The reply bound is larger than route()'s because an attachment reply is base64 (up to 20 MiB of file).
+    async call(method, path, body) {
+      if (!child) return { ok: false, status: 503, code: 'APPROVAL_BOX_DAEMON_UNAVAILABLE', message: 'The body\'s Approval Box daemon is not running.' }
+      try { return await localCall(socketPath, method, path, body, { timeoutMs: 30000, connect, maxReply: 64 * 1024 * 1024 }) }
+      catch (error) { return { ok: false, status: 503, code: String(error?.code ?? 'APPROVAL_BOX_DAEMON_UNREACHABLE').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64) || 'APPROVAL_BOX_DAEMON_UNREACHABLE', message: 'The body\'s Approval Box daemon did not answer.' } }
     },
     // One `pair --json` run at a time. Returns the waiting line (with the secrets) to the caller only; nothing of it is logged.
     async pair({ rebind = false } = {}) {

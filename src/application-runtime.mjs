@@ -8,6 +8,7 @@ import { createApplicationServices } from './application-services.mjs'
 import { createApplicationFeatures } from './application-features.mjs'
 import { createBellTeamServer } from './http-server.mjs'
 import { createRemoteSeatIngress, createRemoteSeatServer, createSeatMcp, internalApi } from './seat-mcp.mjs'
+import { createApprovalBoxDoorRoute } from './approval-box-door-route.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -82,7 +83,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
           () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
   server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   // Remote seats reach this only through Aiterm's SSH reverse forward (remote-seat-ingress.md RS05); never via 4180/18891.
-  const remoteSeatServer = createRemoteSeatServer(createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp, userTools: services.userToolRelay ?? null }))
+  const remoteSeatServer = createRemoteSeatServer(createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp, userTools: services.userToolRelay ?? null }),
+    { door: services.approvalBoxDaemon ? createApprovalBoxDoorRoute({ credentials: services.seatCredentials, bots, daemon: services.approvalBoxDaemon }) : null })
   const seatMcp = createSeatMcp({
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),

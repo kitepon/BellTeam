@@ -167,3 +167,12 @@ test('no package in the image: no door either (dev and tests)', async t => {
   assert.equal((await daemon.status()).available, false)
   await assert.rejects(stat(join(root, 'state', 'approval-box-hosted.sock')), { code: 'ENOENT' })
 })
+
+test('call: the daemon\'s reply as it is, ok:false included, never a throw (a516m seat door route)', async t => {
+  const { daemon } = await setup(t)
+  assert.equal((await daemon.call('GET', '/status')).ok, false, 'not started: the 503 line')
+  daemon.start()
+  await until(async () => (await daemon.status()).reachable)
+  assert.deepEqual(await daemon.call('GET', '/decisions'), { ok: true, result: { items: [] } })
+  assert.deepEqual(await daemon.call('POST', '/confirm', { x: 1 }), { ok: false, status: 409, code: 'confirm_required', message: 'x', body: { check_token: 'ct', decisions: [] } })
+})
