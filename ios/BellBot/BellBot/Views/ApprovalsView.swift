@@ -12,7 +12,7 @@ struct ApprovalsRunner: ViewModifier {
     func body(content: Content) -> some View {
         content.task(id: "\(scenePhase == .active)-\(model.readRequest)") {
             guard scenePhase == .active else { return }
-            await model.run(api: store.api)
+            await model.run()
         }
     }
 }
@@ -241,7 +241,7 @@ private struct ApprovalsScreen: View {
         }
         .navigationTitle("決裁箱")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: tab) { if tab == .done, !model.doneLoaded { await model.loadDone(api: store.api, more: false) } }
+        .task(id: tab) { if tab == .done, !model.doneLoaded { await model.loadDone(more: false) } }
         .onChange(of: model.openRequest, initial: true) { _, id in
             guard let id else { return }
             model.openRequest = nil
@@ -361,7 +361,7 @@ private struct ApprovalsScreen: View {
                     list(wide: false)
                 }
                 if model.stale {
-                    Text(ApprovalText.reconnect).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(LatticePalette.ink)
+                    Text(ApprovalBoxWords.reconnecting).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(LatticePalette.ink)
                         .padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule()).padding(.top, 8)
                 }
             }
@@ -385,18 +385,18 @@ private struct ApprovalsScreen: View {
         .refreshable { model.reread() }
     }
 
-    /// 「決裁箱につながっています」 and the two-step つなぎを外す (the result appears where the button was).
+    /// 「Approval Boxからサインアウト」 (two steps): leaves BellTeam's own sign-in alone.
     private var disconnectRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("決裁箱につながっています", systemImage: "link").font(.system(size: 12.5)).foregroundStyle(LatticePalette.muted)
+            Label("Approval Boxにつながっています", systemImage: "link").font(.system(size: 12.5)).foregroundStyle(LatticePalette.muted)
             if confirmingDisconnect {
-                Text("つなぎを外しますか？ 外すと、また「決裁箱につなぐ」が必要です。").font(.system(size: 13)).foregroundStyle(LatticePalette.ink)
+                Text("Approval Boxからサインアウトしますか？ BellTeamのサインインはそのままです。").font(.system(size: 13)).foregroundStyle(LatticePalette.ink)
                 HStack {
-                    Button("外す") { confirmingDisconnect = false; Task { await model.disconnect(api: store.api) } }.buttonStyle(.borderedProminent).tint(LatticePalette.red)
-                    Button("やめる") { confirmingDisconnect = false }.buttonStyle(.bordered)
+                    Button("サインアウト") { confirmingDisconnect = false; Task { await model.link.signOut() } }.buttonStyle(.borderedProminent).tint(LatticePalette.red)
+                    Button(ApprovalBoxWords.cancel) { confirmingDisconnect = false }.buttonStyle(.bordered)
                 }
             } else {
-                Button("つなぎを外す") { confirmingDisconnect = true }.font(.system(size: 12.5, weight: .semibold))
+                Button(ApprovalBoxWords.signOut) { confirmingDisconnect = true }.font(.system(size: 12.5, weight: .semibold))
                     .accessibilityIdentifier("approvals-disconnect")
             }
         }
@@ -443,9 +443,6 @@ private struct ApprovalsScreen: View {
             ForEach(groups.keys.sorted(by: >), id: \.self) { day in
                 Text(LatticeTime.dayHeading(day, now: Date())).font(.system(size: 12, weight: .semibold)).foregroundStyle(LatticePalette.muted).padding(.top, 4)
                 ForEach(groups[day] ?? []) { d in cardButton(d, done: true) }
-            }
-            if model.doneCursor != nil {
-                Button("さらに読み込む") { Task { await model.loadDone(api: store.api, more: true) } }.frame(maxWidth: .infinity)
             }
         }
     }
@@ -596,12 +593,12 @@ private struct ApprovalDetailView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(d.requestAttachments) { a in
-                    Button { viewing = a } label: { ApprovalImage(decisionId: d.id, attachment: a, side: 96) }.buttonStyle(.plain)
+                    Button { viewing = a } label: { ApprovalImage(link: model.link, attachment: a, side: 96) }.buttonStyle(.plain)
                 }
             }
         }
         .sheet(item: $viewing) { a in
-            ApprovalImage(decisionId: d.id, attachment: a, side: nil).padding().presentationDetents([.large])
+            ApprovalImage(link: model.link, attachment: a, side: nil).padding().presentationDetents([.large])
         }
     }
 
@@ -619,11 +616,11 @@ private struct ApprovalDetailView: View {
                     HStack(spacing: 8) { ProgressView(); Text("答えを送っています…") }.font(.system(size: 14, weight: .semibold)).foregroundStyle(LatticePalette.muted)
                 } else if let choice { confirm(d, choice) } else { options(d) }
             } else {
-                Button("保留を戻す") { Task { await model.hold(d, hold: false, api: store.api) } }.buttonStyle(.bordered).disabled(sending)
+                Button("保留を戻す") { Task { await model.hold(d, hold: false) } }.buttonStyle(.bordered).disabled(sending)
             }
             if let note = model.notes[d.id] { noteView(note) }
             if d.isPending && choice == nil && !sending {
-                Button { Task { await model.hold(d, hold: true, api: store.api) } } label: { Label("保留にする", systemImage: "pause") }
+                Button { Task { await model.hold(d, hold: true) } } label: { Label("保留にする", systemImage: "pause") }
                     .font(.system(size: 13.5, weight: .semibold)).buttonStyle(.bordered)
                     .accessibilityIdentifier("approval-hold")
             }
@@ -663,7 +660,7 @@ private struct ApprovalDetailView: View {
                 Text(ApprovalText.confirm(label: label, d: d)).font(.system(size: 14, weight: .semibold)).foregroundStyle(LatticePalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Button("答える") { Task { await model.answer(d, optionId: id, text: nil, api: store.api); self.choice = nil } }
+                    Button("答える") { Task { await model.answer(d, optionId: id, text: nil); self.choice = nil } }
                         .buttonStyle(.borderedProminent).accessibilityIdentifier("approval-confirm")
                     Button("やめる") { self.choice = nil }.buttonStyle(.bordered)
                 }
@@ -676,7 +673,7 @@ private struct ApprovalDetailView: View {
                     Text("この指示で返しますか？ 答えると、\(d.addressee)に届きます。").font(.system(size: 14, weight: .semibold)).foregroundStyle(LatticePalette.ink)
                 }
                 HStack {
-                    Button("指示を送る") { Task { await model.answer(d, optionId: nil, text: trimmed, api: store.api); draft = ""; self.choice = nil } }
+                    Button("指示を送る") { Task { await model.answer(d, optionId: nil, text: trimmed); draft = ""; self.choice = nil } }
                         .buttonStyle(.borderedProminent).disabled(trimmed.isEmpty).accessibilityIdentifier("approval-text-confirm")
                     Button("やめる") { self.choice = nil }.buttonStyle(.bordered)
                 }
@@ -756,8 +753,7 @@ private struct ApprovalDetailView: View {
 // MARK: Attachment image (size and sha256 are checked against the body)
 
 private struct ApprovalImage: View {
-    @EnvironmentObject private var store: AppStore
-    let decisionId: String
+    let link: ApprovalBoxLink
     let attachment: ApprovalAttachment
     let side: CGFloat?
     @State private var image: UIImage?
@@ -777,8 +773,7 @@ private struct ApprovalImage: View {
             }
         }
         .task {
-            let path = "\(ApprovalsModel.base)/\(ApprovalsModel.segment(decisionId))/attachments/\(ApprovalsModel.segment(attachment.id))"
-            guard let data = try? await store.api.image(path), data.count == attachment.size,
+            guard let data = link.blob(attachment.id), data.count == attachment.size,
                   SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == attachment.sha256.lowercased(),
                   let picture = UIImage(data: data) else { failed = true; return }
             image = picture
@@ -842,19 +837,19 @@ private struct ApprovalChainPanel: View {
     }
 }
 
-// MARK: Gates (failure views 1, 2, 4, 9; screen-spec 「Failure views」)
+// MARK: Gates (signin.md section 3: one screen per state; the Japanese is the contract)
 
 private struct ApprovalGateView: View {
     @ObservedObject var model: ApprovalsModel
     let close: () -> Void
-    @EnvironmentObject private var store: AppStore
-    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: symbol).font(.system(size: 34)).foregroundStyle(LatticePalette.muted)
-            Text(verbatim: message).font(.system(size: 14.5)).foregroundStyle(LatticePalette.ink).multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+            if let note = note { Text(verbatim: note).font(.system(size: 13)).foregroundStyle(LatticePalette.amber).multilineTextAlignment(.center).frame(maxWidth: 420) }
+            Text(verbatim: message).font(.system(size: 14.5)).foregroundStyle(LatticePalette.ink).multilineTextAlignment(.center).frame(maxWidth: 420)
+            if case .waiting(let code, let qr, let expiresAt) = model.gate { waiting(code: code, qr: qr, expiresAt: expiresAt) }
             actions
         }
         .padding(28).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -864,54 +859,56 @@ private struct ApprovalGateView: View {
 
     private var symbol: String {
         switch model.gate {
-        case .notConnected: "link.badge.plus"
-        case .oldServer: "server.rack"
+        case .needsApproval, .waiting: "iphone.and.arrow.forward"
+        case .signingIn: "safari"
         default: "lock"
+        }
+    }
+
+    private var note: String? {
+        switch model.gate {
+        case .signedOut(let note), .needsApproval(let note): note
+        default: nil
         }
     }
 
     private var message: String {
         switch model.gate {
-        case .notEntitled: ApprovalText.notEntitled
-        case .subscriptionEnded(let until): ApprovalText.expired(validUntil: until)
-        case .notConnected(let expired): model.connectPhase == .waiting ? ApprovalText.waitingForConsent : (model.connectPhase == .denied ? ApprovalText.denied : (expired ? ApprovalText.connectExpired : ApprovalText.notConnected))
-        case .oldServer: ApprovalText.oldServer + ApprovalText.oldServerNext
-        case .login: ApprovalText.login
+        case .signedOut: ApprovalBoxWords.signedOut
+        case .signingIn: ApprovalBoxWords.signingIn
+        case .notEntitled: ApprovalBoxWords.notEntitled
+        case .needsApproval: ApprovalBoxWords.needsApproval
+        case .waiting: ApprovalBoxWords.waiting
         default: ""
+        }
+    }
+
+    private func waiting(code: String, qr: String, expiresAt: Date) -> some View {
+        VStack(spacing: 10) {
+            Text(verbatim: code).font(.system(size: 26, weight: .bold, design: .monospaced)).textSelection(.enabled).accessibilityIdentifier("approvals-admission-code")
+            if let picture = ServerLoginView.qrImage(qr) { Image(uiImage: picture).interpolation(.none).resizable().scaledToFit().frame(width: 180, height: 180) }
+            Text(verbatim: ApprovalBoxWords.waitingSamePhone).font(.system(size: 12)).foregroundStyle(LatticePalette.muted).multilineTextAlignment(.center).frame(maxWidth: 380)
+            Text(expiresAt, style: .timer).font(.system(size: 12.5)).foregroundStyle(LatticePalette.muted)
         }
     }
 
     @ViewBuilder private var actions: some View {
         switch model.gate {
-        case .notConnected:
-            VStack(spacing: 10) {
-                switch model.connectPhase {
-                case .waiting:
-                    ProgressView()
-                    HStack {
-                        Button("もう一度開く") { connect() }.buttonStyle(.bordered)
-                        Button("やめる") { Task { await model.cancelConnect(api: store.api) } }.buttonStyle(.bordered)
-                    }
-                case .opening: ProgressView()
-                case .denied: Button("もう一度つなぐ") { connect() }.buttonStyle(.borderedProminent)
-                default:
-                    Button("決裁箱につなぐ") { connect() }.buttonStyle(.borderedProminent).accessibilityIdentifier("approvals-connect")
-                    Button("読み直す") { model.reread() }.buttonStyle(.bordered)
-                }
-                if model.connectPhase == .failed { Text(ApprovalText.connectFailed).font(.system(size: 12.5)).foregroundStyle(LatticePalette.amber) }
-            }
+        case .signedOut:
+            Button(ApprovalBoxWords.signIn) { Task { await model.link.signIn(anchor: StoreAccount.anchor) } }
+                .buttonStyle(.borderedProminent).accessibilityIdentifier("approvals-signin")
+        case .signingIn:
+            Button(ApprovalBoxWords.cancel) { model.link.cancelSignIn() }.buttonStyle(.bordered)
+        case .needsApproval:
+            Button(ApprovalBoxWords.askApproval) { Task { await model.link.askForApproval() } }.buttonStyle(.borderedProminent).accessibilityIdentifier("approvals-ask")
+        case .waiting:
+            Button(ApprovalBoxWords.cancel) { Task { await model.link.cancelApproval() } }.buttonStyle(.bordered)
         case .notEntitled:
             HStack {
-                Button("契約を確かめる") { model.reread() }.buttonStyle(.bordered)
-                Button("閉じる", action: close).buttonStyle(.bordered)
+                Button(ApprovalBoxWords.checkAgain) { Task { await model.link.retryNow() } }.buttonStyle(.bordered)
+                Button(ApprovalBoxWords.signOut) { Task { await model.link.signOut() } }.buttonStyle(.bordered)
             }
-        case .subscriptionEnded, .oldServer:
-            Button("閉じる", action: close).buttonStyle(.bordered)
-        case .login:
-            Button("読み直す") { model.reread() }.buttonStyle(.bordered)
         default: EmptyView()
         }
     }
-
-    private func connect() { model.connect(api: store.api) { openURL($0) } }
 }

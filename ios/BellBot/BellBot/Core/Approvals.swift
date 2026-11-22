@@ -1,3 +1,5 @@
+import Combine
+import PeerChannel
 import SwiftUI
 
 // 決裁箱拡張のアプリ契約 `/api/approvals/*`（docs/architecture/modules/approval-box-extension/contract/approvals-contract.md）。
@@ -142,105 +144,18 @@ struct ApprovalDecision: Decodable, Equatable, Identifiable {
 
 struct ApprovalsList: Decodable { let items: [ApprovalDecision]; let nextCursor: String? }
 
-struct ApprovalConnection: Decodable, Equatable {
-    let state: String
-    let connectedAt: String?
-    let expiresAt: String?
-}
-
-struct ApprovalConnectStart: Decodable { let authorizationUrl: String; let expiresAt: String? }
-
-struct ApprovalByTask: Decodable, Equatable { let decisionId: String; let status: String; let title: String }
-
-// MARK: Failures (contract 「Errors」)
-
-enum ApprovalFailure: Error, Equatable {
-    /// 403 not_entitled. `state`: none | expired | revoked.
-    case notEntitled(state: String, validUntil: String?)
-    /// 409 not_connected.
-    case notConnected(expired: Bool)
-    /// 402.
-    case subscriptionExpired
-    /// 409 conflict; the body carries the latest decision.
-    case conflict(ApprovalDecision?)
-    /// 404 on the whole route: the body has no module.
-    case oldServer
-    /// 404 not_found.
-    case notFound
-    case rateLimited
-    case rejected(String)
-    /// 503, a network failure or any unreadable answer.
-    case unavailable
-    /// The BellTeam session itself (401, Access login).
-    case login
-
-    private struct Body: Decodable {
-        struct Err: Decodable {
-            let code: String?
-            let message: String?
-            let state: String?
-            let validUntil: String?
-            let decision: ApprovalDecision?
-            private enum Keys: String, CodingKey { case code, message, state, validUntil, decision }
-            init(from decoder: Decoder) throws {
-                let c = try decoder.container(keyedBy: Keys.self)
-                code = try? c.decodeIfPresent(String.self, forKey: .code)
-                message = try? c.decodeIfPresent(String.self, forKey: .message)
-                state = try? c.decodeIfPresent(String.self, forKey: .state)
-                validUntil = try? c.decodeIfPresent(String.self, forKey: .validUntil)
-                // The fixture example carries a placeholder string here; only a real decision counts.
-                decision = try? c.decodeIfPresent(ApprovalDecision.self, forKey: .decision)
-            }
-        }
-        let error: Err
-    }
-
-    /// The failure for a non-2xx answer; nil for 2xx.
-    static func of(status: Int, data: Data) -> ApprovalFailure? {
-        if (200..<300).contains(status) { return nil }
-        let error = (try? JSONDecoder().decode(Body.self, from: data))?.error
-        switch (status, error?.code) {
-        case (403, "not_entitled"): return .notEntitled(state: error?.state ?? "none", validUntil: error?.validUntil)
-        case (403, _): return .login
-        case (402, _): return .subscriptionExpired
-        case (409, "not_connected"): return .notConnected(expired: error?.state == "expired")
-        case (409, _): return .conflict(error?.decision)
-        case (404, "not_found"): return .notFound
-        case (404, _): return .oldServer
-        case (429, _): return .rateLimited
-        case (400, _): return .rejected(error?.message ?? "内容を確かめてください。")
-        default: return .unavailable
-        }
-    }
-}
-
 // MARK: Words (every sentence the Owner reads; screen-spec 「Answer outcomes」)
 
 enum ApprovalText {
-    static let login = "ログインが必要です。"
     static let reconnect = "決裁箱に再接続しています…"
     static let empty = "決裁はありません。AIが判断を求めると、ここに並びます。"
     static let noDone = "まだ済んだ決裁はありません。"
-    static let notConnected = "決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。"
-    static let connectExpired = "決裁箱とのつなぎの期限が切れました。もう一度つないでください。"
-    static let notEntitled = "決裁箱の拡張は、まだ使えません。決裁箱を購読すると、決裁が工程表とつながります。いまお使いの決裁箱のアプリは、これまでどおり使えます。"
-    static let oldServer = "このサーバーではまだ決裁箱の拡張を使えません。"
-    static let oldServerNext = "サーバーが更新されると、自動で使えます。"
-    static let waitingForConsent = "決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。"
-    static let denied = "許可されませんでした。もう一度つなげます。"
-    static let connectFailed = "いまはつなぎを始められませんでした。少し待って、もう一度押してください。"
     static let sendFailed = "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。"
-    static let conflict = "答える前に、内容が直されました。もう一度、内容を確かめてください。"
+    static let conflict = "この相談は、開いてから更新されました。内容を確かめてから、もう一度答えてください。"
+    static let closedElsewhere = "別の端末ですでに答えられています。"
+    static let notConnectedToAI = "この端末は、いまAIとつながっていません。つながると答えを送れます。"
     static let held = "保留中です。戻すまで工程は待ちます"
     static let heldExternal = "保留中です"
-
-    static func expired(validUntil: String?) -> String {
-        let base = "決裁箱の契約が切れています。契約を更新すると、また決裁を読めます。更新するまでは、答えの送信と工程への反映を止めています。"
-        guard let date = LatticeTime.date(validUntil) else { return base }
-        let day = DateFormatter()
-        day.locale = Locale(identifier: "ja_JP"); day.timeZone = TimeZone(identifier: "Asia/Tokyo"); day.dateFormat = "M月d日"
-        return "\(base)\(day.string(from: date))まででした。"
-    }
 
     static func answerBanner(_ d: ApprovalDecision) -> (text: String, tone: SettingsTone) {
         let who = d.addressee
@@ -271,22 +186,51 @@ enum ApprovalText {
     }
 }
 
+// MARK: Records as the view's decisions
+
+extension ApprovalDecision {
+    /// A decision as this device holds it (peer-channel): content only from the device; no chart link here (the id-level lookup joins it later), origin external.
+    init(record r: PeerDecisionRecord) {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let answer = r.answer.map {
+            ApprovalAnswer(optionId: $0.optionId, text: $0.text, attachments: [], answeredAt: iso.string(from: $0.answeredAt))
+        }
+        self.init(id: r.id, title: r.title, context: r.context,
+                  options: r.options.map { ApprovalOption(id: $0.id, label: $0.label, recommended: $0.id == r.recommendation) },
+                  urgency: r.urgency, deadline: r.deadline.map(iso.string(from:)), status: r.status, answer: answer,
+                  delivery: r.status == "answered" ? "delivered" : nil, resumePhrase: "", version: r.version,
+                  createdAt: iso.string(from: r.createdAt), updatedAt: iso.string(from: r.updatedAt), cancelReason: r.cancelReason,
+                  amended: ApprovalAmended(is: false, fields: [], note: nil, at: nil), history: [],
+                  requestAttachments: r.attachments.map {
+                      ApprovalAttachment(id: $0.id, name: $0.name, contentType: $0.contentType, size: $0.size,
+                                         sha256: (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
+                  },
+                  origin: ApprovalOrigin(kind: "external", client: r.client, tool: Self.toolName(r.client), sessionLabel: r.sessionLabel, via: r.via),
+                  requester: nil, link: nil)
+    }
+
+    static func toolName(_ client: String) -> String {
+        ["claude-code": "Claude Code", "codex": "Codex", "cursor": "Cursor", "grok": "Grok", "claude.ai": "Claude", "chatgpt": "ChatGPT"][client] ?? "その他"
+    }
+}
+
 // MARK: Model
 
-/// 決裁箱の読み取りと操作。アプリが前面の間は1つの経路（読み取り＋SSE）で保ち、入口の数字も画面もここから描く。
+/// 決裁箱の画面の状態と操作。中身は、この端末が持つ決裁（peer-channel。サーバーに内容はない）から描く。サインインと端末の状態は ApprovalBoxLink が持つ。
 @MainActor
 final class ApprovalsModel: ObservableObject {
     enum Gate: Equatable {
         case loading, ready, reconnecting
+        case signedOut(note: String?)
+        case signingIn
         case notEntitled
-        case subscriptionEnded(validUntil: String?)
-        case notConnected(expired: Bool)
-        case oldServer
-        case login
+        case needsApproval(note: String?)
+        case waiting(code: String, qr: String, expiresAt: Date)
     }
-    enum ConnectPhase: Equatable { case idle, opening, waiting, denied, failed }
     struct Note: Equatable { let text: String; let tone: SettingsTone }
 
+    let link: ApprovalBoxLink
     @Published private(set) var gate: Gate = .loading
     @Published private(set) var summary: ApprovalsSummary?
     @Published private(set) var open: [ApprovalDecision] = []
@@ -295,148 +239,71 @@ final class ApprovalsModel: ObservableObject {
     @Published private(set) var doneLoaded = false
     @Published private(set) var sending: Set<String> = []
     @Published private(set) var notes: [String: Note] = [:]
-    @Published private(set) var connectPhase: ConnectPhase = .idle
-    @Published private(set) var connectedAt: String?
-    /// The view's read task is keyed on this: a re-read replaces the running loop, never runs beside it.
+    /// The view's read task is keyed on this: a re-read replaces the running one, never runs beside it.
     @Published private(set) var readRequest = 0
     /// Set by 決裁を開く from a chart's 詳細; the screen takes it and selects that decision.
     @Published var openRequest: String?
 
     /// Decisions that left 待ち/保留 in this session (answered here): their 詳細 stays on screen until the Owner closes it.
     private var settled: [String: ApprovalDecision] = [:]
-    private var lastByte = Date()
-    private var keys: [String: (choice: String, key: String)] = [:]
-    private var connectTask: Task<Void, Never>?
-    var pollInterval: Duration = .seconds(3)
+    private var subscriptions: [AnyCancellable] = []
 
-    static let base = "/api/approvals"
+    init(link: ApprovalBoxLink? = nil) {
+        let link = link ?? ApprovalBoxLink()
+        self.link = link
+        link.$state.sink { [weak self] in self?.gate = Self.gate(of: $0) }.store(in: &subscriptions)
+        link.$decisions.sink { [weak self] in self?.apply($0) }.store(in: &subscriptions)
+    }
 
     var pendingCount: Int { summary?.pending ?? open.filter(\.isPending).count }
     var stale: Bool { gate == .reconnecting }
-    func reread() { readRequest &+= 1 }
-
     var entrySubtitle: String { pendingCount == 0 && summary != nil ? "待っている決裁はありません" : "あなたの回答を待っています" }
 
-    // MARK: Reading
+    /// 読み直す: a live session is left alone; anything else tries again at once.
+    func reread() {
+        readRequest &+= 1
+        if link.state != .live { Task { await link.retryNow() } }
+    }
 
-    func run(api: BellAPI) async {
-        var attempt = 0
-        while !Task.isCancelled {
-            do {
-                try await reload(api: api)
-                gate = .ready
-                attempt = 0
-                try await stream(api: api)
-            } catch is CancellationError {
-                return
-            } catch let failure as ApprovalFailure {
-                if settle(failure) {
-                    if case .oldServer = failure { try? await Task.sleep(for: .seconds(60)); continue }
-                    return
-                }
-            } catch {
-                if Task.isCancelled { return }
-            }
-            if Task.isCancelled { return }
-            if gate == .ready || gate == .reconnecting || gate == .loading { gate = .reconnecting }
-            try? await Task.sleep(for: .seconds(min(30, pow(2, Double(attempt))) * Double.random(in: 0.8...1.2)))
-            attempt += 1
+    static func gate(of state: ApprovalBoxLink.State) -> Gate {
+        switch state {
+        case .signedOut(let note): .signedOut(note: note)
+        case .signingIn: .signingIn
+        case .joining: .loading
+        case .notEntitled: .notEntitled
+        case .needsApproval(let note): .needsApproval(note: note)
+        case .waiting(let code, let qr, let expiresAt): .waiting(code: code, qr: qr, expiresAt: expiresAt)
+        case .live: .ready
+        case .reconnecting: .reconnecting
         }
     }
 
-    /// true when the answer settles the screen (nothing to retry on its own); false to read again after a wait.
-    private func settle(_ failure: ApprovalFailure) -> Bool {
-        switch failure {
-        case .notEntitled(let state, let validUntil): gate = state == "none" ? .notEntitled : .subscriptionEnded(validUntil: validUntil)
-        case .subscriptionExpired: gate = .subscriptionEnded(validUntil: nil)
-        case .notConnected(let expired): gate = .notConnected(expired: expired)
-        case .oldServer: gate = .oldServer
-        case .login: gate = .login
-        default: return false
-        }
-        return true
-    }
-
-    func reload(api: BellAPI) async throws {
-        let summary: ApprovalsSummary = try await Self.get(api, "/summary")
-        guard summary.schema == ApprovalsSummary.schema else { throw ApprovalFailure.unavailable }
-        let list: ApprovalsList = try await Self.get(api, "?status=pending,held")
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-            self.summary = summary
-            open = list.items
-        }
-        if doneLoaded { await loadDone(api: api, more: false) }
-        if let c: ApprovalConnection = try? await Self.get(api, "/connection") { connectedAt = c.connectedAt }
-    }
-
-    func loadDone(api: BellAPI, more: Bool) async {
-        let cursor = more ? doneCursor : nil
-        if more && cursor == nil { return }
-        let query = "?status=answered,cancelled" + (cursor.map { "&cursor=\($0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0)" } ?? "")
-        guard let list: ApprovalsList = try? await Self.get(api, query) else { return }
-        done = more ? done + list.items : list.items
-        doneCursor = list.nextCursor
-        doneLoaded = true
-    }
-
-    private func stream(api: BellAPI) async throws {
-        lastByte = Date()
-        let path = Self.base + "/events"
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { [weak self] in
-                try await api.eventStream(path: path, onActivity: { [weak self] in
-                    Task { @MainActor in self?.lastByte = Date() }
-                }, onEvent: { [weak self] name, data in
-                    await self?.apply(event: name, data: data, api: api)
-                })
-            }
-            group.addTask { [weak self] in
-                while true {
-                    try await Task.sleep(for: .seconds(5))
-                    guard let self else { return }
-                    if await Date().timeIntervalSince(self.lastByte) > 35 { throw ApprovalFailure.unavailable }
-                }
-            }
-            _ = try await group.next()
-            group.cancelAll()
-        }
-        throw ApprovalFailure.unavailable
-    }
-
-    private func apply(event name: String?, data: Data, api: BellAPI) async {
-        switch name {
-        case "summary":
-            if let next = try? JSONDecoder().decode(ApprovalsSummary.self, from: data), next.schema == ApprovalsSummary.schema {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) { summary = next }
-            }
-        case "decision.created", "decision.updated", "decision.deleted":
-            struct Changed: Decodable { let id: String; let version: Int? }
-            guard let changed = try? JSONDecoder().decode(Changed.self, from: data) else { return }
-            if name == "decision.deleted" { drop(changed.id); return }
-            if let known = (open + done).first(where: { $0.id == changed.id }), let v = changed.version, known.version >= v { return }
-            if let fresh: ApprovalDecision = try? await Self.get(api, "/" + Self.segment(changed.id)) { upsert(fresh) }
-            else { drop(changed.id) }
-        default: break
-        }
-    }
+    /// Keeps the entry count and the screen current while the app is in front (a started link is left alone).
+    func run() async { await link.start() }
 
     // MARK: Local state
 
-    private func upsert(_ decision: ApprovalDecision) {
-        settled[decision.id] = decision.isOpen ? nil : decision
+    func apply(_ records: [PeerDecisionRecord]) {
+        let all = records.map(ApprovalDecision.init(record:))
+        let tokyo = LatticeTime.tokyo
+        let today = tokyo.startOfDay(for: Date())
+        let isToday = { (text: String?) in LatticeTime.date(text).map { tokyo.startOfDay(for: $0) == today } ?? false }
+        let nextOpen = all.filter(\.isOpen).sorted(by: Self.precedes)
+        let nextDone = all.filter { !$0.isOpen }.sorted { (LatticeTime.date($0.updatedAt) ?? .distantPast) > (LatticeTime.date($1.updatedAt) ?? .distantPast) }
+        for d in all { settled[d.id] = d.isOpen ? nil : d }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-            open.removeAll { $0.id == decision.id }
-            done.removeAll { $0.id == decision.id }
-            if decision.isOpen { open.insert(decision, at: Self.insertionIndex(of: decision, in: open)) }
-            else if doneLoaded { done.insert(decision, at: 0) }
+            open = nextOpen
+            done = nextDone
+            doneLoaded = true
+            summary = ApprovalsSummary(schema: ApprovalsSummary.schema, pending: nextOpen.filter(\.isPending).count, urgent: nextOpen.filter(\.isUrgent).count,
+                                       held: nextOpen.filter(\.isHeld).count, answeredToday: nextDone.filter { $0.status == "answered" && isToday($0.updatedAt) }.count,
+                                       filedToday: all.filter { isToday($0.createdAt) }.count,
+                                       byOrigin: .init(bellteam: 0, external: nextOpen.count))
         }
     }
 
-    private func drop(_ id: String) {
-        settled[id] = nil
-        withAnimation(.easeOut(duration: 0.2)) { open.removeAll { $0.id == id }; done.removeAll { $0.id == id } }
-        notes[id] = nil
-    }
+    /// 済み is the device's own history: there is nothing more to load.
+    func loadDone(more: Bool) async { doneLoaded = true }
 
     /// Approval Box's order: 急ぎ first, nearer 期限, older first.
     nonisolated static func insertionIndex(of d: ApprovalDecision, in list: [ApprovalDecision]) -> Int {
@@ -457,132 +324,32 @@ final class ApprovalsModel: ObservableObject {
 
     // MARK: Operations
 
-    /// An answer: `optionId` for a button, `text` for 指示を書いて返す. The same choice retried keeps its Idempotency-Key.
-    func answer(_ d: ApprovalDecision, optionId: String?, text: String?, api: BellAPI) async {
-        let choice = optionId ?? "text:\(text ?? "")"
-        let key = keys[d.id]?.choice == choice ? keys[d.id]!.key : UUID().uuidString
-        keys[d.id] = (choice, key)
+    /// An answer: `optionId` for a button, `text` for 指示を書いて返す. The connector's ack decides what the person sees; the draft stays on anything but accepted.
+    /// Not resent on its own: a failed send leaves the choice for the person to press again.
+    func answer(_ d: ApprovalDecision, optionId: String?, text: String?) async {
+        await send(d) { try await self.link.answer(d.id, optionId: optionId, text: text) } accepted: { ApprovalText.answerBanner(d) }
+    }
+
+    func hold(_ d: ApprovalDecision, hold: Bool) async {
+        await send(d) { try await self.link.hold(d.id, held: hold) } accepted: { nil }
+    }
+
+    private func send(_ d: ApprovalDecision, _ work: () async throws -> PeerDevice.AnswerOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
         notes[d.id] = nil
         sending.insert(d.id)
         defer { sending.remove(d.id) }
-        struct Body: Encodable { let optionId: String?; let text: String?; let version: Int }
         do {
-            let body = try JSONEncoder().encode(Body(optionId: optionId, text: text, version: d.version))
-            let updated: ApprovalDecision = try await Self.send(api, "/\(Self.segment(d.id))/answer", method: "POST", body: body,
-                                                                headers: ["Idempotency-Key": key])
-            keys[d.id] = nil
-            upsert(updated)
-            let banner = ApprovalText.answerBanner(updated)
-            notes[d.id] = Note(text: banner.text, tone: banner.tone)
-        } catch {
-            fail(error, for: d)
-        }
-    }
-
-    func hold(_ d: ApprovalDecision, hold: Bool, api: BellAPI) async {
-        notes[d.id] = nil
-        sending.insert(d.id)
-        defer { sending.remove(d.id) }
-        do { upsert(try await Self.send(api, "/\(Self.segment(d.id))/\(hold ? "hold" : "unhold")", method: "POST")) }
-        catch { fail(error, for: d) }
-    }
-
-    private func fail(_ error: Error, for d: ApprovalDecision) {
-        if let failure = error as? ApprovalFailure, settle(failure) { return }
-        switch error as? ApprovalFailure {
-        case .conflict(let latest):
-            // The screen is replaced by the latest decision; nothing is auto-answered.
-            if let latest { upsert(latest) }
-            keys[d.id] = nil
-            notes[d.id] = Note(text: ApprovalText.conflict, tone: .violet)
-        case .rejected(let message): notes[d.id] = Note(text: message, tone: .orange)
-        default: notes[d.id] = Note(text: ApprovalText.sendFailed, tone: .orange)
-        }
-    }
-
-    // MARK: Connecting (screen-spec 「つなぐ」)
-
-    func connect(api: BellAPI, openURL: @escaping (URL) -> Void) {
-        connectTask?.cancel()
-        connectPhase = .opening
-        connectTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let start: ApprovalConnectStart = try await Self.send(api, "/connect", method: "POST")
-                guard let url = URL(string: start.authorizationUrl), url.scheme == "https" || url.scheme == "http" else { throw ApprovalFailure.unavailable }
-                connectPhase = .waiting
-                openURL(url)
-                try await poll(api: api)
-            } catch is CancellationError {
-            } catch {
-                if !Task.isCancelled { connectPhase = .failed }
+            switch try await work() {
+            case .accepted:
+                if let banner = accepted() { notes[d.id] = Note(text: banner.text, tone: banner.tone) }
+            case .closedElsewhere: notes[d.id] = Note(text: ApprovalText.closedElsewhere, tone: .violet)
+            case .stale: notes[d.id] = Note(text: ApprovalText.conflict, tone: .violet)
+            case .draftKept, .refused: notes[d.id] = Note(text: ApprovalText.sendFailed, tone: .orange)
             }
-        }
-    }
-
-    /// The module polls Approval Box; the app only watches the module's state (no secret ever reaches the app).
-    private func poll(api: BellAPI) async throws {
-        while !Task.isCancelled {
-            try await Task.sleep(for: pollInterval)
-            let c: ApprovalConnection = try await Self.get(api, "/connection")
-            switch c.state {
-            case "connected": connectPhase = .idle; reread(); return
-            case "denied": connectPhase = .denied; return
-            case "waiting": continue
-            default: connectPhase = .idle; return
-            }
-        }
-    }
-
-    /// やめる / もう一度つなぐ's first half: the module stops waiting.
-    func cancelConnect(api: BellAPI) async {
-        connectTask?.cancel()
-        connectPhase = .idle
-        let _: ApprovalConnection? = try? await Self.send(api, "/connect", method: "DELETE")
-    }
-
-    /// つなぎを外す (after the two-step confirm).
-    func disconnect(api: BellAPI) async {
-        connectTask?.cancel()
-        do {
-            let _: ApprovalConnection = try await Self.send(api, "/connection", method: "DELETE")
-            summary = nil; open = []; done = []; doneLoaded = false
-            gate = .notConnected(expired: false)
-            reread()
+        } catch PeerDeviceError.noSession {
+            notes[d.id] = Note(text: ApprovalText.notConnectedToAI, tone: .orange)
         } catch {
-            if let failure = error as? ApprovalFailure { _ = settle(failure) }
-        }
-    }
-
-    // MARK: Transport
-
-    static func segment(_ id: String) -> String {
-        id.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? id
-    }
-
-    static func get<T: Decodable>(_ api: BellAPI, _ suffix: String) async throws -> T {
-        try await send(api, suffix, method: "GET")
-    }
-
-    static func send<T: Decodable>(_ api: BellAPI, _ suffix: String, method: String, body: Data? = nil,
-                                   headers: [String: String] = [:]) async throws -> T {
-        let data = try await response(api, suffix, method: method, body: body, headers: headers)
-        do { return try JSONDecoder().decode(T.self, from: data) } catch { throw ApprovalFailure.unavailable }
-    }
-
-    private static func response(_ api: BellAPI, _ suffix: String, method: String, body: Data?, headers: [String: String]) async throws -> Data {
-        do {
-            let (data, status) = try await api.approvalsResponse(path: base + suffix, method: method, body: body, headers: headers)
-            if let failure = ApprovalFailure.of(status: status, data: data) { throw failure }
-            return data
-        } catch let failure as ApprovalFailure {
-            throw failure
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw CancellationError() }
-            if BellAPIError.isAuthenticationError(error) { throw ApprovalFailure.login }
-            throw ApprovalFailure.unavailable
+            notes[d.id] = Note(text: ApprovalText.sendFailed, tone: .orange)
         }
     }
 }
