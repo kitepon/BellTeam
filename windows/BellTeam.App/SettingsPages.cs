@@ -481,7 +481,7 @@ public sealed partial class SettingsWindow
     }
 
     // ---- 接続 ----
-    private Task ConnectionPage()
+    private async Task ConnectionPageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Connection);
         var host = new Uri(workspace.Server).Host; var cloudflare = workspace.AuthMode == "cloudflare";
@@ -489,8 +489,49 @@ public sealed partial class SettingsWindow
         // B15: changing the server also stops this PC's notifications, so it asks first.
         Action? change = changeServer is null ? null : () => { if (new ConfirmationWindow("接続", "接続先を変えますか？ この端末の通知も止まります。サーバーの会話や設定は消えません。", "接続先を変える") { Owner = DialogOwner }.ShowDialog() == true) changeServer(); };
         page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", "別のサーバーにつなぎ直す", Violet, change))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
-        if (cloudflare || AccountStore.HomeToken(new Uri(workspace.Server)) is not null) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
-        return Task.CompletedTask;
+        var devices = new StackPanel(); var home = AccountStore.HomeToken(new Uri(workspace.Server)) is not null;
+        if (home) page.Children.Add(devices);
+        if (cloudflare || home) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
+        if (home) await ShowDevicesAsync(devices, token);
+    }
+
+    // a529x (app-sessions.md 4a): every device of the user's server; 「ログアウトさせる」 ends that session at once, the own row is the sign-out. A PC has no 「締め出す」 (phone only).
+    private async Task ShowDevicesAsync(StackPanel host, CancellationToken token)
+    {
+        host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, new GroupCard(Row(Loading(HomeSessionText.Loading)))));
+        try
+        {
+            var rows = await workspace.Planning.HomeSessionsAsync(token); token.ThrowIfCancellationRequested();
+            var card = new GroupCard();
+            foreach (var row in rows) card.Add(Row(DeviceRow(row, () => EndDevice(row, host, token))));
+            host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, card));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error) { host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, new GroupCard())); host.Children.Add(Banner(ErrorText(error))); }
+    }
+    private Grid DeviceRow(HomeSessionEntry row, Action end)
+    {
+        var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; var title = new StackPanel { Orientation = Orientation.Horizontal };
+        title.Children.Add(Text(HomeSessionText.KindOf(row), 14, Ink));
+        if (row.Current) { var badge = SettingsUi.Badge(HomeSessionText.ThisApp, SettingsTone.Gray); badge.Margin = new Thickness(10, 0, 0, 0); title.Children.Add(badge); }
+        names.Children.Add(title);
+        if (HomeSessionText.Times(row) is { Length: > 0 } times) names.Children.Add(Text(times, 12, Secondary, null, new Thickness(0, 3, 0, 0)));
+        grid.Children.Add(names);
+        var button = Capsule(HomeSessionText.Button(row), Brushes.White, Red); button.BorderBrush = Red; button.BorderThickness = new Thickness(1); button.Margin = new Thickness(12, 0, 0, 0);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(button, "session-revoke-" + row.Id);
+        button.Click += (_, _) => end(); Grid.SetColumn(button, 1); grid.Children.Add(button);
+        return grid;
+    }
+    // The own row signs this app out (the existing sign-out); another row is ended at the home and never resent by itself: the list is read again to show what the server says.
+    private async void EndDevice(HomeSessionEntry row, StackPanel host, CancellationToken token)
+    {
+        if (row.Current) { signOut?.Invoke(); return; }
+        try { await workspace.Planning.EndHomeSessionAsync(row.Id, token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception error) { host.Children.Add(Banner(ErrorText(error))); return; }
+        await ShowDevicesAsync(host, token);
     }
 
     // ---- 表示 ----

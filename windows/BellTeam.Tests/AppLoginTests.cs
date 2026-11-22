@@ -25,7 +25,7 @@ public sealed class AppLoginTests
             if (path == "/api/login/start") return Json("""{"loginId":"L1","status":"waiting_second_hand","expiresAt":"2999-01-01T00:00:00.000Z","pollAfterMs":3000}""");
             if (path == "/api/login/L1/cancel") return Json("""{"loginId":"L1","status":"cancelled"}""");
             if (path == "/api/login/console") { ConsoleBody = await request.Content!.ReadAsStringAsync(token); return ConsoleBody.Contains("GOOD") ? Json("""{"status":"approved","sessionId":"S1","token":"tok-console"}""") : Json("""{"error":"LOGIN_CODE_INVALID"}""", HttpStatusCode.Forbidden); }
-            if (path == "/api/sessions/S1") return Json("""{"id":"S1","status":"ended"}""");
+            if (path == "/api/home/sessions/S1") return Json("""{"ok":true}""");
             if (path == "/api/sessions") return Json(Sessions);
             if (path == "/api/sessions/S2") { Sessions = """{"sessions":[]}"""; return Json("""{"id":"S2","status":"ended"}"""); }
             if (path == "/api/login/L1")
@@ -91,8 +91,8 @@ public sealed class AppLoginTests
         var server = new Server("{}"); using var api = new BellApi(new("http://localhost/"), server) { SessionToken = "abc" };
         await api.GetAsync<System.Text.Json.JsonElement>("/api/login/L1");
         Assert.Equal("Bearer abc", server.Authorization);
-        await new LoginApi(api).EndSessionAsync("S1");
-        Assert.Equal("DELETE /api/sessions/S1", server.Calls.Last());
+        await new PlanningApi(api).EndHomeSessionAsync("S1");
+        Assert.Equal("DELETE /api/home/sessions/S1", server.Calls.Last());
     }
 
     [Fact]

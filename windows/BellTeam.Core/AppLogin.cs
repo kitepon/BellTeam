@@ -23,22 +23,9 @@ public sealed class LoginApi(BellApi api)
 {
     public Task<LoginStatus> StartAsync(string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/start", new { kind }, token);
     public Task<LoginStatus> PollAsync(string loginId, CancellationToken token = default) => api.GetAsync<LoginStatus>("/api/login/" + Uri.EscapeDataString(loginId), token);
-    // Sign-out (app-sessions.md 7c): DELETE the app's own session; the id is SessionInfo.SessionId from the probe.
-    public Task EndSessionAsync(string sessionId, CancellationToken token = default) => api.DeleteAsync("/api/sessions/" + Uri.EscapeDataString(sessionId), token);
     public Task CancelAsync(string loginId, CancellationToken token = default) => api.PostAsync<System.Text.Json.JsonElement>("/api/login/" + Uri.EscapeDataString(loginId) + "/cancel", new { }, token);
-    public async Task<SessionEntry[]> SessionsAsync(CancellationToken token = default) => (await api.GetAsync<SessionList>("/api/sessions", token)).Sessions;
     // "use a code from the server console" (section 2a, kept: login-billing design 4.6): the answer carries the session token at once.
     public Task<LoginStatus> ConsoleAsync(string code, string kind, CancellationToken token = default) => api.PostAsync<LoginStatus>("/api/login/console", new { code = code.Trim(), kind }, token);
-}
-
-// With a session: the session list (revoke and sign-out stay; app-sessions wire is held until Mint's t3h). origin: phone | console | added; issuedBy is the issuing session's id for added.
-public sealed record SessionEntry { public string Id { get; init; } = ""; public string Kind { get; init; } = ""; public string Origin { get; init; } = ""; public string NetworkClass { get; init; } = ""; public DateTimeOffset? CreatedAt { get; init; } public DateTimeOffset? LastUsedAt { get; init; } public string? IssuedBy { get; init; } public bool Current { get; init; } }
-public sealed record SessionList { public SessionEntry[] Sessions { get; init; } = []; }
-
-// The words of the session list.
-public static class SessionText
-{
-    public static string Origin(string origin) => origin switch { "phone" => "スマホで承認", "console" => "サーバーのコードで入った", "added" => "「アプリを追加」のコードで入った", _ => origin };
 }
 
 public enum LoginPhase { Starting, WaitingSecondHand, WaitingPhone, Approved, Refused, Failed }
