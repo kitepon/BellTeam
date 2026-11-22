@@ -14,6 +14,7 @@ internal sealed class AccountView : StackPanel, IDisposable
 {
     private enum Look { Primary, Secondary, Danger, DangerFilled }
     private readonly DesktopLoginBilling? billing;
+    private readonly Action? deleteAccount;   // a485: 「アカウントを削除」 (asks, then deletes); null where the page has no way to (the first-run gate)
     private readonly CancellationTokenSource life = new();
     private CancellationTokenSource? browser, handoffWait;
     private bool busy, handoffAsked, handoffCancelled, confirmingStop;
@@ -32,9 +33,9 @@ internal sealed class AccountView : StackPanel, IDisposable
     // The running load; tests wait on it.
     public Task Loading { get; private set; } = Task.CompletedTask;
 
-    public AccountView(DesktopLoginBilling? billing)
+    public AccountView(DesktopLoginBilling? billing, Action? deleteAccount = null)
     {
-        this.billing = billing; Render();
+        this.billing = billing; this.deleteAccount = deleteAccount; Render();
         Loading = LoadAsync();
     }
 
@@ -134,7 +135,7 @@ internal sealed class AccountView : StackPanel, IDisposable
         {
             if (Failure is not null) Children.Add(Banner(Failure));
             Children.Add(Button(StoreAccountText.Refresh, () => { _ = ReloadAsync(); return Task.CompletedTask; }, Look.Secondary));
-            Changed?.Invoke(); return;
+            RenderDelete(); Changed?.Invoke(); return;
         }
         Children.Add(Text(SignedOut ? StoreAccountText.SignedOut : status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
 
@@ -165,8 +166,17 @@ internal sealed class AccountView : StackPanel, IDisposable
                 RenderDanger();
             }
         }
+        RenderDelete();
         if (Failure is not null) Children.Add(Banner(Failure));
         Changed?.Invoke();
+    }
+
+    // a485 (App Review): the last item of the card, under a divider, whether signed in or not (a pass or data may be left on this PC).
+    private void RenderDelete()
+    {
+        if (deleteAccount is null) return;
+        Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
+        Children.Add(Button(AccountDeletionText.Button, () => { deleteAccount(); return Task.CompletedTask; }, Look.Danger));
     }
 
     // Who is signed in: the browser mark and one label (never an e-mail or a name; the library has none).

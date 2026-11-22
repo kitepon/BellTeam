@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -19,7 +20,7 @@ public static class UiChecks {
     Dispatcher.Run();
   }
   private static async Task Run() {
-    await StartupChecks();
+    await DeleteAccountChecks(); await StartupChecks();
     await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await ReconnectChecks(); await NewestChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
@@ -113,6 +114,24 @@ public static class UiChecks {
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
   }
   // The Mac RootView phases on the real MainWindow, against stub servers. Nothing here shows a window; a failure retries by itself on the backoff and 「もう一度試す」 tries at once.
+  // a485 「アカウントを削除」: the Approval Box and home records go, the saved address goes, the first screen shows and one result is told; each file the check plants must be gone.
+  private static async Task DeleteAccountChecks() {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-delete-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
+    var before = (AccountStore.Billing, AccountStore.HomeDirectory);
+    try {
+      AccountStore.HomeDirectory = dir; AccountStore.Billing = new Kitepon.LoginBilling.Desktop.DesktopLoginBilling("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore());
+      var settings = new SettingsStore(dir); settings.Save(new LocalSettings { ServerUrl = "https://example.test/" });
+      Directory.CreateDirectory(Path.Combine(dir, "approvals-files")); File.WriteAllText(Path.Combine(dir, "approvals-files", "x"), "x"); File.WriteAllText(Path.Combine(dir, "home.bin"), "x");
+      var approvalBox = new ApprovalBoxDevice(dir, new ApprovalBoxAccount("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore()));
+      Check(File.Exists(Path.Combine(dir, "peer-channel-device.key")), "試験の前提: 決裁箱の端末の鍵が作られていません。");
+      var window = new MainWindow(new Workspace(), persistPlacement:false, settings: settings, approvalBox: approvalBox); var shown = new List<(string, string)>(); window.ShowResult = (title, body) => shown.Add((title, body));
+      await window.DeleteAccountAsync();
+      Check(shown.SequenceEqual([(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel))]), "アカウント削除の結果が1回だけ、決めた文で出ません: " + string.Join(" / ", shown));
+      Check(!File.Exists(Path.Combine(dir, "peer-channel-device.key")) && !Directory.Exists(Path.Combine(dir, "approvals-files")) && !File.Exists(Path.Combine(dir, "home.bin")), "アカウント削除の後に、決裁箱の鍵・添付かサーバーの記録が残っています。");
+      Check(settings.Load().ServerUrl is null && window.Startup == StartupPhase.Account, "アカウント削除の後に、接続先が残るか、最初の画面に戻りません。");
+      window.Close(); await approvalBox.DisposeAsync();
+    } finally { (AccountStore.Billing, AccountStore.HomeDirectory) = before; try { Directory.Delete(dir, true); } catch (IOException) { } }
+  }
   private static async Task StartupChecks() {
     const string select = "{\"phase\":\"select_harness\",\"harness\":null,\"harnesses\":[{\"id\":\"codex\",\"name\":\"Codex\"}],\"guideBotId\":null,\"complete\":false,\"auth\":null}";
     (MainWindow Window, Workspace Model, int[] Requests) Open(Func<string,string> answer, Func<int,CancellationToken,Task>? retryDelay = null) {

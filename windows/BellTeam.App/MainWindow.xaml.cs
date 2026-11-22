@@ -374,7 +374,7 @@ public partial class MainWindow : Window, IInspectorHost
     // Render seam: the schedule page when it is the open page.
     internal SchedulesWindow? SchedulesPage => page as SchedulesWindow;
     internal SettingsWindow? SettingsPageWindow => page as SettingsWindow;
-    public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
+    public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync(), () => _ = DeleteAccountAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
     private bool ShowPage(EditorWindow editor)
     {
         if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
@@ -513,6 +513,31 @@ public partial class MainWindow : Window, IInspectorHost
         if (ended is not null) model.ReportActionError(ended);
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
+    }
+    // Test and render seam: the result alert.
+    internal Action<string, string> ShowResult { get; set; } = (title, body) => MessageBox.Show(Application.Current?.MainWindow, body, title, MessageBoxButton.OK);
+    // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md): Approval Box sign-in and device data, then the server session, notifications, web login and the saved address, then the library's signOut; one result alert on the first screen.
+    // Each step reaches as far as it can; what could not be finished is told instead of the result. Other devices are not stopped.
+    internal async Task DeleteAccountAsync()
+    {
+        ShowConversation(); signingOut = true;
+        var problems = new List<string>();
+        async Task Step(Func<Task> run) { try { await run(); } catch (Exception error) { problems.Add(error.Message); } }
+        try
+        {
+            if (approvalBox is not null) await Step(() => approvalBox.DeleteLocalDataAsync(CancellationToken.None));
+            if (await EndServerSessionAsync() is { } ended) problems.Add(ended);
+            await Step(() => { AccountStore.ForgetHome(); return Task.CompletedTask; });
+            await Step(() => { model.SignOut(); return Task.CompletedTask; });
+            if (notifications is not null) await Step(() => notifications.SetEnabledAsync(false, persist: false));
+            if (access is not null) await Step(access.SignOutAsync);
+            await Step(() => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; });
+            if (AccountStore.Billing is { } billing) await Step(() => billing.SignOutAsync(CancellationToken.None));
+        }
+        finally { signingOut = false; }
+        ShowAccount();
+        if (problems.Count == 0) ShowResult(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
+        else ShowResult(AccountDeletionText.FailedTitle, string.Join("\n", problems));
     }
     private async Task ChangeServerAsync(string address)
     {

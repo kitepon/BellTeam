@@ -568,13 +568,19 @@ public sealed partial class SettingsWindow
     private Task BillingPage()
     {
         var page = NewPage(SettingsPage.Billing);
-        var account = new AccountView(AccountStore.Billing); lifetime!.Token.Register(account.Dispose);
+        var account = new AccountView(AccountStore.Billing, deleteAccount is null ? null : AskDeleteAccount); lifetime!.Token.Register(account.Dispose);
         var notice = new StackPanel(); var card = new StackPanel(); card.Children.Add(account);
         card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(OpenLink("サポート", SupportUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(notice);
         var holder = Card(card); holder.Margin = new Thickness(0, 16, 0, 0); page.Children.Add(holder);
         return Task.CompletedTask;
+    }
+
+    // a485: the confirmation is asked here (the page owns the dialog); the deletion itself is the main window's.
+    private void AskDeleteAccount()
+    {
+        if (new ConfirmationWindow(AccountDeletionText.ConfirmTitle, AccountDeletionText.ConfirmBody(AccountDeletionText.Subscription), AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo) { Owner = DialogOwner }.ShowDialog() == true) deleteAccount!();
     }
 
     // ---- アップデート ----

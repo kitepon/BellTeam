@@ -56,5 +56,12 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
         finally { approve = null; mine.Dispose(); hub?.SetOffer(null, note); }
     }
 
+    // a485 「アカウントを削除」: this PC's Approval Box sign-in (the library's signOut reaches the server as far as it can) and the device's keys, registry head, history and attachments; the files go even when the sign-out fails.
+    internal async Task DeleteLocalDataAsync(CancellationToken ct)
+    {
+        signIn?.Cancel(); approve?.Cancel();
+        try { await Account.SignOutAsync(ct); } finally { Device.ClearLocal(); }
+    }
+
     public ValueTask DisposeAsync() { signIn?.Cancel(); approve?.Cancel(); return Device.DisposeAsync(); }
 }
