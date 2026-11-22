@@ -895,8 +895,10 @@ private struct ApprovalGateView: View {
     @ViewBuilder private var actions: some View {
         switch model.gate {
         case .signedOut:
-            Button(ApprovalBoxWords.signIn) { Task { await model.link.signIn(anchor: StoreAccount.anchor) } }
+            Button(ApprovalBoxWords.signIn) { Task { await model.link.signIn(provider: "apple", anchor: StoreAccount.anchor) } }
                 .buttonStyle(.borderedProminent).accessibilityIdentifier("approvals-signin")
+            Button(ApprovalBoxWords.signInGoogle) { Task { await model.link.signIn(provider: "google", anchor: StoreAccount.anchor) } }
+                .buttonStyle(.bordered).font(.system(size: 13)).accessibilityIdentifier("approvals-signin-google")
         case .signingIn:
             Button(ApprovalBoxWords.cancel) { model.link.cancelSignIn() }.buttonStyle(.bordered)
         case .needsApproval:
