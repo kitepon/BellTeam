@@ -126,6 +126,7 @@ flowchart LR
   Nudge -->|"turns.read, messages.send (L15)"| CChan
   Owner -->|"turns.read, messages.send (L18); decisions.read, decisions.cancel (L19, legacy requests)"| CChan
   Effects -->|"decisions.file / decisions.read / decisions.cancel"| ABox
+  Effects -.->|"a490f: once the hosted daemon is paired, the same effects go through its local route (approval-box-daemon.md); unknown ids and unpaired stay on the token path"| ABox
 ```
 
 ## Data flow

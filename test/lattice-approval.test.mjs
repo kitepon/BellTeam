@@ -90,3 +90,72 @@ test('decisions.cancel: posts the reason to /cancel; an answered request (4xx) i
   const effect = createLatticeEffects({ bots: null, messenger: null, transport: null, decisions: { cancel: async input => ({ status: 'cancelled', seen: input.decisionId }) } })
   assert.deepEqual(await effect('decisions.cancel', { decisionId: 'K-X1Y2', reason: 'r' }), { status: 'cancelled', seen: 'K-X1Y2' })
 })
+
+// a490f: the hosted daemon takes the decision routes once it is paired; the token path stays for everything else.
+function daemonRig({ mode = 'pc', replies = [], statusError = null, tokenResponses = [] } = {}) {
+  const calls = []
+  const daemon = {
+    status: async () => { if (statusError) throw statusError; return { available: true, daemon: { mode } } },
+    route: async (method, path, body) => {
+      calls.push([method, path, body ?? null])
+      const next = replies.shift() ?? { result: {} }
+      if (next.error) throw Object.assign(new Error(next.error.code), next.error)
+      return next.result
+    },
+  }
+  const live = { handle: 'h', revision: 1, available: true, requestId: 's' }
+  const x = rig({ current: live, responses: tokenResponses })
+  return { calls, token: x.fetches, decisions: createLatticeDecisions({ credentials: { current: async () => live, withResolved: async (h, t, c) => c('tok') }, secretRequests: { timeline: () => [] },
+    fetchImpl: async (url, init) => { x.fetches.push([init.method, url.replace('https://approval-box.kitepon.dev/connector/v1', '')]); const next = tokenResponses.shift() ?? [500, {}]; return { ok: next[0] < 300, status: next[0], json: async () => next[1] } }, daemon }) }
+}
+
+test('daemon paired: read and the collected mark go through the daemon, the token path is not called', async () => {
+  const x = daemonRig({ replies: [{ result: { id: 'K-D1', status: 'answered', answer: { option_id: 'done' } } }, { result: {} }] })
+  assert.deepEqual(await x.decisions.read({ decisionId: 'K-D1' }), { status: 'answered', answer: { optionId: 'done' } })
+  assert.deepEqual(x.calls.map(c => c.slice(0, 2)), [['GET', '/decisions/K-D1'], ['POST', '/decisions/K-D1/fetched']])
+  assert.equal(x.token.length, 0)
+})
+
+test('daemon not paired, or its status fails: today\'s token path, daemon never called', async () => {
+  const idle = daemonRig({ mode: 'not_paired', tokenResponses: [[200, { id: 'K-T1', status: 'pending' }]] })
+  assert.deepEqual(await idle.decisions.read({ decisionId: 'K-T1' }), { status: 'pending' })
+  assert.equal(idle.calls.length, 0)
+  const broken = daemonRig({ statusError: new Error('socket'), tokenResponses: [[200, { id: 'K-T1', status: 'pending' }]] })
+  assert.deepEqual(await broken.decisions.read({ decisionId: 'K-T1' }), { status: 'pending' })
+  assert.equal(broken.calls.length, 0)
+})
+
+test('daemon paired: an id it never filed (404 not_found) is read on the token path; any other daemon failure is not a fallback', async () => {
+  const unknown = daemonRig({ replies: [{ error: { code: 'not_found', status: 404 } }], tokenResponses: [[200, { id: 'K-OLD', status: 'pending' }]] })
+  assert.deepEqual(await unknown.decisions.read({ decisionId: 'K-OLD' }), { status: 'pending' })
+  assert.deepEqual(unknown.token.map(c => c.slice(0, 2)), [['GET', '/decisions/K-OLD']])
+  const notReady = daemonRig({ replies: [{ error: { code: 'not_paired', status: 503 } }] })
+  await assert.rejects(notReady.decisions.read({ decisionId: 'K-OLD' }), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
+  assert.equal(notReady.token.length, 0)
+  const refused = daemonRig({ replies: [{ error: { code: 'validation_failed', status: 400 } }] })
+  await assert.rejects(refused.decisions.read({ decisionId: 'K-OLD' }), { code: 'LATTICE_DECISIONS_REFUSED' })
+  const down = daemonRig({ replies: [{ error: { code: 'APPROVAL_BOX_DAEMON_UNREACHABLE', status: 503 } }] })
+  await assert.rejects(down.decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
+})
+
+test('daemon paired: file lists the daemon, adopts an earlier token-path request, and confirms with the daemon\'s check_token', async () => {
+  const x = daemonRig({ replies: [{ result: { items: [] } }, { error: { code: 'confirm_required', status: 409, body: { check_token: 'chk1', decisions: [] } } }, { result: { decision_id: 'K-N1', status: 'pending' } }],
+    tokenResponses: [[200, { items: [] }]] })
+  assert.deepEqual(await x.decisions.file(params), { decisionId: 'K-N1', existing: false })
+  assert.deepEqual(x.calls.map(c => c.slice(0, 2)), [['GET', '/decisions'], ['POST', '/decisions'], ['POST', '/decisions']])
+  assert.equal(x.calls[2][2].check_token, 'chk1')
+  assert.deepEqual(x.token.map(c => c.slice(0, 2)), [['GET', '/decisions']], 'only the best-effort look at the earlier token-path list')
+  const earlier = daemonRig({ replies: [{ result: { items: [] } }], tokenResponses: [[200, { items: [{ decision_id: 'K-EARLY', status: 'pending', session_label: params.session_label }] }]] })
+  assert.deepEqual(await earlier.decisions.file(params), { decisionId: 'K-EARLY', existing: true })
+  assert.equal(earlier.calls.length, 1, 'nothing is filed twice')
+  const same = daemonRig({ replies: [{ result: { items: [{ decision_id: 'K-D9', status: 'pending', session_label: params.session_label }] } }] })
+  assert.deepEqual(await same.decisions.file(params), { decisionId: 'K-D9', existing: true })
+  const tokenGone = daemonRig({ replies: [{ result: { items: [] } }, { error: { code: 'confirm_required', status: 409, body: { check_token: 'c', decisions: [] } } }, { result: { id: 'K-N2' } }] })
+  assert.deepEqual(await tokenGone.decisions.file(params), { decisionId: 'K-N2', existing: false }, 'a retired token does not stop a paired file')
+})
+
+test('daemon paired: cancel goes through the daemon; the request is bounded at 5 s', async () => {
+  const x = daemonRig({ replies: [{ result: { id: 'K-D1', status: 'cancelled' } }] })
+  assert.deepEqual(await x.decisions.cancel({ decisionId: 'K-D1', reason: 'r' }), { status: 'cancelled' })
+  assert.deepEqual(x.calls[0], ['POST', '/decisions/K-D1/cancel', { reason: 'r' }])
+})

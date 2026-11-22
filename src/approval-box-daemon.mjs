@@ -162,7 +162,9 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
     async route(method, path, body) {
       if (!child) throw failure('APPROVAL_BOX_DAEMON_UNAVAILABLE')
       const reply = await localCall(socketPath, method, path, body, { timeoutMs: 10000, connect })
-      if (reply?.ok !== true) throw Object.assign(failure(String(reply?.code ?? 'APPROVAL_BOX_DAEMON_REFUSED').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64) || 'APPROVAL_BOX_DAEMON_REFUSED', Number.isInteger(reply?.status) ? reply.status : 502))
+      // body: the box's structured error ({check_token, decisions} of confirm_required, {existing} of duplicate_suspected); the readers need it to file (a490f).
+      if (reply?.ok !== true) throw Object.assign(failure(String(reply?.code ?? 'APPROVAL_BOX_DAEMON_REFUSED').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64) || 'APPROVAL_BOX_DAEMON_REFUSED', Number.isInteger(reply?.status) ? reply.status : 502),
+        reply?.body && typeof reply.body === 'object' && !Array.isArray(reply.body) ? { body: reply.body } : {})
       return reply.result
     },
     // One `pair --json` run at a time. Returns the waiting line (with the secrets) to the caller only; nothing of it is logged.

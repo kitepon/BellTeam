@@ -504,11 +504,13 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport, ownWork: workGraphEffects.ownWork })
     void workGraphModule.start().catch(() => {})
   }
+  // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests). a490f: the decision readers below use it once it is paired.
+  const approvalBoxDaemon = createApprovalBoxDaemon({ root })
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
     latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots, messenger, transport,
-      decisions: createLatticeDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null }),
+      decisions: createLatticeDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null, daemon: approvalBoxDaemon }),
       runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() }),
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
@@ -528,9 +530,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const runningExclusions = createRunningExclusions({ path: join(root, 'state', 'execution-running-exclusions.json'),
     decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
       scope: Object.freeze({ terminalId: 'running-exclusions', purpose: 'approval-box.connector' }),
-      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS' }) })
-  // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests).
-  const approvalBoxDaemon = createApprovalBoxDaemon({ root })
+      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS', daemon: approvalBoxDaemon }) })
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
