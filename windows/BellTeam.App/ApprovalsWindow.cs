@@ -497,12 +497,27 @@ internal sealed class ApprovalsPage : Grid
             var border = new Border { Child = row, CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-note-" + n++); panel.Children.Add(border);
         }
+        void Waiting(ApprovalOffer offer)
+        {
+            var code = Text(offer.Code, 22, Ink, FontWeights.Bold); code.FontFamily = new FontFamily("Consolas");
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
+            info.Children.Add(code);
+            info.Children.Add(Text(Approvals.DeviceApprovalHow, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
+            info.Children.Add(Text(Approvals.DeviceApprovalLeft(offer.ExpiresAt - Now()), 12, Muted));
+            var stop = Action("やめる", ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(Key(stop, "legacy:やめる"));
+            var border = new Border { Child = Row(new QrView(offer.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
+            System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-waiting"); panel.Children.Add(border);
+        }
         if (Device is { } device)
             switch (device.State.Status)
             {
                 case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
                 case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting(device.State.Reason), "今すぐ試す", device.Refresh); break;
-                case RuntimeStatus.NeedsAdmission: Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval); break; // 「承認をお願いする」 comes with the 5.3 starter step
+                case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
+                case RuntimeStatus.NeedsAdmission:
+                    if (hub.OfferNote is { } ended) Line(ended);
+                    Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
+                    break;
                 case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
                 case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke()); break;
                 case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;

@@ -13,7 +13,7 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
     internal ApprovalBoxAccount Account { get; }
     internal DeviceApprovals Device { get; }
     private ApprovalsHub? hub;
-    private CancellationTokenSource? signIn;
+    private CancellationTokenSource? signIn, approve;
 
     public ApprovalBoxDevice(string directory) : this(directory, null) { }
     internal ApprovalBoxDevice(string directory, ApprovalBoxAccount? account)
@@ -27,6 +27,7 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
     internal void Attach(ApprovalsHub hub)
     {
         this.hub = hub; hub.SignInApprovalBox = () => _ = SignInAsync(); hub.CancelSignIn = () => signIn?.Cancel();
+        hub.RequestApproval = () => _ = RequestApprovalAsync(); hub.CancelApproval = () => approve?.Cancel();
         Device.Start();
     }
 
@@ -41,5 +42,19 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
         finally { signIn = null; mine.Dispose(); hub?.SetSignIn(false, note); }
     }
 
-    public ValueTask DisposeAsync() { signIn?.Cancel(); return Device.DisposeAsync(); }
+    // NeedsApproval -> Waiting: show the code and QR until a verified device admits this one, the 5 minutes pass or the person stops.
+    private async Task RequestApprovalAsync()
+    {
+        if (approve is not null) return;
+        var mine = approve = new CancellationTokenSource();
+        var admission = Device.NewAdmission();
+        hub?.SetOffer(new ApprovalOffer(admission.TypedCode, admission.QrText, admission.ExpiresAt));
+        string? note = null;
+        try { await Device.AdmitAsync(admission, mine.Token); }
+        catch (OperationCanceledException) { }
+        catch (AdmissionException error) { note = error.Code == "binding_expired" ? Approvals.DeviceApprovalExpired : Approvals.DeviceApprovalFailed; }
+        finally { approve = null; mine.Dispose(); hub?.SetOffer(null, note); }
+    }
+
+    public ValueTask DisposeAsync() { signIn?.Cancel(); approve?.Cancel(); return Device.DisposeAsync(); }
 }

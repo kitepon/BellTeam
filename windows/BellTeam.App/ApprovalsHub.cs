@@ -6,6 +6,9 @@ using static BellTeam.App.LatticeLook;
 
 namespace BellTeam.App;
 
+/// <summary>What the Waiting screen shows (peer-channel-signin.md section 3): the typed code (16 characters, grouped), the QR text and when they stop being valid.</summary>
+internal sealed record ApprovalOffer(string Code, string Qr, DateTimeOffset ExpiresAt);
+
 /// <summary>
 /// The one reader of 決裁箱 for this app (screen-spec "入口", README F-feed): owns the <see cref="ApprovalsFeed"/> of the connected server and tells the entry row and
 /// the window on the UI thread. Starts when the workspace is connected, restarts on another server, saves nothing.
@@ -26,6 +29,12 @@ internal sealed class ApprovalsHub : IDisposable
     internal bool SigningIn { get; private set; }
     internal string? SignInNote { get; private set; }
     internal Action? CancelSignIn { get; set; }
+    /// <summary>NeedsApproval -> Waiting: the code and QR this device shows while a verified device admits it (5.3). Null offer = none open; the note says why the last one ended.</summary>
+    internal ApprovalOffer? Offer { get; private set; }
+    internal string? OfferNote { get; private set; }
+    internal Action? RequestApproval { get; set; }
+    internal Action? CancelApproval { get; set; }
+    internal void SetOffer(ApprovalOffer? offer, string? note = null) { Offer = offer; OfferNote = note; Notify(); }
     internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Notify(); }
     internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of)];
     /// <summary>The counts of the entry row: the server's summary plus what only the device holds (Core DecisionUnion).</summary>

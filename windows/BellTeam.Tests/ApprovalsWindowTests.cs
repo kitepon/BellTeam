@@ -311,6 +311,23 @@ public sealed class ApprovalsWindowTests
         Assert.Contains("サインインできませんでした。", Texts(rig.Window)); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
     });
 
+    [Fact]
+    public void NeedsApprovalOffersTheAskThenShowsTheCodeAndQrAndTheNoteAfterItEnds() => RunSta(() =>
+    {
+        var device = new FakeDevice { State = new(BellTeam.PeerChannel.RuntimeStatus.NeedsAdmission, "not_verified") };
+        using var rig = Open("main", device); Until(() => rig.Page.Settled);
+        var asked = 0; var cancelled = 0; rig.Hub.RequestApproval = () => asked++; rig.Hub.CancelApproval = () => cancelled++; device.Raise();
+        Assert.Contains(Approvals.DeviceNeedsApproval, Texts(rig.Window)); Press(Find(rig.Window, "legacy:" + Approvals.DeviceAskApproval)); Assert.Equal(1, asked);
+        rig.Hub.SetOffer(new ApprovalOffer("ABCD-EFGH-JKMN-PQRS", "PC1VERIFY:x", DateTimeOffset.UtcNow.AddMinutes(5)));
+        var texts = Texts(rig.Window);
+        Assert.Contains("ABCD-EFGH-JKMN-PQRS", texts); Assert.Contains(Approvals.DeviceApprovalHow, texts); Assert.DoesNotContain(Approvals.DeviceNeedsApproval, texts);
+        Assert.Contains(LogicalTree.Find<FrameworkElement>(rig.Window.Content), element => element is QrView);
+        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
+        rig.Hub.SetOffer(null, Approvals.DeviceApprovalExpired);
+        Assert.Contains(Approvals.DeviceApprovalExpired, Texts(rig.Window)); Press(Find(rig.Window, "legacy:もう一度")); Assert.Equal(2, asked);
+        Assert.Equal(5, rig.Page.Pending.Count);
+    });
+
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void Until(Func<bool> done) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }

@@ -94,6 +94,9 @@ public static class Approvals
         DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",
         DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。",
         ServerSideNoCredential = "サーバー経由の決裁箱には、まだつながっていません。";
+    public const string DeviceAskApproval = "承認をお願いする", DeviceApprovalHow = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。",
+        DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
+    public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
     public const string DeviceSigningIn = "ブラウザでサインインしています…";
     public static string DeviceReconnecting(string? reason) => "つなぎ直しています" + (string.IsNullOrEmpty(reason) ? "" : $"（{reason}）");
     public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";

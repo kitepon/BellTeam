@@ -14,7 +14,7 @@ namespace BellTeam.App;
 internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
 {
     private static readonly byte[] HistoryEntropy = Encoding.UTF8.GetBytes("BellTeam-peer-channel-history");
-    private readonly string directory; private readonly DeviceIdentity me; private readonly Func<CancellationToken, Task<string>> account;
+    private readonly string directory; private readonly DeviceIdentity me; private readonly Func<CancellationToken, Task<string>> account; private readonly Func<CancellationToken, Task<ServerAccess>> access;
     private readonly object saving = new();
     internal DeviceRuntime Runtime { get; }
     public DecisionBook Book => Runtime.Book;
@@ -29,12 +29,23 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
 
     internal DeviceApprovals(string directory, Func<CancellationToken, Task<ServerAccess>> access, Func<CancellationToken, Task<string>> account, string label)
     {
-        this.directory = directory; this.account = account;
+        this.directory = directory; this.account = account; this.access = access;
         me = DeviceKeyStore.LoadOrCreate(Path.Combine(directory, "peer-channel-device.key"));
         var book = LoadHistory(HistoryPath);
         book.Changed += () => { SaveHistory(HistoryPath, book); Changed?.Invoke(); };
         Runtime = new DeviceRuntime(new(me, label, access, RegistryAsync, book));
         Runtime.StateChanged += () => { if (Runtime.State is { Status: RuntimeStatus.SignedOut, Reason: "account_deleted" }) ClearLocal(); Changed?.Invoke(); };
+    }
+
+    internal DeviceAdmission NewAdmission() => new(me, "windows", "os_store", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+    // Runs the 5.3 starter to its end: the admitted snapshot becomes the kept registry head and the waiting connection tries again at once. Throws AdmissionException (binding_failed / binding_expired).
+    internal async Task AdmitAsync(DeviceAdmission admission, CancellationToken ct)
+    {
+        var id = await account(ct);
+        var (snapshot, _) = await admission.CompleteAsync(await access(ct), id, ct: ct);
+        SaveAnchor(id, snapshot);
+        Runtime.Refresh();
     }
 
     // The registry this device trusts: the head it kept (its own genesis or an admission) brought up to date from the mirror. No head and an empty mirror: this is the first device and makes the genesis (5.1).
