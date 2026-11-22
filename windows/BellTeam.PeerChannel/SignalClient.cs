@@ -11,6 +11,13 @@ public sealed record ServerAccess(Uri Url, IReadOnlyDictionary<string, string> H
 
 public sealed record TurnCredentials(string[] Urls, string Username, string Credential, int Ttl);
 
+// A refused /pc/v1/turn: 403 carries the product's not_entitled code in "error" (docs/signaling.md 3), 429 rate_limited, 503 turn_unavailable.
+public sealed class TurnRefusedException(int status, string code) : HttpRequestException("turn " + status + " " + code)
+{
+    public int Status { get; } = status;
+    public string Code { get; } = code;
+}
+
 public static class SignalHttp
 {
     private static HttpRequestMessage Request(ServerAccess a, HttpMethod method, string path, HttpContent? body = null)
@@ -42,7 +49,13 @@ public static class SignalHttp
     public static async Task<TurnCredentials> FetchTurnAsync(HttpClient http, ServerAccess a, CancellationToken ct)
     {
         using var response = await http.SendAsync(Request(a, HttpMethod.Post, "/pc/v1/turn"), ct);
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException("turn " + (int)response.StatusCode);
+        if (!response.IsSuccessStatusCode)
+        {
+            var code = "";
+            try { code = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct)).RootElement.GetProperty("error").GetString() ?? ""; }
+            catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException) { }
+            throw new TurnRefusedException((int)response.StatusCode, code);
+        }
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct)); var r = doc.RootElement;
         return new TurnCredentials(r.GetProperty("urls").EnumerateArray().Select(u => u.GetString()!).ToArray(), r.GetProperty("username").GetString()!, r.GetProperty("credential").GetString()!, r.GetProperty("ttl").GetInt32());
     }
@@ -52,6 +65,8 @@ public static class SignalHttp
 public sealed class SignalSocket : IAsyncDisposable
 {
     public const int MaxMessageBytes = 8 * 1024;
+    public const int PassEnded = 4401; // the server ended the device's pass: the owner treats it as signed out, not as a network drop
+    public int? CloseCode => (int?)socket.CloseStatus;
     private readonly ClientWebSocket socket;
     private readonly CancellationTokenSource life = new();
     private Task? reader;
