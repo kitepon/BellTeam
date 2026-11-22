@@ -46,6 +46,7 @@ class EmergencyBodyTests(unittest.TestCase):
         self.updater.assert_model_binding = lambda *_args, **_: None
         self.calls = []
         self.status = 'exited'
+        self.containers = None  # None: the old body, or the new one once applied; a list overrides before the swap
         self.busy = ''
         self.own = TARGET
         self.updater.storage_metadata = lambda _id: dict(mounts=[], specs=[])
@@ -53,7 +54,10 @@ class EmergencyBodyTests(unittest.TestCase):
 
     def command(self, args, **options):
         self.calls.append(args)
-        if args[1] == 'ps' and '-a' in args: return (NEW if (self.install / 'applied').exists() else OLD).encode()
+        if args[1] == 'ps' and '-a' in args:
+            applied = (self.install / 'applied').exists()
+            if self.containers is not None and not applied: return ' '.join(self.containers).encode()
+            return (NEW if applied else OLD).encode()
         if args[1] == 'ps': return self.busy.encode()
         if args[1:3] == ['container', 'inspect']:
             return json.dumps(dict(image='sha256:' + 'a' * 64, running=False, restarting=self.status == 'restarting', status=self.status)).encode()
@@ -129,6 +133,26 @@ class EmergencyBodyTests(unittest.TestCase):
         with patch.object(service.ContainerUpdater, 'inspect_current', lambda updater: 'strict'):
             (self.install / 'applied').write_text('')
             self.assertEqual(self.updater.inspect_current(), 'strict')
+
+    def test_no_body_at_all_after_an_aborted_run_is_started_from_the_saved_model_without_rollback(self):
+        # install.sh removes the old body before it starts the new one; an aborted run can leave none.
+        self.containers = []
+        script = "#!/bin/sh\nset -eu\nsaved=\"$BELLTEAM_INSTALL_DIR/.bellteam-compose.ABC123\"\nmkdir \"$saved\"\ncp \"$COMPOSE_FILE\" \"$saved/normal.json\"\nprintf 'saved-compose=%s\\n' \"$saved\"\ntouch \"$BELLTEAM_INSTALL_DIR/applied\"\n"
+        outcome = self.run_swap(script)
+        self.assertEqual(outcome['previous'], {'state': 'absent'})
+        self.assertEqual(outcome['result']['verification'], 'succeeded', outcome)
+        self.assertEqual(outcome['result']['rollback'], 'not_needed')
+        self.assertEqual(self.updater.old, emergency.ABSENT)
+        # the same run with a failing installer: no previous model was saved, so there is nothing to roll back to
+        (self.install / 'applied').unlink(); shutil.rmtree(self.install / '.bellteam-compose.ABC123', ignore_errors=True)
+        failing = self.run_swap('#!/bin/sh\nexit 3\n')
+        self.assertEqual(failing['result']['rollback'], 'unavailable')
+        self.assertEqual(failing['result']['error'], 'HOST_UPDATE_INSTALL_FAILED')
+
+    def test_more_than_one_bellteam_container_is_still_refused(self):
+        self.containers = [OLD, NEW]
+        with self.assertRaises(host.Failure) as caught: self.updater.snapshot_old()
+        self.assertEqual(caught.exception.code, 'EMERGENCY_BODY_NOT_FOUND')
 
 
 class WrapperTests(unittest.TestCase):

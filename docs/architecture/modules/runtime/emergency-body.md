@@ -88,8 +88,9 @@ stateDiagram-v2
   Identity --> Exclusive
   Exclusive --> Refused: an update worker of this project is running (EMERGENCY_UPDATE_RUNNING)
   Exclusive --> OldBody
-  OldBody --> Refused: not exactly one bellteam container (EMERGENCY_BODY_NOT_FOUND)
+  OldBody --> Refused: more than one bellteam container (EMERGENCY_BODY_NOT_FOUND)
   OldBody --> Planned: snapshot taken in any state (running, restarting, exited)
+  OldBody --> Planned: no bellteam container at all (a run aborted after the installer removed the old body); there is then no previous model, so no rollback
   Planned --> Pulling: published reference
   Planned --> Verifying: local image, no pull
   Pulling --> Verifying: image already local, pull is a no-op
@@ -122,7 +123,7 @@ How each end is left:
 | End | What exists afterwards | Next step for the operator |
 | --- | --- | --- |
 | Refused (before `Planned`) | no operation directory, no container touched | fix the cause named by the code and run again |
-| Aborted at `Swapping` or `Verifying` (installer timeout or output flood, a docker command failing, or the operator's Ctrl-C: EMERGENCY_BODY_STOPPED) | operation directory with `installer.log`; no rollback was attempted, so the project may have a half-swapped or no body | read `installer.log`, then run again with a body that starts |
+| Aborted at `Swapping` or `Verifying` (installer timeout or output flood, a docker command failing, or the operator's Ctrl-C: EMERGENCY_BODY_STOPPED) | operation directory with `installer.log`; no rollback was attempted. Depending on where the installer stopped: the old body still there (stopped or not), a new body created or running, or no body at all (`install.sh` removes the old body before it starts the new one). The state volumes and the saved model are untouched | run the same command again: one container is treated as the old body in whatever state it is; none starts a body from the saved model with the new image (no rollback exists then). Two things can still stop the rerun: a state-maintenance container the killed installer left running (the installer's own writer check refuses; stop that container, then rerun) and more than one `bellteam` container (`EMERGENCY_BODY_NOT_FOUND`; remove the extra one) |
 | Aborted at `Saving` (a write of the model fails) | operation directory; the new body runs and is verified, but `installation/normal.json` and `current-runtime.json` still describe the old body | do not treat as complete; fix the cause named by the code (disk, permission) and run again with the same image |
 | Refused at `Verifying` / `Preflight` (a changed body) / Failed at `Preflight` | an operation directory (empty or with the preflight record); old body untouched | read the code, run again (an image change needs a new reference) |
 | Failed after `Swapping`, rollback succeeded | old model restored (the old body may itself be down) | run again with a body that starts |
@@ -132,12 +133,21 @@ How each end is left:
 
 Self-exit: every state in the container leaves by a closed code or a bounded wait (pull 900 s, preflight 120 s, installer 1800 s, inspection retries 3 x 10 s, cleanup of the old image 600 s, whose failure is only reported); no state waits for an operator, a peer or a running body. The one wait without a bound of ours is the wrapper's own `docker pull` of a published image before the container starts; it ends by docker's network errors or by the operator stopping it, and it changes nothing on the box.
 
+
+## The Aiterm state step and the absent body (a507d)
+
+Compared by reading `distribution/server/install.sh` and `install-resume-state.sh` (not by running them):
+
+- `resume_prepare` (worker mode) tries to keep the old body's Aiterm backing: it needs the old body present and the only container referencing that volume. Any mismatch takes the reset path and prints `aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED`. With no old body (the absent case above) preserve cannot apply, so a run from no body is a reset run: seats' Aiterm sessions start fresh. This is the same rule App Update already follows when preserve is unconfirmed.
+- `resume_initialize` -> `resume_apply` failing prints `aiterm-state-apply=failed` and the installer goes on; `execute_installer` then reports `verification: failed` with `HOST_UPDATE_AITERM_STATE_FAILED` after the swap succeeded. This is the `Cleaning --> Failed` edge. `resume_initialize` itself refusing (for example `RESUME_PRESERVE_UNCONFIRMED`) returns non-zero, `install.sh` exits non-zero, and the run goes to `RollingBack` (or ends as a failed install when there is no previous model).
+- Not run on a box with no container: the absent-body start and its Aiterm reset path are covered by unit tests with a fixture installer only; Centi's lab has to run it once (stop the body, remove the container, run the wrapper).
+
 ## Contract
 
 - Input: one reference. Published: `ghcr.io/kitepon/bellteam-server@sha256:<64 hex>`. Local: `--local sha256:<64 hex>` (an image ID the operator built, e.g. `docker build -t bellteam-local . && docker image inspect --format '{{.Id}}' bellteam-local`). Running the command is the approval; there is no catalog, signature or ledger check (the signed catalog is the normal path; this one exists for when it cannot be used).
 - The container runs from the target image, so the installer code is the target's. The entry refuses when the running image ID differs from the reference image ID (`EMERGENCY_IMAGE_MISMATCH`).
 - One swap at a time: any running update worker for the project refuses the entry (`EMERGENCY_UPDATE_RUNNING`).
-- The old body may be in any state, even absent health; it must still exist as the project's `bellteam` container (a first install is `install.sh`, not this path) and its mounts must match the saved model, as in App Update.
+- The old body may be in any state, even absent health, or absent altogether (an aborted earlier run); at most one `bellteam` container of the project may exist, and its mounts must match the saved model, as in App Update. With no container the new body is started from the saved model and the existing state volumes, without a rollback.
 - `config.json` `release` need not equal the target source: the updater service may be older than the body being put in. The swap's own `install.sh --configure` step recreates the updater service from the new image.
 - Rollback restores the old model; if the old body could not start, that body is also down. The result says so; the fix is another emergency swap with a body that starts.
 - Result: stdout JSON `{result: {execution, verification, cleanup, rollback, error}, previous: {state}, installerLog}`; exit 0 only when `verification == 'succeeded'`.
