@@ -10,6 +10,7 @@ namespace BellTeam.App;
 internal sealed class SignInView : StartupBackdrop
 {
     private readonly Action<string> signIn;
+    private readonly IReadOnlyList<string> providers;
     private readonly Action cancel;
     private readonly StackPanel body = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 460, Margin = new Thickness(30) };
     private readonly TextBox setupCode = new() { FontSize = 15, Padding = new Thickness(10, 8, 10, 8), MinWidth = 280, MaxWidth = 360 };
@@ -17,15 +18,16 @@ internal sealed class SignInView : StartupBackdrop
     // Typed once, kept while the phase changes; read by the caller when it starts the proof.
     public string SetupCode => setupCode.Text.Trim();
 
-    // signIn gets "apple" or "google"; cancel ends the wait for the browser.
-    public SignInView(Action<string> signIn, Action cancel, bool needsSetupCode = false)
+    // signIn gets "apple" or "google"; cancel ends the wait for the browser; providers are the buttons the device can use.
+    public SignInView(Action<string> signIn, Action cancel, IReadOnlyList<string> providers, bool needsSetupCode = false)
     {
-        this.signIn = signIn; this.cancel = cancel; this.needsSetupCode = needsSetupCode;
+        this.signIn = signIn; this.cancel = cancel; this.providers = providers; this.needsSetupCode = needsSetupCode;
         AutomationProperties.SetName(setupCode, SignInText.SetupCodeLabel);
         Children.Add(body); Show(SignInPhase.Entry);
     }
 
-    public void Show(SignInPhase phase)
+    // failure: any other failure sentence, shown above the buttons.
+    public void Show(SignInPhase phase, string? failure = null)
     {
         body.Children.Clear();
         body.Children.Add(Centered(MacUi.Text(SignInText.Title, 28, MacUi.Ink, FontWeights.Bold)));
@@ -38,14 +40,14 @@ internal sealed class SignInView : StartupBackdrop
             default:
                 if (phase == SignInPhase.ReturnNotReceived) body.Children.Add(Centered(MacUi.Text(SignInText.ReturnNotReceived, 14, MacUi.Red, margin: new Thickness(0, 14, 0, 0))));
                 if (phase == SignInPhase.NotOwner) body.Children.Add(Centered(MacUi.Text(SignInText.NotOwner, 14, MacUi.Red, margin: new Thickness(0, 14, 0, 0))));
+                if (failure is not null) body.Children.Add(Centered(MacUi.Text(failure, 14, MacUi.Red, margin: new Thickness(0, 14, 0, 0))));
                 if (needsSetupCode)
                 {
                     body.Children.Add(Centered(MacUi.Text(SignInText.SetupCodeLabel, 15, MacUi.Ink, FontWeights.SemiBold, new Thickness(0, 18, 0, 6))));
                     body.Children.Add(setupCode);
                     body.Children.Add(Centered(MacUi.Text(SignInText.SetupCodeHint, 12, MacUi.Muted, margin: new Thickness(0, 6, 0, 0))));
                 }
-                body.Children.Add(Button(MacUi.Prominent(SignInText.Apple, () => signIn("apple"))));
-                body.Children.Add(Button(MacUi.Prominent(SignInText.Google, () => signIn("google"))));
+                foreach (var provider in providers) body.Children.Add(Button(MacUi.Prominent(provider == "apple" ? SignInText.Apple : SignInText.Google, () => signIn(provider))));
                 body.Children.Add(Centered(MacUi.Text(SignInText.Note, 12, MacUi.Muted, margin: new Thickness(0, 14, 0, 0))));
                 break;
         }
