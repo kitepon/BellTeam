@@ -65,6 +65,10 @@ export async function reserveExecution({ observe, session, executionBridge }, jo
 
 // One temporary list holds images and attached files; only images go to Aiterm's `image`, files reach the seat as paths in the text.
 export const imagePaths = files => files.filter(file => !file.attachment).map(file => file.path)
+// a521: Aiterm refuses an image for a remote seat before typing (REMOTE_IMAGE_UNSUPPORTED). The same text goes once more without the image and says so.
+// shortcut: retire this and its two callers when Aiterm accepts images for remote seats (Elegg a521-aiterm-remote-image).
+export const IMAGE_NOT_DELIVERED_LINE = '（画像が添付されましたが、この席は別の端末にあるため、まだ画像を届けられません。）'
+export const withoutImageText = text => `${text}\n\n${IMAGE_NOT_DELIVERED_LINE}`
 export const plainLine = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, max)
 export function sendText(message, files) {
   const attached = files.filter(file => file.attachment)
@@ -84,8 +88,12 @@ export async function dispatchExecution(seat, job, bot, message, images, { setup
     job.deliveryStage = 'BOT_SEND_FAILED'
     check()
     job.nativeSession = session
-    const result = await execution.invoke('pty_send', { session_id: session, text: sendText(message, imageFiles), require_agent: true,
-      ...(imagePaths(imageFiles).length ? { image: imagePaths(imageFiles) } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })
+    const send = (text, image) => execution.invoke('pty_send', { session_id: session, text, require_agent: true, ...(image.length ? { image } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })
+    const image = imagePaths(imageFiles)
+    const result = await send(sendText(message, imageFiles), image).catch(error => {
+      if (error?.code !== 'BOT_IMAGE_UNSUPPORTED' || !image.length) throw error
+      return send(withoutImageText(sendText(message, imageFiles)), [])
+    })
     const receipt = result.structuredContent
     if (receipt?.mode !== 'agent_steer'
       && (receipt?.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process))

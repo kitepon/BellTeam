@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
-import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations, sendText, imagePaths, plainLine } from './execution-transport.mjs'
+import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations, sendText, withoutImageText, imagePaths, plainLine } from './execution-transport.mjs'
 import { sendSessionStop, confirmedSessionClosure } from './session-interruption.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
@@ -2175,12 +2175,15 @@ export class AitermTransport {
     let issued = false
     const issue = () => { admissionCheck?.(); issued = true }
     try {
-      const result = await client.call('pty_send', {
-        session_id: session,
-        text: sendText(message, imageFiles),
-        require_agent: true,
-        ...(imagePaths(imageFiles).length ? { image: imagePaths(imageFiles) } : {}),
-      }, { meta: CALLER_META, ...(admissionCheck || job ? { admissionCheck: issue } : {}) })
+      const send = (text, image) => client.call('pty_send', { session_id: session, text, require_agent: true, ...(image.length ? { image } : {}) },
+        { meta: CALLER_META, ...(admissionCheck || job ? { admissionCheck: issue } : {}) })
+      const image = imagePaths(imageFiles)
+      const result = await send(sendText(message, imageFiles), image).catch(error => {
+        // a521: nothing was typed (a463), the seat is fine: the same text once more without the image, said so in the text (steer or new turn alike).
+        if (error?.code !== 'BOT_IMAGE_UNSUPPORTED' || !image.length) throw error
+        process.stderr.write(`BellTeam Aiterm: image not delivered to a remote seat, text sent without it: ${session}\n`)
+        return send(withoutImageText(sendText(message, imageFiles)), [])
+      })
       if (job) job.inputMayHaveStarted = true
       return result
     } catch (error) {

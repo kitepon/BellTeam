@@ -53,7 +53,9 @@ flowchart TD
   Reply -->|accepted| Accepted["Follow original receipt"]
   Reply -->|"Aiterm says do not resend"| Fail["Return original error; never replay"]
   Reply -->|"question dialog open (CLAUDE_SELECT_MENU_OPEN, nothing typed): BOT_AWAITING_USER"| Awaiting["seat waiting on its user: no observe, no close, no launch; the saved receipt stays queued (not_started) and is sent after the dialog is gone"]
-  Reply -->|"image for a remote seat (REMOTE_IMAGE_UNSUPPORTED, nothing typed): BOT_IMAGE_UNSUPPORTED"| ImageRefused["input refused, seat fine: no observe, no close, no launch; delivery ends failed (BOT_SEND_FAILED, typed not_started keeps the receipt failed); no BugHub filing (a463)"]
+  Reply -->|"image for a remote seat (REMOTE_IMAGE_UNSUPPORTED, nothing typed): BOT_IMAGE_UNSUPPORTED"| ImageRefused{"did this send carry an image?"}
+  ImageRefused -->|"yes (a521)"| ImageResend["the same pty_send once more WITHOUT image, text + one line 'an image was attached but cannot reach this seat yet': no failed status, no observe, close or launch, no recordDeliveryFailure; the answer of that send is the delivery's answer, steer or new turn alike"]
+  ImageRefused -->|"no"| ImageFailed["input refused, seat fine: no observe, no close, no launch; delivery ends failed (BOT_SEND_FAILED, typed not_started keeps the receipt failed); no BugHub filing (a463)"]
   Reply -->|"answer lost (RPC error)"| Lost["Matching pty_observe"]
   Lost -->|"pane_alive=false (no terminal behind the record)"| Launch
   Lost -->|"terminal alive / unreadable"| Fail
@@ -81,7 +83,7 @@ flowchart TD
 | 答えが届かなかった（RPCの失敗）で、観測すると端末が生きている、または観測が読めない | 打った文を二度実行させない | 同上。端末が無い（`pane_alive=false`：記録だけ残った席、休止中の席）と観測できた時は失敗にせず、起こして届ける（休止中の席は閉じずに同じ会話へ再開、記録だけ残った席は閉じてから）。端末が無ければ文は打たれていない |
 | 質問の画面（AskUserQuestionなど）が開いた席がAitermに断られた（`CLAUDE_SELECT_MENU_OPEN`、何も打っていない。a413） | 席の前の質問への答えを、届いた文で代わりに出さない（7681）。作業中のターンを閉じて起動し直さない | `BOT_AWAITING_USER`（409）。席は死んだのではなく利用者の答えを待っているので、観測も閉じも起動もしない。保存済みの受領はqueuedのまま（`not_started`、診断なし、`failed`の履歴も作らない）。画面が閉じるか、60秒ごとの見直しで同じIDをもう一度送る。席のターンの終わりでも見直す |
 | 起こす席のAI CLIが入っていない（利用設定の`harnessCli`が`installed`以外。a451、[cli-not-installed.md](modules/execution/cli-not-installed.md)）。端末側の席は対象外 | 入っていないCLIを起動して失敗として記録する（BugHubへ出す）ことと、何も無い所へ文を打つこと | `BOT_AWAITING_USER`（not_started）で起動の前に止め、受信箱は待ち行列に残す。席の表示に「<AI>がまだ入っていません。AIの認証から入れてください」を出す。入れ終わると`watch`が通知し、同じIDが流れる |
-| 別端末の席へ画像を付けた送信がAitermに断られた（`REMOTE_IMAGE_UNSUPPORTED`、何も打っていない。a463） | 断りは入力の話で席は正常。生きている席を閉じて会話を捨てない（以前は閉じて起こし直し、同じ断りでまた失敗した） | `BOT_IMAGE_UNSUPPORTED`（409）。送り手は画像を外して送り直す。画像を別端末の席へ渡す機能はAiterm側の持ち物 |
+| 別端末の席へ画像を付けた送信がAitermに断られた（`REMOTE_IMAGE_UNSUPPORTED`、何も打っていない。a463、a521） | 断りは入力の話で席は正常。生きている席を閉じて会話を捨てない。本文まで失わない（a521以前は配達失敗になり本文も届かなかった） | `sendToSession`が、同じ`pty_send`を`image`なしで**一度だけ**送り直す。本文の末尾に「画像が添付されましたが、この席は別の端末にあるため、まだ画像を届けられません。」の一行を足す（添付ファイルのパスは本文に残る）。失敗の状態も、観測も、閉じも、起動も、`recordDeliveryFailure`も無い。動いているターンへの差し込み（`agent_steer`）も同じ一通。画像を付けていない送信が`BOT_IMAGE_UNSUPPORTED`で断られた時だけ、従来どおり失敗（409、`failed`のまま）。画像を別端末の席へ渡す機能はAiterm側の持ち物で、Aitermが断りをやめたら、この送り直しの枝は外す（Elegg a521-aiterm-remote-image） |
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
