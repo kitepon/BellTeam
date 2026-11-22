@@ -368,6 +368,45 @@ BellTeam.PeerChannel（net10.0、OS非依存。LinuxのNeonも使う）は peer-
 **中継（TURN）の選び方（契約0.5.7 第11章、ナユタ 2026-11-22）**：libjuiceは名前の最初のアドレスだけにつなぎ、TURNは2つまで、中継はUDPだけなので、`IceServers.Select`（`WebRtc.cs`。TSの`iceServers`の移植）が `POST /pc/v1/turn` の `urls` から、最初の `stun:` を1つと、UDPの `turn:`（`transport=tcp`は除く）の先頭2つだけを取り、それぞれのホスト名をIPv4に解決して（IPv4が無い時だけIPv6。解決できない名前は外す。解決は2秒で打ち切る）libdatachannelのICEサーバーに渡す。
 
 **datachannel.dll の届け方（トロニー裁定 2026-11-22）**：利用者の機械ではビルドしない（MSVC・vcpkgは要らない）。WebRTCは libdatachannel v0.24.6（commit 6b1e2e62）を `Native.cs` のP/Invokeで呼ぶ。ビルド済みの `datachannel.dll`（x64。OpenSSL 3.6.5を静的に含み、Visual C++ ランタイムだけを要する）を `windows/native/prebuilt/win-x64/` に **SHA-256（`datachannel.dll.sha256`）と一緒にリポジトリへ置く**。Windows用のCIがまだ無いため（既存のCIはLinuxとサーバーだけ）、リポジトリ内の置き場にしている。CIができたら、固定ソースからそこでビルドしてリリースへ添付する形に替える。置き換えるのは、ピン（libdatachannel・5つのサブモジュール・vcpkg 2026.10.16・OpenSSL）を上げる時だけで、`windows/native/build-libdatachannel.ps1`（開発者の機械でだけ実行。MSVC・CMake・Ninja・vcpkgが要り、固定commit以外は停止）が `prebuilt/win-x64` へDLLと `.sha256` を書く。ビルドは同じバイト列を再現しないので、置き換えたcommitの `.sha256` が正本になる。`BellTeam.PeerChannel.csproj` が `prebuilt/win-x64/datachannel.dll` をビルド出力と`dotnet publish`の出力へ複写し（`win-arm64`のpublishには複写しない）、`scripts/install-windows.ps1` が publish の直後に、複写された `datachannel.dll` のSHA-256を `.sha256` と照合して一致しなければ導入を止め、一致すればアプリの他のファイルと同じ手で導入先へ置く。**win-arm64 にはDLLが無い**（x64のDLLはarm64のプロセスに読めない）：導入は警告を出し、決裁箱の端末部品はarm64では動かない（arm64のビルドが要る時に別途）。`PeerChannelNativeTests`（同一プロセスの2接続がデータチャネルで往復する）はこの複写されたDLLでP/Invokeを確かめる。同梱するのは libdatachannel（MPL-2.0）、libjuice（MPL-2.0）、libsrtp・usrsctp（BSD）、plog・nlohmann/json（MIT）、OpenSSL（Apache-2.0）で、ソースは上のピンのcommitから取れる。
+### 決裁箱画面の接続替え（段階4、a498。デルタの設計 v0.2 §3〜§5、peer-channel-v0.2.md）
+
+決裁箱の画面（`ApprovalsWindow`・入口の行 `ApprovalsEntryRow`・`ApprovalsHub`）は、BellTeamのサーバー（`/api/approvals/*`）から決裁を読むのをやめ、この端末の `DeviceSession` から読む。決裁の中身（題・本文・選択肢・答え・添付）はAIのPCのコネクタと、この端末の履歴にだけあり、BellTeamのサーバーには渡らない（Ownerの裁定 2026-11-21）。工程表とのつながり（バッジ・「決裁を開く」）に要る、IDと状態だけの引きは、BellTeamのサーバーに残る `/api/approvals/by-task`・`by-decision` を引き続き使う。
+
+```mermaid
+flowchart LR
+  win[ApprovalsWindow・入口の行<br/>BellTeam.App] --> hub[ApprovalsHub<br/>画面スレッドへの通知]
+  hub --> dev[DeviceApprovals<br/>BellTeam.App: 運転・再接続・状態の表示]
+  dev --> book[DecisionBook<br/>BellTeam.PeerChannel: 受けたフレームから決裁の状態を保つ<br/>request・amend・cancel・result・hold]
+  dev --> ses[DeviceSession<br/>合図・ダイヤル・フレームの送受]
+  dev --> keys[DeviceKeyStore: 端末鍵 DPAPI]
+  book --> hist[(端末の履歴ファイル<br/>DPAPI・固有のentropy・%LOCALAPPDATA%\\BellTeam)]
+  dev --> map[DeviceDecisionView: decision@1 → ViewDecision<br/>既存の画面モデル Approvals.cs を使い回す]
+  win --> link[工程表のつながり: BellTeamサーバー<br/>by-task / by-decision（IDと状態だけ）]
+  ses --> abx[決裁箱サーバー /pc/v1<br/>合図・名簿・TURNだけ。中身は見えない]
+  ses <-.->|DTLSのデータチャネル| con[AIのPCのコネクタ<br/>（BellTeamのサーバーの常駐 daemon も同じ）]
+```
+
+```mermaid
+flowchart TD
+  C1[コネクタ] -- "request / amend / cancel（decision@1・添付はblob）" --> S[DeviceSession]
+  S -- "検証済みフレーム" --> B[DecisionBook]
+  B -- "状態: pending / held / answered / cancelled" --> H[(端末の履歴)]
+  B --> V[DeviceDecisionView]
+  V --> W[画面: 一覧・詳細]
+  W -- "答え {option_id|text}、保留 {held}" --> A[DeviceApprovals]
+  A -- "answer(approval-box/answer@1) / hold に署名" --> S
+  S -- "answer / hold" --> C1
+  C1 -- "result（確定した決裁。他の端末の答えも）" --> S
+  W -. "決裁のID" .-> L[BellTeamサーバー: つながりの引き（IDと状態だけ）]
+```
+
+- **所有と入口**: `DecisionBook`（OS非依存。Linuxも使う）が決裁の状態の持ち主。画面は `ViewDecision`（既存の `Approvals` モデル）を受けるだけで、ID・署名・バージョンの扱いは持たない。
+- **接続の維持**: 画面の有無に関わらず、サインイン済みの間は `DeviceApprovals` が合図の接続を保つ。`join` で待ち（wait）が来たらダイヤルし、切れたら 1・2・4…30秒の上限つきバックオフで回数の上限なしに自動で再接続する。手動の再試行は待機中の次の試行を直ちに行う（並列は増やさない）。サインアウト・接続先の変更・`pass_ended`（4401）では旧処理を終える。`not_entitled`・名簿が確かめられない状態は、理由を出して待つ（自動で変わらないので）。
+- **失敗の見え方**: 接続できない間は最後の一覧を薄くして理由と手動再試行を出す。答えの送信が失敗しても決裁の状態は変えず、同じボタンをもう一度出す。結果が分からない送信は「不明」と出す。
+- **端末の履歴**: 受けた request と result を端末にだけ保つ（契約10.1）。保管期間の設定は端末側。他の端末にしか届かなかった決裁は、この端末に無いことがある（Ownerの許容済み）。
+- **この段でやらないこと**: 端末の取り外し画面（SEC-086は画面を足す時）、コネクタの追加の承認画面（BellTeamのサーバーの常駐 daemon は、Ownerのスマホで一度だけ承認する。Nayutaの手順）、サーバー側の報告（D7b。経路は設計の Q5 で決まってから）。端末の追加の承認（5.3）の画面は、この端末が2台目の時に必要になるので別の工程で行う。
+- **検証**: 純粋な部分（`DecisionBook`・`DeviceDecisionView`）は、契約のテストデータと既存の画面モデルの試験へつなぐ。通しは foxで、決裁箱のローカル開発サーバー（`npm run dev:server`・実験用の承認役 `dev:approve`、127.0.0.1だけ）とコネクタの daemon を立て、AIの要求 → この端末の画面 → 答え → AIの受け取りまでを人手なしで動かす。
+
 
 ## 変更時の手順
 
