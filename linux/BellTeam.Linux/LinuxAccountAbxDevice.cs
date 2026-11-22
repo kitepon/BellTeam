@@ -72,9 +72,11 @@ internal sealed class LinuxDeviceApprovals : IDeviceDecisions, IAsyncDisposable
     }
 
     // The Approval Box account was deleted (4410): this device's keys, trusted head and history go with it (the pass is the second instance's own to clear).
-    private void ClearLocal()
+    // Also 「アカウントを削除」 (a485): this device's keys, trusted head, history and the saved attachments.
+    internal void ClearLocal()
     {
         foreach (var file in new[] { Path.Combine(directory, "peer-channel-device.key"), AnchorPath, HistoryPath }) try { File.Delete(file); } catch (IOException) { }
+        try { Directory.Delete(Path.Combine(directory, "approvals-files"), true); } catch (Exception error) when (error is IOException or DirectoryNotFoundException) { }
     }
 
     private (string Account, SignedSnapshot Snapshot)? LoadAnchor()

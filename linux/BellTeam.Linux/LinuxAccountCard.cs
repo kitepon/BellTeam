@@ -15,7 +15,7 @@ public sealed class LinuxAccountCard : StackPanel
     private readonly CancellationToken token;
     private DesktopLoginBilling? billing => LinuxAccountStore.Billing;
     private string? failure;
-    private bool busy, handoffAsked, handoffCancelled, confirmingStop;
+    private bool busy, handoffAsked, handoffCancelled, confirmingStop, confirmingDelete;
     private bool? serverEntitled;   // CheckAsync's answer (the stored entitlements are empty after a restart)
     private IReadOnlyList<Entitlement>? checkedEntitlements;
     private LoginStart? handoff;
@@ -133,6 +133,7 @@ public sealed class LinuxAccountCard : StackPanel
             Children.Add(Button(StoreAccountText.SignOut, () => RunAsync(async (b, cancel) => { if (LinuxAccountStore.Home is { } home) await home.EndAsync(cancel); await b.SignOutAsync(cancel); }), Look.Secondary));   // the library's signOut does not end the home session
             RenderDanger();
         }
+        RenderDelete();
         if (busy && webSignIn is not null) Children.Add(Waiting());
         if (failure is not null) Children.Add(Banner(failure));
     }
@@ -180,6 +181,33 @@ public sealed class LinuxAccountCard : StackPanel
         row.Children.Add(Button(StoreAccountText.StopAllOthersCancel, () => { confirmingStop = false; Render(); return Task.CompletedTask; }, Look.Secondary));
         Children.Add(row);
     }
+
+    // 「アカウントを削除」: the last item, under a divider (Rapi's Mac reference). The subscription is the stores' (a desktop never buys), so the words name them all.
+    private const string Store = "購入したストア", Manage = "購入したストアの購読の管理";
+    private void RenderDelete()
+    {
+        if (AccountDeletion.Run is null) return;
+        Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
+        if (!confirmingDelete) { Children.Add(Button(AccountDeletionWords.Button, () => { confirmingDelete = true; Render(); return Task.CompletedTask; }, Look.Danger)); return; }
+        Children.Add(Text(AccountDeletionWords.Title, 15, Ink, FontWeight.SemiBold, new Thickness(0, 8, 0, 0)));
+        Children.Add(Text(AccountDeletionWords.Message(Store, Manage), 13, Muted, null, new Thickness(0, 6, 0, 0)));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        row.Children.Add(Button(AccountDeletionWords.Confirm, DeleteAsync, Look.DangerFilled));
+        row.Children.Add(Button(AccountDeletionWords.Cancel, () => { confirmingDelete = false; Render(); return Task.CompletedTask; }, Look.Secondary));
+        Children.Add(row);
+    }
+
+    private async Task DeleteAsync()
+    {
+        confirmingDelete = false; busy = true; failure = null; Render();
+        try { await AccountDeletion.Run!(); }
+        catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code, error.Status); }   // the rest was already erased; pressing again retries the library's sign-out
+        catch (Exception error) { failure = error.Message; }
+        busy = false;
+        if (!token.IsCancellationRequested) Render();
+    }
+
+    public static string DoneText => AccountDeletionWords.Done(Manage);
 
     private enum Look { Primary, Secondary, Danger, DangerFilled }
 

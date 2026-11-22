@@ -14,6 +14,8 @@ internal static class LinuxAccountStore
     // The one home connection of the app (library rule: one per home server); its record is home.json beside the other per-user files.
     public static IHomeLink? Home => home ??= Billing is { } lb ? new LinuxHomeLink(lb, new FileHomeStore(Path.Combine(SettingsStore.UserDirectory, "home.json"))) : null;
     // Raised when the window comes to the front: the account card reads the server's answer again (Tronie 2026-11-23, same spec as the Apple app).
+    // 「アカウントを削除」: the home record file goes too (the library's sign-out does not end the home session); the next connection asks to log in again.
+    public static void ForgetHome() { try { File.Delete(Path.Combine(SettingsStore.UserDirectory, "home.json")); } catch (IOException) { } }
     public static event Action? Foreground;
     public static void NoteForeground() => Foreground?.Invoke();
     // BELLTEAM_LOGIN_BILLING_URL points a development or test run at another Worker (the same rule as the Windows app); a build with neither set uses product.json.
