@@ -174,12 +174,17 @@ final class StoreAccount: ObservableObject {
         }
     }
 
-    /// 「アカウントを削除」: 店のパス・K・購入の印・承認した端末の一覧をこの端末から消す。ライブラリのsignOutが運営へ伝わらなくても、端末の記録は消す（運営はこのアカウントに結びつけた情報を持たない）。
-    func deleteLocalAccount() async {
+    /// 「アカウントを削除」の1段目: ライブラリのsignOutで店のパス・K・購入の印・承認した端末の一覧を消す。
+    /// ライブラリは、運営に届かなかった時（通信の失敗・5xx）は何も消さずに投げる。ここも握りつぶさず、そのまま投げる（消えていないものを「消えた」と言わない）。
+    /// 消すものが何も無い時は何もしない（やり直しが、終えた手順を繰り返さない）。
+    func removePass() async throws {
         guard let client else { return }
+        let pass = await client.pass, k = await client.k
+        guard pass != nil || k != nil else { return }
         busy = true
-        do { try await client.signOut() } catch { /* the pass is dropped on this device either way; the library keeps no copy */ }
-        busy = false
+        defer { busy = false }
+        do { try await client.signOut() }
+        catch { await reload(); throw error }
         message = nil
         errorText = nil
         await reload()
