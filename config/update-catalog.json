@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-22T09:42:39Z",
-  "expiresAt": "2026-11-29T09:42:39Z",
+  "publishedAt": "2026-11-22T10:12:36Z",
+  "expiresAt": "2026-11-29T10:12:36Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
-      "versionId": "711ee6c1bd35486639f477bb5001e3a045bb3406fc80543168520b99dcd093b5",
+      "sourceCommit": "13bb13b60328e1f2ac33a9b5592578ffc155f695",
+      "versionId": "511a28a6d63004ed365666028bc20db2ba5015a4459f5b7080d64bae5eaca006",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz",
-          "bytes": 89988,
-          "sha256": "711ee6c1bd35486639f477bb5001e3a045bb3406fc80543168520b99dcd093b5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T101105Z/usage-13bb13b60328e1f2ac33a9b5592578ffc155f695-linux-amd64.tar.gz",
+          "bytes": 89886,
+          "sha256": "511a28a6d63004ed365666028bc20db2ba5015a4459f5b7080d64bae5eaca006"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10721,
-          "sha256": "32490c49177ec36b34ecd74e2e09493657c68feab264e9441d8445bd68c11131"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T101105Z/usage-13bb13b60328e1f2ac33a9b5592578ffc155f695-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10999,
+          "sha256": "ab17753469efadca05f6c4d16431f8e9aabcbad068e0deb996d7a3c37d79cef1"
         },
-        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
+        "signerCommit": "13bb13b60328e1f2ac33a9b5592578ffc155f695"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "使用量の反映が一度失敗しても、全体を公開し直して自分で戻ります。1Passwordの読み取り制限を、保留つきの状態として扱います。"
+        "提出済みsecretの古い消費の仕組みを取り除きます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530",
-      "versionId": "6564476303893273a52aaccdc824c04dae4eb4b69a2b59194a5c2a3e3fd2b5d1",
+      "sourceCommit": "13bb13b60328e1f2ac33a9b5592578ffc155f695",
+      "versionId": "1382aed1081c88e140e143a04804bde91235a286b3e6d53d8d93cd8354f48699",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz",
-          "bytes": 89988,
-          "sha256": "6564476303893273a52aaccdc824c04dae4eb4b69a2b59194a5c2a3e3fd2b5d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T101105Z/usage-13bb13b60328e1f2ac33a9b5592578ffc155f695-linux-arm64.tar.gz",
+          "bytes": 89886,
+          "sha256": "1382aed1081c88e140e143a04804bde91235a286b3e6d53d8d93cd8354f48699"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T015846Z/usage-186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10682,
-          "sha256": "a5bb60f571742e1e7a557d45b2bef77e6c0cee03c2f576401e319e9f4a6a46c7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T101105Z/usage-13bb13b60328e1f2ac33a9b5592578ffc155f695-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10952,
+          "sha256": "c5f2a87e1b59a1e20275f9db0dd4811c4ecc9e0428b6ef6ba974fd79dc191675"
         },
-        "signerCommit": "186f3e46dc06dc9e34a75bcf21b2e49ddf6bc530"
+        "signerCommit": "13bb13b60328e1f2ac33a9b5592578ffc155f695"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "使用量の反映が一度失敗しても、全体を公開し直して自分で戻ります。1Passwordの読み取り制限を、保留つきの状態として扱います。"
+        "提出済みsecretの古い消費の仕組みを取り除きます。"
       ]
     },
     {
