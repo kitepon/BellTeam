@@ -1,4 +1,4 @@
-// a485: the usage child's side of the login-billing home part (vendored, development release 0.16.0).
+// a485: the usage child's side of the login-billing home part (vendored, accepted release 0.18.8).
 // One durable document (the library's fileHomeStore: atomic, 0600); every call that can change the set returns the new `homeLogin` row.
 // The child has no timer and no stderr: the body drives `sweep` and prints the setup code (docs/architecture/modules/usage/app-sessions.md).
 import { createHomePart, createHomeHandler, fileHomeStore } from './vendor/login-billing-home.mjs'
