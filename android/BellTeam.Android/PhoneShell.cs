@@ -194,7 +194,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void Begin()
     {
         var saved = settings.Load().ServerUrl;
-        if (StartupRoute.Initial(saved) == StartupPhase.Setup) ShowStartup(StartupPhase.Setup); else _ = ConnectAsync(saved!);
+        if (StartupRoute.Initial(saved, signedIn: true) != StartupPhase.Checking) ShowStartup(StartupPhase.Setup); else _ = ConnectAsync(saved!);   // the account gate has run before Begin
     }
 
     // ---- the pages of the linked screens ----

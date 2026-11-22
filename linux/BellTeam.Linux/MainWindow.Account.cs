@@ -24,7 +24,7 @@ public sealed partial class MainWindow
 
     private Task Begin(string? savedServer)
     {
-        if (StartupRoute.Initial(savedServer) != StartupPhase.Setup) return ConnectAsync(savedServer!);
+        if (StartupRoute.Initial(savedServer, signedIn: true) == StartupPhase.Checking) return ConnectAsync(savedServer!);   // the account gate has run before Begin
         ShowServerSetup(); return Task.CompletedTask;
     }
 }
