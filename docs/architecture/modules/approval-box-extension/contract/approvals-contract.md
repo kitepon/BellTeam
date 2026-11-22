@@ -21,6 +21,7 @@ Source facts come from Approval Box `docs/api.md` v0.38 and `docs/owner-credenti
 | `POST /api/approvals/connect` | starts the connect (device-authorization style, no redirect to the user's server) → `{authorizationUrl, expiresAt}`; `authorizationUrl` is Approval Box's hosted consent page with the request code already in it; the app opens it in the browser, the module polls Approval Box in the background (interval and backoff as Approval Box says) until granted, denied or expired; a second call while waiting returns the same request |
 | `DELETE /api/approvals/connect` | stops waiting (やめる) → the new `connection` |
 | `DELETE /api/approvals/connection` | forgets the session (つなぎを外す) → the new `connection` |
+| `GET /api/approvals/by-decision?id=<decisionId>` (a490g) | `{project, plan, task, state: linked\|answered\|closed\|diverged, attached}` or 404; ids and state only, read from the link record, no Approval Box call (works after the content routes close); any failure → the caller draws no badge |
 | `GET /api/approvals/by-task?project=<id>&plan=<key>&task=<id>` | `{decisionId, status, title}` or 404 (for Lattice 詳細 「決裁を開く」; any failure → the caller draws no block) |
 
 ## ViewDecision
