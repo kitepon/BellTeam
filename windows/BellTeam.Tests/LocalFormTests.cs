@@ -71,17 +71,18 @@ public sealed class LocalFormTests
     [Fact]
     public void TheSectionOffersTheButtonShowsTheQrWithItsLabelAndTheExpiryAndShowsWhatTheLastTryEndedWith() => RunSta(() =>
     {
-        var started = 0; var stopped = 0; var view = new LocalRequestView(() => started++, () => stopped++);
+        var started = new List<string>(); var stopped = 0; var view = new LocalRequestView(started.Add, () => stopped++);
         var expiry = new DateTimeOffset(2026, 11, 23, 12, 10, 0, TimeSpan.Zero);
         view.ShowIdle();
         Assert.Contains(LocalFormText.Title, Texts(view)); Assert.Contains(LocalFormText.Lead, Texts(view)); Assert.Empty(Descendants<QrView>(view));
-        Click(view, LocalFormText.Google); Assert.Equal(1, started);
+        Assert.Equal([LocalFormText.Apple, LocalFormText.Google], Descendants<Button>(view).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)));   // Apple first, as the Mac app
+        Click(view, LocalFormText.Apple); Click(view, LocalFormText.Google); Assert.Equal(["apple", "google"], started);
         view.ShowRequest("QR-TEXT", expiry);
         Assert.Equal(LocalFormText.QrLabel, System.Windows.Automation.AutomationProperties.GetName(Descendants<QrView>(view).Single()));
         Assert.Contains(LocalFormText.WaitingUntil(expiry), Texts(view)); Assert.Contains(LocalFormText.Firewall, Texts(view));
         Click(view, LocalFormText.Cancel); Assert.Equal(1, stopped);
         view.ShowIdle(LocalFormText.Failure("other_account"));
-        Assert.Contains(LocalFormText.Failure("other_account"), Texts(view)); Assert.Empty(Descendants<QrView>(view)); Click(view, LocalFormText.Google); Assert.Equal(2, started);
+        Assert.Contains(LocalFormText.Failure("other_account"), Texts(view)); Assert.Empty(Descendants<QrView>(view)); Click(view, LocalFormText.Google); Assert.Equal(["apple", "google", "google"], started);
     });
 
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
