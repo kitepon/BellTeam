@@ -517,7 +517,7 @@ public partial class MainWindow : Window, IInspectorHost
     // Test and render seam: the result alert.
     internal Action<string, string> ShowResult { get; set; } = (title, body) => MessageBox.Show(Application.Current?.MainWindow, body, title, MessageBoxButton.OK);
     // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md). Order: the server session (the one step that reaches the network), the Approval Box sign-in and device data, the home record, notifications, web login,
-    // the library's signOut (0.18.9: clears the pass and returns SignOutResult, offline too; either value is a success here, only pass_store_unavailable throws), the saved address; then the first screen and one result. Other devices are not stopped.
+    // the library's signOut (0.18.9 on: clears the pass and returns SignOutResult, offline too; either value is a success here, only pass_store_unavailable throws), the saved address; then the first screen and one result. Other devices are not stopped.
     // The result is told only when every step returned. A step that fails stops here, names what it could not remove and why, and keeps the page: pressing again runs the steps again (each one is safe to repeat).
     // The three reasons the reference allows: a network failure anywhere in the chain, the login operator answering 5xx, anything else.
     internal static string ReasonOf(Exception error)
