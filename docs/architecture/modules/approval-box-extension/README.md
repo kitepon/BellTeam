@@ -1,5 +1,7 @@
 # BellTeam 決裁箱拡張 (approval-box-extension)
 
+> **2026-11-24: the client path is [client-v0.5.md](client-v0.5.md)** (BellTeam's 決裁箱 is the Approval Box client: `/v1` now, `/pc/v1` with the Approval Box app). Section 3 and the app contract's content routes describe the body path that new client builds no longer use; link rules L1-L10, the link record and the screens stay.
+
 Owner of this module: Delta (bot-ae42e3e9). Chart row: `bellteam-dev-added/a154-approval-ext-design`. Status: design accepted by the Owner 2026-11-15; first implementation PR = this folder + `src/approval-box-extension/` pure core (origin, ViewDecision, entitlement, link rules, connect state). Child process, mount, usage secret effects and screens are later PRs of their owners. Screens: [screen-spec.md](screen-spec.md). Contract: [contract/approvals-contract.md](contract/approvals-contract.md). Plan: `/srv/bellteam/bots/bot-7b140b27/docs/approval-box-extension-plan-20261115.md`.
 
 This folder is canonical (same shape as `modules/lattice/`). Diagrams and code ship in one diff. The pictures are rendered from `mockups/approval-box-screens.html` (frames `entry`, `main`, `answer`, `chain`, `origin`, `phone`, `edge`; open it with the frame name as the hash). Connections to other modules are drawn in both modules' docs (Approval Box and Lattice rows, `module.json`).

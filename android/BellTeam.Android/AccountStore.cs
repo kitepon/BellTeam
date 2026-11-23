@@ -29,7 +29,7 @@ public static class ApprovalBoxAccount
 {
     public const string StorageName = "approvalbox";
     private static LoginBilling? billing;
-    // The device part's switch file (files/approval-box-device) may hold an auth URL: a lab run against approval-box's local dev server (http://127.0.0.1:8788/auth/v1 through adb reverse). Empty file = product.json's address.
+    // A debug build's file files/approval-box-device may hold an auth URL: a lab run against approval-box's local dev server (http://127.0.0.1:8788/auth/v1 through adb reverse). Not a switch any more (the client always runs); no file or an empty one = product.json's address.
 #if DEBUG
     internal static string? LabUrl => File.Exists(Switch) && File.ReadAllText(Switch).Trim() is { Length: > 0 } lab ? lab : null;
 #else

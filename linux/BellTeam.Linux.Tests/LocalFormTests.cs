@@ -22,6 +22,7 @@ public sealed class LocalFormTests
     {
         Assert.Equal("購入を確かめられませんでした（not_paid）。", LocalFormText.Failure("not_paid"));
         Assert.Equal("相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。", LocalFormText.Failure("device_refused"));
+        Assert.All(new[] { "purchase_failed", "purchase_unverified" }, code => Assert.Equal("購入を完了できませんでした。もう一度お試しください。", LocalFormText.Failure(code)));
         Assert.Equal("処理できませんでした（brand_new_code）。", LocalFormText.Failure("brand_new_code", 7));
     }
 

@@ -192,7 +192,7 @@ internal sealed class ApprovalsPage : Grid
         switch (outcome.Ack)
         {
             case "ok": break; // stays "sending" until the result frame closes the decision in the book (OnDevice)
-            case "refused:stale_version": answer = null; bannerId = decision.Id; bannerText = Approvals.Amended(Approvals.OriginOf(decision).Who); break;
+            case "refused:stale_version": answer = null; bannerId = decision.Id; bannerText = Approvals.AmendedPlain; break;   // client-v0.5 section 7: one plain line, the typed text stays
             case "refused:already_decided" or "gone": answer = null; break;
             case "unknown": mine.Step = "confirm"; mine.Note = Approvals.DeviceUnknown; break;
             default: mine.Step = "confirm"; mine.Note = Approvals.Retry; break;

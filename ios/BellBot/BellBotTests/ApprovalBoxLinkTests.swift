@@ -91,7 +91,7 @@ final class ApprovalBoxLinkTests: XCTestCase {
         XCTAssertEqual(link.next.map(\.title), ["次の工程"])
         XCTAssertNil(ApprovalLinkResolver.link(ApprovalByDecision(project: "p1", plan: "pl", task: "nope", state: "linked"), in: snapshot), "a task the chart does not have draws no link")
         let d = ApprovalDecision(record: record("d9"), link: link)
-        XCTAssertTrue(d.origin.isBellTeam)
+        XCTAssertTrue(d.origin.isExternal, "the origin comes from the requester rule, not from having a link")
         XCTAssertEqual(d.linkNote, "工程表「この決裁の工程」が、この回答を待っています")
         XCTAssertEqual(ApprovalText.originCaption(d), "Claude Code · Macのレシート整理")
         XCTAssertTrue(ApprovalDecision(record: record("d9")).origin.isExternal)

@@ -1,5 +1,7 @@
 # 決裁箱 screen: Approval Box sign-in and device approval (design v0.3, a490i)
 
+> **2026-11-24: read with [client-v0.5.md](client-v0.5.md).** This state machine is the one the `ApprovalSource` port exposes for both adapters; Joining, NeedsApproval and Waiting belong to the peer adapter and appear only when `peer_channel` is true. With `peer_channel` false the client signs in with the login-billing pass and reads `/v1` (the Live, NotEntitled, SignedOut and Reconnecting rows apply; 402 and 401 copy: client-v0.5.md section 7).
+
 Owner of this module: Delta (bot-ae42e3e9). Extends [peer-channel-v0.2.md](peer-channel-v0.2.md) (device endpoint) and [screen-spec.md](screen-spec.md) (the screens). Design only; same on every platform (Apple, Windows, Linux, Android). Source of the rule: Mint's ruling relayed by Tronie 2026-11-22 (login-billing library-contract 1.24, section 3 last subsection) and Nayuta's rulings in v0.2 section 1.
 
 ## 1. What the person must do, and why

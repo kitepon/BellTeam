@@ -1,5 +1,7 @@
 # `/api/approvals/*` app contract (v0.1, fixed 2026-11-15)
 
+> **2026-11-24: new client builds use only `by-decision`, `by-task`, `connection` and `connect` from this contract** ([client-v0.5.md](client-v0.5.md) section 6). The list, one, answer, hold, unhold, attachments, events and summary calls below stay served for old builds until a490h2 removes them.
+
 Owner: Delta (bot-ae42e3e9). Served by the 決裁箱拡張 module child through the body's web-gateway mount, same-origin Owner session, exactly like `/api/lattice/*` (the Web, Apple, Windows and Linux apps send the session they already have; they never call Approval Box). Additive-only: unknown fields are ignored; unknown enum values draw as 「その他」. Screens and wording: [../screen-spec.md](../screen-spec.md). Design and boundaries: [../README.md](../README.md). Sample data: [fixtures/](fixtures/) (valid ViewDecision / list / summary / error bodies for app tests; no server needed).
 
 Canonical location moves to `docs/architecture/modules/approval-box-extension/` in the BellTeam repo with the first implementation PR (diagrams and code in one diff). Until then this folder is canonical.

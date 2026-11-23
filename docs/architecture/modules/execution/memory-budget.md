@@ -110,3 +110,16 @@ flowchart LR
 Data: `{ schema, since, early_sleep: { count, last_at }, refusal: { count, last_at }, peak: { share, at } }`. Counts and `since` are for this body process (a restart starts a new record: `since` says when); the file holds the last record until the next change. Times are ISO UTC; read them in JST.
 
 State: one record per process, no transitions other than the counters going up and `peak` rising; nothing reads the file back, and nothing leaves a state it could be stuck in.
+
+## The body's own heap (body-heap-oom-20261124, 2026-11-24)
+
+The control above reads the container's cgroup (`memory.stat` anon / `memory.max`, the 20 GiB box) and acts only on seats (sleep a quiet seat above SOFT 0.55, hold cold launches above HOLD 0.70). It never reads the body process's own V8 heap, which has a separate ceiling: node's default, 4192 MiB in this image. On 2026-11-24 04:11:40 JST the body (`supervisor.mjs`, node pid 7) died of "JavaScript heap out of memory" at ~4.07 GB while the container sat at ~10 of 20 GiB (ratio ~0.5, below SOFT), so the control had nothing to act on; after the restart the heap was back at 3.99-4.16 GB within ~30 min.
+
+What fills it: the conversation module's `MachineStream` (src/machine-stream.mjs, contract [conversation machine-stream.md](../conversation/machine-stream.md), N102) reads every `state/machine-stream/<bot>.jsonl` at start and keeps every line plus four projections in memory. Measured on a copy of production (image 8618f834, `initialize({ readOnly: true })`): 2040 MB of files -> 3272 MB of heap after GC. The files grew 1169 MB (11-21), 596 MB (11-22), 274 MB (11-23 to 04:4x). The direct-message log (306 MB) with every Bot view adds ~460 MB. The ceiling was crossed on 11-23/24.
+
+| Part | Owner | Change |
+| --- | --- | --- |
+| Start argv of the body (`scripts/server-start.c`) | Molly (box) | `node --max-old-space-size=8192 /app/src/supervisor.mjs`: an outage fix that gives the body headroom inside the 20 GiB box; the heap still grows with the machine-stream files, so it buys days, not a fix. |
+| `MachineStream` keeps a bounded window in memory and reads older lines from disk on demand | N102 (conversation) | the root fix; routed with the numbers above. |
+
+The body's heap counts in the cgroup anon, so a larger heap makes the seat control act earlier, never later.

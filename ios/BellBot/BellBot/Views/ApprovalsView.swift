@@ -12,8 +12,10 @@ struct ApprovalsRunner: ViewModifier {
     func body(content: Content) -> some View {
         content.task(id: "\(scenePhase == .active)-\(model.readRequest)") {
             guard scenePhase == .active else { return }
+            model.setRoster(store.bots)
             await model.run(api: store.api)
         }
+        .onChange(of: store.bots) { _, bots in model.setRoster(bots) }
     }
 }
 

@@ -86,7 +86,7 @@ public sealed class ApprovalsWindowTests
         var device = new ApprovalsFixture.Demo().Fill();
         using var rig = Open(device: device); Until(() => rig.Page.Settled);
         rig.Page.Select("K-1"); rig.Page.Choose("o1"); device.Ack = "refused:stale_version"; Press(Find(rig.Window, "confirm"));
-        Until(() => rig.Page.AnswerStep is null && Texts(rig.Window).Contains("答える前に、モリーが内容を直しました。もう一度、内容を確かめてください。"));
+        Until(() => rig.Page.AnswerStep is null && Texts(rig.Window).Contains(Approvals.AmendedPlain));
         rig.Page.Select("K-2"); rig.Page.Choose("o1"); device.Ack = "unknown"; Press(Find(rig.Window, "confirm"));
         Until(() => rig.Page.AnswerStep == "confirm" && Texts(rig.Window).Contains(Approvals.DeviceUnknown));
         device.Ack = "failed"; Press(Find(rig.Window, "confirm"));
