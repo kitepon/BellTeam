@@ -1,8 +1,8 @@
-// @kitepon/login-billing 0.18.8 login-billing-home-guard.mjs
+// @kitepon/login-billing 0.19.3 login-billing-home-guard.mjs
 
 // dist/home/guard.js
 async function guard(set, headers) {
-  if (!set || set.v !== 1 || typeof set.hashes !== "object")
+  if (!set || set.v !== 1 || typeof set.hashes !== "object" || set.hashes === null)
     return { cannotJudge: true };
   const auth = headers["authorization"] ?? headers["Authorization"];
   if (!auth || !/^bearer /i.test(auth))

@@ -1,4 +1,4 @@
-// @kitepon/login-billing 0.18.8 login-billing-home.mjs
+// @kitepon/login-billing 0.19.3 login-billing-home.mjs
 
 // dist/server/crypto.js
 var encoder = new TextEncoder();
@@ -256,11 +256,13 @@ function createHomePart(config) {
       made = await newSession("account", input.kind, p, typeof input.ticketFor === "string" && utf8(input.ticketFor).length <= 64 ? input.ticketFor : void 0);
       await mutate((st) => {
         if (binding) {
-          const still = st.owner === null || viaConsole && "console" in st.owner;
+          const still = s0.owner === null ? st.owner === null : viaConsole && "console" in s0.owner && st.owner !== null && "console" in st.owner;
           if (!still)
             fail("NOT_OWNER_ACCOUNT");
           st.owner = { k: p.k };
           st.enforced = true;
+        } else if (!(st.owner && "k" in st.owner && st.owner.k === p.k)) {
+          fail("NOT_OWNER_ACCOUNT");
         }
         st.sessions.push(made.s);
       });
@@ -393,6 +395,8 @@ function createHomePart(config) {
       s.enforced = true;
       return ids;
     });
+    setup = void 0;
+    consoleCodes.clear();
     return ended.map((sessionId) => ({ type: "session.ended", sessionId }));
   }
   async function sweep({ used = [], streaming = [], budgetMs = 5e3 } = {}) {
@@ -447,7 +451,9 @@ function createHomePart(config) {
     return { events };
   }
   function publishedSet() {
-    return { v: 1, hashes: Object.fromEntries((state?.sessions ?? []).map((s) => [s.th, s.id])) };
+    if (!state)
+      return { v: 0, hashes: {} };
+    return { v: 1, hashes: Object.fromEntries(state.sessions.map((s) => [s.th, s.id])) };
   }
   async function sessionOf(headers) {
     const auth = headers["authorization"] ?? headers["Authorization"];
