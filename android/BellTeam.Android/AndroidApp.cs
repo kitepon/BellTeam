@@ -3,6 +3,8 @@ using Android.Runtime;
 using Avalonia.Android;
 
 [assembly: UsesPermission(Android.Manifest.Permission.Internet)]
+// Contract 1.36 duty: the local form reaches another device over the same Wi-Fi (Android 17 asks for this permission).
+[assembly: UsesPermission("android.permission.ACCESS_LOCAL_NETWORK")]
 
 namespace BellTeam.Android;
 

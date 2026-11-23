@@ -413,11 +413,6 @@ public sealed partial class SettingsWindow
         page.Children.Add(FormSection("いまの接続", new GroupCard(Row(LabeledRow("サーバー", host.Length == 0 ? "未設定" : host)), Row(LabeledRow("ログイン方法", cloudflare ? "Cloudflare Access" : "同じネットワークから直接")))));
         page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow(SettingsIcons.Refresh, "別のサーバーにつなぎ直す", Violet, changeServer))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
         if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow(SettingsIcons.SignOut, "ログアウト", Red, signOut)))));
-        if (lifetime is not null)
-        {
-            var ct = lifetime.Token;
-            page.Children.Add(Card(new HomeSessionsCard(workspace.Management.Api, ct, logout: async () => { if (HomeLogout is { } end) await end(ct); signOut?.Invoke(); })));   // a529n: hides itself on a server without the route
-        }
         return Task.CompletedTask;
     }
 
@@ -452,8 +447,6 @@ public sealed partial class SettingsWindow
     // ---- 利用と課金 ----
     // The Linux app sets this at start: the account card (a485) comes from its own files, which Android does not link.
     internal static Func<CancellationToken, Control>? AccountEntry { get; set; }
-    // The Linux app sets this at start: the sign-out at the home server (the library's own signOut does not end it); the shared sessions card calls it before signOut.
-    internal static Func<CancellationToken, Task>? HomeLogout { get; set; }
 
     private Task BillingPage()
     {

@@ -6,29 +6,25 @@ using Avalonia.Threading;
 using BellTeam.Core;
 using BellTeam.Linux;
 using Kitepon.LoginBilling;
+using LbLocalForm = Kitepon.LoginBilling.LocalForm;   // BellTeam.Core also has a LocalForm (the period rule)
 using Xamarin.Google.MLKit.Vision.Barcode.Common;
 using Xamarin.Google.MLKit.Vision.CodeScanner;
 using static BellTeam.Linux.SettingsUi;
 
 namespace BellTeam.Android;
 
-// a485 (contract 1.20): the phone that holds the contract lets another device in (the QR it shows, scanned, or the code typed), and lists and stops the devices it let in. Only a store pass has this (the library keeps the
-// list on the store device only); a desktop is always the device that gets approved. The library asks the screen for the one answer (label and check number); the pass never reaches this code.
+// a540 (login-billing contract 1.36 section 10): the phone that holds the purchase lets another device in. It reads the QR that device shows, checks that the device wants this phone's own account, asks the person once, and sends this phone's
+// own Play purchase straight to that device over the same Wi-Fi. No server takes part; the library keeps the proof and the token, this code sees neither.
 public sealed class ApprovePanel : StackPanel
 {
-    private readonly LoginBilling lb;
     private readonly CancellationToken token;
-    private readonly TextBox code = FormKit.Field(StoreAccountText.ApproveCodeLabel, "");
-    // Built once: a control has one parent, and Render() redraws the panel (a second Border around the same TextBox crashed the app, found on the emulator).
-    private readonly Border codeBox;
     private bool busy;
     private string? result, failure;
-    private (string Label, string Number, TaskCompletionSource<bool> Answer)? asking;
+    private TaskCompletionSource<bool>? asking;
 
-    public ApprovePanel(LoginBilling lb, CancellationToken token)
+    public ApprovePanel(CancellationToken token)
     {
-        this.lb = lb; this.token = token; Spacing = 0;
-        codeBox = new Border { Child = code, Background = Fill, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 4), Margin = new Thickness(0, 12, 0, 0) };
+        this.token = token; Spacing = 0;
         Render();
     }
 
@@ -37,44 +33,22 @@ public sealed class ApprovePanel : StackPanel
         Children.Clear();
         Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
         Children.Add(Text(StoreAccountText.ApproveTitle, 16, Ink, FontWeight.Bold, new Thickness(0, 8, 0, 0)));
-        if (asking is { } ask) { RenderAsking(ask); return; }
-        Children.Add(Text(StoreAccountText.ApproveLead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
+        if (asking is { } answer) { RenderAsking(answer); return; }
+        Children.Add(Text(LocalFormText.ApproveLead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
         Children.Add(Button(StoreAccountText.ApproveScan, ScanAsync, true));
-        Children.Add(codeBox);
-        Children.Add(Button(StoreAccountText.ApproveCodeGo, () => code.Text is { Length: > 0 } text ? ApproveAsync(text) : Task.CompletedTask, false));
         if (result is not null) Children.Add(Text(result, 14, Ink, FontWeight.SemiBold, new Thickness(0, 12, 0, 0)));
         if (failure is not null) Children.Add(Banner(failure));
-        RenderLinked();
     }
 
-    // The library's one question: whose login is this (label), and the number to compare with the other screen.
-    private void RenderAsking((string Label, string Number, TaskCompletionSource<bool> Answer) ask)
+    // The one question: is this login yours? Only a login the person started themselves may be allowed.
+    private void RenderAsking(TaskCompletionSource<bool> answer)
     {
         Children.Add(Text(StoreAccountText.ApproveConfirmAsk, 14, Ink, FontWeight.SemiBold, new Thickness(0, 8, 0, 0)));
-        Children.Add(Text(StoreAccountText.ApproveDevice(ask.Label), 14, Ink, null, new Thickness(0, 6, 0, 0)));
-        Children.Add(Text(StoreAccountText.HandoffCheckNumber, 12, Muted, null, new Thickness(0, 10, 0, 0)));
-        Children.Add(Text(ask.Number, 24, Ink, FontWeight.Bold));
-        Children.Add(Text(StoreAccountText.ApproveCheckLine, 12, Muted, null, new Thickness(0, 4, 0, 0)));
         Children.Add(Text(StoreAccountText.ApproveOwnLine, 13, Muted, null, new Thickness(0, 6, 0, 0)));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        row.Children.Add(Button(StoreAccountText.ApproveYes, () => { ask.Answer.TrySetResult(true); return Task.CompletedTask; }, true));
-        row.Children.Add(Button(StoreAccountText.ApproveNo, () => { ask.Answer.TrySetResult(false); return Task.CompletedTask; }, false));
+        row.Children.Add(Button(StoreAccountText.ApproveYes, () => { answer.TrySetResult(true); return Task.CompletedTask; }, true));
+        row.Children.Add(Button(StoreAccountText.ApproveNo, () => { answer.TrySetResult(false); return Task.CompletedTask; }, false));
         Children.Add(row);
-    }
-
-    private void RenderLinked()
-    {
-        Children.Add(Text(StoreAccountText.LinkedTitle, 14, Ink, FontWeight.SemiBold, new Thickness(0, 18, 0, 0)));
-        var devices = lb.LinkedDevices;
-        if (devices.Count == 0) { Children.Add(Text(StoreAccountText.LinkedNone, 13, Muted, null, new Thickness(0, 6, 0, 0))); return; }
-        foreach (var device in devices)
-        {
-            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 8, 0, 0) };
-            var name = Text(device.Label, 14, Ink); name.VerticalAlignment = VerticalAlignment.Center;
-            var stop = Capsule(StoreAccountText.LinkedStop, Fill, Red, 12, 13, new Thickness(14, 8)); stop.IsEnabled = !busy;
-            var passId = device.PassId; stop.Click += async (_, _) => await RunAsync(() => lb.StopAsync(passId));
-            Grid.SetColumn(stop, 1); row.Children.Add(name); row.Children.Add(stop); Children.Add(row);
-        }
     }
 
     // Google's code scanner (Play services) reads the QR without a camera permission of ours.
@@ -92,11 +66,11 @@ public sealed class ApprovePanel : StackPanel
         }
         catch (Exception error) when (!token.IsCancellationRequested)
         {
-            // The person closing the scanner is not a failure; anything else says so and offers the typed code.
+            // The person closing the scanner is not a failure; anything else says so.
             if (error.Message?.Contains("cancel", StringComparison.OrdinalIgnoreCase) != true) { failure = StoreAccountText.ApproveScanFailed; Render(); }
             return;
         }
-        if (raw is { Length: > 0 }) await ApproveAsync(raw);
+        if (raw is { Length: > 0 }) await ApproveAsync(raw.Trim());
     }
 
     private sealed class ScanListener(TaskCompletionSource<string?> done) : Java.Lang.Object, global::Android.Gms.Tasks.IOnSuccessListener, global::Android.Gms.Tasks.IOnFailureListener, global::Android.Gms.Tasks.IOnCanceledListener
@@ -106,26 +80,32 @@ public sealed class ApprovePanel : StackPanel
         public void OnCanceled() => done.TrySetResult(null);   // closing the scanner is not a failure
     }
 
-    private Task<bool> Confirm(string label, string number)
+    private Task<bool> Confirm()
     {
         var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        asking = (label, number, answer); Dispatcher.UIThread.Post(Render);
+        asking = answer; Dispatcher.UIThread.Post(Render);
         return answer.Task;
     }
 
-    private async Task ApproveAsync(string payload) => await RunAsync(async () =>
+    // signin_required: this phone has not signed in with Google yet (the token that proves it is the same account is made then); sign in once and answer again.
+    private async Task ApproveAsync(string qr) => await RunAsync(async local =>
     {
-        var approved = await lb.ApproveAsync(payload.Trim(), Confirm);
-        result = approved.Outcome switch { ApproveOutcome.Approved => StoreAccountText.ApprovedLine, ApproveOutcome.Declined => StoreAccountText.DeclinedLine, _ => StoreAccountText.NotNeededLine };
-        code.Text = "";
+        LocalAnswered answered;
+        try { answered = await local.AnswerAsync(MainActivity.Current, qr, Confirm); }
+        catch (LoginBillingException error) when (error.Code == "signin_required")
+        {
+            await local.SignInLocalAsync(MainActivity.Current);
+            answered = await local.AnswerAsync(MainActivity.Current, qr, Confirm);
+        }
+        result = answered switch { LocalAnswered.Taken => StoreAccountText.ApprovedLine, LocalAnswered.NoPurchase => LocalFormText.Of(LocalFormOutcome.NoPurchase), _ => StoreAccountText.DeclinedLine };
     });
 
-    private async Task RunAsync(Func<Task> action)
+    private async Task RunAsync(Func<LbLocalForm, Task> action)
     {
-        if (busy) return;
+        if (busy || AccountStore.Local is not { } local) return;
         busy = true; failure = null; result = null; Render();
-        try { await action(); }
-        catch (LoginBillingException error) { failure = StoreAccountText.Failure(error.Code, error.Reason); }
+        try { await action(local); }
+        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Reason); }
         asking = null; busy = false;
         if (!token.IsCancellationRequested) Render();
     }
