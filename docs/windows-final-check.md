@@ -363,3 +363,18 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
 - `--render-page settings-billing`（本番）: 終了コード0。ラピの表の文（「BellTeamの購読」「購読はまだありません。」「購読しているスマホで確認する」「QRを出す（Google）」）が出て、「このアプリについて」は0.7.2。
 - 確認できていない（実機が要る）: Googleのサインイン→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換。
+
+## Windows 0.8.0 の導入（abx-client-v1：決裁箱はApproval Boxのクライアント、2026-11-24 05:10 JST、アニス）
+
+- 導入元: main `674aa438`（#2466。契約 client-v0.5、デルタ・トロニーの2026-11-24の裁定）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.8.0+674aa4386a453f20b8a3dbfba35f2203f0d461c1`。ライブラリは Desktop 0.20.3（変更なし）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（メタデータ。値は表示していない）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 本番のApproval Box（`GET https://approval-box.kitepon.dev/v1/auth/config`）は `peer_channel:false`。使い捨ての試験で、本物の `V1ApprovalSource` を本番へ向けて数秒動かした（決裁の中身は読まず件数と状態だけ記録）。fox に残っていた前のApproval Boxの通行証で `/v1` を読むと401（通行証は無効）で、状態は `SignedOut/pass_ended`、通行証は捨てた（契約の「401 = 通行証を捨ててサインインの画面を出す」どおり）。つまり今のfoxの決裁箱は「Approval Boxにサインインします」の画面で、サインインはあなたの操作（「Approval Boxにサインイン」のブラウザー、または「QRでサインイン」のハンドオフ）が要る。
+- 確認できていない（実機とあなたの操作が要る）: サインイン後に `/v1` の一覧が出ること、決裁を1件答えて版・Idempotency-Keyつきの答えが通ること。UI Automationでの画面描画は模擬のApproval Boxの試験（xunit 897件・UiChecks 0）まで。
+
+## Windows 0.8.1 の導入（abx-v1-answer-null：決裁の答えから null を外す、2026-11-24 05:23 JST、アニス）
+
+- 導入元: main `c73bc22d`（#2473）。導入したexeの版は `0.8.1+c73bc22dc75205777791385d3c37b2dd7fbda65c`。ライブラリは Desktop 0.20.3（変更なし）。
+- 直した不具合: 0.8.0 の `V1ApprovalSource` は答えに `"text": null` を付けて送り、approval-box のサーバー（`z.string().optional()`）は項目が無いのは受けるが null は 400 で拒否するため、選択肢の答えが全部失敗した。項目が無い時は送らない。
+- ライブ確認（本番のテスト用アカウントは存在しない: ナユタ・ミント）: approval-box の dev server（`DEV_PC_OFFER=off`、127.0.0.1:8788、本番の `peer_channel:false` と同じ）に本物の `ApprovalBoxDevice` を向け、`/dev/websignin` でサインイン → Connecting → Live。接続トークンで出した決裁が一覧とSSEで届き、答えて `answered`（選択肢 ok）。0.8.0 のコードでは答えだけが 400 で失敗し、0.8.1 で通った。試験は `ApprovalBoxV1DevServerE2eTests`（環境変数 `PC_E2E_ABX_V1_URL` がある時だけ動く）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、SSE接続あり。
+- 確認できていない: 本番のApproval Boxでの実サインインと実決裁（AIが持てるアカウントが無い。オーナー自身のアカウントでの確認はトロニーの一括セッション a540-device-checks）。
