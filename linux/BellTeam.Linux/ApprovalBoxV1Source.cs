@@ -76,6 +76,8 @@ internal sealed class ApprovalBoxV1Source : IApprovalSource, IDisposable
             catch (SignedOutException) { Set(new(RuntimeStatus.SignedOut)); await WaitAsync(Timeout.InfiniteTimeSpan, ct); }
             catch (V1Exception e) when (e.Status == 401) { PassEnded?.Invoke(); Set(new(RuntimeStatus.SignedOut, "pass_ended")); await WaitAsync(Timeout.InfiniteTimeSpan, ct); }
             catch (V1Exception e) when (e.Status == 402) { Set(new(RuntimeStatus.NotEntitled)); await WaitAsync(Timeout.InfiniteTimeSpan, ct); }
+            // 410 gone: Approval Box closed its /v1 content (Nayuta, api.md v0.48 code; Delta Q4). This build has no other path for it: the update line, left by 「今すぐ試す」 or the next launch.
+            catch (V1Exception e) when (e.Status == 410) { Set(new(RuntimeStatus.Stopped, "update_needed")); await WaitAsync(Timeout.InfiniteTimeSpan, ct); }
             catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 // Network, 5xx, 429, an unreadable answer: every one of them is recoverable, so none ends the loop. The reason is never shown as text (the screen says 「つなぎ直しています」).
@@ -114,7 +116,7 @@ internal sealed class ApprovalBoxV1Source : IApprovalSource, IDisposable
         var all = new Dictionary<string, JsonElement>();
         // The open list in full; the answered/cancelled history is the recent part only (shortcut: 4 pages of 50, raise when the screen pages its history).
         await PagesAsync("pending,held", int.MaxValue, all, ct); await PagesAsync("answered,cancelled", 4, all, ct);
-        lock (gate) { held = all; items = [.. all.Values.Select(Map)]; }
+        lock (gate) { held = all; items = [.. all.Values.Select(Map).OfType<ViewDecision>()]; }
         Changed?.Invoke();
     }
 
@@ -136,7 +138,7 @@ internal sealed class ApprovalBoxV1Source : IApprovalSource, IDisposable
         lock (gate)
         {
             if (decision is { } now) held[id] = now.Clone(); else held.Remove(id);
-            items = [.. held.Values.Select(Map)];
+            items = [.. held.Values.Select(Map).OfType<ViewDecision>()];
         }
         Changed?.Invoke();
     }
@@ -230,28 +232,6 @@ internal sealed class ApprovalBoxV1Source : IApprovalSource, IDisposable
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or SignedOutException) { return null; }
     }
 
-    // ---- Decision JSON -> what the screen draws
-    private static string? Str(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-    private static long Num(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : 0;
-    private static IEnumerable<JsonElement> Items(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray() : [];
-    private static ApprovalAttachment Attachment(JsonElement a) => new() { Id = Str(a, "id"), Name = Str(a, "name"), ContentType = Str(a, "content_type"), Size = Num(a, "size"), Sha256 = Str(a, "sha256") };
-
-    private ViewDecision Map(JsonElement d)
-    {
-        var recommended = Str(d, "recommendation");
-        var history = Items(d, "history").Select(h => new ApprovalHistoryItem { At = Str(h, "at"), Kind = Str(h, "kind"), By = Str(h, "by"), Note = Str(h, "note"), Fields = Items(h, "fields").Select(f => f.GetString() ?? "").ToArray() }).ToArray();
-        var (origin, requester) = ApprovalOriginRule.Of(d.TryGetProperty("source", out var source) ? source : default, roster());
-        var answer = d.TryGetProperty("answer", out var a) && a.ValueKind == JsonValueKind.Object
-            ? new ApprovalAnswer { OptionId = Str(a, "option_id"), Text = Str(a, "text"), AnsweredAt = Str(a, "answered_at"), Attachments = Items(a, "attachments").Select(Attachment).ToArray() } : null;
-        var requestImages = Items(d, "request_attachments").Select(Attachment).ToArray();
-        return new ViewDecision
-        {
-            Id = Str(d, "id"), Title = Str(d, "title"), Context = Str(d, "context"), Urgency = Str(d, "urgency"), Deadline = Str(d, "deadline"), Status = Str(d, "status"), Delivery = Str(d, "delivery"), ResumePhrase = Str(d, "resume_phrase"),
-            Version = Num(d, "version"), CreatedAt = Str(d, "created_at"), UpdatedAt = Str(d, "updated_at"), CancelReason = Str(d, "cancel_reason"),
-            Options = [.. Items(d, "options").Select(o => new ApprovalOption { Id = Str(o, "id"), Label = Str(o, "label"), Recommended = Str(o, "id") == recommended && recommended is not null })],
-            Answer = answer, History = history, RequestAttachments = requestImages.Length > 0 ? requestImages : null,
-            Amended = history.LastOrDefault() is { Kind: "amended" } last ? new ApprovalAmended { Is = true, Fields = last.Fields, Note = last.Note, At = last.At } : null,
-            Origin = origin, Requester = requester,
-        };
-    }
+    // ---- Decision JSON -> what the screen draws: Core's ApprovalsV1 (the /v1 read) and ApprovalOriginRule (the four rules against the member list)
+    private ViewDecision? Map(JsonElement d) => ApprovalsV1.Parse(d) is { } decision ? ApprovalOriginRule.Apply(decision, roster()) : null;
 }

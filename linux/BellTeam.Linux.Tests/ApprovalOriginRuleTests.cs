@@ -23,7 +23,9 @@ public sealed class ApprovalOriginRuleTests
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Fixtures())); var one = doc.RootElement.GetProperty("cases").GetProperty(name);
         var roster = one.GetProperty("roster").EnumerateArray().Select(m => (m.GetProperty("id").GetString()!, m.GetProperty("name").GetString()!)).ToList();
-        var (origin, requester) = ApprovalOriginRule.Of(one.GetProperty("source"), roster);
+        // The rule is Core's (Anis); this keeps the Linux build honest against the contract's fixture, with the /v1 read in front of it.
+        using var decision = JsonDocument.Parse(JsonSerializer.Serialize(new { id = "K-1", source = one.GetProperty("source") }));
+        var read = BellTeam.Core.ApprovalOriginRule.Apply(BellTeam.Core.ApprovalsV1.Parse(decision.RootElement)!, roster); var origin = read.Origin!; var requester = read.Requester;
         var expect = one.GetProperty("expect");
         Assert.Equal(expect.GetProperty("kind").GetString(), origin.Kind); Assert.Equal(expect.GetProperty("basis").GetString(), origin.Basis);
         if (expect.TryGetProperty("client", out var client)) Assert.Equal(client.GetString(), origin.Client);
