@@ -15,11 +15,14 @@ export function createCredentialAgent({ run, root = AGENT_ROOT }) {
   const sh = (script, socket, options) => run('/bin/sh', ['-c', script, 'sh', socket], { acceptNonzero: true, maxBuffer: 65536, ...options })
   const live = async socket => { const { code } = await sh('SSH_AUTH_SOCK="$1" exec ssh-add -l >/dev/null 2>&1', socket); return code === 0 || code === 1 } // 2 = no agent
 
+  // Epinel (#2421): never trust a socket in a directory another user could have made. Ours is this user's own, mode 700.
+  const owned = async socket => (await sh('[ "$(stat -c %u,%a "$(dirname "$1")" 2>/dev/null)" = "$(id -u),700" ]', socket)).code === 0
+
   async function ensure(terminalId) {
     const socket = socketPath(terminalId, root)
-    if (await live(socket)) return socket
+    if ((await owned(socket)) && await live(socket)) return socket
     const made = await sh('umask 077 && mkdir -p "$(dirname "$1")" && rm -f "$1" && exec ssh-agent -a "$1" >/dev/null 2>&1', socket)
-    if (made.code !== 0 || !(await live(socket))) throw failure('AGENT_START_FAILED')
+    if (made.code !== 0 || !(await owned(socket)) || !(await live(socket))) throw failure('AGENT_START_FAILED')
     return socket
   }
 
@@ -32,6 +35,11 @@ export function createCredentialAgent({ run, root = AGENT_ROOT }) {
       await sh('SSH_AUTH_SOCK="$1" exec ssh-add -D >/dev/null 2>&1', socket)
       const added = await sh('SSH_AUTH_SOCK="$1" exec ssh-add - >/dev/null 2>&1', socket, { input: key })
       if (added.code !== 0) throw failure('AGENT_LOAD_FAILED')
+    },
+    // True while the agent answers and holds an identity (ssh-add -l exit 0); read by the switch decision.
+    async held(terminalId) {
+      const socket = socketPath(terminalId, root)
+      return (await owned(socket)) && (await sh('SSH_AUTH_SOCK="$1" exec ssh-add -l >/dev/null 2>&1', socket)).code === 0
     },
     // Removal: delete the keys, leave the socket path (an idle agent costs nothing and the path stays stable).
     async clear(terminalId) {

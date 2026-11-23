@@ -28,7 +28,10 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   }
   // Created lazily so a missing Aiterm release only makes targets/checks TERMINAL_UNAVAILABLE.
   const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref), loadCredential: request => native().loadCredential(request),
-    provision: request => native().provision(request), authorizeKey: request => native().authorizeKey(request) }
+    provision: request => native().provision(request), authorizeKey: request => native().authorizeKey(request),
+    // a532b4 stages 2-3: the host trust copy, the per-terminal agent and the known_hosts file (absent on a native that lacks them: the paths stay off)
+    exportBinding: request => native().exportBinding(request), loadAgent: request => native().loadAgent(request),
+    agentHeld: request => native().agentHeld(request), agentSocket: request => native().agentSocket(request), trustFile: request => native().trustFile(request) }
   const connection = createTerminalConnection({ registry, secrets, native: lazyNative, ...options })
   connection.onAvailable(({ terminalId }) => publish({ terminalId, reachable: true, observedAt: new Date().toISOString() }))
   const unwatchCredentials = credentials?.watchCredentials?.(event => {
@@ -290,6 +293,8 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
       put, remove: terminalId => serial(terminalId, () => registry.remove(terminalId))
     },
     reachability: { check },
+    // a532b4 stage 3: which input a terminal's launches use. 'remote' = Aiterm's generic remote input when its conditions hold (else `terminal`); null = `terminal`.
+    launchInput: { set: (terminalId, input) => serial(terminalId, () => registry.update(terminalId, { launchInput: input === 'remote' ? 'remote' : null })) },
     keys: { request: requestKey, remove: removeKey, authorize: authorizeKey },
     folder: request => connection.folder(request),
     folders: request => connection.folders(request),
