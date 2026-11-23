@@ -25,8 +25,8 @@ export const terminalTools = Object.freeze([
   { name: 'check_terminal', description: '端末へSSHで届くかを一度だけ確かめる。席は起動しない。reachable=falseの時のreason: TERMINAL_UNAVAILABLE / UNREACHABLE=端末が眠っているか届かない（起きれば自動で再開する）。CONNECTION_REFUSED=Macが接続を断った（リモートログインがオンか、オーナーに確かめてもらう。断定しない）。CREDENTIAL_UNAVAILABLE / AUTH_FAILED=鍵が無いか使えない、またはMacにまだ入っていないかもしれない（秘密入力カードで鍵を入れ直すか、オーナーにアプリの「このMacにこの鍵を入れる」を頼む。パスワードを聞かない）。HOST_TRUST_MISSING / HOST_KEY_MISMATCH=ホスト鍵を信用していない（actionに従い、オーナーが確かめた指紋をconfirmHostKeyで渡す）。TERMINAL_NOT_FOUND=未登録。', inputSchema: objectSchema({ terminalId: id }, ['terminalId']) },
   { name: 'bind_terminal_key', description: `Aitermが持つSSH鍵の登録（ref、UUID）を登録済みの端末に結び、その端末の鍵として設定する。宛先は端末の登録から取る。${NO_SECRET}先にregister_terminalで端末を登録しておく。`,
     inputSchema: objectSchema({ terminalId: id, ref: { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' } }, ['terminalId', 'ref']) },
-  { name: 'set_terminal_launch_input', description: '端末の席の起動に使う入力を切り替える。input=remote: Aitermの汎用の遠隔入力（固定したホスト鍵と鍵エージェントで渡す）を、条件が揃った時だけ使う（揃わなければ今のterminal入力のまま）。input=terminal: 今のterminal入力に戻す（切り替えは端末ごと、いつでも戻せる）。条件が揃っているかは、list_terminalsのmaintenance.inputのoutcome/reasonで見る。',
-    inputSchema: objectSchema({ terminalId: id, input: { type: 'string', enum: ['remote', 'terminal'] } }, ['terminalId', 'input']) },
+  { name: 'set_terminal_launch_input', description: '端末の席の起動に使う入力を切り替える。input=remote: Aitermの汎用の遠隔入力（固定したホスト鍵と鍵エージェントで渡す）を、条件が揃った時だけ使う（揃わなければ今のterminal入力のまま）。input=terminal: 今のterminal入力に戻す（切り替えは端末ごと、いつでも戻せる）。条件が揃っているかは、list_terminalsのmaintenance.inputのoutcome/reasonで見る。scope=maintenance: 同じ切り替えを、確認・更新（C8）・フォルダ操作の入口に対して行う（Aitermの単発CLIでSSHを渡す。条件が揃わなければ今のbinding入口のまま。maintenance.maintainで見る）。省くとscope=launch。',
+    inputSchema: objectSchema({ terminalId: id, input: { type: 'string', enum: ['remote', 'terminal'] }, scope: { type: 'string', enum: ['launch', 'maintenance'] } }, ['terminalId', 'input']) },
 ])
 
 export function createTerminalKeys({ terminals, credentials }) {
@@ -50,9 +50,10 @@ export async function callTerminalTool({ name, args = {}, terminals, terminalKey
     return keys.bind(args)
   }
   if (name === 'set_terminal_launch_input') {
-    assertKeys(args, ['terminalId', 'input'])
+    assertKeys(args, ['terminalId', 'input', 'scope'])
+    if (args.scope !== undefined && args.scope !== 'launch' && args.scope !== 'maintenance') throw Object.assign(new Error('scope must be "launch" or "maintenance"'), { code: 'INVALID_TERMINAL', status: 400 })
     if (args.input !== 'remote' && args.input !== 'terminal') throw Object.assign(new Error('input must be "remote" or "terminal"'), { code: 'INVALID_TERMINAL', status: 400 })
-    return { terminal: await core.launchInput.set(args.terminalId, args.input) }
+    return { terminal: await core.launchInput.set(args.terminalId, args.input, args.scope) }
   }
   if (name === 'list_terminals') { assertKeys(args, []); return { terminals: await core.registry.list() } }
   if (name === 'register_terminal') { assertKeys(args, Object.keys(fields)); return { terminal: await core.registry.put(args) } }
