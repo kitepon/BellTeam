@@ -1,6 +1,6 @@
 # ログインと購読：ローカルの形への切替（a540）
 
-[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md) / [アカウントを削除](account-deletion.md)。正本の契約：Mint `login-billing/library-contract.md` 1.36 10章「ローカルの形」とライブラリの`docs/local-form.md`（Swift package `kitepon/login-billing` 0.20.2。Mintが受け入れ済み（t10c、タグv0.20.2）。1.37のsecret対応・監査の修理・Apple Root CA G3の内蔵を含む）。Tronieの裁定（2026-11-23、オーナーの言葉）：課金はクライアントだけで確かめる。サーバーも運営も課金に関わらない。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：コードあり、build 189をTestFlightへ上げる（行 a540-apple）。App Reviewへは別途。
+[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md) / [アカウントを削除](account-deletion.md)。正本の契約：Mint `login-billing/library-contract.md` 1.36 10章「ローカルの形」とライブラリの`docs/local-form.md`（Swift package `kitepon/login-billing` 0.20.3。Mintが受け入れ済み（タグv0.20.3、契約1.40：サインインが残っていない端末では`paidUntil`は何も返さない）。1.37のsecret対応・監査の修理・Apple Root CA G3の内蔵を含む）。Tronieの裁定（2026-11-23、オーナーの言葉）：課金はクライアントだけで確かめる。サーバーも運営も課金に関わらない。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：コードあり、build 189をTestFlightへ上げる（行 a540-apple）。App Reviewへは別途。
 
 ## 形
 
