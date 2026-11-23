@@ -544,7 +544,8 @@ export class AitermTransport {
           launch = await launchWith(launchArgs)
         } else {
         // remote-seat.md R13: Aiterm's key agent was gone or older; load the key again and launch once more.
-        if (!remote || !KEY_RELOAD.has(error?.code)) throw error
+        // A seat launched on `remote` has no Aiterm-held credential to reload (the key lives in terminals' agent).
+        if (!remote || remote.route || !KEY_RELOAD.has(error?.code)) throw error
         // Aiterm refused before contacting the terminal: nothing was launched with this seat credential yet.
         issuedLaunch = false
         const terminal = await remote.reloadKey()
@@ -595,7 +596,7 @@ export class AitermTransport {
     this.sessions.set(bot.id, session)
     this.seatHarnesses.set(bot.id, { session, harness })
     await this.recordRuntimeLaunch(session, runtime, harness,
-      { ...(remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null } : {}), ...(machineLaunched ? { machine: true, botId: bot.id } : {}) })
+      { ...(remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null, ...(remote.route ? { route: 'remote' } : {}) } : {}), ...(machineLaunched ? { machine: true, botId: bot.id } : {}) })
     try {
       this.membersAdmission.assertLease(membersLease)
       await this.updateSession(bot.id, session, { membersLease })
@@ -1628,7 +1629,13 @@ export class AitermTransport {
     let result
     try { result = await client.call('pty_list', { include: ['turn', 'own_work'] }, { meta: sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : CALLER_META })
     } catch (error) { this.workState.endRead(read, null); throw error }
-    const data = result?._meta?.['aiterm/seat_turns']
+    let data = result?._meta?.['aiterm/seat_turns']
+    // remote-route.md: seats launched on `remote` are not in this relayed list; one pty_list per machine adds their rows (same shape).
+    if (data && Array.isArray(data.seats) && this.remoteSeats) {
+      const extra = await this.remoteSeats.routes.views(sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : null).catch(() => null)
+      if (extra) data = { ...data, seats: [...data.seats, ...extra.rows], unread: [...(Array.isArray(data.unread) ? data.unread : []), ...extra.unread] }
+      void this.remoteSeats.routes.keep()
+    }
     this.workState.endRead(read, data)
     try { this.seatViewShadow.compare(data, result) } catch { this.seatViewShadow.unavailable++ }
     if (this.seatMcpSeen && Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
