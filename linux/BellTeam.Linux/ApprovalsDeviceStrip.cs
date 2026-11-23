@@ -31,19 +31,23 @@ internal sealed partial class ApprovalsWindow
         }
         void Line(string text, string? label = null, Action? act = null)
         {
-            var row = Row(Icon(Globe, 16, Muted), Spaced(Text(text, 13, Ink, FontWeight.SemiBold, wrap: true), 10));
-            if (label is not null && act is not null) { var button = Action(label, null); button.Margin = new Thickness(12, 0, 0, 0); button.Click += (_, _) => act(); row.Children.Add(button); }
+            // A grid, not a horizontal stack: on a phone the wrapped text takes the width left over and the button stays on screen.
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), VerticalAlignment = VerticalAlignment.Center };
+            var words = Spaced(Text(text, 13, Ink, FontWeight.SemiBold, wrap: true), 10); Grid.SetColumn(words, 1);
+            row.Children.Add(Icon(Globe, 16, Muted)); row.Children.Add(words);
+            if (label is not null && act is not null) { var button = Action(label, null); button.Margin = new Thickness(12, 0, 0, 0); Grid.SetColumn(button, 2); button.Click += (_, _) => act(); row.Children.Add(button); }
             panel.Children.Add(Frame(row, 8, "approvals-device-note-" + n++));
         }
         void Waiting(ApprovalOffer offer)
         {
-            var code = Text(offer.Code, 22, Ink, FontWeight.Bold); code.FontFamily = new FontFamily("monospace");
+            var code = Text(offer.Code, 22, Ink, FontWeight.Bold, wrap: true); code.FontFamily = new FontFamily("monospace");   // wrapped, not trimmed: the person types all of it
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
             info.Children.Add(code);
             info.Children.Add(Text(Approvals.DeviceApprovalHow, 13, Ink, FontWeight.SemiBold, wrap: true));
             info.Children.Add(Text(Approvals.DeviceApprovalLeft(offer.ExpiresAt - Now()), 12, Muted));
             var stop = Action("やめる", null); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(stop);
-            panel.Children.Add(Frame(Row(new QrView(offer.Qr, 150), info), 16, "approvals-device-waiting"));
+            var qr = new QrView(offer.Qr, 150); Grid.SetColumn(info, 1);
+            panel.Children.Add(Frame(new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Children = { qr, info } }, 16, "approvals-device-waiting"));
         }
         switch (device.State.Status)
         {

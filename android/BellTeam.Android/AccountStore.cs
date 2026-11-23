@@ -29,5 +29,9 @@ public static class ApprovalBoxAccount
 {
     public const string StorageName = "approvalbox";
     private static LoginBilling? billing;
-    public static LoginBilling? Billing => billing ??= AccountStore.Product("approvalBoxAuthUrl") is { } url ? new LoginBilling(global::Android.App.Application.Context, "", url, AccountStore.Product("approvalBoxWebReturn"), StorageName) : null;
+    // The device part's switch file (files/approval-box-device) may hold an auth URL: a lab run against approval-box's local dev server (http://127.0.0.1:8788/auth/v1 through adb reverse). Empty file = product.json's address.
+    internal static string? LabUrl => File.Exists(Switch) && File.ReadAllText(Switch).Trim() is { Length: > 0 } lab ? lab : null;
+    internal static string? AuthUrl => LabUrl ?? AccountStore.Product("approvalBoxAuthUrl");
+    internal static string Switch => Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "approval-box-device");
+    public static LoginBilling? Billing => billing ??= AuthUrl is { } url ? new LoginBilling(global::Android.App.Application.Context, "", url, AccountStore.Product("approvalBoxWebReturn"), StorageName) : null;
 }
