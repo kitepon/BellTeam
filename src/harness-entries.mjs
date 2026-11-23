@@ -161,6 +161,8 @@ export async function configureHarnessEntries(home, { vars = {}, relay = null, r
     cursor: item => mergeJson(join(home, '.cursor/mcp.json'), item),
     gemini: item => mergeJson(join(home, '.gemini/config/mcp_config.json'), item),
   }
+  // No Codex binary in this home is normal (users install their own CLIs): the Codex step is reported as skipped, never as a failure, and the next pass after Codex is installed does it (a532b2s5f).
+  const noCodex = error => error?.code === 'ENOENT' && error?.syscall === 'spawn codex'
   const done = item => applied[item.product].entries.push(`${item.harness}:${item.name}`)
   const failed = (item, error) => report(`BellTeam MCP ${item.product}: ${item.harness} の ${item.name} を適用できませんでした（${safeMessage(error)}${error?.restoreFailure ?? ''}）`)
 
@@ -197,7 +199,7 @@ export async function configureHarnessEntries(home, { vars = {}, relay = null, r
         }
       })
     } catch (error) {
-      report(`BellTeam MCP: Codexのapp-serverを使えませんでした（${safeMessage(error)}）`)
+      report(noCodex(error) ? 'BellTeam MCP: Codex が入っていないため、codex の設定を省きました' : `BellTeam MCP: Codexのapp-serverを使えませんでした（${safeMessage(error)}）`)
     }
   }
 
@@ -209,7 +211,7 @@ export async function configureHarnessEntries(home, { vars = {}, relay = null, r
         else await patchHookFile(join(home, HOOK_FILES[harness]), harness, native, owns)
         // Codex trusts a handler by its position and hash: hooks/list is read every pass and writes only for an untrusted handler.
         if (harness === 'codex') for (const command of new Set(Object.values(native).flat().flatMap(group => group.hooks).map(item => item.command).filter(Boolean)))
-          await trustCodexHook(home, join(home, HOOK_FILES.codex), appServer, env, command)
+          await trustCodexHook(home, join(home, HOOK_FILES.codex), appServer, env, command).catch(error => { if (!noCodex(error)) throw error; report(`BellTeam hook ${product}: Codex が入っていないため、codex のhookの信頼の設定を省きました`) })
         applied[product].entries.push(...(harness === 'grok' ? ['grok:hooks'] : Object.keys(native).map(event => `${harness}:hooks:${event}`)))
       } catch (error) {
         report(`BellTeam hook ${product}: ${harness} のhookを適用できませんでした（${safeMessage(error)}）`)
