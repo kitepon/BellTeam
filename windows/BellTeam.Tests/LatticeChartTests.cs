@@ -293,13 +293,13 @@ public sealed class LatticeChartTests
     });
 
     [Fact]
-    public void ADecisionNeedsAnIdATitleAndAKnownStatus()
+    public void ADecisionNeedsAnIdAndAKnownStatusAndTheTitleIsOptional()
     {
         LatticeDecision? Of(string json) => LatticeChart.DecisionOf(System.Text.Json.JsonDocument.Parse(json).RootElement);
         Assert.Equal(new LatticeDecision("K-1", "held", "承認しますか"), Of("""{"decisionId":"K-1","status":"held","title":"承認しますか"}"""));
         Assert.Null(Of("""{"decisionId":"","status":"held","title":"t"}"""));
         Assert.Null(Of("""{"decisionId":"K-1","status":"open","title":"t"}"""));
-        Assert.Null(Of("""{"decisionId":"K-1","status":"held"}"""));
+        Assert.Equal(new LatticeDecision("K-1", "held", ""), Of("""{"decisionId":"K-1","status":"held"}"""));   // ids and state only since the /v1 close: the card still opens the decision
         Assert.Null(Of("""{"error":"NOT_FOUND"}"""));
         Assert.Null(Of("[]"));
     }

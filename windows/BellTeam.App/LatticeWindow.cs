@@ -759,7 +759,7 @@ internal sealed class LatticeChartPage : Grid
         // The id never shows. 決裁を開く opens the 決裁箱 window on that decision (screen-spec "詳細 | 決裁を開く").
         if (decisions.GetValueOrDefault(cardId) is { } decision)
         {
-            Section(body, "決裁", $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");
+            Section(body, "決裁", decision.Title.Length > 0 ? $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）" : LatticeChart.DecisionStates[decision.Status]);
             if (ApprovalsHub.Current?.Show is { } show)
             {
                 var open = Action("決裁を開く", "", true); open.HorizontalAlignment = HorizontalAlignment.Left; open.Margin = new Thickness(0, 8, 0, 0); open.Click += (_, _) => show(decision.DecisionId);
