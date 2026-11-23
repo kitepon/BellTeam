@@ -344,7 +344,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   }
 
   const target = request => track(() => targetNow(request ?? {}))
-  const remoteFor = terminalId => track(() => remoteForNow(terminalId))
+  // One run per terminal at a time: overlapping callers share the answer, so two reloads of the agent (delete, then add) never race and
+  // a caller never sees AGENT_EMPTY for a moment after a body restart (Epinel, #2426).
+  const remoteForRuns = new Map()
+  const remoteFor = terminalId => {
+    let run = remoteForRuns.get(terminalId)
+    if (!run) { run = track(() => remoteForNow(terminalId)).finally(() => remoteForRuns.delete(terminalId)); remoteForRuns.set(terminalId, run) }
+    return run
+  }
   async function targetNow({ terminalId, memberId, projectRoot, harness }) {
     if (disposed) throw failure('TERMINAL_UNAVAILABLE')
     // Generation is captured before the read, so a snapshot read across a registry change is never handed out.

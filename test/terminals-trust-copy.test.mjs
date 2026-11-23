@@ -341,3 +341,16 @@ test('a Windows terminal needs Aiterm 0.70.112 on both sides before it gets the 
   assert.equal(again.remote.ssh.known_hosts_file, first.remote.ssh.known_hosts_file, 'remoteFor names the same file for the same revision')
   assert.equal(again.remote.ssh.identity_agent, first.remote.ssh.identity_agent)
 })
+
+test('overlapping remoteFor calls for one terminal share one run: the agent is reloaded once and every caller gets the route', async t => {
+  let held = false, loads = 0
+  const gate = Promise.withResolvers()
+  const native = switched({ async agentHeld() { return held }, async loadAgent() { loads++; await gate.promise; held = true } })
+  const { connection } = await switchedSetup(t, { native })
+  const calls = [connection.remoteFor('owner-macbook'), connection.remoteFor('owner-macbook'), connection.remoteFor('owner-macbook')]
+  await settle(); gate.resolve()
+  const results = await Promise.all(calls)
+  assert.equal(loads, 1)
+  assert.equal(results.every(result => result.remote && result.revision === results[0].revision), true)
+  assert.ok((await connection.remoteFor('owner-macbook')).remote, 'the next call after the run starts a new one')
+})
