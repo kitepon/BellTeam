@@ -33,6 +33,7 @@
     "src/terminals/approval-door.mjs",
     "src/terminals/approval-door-host.mjs",
     "src/terminals/trust-copy.mjs",
-    "src/terminals/credential-agent.mjs"
+    "src/terminals/credential-agent.mjs",
+    "src/terminals/trust-file.mjs"
   ]
 }
