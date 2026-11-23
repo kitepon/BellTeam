@@ -79,6 +79,7 @@ public static class LocalFormText
         "device_refused" => "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。",
         "connection_closed" => "相手との接続が途中で切れました。新しいQRでもう一度お試しください。",
         "ended" => PeriodEnded,
+        "purchase_failed" or "purchase_unverified" => "購入を完了できませんでした。もう一度お試しください。",   // the Apple app's sentence (LocalAccount.words), no code
         "not_paid" or "revoked" or "proof_invalid" or "not_this_app" or "product_unknown" or "sandbox_refused" => "購入を確かめられませんでした（" + code + "）。",
         "bad_request" or "provider_unsupported" => "この端末ではそのアカウントでサインインできません。",
         "network" => "つながりません。ネットワークを確かめて、もう一度お試しください。",
