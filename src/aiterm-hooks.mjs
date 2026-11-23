@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { captureRuntime } from './runtime-selection.mjs'
 import { userPlace } from './seat-process.mjs'
+import { isGenericEntry, isNativeRegistration } from './aiterm-native.mjs'
 
 export const MCP_LAZY_RELAY = '/usr/local/bin/mcp-lazy'
 export const AITERM_ROOT = '/usr/local/lib/node_modules/aiterm-mcp'
@@ -39,25 +40,46 @@ export async function aitermRegistration({ root = AITERM_ROOT, load = loadModule
   return (await load(aitermEntry(root, 'setup-node'))).mcpRegistration()
 }
 
+// a532b2 stage 5: the parent's own Aiterm entry is Aiterm's generic `native-entry` (>= 0.70.109); an Aiterm that does not export it keeps the old
+// `execution-native-server` entry (which needs `--execution-interrupt`). Aiterm drops the old entry only after this has run on the new one (docs cli-registration.md).
+function nativeEntry(root) {
+  try { return { name: 'native-entry', path: aitermEntry(root, 'native-entry') } } catch (error) {
+    if (error?.code !== 'AITERM_ENTRY_UNAVAILABLE') throw error
+    return { name: 'execution-native-server', path: aitermEntry(root, 'execution-native-server') }
+  }
+}
+
 // Persistent helpers stay image-owned across body recovery to previous-normal.
 export async function aitermExecutionRegistration({ root = AITERM_ROOT, provider, load = loadModule, resolveProvider = providerFor } = {}) {
+  const entry = nativeEntry(root)
+  if (entry.name === 'native-entry') {
+    const [{ setupNodeExecutable }, { localScope }] = await Promise.all([load(aitermEntry(root, 'setup-node')), load(entry.path)])
+    const scope = localScope()
+    return {
+      command: setupNodeExecutable(),
+      args: [entry.path, '--state-root', scope.state_root, '--socket', scope.multiplexer.key, '--steer-provider', provider ?? resolveProvider(entry.path)],
+    }
+  }
   const [{ setupNodeExecutable }, { localParentWorkerRuntime }] = await Promise.all([
     load(aitermEntry(root, 'setup-node')), load(aitermEntry(root, 'execution-parent-worker')),
   ])
-  const scope = localParentWorkerRuntime.scope(), entry = aitermEntry(root, 'execution-native-server')
+  const scope = localParentWorkerRuntime.scope()
   return {
     command: setupNodeExecutable(),
-    args: [entry, '--execution-interrupt', '--state-root', scope.state_root,
-      '--socket', scope.multiplexer.key, '--steer-provider', provider ?? resolveProvider(entry)],
+    args: [entry.path, '--execution-interrupt', '--state-root', scope.state_root,
+      '--socket', scope.multiplexer.key, '--steer-provider', provider ?? resolveProvider(entry.path)],
   }
 }
 
 // A live connection keeps its captured files; persistent registration remains image-owned.
+// The entry follows the captured runtime's Aiterm: its native-entry when it has one, else the old entry (with the marker flag it needs).
 export function aitermConnectionRegistration(registration, runtime, resolveProvider = providerFor) {
   const component = runtime.components['runtime-aiterm-mcp']
   const args = [...registration.args]
-  if (args.includes('--execution-interrupt')) {
-    args[0] = aitermEntry(component.root, 'execution-native-server')
+  if (isNativeRegistration(args)) {
+    const entry = nativeEntry(component.root)
+    args[0] = entry.path
+    if (entry.name === 'execution-native-server' && !args.includes('--execution-interrupt')) args.splice(1, 0, '--execution-interrupt')
     const provider = args.indexOf('--steer-provider')
     if (provider >= 0) args[provider + 1] = resolveProvider(args[0])
     return { command: registration.command, args }
@@ -79,8 +101,8 @@ export async function codexBinary(component, place = userPlace()) {
 
 // The values the E2 `aiterm` command needs (cli-registration.md "Fourth switch"), from the native registration of the same image root.
 export async function aitermEntryVars(registration, { runtimeCapture, root = AITERM_ROOT, load = loadModule } = {}) {
-  const { parseNativeExecutionArguments } = await load(aitermEntry(root, 'execution-native-server'))
-  const { expectedScope, providerFile } = parseNativeExecutionArguments(registration.args.slice(1))
+  const module = await load(aitermEntry(root, isGenericEntry(registration.args[0]) ? 'native-entry' : 'execution-native-server'))
+  const { expectedScope, providerFile } = (module.parseNativeEntryArguments ?? module.parseNativeExecutionArguments)(registration.args.slice(1))
   return { stateRoot: expectedScope.state_root, socket: expectedScope.multiplexer.key, steerProvider: providerFile,
     codexBinary: (await codexBinary((runtimeCapture ?? await captureRuntime()).components['runtime-codex'])).path }
 }

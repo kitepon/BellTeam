@@ -12,6 +12,7 @@ import { aitermEntryVars, aitermRegistration, aitermRelay, configureAitermHooks 
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { fixedResumeBase } from './resume-policy.mjs'
+import { isNativeRegistration } from './aiterm-native.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
@@ -30,7 +31,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   // bd14: BellTeam is the one writer of the MCP entries and hooks of the products in config/harness-products.json (RTK and Aiterm included).
   // It runs where the RTK writer ran (after Throughline and the Cursor instructions); `aiterm` is the last E2 item, so each hook event keeps today's key and array order. A failure keeps the seat running.
   // With a native registration the Aiterm item gets its scope, provider and Codex binary as `vars`; without them (or without a native registration) that item is reported unusable and the seat keeps its hooks.
-  const native = registration?.args.includes('--execution-interrupt')
+  const native = isNativeRegistration(registration?.args)
   let vars
   if (native) {
     try {
@@ -146,7 +147,7 @@ const AITERM_WAKE_PARENTS = ['codex', 'claude', 'cursor']
 // - 本体が眠っている間は、終了した席の親配送を引き取る者が居ない。Aitermの判定が「引き取る配送がある」と答えた時に、中継が本体を起こす。
 // 席を閉じる時の数え方は、Aiterm（0.51.0から）が中継の直接の子を数えない取り決めに依る。
 function relayedAiterm(relay, server, harness, home) {
-  const native = server.args.includes('--execution-interrupt')
+  const native = isNativeRegistration(server.args)
   // Native MCP uses the same lazy relay, but not its old static-profile worker
   // or 18-tool cache. Once invoked it stays connected for the session lifetime.
   const wake = !native && AITERM_WAKE_PARENTS.includes(harness)

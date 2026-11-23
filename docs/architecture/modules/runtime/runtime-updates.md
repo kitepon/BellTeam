@@ -61,8 +61,8 @@ These bindings keep Aiterm helpers and imports consistent while CLI/Throughline 
 | captureHandoffConnection | removed (bd05): Aiterm never published `model-handoff-*`; see [model-handoff.md](../execution/model-handoff.md) dormant note | — |
 | ConfigurationIntents.handoffTerminal | stored snapshot → shape checks only; no Aiterm import (bd05) | Kiro; dormant with the handoff consumer |
 | adoptRuntimeResume | startup runtime capture → `exports["./resume-state-cli"]` restore command | Elegg; one capture for the complete pre-bootstrap adoption operation |
-| aitermRegistration / aitermExecutionRegistration | image Aiterm entries `setup-node` (`mcpRegistration()`), `execution-parent-worker`, `execution-native-server` → MCP descriptor | Elegg; ordinary MCP is exactly what `mcpRegistration()` returns; native MCP uses the image's `execution-native-server` entry and its provider |
-| configureAitermHooks | image entries `setup-integrations` / `execution-native-setup` + `execution-native-server` + descriptor → hook registrations | Elegg; existing SeatRuntime remains the sole serial HOME writer; Codex binary comes from the selected CLI capture |
+| aitermRegistration / aitermExecutionRegistration | image Aiterm entries `setup-node` (`mcpRegistration()`) and `native-entry` (`localScope()`; a root without it: `execution-parent-worker` + `execution-native-server`) → MCP descriptor | Elegg; ordinary MCP is exactly what `mcpRegistration()` returns; native MCP uses the image's `native-entry` (else `execution-native-server` with `--execution-interrupt`) and its provider (a532b2 stage 5) |
+| configureAitermHooks | (old non-native registration only) image entries `setup-integrations` / `execution-native-setup` + `execution-native-server` + descriptor → hook registrations | Elegg; existing SeatRuntime remains the sole serial HOME writer; Codex binary comes from the selected CLI capture |
 
 Persistent registrations keep the image's existing direct Aiterm entry paths; no `/app/scripts/runtime-aiterm` adapter or runtime-exec descriptor is written to shared HOME. AitermClient's in-process connection binding still uses its captured native entry/provider/generation. Scope arguments remain owned by Aiterm/SeatRuntime. The native public setup API receives the `execution-native-server` entry of the same image root. No helper implementation is copied from Aiterm.
 
@@ -74,9 +74,10 @@ Aiterm promises only the `exports` table of its `package.json` (aiterm-mcp `docs
 | --- | --- |
 | `setup-node` | aiterm-hooks `aitermRegistration` (`mcpRegistration()`), `aitermExecutionRegistration` (`setupNodeExecutable()`) |
 | `setup-integrations` | aiterm-hooks `configureAitermHooks` |
-| `execution-parent-worker` | aiterm-hooks `aitermExecutionRegistration` |
+| `native-entry` (0.70.109+, a532b2) | aiterm-hooks `aitermExecutionRegistration` (`localScope`), `aitermConnectionRegistration`, `aitermEntryVars` (`parseNativeEntryArguments`); `isNativeRegistration` (src/aiterm-native.mjs) |
+| `execution-parent-worker` | aiterm-hooks `aitermExecutionRegistration` (only a root without `native-entry`) |
 | `execution-native-setup` | aiterm-hooks `configureAitermHooks` |
-| `execution-native-server` | aiterm-hooks registration, `aitermConnectionRegistration`, `configureAitermHooks` |
+| `execution-native-server` | fallback of the three above for an Aiterm without `native-entry`, and `configureAitermHooks`; goes when Aiterm drops it |
 | `child-result` | self-turns (`CHILD_RESULT_PREFACE`); conversation module, N102's bd05c |
 | `resume-state-cli` | runtime-resume `adoptRuntimeResume` (run with node, never imported) |
 

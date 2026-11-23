@@ -34,7 +34,9 @@ async function readJson(path) {
 // E1 v1.1 check. Returns { servers: [{ name, harness, entry }], hooks: { <harness>: native }, settings, owns, version, cursorAllow, skipped }.
 // `skipped` lists the permissions parts BellTeam does not apply (only permissions.cursor.allow is): the caller reports them and the rest of the product still applies.
 export function parseEntries(product, value) {
-  if (!isObject(value) || value.schema !== 'bellteam.harness-entries.v1') throw new Error('schema is not bellteam.harness-entries.v1')
+  // a532b2 stage 5: Aiterm's own `hook-entries` prints the same E1 under its schema name; `harness-entries` (v1) goes when Aiterm drops it.
+  const schema = product === 'aiterm' && value?.schema === 'aiterm.hook-entries.v1' ? 'aiterm.hook-entries.v1' : 'bellteam.harness-entries.v1'
+  if (!isObject(value) || value.schema !== schema) throw new Error(`schema is not ${schema}`)
   if (value.product !== product) throw new Error(`product is ${JSON.stringify(value.product)}, not ${product}`)
   const permissions = value.permissions ?? {}
   if (!isObject(permissions)) throw new Error('permissions is not an object')

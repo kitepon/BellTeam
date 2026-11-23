@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { aitermEntry, aitermEntryVars, aitermExecutionRegistration, aitermRegistration, aitermRelay, codexBinary, configureAitermHooks } from '../src/aiterm-hooks.mjs'
+import { isNativeRegistration } from '../src/aiterm-native.mjs'
+import { aitermConnectionRegistration, aitermEntry, aitermEntryVars, aitermExecutionRegistration, aitermRegistration, aitermRelay, codexBinary, configureAitermHooks } from '../src/aiterm-hooks.mjs'
 
 // A package root whose exports table maps each public entry name to a file that is NOT <name>.js, so a hard-coded path cannot pass.
 const ENTRIES = ['setup-node', 'setup-integrations', 'execution-parent-worker', 'execution-native-setup', 'execution-native-server', 'child-result', 'resume-state-cli']
@@ -139,4 +140,44 @@ test('no Codex anywhere: the parent-steer registration waits (no call, no failur
   await writeFile(join(home, '.local/bin/codex'), '#!/bin/sh\n'); await chmod(join(home, '.local/bin/codex'), 0o755)
   assert.deepEqual(await configureAitermHooks(home, { root, runtimeCapture, load }), { codex: { status: 'ready' } })
   assert.deepEqual(calls, [[home, { binary: join(home, '.local/bin/codex') }]])
+})
+
+// a532b2 stage 5: the generic native-entry (aiterm-mcp >= 0.70.109) is preferred; the old entry (with its marker flag) remains for an Aiterm without it.
+const withNative = () => aitermRoot(Object.fromEntries([...ENTRIES, 'native-entry'].map(name => [`./${name}`, `./build/${name}.public.js`])))
+
+test('native-entryがあればそれを使い、--execution-interruptは付けず、scopeはその localScope から取る', async () => {
+  const root = await withNative()
+  const registration = await aitermExecutionRegistration({
+    root,
+    load: async path => path === at(root, 'setup-node') ? { setupNodeExecutable: () => process.execPath }
+      : { localScope: () => ({ state_root: '/isolated/state', multiplexer: { kind: 'socket', key: '/isolated/tmux.sock' } }) },
+    resolveProvider: file => { assert.equal(file, at(root, 'native-entry')); return '/candidate/steer/index.js' },
+  })
+  assert.deepEqual(registration, { command: process.execPath, args: [at(root, 'native-entry'),
+    '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] })
+  assert.equal(isNativeRegistration(registration.args), true)
+})
+
+test('E2へ渡す値は native-entry の parseNativeEntryArguments から取る', async () => {
+  const root = await withNative()
+  const registration = { command: process.execPath, args: [at(root, 'native-entry'), '--state-root', '/s', '--socket', '/t', '--steer-provider', '/p'] }
+  const load = async path => {
+    assert.equal(path, at(root, 'native-entry'))
+    return { parseNativeEntryArguments: args => { assert.deepEqual(args, registration.args.slice(1)); return { expectedScope: { state_root: '/s', multiplexer: { kind: 'socket', key: '/t' } }, providerFile: '/p' } } }
+  }
+  assert.deepEqual(await aitermEntryVars(registration, { root, load, runtimeCapture: { components: { 'runtime-codex': { bin: { codex: '/selected/codex' } } } } }),
+    { stateRoot: '/s', socket: '/t', steerProvider: '/p', codexBinary: '/selected/codex' })
+})
+
+test('接続は取り込んだ実行環境のAitermに合わせる: nativeがあればそれ、無ければ旧入口と印を付ける', async () => {
+  const [fresh, legacy] = [await withNative(), await aitermRoot()]
+  const base = { command: process.execPath, args: ['/image/native-entry.js', '--state-root', '/s', '--socket', '/t', '--steer-provider', '/image/steer.js'] }
+  const via = root => aitermConnectionRegistration(base, { components: { 'runtime-aiterm-mcp': { root } } }, file => `${file}:steer`)
+  assert.deepEqual(via(fresh).args, [at(fresh, 'native-entry'), '--state-root', '/s', '--socket', '/t', '--steer-provider', `${at(fresh, 'native-entry')}:steer`])
+  assert.deepEqual(via(legacy).args, [at(legacy, 'execution-native-server'), '--execution-interrupt', '--state-root', '/s', '--socket', '/t', '--steer-provider', `${at(legacy, 'execution-native-server')}:steer`])
+})
+
+test('isNativeRegistration は新旧の入口だけを見分ける', () => {
+  for (const args of [['/x/native-entry.js'], ['/x/execution-native-server.js', '--execution-interrupt']]) assert.equal(isNativeRegistration(args), true)
+  for (const args of [['/x/other.js'], [], undefined]) assert.equal(isNativeRegistration(args), false)
 })
