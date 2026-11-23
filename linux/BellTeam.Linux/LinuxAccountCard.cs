@@ -17,7 +17,8 @@ public sealed class LinuxAccountCard : StackPanel
     private LocalPaid? paid;
     private LocalRequest? request;
     private CancellationTokenSource? attempt;
-    private string? failure;
+    private string? failure, notice;   // notice: the plain line under the status (PaidOk, or PeriodEnded when the kept period ran out); failure is the red one
+    private DateTimeOffset expiry;     // when the QR stops being taken
     private bool busy, confirmingDelete;
 
     // The account gate (first run) waits for this: true while an accepted period holds.
@@ -39,6 +40,7 @@ public sealed class LinuxAccountCard : StackPanel
         var before = Entitled;
         try { paid = Local?.PaidUntil(); }
         catch (LoginBillingException error) { paid = null; failure = LocalFormText.Failure(error.Code, error.Status); }
+        if (before && !Entitled) notice = LocalFormText.PeriodEnded;
         if (before != Entitled) EntitledChanged?.Invoke();
     }
 
@@ -46,11 +48,11 @@ public sealed class LinuxAccountCard : StackPanel
     private async Task RequestAsync(string provider)
     {
         if (busy || Local is not { } local) return;
-        busy = true; failure = null; attempt = CancellationTokenSource.CreateLinkedTokenSource(token); Render();
+        busy = true; failure = notice = null; attempt = CancellationTokenSource.CreateLinkedTokenSource(token); Render();
         try
         {
-            request = await local.MakeRequestAsync(provider, ct: attempt.Token); Render();
-            paid = await request.AwaitPaidAsync(attempt.Token);
+            request = await local.MakeRequestAsync(provider, ct: attempt.Token); expiry = DateTimeOffset.Now.AddMinutes(LocalForm.ListenMinutes); Render();
+            paid = await request.AwaitPaidAsync(attempt.Token); notice = LocalFormText.PaidOk;
         }
         catch (OperationCanceledException) { }   // the person pressed やめる, or the screen closed
         catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Status); }
@@ -62,19 +64,21 @@ public sealed class LinuxAccountCard : StackPanel
     private void Render()
     {
         Children.Clear();
+        // Rapi's table (docs/apple-qr-approval-wording): the card title and the status line are the table's; the badge stays as on the Windows card (not in the table).
         var status = StoreAccount.Status(Entitled);
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        var tile = Tile(SettingsPage.Billing, 36); var title = Text(StoreAccountText.Title, 17, Ink, FontWeight.Bold, new Thickness(12, 0, 8, 0)); title.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(title, 1); head.Children.Add(tile); head.Children.Add(title);
-        var badge = Badge(status.Badge, status.Tone); Grid.SetColumn(badge, 2); head.Children.Add(badge);
+        var tile = Tile(SettingsPage.Billing, 36); var title = Text(LocalFormText.CardTitle, 17, Ink, FontWeight.Bold, new Thickness(12, 0, 8, 0)); title.VerticalAlignment = VerticalAlignment.Center;
+        var badge = Badge(status.Badge, status.Tone); Grid.SetColumn(title, 1); Grid.SetColumn(badge, 2); head.Children.Add(tile); head.Children.Add(title); head.Children.Add(badge);
         Children.Add(head);
         if (Local is null) { Children.Add(Text(StoreAccountText.NotConfigured, 14, Muted, null, new Thickness(0, 10, 0, 0))); RenderDelete(); return; }
-        Children.Add(Text(paid is { } now ? (now.Until is { } until ? LocalFormText.Paid(until) : status.Line) : status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
+        Children.Add(Text(paid is { } now ? LocalFormText.Status(now.Until) : LocalFormText.StatusUnpaid, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
+        if (notice is not null && request is null) Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 6, 0, 0)));
 
         if (request is { } open) Children.Add(QrBlock(open.Qr));
         else if (!Entitled)
         {
-            Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 10, 0, 0)));
+            Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)));
+            Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
             Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
@@ -90,9 +94,9 @@ public sealed class LinuxAccountCard : StackPanel
         var block = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Spacing = 6 };
         block.Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold));
         block.Children.Add(Text(LocalFormText.Lead, 13, Muted));
-        block.Children.Add(new QrView(qr, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) });
-        block.Children.Add(Text(LocalFormText.Window, 12, Muted));
-        block.Children.Add(Waiting(LocalFormText.Waiting));
+        var code = new QrView(qr, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
+        block.Children.Add(code);
+        block.Children.Add(Waiting(LocalFormText.WaitingUntil(expiry)));
         var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10));
         stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => attempt?.Cancel();
         block.Children.Add(stop);

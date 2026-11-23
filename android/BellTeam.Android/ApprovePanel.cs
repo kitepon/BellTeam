@@ -97,7 +97,7 @@ public sealed class ApprovePanel : StackPanel
             await local.SignInLocalAsync(MainActivity.Current);
             answered = await local.AnswerAsync(MainActivity.Current, qr, Confirm);
         }
-        result = answered switch { LocalAnswered.Taken => StoreAccountText.ApprovedLine, LocalAnswered.NoPurchase => LocalFormText.Of(LocalFormOutcome.NoPurchase), _ => StoreAccountText.DeclinedLine };
+        result = answered switch { LocalAnswered.Taken => StoreAccountText.ApprovedLine, LocalAnswered.NoPurchase => StoreAccountText.ApproveNoPurchase, _ => StoreAccountText.DeclinedLine };
     });
 
     private async Task RunAsync(Func<LbLocalForm, Task> action)
