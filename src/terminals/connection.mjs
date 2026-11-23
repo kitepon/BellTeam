@@ -235,7 +235,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   async function remoteInput(record, binding, aiterm, evidence) {
     if (record.launchInput !== 'remote') return {}
     const stay = reason => { if (evidence) evidence.input = { outcome: 'terminal', reason }; return {} }
-    if (!atLeast(aiterm?.before, '0.70.101') || !atLeast(containerVersions.get(aiterm), '0.70.101')) return stay(typeof native.trustFile === 'function' ? 'AITERM_TOO_OLD' : 'UNSUPPORTED')
+    // The generic remote input is in 0.70.101; a Windows terminal needs 0.70.112 on both Aiterms (Elegg, a532b2s2e: the pinned ssh of a wait).
+    const minimum = record.os === 'windows' ? '0.70.112' : '0.70.101'
+    if (!atLeast(aiterm?.before, minimum) || !atLeast(containerVersions.get(aiterm), minimum)) return stay(typeof native.trustFile === 'function' ? 'AITERM_TOO_OLD' : 'UNSUPPORTED')
     const built = await assembleRemote(record, binding)
     if (!built.fields) return stay(built.reason)
     if (evidence) evidence.input = { outcome: 'remote' }
