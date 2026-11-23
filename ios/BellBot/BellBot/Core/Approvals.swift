@@ -83,6 +83,21 @@ struct ApprovalOrigin: Decodable, Equatable {
     }
 }
 
+extension ApprovalOrigin {
+    /// approvals-contract.md 「How origin.kind is decided」 (fixtures contract/fixtures/origin-cases.json): the bot id in the roster, else the AI's own name equal to a member's name -> bellteam;
+    /// else a client or session label -> external; else unknown. Visibility never depends on it.
+    static func classify(_ r: PeerDecisionRecord, roster: [ApprovalRosterMember]) -> (ApprovalOrigin, ApprovalRequester?) {
+        func origin(_ kind: String) -> ApprovalOrigin {
+            ApprovalOrigin(kind: kind, client: r.client.isEmpty ? nil : r.client, tool: r.client.isEmpty ? nil : ApprovalDecision.toolName(r.client), sessionLabel: r.sessionLabel.isEmpty ? nil : r.sessionLabel, via: r.via.isEmpty ? nil : r.via)
+        }
+        if let id = r.requesterBotId, let bot = roster.first(where: { $0.id == id }) { return (origin("bellteam"), ApprovalRequester(botId: bot.id, name: bot.name)) }
+        if let name = r.requester, let bot = roster.first(where: { $0.name == name }) { return (origin("bellteam"), ApprovalRequester(botId: bot.id, name: bot.name)) }
+        return (origin(r.client.isEmpty && r.sessionLabel.isEmpty ? "unknown" : "external"), nil)
+    }
+}
+
+struct ApprovalRosterMember: Equatable { let id: String; let name: String }
+
 struct ApprovalRequester: Decodable, Equatable { let botId: String?; let name: String? }
 
 struct ApprovalLinkTask: Decodable, Equatable {
@@ -151,7 +166,7 @@ enum ApprovalText {
     static let empty = "決裁はありません。AIが判断を求めると、ここに並びます。"
     static let noDone = "まだ済んだ決裁はありません。"
     static let sendFailed = "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。"
-    static let conflict = "この相談は、開いてから更新されました。内容を確かめてから、もう一度答えてください。"
+    static let conflict = "内容が直されました。もう一度確かめてください。"
     static let closedElsewhere = "別の端末ですでに答えられています。"
     static let notConnectedToAI = "この端末は、いまAIとつながっていません。つながると答えを送れます。"
     static let held = "保留中です。戻すまで工程は待ちます"
@@ -193,7 +208,8 @@ enum ApprovalText {
 
 extension ApprovalDecision {
     /// A decision as this device holds it (peer-channel): content only from the device. With a link (the id-level lookup found the engine's row) it is BellTeam's own decision; without one it counts as external.
-    init(record r: PeerDecisionRecord, link: ApprovalLink? = nil) {
+    init(record r: PeerDecisionRecord, link: ApprovalLink? = nil, roster: [ApprovalRosterMember] = []) {
+        let (origin, requester) = ApprovalOrigin.classify(r, roster: roster)
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let answer = r.answer.map {
@@ -207,10 +223,9 @@ extension ApprovalDecision {
                   amended: ApprovalAmended(is: false, fields: [], note: nil, at: nil), history: [],
                   requestAttachments: r.attachments.map {
                       ApprovalAttachment(id: $0.id, name: $0.name, contentType: $0.contentType, size: $0.size,
-                                         sha256: (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
+                                         sha256: $0.sha256 ?? (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
                   },
-                  origin: ApprovalOrigin(kind: link == nil ? "external" : "bellteam", client: r.client, tool: Self.toolName(r.client), sessionLabel: r.sessionLabel, via: r.via),
-                  requester: link == nil ? nil : ApprovalRequester(botId: nil, name: nil), link: link)
+                  origin: origin, requester: requester, link: link)
     }
 
     static func toolName(_ client: String) -> String {
@@ -220,7 +235,7 @@ extension ApprovalDecision {
 
 // MARK: Model
 
-/// 決裁箱の画面の状態と操作。中身は、この端末が持つ決裁（peer-channel。サーバーに内容はない）から描く。サインインと端末の状態は ApprovalBoxLink が持つ。
+/// 決裁箱の画面の状態と操作。中身は ApprovalBoxLink の決裁（決裁箱の `/v1`、peer-channel が使える日からは端末が持つ決裁）から描く。サインインと端末の状態は ApprovalBoxLink が持つ。
 @MainActor
 final class ApprovalsModel: ObservableObject {
     enum Gate: Equatable {
@@ -251,6 +266,8 @@ final class ApprovalsModel: ObservableObject {
     private var settled: [String: ApprovalDecision] = [:]
     private var subscriptions: [AnyCancellable] = []
     private var records: [PeerDecisionRecord] = []
+    /// The BellTeam members the origin rule matches against (the member list the app already holds).
+    private var roster: [ApprovalRosterMember] = []
     /// decision id -> the engine's answer at the time: a link, or nil for 404 (external / not linked yet).
     private var links: [String: (link: ApprovalLink?, at: Date)] = [:]
     private let resolver = ApprovalLinkResolver()
@@ -314,13 +331,20 @@ final class ApprovalsModel: ObservableObject {
 
     // MARK: Local state
 
+    func setRoster(_ bots: [Bot]) {
+        let next = bots.map { ApprovalRosterMember(id: $0.id, name: $0.name) }
+        guard next != roster else { return }
+        roster = next
+        rebuild()
+    }
+
     func apply(_ records: [PeerDecisionRecord]) {
         self.records = records
         rebuild()
     }
 
     private func rebuild() {
-        let all = records.map { ApprovalDecision(record: $0, link: links[$0.id]?.link) }
+        let all = records.map { ApprovalDecision(record: $0, link: links[$0.id]?.link, roster: roster) }
         let tokyo = LatticeTime.tokyo
         let today = tokyo.startOfDay(for: Date())
         let isToday = { (text: String?) in LatticeTime.date(text).map { tokyo.startOfDay(for: $0) == today } ?? false }
@@ -370,7 +394,7 @@ final class ApprovalsModel: ObservableObject {
         await send(d) { try await self.link.hold(d.id, held: hold) } accepted: { nil }
     }
 
-    private func send(_ d: ApprovalDecision, _ work: () async throws -> PeerDevice.AnswerOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
+    private func send(_ d: ApprovalDecision, _ work: () async throws -> ApprovalWriteOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
         notes[d.id] = nil
         sending.insert(d.id)
         defer { sending.remove(d.id) }

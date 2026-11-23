@@ -1,6 +1,6 @@
 # 決裁箱（Approval Box拡張）の描画
 
-[全体図](overview.md) / [機能索引](function-index.md)。データは、この端末が持つ決裁（peer-channel、[v0.2](../approval-box-extension/peer-channel-v0.2.md)・[サインインと端末の承認](../approval-box-extension/peer-channel-signin.md)）で、サーバーに内容はない。工程表とのつながりの口は [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md)（IDと状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここではApple側の部品と状態の持ち主だけを書く。アプリが決裁箱（Approval Box）に持つサインインは、BellTeamのサインインとは別の2つ目のライブラリの接続で、BellTeamのサーバーはそのパス・アカウントID・端末の鍵を見ない。IDは通信にだけ使い、画面に出さない。
+[全体図](overview.md) / [機能索引](function-index.md)。決裁の読み書きは、決裁箱アプリと同じ経路を、いつも同じ規則で選ぶ（Tronie 2026-11-24 裁定A）。`GET /v1/auth/config` が `peer_channel: true` と言わない間（本番は12-11まで false）は、決裁箱のサーバーの `/v1`（Nayuta の公開API：`/v1/decisions`・`/v1/events`。ログインのパスをBearerで付ける）。`true` と言ったら、決裁箱アプリと同時に、この端末が持つ決裁（peer-channel、[v0.2](../approval-box-extension/peer-channel-v0.2.md)・[サインインと端末の承認](../approval-box-extension/peer-channel-signin.md)）へ移る。画面と状態の持ち主はどちらの経路でも同じで、違うのは `ApprovalBoxLink` の下の部品だけ。工程表とのつながりの口は [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md)（IDと状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここではApple側の部品と状態の持ち主だけを書く。アプリが決裁箱（Approval Box）に持つサインインは、BellTeamのサインインとは別の2つ目のライブラリの接続で、BellTeamのサーバーはそのパス・アカウントID・端末の鍵を見ない。IDは通信にだけ使い、画面に出さない。
 
 ## 入口と置き場所（Owner 2026-11-16：MacとiPhoneで決裁箱が見つからない）
 
@@ -12,7 +12,7 @@
 | 工程表の詳細（指揮官の札） | 「決裁」ブロックの「決裁を開く」→ `AppStore.openApprovals(decision:)`（iPhoneは`approvalsScreenOpen`、iPad・Macは`approvalsRequest`を各コンテナが受ける） | その決裁の詳細を選んで開く（`ApprovalsModel.openRequest`） |
 | 決裁の「工程表の工程を開く」 | `AppStore.openLatticeCard(project:card:)` → `latticeOpenRequest`＋`latticeOpenCard` | 工程表をその札の詳細で開く（`LatticeHomeView`が`.card`で受ける。iPhoneは相関図タブの工程表側、Macは工程表の窓を前へ） |
 
-## 部品と流れ（a490h2r：端末の決裁をpeer-channelで読み、答える）
+## 部品と流れ（a540：`/v1` で読み答える。peer-channel は決裁箱アプリと同時に切り替わる）
 
 ```mermaid
 flowchart LR
@@ -23,6 +23,10 @@ flowchart LR
   Link --&gt;|"state → gate / decisions → open・done"| Model
   Link --&gt;|"2つ目の LoginBillingClient：https://approval-box.kitepon.dev/auth/v1、自分のパスの置き場（Keychain service dev.kitepon.bellbot.approval-box）、Web サインインだけ（ASWebAuthenticationSession、scheme approvalbox-websignin）、購入なし"| AB["Approval Box（Nayuta）：auth/v1・/pc/v1"]
   Link --&gt;|"check().k（アカウント番号はここだけ。ログにも BellTeam にも出さない）"| Dev
+  Link -->|"/v1 の間（peer_channel が false）"| Srv
+  Srv["Core/PeerApprovals/ApprovalBoxServer.swift：config・list（待ち／保留は全ページ、済みは先頭50）・answer／hold／unhold（Idempotency-Key、versionつき）・attachment・events（SSE）。パスは2つ目の LoginBillingClient.authorizedRequest／passHeader、他のものには渡さない"]
+  Srv -->|"https://approval-box.kitepon.dev/v1"| AB
+  Srv -->|"添付の原本（SHA-256を照合してから）"| Hist
   Dev["Core/PeerApprovals/PeerDevice.swift（actor）：レジストリの写し・genesis（5.1）・承認（5.3）・コネクタごとのセッション・署名つきの答えと保留"]
   Dev --&gt;|"/pc/v1（PeerChannel Swift パッケージ、契約 0.5.9）"| AB
   Dev --&gt;|"keys（Secure Enclave または Keychain）・レジストリ"| Store["PeerDeviceStore（Keychain service dev.kitepon.bellbot.approval-box.peer）"]
@@ -35,7 +39,11 @@ flowchart LR
   Model --> GateView["ApprovalGateView：状態ごとの画面と出口（signin.md 3章。Approval Boxにサインイン・やめる・承認をお願いする・確かめ直す・今すぐ試す・Approval Boxからサインアウト）"]
 ```
 
-状態の出口（signin.md 2章）：Live の切れ方は、4401 pass_ended・/pc/v1 の 401＝サインアウト（期限とは言わない）、4410＝パス・端末の鍵・レジストリ・履歴を消してサインアウト、レジストリから外された＝NeedsApproval、中継に届かない＝Reconnecting（1,2,4…30秒の待ち、回数の上限なし、手動の「今すぐ試す」は待っている次の1回を直ちに実行し並列には増やさない）。購読が無い＝NotEntitled（「確かめ直す」で再確認）。サインアウトしても BellTeam のサインインは残る。端末の削除画面は作らない（SEC-086 は対象外）。
+決裁の契約は [client-v0.5.md](../approval-box-extension/client-v0.5.md)（Delta、PR #2460）に従う：どちらの経路かは join のたびに `GET /v1/auth/config` で決め、読めなければ使っている経路のまま（無ければ `/v1`）。出どころ（BellTeam／外部／不明）は、決裁箱の `source.requester_bot_id`・`requester` を、アプリが持つメンバー表（`store.bots`）の id・名前と突き合わせて端末で決める（`ApprovalOrigin.classify`、fixtures は origin-cases.json の7例）。答えが 409 の時は、いまの決裁に置き換えて「内容が直されました。もう一度確かめてください。」を1行出し、書いた文字は残す。`/api/approvals` の一覧・答え・保留・イベントの口は、この版から呼ばない（by-decision・by-task は今まで通り）。
+
+`/v1` の間の状態：join は `check().k` の次に `GET /v1/auth/config` を1回聞く（届かなければ Reconnecting）。`false` なら `ApprovalBoxServer` で一覧を読み、SSE の通知ごとに読み直す（NeedsApproval・Waiting は出ない。端末の承認は peer-channel の経路だけ）。401＝サインアウト（`passEnded`）、402＝NotEntitled、ほかの失敗・SSE切断＝Reconnecting（バックオフ、上限なし）。答え・保留は1回だけ送り、自動では再送しない。結果が分からない時は同じキーのまま押し直しを待ち、2xx＝accepted、409＝stale（すでに答え済みなら closedElsewhere）、ほかの4xx＝refused、届いたか不明＝draftKept。済みの一覧は先頭50件（それより古いものはこの画面に出さない：shortcut、必要なら cursor で足す）。
+
+状態の出口（signin.md 2章）：Live の切れ方は、4401 pass_ended・/pc/v1 の 401＝サインアウト（期限とは言わない）、4410＝パス・端末の鍵・レジストリ・履歴を消してサインアウト、レジストリから外された＝NeedsApproval、中継に届かない＝Reconnecting（1,2,4…60秒の待ち、回数の上限なし。client-v0.5 7章、手動の「今すぐ試す」は待っている次の1回を直ちに実行し並列には増やさない）。契約が無い＝NotEntitled（「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」、価格もボタンも無し、「確かめ直す」で再確認）。サインアウトしても BellTeam のサインインは残る。端末の削除画面は作らない（SEC-086 は対象外）。
 
 サインインは Apple を先に出し（Owner の Approval Box のアカウントは Apple ID）、Google は2つ目（Nayuta 2026-11-23）。戻りは scheme `approvalbox-websignin` だけ（確認済みリンクは Approval Box 自身のアプリ専用）。
 

@@ -5,7 +5,7 @@ import LoginBilling
 import PeerChannel
 import UIKit
 
-/// Sign-in to Approval Box and the device endpoint behind the 決裁箱 view (docs/architecture/modules/approval-box-extension/peer-channel-signin.md, one state machine for all platforms).
+/// Sign-in to Approval Box and what is behind the 決裁箱 view: the server's `/v1` (ApprovalBoxServer) while `GET /v1/auth/config` does not offer peer-channel, the device endpoint once it does (docs/architecture/modules/approval-box-extension/peer-channel-signin.md, one state machine for all platforms).
 /// A SECOND, separate library instance (base https://approval-box.kitepon.dev/auth/v1, its own pass store, web sign-in only, never a purchase): BellTeam's own sign-in is never touched,
 /// and BellTeam's server never sees this pass, the account id (K) or a device key.
 @MainActor
@@ -41,6 +41,10 @@ final class ApprovalBoxLink: ObservableObject {
     private let sleep: @Sendable (TimeInterval) async throws -> Void
     private var history: PeerDecisionHistory?
     private var peer: PeerDevice?
+    /// The `/v1` path (while `peer_channel` is false): the stream task and the server it reads and writes through.
+    private var server: ApprovalBoxServer?
+    private var serverTask: Task<Void, Never>?
+    private var peerOffered = false
     private var retryTask: Task<Void, Never>?
     private var attempt = 0
     private var started = false
@@ -139,17 +143,31 @@ final class ApprovalBoxLink: ObservableObject {
 
     // MARK: Answers
 
-    func answer(_ id: String, optionId: String?, text: String?) async throws -> PeerDevice.AnswerOutcome {
+    func answer(_ id: String, optionId: String?, text: String?) async throws -> ApprovalWriteOutcome {
+        if let server {
+            guard let held = decisions.first(where: { $0.id == id }) else { throw PeerDeviceError.noSession }
+            var body: [String: Any] = ["version": held.version]
+            if let optionId { body["option_id"] = optionId }
+            if let text, !text.isEmpty { body["text"] = text }
+            return await write(await server.write("/decisions/\(id)/answer", body: body))
+        }
         guard let peer else { throw PeerDeviceError.noSession }
-        return try await peer.answer(decisionId: id, optionId: optionId, text: text)
+        return ApprovalWriteOutcome(try await peer.answer(decisionId: id, optionId: optionId, text: text))
     }
 
-    func hold(_ id: String, held: Bool) async throws -> PeerDevice.AnswerOutcome {
+    func hold(_ id: String, held: Bool) async throws -> ApprovalWriteOutcome {
+        if let server { return await write(await server.write("/decisions/\(id)/\(held ? "hold" : "unhold")", body: nil)) }
         guard let peer else { throw PeerDeviceError.noSession }
-        return try await peer.hold(decisionId: id, held: held)
+        return ApprovalWriteOutcome(try await peer.hold(decisionId: id, held: held))
     }
 
     func blob(_ id: String) -> Data? { history?.blob(id) }
+
+    /// The decision as the server has it now replaces the held one (a higher version only).
+    private func write(_ result: (outcome: ApprovalWriteOutcome, record: PeerDecisionRecord?)) -> ApprovalWriteOutcome {
+        if let record = result.record, let i = decisions.firstIndex(where: { $0.id == record.id }), decisions[i].version <= record.version { decisions[i] = record }
+        return result.outcome
+    }
 
     #if DEBUG
     func stopForTest() { Task { await stopPeer() } }
@@ -170,12 +188,50 @@ final class ApprovalBoxLink: ObservableObject {
         let folder = SHA256.hash(data: Data(account.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
         let history = PeerDecisionHistory(directory: historyRoot.appending(path: folder))
         self.history = history
+        // client-v0.5 5.3: a failed read keeps the path in use (the `/v1` path when none was).
+        let offered = (try? await ApprovalBoxServer.peerChannelOffered(origin: origin)) ?? peerOffered
+        peerOffered = offered
+        if !offered { decisions = []; serve(from: ApprovalBoxServer(origin: origin, client: client), history: history); return }
         decisions = (try? history.load()) ?? []
         let config = PeerDevice.Config(baseURL: origin, authorization: { url in await client.passHeader(for: url) }, account: { account }, label: label, platform: platform, store: deviceStore, history: history)
         let device = PeerDevice(config: config, onChange: { [weak self] all in Task { @MainActor in self?.decisions = all } },
                                 onState: { [weak self] state in Task { @MainActor in await self?.deviceState(state) } })
         peer = device
         await device.start()
+    }
+
+    /// The `/v1` path: read the lists, then read again on every change of the stream; one failure ends the run and the retry joins again (no cap on the count).
+    private func serve(from server: ApprovalBoxServer, history: PeerDecisionHistory) {
+        self.server = server
+        serverTask = Task { [weak self] in
+            do {
+                try await self?.reload(server, history)
+                self?.attempt = 0; self?.retryTask?.cancel(); self?.retryTask = nil
+                self?.state = .live
+                try await server.watch { try await self?.reload(server, history) }
+                throw URLError(.networkConnectionLost)
+            } catch is CancellationError {
+            } catch let failure as ApprovalBoxServer.Failure where failure.status == 401 { self?.passEnded()
+            } catch let failure as ApprovalBoxServer.Failure where failure.status == 402 || failure.status == 403 { await self?.stopServer(); self?.state = .notEntitled
+            } catch { self?.lastFailureDetail = "\(error)"; await self?.stopServer(); self?.state = .reconnecting(reason: ApprovalBoxWords.unreachable); self?.scheduleRetry() }
+        }
+    }
+
+    /// The lists as the server has them; the images of what is open or recent are read first, so a card never shows before its picture can.
+    private func reload(_ server: ApprovalBoxServer, _ history: PeerDecisionHistory) async throws {
+        let all = try await server.decisions()
+        for d in all where d.canAnswer || Date().timeIntervalSince(d.updatedAt) < 3600 {
+            for a in d.attachments where history.blob(a.id) == nil {
+                if let data = try await server.attachment(d.id, a) { try? history.keep(blob: a.id, bytes: data) }
+            }
+        }
+        decisions = all
+    }
+
+    private func stopServer() async {
+        let task = serverTask
+        serverTask = nil; server = nil
+        task?.cancel()
     }
 
     private func deviceState(_ device: PeerDevice.State) async {
@@ -235,15 +291,16 @@ final class ApprovalBoxLink: ObservableObject {
     }
 
     private func stopPeer() async {
+        await stopServer()
         let old = peer
         peer = nil
         await old?.stop()
     }
 
-    /// Backoff 1, 2, 4 ... 30 s with no cap on the count; one waiting try at a time (a manual retry replaces it).
+    /// Backoff 1, 2, 4 ... 60 s with no cap on the count; one waiting try at a time (a manual retry replaces it).
     private func scheduleRetry() {
         guard retryTask == nil else { return }
-        let wait = min(30, pow(2, Double(attempt)))
+        let wait = min(60, pow(2, Double(attempt)))
         attempt += 1
         retryTask = Task { [weak self, sleep] in
             do { try await sleep(wait) } catch { return }
@@ -265,7 +322,7 @@ enum ApprovalBoxWords {
     static let askApproval = "承認をお願いする"
     static let waiting = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。"
     static let waitingSamePhone = "同じ端末にApprovalBoxのアプリもある時は、番号を入れてください（この画面のQRは読み取れません）。"
-    static let notEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。"
+    static let notEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。"
     static let checkAgain = "確かめ直す"
     static let reconnecting = "つなぎ直しています"
     static let retryNow = "今すぐ試す"

@@ -5,7 +5,8 @@ import PeerChannel
 /// (approval-box docs/architecture/peer-channel-adoption.md section 7) <-> the app's record. Pure functions; nothing here touches the network or the disk.
 struct PeerDecisionRecord: Codable, Identifiable, Equatable {
     struct Option: Codable, Identifiable, Equatable { let id: String; let label: String }
-    struct Attachment: Codable, Identifiable, Equatable { let id: String; let name: String; let contentType: String; let size: Int }
+    /// `sha256` (hex) is set by the server path; on the device path the id is the SHA-256 itself.
+    struct Attachment: Codable, Identifiable, Equatable { let id: String; let name: String; let contentType: String; let size: Int; var sha256: String? = nil }
     struct Answer: Codable, Equatable { let optionId: String?; let text: String?; let answeredAt: Date }
     let id: String
     let title: String
@@ -24,12 +25,15 @@ struct PeerDecisionRecord: Codable, Identifiable, Equatable {
     let updatedAt: Date
     let version: Int
     var attachments: [Attachment] = []
+    /// The filing AI's own name and, from newer connectors, its BellTeam bot id (Approval Box `source`); the origin rule reads them (approvals-contract.md).
+    var requester: String? = nil
+    var requesterBotId: String? = nil
 
     var canAnswer: Bool { status == "pending" || status == "held" }
 
     func with(status: String, answer: Answer? = nil, cancelReason: String? = nil, now: Date = Date()) -> PeerDecisionRecord {
         PeerDecisionRecord(id: id, title: title, context: context, options: options, recommendation: recommendation, urgency: urgency, deadline: deadline, client: client,
-                           sessionLabel: sessionLabel, via: via, status: status, answer: answer, cancelReason: cancelReason, createdAt: createdAt, updatedAt: now, version: version, attachments: attachments)
+                           sessionLabel: sessionLabel, via: via, status: status, answer: answer, cancelReason: cancelReason, createdAt: createdAt, updatedAt: now, version: version, attachments: attachments, requester: requester, requesterBotId: requesterBotId)
     }
 
     static let schema = "approval-box/decision@1", answerSchema = "approval-box/answer@1"
