@@ -30,6 +30,7 @@ public sealed class LocalFormTests
         Assert.Equal("別のアカウントです。相手の端末と同じアカウントでサインインしてください。", LocalFormText.Failure("other_account"));
         Assert.All(new[] { "request_expired", "request_gone" }, code => Assert.Equal("QRの待ち時間（10分）が過ぎました。新しいQRを出してください。", LocalFormText.Failure(code)));
         Assert.Equal("相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。", LocalFormText.Failure("device_refused"));
+        Assert.All(new[] { "purchase_failed", "purchase_unverified" }, code => Assert.Equal("購入を完了できませんでした。もう一度お試しください。", LocalFormText.Failure(code)));
         Assert.Equal("相手との接続が途中で切れました。新しいQRでもう一度お試しください。", LocalFormText.Failure("connection_closed"));
         Assert.Equal("購読の期間が終わっています。新しいQRを出してください。", LocalFormText.Failure("ended"));
         Assert.All(new[] { "not_paid", "revoked", "proof_invalid", "not_this_app", "product_unknown", "sandbox_refused" }, code => Assert.Equal("購入を確かめられませんでした（" + code + "）。", LocalFormText.Failure(code)));
