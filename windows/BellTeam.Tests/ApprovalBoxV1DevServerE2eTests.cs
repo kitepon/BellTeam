@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using BellTeam.App;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
 using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.Tests;
@@ -37,10 +36,10 @@ public class ApprovalBoxV1DevServerE2eTests
         log.Add("after sign-in: " + src.State.Status + ":" + src.State.Reason);
         Assert.True(src.State.Status == RuntimeStatus.Live, string.Join(" | ", log));
         // an AI of the same account files one request through a connection token
-        var access = await account.AccessAsync(CancellationToken.None); var bearer = access.Headers["authorization"];
+        var bearer = account.PassHeader()!;
         async Task<JsonElement> Post(string path, object body, string auth) { using var r = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(url), path)) { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") }; r.Headers.TryAddWithoutValidation("authorization", auth); using var a = await browser.SendAsync(r); return JsonDocument.Parse(await a.Content.ReadAsStringAsync()).RootElement.Clone(); }
         var token = (await Post("/v1/tokens", new { label = "windows live check" }, bearer)).GetProperty("token").GetString()!;
-        var ask = new { title = "Windows 0.8.0 live check: answer yes", options = new[] { new { id = "ok", label = "はい" }, new { id = "no", label = "いいえ" } }, session_label = "windows-live", client = "claude-code", requester = "anis" };
+        var ask = new { title = "Windows live check: answer yes", options = new[] { new { id = "ok", label = "はい" }, new { id = "no", label = "いいえ" } }, session_label = "windows-live", client = "claude-code", requester = "anis" };
         var first = await Post("/connector/v1/decisions", ask, "Bearer " + token);
         var ct = first.TryGetProperty("check_token", out var c1) ? c1.GetString() : first.GetProperty("error").GetProperty("check_token").GetString();
         var filed = await Post("/connector/v1/decisions", new { ask.title, ask.options, ask.session_label, ask.client, ask.requester, check_token = ct }, "Bearer " + token);

@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using BellTeam.PeerChannel;
 
 namespace BellTeam.App;
 
@@ -56,52 +55,48 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
         HttpResponseMessage Connect() { connection = "waiting"; return Json(new JsonObject { ["authorizationUrl"] = "https://approval.example/consent?code=abc", ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(10).ToString("O") }); }
     }
 
-    /// <summary>The stand-in device session: a book the scene fills (K-1 to K-5 open, K-6 answered, K-7 withdrawn) and an answer sink that closes the decision in the book like the connector's result frame.</summary>
+    /// <summary>The stand-in source: a list the scene fills (K-1 to K-5 open, K-6 answered, K-7 withdrawn) and an answer sink that closes the decision like the server's answer.</summary>
     internal sealed class Demo : IApprovalSource
     {
-        public DecisionBook Book { get; } = new();
-        public IReadOnlyList<ViewDecision> Decisions => [.. Book.All.Select(DeviceDecisionView.Of)];
+        private readonly List<ViewDecision> list = [];
+        public IReadOnlyList<ViewDecision> Decisions => [.. list];
         public void Start() { }
         public RuntimeState State { get; set; } = new(RuntimeStatus.Live);
         public event Action? Changed;
         public List<(string Id, string? Option, string? Text)> Answers { get; } = [];
         public List<(string Id, bool Held)> Holds { get; } = [];
         public int Refreshed;
-        /// <summary>What the next answer is acknowledged with ("ok" closes the decision in the book like the result frame; anything else leaves it open).</summary>
+        /// <summary>What the next answer is acknowledged with ("ok" closes the decision; anything else leaves it open).</summary>
         public string Ack { get; set; } = "ok";
         public void Raise() => Changed?.Invoke();
+        private void Set(string id, Func<ViewDecision, ViewDecision> change) { var at = list.FindIndex(d => d.Id == id); list[at] = change(list[at]); }
         public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text, long version)
         {
             Answers.Add((decisionId, optionId, text));
             if (Ack != "ok") return Task.FromResult(new SendOutcome(Ack));
-            var rid = Book.All.First(e => e.DecisionId == decisionId).Rid;
-            Book.Close(rid, "answered", JsonDocument.Parse(JsonSerializer.Serialize(new { option_id = optionId, text })).RootElement, "me", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); Changed?.Invoke();
+            Set(decisionId, d => d with { Status = "answered", Answer = new ApprovalAnswer { OptionId = optionId, Text = text, AnsweredAt = DateTimeOffset.UtcNow.ToString("O") }, Delivery = "waiting" }); Changed?.Invoke();
             return Task.FromResult(new SendOutcome("ok"));
         }
         public Task<SendOutcome> HoldAsync(string decisionId, bool held)
         {
-            Holds.Add((decisionId, held)); Book.SetHeld(Book.All.First(e => e.DecisionId == decisionId).Rid, held, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); Changed?.Invoke();
+            Holds.Add((decisionId, held)); Set(decisionId, d => d with { Status = held ? "held" : "pending" }); Changed?.Invoke();
             return Task.FromResult(new SendOutcome("ok"));
         }
         public void Refresh() => Refreshed++;
         public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult<byte[]?>(null);
 
-        /// <summary>One request as the connector sends it (approval-box/decision@1). requesterBotId null = a decision from outside BellTeam.</summary>
+        /// <summary>One request as the source holds it. requesterBotId null = a decision from outside BellTeam.</summary>
         public void Add(string id, string title, string context, string[] options, int recommended = 0, bool urgent = false, double deadlineMinutes = 0, string? requester = null, string? requesterBotId = null, string client = "claude-code", double ageMinutes = 30)
         {
-            var created = DateTimeOffset.UtcNow.AddMinutes(-ageMinutes);
-            var json = JsonSerializer.Serialize(new
+            var created = DateTimeOffset.UtcNow.AddMinutes(-ageMinutes).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            list.Add(new ViewDecision
             {
-                rid = "r-" + id, rv = 1, schema = "approval-box/decision@1",
-                content = new
-                {
-                    decision_id = id, title, context, urgency = urgent ? "high" : "normal", deadline = deadlineMinutes > 0 ? DateTimeOffset.UtcNow.AddMinutes(deadlineMinutes).ToString("O") : null,
-                    options = options.Select((label, index) => new { id = $"o{index + 1}", label }).ToArray(), recommendation = recommended > 0 ? $"o{recommended}" : null,
-                    source = new { client, session_label = requester is null ? "Macのレシート整理" : "端末で受信", work_label = "確認", requester, requester_bot_id = requesterBotId, test = false },
-                    created_at = created.ToString("O"), version = 1
-                }
+                Id = id, Title = title, Context = context, Urgency = urgent ? "high" : "normal", Deadline = deadlineMinutes > 0 ? DateTimeOffset.UtcNow.AddMinutes(deadlineMinutes).ToString("O") : null,
+                Status = "pending", Version = 1, CreatedAt = created, UpdatedAt = created,
+                Options = options.Select((label, index) => new ApprovalOption { Id = $"o{index + 1}", Label = label, Recommended = recommended == index + 1 }).ToArray(),
+                Origin = new ApprovalOrigin { Client = client, Tool = ApprovalsV1.ToolOf(client), SessionLabel = requester is null ? "Macのレシート整理" : "端末で受信", WorkLabel = "確認", Via = "connector" },
+                Requester = requester is null && requesterBotId is null ? null : new ApprovalRequester { BotId = requesterBotId, Name = requester },
             });
-            Book.Apply("request", JsonDocument.Parse(json).RootElement, Encoding.UTF8.GetBytes(json), created.ToUnixTimeMilliseconds());
         }
         /// <summary>The decisions of the scenes.</summary>
         public Demo Fill()
@@ -111,11 +106,11 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
             Add("K-3", "領収書の保存先を、共有フォルダにしてよいですか？", "Macのレシート整理で、領収書のPDFを毎月まとめています。共有フォルダに移すと、経理の担当も同じ場所から読めます。", ["共有フォルダに保存する", "今のフォルダのままにする"], ageMinutes: 35);
             Add("K-4", "古い画面の片付けを進めますか？", "名簿にいないメンバーから届いた決裁です。", ["進める", "待つ"], 0, false, 0, "ゴースト", "bot-ghost", ageMinutes: 20);
             Add("K-5", "通話の受け口の移し先を決めますか？", "移し先は2つあります。", ["BellTeamの席へつなぐ", "別のホストを使う"], 0, false, 0, "キロ", "bot-kiro", ageMinutes: 300);
-            Book.SetHeld("r-K-5", true, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            Set("K-5", d => d with { Status = "held" });
             Add("K-6", "リリースノートの文面を確定しますか？", "今回の版の変更点をまとめました。", ["確定する", "直す"], 0, false, 0, "モリー", "bot-molly", ageMinutes: 180);
-            Book.Close("r-K-6", "answered", JsonDocument.Parse("{\"option_id\":\"o1\"}").RootElement, "me", DateTimeOffset.UtcNow.AddMinutes(-60).ToUnixTimeMilliseconds());
+            Set("K-6", d => d with { Status = "answered", Answer = new ApprovalAnswer { OptionId = "o1", AnsweredAt = DateTimeOffset.UtcNow.AddMinutes(-60).ToString("O") }, Delivery = "waiting", UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-60).ToString("yyyy-MM-ddTHH:mm:ssZ") });
             Add("K-7", "古い案の実装を進めますか？", "別の案に切り替わったため、取り下げました。", ["進める", "やめる"], 0, false, 0, "トロニー", "bot-trony", ageMinutes: 2600);
-            Book.Close("r-K-7", "closed", null, "me", DateTimeOffset.UtcNow.AddMinutes(-2500).ToUnixTimeMilliseconds());
+            Set("K-7", d => d with { Status = "cancelled", CancelReason = "closed", UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-2500).ToString("yyyy-MM-ddTHH:mm:ssZ") });
             return this;
         }
     }

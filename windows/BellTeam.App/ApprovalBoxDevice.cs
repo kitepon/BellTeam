@@ -1,45 +1,52 @@
 using System.Net.Http;
-using BellTeam.PeerChannel;
+using BellTeam.Core;
+using Kitepon.ApprovalBox.Client;
 using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.App;
 
 /// <summary>
-/// Wires the Approval Box account of this PC to the 決裁箱 page (client-v0.5): the second sign-in (login-billing against /auth/v1, its own pass, no purchase) and the one <see cref="ApprovalSelector"/> that reads /v1 now and the pc/1 core (peer-channel-signin.md)
-/// when GET /v1/auth/config says peer_channel. Always on: the old environment switch BELLTEAM_APPROVAL_BOX_DEVICE is gone, the selector decides.
+/// Wires the Approval Box account of this PC to the 決裁箱 page (client-v0.5): the second sign-in (login-billing against /auth/v1, its own pass, no purchase) and the one <see cref="ApprovalBoxClient"/> of Kitepon.ApprovalBox.Client
+/// (the package reads /v1 now and the peer channel when GET /v1/auth/config says peer_channel; its device files are DPAPI-sealed in <c>directory</c>). Sign-in, sign-out and the screens stay here.
 /// </summary>
 public sealed class ApprovalBoxDevice : IAsyncDisposable
 {
     internal ApprovalBoxAccount Account { get; }
-    /// <summary>The one source the page reads (named Device for the 決裁箱 hub; it is the selector).</summary>
-    internal ApprovalSelector Device { get; }
-    private readonly string directory;
+    /// <summary>The one source the page reads (named Device for the 決裁箱 hub).</summary>
+    internal ClientApprovalSource Device { get; }
+    private readonly ApprovalBoxClient client;
     private ApprovalsHub? hub;
-    private CancellationTokenSource? signIn, approve;
+    private CancellationTokenSource? signIn;
+    private ApprovalOffer? shownOffer; private string? shownNote;
 
     public ApprovalBoxDevice(string directory) : this(directory, null) { }
     internal ApprovalBoxDevice(string directory, ApprovalBoxAccount? account, HttpMessageHandler? transport = null)
     {
-        this.directory = directory; Account = account ?? new ApprovalBoxAccount();
-        Device = new ApprovalSelector(
-            () => new V1ApprovalSource(Account.CreateV1Client(transport), () => Account.SignedIn, Account.DropPass),
-            CreatePeer,
-            ct => Account.ReadPeerChannelAsync(transport, ct));
+        Account = account ?? new ApprovalBoxAccount();
+        client = new ApprovalBoxClient(new ApprovalBoxClientOptions
+        {
+            BaseUri = Account.Origin, PassProvider = (_, _) => ValueTask.FromResult(Account.PassHeader()), PassRejected = _ => Account.DropPass(), Transport = Account.Transport(transport),
+            Peer = new DpapiPeerStorage(directory, Environment.MachineName)
+        });
+        Device = new ClientApprovalSource(client);
+        client.Changed += OnClientChanged;
     }
 
-    // Built only when the switch says peer_channel: the keys, the registry head and the history of this device are made now, never before.
-    private IApprovalSource CreatePeer()
+    // 4410: the Approval Box account is gone (the package cleared the device files); the pass of this instance goes too. The offer (code, QR) the package shows while a verified device admits this one is the hub's to draw.
+    private void OnClientChanged()
     {
-        var peer = new DeviceApprovals(directory, Account.AccessAsync, Account.AccountAsync, Environment.MachineName);
-        // 4410: the Approval Box account is gone; DeviceApprovals cleared the device keys, the pass of this instance goes too.
-        peer.Runtime.StateChanged += () => { if (peer.State is { Status: RuntimeStatus.SignedOut, Reason: "account_deleted" }) Account.ClearPass(); };
-        return peer;
+        var state = client.State;
+        if (state is { Status: ClientStatus.SignedOut, Reason: "account_deleted" }) Account.ClearPass();
+        var offer = state.Offer is { } o ? new ApprovalOffer(o.Code, o.QrPayload, o.ExpiresAt) : null;
+        var note = state.Status == ClientStatus.NeedsApproval ? state.Note switch { "offer_expired" => Approvals.DeviceApprovalExpired, "offer_failed" => Approvals.DeviceApprovalFailed, _ => null } : null;
+        if (offer == shownOffer && note == shownNote) return;
+        shownOffer = offer; shownNote = note; hub?.SetOffer(offer, note);
     }
 
     internal void Attach(ApprovalsHub hub)
     {
         this.hub = hub; hub.SignInApprovalBox = () => _ = SignInAsync(); hub.SignInByHandoff = () => _ = HandoffAsync(); hub.CancelSignIn = () => signIn?.Cancel();
-        hub.RequestApproval = () => _ = RequestApprovalAsync(); hub.CancelApproval = () => approve?.Cancel();
+        hub.RequestApproval = client.RequestApproval; hub.CancelApproval = client.CancelApproval;
         Device.Start();
     }
 
@@ -71,26 +78,12 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
         finally { signIn = null; mine.Dispose(); hub?.SetHandoff(null); hub?.SetSignIn(false, note); }
     }
 
-    // NeedsApproval -> Waiting (pc/1 core only): show the code and QR until a verified device admits this one, the 5 minutes pass or the person stops.
-    private async Task RequestApprovalAsync()
-    {
-        if (approve is not null || Device.Peer is not { } peer) return;
-        var mine = approve = new CancellationTokenSource();
-        var admission = peer.NewAdmission();
-        hub?.SetOffer(new ApprovalOffer(admission.TypedCode, admission.QrText, admission.ExpiresAt));
-        string? note = null;
-        try { await peer.AdmitAsync(admission, mine.Token); }
-        catch (OperationCanceledException) { }
-        catch (AdmissionException error) { note = error.Code == "binding_expired" ? Approvals.DeviceApprovalExpired : Approvals.DeviceApprovalFailed; }
-        finally { approve = null; mine.Dispose(); hub?.SetOffer(null, note); }
-    }
-
-    // a485 「アカウントを削除」: this PC's Approval Box sign-in (the library's signOut reaches the server as far as it can) and the pc/1 files (keys, registry head, history, attachments); the files go even when the sign-out fails.
+    // a485 「アカウントを削除」: this PC's Approval Box sign-in (the library's signOut reaches the server as far as it can) and the package's device files (keys, registry head, history, attachments); the files go even when the sign-out fails.
     internal async Task DeleteLocalDataAsync(CancellationToken ct)
     {
-        signIn?.Cancel(); approve?.Cancel();
-        try { await Account.SignOutAsync(ct); } finally { DeviceApprovals.ClearLocalFiles(directory, strict: true); }
+        signIn?.Cancel(); client.CancelApproval();
+        try { await Account.SignOutAsync(ct); } finally { client.DeleteLocalData(); }
     }
 
-    public ValueTask DisposeAsync() { signIn?.Cancel(); approve?.Cancel(); return Device.DisposeAsync(); }
+    public ValueTask DisposeAsync() { signIn?.Cancel(); return Device.DisposeAsync(); }
 }

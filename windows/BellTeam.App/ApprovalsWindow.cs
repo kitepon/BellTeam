@@ -8,7 +8,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
 using static BellTeam.App.LatticeLook;
 
 namespace BellTeam.App;
@@ -186,7 +185,6 @@ internal sealed class ApprovalsPage : Grid
         mine.Step = "sending"; mine.Note = null; Paint();
         SendOutcome outcome;
         try { outcome = await device.AnswerAsync(decision.Id!, mine.OptionId, mine.OptionId is null ? mine.Text : null, mine.Version); }
-        catch (NoSessionException) { outcome = new("no_session"); }
         catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or ArgumentException) { outcome = new("gone"); }
         if (!Running || !ReferenceEquals(answer, mine)) return;
         switch (outcome.Ack)
@@ -203,7 +201,7 @@ internal sealed class ApprovalsPage : Grid
     {
         if (Device is not { } device) return;
         SendOutcome outcome;
-        try { outcome = await device.HoldAsync(decision.Id!, decision.Status != "held"); } catch (Exception error) when (error is NoSessionException or InvalidOperationException or KeyNotFoundException) { outcome = new("no_session"); }
+        try { outcome = await device.HoldAsync(decision.Id!, decision.Status != "held"); } catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException) { outcome = new("no_session"); }
         if (outcome.Ack == "ok") holdNotes.Remove(decision.Id!); else holdNotes[decision.Id!] = Approvals.HoldFailed;
         if (Running) Paint();
     }
@@ -406,6 +404,7 @@ internal sealed class ApprovalsPage : Grid
                 case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
                 case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke(), hub.SignInByHandoff is null ? null : Approvals.DeviceHandoffStart, () => hub.SignInByHandoff?.Invoke()); break;
                 case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
+                case RuntimeStatus.UpdateRequired: Line(Approvals.DeviceUpdateNeeded); break;
             }
         return panel.Children.Count > 0 ? panel : null;
     }

@@ -1,5 +1,4 @@
 using BellTeam.App;
-using BellTeam.PeerChannel;
 using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.Tests;
@@ -7,11 +6,11 @@ namespace BellTeam.Tests;
 public class ApprovalBoxAccountTests
 {
     [Fact]
-    public async Task WithoutAPassInItsOwnStoreTheStateIsSignedOutAndTheStoreIsNotBellTeams()
+    public void WithoutAPassInItsOwnStoreTheStateIsSignedOutAndTheStoreIsNotBellTeams()
     {
         var account = new ApprovalBoxAccount("http://127.0.0.1:8788", new MemoryPassStore());
         Assert.False(account.SignedIn);
-        await Assert.ThrowsAsync<SignedOutException>(() => account.AccessAsync(CancellationToken.None));
+        Assert.Null(account.PassHeader());                      // no pass, no header: the package then says SignedOut and sends nothing
         Assert.NotEqual("BellTeam", ApprovalBoxAccount.StoreName);
         Assert.Equal("https://approval-box.kitepon.dev", ApprovalBoxAccount.ProductOrigin);
     }
