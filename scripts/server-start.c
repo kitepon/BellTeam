@@ -56,7 +56,9 @@ int main(int argc, char **argv) {
         || setenv("BELLTEAM_HOME", "/home/bell", 1) != 0
         || setenv("PATH", "/usr/local/bin:/usr/bin:/bin", 1) != 0
         || chdir("/app") != 0) return 126;
-    char *const command[] = {"/usr/local/bin/node", "/app/src/supervisor.mjs", NULL};
+    /* body-heap-oom-20261124 (memory-budget.md "The body's own heap"): V8's default ceiling (~4 GiB) is below what the
+     * body holds today; 8 GiB stays inside the 20 GiB box, whose seats the cgroup pressure control already sleeps first. */
+    char *const command[] = {"/usr/local/bin/node", "--max-old-space-size=8192", "/app/src/supervisor.mjs", NULL};
     execv(command[0], command);
     fputs("BELLTEAM_SERVER_EXEC_FAILED\n", stderr);
     return 126;
