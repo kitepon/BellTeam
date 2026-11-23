@@ -42,7 +42,7 @@ public sealed class ApprovalsDeviceStripTests
     [InlineData(RuntimeStatus.SignedOut, null, "Approval Boxにサインインします")]
     [InlineData(RuntimeStatus.SignedOut, "pass_ended", "サインインが終わりました")]
     [InlineData(RuntimeStatus.SignedOut, "account_deleted", "アカウントは削除されました")]
-    [InlineData(RuntimeStatus.NotEntitled, null, "購読が必要です")]
+    [InlineData(RuntimeStatus.NotEntitled, null, "契約が必要です")]
     public Task EachStateSaysItsWords(RuntimeStatus status, string? reason, string words) => Ui.Run(async () =>
     {
         var (window, _, _) = await OpenAsync(new RuntimeState(status, reason));

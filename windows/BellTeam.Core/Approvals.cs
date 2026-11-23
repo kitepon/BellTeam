@@ -82,12 +82,13 @@ public static class Approvals
         DeviceRemoved = "この端末は、ほかの端末から外されました。",
         DeviceJoining = "この端末を決裁箱につないでいます…",
         DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
-        DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",
+        DeviceNotEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。",
         DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。";
     public const string DeviceAskApproval = "承認をお願いする", DeviceApprovalHow = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。",
         DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
     public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
     public const string DeviceSigningIn = "ブラウザでサインインしています…";
+    public const string DeviceHandoffHow = "Approval Boxのアプリで、設定の「ほかの端末をログインさせる」から読み取ってください。", DeviceHandoffStart = "QRでサインイン";
     // Delta (a490j review): never the runtime's own reason (an exception text); one fixed line.
     public const string DeviceReconnecting = "つなぎ直しています（決裁箱に届きません）";
     public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";
@@ -279,6 +280,11 @@ public static class Approvals
             FiledToday = list.Count(item => Today(item.CreatedAt)),
         };
     }
+    /// <summary>Approval Box's order of the open list (pending and held): 急ぎ度 high first, the nearer 期限 first (none after any), then the older 受付 first. Done ones are the caller's (newest answer first).</summary>
+    public static IEnumerable<ViewDecision> OpenOrder(IEnumerable<ViewDecision> items)
+        => items.OrderBy(item => item.Urgency switch { "high" => 0, "low" => 2, _ => 1 })
+            .ThenBy(item => DateTimeOffset.TryParse(item.Deadline, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : DateTimeOffset.MaxValue)
+            .ThenBy(item => DateTimeOffset.TryParse(item.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var created) ? created : DateTimeOffset.MinValue);
     public static ApprovalEntryView EntryView(ApprovalSummary? summary, ApprovalFailure? status)
     {
         var pending = summary?.Pending ?? 0;

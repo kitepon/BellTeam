@@ -68,10 +68,10 @@ internal sealed class ApprovalsPage : Grid
     private string? copied, bannerId, bannerText;
     private string? linkState;   // the 工程表との連携 connection (GET /api/approvals/connection): connected / not_connected, null = not read yet or not readable
     private bool linkOpen;       // the 工程表との連携 panel replaces the columns
-    private IDeviceDecisions? Device => hub.Device;
+    private IApprovalSource? Device => hub.Device;
     private IReadOnlyList<ViewDecision> DeviceViews => hub.DeviceViews;
     private bool DeviceLive => Device?.State.Status == RuntimeStatus.Live;
-    private bool DeviceUsable => Device is { } d && (d.State.Status == RuntimeStatus.Live || d.Book.All.Count > 0);
+    private bool DeviceUsable => Device is { } d && (d.State.Status == RuntimeStatus.Live || d.Decisions.Count > 0);
     private List<ViewDecision> pending => [.. DeviceViews.Where(item => item.Status is "pending" or "held")];
     private List<ViewDecision> done => [.. DeviceViews.Where(item => item.Status is not ("pending" or "held")).OrderByDescending(item => Approvals.DoneAt(item))];
     internal Func<DateTimeOffset> Now { get; set; } = () => DateTimeOffset.UtcNow;
@@ -185,7 +185,7 @@ internal sealed class ApprovalsPage : Grid
         if (Device is not { } device) return;
         mine.Step = "sending"; mine.Note = null; Paint();
         SendOutcome outcome;
-        try { outcome = await device.AnswerAsync(decision.Id!, mine.OptionId, mine.OptionId is null ? mine.Text : null); }
+        try { outcome = await device.AnswerAsync(decision.Id!, mine.OptionId, mine.OptionId is null ? mine.Text : null, mine.Version); }
         catch (NoSessionException) { outcome = new("no_session"); }
         catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or ArgumentException) { outcome = new("gone"); }
         if (!Running || !ReferenceEquals(answer, mine)) return;
@@ -363,10 +363,11 @@ internal sealed class ApprovalsPage : Grid
     private FrameworkElement? DeviceStrip()
     {
         var panel = new StackPanel(); var n = 0;
-        void Line(string text, string? label = null, Action? act = null)
+        void Line(string text, string? label = null, Action? act = null, string? label2 = null, Action? act2 = null)
         {
             var row = Row(ApprovalsLook.Glyph("info", 16, Muted), Spaced(Text(text, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap), 10));
             if (label is not null && act is not null) { var button = Action(label, ""); button.Margin = new Thickness(12, 0, 0, 0); button.Click += (_, _) => act(); row.Children.Add(Key(button, "legacy:" + label)); }
+            if (label2 is not null && act2 is not null) { var button = Action(label2, ""); button.Margin = new Thickness(8, 0, 0, 0); button.Click += (_, _) => act2(); row.Children.Add(Key(button, "legacy:" + label2)); }
             var border = new Border { Child = row, CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-note-" + n++); panel.Children.Add(border);
         }
@@ -381,6 +382,16 @@ internal sealed class ApprovalsPage : Grid
             var border = new Border { Child = Row(new QrView(offer.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-waiting"); panel.Children.Add(border);
         }
+        void Handoff(ApprovalHandoff handoff)
+        {
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
+            info.Children.Add(Text(Approvals.DeviceHandoffHow, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
+            var code = Text(StoreAccountText.HandoffCode + " " + handoff.ShortCode, 18, Ink, FontWeights.Bold); code.FontFamily = new FontFamily("Consolas"); code.Margin = new Thickness(0, 8, 0, 0); info.Children.Add(code);
+            info.Children.Add(Text(StoreAccountText.HandoffCheckNumber + " " + handoff.CheckNumber, 14, Ink, FontWeights.SemiBold)); var checkLine = Text(StoreAccountText.HandoffCheckLine, 12, Muted); checkLine.Margin = new Thickness(0, 4, 0, 0); info.Children.Add(checkLine);
+            var stop = Action("やめる", ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelSignIn?.Invoke(); info.Children.Add(Key(stop, "legacy:やめる"));
+            var border = new Border { Child = Row(new QrView(handoff.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
+            System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-handoff"); panel.Children.Add(border);
+        }
         if (Device is { } device)
             switch (device.State.Status)
             {
@@ -391,8 +402,9 @@ internal sealed class ApprovalsPage : Grid
                     if (hub.OfferNote is { } ended) Line(ended);
                     Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
                     break;
+                case RuntimeStatus.SignedOut when hub.Handoff is { } handoff: Handoff(handoff); break;
                 case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
-                case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke()); break;
+                case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke(), hub.SignInByHandoff is null ? null : Approvals.DeviceHandoffStart, () => hub.SignInByHandoff?.Invoke()); break;
                 case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
             }
         return panel.Children.Count > 0 ? panel : null;

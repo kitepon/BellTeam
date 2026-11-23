@@ -11,7 +11,7 @@ namespace BellTeam.App;
 /// The decisions of this Windows device (design peer-channel-v0.2 section 7): its keys (DPAPI), the trusted registry head, the history of decisions (DPAPI) and the <see cref="DeviceRuntime"/> that keeps it connected.
 /// How the pass reaches approval-box is the caller's: <paramref name="access"/> gives the server and its header, <paramref name="account"/> gives K for a first registry.
 /// </summary>
-internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
+internal sealed class DeviceApprovals : IApprovalSource, IAsyncDisposable
 {
     private static readonly byte[] HistoryEntropy = Encoding.UTF8.GetBytes("BellTeam-peer-channel-history");
     private readonly string directory; private readonly DeviceIdentity me; private readonly Func<CancellationToken, Task<string>> account; private readonly Func<CancellationToken, Task<ServerAccess>> access;
@@ -20,11 +20,13 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
     public DecisionBook Book => Runtime.Book;
     public RuntimeState State => Runtime.State;
     public event Action? Changed;
-    public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) => Runtime.AnswerAsync(decisionId, optionId, text);
+    public IReadOnlyList<ViewDecision> Decisions => [.. Book.All.Select(DeviceDecisionView.Of)];
+    // The device answers the entry it holds (its own version, checked by the connector's result frame); the version the person saw is the screen's.
+    public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text, long version) => Runtime.AnswerAsync(decisionId, optionId, text);
     public Task<SendOutcome> HoldAsync(string decisionId, bool held) => Runtime.HoldAsync(decisionId, held);
     public void Refresh() => Runtime.Refresh();
     public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult(Book.FindByDecision(decisionId)?.Blobs?.Any(b => b.BlobId == attachmentId) == true ? Runtime.Attachment(attachmentId) : null);
-    internal void Start() => Runtime.Start();
+    public void Start() => Runtime.Start();
     private string AnchorPath => Path.Combine(directory, "peer-channel-registry.json");
     private string HistoryPath => Path.Combine(directory, "approvals-history.bin");
 
@@ -76,10 +78,11 @@ internal sealed class DeviceApprovals : IDeviceDecisions, IAsyncDisposable
 
     // The Approval Box account was deleted (4410): this device's keys, trusted head and history go with it (the pass is the second instance's own to clear).
     // a485 「アカウントを削除」 uses it too (strict: a file that cannot be removed throws, so the deletion is never told as done); the attachments (SealedBlobFiles) go with the rest.
-    internal void ClearLocal(bool strict = false)
+    internal void ClearLocal(bool strict = false) => ClearLocalFiles(directory, strict);
+    internal static void ClearLocalFiles(string directory, bool strict = false)
     {
         void Try(Action remove) { try { remove(); } catch (Exception error) when (!strict && error is IOException) { } }
-        foreach (var file in new[] { Path.Combine(directory, "peer-channel-device.key"), AnchorPath, HistoryPath }) Try(() => File.Delete(file));
+        foreach (var file in new[] { Path.Combine(directory, "peer-channel-device.key"), Path.Combine(directory, "peer-channel-registry.json"), Path.Combine(directory, "approvals-history.bin") }) Try(() => File.Delete(file));
         Try(() => { if (Directory.Exists(Path.Combine(directory, "approvals-files"))) Directory.Delete(Path.Combine(directory, "approvals-files"), true); });
     }
 
