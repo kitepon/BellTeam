@@ -40,23 +40,22 @@ test('effects: the real facade shapes of lattice.chart / lattice.charts are narr
   assert.deepEqual(charts, [{ projectId: 'bellteam', name: 'n', createdBy: null, coordinator: true }])
 })
 
-test('facade: loop fans events out, keeps child codes, hides other failures', async () => {
+test('facade: the loop only ticks the engine, keeps child codes, hides other failures; no content roots remain', async () => {
   const timers = []
   const calls = []
   const controller = { request: async (method, params) => {
     calls.push([method, params])
-    if (method === 'refresh') return { seq: 3, events: [{ type: 'decision.created', id: 'K-ABCD', version: 1 }], summary: { pending: 1 } }
-    if (method === 'get') throw Object.assign(new Error('x'), { code: 'APPROVALS_NOT_FOUND' })
+    if (method === 'refresh') return { seq: 3, events: [], summary: null }
+    if (method === 'byTask') throw Object.assign(new Error('x'), { code: 'APPROVALS_NOT_FOUND' })
     throw new Error('boom')
   } }
   const facade = createApprovalsFacade({ controller, setTimer: fn => (timers.push(fn), { unref() {} }), clearTimer() {} })
-  const got = []
-  facade.subscribe(message => got.push(message))
+  facade.start() // the loop starts with the process (no subscriber any more)
   await timers.at(-1)()
   assert.deepEqual(calls[0], ['refresh', { since: 0 }])
-  assert.deepEqual(got.map(item => item.event), ['decision.created', 'summary'])
-  await assert.rejects(facade.get({ id: 'K-ABCD' }), { code: 'APPROVALS_NOT_FOUND', status: 404 })
-  await assert.rejects(facade.list({ status: ['pending'] }), { code: 'APPROVALS_UNAVAILABLE', status: 503 })
+  await assert.rejects(facade.byTask({ project: 'p', plan: 'a', task: 'b' }), { code: 'APPROVALS_NOT_FOUND', status: 404 })
+  await assert.rejects(facade.byDecision({ id: 'K-ABCD' }), { code: 'APPROVALS_UNAVAILABLE', status: 503 })
+  for (const gone of ['list', 'get', 'summary', 'answer', 'hold', 'unhold', 'attachment', 'subscribe']) assert.equal(facade[gone], undefined, gone)
   await timers.at(-1)()
   assert.deepEqual(calls.findLast(call => call[0] === 'refresh')[1], { since: 3 })
   facade.close()
@@ -110,8 +109,7 @@ test('effects: the hosted daemon is read through fixed, narrowed methods; not ru
   assert.deepEqual(await effects('daemon.decisions.list', {}), [{ id: 'K-AAAA' }])
   const read = await effects('daemon.decisions.read', { id: 'K-AAAA' })
   validateApprovalsEffectResult('daemon.decisions.read', read)
-  assert.equal(read.context, 'SECRET CONTEXT') // the view needs the body text (a490k); attachments and history still do not cross
-  assert.ok(!JSON.stringify(read).includes('"x"'), 'no attachments cross')
+  assert.ok(!JSON.stringify(read).includes('SECRET CONTEXT'), 'no context, attachments or history cross to the child (a490h2)')
   assert.ok(!JSON.stringify(await effects('daemon.decisions.list', {})).includes('SECRET'), 'the list carries ids only')
   assert.deepEqual(read.answer, { optionId: 'o1', text: null, answeredAt: 'a' })
   assert.equal(await effects('daemon.decisions.read', { id: 'K-ZZZZ' }), null)

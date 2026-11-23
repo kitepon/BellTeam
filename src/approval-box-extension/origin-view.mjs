@@ -32,16 +32,3 @@ export function toViewDecision(decision, { roster = [], link = null } = {}) {
     requestAttachments: view(decision.request_attachments ?? []), origin, requester, link,
   }
 }
-
-// summary counts include every origin (the badge never depends on a filter).
-export function summarize(decisions, { roster = [], today = () => false } = {}) {
-  const pending = decisions.filter(decision => decision.status === 'pending')
-  const bellteam = pending.filter(decision => classifyOrigin(decision.source, roster).origin.kind === 'bellteam').length
-  return {
-    schema: 'bellteam.approvals-summary.v1', pending: pending.length, urgent: pending.filter(decision => decision.urgency === 'high').length,
-    held: decisions.filter(decision => decision.status === 'held').length,
-    answeredToday: decisions.filter(decision => decision.status === 'answered' && today(decision.answer?.answered_at)).length,
-    filedToday: decisions.filter(decision => today(decision.created_at)).length,
-    byOrigin: { bellteam, external: pending.length - bellteam },
-  }
-}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { classifyOrigin, toViewDecision, summarize } from '../src/approval-box-extension/origin-view.mjs'
+import { classifyOrigin, toViewDecision } from '../src/approval-box-extension/origin-view.mjs'
 import { entitlementFrom, cacheMillis } from '../src/approval-box-extension/entitlement.mjs'
 import { nextConnect } from '../src/approval-box-extension/connect-state.mjs'
 import { planLink, targetChart, taskIdOf, attachTarget } from '../src/approval-box-extension/link-plan.mjs'
@@ -19,14 +19,12 @@ test('origin: bot id, then roster name, then external, then unknown; nothing is 
   assert.equal(classifyOrigin({ client: 'x-new', session_label: 's' }, roster).origin.client, 'other')
 })
 
-test('ViewDecision: recommended, amended, answer and attachments map; summary counts every origin', () => {
+test('ViewDecision: recommended, amended, answer and attachments map (the link planner reads it)', () => {
   const amended = decision({ version: 2, history: [{ at: 'a', kind: 'created', by: 'ai' }, { at: 'b', kind: 'amended', by: 'ai', fields: ['options'] }] })
   const view = toViewDecision(amended, { roster })
   assert.equal(view.options[0].recommended, true); assert.deepEqual(view.amended, { is: true, fields: ['options'], note: null, at: 'b' }); assert.equal(view.requester.name, 'ブレッディ')
   const answered = toViewDecision(decision({ status: 'answered', answer: { option_id: 'o2', answered_at: 'z', attachments: [] }, delivery: 'unknown' }), { roster })
   assert.equal(answered.answer.optionId, 'o2'); assert.equal(answered.delivery, 'unknown')
-  const outside = decision({ id: 'K-2', source: { client: 'chatgpt', session_label: 'x' } })
-  assert.deepEqual(summarize([decision(), outside, decision({ id: 'K-3', status: 'held' })], { roster }), { schema: 'bellteam.approvals-summary.v1', pending: 2, urgent: 2, held: 1, answeredToday: 0, filedToday: 0, byOrigin: { bellteam: 1, external: 1 } })
 })
 
 test('entitlement: trial and billing-off are entitled (Owner decision d); expired, revoked, none are not; unknown never locks', () => {

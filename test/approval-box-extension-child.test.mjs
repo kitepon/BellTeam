@@ -56,77 +56,36 @@ function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }
 
 test('gate: no session answers not_connected, a plan-less account not_entitled; trial is entitled', async () => {
   const none = harness({ session: null })
-  await assert.rejects(() => none.core.list({ status: ['pending'] }, none.effect), { code: 'APPROVALS_NOT_CONNECTED' })
+  assert.equal(await none.core.byDecision({ id: 'K-AAAA' }, none.effect), null) // the lookups draw nothing when not connected
   assert.equal((await none.core.connection({}, none.effect)).state, 'not_connected')
-  const planless = harness({ me: {} })
-  await assert.rejects(() => planless.core.summary({}, planless.effect), { code: 'APPROVALS_NOT_ENTITLED' })
-  const trial = harness({ me: { plan: 'trial', billing: 'store' }, decisions: [raw('K-AAAA')] })
-  assert.equal((await trial.core.list({ status: ['pending'] }, trial.effect)).items.length, 1)
+  assert.deepEqual(await none.core.refresh({ since: 0 }, none.effect), { seq: 0, events: [], summary: null })
+  const planless = harness({ me: {}, daemon: new Map([['K-DDDD', held('K-DDDD')]]) })
+  await planless.core.refresh({ since: 0 }, planless.effect)
+  assert.equal(planless.writes.size, 0, 'a plan-less account links nothing')
+  const trial = harness({ me: { plan: 'trial', billing: 'store' }, daemon: new Map([['K-DDDD', held('K-DDDD')]]) })
+  await trial.core.refresh({ since: 0 }, trial.effect)
+  assert.equal([...trial.writes.values()][0].input.tasks[0].task_id, 'dec-k-dddd')
 })
 
 test('connection never calls the network (the exchange probe)', async () => {
-  const h = harness({ decisions: [raw('K-AAAA')] })
+  const h = harness({ decisions: [] })
   const value = await h.core.connection({}, h.effect)
   assert.equal(value.state, 'connected'); assert.deepEqual(h.box.hits, [])
-})
-
-test('list: BellTeam and external decisions are both returned; the origin filter narrows only when asked', async () => {
-  const outside = raw('K-BBBB', { source: { client: 'cursor', session_label: 'Mac / receipts' } })
-  const h = harness({ decisions: [raw('K-AAAA'), outside] })
-  const all = await h.core.list({ status: ['pending'] }, h.effect)
-  assert.deepEqual(all.items.map(item => item.origin.kind).sort(), ['bellteam', 'external'])
-  assert.deepEqual((await h.core.list({ status: ['pending'], origin: 'external' }, h.effect)).items.map(item => item.id), ['K-BBBB'])
-  assert.equal(all.items.find(item => item.id === 'K-BBBB').link, null)
-})
-
-test('answer: success marks the decision for the engine; a stale version comes back as a conflict with the latest decision', async () => {
-  const h = harness({ decisions: [raw('K-AAAA')] })
-  const stale = await h.core.answer({ id: 'K-AAAA', optionId: 'o1', version: 9, idempotencyKey: 'k-12345678' }, h.effect)
-  assert.equal(stale.outcome, 'conflict'); assert.equal(stale.decision.version, 1)
-  const ok = await h.core.answer({ id: 'K-AAAA', optionId: 'o1', version: 1, idempotencyKey: 'k-12345678' }, h.effect)
-  assert.equal(ok.outcome, 'answered'); assert.equal(ok.decision.status, 'answered')
-})
-
-test('refresh: a BellTeam decision becomes one approval-box-lane task (link first), and its answer completes that task', async () => {
-  const h = harness({ decisions: [raw('K-AAAA')] })
-  const first = await h.core.refresh({ since: 0 }, h.effect)
-  assert.equal(first.summary.pending, 1)
-  const order = h.calls.filter(([method]) => method.startsWith('lattice.')).map(([method, params]) => params.args ? params.args.slice(0, 2).join(' ') : method)
-  assert.deepEqual(order.filter(item => item !== 'lattice.charts' && item !== 'lattice.chart'), ['lattice.link', 'plan create'])
-  const created = [...h.writes.values()][0]
-  assert.equal(created.input.tasks[0].task_id, 'dec-k-aaaa'); assert.equal(created.input.tasks[0].lane, 'approval-box')
-})
-
-test('refresh: an answered decision with a link row starts then finishes its task, once', async () => {
-  const answered = raw('K-AAAA', { status: 'answered', version: 2, answer: { option_id: 'o1', answered_at: '2026-11-15T02:00:00Z' } })
-  const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'linked', attached: false, sessionLabel: 'ブレッディ / billing', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
-  const cards = [{ id: 'approval-box/dec-k-aaaa', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'ready', lane: 'approval-box', title: 't' }]
-  const h = harness({ decisions: [answered], cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
-  await h.core.refresh({ since: 0 }, h.effect)
-  assert.deepEqual([...h.writes.keys()].map(key => key.split(' ').slice(0, 2).join(' ')), ['todo start', 'todo done'])
-  assert.match([...h.writes.keys()][1], /同じにする/u)
-  const writesBefore = h.writes.size
-  await h.core.refresh({ since: 0 }, h.effect)
-  assert.equal(h.writes.size, writesBefore) // the row is answered now: a replay does nothing
-})
-
-test('refresh: an external decision causes no Lattice write at all', async () => {
-  const h = harness({ decisions: [raw('K-BBBB', { source: { client: 'codex', session_label: 'someone else' } })] })
-  await h.core.refresh({ since: 0 }, h.effect)
-  assert.deepEqual(h.calls.filter(([method]) => method === 'lattice.ownerTask' || method === 'lattice.link'), [])
 })
 
 // a490g: what the daemon holds (seats' and the body's decisions), shaped as the parent effect returns it (no context, no history).
 const held = (id, extra = {}) => ({ id, title: '請求を同じにするか', status: 'pending', version: 1, urgency: 'normal', sessionLabel: 'ブレッディ / billing', requester: 'ブレッディ', cancelReason: null,
   createdAt: '2026-11-15T01:00:00Z', updatedAt: '2026-11-15T01:00:00Z', options: [{ id: 'o1', label: '同じにする' }, { id: 'o2', label: '別にする' }], answer: null, ...extra })
 
-test('daemon feed: a decision only the daemon holds becomes a task (BellTeam by roster name) and its answer finishes it; the /v1 side stays empty', async () => {
+test('daemon feed: a decision only the daemon holds becomes one approval-box-lane task (link first, BellTeam by roster name) and its answer finishes it, once', async () => {
   const daemon = new Map([['K-DDDD', held('K-DDDD')]])
   const h = harness({ decisions: [], daemon })
   await h.core.refresh({ since: 0 }, h.effect)
-  assert.equal([...h.writes.values()][0].input.tasks[0].task_id, 'dec-k-dddd') // the first decision task rides in `plan create`
-  assert.ok(h.calls.some(([method]) => method === 'lattice.link'))
-  assert.ok(!h.box.hits.some(hit => hit.includes('K-DDDD')), 'no /v1 read of a daemon-listed id')
+  const order = h.calls.filter(([method]) => method.startsWith('lattice.')).map(([method, params]) => params.args ? params.args.slice(0, 2).join(' ') : method)
+  assert.deepEqual(order.filter(item => item !== 'lattice.charts' && item !== 'lattice.chart'), ['lattice.link', 'plan create'])
+  const created = [...h.writes.values()][0]
+  assert.equal(created.input.tasks[0].task_id, 'dec-k-dddd'); assert.equal(created.input.tasks[0].lane, 'approval-box')
+  assert.deepEqual(h.box.hits.filter(hit => !hit.endsWith('/v1/me')), [], 'no /v1 decision read at all')
   const cards = [{ id: 'approval-box/dec-k-dddd', plan: 'approval-box', taskId: 'dec-k-dddd', state: 'ready', lane: 'approval-box', title: 't' }]
   const row = { decisionId: 'K-DDDD', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-dddd', state: 'linked', attached: false, sessionLabel: 'ブレッディ / billing', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
   const answered = new Map([['K-DDDD', held('K-DDDD', { status: 'answered', version: 2, answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:00:00Z' } })]])
@@ -134,9 +93,18 @@ test('daemon feed: a decision only the daemon holds becomes a task (BellTeam by 
   await g.core.refresh({ since: 0 }, g.effect)
   assert.deepEqual([...g.writes.keys()].map(key => key.split(' ').slice(0, 2).join(' ')), ['todo start', 'todo done'])
   assert.match([...g.writes.keys()][1], /同じにする/u)
+  const writesBefore = g.writes.size
+  await g.core.refresh({ since: 0 }, g.effect)
+  assert.equal(g.writes.size, writesBefore) // the row is answered now: a replay does nothing
 })
 
-test('daemon feed: a linked row whose decision left the daemon list is still read by id; an unreadable daemon never stops the /v1 feed', async () => {
+test('daemon feed: an external decision causes no Lattice write at all', async () => {
+  const h = harness({ decisions: [], daemon: new Map([['K-EEEE', held('K-EEEE', { requester: null, sessionLabel: 'someone else' })]]) })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(h.calls.filter(([method]) => method === 'lattice.ownerTask' || method === 'lattice.link'), [])
+})
+
+test('daemon feed: a linked row whose decision left the daemon list is still read by id', async () => {
   const answeredOld = held('K-OLDD', { status: 'answered', version: 2, answer: { optionId: 'o2', text: null, answeredAt: '2026-11-14T02:00:00Z' } })
   const records = new Map([['K-OLDD', answeredOld]])
   const cards = [{ id: 'approval-box/dec-k-oldd', plan: 'approval-box', taskId: 'dec-k-oldd', state: 'ready', lane: 'approval-box', title: 't' }]
@@ -144,37 +112,6 @@ test('daemon feed: a linked row whose decision left the daemon list is still rea
   const h = harness({ decisions: [], daemon: { keys: () => [], get: id => records.get(id) }, cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
   await h.core.refresh({ since: 0 }, h.effect)
   assert.deepEqual([...h.writes.keys()].map(key => key.split(' ').slice(0, 2).join(' ')), ['todo start', 'todo done'])
-  const plain = harness({ decisions: [raw('K-AAAA')] }) // no daemon effects at all: the effect throws, the /v1 feed still creates its task
-  await plain.core.refresh({ since: 0 }, plain.effect)
-  assert.equal([...plain.writes.values()][0].input.tasks[0].task_id, 'dec-k-aaaa')
-})
-
-// a490j: BellTeam's own view also shows what the hosted daemon holds (PC_OFFER on: new decisions live there); answering those happens on a device.
-test('view from the daemon: list merges both sources in contract order, get falls back, summary counts both, the cursor page adds nothing', async () => {
-  const daemon = new Map([['K-DDDD', held('K-DDDD', { urgency: 'high', createdAt: '2026-11-15T02:00:00Z' })], ['K-DONE', held('K-DONE', { status: 'answered', version: 2, answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:30:00Z' } })]])
-  const h = harness({ decisions: [raw('K-AAAA')], daemon })
-  const page = await h.core.list({ status: ['pending', 'held'] }, h.effect)
-  assert.deepEqual(page.items.map(item => item.id), ['K-DDDD', 'K-AAAA'], '急ぎ first, then older first; the answered one is not in the pending list')
-  assert.equal(page.items[0].origin.kind, 'bellteam') // roster-name match (no requester_bot_id in the daemon record)
-  const answered = await h.core.list({ status: ['answered'] }, h.effect)
-  assert.ok(answered.items.some(item => item.id === 'K-DONE'))
-  const paged = await h.core.list({ status: ['pending', 'held'], cursor: 'c1' }, h.effect)
-  assert.ok(!paged.items.some(item => item.id === 'K-DDDD'))
-  assert.equal((await h.core.get({ id: 'K-DDDD' }, h.effect)).id, 'K-DDDD')
-  assert.equal((await h.core.get({ id: 'K-CCCC' }, harness({ decisions: [], daemon: new Map([['K-CCCC', held('K-CCCC', { context: '背景の本文' })]]) }).effect)).context ?? '', '背景の本文')
-  await assert.rejects(() => h.core.get({ id: 'K-NONE' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
-  const summary = await h.core.summary({}, h.effect)
-  assert.equal(summary.pending, 2); assert.equal(summary.urgent, 1)
-})
-
-test('view from the daemon: answer, hold and unhold of a daemon-only decision answer "on a device", a /v1 decision is unchanged', async () => {
-  const h = harness({ decisions: [raw('K-AAAA')], daemon: new Map([['K-DDDD', held('K-DDDD')]]) })
-  for (const call of [() => h.core.answer({ id: 'K-DDDD', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect), () => h.core.hold({ id: 'K-DDDD' }, h.effect), () => h.core.unhold({ id: 'K-DDDD' }, h.effect)])
-    await assert.rejects(call, { code: 'APPROVALS_ANSWER_ON_DEVICE', status: 409 })
-  assert.deepEqual(approvalsWireError({ code: 'APPROVALS_ANSWER_ON_DEVICE' }, 'x'), { code: 'APPROVALS_ANSWER_ON_DEVICE', status: 409, outcome: 'x' })
-  const done = await h.core.answer({ id: 'K-AAAA', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect)
-  assert.equal(done.outcome, 'answered')
-  await assert.rejects(() => h.core.answer({ id: 'K-NONE', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
 })
 
 test('byDecision: ids and state of a linked decision, null for none; never calls Approval Box', async () => {
@@ -191,8 +128,7 @@ test('byDecision: ids and state of a linked decision, null for none; never calls
   assert.throws(() => validateApprovalsEffect('daemon.decisions.read', { id: 'x' }))
   validateApprovalsEffectResult('daemon.decisions.list', [{ id: 'K-AAAA' }])
   validateApprovalsEffectResult('daemon.decisions.read', held('K-AAAA')); validateApprovalsEffectResult('daemon.decisions.read', null)
-  validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: '本文' })
-  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: 'x'.repeat(20001) }), { code: 'APPROVALS_IPC_INVALID' })
+  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: '本文' }), { code: 'APPROVALS_IPC_INVALID' }, 'the body text does not cross any more (a490h2)')
   assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), attachments: [] }), { code: 'APPROVALS_IPC_INVALID' })
 })
 
@@ -218,21 +154,27 @@ test('connect: a refused session.put keeps the session in memory and saves it ag
   assert.equal((await h.core.connection({}, effect)).state, 'connected'); assert.match(h.stored(), /kss_new/u) // the next root saves it
 })
 
-test('byTask: a linked task answers its decision; anything else (or any failure) answers null', async () => {
-  const h = harness({ decisions: [raw('K-AAAA')] })
-  assert.equal(await h.core.byTask({ project: 'bellteam', plan: 'approval-box', task: 'dec-k-aaaa' }, h.effect), null)
+test('byTask: a linked task answers its decision from the daemon (title kept); anything else, or any failure, answers null', async () => {
+  const row = { decisionId: 'K-DDDD', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-dddd', state: 'linked', attached: false, sessionLabel: 'x', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
+  const h = harness({ decisions: [], daemon: new Map([['K-DDDD', held('K-DDDD')]]), rowsText: JSON.stringify({ version: 1, rows: [row] }) })
+  assert.deepEqual(await h.core.byTask({ project: 'bellteam', plan: 'approval-box', task: 'dec-k-dddd' }, h.effect), { decisionId: 'K-DDDD', status: 'pending', title: '請求を同じにするか' })
+  assert.equal(await h.core.byTask({ project: 'bellteam', plan: 'approval-box', task: 'dec-none' }, h.effect), null)
+  const gone = harness({ decisions: [], rowsText: JSON.stringify({ version: 1, rows: [row] }) }) // the daemon no longer holds it
+  assert.equal(await gone.core.byTask({ project: 'bellteam', plan: 'approval-box', task: 'dec-k-dddd' }, gone.effect), null)
 })
 
-test('protocol: requests and effects are validated; a bad answer (both option and text) is refused', () => {
+test('protocol: requests and effects are validated; the removed content roots are refused', () => {
   const ctx = { generation: 'g1' }
-  validateApprovalsRequest('answer', { id: 'K-AAAA', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, ctx)
-  assert.throws(() => validateApprovalsRequest('answer', { id: 'K-AAAA', optionId: 'o1', text: 'x', version: 1, idempotencyKey: 'abcdefgh' }, ctx), { code: 'APPROVALS_INVALID' })
-  assert.throws(() => validateApprovalsRequest('list', { status: ['bogus'] }, ctx))
+  for (const method of ['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment']) assert.throws(() => validateApprovalsRequest(method, {}, ctx), { code: 'APPROVALS_INVALID' }, method)
+  validateApprovalsRequest('byTask', { project: 'bellteam', plan: 'approval-box', task: 'dec-k-aaaa' }, ctx)
+  validateApprovalsRequest('refresh', { since: 0 }, ctx)
   validateApprovalsEffect('lattice.ownerTask', { projectId: 'bellteam', args: ['todo', 'note'], input: null })
   assert.throws(() => validateApprovalsEffect('lattice.ownerTask', { projectId: 'bellteam', args: ['todo'], input: null, from: 'owner' }))
   assert.throws(() => validateApprovalsEffect('secrets.get', {}), { code: 'APPROVALS_INVALID' })
   validateApprovalsEffectResult('session.get', null)
   validateApprovalsResult('connection', { state: 'not_connected', entitled: false, entitlement: { state: 'none' } })
+  validateApprovalsResult('refresh', { seq: 0, events: [], summary: null })
+  assert.throws(() => validateApprovalsResult('refresh', { seq: 0, events: [], summary: { schema: 'x' } }), { code: 'APPROVALS_IPC_INVALID' })
   assert.equal(approvalsWireError({ code: 'APPROVALS_NOT_ENTITLED' }, 'unknown').status, 403)
 })
 
@@ -263,37 +205,27 @@ const call = async (api, method, path, { headers = {}, body } = {}) => {
   const result = await api(request, response, new URL(`http://x${path}`))
   return { handled: result !== false, status: out.status, body: out.body ? JSON.parse(out.body) : null, headers: out.headers }
 }
-test('http: owner only, JSON and Idempotency-Key required for answers, errors become the contract bodies', async () => {
+test('http: owner only; only connection, connect, by-task and by-decision are served, every removed content route is a plain 404', async () => {
   const facade = {
-    connection: async () => ({ state: 'connected', entitled: false, entitlement: { state: 'none' } }),
-    list: async () => { throw Object.assign(new Error('x'), { code: 'APPROVALS_NOT_ENTITLED' }) },
-    answer: async () => ({ outcome: 'conflict', decision: { id: 'K-AAAA' } }),
-    subscribe: () => () => {},
+    connection: async () => ({ state: 'connected', entitled: true, entitlement: { state: 'paid' } }),
+    byTask: async ({ task }) => task === 'dec-k-aaaa' ? { decisionId: 'K-AAAA', status: 'pending', title: 't' } : null,
+    byDecision: async ({ id }) => id === 'K-AAAA' ? { project: 'bellteam', plan: 'approval-box', task: 'dec-k-aaaa', state: 'linked', attached: false } : null,
+    list: async () => { throw new Error('removed') }, answer: async () => { throw new Error('removed') },
   }
   const api = createApprovalsApi({ facade, internal: false })
   const internal = createApprovalsApi({ facade, internal: true })
-  assert.equal((await call(internal, 'GET', '/api/approvals/summary')).status, 403)
+  assert.equal((await call(internal, 'GET', '/api/approvals/connection')).status, 403)
   assert.equal((await call(api, 'GET', '/api/other')).handled, false)
-  const denied = await call(api, 'GET', '/api/approvals')
-  assert.deepEqual([denied.status, denied.body.error.code, denied.body.error.state], [403, 'not_entitled', 'none'])
-  const json = { 'content-type': 'application/json' }
-  assert.equal((await call(api, 'POST', '/api/approvals/K-AAAA/answer', { headers: json, body: { optionId: 'o1', version: 1 } })).status, 400)
-  const conflict = await call(api, 'POST', '/api/approvals/K-AAAA/answer', { headers: { ...json, 'idempotency-key': 'abcdefgh-1' }, body: { optionId: 'o1', version: 1 } })
-  assert.deepEqual([conflict.status, conflict.body.error.code, conflict.body.error.decision.id], [409, 'conflict', 'K-AAAA'])
-  assert.equal((await call(api, 'POST', '/api/approvals/K-AAAA/answer', { headers: { 'idempotency-key': 'abcdefgh-1' }, body: {} })).status, 415)
+  assert.equal((await call(api, 'GET', '/api/approvals/connection')).body.state, 'connected')
+  assert.equal((await call(api, 'GET', '/api/approvals/by-task?project=bellteam&plan=approval-box&task=dec-k-aaaa')).body.decisionId, 'K-AAAA')
+  assert.equal((await call(api, 'GET', '/api/approvals/by-task?project=bellteam&plan=approval-box&task=nope')).status, 404)
+  assert.equal((await call(api, 'GET', '/api/approvals/by-decision?id=K-AAAA')).body.state, 'linked')
+  assert.equal((await call(api, 'GET', '/api/approvals/by-decision?id=bad')).status, 400)
+  for (const [method, path] of [['GET', '/api/approvals'], ['GET', '/api/approvals/summary'], ['GET', '/api/approvals/events'], ['GET', '/api/approvals/K-AAAA'], ['POST', '/api/approvals/K-AAAA/answer'],
+    ['POST', '/api/approvals/K-AAAA/hold'], ['POST', '/api/approvals/K-AAAA/unhold'], ['GET', '/api/approvals/K-AAAA/attachments/a1']])
+    assert.deepEqual([path, (await call(api, method, path, { headers: { 'content-type': 'application/json', 'idempotency-key': 'abcdefgh-1' }, body: {} })).status], [path, 404])
 })
 
-test('http: an attachment is sandboxed and only images are inline (the sender may not be ours)', async () => {
-  const serve = async contentType => {
-    const { out, response } = reply()
-    const api = createApprovalsApi({ facade: { attachment: async () => ({ contentType, size: 1, data: 'AA==' }) }, internal: false })
-    await api({ method: 'GET', headers: {}, on() {} }, response, new URL('http://x/api/approvals/K-AAAA/attachments/a1'))
-    return out.headers
-  }
-  const svg = await serve('image/svg+xml'), png = await serve('image/png')
-  assert.match(svg['content-security-policy'], /^sandbox;/u)
-  assert.deepEqual([svg['content-disposition'], png['content-disposition'], png['content-security-policy'] === svg['content-security-policy']], ['attachment', 'inline', true])
-})
 test('module.json source lists every file of src/approval-box-extension* (the packager test pattern)', () => {
   const listed = JSON.parse(readFileSync(new URL('../docs/architecture/modules/approval-box-extension/module.json', import.meta.url), 'utf8')).source
   const files = [...readdirSync(new URL('../src/approval-box-extension', import.meta.url)).map(name => `src/approval-box-extension/${name}`),

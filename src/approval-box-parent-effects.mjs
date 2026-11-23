@@ -45,7 +45,6 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
         if (!rec) return null
         const answer = rec.answer && typeof rec.answer === 'object' ? { optionId: rec.answer.option_id ?? null, text: rec.answer.text ?? null, answeredAt: rec.answer.answered_at ?? null } : null
         return { id: text(rec.decision_id ?? rec.id), title: text(rec.title), status: text(rec.status), version: rec.version, urgency: text(rec.urgency), sessionLabel: text(rec.session_label),
-          context: text(rec.context).slice(0, 20000), // for the view only (a490k); the child never stores it and the link engine ignores it
           requester: rec.requester == null ? null : text(rec.requester), cancelReason: rec.cancel_reason == null ? null : text(rec.cancel_reason), createdAt: text(rec.created_at), updatedAt: text(rec.updated_at),
           options: (rec.options ?? []).map(option => ({ id: text(option.id), label: text(option.label) })), answer,
           ...(rec.recommendation ? { recommendation: text(rec.recommendation) } : {}), ...(rec.deadline ? { deadline: text(rec.deadline) } : {}) }

@@ -28,26 +28,5 @@ export function createApprovalBoxClient({ fetchImpl = fetch, base = APPROVAL_BOX
       if (response.status !== 200 || typeof response.json?.status !== 'string') throw unavailable()
       return response.json
     },
-    // /v1/events as an async iterator of {event, data, id}; ends when the stream ends; a 401 throws {status: 401}.
-    async *events({ token, lastEventId, signal }) {
-      const response = await send('/v1/events', { method: 'GET', signal, headers: { authorization: `Bearer ${token}`, accept: 'text/event-stream', ...(lastEventId ? { 'last-event-id': lastEventId } : {}) } }, 2 ** 31 - 1)
-      if (response.status === 401 || response.status === 403) throw Object.assign(new Error('APPROVALS_NOT_CONNECTED'), { status: 401 })
-      if (!response.ok || !response.body) throw unavailable()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      for await (const chunk of response.body) {
-        buffer += decoder.decode(chunk, { stream: true })
-        for (let end; (end = buffer.indexOf('\n\n')) >= 0;) {
-          const block = buffer.slice(0, end); buffer = buffer.slice(end + 2)
-          const fields = { event: 'message', data: '', id: null }
-          for (const line of block.split('\n')) {
-            if (line.startsWith(':')) continue
-            const colon = line.indexOf(':'), key = colon < 0 ? line : line.slice(0, colon), value = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /u, '')
-            if (key === 'event') fields.event = value; else if (key === 'data') fields.data += (fields.data ? '\n' : '') + value; else if (key === 'id') fields.id = value
-          }
-          if (fields.data || fields.event !== 'message') yield fields
-        }
-      }
-    },
   }
 }

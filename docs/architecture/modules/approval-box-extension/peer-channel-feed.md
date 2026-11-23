@@ -77,7 +77,9 @@ After the sitting turns PC_OFFER on, new decisions live in the hosted daemon, an
 
 The connector cannot sign for the person, so `answer`, `hold` and `unhold` of a decision only the daemon holds answer `409 answer_on_device` (「この決裁は、決裁箱のアプリで答えてください。」); a `/v1` decision is answered as before. A device (the apps' own device session, v0.2) answers them. The badge refreshes at the catch-up cadence (5 min) while the daemon holds decisions; opening the list reads at once. Removed together with F1/F2/F5 in the last code step.
 
-## 6. Removals (only in the PR that flips the feed, after the apps report decisions over peer-channel)
+## 6. Removals (a490h2, done in the PR for the 2026-12-12 content close, after all four apps reported)
+
+**Status: implemented.** `list`, `get`, `summary`, `answer`, `hold`, `unhold`, `attachment` roots and their routes, the `/v1` events stream, the `/v1` catch-up and the summary/event fan-out are removed; the engine reads each decision from the hosted daemon only; the context text no longer crosses (§5a is history); `by-task` keeps its title from the daemon. The text below is the plan it followed.
 
 F1 reader and F2 answer writer of v0.1 (server `/v1` decisions, events, answer): removed. `/api/approvals/` list, one, answer, hold, attachments, events, summary: removed (content). Kept: `by-task`, `by-decision`, `connection`, `connect` (F6/F7, subject to Q2). No removal before Rapi, Anis and Neon report decisions shown and answered over peer-channel.
 
