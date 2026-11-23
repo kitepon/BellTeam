@@ -116,8 +116,8 @@ Cause (7681ba25 / 95f155b7, bot-d0c6b7d9 14:34 JST): the unbound read means "the
 
 ```mermaid
 flowchart LR
-  Steer["pty_send agent_steer receipt<br/>_meta aiterm/steer input_ref (steer_id on Aiterm < 0.70.105; no input_id)"] --> SWait["aiterm-wait --input-ref (as the receipt gives it)<br/>placement next_turn"]
-  SWait --> SRead["readTurnAnswer<br/>pty_read agent_transcript + input_ref (key the receipt carried)"]
+  Steer["pty_send agent_steer receipt<br/>_meta aiterm/steer input_ref (no input_id)"] --> SWait["aiterm-wait --input-ref (as the receipt gives it)<br/>placement next_turn"]
+  SWait --> SRead["readTurnAnswer<br/>pty_read agent_transcript + input_ref"]
   Later["next steered message<br/>already running its own turn"] -.->|"no longer refuses the read"| SRead
   SRead --> SAnswer["delivered answer"]
   SRead -->|"aiterm: AITERM_TRANSCRIPT_INPUT_PENDING / _REPLACED / STEER_NOT_FOUND / TRANSCRIPT_*"| SFail["delivery_completion errorCode"]
@@ -125,7 +125,7 @@ flowchart LR
 
 Cause (BugHub 95f155b7 / 7681ba25, Z111 lab 2026-11-19, Centi): 291 messages to one Claude seat every 0.5 s. Messages that arrived during a running turn were steered. A steer receipt carries no `input_id`, so when the steer started the next turn (`placement: next_turn`) its answer read was unbound, and the next steered message had already started a turn: Aiterm answered `TRANSCRIPT_TURN_ACTIVE`. 61 of 293 accepted deliveries failed at `step answer` and the seat's answer never reached the conversation. The failures ran from 04:33:35Z to 04:36:58Z, well after the execution module swap (04:33:34Z), so the swap is not the cause; single messages never steer and never failed.
 
-`steerFollow` keeps the `input_ref` of the steer reference (16 lowercase hex, else null; Aiterm >= 0.70.105 names it `input_ref`, older ones `steer_id` with the same value, and it also keeps which of the two keys the reference carried). `readTurnAnswer` passes it under that same key (an Aiterm that does not know the argument strips it, so sending only the new key to an older Aiterm would lose the bound read) only on a Claude receipt (`vendor: claude`; Codex and the others already bind by `turn_id`), when there is no `operation_id` and no `input_id`, and when the completion's `steer.placement` is `next_turn` (same_turn and unknown placements never read: the turn's starter delivers the answer). The bound read and its codes are an Aiterm public addition (Kiro's contract, Elegg's implementation, chart a445a): it returns the answer of the turn the steer started and is not refused because a later turn is active. An Aiterm without it strips the unknown argument and reads as before. No retry, wait or new guard is added. Fixture: `test/answer-input-bound.test.mjs`.
+`steerFollow` keeps the `input_ref` of the steer reference (16 lowercase hex, else null; Aiterm 0.70.107 removed `steer_id`, 2026-11-23, a532b2k2). `readTurnAnswer` passes it as `input_ref` only on a Claude receipt (`vendor: claude`; Codex and the others already bind by `turn_id`), when there is no `operation_id` and no `input_id`, and when the completion's `steer.placement` is `next_turn` (same_turn and unknown placements never read: the turn's starter delivers the answer). The bound read and its codes are an Aiterm public addition (Kiro's contract, Elegg's implementation, chart a445a): it returns the answer of the turn the steer started and is not refused because a later turn is active. An Aiterm without it strips the unknown argument and reads as before. No retry, wait or new guard is added. Fixture: `test/answer-input-bound.test.mjs`.
 
 `stopped`はBellTeam jobの扱い、`waitAborted`は待機signalの状態であり、nativeの停止完了証明ではない。停止操作の正規返却後に待機をabortすると、その例外も最終job.failureより前にこの診断へ届く。診断のcode・重大度・集約key・保存件数・再送抑止をこの識別追加では変えない。旧診断の原因や操作相関は遡って補完しない。合成の直接fixtureは`test/delivery-wait-diagnostic-context.test.mjs`。
 
