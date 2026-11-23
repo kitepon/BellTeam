@@ -21,7 +21,7 @@ export function createCredentialAgent({ run, root = AGENT_ROOT }) {
   async function ensure(terminalId) {
     const socket = socketPath(terminalId, root)
     if ((await owned(socket)) && await live(socket)) return socket
-    const made = await sh('umask 077 && mkdir -p "$(dirname "$1")" && rm -f "$1" && exec ssh-agent -a "$1" >/dev/null 2>&1', socket)
+    const made = await sh('umask 077 && mkdir -p "$(dirname "$1")" && [ "$(stat -c %u,%a "$(dirname "$1")" 2>/dev/null)" = "$(id -u),700" ] && rm -f "$1" && exec ssh-agent -a "$1" >/dev/null 2>&1', socket)
     if (made.code !== 0 || !(await owned(socket)) || !(await live(socket))) throw failure('AGENT_START_FAILED')
     return socket
   }
