@@ -124,6 +124,17 @@ public sealed class ApprovalBoxV1SourceTests
     }
 
     [Fact]
+    public async Task AClosedV1ContentRouteIsTheUpdateLineAndLeavesByRefresh()
+    {
+        var gone = true;
+        var fake = new Fake((request, body) => gone ? Json(HttpStatusCode.Gone, new { error = new { code = "gone", message = "x" } }) : Happy(request, body));
+        using var source = Make(fake); source.Start();
+        Assert.True(await Until(() => source.State is { Status: RuntimeStatus.Stopped, Reason: "update_needed" }));
+        gone = false; source.Refresh();
+        Assert.True(await Until(() => source.State.Status == RuntimeStatus.Live));
+    }
+
+    [Fact]
     public async Task NoPassIsSignedOutAndANetworkFailureIsRetryingThenRecoversWithoutALimit()
     {
         var signedIn = false; var online = false;
