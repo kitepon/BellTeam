@@ -173,10 +173,9 @@ public sealed class AppLoginTests
     {
         Assert.Equal("アカウントを削除", AccountDeletionText.Button); Assert.Equal("アカウントを削除しますか？", AccountDeletionText.ConfirmTitle);
         Assert.Equal(("削除する", "やめる"), (AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo)); Assert.Equal("アカウントを削除しました", AccountDeletionText.ResultTitle);
-        const string remains = "ログインの運営に残るのは、止めたパスのランダムな番号と、「ほかの端末をすべて止める」を使った時のアカウントの番号とその時刻だけで、どちらも最長14日で消えます。";
-        Assert.Equal("この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、名前・メールアドレス・購入の記録を持っていません。" + remains + "ほかの端末のサインインは、その端末で終えてください。"
+        Assert.Equal("この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。"
             + AccountDeletionText.Subscription + "サーバーの会話や設定は消えません。", AccountDeletionText.ConfirmBody(AccountDeletionText.Subscription));
-        Assert.Equal("この端末のサインインとデータを消しました。" + remains + AccountDeletionText.Cancel, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
+        Assert.Equal("この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。" + AccountDeletionText.Cancel, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
         Assert.Equal("決裁箱のサインインを消せませんでした（ネットワークにつながっていません）。つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。", AccountDeletionText.Failed("決裁箱のサインイン", AccountDeletionText.NoNetwork));
         Assert.Equal(AccountDeletionText.NoNetwork, MainWindow.ReasonOf(new InvalidOperationException("x", new HttpRequestException("offline"))));
         Assert.Equal(AccountDeletionText.OperatorUnreachable, MainWindow.ReasonOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("server_error", 503, null)));
