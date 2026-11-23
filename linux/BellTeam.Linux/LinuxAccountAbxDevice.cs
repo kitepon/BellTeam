@@ -11,7 +11,7 @@ namespace BellTeam.Linux;
 /// </summary>
 internal sealed class LinuxDeviceApprovals : IDeviceDecisions, IAsyncDisposable
 {
-        private readonly string directory; private readonly DeviceIdentity me; private readonly Func<CancellationToken, Task<string>> account; private readonly Func<CancellationToken, Task<ServerAccess>> access;
+        private readonly string directory, platform; private readonly DeviceIdentity me; private readonly Func<CancellationToken, Task<string>> account; private readonly Func<CancellationToken, Task<ServerAccess>> access;
     private readonly object saving = new();
     internal DeviceRuntime Runtime { get; }
     public DecisionBook Book => Runtime.Book;
@@ -25,9 +25,9 @@ internal sealed class LinuxDeviceApprovals : IDeviceDecisions, IAsyncDisposable
     private string AnchorPath => Path.Combine(directory, "peer-channel-registry.json");
     private string HistoryPath => Path.Combine(directory, "approvals-history.json");
 
-    internal LinuxDeviceApprovals(string directory, Func<CancellationToken, Task<ServerAccess>> access, Func<CancellationToken, Task<string>> account, string label)
+    internal LinuxDeviceApprovals(string directory, Func<CancellationToken, Task<ServerAccess>> access, Func<CancellationToken, Task<string>> account, string label, string platform = "linux")
     {
-        this.directory = directory; this.account = account; this.access = access;
+        this.directory = directory; this.platform = platform; this.account = account; this.access = access;
         me = LinuxDeviceKeyStore.LoadOrCreate(Path.Combine(directory, "peer-channel-device.key"));
         var book = LoadHistory(HistoryPath);
         book.Changed += () => { SaveHistory(HistoryPath, book); Changed?.Invoke(); };
@@ -35,7 +35,7 @@ internal sealed class LinuxDeviceApprovals : IDeviceDecisions, IAsyncDisposable
         Runtime.StateChanged += () => { if (Runtime.State is { Status: RuntimeStatus.SignedOut, Reason: "account_deleted" }) ClearLocal(); Changed?.Invoke(); };
     }
 
-    internal DeviceAdmission NewAdmission() => new(me, "linux", "software", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    internal DeviceAdmission NewAdmission() => new(me, platform, "software", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
     // Runs the 5.3 starter to its end: the admitted snapshot becomes the kept registry head and the waiting connection tries again at once. Throws AdmissionException (binding_failed / binding_expired).
     internal async Task AdmitAsync(DeviceAdmission admission, CancellationToken ct)
@@ -59,7 +59,7 @@ internal sealed class LinuxDeviceApprovals : IDeviceDecisions, IAsyncDisposable
         {
             if (slots.Count > 0) return null;
             accountId = await account(ct);
-            var genesis = Genesis.Create(me, accountId, "linux", "software", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            var genesis = Genesis.Create(me, accountId, platform, "software", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (await SignalHttp.PutMirrorAsync(http, access, genesis, ct) is { } refused) throw new InvalidOperationException("the first registry was refused: " + refused);
             holder = Registry.Adopt(genesis, genesis.Hash(), accountId) ?? throw new InvalidOperationException("own genesis not adopted");
             slots = [genesis];

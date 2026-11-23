@@ -94,21 +94,21 @@ struct StoreAccountCard: View {
             return "購読中です。" + (paid.until.map { "（\($0.formatted(date: .abbreviated, time: .shortened))まで）" } ?? "")
         }
 
-        /// 払っていない端末: この端末のStoreで買うか、購読しているiPhoneにQRを読んでもらう。
+        /// 払っていない端末: この端末のStoreで買うか、購読しているスマホにQRを読んでもらう。
         @ViewBuilder private var unpaid: some View {
             Button { Task { await account.purchase() } } label: { Text("購読する（月980円・最初の1か月無料）").frame(maxWidth: .infinity) }
                 .buttonStyle(.bellPrimary).controlSize(.large).disabled(account.busy)
                 .accessibilityIdentifier("store-purchase")
             Divider()
-            Text("購読しているiPhoneで確認する").font(.subheadline.weight(.semibold))
-            Text("この端末にQRを出し、購読しているiPhoneのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。")
+            Text("購読しているスマホで確認する").font(.subheadline.weight(.semibold))
+            Text("この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。")
                 .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             if let request = account.request {
                 if let image = ServerLoginView.qrImage(request.qr) {
                     Image(uiImage: image).interpolation(.none).resizable().scaledToFit().frame(width: 200, height: 200)
                         .accessibilityLabel("確認用のQRコード")
                 }
-                ProgressView("iPhoneの返事を待っています（\(request.expiresAt.formatted(date: .omitted, time: .shortened))まで）")
+                ProgressView("スマホの返事を待っています（\(request.expiresAt.formatted(date: .omitted, time: .shortened))まで）")
                 Button("やめる") { account.cancelRequest() }.buttonStyle(.bordered).accessibilityIdentifier("store-request-cancel")
             } else {
                 HStack {

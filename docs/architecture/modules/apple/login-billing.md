@@ -1,6 +1,6 @@
 # ログインと購読：ローカルの形への切替（a540）
 
-[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md) / [アカウントを削除](account-deletion.md)。正本の契約：Mint `login-billing/library-contract.md` 1.36 10章「ローカルの形」とライブラリの`docs/local-form.md`（Swift package `kitepon/login-billing` 0.20.0。0.19.3を含む開発版で、Airiの監査 t10dとMintの受け入れ t10cが閉じるまでApp Reviewへ出さない）。Tronieの裁定（2026-11-23、オーナーの言葉）：課金はクライアントだけで確かめる。サーバーも運営も課金に関わらない。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：コードあり、出荷はt10c後（行 a540-apple）。
+[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md) / [アカウントを削除](account-deletion.md)。正本の契約：Mint `login-billing/library-contract.md` 1.36 10章「ローカルの形」とライブラリの`docs/local-form.md`（Swift package `kitepon/login-billing` 0.20.3。Mintが受け入れ済み（タグv0.20.3、契約1.40：サインインが残っていない端末では`paidUntil`は何も返さない）。1.37のsecret対応・監査の修理・Apple Root CA G3の内蔵を含む）。Tronieの裁定（2026-11-23、オーナーの言葉）：課金はクライアントだけで確かめる。サーバーも運営も課金に関わらない。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：コードあり、build 189をTestFlightへ上げる（行 a540-apple）。App Reviewへは別途。
 
 ## 形
 
@@ -51,6 +51,7 @@ flowchart TD
 
 ## 権限と設定
 
+- `LocalRules.audiences`：バンドルIDと、BellTeamのGoogleクライアントID7つ全部（Web・iOS・Android・Desktop。`LocalAccount.googleAudiences`、Windowsの`LocalFormIds.GoogleClientIds`と同じ並び）。Playの購入の公開鍵（Sielo `a540-play-license-key`）はパッケージ名`dev.kitepon.bellbot`で`PlayRules`に入る。
 - Info.plist：`NSLocalNetworkUsageDescription`（LANのBellTeam＋同じWi-Fiの端末との購読の確認）、`BellTeamGoogleClientID`と、そのクライアントの逆順のURLスキーム（`CFBundleURLTypes`）。Mac Catalystのサンドボックスは`com.apple.security.network.server`を足した（QRの受け手がLANで待つため）。`com.apple.developer.applesignin`は今までどおり。
 - 一つの設定：`LocalRules.apple.sandbox = true`。TestFlight・App Reviewの購入はSandboxで、出荷版でも通すため（shortcut：本番だけのビルドができたら外す）。
 

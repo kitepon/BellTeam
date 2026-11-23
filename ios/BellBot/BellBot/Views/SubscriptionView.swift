@@ -21,7 +21,7 @@ private struct SubscriptionContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // The page head already says the state in one badge and one sentence; the card holds the explanation, the details and the actions.
-            Text("BellTeamの購読は、この端末のApple Accountで確かめます。月980円（税込）で、最初の1か月は無料です。サーバーとAIはご自身の契約で利用します。購入は上の「BellTeamの購読」から行います。購読していない端末は、購読しているiPhoneのBellTeamにQRを読み取ってもらって確かめられます。")
+            Text("BellTeamの購読は、この端末のApple Accountで確かめます。月980円（税込）で、最初の1か月は無料です。サーバーとAIはご自身の契約で利用します。購入は上の「BellTeamの購読」から行います。購読していない端末は、購読しているスマホのBellTeamにQRを読み取ってもらって確かめられます。")
                 .font(.subheadline).foregroundStyle(BellTheme.muted)
             if billing.presentation == .checking {
                 ProgressView(billing.progressText)
