@@ -111,7 +111,7 @@ Base `https://approval-box.kitepon.dev/v1`. Every call carries `Authorization: B
 | `GET /me` | `plan` (`active` or `expired`), `expires_at`; the Owner's account is exempt (answers active) |
 | `GET /decisions?status=pending,held&limit=50&cursor=` and `?status=answered,cancelled` | the two lists in Approval Box's order; follow `next_cursor` |
 | `GET /decisions/{id}` | one decision (also after a `decision.updated` event) |
-| `POST /decisions/{id}/answer` `{option_id?, text?, version}` + `Idempotency-Key: <uuid>` | answer; `409 conflict` carries the current decision in `error.decision`: replace the screen, never retry with the old version |
+| `POST /decisions/{id}/answer` `{option_id?, text?, version}` + `Idempotency-Key: <uuid>` (**a field that is not set is left out of the body, never sent as `null`**: the server refuses `null` with 400; found by Anis on Windows 0.8.0, fixed in 0.8.1) | answer; `409 conflict` carries the current decision in `error.decision`: replace the screen, never retry with the old version |
 | `POST /decisions/{id}/hold`, `…/unhold` + `Idempotency-Key` | hold and return |
 | `GET /decisions/{id}/attachments`, `GET …/attachments/{attachment_id}` | read request and answer attachments. **BellTeam does not upload or delete** (no `attachment_ids` on answer, no `POST` or `DELETE` on attachments): not in the screen design; adding it is a later change of this contract |
 | `GET /events` (SSE) | `decision.created|updated|deleted`, `setup.updated`; `Last-Event-ID` resumes; reconnect 1 s doubling to 60 s, no cap (a list re-read on every reconnect heals a missed event). Not used when the app is in the background: no push |
