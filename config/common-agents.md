@@ -120,6 +120,7 @@ SECTION completion
   RULE completion.one-release
     WHEN: you ship a product update (an app build, a store release, a body or module train)
     DO: put every known improvement that is ready into that one release. NEVER: ship them one at a time.
+    EXCEPT: a fix for a production outage, money or data loss, or security ships at once, with whatever else is ready.
     WHY: each small release costs the Owner and users another install and another check (Owner 2026-11-23).
 
 SECTION messaging
