@@ -10,8 +10,10 @@ internal static class LinuxAccountStore
     private static DesktopLocal? local;
     public static DesktopLocal? Local => local ??= !LocalFormIds.DesktopReady ? null : new DesktopLocal(
         new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId], LocalFormIds.GoogleDesktopClientId,
-            Apple: new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId]), Play: new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey)),
+            GoogleClientSecret: DesktopSecret, Apple: new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId]), Play: new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey)),
         LocalStore.ForApp("BellTeam"));
+    // Injected at build time from the vault (BellTeam.Linux.csproj); null in a build made without it. Never logged.
+    private static string? DesktopSecret => System.Reflection.CustomAttributeExtensions.GetCustomAttributes<System.Reflection.AssemblyMetadataAttribute>(typeof(LinuxAccountStore).Assembly).FirstOrDefault(a => a.Key == "GoogleDesktopClientSecret")?.Value;
     // Raised when the window comes to the front: the card reads the kept period against the clock again (a period that ended asks for a new QR).
     public static event Action? Foreground;
     public static void NoteForeground() => Foreground?.Invoke();
