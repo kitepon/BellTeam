@@ -30,6 +30,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref), loadCredential: request => native().loadCredential(request),
     provision: request => native().provision(request), authorizeKey: request => native().authorizeKey(request),
     // a532b4 stages 2-3: the host trust copy, the per-terminal agent and the known_hosts file (absent on a native that lacks them: the paths stay off)
+    connectRemote: request => native().connectRemote(request), containerAitermVersion: () => native().containerAitermVersion(),
     exportBinding: request => native().exportBinding(request), loadAgent: request => native().loadAgent(request),
     agentHeld: request => native().agentHeld(request), agentSocket: request => native().agentSocket(request), trustFile: request => native().trustFile(request) }
   const connection = createTerminalConnection({ registry, secrets, native: lazyNative, ...options })
@@ -294,7 +295,8 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     },
     reachability: { check },
     // a532b4 stage 3: which input a terminal's launches use. 'remote' = Aiterm's generic remote input when its conditions hold (else `terminal`); null = `terminal`.
-    launchInput: { set: (terminalId, input) => serial(terminalId, () => registry.update(terminalId, { launchInput: input === 'remote' ? 'remote' : null })) },
+    // scope 'maintenance' (a532b4 stage 5): the same for the check, C8 and folder commands (maintainInput).
+    launchInput: { set: (terminalId, input, scope = 'launch') => serial(terminalId, () => registry.update(terminalId, { [scope === 'maintenance' ? 'maintainInput' : 'launchInput']: input === 'remote' ? 'remote' : null })) },
     keys: { request: requestKey, remove: removeKey, authorize: authorizeKey },
     folder: request => connection.folder(request),
     folders: request => connection.folders(request),

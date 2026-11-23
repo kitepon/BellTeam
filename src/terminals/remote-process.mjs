@@ -1,6 +1,7 @@
 // Elegg C3 (aiterm-mcp remote-terminal.md, f7022539): one UID1000 `aiterm-remote-terminal` stdio MCP process (`serve`) per
 // reachability check or C8 run, started through the seat command entry like the parent's Aiterm. Process exit = closed.
 import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { seatCommandSpec } from '../seat-command.mjs'
@@ -9,6 +10,10 @@ import { createCredentialAgent } from './credential-agent.mjs'
 import { createTrustFile } from './trust-file.mjs'
 
 const BIN = 'aiterm-remote-terminal'
+// The public package metadata of the container's Aiterm (its npm version); BellTeam's setup reads the same place.
+const CONTAINER_AITERM = '/usr/local/lib/node_modules/aiterm-mcp/package.json'
+const PLATFORMS = new Set(['macos', 'linux', 'windows'])
+const CLI_OPS = new Set(['claude_version', 'claude_install', 'claude_update', 'cli_version', 'cli_install', 'cli_update', 'cli_auth_status', 'path_status', 'make_dir', 'list_dirs'])
 
 async function stdioClient(project) {
   const client = new Client({ name: 'bellteam-terminals', version: '0.1.0' }, { capabilities: {} })
@@ -50,6 +55,10 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
     return value
   }
 
+  // a532b4 stage 5: the pinned flags of `aiterm-remote probe|command` (Elegg R31): the terminals' own known_hosts file and agent socket.
+  const pinnedFlags = ({ host, user, port, ssh }) => ['--host', host, '--user', user, '--port', String(port), '--known-hosts', ssh.known_hosts_file,
+    ...(ssh.host_key_alias ? ['--host-key-alias', ssh.host_key_alias] : []), '--identity-agent', ssh.identity_agent]
+  const containerVersion = async () => { try { const version = JSON.parse(await readFile(CONTAINER_AITERM, 'utf8')).version; return typeof version === 'string' ? version : null } catch { return null } }
   const agent = createCredentialAgent({ run })
   const trustFile = createTrustFile({ run })
 
@@ -98,6 +107,25 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
       if (typeof ref !== 'string' || !ref) throw Object.assign(new Error('Remote terminal binding failed'), { code: 'REMOTE_AITERM_UNAVAILABLE' })
       return ref
     },
+
+    // a532b4 stage 5: the same session shape as `connect`, over Aiterm's one-shot CLIs on the pinned ssh (no binding, no open session: each call is
+    // its own ssh). The codes and results are the binding path's (Elegg R31), so the classification above is unchanged.
+    async connectRemote({ remote }) {
+      const flags = pinnedFlags(remote)
+      const opened = await cli(['probe', ...flags], undefined, 'aiterm-remote')
+      if (typeof opened?.remoteVersion !== 'string' || !PLATFORMS.has(opened?.platform)) throw Object.assign(new Error('Remote terminal probe invalid'), { code: 'REMOTE_AITERM_UNAVAILABLE' })
+      return {
+        remoteVersion: opened.remoteVersion,
+        localVersion: await containerVersion(),
+        command: (op, args = {}) => {
+          if (!CLI_OPS.has(op)) throw Object.assign(new Error('Unsupported remote command'), { code: 'COMMAND_INVALID' })
+          return cli(['command', '--op', op, ...(typeof args.harness === 'string' ? ['--harness', args.harness] : []),
+            ...(typeof args.path === 'string' ? ['--path-base64', Buffer.from(args.path, 'utf8').toString('base64')] : []), ...flags], undefined, 'aiterm-remote')
+        },
+        async close() { return { closed: true } }
+      }
+    },
+    containerAitermVersion: containerVersion,
 
     // a532b4 stage 2: Aiterm's public host trust of one binding (`aiterm-remote export`, read-only; no key, handle or key path in it).
     async exportBinding({ ref }) { return cli(['export', '--ref', ref], undefined, 'aiterm-remote') },

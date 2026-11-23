@@ -246,6 +246,19 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     return built.fields
   }
 
+  // a532b4 stage 5: the pinned-ssh input of the check, C8 and folder commands for a terminal whose maintainInput is 'remote': Aiterm's one-shot
+  // CLIs (`aiterm-remote probe|command`, R31) instead of the binding and `serve`. Decided before the connection only (no double attempt on an
+  // unreachable terminal): when a condition does not hold the binding path opens as before and the evidence says why. Returns `remote` or null.
+  async function maintainRemote(target, binding, extra) {
+    if (target.maintainInput !== 'remote' || typeof native.connectRemote !== 'function' || typeof native.containerAitermVersion !== 'function') return null
+    const stay = reason => { if (extra) extra.maintain = { outcome: 'binding', reason }; return null }
+    if (!atLeast(await native.containerAitermVersion().catch(() => null), REMOTE_ROUTE_MINIMUM)) return stay('AITERM_TOO_OLD')
+    const built = await assembleRemote(target, binding)
+    if (!built.fields) return stay(built.reason)
+    if (extra) extra.maintain = { outcome: 'remote' }
+    return built.fields.remote
+  }
+
   // a532b4 stage 3 (Tronie ruling B, 2026-11-23): execution carries `remote` on every later call of a switched seat through one route table, filled
   // at launch and rebuilt from here after a body restart. By terminal id, any time: no launch, no C8, no member. The agent dies with the
   // container, so an empty agent gets the key again first (the same Mika callback as a launch). The Aiterm version gate is not repeated: an
@@ -277,11 +290,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     let session
     try {
       await loadKey(target, binding, current, extra)
-      const open = () => native.connect({
-        target: { host: target.host, user: target.user, port: target.port, os: target.os },
-        hostTrust: target.hostTrust,
-        binding
-      })
+      const open = async () => {
+        const remote = await maintainRemote(target, binding, extra)
+        return remote ? native.connectRemote({ remote }) : native.connect({
+          target: { host: target.host, user: target.user, port: target.port, os: target.os },
+          hostTrust: target.hostTrust,
+          binding
+        })
+      }
       try { session = await open() } catch (error) {
         // The Mac lacks Aiterm's remote side (or it is too old): provision once over the same trusted, keyed SSH, reopen once.
         if (!PROVISION_CODES.has(error?.code) || typeof native.provision !== 'function') throw error
@@ -334,7 +350,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         // Aiterm's launch preflight covers the other three; any error or non-boolean stays null and never vetoes.
         if (NO_LAUNCH_AUTH_CHECK.has(harness)) try { const { logged_in } = await command('auth_status'); if (typeof logged_in === 'boolean') record.loggedIn = logged_in } catch {}
       }, current, aiterm, extra)
-    } finally { if (Object.keys(aiterm).length) record.aiterm = aiterm; if (extra.trust && Object.keys(extra.trust).length) record.trust = extra.trust; if (extra.agent) record.agent = extra.agent; if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
+    } finally { if (Object.keys(aiterm).length) record.aiterm = aiterm; if (extra.trust && Object.keys(extra.trust).length) record.trust = extra.trust; if (extra.agent) record.agent = extra.agent; if (extra.maintain) record.maintain = extra.maintain; if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
     return record
   }
 
