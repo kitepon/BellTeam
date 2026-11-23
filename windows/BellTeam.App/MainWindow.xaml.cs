@@ -11,9 +11,6 @@ public partial class MainWindow : Window, IInspectorHost
 {
     private readonly Workspace model;
     private readonly DesktopAccess? access;
-    private HomeProbe? homeBinding;
-    // The home server this sign-in screen is for: model.Server is empty until the first connect, so it cannot name it.
-    private Uri? homeOrigin;
     private readonly DesktopNotifications? notifications;
     private readonly SettingsStore settingsStore;
     private StartupPhase startup = StartupPhase.Ready;
@@ -508,18 +505,16 @@ public partial class MainWindow : Window, IInspectorHost
     private async Task SignOutAsync()
     {
         ShowConversation(); signingOut = true;
-        var ended = await EndServerSessionAsync();
         try { model.SignOut(); } finally { signingOut = false; }
-        if (ended is not null) model.ReportActionError(ended);
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
     }
     // Test and render seam: the result alert.
     internal Action<string, string> ShowResult { get; set; } = (title, body) => MessageBox.Show(Application.Current?.MainWindow, body, title, MessageBoxButton.OK);
-    // a485 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md). Order: the server session (the one step that reaches the network), the Approval Box sign-in and device data, the home record, notifications, web login,
-    // the library's signOut (0.18.9: clears the pass and returns SignOutResult, offline too; either value is a success here, only pass_store_unavailable throws), the saved address; then the first screen and one result. Other devices are not stopped.
+    // a540 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md; words: AccountDeletionText): nothing is held on any BellTeam server, so the deletion is the Approval Box sign-in and device data, notifications, web login,
+    // the local sign-out (signOutLocal: provider, subject and the accepted period), the saved address; then the first screen and one result. Other devices are not stopped.
     // The result is told only when every step returned. A step that fails stops here, names what it could not remove and why, and keeps the page: pressing again runs the steps again (each one is safe to repeat).
-    // The three reasons the reference allows: a network failure anywhere in the chain, the login operator answering 5xx, anything else.
+    // The three reasons the reference allows: a network failure anywhere in the chain, the Approval Box operator answering 5xx, anything else.
     internal static string ReasonOf(Exception error)
     {
         for (var e = error; e is not null; e = e.InnerException)
@@ -533,12 +528,10 @@ public partial class MainWindow : Window, IInspectorHost
         {
             (string What, Func<Task> Run)[] steps =
             [
-                ("BellTeamのサーバーのログイン", () => AccountStore.Home is { } home ? home.EndHomeSessionAsync() : Task.CompletedTask),
                 ("決裁箱のサインイン", () => approvalBox?.DeleteLocalDataAsync(CancellationToken.None) ?? Task.CompletedTask),
-                ("サーバーのトークン", () => { AccountStore.ForgetHome(); return Task.CompletedTask; }),
                 ("通知の登録", () => notifications?.SetEnabledAsync(false, persist: false) ?? Task.CompletedTask),
                 ("Webのログイン", () => access?.SignOutAsync() ?? Task.CompletedTask),
-                ("BellTeamのサインイン", () => AccountStore.Billing?.SignOutAsync(CancellationToken.None) ?? Task.CompletedTask),
+                ("BellTeamの購読の確認", () => { AccountStore.Local.SignOutLocal(); return Task.CompletedTask; }),
                 ("保存した接続先", () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; }),
             ];
             foreach (var (what, run) in steps)
@@ -582,33 +575,18 @@ public partial class MainWindow : Window, IInspectorHost
             StartupPhase.Checking => new StartupOpeningView(),
             // A manual retry keeps this page (the automatic path) so 「接続しています…」 shows instead of the opening view.
             StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
-            StartupPhase.Account => new AccountGateView(AccountStore.Billing, ConnectFromAccount),
+            StartupPhase.Account => new AccountGateView(AccountStore.Local, ConnectFromAccount),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
-            StartupPhase.SignIn => homeBinding is { } probe && homeOrigin is { } at && AccountStore.Home is { } home ? new HomeConnectView(home, probe, at, () => { homeBinding = null; _ = ConnectAsync(at.AbsoluteUri, openLogin: false); }, OpenConnectionSettings) : new LoginView(OpenLoginSheet),
-            StartupPhase.Paywall => new PaywallView(() => _ = ConnectAsync(model.Server, openLogin: false), OpenConnectionSettings),
+                        StartupPhase.SignIn => new LoginView(OpenLoginSheet),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
     }
     private bool AskServerChange() => new ConfirmationWindow("接続先を変更しますか？", "今のサーバーからログアウトして、接続先の入力に戻ります。", "接続先を変更") { Owner = this }.ShowDialog() == true;
     public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
-    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) _ = RouteToLoginAsync(); }
-    private async Task RouteToLoginAsync() { if (!await ShowHomeSignInAsync()) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
-    // a487: a home server (GET /api/home/session) is answered by this app's own sign-in at it, never by Access; true when that screen is up.
-    private async Task<bool> ShowHomeSignInAsync()
-    {
-        if (AccountStore.Home is null || await HomeGate.ProbeAsync(ServerOrigin.Parse(model.Server), CancellationToken.None) is not { } probe) return false;
-        homeBinding = probe; homeOrigin = ServerOrigin.Parse(model.Server); ShowStartup(StartupPhase.SignIn); return true;
-    }
+    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
     // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).
-    private void ShowSignIn(bool openLogin) { homeBinding = null; ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
-    // Sign-out ends this app's own session at the home server (the library's signOut does not); a failure is told after the sign-out and the record stays for a retry.
-    private static async Task<string?> EndServerSessionAsync()
-    {
-        if (AccountStore.Home is not { } home) return null;
-        try { await home.EndHomeSessionAsync(); return null; }
-        catch (Exception error) { return "サーバー側のログインを終了できませんでした。" + error.Message; }
-    }
+    private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
     private void OpenLoginSheet()
     {
         if (access is null) return;
@@ -632,8 +610,6 @@ public partial class MainWindow : Window, IInspectorHost
         if (!(automatic && startup == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
         try
         {
-            // A home server with no kept login is answered by its own sign-in before anything else is read.
-            if (AccountStore.Home is { } home && await HomeGate.MustBindAsync(home, ServerOrigin.Parse(address), CancellationToken.None) is { } probe) { homeBinding = probe; homeOrigin = ServerOrigin.Parse(address); ShowStartup(StartupPhase.SignIn); return; }
             await model.ConnectAsync(address);
             await EnterAsync(generation, openLogin, null);
         }
@@ -648,19 +624,13 @@ public partial class MainWindow : Window, IInspectorHost
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
         if (generation != connectGeneration) return;
-        // a485 7e: the paywall is the server's entitlement answer, read once per entry (a failed read shows the app).
-        bool paywalled;
-        try { paywalled = setup is not null && await new SubscriptionApi(model.Management.Api).PaywalledAsync(model.ConnectionToken); }
-        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
-        if (generation != connectGeneration) return;
-        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup, paywalled);
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
         if (route != StartupPhase.Failure) startupAttempt = 0;
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
-            case StartupPhase.SignIn: if (!await ShowHomeSignInAsync()) ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
-            case StartupPhase.Paywall: ShowStartup(StartupPhase.Paywall); break;
+            case StartupPhase.SignIn: ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
     }

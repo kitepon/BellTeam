@@ -489,51 +489,7 @@ public sealed partial class SettingsWindow
         // B15: changing the server also stops this PC's notifications, so it asks first.
         Action? change = changeServer is null ? null : () => { if (new ConfirmationWindow("接続", "接続先を変えますか？ この端末の通知も止まります。サーバーの会話や設定は消えません。", "接続先を変える") { Owner = DialogOwner }.ShowDialog() == true) changeServer(); };
         page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", "別のサーバーにつなぎ直す", Violet, change))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
-        var devices = new StackPanel(); var home = AccountStore.HomeToken(new Uri(workspace.Server)) is not null;
-        if (home) page.Children.Add(devices);
-        if (cloudflare || home) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
-        if (home) await ShowDevicesAsync(devices, token);
-    }
-
-    // a529x (app-sessions.md 4a): every device of the user's server; 「ログアウトさせる」 ends that session at once, the own row is the sign-out. A PC has no 「締め出す」 (phone only).
-    private async Task ShowDevicesAsync(StackPanel host, CancellationToken token)
-    {
-        host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, new GroupCard(Row(Loading(HomeSessionText.Loading)))));
-        try
-        {
-            var rows = await workspace.Planning.HomeSessionsAsync(token); token.ThrowIfCancellationRequested();
-            var card = new GroupCard();
-            foreach (var row in rows) card.Add(Row(DeviceRow(row, () => EndDevice(row, host, token))));
-            var section = FormSection(HomeSessionText.Title, card); section.Children.Insert(1, Text(HomeSessionText.Summary(rows.Length), 13, Secondary, null, new Thickness(20, 0, 20, 7)));
-            host.Children.Clear(); host.Children.Add(section);
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { host.Children.Clear(); host.Children.Add(FormSection(HomeSessionText.Title, new GroupCard())); host.Children.Add(Banner(ErrorText(error))); }
-    }
-    private Grid DeviceRow(HomeSessionEntry row, Action end)
-    {
-        var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var tile = SessionIcons.Tile(HomeSessionText.IconKey(row), HomeSessionText.KindOf(row), Fill, Secondary); tile.Margin = new Thickness(0, 0, 12, 0); grid.Children.Add(tile);
-        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(names, 1); var title = new StackPanel { Orientation = Orientation.Horizontal };
-        title.Children.Add(Text(HomeSessionText.KindOf(row), 14, Ink));
-        if (row.Current) { var badge = SettingsUi.Badge(HomeSessionText.ThisApp, SettingsTone.Gray); badge.Margin = new Thickness(10, 0, 0, 0); title.Children.Add(badge); }
-        names.Children.Add(title);
-        if (HomeSessionText.Times(row) is { Length: > 0 } times) names.Children.Add(Text(times, 12, Secondary, null, new Thickness(0, 3, 0, 0)));
-        grid.Children.Add(names);
-        var button = Capsule(HomeSessionText.Button(row), Brushes.White, Red); button.BorderBrush = Red; button.BorderThickness = new Thickness(1); button.Margin = new Thickness(12, 0, 0, 0);
-        System.Windows.Automation.AutomationProperties.SetAutomationId(button, "session-revoke-" + row.Id);
-        button.Click += (_, _) => end(); Grid.SetColumn(button, 2); grid.Children.Add(button);
-        return grid;
-    }
-    // The own row signs this app out (the existing sign-out); another row is ended at the home and never resent by itself: the list is read again to show what the server says.
-    private async void EndDevice(HomeSessionEntry row, StackPanel host, CancellationToken token)
-    {
-        if (row.Current) { signOut?.Invoke(); return; }
-        try { await workspace.Planning.EndHomeSessionAsync(row.Id, token); }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception error) { host.Children.Add(Banner(ErrorText(error))); return; }
-        await ShowDevicesAsync(host, token);
+        if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
     }
 
     // ---- 表示 ----
@@ -564,11 +520,11 @@ public sealed partial class SettingsWindow
     }
 
     // ---- 利用と課金 ----
-    // a487: the account of this PC (7f wording): sign-in, the handoff QR for a PC with no contract, 再確認, ほかの端末をすべて止める, サインアウト. Nothing is sold here.
+    // a540: the account of this PC: Google sign-in, the QR a paying phone reads, the end of the paid period, 再確認, サインアウト. Nothing is sold here.
     private Task BillingPage()
     {
         var page = NewPage(SettingsPage.Billing);
-        var account = new AccountView(AccountStore.Billing, deleteAccount is null ? null : AskDeleteAccount); lifetime!.Token.Register(account.Dispose);
+        var account = new AccountView(AccountStore.Local, deleteAccount is null ? null : AskDeleteAccount); lifetime!.Token.Register(account.Dispose);
         var notice = new StackPanel(); var card = new StackPanel(); card.Children.Add(account);
         card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(OpenLink("サポート", SupportUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
@@ -577,7 +533,7 @@ public sealed partial class SettingsWindow
         return Task.CompletedTask;
     }
 
-    // a485: the confirmation is asked here (the page owns the dialog); the deletion itself is the main window's.
+    // a540: the confirmation is asked here (the page owns the dialog); the deletion itself is the main window's.
     private void AskDeleteAccount()
     {
         if (new ConfirmationWindow(AccountDeletionText.ConfirmTitle, AccountDeletionText.ConfirmBody(AccountDeletionText.Subscription), AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo) { Owner = DialogOwner }.ShowDialog() == true) deleteAccount!();
