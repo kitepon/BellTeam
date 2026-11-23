@@ -90,7 +90,7 @@ What is stored where: decision content lives only in Approval Box (until its own
 
 ### 5.1 The port (one per client)
 
-`ApprovalSource` is the only thing the screen talks to. It has these members and no others: `state` (below), `decisions` (open list + recent answered/cancelled), `decision(id)`, `answer(id, optionId|text, version)`, `hold(id)`, `unhold(id)`, `attachment(decisionId, attachmentId)`, `events` (change notifications, resumable), `signIn / signOut`, `retryNow`. The screen never names `/v1` or `/pc/v1`. The states are the signin.md machine; the `v1` adapter uses this subset, the `peer` adapter all of it:
+`ApprovalSource` is the only thing the screen talks to. It has these members and no others: `state` (below), `decisions` (open list + recent answered/cancelled), `decision(id)`, `answer(id, optionId|text, version)`, `hold(id)`, `unhold(id)`, `attachment(decisionId, attachmentId)`, `events` (change notifications, resumable), `start / stop`, `retryNow`, and, for the peer adapter, `requestApproval / cancelApproval` (NeedsApproval to Waiting, with the code and QR the screen draws). **Sign-in and sign-out belong to the host** (the pass is login-billing's; Nayuta's component only follows it: `start()` after sign-in, `stop()` on sign-out; SignedOut and SigningIn are host screens, 2026-11-24 review of client-component.md draft 0.1). The screen never names `/v1` or `/pc/v1`. The states are the signin.md machine; the `v1` adapter uses this subset, the `peer` adapter all of it:
 
 | State | `v1` adapter | `peer` adapter |
 | --- | --- | --- |
