@@ -117,6 +117,10 @@ SECTION completion
   RULE completion.carry-through
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
     WHEN: you start equipment that runs outside the AI (a script, CI and the like)  DO: confirm its result yourself.
+  RULE completion.one-release
+    WHEN: you ship a product update (an app build, a store release, a body or module train)
+    DO: put every known improvement that is ready into that one release. NEVER: ship them one at a time.
+    WHY: each small release costs the Owner and users another install and another check (Owner 2026-11-23).
 
 SECTION messaging
   # Bots to Bots, rooms, the user, the Owner.
