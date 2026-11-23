@@ -42,10 +42,7 @@ public sealed record ViewDecision
     public string? CreatedAt { get; init; } public string? UpdatedAt { get; init; } public string? CancelReason { get; init; }
     public ApprovalAmended? Amended { get; init; } public ApprovalHistoryItem[]? History { get; init; } public ApprovalAttachment[]? RequestAttachments { get; init; }
     public ApprovalOrigin? Origin { get; init; } public ApprovalRequester? Requester { get; init; } public ApprovalLink? Link { get; init; }
-    /// <summary>Where this copy was read from while both ways are open (<see cref="DecisionUnion"/>): "server" = /api/approvals/*, "device" = this device's peer-channel session. Never on the wire.</summary>
-    [System.Text.Json.Serialization.JsonIgnore] public string? Source { get; init; }
 }
-public sealed record ApprovalList { public ViewDecision[]? Items { get; init; } public string? NextCursor { get; init; } }
 /// <summary>GET /api/approvals/connection: connected | waiting | denied | not_connected | expired.</summary>
 public sealed record ApprovalConnection { public string? State { get; init; } public string? ConnectedAt { get; init; } public string? ExpiresAt { get; init; } }
 public sealed record ApprovalConnectStart { public string? AuthorizationUrl { get; init; } public string? ExpiresAt { get; init; } }
@@ -59,7 +56,6 @@ public sealed record ApprovalOriginView(ApprovalRequester? Member, bool Unknown,
 public sealed record ApprovalCardRow(string Id, string Status, string Title, IReadOnlyList<ApprovalBadge> Badges, ApprovalNote Note, IReadOnlyList<string> Chips, ApprovalOriginView Origin, bool Urgent, string Age, string Label);
 public sealed record ApprovalDoneRow(string Id, string Title, bool Cancelled, ApprovalOriginView Origin, string Line, string Time, ApprovalBadge? Delivery);
 public sealed record ApprovalDoneGroup(string Heading, IReadOnlyList<ApprovalDoneRow> Rows);
-public sealed record ApprovalOutcome(string Kind, ViewDecision? Decision = null, string? Message = null);
 public sealed record ApprovalDeliveryNote(string Tone, string Text, bool Copy);
 public sealed record ApprovalHistoryRow(string Time, string Kind, string Text, bool Amended);
 public sealed record ApprovalLinkIds(string ProjectId, string CardId);
@@ -72,16 +68,11 @@ public sealed record ApprovalEntryView(int Pending, bool Urgent, string Sub, str
 public static class Approvals
 {
     public const string SummarySchema = "bellteam.approvals-summary.v1";
+    public const string NotAvailable = "この端末では、決裁箱をまだ使えません。Approval Boxのアプリで答えてください。";
     public const string Loading = "決裁を読んでいます…", Reconnect = "決裁箱に再接続しています…",
-        Old = "このサーバーではまだ決裁箱の拡張を使えません。サーバーが更新されると、自動で使えます。",
-        NotEntitled = "決裁箱の拡張は、まだ使えません。決裁箱を購読すると、決裁が工程表とつながります。いまお使いの決裁箱のアプリは、これまでどおり使えます。",
-        Expired = "決裁箱の契約が切れています。契約を更新すると、また決裁を読めます。更新するまでは、答えの送信と工程への反映を止めています。",
-        NoCredential = "決裁箱につながっていません。つなぐと、自動で決裁を読み込みます。",
-        CredentialExpired = "決裁箱とのつなぎの期限が切れました。もう一度つないでください。",
         EmptyPending = "決裁はありません。AIが判断を求めると、ここに並びます。", EmptyHeld = "保留中の決裁はありません。", EmptyDone = "まだ済んだ決裁はありません。",
         Retry = "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。",
         HoldFailed = "いまは保留を切り替えられませんでした。少し待って、もう一度押してください。",
-        ChartLate = "答えは決裁箱に送れました。工程表への反映は少し遅れています。つながり次第、自動で済みになります。",
         Waiting = "決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。", Denied = "許可されませんでした。もう一度つなげます。",
         ConnectFailed = "いまは決裁箱につなげませんでした。少し待って、もう一度押してください。";
     // The Approval Box device states (design peer-channel-signin.md section 3, Delta: the Japanese copy is the contract).
@@ -92,8 +83,7 @@ public static class Approvals
         DeviceJoining = "この端末を決裁箱につないでいます…",
         DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
         DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",
-        DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。",
-        ServerSideNoCredential = "サーバー経由の決裁箱には、まだつながっていません。";
+        DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。";
     public const string DeviceAskApproval = "承認をお願いする", DeviceApprovalHow = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。",
         DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
     public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
@@ -113,21 +103,9 @@ public static class Approvals
         if (status == 429) return ApprovalFailure.Wait;
         return status is <= 0 or >= 500 ? ApprovalFailure.Reconnect : ApprovalFailure.Refused;
     }
-    /// <summary>The one line a reader of a list shows for a failure that waiting does not cure; null for the ones the screen retries.</summary>
-    public static string? StatusText(ApprovalFailure failure, bool credentialExpired = false) => failure switch
-    {
-        ApprovalFailure.Old => Old, ApprovalFailure.NotEntitled => NotEntitled, ApprovalFailure.Expired => Expired,
-        ApprovalFailure.NoCredential => credentialExpired ? CredentialExpired : NoCredential, _ => null
-    };
-    public static bool IsTerminal(ApprovalFailure failure) => failure is ApprovalFailure.Old or ApprovalFailure.NotEntitled or ApprovalFailure.Expired or ApprovalFailure.NoCredential;
     private static JsonElement? ErrorOf(JsonElement? body) => body is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object ? error : null;
     private static string? Str(JsonElement? element, string name) => element is { ValueKind: JsonValueKind.Object } e && e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static JsonElement? Obj(JsonElement? element, string name) => element is { ValueKind: JsonValueKind.Object } e && e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Object ? value : null;
-    public static ViewDecision? ParseDecision(JsonElement? element)
-    {
-        try { return element is { ValueKind: JsonValueKind.Object } e ? JsonSerializer.Deserialize<ViewDecision>(e.GetRawText(), BellApi.Json) : null; }
-        catch (JsonException) { return null; }
-    }
     /// <summary>The 1, 2, 4 … 30 s reconnect schedule (each +-20% jitter), never giving up.</summary>
     public static int BackoffMs(int attempt, Func<double>? random = null)
         => Math.Min(30000, (int)Math.Round(Math.Min(30000, 1000 * Math.Pow(2, Math.Max(0, attempt))) * (0.8 + 0.4 * (random ?? Random.Shared.NextDouble)()), MidpointRounding.AwayFromZero));
@@ -183,14 +161,14 @@ public static class Approvals
         if (decision.Status == "held") return new(origin.External && link is null ? "保留中です" : "保留中です。戻すまで工程は待ちます", "plain");
         if (link is null) return origin.External ? new("工程表とはつながっていません", "muted") : new("工程表につなげています", "muted");
         if (link.State == "diverged") return new("工程はすでに済みです。この決裁は、まだ答えられます。", "plain");
-        return new($"工程表「{link.Task?.Title ?? ""}」が、この回答を待っています", "link");
+        // by-decision gives ids and state only (no task title): the line says the task without naming it.
+        return new(link.Task?.Title is { Length: > 0 } name ? $"工程表「{name}」が、この回答を待っています" : "工程表の工程が、この回答を待っています", "link");
     }
     public static ApprovalCardRow CardRow(ViewDecision decision, DateTimeOffset now)
     {
         var origin = OriginOf(decision); var badges = BadgesOf(decision); var note = LinkNote(decision); var chips = new List<string>();
         if (At(decision.Deadline) is not null && Open(decision)) chips.Add($"期限 {LatticeStops.StopTime(decision.Deadline, now)}");
         if (decision.Options?.Any(option => option.Recommended) == true) chips.Add("推奨あり");
-        if (decision.Source is { } source) chips.Add(source == DecisionUnion.Device ? "端末で受信" : "サーバー経由");
         var done = decision.Status is "answered" or "cancelled";
         var label = string.Join("、", badges.Select(b => b.Text).Append(decision.Title ?? "").Append(origin.Name).Append(chips.FirstOrDefault(chip => chip.StartsWith("期限", StringComparison.Ordinal)) ?? "").Append(note.Text).Where(part => part.Length > 0));
         return new(decision.Id ?? "", decision.Status ?? "", decision.Title ?? "", badges, note, chips, origin, decision.Urgency == "high" && !done,
@@ -226,25 +204,6 @@ public static class Approvals
         var origin = OriginOf(decision); var title = decision.Link?.Task?.Title;
         var head = text.Length > 0 ? "この指示を送りますか？ " : $"「{label}」で答えますか？ ";
         return origin.External && decision.Link is null || string.IsNullOrEmpty(title) ? $"{head}答えると、{origin.Who}に届きます。" : $"{head}答えると、{origin.Who}が続きに進み、工程「{title}」が済みになります。";
-    }
-    /// <summary>409 answer_on_device (a490j, peer-channel-feed.md): a decision only the hosted daemon holds is listed here but answered, held and unheld on the device. Not a failure: one line, the person answers in the Approval Box app.</summary>
-    public const string AnswerOnDevice = "この決裁は、決裁箱のアプリで答えてください。";
-    public static bool IsAnswerOnDevice(int status, JsonElement? body) => status == 409 && Str(ErrorOf(body), "code") == "answer_on_device";
-    public static ApprovalOutcome AnswerOutcome(int status, JsonElement? body)
-    {
-        if (status == 200) return new("ok");
-        if (IsAnswerOnDevice(status, body)) return new("device", Message: AnswerOnDevice);
-        var kind = FailureOf(status, body); var message = Str(ErrorOf(body), "message");
-        return kind switch
-        {
-            ApprovalFailure.Conflict => new("conflict", ParseDecision(Obj(ErrorOf(body), "decision"))),
-            ApprovalFailure.Gone => new("gone"),
-            ApprovalFailure.Reconnect or ApprovalFailure.Wait => new("retry", Message: Retry),
-            ApprovalFailure.Expired => new("stop", Message: "決裁箱の契約が切れています。"),
-            ApprovalFailure.NoCredential => new("stop", Message: NoCredential),
-            ApprovalFailure.NotEntitled => new("stop", Message: NotEntitled),
-            _ => new("stop", Message: message is { Length: > 0 } ? message : Retry)
-        };
     }
     public static ApprovalDeliveryNote DeliveryNote(ViewDecision decision)
     {
@@ -286,8 +245,9 @@ public static class Approvals
                     "出したAIが、BellTeamの工程表の工程を指して申請した時だけ（セッション名に工程の宛先がある時）、通常の決裁と同じようにつながります。"], [], null, [], "", "", null)
                 : new("connecting", "工程表につなげています", [], [], null, [], "", "", null);
         var next = link.Next?.FirstOrDefault(); var answered = link.State == "answered" || decision.Status == "answered"; var title = link.Task?.Title ?? "";
-        var sentence = answered ? $"答えました。工程「{title}」は済みです。"
-            : $"答えると、「{title}」が済みになり、{(next is not null ? $"{origin.Who}が「{next.Title}」へ進めます。" : "次の工程へ進めます。")}答えで決まらない時は、新しい決裁が工程に差し込まれます。";
+        var named = title.Length > 0 ? $"工程「{title}」" : "工程";
+        var sentence = answered ? $"答えました。{named}は済みです。"
+            : $"答えると、{(title.Length > 0 ? $"「{title}」" : "工程")}が済みになり、{(next?.Title is { Length: > 0 } nextTitle ? $"{origin.Who}が「{nextTitle}」へ進めます。" : "次の工程へ進めます。")}答えで決まらない時は、新しい決裁が工程に差し込まれます。";
         var ids = link.Chart?.ProjectId is { Length: > 0 } project && link.Task?.CardId is { Length: > 0 } card ? new ApprovalLinkIds(project, card) : null;
         return new("linked", "", [], link.Previous ?? [], link.Task, link.Next ?? [], link.Chart?.Name ?? "", sentence, ids);
     }
@@ -304,6 +264,20 @@ public static class Approvals
     {
         var bellteam = items.Count(item => OriginOf(item).Member is not null);
         return new(items.Count, bellteam, items.Count - bellteam);
+    }
+    /// <summary>The counts the entry row and the toolbar show, from the device's decisions alone (the server keeps no list since the /v1 close).</summary>
+    public static ApprovalSummary SummaryOf(IEnumerable<ViewDecision> device, DateTimeOffset now)
+    {
+        var list = device.ToList(); bool Today(string? at) => DayHeading(at, now) == "今日";
+        return new ApprovalSummary
+        {
+            Schema = SummarySchema,
+            Pending = list.Count(item => item.Status == "pending"),
+            Held = list.Count(item => item.Status == "held"),
+            Urgent = list.Count(item => item.Status is "pending" or "held" && item.Urgency == "high"),
+            AnsweredToday = list.Count(item => item.Status == "answered" && Today(DoneAt(item))),
+            FiledToday = list.Count(item => Today(item.CreatedAt)),
+        };
     }
     public static ApprovalEntryView EntryView(ApprovalSummary? summary, ApprovalFailure? status)
     {

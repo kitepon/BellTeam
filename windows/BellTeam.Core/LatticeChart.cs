@@ -88,8 +88,8 @@ public sealed record LatticeEdge(string From, string To, bool Waiting);
 public sealed record LatticeExternal(string Id, string ProjectId, string CardId, string? ChartName, string? Title, string? State, bool Finished, string? Producer);
 /// <summary>Where a 工程へ移動 on another chart opens: that chart at that card.</summary>
 public sealed record LatticeCardRef(string ProjectId, string CardId);
-/// <summary>The Approval Box extension's decision for an Owner-lane card (GET /api/approvals/by-task, screen-spec 詳細); Status is a key of LatticeChart.DecisionStates.</summary>
-public sealed record LatticeDecision(string DecisionId, string Status, string Title);
+/// <summary>The Approval Box extension's decision for an Owner-lane card (GET /api/approvals/by-task, screen-spec 詳細); Status is a key of LatticeChart.DecisionStates. Title is empty when the server gives ids and state only (after the /v1 close).</summary>
+public sealed record LatticeDecision(string DecisionId, string Status, string Title = "");
 
 /// <summary>A member as drawn: the roster entry, or 名簿にないメンバー (Known false, drawn as 「?」 and never opened as a chat).
 /// Authored: the plan's written lane text with no member behind it (BotId "", drawn with its initial, never a chat, not in the member rail).
@@ -129,12 +129,11 @@ public static class LatticeChart
         NotFound = "この工程表は見つかりません。", Unavailable = "この工程表はまだ読めません。", UnavailableNext = "記録が整うと自動で表示します。", NoCards = "この工程表にはまだ工程がありません。",
         LoginRequired = "ログインが必要です。ログインし直すと、自動で表示します。";
     public static readonly IReadOnlyDictionary<string, string> DecisionStates = new Dictionary<string, string> { ["pending"] = "待ち", ["held"] = "保留", ["answered"] = "回答済み", ["cancelled"] = "取り下げ" };
-    /// <summary>web decisionOf: a non-empty decisionId, a title and a known status, else null (no 決裁 block).</summary>
+    /// <summary>web decisionOf: a non-empty decisionId and a known status (the title is optional: ids and state only since the /v1 close), else null (no 決裁 block).</summary>
     public static LatticeDecision? DecisionOf(JsonElement value)
         => value.ValueKind == JsonValueKind.Object && value.TryGetProperty("decisionId", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } decisionId
-            && value.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String
             && value.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String && DecisionStates.ContainsKey(status.GetString()!)
-            ? new LatticeDecision(decisionId, status.GetString()!, title.GetString()!) : null;
+            ? new LatticeDecision(decisionId, status.GetString()!, value.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String ? title.GetString()! : "") : null;
 
     public static LatticeStateInfo StateInfo(string? state) => state switch
     {
