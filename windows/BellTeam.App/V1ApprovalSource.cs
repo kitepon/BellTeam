@@ -165,8 +165,10 @@ internal sealed class V1ApprovalSource(HttpClient http, Func<bool> signedIn, Act
     {
         string? normalized = text is null ? null : TextContent.Normalize(text);
         var key = KeyFor($"answer|{decisionId}|{version}|{optionId}|{normalized}");
-        return WriteAsync(decisionId, $"decisions/{Uri.EscapeDataString(decisionId)}/answer", new { option_id = optionId, text = normalized, version }, key);
+        return WriteAsync(decisionId, $"decisions/{Uri.EscapeDataString(decisionId)}/answer", Body(("option_id", optionId), ("text", normalized), ("version", version)), key);
     }
+    // The server's schema takes an absent field, never a null (z.string().optional()): a null text was refused with 400 on the first live run.
+    private static Dictionary<string, object> Body(params (string Name, object? Value)[] fields) => fields.Where(f => f.Value is not null).ToDictionary(f => f.Name, f => f.Value!);
     public Task<SendOutcome> HoldAsync(string decisionId, bool held) => WriteAsync(decisionId, $"decisions/{Uri.EscapeDataString(decisionId)}/{(held ? "hold" : "unhold")}", new { }, KeyFor($"hold|{decisionId}|{held}|{Guid.NewGuid()}"));
     private string KeyFor(string press) { lock (gate) return keys.TryGetValue(press, out var key) ? key : keys[press] = Guid.NewGuid().ToString(); }
     private async Task<SendOutcome> WriteAsync(string decisionId, string path, object body, string key)
