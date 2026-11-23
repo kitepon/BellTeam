@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { seatCommandSpec } from '../seat-command.mjs'
 import { createSeatProcessRunner } from '../seat-process.mjs'
+import { createCredentialAgent } from './credential-agent.mjs'
 
 const BIN = 'aiterm-remote-terminal'
 
@@ -41,12 +42,14 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
     try { return await tool('remote_terminal_status', { ref }) } finally { await client.close().catch(() => {}) }
   }
 
-  async function cli(args, input) {
-    const { stdout, code } = await run('/usr/bin/env', [BIN, ...args], { acceptNonzero: true, maxBuffer: 65536, ...(input !== undefined ? { input } : {}) })
+  async function cli(args, input, bin = BIN) {
+    const { stdout, code } = await run('/usr/bin/env', [bin, ...args], { acceptNonzero: true, maxBuffer: 65536, ...(input !== undefined ? { input } : {}) })
     const value = oneLine(stdout)
     if (code !== 0) throw Object.assign(new Error('Remote terminal command failed'), { code: typeof value?.code === 'string' ? value.code : 'REMOTE_AITERM_UNAVAILABLE' })
     return value
   }
+
+  const agent = createCredentialAgent({ run })
 
   return {
     async trust(ref) { return (await status(ref))?.trust ?? null },
@@ -93,6 +96,12 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
       if (typeof ref !== 'string' || !ref) throw Object.assign(new Error('Remote terminal binding failed'), { code: 'REMOTE_AITERM_UNAVAILABLE' })
       return ref
     },
+
+    // a532b4 stage 2: Aiterm's public host trust of one binding (`aiterm-remote export`, read-only; no key, handle or key path in it).
+    async exportBinding({ ref }) { return cli(['export', '--ref', ref], undefined, 'aiterm-remote') },
+
+    // a532b4 stage 2: the same key bytes to the per-terminal ssh-agent (stdin of ssh-add only; the error keeps its code).
+    async loadAgent({ terminalId, key }) { await agent.load(terminalId, key) },
 
     // Pre-MCP bootstrap of the Mac's Aiterm side over the trusted, keyed SSH (Elegg accepted contract, 2026-11-10).
     async provision({ ref }) { return cli(['provision', '--ref', ref]) },
