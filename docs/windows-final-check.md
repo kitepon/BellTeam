@@ -363,3 +363,10 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
 - `--render-page settings-billing`（本番）: 終了コード0。ラピの表の文（「BellTeamの購読」「購読はまだありません。」「購読しているスマホで確認する」「QRを出す（Google）」）が出て、「このアプリについて」は0.7.2。
 - 確認できていない（実機が要る）: Googleのサインイン→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換。
+
+## Windows 0.7.3 の導入（a540-win-apple-qr：「QRを出す（Apple）」、2026-11-24 04:20 JST、アニス）
+
+- 導入元: main `f4d99c2c`（#2455）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.7.3+f4d99c2c03296519642fb3bf6e564dcec907e1f5`。ライブラリは Kitepon.LoginBilling.Desktop 0.20.3（変更なし）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（メタデータ。値は表示していない）。動いていた0.7.2はあなたの実機の席のもので、Approval Boxのカードの答え（「アニスが終了してよい」）を受けてから終了して入れた。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- `--render-page settings-billing`（本番）: 終了コード0。「BellTeamの購読」のカードに「QRを出す（Apple）」「QRを出す（Google）」の2つのボタンが出ている（Appleが先、Mac版と同じ）。「このアプリについて」は0.7.3。
+- 確認できていない（実機が要る）: 本物のiPhoneのAppleの返事（Appleのidentity tokenを運ぶ返事をPCが確かめてサインインとして持つ流れ）、Googleのサインイン→QR→返事の全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換。確かめたのは絞ったxunit（AppLoginTests・LocalFormTests 15件、Appleのボタンがブラウザーを開かないことを含む）とUiChecks終了コード0まで。
