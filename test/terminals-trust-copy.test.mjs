@@ -180,22 +180,24 @@ test('the agent directory must be this user\'s own, mode 700, before its socket 
   assert.equal(await held.held('owner-macbook'), true)
 })
 
-test('trust file: written once per revision as UID1000 with the public lines on stdin, rewritten only when missing', async () => {
+test('trust file: rewritten from the copy at every target as UID1000 (tmp, then mv), the directory must be ours and 700, a planted file is never reused', async () => {
   const calls = []
-  let exists = false
+  let exists = false, dirOurs = true
   const run = async (command, args, options = {}) => {
     calls.push({ script: args[1], path: args[3], input: options.input })
-    if (args[1].startsWith('test -s')) return { code: exists ? 0 : 1 }
     exists = true
-    return { code: 0 }
+    return { code: dirOurs ? 0 : 1 }
   }
   const files = createTrustFile({ run })
   const request = { terminalId: 'owner-macbook', revision, lines: [LINE] }
   const path = await files.ensure(request)
   assert.equal(path, `/tmp/bellteam-terminals/trust/owner-macbook.${'b'.repeat(16)}.known_hosts`)
   assert.equal(calls.at(-1).input, `${LINE}\n`)
+  assert.ok(calls[0].script.includes('stat -c %u,%a') && calls[0].script.includes('mv -f'))
   await files.ensure(request)
-  assert.equal(calls.filter(call => call.input !== undefined).length, 1, 'an existing file of this revision is kept')
+  assert.equal(calls.filter(call => call.input !== undefined).length, 2, 'an existing file of the same name is rewritten, not trusted')
+  dirOurs = false
+  await assert.rejects(files.ensure(request), { code: 'TRUST_FILE_FAILED' })
   for (const bad of [{ revision: 'x' }, { lines: [] }, { lines: ['a\nb'] }]) await assert.rejects(files.ensure({ ...request, ...bad }), { code: 'TRUST_FILE_INVALID' })
   assert.match(trustFilePath('../x', revision), /^\/tmp\/bellteam-terminals\/trust\/[0-9a-f]{32}\./)
 })
