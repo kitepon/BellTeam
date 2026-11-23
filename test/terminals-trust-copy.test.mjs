@@ -315,3 +315,42 @@ test('remoteFor after a body restart: an empty agent gets the key again first; i
   const { connection: other } = await switchedSetup(t, { native: stuck })
   assert.deepEqual(await other.remoteFor('owner-macbook'), { reason: 'AGENT_EMPTY' })
 })
+
+test('a Windows terminal needs Aiterm 0.70.112 on both sides before it gets the remote input; the paths are the same for the same revision', async t => {
+  const winRequest = { ...request, projectRoot: 'C:\\Users\\kite\\work' }
+  const run = async (remoteVersion, localVersion) => {
+    const native = switched(); native.remoteVersion = remoteVersion; native.localVersion = localVersion
+    const root = await mkdtemp(join(tmpdir(), 'trust-win-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const registry = createTerminalRegistry({ stateRoot: root })
+    await registry.register({ ...base, os: 'windows', keySource: 'secret', bindingRef: sshKeyRef })
+    await registry.update('owner-macbook', { launchInput: 'remote' })
+    await registry.setTrustCopy('owner-macbook', parseExport(exported({ ref: sshKeyRef }), sshKeyRef, 'now'), (await registry.target('owner-macbook')).revision)
+    const connection = createTerminalConnection({ registry, secrets: { async withResolved(h, c, consume) { return consume('KEY') }, credential: async handle => ({ handle, revision: 2, available: true }) }, native, probeDelays: { first: 5, max: 10 } })
+    t.after(() => connection.dispose())
+    return connection
+  }
+  const old = await run('0.70.111', '0.70.112')
+  assert.equal('remote' in await old.target(winRequest), false)
+  assert.deepEqual(old.maintenance.last('owner-macbook', 'claude-code').input, { outcome: 'terminal', reason: 'AITERM_TOO_OLD' })
+  const oldLocal = await run('0.70.112', '0.70.111')
+  assert.equal('remote' in await oldLocal.target(winRequest), false)
+  const ok = await run('0.70.112', '0.70.112')
+  const first = await ok.target(winRequest), again = await ok.remoteFor('owner-macbook')
+  assert.ok(first.remote)
+  assert.equal(again.remote.ssh.known_hosts_file, first.remote.ssh.known_hosts_file, 'remoteFor names the same file for the same revision')
+  assert.equal(again.remote.ssh.identity_agent, first.remote.ssh.identity_agent)
+})
+
+test('overlapping remoteFor calls for one terminal share one run: the agent is reloaded once and every caller gets the route', async t => {
+  let held = false, loads = 0
+  const gate = Promise.withResolvers()
+  const native = switched({ async agentHeld() { return held }, async loadAgent() { loads++; await gate.promise; held = true } })
+  const { connection } = await switchedSetup(t, { native })
+  const calls = [connection.remoteFor('owner-macbook'), connection.remoteFor('owner-macbook'), connection.remoteFor('owner-macbook')]
+  await settle(); gate.resolve()
+  const results = await Promise.all(calls)
+  assert.equal(loads, 1)
+  assert.equal(results.every(result => result.remote && result.revision === results[0].revision), true)
+  assert.ok((await connection.remoteFor('owner-macbook')).remote, 'the next call after the run starts a new one')
+})

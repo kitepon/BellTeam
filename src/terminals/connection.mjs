@@ -235,7 +235,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   async function remoteInput(record, binding, aiterm, evidence) {
     if (record.launchInput !== 'remote') return {}
     const stay = reason => { if (evidence) evidence.input = { outcome: 'terminal', reason }; return {} }
-    if (!atLeast(aiterm?.before, '0.70.101') || !atLeast(containerVersions.get(aiterm), '0.70.101')) return stay(typeof native.trustFile === 'function' ? 'AITERM_TOO_OLD' : 'UNSUPPORTED')
+    // The generic remote input is in 0.70.101; a Windows terminal needs 0.70.112 on both Aiterms (Elegg, a532b2s2e: the pinned ssh of a wait).
+    const minimum = record.os === 'windows' ? '0.70.112' : '0.70.101'
+    if (!atLeast(aiterm?.before, minimum) || !atLeast(containerVersions.get(aiterm), minimum)) return stay(typeof native.trustFile === 'function' ? 'AITERM_TOO_OLD' : 'UNSUPPORTED')
     const built = await assembleRemote(record, binding)
     if (!built.fields) return stay(built.reason)
     if (evidence) evidence.input = { outcome: 'remote' }
@@ -342,7 +344,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   }
 
   const target = request => track(() => targetNow(request ?? {}))
-  const remoteFor = terminalId => track(() => remoteForNow(terminalId))
+  // One run per terminal at a time: overlapping callers share the answer, so two reloads of the agent (delete, then add) never race and
+  // a caller never sees AGENT_EMPTY for a moment after a body restart (Epinel, #2426).
+  const remoteForRuns = new Map()
+  const remoteFor = terminalId => {
+    let run = remoteForRuns.get(terminalId)
+    if (!run) { run = track(() => remoteForNow(terminalId)).finally(() => remoteForRuns.delete(terminalId)); remoteForRuns.set(terminalId, run) }
+    return run
+  }
   async function targetNow({ terminalId, memberId, projectRoot, harness }) {
     if (disposed) throw failure('TERMINAL_UNAVAILABLE')
     // Generation is captured before the read, so a snapshot read across a registry change is never handed out.
