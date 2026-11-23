@@ -285,7 +285,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     }
     private void UpdateApprovalsEntry()
     {
-        var view = Approvals.EntryView(approvals.Feed?.Summary, approvals.Feed?.Failure);
+        var view = Approvals.EntryView(approvals.Summary, null);
         approvalsEntry.Content = view.Pending > 0 ? $"決裁箱 {view.Pending}" : "決裁箱"; approvalsEntry.IsEnabled = model.Connected;
         Avalonia.Automation.AutomationProperties.SetName(approvalsEntry, view.Label);
     }
@@ -441,7 +441,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         switch (name)
         {
-            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.Sync(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
+            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.ReadLinks(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
             case nameof(LinuxWorkspace.Selected): unreadNew = false; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;

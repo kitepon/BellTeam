@@ -688,7 +688,7 @@ internal sealed class LatticeChartPage : Grid
         // The id never shows; 決裁を開く opens the 決裁箱 screen with that decision selected.
         if (decisions.GetValueOrDefault(cardId) is { } decision)
         {
-            Section(body, "決裁", $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");
+            Section(body, "決裁", string.IsNullOrEmpty(decision.Title) ? LatticeChart.DecisionStates[decision.Status] : $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");   // by-task loses the title at the /v1 close
             if (window.OpenDecision is { } openDecision) { var open = Action("決裁を開く", ForwardGlyph); open.Margin = new Thickness(0, 8, 0, 0); var id = decision.DecisionId; open.Click += (_, _) => openDecision(id); body.Children.Add(open); }
         }
         Links(body, "前の工程", detail.Previous);
