@@ -207,9 +207,10 @@ export class AitermClient {
     if (name === 'pty_list' && Object.hasOwn(args, 'include')) {
       let supported = INCLUDE_SUPPORT.get(callClient)
       if (supported === undefined) {
-        try { supported = (await listTools(callClient)).tools.some(tool => tool.name === 'pty_list' && tool.inputSchema?.properties?.include?.type === 'array') }
-        catch { supported = false } // not cached below, so the next poll asks again
-        if (supported) INCLUDE_SUPPORT.set(callClient, true)
+        try {
+          supported = (await listTools(callClient)).tools.some(tool => tool.name === 'pty_list' && tool.inputSchema?.properties?.include?.type === 'array')
+          INCLUDE_SUPPORT.set(callClient, supported)
+        } catch { supported = false } // a failed schema read is not cached: the next poll asks again
       }
       if (!supported) { const { include: _include, ...rest } = args; args = rest }
     }
