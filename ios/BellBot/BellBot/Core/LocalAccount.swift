@@ -5,7 +5,7 @@ import SwiftUI
 import UIKit
 
 /// 課金の確認（a540、契約1.36 10章「ローカルの形」）。ライブラリのLocalFormをそのまま使う。サーバーも運営も入らない。
-/// 払っているこの端末は自分のStoreで確かめて開き、払っていない端末はQRを出して、払っているiPhoneの返事を同じWi-Fiの中で直接受ける。
+/// 払っているこの端末は自分のStoreで確かめて開き、払っていない端末はQRを出して、払っているスマホの返事を同じWi-Fiの中で直接受ける。
 @MainActor
 final class LocalAccount: ObservableObject {
     struct Paid: Equatable { let productId: String; let until: Date?; let store: String }
@@ -33,6 +33,9 @@ final class LocalAccount: ObservableObject {
         return text
     }
 
+    /// 受け入れるGoogleのaudience: BellTeamのクライアントID全部（Web・iOS・Android・Desktop）。Android・Desktopのスマホ返事とQRの相手が、どのクライアントで作ったトークンでも通る（Windows `LocalFormIds.GoogleClientIds` と同じ並び）。
+    static let googleAudiences = ["316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i.apps.googleusercontent.com", "316260984663-rmloup01smiuuv79m0tga49vtpobnsn4.apps.googleusercontent.com", "316260984663-4ks1an9gat7npa9fdkok70kadrsp80rt.apps.googleusercontent.com", "316260984663-7qi9ui73upodrlerlotlftk3vk82hprp.apps.googleusercontent.com", "316260984663-be6dklphci1vbljimpg3ljpr5nc19cvv.apps.googleusercontent.com", "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com", "316260984663-lofu7qohq45fhbfup8k3ottlgat415pk.apps.googleusercontent.com"]
+
     /// アプリ自身のKeychainグループ（共有拡張が持つ.shareではない）。未設定（試験の本体など）はnil＝既定。
     nonisolated static var passGroup: String? {
         guard let text = Bundle.main.object(forInfoDictionaryKey: "BellTeamPassKeychainGroup") as? String, !text.isEmpty, !text.contains("$(") else { return nil }
@@ -55,7 +58,7 @@ final class LocalAccount: ObservableObject {
         // The Play licensing public key (public, from Sielo/a540-play-license-key): an Android phone's reply is accepted here. Package name = this app's id on Play.
         let play = PlayRules(packageName: "dev.kitepon.bellbot", products: [productId], publicKey: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAri9WbSLPgiw3xak9MEg8udMt8egmWdY7T3gM15nxWWPLmdWp08NXaXmDgRcHobfYn003GlaGxCzeZZktrJjjQHM28gteK4p2qnSkuVVkF9N/JIgyubCw7MQtu+jrsg24leLUfGJfOTHB5BO1sxr8g+x3HeKCfAlISaj/XpN0p6e05/lIf/vcQoDV3e72Dd5WXcDdoM9M7YCXhPSUFZ5ydxZSCOc/N/0uAvhXey/kEFjBu8rpth+n/a3gFzNDayXMcUri2yKazEww9EfDGbKoUrXQNGJOV91vpH5SKOV4IfgnHsoglxWkFTerfVUgVqrTUhV2Nh8kMPyEw2RUj/ZWQwIDAQAB")
         rules = LocalRules(apple: AppleRules(bundleIds: [bundleId], products: [productId], sandbox: true), play: play,
-                           audiences: [bundleId] + (google.map { [$0] } ?? []), googleClientId: google)
+                           audiences: [bundleId] + Self.googleAudiences, googleClientId: google)
         form = LocalForm(rules: rules, anchor: Self.anchor, store: KeychainPassStore(service: "dev.kitepon.loginbilling.local", accessGroup: Self.passGroup))
     }
 
@@ -173,7 +176,7 @@ final class LocalAccount: ObservableObject {
         case "request_expired", "request_gone": return "QRの待ち時間（10分）が過ぎました。新しいQRを出してください。"
         case "device_refused": return "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。"
         case "connection_closed": return "相手との接続が途中で切れました。新しいQRでもう一度お試しください。"
-        case "ended": return "購読の期間が終わっています。"
+        case "ended": return "購読の期間が終わっています。新しいQRを出してください。"
         case "not_paid", "revoked", "proof_invalid", "not_this_app", "product_unknown", "sandbox_refused": return "購入を確かめられませんでした（\(code)）。"
         case "purchase_failed", "purchase_unverified": return "購入を完了できませんでした。もう一度お試しください。"
         case "bad_request", "provider_unsupported": return "この端末ではそのアカウントでサインインできません。"
