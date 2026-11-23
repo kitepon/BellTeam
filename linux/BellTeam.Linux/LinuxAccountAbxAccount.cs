@@ -9,7 +9,7 @@ namespace BellTeam.Linux;
 /// Nothing of the BellTeam sign-in (AccountStore) is shared: not the store, not the K. This instance hands its pass out for the Approval Box origin only (the library's own rule).
 /// </summary>
 // The PC's device part with the PC's account (this file is not linked into the Android app, which passes its own account).
-internal sealed partial class LinuxApprovalBoxDevice { public LinuxApprovalBoxDevice(string directory) : this(directory, new LinuxApprovalBoxAccount()) { } }
+internal sealed partial class LinuxApprovalBoxDevice { public LinuxApprovalBoxDevice(string directory, Func<IReadOnlyList<(string Id, string Name)>> roster) : this(directory, new LinuxApprovalBoxAccount(), roster, LinuxHasEngine) { } }
 
 internal sealed class LinuxApprovalBoxAccount : IApprovalBoxAccount
 {
@@ -24,6 +24,7 @@ internal sealed class LinuxApprovalBoxAccount : IApprovalBoxAccount
         billing = new DesktopLoginBilling(new Uri(this.origin, "/auth/v1").ToString(), this.store, handler);
     }
 
+    public Uri Origin => origin;
     internal bool SignedIn { get { try { return billing.PassKind != PassKind.None; } catch (LoginBillingException) { return false; } } }
 
     /// <summary>The system browser opens Approval Box's web sign-in and the loopback return brings the pass back (Windows and Linux, Nayuta/Delta).</summary>

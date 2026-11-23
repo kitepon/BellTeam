@@ -14,7 +14,7 @@ internal sealed class ApprovalsHub : IDisposable
     private readonly CancellationTokenSource life = new();
     private string origin = "";
     /// <summary>This device's peer-channel session while the device part is on (null: it is off or this machine has no engine: the screen says so).</summary>
-    internal IDeviceDecisions? Device { get; }
+    internal IApprovalSource? Source { get; }
     internal ApprovalLinks Links { get; } = new();
     /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
     internal Action? SignInApprovalBox { get; set; }
@@ -31,17 +31,19 @@ internal sealed class ApprovalsHub : IDisposable
     internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Run(() => Changed?.Invoke()); }
     /// <summary>The device's book, connection or links changed: the open window repaints.</summary>
     internal event Action? DeviceChanged;
+    /// <summary>「Approval Boxからサインアウト」: the account's sign-out (BellTeam's own sign-in is not touched). Set when the account exists.</summary>
+    internal Action? SignOutApprovalBox { get; set; }
     /// <summary>The device's decisions as the screen draws them, each joined with its chart link when that is known.</summary>
-    internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of).Select(Links.Join)];
+    internal IReadOnlyList<ViewDecision> DeviceViews => Source is null ? [] : [.. Source.Decisions.Select(Links.Join)];
     /// <summary>The counts of the entry row and the toolbar: what the device holds (null without a device).</summary>
-    internal ApprovalSummary? Summary => Device is null ? null : DeviceSummary.Of(DeviceViews, DateTimeOffset.UtcNow);
+    internal ApprovalSummary? Summary => Source is null ? null : DeviceSummary.Of(DeviceViews, DateTimeOffset.UtcNow);
     /// <summary>The summary or the device's state changed (UI thread).</summary>
     public event Action? Changed;
 
-    public ApprovalsHub(LinuxWorkspace workspace, IDeviceDecisions? device = null)
+    public ApprovalsHub(LinuxWorkspace workspace, IApprovalSource? source = null)
     {
-        this.workspace = workspace; Device = device;
-        if (device is not null) device.Changed += () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); });
+        this.workspace = workspace; Source = source;
+        if (source is not null) source.Changed += () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); });
         workspace.PropertyChanged += OnWorkspace;
     }
 
@@ -49,14 +51,18 @@ internal sealed class ApprovalsHub : IDisposable
     {
         if (args.PropertyName is nameof(LinuxWorkspace.Connected) or nameof(LinuxWorkspace.Server)) Run(ReadLinks);
     }
+    /// <summary>The peer session alone (the render seam and the tests): it is wrapped as the port.</summary>
+    internal ApprovalsHub(LinuxWorkspace workspace, IDeviceDecisions? device) : this(workspace, device is null ? null : new PeerSource(device)) { }
+
     private static void Run(Action action) { if (Dispatcher.UIThread.CheckAccess()) action(); else Dispatcher.UIThread.Post(action); }
 
     /// <summary>Asks BellTeam which of the device's decisions are linked to a chart task (a changed server forgets the answers).</summary>
     internal void ReadLinks()
     {
-        if (!workspace.Connected || Device is null) return;
+        if (!workspace.Connected || Source is null) return;
         if (origin != workspace.Server) { origin = workspace.Server; Links.Forget(); }
-        _ = Links.ReadAsync(workspace.Management.Api, DeviceViews, () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); }), life.Token);
+        BellApi api; try { api = workspace.Management.Api; } catch (BellApiException) { return; }   // the workspace closed or has no server yet: the links stay unknown (a failed link draws nothing)
+        _ = Links.ReadAsync(api, DeviceViews, () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); }), life.Token);
     }
 
     public void Dispose() { workspace.PropertyChanged -= OnWorkspace; life.Cancel(); }

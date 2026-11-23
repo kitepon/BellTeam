@@ -53,7 +53,7 @@ public sealed class ApprovalBoxInteropTests(ITestOutputHelper output)
         if (Url is null) return;
         var dir = Path.Combine(Path.GetTempPath(), "abx-interop-" + Guid.NewGuid().ToString("N"));
         var account = new LinuxApprovalBoxAccount(Url, new MemoryPassStore());
-        await using var device = new LinuxApprovalBoxDevice(dir, account);
+        await using var device = new LinuxApprovalBoxDevice(dir, account, () => [], true);
         var states = new List<string>();
         device.Device.Runtime.StateChanged += () => { var s = device.Device.State; lock (states) states.Add($"{s.Status}:{s.Reason}"); output.WriteLine($"{DateTimeOffset.Now:HH:mm:ss} state {s.Status} {s.Reason}"); };
         using var http = new HttpClient();

@@ -55,10 +55,10 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     private readonly Action<string> openChat;
 
     private ApprovalSummary? Summary => hub.Summary;
-    private IDeviceDecisions? Device => hub.Device;
+    private IApprovalSource? Device => hub.Source;
     private bool DeviceLive => Device?.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live;
-    /// <summary>The device's list can be shown: it is live, or it already holds decisions (a held list stays while the connection is down).</summary>
-    internal bool DeviceUsable => Device is { } d && (d.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live || d.Book.All.Count > 0);
+    /// <summary>The list can be shown: the source is live, or it already holds decisions (the list stays, dimmed, while the connection is down).</summary>
+    internal bool DeviceUsable => Device is { } d && (d.State.Status == BellTeam.PeerChannel.RuntimeStatus.Live || d.Decisions.Count > 0);
     private IReadOnlyList<ViewDecision> All => hub.DeviceViews;
     private List<ViewDecision> OpenView => Sorted(All.Where(item => item.Status is "pending" or "held"));
     private List<ViewDecision> DoneView => [.. All.Where(item => item.Status is not ("pending" or "held")).OrderByDescending(item => Approvals.DoneAt(item))];
@@ -117,14 +117,14 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
         var text = step == Step.Confirm ? writeText : null; var optionId = step == Step.Confirm ? null : chosenId; var wasText = text is not null;
         step = Step.Sending; stepMessage = null; Render();
         BellTeam.PeerChannel.SendOutcome outcome;
-        try { outcome = await device.AnswerAsync(decision.Id!, optionId, text); }
+        try { outcome = await device.AnswerAsync(decision.Id!, optionId, text, decision.Version); }
         catch (BellTeam.PeerChannel.NoSessionException) { outcome = new("no_session"); }
         catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or ArgumentException) { outcome = new("gone"); }
         if (life.IsCancellationRequested) return;
         switch (outcome.Ack)
         {
             case "ok": break;   // stays "sending" until the result frame closes the decision in the book (OnDevice)
-            case "refused:stale_version": ResetStep(); banner = Approvals.Amended(Approvals.OriginOf(decision).Who); note = null; break;
+            case "refused:stale_version": ResetStep(); banner = Approvals.AmendedPlain; note = null; break;
             case "refused:already_decided" or "gone": ResetStep(); break;
             case "unknown": step = wasText ? Step.Confirm : Step.Choose; stepMessage = Approvals.DeviceUnknown; break;
             default: step = wasText ? Step.Confirm : Step.Choose; stepMessage = Approvals.Retry; break;

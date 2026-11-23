@@ -72,9 +72,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
     public PhoneShell()
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies) { SessionToken = tokens.Load(origin) }, access.PrepareAsync);
-        // a520a: the Approval Box device of this phone (off until the go-live ruling: AndroidApprovalBoxDevice.Enabled).
-        approvalBox = AndroidApprovalBoxDevice.Create();
-        approvals = new ApprovalsHub(model, approvalBox?.Device); approvalBox?.Attach(approvals); approvals.Changed += UpdateApprovalsEntry;
+        // The Approval Box client of this phone (client-v0.5.md): /v1 now, the device session when the server says peer_channel; the server decides, no switch file.
+        approvalBox = AndroidApprovalBoxDevice.Create(() => [.. model.Bots.Select(bot => (bot.Id, bot.DisplayName))]);
+        approvals = new ApprovalsHub(model, approvalBox?.Source); approvalBox?.Attach(approvals); approvals.Changed += UpdateApprovalsEntry;
         PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
