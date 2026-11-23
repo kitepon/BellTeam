@@ -120,6 +120,6 @@ What fills it: the conversation module's `MachineStream` (src/machine-stream.mjs
 | Part | Owner | Change |
 | --- | --- | --- |
 | Start argv of the body (`scripts/server-start.c`) | Molly (box) | `node --max-old-space-size=8192 /app/src/supervisor.mjs`: an outage fix that gives the body headroom inside the 20 GiB box; the heap still grows with the machine-stream files, so it buys days, not a fix. |
-| `MachineStream` keeps a bounded window in memory and reads older lines from disk on demand | N102 (conversation) | the root fix; routed with the numbers above. |
+| `MachineStream` keeps a bounded window in memory and reads older lines from disk on demand | N102 (conversation) | the root fix: the newest 2000 records per Bot in memory (`WINDOW_RECORDS`), older pages, `line(seq)` and `rowSource` from the file; contract and diagram in [conversation machine-stream.md](../conversation/machine-stream.md) "The body holds a window". Measured on a synthetic 113 MB log: 7 MB of heap after load (load 37 ms), the first older page 0.2 s (builds the file index once), later pages 13 ms. |
 
 The body's heap counts in the cgroup anon, so a larger heap makes the seat control act earlier, never later.

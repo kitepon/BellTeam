@@ -37,6 +37,8 @@ flowchart LR
 | `seatStream.cursor(botId)` | to `null` or `{session, launch_id, cursor}` | Where conversation has stored up to. Execution reads on from it after a body or module restart |
 | `seatStream.ingest(envelope)` | to `{status:"stored", cursor}` or `{status:"resync", cursor}` | Store the lines, advance the cursor, project, notify. Rules below |
 | `MachineStream.project(line)` | raw line to entry view | The one place that knows event kinds. Unknown kinds become the `unknown` view |
+| `MachineStream.page(botId, {limit, before, after, hint})` | to `{rows, skipped}` | The machine rows of one Bot page: the window, or the file below it (see The body holds a window). Replaces the whole-list `cardWindow` for this source |
+| `MachineStream.line(botId, seq)`, `rowSource(botId, rowId)` | to `{seq, line}` / `{sender, at, text}` or `null` (asynchronous) | Read the stored line / the drawn row of one `seq`, from the file when it is below the window |
 | `MachineStream.answer(requestId, body)` | Owner route to `streamSend` | Validate against the stored request, build the `control_response` line, send, mark answered after Aiterm accepted |
 | `streamSend(bot, {lines})` | execution dispatch (screenApproval IPC form) | Owner-only caller. Execution forwards to `stream_send` and returns Aiterm's result or error as is. An old module answers `EXECUTION_REQUEST_INVALID` (503) |
 
@@ -225,12 +227,66 @@ flowchart LR
   Lines --> Read["GET /machine-events/:seq reads any stored line"]
 ```
 
+## The body holds a window, the file is the log (heap-oom-n102-machine-stream-window)
+
+Production 2026-11-24 04:11 JST: the body died of "JavaScript heap out of memory". `initialize()` read every `state/machine-stream/<botId>.jsonl` and kept every line plus the four row indexes (`rows`, `shown`, `quiet`, `shownQuiet`) in memory: 2040 MB of files became 3272 MB of heap, and the files grew 1169 / 596 / 274 MB a day (Molly, [memory budget](../execution/memory-budget.md) "The body's own heap"). Rule: **memory is bounded per Bot by `WINDOW_RECORDS` (2000 records, the newest); older rows are read from the file when a page asks for them.** Nothing stored is dropped and no row, `seq`, id, field or order changes: it is the same pages from another place. Not a guard (nothing is refused or stopped): a page that reaches below the window is slower by one read of a few MB, never refused.
+
+**What stays in memory per Bot.** `seq`, the cursor, the four indexes and the fold map for the records of the window; the requests (see below); the stored line of a request that is still `pending` or `auto`. **What leaves memory.** The raw `records` map (the one use was re-drawing a request's row, which only a pending or auto request needs; `line(seq)` reads the file), the rows and folds below the window, an `auto` request below the window, and the `input` of a closed request below the window.
+
+**Window edge (`floor`).** `floor` is the `seq` of the newest record that is not in memory (`0` = the whole log is in memory); the window is the records with `seq > floor`. At load `floor` is the oldest *reset record* found when reading back from the end of the file; during life it moves up when more than `2 × WINDOW_RECORDS` records are in memory (`trim`: the indexes, the folds and the closed requests below `bot.seq - WINDOW_RECORDS` leave; amortised one pass per `WINDOW_RECORDS` records). A reset record is a record with a part that is not folded or a `result` (it ends a tool run, so the run state after it needs nothing earlier); the tool run state of the window start is the state after that record. **Therefore a row has the same `fold_group` / `fold_count` whether it is built at ingest, at load or from an older page** (the fold rules read only earlier entries).
+
+**Load.** `initialize()` reads each file from its end backwards in 1 MB blocks until the window and a reset record are in hand (the file is never read whole); a torn last line is dropped and a trailing run of records without `cursor_after` is cut, as before. The cursor and `seq` are those of the last records.
+
+**Pages.** The Bot page reads the machine rows through `MachineStream.page(botId, {limit, before, after, hint})` (the same arguments as `cardWindow`), which answers `{rows, skipped}` exactly like `cardWindow` did on the full list, with these rules:
+
+| Request | Served from | `skipped` |
+| --- | --- | --- |
+| newest page, or `before` a row inside the window | the window; when the slice reaches the window's first row and `floor > 0` it is filled with `limit` more rows read from the file before `floor` | records left out (file rows older than the filled part; `0` = none) |
+| `before` a machine row with `seq <= floor`, or a `before_at` hint older than the window's first row | the file: records up to the cursor's (the cursor row included, so the child finds it), read backwards until `limit` rows are in hand and a reset record starts the run state | records left out |
+| `after` | the window (a cursor older than the window gets the whole window; a client that was away for more than `WINDOW_RECORDS` records re-opens the chat, as when its cursor is unknown) | `0` |
+| a cursor that is not a machine row and has no `before_at` | the window (old apps; before this change the whole list) | as above |
+
+`skipped` counts **stored records** older than the rows returned (an upper bound of rows: one record gives zero to several rows). It is `0` exactly when the file start was reached, so `has_more` is exact where it matters; `remaining_before` of a machine seat is an upper bound (it was exact while everything was in memory). Apps use `has_more`; a page that returns almost nothing (all omitted or folded) does not end the Fill rule's loop, as stated there.
+
+**The file index (lazy, first older read of a Bot in a process).** One pass over the file builds checkpoints (`seq`, byte offset, `at` for every 512th record) so that `seq` and a time are found without reading the file from the start, and rebuilds the table of *closed* requests below the window (an answered card keeps its answers when the Owner scrolls back; a card pending in that range is told `expired`: the live seat re-lists a request it still waits for, and the first envelope closes the others). A later read extends the index from where it stopped. The pass parses only the lines that mention `control_` and the `local` records. It costs one read of the file once per process and Bot, and only when an older page, `line(seq)` or `rowSource` of an old row is asked for; the load never waits for it.
+
+**`line(botId, seq)` and `rowSource(botId, rowId)`** read the file (through the index) and are asynchronous; `GET /api/bots/:id/machine-events/:seq` and the `machine.rowSource` effect await them. Same results and codes (`MACHINE_EVENT_NOT_FOUND`, a `null` source).
+
+```mermaid
+flowchart LR
+  Env["ingest envelope"] --> Write["append to <botId>.jsonl (the log, unchanged)"]
+  Write --> Apply["apply: requests + rows of the window"]
+  Apply --> Win["window: newest WINDOW_RECORDS records: rows / shown / quiet / shownQuiet, folds, open requests"]
+  Win -->|"over 2x window: trim, floor moves up"| Win
+  Load["initialize: read the file backwards: window + reset record"] --> Win
+  Page["page(botId, limit, before, after, hint)"] --> Win
+  Page -->|"cursor or fill below floor"| Older["older(): index -> read backwards -> render rows"]
+  Older --> File["state/machine-stream/<botId>.jsonl"]
+  Idx["file index: checkpoints + closed requests (lazy, once)"] --> Older
+  File --> Idx
+  Line["line(seq), rowSource(me-seq-part)"] --> Idx
+  Win --> Rows["rows, skipped to messagePage"]
+  Older --> Rows
+  Rows --> Child["child timelinePage (unchanged)"]
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> InWindow: record applied (ingest) or loaded (tail)
+  InWindow --> InWindow: request status changes: row drawn again in place
+  InWindow --> OnFile: trim: seq <= floor (rows, folds, auto requests, inputs of closed requests leave)
+  OnFile --> OnFile: page / line / rowSource read it (not kept)
+  note right of OnFile: the record is never removed from the file; leaving memory is a move, not an end
+```
+
+Heap bound per Bot: about `2 × WINDOW_RECORDS` records of rows plus the closed requests below the window (cards only, never `auto`) plus the checkpoints (one per 512 records); it no longer grows with the file.
+
 ## Data ownership
 
 | Datum | Owner | Lifetime |
 | --- | --- | --- |
 | claude's stdout lines | Aiterm stream file, per launch | until the launch's files are removed by Aiterm |
-| stored events, cursor, requests | conversation, `state/machine-stream/<botId>.jsonl` | kept like the chat log |
+| stored events, cursor, requests | conversation, `state/machine-stream/<botId>.jsonl` (the log); the newest `WINDOW_RECORDS` records and the open requests also in body memory | the file is kept like the chat log; memory is a window of it |
 | last read position of the live reader | execution memory | until the seat closes; after a restart execution asks `seatStream.cursor` |
 
 ## Tool calls fold (a471-tune-tools) and the order rule

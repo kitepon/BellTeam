@@ -2,10 +2,11 @@ import { TimelineIndex, timelinePage, fullTimeline, cardWindow, pageLimit } from
 import { plainQuoteText } from './reply-reference.mjs'
 
 export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, machineStream = null, ownerSecretGuide = null }) {
-  const extras = (kind, id, recent = false) => {
+  // withMachine: the machine rows of the window; messagePage asks machineStream.page instead, which also reaches below the window.
+  const extras = (kind, id, recent = false, withMachine = true) => {
     const target = kind === 'rooms' ? { roomId: id } : { botId: id }
     const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
-    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions), ...(machineStream?.timelineView({ botId: id }, { recent }).length ? [machineStream.timelineView({ botId: id }, { recent })] : [])] : [])]
+    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions), ...(withMachine && machineStream?.timelineView({ botId: id }, { recent }).length ? [machineStream.timelineView({ botId: id }, { recent })] : [])] : [])]
   }
   // recent: the Bot list preview reads only the machine rows the chat draws open (display show), not folded ones.
   const sources = async (kind, id, prepared = null, recent = false) => {
@@ -18,12 +19,16 @@ export function createMessageViews({ rooms, store, secretRequests, ownerQuestion
   const messagePage = async (kind, id, url) => {
     let page
     if (store?.messagePage) {
-      // 子へ渡した位置と本文を同じsnapshotに束縛し、待機中のカード更新を混ぜない。
-      const cards = extras(kind, id).map(source => source.snapshot())
       const query = Object.fromEntries(['limit', 'before', 'after'].map(key => [key, url.searchParams.get(key)]))
       // a471-page-request-bound: the child gets only the cards that can fall in the page, and how many older ones were left out.
       const hint = query.before ? url.searchParams.get('before_at') : url.searchParams.get('after_at')
+      // heap-oom-n102-machine-stream-window: the machine rows come from the window or, below it, from the file (read before the snapshot of the others).
+      const paged = kind === 'bots' && typeof machineStream?.page === 'function'
+      const machine = paged ? await machineStream.page(id, { ...query, hint }) : null
+      // 子へ渡した位置と本文を同じsnapshotに束縛し、待機中のカード更新を混ぜない。
+      const cards = extras(kind, id, false, !paged).map(source => source.snapshot())
       const windows = cards.map(rows => cardWindow(rows, { ...query, hint }))
+      if (machine && (machine.rows.length || machine.skipped)) windows.push(machine)
       const result = await store.messagePage({ kind, id, query, cards: windows.map(({ rows }) => rows.map(({ id, at }) => ({ id, at }))), skipped: windows.map(({ skipped }) => skipped) })
       page = { ...result, items: result.items.map(entry => entry.source === 0 ? entry.item : windows[entry.source - 1].rows[entry.index]) }
     } else page = timelinePage(await sources(kind, id), url)

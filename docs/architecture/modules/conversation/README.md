@@ -32,7 +32,7 @@
 | history | Bot/room、limit/before/after、表示カード | 履歴ページ/export、画像取得URL、SSE topic/対象ID。画像bytesと本文をSSEへ載せない | ConversationStore、RoomHistory、TimelineIndex、createMessageViews/createMessageEvents |
 | membership-cleanup | removeBot(botId) | 部屋参加者/代表/予定targetsから除く。投稿履歴は保持。Bot本体の削除完了を決めない | RoomRegistry.removeBot |
 | fork-inquiry | MCP `ask_readonly {target,message}`、内部HTTP `POST /api/deliveries/fork` | 受付`{delivery,delivery_id,fork_id,from,target,seat:'fork'}`。宛先の直接JSONLへ`seat`付きで保存し、分身の回答か`FORK_FAILED`を質問者へ一通だけ中継。本体の列・報告確認へ入れない。詳細は[fork-inquiry.md](fork-inquiry.md) | BellTeamMessenger.askReadonly/relayForkAnswer（prepareDirect/notifyDirectをsendmessageと共有） |
-| machine-stream | execution→`seatStream.ingest/cursor`（席ごとのenvelope）、Ownerの`POST /api/seat-requests/:request_id/answer` | 機械席のstream行を保存・cursor管理し、全種類を`machine_event`として履歴・SSEへ。質問/承認はカード。回答は`streamSend`で席へデータとして返す。詳細は[machine-stream.md](machine-stream.md) | MachineStream、createSeatRequestApi |
+| machine-stream | execution→`seatStream.ingest/cursor`（席ごとのenvelope）、Ownerの`POST /api/seat-requests/:request_id/answer` | 機械席のstream行を保存・cursor管理し、全種類を`machine_event`として履歴・SSEへ。質問/承認はカード。回答は`streamSend`で席へデータとして返す。本体のメモリには席ごとに直近の窓（2000件）だけを置き、それより古いページ・`line`・`rowSource`はfileから読む（[machine-stream.md](machine-stream.md) 「The body holds a window」）。詳細は[machine-stream.md](machine-stream.md) | MachineStream、createSeatRequestApi |
 | room-access | roomsとroom ID、caller ID | 部屋存在/所属/代表の検証。既存ROOM_NOT_FOUND/ROOM_MEMBER_REQUIRED/ROOM_REPRESENTATIVE_REQUIREDを返す | room-access.mjs |
 
 membership-cleanupの対象Bot画像prepare/drain/opaque lease/cancelと初回readRemovalStates providerは[保存画像の削除境界](delivery.md#対象bot削除の保存境界)、RoomRegistryのclaimDue/skipDueは[予定の消化保存](rooms.md#部屋予定の消化保存)を正本とする。両方とも同じ親実体を保持し、membersは公開窓口だけを呼ぶ。

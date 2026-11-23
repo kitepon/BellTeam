@@ -39,7 +39,7 @@ export function createConversationParentEffects({ getServices, observerEffects, 
         break
       case 'machine.rowSource':
         if (typeof services.seatStream?.rowSource !== 'function') unavailable()
-        result = { source: services.seatStream.rowSource(params.botId, params.rowId) }
+        result = { source: await services.seatStream.rowSource(params.botId, params.rowId) }
         break
       case 'members.profiles.read': {
         if (typeof services.bots?.refresh !== 'function') unavailable()
