@@ -50,6 +50,16 @@ public sealed class LocalFormTests
         Assert.Equal("この端末の購読の証明を、読み取ったQRの端末へ送ります。その端末が目の前にあり、自分で始めたものだけ承認してください。", StoreAccountText.ApproveOwnLine);
     }
 
+    // Tronie 2026-11-23: the accepted audiences list every BellTeam Google client id (Pinocchio, a540-google-clients: iOS, Desktop, Android upload / Play signing / debug, web serverClientId, sign-in web) and Apple's own, the app id.
+    [Fact]
+    public void TheAcceptedAudiencesListEveryBellTeamGoogleClientIdAndTheAppleAppId()
+    {
+        var audiences = LocalFormConfig.Build().Audiences;
+        foreach (var id in new[] { "ld7o5f8j3smgqu2h1va43lt4au031s3i", "rmloup01smiuuv79m0tga49vtpobnsn4", "4ks1an9gat7npa9fdkok70kadrsp80rt", "7qi9ui73upodrlerlotlftk3vk82hprp", "be6dklphci1vbljimpg3ljpr5nc19cvv", "ktbg3e8931u0jv94c2fhccrig8ppau78", "lofu7qohq45fhbfup8k3ottlgat415pk" })
+            Assert.Contains("316260984663-" + id + ".apps.googleusercontent.com", audiences);
+        Assert.Contains("dev.kitepon.bellbot", audiences); Assert.Equal(8, audiences.Count); Assert.Contains(LocalFormIds.GoogleDesktopClientId, audiences);
+    }
+
     [Fact]
     public void ANewQrIsNeededWhenNoPeriodWasAcceptedOrItHasEnded()
     {
