@@ -50,7 +50,7 @@ flowchart LR
 | Revision change | `remoteFor(...).revision` (registry + host-trust revision) differs from the entry: the entry is replaced at the next call or keeper refresh (the known_hosts file name changes when the Owner confirms a new host key). terminals pushes no event |
 | Keeper | A seat route needs its forward kept: `ensure_forward` again for every terminal that has a seat in the table, on the existing poll tick, at most once a minute per terminal. A failed refresh is reported once as a launch-level notice and retried; no seat is touched |
 | Close | `pty_close` / restart / session change removes the entry after Aiterm answers; a closed seat's record keeps `route` for the Throughline replay only |
-| Version gate | The seat's terminal Aiterm for the launch side >= 0.70.111 and the container >= 0.70.111 (Elegg); Crust's conditions (both >= 0.70.101, trust copy, agent identity) already decide whether `target()` returns `remote`. A condition that fails leaves `terminal` alone: nothing is refused |
+| Version gate | The seat's terminal Aiterm for the launch side >= 0.70.111 (a Windows terminal >= 0.70.112) and the container >= 0.70.111 (Elegg); Crust's conditions (both >= 0.70.101, trust copy, agent identity) already decide whether `target()` returns `remote`. A condition that fails leaves `terminal` alone: nothing is refused |
 | Failure and fallback | Per terminal: no `remote` from `target()` -> `terminal`; `ensure_forward` failed -> `terminal` for that launch. After a `remote` launch no fallback exists (the exit of a stuck seat is the existing restart/hibernate path, which launches again and can choose `terminal`) |
 
 No new guard: the only protection is "never fall back to `terminal` for a `remote` seat" (named: Aiterm has no binding for it, so a call without `remote` would address the wrong or no seat); its exit is the next call asking `remoteFor` again.
@@ -59,11 +59,18 @@ No new guard: the only protection is "never fall back to `terminal` for a `remot
 
 `sessions[]` of `pty_list({remote, include: ["turn", "own_work"]})` per terminal, one call per terminal per tick, the same row shape as the local ones (Elegg to confirm). A terminal whose Aiterm is older than `include` returns rows without `turn`: read as not returned (the unread of today), same rule as stage 3.
 
-## Open items (answers asked from Elegg and Crust)
+## Answers from Elegg (2026-11-23) and what they change
 
-1. Elegg: do `aiterm-wait` (the wait process), `stream_read` / `stream_send` and `image_read` need `remote`, and how is a relayed `wait_process` built for a `remote` seat? The transcript read (`aiterm-transcript-read`, remote-seats.mjs `transcript`) also names `--session` only: does it take `--remote`?
-2. Elegg: does `ensure_forward` need a periodic refresh to keep the keeper (grace after the last seat), or does a running seat keep it?
-3. Crust: `remoteFor(terminalId)` (answered yes: after Tronie's ruling, no memberId, no C8, returns `{remote, forward, revision}` or `{reason}`).
+- `wait_process` needs NO `remote` from BellTeam: a relayed call with `remote` (agent_launch, pty_send, pty_read) returns `wait_process` as `{executable: "ssh", args: [pinned ssh argv built from that remote, then the machine's own aiterm-wait command]}`; its exit code and JSON line come back unchanged; the follow flag is `--input-ref` for a machine >= 0.70.105. BellTeam's parent runs that argv as its own process, so **the identity agent socket and the known_hosts file named in `remote.ssh` must still exist while the wait runs** (the per-terminal agent and the rewritten known_hosts file are terminals' to keep; a rewrite at every target must not remove the file under a running wait: Crust to confirm).
+- Calls that DO need `remote` (a seat with no binding is found only through it): pty_send, pty_read, pty_key, pty_observe, pty_close, pty_list, claude_turn, agent_goal, agent_configure, agent_stop (optional `remote`, one for every listed id), stream_read, stream_send (machine >= 0.70.84, else `REMOTE_AITERM_TOO_OLD`), image_read. `image_put` is the relay's own call and is never sent: `pty_send` with `image` and `remote` uploads. These are exactly the calls the injection in `AitermClient.call` covers.
+- Per-terminal `pty_list({remote, include})` rows are the same as the local ones (the machine's own Aiterm builds them; `launch_id` and `limit_end` are ordinary fields). A machine older than 0.70.108 ignores `include`: read `result.remote_version`, and missing `turn` / `own_work` means "not readable", never idle.
+- Cost: every `remote` call starts a fresh Aiterm process on the machine over ssh (a binding keeps a warm one). So the seat view keeps ONE `pty_list` per machine in flight (two readers of one seat leave one with `turn: null`, the span lock) and the ssh + start time is budgeted inside the tick (a slow terminal does not delay the others; its rows stay "not read" for that tick).
+- The Windows terminal (fox) runs the pinned ssh path from 0.70.112 on (before that it started `aiterm-wait` from PATH): the switch of a Windows terminal needs 0.70.112 on that machine.
+
+## Open items
+
+1. Elegg: the transcript read (`aiterm-transcript-read`, remote-seats.mjs `transcript`) names `--session` only: does it take `--remote`, or is it run on the machine through the seat command? Does `ensure_forward` need a periodic refresh to keep the keeper (grace after the last seat), or does a running seat keep it?
+2. Crust: the known_hosts file and the agent socket survive while a wait process runs (see above); `remoteFor(terminalId)` after Tronie's ruling (answered yes).
 
 ## Order inside the stage
 
