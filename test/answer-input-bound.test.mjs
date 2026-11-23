@@ -30,18 +30,15 @@ test('a steer that started the next turn binds its answer read to its input_ref 
   const client = { call: async (name, args) => { calls.push(args); return { content: [{ type: 'text', text: 'answer' }] } } }
   const transport = new AitermTransport({})
   const delivery = steer => ({ session: 'bot-fixture', receipt: { mode: 'agent_steer', vendor: 'claude' }, steer })
-  assert.equal(await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef, inputRefKey: 'input_ref' }), nextTurn, client), 'answer')
+  assert.equal(await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef }), nextTurn, client), 'answer')
   assert.deepEqual(calls.pop(), { session_id: 'bot-fixture', agent_transcript: true, input_ref: inputRef })
-  // An Aiterm before 0.70.105 carried steer_id: the read sends that key.
-  await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef, inputRefKey: 'steer_id' }), nextTurn, client)
-  assert.deepEqual(calls.pop(), { session_id: 'bot-fixture', agent_transcript: true, steer_id: inputRef })
   // No input_ref from Aiterm, or not a next_turn placement: the previous unbound read.
-  await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef: null, inputRefKey: 'input_ref' }), nextTurn, client)
+  await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef: null }), nextTurn, client)
   assert.deepEqual(calls.pop(), { session_id: 'bot-fixture', agent_transcript: true })
-  await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef, inputRefKey: 'input_ref' }), { turn_id: null, operation_id: null, steer: { placement: 'unknown' } }, client)
+  await transport.readTurnAnswer(delivery({ interimFrom: 'x', inputRef }), { turn_id: null, operation_id: null, steer: { placement: 'unknown' } }, client)
   assert.deepEqual(calls.pop(), { session_id: 'bot-fixture', agent_transcript: true })
   // Codex and the other harnesses bind by turn_id; input_ref is Claude-only.
-  await transport.readTurnAnswer({ ...delivery({ interimFrom: 'x', inputRef, inputRefKey: 'input_ref' }), receipt: { mode: 'agent_steer', vendor: 'codex' } }, nextTurn, client)
+  await transport.readTurnAnswer({ ...delivery({ interimFrom: 'x', inputRef }), receipt: { mode: 'agent_steer', vendor: 'codex' } }, nextTurn, client)
   assert.deepEqual(calls.pop(), { session_id: 'bot-fixture', agent_transcript: true })
 })
 

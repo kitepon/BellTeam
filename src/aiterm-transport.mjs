@@ -1504,7 +1504,7 @@ export class AitermTransport {
       agent_transcript: true,
       ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
       ...(inputId ? { input_id: inputId } : {}),
-      ...(inputRef ? { [delivery.steer.inputRefKey]: inputRef } : {}),
+      ...(inputRef ? { input_ref: inputRef } : {}),
     }), completion)
   }
 
@@ -2553,10 +2553,7 @@ function steerFollow(result) {
   const reference = result._meta?.['aiterm/steer']
   if (!Number.isInteger(receipt.event_cursor) || !receipt.wait_process) return null
   if (reference?.schema !== 'aiterm.steer-ref.v1' || typeof reference.interim_from !== 'string') return null
-  // shortcut: an Aiterm before 0.70.105 names it steer_id and strips an unknown pty_read argument, so the read sends the key the reference carried; drop steer_id once container and terminals are >= 0.70.105 and Elegg removes it.
-  const inputRefKey = reference.input_ref === undefined ? 'steer_id' : 'input_ref'
-  const inputRef = reference[inputRefKey]
-  return { interimFrom: reference.interim_from, inputRef: /^[a-f0-9]{16}$/u.test(inputRef ?? '') ? inputRef : null, inputRefKey }
+  return { interimFrom: reference.interim_from, inputRef: /^[a-f0-9]{16}$/u.test(reference.input_ref ?? '') ? reference.input_ref : null }
 }
 
 // fork.md "failure after accept" (a533): conversation keeps only a token reason, so a free-text message must not be the reason.

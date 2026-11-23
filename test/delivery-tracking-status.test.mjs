@@ -19,7 +19,7 @@ async function fixture(t, { mode = 'agent_dispatch', sendError, wait, readError,
         return { structuredContent: { mode, event_cursor: 1,
           wait_process: { executable: 'fixture-only', args: [] } },
           ...(mode === 'agent_steer' ? { _meta: { 'aiterm/steer': {
-            schema: 'aiterm.steer-ref.v1', steer_id: '0123456789abcdef', interim_from: 'v1:1:b:1',
+            schema: 'aiterm.steer-ref.v1', input_ref: '0123456789abcdef', interim_from: 'v1:1:b:1',
           } } } : {}) }
       }
       if (name === 'pty_read') {
