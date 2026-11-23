@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-23T19:18:34Z",
-  "expiresAt": "2026-11-30T19:18:34Z",
+  "publishedAt": "2026-11-23T20:05:57Z",
+  "expiresAt": "2026-11-30T20:05:57Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "5a43236e8edc996a87f62c511c9b18ff61683967",
-      "versionId": "61d3b2f6b67289a24629fec8f23bdde83bf6b28608a1143ca07533d68c2a5a28",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "96a35c786608a9db1387831628b668ddddfe24ac1828f025af4189179c5fb7c7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T011802Z/usage-5a43236e8edc996a87f62c511c9b18ff61683967-linux-amd64.tar.gz",
-          "bytes": 98920,
-          "sha256": "61d3b2f6b67289a24629fec8f23bdde83bf6b28608a1143ca07533d68c2a5a28"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200436Z/usage-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
+          "bytes": 94950,
+          "sha256": "96a35c786608a9db1387831628b668ddddfe24ac1828f025af4189179c5fb7c7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T011802Z/usage-5a43236e8edc996a87f62c511c9b18ff61683967-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10956,
-          "sha256": "61edf09874a37415df32b82307431fc2f1c8a327788c9fcfdfba7a29fea265bd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200436Z/usage-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10874,
+          "sha256": "beb1fb671d1c71626d461422586c552340726b0cea2ffb09908799210deca8dc"
         },
-        "signerCommit": "5a43236e8edc996a87f62c511c9b18ff61683967"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "自宅側の部品を 0.19.3 にします。再起動の最中は、401 ではなく 503 で答えます。"
+        "課金の確認をサーバーでしなくなります。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "5a43236e8edc996a87f62c511c9b18ff61683967",
-      "versionId": "028198229aa4eee416b19ba1cb7d29093020fc68c8a3aa95bc7e3bb93f8fd582",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "e60634f4a141864c185bbc6b17eb963162890aafc0e666740b59857bd74b61ab",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T011802Z/usage-5a43236e8edc996a87f62c511c9b18ff61683967-linux-arm64.tar.gz",
-          "bytes": 98920,
-          "sha256": "028198229aa4eee416b19ba1cb7d29093020fc68c8a3aa95bc7e3bb93f8fd582"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200436Z/usage-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
+          "bytes": 94950,
+          "sha256": "e60634f4a141864c185bbc6b17eb963162890aafc0e666740b59857bd74b61ab"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T011802Z/usage-5a43236e8edc996a87f62c511c9b18ff61683967-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11046,
-          "sha256": "d2b1bb944b847354806ab3c6026aafd18d1d6ec5be244d9e8594e40296b2e879"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200436Z/usage-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10811,
+          "sha256": "3e7905cd7ef74efd4d33ed4d065586ffdd97dbae8c710a238d414d21a5564d99"
         },
-        "signerCommit": "5a43236e8edc996a87f62c511c9b18ff61683967"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "自宅側の部品を 0.19.3 にします。再起動の最中は、401 ではなく 503 で答えます。"
+        "課金の確認をサーバーでしなくなります。"
       ]
     },
     {
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "f58d3b4c7c311615e24a7ba24607fd518ed9c08a",
-      "versionId": "26572318ac60a63fce5eec6c25547554207417b72fd40d4217388fbd1a785be3",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "cd3b9ca59783099afb53ecd298bc3506bb595bb2d64da1ea1220a3b61b9f22fb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T183448Z/conversation-f58d3b4c7c311615e24a7ba24607fd518ed9c08a-linux-amd64.tar.gz",
-          "bytes": 3798220,
-          "sha256": "26572318ac60a63fce5eec6c25547554207417b72fd40d4217388fbd1a785be3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200453Z/conversation-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
+          "bytes": 3798262,
+          "sha256": "cd3b9ca59783099afb53ecd298bc3506bb595bb2d64da1ea1220a3b61b9f22fb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T183448Z/conversation-f58d3b4c7c311615e24a7ba24607fd518ed9c08a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11080,
-          "sha256": "f8249fe39c42d1baf76d0e9df9c39443c6d9db34b6e2130882f837efbb7a23b8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200453Z/conversation-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "4e031b963c9068b5b216edfb26c76fc30d6ffb6b8ac5857d65b2c21d1392acf1"
         },
-        "signerCommit": "f58d3b4c7c311615e24a7ba24607fd518ed9c08a"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "使われていない橋の道を取り除きます。"
+        "通知まわりの変更に合わせます。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "f58d3b4c7c311615e24a7ba24607fd518ed9c08a",
-      "versionId": "bca0e5348ee8486d4161dfcc44eaf4d42a8576f7295ac580d772b430a3ad6f76",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "ad2926e3da52e21df29c0898334358747f001b2f4e5caf075f130c50e9d60f2f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T183448Z/conversation-f58d3b4c7c311615e24a7ba24607fd518ed9c08a-linux-arm64.tar.gz",
-          "bytes": 3798220,
-          "sha256": "bca0e5348ee8486d4161dfcc44eaf4d42a8576f7295ac580d772b430a3ad6f76"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200453Z/conversation-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
+          "bytes": 3798262,
+          "sha256": "ad2926e3da52e21df29c0898334358747f001b2f4e5caf075f130c50e9d60f2f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T183448Z/conversation-f58d3b4c7c311615e24a7ba24607fd518ed9c08a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11092,
-          "sha256": "b185147bfd99c89b626700c5dbfe518c9c3a0bdcd8c70d77687997dea8033436"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200453Z/conversation-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "10c016e463e97833c17e0f6df1300891bbb0be4962068a7ac0a997921ddbd400"
         },
-        "signerCommit": "f58d3b4c7c311615e24a7ba24607fd518ed9c08a"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,13 +286,13 @@
         }
       },
       "changes": [
-        "使われていない橋の道を取り除きます。"
+        "通知まわりの変更に合わせます。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "f53359dc7d33594e7230912fe99284a1d6ee79d8",
-      "versionId": "26417edcf4d09f487a0875d31fd16bf454f67cf47278942a3570466895c0e75c",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "1847236e01eaf9d4d7f52025a9c9f52d8ab6cb6b450a339c45f73fdc7962d6a8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T161750Z/notifications-f53359dc7d33594e7230912fe99284a1d6ee79d8-linux-amd64.tar.gz",
-          "bytes": 4537473,
-          "sha256": "26417edcf4d09f487a0875d31fd16bf454f67cf47278942a3570466895c0e75c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
+          "bytes": 4546918,
+          "sha256": "1847236e01eaf9d4d7f52025a9c9f52d8ab6cb6b450a339c45f73fdc7962d6a8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T161750Z/notifications-f53359dc7d33594e7230912fe99284a1d6ee79d8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11084,
-          "sha256": "1b456e984fd59b7d3d9addd361390adff4c16e58e1cbe66447997bc8d5fa6f29"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11041,
+          "sha256": "daf99a6c235eecb579a77bf75b85f826e8fdc980eaa55bcd1f7ac9aecb71d824"
         },
-        "signerCommit": "f53359dc7d33594e7230912fe99284a1d6ee79d8"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -318,13 +318,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知がセッションのチケットを持てるようにします。"
+        "通知の購入まわりの扱いを、課金の確認をしない形に合わせます。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "f53359dc7d33594e7230912fe99284a1d6ee79d8",
-      "versionId": "1752f02b52e90b9fc92272bf8ac7ef640c5a73bedc890321ebf284fdd56c18ac",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "74d72b3c4e6cec4ce057c1af41849eba2e7a2b04cf1b67863719c8b59a071621",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T161750Z/notifications-f53359dc7d33594e7230912fe99284a1d6ee79d8-linux-arm64.tar.gz",
-          "bytes": 4537471,
-          "sha256": "1752f02b52e90b9fc92272bf8ac7ef640c5a73bedc890321ebf284fdd56c18ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
+          "bytes": 4546919,
+          "sha256": "74d72b3c4e6cec4ce057c1af41849eba2e7a2b04cf1b67863719c8b59a071621"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T161750Z/notifications-f53359dc7d33594e7230912fe99284a1d6ee79d8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11131,
-          "sha256": "2d64c565a6281c1b12bb08f0838512e892a5af3fd475002819d69df4be91b175"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11037,
+          "sha256": "924418d4c48f77307060c7444e2d066fa7ba27760be8e75e95b1531f7869a7ed"
         },
-        "signerCommit": "f53359dc7d33594e7230912fe99284a1d6ee79d8"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -350,7 +350,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知がセッションのチケットを持てるようにします。"
+        "通知の購入まわりの扱いを、課金の確認をしない形に合わせます。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "2ce4421b68756ed27f90b35a5b9dcf6aec0f1bb2b7d0056cfa0acc112e6aabc0",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "7e960e7281254577a69cc8743021989a6ea6feef446a427ff4c054b34f21c60a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041808Z/web-gateway-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-amd64.tar.gz",
-          "bytes": 4542401,
-          "sha256": "2ce4421b68756ed27f90b35a5b9dcf6aec0f1bb2b7d0056cfa0acc112e6aabc0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200526Z/web-gateway-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
+          "bytes": 4548202,
+          "sha256": "7e960e7281254577a69cc8743021989a6ea6feef446a427ff4c054b34f21c60a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041808Z/web-gateway-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "aa2cb206e58bbbc4f672a85ecf0222156fa74523d33c9d7df93ab961bf1ea857"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200526Z/web-gateway-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10974,
+          "sha256": "d9faf7b1ccd5859b5ae51cb978c6a87e3ac6213f1dc88f40fabcb0ea05264be1"
         },
-        "signerCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "席の登録を Aiterm の新しい汎用の入口に合わせます。"
+        "課金の確認をサーバーでしなくなり、端末の遠隔入力に合わせます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "615e24c0024df4e7c8b9786bdc394f08c2ca35b7e5399b7ed3c294828599d725",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "cc882b29d0de3e8d71a76342aa321724d82dba2ecccbca541b8ede50c59b998a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041808Z/web-gateway-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-arm64.tar.gz",
-          "bytes": 4542401,
-          "sha256": "615e24c0024df4e7c8b9786bdc394f08c2ca35b7e5399b7ed3c294828599d725"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200526Z/web-gateway-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
+          "bytes": 4548203,
+          "sha256": "cc882b29d0de3e8d71a76342aa321724d82dba2ecccbca541b8ede50c59b998a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041808Z/web-gateway-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10821,
-          "sha256": "83611262b4d295bf8414b7b2dc4a2be2defcea1503e66545a42d2d704e94f1a8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200526Z/web-gateway-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "210c8c880b70cf50f4911517d3fc1b33e74245e9ce2e65e4f51391340d4c523b"
         },
-        "signerCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "席の登録を Aiterm の新しい汎用の入口に合わせます。"
+        "課金の確認をサーバーでしなくなり、端末の遠隔入力に合わせます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
-      "versionId": "2178edab79238566c8236e2e1ec2ddef83985287a862cab2610ca8c64f33270d",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "caed1117eb17f4b2083a815e90115884eb5866e36664b3c6ab7df42fa76d235d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz",
-          "bytes": 3875572,
-          "sha256": "2178edab79238566c8236e2e1ec2ddef83985287a862cab2610ca8c64f33270d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200427Z/execution-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
+          "bytes": 3879463,
+          "sha256": "caed1117eb17f4b2083a815e90115884eb5866e36664b3c6ab7df42fa76d235d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10895,
-          "sha256": "471961d9627ac2a2477d43f3abe1c7298c9c9b4452ca1dd78adb807da8e3636a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200427Z/execution-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10946,
+          "sha256": "89bbfd1e52179e574d160f4371008242b1f6c578ba80335830b69e8ecaf788a4"
         },
-        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の入力の追跡は新しい名前だけを使い、席の見え方の影の実行は 10 分ごとに要約を書きます。"
+        "端末の遠隔の経路を更新し、席の入力の追跡は新しい名前だけを使います。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
-      "versionId": "3d07ad04804e065f2324b40c97c923ef6c389034dd6cb6210e1780c59ea0dc0b",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "20867a190a433763a3f2ea157e2d3979045ed53a7fb0a2d3a1a04c01f0cf3125",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz",
-          "bytes": 3875572,
-          "sha256": "3d07ad04804e065f2324b40c97c923ef6c389034dd6cb6210e1780c59ea0dc0b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200427Z/execution-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
+          "bytes": 3879463,
+          "sha256": "20867a190a433763a3f2ea157e2d3979045ed53a7fb0a2d3a1a04c01f0cf3125"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10711,
-          "sha256": "f3f7145590cb88d1a2f3025f9ffa6111bffe722582e54ee68c308642bec93d70"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200427Z/execution-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10977,
+          "sha256": "a337cd5e2523b1084b93ded73580dd78193eec1cb3890defdf89c86c8f99d36d"
         },
-        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,13 +552,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の入力の追跡は新しい名前だけを使い、席の見え方の影の実行は 10 分ごとに要約を書きます。"
+        "端末の遠隔の経路を更新し、席の入力の追跡は新しい名前だけを使います。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
-      "versionId": "ee8cb4ecfb92415e97065a9917517ad6babf40b63326b2ea181d78bc8a15edce",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "73dd1f3d8e9e1173418f8dad29dce143887e216b5ea84a1b4a2b9ad02cce87f6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz",
-          "bytes": 4549162,
-          "sha256": "ee8cb4ecfb92415e97065a9917517ad6babf40b63326b2ea181d78bc8a15edce"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200504Z/members-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
+          "bytes": 4554592,
+          "sha256": "73dd1f3d8e9e1173418f8dad29dce143887e216b5ea84a1b4a2b9ad02cce87f6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "26cc4c0bc30da3417bc9f7599614209c39794d34bc14bc00d16d635d9d23de5a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200504Z/members-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "64a4ecba8cbacdcbc7d2e932860e2d8a1d5ccc76e05bee5c06add9e923d08d7e"
         },
-        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -597,8 +597,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
-      "versionId": "0c2cb57e6b764b6315f7805861301c2a78d07a46ae9d347411ee1b76cb811327",
+      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
+      "versionId": "7f4d8631a5b7c7d762c31bd1ccea63d4e84cf8170cadbe74bbe50af28693e314",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz",
-          "bytes": 4549162,
-          "sha256": "0c2cb57e6b764b6315f7805861301c2a78d07a46ae9d347411ee1b76cb811327"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200504Z/members-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
+          "bytes": 4554592,
+          "sha256": "7f4d8631a5b7c7d762c31bd1ccea63d4e84cf8170cadbe74bbe50af28693e314"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200504Z/members-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
           "bytes": 10902,
-          "sha256": "50b7ddd40a2946cb8e7f97fd3118a8f9bed7ddba3fd301d335c8a9abe32cbde5"
+          "sha256": "074dcf33992a56340f317c272dcc8294a288baaf24ebe5553053c401697ee095"
         },
-        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
+        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
-      "versionId": "sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8",
+      "sourceCommit": "5cfaea048990991a06beb746da1cf16d466decc4",
+      "versionId": "sha256:5bceb6fe2c8d078377030d68319d5c8f5307ecf5005860a98053a58246a6feae",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5bceb6fe2c8d078377030d68319d5c8f5307ecf5005860a98053a58246a6feae"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Codex が入っていない環境では、Codex の手順を「省いた」と報告し、失敗とは報告しません。席の入力の追跡は新しい名前だけを使います。席の見え方の影の実行は、10 分ごとに要約を書きます。"
+        "本体のメモリの上限を 8 GiB に広げ、メモリ不足で止まらないようにします。課金の確認をサーバーでしなくなります。端末の遠隔入力と経路を更新します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
-      "versionId": "sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8",
+      "sourceCommit": "5cfaea048990991a06beb746da1cf16d466decc4",
+      "versionId": "sha256:5bceb6fe2c8d078377030d68319d5c8f5307ecf5005860a98053a58246a6feae",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5bceb6fe2c8d078377030d68319d5c8f5307ecf5005860a98053a58246a6feae"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Codex が入っていない環境では、Codex の手順を「省いた」と報告し、失敗とは報告しません。席の入力の追跡は新しい名前だけを使います。席の見え方の影の実行は、10 分ごとに要約を書きます。"
+        "本体のメモリの上限を 8 GiB に広げ、メモリ不足で止まらないようにします。課金の確認をサーバーでしなくなります。端末の遠隔入力と経路を更新します。"
       ]
     },
     {
