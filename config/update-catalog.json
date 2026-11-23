@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-23T04:18:43Z",
-  "expiresAt": "2026-11-30T04:18:43Z",
+  "publishedAt": "2026-11-23T19:18:34Z",
+  "expiresAt": "2026-11-30T19:18:34Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "79c546f136767dd811334789ae015a69a39f5606cc785ed008410e4ad90d7a48",
+      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
+      "versionId": "2178edab79238566c8236e2e1ec2ddef83985287a862cab2610ca8c64f33270d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041746Z/execution-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-amd64.tar.gz",
-          "bytes": 3875293,
-          "sha256": "79c546f136767dd811334789ae015a69a39f5606cc785ed008410e4ad90d7a48"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz",
+          "bytes": 3875572,
+          "sha256": "2178edab79238566c8236e2e1ec2ddef83985287a862cab2610ca8c64f33270d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041746Z/execution-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "8fe425f079b5f647873aeaf2faa4886a42529ca4d75e3814e0ac1a30d0480f48"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10895,
+          "sha256": "471961d9627ac2a2477d43f3abe1c7298c9c9b4452ca1dd78adb807da8e3636a"
         },
-        "signerCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a"
+        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の登録を Aiterm の新しい汎用の入口に合わせます。"
+        "席の入力の追跡は新しい名前だけを使い、席の見え方の影の実行は 10 分ごとに要約を書きます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "78e58f98d622be8a864191a376421f7cc075814327b1fc6566f074bb9b7dacb6",
+      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
+      "versionId": "3d07ad04804e065f2324b40c97c923ef6c389034dd6cb6210e1780c59ea0dc0b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041746Z/execution-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-arm64.tar.gz",
-          "bytes": 3875293,
-          "sha256": "78e58f98d622be8a864191a376421f7cc075814327b1fc6566f074bb9b7dacb6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz",
+          "bytes": 3875572,
+          "sha256": "3d07ad04804e065f2324b40c97c923ef6c389034dd6cb6210e1780c59ea0dc0b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041746Z/execution-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10883,
-          "sha256": "6da3306e9a8a26fbc36bfeb0df7521d60dc86d9c4fd5f6b64df064047bafeece"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065812Z/execution-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10711,
+          "sha256": "f3f7145590cb88d1a2f3025f9ffa6111bffe722582e54ee68c308642bec93d70"
         },
-        "signerCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a"
+        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,13 +552,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の登録を Aiterm の新しい汎用の入口に合わせます。"
+        "席の入力の追跡は新しい名前だけを使い、席の見え方の影の実行は 10 分ごとに要約を書きます。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "45201fc1cfb9cb8596f4b62634aec4167a4b0b3ce93ee6289c66dbd732179816",
+      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
+      "versionId": "ee8cb4ecfb92415e97065a9917517ad6babf40b63326b2ea181d78bc8a15edce",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041756Z/members-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-amd64.tar.gz",
-          "bytes": 4548775,
-          "sha256": "45201fc1cfb9cb8596f4b62634aec4167a4b0b3ce93ee6289c66dbd732179816"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz",
+          "bytes": 4549162,
+          "sha256": "ee8cb4ecfb92415e97065a9917517ad6babf40b63326b2ea181d78bc8a15edce"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041756Z/members-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10765,
-          "sha256": "ed296997cf000da4beca5135ea59500012fb43b5ab8ca166a3daa85839148279"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10855,
+          "sha256": "26cc4c0bc30da3417bc9f7599614209c39794d34bc14bc00d16d635d9d23de5a"
         },
-        "signerCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a"
+        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "席の登録を Aiterm の新しい汎用の入口に合わせます。"
+        "共通の決まり completion.one-release（一度の公開にまとめる。急ぎの修理は例外）を足します。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "03997539f232e713d11d57b9f9380d54f46bf15932e677606ac199e724fd6729",
+      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
+      "versionId": "0c2cb57e6b764b6315f7805861301c2a78d07a46ae9d347411ee1b76cb811327",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041756Z/members-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-arm64.tar.gz",
-          "bytes": 4548775,
-          "sha256": "03997539f232e713d11d57b9f9380d54f46bf15932e677606ac199e724fd6729"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz",
+          "bytes": 4549162,
+          "sha256": "0c2cb57e6b764b6315f7805861301c2a78d07a46ae9d347411ee1b76cb811327"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T041756Z/members-b2adbed7e905d5bf52462f1130178dd37cd5509a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "2502ee12efc1ee1c087cea8c87660b860441ed1d3c4d78b80b902f3de2c7d3de"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T065822Z/members-9a74bbb242b770b20d448a2d260f0afc20672bb6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10902,
+          "sha256": "50b7ddd40a2946cb8e7f97fd3118a8f9bed7ddba3fd301d335c8a9abe32cbde5"
         },
-        "signerCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a"
+        "signerCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "席の登録を Aiterm の新しい汎用の入口に合わせます。"
+        "共通の決まり completion.one-release（一度の公開にまとめる。急ぎの修理は例外）を足します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "sha256:8618f8348785b7c06c48e79522d03313a4b272500e28703db17061492f4ff5d6",
+      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
+      "versionId": "sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8618f8348785b7c06c48e79522d03313a4b272500e28703db17061492f4ff5d6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に登録する Aiterm の入口を、Aiterm の新しい汎用の入口に切り替えます。古い入口も残るので、古い Aiterm でも動きます。"
+        "Codex が入っていない環境では、Codex の手順を「省いた」と報告し、失敗とは報告しません。席の入力の追跡は新しい名前だけを使います。席の見え方の影の実行は、10 分ごとに要約を書きます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b2adbed7e905d5bf52462f1130178dd37cd5509a",
-      "versionId": "sha256:8618f8348785b7c06c48e79522d03313a4b272500e28703db17061492f4ff5d6",
+      "sourceCommit": "9a74bbb242b770b20d448a2d260f0afc20672bb6",
+      "versionId": "sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8618f8348785b7c06c48e79522d03313a4b272500e28703db17061492f4ff5d6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:86c0477025494c934c020823c78dc4d1b5ff22c3cf6169b702e29c26b2674eb8"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席に登録する Aiterm の入口を、Aiterm の新しい汎用の入口に切り替えます。古い入口も残るので、古い Aiterm でも動きます。"
+        "Codex が入っていない環境では、Codex の手順を「省いた」と報告し、失敗とは報告しません。席の入力の追跡は新しい名前だけを使います。席の見え方の影の実行は、10 分ごとに要約を書きます。"
       ]
     },
     {
