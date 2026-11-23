@@ -5,6 +5,7 @@ const FIELDS = ['turn', 'own_work', 'unread']
 const SAME_TURN = ['state', 'turn_id', 'started_at', 'interim_from']
 const SAME_OWN = ['processes', 'excluded', 'child_results', 'tasks', 'exclusions_digest', 'oldest', 'task']
 const EVERY_MS = 60_000
+const SUMMARY_MS = 600_000
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 const pick = (value, names) => value && typeof value === 'object' ? Object.fromEntries(names.map(name => [name, value[name] ?? null])) : null
@@ -34,12 +35,13 @@ export class SeatViewShadow {
     this.counts = Object.fromEntries(FIELDS.map(field => [field, { compared: 0, differed: 0 }]))
     this.unavailable = 0
     this.reported = new Map()
+    this.summarized = -Infinity
   }
 
   // data = result._meta['aiterm/seat_turns'], result = the pty_list result of the same call.
   compare(data, result) {
     const sessions = result?.structuredContent?.sessions
-    if (!Array.isArray(sessions) || !Array.isArray(data?.seats) || !sessions.some(row => row && Object.hasOwn(row, 'turn'))) { this.unavailable++; return }
+    if (!Array.isArray(sessions) || !Array.isArray(data?.seats) || !sessions.some(row => row && Object.hasOwn(row, 'turn'))) { this.unavailable++; this.summary(); return }
     const rows = data.seats.filter(row => row?.session_id)
     const unread = Array.isArray(data.unread) ? data.unread : []
     this.counts.turn.compared += rows.length
@@ -52,5 +54,15 @@ export class SeatViewShadow {
       this.reported.set(key, this.now())
       this.report(`BellTeam seat view shadow: SEAT_VIEW_SHADOW_DIFF field=${field} harness=${harness} session=${session}`)
     }
+    this.summary()
+  }
+
+  // The body log is the only sink (diagnostics has no code for this): a day without difference lines is only evidence if the
+  // summary lines show the compared counts, so one line every ten minutes carries the running totals.
+  summary() {
+    if (this.now() - this.summarized < SUMMARY_MS) return
+    this.summarized = this.now()
+    const c = this.counts
+    this.report(`BellTeam seat view shadow: SEAT_VIEW_SHADOW_SUMMARY turn=${c.turn.differed}/${c.turn.compared} own_work=${c.own_work.differed}/${c.own_work.compared} unread=${c.unread.differed}/${c.unread.compared} unavailable=${this.unavailable} (differed/compared)`)
   }
 }
