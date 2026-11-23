@@ -90,6 +90,7 @@
     "src/run-seat-aiterm-launch.mjs",
     "src/rtk-hooks.mjs",
     "src/aiterm-hooks.mjs",
+    "src/aiterm-native.mjs",
     "src/cursor-instructions.mjs",
     "src/server-state-transfer.mjs",
     "src/server-state-ownership.mjs",
