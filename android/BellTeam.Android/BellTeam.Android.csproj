@@ -7,7 +7,7 @@
     <AssemblyName>BellTeam</AssemblyName>
     <ApplicationId>dev.kitepon.bellbot</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.25</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>0.1.26</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <!-- Fast Deployment keeps assemblies outside the APK and breaks after pm clear; embed them so a clean install always starts. -->
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
@@ -31,8 +31,8 @@
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
-    <!-- a540 (contract 1.36, the local form): Google sign-in, the request QR, this phone's own Play purchase and the answer to another device's QR through the library's android part. 0.20.1 is a development release. -->
-    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.20.1" />
+    <!-- a540 (contract 1.36, the local form): Google sign-in, the request QR, this phone's own Play purchase and the answer to another device's QR through the library's android part. 0.20.2 is accepted (Mint, t10c). -->
+    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.20.2" />
     <!-- Approving another device: Google's code scanner reads the QR (Play services, no camera permission of ours). -->
     <PackageReference Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.17" />
     <!-- The binding gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. -->
