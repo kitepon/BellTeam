@@ -49,6 +49,7 @@ const trustAction = (target, reason) => APP_ATTESTS.has(target.os) && reason ===
 const REGISTRY_REASONS = new Set(['SSH_KEY_UNSET', 'BINDING_UNSET'])
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
+const REMOTE_ROUTE_MINIMUM = '0.70.112'
 // The container's Aiterm version seen by the open that made an `aiterm` evidence object; not part of the evidence itself.
 const containerVersions = new WeakMap()
 const parseVersion = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number)
@@ -235,8 +236,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   async function remoteInput(record, binding, aiterm, evidence) {
     if (record.launchInput !== 'remote') return {}
     const stay = reason => { if (evidence) evidence.input = { outcome: 'terminal', reason }; return {} }
-    // The generic remote input is in 0.70.101; a Windows terminal needs 0.70.112 on both Aiterms (Elegg, a532b2s2e: the pinned ssh of a wait).
-    const minimum = record.os === 'windows' ? '0.70.112' : '0.70.101'
+    // Execution's route over the remote input (transcript read over the pinned ssh, the wait, the launch) needs 0.70.112 on the terminal's
+    // Aiterm and the container's, for every OS (Kiro's #2429, remote-route.md; Epinel). The surface itself began in 0.70.101.
+    const minimum = REMOTE_ROUTE_MINIMUM
     if (!atLeast(aiterm?.before, minimum) || !atLeast(containerVersions.get(aiterm), minimum)) return stay(typeof native.trustFile === 'function' ? 'AITERM_TOO_OLD' : 'UNSUPPORTED')
     const built = await assembleRemote(record, binding)
     if (!built.fields) return stay(built.reason)

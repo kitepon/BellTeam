@@ -59,7 +59,7 @@ test('registry: the copy is derived data (no revision bump, no change event), hi
 })
 
 test('C8 copies the host trust once in the background, joins concurrent launches, and a launch never waits for it', async t => {
-  const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.102'
+  const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.112'
   const gate = Promise.withResolvers()
   let exports = 0
   native.exportBinding = async ({ ref }) => { exports++; assert.equal(ref, REF); await gate.promise; return exported() }
@@ -203,7 +203,7 @@ test('trust file: rewritten from the copy at every target as UID1000 (tmp, then 
 })
 
 function switched(extra = {}) {
-  const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.102'
+  const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.112'
   Object.assign(native, { async exportBinding({ ref }) { return exported({ ref }) }, async loadAgent() {}, async agentHeld() { return true }, agentSocket: ({ terminalId }) => `/tmp/bellteam-terminals/agent/${terminalId}.sock`,
     async trustFile({ terminalId, revision: rev }) { return `/tmp/bellteam-terminals/trust/${terminalId}.${rev.slice(7, 23)}.known_hosts` } }, extra)
   return native
@@ -236,7 +236,7 @@ test('a switched terminal gets remote + ssh + forward beside terminal; every unm
     ['AGENT_EMPTY', { native: switched({ async agentHeld() { return false } }) }],
     ['TRUST_FILE_FAILED', { native: switched({ async trustFile() { throw new Error('x') } }) }],
     ['TRUST_COPY_MISSING', { native: switched(), trustCopy: false }],
-    ['UNSUPPORTED', { native: (() => { const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.102'; return native })() }]
+    ['UNSUPPORTED', { native: (() => { const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.112'; return native })() }]
   ]
   for (const [reason, { native, mutate, trustCopy }] of cases) {
     mutate?.(native)
@@ -316,7 +316,7 @@ test('remoteFor after a body restart: an empty agent gets the key again first; i
   assert.deepEqual(await other.remoteFor('owner-macbook'), { reason: 'AGENT_EMPTY' })
 })
 
-test('a Windows terminal needs Aiterm 0.70.112 on both sides before it gets the remote input; the paths are the same for the same revision', async t => {
+test('every terminal needs Aiterm 0.70.112 on both sides before it gets the remote input (execution\'s route); the paths are the same for the same revision', async t => {
   const winRequest = { ...request, projectRoot: 'C:\\Users\\kite\\work' }
   const run = async (remoteVersion, localVersion) => {
     const native = switched(); native.remoteVersion = remoteVersion; native.localVersion = localVersion
@@ -335,6 +335,9 @@ test('a Windows terminal needs Aiterm 0.70.112 on both sides before it gets the 
   assert.deepEqual(old.maintenance.last('owner-macbook', 'claude-code').input, { outcome: 'terminal', reason: 'AITERM_TOO_OLD' })
   const oldLocal = await run('0.70.112', '0.70.111')
   assert.equal('remote' in await oldLocal.target(winRequest), false)
+  const mac = await (async () => { const native = switched(); native.remoteVersion = '0.70.111'; native.localVersion = '0.70.112'; const { connection } = await switchedSetup(t, { native }); return connection })()
+  assert.equal('remote' in await mac.target(request), false, 'macOS and Linux need 0.70.112 too, not only Windows')
+  assert.deepEqual(mac.maintenance.last('owner-macbook', 'claude-code').input, { outcome: 'terminal', reason: 'AITERM_TOO_OLD' })
   const ok = await run('0.70.112', '0.70.112')
   const first = await ok.target(winRequest), again = await ok.remoteFor('owner-macbook')
   assert.ok(first.remote)
