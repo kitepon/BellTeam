@@ -11,6 +11,8 @@ enum ShareCredentials {
         var cookieExpiresAt: Date?
         /// サーバーのセッショントークン（app-sessions.md）。あれば`Authorization: Bearer`で使う。
         var sessionToken: String?
+        /// この端末の購読確認の期限（アプリが書く。a540: 課金はこの端末の確認だけ）。購読が無ければnil。
+        var paidUntil: Date?
     }
 
     enum Failure: Error, LocalizedError {

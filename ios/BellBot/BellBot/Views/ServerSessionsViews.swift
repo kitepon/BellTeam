@@ -26,7 +26,6 @@ enum ServerLoginWords {
 
     static let consoleTitle = "サーバーのコンソールのコード"
     static let sectionTitle = "このサーバーに入っている端末"
-    static let lockOutConfirm = "この端末は、もう一度サインインするまで使えなくなります。"
 
     /// 一覧の上の一行。台数は自分の行も数える。
     static func summary(_ count: Int) -> String { count == 1 ? "この端末だけが入っています" : "\(count)台が入っています" }
@@ -94,7 +93,7 @@ struct ServerSessionsSection: View {
             Section {
                 DeviceSummaryLine(count: model.sessions.count)
                 ForEach(model.sessions) { entry in
-                    DeviceRowView(info: DeviceRowInfo(entry), busy: model.busy, onEnd: { Task { if entry.current { await store.signOut() } else { await model.revoke(entry) } } }, onLockOut: nil)
+                    DeviceRowView(info: DeviceRowInfo(entry), busy: model.busy, onEnd: { Task { if entry.current { await store.signOut() } else { await model.revoke(entry) } } })
                 }
             } header: { Text(ServerLoginWords.sectionTitle) }
             if let error = model.errorText { Section { Text(error).font(.footnote).foregroundStyle(.red) } }
@@ -144,7 +143,6 @@ struct DeviceRowInfo: Identifiable, Equatable {
     let current: Bool
     let originLine: String?
     let times: String
-    let passId: String?
 
     /// 種類ごとの一般の端末の字形（ブランドの印は使わない）。自分の行だけiPad・Macを区別できる（ライブラリは区別しない）。
     static func icon(kind: String, current: Bool) -> Icon {
@@ -175,7 +173,6 @@ struct DeviceRowInfo: Identifiable, Equatable {
         current = entry.current
         originLine = "\(ServerLoginWords.origin(entry.origin))・\(ServerLoginWords.network(entry.networkClass))"
         times = Self.times(created: entry.createdAt, lastUse: entry.lastUsedAt)
-        passId = nil
     }
 
     /// ホームの一覧には入り方・ネットワークが無いので、1行目は作らない。
@@ -187,7 +184,6 @@ struct DeviceRowInfo: Identifiable, Equatable {
         current = row.current
         originLine = nil
         times = Self.times(created: row.created, lastUse: row.lastUse)
-        passId = row.passId
     }
 }
 
@@ -217,9 +213,6 @@ struct DeviceRowView: View {
     let info: DeviceRowInfo
     let busy: Bool
     let onEnd: () -> Void
-    /// 店のパスを持つスマホだけが渡す。行にpassIdが無ければ出さない。
-    let onLockOut: (() -> Void)?
-    @State private var confirmingLockOut = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -236,17 +229,9 @@ struct DeviceRowView: View {
                 HStack {
                     Button(info.current ? "ログアウト" : "ログアウトさせる", role: .destructive, action: onEnd)
                         .accessibilityIdentifier("session-revoke-\(info.id)")
-                    if !info.current, info.passId != nil, onLockOut != nil {
-                        Button("締め出す", role: .destructive) { confirmingLockOut = true }
-                            .accessibilityIdentifier("session-lockout-\(info.id)")
-                    }
                 }
                 .buttonStyle(.bordered).disabled(busy)
             }
-        }
-        .confirmationDialog(ServerLoginWords.lockOutConfirm, isPresented: $confirmingLockOut, titleVisibility: .visible) {
-            Button("締め出す", role: .destructive) { onLockOut?() }
-            Button("やめる", role: .cancel) { }
         }
     }
 }
@@ -255,9 +240,6 @@ struct DeviceRowView: View {
 struct HomeSessionsSection: View {
     @EnvironmentObject private var store: AppStore
     @ObservedObject var model: HomeSessionsModel
-    @ObservedObject var account: StoreAccount
-
-    private var canLockOut: Bool { account.signedIn && UIDevice.current.userInterfaceIdiom == .phone }
 
     var body: some View {
         Group {
@@ -265,8 +247,7 @@ struct HomeSessionsSection: View {
                 DeviceSummaryLine(count: model.rows.count)
                 ForEach(model.rows) { row in
                     DeviceRowView(info: DeviceRowInfo(row), busy: model.busy,
-                                  onEnd: { Task { if row.current { await store.signOut() } else { await model.end(row) } } },
-                                  onLockOut: canLockOut ? { Task { await model.lockOut(row) } } : nil)
+                                  onEnd: { Task { if row.current { await store.signOut() } else { await model.end(row) } } })
                 }
             } header: { Text(ServerLoginWords.sectionTitle) }
             Section {

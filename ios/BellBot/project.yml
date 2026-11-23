@@ -11,7 +11,6 @@ settings:
     # App Group（先頭 group.）がこの値から揃う。コマンドラインの PRODUCT_BUNDLE_IDENTIFIER では
     # 拡張まで上書きされるため、署名時は BELLTEAM_APP_BUNDLE_IDENTIFIER を使う。
     BELLTEAM_APP_BUNDLE_IDENTIFIER: dev.kitepon.bellbot
-    BELLTEAM_LOGIN_BILLING_URL: ""
     TARGETED_DEVICE_FAMILY: '1,2'
     "TARGETED_DEVICE_FAMILY[sdk=macosx*]": '6'
     SUPPORTS_MACCATALYST: YES
@@ -26,7 +25,7 @@ packages:
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
-    exactVersion: 0.18.9
+    exactVersion: 0.20.0
   PeerChannel:
     url: https://github.com/kitepon/peer-channel.git
     revision: 0886f976a1e4e3417392dc820b1718c34a51a5c3
@@ -47,7 +46,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '188'
+        CFBundleVersion: '189'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -68,9 +67,12 @@ targets:
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         # 店のパス・K・決裁箱のパス・ホームのトークンは、共有拡張が持つ.shareではなく、アプリ自身のグループに置く（a485 switch、Tronieの裁定）。
         BellTeamPassKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
-        # 運営のWorker（共通ログイン・課金ライブラリの接続先）。未設定の間は店の側の画面を出さない。
-        BellTeamLoginBillingURL: $(BELLTEAM_LOGIN_BILLING_URL)
-        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するためにローカルネットワークを使います。
+        # BellTeamのGoogleのiOSクライアント（a540。Pinocchio）。LocalRules.googleClientIdと、サインインの戻り先の逆順のスキーム。
+        BellTeamGoogleClientID: 316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i
+        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するため、また同じWi-Fiの別の端末と購読を確かめ合うために、ローカルネットワークを使います。
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
@@ -157,7 +159,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '188'
+        CFBundleVersion: '189'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -201,7 +203,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '188'
+        CFBundleVersion: '189'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services

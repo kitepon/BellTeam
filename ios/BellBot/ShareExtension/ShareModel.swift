@@ -88,7 +88,7 @@ final class ShareModel: ObservableObject {
         errorText = nil
         defer { sending = false }
         do {
-            try await client.requireAccess()
+            try client.requireAccess()
             try await client.post(to: pick, comment: comment.trimmingCharacters(in: .whitespacesAndNewlines), content: content)
             phase = .sent(pick.name)
         } catch {

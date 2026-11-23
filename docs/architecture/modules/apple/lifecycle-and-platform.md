@@ -79,39 +79,33 @@ flowchart LR
 | imageData | 不正ID/未保存はnil、読取失敗/不正画像はthrow。IDは1〜64文字、先頭ハイフン不可、小文字英数字とハイフンだけ |
 | 途中失敗 | 複数fileとversionsを一括rollbackする処理はない。呼出元は失敗を受ける。通知拡張はその時の読取結果で元通知へ戻す |
 
-## 購読・復元とAI利用（a485 switch：購入はライブラリ、アプリは何も終えない）
+## 購読・復元とAI利用（a540：この端末の確認だけ。サーバーは課金を判断しない）
 
 ```mermaid
 flowchart TD
-  Store["AppStore所有BillingStore"] --> Server["GET /api/subscription&lt;br/&gt;サーバー自身の答え（entitlementState）・developer判定"]
-  Lib["StoreAccount（ライブラリ）&lt;br/&gt;店のパスの権利（hasLiveContract）"] --> Access
-  Server --> Access["AppAccess.permitsAI&lt;br/&gt;developer / 初期guide / サーバーがactive / ライブラリの権利のどれか"]
-  Buy["「BellTeamのアカウント」カードの購入&lt;br/&gt;StoreAccount.purchase（購入の印つき）"] --> Lib
-  Restore["復元&lt;br/&gt;AppStore.sync → ライブラリのstart（アプリは取引を終えない）"] --> Lib
-  Access --> UI["UI・AI送信・共有拡張（サーバーの答えで開く）"]
-  Server --> Wall["entitlementState none → 購読が要る画面（SubscriptionRequiredView）"]
+  Local["LocalAccount.start&lt;br/&gt;この端末のStore（verifyAppleTransaction）→ なければ受け取った返事のpaidUntil"] --> Access["AppAccess.permitsAI&lt;br/&gt;初期guide / この端末の確認 のどちらか"]
+  Buy["「BellTeamの購読」カードの購入&lt;br/&gt;LocalAccount.purchase（purchaseLocal）"] --> Local
+  Restore["復元&lt;br/&gt;AppStore.sync → LocalAccount.start"] --> Local
+  QR["QRを出す→購読しているiPhoneの返事&lt;br/&gt;makeRequest / awaitPaid / accept"] --> Local
+  Access --> UI["UI・AI送信"]
+  Local --> Share["共有Keychainのpaid-until → 共有拡張"]
+  Local --> Wall["checked かつ未払い → 購読が要る画面（SubscriptionRequiredView）"]
 ```
 
-
-根拠：[BillingStore](../../../../ios/BellBot/BellBot/Core/BillingStore.swift)、[SubscriptionContent](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift)、[login-billing.md](login-billing.md)の切替の版。
+根拠：[BillingStore](../../../../ios/BellBot/BellBot/Core/BillingStore.swift)、[LocalAccount](../../../../ios/BellBot/BellBot/Core/LocalAccount.swift)、[login-billing.md](login-billing.md)。
 
 | 操作・状態 | 契約 |
 | --- | --- |
-| 状態所有 | statusは本体、entitlement/currentTransactionはStoreKit本人権利、productは商品。operationとentitlementCheckは別。checking/active/inactive/unavailableを区別する |
-| connect | 前の取引監視をcancel、status取得。developerは権利/取引/商品を消して通知callback。通常はupdates監視→本人権利取得→既存取引deliver。失敗はfailed/error/診断、監視中のdeliver失敗は監視を終了 |
-| 権利取得 | 同時照会はentitlementTaskへ合流。verifiedで対象商品・purchased・非取消・非upgrade・有効期限/購読groupが必要。group status/renewalの署名を確認しsubscribed/graceだけ採用。失敗は権利/取引を消しfailed。取消後は値を適用しない |
-| 有効判定 | grace期限があればそちら、無ければexpires。期限は現在より後だけ有効。developer/初期guide/本人有効権利/他ストア（source が apple 以外）のサーバーentitledのいずれかでpermitsAI。sourceがappleのサーバーentitledだけで本人の購入権利を作らない（docs/billing-client-contract.md） |
-| AI利用の呼出し | AppStore.authorizeAIUseがBot ID・guide ID・setup.completeを判定。通常は本人権利を再取得してから許可。状態未確認は未確認エラー、権利無しは購読案内 |
-| purchase | checking中は開始しない。商品・非developerを確認、status再読取、setup未完なら案内callback。successはdeliver後の権利で文言、pendingはApple承認待ち、userCancelledは追加文言なし |
-| restore | 非developer・非checkingでsyncPurchases→権利→取引ありならdeliver。取引無しは有効購読無しの文言。deferでoperation解除。失敗はerror/診断 |
-| 管理・解約 (a389) | billingSourcesに含まれる購入元の行に1つだけ「購読を管理・解約」。Appleは自端末の権利が有効でも出す。apple=`apps.apple.com/account/subscriptions`、google=Google Playの購読ページを開く（サーバー呼出し無し）。stripe=`POST /api/subscription/stripe/manage`（本文なし）が返す`url`をシステムブラウザで開き、アプリに戻ったらrecheck。失敗はerror/診断（path `/api/subscription/stripe/manage`）。自動更新停止かつ有効の行は「次回の更新はありません。{期限}まで使えます。」 |
-| 購入可否 (a389) | 購入ボタンはstatus.canPurchaseがtrueの間だけ。statusに無い（旧サーバー・未取得）はfalse。purchaseもstatus再読取後にcanPurchaseを見て、falseならApple画面を開かずerrorを出す |
-| 購読の壁 (a485) | `GET /api/subscription`の`subscription.entitlementState`（'active'｜'none'｜'unknown'、無い本体もある）。確定した'none'の時だけ、準備のできた画面（`ReadyGate`）をアプリの代わりに「このアプリは購読が必要です。無料で使うならブラウザから」の画面（SubscriptionRequiredView：文＋既存のSubscriptionCard＋接続先の変更）にする。'active'・'unknown'・項目なしはアプリを出す（Webは壁の対象外）。購入・復元は今までどおり（StoreKit→`/api/subscription/verify`→サーバーのパス）。壁の判定は本体の値だけで、アプリ側で契約を推測しない。本体は今は'active'か'unknown'を返し、'none'は自分のパスを持ち運営が契約なしと答えた後（Mika・Tronie）。 |
-| recheck | `POST /api/subscription/refresh`→status適用→権利確認→本体error検査。自動POST再送はない |
-| 通知との接続 | 権利の署名変化/失敗時にonEntitlementChange、AppStoreからBellNotifications.updateSignedTransactionへ。有効権利の時だけJWSを渡す |
-| stop/logout | entitlementTask/updatesTaskをcancelし参照・status/権利/取引/商品/error/messageを消す。Appleの購入取消を行う処理ではない |
-
-SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/復元/再確認と、購入元の行ごとの「購読を管理・解約」を接続する（旧フッターの「購読管理」Linkは行のボタンへ移した）。価格は契約の固定文「月980円（税込）・最初の1か月無料」を3店で同じ大きさで並べ、買えない店（Google Play・Stripe）はボタンもリンクも無く「この端末では購入できません」を出す。行の説明文（期限・次回の更新なし・購入できません）は省略せず折り返して全文を出す（a392b、実描画で行内の説明文が1行目で切れたため）。期限/猶予/自動更新停止、初期設定未完・未確認・失効を分ける。取引受付、verify応答、finish、本人権利の画面表示を同じ完了として扱わない。
+| 状態所有 | 有効かどうかは`LocalAccount.paid`（商品・期限・どのストアか）と`checked`（最初の読み取りが済んだか）。BillingStoreは本体の`setupComplete`と操作中の表示だけを持つ。checking/active/inactiveを区別する |
+| 有効判定 | この端末のStoreの購入（`verifyAppleTransaction`：署名・bundle・商品・取消なし・期限・Sandbox許可）が有効、または受け取った返事（`paidUntil`）が期限内。サーバーの`accessMode`・`entitlementState`・`entitled`は読まない |
+| AI利用の呼出し | AppStore.authorizeAIUseがBot ID・guide ID・setup.completeを判定。初期guideは免除。それ以外は`LocalAccount.paid`が有効な時だけ許可。無ければ購読案内 |
+| purchase | `purchaseLocal`（印なし。ライブラリが検証済みの取引を終える）。pendingはApple承認待ちの文言、cancelledは何も出さない |
+| restore | `AppStore.sync`のあと`start`で確かめ直す。有効なら「購読を確認しました。」、無ければ有効な購読が無い文言 |
+| 管理・解約 | 「購読を管理・解約」＝`apps.apple.com/account/subscriptions`を開く（サーバー呼出し無し） |
+| 購読の壁 | `LocalAccount.checked`かつ未払いの時だけ、準備のできた画面（`ReadyGate`）をアプリの代わりに「このアプリは購読が必要です」の画面（SubscriptionRequiredView：文＋「BellTeamの購読」カード＋SubscriptionCard＋接続先の変更）にする。読み取りの前は壁を出さない。壁の判定はこの端末の値だけ |
+| recheck | `LocalAccount.start`だけ（サーバーを呼ばない） |
+| 共有拡張 | `LocalAccount.paid`が変わるたびに、共有Keychainの接続情報へ`paidUntil`（期限なしは遠い未来）を書き直す。拡張は期限が今より先の時だけ送信を許す |
+| stop/logout | 端末の購入は消えない。「アカウントを削除」は`signOutLocal`（この端末のサインインと受け取った返事を消す）と決裁箱の削除（[account-deletion.md](account-deletion.md)） |
 
 ## 端末保存とlogout
 
