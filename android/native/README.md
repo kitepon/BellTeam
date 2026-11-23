@@ -10,4 +10,4 @@
 
 The library needs only liblog, libm, libdl and libc; OpenSSL and the C++ runtime are inside it. Licenses: as in the Linux README.
 
-Checked: the x86_64 file loads on the Android 16 emulator (API 36) and exports `rtcCreatePeerConnection`. The arm64-v8a file is packed but not yet run on a device.
+Checked: the x86_64 file loads on the Android 16 emulator (API 36) and exports `rtcCreatePeerConnection`. The arm64-v8a file passed `loopback-check.c` (2026-11-23) on that image through its ARM bridge (libndk_translation): two peer connections connect on loopback, a data channel opens and a message crosses. That is the .so on a translated arm64 CPU, not a real phone. The whole app does not run there: the arm64-only .NET app freezes (ANR, main thread in a futex wait) under the bridge on the first screen change even with the Approval Box part off, so the part has not run inside the app on arm64.
