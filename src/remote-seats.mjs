@@ -107,7 +107,8 @@ export class RemoteSeats {
       // remote-route.md: a terminal switched to `remote` gets its forward ensured first; the seat URLs then name P. Any failure here
       // launches this seat on `terminal` as before (same id, same keeper, same P).
       const route = await this.ensureRoute(bot, { remote, forward, url })
-      if (route) this.routes.add(sessionName, bot.terminalId, route)
+      // A relaunch of the same name on `terminal` (fallback, or the terminal is not switched) ends an older route of that name.
+      if (route) this.routes.add(sessionName, bot.terminalId, route); else this.routes.remove(sessionName)
       const seatUrl = route?.url ?? url
       const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
       // remote-user-tools.md U4: the Bot's user-global MCP servers of this harness, each through the same seat listener.

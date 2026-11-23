@@ -70,6 +70,17 @@ test('agent_stop is split by route and the answers are merged', async () => {
   assert.equal(Boolean(calls[0][1].remote), true)
 })
 
+test('a relaunch of the same name on terminal ends its route', async () => {
+  let failing = false
+  const { seats, calls, client } = fixture({ ensure: async () => { if (failing) throw new Error('down'); return { structuredContent: { port: 41999 } } } })
+  await seats.prepare(bot, args, { slot: null, harness: 'claude-code' })
+  failing = true
+  await seats.prepare(bot, args, { slot: null, harness: 'claude-code' })
+  calls.length = 0
+  await client.call('pty_send', { session_id: args.session_name, text: 'x' })
+  assert.equal(calls[0][1].remote, undefined)
+})
+
 test('after a body restart the route is rebuilt from the launch record and remoteFor; AGENT_EMPTY is retried, a refusal never falls back to terminal', async () => {
   const records = { 's1': { route: 'remote', target: 'mac-1\n/Users/quo/work/app' }, 's2': { target: 'mac-1\n/x' } }
   const ok = fixture({ records, answers: [{ reason: 'AGENT_EMPTY' }, { remote, forward, revision: 'r1' }] })
