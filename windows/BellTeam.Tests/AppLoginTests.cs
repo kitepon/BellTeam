@@ -123,6 +123,17 @@ public sealed class AppLoginTests
         finally { AccountStore.OpenBrowser = before; }
     });
 
+    // Owner ruling 2026-11-24: a different login is a different person with its own contract; no purchase is ever linked across accounts, so no line says one exists under another account.
+    [Fact]
+    public void TheCardNeverSaysThatAnotherAccountHoldsAPurchase() => RunSta(() =>
+    {
+        var gate = new AccountGateView(Local(), () => { });
+        Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid));
+        Assert.DoesNotContain(Texts(gate), text => text.Contains("別のアカウントで購入", StringComparison.Ordinal));
+        Assert.DoesNotContain(Texts(new AccountView(Local(), () => { })), text => text.Contains("別のアカウントで購入", StringComparison.Ordinal));
+        gate.Dispose();
+    });
+
     [Fact]
     public void WhatATryEndedWithIsTheTablesSentenceAndAPcNamesThePrivateNetworkStep()
     {
