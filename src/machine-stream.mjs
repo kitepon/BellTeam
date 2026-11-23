@@ -1,12 +1,14 @@
-import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, stat } from 'node:fs/promises'
 import { EventEmitter } from 'node:events'
 import { join } from 'node:path'
-import { TimelineIndex } from './timeline-index.mjs'
+import { TimelineIndex, cardWindow, pageLimit } from './timeline-index.mjs'
+import { backward, forward, head, parseRecord } from './machine-stream-file.mjs'
 import displayRules from './machine-display-rules.json' with { type: 'json' }
 
 // A machine seat's stream-json as the chat log (conversation/machine-stream.md, a471).
 // Every line is stored unchanged; the view and the show/fold display are derived at read time.
 const fail = code => Object.assign(new Error(code), { code })
+const NO_REQUESTS = new Map()
 const ROW_TEXT_MAX = 20000 // the whole text of a result for the try; the raw line stays available by seq
 const cut = (value, max) => { const text = typeof value === 'string' ? value : JSON.stringify(value) ?? ''; return text.length > max ? [text.slice(0, max), true] : [text, false] }
 // a471-auto-approval-noise: the one plain line a tool's input stands for (the command or the file, never the raw JSON) in a tool_use and an approval card.
@@ -39,8 +41,18 @@ const resultText = content => typeof content === 'string' ? content
   : Array.isArray(content) ? content.map(block => block?.type === 'text' ? block.text : JSON.stringify(block)).join('\n') : JSON.stringify(content) ?? ''
 
 // a471-auto-approval-noise: a request the seat answered itself is one folded line (the tool and its plain summary), not an approval card.
-const autoPart = (bot, part) => part.request_id && (part.view === 'approval' || part.view === 'question') && bot.requests.get(part.request_id)?.status === 'auto'
-  ? { type: part.type, subtype: part.subtype, view: 'control', title: `${part.tool?.name ?? 'tool'} allowed automatically`, text: part.tool?.summary ?? '' } : part
+// The request table knows it while the record is in the window; a record read from the file carries it in `auto`.
+const isCard = part => part.request_id && (part.view === 'approval' || part.view === 'question')
+const autoPart = (requests, record, part) => {
+  if (!isCard(part)) return part
+  const request = requests.get(part.request_id)
+  return (request ? request.status === 'auto' : Boolean(record.auto?.includes(part.request_id)))
+    ? { type: part.type, subtype: part.subtype, view: 'control', title: `${part.tool?.name ?? 'tool'} allowed automatically`, text: part.tool?.summary ?? '' } : part
+}
+
+// project() of a stored record, once.
+const parts = new WeakMap()
+const partsOf = record => { if (!parts.has(record)) parts.set(record, project(record.line)); return parts.get(record) }
 
 // raw line -> list of entry parts. Unknown or unreadable input becomes the 'unknown' view, never nothing.
 export function project(line) {
@@ -107,59 +119,104 @@ export function displayOf(part, rules = displayRules) {
 export const omittedOf = (part, rules = displayRules) => !(part.view === 'question' || part.view === 'approval')
   && Boolean(rules.omit?.some(r => ruleMatches(r, part))) && !rules.omit_except?.some(r => ruleMatches(r, part))
 
+// heap-oom-n102-machine-stream-window: the file is the log; memory holds the newest WINDOW_RECORDS records of a Bot (twice that before a trim).
+export const WINDOW_RECORDS = 2000
+const CHECKPOINT_EVERY = 512 // one (seq, offset, at) per this many records of the file index
+const LOOKBACK_MAX = 20000 // shortcut: a run of tool lines with no shown line or result this long is read as starting at its first record, when a window needs the run state before it
+const seqOfId = id => Number(id.split('-')[1])
+const newBot = () => ({ seq: 0, cursor: null, requests: new Map(), sources: new Map(), floor: 0, initFloor: 0, history: null, rows: new TimelineIndex(), shown: new TimelineIndex(), quiet: new TimelineIndex(), shownQuiet: new TimelineIndex(), toolRun: false, folds: new Map(), chain: Promise.resolve() })
+
 export class MachineStream {
-  constructor({ root, bots, streamSend, onRequest = () => {}, now = () => new Date().toISOString(), rules = displayRules, showThinking = () => true }) { // no setting wired (a test, a lone service) hides nothing; the body wires the Owner's setting
+  constructor({ root, bots, streamSend, onRequest = () => {}, now = () => new Date().toISOString(), rules = displayRules, showThinking = () => true, window = WINDOW_RECORDS }) { // no setting wired (a test, a lone service) hides nothing; the body wires the Owner's setting
     this.directory = join(root, 'state/machine-stream')
-    this.bots = bots; this.streamSend = streamSend; this.onRequest = onRequest; this.now = now; this.rules = rules; this.showThinking = showThinking
-    this.state = new Map() // botId -> { seq, cursor, records, requests, all, visible, chain }
+    this.bots = bots; this.streamSend = streamSend; this.onRequest = onRequest; this.now = now; this.rules = rules; this.showThinking = showThinking; this.window = window
+    this.state = new Map() // botId -> { seq, cursor, requests, sources, floor, rows, shown, quiet, shownQuiet, folds, history, chain }
     this.busy = new Set()
     this.events = new EventEmitter()
   }
+
+  path(botId) { return join(this.directory, `${botId}.jsonl`) }
 
   async initialize({ readOnly = false } = {}) {
     if (!readOnly) await mkdir(this.directory, { recursive: true, mode: 0o700 })
     for (const file of await readdir(this.directory)) {
       if (!file.endsWith('.jsonl')) continue
-      const botId = file.slice(0, -6), records = []
-      for (const row of (await readFile(join(this.directory, file), 'utf8')).split('\n')) {
-        if (!row) continue
-        try { records.push(JSON.parse(row)) } catch { break } // a torn last line ends the log
-      }
+      const botId = file.slice(0, -6), path = join(this.directory, file)
+      // Only the newest records are read (the file is never read whole); a torn last line is dropped by parseRecord.
+      const { records, toolRun, floor } = await this.back(path, (await stat(path)).size, () => 1, this.window)
       // A trailing batch without its cursor was torn: cut it so the cursor and the events never disagree.
       while (records.length && records.at(-1).type === 'line' && records.at(-1).cursor_after === null) records.pop()
       const bot = this.bot(botId)
-      for (const record of records) this.apply(bot, botId, record, false)
+      bot.floor = bot.initFloor = floor; bot.seq = floor; bot.toolRun = toolRun
+      for (const record of records) this.apply(bot, botId, record)
     }
   }
 
+  // The newest records of a file that end before byte `end`: the fewest that weigh at least `want` (weigh(record) = records, or rows) and are
+  // started by a reset record (one that ends a tool run), so the tool run state after it is all a later row's fold needs. `floor` = the seq of
+  // that record (the records of the result are the ones after it; 0 = the file start was reached, nothing is older).
+  async back(path, end, weigh, want) {
+    const batches = []
+    let total = 0
+    for await (const lines of backward(path, end)) {
+      batches.unshift(lines.map(parseRecord).filter(Boolean)); total += batches[0].length
+      const found = batches.flat()
+      let after = 0
+      for (let at = found.length - 1; at >= 0; at--) {
+        if (after >= want && this.resets(found[at])) return { records: found.slice(at + 1), toolRun: this.toolRunAfter(found[at]), floor: found[at].seq }
+        after += weigh(found[at])
+      }
+      if (total > LOOKBACK_MAX && after >= want) return { records: found, toolRun: false, floor: found[0].seq - 1 }
+    }
+    return { records: batches.flat(), toolRun: false, floor: 0 }
+  }
+
+  // The rows a record gives the index a page reads (quiet = the one without thinking).
+  rowsOf(record, quiet) { return record.type === 'line' ? partsOf(record).filter(part => !omittedOf(autoPart(NO_REQUESTS, record, part), this.rules) && !(quiet && part.view === 'thinking')).length : 0 }
+  resets(record) { return record.type === 'line' && partsOf(record).some(part => { const own = autoPart(NO_REQUESTS, record, part); return own.view === 'result' || displayOf(own, this.rules) !== 'fold' }) }
+  toolRunAfter(record) {
+    const run = { requests: NO_REQUESTS, folds: new Map(), toolRun: false }
+    partsOf(record).forEach((part, n) => this.openOrCloseToolRun(run, record, n, autoPart(NO_REQUESTS, record, part)))
+    return run.toolRun
+  }
+
   bot(botId) {
-    if (!this.state.has(botId)) this.state.set(botId, { seq: 0, cursor: null, records: new Map(), requests: new Map(), rows: new TimelineIndex(), shown: new TimelineIndex(), quiet: new TimelineIndex(), shownQuiet: new TimelineIndex(), toolRun: false, folds: new Map(), chain: Promise.resolve() })
+    if (!this.state.has(botId)) this.state.set(botId, newBot())
     return this.state.get(botId)
   }
 
   cursor(botId) { return structuredClone(this.state.get(botId)?.cursor ?? null) }
 
   // One record into memory: cursor, requests and the entries. Used at load and after every write.
-  apply(bot, botId, record, live) {
+  apply(bot, botId, record) {
     bot.seq = Math.max(bot.seq, record.seq)
     if (record.type === 'line' || record.type === 'cursor') {
       if (record.cursor_after !== null) bot.cursor = { session: record.session, launch_id: record.launch_id, cursor: record.cursor_after }
     }
     const changed = []
     if (record.type === 'line') {
-      bot.records.set(record.seq, record)
-      const parts = project(record.line)
-      parts.forEach((part, n) => {
-        if (part.request_id && part.view === 'control' && part.type === 'control_cancel_request') this.setRequest(bot, part.request_id, 'expired', record.at, null, changed)
-        if (part.request_id && (part.view === 'question' || part.view === 'approval') && !bot.requests.has(part.request_id)) {
-          bot.requests.set(part.request_id, { id: part.request_id, botId, seq: record.seq, part: n, tool: part.tool.name, input: part.input, questions: part.questions,
-            status: record.auto?.includes(part.request_id) ? 'auto' : 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
-        }
-        this.openOrCloseToolRun(bot, record, n, autoPart(bot, part))
-        changed.push(this.setRow(bot, botId, record, n, part))
+      partsOf(record).forEach((part, n) => {
+        this.track(bot, botId, record, n, part, changed)
+        this.render(bot, botId, record, n, part, changed)
       })
     } else if (record.type === 'local') this.setRequest(bot, record.request_id, record.local, record.at, record, changed)
     return changed
+  }
+
+  // The requests a part opens or closes.
+  track(bot, botId, record, n, part, changed) {
+    if (part.request_id && part.view === 'control' && part.type === 'control_cancel_request') this.setRequest(bot, part.request_id, 'expired', record.at, null, changed)
+    if (isCard(part) && !bot.requests.has(part.request_id)) {
+      bot.requests.set(part.request_id, { id: part.request_id, botId, seq: record.seq, part: n, tool: part.tool.name, input: part.input, questions: part.questions,
+        status: record.auto?.includes(part.request_id) ? 'auto' : 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
+      bot.sources.set(part.request_id, record) // the line of an open request: its row is drawn again when the status changes
+    }
+  }
+
+  // The entry of one part (tool run state, then the row).
+  render(bot, botId, record, n, part, changed) {
+    this.openOrCloseToolRun(bot, record, n, autoPart(bot.requests, record, part))
+    changed.push(this.setRow(bot, botId, record, n, part))
   }
 
   setRequest(bot, id, status, at, record, changed) {
@@ -168,12 +225,13 @@ export class MachineStream {
     if (status === 'listed') { if (!request || request.status !== 'auto') return; request.status = 'pending' }
     else if (!request || request.status !== 'pending') return
     else Object.assign(request, status === 'answered' ? { status, answers: record?.answers ?? null, decision: record?.decision ?? null, answeredAt: at } : status === 'auto' ? { status } : { status: 'expired', expiredAt: at })
-    const source = bot.records.get(request.seq)
-    if (source) changed.push(this.setRow(bot, request.botId, source, request.part, project(source.line)[request.part]))
+    const source = bot.sources.get(id)
+    if (source && request.seq > bot.floor) changed.push(this.setRow(bot, request.botId, source, request.part, partsOf(source)[request.part]))
+    if (request.status === 'answered' || request.status === 'expired') bot.sources.delete(id)
   }
 
   row(bot, botId, record, n, original) {
-    const part = autoPart(bot, original)
+    const part = autoPart(bot.requests, record, original)
     const request = part.request_id ? bot.requests.get(part.request_id) : null
     const shown = part.shown_elsewhere === true
     const display = displayOf(part, this.rules)
@@ -203,7 +261,7 @@ export class MachineStream {
   setRow(bot, botId, record, n, part) {
     const item = this.row(bot, botId, record, n, part)
     // a481-hide-background-input: an omitted row is in no index. Tool runs and bubbles were decided from every line before this, so nothing else moves.
-    if (omittedOf(autoPart(bot, part), this.rules)) return item
+    if (omittedOf(autoPart(bot.requests, record, part), this.rules)) return item
     // a479-thinking-setting: quiet / shownQuiet are the same rows without thinking, read while the Owner's setting hides it.
     const thinking = item.machine_event.view === 'thinking'
     bot.rows.set(item.id, item)
@@ -216,7 +274,7 @@ export class MachineStream {
   watch(listener) { this.events.on('change', listener); return () => this.events.off('change', listener) }
 
   async write(botId, records) {
-    await appendFile(join(this.directory, `${botId}.jsonl`), records.map(r => JSON.stringify(r)).join('\n') + '\n', { mode: 0o600 })
+    await appendFile(this.path(botId), records.map(r => JSON.stringify(r)).join('\n') + '\n', { mode: 0o600 })
   }
 
   // Every write to one Bot's log goes through this chain: seq and the cursor stay in one order.
@@ -265,7 +323,8 @@ export class MachineStream {
     const locals = closing.filter(id => !fresh.has(id)).map(id => ({ seq: ++seq, type: 'local', at, local: 'expired', request_id: id }))
     if (records.length + locals.length) await this.write(botId, [...records, ...locals])
     const changed = []
-    for (const record of [...records, ...locals]) changed.push(...this.apply(bot, botId, record, true))
+    for (const record of [...records, ...locals]) changed.push(...this.apply(bot, botId, record))
+    this.trim(bot)
     if (changed.length || records.length) this.notify([botId])
     const relist = waiting ? [...bot.requests.keys()].filter(id => bot.requests.get(id).status === 'auto' && waiting.has(id)) : []
     if (state?.state !== 'exited') for (const id of fresh) if (bot.requests.get(id)?.status === 'pending') this.onRequest({ id, botId })
@@ -279,7 +338,8 @@ export class MachineStream {
   async expire(bot, botId, ids, local = 'expired') {
     const at = this.now(), locals = ids.map(id => ({ seq: bot.seq + 1 + ids.indexOf(id), type: 'local', at, local, request_id: id }))
     await this.write(botId, locals)
-    for (const record of locals) this.apply(bot, botId, record, true)
+    for (const record of locals) this.apply(bot, botId, record)
+    this.trim(bot)
     this.notify([botId])
   }
 
@@ -294,16 +354,139 @@ export class MachineStream {
   }
 
   // Quote / forward of one drawn row (reply.md, forward.md): the same {sender, at, text} the saved rows give.
-  rowSource(botId, rowId) {
-    const rows = this.state.get(botId)?.rows
-    const item = rows && rows.indexOfId(rowId) >= 0 ? rows.at(rows.indexOfId(rowId)) : null
+  async rowSource(botId, rowId) {
+    const bot = this.state.get(botId)
+    if (!bot) return null
+    let item = bot.rows.indexOfId(rowId) >= 0 ? bot.rows.at(bot.rows.indexOfId(rowId)) : null
+    if (!item && /^me-\d+-\d+$/u.test(rowId) && seqOfId(rowId) <= bot.floor) { // below the window: read it from the file
+      const { scratch } = await this.older(bot, botId, seqOfId(rowId), 1)
+      item = scratch.rows.indexOfId(rowId) >= 0 ? scratch.rows.at(scratch.rows.indexOfId(rowId)) : null
+    }
     return item ? { sender: { id: botId, ...(this.bots.get(botId)?.name ? { name: this.bots.get(botId).name } : {}) }, at: item.at, text: item.machine_event.text } : null
   }
 
-  line(botId, seq) {
-    const record = this.state.get(botId)?.records.get(Number(seq))
-    if (!record) throw fail('MACHINE_EVENT_NOT_FOUND')
-    return { seq: record.seq, line: record.line }
+  // The stored raw line of one seq, read from the file.
+  async line(botId, seq) {
+    const bot = this.state.get(botId), wanted = Number(seq)
+    if (!bot) throw fail('MACHINE_EVENT_NOT_FOUND')
+    const index = await this.history(bot, botId), offset = await this.offsetOf(botId, index, wanted)
+    for await (const { line } of forward(this.path(botId), offset, index.offset)) {
+      const record = parseRecord(line)
+      if (record?.seq === wanted && record.type === 'line') return { seq: record.seq, line: record.line }
+      break
+    }
+    throw fail('MACHINE_EVENT_NOT_FOUND')
+  }
+
+  // The machine rows of one page and how many stored records lie older than them ({rows, skipped} as cardWindow gives for a list held whole).
+  // Memory holds the window; a request that reaches below it is read from the file (conversation/machine-stream.md, "Pages").
+  async page(botId, { limit, before, after, hint }) {
+    const bot = this.state.get(botId)
+    if (!bot) return { rows: [], skipped: 0 }
+    const kind = this.thinkingShown() ? 'rows' : 'quiet', size = Math.ceil(pageLimit(limit)), memory = bot[kind].snapshot()
+    const slice = cardWindow(memory, { limit, before, after, hint })
+    if (!bot.floor || after) return { rows: slice.rows, skipped: slice.skipped + bot.floor }
+    const machine = /^me-\d+-\d+$/u.test(before ?? '')
+    // The cursor is older than the window: the page is read from the file, up to the cursor's own record.
+    let cut = null
+    if (machine && seqOfId(before) <= bot.floor) cut = seqOfId(before)
+    else if (before && typeof hint === 'string' && hint && (!memory.length || hint < memory[0].at)) cut = Math.min(bot.floor, await this.lastSeqAtOrBefore(botId, await this.history(bot, botId), hint))
+    if (cut !== null) return this.fromFile(bot, botId, cut, size, kind)
+    if (slice.skipped > 0) return { rows: slice.rows, skipped: slice.skipped + bot.floor }
+    // The slice starts at the window's first row: more rows older than it are filled in.
+    const older = await this.fromFile(bot, botId, bot.floor, size, kind)
+    return { rows: [...older.rows, ...slice.rows], skipped: older.skipped }
+  }
+
+  async fromFile(bot, botId, cut, want, kind) {
+    const { scratch, floor } = await this.older(bot, botId, cut, want, kind === 'quiet')
+    return { rows: scratch[kind].snapshot(), skipped: floor }
+  }
+
+  // Rows of the records with seq <= cut, read from the file backwards until `want` rows are in hand.
+  async older(bot, botId, cut, want, quiet = false) {
+    const index = await this.history(bot, botId), end = await this.offsetOf(botId, index, cut + 1)
+    // `want` rows must lie before the cut record: the cursor's own record does not count, or a page could hold the cursor and nothing older.
+    const { records, toolRun, floor } = await this.back(this.path(botId), end, record => record.seq < cut ? this.rowsOf(record, quiet) : 0, want)
+    const scratch = { ...newBot(), requests: bot.requests, toolRun }
+    for (const record of records) if (record.type === 'line') partsOf(record).forEach((part, n) => this.render(scratch, botId, record, n, part, []))
+    return { scratch, floor }
+  }
+
+  // The file index, built once per Bot and process on the first read below the window and extended to the end of the file at each later one:
+  // a checkpoint every CHECKPOINT_EVERY records (seq, offset, at), and the requests (cards) of the records older than the window at load.
+  history(bot, botId) {
+    const index = bot.history ??= { offset: 0, count: 0, checkpoints: [], prefix: bot.initFloor > 0 ? new Map() : null, work: Promise.resolve() }
+    const run = index.work.then(() => this.extend(bot, botId, index))
+    index.work = run.catch(() => {})
+    return run.then(() => index)
+  }
+
+  async extend(bot, botId, index) {
+    const path = this.path(botId), end = (await stat(path)).size
+    if (end <= index.offset) return
+    for await (const { offset, line } of forward(path, index.offset, end)) {
+      index.offset = offset + line.length + 1
+      const found = head(line)
+      if (!found) continue
+      if (index.count++ % CHECKPOINT_EVERY === 0) index.checkpoints.push({ seq: found.seq, offset, at: found.at })
+      if (index.prefix && (found.type === 'local' || line.includes('control_'))) this.trackOlder(bot, botId, index.prefix, parseRecord(line))
+    }
+    if (!index.prefix) return
+    // A card still pending below the window was closed by the seat leaving it: the live one is re-listed by state, the rest expire at once.
+    for (const [id, request] of index.prefix) {
+      if (request.status === 'pending') Object.assign(request, { status: 'expired', expiredAt: null })
+      delete request.input
+      if (!bot.requests.has(id)) bot.requests.set(id, request)
+    }
+    index.prefix = null
+  }
+
+  // The cards of a record older than the window (opened there, closed there or after): the request table for the rows read from the file.
+  trackOlder(bot, botId, requests, record) {
+    if (!record) return
+    const own = { requests, sources: new Map(), floor: 0 }
+    if (record.type === 'local') return this.setRequest(own, record.request_id, record.local, record.at, record, [])
+    if (record.type !== 'line') return
+    partsOf(record).forEach((part, n) => {
+      if (record.seq <= bot.initFloor && !record.auto?.includes(part.request_id)) this.track(own, botId, record, n, part, [])
+      else if (part.request_id && part.view === 'control' && part.type === 'control_cancel_request') this.setRequest(own, part.request_id, 'expired', record.at, null, [])
+    })
+  }
+
+  // The byte offset of the first record with seq >= target (the end of the scanned file when there is none).
+  async offsetOf(botId, index, target) {
+    let from = 0
+    for (const checkpoint of index.checkpoints) { if (checkpoint.seq >= target) break; from = checkpoint.offset }
+    for await (const { offset, line } of forward(this.path(botId), from, index.offset)) if ((head(line)?.seq ?? 0) >= target) return offset
+    return index.offset
+  }
+
+  // The seq of the last record stored at or before `at` (0 = none).
+  async lastSeqAtOrBefore(botId, index, at) {
+    let from = 0, seq = 0
+    for (const checkpoint of index.checkpoints) { if (checkpoint.at > at) break; from = checkpoint.offset }
+    for await (const { line } of forward(this.path(botId), from, index.offset)) {
+      const found = head(line)
+      if (!found) continue
+      if (found.at > at) break
+      seq = found.seq
+    }
+    return seq
+  }
+
+  // Records below bot.seq - window leave memory once twice the window is held (the file keeps them; floor says where memory starts).
+  trim(bot) {
+    if (bot.seq - bot.floor <= 2 * this.window) return
+    const floor = bot.seq - this.window, keep = item => item.machine_event.seq > floor
+    for (const rows of [bot.rows, bot.shown, bot.quiet, bot.shownQuiet]) rows.retain(keep)
+    for (const id of bot.folds.keys()) if (seqOfId(id) <= floor) bot.folds.delete(id)
+    for (const [id, request] of bot.requests) {
+      if (request.seq > floor) continue
+      if (request.status === 'auto') { bot.requests.delete(id); bot.sources.delete(id) } // its row is in no page
+      else if (request.status !== 'pending') delete request.input // a closed card keeps what its row shows
+    }
+    bot.floor = floor
   }
 
   find(requestId) {
@@ -330,7 +513,8 @@ export class MachineStream {
       await this.chained(bot, async () => {
         const record = { seq: bot.seq + 1, type: 'local', at: this.now(), local: 'answered', request_id: requestId, ...(line.answers ? { answers: line.answers } : { decision: line.decision }) }
         await this.write(botId, [record])
-        this.apply(bot, botId, record, true)
+        this.apply(bot, botId, record)
+        this.trim(bot)
         this.notify([botId])
       })
       return this.get(requestId)

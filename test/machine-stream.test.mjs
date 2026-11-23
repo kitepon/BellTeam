@@ -62,7 +62,7 @@ test('ingest: stores raw lines, advances the cursor, resyncs on a gap or replay,
   assert.deepEqual(await ms.ingest(env(['{"type":"x"}'], 'L1:100', 'L1:150')), { status: 'stored', cursor: 'L1:150' })
   assert.deepEqual(await ms.ingest(env([], 'L1:150', 'L1:150')), { status: 'stored', cursor: 'L1:150' }) // idle poll writes nothing
   assert.deepEqual(await ms.ingest(env(['{"type":"y"}'], null, 'L2:10', undefined, 'L2')), { status: 'stored', cursor: 'L2:10' }) // new launch
-  assert.equal(ms.line('bot-d', 2).line, '{"type":"mystery"}')
+  assert.equal((await ms.line('bot-d', 2)).line, '{"type":"mystery"}')
   // unknown kind is in the log (visible), init is stored but hidden by the rule table
   assert.deepEqual(ms.timeline({ botId: 'bot-d' }).map(r => r.machine_event.view), ['system', 'unknown', 'unknown', 'unknown'])
   assert.equal(ms.timelineView({ botId: 'bot-d' }, { all: true }).length, 4)
@@ -119,7 +119,7 @@ test('the default table leaves background rows and the replayed input out of eve
     ['rate_limit', undefined, undefined], ['system', undefined, undefined], ['words', undefined, undefined], ['result', undefined, undefined], ['question', undefined, undefined]])
   assert.deepEqual(rows.filter(r => r.machine_event.view === 'rate_limit').map(r => r.machine_event.title), ['rate limit: rejected'])
   assert.deepEqual(ms.timelineView({ botId: 'bot-d' }, { recent: true }).snapshot().map(r => r.machine_event.view), ['rate_limit', 'system', 'words', 'result', 'question']) // the preview follows the shown rows
-  assert.equal(ms.line('bot-d', 1).line, lines[0]) // the omitted line is still stored and readable by seq
+  assert.equal((await ms.line('bot-d', 1)).line, lines[0]) // the omitted line is still stored and readable by seq
   const all = new MachineStream({ root, bots, streamSend: async () => ({}), rules: keepAll }); await all.initialize({ readOnly: true })
   assert.equal(all.timeline({ botId: 'bot-d' }).length, lines.length) // the same stored lines, a table that omits nothing brings every row back
 })
@@ -333,7 +333,7 @@ test('chat from the stream: the saved final answer is kept but not drawn; stream
   assert.deepEqual([quote.text, quote.sender.id, quote.image], ['the words', 'bot-d', false])
   assert.deepEqual((await store.forwardSource('bot-d', 'me-1-0')).imageAssets, [])
   assert.equal(await store.quoteSource('bot-d', 'me-9-0'), null)
-  assert.equal(ms.rowSource('bot-d', 'me-1-0').text, 'the words')
+  assert.equal((await ms.rowSource('bot-d', 'me-1-0')).text, 'the words')
 })
 
 test('user.complete may carry stream:true; shown.read may carry stream:true; a machine seat self-started answer is not written but consumed', async () => {

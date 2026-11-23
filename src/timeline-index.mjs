@@ -58,6 +58,19 @@ export class TimelineIndex {
     this.cached = null
   }
   snapshot() { return this.cached ??= this.nodes.map(node => node.item) }
+  // Keep only the rows `keep` accepts (a window that moves up: heap-oom-n102-machine-stream-window).
+  retain(keep) {
+    const nodes = this.nodes.filter(node => keep(node.item))
+    if (nodes.length === this.nodes.length) return
+    this.nodes = nodes
+    this.positions.clear(); this.ids.clear()
+    nodes.forEach((node, index) => {
+      this.positions.set(node.key, index)
+      if (!this.ids.has(node.item.id)) this.ids.set(node.item.id, index)
+    })
+    this.revision++
+    this.cached = null
+  }
 }
 
 export const compareTime = (a, b) => (a.at ?? '').localeCompare(b.at ?? '')

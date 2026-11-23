@@ -14,7 +14,7 @@ export function createSeatRequestApi({ machineStream, internal }) {
     if (request.method !== (answer ? 'POST' : 'GET')) return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
     if (!machineStream) return json(response, 404, { error: 'NOT_FOUND' })
     try {
-      if (line) return json(response, 200, machineStream.line(line[1], line[2]))
+      if (line) return json(response, 200, await machineStream.line(line[1], line[2]))
       return json(response, 200, { request: await machineStream.answer(answer[1], await readJson(request, 65536)) })
     } catch (error) {
       if (['INVALID_JSON', 'REQUEST_TOO_LARGE'].includes(error?.message)) return json(response, 400, { error: 'SEAT_REQUEST_ANSWER_INVALID' })
