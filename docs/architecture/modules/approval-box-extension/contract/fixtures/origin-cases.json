@@ -1,0 +1,118 @@
+{
+  "note": "Origin rule fixtures for client-v0.5.md 6.2 (same rule as src/approval-box-extension/origin-view.mjs classifyOrigin). Every client's test reads this file. Visibility never depends on kind.",
+  "cases": {
+    "botId-in-roster": {
+      "roster": [
+        {
+          "id": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      ],
+      "source": {
+        "client": "claude-code",
+        "session_label": "Lattice p a/b",
+        "requester_bot_id": "bot-ae42e3e9",
+        "requester": "デルタ"
+      },
+      "expect": {
+        "kind": "bellteam",
+        "basis": "botId",
+        "requester": {
+          "botId": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      }
+    },
+    "botId-not-in-roster-falls-to-name": {
+      "roster": [
+        {
+          "id": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      ],
+      "source": {
+        "client": "codex",
+        "requester_bot_id": "bot-zzz",
+        "requester": "デルタ"
+      },
+      "expect": {
+        "kind": "bellteam",
+        "basis": "name",
+        "requester": {
+          "botId": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      }
+    },
+    "name-only": {
+      "roster": [
+        {
+          "id": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      ],
+      "source": {
+        "client": "other",
+        "requester": "デルタ"
+      },
+      "expect": {
+        "kind": "bellteam",
+        "basis": "name",
+        "requester": {
+          "botId": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      }
+    },
+    "external-with-client": {
+      "roster": [
+        {
+          "id": "bot-ae42e3e9",
+          "name": "デルタ"
+        }
+      ],
+      "source": {
+        "client": "cursor",
+        "requester": "someone"
+      },
+      "expect": {
+        "kind": "external",
+        "basis": "none",
+        "requester": null
+      }
+    },
+    "external-session-label-only": {
+      "roster": [],
+      "source": {
+        "session_label": "メール整理 / 要対応の確認"
+      },
+      "expect": {
+        "kind": "external",
+        "basis": "none",
+        "requester": null
+      }
+    },
+    "unknown-nothing-usable": {
+      "roster": [],
+      "source": {},
+      "expect": {
+        "kind": "unknown",
+        "basis": "none",
+        "requester": null
+      }
+    },
+    "unknown-client-draws-other": {
+      "roster": [],
+      "source": {
+        "client": "not-a-tool",
+        "session_label": "x"
+      },
+      "expect": {
+        "kind": "external",
+        "basis": "none",
+        "requester": null,
+        "client": "other"
+      }
+    }
+  }
+}
