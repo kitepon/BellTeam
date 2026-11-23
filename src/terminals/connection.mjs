@@ -212,27 +212,56 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       error => Object.assign(trust, { outcome: 'failed', ...(typeof error?.code === 'string' && CODE.test(error.code) ? { reason: error.code } : {}) }))
   }
 
+  // The conditions that do not depend on a launch: the copy, the key in the agent, the known_hosts file. {fields} or {reason}.
+  async function assembleRemote(record, binding) {
+    if (typeof native.trustFile !== 'function' || typeof native.agentHeld !== 'function' || typeof native.agentSocket !== 'function') return { reason: 'UNSUPPORTED' }
+    const copy = record.trustCopy
+    if (!copy || copy.ref !== binding.ref || copy.revision !== record.hostTrust?.revision) return { reason: 'TRUST_COPY_MISSING' }
+    if (!binding.credential) return { reason: 'KEY_NOT_IN_AGENT' } // a native key file stays in Aiterm; only a handle key reaches the agent
+    let file
+    try {
+      if (!(await native.agentHeld({ terminalId: record.terminalId }))) return { reason: 'AGENT_EMPTY' }
+      file = await native.trustFile({ terminalId: record.terminalId, revision: copy.revision, lines: copy.lines })
+    } catch { return { reason: 'TRUST_FILE_FAILED' } }
+    return { fields: {
+      remote: { host: record.host, user: record.user, port: record.port,
+        ssh: { known_hosts_file: file, ...(copy.alias ? { host_key_alias: copy.alias } : {}), identity_agent: native.agentSocket({ terminalId: record.terminalId }), strict_host_key: true } },
+      forward: { id: binding.ref, to: { host: '127.0.0.1' } }
+    }, revision: `${record.revision}:${copy.revision}` }
+  }
+
   // a532b4 stage 3: for a terminal whose launchInput is 'remote', the generic remote input of Aiterm (remote.ssh + a forward id) beside
   // `terminal`; any unmet condition leaves `terminal` alone (the fallback) and says which in the evidence. Returns the extra target fields.
   async function remoteInput(record, binding, aiterm, evidence) {
     if (record.launchInput !== 'remote') return {}
     const stay = reason => { if (evidence) evidence.input = { outcome: 'terminal', reason }; return {} }
-    if (typeof native.trustFile !== 'function' || typeof native.agentHeld !== 'function' || typeof native.agentSocket !== 'function') return stay('UNSUPPORTED')
-    if (!atLeast(aiterm?.before, '0.70.101') || !atLeast(containerVersions.get(aiterm), '0.70.101')) return stay('AITERM_TOO_OLD')
-    const copy = record.trustCopy
-    if (!copy || copy.ref !== binding.ref || copy.revision !== record.hostTrust?.revision) return stay('TRUST_COPY_MISSING')
-    if (!binding.credential) return stay('KEY_NOT_IN_AGENT') // a native key file stays in Aiterm; only a handle key reaches the agent
-    let file
-    try {
-      if (!(await native.agentHeld({ terminalId: record.terminalId }))) return stay('AGENT_EMPTY')
-      file = await native.trustFile({ terminalId: record.terminalId, revision: copy.revision, lines: copy.lines })
-    } catch { return stay('TRUST_FILE_FAILED') }
+    if (!atLeast(aiterm?.before, '0.70.101') || !atLeast(containerVersions.get(aiterm), '0.70.101')) return stay(typeof native.trustFile === 'function' ? 'AITERM_TOO_OLD' : 'UNSUPPORTED')
+    const built = await assembleRemote(record, binding)
+    if (!built.fields) return stay(built.reason)
     if (evidence) evidence.input = { outcome: 'remote' }
-    return {
-      remote: { host: record.host, user: record.user, port: record.port,
-        ssh: { known_hosts_file: file, ...(copy.alias ? { host_key_alias: copy.alias } : {}), identity_agent: native.agentSocket({ terminalId: record.terminalId }), strict_host_key: true } },
-      forward: { id: binding.ref, to: { host: '127.0.0.1' } }
+    return built.fields
+  }
+
+  // a532b4 stage 3 (Tronie ruling B, 2026-11-23): execution carries `remote` on every later call of a switched seat through one route table, filled
+  // at launch and rebuilt from here after a body restart. By terminal id, any time: no launch, no C8, no member. The agent dies with the
+  // container, so an empty agent gets the key again first (the same Mika callback as a launch). The Aiterm version gate is not repeated: an
+  // existing seat passed it at launch. `revision` changes when the registry or the host trust does (the known_hosts file name carries it).
+  async function remoteForNow(terminalId) {
+    const generation = generations.get(terminalId) ?? 0
+    const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
+    const record = await registry.target(terminalId).catch(() => null)
+    if (!current()) return { reason: 'TERMINAL_UNAVAILABLE' }
+    if (!record) return { reason: 'TERMINAL_NOT_FOUND' }
+    if (record.launchInput !== 'remote') return { reason: 'NOT_SWITCHED' }
+    let binding
+    try { binding = await resolveBinding(record, null) } catch (error) { return { reason: typeof error?.code === 'string' && CODE.test(error.code) ? error.code : 'TERMINAL_UNAVAILABLE' } }
+    if (!current()) return { reason: 'TERMINAL_UNAVAILABLE' }
+    let built = await assembleRemote(record, binding)
+    if (built.reason === 'AGENT_EMPTY') {
+      try { await loadKey(record, binding, current) } catch { return { reason: 'AGENT_EMPTY' } }
+      built = await assembleRemote(record, binding)
     }
+    return built.fields ? { ...built.fields, revision: built.revision } : { reason: built.reason }
   }
 
   // One transient remote process; closed before returning. Classified like a launch would be.
@@ -313,6 +342,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   }
 
   const target = request => track(() => targetNow(request ?? {}))
+  const remoteFor = terminalId => track(() => remoteForNow(terminalId))
   async function targetNow({ terminalId, memberId, projectRoot, harness }) {
     if (disposed) throw failure('TERMINAL_UNAVAILABLE')
     // Generation is captured before the read, so a snapshot read across a registry change is never handed out.
@@ -492,6 +522,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
 
   return {
     target,
+    remoteFor,
     check,
     folder,
     folders,

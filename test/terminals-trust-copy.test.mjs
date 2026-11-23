@@ -286,3 +286,32 @@ test('set_terminal_launch_input is a listed tool that only takes a terminal and 
   await assert.rejects(callTerminalTool({ name: 'set_terminal_launch_input', args: { terminalId: 'owner-macbook', input: 'other' }, terminals }), { code: 'INVALID_TERMINAL' })
   await assert.rejects(callTerminalTool({ name: 'set_terminal_launch_input', args: { terminalId: 'owner-macbook', input: 'remote', extra: 1 }, terminals }))
 })
+
+test('remoteFor: the remote input of a switched terminal by id, no launch, no C8, no member; reasons otherwise (Tronie ruling B)', async t => {
+  const native = switched()
+  const { connection } = await switchedSetup(t, { native })
+  const result = await connection.remoteFor('owner-macbook')
+  assert.deepEqual(Object.keys(result).sort(), ['forward', 'remote', 'revision'])
+  assert.equal(result.remote.ssh.identity_agent, '/tmp/bellteam-terminals/agent/owner-macbook.sock')
+  assert.deepEqual(result.forward, { id: sshKeyRef, to: { host: '127.0.0.1' } })
+  assert.match(result.revision, /^\d+:sha256:[0-9a-f]{64}$/)
+  assert.equal(native.calls.some(call => call.op === 'open' || call.op === 'command'), false, 'no C8, no launch')
+  assert.deepEqual(await connection.remoteFor('nope'), { reason: 'TERMINAL_NOT_FOUND' })
+  const { connection: off } = await switchedSetup(t, { native: switched(), launchInput: null })
+  assert.deepEqual(await off.remoteFor('owner-macbook'), { reason: 'NOT_SWITCHED' })
+  const { connection: bare } = await switchedSetup(t, { native: switched(), trustCopy: false })
+  assert.deepEqual(await bare.remoteFor('owner-macbook'), { reason: 'TRUST_COPY_MISSING' })
+})
+
+test('remoteFor after a body restart: an empty agent gets the key again first; if it stays empty the reason is AGENT_EMPTY and nothing falls back', async t => {
+  let held = false
+  const loaded = []
+  const native = switched({ async agentHeld() { return held }, async loadAgent({ terminalId, key }) { loaded.push([terminalId, key]); held = true } })
+  const { connection } = await switchedSetup(t, { native })
+  const result = await connection.remoteFor('owner-macbook')
+  assert.ok(result.remote)
+  assert.deepEqual(loaded, [['owner-macbook', 'KEY']], 'the key came from the same callback as a launch')
+  const stuck = switched({ async agentHeld() { return false }, async loadAgent() { throw new Error('x') } })
+  const { connection: other } = await switchedSetup(t, { native: stuck })
+  assert.deepEqual(await other.remoteFor('owner-macbook'), { reason: 'AGENT_EMPTY' })
+})
