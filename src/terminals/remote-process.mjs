@@ -6,6 +6,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { seatCommandSpec } from '../seat-command.mjs'
 import { createSeatProcessRunner } from '../seat-process.mjs'
 import { createCredentialAgent } from './credential-agent.mjs'
+import { createTrustFile } from './trust-file.mjs'
 
 const BIN = 'aiterm-remote-terminal'
 
@@ -50,6 +51,7 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
   }
 
   const agent = createCredentialAgent({ run })
+  const trustFile = createTrustFile({ run })
 
   return {
     async trust(ref) { return (await status(ref))?.trust ?? null },
@@ -102,6 +104,10 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
 
     // a532b4 stage 2: the same key bytes to the per-terminal ssh-agent (stdin of ssh-add only; the error keeps its code).
     async loadAgent({ terminalId, key }) { await agent.load(terminalId, key) },
+    // a532b4 stage 3: the switch decision reads these (the agent holds the key; the known_hosts file of the copied trust).
+    agentHeld({ terminalId }) { return agent.held(terminalId) },
+    agentSocket({ terminalId }) { return agent.socketPath(terminalId) },
+    trustFile(request) { return trustFile.ensure(request) },
 
     // Pre-MCP bootstrap of the Mac's Aiterm side over the trusted, keyed SSH (Elegg accepted contract, 2026-11-10).
     async provision({ ref }) { return cli(['provision', '--ref', ref]) },

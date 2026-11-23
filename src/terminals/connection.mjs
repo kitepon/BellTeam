@@ -1,5 +1,5 @@
 import { OS_LABEL, childPath, isEntryName, isTerminalPath, parentPath } from './paths.mjs'
-import { doorHook } from './approval-door.mjs'
+import { doorHook, atLeast } from './approval-door.mjs'
 import { parseExport } from './trust-copy.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
@@ -212,6 +212,29 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       error => Object.assign(trust, { outcome: 'failed', ...(typeof error?.code === 'string' && CODE.test(error.code) ? { reason: error.code } : {}) }))
   }
 
+  // a532b4 stage 3: for a terminal whose launchInput is 'remote', the generic remote input of Aiterm (remote.ssh + a forward id) beside
+  // `terminal`; any unmet condition leaves `terminal` alone (the fallback) and says which in the evidence. Returns the extra target fields.
+  async function remoteInput(record, binding, aiterm, evidence) {
+    if (record.launchInput !== 'remote') return {}
+    const stay = reason => { if (evidence) evidence.input = { outcome: 'terminal', reason }; return {} }
+    if (typeof native.trustFile !== 'function' || typeof native.agentHeld !== 'function' || typeof native.agentSocket !== 'function') return stay('UNSUPPORTED')
+    if (!atLeast(aiterm?.before, '0.70.101') || !atLeast(containerVersions.get(aiterm), '0.70.101')) return stay('AITERM_TOO_OLD')
+    const copy = record.trustCopy
+    if (!copy || copy.ref !== binding.ref || copy.revision !== record.hostTrust?.revision) return stay('TRUST_COPY_MISSING')
+    if (!binding.credential) return stay('KEY_NOT_IN_AGENT') // a native key file stays in Aiterm; only a handle key reaches the agent
+    let file
+    try {
+      if (!(await native.agentHeld({ terminalId: record.terminalId }))) return stay('AGENT_EMPTY')
+      file = await native.trustFile({ terminalId: record.terminalId, revision: copy.revision, lines: copy.lines })
+    } catch { return stay('TRUST_FILE_FAILED') }
+    if (evidence) evidence.input = { outcome: 'remote' }
+    return {
+      remote: { host: record.host, user: record.user, port: record.port,
+        ssh: { known_hosts_file: file, ...(copy.alias ? { host_key_alias: copy.alias } : {}), identity_agent: native.agentSocket({ terminalId: record.terminalId }), strict_host_key: true } },
+      forward: { id: binding.ref, to: { host: '127.0.0.1' } }
+    }
+  }
+
   // One transient remote process; closed before returning. Classified like a launch would be.
   // `current` is re-checked after every await; a process connected across a registry change or dispose is closed unused.
   // `aiterm` (C8 only): an older terminal Aiterm that opened can launch the seat, so it is brought to the container's version in the
@@ -304,7 +327,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     try {
       const binding = await resolveBinding(record, memberId)
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-      let doorFields = {}
+      let doorFields = {}, inputFields = {}
       if (Object.hasOwn(CLI_NAMES, harness)) {
         // Shared only within one registry generation, so a launch never waits on a run against an older target.
         const key = `${terminalId}\0${harness}`
@@ -314,10 +337,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
           shared = { generation, run }
           upkeep.set(key, shared)
         }
-        const { loggedIn, aiterm } = await shared.run
+        const result = await shared.run, { loggedIn, aiterm } = result
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         if (loggedIn === false) throw loginRequired(harness, record.os)
         doorFields = doorHook(aiterm?.before, containerVersions.get(aiterm))
+        inputFields = await remoteInput(record, binding, aiterm, result)
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       return {
@@ -328,7 +353,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         os: record.os,
         accountOwner: record.accountOwner,
         // a532b1: the Approval Box door's post_launch field, only for a terminal whose Aiterm (and the container's) can run it; execution passes it on unchanged.
-        ...(doorFields.post_launch ? { doorHook: doorFields } : {})
+        ...(doorFields.post_launch ? { doorHook: doorFields } : {}),
+        ...inputFields
       }
     } catch (error) { if (error.code !== 'TARGET_MISMATCH' && error.code !== 'AGENT_AUTH_REQUIRED' && current()) want(terminalId); throw error }
   }

@@ -6,9 +6,9 @@ import { writeAtomic } from '../json-file.mjs'
 import { TERMINAL_OS } from './paths.mjs'
 import { validTrustCopy } from './trust-copy.mjs'
 
-const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest']
+const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest', 'launchInput']
 // Set only by terminals itself (key setting, Aiterm binding); never taken from a caller's register/update input.
-export const INTERNAL_FIELDS = ['hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest']
+export const INTERNAL_FIELDS = ['hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest', 'launchInput']
 const SOURCES = ['terminal-native', 'secret']
 const STATUS = { INVALID_TERMINAL: 400, TERMINAL_NOT_FOUND: 404, TERMINAL_EXISTS: 409, INVALID_TERMINAL_STORE: 500 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -47,6 +47,8 @@ function validate(record, stored = false) {
   if (record.sudoKeyRef !== undefined) checkRef('sudoKeyRef', record.sudoKeyRef, 'sudo password')
   for (const field of ['keySource', 'sudoKeySource']) if (record[field] !== undefined && !SOURCES.includes(record[field])) throw invalid(`${field} must be terminal-native or secret`)
   for (const field of ['bindingRef', 'sshKeyRequest', 'sudoKeyRequest']) if (record[field] !== undefined && (typeof record[field] !== 'string' || !uuid.test(record[field]))) throw invalid(`${field} must be a UUID`)
+  // launchInput (a532b4 stage 3): 'remote' = this terminal's launches use Aiterm's generic remote input when its conditions hold; absent = `terminal`.
+  if (record.launchInput !== undefined && record.launchInput !== 'remote') throw invalid('launchInput must be "remote" or absent')
   // trustCopy (a532b4 stage 2): the public host trust as Aiterm's export said it; set only by setTrustCopy, never by a caller.
   if (record.trustCopy !== undefined && (!object(record.trustCopy) || !validTrustCopy(record.trustCopy))) throw invalid('trustCopy must be the public host trust copied from Aiterm')
   // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}; set by terminals, not callers.

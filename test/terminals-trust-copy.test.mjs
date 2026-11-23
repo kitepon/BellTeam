@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { createTerminalRegistry } from '../src/terminals/registry.mjs'
 import { createTerminalConnection } from '../src/terminals/connection.mjs'
 import { createCredentialAgent, socketPath, AGENT_ROOT } from '../src/terminals/credential-agent.mjs'
+import { createTrustFile, trustFilePath } from '../src/terminals/trust-file.mjs'
 import { EXPORT_SCHEMA, parseExport } from '../src/terminals/trust-copy.mjs'
 import { fakeNative, fakeSecrets } from './helpers/terminals-native-double.mjs'
 
@@ -123,13 +124,14 @@ test('agent: started only when none answers, old identities deleted, the key onl
   const agent = createCredentialAgent({ run })
   const key = '-----BEGIN OPENSSH PRIVATE KEY-----\nSECRET\n-----END OPENSSH PRIVATE KEY-----\n'
   await agent.load('owner-macbook', key)
-  const scripts = calls.map(call => call.args[1])
+  const used = calls.filter(call => /ssh-agent|ssh-add/.test(call.args[1]))
+  const scripts = used.map(call => call.args[1])
   assert.deepEqual(scripts.map(script => /ssh-agent|ssh-add -l|ssh-add -D|ssh-add - /.exec(script)[0]), ['ssh-add -l', 'ssh-agent', 'ssh-add -l', 'ssh-add -D', 'ssh-add - '])
   assert.ok(scripts[1].includes('ssh-agent -a'))
   assert.ok(scripts[3].includes('ssh-add -D') && scripts[4].includes('ssh-add -'))
   assert.equal(calls.every(call => call.command === '/bin/sh' && call.args[3] === `${AGENT_ROOT}/owner-macbook.sock`), true)
   assert.equal(JSON.stringify(calls.map(call => call.args)).includes('SECRET'), false, 'the key is never in argv')
-  assert.equal(calls[4].input, key)
+  assert.equal(used[4].input, key)
   assert.equal(calls.filter(call => call.input !== undefined).length, 1)
 })
 
@@ -164,4 +166,121 @@ test('loadKey feeds the same bytes to the agent after Aiterm took them; an agent
   assert.ok((await connection.target(request)).terminal, 'the launch goes on')
   assert.deepEqual(connection.maintenance.last('owner-macbook', 'claude-code').agent, { outcome: 'failed', reason: 'AGENT_LOAD_FAILED' })
   assert.equal(native.calls.filter(call => call.op === 'loadCredential').length >= 2, true, 'Aiterm still got the key every time')
+})
+
+test('the agent directory must be this user\'s own, mode 700, before its socket is trusted (Epinel #2421); held() says whether a key is in it', async () => {
+  const calls = []
+  const run = async (command, args) => { calls.push(args[1]); return { code: args[1].includes('stat -c') ? 1 : 0 } }
+  const agent = createCredentialAgent({ run })
+  await assert.rejects(agent.load('owner-macbook', 'KEY'), { code: 'AGENT_START_FAILED' })
+  assert.equal(calls.some(script => script.includes('ssh-add -')), false, 'no key is sent while the directory is not ours')
+  assert.equal(await agent.held('owner-macbook'), false)
+  const ok = fakeRun({ liveCodes: [0, 1] })
+  const held = createCredentialAgent({ run: ok.run })
+  assert.equal(await held.held('owner-macbook'), true)
+})
+
+test('trust file: written once per revision as UID1000 with the public lines on stdin, rewritten only when missing', async () => {
+  const calls = []
+  let exists = false
+  const run = async (command, args, options = {}) => {
+    calls.push({ script: args[1], path: args[3], input: options.input })
+    if (args[1].startsWith('test -s')) return { code: exists ? 0 : 1 }
+    exists = true
+    return { code: 0 }
+  }
+  const files = createTrustFile({ run })
+  const request = { terminalId: 'owner-macbook', revision, lines: [LINE] }
+  const path = await files.ensure(request)
+  assert.equal(path, `/tmp/bellteam-terminals/trust/owner-macbook.${'b'.repeat(16)}.known_hosts`)
+  assert.equal(calls.at(-1).input, `${LINE}\n`)
+  await files.ensure(request)
+  assert.equal(calls.filter(call => call.input !== undefined).length, 1, 'an existing file of this revision is kept')
+  for (const bad of [{ revision: 'x' }, { lines: [] }, { lines: ['a\nb'] }]) await assert.rejects(files.ensure({ ...request, ...bad }), { code: 'TRUST_FILE_INVALID' })
+  assert.match(trustFilePath('../x', revision), /^\/tmp\/bellteam-terminals\/trust\/[0-9a-f]{32}\./)
+})
+
+function switched(extra = {}) {
+  const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.102'
+  Object.assign(native, { async exportBinding({ ref }) { return exported({ ref }) }, async loadAgent() {}, async agentHeld() { return true }, agentSocket: ({ terminalId }) => `/tmp/bellteam-terminals/agent/${terminalId}.sock`,
+    async trustFile({ terminalId, revision: rev }) { return `/tmp/bellteam-terminals/trust/${terminalId}.${rev.slice(7, 23)}.known_hosts` } }, extra)
+  return native
+}
+// A secret-handle key: the key bytes reach the agent, so the generic input can carry it.
+async function switchedSetup(t, { native, launchInput = 'remote', trustCopy = true } = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'trust-copy-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const registry = createTerminalRegistry({ stateRoot: root })
+  await registry.register({ ...base, keySource: 'secret', bindingRef: sshKeyRef })
+  if (launchInput) await registry.update('owner-macbook', { launchInput })
+  if (trustCopy) await registry.setTrustCopy('owner-macbook', parseExport(exported({ ref: sshKeyRef }), sshKeyRef, 'now'), (await registry.target('owner-macbook')).revision)
+  const secrets = { async withResolved(handle, context, consume) { return consume('KEY') }, credential: async handle => ({ handle, revision: 2, available: true }) }
+  const connection = createTerminalConnection({ registry, secrets, native, probeDelays: { first: 5, max: 10 } })
+  t.after(() => connection.dispose())
+  return { registry, connection }
+}
+
+test('a switched terminal gets remote + ssh + forward beside terminal; every unmet condition keeps terminal alone and names why', async t => {
+  const { connection } = await switchedSetup(t, { native: switched() })
+  const target = await connection.target(request)
+  assert.ok(target.terminal, 'terminal stays: the fallback and the old engine')
+  assert.deepEqual(target.remote, { host: '192.168.1.12', user: 'kite', port: 22,
+    ssh: { known_hosts_file: `/tmp/bellteam-terminals/trust/owner-macbook.${'b'.repeat(16)}.known_hosts`, host_key_alias: 'bt-mac', identity_agent: '/tmp/bellteam-terminals/agent/owner-macbook.sock', strict_host_key: true } })
+  assert.deepEqual(target.forward, { id: sshKeyRef, to: { host: '127.0.0.1' } })
+  assert.deepEqual(connection.maintenance.last('owner-macbook', 'claude-code').input, { outcome: 'remote' })
+  const cases = [
+    ['AITERM_TOO_OLD', { native: switched(), mutate: native => { native.remoteVersion = '0.70.100' } }],
+    ['AITERM_TOO_OLD', { native: switched(), mutate: native => { native.localVersion = '0.70.100' } }],
+    ['AGENT_EMPTY', { native: switched({ async agentHeld() { return false } }) }],
+    ['TRUST_FILE_FAILED', { native: switched({ async trustFile() { throw new Error('x') } }) }],
+    ['TRUST_COPY_MISSING', { native: switched(), trustCopy: false }],
+    ['UNSUPPORTED', { native: (() => { const native = fakeNative(); native.localVersion = native.remoteVersion = '0.70.102'; return native })() }]
+  ]
+  for (const [reason, { native, mutate, trustCopy }] of cases) {
+    mutate?.(native)
+    const { connection: other } = await switchedSetup(t, { native, trustCopy })
+    const result = await other.target(request)
+    assert.ok(result.terminal)
+    assert.equal('remote' in result || 'forward' in result, false, reason)
+    assert.deepEqual(other.maintenance.last('owner-macbook', 'claude-code').input, { outcome: 'terminal', reason })
+  }
+  const { connection: off } = await switchedSetup(t, { native: switched(), launchInput: null })
+  assert.equal('remote' in (await off.target(request)), false, 'a terminal that is not switched never gets the new input')
+  assert.equal('input' in off.maintenance.last('owner-macbook', 'claude-code'), false)
+})
+
+test('the production core forwards the stage 2-3 native methods and the launchInput switch writes the registry', async t => {
+  const { createTerminalsCore } = await import('../src/terminals/core.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'trust-core-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const native = switched()
+  const seen = []
+  for (const name of ['exportBinding', 'loadAgent', 'agentHeld', 'trustFile']) { const original = native[name]; native[name] = async (...args) => { seen.push(name); return original(...args) } }
+  const credentials = { async withResolved(handle, context, consume) { return consume('KEY') }, credential: async handle => ({ handle, revision: 2, available: true }), watchCredentials() { return () => {} }, current: () => null }
+  const core = createTerminalsCore({ stateRoot: root, credentials, adapter: native, probeDelays: { first: 5, max: 10 } })
+  t.after(() => core.close())
+  await core.ready
+  const registry = createTerminalRegistry({ stateRoot: root })
+  await registry.register({ ...base, keySource: 'secret', bindingRef: sshKeyRef })
+  await core.launchInput.set('owner-macbook', 'remote')
+  assert.equal((await registry.target('owner-macbook')).launchInput, 'remote')
+  await core.connection.target(request); await settle()
+  assert.deepEqual([...new Set(seen)].sort(), ['exportBinding', 'loadAgent'])
+  const second = await core.connection.target(request)
+  assert.ok(second.remote && second.forward, 'after the copy and the agent load the switched terminal gets the new input')
+  assert.ok(seen.includes('agentHeld') && seen.includes('trustFile'))
+  await core.launchInput.set('owner-macbook', null)
+  assert.equal('launchInput' in (await registry.target('owner-macbook')), false)
+})
+
+test('set_terminal_launch_input is a listed tool that only takes a terminal and remote|terminal', async () => {
+  const { terminalTools, callTerminalTool } = await import('../src/terminals-mcp.mjs')
+  assert.ok(terminalTools.some(tool => tool.name === 'set_terminal_launch_input'))
+  const calls = []
+  const terminals = () => ({ launchInput: { set: async (id, input) => { calls.push([id, input]); return { terminalId: id } } } })
+  await callTerminalTool({ name: 'set_terminal_launch_input', args: { terminalId: 'owner-macbook', input: 'remote' }, terminals })
+  await callTerminalTool({ name: 'set_terminal_launch_input', args: { terminalId: 'owner-macbook', input: 'terminal' }, terminals })
+  assert.deepEqual(calls, [['owner-macbook', 'remote'], ['owner-macbook', 'terminal']])
+  await assert.rejects(callTerminalTool({ name: 'set_terminal_launch_input', args: { terminalId: 'owner-macbook', input: 'other' }, terminals }), { code: 'INVALID_TERMINAL' })
+  await assert.rejects(callTerminalTool({ name: 'set_terminal_launch_input', args: { terminalId: 'owner-macbook', input: 'remote', extra: 1 }, terminals }))
 })
