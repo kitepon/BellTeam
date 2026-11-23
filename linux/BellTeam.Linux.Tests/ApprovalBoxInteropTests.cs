@@ -1,4 +1,5 @@
 using System.Text;
+using BellTeam.Core;
 using System.Text.Json;
 using BellTeam.PeerChannel;
 using Kitepon.LoginBilling.Desktop;
@@ -72,6 +73,51 @@ public sealed class ApprovalBoxInteropTests(ITestOutputHelper output)
             output.WriteLine($"offer code {admission.TypedCode} qr {admission.QrText.Length} chars expires {admission.ExpiresAt:HH:mm:ss}");
             Assert.False(string.IsNullOrEmpty(admission.TypedCode)); Assert.StartsWith("PC1", admission.QrText);
         }
+        try { Directory.Delete(dir, true); } catch (IOException) { }
+    }
+
+    // client-v0.5 against the real server code with PC_OFFER off (approval-box: DEV_PC_OFFER=off npm run dev:server, Nayuta 2026-11-24): the whole client (switch, v1 adapter) from signed out to one answered decision.
+    [Fact]
+    public async Task TheClientReadsAndAnswersOverV1WhilePeerChannelIsOff()
+    {
+        if (Url is null || Phase != "v1") return;
+        var dir = Path.Combine(Path.GetTempPath(), "abx-v1-" + Guid.NewGuid().ToString("N"));
+        var account = new LinuxApprovalBoxAccount(Url, new MemoryPassStore());
+        await using var client = new LinuxApprovalBoxDevice(dir, account, () => [("bot-lab", "ラボ")], true);
+        var states = new List<string>(); client.Source.Changed += () => { lock (states) states.Add(client.Source.State.Status + ":" + client.Source.State.Reason); };
+        using var http = new HttpClient();
+        using (var config = await http.GetAsync(Url + "/v1/auth/config")) Assert.Contains("\"peer_channel\":false", await config.Content.ReadAsStringAsync());
+        client.Source.Start();
+        for (var wait = 0; wait < 100 && client.Source.State.Status != RuntimeStatus.SignedOut; wait++) await Task.Delay(50);
+        Assert.Equal(RuntimeStatus.SignedOut, client.Source.State.Status);
+        await account.SignInAsync("google", CancellationToken.None, uri => Open(http, uri));
+        client.Source.Refresh();
+        for (var wait = 0; wait < 200 && client.Source.State.Status != RuntimeStatus.Live; wait++) await Task.Delay(50);
+        output.WriteLine("states: " + string.Join(" > ", states));
+        Assert.Equal(RuntimeStatus.Live, client.Source.State.Status);
+        // an AI of the same account files one request through a connection token (two steps: check_token)
+        var pass = (await account.AccessAsync(CancellationToken.None)).Headers["authorization"];
+        async Task<JsonElement> Post(string path, object body, string authorization)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, Url + path) { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") };
+            request.Headers.TryAddWithoutValidation("authorization", authorization);
+            using var reply = await http.SendAsync(request); return JsonDocument.Parse(await reply.Content.ReadAsStringAsync()).RootElement.Clone();
+        }
+        var token = (await Post("/v1/tokens", new { label = "lab AI" }, pass)).GetProperty("token").GetString()!;
+        var ask = new Dictionary<string, object> { ["title"] = "決裁箱をv1で確かめる", ["options"] = new[] { new { id = "ok", label = "はい" }, new { id = "no", label = "いいえ" } }, ["session_label"] = "ラボ / v1の確認", ["client"] = "claude-code", ["requester"] = "ラボ" };
+        var first = await Post("/connector/v1/decisions", ask, "Bearer " + token);
+        var check = first.TryGetProperty("check_token", out var c) ? c.GetString() : first.GetProperty("error").GetProperty("check_token").GetString();
+        ask["check_token"] = check!;
+        var filed = await Post("/connector/v1/decisions", ask, "Bearer " + token);
+        var id = filed.TryGetProperty("decision_id", out var d) ? d.GetString()! : filed.GetProperty("id").GetString()!;
+        // the client sees it (events, no polling of ours), draws it as BellTeam's member, answers it with its version
+        ViewDecision? seen = null;
+        for (var wait = 0; wait < 100 && seen is null; wait++) { seen = client.Source.Decisions.FirstOrDefault(item => item.Id == id); await Task.Delay(50); }
+        Assert.NotNull(seen); Assert.Equal("pending", seen!.Status); Assert.Equal("bellteam", seen.Origin!.Kind); Assert.Equal("name", seen.Origin.Basis);   // the requester "ラボ" is a roster name: rule 2
+        var outcome = await client.Source.AnswerAsync(id, "ok", null, seen.Version);
+        Assert.Equal("ok", outcome.Ack);
+        Assert.Equal("answered", client.Source.Decisions.First(item => item.Id == id).Status);
+        Assert.Equal("ok", client.Source.Decisions.First(item => item.Id == id).Answer!.OptionId);
         try { Directory.Delete(dir, true); } catch (IOException) { }
     }
 }
