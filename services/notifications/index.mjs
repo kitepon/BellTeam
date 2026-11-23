@@ -12,9 +12,7 @@ const provider = await APNsProvider.create(JSON.parse(await readFile(join(direct
 // Optional: the operator's Firebase credential (same config.json format as shared/tools/fcm). Without it the relay answers android:false.
 const fcmDirectory = process.env.BELLTEAM_FCM_DIRECTORY
 const fcmProvider = fcmDirectory ? await loadFcmProvider(fcmDirectory, { readKeys: onePasswordKeyReader(null) }) : null
-// The Worker's ticket/check (login-billing 0.10.0, a485): the relay asks it whether the push ticket entitles.
-const ticketCheckUrl = process.env.BELLTEAM_TICKET_CHECK_URL
-const relay = createNotificationRelay({ provider, fcmProvider, ticketCheckUrl })
+const relay = createNotificationRelay({ provider, fcmProvider })
 const server = createServer(async (request, response) => {
   try {
     const input = new Request(new URL(request.url, 'http://notifications.bellteam.local'), {
