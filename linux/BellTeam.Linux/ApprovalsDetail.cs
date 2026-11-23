@@ -82,9 +82,7 @@ internal sealed partial class ApprovalsWindow
     {
         try
         {
-            var bytes = All.FirstOrDefault(item => item.Id == decisionId) is { Source: DecisionUnion.Device } && Device is { } device
-                ? await device.AttachmentAsync(decisionId, attachment.Id!) ?? throw new InvalidOperationException("no image held")
-                : await workspace.Management.Api.ApprovalAttachmentAsync(decisionId, attachment.Id!, life.Token);
+            var bytes = Device is { } device ? await device.AttachmentAsync(decisionId, attachment.Id!) ?? throw new InvalidOperationException("no image held") : throw new InvalidOperationException("no device");
             if (attachment.Size > 0 && bytes.LongLength != attachment.Size) return;
             if (attachment.Sha256 is { Length: 64 } sha && !string.Equals(Convert.ToHexString(SHA256.HashData(bytes)), sha, StringComparison.OrdinalIgnoreCase)) return;
             using var stream = new MemoryStream(bytes); pictures[id] = new Bitmap(stream); Render();
@@ -102,12 +100,6 @@ internal sealed partial class ApprovalsWindow
     private Control Answering(ViewDecision decision)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-        if (decision.Id is { } id && answeredOnDevice.Contains(id))
-        {
-            stack.Children.Add(Text(Approvals.AnswerOnDevice, 13.5, Amber, wrap: true));
-            if (decision.Link?.Chart?.ProjectId is { Length: > 0 } chartProject && decision.Link.Task?.CardId is { Length: > 0 } chartCard) { var chartButton = Action("工程表で見る", ForwardGlyph); chartButton.Margin = new Thickness(0, 12, 0, 0); chartButton.Click += (_, _) => openCard(chartProject, chartCard); stack.Children.Add(chartButton); }
-            return stack;
-        }
         if (decision.Status == "held") stack.Children.Add(Text("保留中です。戻すと、また答えられます。", 13.5, Muted, wrap: true));
         else switch (step)
         {
@@ -188,12 +180,8 @@ internal sealed partial class ApprovalsWindow
             var panel = Approvals.LinkPanel(decision);
             switch (panel.Kind)
             {
-                case "linked":
-                    if (panel.Chart.Length > 0) stack.Children.Add(Text(panel.Chart, 12, Muted));
-                    foreach (var task in panel.Previous) stack.Children.Add(MiniCard(task, false));
-                    if (panel.Task is { } own) stack.Children.Add(MiniCard(own, true));
-                    foreach (var task in panel.Next) stack.Children.Add(MiniCard(task, false));
-                    stack.Children.Add(Text(panel.Sentence, 13, Ink, wrap: true));
+                case "linked":   // ids and state only (by-decision): the words come from the state, the button opens the task on its chart
+                    stack.Children.Add(Text(LinkSentence(decision), 13, Ink, wrap: true));
                     if (panel.Ids is { } ids) { var go = Action("工程表の工程を開く", ForwardGlyph); go.Click += (_, _) => openCard(ids.ProjectId, ids.CardId); stack.Children.Add(go); }
                     break;
                 case "connecting":
@@ -210,11 +198,10 @@ internal sealed partial class ApprovalsWindow
         return new Border { Child = Glass(new ScrollViewer { Content = stack }, 22, new Thickness(16, 16, 16, 12), 0xC7), [Grid.ColumnProperty] = 2 };
     }
 
-    private Control MiniCard(ApprovalTask task, bool mine)
+    private static string LinkSentence(ViewDecision decision) => decision.Link?.State switch
     {
-        var info = LatticeChart.StateInfo(task.State);
-        var glyph = StateGlyph(task.State ?? "pending", 14, Violet); glyph.Margin = new Thickness(0, 0, 8, 0);
-        var lines = new StackPanel { Children = { Text(task.Title ?? "", 13.5, Ink, FontWeight.SemiBold, wrap: true), Text(info.Badge, 11.5, Muted) } };
-        return new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8), Background = Brush(Colors.White, mine ? (byte)0xFF : (byte)0xB0), BorderBrush = Brush(mine ? Violet : Line), BorderThickness = new Thickness(mine ? 2 : 1), Child = Row(glyph, lines) };
-    }
+        "answered" or "closed" => "答えました。工程は済みです。",
+        "diverged" => "この決裁と工程の内容が食い違っています。工程表で確かめてください。",
+        _ => decision.Status == "answered" ? "答えました。工程は済みです。" : "答えると、工程が済みになり、次の工程へ進めます。答えで決まらない時は、新しい決裁が工程に差し込まれます。"
+    };
 }

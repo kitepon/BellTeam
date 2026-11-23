@@ -26,7 +26,7 @@ public sealed class ApprovalsDeviceStripTests
         var workspace = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture("main")));
         await workspace.ConnectAsync("http://localhost", listen: false);
         var device = new FakeDevice { State = state };
-        var hub = new ApprovalsHub(workspace, device); hub.Sync();
+        var hub = new ApprovalsHub(workspace, device); hub.ReadLinks();
         var window = new ApprovalsWindow(hub, workspace, (_, _) => { }, _ => { });
         window.Show();
         return (window, hub, device);

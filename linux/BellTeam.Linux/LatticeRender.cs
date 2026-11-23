@@ -54,32 +54,6 @@ internal static class LatticeRender
         lattice.Chart?.Stop(); lattice.Close();
     }
 
-    // The 決裁箱 window over the in-process fixture (ApprovalsFixture): the real API reads, hub, feed and drawing.
-    public static readonly string[] ApprovalScenes = ["main", "answer", "write", "external", "unknown", "held", "done", "empty", "not-connected", "waiting", "not-entitled", "expired", "old"];
-    public static async Task ApprovalsAsync(string scene, string output)
-    {
-        if (!ApprovalScenes.Contains(scene)) throw new ArgumentException("未対応の決裁箱の場面です。" + Launcher.Usage);
-        using var model = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture(scene)));
-        await model.ConnectAsync("http://localhost", listen: false);
-        if (model.ConnectionError is { } failure) throw new BellApiException(failure);
-        using var hub = new ApprovalsHub(model); hub.Sync();
-        var window = new ApprovalsWindow(hub, model, (_, _) => { }, _ => { });
-        LatticeLook.Motion = false;
-        window.Show();
-        await Until(() => window.Settled, "決裁箱を読めませんでした。");
-        if (scene == "main") await window.PreviewAsync("pending", "K-1", null);
-        else if (scene == "answer") await window.PreviewAsync("pending", "K-1", 0);
-        else if (scene == "write") await window.PreviewAsync("pending", "K-2", null, writing: true);
-        else if (scene == "external") await window.PreviewAsync("pending", "K-3", null);
-        else if (scene == "unknown") await window.PreviewAsync("pending", "K-4", null);
-        else if (scene == "held") await window.PreviewAsync("held", "K-5", null);
-        else if (scene == "done") await window.PreviewAsync("done", "K-7", null);
-        else if (scene == "waiting") await Task.Delay(50);
-        Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
-        Launcher.WritePng(window, output);
-        window.Close();
-    }
-
     // The work graph read from a server (GET only): the real stream and model, with a virtual clock so 12 s of simulation is stepped at 60 Hz without waiting.
     public static async Task WorkGraphAsync(string address, string output)
     {
