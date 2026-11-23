@@ -148,6 +148,7 @@ public sealed class ApprovalsV1Tests
         Assert.Equal(2, posts.Count); Assert.All(posts, post => Assert.True(Guid.TryParse(post.Key, out _)));
         using var json = JsonDocument.Parse(posts[0].Body!);
         Assert.Equal(("a", 2), (json.RootElement.GetProperty("option_id").GetString(), json.RootElement.GetProperty("version").GetInt32()));
+        Assert.False(json.RootElement.TryGetProperty("text", out _));                   // an absent field, never a null: the server's schema refuses null (first live run)
         conflict = false; await source.AnswerAsync("K-9", null, "もう少し\r\n", 3); await source.AnswerAsync("K-9", null, "もう少し\r\n", 3);
         var again = box.Calls.Where(call => call.Method == "POST" && call.Path.Contains("K-9")).ToList();
         Assert.Equal(again[0].Key, again[1].Key);                                     // the same press again is the same key: a second press is harmless
