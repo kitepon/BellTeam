@@ -21,7 +21,7 @@ Why it exists: on 2026-11-24 the Owner's iPhone showed 0 decisions and 「再接
 | F6 entitlement gate | body gates `/api/approvals/*` | Approval Box gates (402 on every route but `GET /me`); the body gate stays for the body routes above only | Delta |
 | Link engine feed | F1 stream with the F7 session, plus the hosted daemon union (feed v0.4) | **unchanged** until the app moves; then the daemon only (feed v0.4 section 6) | Delta, Molly |
 | Hosted daemon, `/pc/v1` pairing | needed for the Owner's view | needed only for the link engine feed after the move; **no longer needed for any screen** | Molly, Nayuta |
-| Web view | dropped (browser holds no device keys) | possible again through the `v1` adapter (needs Nayuta's origin allowance, question Q2) | Admi |
+| Web view | dropped (browser holds no device keys) | **not built** (Admi 2026-11-24: there is no `web/` and no Web screen since #2239; the gateway answers `GET /` with 410 and its ended notice, which already says to use the apps). A Web 決裁箱 would be a new task against this contract once Nayuta allows BellTeam's web origin (Q2) | Admi |
 
 ## 3. Function diagram
 
@@ -165,7 +165,7 @@ Every state leaves by the action on the same screen or by the next launch; none 
 | Rapi (iPhone, Mac) | Put `ApprovalBoxLink` behind the `ApprovalSource` port; add the `v1` adapter (5.2); selector (5.3); keep the peer adapter (`PeerDevice`) inactive until `peer_channel` is true; states of section 7; `origin-cases.json`; keep `ApprovalLinkResolver` | read `/api/approvals` list or answer routes; copy Approval Box app code |
 | Anis (Windows) | Same port and `v1` adapter in C#; the C# pc/1 core stays behind the selector and must not start while `peer_channel` is false; retire the device flag | start the core by a local flag |
 | Neon (Linux, Android) | Same; Linux arm64 and Android arm64 need no libdatachannel while the `v1` adapter is the one in use (the peer engine is needed only after the move); retire `BELLTEAM_APPROVAL_BOX_DEVICE` and the Android file switch | build a device-only list |
-| Admi (Web) | The `v1` adapter in the browser if Nayuta allows BellTeam's web origin for `/auth/v1` and `/v1` (Q2); the pass in the library's cookie or memory carrier, not in BellTeam's account; otherwise the entry says 「この画面は、アプリで使えます」 and nothing else | store the pass in BellTeam storage |
+| Admi (Web) | Nothing now: the Web view is not built and the ended notice covers the 'use the app' line. The body's `/api/approvals` list, answer, hold, unhold, attachments, events and summary routes have no Web caller, so a490h2 needs nothing from Web | |
 | Nayuta | Answers to Q1-Q4; the interface of the client component | |
 
 ## 9. Order and the retargeted removal (a490h2)
