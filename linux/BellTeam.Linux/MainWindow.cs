@@ -111,9 +111,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
         addMenu = BuildAddMenu();
         updateBadge = BuildUpdateBadge();
-        // a520: the Approval Box device of this PC (off unless BELLTEAM_APPROVAL_BOX_DEVICE=1 on x64: the go-live ruling of Delta and Nayuta is not given yet).
-        approvalBox = LinuxApprovalBoxDevice.Enabled ? new LinuxApprovalBoxDevice(SettingsStore.UserDirectory) : null;
-        approvals = new ApprovalsHub(model, approvalBox?.Device); approvalBox?.Attach(approvals); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
+        // The Approval Box client of this PC (client-v0.5.md): /v1 now, the device session when the server says peer_channel; the server decides, no flag.
+        approvalBox = new LinuxApprovalBoxDevice(SettingsStore.UserDirectory, () => [.. model.Bots.Select(bot => (bot.Id, bot.DisplayName))]);
+        approvals = new ApprovalsHub(model, approvalBox.Source); approvalBox.Attach(approvals); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
         clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
         attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, "画像を添付", AttachAsync, "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます");

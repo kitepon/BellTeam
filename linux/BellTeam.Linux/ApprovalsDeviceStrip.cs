@@ -22,7 +22,7 @@ internal sealed partial class ApprovalsWindow
 
     internal Control? DeviceStrip()
     {
-        if (hub.Device is not { } device) return null;
+        if (hub.Source is not { } device) return null;
         var panel = new StackPanel(); var n = 0;
         Border Frame(Control child, double vertical, string name)
         {
@@ -64,6 +64,7 @@ internal sealed partial class ApprovalsWindow
                 Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke());
                 break;
             case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
+            case RuntimeStatus.Stopped when device.State.Reason == "update_needed": Line(Approvals.DeviceUpdateNeeded, "今すぐ試す", device.Refresh); break;   // peer_channel is on and this build has no engine for it
         }
         return panel.Children.Count == 0 ? null : panel;
     }

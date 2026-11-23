@@ -26,9 +26,9 @@ internal interface IDeviceDecisions
 internal static class DeviceDecisionView
 {
     // The tool name the old server derived from the client string.
-    private static string? Tool(string client) => client switch
+    internal static string? ToolOf(string client) => client switch
     {
-        "claude-code" => "Claude Code", "codex" => "Codex", "cursor" => "Cursor", "claude.ai" => "Claude", "chatgpt" => "ChatGPT", "" => null, _ => client
+        "claude-code" => "Claude Code", "codex" => "Codex", "cursor" => "Cursor", "grok" => "Grok", "claude.ai" => "Claude", "chatgpt" => "ChatGPT", "" or "other" => null, _ => client
     };
 
     private static string Iso(long ms) => DateTimeOffset.FromUnixTimeMilliseconds(ms).ToString("yyyy-MM-ddTHH:mm:ssZ");
@@ -47,7 +47,7 @@ internal static class DeviceDecisionView
             Delivery = e.Status == DecisionStatus.Answered ? "waiting" : null,
             CancelReason = cancelled ? e.CancelReason : null,
             Amended = e.Amended ? new ApprovalAmended { Is = true, At = Iso(e.UpdatedAt) } : null,
-            Origin = new ApprovalOrigin { Kind = bellteam ? "bellteam" : "external", Client = s.Client, Tool = Tool(s.Client), SessionLabel = s.SessionLabel, WorkLabel = s.WorkLabel, Via = "connector" },
+            Origin = new ApprovalOrigin { Kind = bellteam ? "bellteam" : "external", Client = s.Client, Tool = ToolOf(s.Client), SessionLabel = s.SessionLabel, WorkLabel = s.WorkLabel, Via = "connector" },
             RequestAttachments = e.Blobs is { Count: > 0 } blobs ? [.. blobs.Select(b => new ApprovalAttachment { Id = b.BlobId, Name = b.Name, ContentType = b.ContentType, Size = b.Size, Sha256 = Convert.ToHexString(Bytes.FromB64Url(b.BlobId)) })] : null,
             Requester = bellteam ? new ApprovalRequester { BotId = s.RequesterBotId, Name = s.Requester } : null,
         };

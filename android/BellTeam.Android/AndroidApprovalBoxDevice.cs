@@ -9,6 +9,7 @@ namespace BellTeam.Android;
 // the SECOND, foreign login-library instance (ApprovalBoxAccount: its own storage, web sign-in only, no purchase or receipt) as IApprovalBoxAccount.
 internal sealed class AndroidApprovalBoxAccount(LoginBilling billing, Uri origin) : IApprovalBoxAccount
 {
+    public Uri Origin => origin;
     // The pass is handed out for the Approval Box origin only (the library's own rule); not signed in is the SignedOut state, never papered over.
     public Task<ServerAccess> AccessAsync(CancellationToken ct)
     {
@@ -42,14 +43,12 @@ internal sealed class AndroidApprovalBoxAccount(LoginBilling billing, Uri origin
 
 internal static class AndroidApprovalBoxDevice
 {
-    // shortcut: until the go-live ruling of Delta and Nayuta the part is off, like the PC's BELLTEAM_APPROVAL_BOX_DEVICE; a debug build switches it on with a file in the app's files (adb shell run-as dev.kitepon.bellbot touch files/approval-box-device). Replace with the product's own switch at go-live.
-    internal static bool Enabled => ApprovalBoxAccount.Billing is not null && File.Exists(ApprovalBoxAccount.Switch);
-
     private static string FilesDir => global::Android.App.Application.Context.FilesDir!.AbsolutePath;
 
-    internal static LinuxApprovalBoxDevice? Create()
+    // Always on (client-v0.5.md 5.3): the server's peer_channel picks /v1 or the device session. No product.json address = no client (the screen says so). The engine is in every ABI of the APK.
+    internal static LinuxApprovalBoxDevice? Create(Func<IReadOnlyList<(string Id, string Name)>> roster)
     {
-        if (!Enabled || ApprovalBoxAccount.Billing is not { } billing || ApprovalBoxAccount.AuthUrl is not { } url) return null;
-        return new LinuxApprovalBoxDevice(Path.Combine(FilesDir, "approval-box"), new AndroidApprovalBoxAccount(billing, new Uri(new Uri(url).GetLeftPart(UriPartial.Authority))), "android");
+        if (ApprovalBoxAccount.Billing is not { } billing || ApprovalBoxAccount.AuthUrl is not { } url) return null;
+        return new LinuxApprovalBoxDevice(Path.Combine(FilesDir, "approval-box"), new AndroidApprovalBoxAccount(billing, new Uri(new Uri(url).GetLeftPart(UriPartial.Authority))), roster, true, "android");
     }
 }

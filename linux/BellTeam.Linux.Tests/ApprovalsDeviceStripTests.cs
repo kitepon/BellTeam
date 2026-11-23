@@ -36,13 +36,14 @@ public sealed class ApprovalsDeviceStripTests
 
     [Theory]
     [InlineData(RuntimeStatus.Connecting, null, "この端末を決裁箱につないでいます")]
-    [InlineData(RuntimeStatus.Retrying, "HttpRequestException: Connection refused", "つなぎ直しています（決裁箱に届きません）")]
+    [InlineData(RuntimeStatus.Retrying, "HttpRequestException: Connection refused", "つなぎ直しています")]
     [InlineData(RuntimeStatus.NeedsAdmission, "not_verified", "まだ承認されていません")]
     [InlineData(RuntimeStatus.NeedsAdmission, "removed", "ほかの端末から外されました")]
     [InlineData(RuntimeStatus.SignedOut, null, "Approval Boxにサインインします")]
     [InlineData(RuntimeStatus.SignedOut, "pass_ended", "サインインが終わりました")]
     [InlineData(RuntimeStatus.SignedOut, "account_deleted", "アカウントは削除されました")]
-    [InlineData(RuntimeStatus.NotEntitled, null, "購読が必要です")]
+    [InlineData(RuntimeStatus.NotEntitled, null, "契約が必要です")]
+    [InlineData(RuntimeStatus.Stopped, "update_needed", "この版では、決裁箱をまだ使えません。アプリを更新してください。")]
     public Task EachStateSaysItsWords(RuntimeStatus status, string? reason, string words) => Ui.Run(async () =>
     {
         var (window, _, _) = await OpenAsync(new RuntimeState(status, reason));

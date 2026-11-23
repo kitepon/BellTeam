@@ -112,6 +112,8 @@ internal sealed partial class ApprovalsWindow
             Counter("待ち", counts.Pending, Violet, 22), Counter("急ぎ", counts.Urgent, Amber, 8), Counter("保留", counts.Held, Muted, 8)), 22));
         var again = Action("読み直す", null); again.Margin = new Thickness(16, 0, 0, 0); again.Click += (_, _) => { Device?.Refresh(); hub.ReadLinks(); }; wrap.Children.Add(again);
         var linkButton = Action("工程表との連携", null); linkButton.Margin = new Thickness(8, 0, 0, 0); linkButton.Click += (_, _) => _ = OpenLinkAsync(); wrap.Children.Add(linkButton);
+        if (hub.SignOutApprovalBox is { } signOut && Device?.State.Status is not BellTeam.PeerChannel.RuntimeStatus.SignedOut)   // never BellTeam's own sign-in (client-v0.5.md section 7)
+        { var out1 = Action("Approval Boxからサインアウト", null); out1.Margin = new Thickness(8, 0, 0, 0); out1.Click += (_, _) => signOut(); wrap.Children.Add(out1); }
         return wrap;
     }
     private Border Counter(string label, int count, Color color, double left)

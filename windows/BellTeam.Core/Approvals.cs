@@ -82,14 +82,16 @@ public static class Approvals
         DeviceRemoved = "この端末は、ほかの端末から外されました。",
         DeviceJoining = "この端末を決裁箱につないでいます…",
         DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
-        DeviceNotEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。",
+        DeviceNotEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。",
+        DeviceUpdateNeeded = "この版では、決裁箱をまだ使えません。アプリを更新してください。",
         DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。";
     public const string DeviceAskApproval = "承認をお願いする", DeviceApprovalHow = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。",
         DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
     public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
     public const string DeviceSigningIn = "ブラウザでサインインしています…";
     // Delta (a490j review): never the runtime's own reason (an exception text); one fixed line.
-    public const string DeviceReconnecting = "つなぎ直しています（決裁箱に届きません）";
+    public const string DeviceReconnecting = "つなぎ直しています";
+    public const string AmendedPlain = "内容が直されました。もう一度確かめてください。";   // client-v0.5.md section 7: a 409 on an answer
     public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";
 
     // ---- failure: HTTP answer -> kind of view
