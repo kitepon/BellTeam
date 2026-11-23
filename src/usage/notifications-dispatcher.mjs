@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PushNotifications, validatePushDevice } from '../push-notifications.mjs'
@@ -6,7 +5,7 @@ import { FcmNotifications } from '../fcm-notifications.mjs'
 import { validateFcmParams } from './fcm-schema.mjs'
 import { validateUpdateAttemptQuery } from '../update-push-attempts.mjs'
 
-const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish', 'tickets'])
+const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
 const printable = value => typeof value === 'string' && Boolean(value.trim()) && !/[\u0000-\u001f\u007f]/u.test(value)
 const failure = (code, outcome = 'not_accepted') => Object.assign(new Error(code), { code, outcome })
 
@@ -16,17 +15,9 @@ function object(value, required, optional = []) {
     || Object.keys(value).some(key => !required.includes(key) && !optional.includes(key))) throw failure('PUSH_INPUT_INVALID')
 }
 
-// a485: { tickets: { sha256hex(device token): operator ticket } }, replaced whole; the child keeps it in memory only.
-function validateTickets(params) {
-  object(params, ['tickets'])
-  const entries = params.tickets && typeof params.tickets === 'object' && !Array.isArray(params.tickets) ? Object.entries(params.tickets) : null
-  if (!entries || entries.length > 256 || entries.some(([hash, ticket]) => !/^[a-f0-9]{64}$/u.test(hash) || !printable(ticket) || Buffer.byteLength(ticket) > 4096)) throw failure('PUSH_INPUT_INVALID')
-}
-
 export function validateNotificationRequest(method, params) {
   if (!methods.has(method)) throw failure('PUSH_INPUT_INVALID')
   if (Buffer.byteLength(JSON.stringify(params) ?? '') > 65536) throw failure('PUSH_INPUT_INVALID')
-  if (method === 'tickets') { validateTickets(params); return }
   if (method !== 'publish') {
     if (params?.provider === 'fcm') { validateFcmParams(method, params); return }
     if (params?.provider !== 'apns') throw failure('PUSH_INPUT_INVALID')
@@ -89,10 +80,8 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, fcmF
     try { await diagnostic(report) }
     catch { process.stderr.write('BellTeam: 通知の診断を保存できませんでした (PUSH_DIAGNOSTIC_FAILED)\n') }
   } }
-  let tickets = new Map()
-  const ticketFor = token => typeof token === 'string' ? tickets.get(createHash('sha256').update(token).digest('hex')) : undefined
-  const service = new PushNotifications({ root, provider, diagnostics, ticketFor })
-  const fcm = new FcmNotifications({ root, diagnostics, ticketFor, ...(fcmFetch ? { fetch: fcmFetch } : {}) })
+  const service = new PushNotifications({ root, provider, diagnostics })
+  const fcm = new FcmNotifications({ root, diagnostics, ...(fcmFetch ? { fetch: fcmFetch } : {}) })
   let initialized = false, initializationStarted = false, accepting = false, quiesced = false, exiting = false, epoch = 0
   const active = new Set()
   const drain = async () => {
@@ -109,7 +98,6 @@ export function createNotificationsDispatcher({ root, diagnostic, provider, fcmF
     // The channel has already accepted this operation, even if quiesce now closes its gate.
     validateNotificationRequest(method, params)
     const task = Promise.resolve().then(() => {
-      if (method === 'tickets') { tickets = new Map(Object.entries(params.tickets)); return { accepted: true } }
       if (method === 'publish') { const event = notificationEvent(params); service.publish(event); fcm.publish(event); return { accepted: true } }
       const { provider, ...value } = params
       if (provider === 'fcm') return fcm[method](value)

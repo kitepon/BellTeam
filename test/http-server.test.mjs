@@ -975,6 +975,6 @@ test('a485: with the home front, Enforced admits only a session, 503 when it can
   assert.deepEqual(await unavailable.json(), { error: 'SESSION_STORE_UNAVAILABLE' })
   mode = 'session'
   const body = await (await fetch(`${base}/api/subscription`)).json()
-  assert.equal(body.subscription.entitlementState, 'none') // the session's own state, not the server's
+  assert.equal(body.subscription.entitlementState, 'active') // a540: no per-session state; the answer is the same for every session
   assert.equal(await status('/healthz'), 200)
 })

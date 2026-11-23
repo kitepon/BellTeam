@@ -52,9 +52,8 @@ export function onePasswordKeyReader(root, { create = () => createOnePasswordSou
 }
 
 export class PushNotifications {
-  constructor({ root, bots, diagnostics, provider = null, fetch: request = fetch, readKeys = onePasswordKeyReader(root), ticketFor = () => undefined }) {
+  constructor({ root, bots, diagnostics, provider = null, fetch: request = fetch, readKeys = onePasswordKeyReader(root) }) {
     this.root = root
-    this.ticketFor = ticketFor
     this.readKeys = readKeys
     this.injected = Boolean(provider)
     this.keyError = null
@@ -121,7 +120,7 @@ export class PushNotifications {
         this.provider = this.directProvider
         return this.status()
       }
-      const provider = new NotificationRelayProvider({ relayUrl, fetch: this.request, ticketFor: this.ticketFor })
+      const provider = new NotificationRelayProvider({ relayUrl, fetch: this.request })
       await provider.initialize()
       this.provider = provider
       return this.status()
@@ -132,8 +131,8 @@ export class PushNotifications {
     }
   }
 
-  async register({ token, environment, server, previousToken, signedTransaction }) {
-    const device = validatePushDevice({ token, environment, server, signedTransaction })
+  async register({ token, environment, server, previousToken }) {
+    const device = validatePushDevice({ token, environment, server })
     if (previousToken) validateToken(previousToken)
     if (!this.provider) throw pushError('PUSH_NOT_CONFIGURED')
     if (!this.provider.environments.includes(environment)) throw pushError('PUSH_ENVIRONMENT_UNAVAILABLE')
@@ -224,7 +223,7 @@ export class PushNotifications {
         Object.assign(result, apnsReceipt(error))
         result.errorReason = updatePushReason(error.code)
         result.outcome = result.apnsStatus !== null && result.apnsStatus !== 200 ? 'rejected'
-          : ['PUSH_ENVIRONMENT_UNAVAILABLE', 'SUBSCRIPTION_REQUIRED', 'PUSH_NOT_CONFIGURED'].includes(error.code) ? 'not_sent' : 'unknown'
+          : ['PUSH_ENVIRONMENT_UNAVAILABLE', 'PUSH_NOT_CONFIGURED'].includes(error.code) ? 'not_sent' : 'unknown'
         try {
           if (error.code === 'APNS_UNREGISTERED') await this.unregister(device)
           else {
@@ -285,18 +284,17 @@ function validateToken(token) {
   if (typeof token !== 'string' || !/^[a-f0-9]{32,512}$/u.test(token)) throw pushError('PUSH_DEVICE_INVALID')
 }
 
-export function validatePushDevice({ token, environment, server, signedTransaction } = {}) {
+// a540: an installed app may still send a signedTransaction; it is neither checked nor kept.
+export function validatePushDevice({ token, environment, server } = {}) {
   validateToken(token)
   let url
   try { url = new URL(server) } catch { throw pushError('PUSH_DEVICE_INVALID') }
   if (!['development', 'production'].includes(environment) || !isSupportedServerURL(url)) throw pushError('PUSH_DEVICE_INVALID')
-  if (signedTransaction != null && (typeof signedTransaction !== 'string' || !signedTransaction.trim())) throw pushError('PUSH_DEVICE_INVALID')
-  return { token, environment, server: url.origin, ...(signedTransaction != null ? { signedTransaction } : {}) }
+  return { token, environment, server: url.origin }
 }
 
 export class NotificationRelayProvider {
-  constructor({ relayUrl, fetch: request = fetch, ticketFor = () => undefined }) {
-    this.ticketFor = ticketFor
+  constructor({ relayUrl, fetch: request = fetch }) {
     let url
     try { url = new URL(relayUrl) } catch { throw pushError('PUSH_RELAY_URL_INVALID') }
     if (!isSupportedServerURL(url)) throw pushError('PUSH_RELAY_URL_INVALID')
@@ -313,12 +311,10 @@ export class NotificationRelayProvider {
   }
 
   async send(device, payload, id) {
+    // a540: no proof of payment goes to the relay; a record that an older server stored with a signedTransaction loses it here.
     const { signedTransaction, ...destination } = device
-    // a485: the ticket of the app session that registered this device (the relay checks it against the token's hash); without one, the store proof as before.
-    const ticket = this.ticketFor(device.token)
-    if (!ticket && (typeof signedTransaction !== 'string' || !signedTransaction)) throw pushError('SUBSCRIPTION_REQUIRED')
     const result = await this.call('/v1/notifications/send', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(ticket ? { ticket } : { signedTransaction }), device: destination, payload, id }) })
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: destination, payload, id }) })
     if (result?.accepted !== true) throw pushError('PUSH_RELAY_RESPONSE_INVALID')
   }
 

@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { join } from 'node:path'
-import { developerAccessAllowed } from './distribution-profile.mjs'
 import { MembersAdmission } from './members-admission.mjs'
 import { createUsageProcess } from './usage-process.mjs'
 import { createUsageAuthority } from './usage/authority.mjs'
@@ -15,7 +14,6 @@ import { cliNotice } from './usage/harness-cli-notice.mjs'
 export function createUsageAssembly({ root, exchangeMutex, environment = {}, seatRuntime = false, getServices,
   onEffect, onState, onModuleChildExit, onModuleRestartLimit, createProcess = createUsageProcess, prepareRelease, spawnProcess }) {
   const accessMode = environment.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription'
-  if (accessMode === 'developer' && !developerAccessAllowed) throw new Error('SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE')
   const admission = new MembersAdmission('usage-parent'), authority = createUsageAuthority()
   const capturedContexts = new WeakMap(), parents = new WeakMap()
   const scope = new AsyncLocalStorage()
@@ -170,8 +168,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       environment: Object.fromEntries(['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY', 'BELLTEAM_HOME_OPERATOR']
         .filter(key => typeof environment[key] === 'string').map(key => [key, environment[key]])),
       seatRuntime: Boolean(seatRuntime),
-      subscription: { environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production', accessMode,
-        ...(accessMode === 'developer' ? { developerAccessAllowed } : {}) },
+      subscription: { environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production', accessMode },
     },
     onEffect: (method, params, context) => {
       const inherited = parents.get(context.usageLease)
@@ -202,7 +199,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     // a485: what the body's home front calls; each call is a system root call (the body's own mechanism, never an owner's or a Bot's act).
     home: {
       handle: params => facade.home.handle(params, systemContext('home.handle')), sweep: params => facade.home.sweep(params, systemContext('home.sweep')),
-      setupCode: () => facade.home.setupCode(systemContext('home.setupCode')), pushTickets: () => facade.home.pushTickets(systemContext('home.pushTickets')), publish: () => facade.home.publish(systemContext('home.publish')),
+      setupCode: () => facade.home.setupCode(systemContext('home.setupCode')), publish: () => facade.home.publish(systemContext('home.publish')),
       console: params => facade.home.console(params, systemContext('home.console')),
     },
     initializeSettings: () => controller.start(),

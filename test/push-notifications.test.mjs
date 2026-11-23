@@ -80,7 +80,8 @@ test('端末登録を永続化し、トークン更新とログアウトで古�
   await restored.initialize()
   assert.equal(restored.devices.size, 1)
   assert.ok(restored.devices.has(replacement.token))
-  assert.equal(restored.devices.get(replacement.token).signedTransaction, replacement.signedTransaction)
+  assert.equal(restored.devices.get(replacement.token).signedTransaction, undefined) // a540: an older app's signedTransaction is accepted and dropped
+  assert.ok(!(await readFile(file, 'utf8')).includes(replacement.signedTransaction))
   await restored.register({ ...device, token: replacement.token })
   assert.equal(restored.devices.get(replacement.token).signedTransaction, undefined)
   await restored.unregister(replacement)
@@ -128,7 +129,7 @@ test('通知APIは認証が必要で、設定取得にトークンを返さな�
   assert.deepEqual(await (await fetch(base, { headers })).json(), { configured: true, environments: ['production'] })
   const signedTransaction = 'SIGNED_TRANSACTION_' + 'x'.repeat(5000)
   assert.equal((await fetch(`${base}/devices`, { method: 'POST', headers, body: JSON.stringify({ ...device, signedTransaction }) })).status, 200)
-  assert.equal(service.devices.get(device.token).signedTransaction, signedTransaction)
+  assert.equal(service.devices.get(device.token).signedTransaction, undefined)
   assert.ok(!JSON.stringify(await (await fetch(base, { headers })).json()).includes(signedTransaction))
   assert.equal((await fetch(`${base}/devices`, { method: 'POST', headers, body: JSON.stringify(device) })).status, 200)
   assert.equal(service.devices.get(device.token).signedTransaction, undefined)
@@ -181,7 +182,7 @@ test('relayの設定反映は実接続を待ち、失敗を診断と状態へ残
   assert.deepEqual(service.status(), { configured: true, environments: ['production'] })
 })
 
-test('relayは端末本人の購入情報だけを送り、未登録・不正な成功応答を明示する', async t => {
+test('relayへは証明なしで送り、古いアプリのsignedTransactionは受けて捨て、未登録・不正な成功応答を明示する', async t => {
   const { root, bots, diagnostics, reports } = await fixture(t)
   const requests = []
   const service = new PushNotifications({ root, bots, diagnostics,
@@ -191,31 +192,21 @@ test('relayは端末本人の購入情報だけを送り、未登録・不正な
     } })
   await service.initialize()
   await service.configure({ enabled: true, relayUrl: 'http://127.0.0.1:18920' })
-  service.secret({ id: 'no-subscription', botId: 'bot-a' })
-  await service.close()
-  assert.equal(requests.length, 1)
-  assert.equal(reports.at(-1).diagnostic_log, 'SUBSCRIPTION_REQUIRED')
-  const signedTransaction = 'DEVICE_SIGNED_TRANSACTION'
-  await service.register({ ...device, signedTransaction })
-  const other = { ...device, token: 'b'.repeat(64), signedTransaction: 'OTHER_SIGNED_TRANSACTION' }
+  await service.register({ ...device, signedTransaction: 'OLD_SIGNED_TRANSACTION' })
+  const other = { ...device, token: 'b'.repeat(64) }
   await service.register(other)
-  service.secret({ id: 'has-subscription', botId: 'bot-a' })
+  service.secret({ id: 'no-proof-needed', botId: 'bot-a' })
   await service.close()
-  assert.deepEqual(requests.slice(1).map(request => [request.input.device.token, request.input.signedTransaction]), [
-    [device.token, signedTransaction], [other.token, other.signedTransaction],
-  ])
-  assert.equal(requests.at(-1).input.device.signedTransaction, undefined)
-  assert.equal(reports.at(-1).diagnostic_log, 'PUSH_RELAY_RESPONSE_INVALID')
-  assert.ok(!JSON.stringify(reports).includes(signedTransaction))
+  const sends = requests.filter(request => request.url === '/v1/notifications/send')
+  assert.deepEqual(sends.map(request => request.input.device.token).sort(), [device.token, other.token].sort())
+  for (const { input } of sends) assert.deepEqual([Object.keys(input).sort(), Object.keys(input.device).sort()], [['device', 'id', 'payload'], ['environment', 'server', 'token']])
+  assert.equal(reports.at(-1).diagnostic_log, 'PUSH_RELAY_RESPONSE_INVALID') // the relay answered {} instead of {accepted:true}
+  assert.ok(!JSON.stringify([requests, reports, [...service.devices.values()]]).includes('OLD_SIGNED_TRANSACTION'))
+  await service.unregister(device); await service.unregister(other)
   const sent = requests.length
-  await service.register(device)
-  await service.unregister(other)
-  service.secret({ id: 'cleared-subscription', botId: 'bot-a' })
+  service.secret({ id: 'no-device', botId: 'bot-a' })
   await service.close()
   assert.equal(requests.length, sent)
-  assert.equal(reports.at(-1).diagnostic_log, 'SUBSCRIPTION_REQUIRED')
-  await assert.rejects(service.register({ ...device, signedTransaction: 42 }), /PUSH_DEVICE_INVALID/u)
-  await assert.rejects(service.register({ ...device, signedTransaction: '' }), /PUSH_DEVICE_INVALID/u)
 })
 
 async function apnsServer(t, respond) {
@@ -334,13 +325,13 @@ test('update receipt timeout has no invented APNs response and sends only once',
 
 test('update receipt keeps preflight rejection and receipt-less relay acceptance distinct from an APNs send', async t => {
   const { service, provider } = await fixture(t)
-  provider.send = async () => { throw Object.assign(new Error('PRIVATE_TRANSACTION'), { code: 'SUBSCRIPTION_REQUIRED' }) }
+  provider.send = async () => { throw Object.assign(new Error('PRIVATE_TRANSACTION'), { code: 'PUSH_ENVIRONMENT_UNAVAILABLE' }) }
   service.publish({ kind: 'update', id: 'd'.repeat(64) })
   await service.close()
   let result = service.status().updateAttempts.items[0]
   assert.equal(result.sentAt, null)
   assert.equal(result.devices[0].outcome, 'not_sent')
-  assert.equal(result.devices[0].errorReason, 'SUBSCRIPTION_REQUIRED')
+  assert.equal(result.devices[0].errorReason, 'PUSH_ENVIRONMENT_UNAVAILABLE')
   provider.send = async () => {}
   service.publish({ kind: 'update', id: 'e'.repeat(64) })
   await service.close()

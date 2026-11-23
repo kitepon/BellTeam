@@ -371,9 +371,8 @@ test('reply validators reject leaked values and foreign IDs before public succes
   assert.equal(usageResultValid('settings.list', list), false)
   assert.equal(usageResultValid('settings.setError', {}), false)
   assert.equal(usageResultValid('unrecognized', null), false)
-  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' }), true)
-  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1' }), false)
-  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1', extra: 1 }), false)
+  // a540: the checkout method is gone from the closed surface
+  assert.equal(usageResultValid('subscriptions.checkout', { url: 'https://checkout.stripe.test/c/1', sessionId: 'cs_1' }), false)
 })
 
 
@@ -419,13 +418,13 @@ test('購読の記録は、billingSources・canPurchaseが無い古い形も有�
   const fresh = subscriptions.status()
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: fresh, revision: 0 }), true)
   const { billingSources, canPurchase, ...old } = fresh
-  assert.deepEqual([billingSources, canPurchase], [[], true])
+  assert.deepEqual([billingSources, canPurchase], [[], false]) // a540: nothing to buy on the server
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: old, revision: 0 }), true)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, canPurchase: 'yes' }, revision: 0 }), false)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, billingSources: [1] }, revision: 0 }), false)
   // a486c: entitlementState is optional (an older usage sends none) and one of three words
   const { entitlementState, ...before } = old
-  assert.equal(entitlementState, 'unknown')
+  assert.equal(entitlementState, 'active')
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: before, revision: 0 }), true)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, entitlementState: 'none' }, revision: 0 }), true)
   assert.equal(usageProjectionRecordValid({ type: 'subscription', value: { ...old, entitlementState: 'maybe' }, revision: 0 }), false)

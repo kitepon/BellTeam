@@ -13,15 +13,14 @@ export function createHomeLogin({ path, operator, fetch, now }) {
   const handler = createHomeHandler(part)
   let published = null
 
-  /** The row the body keeps: the guard's set and the per-session entitlement state. Only a changed row is returned. */
+  /** The row the body keeps: the guard's set (a540: no entitlement state). Only a changed row is returned. */
   async function changedRow() {
     const status = await part.status()
     const set = part.publishedSet()
     // 0.19.3: v:0 = no state loaded (a save just failed). Never publish it: the guard would read an empty set as "none" = 401 and apps would delete their tokens.
     if (set.v !== 1) return undefined
     const { hashes } = set
-    const states = Object.fromEntries(Object.values(hashes).map(id => [id, part.entitlement({ sessionId: id }).state]))
-    const row = { v: 1, bound: status.bound, enforced: status.enforced, hashes, states }
+    const row = { v: 1, bound: status.bound, enforced: status.enforced, hashes }
     const text = JSON.stringify(row)
     if (text === published) return undefined
     published = text
@@ -50,17 +49,6 @@ export function createHomeLogin({ path, operator, fetch, now }) {
     async setupCode() {
       const { code, expiresAt } = await part.setupCode()
       return { code, expiresAt, bound: (await part.status()).bound }
-    },
-    /**
-     * a485: { sha256hex(device token): operator ticket } of the account sessions, read from the part's own document (HomeState, an exported type).
-     * The app gave `ticketFor` = that hash at prove/reprove; a rotated ticket replaces the old one here, an ended session is gone.
-     */
-    async pushTickets() {
-      await part.status() // makes sure the document exists
-      const state = await store.load()
-      const tickets = {}
-      for (const session of state?.sessions ?? []) if (session.kind === 'account' && session.ticket && /^[a-f0-9]{64}$/u.test(session.tv ?? '')) tickets[session.tv] = session.ticket
-      return { tickets }
     },
     async status() { return part.status() },
     /** The host console (bellteam-console): never over HTTP. */

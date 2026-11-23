@@ -14,20 +14,13 @@ function fields(value, required, optional = []) {
 }
 export function validateFcmToken(token) { if (typeof token !== 'string' || !FCM_TOKEN.test(token)) throw invalid() }
 
-export function validateFcmProof(proof) {
-  const names = Object.keys(proof ?? {})
-  // Opaque on purpose (Bready): one body the subscriptions Worker's verify accepts, so a new store (Google Play, a157) needs no change here.
-  if (!proof || typeof proof !== 'object' || Array.isArray(proof) || names.length !== 1 || !/^[A-Za-z]{1,40}$/u.test(names[0])
-    || typeof proof[names[0]] !== 'string' || !proof[names[0]].trim() || Buffer.byteLength(proof[names[0]]) > 8192 || /\p{Cc}/u.test(proof[names[0]])) throw invalid()
-  return { [names[0]]: proof[names[0]] }
-}
-
-export function validateFcmDevice({ token, server, proof }) {
+// a540: `proof` may still arrive from an older server's record or call; it is neither checked nor kept.
+export function validateFcmDevice({ token, server }) {
   validateFcmToken(token)
   let url
   try { url = new URL(server) } catch { throw invalid() }
   if (!isSupportedServerURL(url)) throw invalid()
-  return { token, server: url.origin, ...(proof !== undefined ? { proof: validateFcmProof(proof) } : {}) }
+  return { token, server: url.origin }
 }
 
 // register / unregister / status only: the Owner's notification setting reaches FCM through the apns configure, never as an fcm method.
@@ -38,7 +31,7 @@ export function validateFcmParams(method, params) {
   if (method === 'unregister') { fields(value, ['token']); return validateFcmToken(value.token) }
   if (method !== 'register') throw fcmError('PUSH_INPUT_INVALID')
   fields(value, ['token', 'server'], ['previousToken', 'proof'])
-  validateFcmDevice(value)
+  validateFcmDevice({ token: value.token, server: value.server })
   if (value.previousToken !== undefined) validateFcmToken(value.previousToken)
 }
 

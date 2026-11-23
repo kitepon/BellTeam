@@ -2,7 +2,7 @@ export { verifyNotificationsLocks } from './notifications-locks.mjs'
 import { validateFcmParams, fcmStatusValid } from './usage/fcm-schema.mjs'
 export const NOTIFICATIONS_MESSAGE_LIMIT = 64 * 1024
 export const NOTIFICATIONS_REQUEST_LIMIT = 64
-const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish', 'tickets'])
+const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
 const controls = new Set(['initialize', 'quiesce', 'resume', 'exit'])
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, names) => object(value) && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')
@@ -33,7 +33,7 @@ const resultValid = (method, params, value, control) => control
     : method === 'quiesce' ? keys(value, 'quiesced') && typeof value.quiesced === 'boolean'
       : method === 'resume' ? keys(value, 'resumed') && value.resumed === true
         : keys(value, 'closed') && value.closed === true
-  : method === 'publish' || method === 'tickets' ? keys(value, 'accepted') && value.accepted === true
+  : method === 'publish' ? keys(value, 'accepted') && value.accepted === true
     : params.provider === 'apns' && ['status', 'configure'].includes(method) ? statusValid(value)
       : params.provider === 'fcm' && method === 'status' ? fcmStatusValid(value)
         : keys(value, 'registered') && (method === 'status' ? typeof value.registered === 'boolean' : value.registered === (method === 'register'))
@@ -48,12 +48,6 @@ const validateParams = (method, params, control) => {
     return
   }
   if (method === 'publish') return
-  if (method === 'tickets') {
-    if (!keys(params, 'tickets') || !object(params.tickets) || Object.keys(params.tickets).length > 256
-      || Object.entries(params.tickets).some(([hash, ticket]) => !/^[a-f0-9]{64}$/u.test(hash) || typeof ticket !== 'string' || !ticket || ticket.length > 4096))
-      throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
-    return
-  }
   if (!['apns', 'fcm'].includes(params.provider)) throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
   if (params.provider === 'fcm') {
     try { validateFcmParams(method, params) } catch (error) { throw notificationError(error.code, 'not_accepted', 400) }

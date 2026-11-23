@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
-import { createHash, generateKeyPairSync } from 'node:crypto'
+import { generateKeyPairSync } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { FcmNotifications, fcmMessage } from '../src/fcm-notifications.mjs'
-import product from '../services/subscriptions/product.json' with { type: 'json' }
 import { createNotificationRelay } from '../services/notifications/relay.mjs'
 import { notificationPayload } from '../src/push-notifications.mjs'
 import { createNotificationsDispatcher, validateNotificationRequest } from '../src/usage/notifications-dispatcher.mjs'
@@ -175,58 +174,46 @@ test('the dispatcher routes provider fcm, the four events and the update notice,
   await dispatcher.control('exit', {})
 })
 
-// ---- operator relay (a381)
-const proofPass = { ticket: 'synthetic.ticket.value' }
-function relayWorld({ entitled = true, android = true, answer = null } = {}) {
-  const verified = [], posted = []
-  // The Worker's ticket/check: the relay sends the ticket and reads the entitlements and the device value the ticket is bound to.
-  const fetcher = async (url, init) => {
-    verified.push(JSON.parse(init.body).ticket)
-    return Response.json({ value: createHash('sha256').update(tokenA).digest('hex'), entitlements: entitled
-      ? [{ productId: product.productId, kind: 'subscription', store: 'apple', expiresAt: new Date(Date.now() + 86400000).toISOString() }] : [] })
-  }
+// ---- operator relay (a381; a540: no proof, no ticket, no money check anywhere)
+function relayWorld({ android = true, answer = null } = {}) {
+  const posted = []
   const fcmProvider = android ? { async post(message) { posted.push(message); if (answer) throw Object.assign(new Error(answer), { code: answer }) } } : null
-  const relay = createNotificationRelay({ provider: { environments: ['production'], send: async () => {} }, fcmProvider,
-    ticketCheckUrl: 'https://worker.example/auth/v1/ticket/check', fetcher })
+  const relay = createNotificationRelay({ provider: { environments: ['production'], send: async () => {} }, fcmProvider })
   const call = (path, body, method = 'POST') => relay.fetch(new Request(`https://relay.example.com${path}`, { method, ...(method === 'GET' ? {} : { body: JSON.stringify(body) }) }))
-  return { relay, call, verified, posted }
+  return { relay, call, posted }
 }
-const goodRelayBody = (overrides = {}) => ({ proof: proofPass, device: { token: tokenA, server }, id: reply.id,
+const goodRelayBody = (overrides = {}) => ({ device: { token: tokenA, server }, id: reply.id,
   message: fcmMessage(reply, { token: tokenA, server }).message, ...overrides })
 
-test('the operator relay sends Android only after the Worker confirms the ticket, and forwards the ticket unchanged', async () => {
-  const { call, verified, posted } = relayWorld()
+test('the operator relay sends Android with no proof and ignores a proof or ticket an older server still sends', async () => {
+  const { call, posted } = relayWorld()
   assert.equal((await (await call('/v1/notifications/status', null, 'GET')).json()).android, true)
-  const sent = await call('/v1/notifications/fcm/send', goodRelayBody())
-  assert.equal(sent.status, 200)
-  assert.deepEqual(verified, [proofPass.ticket]); assert.equal(posted.length, 1); assert.equal(posted[0].token, tokenA)
-  // a proof that carries no ticket (an old receipt body) is refused before the Worker is asked
-  assert.equal((await call('/v1/notifications/fcm/send', goodRelayBody({ proof: { signedTransaction: 'old.jws' } }))).status, 400)
-  assert.equal(verified.length, 1)
+  assert.equal((await call('/v1/notifications/fcm/send', goodRelayBody())).status, 200)
+  assert.equal(posted.length, 1); assert.equal(posted[0].token, tokenA)
+  assert.equal((await call('/v1/notifications/fcm/send', goodRelayBody({ proof: { ticket: 'old.ticket' } }))).status, 200)
+  assert.equal((await call('/v1/notifications/fcm/send', goodRelayBody({ proof: { signedTransaction: 'old.jws' } }))).status, 200)
+  assert.equal(posted.length, 3)
+  assert.ok(posted.every(message => !JSON.stringify(message).includes('old.')))
 })
 
-test('the operator relay refuses Android sends that are unentitled, unsupported or not the closed message', async () => {
-  const none = relayWorld({ entitled: false })
-  assert.equal((await none.call('/v1/notifications/fcm/send', goodRelayBody())).status, 402)
-  assert.equal(none.posted.length, 0)
+test('the operator relay refuses Android sends that are unsupported or not the closed message', async () => {
   const off = relayWorld({ android: false })
   assert.deepEqual(await (await off.call('/v1/notifications/status', null, 'GET')).json(), { configured: true, environments: ['production'] })
   assert.equal((await off.call('/v1/notifications/fcm/send', goodRelayBody())).status, 503)
   const world = relayWorld()
   const message = goodRelayBody().message
-  for (const bad of [goodRelayBody({ proof: {} }), goodRelayBody({ proof: { a: 'x', b: 'y' } }), goodRelayBody({ proof: undefined }),
-    goodRelayBody({ message: { ...message, token: tokenB } }), goodRelayBody({ message: { ...message, data: { ...message.data, server: 'https://other.example.com' } } }),
+  for (const bad of [goodRelayBody({ message: { ...message, token: tokenB } }), goodRelayBody({ message: { ...message, data: { ...message.data, server: 'https://other.example.com' } } }),
     goodRelayBody({ message: { ...message, extra: 1 } }), goodRelayBody({ message: { ...message, android: { ...message.android, priority: 'NORMAL' } } }),
     goodRelayBody({ device: { token: tokenA, server: 'not a url' } })]) {
     assert.equal((await world.call('/v1/notifications/fcm/send', bad)).status, 400)
   }
-  assert.equal(world.verified.length, 0); assert.equal(world.posted.length, 0)
+  assert.equal(world.posted.length, 0)
   const gone = relayWorld({ answer: 'FCM_UNREGISTERED' })
   const result = await gone.call('/v1/notifications/fcm/send', goodRelayBody())
   assert.equal(result.status, 410); assert.equal((await result.json()).error.code, 'FCM_UNREGISTERED')
 })
 
-test('with the relay URL the child sends through the relay with the stored proof and follows its answers', async t => {
+test('with the relay URL the child sends every device through the relay with no proof and follows its answers', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-fcm-relay-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const relay = relayWorld(), seen = []
@@ -242,16 +229,16 @@ test('with the relay URL the child sends through the relay with the stored proof
   await service.initialize()
   await service.configure({ enabled: true, relayUrl: 'https://relay.example.com' })
   assert.deepEqual(service.status(), { configured: true })
-  await service.register({ token: tokenA, server, proof: proofPass })
+  // an older server's proof is accepted and dropped: nothing of it is kept or sent
+  await service.register({ token: tokenA, server, proof: { ticket: 'synthetic.ticket.value' } })
   await service.register({ token: tokenB, server })
   service.publish(reply); await settle(service)
-  assert.equal(relay.posted.length, 1); assert.equal(relay.posted[0].token, tokenA)
-  assert.deepEqual(relay.verified, [proofPass.ticket])
-  assert.deepEqual(reports.map(report => report.diagnostic_log), ['SUBSCRIPTION_REQUIRED'])
-  assert.ok(!JSON.stringify(reports).includes('synthetic.ticket'))
+  assert.deepEqual(relay.posted.map(message => message.token).sort(), [tokenA, tokenB].sort())
+  assert.deepEqual(reports, [])
+  assert.ok(!JSON.stringify([...service.devices.values()]).includes('synthetic.ticket'))
   answer = 'FCM_UNREGISTERED'
   service.publish(reply); await settle(service)
-  assert.deepEqual([...service.devices.keys()], [tokenB])
+  assert.deepEqual([...service.devices.keys()], []) // every device is sent now, so each one the relay calls unregistered is removed
   // a relay without Android support is a fixed error, not a silent success
   const old = new FcmNotifications({ root, diagnostics: { async record() {} },
     fetch: async () => Response.json({ configured: true, environments: ['production'] }) })

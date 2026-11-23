@@ -48,27 +48,25 @@ flowchart LR
 
 ## Operator relay for Android (a381)
 
-Entitlement rule (Owner 2026-11-17): a subscription from any store unlocks every app on the account. The Worker `POST /v1/subscriptions/verify` stays the only verdict source and takes one proof per call (`{signedTransaction}`, `{stripeSessionId}`, `{stripeSubscriptionId}`, later Google Play, a157). The cross-store choice is the user server's `Subscriptions.combine()`; the relay does not choose, it forwards the one proof of the entitled store.
+**a540 (Owner 2026-11-23, contract 1.36): billing is checked by the apps only.** The server keeps no proof of payment and sends none; the relay (Bready, #2424) asks for none and checks no money. A registration carries only `{token, server, previousToken?}`; a `proof` that an older server's record or call still holds is neither checked nor kept. Rows of this section that speak of a proof, a ticket or a verdict describe the form before a540 and are withdrawn.
 
 ```mermaid
 flowchart LR
   Neon[Neon registers] --> Http[usage http-api]
-  Subs[Subscriptions.proof: the entitled store's one proof] -->|server side, at registration| Http
-  Http -->|token, server, proof| Fcm[FcmNotifications device row: token, server, proof]
+  Subs[no proof of payment exists on the server (a540)] -.-> Http
+  Http -->|token, server| Fcm[FcmNotifications device row: token, server]
   Fcm -->|relay URL set: FcmRelayProvider| Relay[operator relay /v1/notifications/fcm/send]
-  Relay -->|proof unchanged| Worker[Worker verify: entitled + validUntil]
-  Worker -->|verdict| Relay
   Relay -->|closed message check, then post| Google[(FCM with the operator credential)]
   Fcm -->|no relay URL: FcmProvider| Google
 ```
 
 | Piece | Contract |
 | --- | --- |
-| Proof at registration | `POST /api/notifications/android/devices` stays `{token, server, previousToken?}`. The usage HTTP handler adds `proof` from `subscriptions.proof()` (null when not entitled, no proof or developer mode: no key) and the child stores it with the device row. A client-sent `proof` is refused (`PUSH_DEVICE_INVALID`). Every app start registers again, so the row follows a store change. The proof is private (0600 file, never in status, DTOs, diagnostics or logs). |
+| Registration (a540) | `POST /api/notifications/android/devices` is `{token, server, previousToken?}`; the server adds nothing. A client-sent `proof` is still refused (`PUSH_DEVICE_INVALID`). Every app start registers again. |
 | Child provider | `configure({enabled, relayUrl})`: relay URL set -> `FcmRelayProvider` (needs `GET /v1/notifications/status` to say `android:true`, else `FCM_RELAY_UNSUPPORTED`); empty -> the direct credential. A relay outage is the cause APNs already reports, so FCM shows it on its status only. A device without a proof gets `SUBSCRIPTION_REQUIRED` at send (one diagnostic), like an Apple device without a transaction. |
-| Relay request (a485: with a ticket) | When the notifications child holds a session ticket for the device (`tickets`, joined by `sha256(token)`; see [app-sessions](app-sessions.md) section 6.4) the request is `{proof:{ticket}, device:{token,server}, id, message}` and the stored `proof` is not used. Without a ticket: the shape below. |
-| Relay request | `{proof, device:{token,server}, id (<=64), message}`. `proof` is opaque: one non-empty string value under one letters-only key, at most 8,192 bytes (no key list, so Google Play needs no relay change). `message` is exactly `{token, data, notification:{title,body}, android:{priority:'HIGH', ttl:'86400s', notification:{channel_id:'bellteam_messages', tag}}}`; `token` and `data.server` must equal `device`, `data` keys are letters-only strings, whole message at most 4,000 bytes. Anything else: 400. |
-| Relay answer | Verify through the Worker unchanged (its errors pass through, e.g. 503 `SUBSCRIPTION_NOT_CONFIGURED`); `entitled` and `validUntil` in the future, else 402 `SUBSCRIPTION_REQUIRED`; then one post. 200 `{accepted:true}`; FCM `UNREGISTERED` -> 410 `FCM_UNREGISTERED` (the child removes the device); other failures 502 with the fixed code. No credential on the relay: 503 `PUSH_NOT_CONFIGURED`. |
+| Relay request (a540) | `{device:{token,server}, id (<=64), message}`: no `proof`, no `ticket`. `message` is exactly the closed shape below. |
+| Relay request, the closed message | `message` is exactly `{token, data, notification:{title,body}, android:{priority:'HIGH', ttl:'86400s', notification:{channel_id:'bellteam_messages', tag}}}`; `token` and `data.server` must equal `device`, `data` keys are letters-only strings, whole message at most 4,000 bytes. Anything else: 400. |
+| Relay answer | No verdict is asked for (a540); one post. 200 `{accepted:true}`; FCM `UNREGISTERED` -> 410 `FCM_UNREGISTERED` (the child removes the device); other failures 502 with the fixed code. No credential on the relay: 503 `PUSH_NOT_CONFIGURED`. |
 | Relay status | `GET /v1/notifications/status` adds `android:true` only when the relay has a Firebase credential (`BELLTEAM_FCM_DIRECTORY`, same `config.json` format as `shared/tools/fcm`); otherwise the response is unchanged. Apple routes and bodies are untouched. |
 
 Protection named: secret exposure (the proof and the operator's key stay private), privilege escalation (the relay only forwards the closed message to the device's own token after the Worker confirms entitlement; it cannot be used to send arbitrary text to arbitrary tokens), wrong target (`data.server` and `token` must match the device). Self-exit: the app registers again at every start; a missing proof or unentitled account is fixed by buying or restoring in any store, then the next start refreshes the row.
@@ -132,7 +130,7 @@ Compatibility: `state/push-devices.json` and every existing route are unchanged.
 
 ## Open items
 
-- Google Play as a proof source: the relay already accepts any opaque proof; it works once a157 adds the Worker's Google verify and `Subscriptions.proof()` returns it.
+- (withdrawn by a540: no proof source)
 - Sender avatar on Android.
 - Android rows in the update receipts (see Decisions).
 - The Firebase service account key itself: Sielo (a379). Until it is placed, `configured:false` is the correct answer.

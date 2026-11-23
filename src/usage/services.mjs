@@ -90,7 +90,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       publish(settingsProjection())
       return callEffect('backgroundAgent.changed', { configuration })
     } })
-  const subscriptions = new Subscriptions({ path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'), environment: subscription.environment ?? 'Production', accessMode: subscription.accessMode ?? 'subscription', developerAccessAllowed: subscription.developerAccessAllowed })
+  const subscriptions = new Subscriptions({ path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'), environment: subscription.environment ?? 'Production' })
   const client = { authOptions: () => ({}), call: (method, params) => {
     if (method !== 'agent_auth') throw usageError('USAGE_EFFECT_INVALID')
     const { cwd, ...auth } = params
@@ -198,14 +198,9 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'questions.answer': ({ id, input }) => ownerQuestions.answer(id, input),
     'questions.timeline': ({ target }) => ownerQuestions.timeline(target),
     'home.handle': params => homeReady().handle(params), 'home.sweep': params => homeReady().sweep(params),
-    'home.setupCode': () => homeReady().setupCode(), 'home.pushTickets': () => homeReady().pushTickets(), 'home.publish': () => homeReady().publish(), 'home.console': params => homeReady().console(params),
+    'home.setupCode': () => homeReady().setupCode(), 'home.publish': () => homeReady().publish(), 'home.console': params => homeReady().console(params),
     'subscriptions.status': () => subscriptions.status(), 'subscriptions.current': () => subscriptions.current(),
-    'subscriptions.install': ({ signedTransaction }) => subscriptions.install(signedTransaction),
-    'subscriptions.installStripe': ({ stripeSessionId }) => subscriptions.installStripe(stripeSessionId),
-    'subscriptions.installGoogle': ({ purchaseToken }) => subscriptions.installGoogle(purchaseToken),
-    'subscriptions.checkout': () => subscriptions.checkout(),
-    'subscriptions.manageStripe': () => subscriptions.manageStripe(),
-    'subscriptions.refresh': params => subscriptions.refresh(params),
+    'subscriptions.refresh': () => subscriptions.refresh(),
     'subscriptions.completeSetup': ({ botId }) => subscriptions.completeSetup(botId),
     'subscriptions.runSetupTest': ({ botId }) => subscriptions.runSetupTest(botId, () => callEffect('subscription.setupTest', { botId })),
   }

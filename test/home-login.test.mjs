@@ -79,7 +79,6 @@ test('unbound: Legacy, the setup code is printed by the body, the first proof bi
     assert.deepEqual(await t.front.judge({ authorization: `Bearer ${first.body.token}` }), { sessionId: first.body.sessionId })
     assert.equal(await t.front.judge({ authorization: 'Bearer nope' }), 'none')
     assert.equal(await t.front.judge({}), 'none')
-    assert.equal(t.front.stateOf(first.body.sessionId), 'active')
     // a second app (any app kind), the same account: no setup code now
     const second = await t.login({ kind: 'apple', ticketFor: 'b'.repeat(64) })
     assert.equal(second.status, 200)
@@ -102,7 +101,6 @@ test('a stop from the phone ends the session at the next ticket check; only a 40
     t.clock.t += 11 * 60_000
     await t.front.tick()
     assert.deepEqual(await t.front.judge({ authorization: `Bearer ${token}` }), { sessionId: first.body.sessionId })
-    assert.equal(t.front.stateOf(first.body.sessionId), 'active')
     // the operator answers "that device stopped" (401): the session ends, the guard says none, the next request is 401
     t.operator.status.check = 401
     await t.api('GET', '/x', { token })
@@ -164,7 +162,6 @@ test('console: issue a code, log in as a console session (no pass), list, revoke
     const consoleLogin = await t.api('POST', '/api/home/login/console', { body: { code: issued } })
     assert.equal(consoleLogin.status, 200)
     assert.equal((await t.api('POST', '/api/home/login/console', { body: { code: issued } })).body.error, 'LOGIN_CODE_INVALID') // single use
-    assert.equal(t.front.stateOf(consoleLogin.body.sessionId), 'none') // a console session has no contract
     const listed = await ask({ op: 'list' })
     assert.equal(listed.sessions.length, 1)
     const apiList = (await t.api('GET', '/api/home/sessions', { token: consoleLogin.body.token })).body.sessions
@@ -211,7 +208,7 @@ test('usage child: home.* answers through the closed surface, only for the syste
   const { root, service } = await usageFixture(t, { BELLTEAM_HOME_OPERATOR: 'https://operator.test/auth/v1' })
   const first = await service.request('home.publish', {}, system)
   assert.equal(usageResultValid('home.publish', first), true)
-  assert.deepEqual(first.row, { v: 1, bound: false, enforced: false, hashes: {}, states: {} })
+  assert.deepEqual(first.row, { v: 1, bound: false, enforced: false, hashes: {} }) // a540: no entitlement state in the row
   const nonce = await service.request('home.handle', { method: 'POST', path: '/login/nonce', body: '{}', peer: '192.168.1.5' }, system)
   assert.equal(usageResultValid('home.handle', nonce), true)
   assert.equal(nonce.status, 200)
@@ -235,7 +232,7 @@ test('an open event stream counts as use and is closed when its session ends', a
   const { EventEmitter } = await import('node:events')
   const dir = await mkdtemp(join(tmpdir(), 'home-login-'))
   const sweeps = []
-  const rows = [{ v: 1, bound: true, enforced: true, hashes: { h: 's1' }, states: { s1: 'active' } }, { v: 1, bound: true, enforced: true, hashes: {}, states: {} }]
+  const rows = [{ v: 1, bound: true, enforced: true, hashes: { h: 's1' } }, { v: 1, bound: true, enforced: true, hashes: {} }]
   const front = createHomeFront({ call: async (name, params) => { if (name === 'home.sweep') { sweeps.push(params); return { row: sweeps.length === 1 ? undefined : rows[1] } } return { row: rows[0] } }, markerPath: join(dir, 'm'), setTimer: () => ({ unref() {} }), print() {} })
   try {
     await front.start()
@@ -245,72 +242,4 @@ test('an open event stream counts as use and is closed when its session ends', a
     assert.deepEqual(sweeps.at(-1).streaming, ['s1'])
     assert.equal(response.destroyed, true) // the second answer no longer holds s1
   } finally { await rm(dir, { recursive: true, force: true }) }
-})
-
-// a485: push tickets reach the notifications module by device-token hash.
-import { NotificationRelayProvider } from '../src/push-notifications.mjs'
-import { FcmRelayProvider } from '../src/fcm-notifications.mjs'
-import { validateNotificationRequest } from '../src/usage/notifications-dispatcher.mjs'
-
-test('home part: pushTickets is {ticketFor: ticket} of the account sessions only', async () => {
-  const t = await setup()
-  try {
-    await t.front.start()
-    const first = await t.login({ setupCode: code(t.prints), ticketFor: 'a'.repeat(64) })
-    assert.equal(first.status, 200)
-    await t.login({ kind: 'apple', ticketFor: 'not a hash' }) // not a device-token hash: no entry
-    const listener = await t.home.pushTickets()
-    assert.deepEqual(listener, { tickets: { ['a'.repeat(64)]: 'ticket-1' } })
-    const issued = (await t.home.console({ op: 'issue' })).code
-    await t.api('POST', '/api/home/login/console', { body: { code: issued } }) // a console session has no ticket
-    assert.deepEqual(Object.keys((await t.home.pushTickets()).tickets), ['a'.repeat(64)])
-  } finally { await t.close() }
-})
-
-test('body front: the tickets are pushed after a proof and on every tick, whole; a refusing sink is not an error', async () => {
-  const t = await setup()
-  const pushed = []
-  const front = createHomeFront({ call: (name, params) => ({ 'home.handle': p => t.home.handle(p), 'home.sweep': p => t.home.sweep(p), 'home.setupCode': () => t.home.setupCode(), 'home.publish': () => t.home.publish(), 'home.pushTickets': () => t.home.pushTickets() })[name](params),
-    markerPath: join(t.dir, 'm2'), print: () => {}, setTimer: () => ({ unref() {} }), onTickets: async tickets => { pushed.push(tickets); if (pushed.length === 99) throw new Error('older child refuses') } })
-  const server = createServer(async (request, response) => { await front.route(request, response, new URL(request.url, 'http://x')) })
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-  try {
-    const base = `http://127.0.0.1:${server.address().port}`
-    const call = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json())
-    const setupCode = code([(await t.home.setupCode()) && `code: ${(await t.home.setupCode()).code} x`])
-    const { nonce } = await call('/api/home/login/nonce', {})
-    const proved = await call('/api/home/login/prove', { code: GOOD, audience: ORIGIN, nonce, kind: 'android', ticketFor: 'b'.repeat(64), setupCode })
-    assert.ok(proved.token)
-    assert.deepEqual(pushed.at(-1), { ['b'.repeat(64)]: 'ticket-1' }) // before the app can register its device
-    const before = pushed.length
-    await front.tick()
-    assert.equal(pushed.length, before + 1) // every tick, whole
-  } finally { server.closeAllConnections(); server.close(); await t.close() }
-})
-
-test('relay providers: the ticket of the registering session replaces the store proof; without one the old shape stays', async () => {
-  const sent = []
-  const request = async (url, options) => { sent.push([new URL(url).pathname, JSON.parse(options.body)]); return new Response('{"accepted":true}', { status: 200 }) }
-  const device = { token: 'c'.repeat(64), environment: 'production', server: 'https://home.test', signedTransaction: 'jws' }
-  const apns = new NotificationRelayProvider({ relayUrl: 'https://relay.test', fetch: request, ticketFor: token => token === device.token ? 'the-ticket' : undefined })
-  await apns.send(device, { aps: { alert: { title: 't', body: 'b' } } }, 'id-1')
-  assert.deepEqual(sent.at(-1)[1], { ticket: 'the-ticket', device: { token: device.token, environment: 'production', server: 'https://home.test' }, payload: { aps: { alert: { title: 't', body: 'b' } } }, id: 'id-1' })
-  await new NotificationRelayProvider({ relayUrl: 'https://relay.test', fetch: request }).send(device, { aps: { alert: { title: 't', body: 'b' } } }, 'id-2')
-  assert.equal(sent.at(-1)[1].signedTransaction, 'jws'); assert.equal('ticket' in sent.at(-1)[1], false)
-  await assert.rejects(new NotificationRelayProvider({ relayUrl: 'https://relay.test', fetch: request }).send({ ...device, signedTransaction: undefined }, {}, 'id-3'), { code: 'SUBSCRIPTION_REQUIRED' })
-  const calls = []
-  const relay = { call: async (path, options) => { calls.push(JSON.parse(options.body)) } }
-  const fcmDevice = { token: 'fcm-token', server: 'https://home.test', proof: { googlePurchaseToken: 'p' } }
-  const event = { id: 'e1', kind: 'reply', title: 'T', body: 'B', botId: 'bot-a', sender: { id: 'bot-a', name: 'A' } }
-  await new FcmRelayProvider(relay, token => token === 'fcm-token' ? 'fcm-ticket' : undefined).send(fcmDevice, event)
-  assert.deepEqual(calls.at(-1).proof, { ticket: 'fcm-ticket' })
-  await new FcmRelayProvider(relay).send(fcmDevice, event)
-  assert.deepEqual(calls.at(-1).proof, { googlePurchaseToken: 'p' })
-})
-
-test('notifications child: tickets.set takes a bounded {64-hex: ticket} map and nothing else', () => {
-  validateNotificationRequest('tickets', { tickets: { ['d'.repeat(64)]: 'ticket' } })
-  validateNotificationRequest('tickets', { tickets: {} })
-  for (const bad of [{ tickets: { short: 'ticket' } }, { tickets: { ['d'.repeat(64)]: '' } }, { tickets: [] }, { tickets: {}, extra: 1 }, { provider: 'apns', tickets: {} }, {}])
-    assert.throws(() => validateNotificationRequest('tickets', bad), { code: 'PUSH_INPUT_INVALID' })
 })

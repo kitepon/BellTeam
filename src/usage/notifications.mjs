@@ -82,8 +82,6 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
     configure: value => apns('configure', value),
     register: value => apns('register', value),
     unregister: value => apns('unregister', value),
-    // a485: the body gives the child the session tickets by device-token hash. An older child refuses the method: that is fine, it keeps the old proofs.
-    setTickets: tickets => request('tickets', { tickets }),
     androidStatus: () => request('status', { provider: 'fcm' }),
     androidRegister: value => request('register', { ...value, provider: 'fcm' }),
     androidUnregister: value => request('unregister', { ...value, provider: 'fcm' }),
