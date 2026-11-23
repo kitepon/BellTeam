@@ -1,5 +1,7 @@
 # 決裁箱拡張 (approval-box-extension): peer-channel design v0.2
 
+> **2026-11-24: client path superseded by [client-v0.5.md](client-v0.5.md) (Tronie's ruling).** Clients no longer read only over `/pc/v1`: they use the Approval Box app's path, `/auth/v1` + `/v1` now, and the peer adapter described here only when `GET /v1/auth/config` says `peer_channel: true`. What this document says about the peer adapter, the daemon and the readers stays; "device-only", "the server child F1/F2/F5 is removed" and "the Web view is dropped" no longer hold.
+
 Owner of this module: Delta (bot-ae42e3e9). Chart rows: `bellteam-dev-added/a490e-abx-device-design` (this document), `a490*` (answers). Status: DESIGN ONLY. No code before this is accepted and the diagrams below are in the same diff as the code.
 
 Extends [README.md](README.md) (v0.1). Where this document and v0.1 disagree about how Approval Box is reached, this document wins; link rules L1-L10, the link record and the screens stay as they are.

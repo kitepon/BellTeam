@@ -1,5 +1,7 @@
 # 決裁箱 screens, user path and app contract
 
+> **2026-11-24: sources and states follow [client-v0.5.md](client-v0.5.md) (sections 5 and 7).** The screens below are unchanged; what feeds them is the `ApprovalSource` port, not `/api/approvals/*`; the gate copy for 契約 (402) and the sign-in (401) is in client-v0.5.md section 7.
+
 Shared by all native drawings: Apple first (SwiftUI, Rapi), Windows (Anis), Linux (Neon), Web (see README R6). Same rules as the Lattice screen spec: units `pt` = SwiftUI points = CSS px; times in JST; **Japanese, plain, no ids, codes, reasons or paths on screen**; every state has a way out the user can take, and every failure leaves on its own too. Data only from the app contract below.
 
 Owner words (2026-11-15) that govern the look: 「今の各機能のデザインは素晴らしい。決裁箱モジュールだけダサイなんてことになるなよ。」 So this screen is built from the Lattice design language, not from Approval Box's own apps: BellTheme colors, the same state badges (glyph + text, never colour alone), card shapes and glow, the 詳細 / 待ちの流れ panel shape, summary ring and counters, mini avatars, the two-step in-place confirm (外す pattern), the settings rule "result appears where the button was". Pictures: frames `main`, `entry`, `answer`, `chain`, `origin`, `phone`, `edge` of `mockups/approval-box-screens.html`.
