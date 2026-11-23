@@ -4,6 +4,7 @@
 // queue edge, the seat credential and C7 (Throughline) for the transcript that stays on the terminal.
 import { authenticationPreflightCodes, authenticationPreflightFailure, launchRefusal } from './agent-launch-error.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
+import { RemoteRoutes } from './remote-route.mjs'
 
 // Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
 // terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
@@ -89,6 +90,7 @@ export class RemoteSeats {
     this.notices = new Map() // botId -> {code, action, terminalId, at}: the latest not-started launch, shown to the Owner
     this.oses = new Map() // terminalId -> terminals' target.os at the last target (login text only)
     this.notify = notify
+    this.routes = new RemoteRoutes({ terminals, recorded }) // a532b2 stage 2: the `remote` route of seats launched on it (remote-route.md)
     this.unwatch = terminals.watch?.(event => this.available(event)) ?? (() => {})
   }
 
@@ -98,10 +100,15 @@ export class RemoteSeats {
     const sessionName = args.session_name
     let issued = false
     try {
-      const { terminal, cwd, accountOwner, doorHook } = await this.target(bot, harness)
+      const { terminal, remote, forward, cwd, accountOwner, doorHook } = await this.target(bot, harness)
       const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
       const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId, ...(kind === 'fork' ? { kind } : {}) })
       issued = true
+      // remote-route.md: a terminal switched to `remote` gets its forward ensured first; the seat URLs then name P. Any failure here
+      // launches this seat on `terminal` as before (same id, same keeper, same P).
+      const route = await this.ensureRoute(bot, { remote, forward, url })
+      if (route) this.routes.add(sessionName, bot.terminalId, route)
+      const seatUrl = route?.url ?? url
       const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
       // remote-user-tools.md U4: the Bot's user-global MCP servers of this harness, each through the same seat listener.
       // A list failure never stops the launch: the seat starts with bellteam and call-bridge only.
@@ -114,14 +121,15 @@ export class RemoteSeats {
         catch (error) { process.stderr.write(`BellTeam remote seat: user tools unavailable: ${bot.id}: ${error?.code ?? 'USER_TOOL_LIST_FAILED'}\n`) }
       }
       const managed = callerReplace ? { replace: true } : {}
-      const userServers = Object.fromEntries(userTools.map(({ name }) => [name, { type: 'http', url: `${url}/user/${name}`, headers }]))
+      const userServers = Object.fromEntries(userTools.map(({ name }) => [name, { type: 'http', url: `${seatUrl}/user/${name}`, headers }]))
       // Owner ruling: the Owner's 1st/2nd login applies only on the Owner's terminals; others use the terminal's own login.
       // One login per slot (harness-accounts.md 2026-11-11): every slot, the 1st too, so no host login is needed.
       const claudeLogin = accountOwner === 'owner' && slot ? slot : null
       return {
-        args: { ...args, terminal, cwd, append_system_prompt: text, ...(kind === 'fork' ? {} : doorHook),
-          mcp_config: { mcpServers: { ...userServers, bellteam: { type: 'http', url, headers, ...managed }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers, ...managed } } } },
+        args: { ...args, ...(route ? { remote: route.remote } : { terminal }), cwd, append_system_prompt: text, ...(kind === 'fork' ? {} : doorHook),
+          mcp_config: { mcpServers: { ...userServers, bellteam: { type: 'http', url: seatUrl, headers, ...managed }, 'call-bridge': { type: 'http', url: `${seatUrl}/call-bridge`, headers, ...managed } } } },
         claudeLogin,
+        route,
         // CREDENTIAL_NOT_LOADED / CREDENTIAL_REVISION_STALE on agent_launch: load again and launch once more (R13), only for
         // the same target intent. A changed owner, binding, host or folder would mix the prepared login/options with another
         // target, so it is not started; terminals' observer drains it and the next wake prepares afresh.
@@ -133,7 +141,8 @@ export class RemoteSeats {
           return fresh.terminal
         },
         // The seat launcher forwards exactly these names (Molly #793); the login value still comes only from claudeLogin.
-        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])], resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef) }) },
+        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(route ? ['AITERM_SEAT_FORWARD_PORT'] : []), ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])],
+          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...(route ? { AITERM_SEAT_FORWARD_PORT: String(route.port) } : {}) }) },
         revoke: () => this.revoke(sessionName),
       }
     } catch (error) {
@@ -160,6 +169,24 @@ export class RemoteSeats {
     return target
   }
 
+  // remote-route.md: `remote` + `forward` beside `terminal` (terminals' target) and a client that can reach Aiterm's ensure_forward.
+  // Returns {remote, forward, revision, port: P, url} and records the route for this session, or null (this launch uses `terminal`).
+  async ensureRoute(bot, { remote, forward, url }) {
+    const client = this.routes.client
+    if (!remote || !forward?.id || !client) return null
+    try {
+      const seat = new URL(url)
+      const result = await client.call('ensure_forward', { id: forward.id, to: { host: '127.0.0.1', port: Number(seat.port) } })
+      const port = result?.structuredContent?.port ?? result?.port
+      if (result?.isError || !Number.isInteger(port)) return null
+      seat.port = String(port)
+      return { remote, forward, port, revision: forward.revision ?? null, url: `${seat.origin}${seat.pathname.replace(/\/$/u, '')}` }
+    } catch (error) {
+      process.stderr.write(`BellTeam remote route: ensure_forward failed, launching on terminal: ${bot.id}: ${error?.code ?? 'FAILED'}\n`)
+      return null
+    }
+  }
+
   // The parent resolves Mika's handle and pipes the key to Aiterm's credential-load (Molly #813); execution never holds the
   // value. Any failure is CREDENTIAL_UNAVAILABLE (not started; Mika's/terminals' events drain it).
   async loadKey({ id, terminalId }, { ref, credential: { handle, revision } }) {
@@ -174,6 +201,9 @@ export class RemoteSeats {
   // Fresh body (remote-seat.md R13 "Body restart"): the key agent died with the container, so load the key once per terminal
   // that has a recorded remote seat; Aiterm's keeper then rebuilds the seat MCP route without waiting for a Mac operation.
   async warm(launches) {
+    // remote-route.md: a seat launched on `remote` keeps its forward only while ensure_forward is called again; the table is
+    // filled from the launch record so the keeper runs from the first tick. A seat that is gone is dropped by the first seat-view read.
+    for (const [session, record] of Object.entries(launches ?? {})) if (record?.route === 'remote' && typeof record.target === 'string') this.routes.sessions.set(session, record.target.split('\n')[0])
     const terminals = new Map()
     for (const { botId, target } of Object.values(launches ?? {})) {
       const [terminalId, projectRoot] = typeof target === 'string' ? target.split('\n') : []
@@ -236,6 +266,7 @@ export class RemoteSeats {
   }
 
   async closed(sessionName) {
+    this.routes.remove(sessionName)
     if (!await this.seatOf(sessionName)) return
     this.seats.delete(sessionName)
     await this.revoke(sessionName)
@@ -286,7 +317,10 @@ export class RemoteSeats {
     this.notice(bot, { code: 'CODE_MODE_SKIPPED', action })
   }
 
-  revoke(sessionName) { return Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {}) }
+  revoke(sessionName) {
+    this.routes.remove(sessionName)
+    return Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {})
+  }
 
   wait({ id, terminalId }) {
     const set = this.waiting.get(terminalId) ?? new Set()
@@ -309,9 +343,13 @@ export class RemoteSeats {
   // A successful pty_close of a held remote seat revokes its credential; every other call passes unchanged.
   route(base) {
     const remote = this
+    this.routes.client = base
     const routed = client => Object.create(client, {
       call: { value: async (name, args = {}, options = {}) => {
         let result
+        // remote-route.md: a seat launched on `remote` has no session map in Aiterm; every call that names it carries the route.
+        if (name === 'agent_stop' && Array.isArray(args.session_ids)) return remote.routes.stop(next => client.call(name, next, options), args)
+        args = await remote.routes.withRoute(args)
         try { result = await client.call(name, args, options) } catch (error) {
           // Aiterm refuses before contacting the terminal, so the same call is issued once more after the load (R13).
           if (!KEY_RELOAD.has(reloadCode(error)) || typeof args.session_id !== 'string' || !await remote.reloadKey(args.session_id)) throw error
@@ -355,8 +393,9 @@ export class RemoteSeats {
   // Aiterm's transcript read, the same command for local and terminal seats (aiterm.transcript-read.v1).
   transcript(seat) {
     const cursor = seat.cursor
-    return this.seatCommand({ executable: 'aiterm-transcript-read', args: ['--session', seat.sessionName,
-      ...(cursor ? ['--cursor-session', cursor.claudeSessionId, '--offset', String(cursor.offset)] : []), '--max-bytes', String(PAGE_BYTES)] }, null)
+    // A seat on `remote` is read over the pinned ssh of its route (Aiterm >= 0.70.112); any other seat as before.
+    return this.routes.transcriptFlags(seat.sessionName).then(flags => this.seatCommand({ executable: 'aiterm-transcript-read', args: ['--session', seat.sessionName,
+      ...(cursor ? ['--cursor-session', cursor.claudeSessionId, '--offset', String(cursor.offset)] : []), '--max-bytes', String(PAGE_BYTES), ...flags] }, null))
   }
 
   // C7: after a native completion, hand the completed transcript prefix to Throughline; only its ACK cursor stays here.

@@ -266,6 +266,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/model-handoff.mjs',
     'src/module-ipc.mjs',
     'src/owner-profile.mjs',
+    'src/remote-route.mjs',
     'src/remote-seats.mjs',
     'src/resume-pipe.mjs',
     'src/resume-policy.mjs',

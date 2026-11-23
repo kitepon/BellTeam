@@ -117,7 +117,7 @@ export class AitermClient {
     const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck, runtime, claudeLogin, privateEnv } = options
     // remote-seat.md: a terminal launch names only its private env; values are read here, at the launch, and go to the
     // seat launcher's stdin (never argv, log or disk).
-    if (privateEnv && (name !== 'agent_launch' || !args.terminal || !Array.isArray(privateEnv.names) || typeof privateEnv.resolve !== 'function'))
+    if (privateEnv && (name !== 'agent_launch' || !(args.terminal || args.remote) || !Array.isArray(privateEnv.names) || typeof privateEnv.resolve !== 'function'))
       throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS', effect: 'not_started' })
     if (Object.hasOwn(options, 'admissionCheck') && (name !== 'pty_send' || typeof admissionCheck !== 'function'
       || ['env', 'launchProject', 'expectedAuthConnection', 'expectedAuthServerVersion', 'expectedConfiguration'].some(key => Object.hasOwn(options, key))))
@@ -137,7 +137,7 @@ export class AitermClient {
     if (Object.hasOwn(options, 'launchProject')) {
       requireSeatProject(launchProject)
       // A terminal launch runs its launcher in the server member project; its cwd is the folder on the terminal.
-      if (this.seatProject === null || name !== 'agent_launch' || (!args.terminal && args.cwd !== launchProject)
+      if (this.seatProject === null || name !== 'agent_launch' || (!(args.terminal || args.remote) && args.cwd !== launchProject)
         || Object.hasOwn(options, 'env') || Object.hasOwn(args, 'env_vars'))
         throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
       const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
