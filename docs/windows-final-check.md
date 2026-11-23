@@ -341,3 +341,10 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、会話10件（`hasMore`あり）、SSE接続あり。終了後のBellTeam.exeは0件。
 - `--render-conversation member`（本番の自席）: 終了コード0、描けた。
 - 確認できていない: 本番サーバーの `entitlementState` が `none` ではないため、購読の壁の新しい文は本番では出ていない（UiChecksの `PaywallView` の試験で文と「ブラウザーで開く」が無いことを確認）。新しいサインイン入口（`SignInView`）は未接続で、アプリの起動では出ない。
+
+## Windows 0.7.0 の導入（a540 段階2：ローカル形式、2026-11-23 20:09〜20:10 JST、アニス）
+
+- 導入元: main `f0a82ba5`（#2436。段階1は#2428）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（Desktop Googleクライアントの秘密はホストの保管庫からビルドの環境変数へ、値は表示もコミットもしていない）。導入したexeの版は `0.7.0+f0a82ba509a81c441a23f834ffd45a65107b4dfd`。ライブラリは Kitepon.LoginBilling.Desktop 0.20.1（sha256 `edb12fb5a5809869d78d0dba3cc2d892d6cd067a640d42a77e5b13b3dfa53ffd`、**開発版**：アイリの監査t10dとミントの受け入れt10cまで本番へ出さない）。導入したBellTeam.dllのアセンブリのメタデータに秘密が35文字入っていることを確認した。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、会話10件、SSE接続あり。
+- `--render-page settings-billing`（本番）: 終了コード0。設定の「利用と課金」に、サインインしていない端末の「アカウントと購読」（Googleでサインイン・アカウントを削除・プライバシー方針・サポート）が出て、購入の入口は無い。「このアプリについて」は0.7.0。
+- 確認できていない（実機が要る）: Googleのサインイン（ブラウザー）→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換（Googleの設定が効くまで数分〜数時間）。確かめたのはxunit（AppLoginTests・LocalFormTests ほか58件）、UiChecks（削除の場面を含む）終了コード0、ダミーの秘密でのメタデータ注入まで。
