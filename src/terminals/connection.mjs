@@ -1,5 +1,6 @@
 import { OS_LABEL, childPath, isEntryName, isTerminalPath, parentPath } from './paths.mjs'
 import { doorHook } from './approval-door.mjs'
+import { parseExport } from './trust-copy.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
 const MESSAGES = {
@@ -92,6 +93,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   const listeners = new Set()
   const generations = new Map() // terminalId -> registry-change count; a target read across a change is stale
   const operations = new Set() // in-flight target/check runs, awaited by dispose
+  const trustCopies = new Map() // terminalId -> in-flight export, shared so two launches never export one terminal twice
   const provisions = new Map() // terminalId -> in-flight provision, shared so two launches never install on one terminal at once
   const lastChecks = new Map() // terminalId -> last current-revision check {reachable, reason, action?, checkedAt}; in memory
   let disposed = false
@@ -167,13 +169,17 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
 
   // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
   // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
-  async function loadKey(target, binding, current) {
+  async function loadKey(target, binding, current, extra) {
     if (!binding.credential) return
     // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
     await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
-      key => {
+      async key => {
         if (!current()) throw failure('TERMINAL_UNAVAILABLE') // resolution may have spanned a revision or dispose
-        return native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
+        await native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
+        // a532b4 stage 2: the same bytes to the per-terminal agent, best effort (Aiterm's store stays the live path; the next load retries).
+        if (typeof native.loadAgent !== 'function') return
+        try { await native.loadAgent({ terminalId: target.terminalId, key }); if (extra) extra.agent = { outcome: 'loaded' } }
+        catch (error) { if (extra) extra.agent = { outcome: 'failed', ...(typeof error?.code === 'string' && CODE.test(error.code) ? { reason: error.code } : {}) } }
       })
       .catch(error => { throw error?.code === 'TERMINAL_UNAVAILABLE' ? error : Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
@@ -185,15 +191,36 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     return run
   }
 
+  // a532b4 stage 2: copy Aiterm's public host trust once per terminal and registry generation, in the background of the open that saw a
+  // revision the copy does not have. Never awaited by a launch, never vetoes it; a failure leaves Aiterm's store live and the next open retries.
+  function copyTrustOnce(target, ref, trust) {
+    const revision = target.hostTrust?.revision
+    if (typeof native.exportBinding !== 'function' || typeof registry.setTrustCopy !== 'function' || !revision) return
+    if (target.trustCopy?.ref === ref && target.trustCopy.revision === revision) return void Object.assign(trust, { revision, outcome: 'current' })
+    let run = trustCopies.get(target.terminalId)
+    if (!run) {
+      run = Promise.resolve().then(async () => {
+        const copy = parseExport(await native.exportBinding({ ref }), ref, now().toISOString())
+        // Aiterm's trust moved between the open and the export: nothing is stored, the next open reads the new revision.
+        if (copy.revision !== revision) throw Object.assign(new Error('TRUST_REVISION_CHANGED'), { code: 'TRUST_REVISION_CHANGED' })
+        if (!(await registry.setTrustCopy(target.terminalId, copy, target.revision))) throw failure('TERMINAL_UNAVAILABLE')
+      }).finally(() => trustCopies.delete(target.terminalId))
+      trustCopies.set(target.terminalId, run)
+    }
+    Object.assign(trust, { revision, outcome: 'copying' })
+    run.then(() => Object.assign(trust, { outcome: 'copied' }),
+      error => Object.assign(trust, { outcome: 'failed', ...(typeof error?.code === 'string' && CODE.test(error.code) ? { reason: error.code } : {}) }))
+  }
+
   // One transient remote process; closed before returning. Classified like a launch would be.
   // `current` is re-checked after every await; a process connected across a registry change or dispose is closed unused.
   // `aiterm` (C8 only): an older terminal Aiterm that opened can launch the seat, so it is brought to the container's version in the
   // background (never awaited: a stalled download must not hold a launch) and this object receives {before, after, outcome, reason?}.
-  async function withProcess(target, binding, run, current, aiterm) {
+  async function withProcess(target, binding, run, current, aiterm, extra) {
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
     try {
-      await loadKey(target, binding, current)
+      await loadKey(target, binding, current, extra)
       const open = () => native.connect({
         target: { host: target.host, user: target.user, port: target.port, os: target.os },
         hostTrust: target.hostTrust,
@@ -217,6 +244,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
           result => { const after = typeof result?.version === 'string' ? result.version : null; Object.assign(aiterm, { after, outcome: isOlder(after, local) ? 'failed' : 'updated' }) },
           error => { Object.assign(aiterm, { outcome: 'failed', ...(typeof error?.code === 'string' && CODE.test(error.code) ? { reason: error.code } : {}) }) })
       }
+      if (aiterm && extra) copyTrustOnce(target, binding.ref, extra.trust ??= {})
       // Any open of the current record is a check: a terminal in use never shows an older failure (Trony 11/13).
       if (current()) note(target.terminalId, { reachable: true, reason: null, checkedAt: now().toISOString() })
     } catch (error) {
@@ -233,7 +261,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // is reported as such. claude-code keeps Aiterm's claude_* aliases (any terminal Aiterm); the others need cli_* (>= 0.70.9).
   async function maintain(target, binding, current, harness) {
     const record = { terminalId: target.terminalId, harness, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed', loggedIn: null }
-    const aiterm = {}
+    const aiterm = {}, extra = {}
     try {
       await withProcess(target, binding, async session => {
         // Each command starts only while current; a stale run stops before its next command (outcome unrecorded).
@@ -249,8 +277,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         } catch {}
         // Aiterm's launch preflight covers the other three; any error or non-boolean stays null and never vetoes.
         if (NO_LAUNCH_AUTH_CHECK.has(harness)) try { const { logged_in } = await command('auth_status'); if (typeof logged_in === 'boolean') record.loggedIn = logged_in } catch {}
-      }, current, aiterm)
-    } finally { if (Object.keys(aiterm).length) record.aiterm = aiterm; if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
+      }, current, aiterm, extra)
+    } finally { if (Object.keys(aiterm).length) record.aiterm = aiterm; if (extra.trust && Object.keys(extra.trust).length) record.trust = extra.trust; if (extra.agent) record.agent = extra.agent; if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
     return record
   }
 

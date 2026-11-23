@@ -4,6 +4,7 @@ import { isIP } from 'node:net'
 import { join } from 'node:path'
 import { writeAtomic } from '../json-file.mjs'
 import { TERMINAL_OS } from './paths.mjs'
+import { validTrustCopy } from './trust-copy.mjs'
 
 const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest']
 // Set only by terminals itself (key setting, Aiterm binding); never taken from a caller's register/update input.
@@ -28,7 +29,7 @@ function checkRef(field, value, label) {
 }
 
 function validate(record, stored = false) {
-  const allowed = stored ? [...fields, 'terminalId', 'revision'] : fields
+  const allowed = stored ? [...fields, 'terminalId', 'revision', 'trustCopy'] : fields
   if (!object(record)) throw invalid('Terminal fields must be one JSON object')
   if ('ingressUrl' in record) throw invalid('ingressUrl was removed: Aiterm routes the seat MCP over the terminal\'s SSH reverse forward. Omit it')
   const unknown = Object.keys(record).filter(key => !allowed.includes(key))
@@ -46,12 +47,14 @@ function validate(record, stored = false) {
   if (record.sudoKeyRef !== undefined) checkRef('sudoKeyRef', record.sudoKeyRef, 'sudo password')
   for (const field of ['keySource', 'sudoKeySource']) if (record[field] !== undefined && !SOURCES.includes(record[field])) throw invalid(`${field} must be terminal-native or secret`)
   for (const field of ['bindingRef', 'sshKeyRequest', 'sudoKeyRequest']) if (record[field] !== undefined && (typeof record[field] !== 'string' || !uuid.test(record[field]))) throw invalid(`${field} must be a UUID`)
+  // trustCopy (a532b4 stage 2): the public host trust as Aiterm's export said it; set only by setTrustCopy, never by a caller.
+  if (record.trustCopy !== undefined && (!object(record.trustCopy) || !validTrustCopy(record.trustCopy))) throw invalid('trustCopy must be the public host trust copied from Aiterm')
   // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}; set by terminals, not callers.
   if (record.hostTrust !== undefined && (!object(record.hostTrust) || Object.keys(record.hostTrust).length !== 2 || typeof record.hostTrust.provider !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(record.hostTrust.provider) || typeof record.hostTrust.revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(record.hostTrust.revision))) throw invalid('hostTrust is set by terminals from the trusted host key; to trust a changed host key pass confirmHostKey with the SHA256: fingerprint the Owner confirmed')
 }
 
 function projection(record) {
-  const { sshKeyRef, sudoKeyRef, keySource, sudoKeySource, bindingRef: _binding, sshKeyRequest, sudoKeyRequest, ...publicRecord } = record
+  const { sshKeyRef, sudoKeyRef, keySource, sudoKeySource, bindingRef: _binding, sshKeyRequest, sudoKeyRequest, trustCopy: _trustCopy, ...publicRecord } = record
   return structuredClone({ ...publicRecord, sshKeyConfigured: Boolean(sshKeyRef), sudoKeyConfigured: Boolean(sudoKeyRef),
     keySource: sshKeyRef ? keySource ?? 'terminal-native' : null, sudoKeySource: sudoKeyRef ? sudoKeySource ?? 'secret' : null,
     sshKeyPending: Boolean(sshKeyRequest), sudoKeyPending: Boolean(sudoKeyRequest) })
@@ -88,7 +91,7 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
       const result = action(records)
       if (!result.changed) return result.value
       await writeAtomic(path, { terminals: records })
-      if (onChange) {
+      if (onChange && !result.silent) {
         try { await onChange(result.event) } catch {}
       }
       return result.value
@@ -120,10 +123,23 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
         if (index < 0) throw invalid('Terminal not found; list_terminals shows the registered terminalIds', 'TERMINAL_NOT_FOUND')
         if (expect && !expect(structuredClone(records[index]))) return { changed: false, value: null }
         const record = { ...records[index], ...structuredClone(patch), revision: records[index].revision + 1 }
+        // A different machine is a different host identity: the copy of the old one never survives a target change.
+        if (['host', 'user', 'port'].some(field => record[field] !== records[index][field])) delete record.trustCopy
         for (const field of ['sshKeyRef', 'sudoKeyRef', 'hostTrust', ...INTERNAL_FIELDS]) if (record[field] === null) delete record[field]
         validate(record, true)
         records[index] = record
         return { changed: true, value: projection(record), event: { terminalId, revision: record.revision, removed: false } }
+      })
+    },
+    // The copy is derived data, not identity: no revision bump and no change event (a change event would re-target every launch in flight).
+    // `revision` pins the record it was made for; false = the terminal changed meanwhile and nothing was written.
+    setTrustCopy(terminalId, copy, revision) {
+      return mutate(records => {
+        const record = records.find(item => item.terminalId === terminalId)
+        if (!record || record.revision !== revision) return { changed: false, value: false }
+        if (copy === null) delete record.trustCopy
+        else { validate({ ...record, trustCopy: structuredClone(copy) }, true); record.trustCopy = structuredClone(copy) }
+        return { changed: true, value: true, silent: true }
       })
     },
     remove(terminalId) {

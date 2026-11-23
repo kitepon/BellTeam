@@ -31,6 +31,8 @@
     "src/terminals/remote-process.mjs",
     "src/terminals/paths.mjs",
     "src/terminals/approval-door.mjs",
-    "src/terminals/approval-door-host.mjs"
+    "src/terminals/approval-door-host.mjs",
+    "src/terminals/trust-copy.mjs",
+    "src/terminals/credential-agent.mjs"
   ]
 }
