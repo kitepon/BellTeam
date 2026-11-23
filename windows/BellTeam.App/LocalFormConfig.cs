@@ -1,0 +1,19 @@
+using System.Reflection;
+using Kitepon.LoginBilling.Desktop;
+
+namespace BellTeam.App;
+
+// a540: the library's LocalConfig of this app (login-billing contract 1.36 s10, 1.37), from the public ids in Core (LocalFormIds). Never put a token or a pass here.
+internal static class LocalFormConfig
+{
+    // The Desktop client's secret reaches the build from the host vault (scripts/install-windows.ps1 -GoogleDesktopOAuthRef -> BELLTEAM_GOOGLE_DESKTOP_SECRET -> assembly metadata, BellTeam.App.csproj): GitHub's push protection refuses it in a commit.
+    // Google treats a Desktop client's secret as non-confidential; it is sent with the token request only and never logged. A build without it (a source build with no vault) signs in with Google's refusal, "client_secret is missing".
+    private static string? GoogleSecret =>
+        typeof(LocalFormConfig).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "GoogleDesktopSecret")?.Value is { Length: > 0 } secret ? secret : null;
+
+    // Audiences: every Google client id of BellTeam (the phone's token may carry any) and Apple's own, the app id. Apple's root: null takes the library's built-in Apple Root CA - G3 (1.37).
+    public static LocalConfig Build() => new(
+        [.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId], LocalFormIds.GoogleDesktopClientId,
+        new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], false, null!),
+        new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), 31, GoogleSecret);
+}

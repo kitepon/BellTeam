@@ -21,9 +21,7 @@ public static class UiChecks {
   }
   private static async Task Run() {
     await DeleteAccountChecks();
-    // The retry scene must not reach the real login Worker or the home probe on localhost (each refused probe takes ~4 s): no billing, so MainWindow.ConnectAsync skips HomeGate.
-    var billing = AccountStore.Billing; AccountStore.Billing = null;
-    try { await StartupChecks(); } finally { AccountStore.Billing = billing; }
+    await StartupChecks();
     await FillChecks(); await FillChecks(3); await JumpChecks(); await AnchorChecks(); await RefreshChecks(); await ReconnectChecks(); await NewestChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
@@ -117,29 +115,29 @@ public static class UiChecks {
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
   }
   // The Mac RootView phases on the real MainWindow, against stub servers. Nothing here shows a window; a failure retries by itself on the backoff and 「もう一度試す」 tries at once.
-  // a485 「アカウントを削除」: the Approval Box and home records go, the saved address goes, the first screen shows and one result is told; each file the check plants must be gone.
+  // a485 「アカウントを削除」: the Approval Box records go, the saved address goes, the first screen shows and one result is told; each file the check plants must be gone.
   private static async Task DeleteAccountChecks() {
     var dir = Path.Combine(Path.GetTempPath(), "bt-delete-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
-    var before = (AccountStore.Billing, AccountStore.HomeDirectory);
+    var before = AccountStore.Local;
     try {
-      AccountStore.HomeDirectory = dir; AccountStore.Billing = new Kitepon.LoginBilling.Desktop.DesktopLoginBilling("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore());
+      AccountStore.Local = new Kitepon.LoginBilling.Desktop.DesktopLocal(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
       var settings = new SettingsStore(dir); settings.Save(new LocalSettings { ServerUrl = "https://example.test/" });
-      Directory.CreateDirectory(Path.Combine(dir, "approvals-files")); File.WriteAllText(Path.Combine(dir, "approvals-files", "x"), "x"); File.WriteAllText(Path.Combine(dir, "home.bin"), "x");
+      Directory.CreateDirectory(Path.Combine(dir, "approvals-files")); File.WriteAllText(Path.Combine(dir, "approvals-files", "x"), "x");
       var approvalBox = new ApprovalBoxDevice(dir, new ApprovalBoxAccount("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore()));
       Check(File.Exists(Path.Combine(dir, "peer-channel-device.key")), "試験の前提: 決裁箱の端末の鍵が作られていません。");
       var window = new MainWindow(new Workspace(), persistPlacement:false, settings: settings, approvalBox: approvalBox); var shown = new List<(string, string)>(); window.ShowResult = (title, body) => shown.Add((title, body));
       // R1: a file that cannot be removed stops the deletion, names it, keeps what comes after, and tells no success; pressing again finishes it.
       var held = new FileStream(Path.Combine(dir, "peer-channel-device.key"), FileMode.Open, FileAccess.Read, FileShare.None); var phase = window.Startup;
       await window.DeleteAccountAsync();
-      Check(shown.Count == 1 && shown[0].Item1 == AccountDeletionText.FailedTitle && shown[0].Item2.Contains("決裁箱のサインインを消せませんでした（処理できませんでした）") && shown[0].Item2.Contains("もう一度「アカウントを削除」"), "消せないものがある時に、失敗の題と理由が1回出ません: " + string.Join(" / ", shown));
-      Check(File.Exists(Path.Combine(dir, "home.bin")) && settings.Load().ServerUrl is not null && window.Startup == phase, "失敗した削除が、あとの手順を進めたか、画面を動かしました。");
+      Check(shown.Count == 1 && shown[0].Item1 == LocalAccountDeletionText.FailedTitle && shown[0].Item2.Contains("決裁箱のサインインを消せませんでした（処理できませんでした）") && shown[0].Item2.Contains("もう一度「アカウントを削除」"), "消せないものがある時に、失敗の題と理由が1回出ません: " + string.Join(" / ", shown));
+      Check(settings.Load().ServerUrl is not null && window.Startup == phase, "失敗した削除が、あとの手順を進めたか、画面を動かしました。");
       held.Dispose(); shown.Clear();
       await window.DeleteAccountAsync();
-      Check(shown.SequenceEqual([(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel))]), "アカウント削除の結果が1回だけ、決めた文で出ません: " + string.Join(" / ", shown));
-      Check(!File.Exists(Path.Combine(dir, "peer-channel-device.key")) && !Directory.Exists(Path.Combine(dir, "approvals-files")) && !File.Exists(Path.Combine(dir, "home.bin")), "アカウント削除の後に、決裁箱の鍵・添付かサーバーの記録が残っています。");
+      Check(shown.SequenceEqual([(LocalAccountDeletionText.ResultTitle, LocalAccountDeletionText.ResultBody(LocalAccountDeletionText.Cancel))]), "アカウント削除の結果が1回だけ、決めた文で出ません: " + string.Join(" / ", shown));
+      Check(!File.Exists(Path.Combine(dir, "peer-channel-device.key")) && !Directory.Exists(Path.Combine(dir, "approvals-files")), "アカウント削除の後に、決裁箱の鍵・添付が残っています。");
       Check(settings.Load().ServerUrl is null && window.Startup == StartupPhase.Account, "アカウント削除の後に、接続先が残るか、最初の画面に戻りません。");
       window.Close(); await approvalBox.DisposeAsync();
-    } finally { (AccountStore.Billing, AccountStore.HomeDirectory) = before; try { Directory.Delete(dir, true); } catch (IOException) { } }
+    } finally { AccountStore.Local = before; try { Directory.Delete(dir, true); } catch (IOException) { } }
   }
   private static async Task StartupChecks() {
     const string select = "{\"phase\":\"select_harness\",\"harness\":null,\"harnesses\":[{\"id\":\"codex\",\"name\":\"Codex\"}],\"guideBotId\":null,\"complete\":false,\"auth\":null}";

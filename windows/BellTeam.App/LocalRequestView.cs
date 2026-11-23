@@ -35,12 +35,29 @@ internal sealed class LocalRequestView : StackPanel
         if (!paid) Children.Add(Button(LocalFormText.NewQr, newQr));
     }
 
+    // A try that ended with one of the library's codes, in the words of LocalFormText.Failure: its sentence and a new QR.
+    public void ShowSentence(string sentence)
+    {
+        Children.Clear();
+        Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
+        Children.Add(Text(sentence, 14, Red, null, new Thickness(0, 10, 0, 0)));
+        Children.Add(Button(LocalFormText.NewQr, newQr));
+    }
+
     // The accepted period ended on this device's clock: the next step is a new QR.
     public void ShowPeriodEnded()
     {
         Children.Clear();
         Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
         Children.Add(Text(LocalFormText.PeriodEnded, 14, Ink, null, new Thickness(0, 10, 0, 0)));
+        Children.Add(Button(LocalFormText.NewQr, newQr));
+    }
+
+    // The person stopped the wait: only the way to a new QR.
+    public void ShowStopped()
+    {
+        Children.Clear();
+        Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
         Children.Add(Button(LocalFormText.NewQr, newQr));
     }
 

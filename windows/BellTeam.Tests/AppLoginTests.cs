@@ -96,39 +96,60 @@ public sealed class AppLoginTests
     }
 
     [Fact]
-    public void ThePaywallSaysThatTheAppNeedsASubscriptionAndOffersARecheckAndAServerChangeButNoBrowser() => RunSta(() =>
+    public void TheSignInEntryOffersGoogleWithoutAConsoleCodeAndWaitsOrFailsInItsWords() => RunSta(() =>
     {
-        int rechecked = 0, changed = 0; var view = new PaywallView(() => rechecked++, () => changed++);
-        Assert.Contains("このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。", Texts(view));
-        Assert.DoesNotContain(Descendants<Button>(view), button => System.Windows.Automation.AutomationProperties.GetName(button) == "ブラウザーで開く");
-        Click(view, "再確認"); Click(view, "接続先を変更"); Assert.Equal((1, 1), (rechecked, changed));
-    });
-
-    [Fact]
-    public void TheSignInEntryOffersAppleAndGoogleWithoutAConsoleCodeAndAsksForTheSetupCodeOnlyWhenTold() => RunSta(() =>
-    {
-        var chosen = new List<string>(); var cancelled = 0; var view = new SignInView(chosen.Add, () => cancelled++, ["apple", "google"]);
+        var chosen = new List<string>(); var cancelled = 0; var view = new SignInView(chosen.Add, () => cancelled++, ["google"]);
         Assert.Contains(SignInText.Title, Texts(view)); Assert.Contains(SignInText.Note, Texts(view));
-        Assert.Empty(Descendants<TextBox>(view)); Assert.DoesNotContain(SignInText.SetupCodeLabel, Texts(view));
-        Click(view, SignInText.Apple); Click(view, SignInText.Google); Assert.Equal(["apple", "google"], chosen);
-        view.RequireSetupCode(true); Descendants<TextBox>(view).Single().Text = " ABC "; Assert.Equal("ABC", view.SetupCode);
-        Assert.Contains(SignInText.SetupCodeLabel, Texts(view)); Assert.Contains(SignInText.SetupCodeHint, Texts(view));
-        view.Show(SignInPhase.Waiting); Assert.Contains(SignInText.Waiting, Texts(view)); Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Apple);
+        Assert.Empty(Descendants<TextBox>(view));
+        Click(view, SignInText.Google); Assert.Equal(["google"], chosen); Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Apple);   // Apple comes in the iPhone's reply
+        view.Show(SignInPhase.Waiting); Assert.Contains(SignInText.Waiting, Texts(view)); Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Google);
         Click(view, SignInText.Cancel); Assert.Equal(1, cancelled);
         view.Show(SignInPhase.ReturnNotReceived); Assert.Contains(SignInText.ReturnNotReceived, Texts(view));
-        view.Show(SignInPhase.NotOwner); Assert.Contains(SignInText.NotOwner, Texts(view));
+    });
+
+    private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => new(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
+
+    // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens), so the first run offers the Google button, which starts the try.
+    [Fact]
+    public void TheFirstRunOffersTheGoogleButtonThenWaitsForTheBrowserThenOffersANewQrWhenStoppedAndNeverOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
+    {
+        var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
+        try
+        {
+            var gate = new AccountGateView(Local(), () => { });
+            Until(() => gate.Account.NotStarted); Assert.Empty(opened);   // nothing opens before the person presses the button
+            Assert.Contains(SignInText.Title, Texts(gate)); Assert.DoesNotContain(SignInText.Apple, Texts(gate));
+            Descendants<Button>(gate).First(b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Google).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Until(() => opened.Count == 1);   // the card and the entry both carry it; both start the same try
+            Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.False(gate.Account.Entitled);
+            Assert.DoesNotContain(Descendants<Button>(gate), b => b.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(b) == StoreAccountText.GateNext);
+            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.NewQr));
+            gate.Dispose();
+        }
+        finally { AccountStore.OpenBrowser = before; }
     });
 
     [Fact]
-    public void TheFirstRunAsksToSignInWhenNoPassIsKeptAndSaysSoWhenNoWorkerIsSet() => RunSta(() =>
+    public void TheDeletionWordsAreRapisFinalTableWithOnlyTheStoreSentencesChangedAndTheReasonsAreTheThree()
     {
-        var gate = new AccountGateView(null, () => { });
-        Assert.Contains(StoreAccountText.NotConfigured, Texts(gate)); Assert.DoesNotContain(Descendants<Button>(gate), b => b.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(b) == StoreAccountText.GateNext);
-        gate.Dispose();
-        var signedOut = new AccountGateView(new Kitepon.LoginBilling.Desktop.DesktopLoginBilling("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore()), () => { });
-        Until(() => signedOut.Account.SignedOut);
-        Assert.Contains(SignInText.Title, Texts(signedOut)); Assert.Contains(SignInText.Google, Texts(signedOut)); Assert.DoesNotContain(SignInText.Apple, Texts(signedOut));   // Apple waits for the Owner's Apple sitting
-        signedOut.Dispose();
+        Assert.Equal(("アカウントを削除", "アカウントを削除しますか？", "削除する", "やめる", "アカウントを削除しました"), (LocalAccountDeletionText.Button, LocalAccountDeletionText.ConfirmTitle, LocalAccountDeletionText.ConfirmYes, LocalAccountDeletionText.ConfirmNo, LocalAccountDeletionText.ResultTitle));
+        const string store = "<store>";
+        Assert.Equal("この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。" + store + "サーバーの会話や設定は消えません。", LocalAccountDeletionText.ConfirmBody(store));
+        Assert.Equal("この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。" + store, LocalAccountDeletionText.ResultBody(store));
+        Assert.Equal("アカウントの削除を終えられませんでした", LocalAccountDeletionText.FailedTitle);
+        Assert.Equal("決裁箱のサインインを消せませんでした（ネットワークにつながっていません）。つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。", LocalAccountDeletionText.Failed("決裁箱のサインイン", LocalAccountDeletionText.NoNetwork));
+        Assert.Equal(LocalAccountDeletionText.NoNetwork, MainWindow.ReasonOf(new InvalidOperationException("x", new HttpRequestException("offline"))));
+        Assert.Equal(("決裁箱の運営に届きません", "処理できませんでした"), (MainWindow.ReasonOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("server_error", 503, null)), MainWindow.ReasonOf(new IOException("locked"))));
+        Assert.DoesNotContain("Apple Account", LocalAccountDeletionText.Subscription + LocalAccountDeletionText.Cancel);
+    }
+
+    [Fact]
+    public void TheDeleteButtonIsTheLastItemOfTheCardAndOnlyWhereAWayToDeleteIsGiven() => RunSta(() =>
+    {
+        var deleted = 0; var card = new AccountView(Local(), () => deleted++); Until(() => card.NotStarted);
+        Assert.Equal(LocalAccountDeletionText.Button, System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(card).Last()));   // last, below the sign-in entry
+        Click(card, LocalAccountDeletionText.Button); Assert.Equal(1, deleted);
+        Assert.DoesNotContain(Descendants<Button>(new AccountView(Local())), b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalAccountDeletionText.Button);   // the first-run gate has none
+        card.Dispose();
     });
 
     [Fact]
@@ -136,64 +157,6 @@ public sealed class AppLoginTests
     {
         var qr = new QrView("bellteam://handoff/ABC", 200); qr.Measure(new Size(200, 200)); qr.Arrange(new Rect(0, 0, 200, 200));
         Assert.Equal(200, qr.Width); Assert.Equal(200, qr.ActualWidth);
-    });
-
-    private sealed class MemoryHome : Kitepon.LoginBilling.Desktop.IHomeStore { public string? Record; public string? Read() => Record; public void Write(string record) => Record = record; public void Delete() => Record = null; }
-    private sealed class HomeProbeHandler(string json) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => Task.FromResult(request.RequestUri!.AbsolutePath == "/api/home/session" ? new HttpResponseMessage { Content = new StringContent(json, Encoding.UTF8, "application/json") } : new HttpResponseMessage(HttpStatusCode.NotFound));
-    }
-
-    [Fact]
-    public async Task OnlyAHomeServerAnswersTheProbeAndAnOlderOneIsLeftToTheNormalPath()
-    {
-        var home = await HomeGate.ProbeAsync(new Uri("http://localhost/"), default, new HomeProbeHandler("""{"capability":"login-billing-home/1","bound":false,"enforced":true}"""));
-        Assert.True(home is { Bound: false, Enforced: true });
-        Assert.Null(await HomeGate.ProbeAsync(new Uri("http://localhost/"), default, new HomeProbeHandler("""{"capability":"other"}""")));
-        Assert.Null(await HomeGate.ProbeAsync(new Uri("http://localhost/"), default, new HomeProbeHandler("not json")));
-    }
-
-    [Fact]
-    public void TheHomeScreenAsksForTheSetupCodeOnlyWhenUnboundAndSaysAnUnreachableServerAsSuch() => RunSta(() =>
-    {
-        var lb = new Kitepon.LoginBilling.Desktop.DesktopLoginBilling("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore());
-        var home = lb.HomeConnection(new MemoryHome());
-        var unbound = new HomeConnectView(home, new HomeProbe { Capability = HomeGate.Capability, Bound = false }, new Uri("http://127.0.0.1:1/"), () => { }, () => { });
-        Assert.Single(Descendants<TextBox>(unbound)); Assert.Contains(SignInText.SetupCodeLabel, Texts(unbound));
-        Descendants<TextBox>(unbound).Single().Text = "ABCD"; unbound.Begin(); Until(() => unbound.Running.IsCompleted);
-        Assert.Contains("サーバーに届きません。通信を確かめて、もう一度お試しください。", Texts(unbound));
-        var bound = new HomeConnectView(home, new HomeProbe { Capability = HomeGate.Capability, Bound = true }, new Uri("http://127.0.0.1:1/"), () => { }, () => { });
-        Until(() => bound.Running.IsCompleted); Assert.Empty(Descendants<TextBox>(bound)); Assert.Contains("サーバーに届きません。通信を確かめて、もう一度お試しください。", Texts(bound));
-        unbound.Dispose(); bound.Dispose();
-    });
-
-    // a485 「アカウントを削除」: Rapi's reference words, the subscription sentences replaced by the Windows ones (a PC buys nothing).
-    [Fact]
-    public void TheDeletionWordsAreRapisReferenceWithOnlyTheSubscriptionSentencesChanged()
-    {
-        Assert.Equal("アカウントを削除", AccountDeletionText.Button); Assert.Equal("アカウントを削除しますか？", AccountDeletionText.ConfirmTitle);
-        Assert.Equal(("削除する", "やめる"), (AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo)); Assert.Equal("アカウントを削除しました", AccountDeletionText.ResultTitle);
-        const string remains = "ログインの運営に残るのは、止めたパスのランダムな番号と、「ほかの端末をすべて止める」を使った時のアカウントの番号とその時刻だけで、どちらも最長14日で消えます。";
-        Assert.Equal("この端末のBellTeamのサインインを、届く限りすべて終わらせます。この端末にある店のパス・アカウントの番号・サーバーのトークン・決裁箱のサインインと鍵・保存した会話の写しを消して、最初の画面に戻ります。ログインの運営は、名前・メールアドレス・購入の記録を持っていません。" + remains + "ほかの端末のサインインは、その端末で終えてください。"
-            + AccountDeletionText.Subscription + "サーバーの会話や設定は消えません。", AccountDeletionText.ConfirmBody(AccountDeletionText.Subscription));
-        Assert.Equal("この端末のサインインとデータを消しました。" + remains + AccountDeletionText.Cancel, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
-        Assert.Equal("決裁箱のサインインを消せませんでした（ネットワークにつながっていません）。つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。", AccountDeletionText.Failed("決裁箱のサインイン", AccountDeletionText.NoNetwork));
-        Assert.Equal(AccountDeletionText.NoNetwork, MainWindow.ReasonOf(new InvalidOperationException("x", new HttpRequestException("offline"))));
-        Assert.Equal(AccountDeletionText.OperatorUnreachable, MainWindow.ReasonOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("server_error", 503, null)));
-        Assert.Equal(AccountDeletionText.NotProcessed, MainWindow.ReasonOf(new IOException("locked")));
-        Assert.DoesNotContain("Apple Account", AccountDeletionText.Subscription + AccountDeletionText.Cancel);
-    }
-
-    [Fact]
-    public void TheDeleteButtonIsTheLastItemOfTheCardSignedInOrNotAndOnlyWhereAWayToDeleteIsGiven() => RunSta(() =>
-    {
-        var deleted = 0; var worker = new Kitepon.LoginBilling.Desktop.DesktopLoginBilling("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore());
-        var card = new AccountView(worker, () => deleted++); Until(() => card.SignedOut);
-        Assert.Equal(AccountDeletionText.Button, System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(card).Last()));   // last, below the sign-in entry
-        Click(card, AccountDeletionText.Button); Assert.Equal(1, deleted);
-        Assert.DoesNotContain(Descendants<Button>(new AccountView(worker)), b => System.Windows.Automation.AutomationProperties.GetName(b) == AccountDeletionText.Button);   // the first-run gate has none
-        Assert.DoesNotContain(Descendants<Button>(new AccountView(null, () => deleted++)), b => System.Windows.Automation.AutomationProperties.GetName(b) == AccountDeletionText.Button);   // no Worker: no card to delete from
-        card.Dispose();
     });
 
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();

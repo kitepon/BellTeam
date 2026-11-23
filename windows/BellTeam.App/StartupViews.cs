@@ -123,20 +123,6 @@ internal sealed class StartupOpeningView : StartupBackdrop
     }
 }
 
-// a485/a486 7e: the server's own entitlement is "none", so the native app shows this instead of itself; there is no browser version. 「再確認」 reads the server again; 「接続先を変更」 is the same way out as the failure page.
-internal sealed class PaywallView : StartupBackdrop
-{
-    public PaywallView(Action recheck, Action changeServer)
-    {
-        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, Margin = new Thickness(30) };
-        var title = MacUi.Text(SubscriptionText.Paywall, 17, MacUi.Ink, FontWeights.Bold); title.TextAlignment = TextAlignment.Center; stack.Children.Add(title);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) };
-        var again = MacUi.Prominent("再確認", recheck); var change = MacUi.Bordered("接続先を変更", changeServer); change.Margin = new Thickness(10, 0, 0, 0);
-        actions.Children.Add(again); actions.Children.Add(change);
-        stack.Children.Add(actions); Children.Add(stack);
-    }
-}
-
 // Mac ConnectionFailureView: what happened in plain words, where we tried and the two ways out; the raw error is folded under 「詳細」.
 // 「もう一度試す」 keeps this page and reads 「接続しています…」 until the attempt ends; 「接続先を変更」 asks first (confirmChange).
 internal sealed class StartupFailureView : StartupBackdrop
