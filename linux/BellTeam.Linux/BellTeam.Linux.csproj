@@ -23,7 +23,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
-    <!-- a540 (contract 1.36, the local form): Google sign-in on this PC, the request QR and the check of the phone's reply, through the library's desktop part. 0.20.1 (contract 1.37) is a development release. -->
+    <!-- a540 (contract 1.36, the local form): Google sign-in on this PC, the request QR and the check of the phone's reply, through the library's desktop part. 0.20.2 (contract 1.39) is accepted by Mint (t10c). -->
     <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.20.2" />
     <!-- The library gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. Android uses the same one. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />

@@ -33,6 +33,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly ContentControl pageBody = new();
     private readonly List<Window> pages = [];
     private readonly ApprovalsHub approvals;
+    private readonly LinuxApprovalBoxDevice? approvalBox;
     private readonly Button approvalsEntry = new() { Classes = { "plain" }, Background = Brushes.White, Foreground = BellTheme.Ink, Padding = new Thickness(14, 8) };
     private readonly Grid galleryLayer = new() { Background = Brushes.Black, IsVisible = false };
     private readonly TextBlock quoteName = new() { FontSize = 13, FontWeight = FontWeight.Bold, Foreground = BellTheme.Violet, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -71,7 +72,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
     public PhoneShell()
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies) { SessionToken = tokens.Load(origin) }, access.PrepareAsync);
-        approvals = new ApprovalsHub(model); approvals.Changed += UpdateApprovalsEntry;
+        // a520a: the Approval Box device of this phone (off until the go-live ruling: AndroidApprovalBoxDevice.Enabled).
+        approvalBox = AndroidApprovalBoxDevice.Create();
+        approvals = new ApprovalsHub(model, approvalBox?.Device); approvalBox?.Attach(approvals); approvals.Changed += UpdateApprovalsEntry;
         PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
@@ -194,7 +197,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         var failed = new DeletionFailures();
         if (await PushRegistration.UnregisterAsync(model) is { } pushFailure) { failed.Add("通知の登録", pushFailure); ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
-        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
+        if (approvalBox is { } device) try { await device.DeleteLocalAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
+        else if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
         try { AccountStore.Local?.SignOutLocal(); } catch (Exception error) { failed.Add("BellTeamの購読の確認", error); }
         if (failed.Any) { ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
         CloseAllPages();
