@@ -23,11 +23,11 @@ public static class AccountStore
 }
 
 // a515n (login-billing 0.18.0, contract 1.24): Approval Box's own instance, "foreign": its own base origin, its own storage (storageName: folder and Keystore alias apart from BellTeam's), web sign-in only,
-// never a native sheet, a purchase or a receipt. The two instances share nothing; signing out of one leaves the other. product.json: approvalBoxAuthUrl, approvalBoxWebReturn (the address Approval Box's operator lists:
+// never a native sheet, a purchase or a receipt. The application context (what the library keeps anyway): the device part is made in Application.OnCreate, before any activity exists. The two instances share nothing; signing out of one leaves the other. product.json: approvalBoxAuthUrl, approvalBoxWebReturn (the address Approval Box's operator lists:
 // exactly approvalbox-websignin://return, Nayuta 2026-11-22: the server compares only the scheme, one fixed string for every BellTeam app; never the https /app/websignin link, which is for Approval Box's own apps). serverClientId is empty: the native Google route is never used here.
 public static class ApprovalBoxAccount
 {
     public const string StorageName = "approvalbox";
     private static LoginBilling? billing;
-    public static LoginBilling? Billing => billing ??= AccountStore.Product("approvalBoxAuthUrl") is { } url ? new LoginBilling(MainActivity.Current, "", url, AccountStore.Product("approvalBoxWebReturn"), StorageName) : null;
+    public static LoginBilling? Billing => billing ??= AccountStore.Product("approvalBoxAuthUrl") is { } url ? new LoginBilling(global::Android.App.Application.Context, "", url, AccountStore.Product("approvalBoxWebReturn"), StorageName) : null;
 }

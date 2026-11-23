@@ -16,7 +16,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../linux/BellTeam.Linux/*.cs" Exclude="../../linux/BellTeam.Linux/Program.cs;../../linux/BellTeam.Linux/App.cs;../../linux/BellTeam.Linux/MainWindow*.cs;../../linux/BellTeam.Linux/Launcher*.cs;../../linux/BellTeam.Linux/*Render.cs;../../linux/BellTeam.Linux/*Fixture.cs;../../linux/BellTeam.Linux/SingleInstance.cs;../../linux/BellTeam.Linux/LinuxAccount*.cs" LinkBase="LinuxViews" />
+    <Compile Include="../../linux/BellTeam.Linux/*.cs" Exclude="../../linux/BellTeam.Linux/Program.cs;../../linux/BellTeam.Linux/App.cs;../../linux/BellTeam.Linux/MainWindow*.cs;../../linux/BellTeam.Linux/Launcher*.cs;../../linux/BellTeam.Linux/*Render.cs;../../linux/BellTeam.Linux/*Fixture.cs;../../linux/BellTeam.Linux/SingleInstance.cs;../../linux/BellTeam.Linux/LinuxAccountAbxAccount.cs;../../linux/BellTeam.Linux/LinuxAccountCard.cs;../../linux/BellTeam.Linux/LinuxAccountGate.cs;../../linux/BellTeam.Linux/LinuxAccountStore.cs" LinkBase="LinuxViews" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeam.png" />
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
@@ -25,7 +25,9 @@
     <AvaloniaResource Include="../../linux/BellTeam.Linux/Theme.axaml" Link="Theme.axaml" />
     <Using Remove="Android.Widget" />
     <Using Remove="Android.Views" />
-    <!-- a520: the shared 決裁箱 screen names the device session's types; Android has no device part (no native engine yet), the hub's device stays null. -->
+    <!-- a520a: the 決裁箱 device part is the Linux one (LinuxAccountAbx{Device,Files,Host}.cs, linked above) on the same C# pc/1 core; only the account (AndroidApprovalBoxAccount) is Android's. libdatachannel v0.24.6 per ABI: android/native/README.md. -->
+    <AndroidNativeLibrary Include="../native/prebuilt/arm64-v8a/libdatachannel.so" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Include="../native/prebuilt/x86_64/libdatachannel.so" Abi="x86_64" />
     <ProjectReference Include="../../windows/BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
