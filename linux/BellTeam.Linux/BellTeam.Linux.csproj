@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <!-- Same assembly name as the Windows app: BellTeam.Core's InternalsVisibleTo("BellTeam") reaches the same render hooks. -->
     <AssemblyName>BellTeam</AssemblyName>
-    <Version>0.2.24</Version>
+    <Version>0.2.25</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
@@ -23,11 +23,22 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
-    <!-- a540 (contract 1.36, the local form): Google sign-in on this PC, the request QR and the check of the phone's reply, through the library's desktop part. 0.20.0 is a development release. -->
-    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.20.0" />
+    <!-- a540 (contract 1.36, the local form): Google sign-in on this PC, the request QR and the check of the phone's reply, through the library's desktop part. 0.20.1 (contract 1.37) is a development release. -->
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.20.1" />
     <!-- The library gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. Android uses the same one. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
+  </ItemGroup>
+  <!-- a540 (Tronie): Google's Desktop client wants its secret at the token exchange (contract 1.37). It is never in git (GitHub push protection refuses it): a release build reads the vault's JSON from the environment
+       (scripts/package-linux-app.sh runs under dotagents-op-run with scripts/linux-google-desktop.env) and only the secret goes into the assembly. Without it the build runs and Google's sign-in answers signin_failed. -->
+  <PropertyGroup Condition="'$(BELLTEAM_GOOGLE_DESKTOP_JSON)' != ''">
+    <GoogleDesktopClientSecret>$([System.Text.RegularExpressions.Regex]::Match($(BELLTEAM_GOOGLE_DESKTOP_JSON), '"client_secret"\s*:\s*"([^"]+)"').Groups[1].Value)</GoogleDesktopClientSecret>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(GoogleDesktopClientSecret)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GoogleDesktopClientSecret</_Parameter1>
+      <_Parameter2>$(GoogleDesktopClientSecret)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>
