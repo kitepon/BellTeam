@@ -28,7 +28,7 @@
     <!-- a520a: the 決裁箱 client is the Linux host part (LinuxAccountAbxHost.cs, linked above) over Kitepon.ApprovalBox.Client; only the account (AndroidApprovalBoxAccount) is Android's. libdatachannel v0.24.6 per ABI: android/native/README.md. -->
     <AndroidNativeLibrary Include="../native/prebuilt/arm64-v8a/libdatachannel.so" Abi="arm64-v8a" />
     <AndroidNativeLibrary Include="../native/prebuilt/x86_64/libdatachannel.so" Abi="x86_64" />
-    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.1.0" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.1.1" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />

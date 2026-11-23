@@ -1,9 +1,9 @@
 #!/bin/sh
-# Puts Kitepon.ApprovalBox.Client 0.1.0 (.NET form of the Approval Box client component, release client-dotnet-v0.1.0) in linux/packages-approval-box, checked against the sha256 of the release. A mismatch removes the file and fails.
+# Puts Kitepon.ApprovalBox.Client 0.1.1 (.NET form of the Approval Box client component, release client-dotnet-v0.1.1) in linux/packages-approval-box, checked against the sha256 of the release. A mismatch removes the file and fails.
 set -eu
 cd "$(dirname "$0")"
-VERSION=0.1.0
-SHA256=0d68751962ba799cc3f00c36dd237d76d5f9f06091315045983fc921d1349a81
+VERSION=0.1.1
+SHA256=624609dc711da5d25c8b96349284dddebf7227002f55005e3cf41dd8d511e9fe
 FILE=Kitepon.ApprovalBox.Client.$VERSION.nupkg
 mkdir -p packages-approval-box
 gh release download "client-dotnet-v$VERSION" -R kitepon/approval-box-apps -p "$FILE" -D packages-approval-box --clobber
