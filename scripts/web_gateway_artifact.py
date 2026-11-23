@@ -226,6 +226,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/agent-launch-error.mjs',
     'src/aiterm-client.mjs',
     'src/aiterm-hooks.mjs',
+    'src/aiterm-native.mjs',
     'src/aiterm-transport.mjs',
     'src/aiterm-wait-process.mjs',
     'src/automatic-configuration-application.mjs',

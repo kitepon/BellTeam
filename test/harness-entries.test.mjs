@@ -436,7 +436,7 @@ for (const name of ['empty', 'seat', 'noaiterm']) {
     await f.apply()
     assert.deepEqual(f.reports, [])
     assert.deepEqual(await f.bytes(), oldBytes(name, f.home))
-    assert.deepEqual(f.commands, [['aiterm-setup', ['harness-entries', '--json', '--home', f.home, '--state-root', AT.vars.stateRoot, '--socket', AT.vars.socket,
+    assert.deepEqual(f.commands, [['aiterm-setup', ['hook-entries', '--json', '--home', f.home, '--state-root', AT.vars.stateRoot, '--socket', AT.vars.socket,
       '--steer-provider', AT.vars.steerProvider, '--codex-binary', AT.vars.codexBinary, '--clients', 'claude,cursor,codex']]])
     const applied = JSON.parse(await f.read('.bellteam-cli-registration/applied.json'))
     assert.deepEqual(applied.aiterm.entries, ['claude:hooks:PreToolUse', 'claude:hooks:PostToolUse', 'claude:hooks:SessionEnd', 'cursor:hooks:afterMCPExecution', 'cursor:hooks:postToolUse', 'codex:hooks:PostToolUse', 'codex:hooks:Stop'])
@@ -704,3 +704,13 @@ test('Caveat: a second pass writes nothing (no CLI write, no batchWrite, hooks.j
   assert.equal((await stat(join(f.home, '.codex/hooks.json'))).ino, inode)
   assert.deepEqual(f.reports, [])
 })
+
+// a532b2 stage 5: Aiterm's `hook-entries` prints the same E1 under its own schema name; no other product may use it.
+test('Aitermの hook-entries のschemaを受け、他の製品の同じschemaと、未知のschemaは拒否する', async () => {
+  const { parseEntries } = await import('../src/harness-entries.mjs')
+  const e1 = { ...AT.e1, schema: 'aiterm.hook-entries.v1' }
+  assert.deepEqual(parseEntries('aiterm', e1).hooks, parseEntries('aiterm', AT.e1).hooks)
+  assert.throws(() => parseEntries('rtk', { ...e1, product: 'rtk' }), /schema is not bellteam\.harness-entries\.v1/u)
+  assert.throws(() => parseEntries('aiterm', { ...e1, schema: 'aiterm.hook-entries.v2' }), /schema is not bellteam\.harness-entries\.v1/u)
+})
+test('E2のaitermは hook-entries を呼ぶ', () => assert.equal(E2_AITERM.command[1], 'hook-entries'))

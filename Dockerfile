@@ -25,7 +25,8 @@ RUN apt-get update \
 # npm itself too (t20 CVEs): the npm bundled with the Node image carries older undici / brace-expansion / glob / minimatch.
 RUN npm install --global npm@latest corepack@latest throughline@latest aiterm-mcp@latest \
   && npm --version && corepack --version && throughline --version \
-  && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)'
+  && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)' \
+  && node -e 'const e=require("/usr/local/lib/node_modules/aiterm-mcp/package.json").exports;if(!e["./native-entry"])process.exit(1)'
 # No AI CLI (Claude Code, Codex, Grok, Cursor) is installed here: the user installs each with 最新版を入れる in AIの認証 into /home/bell/.local (a451, Owner 2026-11-19).
 # RTK（担当ドリリー）。本家のinstall.shがsha256を照合する。~/.localは利用者のCLIの置き場（cursor-cliのvolume）で隠れるため/usr/local/binへ置く。
 # 版を固定する: 最新版の検索はGitHub APIを使い、CIの共有IPでは回数制限で失敗する（2026-11-08）。版の更新はドリリー。

@@ -57,7 +57,7 @@ flowchart LR
     A1["MCP tools over stdio"]
     A2["bins: aiterm-wait, aiterm-transcript-read, aiterm-remote-terminal"]
     A3["package exports"]
-    A4["aiterm-setup harness-entries"]
+    A4["aiterm-setup hook-entries"]
     A5["Steer delivery"]
   end
   subgraph AB["Approval Box / Nayuta"]
@@ -86,7 +86,7 @@ flowchart LR
   TER -->|"X2 remote terminal status, credential-load, serve"| A2
   RT -->|"X3 setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server, state-compat.json, resume-state-cli"| A3
   CONV -->|"X3 child-result preface"| A3
-  RT -->|"X4 hook entries, bellteam.harness-entries.v1"| A4
+  RT -->|"X4 hook entries, aiterm.hook-entries.v1"| A4
   USE -->|"X5 connection stdout: schema, server, token"| B1
   EXE -->|"X6 capability bellteam-requester-wake"| B2
   RT -->|"X7 MCP and hook entries"| B3
@@ -113,8 +113,8 @@ flowchart LR
 | --- | --- | --- | --- |
 | X1 | Aiterm MCP tools, stdio, 0.70.58 ([bellteam-boundary.md, 公開の入口](https://github.com/kitepon/aiterm-mcp/blob/main/docs/architecture/bellteam-boundary.md)) | execution: launch/send/observe/configure/goal; usage: `agent_auth`. Result schemas `aiterm.*`; no Aiterm state layout read | existing contract |
 | X2 | Aiterm bins `aiterm-wait`, `aiterm-transcript-read`, `aiterm-remote-terminal` (same document) | execution: wait receipt JSON, remote-seat transcript; terminals: remote terminal status/credential-load/serve | existing contract |
-| X3 | Aiterm `package.json` `exports`: `setup-node`, `setup-integrations`, `execution-parent-worker`, `execution-native-setup`, `execution-native-server`, `child-result`, `resume-state-cli`, `state-compat.json`. The path is read from the selected package root's `exports`, never a `dist/` path. **Not promised:** `model-handoff-*`, the state layout, the package file inventory | runtime: hook/registration helpers, state-compat declaration, resume-state CLI; conversation: the child-result preface string | bd05 (execution/conversation), bd06 (runtime) |
-| X4 | `aiterm-setup harness-entries --json` (same document) | runtime: Aiterm's hook items for the single CLI-file writer | bd14 |
+| X3 | Aiterm `package.json` `exports`: `setup-node`, `setup-integrations`, `execution-parent-worker`, `execution-native-setup`, `execution-native-server`, `native-entry` (0.70.109+; replaces the three execution entries, a532b2), `child-result`, `resume-state-cli`, `state-compat.json`. The path is read from the selected package root's `exports`, never a `dist/` path. **Not promised:** `model-handoff-*`, the state layout, the package file inventory | runtime: hook/registration helpers, state-compat declaration, resume-state CLI; conversation: the child-result preface string | bd05 (execution/conversation), bd06 (runtime) |
+| X4 | `aiterm-setup hook-entries --json` (schema `aiterm.hook-entries.v1`, the same E1 document; Aiterm 0.70.109+, a532b2 stage 5; `harness-entries` v1 stays accepted until Aiterm drops it) | runtime: Aiterm's hook items for the single CLI-file writer | bd14 |
 | X5 | `approval-box connection export --json`, `approval-box.connection.v1` ([connection-export.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/connection-export.md)) | usage: secrets approval owner validates schema and server; replaces reading the private config | bd02 |
 | X6 | `approval-box version --json`, capability `bellteam-requester-wake` (same document) | execution: idle-close policy for every harness; replaces inferring from the hook process tree | bd03 |
 | X7 | `approval-box harness-entries --json` ([harness-entries.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/harness-entries.md)) | runtime: MCP and hook entries written by BellTeam only | bd14 |

@@ -1,9 +1,10 @@
+import { isNativeRegistration } from './aiterm-native.mjs'
 // Product lifecycle (Aiterm runtime-adoption.ts). argv, never env: spawned seats/hooks must not inherit it.
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 
 /** AitermClient options for a candidate that starts in standby (no recovery/claims until activate). */
 export function standbyAitermOptions(options, { generation, scope }) {
-  if (!TOKEN.test(generation ?? '') || !TOKEN.test(scope ?? '') || !options?.args?.includes('--execution-interrupt'))
+  if (!TOKEN.test(generation ?? '') || !TOKEN.test(scope ?? '') || !isNativeRegistration(options?.args))
     throw Object.assign(new Error('AITERM_STANDBY_INVALID'), { code: 'AITERM_STANDBY_INVALID' })
   return { ...options, args: [...options.args, '--runtime-adoption', 'standby', '--runtime-generation', generation, '--runtime-scope', scope] }
 }
