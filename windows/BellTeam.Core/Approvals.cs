@@ -89,6 +89,7 @@ public static class Approvals
         DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
     public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
     public const string DeviceSigningIn = "ブラウザでサインインしています…";
+    public const string DeviceHandoffHow = "Approval Boxのアプリで、設定の「ほかの端末をログインさせる」から読み取ってください。", DeviceHandoffStart = "QRでサインイン";
     // Delta (a490j review): never the runtime's own reason (an exception text); one fixed line.
     public const string DeviceReconnecting = "つなぎ直しています";
     public const string AmendedPlain = "内容が直されました。もう一度確かめてください。";   // client-v0.5.md section 7: a 409 on an answer
@@ -281,6 +282,11 @@ public static class Approvals
             FiledToday = list.Count(item => Today(item.CreatedAt)),
         };
     }
+    /// <summary>Approval Box's order of the open list (pending and held): 急ぎ度 high first, the nearer 期限 first (none after any), then the older 受付 first. Done ones are the caller's (newest answer first).</summary>
+    public static IEnumerable<ViewDecision> OpenOrder(IEnumerable<ViewDecision> items)
+        => items.OrderBy(item => item.Urgency switch { "high" => 0, "low" => 2, _ => 1 })
+            .ThenBy(item => DateTimeOffset.TryParse(item.Deadline, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : DateTimeOffset.MaxValue)
+            .ThenBy(item => DateTimeOffset.TryParse(item.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var created) ? created : DateTimeOffset.MinValue);
     public static ApprovalEntryView EntryView(ApprovalSummary? summary, ApprovalFailure? status)
     {
         var pending = summary?.Pending ?? 0;

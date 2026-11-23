@@ -57,9 +57,11 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
     }
 
     /// <summary>The stand-in device session: a book the scene fills (K-1 to K-5 open, K-6 answered, K-7 withdrawn) and an answer sink that closes the decision in the book like the connector's result frame.</summary>
-    internal sealed class Demo : IDeviceDecisions
+    internal sealed class Demo : IApprovalSource
     {
         public DecisionBook Book { get; } = new();
+        public IReadOnlyList<ViewDecision> Decisions => [.. Book.All.Select(DeviceDecisionView.Of)];
+        public void Start() { }
         public RuntimeState State { get; set; } = new(RuntimeStatus.Live);
         public event Action? Changed;
         public List<(string Id, string? Option, string? Text)> Answers { get; } = [];
@@ -68,7 +70,7 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
         /// <summary>What the next answer is acknowledged with ("ok" closes the decision in the book like the result frame; anything else leaves it open).</summary>
         public string Ack { get; set; } = "ok";
         public void Raise() => Changed?.Invoke();
-        public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text)
+        public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text, long version)
         {
             Answers.Add((decisionId, optionId, text));
             if (Ack != "ok") return Task.FromResult(new SendOutcome(Ack));

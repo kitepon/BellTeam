@@ -124,7 +124,7 @@ public static class UiChecks {
       var settings = new SettingsStore(dir); settings.Save(new LocalSettings { ServerUrl = "https://example.test/" });
       Directory.CreateDirectory(Path.Combine(dir, "approvals-files")); File.WriteAllText(Path.Combine(dir, "approvals-files", "x"), "x");
       var approvalBox = new ApprovalBoxDevice(dir, new ApprovalBoxAccount("http://127.0.0.1:1", new Kitepon.LoginBilling.Desktop.MemoryPassStore()));
-      Check(File.Exists(Path.Combine(dir, "peer-channel-device.key")), "試験の前提: 決裁箱の端末の鍵が作られていません。");
+      File.WriteAllText(Path.Combine(dir, "peer-channel-device.key"), "x");   // the pc/1 core is built only when peer_channel is true: the check plants what it would have kept
       var window = new MainWindow(new Workspace(), persistPlacement:false, settings: settings, approvalBox: approvalBox); var shown = new List<(string, string)>(); window.ShowResult = (title, body) => shown.Add((title, body));
       // R1: a file that cannot be removed stops the deletion, names it, keeps what comes after, and tells no success; pressing again finishes it.
       var held = new FileStream(Path.Combine(dir, "peer-channel-device.key"), FileMode.Open, FileAccess.Read, FileShare.None); var phase = window.Startup;

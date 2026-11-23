@@ -47,7 +47,7 @@ public sealed class ApprovalsWindowTests
         var texts = Texts(rig.Window);
         Assert.Contains("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", texts);
         Assert.Contains("工程表とはつながっていません", texts);          // the outside decision is shown, not hidden
-        Assert.Contains(LatticeChart.UnknownMember, texts);              // a requester not on the roster
+        Assert.Contains(texts, text => text.StartsWith("Claude Code", StringComparison.Ordinal)); Assert.Equal(2, texts.Count(text => text == "外部から"));   // a bot id that is not on the roster is no BellTeam member (origin rule, client-v0.5): it draws as an outside decision
         Assert.DoesNotContain(texts, text => text.Contains("K-1", StringComparison.Ordinal) || text.Contains("bot-", StringComparison.Ordinal));
         Assert.DoesNotContain(texts, text => text == "端末で受信" || text == "サーバー経由");   // one source: no source tags
         Assert.DoesNotContain(rig.Server.Sent, call => call.Path is "/api/approvals/summary" or "/api/approvals" or "/api/approvals/events");
@@ -86,7 +86,7 @@ public sealed class ApprovalsWindowTests
         var device = new ApprovalsFixture.Demo().Fill();
         using var rig = Open(device: device); Until(() => rig.Page.Settled);
         rig.Page.Select("K-1"); rig.Page.Choose("o1"); device.Ack = "refused:stale_version"; Press(Find(rig.Window, "confirm"));
-        Until(() => rig.Page.AnswerStep is null && Texts(rig.Window).Contains("答える前に、モリーが内容を直しました。もう一度、内容を確かめてください。"));
+        Until(() => rig.Page.AnswerStep is null && Texts(rig.Window).Contains(Approvals.AmendedPlain));
         rig.Page.Select("K-2"); rig.Page.Choose("o1"); device.Ack = "unknown"; Press(Find(rig.Window, "confirm"));
         Until(() => rig.Page.AnswerStep == "confirm" && Texts(rig.Window).Contains(Approvals.DeviceUnknown));
         device.Ack = "failed"; Press(Find(rig.Window, "confirm"));
@@ -249,6 +249,22 @@ public sealed class ApprovalsWindowTests
         Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
         rig.Hub.SetSignIn(false, "サインインできませんでした。");
         Assert.Contains("サインインできませんでした。", Texts(rig.Window)); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
+    });
+
+    [Fact]
+    public void SignedOutOffersTheBrowserAndTheQrHandoffAndTheHandoffShowsTheQrTheCodeAndTheCheckNumberWithAnUndo() => RunSta(() =>
+    {
+        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut);
+        using var rig = Open(device: device); Until(() => rig.Page.Settled);
+        var started = 0; var cancelled = 0; rig.Hub.SignInApprovalBox = () => { }; rig.Hub.SignInByHandoff = () => started++; rig.Hub.CancelSignIn = () => cancelled++; device.Raise();
+        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Press(Find(rig.Window, "legacy:" + Approvals.DeviceHandoffStart)); Assert.Equal(1, started);
+        rig.Hub.SetSignIn(true); rig.Hub.SetHandoff(new ApprovalHandoff("LB1:qr", "0123-4567", "042", DateTimeOffset.UtcNow.AddMinutes(5)));
+        var texts = Texts(rig.Window);
+        Assert.Contains(Approvals.DeviceHandoffHow, texts); Assert.Contains(StoreAccountText.HandoffCode + " 0123-4567", texts); Assert.Contains(StoreAccountText.HandoffCheckNumber + " 042", texts); Assert.DoesNotContain(Approvals.DeviceSignedOut, texts);
+        Assert.Contains(LogicalTree.Find<FrameworkElement>(rig.Window.Content), element => element is QrView);
+        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
+        rig.Hub.SetHandoff(null); rig.Hub.SetSignIn(false); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
+        Assert.Equal(5, rig.Page.Pending.Count);
     });
 
     [Fact]

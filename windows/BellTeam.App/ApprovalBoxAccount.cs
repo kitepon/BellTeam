@@ -21,6 +21,23 @@ internal sealed class ApprovalBoxAccount
         billing = new DesktopLoginBilling(new Uri(this.origin, "/auth/v1").ToString(), this.store, handler);
     }
 
+    /// <summary>Approval Box's /v1 (the same origin as /auth/v1): every request carries the pass as Authorization: Bearer and a renewed pass replaces the kept one (library handler). The pass is never logged.</summary>
+    internal Uri V1Base => new(origin, "/v1/");
+    internal HttpClient CreateV1Client(HttpMessageHandler? inner = null) => new(billing.CreateHttpHandler(inner ?? new HttpClientHandler())) { BaseAddress = V1Base, Timeout = Timeout.InfiniteTimeSpan };
+    /// <summary>The handoff sign-in (library 1.20): this PC shows a QR the Approval Box app on a signed-in phone reads and approves; the pass comes back to this PC. Works for an Apple account too (no Apple sign-in on Windows).</summary>
+    internal Task<LoginStart?> StartHandoffAsync(string label, CancellationToken ct) => billing.StartLoginAsync(label, ct);
+    internal Task WaitForHandoffAsync(CancellationToken ct) => billing.WaitForPassAsync(ct);
+    /// <summary>GET /v1/auth/config (no pass): the switch Approval Box owns. true = the app moved to /pc/v1; false or no such field = /v1 (client-v0.5 5.3). null = could not be read.</summary>
+    internal async Task<bool?> ReadPeerChannelAsync(HttpMessageHandler? inner, CancellationToken ct)
+    {
+        using var http = new HttpClient(inner ?? new HttpClientHandler(), disposeHandler: inner is null) { BaseAddress = V1Base, Timeout = TimeSpan.FromSeconds(15) };
+        using var response = await http.GetAsync("auth/config", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        using var document = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return document.RootElement.TryGetProperty("peer_channel", out var field) && field.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False ? field.GetBoolean() : false;
+    }
+    /// <summary>The pass was refused or ended (a 401): it is dropped and the sign-in screen opens.</summary>
+    internal void DropPass() => store.Delete();
     internal bool SignedIn { get { try { return billing.PassKind != PassKind.None; } catch (LoginBillingException) { return false; } } }
 
     /// <summary>The system browser opens Approval Box's web sign-in and the loopback return brings the pass back (Windows, Nayuta/Delta).</summary>

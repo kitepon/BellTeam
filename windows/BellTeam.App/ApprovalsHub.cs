@@ -9,6 +9,9 @@ namespace BellTeam.App;
 /// <summary>What the Waiting screen shows (peer-channel-signin.md section 3): the typed code (16 characters, grouped), the QR text and when they stop being valid.</summary>
 internal sealed record ApprovalOffer(string Code, string Qr, DateTimeOffset ExpiresAt);
 
+/// <summary>The Approval Box sign-in by handoff: the QR the phone's app reads, the short code and the check number to compare, and when they stop being valid.</summary>
+internal sealed record ApprovalHandoff(string Qr, string ShortCode, string CheckNumber, DateTimeOffset ExpiresAt);
+
 /// <summary>
 /// The one reader of 決裁箱 for this app (screen-spec "入口"): this device's peer-channel session (the list is the device's book only since the /v1 close, 2026-12-12) plus the id-level link
 /// lookup (<see cref="ApprovalLinks"/>) for the badge and the 工程とのつながり panel; tells the entry row and the window on the UI thread. Saves nothing.
@@ -23,7 +26,7 @@ internal sealed class ApprovalsHub : IDisposable
     private readonly CancellationTokenSource life = new();
     private string origin = "";
     /// <summary>This device's peer-channel session while the device part is on (null: it is off: the screen says so).</summary>
-    internal IDeviceDecisions? Device { get; }
+    internal IApprovalSource? Device { get; }
     internal ApprovalLinks Links { get; } = new();
     /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
     internal Action? SignInApprovalBox { get; set; }
@@ -31,6 +34,10 @@ internal sealed class ApprovalsHub : IDisposable
     internal bool SigningIn { get; private set; }
     internal string? SignInNote { get; private set; }
     internal Action? CancelSignIn { get; set; }
+    /// <summary>Starts the sign-in by handoff (set with SignInApprovalBox); while it waits the hub holds the QR to show, and CancelSignIn ends it.</summary>
+    internal Action? SignInByHandoff { get; set; }
+    internal ApprovalHandoff? Handoff { get; private set; }
+    internal void SetHandoff(ApprovalHandoff? handoff) { Handoff = handoff; Post(() => Changed?.Invoke()); }
     /// <summary>NeedsApproval -> Waiting: the code and QR this device shows while a verified device admits it (5.3). Null offer = none open; the note says why the last one ended.</summary>
     internal ApprovalOffer? Offer { get; private set; }
     internal string? OfferNote { get; private set; }
@@ -39,7 +46,9 @@ internal sealed class ApprovalsHub : IDisposable
     internal void SetOffer(ApprovalOffer? offer, string? note = null) { Offer = offer; OfferNote = note; Post(() => Changed?.Invoke()); }
     internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Post(() => Changed?.Invoke()); }
     /// <summary>The device's decisions as the screen draws them, each joined with its chart link when that is known.</summary>
-    internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Device.Book.All.Select(DeviceDecisionView.Of).Select(Links.Join)];
+    internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Approvals.OpenOrder(Device.Decisions.Where(item => item.Status is "pending" or "held")).Concat(Device.Decisions.Where(item => item.Status is not ("pending" or "held"))).Select(decision => ApprovalOriginRule.Apply(decision, Roster())).Select(Links.Join)];
+    // The BellTeam members the origin rule reads (id, name as the app draws it); empty before the first connect.
+    private IReadOnlyList<(string Id, string Name)> Roster() => [.. workspace.Bots.Select(bot => (bot.Id, bot.DisplayName))];
     /// <summary>The counts of the entry row and the toolbar: what the device holds (null without a device).</summary>
     internal ApprovalSummary? Summary => Device is null ? null : Approvals.SummaryOf(DeviceViews, DateTimeOffset.UtcNow);
     /// <summary>The device's book, connection or links changed: the open window repaints.</summary>
@@ -52,7 +61,7 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>The summary or the device's state changed (the entry row repaints).</summary>
     internal event Action? Changed;
 
-    internal ApprovalsHub(Workspace workspace, bool autostart = true, IDeviceDecisions? device = null)
+    internal ApprovalsHub(Workspace workspace, bool autostart = true, IApprovalSource? device = null)
     {
         this.workspace = workspace; this.autostart = autostart; Device = device;
         if (device is not null) device.Changed += () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); });

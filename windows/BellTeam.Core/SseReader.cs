@@ -23,7 +23,10 @@ public static class SseReader
     }
 
     /// <summary>Yields each event's <c>event:</c> name (null if absent) and joined data text. <paramref name="onActivity"/> runs for every line, heartbeat comments included.</summary>
-    public static async IAsyncEnumerable<(string? Name, string Data)> ReadRawAsync(Stream stream, Action? onActivity, [EnumeratorCancellation] CancellationToken token = default)
+    public static IAsyncEnumerable<(string? Name, string Data)> ReadRawAsync(Stream stream, Action? onActivity, CancellationToken token = default) => ReadRawAsync(stream, onActivity, null, token);
+
+    /// <summary>The same, and <paramref name="onId"/> gets the <c>id:</c> of each event as it is read (the value a client sends back as Last-Event-ID to resume).</summary>
+    public static async IAsyncEnumerable<(string? Name, string Data)> ReadRawAsync(Stream stream, Action? onActivity, Action<string>? onId, [EnumeratorCancellation] CancellationToken token = default)
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, true, leaveOpen: true);
         var data = new List<string>();
@@ -39,6 +42,7 @@ public static class SseReader
             }
             else if (line.StartsWith("data:", StringComparison.Ordinal)) data.Add(Field(line, 5));
             else if (line.StartsWith("event:", StringComparison.Ordinal)) name = Field(line, 6);
+            else if (line.StartsWith("id:", StringComparison.Ordinal)) onId?.Invoke(Field(line, 3));
         }
     }
 

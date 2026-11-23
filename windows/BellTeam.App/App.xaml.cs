@@ -470,7 +470,7 @@ public partial class App : Application
             var access = new DesktopAccess();
             var workspace = new Workspace(origin => new BellApi(origin, cookies: access.Cookies), access.RestoreAsync);
             var notifications = new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.BeginInvoke(() => _ = main!.OpenNotificationAsync(server, target)));
-            main = new MainWindow(workspace, access: access, notifications: notifications, approvalBox: ApprovalBoxDevice.Enabled ? new ApprovalBoxDevice(SettingsStore.UserDirectory) : null);
+            main = new MainWindow(workspace, access: access, notifications: notifications, approvalBox: new ApprovalBoxDevice(SettingsStore.UserDirectory));
             MainWindow = main;
             main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show("通知の終了処理を完了できませんでした。" + error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
             main.Show();
