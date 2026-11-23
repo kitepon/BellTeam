@@ -36,11 +36,6 @@ public sealed class PhoneSettingsPage : ScrollViewer
         column.Children.Add(Card(connection));
 
         column.Children.Add(Card(new AccountCard(token)));
-        column.Children.Add(Card(new HomeSessionsCard(workspace.Management.Api, token, AccountStore.Billing is { PassKind: Kitepon.LoginBilling.PassKind.Store } store ? async passId =>
-        {
-            try { await store.StopAsync(passId); }
-            catch (Kitepon.LoginBilling.LoginBillingException error) { throw new InvalidOperationException(StoreAccountText.Failure(error.Code, error.Reason)); }
-        } : null, logout: async () => { if (AccountStore.Home is { } home) await home.EndAsync(token); signOut(); })));   // a529n: the phone (store pass) can shut a device out; the card hides itself on a server without the route
 
         var billing = new StackPanel();
         billing.Children.Add(CardTitle(SettingsIcons.Card, "利用と課金", 17));
