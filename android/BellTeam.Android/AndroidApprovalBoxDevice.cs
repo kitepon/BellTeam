@@ -19,7 +19,21 @@ internal sealed class AndroidApprovalBoxAccount(LoginBilling billing, Uri origin
 
     // K of the Approval Box account, for a first registry only; it never leaves this process except in that registry on Approval Box's own server.
     public async Task<string> AccountAsync(CancellationToken ct) => (await billing.CheckAsync()).K;
+#if DEBUG
+    // Lab only (a debug build whose switch file names approval-box's local dev server): the dev server's fake id token in place of the web sign-in (Chrome older than the Auth Tab has no way to return).
+    public async Task SignInAsync(CancellationToken ct)
+    {
+        if (ApprovalBoxAccount.LabUrl is not { } lab) { await billing.SignInWebAsync(MainActivity.Current, "google", false).WaitAsync(ct); return; }
+        using var http = new HttpClient();
+        await billing.SignInForTestingAsync("apple", async nonce =>
+        {
+            using var reply = await http.PostAsync(new Uri(lab).GetLeftPart(UriPartial.Authority) + "/dev/id-token", new StringContent(System.Text.Json.JsonSerializer.Serialize(new { provider = "apple", nonce, sub = "dev-person" }), System.Text.Encoding.UTF8, "application/json"), ct);
+            return System.Text.Json.JsonDocument.Parse(await reply.Content.ReadAsStringAsync(ct)).RootElement.GetProperty("id_token").GetString()!;
+        }, "dev-android", false, false).WaitAsync(ct);
+    }
+#else
     public Task SignInAsync(CancellationToken ct) => billing.SignInWebAsync(MainActivity.Current, "google", false).WaitAsync(ct);
+#endif
     public Task SignOutAsync(CancellationToken ct) => billing.SignOutAsync().WaitAsync(ct);
     // The account was deleted (4410): the pass goes too. A record the library cannot remove stays; the next sign-out or sign-in replaces it.
     public void ClearPass() => _ = Task.Run(async () => { try { await billing.SignOutAsync(); } catch (LoginBillingException) { } });
@@ -29,13 +43,13 @@ internal sealed class AndroidApprovalBoxAccount(LoginBilling billing, Uri origin
 internal static class AndroidApprovalBoxDevice
 {
     // shortcut: until the go-live ruling of Delta and Nayuta the part is off, like the PC's BELLTEAM_APPROVAL_BOX_DEVICE; a debug build switches it on with a file in the app's files (adb shell run-as dev.kitepon.bellbot touch files/approval-box-device). Replace with the product's own switch at go-live.
-    internal static bool Enabled => ApprovalBoxAccount.Billing is not null && File.Exists(Path.Combine(FilesDir, "approval-box-device"));
+    internal static bool Enabled => ApprovalBoxAccount.Billing is not null && File.Exists(ApprovalBoxAccount.Switch);
 
     private static string FilesDir => global::Android.App.Application.Context.FilesDir!.AbsolutePath;
 
     internal static LinuxApprovalBoxDevice? Create()
     {
-        if (!Enabled || ApprovalBoxAccount.Billing is not { } billing || AccountStore.Product("approvalBoxAuthUrl") is not { } url) return null;
+        if (!Enabled || ApprovalBoxAccount.Billing is not { } billing || ApprovalBoxAccount.AuthUrl is not { } url) return null;
         return new LinuxApprovalBoxDevice(Path.Combine(FilesDir, "approval-box"), new AndroidApprovalBoxAccount(billing, new Uri(new Uri(url).GetLeftPart(UriPartial.Authority))), "android");
     }
 }
