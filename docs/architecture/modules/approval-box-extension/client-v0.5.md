@@ -21,7 +21,7 @@ Why it exists: on 2026-11-24 the Owner's iPhone showed 0 decisions and 「再接
 | F6 entitlement gate | body gates `/api/approvals/*` | Approval Box gates (402 on every route but `GET /me`); the body gate stays for the body routes above only | Delta |
 | Link engine feed | F1 stream with the F7 session, plus the hosted daemon union (feed v0.4) | **unchanged** until the app moves; then the daemon only (feed v0.4 section 6) | Delta, Molly |
 | Hosted daemon, `/pc/v1` pairing | needed for the Owner's view | needed only for the link engine feed after the move; **no longer needed for any screen** | Molly, Nayuta |
-| Web view | dropped (browser holds no device keys) | possible again through the `v1` adapter (needs Nayuta's origin allowance, question Q2) | Admi |
+| Web view | dropped (browser holds no device keys) | **not built** (Admi 2026-11-24: there is no `web/` and no Web screen since #2239; the gateway answers `GET /` with 410 and its ended notice, which already says to use the apps). A Web 決裁箱 would be a new task against this contract once Nayuta allows BellTeam's web origin (Q2) | Admi |
 
 ## 3. Function diagram
 
@@ -90,7 +90,7 @@ What is stored where: decision content lives only in Approval Box (until its own
 
 ### 5.1 The port (one per client)
 
-`ApprovalSource` is the only thing the screen talks to. It has these members and no others: `state` (below), `decisions` (open list + recent answered/cancelled), `decision(id)`, `answer(id, optionId|text, version)`, `hold(id)`, `unhold(id)`, `attachment(decisionId, attachmentId)`, `events` (change notifications, resumable), `signIn / signOut`, `retryNow`. The screen never names `/v1` or `/pc/v1`. The states are the signin.md machine; the `v1` adapter uses this subset, the `peer` adapter all of it:
+`ApprovalSource` is the only thing the screen talks to. It has these members and no others: `state` (below), `decisions` (open list + recent answered/cancelled), `decision(id)`, `answer(id, optionId|text, version)`, `hold(id)`, `unhold(id)`, `attachment(decisionId, attachmentId)`, `events` (change notifications, resumable), `start / stop`, `retryNow`, and, for the peer adapter, `requestApproval / cancelApproval` (NeedsApproval to Waiting, with the code and QR the screen draws). **Sign-in and sign-out belong to the host** (the pass is login-billing's; Nayuta's component only follows it: `start()` after sign-in, `stop()` on sign-out; SignedOut and SigningIn are host screens, 2026-11-24 review of client-component.md draft 0.1). The screen never names `/v1` or `/pc/v1`. The states are the signin.md machine; the `v1` adapter uses this subset, the `peer` adapter all of it:
 
 | State | `v1` adapter | `peer` adapter |
 | --- | --- | --- |
@@ -111,7 +111,7 @@ Base `https://approval-box.kitepon.dev/v1`. Every call carries `Authorization: B
 | `GET /me` | `plan` (`active` or `expired`), `expires_at`; the Owner's account is exempt (answers active) |
 | `GET /decisions?status=pending,held&limit=50&cursor=` and `?status=answered,cancelled` | the two lists in Approval Box's order; follow `next_cursor` |
 | `GET /decisions/{id}` | one decision (also after a `decision.updated` event) |
-| `POST /decisions/{id}/answer` `{option_id?, text?, version}` + `Idempotency-Key: <uuid>` | answer; `409 conflict` carries the current decision in `error.decision`: replace the screen, never retry with the old version |
+| `POST /decisions/{id}/answer` `{option_id?, text?, version}` + `Idempotency-Key: <uuid>` (**a field that is not set is left out of the body, never sent as `null`**: the server refuses `null` with 400; found by Anis on Windows 0.8.0, fixed in 0.8.1) | answer; `409 conflict` carries the current decision in `error.decision`: replace the screen, never retry with the old version |
 | `POST /decisions/{id}/hold`, `…/unhold` + `Idempotency-Key` | hold and return |
 | `GET /decisions/{id}/attachments`, `GET …/attachments/{attachment_id}` | read request and answer attachments. **BellTeam does not upload or delete** (no `attachment_ids` on answer, no `POST` or `DELETE` on attachments): not in the screen design; adding it is a later change of this contract |
 | `GET /events` (SSE) | `decision.created|updated|deleted`, `setup.updated`; `Last-Event-ID` resumes; reconnect 1 s doubling to 60 s, no cap (a list re-read on every reconnect heals a missed event). Not used when the app is in the background: no push |
@@ -165,7 +165,7 @@ Every state leaves by the action on the same screen or by the next launch; none 
 | Rapi (iPhone, Mac) | Put `ApprovalBoxLink` behind the `ApprovalSource` port; add the `v1` adapter (5.2); selector (5.3); keep the peer adapter (`PeerDevice`) inactive until `peer_channel` is true; states of section 7; `origin-cases.json`; keep `ApprovalLinkResolver` | read `/api/approvals` list or answer routes; copy Approval Box app code |
 | Anis (Windows) | Same port and `v1` adapter in C#; the C# pc/1 core stays behind the selector and must not start while `peer_channel` is false; retire the device flag | start the core by a local flag |
 | Neon (Linux, Android) | Same; Linux arm64 and Android arm64 need no libdatachannel while the `v1` adapter is the one in use (the peer engine is needed only after the move); retire `BELLTEAM_APPROVAL_BOX_DEVICE` and the Android file switch | build a device-only list |
-| Admi (Web) | The `v1` adapter in the browser if Nayuta allows BellTeam's web origin for `/auth/v1` and `/v1` (Q2); the pass in the library's cookie or memory carrier, not in BellTeam's account; otherwise the entry says 「この画面は、アプリで使えます」 and nothing else | store the pass in BellTeam storage |
+| Admi (Web) | Nothing now: the Web view is not built and the ended notice covers the 'use the app' line. The body's `/api/approvals` list, answer, hold, unhold, attachments, events and summary routes have no Web caller, so a490h2 needs nothing from Web | |
 | Nayuta | Answers to Q1-Q4; the interface of the client component | |
 
 ## 9. Order and the retargeted removal (a490h2)
