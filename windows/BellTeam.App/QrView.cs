@@ -9,11 +9,11 @@ namespace BellTeam.App;
 internal sealed class QrView : FrameworkElement
 {
     private readonly BitArray[] rows;
-    public QrView(string payload, double size)
+    public QrView(string payload, double size, string name = "QR")
     {
         using var data = new QRCodeGenerator().CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
         rows = data.ModuleMatrix.ToArray(); Width = Height = size; SnapsToDevicePixels = true;
-        System.Windows.Automation.AutomationProperties.SetName(this, "QR");
+        System.Windows.Automation.AutomationProperties.SetName(this, name);
     }
     protected override void OnRender(DrawingContext context)
     {
