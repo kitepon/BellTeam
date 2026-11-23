@@ -31,6 +31,7 @@ import { MachineStreamReaders } from './machine-stream-reader.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
+import { SeatViewShadow } from './seat-view-shadow.mjs'
 import { isRemoteBot, seatTarget, KEY_RELOAD, remoteSeatNotStarted } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
@@ -251,6 +252,7 @@ export class AitermTransport {
       void this.reviewAccounts()
     }) ?? null
     this.unconfirmedJobs = new Map() // job -> {botId, session, seq, retire}: accepted deliveries whose completion is unknown
+    this.seatViewShadow = new SeatViewShadow()
     this.workState = new CurrentWork({ now, activityPath, reportActivity: () => this.reportError({ code: 'RESTART_ACTIVITY_UNAVAILABLE', module: 'execution' }), notify: id => this.activity.emit({ bot: { id } }), observed: () => this.retireSettledUnconfirmed() })
     this.restarts = new Map()
     this.sessionState = new BotSessionState({
@@ -1624,10 +1626,11 @@ export class AitermTransport {
     const sent = exclusions && exclusionsMeta(exclusions, read.targets)
     read.digest = sent?.digest ?? null
     let result
-    try { result = await client.call('pty_list', {}, { meta: sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : CALLER_META })
+    try { result = await client.call('pty_list', { include: ['turn', 'own_work'] }, { meta: sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : CALLER_META })
     } catch (error) { this.workState.endRead(read, null); throw error }
     const data = result?._meta?.['aiterm/seat_turns']
     this.workState.endRead(read, data)
+    try { this.seatViewShadow.compare(data, result) } catch { this.seatViewShadow.unavailable++ }
     if (this.seatMcpSeen && Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))

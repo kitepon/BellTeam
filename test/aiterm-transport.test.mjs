@@ -1261,8 +1261,8 @@ test('BellTeamが始めていないターンを見つけたら、終わるまで
   const said = []
   const options = { onInterim: (botId, groupId, words) => said.push([botId, groupId, words]), groupId: () => 'g-1' }
   assert.equal(await transport.watchSeatTurns([bot], options), true)
-  // a41 (current-work.md): the exclusion list rides every seat read; none configured = an empty list with its digest.
-  assert.deepEqual([calls[0][0], calls[0][1], calls[0][2].meta['aiterm/caller'], calls[0][2].meta['aiterm/own_work_exclusions'].entries], ['pty_list', {}, 'BellTeam', []])
+  // a41 (current-work.md): the exclusion list rides every seat read; none configured = an empty list with its digest. a532b2 stage 3: the same call asks for the generic turn / own_work (shadow).
+  assert.deepEqual([calls[0][0], calls[0][1], calls[0][2].meta['aiterm/caller'], calls[0][2].meta['aiterm/own_work_exclusions'].entries], ['pty_list', { include: ['turn', 'own_work'] }, 'BellTeam', []])
   const item = {
     id: 'job-1', botId: 'bot-a', botName: 'リリーバイス', status: 'running', startedAt: '2026-10-13T12:45:27.000Z',
     context: 'self', contextId: 'bot-a', groupId: 'g-1', target: 'bot-a', steered: false,

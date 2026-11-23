@@ -17,6 +17,9 @@ import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
 
+// pty_list `include` support per connection (a532b2 stage 3).
+const INCLUDE_SUPPORT = new WeakMap()
+
 // Client.listTools() makes the SDK validate every later callTool result against the tool's output schema; Aiterm's typed
 // refusals (structuredContent on isError) then throw -32602 and the answer is lost (delivery-details.md 2026-11-13).
 const listTools = (sdk, params) => sdk.request({ method: 'tools/list', ...(params ? { params } : {}) }, ListToolsResultSchema)
@@ -198,6 +201,17 @@ export class AitermClient {
       } catch { /* Nothing was issued by the capability read. */ }
       // shortcut: an Aiterm without claude_login reads the list with its own login (the behaviour before a04); require it once every body carries it.
       if (!supported) { const { claude_login: _login, ...rest } = args; args = rest }
+    }
+    // a532b2 stage 3 (seat-view-shadow.md): `include` (Aiterm >= 0.70.108) adds the generic turn / own_work to pty_list rows; an Aiterm
+    // without it gets the same call without it. Read once per connection (the poll runs every few seconds).
+    if (name === 'pty_list' && Object.hasOwn(args, 'include')) {
+      let supported = INCLUDE_SUPPORT.get(callClient)
+      if (supported === undefined) {
+        try { supported = (await listTools(callClient)).tools.some(tool => tool.name === 'pty_list' && tool.inputSchema?.properties?.include?.type === 'array') }
+        catch { supported = false } // not cached below, so the next poll asks again
+        if (supported) INCLUDE_SUPPORT.set(callClient, true)
+      }
+      if (!supported) { const { include: _include, ...rest } = args; args = rest }
     }
     // a471-switch-harness: an Aiterm that does not list the machine harness fails the call with a plain validation error; read its schema instead.
     if (name === 'agent_launch' && args.harness === 'claude-machine') {

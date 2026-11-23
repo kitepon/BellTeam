@@ -6,49 +6,46 @@ Owner: execution (Kiro). Order: Tronie 2026-11-23 (stage 3 starts now as a shado
 
 ```mermaid
 flowchart LR
-  subgraph AT["Aiterm 0.70.106 (public, generic)"]
-    PL["pty_list sessions[]: session_id, harness, launch_id, last_input_at, limit_end, attached"]
-    PO["pty_observe: state idle/busy, harness_alive, process_identity, activity{cursor, background_tasks, post_startup_process_count}"]
-    TR["aiterm-transcript-read: whole vendor lines + cursor (local or over the terminal's ssh)"]
-    FS["forward_status{id}: port, ready, ready_at"]
-    OLD["_meta aiterm/seat_turns (caller opt-in): rows {turn, own_work, route_since}, unread  [to be dropped]"]
+  subgraph AT["Aiterm (public, generic)"]
+    PL["pty_list include [turn, own_work] (0.70.108): sessions[] rows with turn, own_work, limit_end"]
+    OLD["same call: _meta aiterm/seat_turns rows {turn, own_work, route_since}, unread  [dropped in Elegg's final release]"]
+    FS["forward_status{id}: port, ready, ready_at (step 2)"]
   end
   subgraph BT["BellTeam execution"]
-    POLL["SeatTurns.poll -> transport.seatTurns (unchanged: still feeds CurrentWork from OLD)"]
-    SHADOW["seat-view-shadow: derives the same view from PL / PO / TR / FS"]
-    CMP["compare per field and harness, count, log a difference once per seat and minute"]
+    POLL["SeatTurns.poll -> transport.seatTurns: ONE pty_list per tick"]
+    SHADOW["seat-view-shadow: compares sessions[] with the _meta rows of the same call"]
+    CMP["counters per field, one SEAT_VIEW_SHADOW_DIFF line per seat and field per minute"]
     CW["CurrentWork.endRead, runningBots, resumeLostRoutes (read OLD until the switch)"]
   end
-  POLL --> OLD
-  OLD --> CW
-  POLL --> SHADOW
+  POLL --> PL
   PL --> SHADOW
-  PO --> SHADOW
-  TR --> SHADOW
-  FS --> SHADOW
+  OLD --> CW
+  OLD --> SHADOW
+  FS -.-> SHADOW
   SHADOW --> CMP
-  OLD --> CMP
-  CMP -->|"clean for a working period"| SWITCH["switch: CW reads SHADOW; Aiterm may drop OLD"]
+  CMP -->|"clean for a working period"| SWITCH["switch: CW reads sessions[]; Aiterm may drop OLD"]
 ```
 
 The shadow never changes what BellTeam does: it only reads and compares. A shadow failure (a generic read refused, a transcript unreadable) is counted as `shadow_unavailable` and never reaches the Owner or any delivery.
 
-## Fields and their generic source
+## Fields and their generic source (Elegg's decisions, 2026-11-23)
 
-| Field BellTeam reads today | Generic source | Phase | Open |
-| --- | --- | --- | --- |
-| `listed` (a row for the session, or the session in `unread`) | the session is in `pty_list` `sessions[]` of that terminal | A | none; `unread` stays an Aiterm-side relay fact, so for a terminal seat the shadow asks the terminal's own `pty_list` through the same relay and counts a failed ask as unread |
-| `route_since` (terminal seat) | `forward_status({id})` `ready_at` (Aiterm 0.70.101; id = the binding ref); null while not `ready` | A | none (Elegg: same lock time) |
-| `limit_end` per Claude seat | `pty_list` `sessions[].limit_end` (already generic, read today) | A | none |
-| `turn.state` running / idle | `pty_observe.state` (the seat's own idle/busy reading) cross-checked with the last vendor transcript line | B | does `state` equal the transcript's "turn open" for all five harnesses? the shadow measures it |
-| `turn.turn_id`, `started_at` | derived from the vendor transcript (turn start line) + `launch_id`; opaque, compared for equality only | B | today's id is an Aiterm-observed span, not vendor birth; the shadow compares only running/idle and that the id is stable inside one turn, not equal to Aiterm's string |
-| `turn.interim_from` | transcript position (cursor) at the seat's last settled idle | B | needs `aiterm-transcript-read` cursor stability across files (Elegg) |
-| `own_work.child_results`, `own_work.tasks` | `pty_observe.pending_child_deliveries`, `activity.background_tasks` | C | exact meaning of `background_tasks` against today's `tasks` (Elegg) |
-| `own_work.processes` (post-startup, not plumbing, not excluded) | `pty_observe.activity.post_startup_process_count`, `process_identity` | C | the Owner-approved exclusion list needs the process list (exe, args); `pty_observe` gives a count and an identity, not the list. Ask Elegg for a generic process read, or BellTeam keeps asking Aiterm for this one field |
+Elegg keeps `interim_from` and `own_work` in Aiterm as generic facts (only Aiterm knows each vendor's file layout and the process argv; raw argv never leaves the machine), and offers them with the turn in the plain `pty_list` argument `include: ["turn", "own_work"]` from Aiterm 0.70.108: every agent row of `sessions[]` gains `turn` ({state "running", turn_id, started_at, event_cursor, interim_from} | {state "idle"} | null) and `own_work`. `turn: null` means "not readable now, or another reader holds the seat" and replaces `unread`. `aiterm-transcript-read` is Claude-only, so BellTeam builds no transcript reader. One `pty_list` call carries both the old `_meta` rows and `include` (one read; two overlapping calls would leave one reader without the span lock).
+
+| Field BellTeam reads today | Generic source | Step |
+| --- | --- | --- |
+| `turn` (state, turn_id, started_at, interim_from) | `sessions[].turn` of the same call | 1: shadow compares with the `_meta` row; switch reads `sessions[]` |
+| `own_work` | `sessions[].own_work`; the exclusion list stays the input `_meta["aiterm/own_work_exclusions"]` | 1: same |
+| `unread` | `sessions[].turn === null` for that seat (a terminal older than 0.70.108 returns no `turn` field: not returned = unread) | 1: same |
+| `listed` | the session is in `sessions[]` (a row, or turn null) | 1 (follows from the three above) |
+| `route_since` (terminal seat) | `forward_status({id})` `ready_at` (Aiterm 0.70.101; null while not `ready`) | 2: own shadow step (the binding id of the seat's forward is read from the launch record) |
+| `limit_end` per Claude seat | `sessions[].limit_end`, already generic and read today | none |
+
+The old `seat_turns` meta, `route_since` and `unread` are removed by Elegg's final release only, after the switch has run one working period. Until the switch, the Aiterm-shaped rows feed CurrentWork as today.
 
 ## Shadow rule and what "clean" means
 
-- Phases ship in order A, B, C, each as its own diagram-first change; each is clean on its own and switches on its own. A phase that cannot become clean for a field (the open items above) leaves that field on Aiterm and tells Tronie and Elegg: Aiterm then keeps that one field generic instead of dropping it.
+- Steps ship in order, each as its own diagram-first change; each is clean on its own and switches on its own.
 - A comparison counts only when both reads were taken in the same poll and the seat's session, launch and stop generation did not change in between (the same `current()` guard as `beginRead`).
 - A difference is logged as `SEAT_VIEW_SHADOW_DIFF {field, harness, kind: terminal|local}` once per seat and field per minute, with counters per field and harness kept in memory and read by the diagnostics module (no new store). No Owner message, no delivery refusal.
 - Clean = at least 200 compared reads per field and harness that appear in production, over one working day, and zero differences that are not explained by a read taken at a turn boundary (a difference present in one poll and gone in the next poll counts as boundary jitter and is reported separately, not as a difference).
@@ -60,7 +57,7 @@ The shadow holds nothing and refuses nothing: no guard, so no state to leave. It
 
 ## Order inside the stage
 
-1. This design (diagram first) and Elegg's answers to the open items.
-2. Phase A code, shadow only; live; one working day of counters.
-3. Phase A switch together with stage 2 if clean by then (Tronie), otherwise in the first later train.
-4. Phases B and C the same way.
+1. This design and Elegg's answers (done 2026-11-23: decisions above; Aiterm 0.70.108 carries `include`).
+2. Step 1 code, shadow only (PR "a532b2 stage 3 step 1"): the shadow adds `include` to the existing `pty_list` read when the connected Aiterm's tool schema lists it (older Aiterm: the call is unchanged), compares `turn`, `own_work` and unread against the `_meta` rows, counts per field, reports one `SEAT_VIEW_SHADOW_DIFF` line per seat and field per minute. Adoptable on its own: additive, no behaviour change.
+3. One working day of counters on Aiterm 0.70.108 (container and terminals); then the switch (CurrentWork reads `sessions[]`), together with stage 2 if clean by then (Tronie), otherwise in the first later train.
+4. Step 2 (`route_since` from `forward_status`) the same way.
