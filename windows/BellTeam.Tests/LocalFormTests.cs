@@ -5,17 +5,49 @@ using BellTeam.Core;
 
 namespace BellTeam.Tests;
 
-// a540 (contract 1.36 s10): the words of every outcome, the period rule, and the QR screen. The library binding is tested with t10b.
+// a540: Rapi's table word for word (Tronie 2026-11-23: one spec on every platform, the Mac app is the reference), the period rule, and the section of the local form.
 public sealed class LocalFormTests
 {
     [Fact]
-    public void EveryOutcomeButPaidHasItsOwnSentenceAndPaidSaysTheEnd()
+    public void TheWantingDeviceWordsAreRapisTableWordForWord()
     {
-        var sentences = Enum.GetValues<LocalFormOutcome>().Where(o => o != LocalFormOutcome.Paid).Select(LocalFormText.Of).ToArray();
-        Assert.Equal(sentences.Length, sentences.Distinct().Count());
-        Assert.Contains("プライベート ネットワーク", LocalFormText.Of(LocalFormOutcome.PrivateNetwork)); Assert.DoesNotContain("プライベート", LocalFormText.Of(LocalFormOutcome.SameWifi));
+        Assert.Equal(("BellTeamの購読", "購読はまだありません。", "購読しているスマホで確認する", "QRを出す（Google）", "QRを出す（Apple）", "確認用のQRコード", "やめる", "購読を確認しました。"),
+            (LocalFormText.CardTitle, LocalFormText.StatusUnpaid, LocalFormText.Title, LocalFormText.Google, LocalFormText.Apple, LocalFormText.QrLabel, LocalFormText.Cancel, LocalFormText.PaidOk));
+        Assert.Equal("この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。", LocalFormText.Lead);
+        Assert.Equal("購読の期間が終わっています。新しいQRを出してください。", LocalFormText.PeriodEnded);
+        Assert.Equal("購読中です。", LocalFormText.Status(null));
+        var end = new DateTimeOffset(2026, 12, 23, 12, 0, 0, TimeSpan.Zero);
+        Assert.Equal("購読中です。（" + end.ToLocalTime().ToString("yyyy年M月d日 H:mm") + "まで）", LocalFormText.Status(end));
+        Assert.Equal("スマホの返事を待っています（" + end.ToLocalTime().ToString("H:mm") + "まで）", LocalFormText.WaitingUntil(end));
+    }
+
+    [Fact]
+    public void EveryFailureLineIsTheTablesByLibraryCodeAndAnUnknownCodeSaysItself()
+    {
+        Assert.Equal("スマホとこの端末を、同じWi-Fiにつないでください。", LocalFormText.Failure("unreachable_same_wifi"));
+        Assert.Equal("設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。", LocalFormText.Failure("local_network_denied"));
+        Assert.All(new[] { "qr_invalid", "request_invalid", "other_request" }, code => Assert.Equal("QRが正しくありません。相手の画面で新しいQRを出してください。", LocalFormText.Failure(code)));
+        Assert.Equal("別のアカウントです。相手の端末と同じアカウントでサインインしてください。", LocalFormText.Failure("other_account"));
+        Assert.All(new[] { "request_expired", "request_gone" }, code => Assert.Equal("QRの待ち時間（10分）が過ぎました。新しいQRを出してください。", LocalFormText.Failure(code)));
+        Assert.Equal("相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。", LocalFormText.Failure("device_refused"));
+        Assert.Equal("相手との接続が途中で切れました。新しいQRでもう一度お試しください。", LocalFormText.Failure("connection_closed"));
+        Assert.Equal("購読の期間が終わっています。新しいQRを出してください。", LocalFormText.Failure("ended"));
+        Assert.All(new[] { "not_paid", "revoked", "proof_invalid", "not_this_app", "product_unknown", "sandbox_refused" }, code => Assert.Equal("購入を確かめられませんでした（" + code + "）。", LocalFormText.Failure(code)));
+        Assert.All(new[] { "bad_request", "provider_unsupported" }, code => Assert.Equal("この端末ではそのアカウントでサインインできません。", LocalFormText.Failure(code)));
+        Assert.Equal("つながりません。ネットワークを確かめて、もう一度お試しください。", LocalFormText.Failure("network"));
+        Assert.Equal("処理できませんでした（brand_new_code）。", LocalFormText.Failure("brand_new_code"));
+        Assert.Equal("その端末には購読がありません。購読している端末で読み取ってください。", LocalFormText.Of(LocalFormOutcome.NoPurchase));
+        Assert.Contains("プライベート ネットワーク", LocalFormText.Of(LocalFormOutcome.PrivateNetwork)); Assert.DoesNotContain("プライベート", LocalFormText.Of(LocalFormOutcome.SameWifi));   // the one Windows/Linux deviation
         Assert.Throws<ArgumentOutOfRangeException>(() => LocalFormText.Of(LocalFormOutcome.Paid));
-        Assert.Contains("有効期限：2026年12月23日", LocalFormText.Paid(new DateTimeOffset(2026, 12, 23, 12, 0, 0, TimeSpan.Zero)));
+    }
+
+    [Fact]
+    public void TheApprovingPhoneWordsAreRapisTableWordForWord()
+    {
+        Assert.Equal(("別の端末を承認する", "QRを読み取る", "QRを読み取る", "閉じる", "別の端末を承認しますか", "承認", "やめる", "確認の返事を送りました。", "この端末には購読がありません。先に購読してください。"),
+            (StoreAccountText.ApproveTitle, StoreAccountText.ApproveScan, StoreAccountText.ApproveScannerTitle, StoreAccountText.ApproveClose, StoreAccountText.ApproveConfirmAsk, StoreAccountText.ApproveYes, StoreAccountText.ApproveNo, StoreAccountText.ApprovedLine, StoreAccountText.ApproveNoPurchase));
+        Assert.Equal("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。", LocalFormText.ApproveLead);
+        Assert.Equal("この端末の購読の証明を、読み取ったQRの端末へ送ります。その端末が目の前にあり、自分で始めたものだけ承認してください。", StoreAccountText.ApproveOwnLine);
     }
 
     [Fact]
@@ -27,18 +59,19 @@ public sealed class LocalFormTests
     }
 
     [Fact]
-    public void TheScreenShowsTheQrWaitsAndOffersANewQrAfterAFailureButNotAfterPayment() => RunSta(() =>
+    public void TheSectionOffersTheButtonShowsTheQrWithItsLabelAndTheExpiryAndShowsWhatTheLastTryEndedWith() => RunSta(() =>
     {
-        var asked = 0; var stopped = 0; var view = new LocalRequestView(() => asked++, () => stopped++);
-        view.ShowRequest("QR-TEXT");
-        Assert.Single(Descendants<QrView>(view)); Assert.Contains(LocalFormText.Lead, Texts(view)); Assert.Contains(LocalFormText.Waiting, Texts(view)); Assert.Contains(LocalFormText.Firewall, Texts(view));
+        var started = 0; var stopped = 0; var view = new LocalRequestView(() => started++, () => stopped++);
+        var expiry = new DateTimeOffset(2026, 11, 23, 12, 10, 0, TimeSpan.Zero);
+        view.ShowIdle();
+        Assert.Contains(LocalFormText.Title, Texts(view)); Assert.Contains(LocalFormText.Lead, Texts(view)); Assert.Empty(Descendants<QrView>(view));
+        Click(view, LocalFormText.Google); Assert.Equal(1, started);
+        view.ShowRequest("QR-TEXT", expiry);
+        Assert.Equal(LocalFormText.QrLabel, System.Windows.Automation.AutomationProperties.GetName(Descendants<QrView>(view).Single()));
+        Assert.Contains(LocalFormText.WaitingUntil(expiry), Texts(view)); Assert.Contains(LocalFormText.Firewall, Texts(view));
         Click(view, LocalFormText.Cancel); Assert.Equal(1, stopped);
-        view.ShowOutcome(LocalFormOutcome.PrivateNetwork);
-        Assert.Contains(LocalFormText.Of(LocalFormOutcome.PrivateNetwork), Texts(view)); Assert.Empty(Descendants<QrView>(view));
-        Click(view, LocalFormText.NewQr); Assert.Equal(1, asked);
-        view.ShowOutcome(LocalFormOutcome.Paid, new DateTimeOffset(2026, 12, 23, 12, 0, 0, TimeSpan.Zero));
-        Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.NewQr);
-        view.ShowPeriodEnded(); Assert.Contains(LocalFormText.PeriodEnded, Texts(view)); Click(view, LocalFormText.NewQr); Assert.Equal(2, asked);
+        view.ShowIdle(LocalFormText.Failure("other_account"));
+        Assert.Contains(LocalFormText.Failure("other_account"), Texts(view)); Assert.Empty(Descendants<QrView>(view)); Click(view, LocalFormText.Google); Assert.Equal(2, started);
     });
 
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();

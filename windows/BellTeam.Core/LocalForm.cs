@@ -25,49 +25,63 @@ public static class LocalFormIds
     public static bool AndroidReady => PlayPublicKey.Length != 0;
 }
 
-// Provisional words (the contract fixes the meaning, not the Japanese): Tronie/Bready decide the final wording. The strings the contract quotes are in the comments.
+// The words of the local form: Rapi's final table (Tronie 2026-11-23: one spec on every platform, the Mac app is the reference), word for word. Where the paying phone may be an Android, the word is スマホ.
+// The one deviation: Windows/Linux name the private-network step (PrivateNetwork), which the contract asks of a PC whose Wi-Fi is marked Public.
 public static class LocalFormText
 {
-    public const string Title = "スマホで確認する";
-    // makeRequest: the QR is read by the paying phone, over the same local network.
-    public const string Lead = "購読しているスマホのBellTeamで、このQRを読み取ってください。スマホとこのパソコンは、同じWi-Fiにつないでください。";
-    public const string Google = "Googleでサインインして、スマホで確認する";
-    public const string Apple = "iPhoneのAppleサインインで、スマホで確認する";
-    public const string ApproveLead = "ログインしたい端末に出ているQRを読み取ってください。スマホとその端末は、同じWi-Fiにつないでください。";
-    public const string Waiting = "スマホの返事を待っています…";
-    public const string Window = "このQRは、このパソコンが待っている間だけ使えます（10分）。";
+    public const string CardTitle = "BellTeamの購読";
+    public const string StatusUnpaid = "購読はまだありません。";
+    // "購読中です。（{date time}まで）"; no "（…）" when the purchase has no end date.
+    public static string Status(DateTimeOffset? until) => until is { } end ? "購読中です。（" + End(end) + "まで）" : "購読中です。";
+    // Kept for the cards that show the paid line: it is the status line of the table.
+    public static string Paid(DateTimeOffset until) => Status(until);
+    public const string PaidOk = "購読を確認しました。";
+    public const string Title = "購読しているスマホで確認する";
+    public const string Lead = "この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。";
+    public const string Google = "QRを出す（Google）";
+    public const string Apple = "QRを出す（Apple）";
+    public const string QrLabel = "確認用のQRコード";
+    public const string Waiting = "スマホの返事を待っています";
+    // time = when the QR stops being taken (10 minutes after it was shown).
+    public static string WaitingUntil(DateTimeOffset expiry) => "スマホの返事を待っています（" + expiry.ToLocalTime().ToString("H:mm") + "まで）";
     public const string Cancel = "やめる";
+    public const string PeriodEnded = "購読の期間が終わっています。新しいQRを出してください。";
+    // Not in the table: the cards of Linux/Android show them today; Windows' firewall step is the contract's (Windows, first listen).
+    public const string Window = "このQRは、このパソコンが待っている間だけ使えます（10分）。";
     public const string NewQr = "新しいQRを出す";
-    // The firewall's first prompt is the person's one step (contract s10, Windows).
     public const string Firewall = "Windowsのファイアウォールの確認が出たら、許可してください。";
-    public const string PermissionDenied = "このアプリのローカルネットワークへのアクセスを、設定で許可してください。許可したあと、新しいQRを出してください。";
-    public const string PeriodEnded = "購読の期間が終わりました。新しいQRで、もう一度スマホに確認してもらってください。";
-    public static string Paid(DateTimeOffset until) => "購読を確認しました。" + SubscriptionText.ValidUntil(until);
+    public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";
+    public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。";
+    private static string End(DateTimeOffset end) => end.ToLocalTime().ToString("yyyy年M月d日 H:mm");
 
-    // "put both on the same Wi-Fi" / "..., marked as a private network" / "another account" / "no purchase" / a refused reply / the 10-minute end. Paid is spoken by Paid(until).
+    // The outcomes of a try in the table's sentences. Paid is spoken by Status / PaidOk.
     public static string Of(LocalFormOutcome outcome) => outcome switch
     {
-        LocalFormOutcome.SameWifi => "スマホとこのパソコンを、同じWi-Fiにつないでください。",
-        LocalFormOutcome.PrivateNetwork => "スマホとこのパソコンを、同じWi-Fiにつないでください。このパソコンのWi-Fiは「プライベート ネットワーク」にしてください。",
-        LocalFormOutcome.NoPurchase => "このスマホには購読がありません。購読しているスマホで読み取ってください。",
-        LocalFormOutcome.AnotherAccount => "スマホは別のアカウントでサインインしています。このパソコンと同じアカウントのスマホで読み取ってください。",
-        LocalFormOutcome.Refused => "スマホの返事を受け取れませんでした。新しいQRで、もう一度お試しください。",
+        LocalFormOutcome.SameWifi => "スマホとこの端末を、同じWi-Fiにつないでください。",
+        LocalFormOutcome.PrivateNetwork => "スマホとこの端末を、同じWi-Fiにつないでください。このパソコンのWi-Fiは「プライベート ネットワーク」にしてください。",
+        LocalFormOutcome.NoPurchase => "その端末には購読がありません。購読している端末で読み取ってください。",
+        LocalFormOutcome.AnotherAccount => "別のアカウントです。相手の端末と同じアカウントでサインインしてください。",
+        LocalFormOutcome.Refused => "QRが正しくありません。相手の画面で新しいQRを出してください。",
         LocalFormOutcome.Ended => "QRの待ち時間（10分）が過ぎました。新しいQRを出してください。",
         LocalFormOutcome.LocalNetworkDenied => PermissionDenied,
-        LocalFormOutcome.Lapsed => "スマホの購読は、期間が終わっています。購読を更新してから、新しいQRを出してください。",
-        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Paid is shown with its end time: LocalFormText.Paid"),
+        LocalFormOutcome.Lapsed => PeriodEnded,
+        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Paid is spoken by Status / PaidOk"),
     };
 
-    // The library's error codes (docs/local-form.md) in this app's words; a code that is not a try's own outcome (sign-in, unreachable ...) keeps StoreAccountText's sentence. Every outcome here ends the try: the next step is a new QR.
+    // The failure lines by the library's error code (docs/local-form.md), the table's, shown in red under the card. status is unused (kept for the callers that pass the library's).
     public static string Failure(string code, int? status = null) => code switch
     {
         "unreachable_same_wifi" => Of(LocalFormOutcome.SameWifi),
-        "local_network_denied" => Of(LocalFormOutcome.LocalNetworkDenied),
-        "not_paid" => Of(LocalFormOutcome.NoPurchase),
+        "local_network_denied" => PermissionDenied,
+        "qr_invalid" or "request_invalid" or "other_request" => Of(LocalFormOutcome.Refused),
         "other_account" => Of(LocalFormOutcome.AnotherAccount),
-        "request_expired" => Of(LocalFormOutcome.Ended),
-        "ended" or "revoked" => Of(LocalFormOutcome.Lapsed),
-        "request_gone" or "request_invalid" or "other_request" or "proof_invalid" or "not_this_app" or "product_unknown" or "sandbox_refused" or "sealed_invalid" or "connection_closed" or "device_refused" => Of(LocalFormOutcome.Refused),
-        _ => StoreAccountText.Failure(code, status),
+        "request_expired" or "request_gone" => Of(LocalFormOutcome.Ended),
+        "device_refused" => "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。",
+        "connection_closed" => "相手との接続が途中で切れました。新しいQRでもう一度お試しください。",
+        "ended" => PeriodEnded,
+        "not_paid" or "revoked" or "proof_invalid" or "not_this_app" or "product_unknown" or "sandbox_refused" => "購入を確かめられませんでした（" + code + "）。",
+        "bad_request" or "provider_unsupported" => "この端末ではそのアカウントでサインインできません。",
+        "network" => "つながりません。ネットワークを確かめて、もう一度お試しください。",
+        _ => "処理できませんでした（" + code + "）。",
     };
 }

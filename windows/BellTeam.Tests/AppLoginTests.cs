@@ -95,38 +95,35 @@ public sealed class AppLoginTests
         Assert.Equal("DELETE /api/home/sessions/S1", server.Calls.Last());
     }
 
-    [Fact]
-    public void TheSignInEntryOffersGoogleWithoutAConsoleCodeAndWaitsOrFailsInItsWords() => RunSta(() =>
-    {
-        var chosen = new List<string>(); var cancelled = 0; var view = new SignInView(chosen.Add, () => cancelled++, ["google"]);
-        Assert.Contains(SignInText.Title, Texts(view)); Assert.Contains(SignInText.Note, Texts(view));
-        Assert.Empty(Descendants<TextBox>(view));
-        Click(view, SignInText.Google); Assert.Equal(["google"], chosen); Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Apple);   // Apple comes in the iPhone's reply
-        view.Show(SignInPhase.Waiting); Assert.Contains(SignInText.Waiting, Texts(view)); Assert.DoesNotContain(Descendants<Button>(view), b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Google);
-        Click(view, SignInText.Cancel); Assert.Equal(1, cancelled);
-        view.Show(SignInPhase.ReturnNotReceived); Assert.Contains(SignInText.ReturnNotReceived, Texts(view));
-    });
-
     private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => new(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
 
-    // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens), so the first run offers the Google button, which starts the try.
+    // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens). Rapi's table: the card offers 「QRを出す（Google）」 and nothing opens before it is pressed.
     [Fact]
-    public void TheFirstRunOffersTheGoogleButtonThenWaitsForTheBrowserThenOffersANewQrWhenStoppedAndNeverOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
+    public void TheFirstRunOffersTheQrButtonThenWaitsForTheBrowserThenOffersItAgainWhenStoppedAndNeverOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
     {
         var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
         try
         {
             var gate = new AccountGateView(Local(), () => { });
-            Until(() => gate.Account.NotStarted); Assert.Empty(opened);   // nothing opens before the person presses the button
-            Assert.Contains(SignInText.Title, Texts(gate)); Assert.DoesNotContain(SignInText.Apple, Texts(gate));
-            Descendants<Button>(gate).First(b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Google).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Until(() => opened.Count == 1);   // the card and the entry both carry it; both start the same try
+            Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid)); Assert.Empty(opened);   // nothing opens before the person presses the button
+            Assert.Contains(LocalFormText.CardTitle, Texts(gate)); Assert.Contains(LocalFormText.Title, Texts(gate)); Assert.Contains(LocalFormText.Lead, Texts(gate)); Assert.DoesNotContain(SignInText.Apple, Texts(gate));
+            Click(gate, LocalFormText.Google); Until(() => opened.Count == 1);
             Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.False(gate.Account.Entitled);
             Assert.DoesNotContain(Descendants<Button>(gate), b => b.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(b) == StoreAccountText.GateNext);
-            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.NewQr));
+            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Google));
             gate.Dispose();
         }
         finally { AccountStore.OpenBrowser = before; }
     });
+
+    [Fact]
+    public void WhatATryEndedWithIsTheTablesSentenceAndAPcNamesThePrivateNetworkStep()
+    {
+        Assert.Equal(LocalFormText.Of(LocalFormOutcome.PrivateNetwork), AccountView.SentenceOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("unreachable_same_wifi", 0, null)));
+        Assert.Equal(LocalFormText.Failure("other_account"), AccountView.SentenceOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("other_account", 0, null)));
+        Assert.Null(AccountView.SentenceOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("signin_cancelled", 0, null)));
+        Assert.Equal(SignInText.ReturnNotReceived, AccountView.SentenceOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("return_not_received", 0, null)));
+    }
 
     [Fact]
     public void TheDeletionWordsAreRapisFinalTableWithOnlyTheStoreSentencesChangedAndTheReasonsAreTheThree()
@@ -145,7 +142,7 @@ public sealed class AppLoginTests
     [Fact]
     public void TheDeleteButtonIsTheLastItemOfTheCardAndOnlyWhereAWayToDeleteIsGiven() => RunSta(() =>
     {
-        var deleted = 0; var card = new AccountView(Local(), () => deleted++); Until(() => card.NotStarted);
+        var deleted = 0; var card = new AccountView(Local(), () => deleted++);
         Assert.Equal(AccountDeletionText.Button, System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(card).Last()));   // last, below the sign-in entry
         Click(card, AccountDeletionText.Button); Assert.Equal(1, deleted);
         Assert.DoesNotContain(Descendants<Button>(new AccountView(Local())), b => System.Windows.Automation.AutomationProperties.GetName(b) == AccountDeletionText.Button);   // the first-run gate has none
