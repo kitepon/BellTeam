@@ -348,3 +348,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、会話10件、SSE接続あり。
 - `--render-page settings-billing`（本番）: 終了コード0。設定の「利用と課金」に、サインインしていない端末の「アカウントと購読」（Googleでサインイン・アカウントを削除・プライバシー方針・サポート）が出て、購入の入口は無い。「このアプリについて」は0.7.0。
 - 確認できていない（実機が要る）: Googleのサインイン（ブラウザー）→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換（Googleの設定が効くまで数分〜数時間）。確かめたのはxunit（AppLoginTests・LocalFormTests ほか58件）、UiChecks（削除の場面を含む）終了コード0、ダミーの秘密でのメタデータ注入まで。
+
+## Windows 0.7.1 の導入（a540：ライブラリ0.20.2・ラピの表の文言、2026-11-23 20:53 JST、アニス）
+
+- 導入元: main `c3e2be6c`（#2443。ネオンの文言 #2441 と私の #2440 を含む）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.7.1+c3e2be6cc8b3285c804f12a182404d593a5e8f15`。ライブラリは Kitepon.LoginBilling.Desktop 0.20.2（sha256 `de8e3d7c93bb21ec14fcc3153e0815807c602cb5d7c7eeef656a6f3031f48934`、ミント受け入れ済み：t10c）。導入したBellTeam.dllにGoogle Desktopクライアントの秘密が35文字、アセンブリのメタデータとして入っている（値は表示していない）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- `--render-page settings-billing`（本番）: 終了コード0。「BellTeamの購読」「購読はまだありません。」「購読しているスマホで確認する」「QRを出す（Google）」とラピの表の文が出て、サインアウト・アカウントを削除・購入の入口なしは変わらず。「このアプリについて」は0.7.1。
+- 受け入れるaudience: BellTeamのGoogleクライアントID 7つとAppleのアプリIDの計8つ（`LocalFormTests`が固定）。Appleの根はライブラリの組み込み。
+- 確認できていない（実機が要る）: Googleのサインイン→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換。
