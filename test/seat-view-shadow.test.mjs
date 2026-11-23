@@ -28,7 +28,10 @@ test('counts every compared row, reports a difference once per seat and field pe
   const data = { seats: [row('a', running)], unread: [] }, result = { structuredContent: { sessions: [{ session_id: 'a', turn: { state: 'idle' }, own_work: own }] } }
   shadow.compare(data, result); shadow.compare(data, result)
   clock = 61_000; shadow.compare(data, result)
-  assert.equal(lines.length, 2)
+  assert.equal(lines.filter(line => line.includes('SEAT_VIEW_SHADOW_DIFF')).length, 2)
+  // the first compare and the one at 61 s are inside one ten-minute summary window: one summary line
+  assert.equal(lines.filter(line => line.includes('SEAT_VIEW_SHADOW_SUMMARY')).length, 1)
+  assert.match(lines.find(line => line.includes('SUMMARY')), /turn=1\/1 own_work=0\/1/)
   assert.deepEqual(shadow.counts.turn, { compared: 3, differed: 3 })
   shadow.compare(data, { structuredContent: { sessions: [{ session_id: 'a' }] } }); shadow.compare(null, null)
   assert.equal(shadow.unavailable, 2)
