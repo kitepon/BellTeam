@@ -401,7 +401,7 @@ const AT_PATHS = ['.claude/settings.json', '.codex/hooks.json', '.cursor/hooks.j
 const E2_AITERM = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8')).find(item => item.product === 'aiterm')
 const atFile = (text, home) => text === null ? null : text.replaceAll('@HOME@', home)
 
-async function aitermSeat(before = {}, { vars = AT.vars, command = E2_AITERM.command } = {}) {
+async function aitermSeat(before = {}, { vars = AT.vars, command = E2_AITERM.command, noCodex = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-entries-'))
   const home = join(dir, 'home')
   for (const [file, text] of Object.entries(before)) if (text !== null) {
@@ -411,7 +411,7 @@ async function aitermSeat(before = {}, { vars = AT.vars, command = E2_AITERM.com
   await writeFile(join(dir, 'registry.json'), JSON.stringify([{ product: 'aiterm', command }]))
   const requests = [], reports = [], commands = []
   const run = async (program, args) => { commands.push([program, args]); return { stdout: atFile(JSON.stringify(AT.e1), home) } }
-  const appServer = async (_env, use) => use(async (method, params) => {
+  const appServer = noCodex ? async () => { throw Object.assign(new Error('spawn codex ENOENT'), { code: 'ENOENT', syscall: 'spawn codex', errno: -2 }) } : async (_env, use) => use(async (method, params) => {
     requests.push([method, params])
     const source = await realpath(join(home, '.codex/hooks.json'))
     const hooks = []
@@ -714,3 +714,12 @@ test('Aitermの hook-entries のschemaを受け、他の製品の同じschemaと
   assert.throws(() => parseEntries('aiterm', { ...e1, schema: 'aiterm.hook-entries.v2' }), /schema is not bellteam\.harness-entries\.v1/u)
 })
 test('E2のaitermは hook-entries を呼ぶ', () => assert.equal(E2_AITERM.command[1], 'hook-entries'))
+
+// a532b2s5f (Z186 lab, Tronie's ruling): a home without a Codex binary is normal (users install their own CLIs). The pass reports the Codex step as skipped, never as a failure; the hook files are still written.
+test('Codexが無い家では、codexの手順を「省いた」と報告し、失敗とは報告せず、hookファイルは書く', async () => {
+  const f = await aitermSeat(AT.cases.empty.before, { noCodex: true })
+  await f.apply()
+  assert.deepEqual(f.reports, ['BellTeam hook aiterm: Codex が入っていないため、codex のhookの信頼の設定を省きました'])
+  assert.deepEqual(await f.bytes(), oldBytes('empty', f.home))
+  assert.ok(JSON.parse(await f.read('.bellteam-cli-registration/applied.json')).aiterm.entries.includes('codex:hooks:Stop'))
+})
