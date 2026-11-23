@@ -97,20 +97,27 @@ public sealed class AppLoginTests
 
     private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => new(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
 
-    // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens). Rapi's table: the card offers 「QRを出す（Google）」 and nothing opens before it is pressed.
+    // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens). Rapi's table: the card offers 「QRを出す（Apple）」 and 「QRを出す（Google）」 and nothing opens before one is pressed.
+    // Apple (contract 1.36 s10): no Apple sign-in on this PC, so no browser at all; the iPhone's reply carries its own Apple identity token.
     [Fact]
-    public void TheFirstRunOffersTheQrButtonThenWaitsForTheBrowserThenOffersItAgainWhenStoppedAndNeverOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
+    public void TheFirstRunOffersBothQrButtonsGoogleOpensTheBrowserAppleNeverDoesAndNothingOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
     {
         var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
         try
         {
             var gate = new AccountGateView(Local(), () => { });
-            Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid)); Assert.Empty(opened);   // nothing opens before the person presses the button
-            Assert.Contains(LocalFormText.CardTitle, Texts(gate)); Assert.Contains(LocalFormText.Title, Texts(gate)); Assert.Contains(LocalFormText.Lead, Texts(gate)); Assert.DoesNotContain(SignInText.Apple, Texts(gate));
+            Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid)); Assert.Empty(opened);   // nothing opens before the person presses a button
+            Assert.Contains(LocalFormText.CardTitle, Texts(gate)); Assert.Contains(LocalFormText.Title, Texts(gate)); Assert.Contains(LocalFormText.Lead, Texts(gate));
+            Assert.Equal([LocalFormText.Apple, LocalFormText.Google], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)).Where(name => name.StartsWith("QRを出す", StringComparison.Ordinal)));
+            Click(gate, LocalFormText.Apple);
+            Until(() => Descendants<QrView>(gate).Any() || Texts(gate).Contains(LocalFormText.Of(LocalFormOutcome.PrivateNetwork)));   // the QR at once (or, on a PC with no private address, the contract's sentence)
+            Assert.Empty(opened); Assert.DoesNotContain(SignInText.Waiting, Texts(gate));
+            if (Descendants<QrView>(gate).Any()) Click(gate, LocalFormText.Cancel);
+            Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Google));
             Click(gate, LocalFormText.Google); Until(() => opened.Count == 1);
             Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.False(gate.Account.Entitled);
             Assert.DoesNotContain(Descendants<Button>(gate), b => b.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(b) == StoreAccountText.GateNext);
-            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Google));
+            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Apple));
             gate.Dispose();
         }
         finally { AccountStore.OpenBrowser = before; }

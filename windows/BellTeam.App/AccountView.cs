@@ -30,7 +30,7 @@ internal sealed class AccountView : StackPanel, IDisposable
 
     public AccountView(DesktopLocal local, Action? deleteAccount = null)
     {
-        this.local = local; this.deleteAccount = deleteAccount; requestView = new LocalRequestView(() => _ = StartAsync(), CancelBrowser);
+        this.local = local; this.deleteAccount = deleteAccount; requestView = new LocalRequestView(provider => _ = StartAsync(provider), CancelBrowser);
         requestBlock = new Border { Child = requestView, Background = SettingsUi.Canvas, CornerRadius = new CornerRadius(16), Padding = new Thickness(16), Margin = new Thickness(0, 12, 0, 0) };
         requestView.ShowIdle(); Render(); Loading = ReloadAsync();
     }
@@ -65,15 +65,16 @@ internal sealed class AccountView : StackPanel, IDisposable
         return Task.CompletedTask;
     }
 
-    // makeRequest: for Google a fresh sign-in in the browser, then the listener and the QR; the paying phone's reply ends the wait. The person's 「やめる」 ends it quietly.
-    public async Task StartAsync()
+    // makeRequest: for Google a fresh sign-in in the browser, then the listener and the QR; for Apple (no Apple sign-in on this PC, contract 1.36 s10) the listener and the QR at once, the iPhone's reply carries its own Apple identity token.
+    // The paying phone's reply ends the wait. The person's 「やめる」 ends it quietly.
+    public async Task StartAsync(string provider)
     {
         CancelAttempt(); Failure = null; justPaid = false;
         var mine = attempt = CancellationTokenSource.CreateLinkedTokenSource(life.Token);
-        signingIn = true; Render();
+        signingIn = provider == "google"; Render();
         try
         {
-            var made = await local.MakeRequestAsync("google", AccountStore.OpenBrowser, mine.Token);
+            var made = await local.MakeRequestAsync(provider, provider == "google" ? AccountStore.OpenBrowser : null, mine.Token);
             if (mine.IsCancellationRequested) { made.Dispose(); return; }
             request = made; signingIn = false; requestView.ShowRequest(made.Qr, made.ExpiresAt); Render();
             Paid = await made.AwaitPaidAsync(mine.Token); justPaid = true;
