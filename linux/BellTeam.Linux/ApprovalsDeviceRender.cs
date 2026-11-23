@@ -1,9 +1,8 @@
-using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
+using Kitepon.ApprovalBox.Client;
 
 namespace BellTeam.Linux;
 
@@ -13,25 +12,28 @@ internal static class ApprovalsDeviceRender
 {
     public static readonly string[] Scenes = ["device-signedout", "device-passended", "device-needsapproval", "device-waiting", "device-expired", "device-notentitled", "device-reconnecting", "device-live", "device-answered", "device-link", "device-unavailable", "device-deleted", "device-removed"];
 
-    private sealed class Device : IDeviceDecisions
+    private sealed class Device : IApprovalSource
     {
-        public DecisionBook Book { get; } = new();
-        public RuntimeState State { get; set; } = new(RuntimeStatus.Live);
+        private readonly List<ViewDecision> items = [];
+        public IReadOnlyList<ViewDecision> Decisions => items;
+        public ClientState State { get; set; } = new(ClientStatus.Live);
         public event Action? Changed;
-        public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text)
+        public Task<AnswerResult> AnswerAsync(string decisionId, string? optionId, string? text, long version)
         {
-            var rid = Book.All.First(e => e.DecisionId == decisionId).Rid;
-            Book.Close(rid, "answered", JsonDocument.Parse(JsonSerializer.Serialize(new { option_id = optionId ?? "a" })).RootElement, "me", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); Changed?.Invoke();
-            return Task.FromResult(new SendOutcome("ok"));
+            var i = items.FindIndex(d => d.Id == decisionId);
+            items[i] = items[i] with { Status = "answered", Answer = new ApprovalAnswer { OptionId = optionId ?? "a", Text = text, AnsweredAt = DateTimeOffset.UtcNow.ToString("O") } }; Changed?.Invoke();
+            return Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null));
         }
-        public Task<SendOutcome> HoldAsync(string decisionId, bool held) => Task.FromResult(new SendOutcome("ok"));
+        public Task<AnswerResult> HoldAsync(string decisionId, bool held) => Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null));
         public void Refresh() { }
         public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult<byte[]?>(null);
-        public void Add(string id, string title, string context) => Book.Apply("request", JsonDocument.Parse(JsonSerializer.Serialize(new
+        public void Add(string id, string title, string context) => items.Add(new ViewDecision
         {
-            rid = "r-" + id, rv = 1, schema = "approval-box/decision@1",
-            content = new { decision_id = id, title, context, deadline = DateTimeOffset.UtcNow.AddMinutes(id == "D-1" ? 20 : 35).ToString("O"), options = new[] { new { id = "a", label = "進める" }, new { id = "b", label = "見送る" } }, source = new { client = "claude-code", session_label = "端末で受信", work_label = "確認", requester = "モリー", requester_bot_id = "bot-molly", test = false } }
-        })).RootElement, [1], DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 120_000);
+            Id = id, Title = title, Context = context, Status = "pending", Version = 1, Deadline = DateTimeOffset.UtcNow.AddMinutes(id == "D-1" ? 20 : 35).ToString("O"), CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2).ToString("O"), UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-2).ToString("O"),
+            Options = [new ApprovalOption { Id = "a", Label = "進める" }, new ApprovalOption { Id = "b", Label = "見送る" }],
+            Origin = new ApprovalOrigin { Kind = "bellteam", Client = "claude-code", Tool = "Claude Code", SessionLabel = "端末で受信", WorkLabel = "確認", Via = "connector" },
+            Requester = new ApprovalRequester { BotId = "bot-molly", Name = "モリー" },
+        });
     }
 
     public static async Task RunAsync(string scene, string output)
@@ -46,17 +48,16 @@ internal static class ApprovalsDeviceRender
         { device.Add("D-1", "端末で受け取った請求の確認", "コネクタから、この端末へ直接届きました。"); device.Add("D-2", "夜間のバックアップを予定どおり走らせてよいですか？", "サーバーを通らずに届いた決裁です。"); }
         device.State = scene switch
         {
-            "device-signedout" or "device-deleted" or "device-passended" => new(RuntimeStatus.SignedOut, scene switch { "device-passended" => "pass_ended", "device-deleted" => "account_deleted", _ => null }),
-            "device-needsapproval" or "device-waiting" or "device-expired" => new(RuntimeStatus.NeedsAdmission, "not_verified"),
-            "device-removed" => new(RuntimeStatus.NeedsAdmission, "removed"),
-            "device-notentitled" => new(RuntimeStatus.NotEntitled),
-            "device-reconnecting" => new(RuntimeStatus.Retrying, "HttpRequestException: Connection refused"),
-            _ => new(RuntimeStatus.Live),
+            "device-signedout" or "device-deleted" or "device-passended" => new(ClientStatus.SignedOut, scene switch { "device-passended" => "pass_ended", "device-deleted" => "account_deleted", _ => null }),
+            "device-needsapproval" or "device-waiting" or "device-expired" => new(ClientStatus.NeedsApproval, null, scene == "device-expired" ? "offer_expired" : null),
+            "device-removed" => new(ClientStatus.NeedsApproval, "removed", "device_removed"),
+            "device-notentitled" => new(ClientStatus.NotEntitled),
+            "device-reconnecting" => new(ClientStatus.Reconnecting, "socket_closed"),
+            _ => new(ClientStatus.Live),
         };
-        using var hub = new ApprovalsHub(model, scene == "device-unavailable" ? null : device); hub.ReadLinks();
+        if (scene == "device-waiting") device.State = new(ClientStatus.Waiting, Offer: new ApprovalOffer("4CH9-MGVR-13NC-MC6C", "PC1VERIFY:a1b2c3d4e5:fp0123456789abcdef0123456789abcdef0123456789a:secret0123456789abcdef", DateTimeOffset.UtcNow.AddMinutes(4).AddSeconds(30)));
+        using var hub = new ApprovalsHub(model, scene == "device-unavailable" ? null : (IApprovalSource)device); hub.ReadLinks();
         hub.SignInApprovalBox = () => { }; hub.RequestApproval = () => { };
-        if (scene == "device-waiting") hub.SetOffer(new ApprovalOffer("4CH9-MGVR-13NC-MC6C", "PC1VERIFY:a1b2c3d4e5:fp0123456789abcdef0123456789abcdef0123456789a:secret0123456789abcdef", DateTimeOffset.UtcNow.AddMinutes(4).AddSeconds(30)));
-        if (scene == "device-expired") hub.SetOffer(null, Approvals.DeviceApprovalExpired);
         var window = new ApprovalsWindow(hub, model, (_, _) => { }, _ => { });
         LatticeLook.Motion = false;
         window.Show();

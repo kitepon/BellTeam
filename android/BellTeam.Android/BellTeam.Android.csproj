@@ -25,10 +25,10 @@
     <AvaloniaResource Include="../../linux/BellTeam.Linux/Theme.axaml" Link="Theme.axaml" />
     <Using Remove="Android.Widget" />
     <Using Remove="Android.Views" />
-    <!-- a520a: the 決裁箱 device part is the Linux one (LinuxAccountAbx{Device,Files,Host}.cs, linked above) on the same C# pc/1 core; only the account (AndroidApprovalBoxAccount) is Android's. libdatachannel v0.24.6 per ABI: android/native/README.md. -->
+    <!-- a520a: the 決裁箱 client is the Linux host part (LinuxAccountAbxHost.cs, linked above) over Kitepon.ApprovalBox.Client; only the account (AndroidApprovalBoxAccount) is Android's. libdatachannel v0.24.6 per ABI: android/native/README.md. -->
     <AndroidNativeLibrary Include="../native/prebuilt/arm64-v8a/libdatachannel.so" Abi="arm64-v8a" />
     <AndroidNativeLibrary Include="../native/prebuilt/x86_64/libdatachannel.so" Abi="x86_64" />
-    <ProjectReference Include="../../windows/BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.1.0" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
