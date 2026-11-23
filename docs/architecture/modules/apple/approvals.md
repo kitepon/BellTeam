@@ -39,9 +39,11 @@ flowchart LR
   Model --> GateView["ApprovalGateView：状態ごとの画面と出口（signin.md 3章。Approval Boxにサインイン・やめる・承認をお願いする・確かめ直す・今すぐ試す・Approval Boxからサインアウト）"]
 ```
 
+決裁の契約は [client-v0.5.md](../approval-box-extension/client-v0.5.md)（Delta、PR #2460）に従う：どちらの経路かは join のたびに `GET /v1/auth/config` で決め、読めなければ使っている経路のまま（無ければ `/v1`）。出どころ（BellTeam／外部／不明）は、決裁箱の `source.requester_bot_id`・`requester` を、アプリが持つメンバー表（`store.bots`）の id・名前と突き合わせて端末で決める（`ApprovalOrigin.classify`、fixtures は origin-cases.json の7例）。答えが 409 の時は、いまの決裁に置き換えて「内容が直されました。もう一度確かめてください。」を1行出し、書いた文字は残す。`/api/approvals` の一覧・答え・保留・イベントの口は、この版から呼ばない（by-decision・by-task は今まで通り）。
+
 `/v1` の間の状態：join は `check().k` の次に `GET /v1/auth/config` を1回聞く（届かなければ Reconnecting）。`false` なら `ApprovalBoxServer` で一覧を読み、SSE の通知ごとに読み直す（NeedsApproval・Waiting は出ない。端末の承認は peer-channel の経路だけ）。401＝サインアウト（`passEnded`）、402＝NotEntitled、ほかの失敗・SSE切断＝Reconnecting（バックオフ、上限なし）。答え・保留は1回だけ送り、自動では再送しない。結果が分からない時は同じキーのまま押し直しを待ち、2xx＝accepted、409＝stale（すでに答え済みなら closedElsewhere）、ほかの4xx＝refused、届いたか不明＝draftKept。済みの一覧は先頭50件（それより古いものはこの画面に出さない：shortcut、必要なら cursor で足す）。
 
-状態の出口（signin.md 2章）：Live の切れ方は、4401 pass_ended・/pc/v1 の 401＝サインアウト（期限とは言わない）、4410＝パス・端末の鍵・レジストリ・履歴を消してサインアウト、レジストリから外された＝NeedsApproval、中継に届かない＝Reconnecting（1,2,4…30秒の待ち、回数の上限なし、手動の「今すぐ試す」は待っている次の1回を直ちに実行し並列には増やさない）。購読が無い＝NotEntitled（「確かめ直す」で再確認）。サインアウトしても BellTeam のサインインは残る。端末の削除画面は作らない（SEC-086 は対象外）。
+状態の出口（signin.md 2章）：Live の切れ方は、4401 pass_ended・/pc/v1 の 401＝サインアウト（期限とは言わない）、4410＝パス・端末の鍵・レジストリ・履歴を消してサインアウト、レジストリから外された＝NeedsApproval、中継に届かない＝Reconnecting（1,2,4…60秒の待ち、回数の上限なし。client-v0.5 7章、手動の「今すぐ試す」は待っている次の1回を直ちに実行し並列には増やさない）。契約が無い＝NotEntitled（「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」、価格もボタンも無し、「確かめ直す」で再確認）。サインアウトしても BellTeam のサインインは残る。端末の削除画面は作らない（SEC-086 は対象外）。
 
 サインインは Apple を先に出し（Owner の Approval Box のアカウントは Apple ID）、Google は2つ目（Nayuta 2026-11-23）。戻りは scheme `approvalbox-websignin` だけ（確認済みリンクは Approval Box 自身のアプリ専用）。
 

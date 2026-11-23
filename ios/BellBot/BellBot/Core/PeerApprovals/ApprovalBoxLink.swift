@@ -44,6 +44,7 @@ final class ApprovalBoxLink: ObservableObject {
     /// The `/v1` path (while `peer_channel` is false): the stream task and the server it reads and writes through.
     private var server: ApprovalBoxServer?
     private var serverTask: Task<Void, Never>?
+    private var peerOffered = false
     private var retryTask: Task<Void, Never>?
     private var attempt = 0
     private var started = false
@@ -187,9 +188,9 @@ final class ApprovalBoxLink: ObservableObject {
         let folder = SHA256.hash(data: Data(account.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
         let history = PeerDecisionHistory(directory: historyRoot.appending(path: folder))
         self.history = history
-        let offered: Bool
-        do { offered = try await ApprovalBoxServer.peerChannelOffered(origin: origin) }
-        catch { state = .reconnecting(reason: ApprovalBoxWords.unreachable); scheduleRetry(); return }
+        // client-v0.5 5.3: a failed read keeps the path in use (the `/v1` path when none was).
+        let offered = (try? await ApprovalBoxServer.peerChannelOffered(origin: origin)) ?? peerOffered
+        peerOffered = offered
         if !offered { decisions = []; serve(from: ApprovalBoxServer(origin: origin, client: client), history: history); return }
         decisions = (try? history.load()) ?? []
         let config = PeerDevice.Config(baseURL: origin, authorization: { url in await client.passHeader(for: url) }, account: { account }, label: label, platform: platform, store: deviceStore, history: history)
@@ -296,10 +297,10 @@ final class ApprovalBoxLink: ObservableObject {
         await old?.stop()
     }
 
-    /// Backoff 1, 2, 4 ... 30 s with no cap on the count; one waiting try at a time (a manual retry replaces it).
+    /// Backoff 1, 2, 4 ... 60 s with no cap on the count; one waiting try at a time (a manual retry replaces it).
     private func scheduleRetry() {
         guard retryTask == nil else { return }
-        let wait = min(30, pow(2, Double(attempt)))
+        let wait = min(60, pow(2, Double(attempt)))
         attempt += 1
         retryTask = Task { [weak self, sleep] in
             do { try await sleep(wait) } catch { return }
@@ -321,7 +322,7 @@ enum ApprovalBoxWords {
     static let askApproval = "承認をお願いする"
     static let waiting = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。"
     static let waitingSamePhone = "同じ端末にApprovalBoxのアプリもある時は、番号を入れてください（この画面のQRは読み取れません）。"
-    static let notEntitled = "Approval Boxの購読が必要です。購読はApproval Boxのアプリで行います。"
+    static let notEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。"
     static let checkAgain = "確かめ直す"
     static let reconnecting = "つなぎ直しています"
     static let retryNow = "今すぐ試す"

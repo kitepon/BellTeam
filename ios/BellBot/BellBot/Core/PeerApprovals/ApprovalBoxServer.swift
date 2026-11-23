@@ -149,7 +149,7 @@ final class ApprovalBoxServer {
     struct WirePage: Decodable { let items: [WireDecision]; let next_cursor: String? }
     struct WireDecision: Decodable {
         struct Option: Decodable { let id: String; let label: String }
-        struct Source: Decodable { let client: String; let session_label: String; let via: String }
+        struct Source: Decodable { let client: String?; let session_label: String?; let via: String?; let requester: String?; let requester_bot_id: String? }
         struct Attachment: Decodable { let id: String; let name: String; let content_type: String; let size: Int; let sha256: String? }
         struct Answer: Decodable { let option_id: String?; let text: String?; let answered_at: Date }
         let id: String, title: String, urgency: String, status: String
@@ -164,9 +164,10 @@ final class ApprovalBoxServer {
 
         var record: PeerDecisionRecord? {
             PeerDecisionRecord(id: id, title: title, context: context ?? "", options: options.map { .init(id: $0.id, label: $0.label) }, recommendation: recommendation, urgency: urgency, deadline: deadline,
-                               client: source.client, sessionLabel: source.session_label, via: source.via, status: status,
+                               client: source.client ?? "", sessionLabel: source.session_label ?? "", via: source.via ?? "", status: status,
                                answer: answer.map { .init(optionId: $0.option_id, text: $0.text, answeredAt: $0.answered_at) }, cancelReason: cancel_reason, createdAt: created_at, updatedAt: updated_at, version: version,
-                               attachments: (request_attachments ?? []).map { .init(id: $0.id, name: $0.name, contentType: $0.content_type, size: $0.size, sha256: $0.sha256) })
+                               attachments: (request_attachments ?? []).map { .init(id: $0.id, name: $0.name, contentType: $0.content_type, size: $0.size, sha256: $0.sha256) },
+                               requester: source.requester, requesterBotId: source.requester_bot_id)
         }
     }
 }

@@ -25,12 +25,15 @@ struct PeerDecisionRecord: Codable, Identifiable, Equatable {
     let updatedAt: Date
     let version: Int
     var attachments: [Attachment] = []
+    /// The filing AI's own name and, from newer connectors, its BellTeam bot id (Approval Box `source`); the origin rule reads them (approvals-contract.md).
+    var requester: String? = nil
+    var requesterBotId: String? = nil
 
     var canAnswer: Bool { status == "pending" || status == "held" }
 
     func with(status: String, answer: Answer? = nil, cancelReason: String? = nil, now: Date = Date()) -> PeerDecisionRecord {
         PeerDecisionRecord(id: id, title: title, context: context, options: options, recommendation: recommendation, urgency: urgency, deadline: deadline, client: client,
-                           sessionLabel: sessionLabel, via: via, status: status, answer: answer, cancelReason: cancelReason, createdAt: createdAt, updatedAt: now, version: version, attachments: attachments)
+                           sessionLabel: sessionLabel, via: via, status: status, answer: answer, cancelReason: cancelReason, createdAt: createdAt, updatedAt: now, version: version, attachments: attachments, requester: requester, requesterBotId: requesterBotId)
     }
 
     static let schema = "approval-box/decision@1", answerSchema = "approval-box/answer@1"

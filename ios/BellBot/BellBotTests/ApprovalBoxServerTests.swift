@@ -21,6 +21,31 @@ final class ApprovalBoxServerTests: XCTestCase {
         XCTAssertEqual(ApprovalDecision(record: r).requestAttachments.first?.sha256, "ab", "the server's own hash, not one derived from the id")
     }
 
+    /// contract/fixtures/origin-cases.json of Delta's client-v0.5 (PR #2460), verbatim.
+    private let originCases = #"""
+    {"botId-in-roster":{"roster":[{"id":"bot-ae42e3e9","name":"デルタ"}],"source":{"client":"claude-code","session_label":"Lattice p a/b","requester_bot_id":"bot-ae42e3e9","requester":"デルタ"},"expect":{"kind":"bellteam","basis":"botId","requester":{"botId":"bot-ae42e3e9","name":"デルタ"}}},"botId-not-in-roster-falls-to-name":{"roster":[{"id":"bot-ae42e3e9","name":"デルタ"}],"source":{"client":"codex","requester_bot_id":"bot-zzz","requester":"デルタ"},"expect":{"kind":"bellteam","basis":"name","requester":{"botId":"bot-ae42e3e9","name":"デルタ"}}},"name-only":{"roster":[{"id":"bot-ae42e3e9","name":"デルタ"}],"source":{"client":"other","requester":"デルタ"},"expect":{"kind":"bellteam","basis":"name","requester":{"botId":"bot-ae42e3e9","name":"デルタ"}}},"external-with-client":{"roster":[{"id":"bot-ae42e3e9","name":"デルタ"}],"source":{"client":"cursor","requester":"someone"},"expect":{"kind":"external","basis":"none","requester":null}},"external-session-label-only":{"roster":[],"source":{"session_label":"メール整理 / 要対応の確認"},"expect":{"kind":"external","basis":"none","requester":null}},"unknown-nothing-usable":{"roster":[],"source":{},"expect":{"kind":"unknown","basis":"none","requester":null}},"unknown-client-draws-other":{"roster":[],"source":{"client":"not-a-tool","session_label":"x"},"expect":{"kind":"external","basis":"none","requester":null,"client":"other"}}}
+    """#
+
+    func testOriginRuleMatchesTheContractFixtures() throws {
+        struct Case: Decodable {
+            struct Member: Decodable { let id: String; let name: String }
+            struct Source: Decodable { let client: String?; let session_label: String?; let requester: String?; let requester_bot_id: String? }
+            struct Expect: Decodable { struct Requester: Decodable { let botId: String; let name: String }; let kind: String; let requester: Requester? }
+            let roster: [Member]; let source: Source; let expect: Expect
+        }
+        let cases = try JSONDecoder().decode([String: Case].self, from: Data(originCases.utf8))
+        XCTAssertEqual(cases.count, 7)
+        for (name, c) in cases {
+            let record = PeerDecisionRecord(id: "d", title: "t", context: "", options: [], recommendation: nil, urgency: "normal", deadline: nil, client: c.source.client ?? "", sessionLabel: c.source.session_label ?? "",
+                                            via: "", status: "pending", answer: nil, cancelReason: nil, createdAt: Date(), updatedAt: Date(), version: 1, requester: c.source.requester, requesterBotId: c.source.requester_bot_id)
+            let roster = c.roster.map { ApprovalRosterMember(id: $0.id, name: $0.name) }
+            let (origin, requester) = ApprovalOrigin.classify(record, roster: roster)
+            XCTAssertEqual(origin.kind, c.expect.kind, name)
+            XCTAssertEqual(requester?.botId, c.expect.requester?.botId, name)
+            XCTAssertEqual(requester?.name, c.expect.requester?.name, name)
+        }
+    }
+
     func testConflictCarriesTheDecisionAsItIsNow() throws {
         let body = Data("{\"error\":{\"code\":\"conflict\",\"message\":\"m\",\"decision\":\(decision)}}".utf8)
         let (outcome, record) = ApprovalBoxServer.outcome(of: .init(status: 409, code: "conflict"), envelope: body)
