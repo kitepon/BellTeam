@@ -20,6 +20,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settings = new(SettingsStore.UserDirectory);
     private readonly Border startupHost = new() { IsVisible = false };
+    private readonly Grid deletedLayer = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false };
     // Sheets (forward, peer message) and the image gallery cover the page, like the Linux window's sheet and gallery.
     private readonly Grid sheetLayer = new() { Background = BellTheme.Canvas, IsVisible = false, RowDefinitions = new RowDefinitions("52,*") };
     private readonly TextBlock sheetTitle = new() { FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
@@ -71,7 +72,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         model = new LinuxWorkspace(origin => new BellApi(origin, cookies: access.Cookies) { SessionToken = tokens.Load(origin) }, access.PrepareAsync);
         approvals = new ApprovalsHub(model); approvals.Changed += UpdateApprovalsEntry;
-        PushRegistration.Workspace = () => model; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
+        PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
@@ -133,7 +134,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         pageBack.Click += (_, _) => GoBackPage();
         var pageHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { pageBack, pageTitle } }; Grid.SetColumn(pageTitle, 1);
         pageLayer.Children.Add(pageHeader); Grid.SetRow(pageBody, 1); pageLayer.Children.Add(pageBody);
-        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer } };
+        root.Child = new Grid { Children = { column, pageLayer, startupHost, sheetLayer, galleryLayer, deletedLayer } };
         Content = root;
 
         model.PropertyChanged += (_, args) => Dispatcher.UIThread.Post(() => ModelChanged(args.PropertyName));
@@ -183,6 +184,34 @@ public sealed class PhoneShell : UserControl, IMessageHost
         }
         catch (Kitepon.LoginBilling.LoginBillingException) { Begin(); return; }
         startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None); startupHost.IsVisible = true;
+    }
+
+    // 「アカウントを削除」 (a540; Rapi's final table, Poli approved; docs/architecture/modules/apple/account-deletion.md): BellTeam holds nothing on any server, so the deletion is a local sign-out plus Approval Box's sign-out.
+    // ⓪ first, on the live connection: the push registration (a device whose token the server still holds would keep getting notifications after the screen said it was deleted; Tronie 2026-11-23). ① the two sign-outs, each tried;
+    // one that passed stays passed; if either fails nothing else is touched and the failure alone is shown. ② only when both passed: the connection (tokens, Access login, window state, saved address) and the first screen under one result alert.
+    // It never stops the other devices.
+    private async Task DeleteAccountAsync()
+    {
+        var failed = new DeletionFailures();
+        if (await PushRegistration.UnregisterAsync(model) is { } pushFailure) { failed.Add("通知の登録", pushFailure); ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
+        if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
+        try { AccountStore.Local?.SignOutLocal(); } catch (Exception error) { failed.Add("BellTeamの購読の確認", error); }
+        if (failed.Any) { ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
+        CloseAllPages();
+        if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _)) tokens.Clear(ServerOrigin.Parse(server));
+        access.SignOut();
+        model.SignOut();
+        settings.Save(settings.Load() with { ServerUrl = null });
+        ShowList();
+        ShowDeletionResult(AccountDeletionText.ResultTitle, AccountCard.DoneText);
+        await BeginAfterAccountAsync();
+    }
+
+    private void ShowDeletionResult(string title, string body)
+    {
+        deletedLayer.Children.Clear();
+        deletedLayer.Children.Add(FormKit.AlertFrame(title, body, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.IsVisible = true;
     }
 
     private void Begin()

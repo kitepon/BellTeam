@@ -23,7 +23,7 @@ public sealed class AccountCard : StackPanel
     private LocalRequest? request;
     private CancellationTokenSource? attempt;
     private string? failure;
-    private bool busy;
+    private bool busy, confirmingDelete;
 
     // The account gate (first run) waits for this: true while this phone's purchase or an accepted period holds.
     public bool Entitled => owned || paid is not null;
@@ -87,25 +87,26 @@ public sealed class AccountCard : StackPanel
         var badge = Badge(status.Badge, status.Tone);
         Grid.SetColumn(title, 1); Grid.SetColumn(badge, 2); head.Children.Add(tile); head.Children.Add(title); head.Children.Add(badge);
         Children.Add(head);
-        if (Local is null) { Children.Add(Text(StoreAccountText.NotConfigured, 14, Muted, null, new Thickness(0, 10, 0, 0))); return; }
+        if (Local is null) { Children.Add(Text(StoreAccountText.NotConfigured, 14, Muted, null, new Thickness(0, 10, 0, 0))); RenderDelete(); return; }
         Children.Add(Text(!owned && paid is { Until: { } until } ? LocalFormText.Paid(until) : status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)));
 
         if (owned) { Children.Add(new ApprovePanel(token)); }
         else if (request is { } open) Children.Add(QrBlock(open.Qr));
-        else if (paid is not null) Children.Add(Button(StoreAccountText.SignOut, () => { Local?.SignOutLocal(); paid = null; EntitledChanged?.Invoke(); Render(); return Task.CompletedTask; }, false));
+        else if (paid is not null) Children.Add(Button(StoreAccountText.SignOut, () => { Local?.SignOutLocal(); paid = null; EntitledChanged?.Invoke(); Render(); return Task.CompletedTask; }, Look.Secondary));
         else
         {
             if (product is not null)
             {
                 var price = product.Offers.FirstOrDefault()?.Phases.LastOrDefault(phase => phase.PriceMicros > 0);   // a free-trial phase comes first
                 Children.Add(Button(price is not null ? StoreAccountText.Buy(price.FormattedPrice, price.BillingPeriod) : StoreAccountText.Buy(product.OneTimePrice?.FormattedPrice ?? product.Title),
-                    () => RunAsync(async local => await local.PurchaseAsync(MainActivity.Current, product.ProductId, product.Offers.FirstOrDefault()?.OfferToken)), true));
+                    () => RunAsync(async local => await local.PurchaseAsync(MainActivity.Current, product.ProductId, product.Offers.FirstOrDefault()?.OfferToken)), Look.Primary));
             }
             Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 10, 0, 0)));
-            Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), true));
-            Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), true));
+            Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
+            Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
-        if (!owned && request is null) Children.Add(Button(StoreAccountText.Refresh, () => ReloadAsync(), false));
+        if (!owned && request is null) Children.Add(Button(StoreAccountText.Refresh, () => ReloadAsync(), Look.Secondary));
+        RenderDelete();
         if (failure is not null) Children.Add(Banner(failure));
     }
 
@@ -126,10 +127,45 @@ public sealed class AccountCard : StackPanel
         return new Border { Child = block, Background = SettingsUi.Canvas, CornerRadius = new CornerRadius(16), Padding = new Thickness(16), Margin = new Thickness(0, 12, 0, 0) };
     }
 
-    private Button Button(string label, Func<Task> click, bool primary)
+    // 「アカウントを削除」: the last item, under a divider (Rapi's Mac reference); only the subscription sentences name this platform's store.
+    private const string Subscription = "購読はGoogle Playのものなので、この操作では解約されません。解約はGoogle Playの「定期購入」から行ってください。", Cancel = "購読を止めるには、Google Playの定期購入の管理から解約してください。";
+    private void RenderDelete()
     {
-        var button = Capsule(label, primary ? BellTheme.ProminentFill : Fill, primary ? Brushes.White : Ink, 12, 14, new Thickness(16, 10));
-        button.FontWeight = primary ? FontWeight.SemiBold : FontWeight.Normal; button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 12, 0, 0); button.IsEnabled = !busy;
+        if (AccountDeletion.Run is null) return;
+        Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
+        if (!confirmingDelete) { Children.Add(Button(AccountDeletionText.Button, () => { confirmingDelete = true; Render(); return Task.CompletedTask; }, Look.Danger)); return; }
+        Children.Add(Text(AccountDeletionText.ConfirmTitle, 15, Ink, FontWeight.SemiBold, new Thickness(0, 8, 0, 0)));
+        Children.Add(Text(AccountDeletionText.ConfirmBody(Subscription), 13, Muted, null, new Thickness(0, 6, 0, 0)));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        row.Children.Add(Button(AccountDeletionText.ConfirmYes, DeleteAsync, Look.DangerFilled));
+        row.Children.Add(Button(AccountDeletionText.ConfirmNo, () => { confirmingDelete = false; Render(); return Task.CompletedTask; }, Look.Secondary));
+        Children.Add(row);
+    }
+
+    private async Task DeleteAsync()
+    {
+        confirmingDelete = false; busy = true; failure = null; Render();
+        try { await AccountDeletion.Run!(); }
+        catch (Exception error) { failure = error.Message; }
+        busy = false;
+        if (!token.IsCancellationRequested) Render();
+    }
+
+    public static string DoneText => AccountDeletionText.ResultBody(Cancel);
+
+    private enum Look { Primary, Secondary, Danger, DangerFilled }
+
+    private Button Button(string label, Func<Task> click, Look look)
+    {
+        var (background, foreground) = look switch
+        {
+            Look.Primary => ((IBrush)BellTheme.ProminentFill, (IBrush)Brushes.White),
+            Look.DangerFilled => (Red, Brushes.White),
+            Look.Danger => (Fill, Red),
+            _ => (Fill, Ink),
+        };
+        var button = Capsule(label, background, foreground, 12, 14, new Thickness(16, 10));
+        button.FontWeight = look == Look.Secondary ? FontWeight.Normal : FontWeight.SemiBold; button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 12, 0, 0); button.IsEnabled = !busy;
         button.Click += async (_, _) => await click();
         return button;
     }

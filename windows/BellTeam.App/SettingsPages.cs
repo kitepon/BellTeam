@@ -536,7 +536,7 @@ public sealed partial class SettingsWindow
     // a540: the confirmation is asked here (the page owns the dialog); the deletion itself is the main window's.
     private void AskDeleteAccount()
     {
-        if (new ConfirmationWindow(LocalAccountDeletionText.ConfirmTitle, LocalAccountDeletionText.ConfirmBody(LocalAccountDeletionText.Subscription), LocalAccountDeletionText.ConfirmYes, LocalAccountDeletionText.ConfirmNo) { Owner = DialogOwner }.ShowDialog() == true) deleteAccount!();
+        if (new ConfirmationWindow(AccountDeletionText.ConfirmTitle, AccountDeletionText.ConfirmBody(AccountDeletionText.Subscription), AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo) { Owner = DialogOwner }.ShowDialog() == true) deleteAccount!();
     }
 
     // ---- アップデート ----

@@ -511,15 +511,15 @@ public partial class MainWindow : Window, IInspectorHost
     }
     // Test and render seam: the result alert.
     internal Action<string, string> ShowResult { get; set; } = (title, body) => MessageBox.Show(Application.Current?.MainWindow, body, title, MessageBoxButton.OK);
-    // a540 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md; words: LocalAccountDeletionText): nothing is held on any BellTeam server, so the deletion is the Approval Box sign-in and device data, notifications, web login,
+    // a540 「アカウントを削除」 (docs/architecture/modules/apple/account-deletion.md; words: AccountDeletionText): nothing is held on any BellTeam server, so the deletion is the Approval Box sign-in and device data, notifications, web login,
     // the local sign-out (signOutLocal: provider, subject and the accepted period), the saved address; then the first screen and one result. Other devices are not stopped.
     // The result is told only when every step returned. A step that fails stops here, names what it could not remove and why, and keeps the page: pressing again runs the steps again (each one is safe to repeat).
     // The three reasons the reference allows: a network failure anywhere in the chain, the Approval Box operator answering 5xx, anything else.
     internal static string ReasonOf(Exception error)
     {
         for (var e = error; e is not null; e = e.InnerException)
-            if (e is System.Net.Http.HttpRequestException or System.Net.Sockets.SocketException or TimeoutException) return LocalAccountDeletionText.NoNetwork;
-        return error is Kitepon.LoginBilling.Desktop.LoginBillingException { Status: >= 500 } ? LocalAccountDeletionText.OperatorUnreachable : LocalAccountDeletionText.NotProcessed;
+            if (e is System.Net.Http.HttpRequestException or System.Net.Sockets.SocketException or TimeoutException) return AccountDeletionText.NoNetwork;
+        return error is Kitepon.LoginBilling.Desktop.LoginBillingException { Status: >= 500 } ? AccountDeletionText.OperatorUnreachable : AccountDeletionText.NotProcessed;
     }
     internal async Task DeleteAccountAsync()
     {
@@ -537,12 +537,12 @@ public partial class MainWindow : Window, IInspectorHost
             foreach (var (what, run) in steps)
             {
                 try { await run(); }
-                catch (Exception error) { ShowResult(LocalAccountDeletionText.FailedTitle, LocalAccountDeletionText.Failed(what, ReasonOf(error))); return; }
+                catch (Exception error) { ShowResult(AccountDeletionText.FailedTitle, AccountDeletionText.Failed(what, ReasonOf(error))); return; }
             }
             ShowConversation(); model.SignOut(); ShowAccount();
         }
         finally { signingOut = false; }
-        ShowResult(LocalAccountDeletionText.ResultTitle, LocalAccountDeletionText.ResultBody(LocalAccountDeletionText.Cancel));
+        ShowResult(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
     }
     private async Task ChangeServerAsync(string address)
     {

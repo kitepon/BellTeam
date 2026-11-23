@@ -147,7 +147,7 @@ internal sealed class AccountView : StackPanel, IDisposable
     {
         if (deleteAccount is null) return;
         Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 16, 0, 4) });
-        Children.Add(Button(LocalAccountDeletionText.Button, () => { deleteAccount(); return Task.CompletedTask; }, Look.Danger));
+        Children.Add(Button(AccountDeletionText.Button, () => { deleteAccount(); return Task.CompletedTask; }, Look.Danger));
     }
 
     private Button Button(string label, Func<Task> click, Look look)

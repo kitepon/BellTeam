@@ -131,24 +131,24 @@ public sealed class AppLoginTests
     [Fact]
     public void TheDeletionWordsAreRapisFinalTableWithOnlyTheStoreSentencesChangedAndTheReasonsAreTheThree()
     {
-        Assert.Equal(("アカウントを削除", "アカウントを削除しますか？", "削除する", "やめる", "アカウントを削除しました"), (LocalAccountDeletionText.Button, LocalAccountDeletionText.ConfirmTitle, LocalAccountDeletionText.ConfirmYes, LocalAccountDeletionText.ConfirmNo, LocalAccountDeletionText.ResultTitle));
+        Assert.Equal(("アカウントを削除", "アカウントを削除しますか？", "削除する", "やめる", "アカウントを削除しました"), (AccountDeletionText.Button, AccountDeletionText.ConfirmTitle, AccountDeletionText.ConfirmYes, AccountDeletionText.ConfirmNo, AccountDeletionText.ResultTitle));
         const string store = "<store>";
-        Assert.Equal("この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。" + store + "サーバーの会話や設定は消えません。", LocalAccountDeletionText.ConfirmBody(store));
-        Assert.Equal("この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。" + store, LocalAccountDeletionText.ResultBody(store));
-        Assert.Equal("アカウントの削除を終えられませんでした", LocalAccountDeletionText.FailedTitle);
-        Assert.Equal("決裁箱のサインインを消せませんでした（ネットワークにつながっていません）。つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。", LocalAccountDeletionText.Failed("決裁箱のサインイン", LocalAccountDeletionText.NoNetwork));
-        Assert.Equal(LocalAccountDeletionText.NoNetwork, MainWindow.ReasonOf(new InvalidOperationException("x", new HttpRequestException("offline"))));
+        Assert.Equal("この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。" + store + "サーバーの会話や設定は消えません。", AccountDeletionText.ConfirmBody(store));
+        Assert.Equal("この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。" + store, AccountDeletionText.ResultBody(store));
+        Assert.Equal("アカウントの削除を終えられませんでした", AccountDeletionText.FailedTitle);
+        Assert.Equal("決裁箱のサインインを消せませんでした（ネットワークにつながっていません）。つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。", AccountDeletionText.Failed("決裁箱のサインイン", AccountDeletionText.NoNetwork));
+        Assert.Equal(AccountDeletionText.NoNetwork, MainWindow.ReasonOf(new InvalidOperationException("x", new HttpRequestException("offline"))));
         Assert.Equal(("決裁箱の運営に届きません", "処理できませんでした"), (MainWindow.ReasonOf(new Kitepon.LoginBilling.Desktop.LoginBillingException("server_error", 503, null)), MainWindow.ReasonOf(new IOException("locked"))));
-        Assert.DoesNotContain("Apple Account", LocalAccountDeletionText.Subscription + LocalAccountDeletionText.Cancel);
+        Assert.DoesNotContain("Apple Account", AccountDeletionText.Subscription + AccountDeletionText.Cancel);
     }
 
     [Fact]
     public void TheDeleteButtonIsTheLastItemOfTheCardAndOnlyWhereAWayToDeleteIsGiven() => RunSta(() =>
     {
         var deleted = 0; var card = new AccountView(Local(), () => deleted++); Until(() => card.NotStarted);
-        Assert.Equal(LocalAccountDeletionText.Button, System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(card).Last()));   // last, below the sign-in entry
-        Click(card, LocalAccountDeletionText.Button); Assert.Equal(1, deleted);
-        Assert.DoesNotContain(Descendants<Button>(new AccountView(Local())), b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalAccountDeletionText.Button);   // the first-run gate has none
+        Assert.Equal(AccountDeletionText.Button, System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(card).Last()));   // last, below the sign-in entry
+        Click(card, AccountDeletionText.Button); Assert.Equal(1, deleted);
+        Assert.DoesNotContain(Descendants<Button>(new AccountView(Local())), b => System.Windows.Automation.AutomationProperties.GetName(b) == AccountDeletionText.Button);   // the first-run gate has none
         card.Dispose();
     });
 
