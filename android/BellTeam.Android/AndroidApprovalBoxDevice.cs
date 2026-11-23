@@ -12,13 +12,13 @@ internal sealed class AndroidApprovalBoxAccount(LoginBilling billing, Uri origin
     // The pass is handed out for the Approval Box origin only (the library's own rule); not signed in is the SignedOut state, never papered over.
     public Task<ServerAccess> AccessAsync(CancellationToken ct)
     {
-        // WIP: Android's LoginBilling 0.20.1 has no PassHeader(url) (Desktop has); asked of Purika. Until then the device cannot authorize.
-        string? header = null; if (header is null) throw new SignedOutException();
+        // 0.20.2: the Authorization value, only for a URL of the base origin; it goes to /pc/v1 and nowhere else, and is never logged. The binding has no NoteResponse: a renewal on this path is not kept (the library's own calls keep theirs).
+        var header = billing.PassHeader(origin.GetLeftPart(UriPartial.Authority)) ?? throw new SignedOutException();
         return Task.FromResult(new ServerAccess(origin, new Dictionary<string, string> { ["authorization"] = header }));
     }
 
     // K of the Approval Box account, for a first registry only; it never leaves this process except in that registry on Approval Box's own server.
-    public async Task<string> AccountAsync(CancellationToken ct) => throw new NotSupportedException("WIP: CheckResult.K is not in the Android binding 0.20.1 (Desktop has PassCheck.K); asked of Purika");
+    public async Task<string> AccountAsync(CancellationToken ct) => (await billing.CheckAsync()).K;
     public Task SignInAsync(CancellationToken ct) => billing.SignInWebAsync(MainActivity.Current, "google", false).WaitAsync(ct);
     public Task SignOutAsync(CancellationToken ct) => billing.SignOutAsync().WaitAsync(ct);
     // The account was deleted (4410): the pass goes too. A record the library cannot remove stays; the next sign-out or sign-in replaces it.
@@ -36,6 +36,6 @@ internal static class AndroidApprovalBoxDevice
     internal static LinuxApprovalBoxDevice? Create()
     {
         if (!Enabled || ApprovalBoxAccount.Billing is not { } billing || AccountStore.Product("approvalBoxAuthUrl") is not { } url) return null;
-        return new LinuxApprovalBoxDevice(Path.Combine(FilesDir, "approval-box"), new AndroidApprovalBoxAccount(billing, new Uri(url)), "android");
+        return new LinuxApprovalBoxDevice(Path.Combine(FilesDir, "approval-box"), new AndroidApprovalBoxAccount(billing, new Uri(new Uri(url).GetLeftPart(UriPartial.Authority))), "android");
     }
 }
