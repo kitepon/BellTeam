@@ -4,10 +4,10 @@
 <dict>
 	<key>BellTeamAppGroupIdentifier</key>
 	<string>group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)</string>
+	<key>BellTeamGoogleClientID</key>
+	<string>316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i.apps.googleusercontent.com</string>
 	<key>BellTeamKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share</string>
-	<key>BellTeamLoginBillingURL</key>
-	<string>$(BELLTEAM_LOGIN_BILLING_URL)</string>
 	<key>BellTeamPassKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER)</string>
 	<key>BellTeamPushEnvironment</key>
@@ -28,8 +28,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.8</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
-	<string>188</string>
+	<string>189</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
@@ -85,7 +94,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>承認用のQRコードを読み取るためにカメラを使います。</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>LAN上のBellTeamへ接続するためにローカルネットワークを使います。</string>
+	<string>LAN上のBellTeamへ接続するため、また同じWi-Fiの別の端末と購読を確かめ合うために、ローカルネットワークを使います。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>会話の画像を写真に保存するために使います。</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -1,22 +1,20 @@
 import XCTest
 @testable import BellBot
 
-/// 切替版（a485）: アプリは購入を持たない。AI利用はサーバー自身の答え（entitlementState）かライブラリの権利で開く。
+/// a540: サーバーは課金を判断しない。AI利用は、この端末自身の購読確認（LocalAccount）か初期案内でだけ開く。
 @MainActor
 final class BillingStoreTests: XCTestCase {
-    func testPaidUseOpensOnTheServersWordTheLibraryOrDeveloperModeOnly() {
-        XCTAssertTrue(AppAccess.permitsAI(developer: false, serverActive: true, libraryActive: false, initialGuide: false))
-        XCTAssertTrue(AppAccess.permitsAI(developer: false, serverActive: false, libraryActive: true, initialGuide: false))
-        XCTAssertTrue(AppAccess.permitsAI(developer: true, serverActive: false, libraryActive: false, initialGuide: false))
-        XCTAssertTrue(AppAccess.permitsAI(developer: false, serverActive: false, libraryActive: false, initialGuide: true))
-        XCTAssertFalse(AppAccess.permitsAI(developer: false, serverActive: false, libraryActive: false, initialGuide: false), "nothing on the device's own StoreKit or a kept date opens paid use (B2)")
+    func testPaidUseOpensOnTheDevicesOwnCheckOrTheFirstGuideOnly() {
+        XCTAssertTrue(AppAccess.permitsAI(libraryActive: true, initialGuide: false))
+        XCTAssertTrue(AppAccess.permitsAI(libraryActive: false, initialGuide: true))
+        XCTAssertFalse(AppAccess.permitsAI(libraryActive: false, initialGuide: false), "nothing the server says opens paid use (a540)")
         XCTAssertTrue(AppAccess.isInitialGuide(botID: "bot-guide", guideBotID: "bot-guide", setupComplete: false))
         XCTAssertFalse(AppAccess.isInitialGuide(botID: "bot-guide", guideBotID: "bot-guide", setupComplete: true))
         XCTAssertFalse(AppAccess.isInitialGuide(botID: "bot-other", guideBotID: "bot-guide", setupComplete: false))
         XCTAssertFalse(AppAccess.isInitialGuide(botID: nil, guideBotID: nil, setupComplete: false))
     }
 
-    func testInitialStatusFailureShowsUnknownAccessAndRetainsDraftWithoutSending() async {
+    func testUnpaidDeviceRefusesTheAIUseAndRetainsTheDraftWithoutSending() async {
         let scenario = BillingScenario(responses: [.failure, .failure])
         let api = makeAPI(scenario)
         let billing = BillingStore(api: api)
@@ -28,76 +26,48 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertNil(billing.status)
         do {
             try await store.authorizeAIUse(target: target)
-            XCTFail("購読の確認前に送信を許可しない")
+            XCTFail("購読の確認がなければ送信を許可しない")
         } catch {
-            XCTAssertTrue(error.localizedDescription.contains("確認できません"))
-            XCTAssertTrue(error.localizedDescription.contains("再確認"))
-            XCTAssertFalse(error.localizedDescription.contains("月額購読が必要"))
+            XCTAssertTrue(error.localizedDescription.contains("月額購読が必要"))
         }
         XCTAssertEqual(store.draft(for: target).text, "送信前の本文")
         XCTAssertEqual(scenario.requests.filter { $0.method == "POST" }.count, 0)
     }
 
-    func testTheServersActiveWordUnlocksAndNoneOrUnknownDoNot() async throws {
-        let active = BillingStore(api: makeAPI(BillingScenario(responses: [.state("active"), .state("active")])))
-        await active.connect()
-        XCTAssertTrue(active.hasPaidAccess)
-        XCTAssertEqual(active.presentation, .active)
-        try await active.requirePaidAccess()
-
-        for state in ["none", "unknown"] {
-            let billing = BillingStore(api: makeAPI(BillingScenario(responses: [.state(state), .state(state)])))
+    func testTheServersWordNeverOpensPaidUse() async throws {
+        for response in [BillingScenario.Response.state("active"), .mode("developer")] {
+            let billing = BillingStore(api: makeAPI(BillingScenario(responses: [response])))
             await billing.connect()
             XCTAssertFalse(billing.hasPaidAccess)
             XCTAssertEqual(billing.presentation, .inactive)
-            XCTAssertEqual(billing.serverRequiresSubscription, state == "none", "only a definite 'none' puts the wall up")
-            do { try await billing.requirePaidAccess(); XCTFail("\(state) must not open paid use") } catch { XCTAssertTrue(error.localizedDescription.contains("月額購読が必要")) }
+            do { try await billing.requirePaidAccess(); XCTFail("the server's word must not open paid use") } catch { XCTAssertTrue(error.localizedDescription.contains("月額購読が必要")) }
         }
     }
 
-    func testRetryAfterInitialFailureRecognizesDeveloper() async throws {
-        let scenario = BillingScenario(responses: [.failure, .mode("developer")])
-        let billing = BillingStore(api: makeAPI(scenario))
-        await billing.connect()
-        await billing.loadSubscription()
-        XCTAssertTrue(billing.isDeveloper)
-        XCTAssertEqual(billing.presentation, .active)
-        try await billing.requirePaidAccess()
-        XCTAssertEqual(scenario.requests.filter { $0.path == "/api/subscription" }.count, 2)
-    }
-
-    func testKnownDeveloperSurvivesLaterStatusFailure() async throws {
-        let scenario = BillingScenario(responses: [.mode("developer"), .failure])
-        let billing = BillingStore(api: makeAPI(scenario))
+    func testThisDevicesOwnCheckOpensPaidUseAndLiftsTheWall() async throws {
+        let account = LocalAccount(productId: "p")
+        let billing = BillingStore(api: makeAPI(BillingScenario(responses: [])), account: account)
+        XCTAssertFalse(billing.requiresPurchase, "no wall before the device's own store was read")
+        account.setPaid(nil)
+        XCTAssertTrue(billing.requiresPurchase)
+        account.setPaid(.init(productId: "p", until: nil, store: "apple"))
+        XCTAssertFalse(billing.requiresPurchase)
         await billing.connect()
         XCTAssertEqual(billing.presentation, .active)
-        let refreshed = await billing.refreshFromServer()
-        XCTAssertFalse(refreshed)
         try await billing.requirePaidAccess()
-        XCTAssertTrue(billing.isDeveloper)
-    }
-
-    func testKnownActiveWordSurvivesLaterStatusFailure() async throws {
-        let scenario = BillingScenario(responses: [.state("active"), .failure, .failure])
-        let billing = BillingStore(api: makeAPI(scenario))
-        await billing.connect()
-        let refreshed = await billing.refreshFromServer()
-        XCTAssertFalse(refreshed)
-        try await billing.requirePaidAccess()
-        XCTAssertEqual(billing.presentation, .active)
     }
 
     func testConnectionFailureDoesNotLeaveCheckingForever() async {
         let billing = BillingStore(api: BellAPI(baseURL: nil))
         XCTAssertEqual(billing.presentation, .checking)
         await billing.connect()
-        XCTAssertEqual(billing.presentation, .unavailable)
+        XCTAssertEqual(billing.presentation, .inactive)
         XCTAssertFalse(billing.checking)
         XCTAssertNotNil(billing.errorText)
     }
 
     func testRestartConversationDeniedAccessDoesNotPost() async {
-        let scenario = BillingScenario(responses: [.state("none")])
+        let scenario = BillingScenario(responses: [])
         let api = makeAPI(scenario)
         let store = AppStore(api: api, billing: BillingStore(api: api))
 
@@ -110,18 +80,18 @@ final class BillingStoreTests: XCTestCase {
             }
             XCTAssertTrue(message.contains("月額購読が必要"))
         }
-        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/subscription"])
+        XCTAssertEqual(scenario.requests.count, 0)
     }
 
     func testRestartConversationAuthorizedPostsEmptyJSONOnceToTarget() async throws {
         for target in [ChatTarget.bot("restart-test"), .room("restart-room")] {
-            let scenario = BillingScenario(responses: [.state("active"), .restart(.success)])
+            let scenario = BillingScenario(responses: [.restart(.success)])
             let api = makeAPI(scenario)
-            let store = AppStore(api: api, billing: BillingStore(api: api))
+            let store = AppStore(api: api, billing: paidBilling(api))
 
             try await store.restartConversation(target: target)
 
-            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/subscription", "POST " + target.path + "/restart"], "権限確認が終わるまでPOSTしない")
+            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST " + target.path + "/restart"])
             let body = try XCTUnwrap(scenario.requests.last?.body)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertTrue(object.isEmpty)
@@ -130,17 +100,17 @@ final class BillingStoreTests: XCTestCase {
     }
 
     func testRestartConversationCountsAnOlderBodys202AsSuccess() async throws {
-        let scenario = BillingScenario(responses: [.state("active"), .restart(.legacyAccepted)])
+        let scenario = BillingScenario(responses: [.restart(.legacyAccepted)])
         let api = makeAPI(scenario)
-        try await AppStore(api: api, billing: BillingStore(api: api)).restartConversation(target: .bot("restart-test"))
-        XCTAssertEqual(scenario.requests.count, 2)
+        try await AppStore(api: api, billing: paidBilling(api)).restartConversation(target: .bot("restart-test"))
+        XCTAssertEqual(scenario.requests.count, 1)
     }
 
     func testRestartConversationPostFailuresPreserveErrorsWithoutRetry() async {
         for response in [BillingScenario.RestartResponse.timeout, .unauthorized, .invalidJSON] {
-            let scenario = BillingScenario(responses: [.state("active"), .restart(response)])
+            let scenario = BillingScenario(responses: [.restart(response)])
             let api = makeAPI(scenario)
-            let store = AppStore(api: api, billing: BillingStore(api: api))
+            let store = AppStore(api: api, billing: paidBilling(api))
 
             do {
                 try await store.restartConversation(target: .bot("restart-test"))
@@ -161,7 +131,7 @@ final class BillingStoreTests: XCTestCase {
                 case .success, .legacyAccepted: XCTFail("成功応答はこの試験に含めない")
                 }
             }
-            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/subscription", "POST /api/bots/restart-test/restart"])
+            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST /api/bots/restart-test/restart"])
         }
     }
 
@@ -178,7 +148,7 @@ final class BillingStoreTests: XCTestCase {
     }
 
     func testRestartConversationCompletedGuideRequiresPaidAccessAfterSetupRefresh() async {
-        let scenario = BillingScenario(responses: [.setup(complete: true), .failure])
+        let scenario = BillingScenario(responses: [.setup(complete: true)])
         let api = makeAPI(scenario)
         let store = AppStore(api: api, billing: BillingStore(api: api))
         store.setup = SetupResponse(phase: "ready", harness: nil, harnesses: [], guideBotId: "restart-guide", complete: false, auth: nil)
@@ -190,10 +160,17 @@ final class BillingStoreTests: XCTestCase {
             guard case BellAPIError.server(let message) = error else {
                 return XCTFail("権限確認のErrorをそのまま返す: \(error)")
             }
-            XCTAssertTrue(message.contains("確認できません"))
+            XCTAssertTrue(message.contains("月額購読が必要"))
         }
         XCTAssertEqual(store.setup?.complete, true)
-        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup", "GET /api/subscription"])
+        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup"])
+    }
+
+    /// この端末の購読確認が済んで、有効な状態。
+    private func paidBilling(_ api: BellAPI) -> BillingStore {
+        let account = LocalAccount(productId: "p")
+        account.setPaid(.init(productId: "p", until: nil, store: "apple"))
+        return BillingStore(api: api, account: account)
     }
 
     private func makeAPI(_ scenario: BillingScenario) -> BellAPI {

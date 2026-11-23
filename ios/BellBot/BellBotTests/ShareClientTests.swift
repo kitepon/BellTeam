@@ -16,10 +16,10 @@ final class ShareClientTests: XCTestCase {
         override func stopLoading() {}
     }
 
-    private func client(cookie: String? = "CF_Authorization=abc", expires: Date? = nil) -> ShareClient {
+    private func client(cookie: String? = "CF_Authorization=abc", expires: Date? = nil, paidUntil: Date? = nil) -> ShareClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [Stub.self]
-        return ShareClient(credentials: .init(serverURL: "https://bell.example", cookieHeader: cookie, cookieExpiresAt: expires),
+        return ShareClient(credentials: .init(serverURL: "https://bell.example", cookieHeader: cookie, cookieExpiresAt: expires, paidUntil: paidUntil),
                            session: URLSession(configuration: configuration))
     }
 
@@ -54,15 +54,12 @@ final class ShareClientTests: XCTestCase {
         XCTAssertNoThrow(try client(cookie: nil).validate())
     }
 
-    /// B2: only the server's own word opens the share (developer mode or entitlementState active); no date kept on the device.
-    func testAccessNeedsDeveloperModeOrTheServersActiveWord() async throws {
-        respond(200, #"{"subscription":{"accessMode":"developer"}}"#)
-        try await client().requireAccess()
-        respond(200, #"{"subscription":{"accessMode":"subscription","entitlementState":"active"}}"#)
-        try await client().requireAccess()
-        for state in [#""none""#, #""unknown""#, "null"] {
-            respond(200, #"{"subscription":{"accessMode":"subscription","entitlementState":"# + state + "}}")
-            do { try await client().requireAccess(); XCTFail("the server did not say active") } catch { XCTAssertEqual(error as? ShareClient.Failure, .subscription) }
+    /// a540: the share opens only on the paid-until the app wrote from this device's own store check; the server says nothing about money.
+    func testAccessNeedsAPaidUntilInTheFuture() throws {
+        XCTAssertNoThrow(try client(paidUntil: Date(timeIntervalSinceNow: 3600)).requireAccess())
+        XCTAssertNoThrow(try client(paidUntil: .distantFuture).requireAccess())
+        for until in [nil, Date(timeIntervalSinceNow: -10)] {
+            XCTAssertThrowsError(try client(paidUntil: until).requireAccess()) { XCTAssertEqual($0 as? ShareClient.Failure, .subscription) }
         }
     }
 

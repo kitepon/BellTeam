@@ -211,8 +211,7 @@ private struct RootView: View {
             case .signIn:
                 LoginView()
             case .serverLogin:
-                if let model = store.homeLogin { HomeLoginView(model: model, account: store.storeAccount) }
-                else if let model = store.serverLogin { ServerLoginView(model: model) }
+                if let model = store.serverLogin { ServerLoginView(model: model) }
             case .ready:
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-avatar-crop") {

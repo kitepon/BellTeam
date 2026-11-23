@@ -242,14 +242,11 @@ enum SettingsSummary {
 
     // MARK: 利用と課金
 
-    static func billing(_ presentation: SubscriptionPresentation, developer: Bool) -> SettingsStatus {
-        if developer { return SettingsStatus(line: "開発者として利用中", badge: "開発者", tone: .green) }
+    static func billing(_ presentation: SubscriptionPresentation) -> SettingsStatus {
         switch presentation {
         case .checking: return SettingsStatus(line: "購読を確認中", badge: "確認中", tone: .violet)
         case .active: return SettingsStatus(line: "購読中です", badge: "有効", tone: .green)
         case .inactive: return SettingsStatus(line: "購読していません", badge: "未設定", tone: .gray)
-        // An unread subscription (older body, not connected yet) keeps the calm line instead of saying it cannot be read.
-        case .unavailable: return SettingsStatus(line: SettingsPage.billing.detail)
         }
     }
 

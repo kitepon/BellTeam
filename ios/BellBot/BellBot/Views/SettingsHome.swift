@@ -211,7 +211,7 @@ final class SettingsHomeState: ObservableObject {
         case .features: return SettingsSummary.features(store.featureSettings)
         case .exclusions: return SettingsSummary.runningExclusions(exclusions)
         case .connection: return SettingsStatus(line: store.serverURL?.host ?? "未設定")
-        case .billing: return SettingsSummary.billing(store.billing.presentation, developer: store.billing.isDeveloper)
+        case .billing: return SettingsSummary.billing(store.billing.presentation)
         case .update:
             let content = UpdateContent(updates: store.updates)
             return SettingsSummary.update(content.status, title: content.heroText.1)

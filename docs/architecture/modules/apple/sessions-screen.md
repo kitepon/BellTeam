@@ -29,6 +29,5 @@ Status: wording ruled by Tronie/Mint 2026-11-23. Built in a529a (2026-11-23): on
 
 ## Rules
 - Every row of the user's server appears here, whatever way it entered (code, phone approval, console code). The old 承認した端末 list (the phone's own approvals, login-billing) is a different list and is not this screen.
-- 「ログアウトさせる」 on another device's row ends that session at once (home part `DELETE /api/home/sessions/{id}`); the row leaves the list when the server says so. 「締め出す」 needs the row's `passId` (account rows only) and a store pass on the caller.
-- When the app stops something at the operator (`stop(passId)` or stop all others), it also calls `endSession` for the affected sessions so the stop is felt at once (Mint's answer to the 6 min 30 s measured on the dev server).
+- 「ログアウトさせる」 on another device's row ends that session at once (home part `DELETE /api/home/sessions/{id}`); the row leaves the list when the server says so. a540: there is no 「締め出す」 any more (it needed a store pass at the operator, which is gone).
 - Accessibility identifiers (kept; session-revoke-<id> stays the id of the 「ログアウトさせる」 button): sessions-add-app, session-revoke-<id>, login-request-approve, login-request-deny, login-request-banner, add-app-issue, add-app-code, add-app-note.

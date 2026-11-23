@@ -158,9 +158,8 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(SettingsSummary.rules("", unreadable: false).badge, "未設定")
         XCTAssertEqual(SettingsSummary.rules("SECTION a\n  RULE a.x\n    DO: y\n  RULE a.z\n    DO: w", unreadable: false).line, "2件の決まり")
         XCTAssertEqual(SettingsSummary.rules("- 一つ目\n- 二つ目", unreadable: false).line, "2行の決まり")
-        XCTAssertNil(SettingsSummary.billing(.unavailable, developer: false).badge, "読めない購読は旧来の1行")
-        XCTAssertEqual(SettingsSummary.billing(.inactive, developer: true).badge, "開発者")
-        XCTAssertEqual(SettingsSummary.billing(.active, developer: false).badge, "有効")
+        XCTAssertEqual(SettingsSummary.billing(.inactive).badge, "未設定")
+        XCTAssertEqual(SettingsSummary.billing(.active).badge, "有効")
     }
 
     func testFeaturesSummaryCountsUsedAndUnsetWithoutOnePassword() throws {

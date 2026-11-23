@@ -45,7 +45,7 @@ final class ApprovalBoxLink: ObservableObject {
     private var attempt = 0
     private var started = false
 
-    init(origin: URL = ApprovalBoxLink.origin, passStore: PassStore = KeychainPassStore(service: ApprovalBoxLink.passService, accessGroup: StoreAccount.passGroup), deviceStore: PeerDeviceStore = PeerDeviceStore(),
+    init(origin: URL = ApprovalBoxLink.origin, passStore: PassStore = KeychainPassStore(service: ApprovalBoxLink.passService, accessGroup: LocalAccount.passGroup), deviceStore: PeerDeviceStore = PeerDeviceStore(),
          historyRoot: URL = URL.applicationSupportDirectory.appending(path: "ApprovalBox/Peer"), label: String? = nil, platform: String? = nil,
          sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }) {
         self.origin = origin

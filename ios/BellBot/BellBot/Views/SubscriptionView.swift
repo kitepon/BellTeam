@@ -4,40 +4,34 @@ struct SubscriptionCard: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        SubscriptionContent(billing: store.billing, account: store.storeAccount)
+        SubscriptionContent(billing: store.billing, account: store.localAccount)
     }
 }
 
 private struct SubscriptionContent: View {
     @ObservedObject var billing: BillingStore
-    @ObservedObject var account: StoreAccount
+    @ObservedObject var account: LocalAccount
 
     private var detail: [String] {
-        account.entitlements.map { entitlement in
-            "有効期限：" + (entitlement.expiresAt.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "期限なし")
-        }
+        account.paid.map { paid in
+            ["有効期限：" + (paid.until.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "期限なし")]
+        } ?? []
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // The page head already says the state in one badge and one sentence; the card holds the explanation, the details and the actions.
-            Text("Web版は無料です。BellTeamの購読は、BellTeamのアカウントに結びつき、同じサーバーのすべてのアプリで使えます。月980円（税込）で、最初の1か月は無料です。サーバーとAIはご自身の契約で利用します。購入は上の「BellTeamのアカウント」から、Appleのアカウントでサインインして行います。")
+            Text("BellTeamの購読は、この端末のApple Accountで確かめます。月980円（税込）で、最初の1か月は無料です。サーバーとAIはご自身の契約で利用します。購入は上の「BellTeamの購読」から行います。購読していない端末は、購読しているiPhoneのBellTeamにQRを読み取ってもらって確かめられます。")
                 .font(.subheadline).foregroundStyle(BellTheme.muted)
-            if billing.isDeveloper {
-                Text("このサーバーでは購読の購入は不要です。AIへの送信と予定操作を利用できます。")
-                    .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-            } else if billing.presentation == .checking {
+            if billing.presentation == .checking {
                 ProgressView(billing.progressText)
                     .accessibilityIdentifier("subscription-checking")
-            } else if billing.presentation == .unavailable {
-                Text("購読の状態を確認できませんでした。再確認してください。")
-                    .font(.subheadline)
             } else {
                 if billing.hasPaidAccess {
                     Text("購読中です。").font(.subheadline.weight(.semibold)).accessibilityIdentifier("subscription-active")
                     ForEach(detail, id: \.self) { Text($0).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted) }
                 } else {
-                    Text("初期案内の会話、保存した会話の閲覧・書き出しは無料です。通常のAI送信と予定の作成・編集・実行は、購読が有効な間に使えます。Webで用意した予定は継続します。")
+                    Text("初期案内の会話、保存した会話の閲覧・書き出しは無料です。通常のAI送信と予定の作成・編集・実行は、購読が有効な間に使えます。")
                         .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     if billing.status?.setupComplete != true {
                         Text("案内役と初期設定をすべて完了すると、購読を開始できます。")
@@ -59,12 +53,7 @@ private struct SubscriptionContent: View {
             if let message = billing.message { Text(message).font(BellTheme.secondaryFont) }
             if let error = billing.errorText { Text(error).font(BellTheme.secondaryFont).foregroundStyle(.red) }
             HStack {
-                Button("再確認") {
-                    Task {
-                        if billing.status == nil { await billing.loadSubscription() }
-                        else { await billing.recheck() }
-                    }
-                }
+                Button("再確認") { Task { await billing.recheck() } }
                 .buttonStyle(.bordered)
             }
             .disabled(billing.checking)

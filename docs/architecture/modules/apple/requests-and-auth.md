@@ -78,7 +78,7 @@ flowchart TD
 | completeWebLogin | checkingLoginで重複を抑止。期限内CF_Authorizationが接続先domainに属する時だけHTTP cookieへ同期。session未認証/認証エラーならreturn、その他はfailureと診断。Webの読み込み完了そのものはログイン成功ではない |
 | requireLogin | CloudflareならsignInと自動sheet、local拒否なら設定失敗表示。draftは保持。SSE/foreground停止等は[共通図](state-and-sync.md#送信停止取消途中失敗)参照 |
 
-**サーバーのセッションログイン（a485）**：`GET /api/session`の`login`がある本体は、確定した未認証（`authenticated:false`、または401）でKeychainのトークンを捨て、`ServerLoginView`（サーバーに入る画面）へ進む。`login`が無い本体は上のAccess経路のまま。トークンは共有Keychainの1項目（`ShareCredentials.Snapshot.sessionToken`、共有拡張も読む）に置き、`BellAPI.sessionToken`が全要求へ`Authorization: Bearer`で付ける。503 `SESSION_STORE_UNAVAILABLE`ではトークンを残し「サーバーの準備中です」を出して1・2・4…30秒で読み直す。ログインの待ち（`ServerLoginModel`）は`pollAfterMs`（3秒）ごとに読み、一時失敗は理由を出して上限30秒のバックオフで続け、404は期限切れ。`approved`のトークンは1回だけ。全体の図と状態は[login-billing.md](login-billing.md)。
+**サーバーのセッションログイン（a485、a540で入口はコンソールのコードだけ）**：ホームの契約を持つ本体（`GET /api/home/session`が`login-billing-home/1`）か、`GET /api/session`の`login`がある本体は、確定した未認証（`authenticated:false`、または401）でKeychainのトークンを捨て、`ServerLoginView`（サーバーに入る画面。コンソールのコードの欄だけ）へ進む。コードはホームの本体なら`POST /api/home/login/console`、従来の本体なら`/api/login/console`へ送る。電話の承認・運営のパス・ホームの`connectHome`は無い（運営が無い）。`login`も無い本体は上のAccess経路のまま。トークンは共有Keychainの1項目（`ShareCredentials.Snapshot.sessionToken`、共有拡張も読む）に置き、`BellAPI.sessionToken`が全要求へ`Authorization: Bearer`で付ける。503 `SESSION_STORE_UNAVAILABLE`ではトークンを残し「サーバーの準備中です」を出して1・2・4…30秒で読み直す。`approved`のトークンは1回だけ。全体の図と状態は[login-billing.md](login-billing.md)。
 
 ServerOriginの定義は[Shared/ServerOrigin.swift](../../../../ios/BellBot/Shared/ServerOrigin.swift#L4)。サーバー到達性・TLS/Accessの外部設定をこの静的図では判定しない。
 

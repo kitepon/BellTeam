@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// The app, or the subscription wall when the server's own entitlement says 'none' (app-sessions.md 7e).
-/// The purchase and restore stay where they are (SubscriptionCard); a purchase feeds the server's pass and the next read lifts the wall.
+/// The app, or the subscription wall when this device's own store check found nothing paid (a540). The purchase and the QR stay in the cards below.
 struct ReadyGate<Content: View>: View {
     @ObservedObject var billing: BillingStore
     @ViewBuilder let content: Content
 
     var body: some View {
-        if billing.serverRequiresSubscription { SubscriptionRequiredView() } else { content }
+        if billing.requiresPurchase { SubscriptionRequiredView() } else { content }
     }
 }
 
@@ -20,7 +19,7 @@ struct SubscriptionRequiredView: View {
             BellBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("このアプリは購読が必要です。無料で使うならブラウザから")
+                    Text("このアプリは購読が必要です")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(BellTheme.ink)
                         .accessibilityIdentifier("subscription-required")
