@@ -5,60 +5,37 @@ using static BellTeam.App.SettingsUi;
 
 namespace BellTeam.App;
 
-// a540: the screen of the local form (contract 1.36 s10). The device that wants in shows the request's QR (QrView draws the text exactly as the library gives it) and waits for the paying phone's reply over the same Wi-Fi;
-// then it says what came back. It only draws and reports the person's choice: makeRequest, the listener and accept run in the library's desktop part.
+// a540: the section of the local form (contract 1.36 s10; words: Rapi's table, LocalFormText). The device that wants in shows the request's QR (QrView draws the text exactly as the library gives it) and waits for the paying phone's reply over the same Wi-Fi.
+// It only draws and reports the person's choice: makeRequest, the listener and accept run in the library's desktop part. The one Windows addition is the firewall note (the person's one step on the first listen).
 internal sealed class LocalRequestView : StackPanel
 {
-    private readonly Action newQr, cancel;
-    public LocalRequestView(Action newQr, Action cancel) { this.newQr = newQr; this.cancel = cancel; }
+    private readonly Action start, cancel;
+    public LocalRequestView(Action start, Action cancel) { this.start = start; this.cancel = cancel; }
 
-    // The request is on screen and the listener waits.
-    public void ShowRequest(string qrPayload)
+    // No try is running: the section and the button that starts one. sentence = what the last try ended with (red), none for a first or a stopped try.
+    public void ShowIdle(string? sentence = null)
+    {
+        Head();
+        Children.Add(Text(LocalFormText.Firewall, 12, Muted, null, new Thickness(0, 4, 0, 0)));
+        if (sentence is not null) Children.Add(Text(sentence, 13, Red, null, new Thickness(0, 10, 0, 0)));
+        Children.Add(Button(LocalFormText.Google, start));
+    }
+
+    // The request is on screen and the listener waits until expiry.
+    public void ShowRequest(string qrPayload, DateTimeOffset expiry)
+    {
+        Head();
+        Children.Add(new QrView(qrPayload, 220, LocalFormText.QrLabel) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 10) });
+        Children.Add(Text(LocalFormText.Firewall, 12, Muted));
+        Children.Add(Text(LocalFormText.WaitingUntil(expiry), 13, Muted, null, new Thickness(0, 8, 0, 0)));
+        Children.Add(Button(LocalFormText.Cancel, cancel));
+    }
+
+    private void Head()
     {
         Children.Clear();
         Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
         Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
-        Children.Add(new QrView(qrPayload, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 10) });
-        Children.Add(Text(LocalFormText.Window, 12, Muted));
-        Children.Add(Text(LocalFormText.Firewall, 12, Muted, null, new Thickness(0, 4, 0, 0)));
-        Children.Add(Text(LocalFormText.Waiting, 13, Muted, null, new Thickness(0, 8, 0, 0)));
-        Children.Add(Button(LocalFormText.Cancel, cancel));
-    }
-
-    // Paid: the end of the period (the person keeps using the app). Every other outcome ends the try: its sentence and a new QR.
-    public void ShowOutcome(LocalFormOutcome outcome, DateTimeOffset? paidUntil = null)
-    {
-        Children.Clear();
-        Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
-        var paid = outcome == LocalFormOutcome.Paid;
-        Children.Add(Text(paid ? LocalFormText.Paid(paidUntil ?? throw new ArgumentNullException(nameof(paidUntil))) : LocalFormText.Of(outcome), 14, paid ? Ink : Red, null, new Thickness(0, 10, 0, 0)));
-        if (!paid) Children.Add(Button(LocalFormText.NewQr, newQr));
-    }
-
-    // A try that ended with one of the library's codes, in the words of LocalFormText.Failure: its sentence and a new QR.
-    public void ShowSentence(string sentence)
-    {
-        Children.Clear();
-        Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
-        Children.Add(Text(sentence, 14, Red, null, new Thickness(0, 10, 0, 0)));
-        Children.Add(Button(LocalFormText.NewQr, newQr));
-    }
-
-    // The accepted period ended on this device's clock: the next step is a new QR.
-    public void ShowPeriodEnded()
-    {
-        Children.Clear();
-        Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
-        Children.Add(Text(LocalFormText.PeriodEnded, 14, Ink, null, new Thickness(0, 10, 0, 0)));
-        Children.Add(Button(LocalFormText.NewQr, newQr));
-    }
-
-    // The person stopped the wait: only the way to a new QR.
-    public void ShowStopped()
-    {
-        Children.Clear();
-        Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeights.Bold));
-        Children.Add(Button(LocalFormText.NewQr, newQr));
     }
 
     private static Button Button(string label, Action click)
