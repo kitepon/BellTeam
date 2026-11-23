@@ -41,7 +41,6 @@ public static class StoreAccountText
     public const string StopAllOthersConfirm = "止める";
     public const string StopAllOthersCancel = "キャンセル";   // not やめる: 止める and やめる sound the same side by side (Mika, 7f)
     public const string HandoffAgain = "スマホで引き継ぐ";
-    public const string OtherAccount = "別のアカウントで購入したものがあります。このアカウントでは購読になりません。";
     public const string Refresh = "再確認";
     public const string StopAllOthers = "ほかの端末をすべて止める";
     public const string SignOut = "サインアウト";
