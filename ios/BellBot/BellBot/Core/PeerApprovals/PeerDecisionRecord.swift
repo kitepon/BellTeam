@@ -5,7 +5,8 @@ import PeerChannel
 /// (approval-box docs/architecture/peer-channel-adoption.md section 7) <-> the app's record. Pure functions; nothing here touches the network or the disk.
 struct PeerDecisionRecord: Codable, Identifiable, Equatable {
     struct Option: Codable, Identifiable, Equatable { let id: String; let label: String }
-    struct Attachment: Codable, Identifiable, Equatable { let id: String; let name: String; let contentType: String; let size: Int }
+    /// `sha256` (hex) is set by the server path; on the device path the id is the SHA-256 itself.
+    struct Attachment: Codable, Identifiable, Equatable { let id: String; let name: String; let contentType: String; let size: Int; var sha256: String? = nil }
     struct Answer: Codable, Equatable { let optionId: String?; let text: String?; let answeredAt: Date }
     let id: String
     let title: String

@@ -207,7 +207,7 @@ extension ApprovalDecision {
                   amended: ApprovalAmended(is: false, fields: [], note: nil, at: nil), history: [],
                   requestAttachments: r.attachments.map {
                       ApprovalAttachment(id: $0.id, name: $0.name, contentType: $0.contentType, size: $0.size,
-                                         sha256: (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
+                                         sha256: $0.sha256 ?? (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
                   },
                   origin: ApprovalOrigin(kind: link == nil ? "external" : "bellteam", client: r.client, tool: Self.toolName(r.client), sessionLabel: r.sessionLabel, via: r.via),
                   requester: link == nil ? nil : ApprovalRequester(botId: nil, name: nil), link: link)
@@ -220,7 +220,7 @@ extension ApprovalDecision {
 
 // MARK: Model
 
-/// 決裁箱の画面の状態と操作。中身は、この端末が持つ決裁（peer-channel。サーバーに内容はない）から描く。サインインと端末の状態は ApprovalBoxLink が持つ。
+/// 決裁箱の画面の状態と操作。中身は ApprovalBoxLink の決裁（決裁箱の `/v1`、peer-channel が使える日からは端末が持つ決裁）から描く。サインインと端末の状態は ApprovalBoxLink が持つ。
 @MainActor
 final class ApprovalsModel: ObservableObject {
     enum Gate: Equatable {
@@ -370,7 +370,7 @@ final class ApprovalsModel: ObservableObject {
         await send(d) { try await self.link.hold(d.id, held: hold) } accepted: { nil }
     }
 
-    private func send(_ d: ApprovalDecision, _ work: () async throws -> PeerDevice.AnswerOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
+    private func send(_ d: ApprovalDecision, _ work: () async throws -> ApprovalWriteOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
         notes[d.id] = nil
         sending.insert(d.id)
         defer { sending.remove(d.id) }
