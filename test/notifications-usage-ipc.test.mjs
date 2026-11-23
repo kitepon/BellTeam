@@ -9,6 +9,8 @@ import { createNotificationsParentChannel, waitNotificationsChildClose } from '.
 
 const fixture = new URL('./fixtures/notifications-usage-child.mjs', import.meta.url).pathname
 const device = { token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam.example', signedTransaction: 'PRIVATE_TRANSACTION' }
+// a540: an older app's signedTransaction is accepted and dropped, never stored
+const { signedTransaction: _dropped, ...stored } = device
 const event = { type: 'direct', id: 'slow', botId: 'bot-a', senderName: 'ミカ' }
 
 async function start(t, { mode = '', configuration = { enabled: false, relayUrl: '' }, webConfiguration = null, onDiagnostic = async () => {} } = {}) {
@@ -79,7 +81,7 @@ test('実IPCでpublish受付後のquiesceはprovider終端まで待ち、状態�
   assert.equal(sent.trim().split('\n').length, 1)
   assert(!sent.includes('PRIVATE_'))
   const saved = JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8'))
-  assert.deepEqual(saved, [device])
+  assert.deepEqual(saved, [stored])
   await channel.control('exit')
   assert.deepEqual(await ended, { code: 0, signal: null })
 })
@@ -109,7 +111,7 @@ test('親IPC切断後もusage送信終端を待ち、OS/IPC/pipe回収barrierで
   assert.equal(closed, false)
   await writeFile(join(root, 'release'), '')
   assert.deepEqual(await ended, { code: 0, signal: null })
-  assert.deepEqual(JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8')), [device])
+  assert.deepEqual(JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8')), [stored])
 })
 
 test('a487n stage 2: the child ignores the webPush configuration of an older body, reports no webPush, and removes the old Web push files', async t => {
@@ -127,13 +129,4 @@ test('a487n stage 2: the child ignores the webPush configuration of an older bod
   assert.deepEqual(ready.applyError, { apns: null })
   const names = await readdir(join(root, 'state'))
   assert.ok(!names.some(name => name.startsWith('web-push')))
-})
-
-test('a485: tickets goes through the real IPC (parent and child checks), bounded and exact', async t => {
-  const { channel } = await start(t, { configuration: { enabled: false, relayUrl: '' } })
-  await channel.control('resume')
-  assert.deepEqual(await channel.request('tickets', { tickets: { ['a'.repeat(64)]: 'ticket' } }), { accepted: true })
-  assert.deepEqual(await channel.request('tickets', { tickets: {} }), { accepted: true })
-  for (const bad of [{ tickets: { short: 'ticket' } }, { tickets: { ['a'.repeat(64)]: '' } }, { tickets: {}, provider: 'apns' }, {}])
-    await assert.rejects(channel.request('tickets', bad), error => ['PUSH_IPC_ARGUMENTS', 'PUSH_INPUT_INVALID'].includes(error.code))
 })

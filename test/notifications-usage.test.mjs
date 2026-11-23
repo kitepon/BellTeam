@@ -146,7 +146,8 @@ test('登録保存完了を返し、旧版と同じ端末形式で再読取で�
   await request('register', device)
   await request('register', replacement)
   const saved = JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8'))
-  assert.deepEqual(saved, [{ ...device, token: replacement.token }])
+  const { signedTransaction, ...stored } = device // a540: an older app's signedTransaction is accepted and dropped
+  assert.deepEqual(saved, [{ ...stored, token: replacement.token }])
   await dispatcher.control('quiesce', {})
   await dispatcher.control('exit', {})
   const restored = createNotificationsDispatcher({ root, provider, diagnostic: async () => {} })
@@ -334,11 +335,10 @@ test('Android routes reach the notification child as provider fcm and keep the 4
   }
 })
 
-test('Android registration carries the server\'s own subscription proof for the relay and refuses a client-supplied one', async t => {
+test('Android registration carries no proof (a540) and still refuses a client-supplied one', async t => {
   const calls = []
-  let proof = { stripeSubscriptionId: 'sub_synthetic' }
   const { service } = facadeFixture({ request: async (method, params) => { calls.push([method, params]); return { registered: true } } })
-  const handler = createUsageApi({ notifications: service, subscriptions: { proof: () => proof } })
+  const handler = createUsageApi({ notifications: service })
   const server = createServer((request, response) => {
     handler(request, response, new URL(request.url, 'http://localhost')).catch(error => respondHttpError(request, response, error))
   })
@@ -347,9 +347,6 @@ test('Android registration carries the server\'s own subscription proof for the 
   const post = body => fetch(`http://127.0.0.1:${server.address().port}/api/notifications/android/devices`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const body = { token: 'a'.repeat(40), server: 'https://bell.example.com' }
-  assert.equal((await post(body)).status, 200)
-  assert.deepEqual(calls.at(-1), ['register', { ...body, proof, provider: 'fcm' }])
-  proof = null
   assert.equal((await post(body)).status, 200)
   assert.deepEqual(calls.at(-1), ['register', { ...body, provider: 'fcm' }])
   const before = calls.length

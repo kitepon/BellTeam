@@ -116,7 +116,7 @@ COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.site.yaml
 
 iPhone・Macアプリからの通常の会話と予定操作は共通の月額購読を使います。台数制限はありません。初期設定の案内役との会話、閲覧・書き出し・管理は無料です。Webで使ってからAppleアプリの購入を選べます。購読の確認先と商品は配布物内の`services/subscriptions/`に含まれています。Appleの秘密鍵は運営の通知送信サービスが持ち、利用者のコンテナへ配布しません。
 
-一般配布版は開発者免除を受け付けません。`BELLTEAM_SUBSCRIPTION_ACCESS_MODE=developer`を指定すると`SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE`で起動を停止します。
+a540以降、サーバーは契約を確かめず何も止めません。`BELLTEAM_SUBSCRIPTION_ACCESS_MODE`は読まれても、動作を変えません。
 
 購読が終了しても、Webからの会話と設定済みの予定は動き続けます。Appleアプリでも保存済みの会話の閲覧とJSON書き出しは利用できます。会話・設定は本体専用の`server-state` volume、メンバーの作業とAIの認証情報は自分の`runtime/`へ保存されます。更新時にも両方を保持します。
 

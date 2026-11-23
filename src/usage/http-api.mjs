@@ -6,7 +6,7 @@ import { backgroundAgentError, backgroundInputValid } from './background-agent-s
 import { cliNotice } from './harness-cli-notice.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE, harnessNoticeFor } from '../retired-harness.mjs'
 
-export function createUsageApi({ homeFront, onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, captureUsageContext, resolveSeat }) {
+export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, captureUsageContext, resolveSeat }) {
   // a374: the setup record crosses the usage IPC with its six fields; the notice for a retired AI is added here.
   // a451: an install takes minutes and is one long usage operation. Answer when it has visibly started (the parent copy shows busy) or has ended.
   const started = pending => {
@@ -102,25 +102,11 @@ export function createUsageApi({ homeFront, onboarding, internal, notify, harnes
     }
     if (url.pathname.startsWith('/api/subscription')) {
       if (!subscriptions) return json(response, 503, { error: 'SUBSCRIPTION_NOT_CONFIGURED' })
-      if (request.method === 'GET' && url.pathname === '/api/subscription') {
-        const subscription = await subscriptions.current(await context('subscriptions.current'))
-        // a485: Enforced, the gate is the session's own entitlement (the home part), never the request's claim.
-        const state = homeFront?.stateOf(request.bellteamSession)
-        return json(response, 200, { subscription: state === undefined ? subscription : { ...subscription, entitlementState: state } })
-      }
-      if (request.method === 'POST' && url.pathname === '/api/subscription/verify')
-        return json(response, 200, { subscription: await subscriptions.install((await readJson(request, 32768)).signedTransaction, await context('subscriptions.install')) })
-      if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/checkout')
-        return json(response, 200, await subscriptions.checkout(await context('subscriptions.checkout')))
-      if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/manage')
-        return json(response, 200, await subscriptions.manageStripe(await context('subscriptions.manageStripe')))
-      if (request.method === 'POST' && url.pathname === '/api/subscription/stripe/verify')
-        return json(response, 200, { subscription: await subscriptions.installStripe((await readJson(request, 32768)).stripeSessionId, await context('subscriptions.installStripe')) })
-      // productIdは送られても使わない。商品の確認は運営のWorkerが購読の項目で行う。
-      if (request.method === 'POST' && url.pathname === '/api/subscription/google/verify')
-        return json(response, 200, { subscription: await subscriptions.installGoogle((await readJson(request, 32768)).purchaseToken, await context('subscriptions.installGoogle')) })
+      // a540: the server checks, keeps and overlays nothing about money; the apps check their own store. refresh stays for installed apps (same fixed answer).
+      if (request.method === 'GET' && url.pathname === '/api/subscription')
+        return json(response, 200, { subscription: await subscriptions.current(await context('subscriptions.current')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/refresh')
-        return json(response, 200, { subscription: await subscriptions.refresh({ force: true }, await context('subscriptions.refresh')) })
+        return json(response, 200, { subscription: await subscriptions.refresh({}, await context('subscriptions.refresh')) })
       if (request.method === 'POST' && url.pathname === '/api/subscription/setup-test') {
         if (onboarding && !onboarding.snapshot().complete) return json(response, 409, { error: 'SETUP_GUIDE_REQUIRED', message: '案内役との会話で初期設定を進めてください。' })
         const { botId } = await readJson(request, 4096)
@@ -146,10 +132,9 @@ export function createUsageApi({ homeFront, onboarding, internal, notify, harnes
         if (request.method === 'GET' && url.pathname === '/api/notifications/android') return json(response, 200, await notifications.androidStatus())
         if (request.method === 'POST' && url.pathname === '/api/notifications/android/devices') {
           const body = await readJson(request, 8192)
-          // The proof is the server's own entitled store proof for the operator relay; a client never supplies it.
+          // a540: no proof of payment exists on the server; a client that still sends one is refused as before.
           if (body && typeof body === 'object' && Object.hasOwn(body, 'proof')) throw Object.assign(new Error('PUSH_DEVICE_INVALID'), { code: 'PUSH_DEVICE_INVALID' })
-          const proof = subscriptions?.proof?.() ?? null
-          return json(response, 200, await notifications.androidRegister(proof ? { ...body, proof } : body))
+          return json(response, 200, await notifications.androidRegister(body))
         }
         if (request.method === 'POST' && url.pathname === '/api/notifications/android/unregister') return json(response, 200, await notifications.androidUnregister(await readJson(request, 4096)))
         return json(response, 404, { error: 'NOT_FOUND' })

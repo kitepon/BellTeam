@@ -303,7 +303,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
   // a485: the login-billing home part's body side. Always built when usage exists (an Enforced marker must outlive any configuration);
   // answers 404 on /api/home until an operator is configured and the owner has bound the server.
-  const homeFront = usageAssembly?.home ? createHomeFront({ enabled: Boolean(environment.BELLTEAM_HOME_OPERATOR), markerPath: join(root, 'state/login-enforced'), onTickets: tickets => notifications.setTickets(tickets),
+  const homeFront = usageAssembly?.home ? createHomeFront({ enabled: Boolean(environment.BELLTEAM_HOME_OPERATOR), markerPath: join(root, 'state/login-enforced'),
     call: (name, params) => usageAssembly.home[name.slice('home.'.length)](params) }) : null
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
   // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.

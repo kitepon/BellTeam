@@ -40,7 +40,7 @@ const server = createServer(async (request, response) => {
     if (who === 'unavailable') return send(response, 503, { error: 'SESSION_STORE_UNAVAILABLE' })
     if (request.method === 'GET' && url.pathname === '/api/session') return send(response, 200, { authenticated: who === 'legacy' || Boolean(who.sessionId), authMode: 'local' })
     if (who === 'none') return send(response, 401, { error: 'UNAUTHORIZED' })
-    if (request.method === 'GET' && url.pathname === '/api/me') return send(response, 200, { sessionId: who.sessionId ?? null, entitlementState: front.stateOf(who.sessionId) ?? null })
+    if (request.method === 'GET' && url.pathname === '/api/me') return send(response, 200, { sessionId: who.sessionId ?? null })
     return send(response, 404, { error: 'NOT_FOUND' })
   } catch { return send(response, 500, { error: 'INTERNAL' }) }
 })

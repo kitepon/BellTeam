@@ -16,7 +16,7 @@ const json = (response, status, body, headers = {}) => {
 }
 const unavailable = response => json(response, 503, { error: 'SESSION_STORE_UNAVAILABLE' })
 
-export function createHomeFront({ call, enabled = true, onTickets = null, markerPath, print = line => process.stderr.write(line), now = Date.now, setTimer = setInterval, clearTimer = clearInterval }) {
+export function createHomeFront({ call, enabled = true, markerPath, print = line => process.stderr.write(line), now = Date.now, setTimer = setInterval, clearTimer = clearInterval }) {
   let row = null // the last homeLogin row the child published; null = none yet (Legacy)
   let marker = false // durable: once enforced, never Legacy again
   let loaded = false
@@ -73,21 +73,11 @@ export function createHomeFront({ call, enabled = true, onTickets = null, marker
     try {
       const answer = await call('home.handle', { method: request.method, path: url.pathname.slice(HOME_PREFIX.length), bearer: bearerOf(request.headers), body: Buffer.concat(chunks).toString('utf8') || undefined, peer: peerOf(request) })
       await accept(answer.row)
-      if (answer.status === 200 && /^\/(login|session)\/prove$/u.test(url.pathname.slice(HOME_PREFIX.length))) await pushTickets() // a new session or a rotated ticket
       if (answer.setupNeeded) await showSetupCode().catch(() => {}) // before the answer: the host can read a new code by the time the app asks
       response.writeHead(answer.status, answer.headers)
       response.end(answer.body)
     } catch { if (!response.headersSent) unavailable(response) }
     return true
-  }
-
-  /**
-   * a485: the session tickets reach the notifications module by device-token hash. Sent whole every time (cheap, idempotent): a restarted
-   * notifications child has none until the next call. A failure (an older child refuses the method) only means "not this time".
-   */
-  async function pushTickets() {
-    if (!onTickets) return
-    try { await onTickets((await call('home.pushTickets', {})).tickets) } catch {}
   }
 
   /** The setup code goes to the body's own log (docker logs), where only the host's user reads it; the child never prints. */
@@ -106,7 +96,6 @@ export function createHomeFront({ call, enabled = true, onTickets = null, marker
       const { row: next } = await call('home.sweep', { used: ids, streaming: [...streams.keys()] })
       await accept(next)
       if (row && !row.bound && now() - lastPrint >= SETUP_REPRINT_MS) await showSetupCode()
-      await pushTickets()
     } catch { ids.forEach(id => used.add(id)) }
   }
 
@@ -118,8 +107,6 @@ export function createHomeFront({ call, enabled = true, onTickets = null, marker
       set.add(response); streams.set(sessionId, set)
       response.once('close', () => { set.delete(response); if (!set.size && streams.get(sessionId) === set) streams.delete(sessionId) })
     },
-    /** The entitlement state of a session from the published row; undefined when this server is not enforced. */
-    stateOf: sessionId => sessionId !== undefined && (marker || row?.enforced) ? row?.states?.[sessionId] ?? 'none' : undefined,
     async start(consoleSocketPath) {
       await readMarker()
       if (consoleSocketPath && (enabled || marker)) closeConsole = await this.listenConsole(consoleSocketPath)

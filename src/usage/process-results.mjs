@@ -13,13 +13,13 @@ const timeline = (kind, value) => Array.isArray(value) && value.every(row => exa
   && exact(row.sender, ['id', 'name']) && typeof row.sender.name === 'string' && record(kind === 'secret_request' ? 'secret' : 'question', row[kind]))
 
 // a485: the home part's answers. `row` is the guard's set for the body; it is never a projection row (the body keeps it in memory).
-const homeRow = value => exact(value, ['v', 'bound', 'enforced', 'hashes', 'states']) && value.v === 1 && typeof value.bound === 'boolean' && typeof value.enforced === 'boolean'
-  && object(value.hashes) && object(value.states) && Object.values(value.hashes).every(id => typeof id === 'string') && Object.values(value.states).every(state => ['active', 'none', 'unknown'].includes(state))
+// a540: no entitlement state; an older usage child still sends `states`, which is read and dropped.
+const homeRow = value => object(value) && Object.keys(value).every(key => ['v', 'bound', 'enforced', 'hashes', 'states'].includes(key)) && ['v', 'bound', 'enforced', 'hashes'].every(key => Object.hasOwn(value, key)) && value.v === 1 && typeof value.bound === 'boolean' && typeof value.enforced === 'boolean'
+  && object(value.hashes) && Object.values(value.hashes).every(id => typeof id === 'string')
 const homeWithRow = (value, names) => object(value) && Object.keys(value).every(key => key === 'row' || names.includes(key)) && (!Object.hasOwn(value, 'row') || value.row === undefined || homeRow(value.row))
 function homeResultValid(method, value) {
   if (method === 'home.handle') return homeWithRow(value, ['status', 'headers', 'body', 'setupNeeded']) && Number.isSafeInteger(value.status) && typeof value.body === 'string' && object(value.headers)
   if (method === 'home.sweep' || method === 'home.publish') return homeWithRow(value, [])
-  if (method === 'home.pushTickets') return exact(value, ['tickets']) && object(value.tickets) && Object.entries(value.tickets).every(([hash, ticket]) => /^[a-f0-9]{64}$/u.test(hash) && typeof ticket === 'string' && ticket.length > 0)
   if (method === 'home.setupCode') return exact(value, ['code', 'expiresAt', 'bound']) && typeof value.code === 'string' && typeof value.expiresAt === 'string' && typeof value.bound === 'boolean'
   return object(value) && Object.keys(value).length <= 8 // home.console: a small private answer for the host's user
 }
@@ -60,7 +60,5 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'questions.timeline') return timeline('owner_question', value)
   if (method.startsWith('questions.')) return record('question', value) && (!params.id || value.id === params.id)
   if (method === 'subscriptions.runSetupTest') return exact(value, ['subscription', 'reply']) && record('subscription', value.subscription) && typeof value.reply === 'string' && value.reply.trim().length > 0
-  if (method === 'subscriptions.checkout') return exact(value, ['url', 'sessionId']) && typeof value.url === 'string' && typeof value.sessionId === 'string'
-  if (method === 'subscriptions.manageStripe') return exact(value, ['url']) && typeof value.url === 'string'
   return method.startsWith('subscriptions.') && record('subscription', value)
 }

@@ -176,17 +176,13 @@ Ships apart (module-ipc.md "Records between halves that ship apart"): the body s
 flowchart LR
   Saved["保存済みの発言 / 新規入力依頼"] --> Event["direct・room・secret・question<br/>汎用の知らせを作る"]
   Event --> Publish["登録端末ごとにpublish"]
-  Devices["端末登録<br/>token・環境・server・取引"] --> Publish
-  Publish --> Relay["通知中継<br/>取引と公開payload"]
+  Devices["端末登録<br/>token・環境・server"] --> Publish
+  Publish --> Relay["通知中継<br/>公開payload（証明なし）"]
   Publish --> APNs["APNs直接<br/>署名・接続再利用"]
   Relay --> Result["受付 / エラー / 登録失効"]
   APNs --> Result
   Result --> Diag["通知だけの診断・端末登録更新"]
-  Apple["Apple購入・復元"] --> Verify["Subscriptions<br/>外部検証→結果検証→購入元別に保存→有効な方を採用"]
-  Stripe["Stripe購入画面・復元<br/>二重請求の確認→Checkout作成（開いたまま再利用）→戻りSession ID"] --> Verify
-  Manage["Stripe購読の管理・解約<br/>購読ID→Stripe顧客ポータルのURL"] --> Stripe
-  Google["Google Play購入・復元<br/>Androidが購入トークンを送る（確認済みにするのはサーバーが有効と答えた後）"] --> Verify
-  Verify --> Status["購読状態をAppleへ返す<br/>WebのAI利用を止めない"]
+  Setup["案内の完了・旧動作確認"] --> Status["購読の応答<br/>契約を確かめず何も止めない（a540：課金を確かめるのはアプリだけ）"]
 ```
 
 | 機能 | caller → 関数 | 保存・返却の意味 |
@@ -195,20 +191,12 @@ flowchart LR
 | 返信/入力依頼 | `Messenger/RoomMessenger/SecretRequests/OwnerQuestions` → `direct/room/secret/question` → `publish` | 本文・秘密値を含まない通知。publishは呼出し元へ配達完了を返さずinflightを所有 |
 | 通知結果 | provider.send → `recordFailure` / `unregister` | APNs失効は登録を除く。他は通知種別の診断。通知診断保存失敗も会話配送の再送にはならない |
 | 通知終了 | `configure/close` → inflight待ち→provider.close | providerを変える前に既送信を待つ |
-| 中継 | `NotificationRelayProvider.initialize/send/call` | 環境一覧、signedTransaction、acceptedを検証。30秒timeout、ここで反復再送しない |
+| 中継 | `NotificationRelayProvider.initialize/send/call` | 環境一覧とacceptedを検証。証明・札は付けない（a540）。30秒timeout、ここで反復再送しない |
 | APNs | `APNsProvider.create/send/close` | 環境別署名Promise・接続を共有。idle接続は閉じ、次の送信で作る。15秒request timeout |
-| 購入/復元（Apple） | HTTP verify → `Subscriptions.install/verify/validate/save` | 外部検証のアプリ/環境/期限/状態を検証し、利用者サーバーに保存 |
-| 購入/復元（Stripe） | HTTP stripe/checkout → `Subscriptions.checkout/post`、HTTP stripe/verify → `Subscriptions.installStripe/verify/validate/save` | 運営のWorkerがStripeの購読を照会した結果（`source:stripe`・`subscriptionId`・`isTrial`）を同じ形で検証し、購入元別に保存。Checkoutは作るだけで状態を変えない |
-| 購入/復元（Google Play） | HTTP google/verify（`{purchaseToken, productId}`。`productId`は使わず、商品の確認はWorkerが購読の項目で行い`INVALID_PRODUCT`）→ `Subscriptions.installGoogle/verify/validate/save` | 運営のWorkerがPlay Developer APIの`purchases.subscriptionsv2.get`で購読を照会した結果（`source:google`・`isTrial`。環境は`testPurchase`の有無で`Sandbox`/`Production`）を同じ形で検証し、購入元別に保存。購入トークンだけを`googlePurchaseToken`として保存し、返却・ログに出さない。購入が未確定（`PENDING`）なら`GOOGLE_PURCHASE_PENDING`（409）で保存しない。確認済み（acknowledge）はAndroidアプリが、サーバーが有効と答えた後に行う |
-| 購入証拠の取り出し | `Subscriptions.proof` | 同期・通信なし・ログなし。`status()`が有効な時だけ、その購入元の証拠を一つコピーで返す（google→`{googlePurchaseToken}`、stripe→`{stripeSubscriptionId}`、apple（旧保存形式はsource無し=apple）→`{signedTransaction}`）。未購入・失効・開発者モードは`null`。StripeのSession IDは返さない。Androidの端末登録（`POST /api/notifications/android/devices`）が登録のたびに呼び、運営の中継へそのまま転送する |
-| 二重請求の防止 | HTTP stripe/checkout → `Subscriptions.checkout`（`change`内で`refreshLocked(force)`→`billingSources`→保留Session照会→作成） | 守るもの：同じ人が同じBellTeamの権利に二重に課金されること。購入元のどれかが課金中（`active`・`grace`・`billing_retry`。解約予約中の期間内も含む）ならCheckoutを作らず`SUBSCRIPTION_ALREADY_ACTIVE`（409）。照会できない時は作らず照会のエラーを返す（接続が戻れば再実行でき、自分で抜ける）。作ったCheckout Session IDは`stripePendingSessionId`へ保存し、次の要求では新規作成せず同じSessionが`open`なら同じURLを返し、`complete`なら取り込んで拒否する。`GET /api/subscription`は`canPurchase`（課金中の購入元が無く開発者モードでもない時だけtrue）と`billingSources`（課金中の購入元）を返し、各アプリは`canPurchase:false`の間、購入ボタンを出さない（Apple・Google Playの購入はサーバーが止められないため、この値で止める）。この二つはusage↔本体のIPCの購読の記録では**任意の項目**で、読む側（`usageProjectionRecordValid`）は有る時だけ型を見て、無い記録（古いusageの記録）も受け入れる。本体と部品は別々に配られ、古い本体は知らない項目を断るため、入れ替えの順は本体→usage→web-gateway（a394f。他の項目と同じ規則はcurrent-designの「入れ替えの順」）。項目が無い応答（古いサーバー）を読むクライアントは、`canPurchase`を`state`が`not_purchased`・`expired`・`revoked`のどれかの時だけtrue、`billingSources`を空として扱い、失敗にしない |
-| 購読の管理・解約（Stripe） | HTTP stripe/manage → `Subscriptions.manageStripe/post` → Worker `POST /v1/subscriptions/stripe/portal` | 保存済みの`stripeSubscriptionId`を運営のWorkerへ送り、Workerは購読の価格を確かめてStripeの顧客ポータルのURLを作り`{url}`を返す。利用者はそこで解約・再開・支払い方法変更・請求書の確認をする。メールは使わない。解約後もStripe側の期間終了まで`entitled`は続き、反映は次の照会。Stripeの購読が無ければ`NO_STRIPE_SUBSCRIPTION`（409）。URLを返すだけで状態は変えない。Appleの購読の解約はApple、Google Playの購読の解約はGoogle Playで行う |
-| 購入元の統合 | `Subscriptions.refresh/combine` | Apple・Stripe・Google Playそれぞれの結果から有効な方（同じなら期限が遅い方）を`status()`へ。`billingSources`は購入元に依らず同じ規則（`active`・`grace`・`billing_retry`）なので、Google Playの課金中もStripeのCheckoutを止め、`canPurchase:false`を返す |
-| サーバー自身の契約の状態（a486c） | `Subscriptions.status().entitlementState` → 購読の投影 → `GET /api/subscription` | `active`（契約が生きている、または開発者モード）/ `none`（サーバーが自分のパスを持ち、運営が契約なしと答えた。ライブラリを組み込んでから）/ `unknown`（まだ決まっていない）。ネイティブのアプリ（Apple・Windows・Linux・Android）はログイン後にこれを読み、`none`のときだけ「このアプリは購読が必要です。無料で使うならブラウザから」を出す。`unknown`や項目なし（古い本体）では出さない。Web版は縛らない。アプリごとの購入の関門は無い。任意の項目で、古い部品の記録も受け入れる |
-| 状態/再確認 | HTTP GET/refresh → `current/refresh/status` | 保存エラーや期限を反映。自動refreshは保存エラー時に進めず、明示forceで再確認。`canUseAI`はtrue |
+| 購読の応答（a540） | HTTP GET /api/subscription と POST /api/subscription/refresh（取り付け済みアプリ向けの同じ応答） → `Subscriptions.current/status` | 契約を確かめない一定の形（`entitlementState:active`・`canUseAI:true`・`canPurchase:false`・`accessMode:developer`）。購入・復元・Stripe・Google・購読の管理の道筋は無い。サーバーは課金の状態を持たず、何も止めない |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
-運営のWorker（services/subscriptions。a485以降はログイン・課金の共通ライブラリ0.10.0のサーバー部分）はこの本体図の境界外。Workerは`/auth/v1/*`（ライブラリの通信契約1.20。サインイン、Webサインイン、受け渡し、証明`prove/*`、札`ticket/check`）だけを持ち、保存するのは使い捨てのnonce・枠・Webログイン記録・証明コード・拒否したパスID・notBeforeだけ（期限付き、ライブラリのDurable Object）。Apple・Googleの鍵とkKey・パス鍵は運営Workerのsecretだけに置く。通知中継もこの本体図の外で、本体が渡す札を`ticket/check`で確かめて答えだけを読む（詳細は[Worker README](../../../../services/subscriptions/README.md)）。受領書の確認・Stripeは無くなった。 BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+運営のWorker（services/subscriptions。a485以降はログイン・課金の共通ライブラリ0.10.0のサーバー部分）はこの本体図の境界外（a540以降、本体はWorkerへ札も証明も送らず、契約を問わない）。Workerは`/auth/v1/*`（ライブラリの通信契約1.20。サインイン、Webサインイン、受け渡し、証明`prove/*`、札`ticket/check`）だけを持ち、保存するのは使い捨てのnonce・枠・Webログイン記録・証明コード・拒否したパスID・notBeforeだけ（期限付き、ライブラリのDurable Object）。Apple・Googleの鍵とkKey・パス鍵は運営Workerのsecretだけに置く。通知中継もこの本体図の外で、本体が渡す札を`ticket/check`で確かめて答えだけを読む（詳細は[Worker README](../../../../services/subscriptions/README.md)）。受領書の確認・Stripeは無くなった。 BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
 
 ## サーバー上のアプリのセッション（a485）
 
@@ -221,14 +209,13 @@ flowchart TD
   Body -->|"home.handle{method,path,bearer,body,peer}"| Child["usage child<br/>createHomeHandler + createHomePart"]
   Child -->|"prove/take, ticket/check（匿名）"| Worker["Operator Worker"]
   Child -->|"shared/login-home.json（原子的置換）"| File[("login-home.json")]
-  Child -->|"publish: homeLogin{bound,enforced,hashes,states}"| Row["body projection"]
+  Child -->|"publish: homeLogin{bound,enforced,hashes}"| Row["body projection"]
   Row --> Guard["authorize: Legacyは従来どおり<br/>Enforcedはguard(set, headers)"]
   Row -->|"first enforced"| Marker[("state/login-enforced")]
   Timer["body timer 60 s"] -->|"home.sweep{used, streaming}"| Child
   Timer -->|"unbound: home.setupCode"| Print["body stderr（docker logs）"]
   Console["bellteam-console（host）"] -->|"unix socket 0600"| Body
   Body -->|"home.console{op}"| Child
-  Row -->|"states[sessionId]"| Sub["GET /api/subscription の entitlementState 上書き"]
   Row -->|"集合から消えたsession"| SSE["そのsessionの/api/eventsを閉じる"]
 ```
 
@@ -237,7 +224,6 @@ flowchart TD
 | 先に保存、後で公開 | 子はlogin-home.jsonを置換してから`homeLogin`行をpublishする。保存失敗は503 `SESSION_STORE_UNAVAILABLE`で、集合は変わらない |
 | bodyが先、usageが後 | 行は任意項目。行が無い子（旧usage）はLegacyのまま。enforced markerがあるのに行が無い・未読込は503で、開かない |
 | 判定不能は終わりではない | operatorに届かない間は最後の権利を保つ（上限なし）。確定した401だけがsessionを終わらせる。tokenを消すのもアプリ側の401だけ |
-| 通知のチケット（a485） | 子は自分のセッションの`{ticketFor: ticket}`を返し（`home.pushTickets`）、bodyはそれを丸ごと通知の子へ送る（proof後と毎tick）。子はメモリだけに持ち、送信時にdeviceのtokenのhashで結ぶ。deviceファイルには書かない。旧childは拒否して従来の形のまま |
 | 子は時計もstderrも持たない | sweep・setup code・consoleはbody駆動のsystem呼出。usage交換でメモリのcodeは消え、次のtickで新しいsetup codeを出す |
 
 ## 確認範囲

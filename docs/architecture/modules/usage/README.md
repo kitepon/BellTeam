@@ -58,7 +58,7 @@ flowchart TD
 | notify | Messenger/RoomMessengerのdirect/roomとカード作成のsecret/question callback、notifications端末HTTP | 本文/秘密値なしの通知。通知失敗を会話保存失敗へ変換しない。端末表示完了は保証しない |
 | 質問/秘密 | ask_owner/request_secret/get_secret_request/cancel_secret_request/use_secretとowner-questions/secret-requests HTTP | 作成は内部、提出/回答は公開。Bot取下げは本人のpending/submitted依頼（submittedは値を消す）。秘密はsubmitted + notification failedを返し、質問はanswered保存後の会話受付例外をそのまま共通HTTPエラー変換へ渡す |
 | home login | Apple/Windows/Linux/Androidの`/api/home/*`（nonce・prove・console・session・sessions・addresses）。bodyがpeerとbearerだけを`home.handle`へ渡す。hostの`bellteam-console` → body所有のunix socket → `home.console` | ライブラリのhome wire v1そのまま（`{error: CODE}`、判定不能は503でtokenを消さない）。Enforcedではbodyのguardが`Authorization: Bearer`を判定し、Cloudflare JWTはもう持ち主の証明にならない。別の端末の持ち主・パスは持たない |
-| 購読 | Appleのsubscription GET/verify/refresh/setup-test、Stripeのstripe/checkout・stripe/verify・stripe/manage（購読の解約・管理のURL） | 外部検証/保存結果、期限と購読状態（`source`は購入元、`isTrial`は無料期間中）。動作確認はexecution.turnを使用。WebのAI利用可否を購読で止めない |
+| 購読（a540） | subscription GET/refresh（取り付け済みアプリ向けの一定の応答）、setup-test | 契約を確かめず何も止めない（課金を確かめるのはアプリだけ）。購入・復元・Stripe・Google・購読の管理の道筋は無い。動作確認はexecution.turnを使用 |
 
 HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・prefix判定・method拒否・本文byte上限・秘密値のHTTPS/Content-Type/cross-site確認を保持する。共通HTTPの認証前処理、制御系の台帳refresh前の早期返却、秘密専用エラーと一般500の変換順は変更しない。
 
@@ -73,7 +73,7 @@ HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・pref
 | OwnerQuestions | state/owner-questions/*.json、busy、表示索引。通知例外でも回答済み状態は残る |
 | PushNotifications | state/push-devices.json、provider/inflight/設定エラー。APNs設定を読み、鍵ごとに`.p8`ファイルか1Password参照から得る（[notification-process](notification-process.md#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故)） |
 | HomeLogin（a485） | shared/login-home.json（0600・原子的置換・子だけが書く）：持ち主（アカウントkまたはconsole）・enforced・登録済み接続先・nonce秘密・セッション（tokenのhash・ticket・権利・最終使用）。bodyのstate/login-enforcedは一度書いたら消さないmarker。setup code/console codeはメモリだけ |
-| Subscriptions | 通常shared/subscription.json、seatRuntimeではstate/subscription.json。検証結果/期限/保存失敗 |
+| Subscriptions | 通常shared/subscription.json、seatRuntimeではstate/subscription.json。案内の完了（setupComplete・setup）だけ。課金の状態は持たない（a540）。旧形式のキーは読み戻し用に空で残す |
 
 秘密値と依頼状態は単一transactionではない。値ファイル作成後の状態保存失敗は「値が無い」と判断しない。保存先・永続形式・再送方針は今回変更しない。
 
