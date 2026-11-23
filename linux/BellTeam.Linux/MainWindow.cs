@@ -92,6 +92,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly TextBlock actionError = new() { TextAlignment = TextAlignment.Center, Foreground = BellTheme.Red, TextWrapping = TextWrapping.Wrap, FontSize = 10 };
     private readonly Button reconnect, changeServer;
     private readonly Border startupHost = new() { IsVisible = false };
+    private readonly Grid deletedLayer = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false };
     private readonly Grid sheet = new() { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false, Focusable = true };
     private readonly Border sheetFrame = new();
     private readonly TextBlock sheetTitle = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink };
@@ -183,8 +184,8 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         sheetFrame.Child = new DockPanel { Children = { header, line, sheetHost } };
         sheet.Children.Add(sheetFrame);
         var root = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Background = BellTheme.Canvas };
-        Grid.SetRowSpan(startupHost, 2); Grid.SetRowSpan(sheet, 2); Grid.SetRowSpan(galleryHost, 2); Grid.SetRowSpan(cropSheet, 2);
-        root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(cropSheet); root.Children.Add(galleryHost);
+        Grid.SetRowSpan(startupHost, 2); Grid.SetRowSpan(sheet, 2); Grid.SetRowSpan(galleryHost, 2); Grid.SetRowSpan(cropSheet, 2); Grid.SetRowSpan(deletedLayer, 2);
+        root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(cropSheet); root.Children.Add(galleryHost); root.Children.Add(deletedLayer);
         return root;
     }
 
