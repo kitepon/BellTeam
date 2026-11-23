@@ -356,3 +356,10 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - `--render-page settings-billing`（本番）: 終了コード0。「BellTeamの購読」「購読はまだありません。」「購読しているスマホで確認する」「QRを出す（Google）」とラピの表の文が出て、サインアウト・アカウントを削除・購入の入口なしは変わらず。「このアプリについて」は0.7.1。
 - 受け入れるaudience: BellTeamのGoogleクライアントID 7つとAppleのアプリIDの計8つ（`LocalFormTests`が固定）。Appleの根はライブラリの組み込み。
 - 確認できていない（実機が要る）: Googleのサインイン→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換。
+
+## Windows 0.7.2 の導入（a540：ライブラリ0.20.3、2026-11-23 21:04 JST、アニス）
+
+- 導入元: main `d8147bbb`（#2448）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.7.2+d8147bbb4f8ad1f5a8e0f7ea36f89c1ee4080b5e`。ライブラリは Kitepon.LoginBilling.Desktop 0.20.3（sha256 `d62de5e3a9233157152796a8083ba11cad5801187588101daccdaa70133bf5d3`、ミント受け入れ済み。契約1.40：サインインが残っていない端末では`PaidUntil()`は「なし」）。導入した`Kitepon.LoginBilling.Desktop.dll`は0.20.3、`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（メタデータ。値は表示していない）。0.7.1の導入記録の上に、この版で入れ直した。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- `--render-page settings-billing`（本番）: 終了コード0。ラピの表の文（「BellTeamの購読」「購読はまだありません。」「購読しているスマホで確認する」「QRを出す（Google）」）が出て、「このアプリについて」は0.7.2。
+- 確認できていない（実機が要る）: Googleのサインイン→QR→購読しているスマホの返事→「いつまで」の流れ全体、Windowsのファイアウォールの最初の確認、シークレット付きのGoogleトークン交換。
