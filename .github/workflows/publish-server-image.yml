@@ -277,7 +277,7 @@ jobs:
           assert.ok(settings.settings.every(setting => setting.enabled === false));
           const { subscription } = await (await fetch(base + "/api/subscription")).json();
           assert.equal(subscription.entitled, false);
-          assert.equal(subscription.accessMode, "subscription");
+          assert.equal(subscription.accessMode, "developer"); // a540-server (#2431): the one fixed not-gated answer
           assert.equal(subscription.canUseAI, true);
           // a487: the browser UI has ended; the public gateway answers every page with one notice.
           const root = await fetch(base);
