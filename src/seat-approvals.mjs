@@ -4,7 +4,7 @@ import { dirname } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 
 // seat-approval-to-abx (execution/seat-approvals.md): a seat blocked on a tool-approval prompt reaches the Owner, as an Approval Box card
-// when the hosted daemon is paired, and always as an entry inside BellTeam. One record per prompt occurrence; every front answers through
+// when its own connector connection has a token (Delta's contract #2531), and always as an entry inside BellTeam. One record per prompt occurrence; every front answers through
 // the same Aiterm respond with the digest stored here, so the first answer wins.
 export const SEAT_APPROVALS_SCHEMA = 'bellteam.seat-approvals.v1'
 const HARNESSES = new Set(['claude', 'codex'])
@@ -36,8 +36,8 @@ const view = (record, name) => ({ id: record.id, botId: record.botId, botName: n
   reason: record.facts.reason, since: new Date(record.firstSeen).toISOString(), choices: CHOICES, card: record.decisionId ? 'filed' : 'none' })
 
 // bots: the Bot Map; transport: screenApproval + currentWork; machineStream.pendingApprovals(botId); decisions: createApprovalDecisions();
-// daemon: the hosted daemon ({status()}); push.seatApproval(item); tick every intervalMs once start()ed.
-export function createSeatApprovals({ path, bots, transport, machineStream = null, decisions = null, daemon = null, push = null, now = Date.now, intervalMs = 10_000 }) {
+// push.seatApproval(item); tick every intervalMs once start()ed. decisions = createApprovalDecisions(): it picks the connector token path, or the daemon once paired.
+export function createSeatApprovals({ path, bots, transport, machineStream = null, decisions = null, push = null, now = Date.now, intervalMs = 10_000 }) {
   const events = new EventEmitter()
   let records = null, queue = Promise.resolve(), timer = null, ticking = null
   const serial = work => { const next = queue.then(work); queue = next.catch(() => {}); return next }
@@ -58,7 +58,6 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
     await writeAtomic(path, { schema: SEAT_APPROVALS_SCHEMA, records })
   }
   const changed = botId => events.emit('change', { all: false, topics: ['seat_approvals'], botIds: [botId], roomIds: [] })
-  const paired = async () => !!daemon && await Promise.resolve(daemon.status()).then(status => status?.daemon?.mode === 'pc', () => false)
 
   // The card is withdrawn when the prompt ended another way; an answered card answers 4xx, which is not a problem.
   const withdraw = (record, reason) => record.decisionId && decisions
@@ -89,13 +88,13 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
     records.push(record)
     await save()
     changed(bot.id)
-    // No card (daemon unpaired or file() failed): the Owner is told by a push; with a card the card brings its own.
+    // No card (no connector secret yet, or file() failed): the Owner is told by a push; with a card the card brings its own.
     if (!await fileCard(record, bot)) push?.seatApproval?.({ id: record.id, botId: bot.id, tool: record.facts.tool })
   }
 
   async function fileCard(record, bot) {
     if (record.decisionId) return true
-    if (!decisions || !await paired()) return false
+    if (!decisions) return false
     try {
       const filed = await decisions.file({ ...cardText(record, bot.name ?? record.botId), options: OPTIONS, requester: bot.name ?? record.botId, session_label: labelOf(record) })
       record.decisionId = filed.decisionId

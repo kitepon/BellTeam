@@ -7,7 +7,7 @@ import { createSeatApprovals, maskSecrets } from '../src/seat-approvals.mjs'
 import { createSeatApprovalsApi } from '../src/http-seat-approvals-api.mjs'
 
 const digest = char => `sha256:${char.repeat(64)}`
-async function fixture(t, { paired = true, harness = 'claude', fileFails = false } = {}) {
+async function fixture(t, { harness = 'claude', fileFails = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'seat-approvals-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const bot = { id: 'bot-aaaa1111', name: 'テスト', harness }
@@ -30,7 +30,7 @@ async function fixture(t, { paired = true, harness = 'claude', fileFails = false
   }
   const pushes = []
   const make = () => createSeatApprovals({ path: join(dir, 'seat-approvals.json'), bots, transport, decisions,
-    daemon: { status: () => ({ daemon: { mode: paired ? 'pc' : 'off' } }) }, push: { seatApproval: item => pushes.push(item) },
+    push: { seatApproval: item => pushes.push(item) },
     machineStream: { pendingApprovals: () => seat.pending === false ? [] : [{ id: 'r1', tool: 'Bash', command: 'rm -rf /tmp/x TOKEN=abc123456789', reason: 'Dangerous rm operation on working directory or its ancestor: /tmp/x' }] }, now: () => 1_700_000_000_000 })
   return { seatApprovals: make(), make, seat, cards, pushes, bot }
 }
@@ -61,8 +61,8 @@ test('a blocked seat opens one entry and one card; the same prompt again is the 
   assert.equal(pushes.length, 0)
 })
 
-test('an unpaired daemon or a failed file() leaves the in-app entry and sends one push', async t => {
-  for (const options of [{ paired: false }, { fileFails: true }]) {
+test('a failed file() (no connector secret yet, or the server down) leaves the in-app entry and sends one push', async t => {
+  for (const options of [{ fileFails: true }]) {
     const { seatApprovals, seat, cards, pushes } = await fixture(t, options)
     seat.inspect = prompt()
     await seatApprovals.tick(); await seatApprovals.tick()
