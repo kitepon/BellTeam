@@ -410,3 +410,15 @@ test('a rate_limit row has a plain one-line label and keeps its info JSON in tex
   assert.equal(row.message, 'rate limit: allowed')
   assert.equal(row.machine_event.text, JSON.stringify({ status: 'allowed', resetsAt: 1790000000 }))
 })
+
+test('seat-approvals: pendingApprovals lists the open tool approvals oldest first with the command and Claude Code\'s own reason; a question is not one', async t => {
+  const { ms } = await service(t)
+  const request = (id, input, extra = {}) => J({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: 'Bash', input, ...extra } })
+  await ms.ingest(env([request('a1', { command: 'rm -rf ./x' }, { decision_reason: 'Dangerous rm operation on working directory or its ancestor: /x', classifier_approvable: false }),
+    ask('q1', Q), request('a2', { command: 'ls' })], null, 'L1:3', { state: 'blocked', reason: 'tool_approval',
+      pending: ['a1', 'q1', 'a2'].map(request_id => ({ request_id, subtype: 'can_use_tool', tool_name: request_id === 'q1' ? 'AskUserQuestion' : 'Bash' })) }))
+  assert.deepEqual(ms.pendingApprovals('bot-d'), [
+    { id: 'a1', tool: 'Bash', command: 'rm -rf ./x', reason: 'Dangerous rm operation on working directory or its ancestor: /x' },
+    { id: 'a2', tool: 'Bash', command: 'ls', reason: null }])
+  assert.deepEqual(ms.pendingApprovals('bot-unknown'), [])
+})

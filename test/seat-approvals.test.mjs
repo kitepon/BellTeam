@@ -31,7 +31,7 @@ async function fixture(t, { paired = true, harness = 'claude', fileFails = false
   const pushes = []
   const make = () => createSeatApprovals({ path: join(dir, 'seat-approvals.json'), bots, transport, decisions,
     daemon: { status: () => ({ daemon: { mode: paired ? 'pc' : 'off' } }) }, push: { seatApproval: item => pushes.push(item) },
-    machineStream: { pendingApprovals: () => [{ id: 'r1', tool: 'Bash', command: 'rm -rf /tmp/x TOKEN=abc123456789' }] }, now: () => 1_700_000_000_000 })
+    machineStream: { pendingApprovals: () => [{ id: 'r1', tool: 'Bash', command: 'rm -rf /tmp/x TOKEN=abc123456789', reason: 'Dangerous rm operation on working directory or its ancestor: /tmp/x' }] }, now: () => 1_700_000_000_000 })
   return { seatApprovals: make(), make, seat, cards, pushes, bot }
 }
 const prompt = (char = 'a') => ({ status: 'approval_required', promptDigest: digest(char), choices: [{ decision: 'approve_once', label: 'Yes' }, { decision: 'deny', label: 'No' }] })
@@ -53,6 +53,8 @@ test('a blocked seat opens one entry and one card; the same prompt again is the 
   assert.deepEqual({ botName: entry.botName, tool: entry.tool, card: entry.card, choices: entry.choices.map(c => c.decision) },
     { botName: 'テスト', tool: 'Bash', card: 'filed', choices: ['approve_once', 'deny'] })
   assert.ok(entry.command.includes('TOKEN=***') && !entry.command.includes('abc123456789'))
+  assert.match(entry.reason, /Claude Code の理由: Dangerous rm operation on working directory or its ancestor: \/tmp\/x/u)
+  assert.match(cards.filed[0].context, /Dangerous rm operation/u)
   assert.equal(cards.filed.length, 1)
   assert.match(cards.filed[0].session_label, /^Seat bot-aaaa1111 aaaaaaaaaaaaaaaa \d+$/u)
   assert.deepEqual(cards.filed[0].options.map(o => o.id), ['approve_once', 'deny'])
