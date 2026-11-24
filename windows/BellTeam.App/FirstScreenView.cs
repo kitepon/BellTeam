@@ -54,7 +54,7 @@ internal sealed class FirstScreenView : StackPanel
         valid.Children.Add(new Spinner { Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
         valid.Children.Add(Text(LocalFormText.ValidUntil(expiry), 14, Muted)); Children.Add(valid);
         var guidance = Text(LocalFormText.Qr, 15, Ink, FontWeights.SemiBold, new Thickness(0, 14, 0, 0)); System.Windows.Automation.AutomationProperties.SetAutomationId(guidance, "first-screen-qr-guidance"); Children.Add(guidance);
-        Children.Add(Text(LocalFormText.Firewall, 12, Muted, null, new Thickness(0, 8, 0, 0)));
+        foreach (var note in NetworkNotes.Lines()) Children.Add(Text(note, 12, Muted, null, new Thickness(0, 8, 0, 0)));
         var cancel = Button(LocalFormText.Cancel, Fill, Ink, account.CancelBrowser, "first-screen-cancel"); cancel.HorizontalAlignment = HorizontalAlignment.Center; Children.Add(cancel);
     }
 

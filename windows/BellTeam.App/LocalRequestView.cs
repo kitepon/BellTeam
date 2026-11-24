@@ -36,7 +36,7 @@ internal sealed class LocalRequestView : StackPanel
         var guidance = Text(LocalFormText.Qr, 15, Ink, FontWeights.SemiBold, new Thickness(18, 0, 0, 0)); guidance.VerticalAlignment = VerticalAlignment.Center; guidance.MaxWidth = 260;
         System.Windows.Automation.AutomationProperties.SetAutomationId(guidance, "local-request-guidance");
         Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 10), Children = { qr, guidance } });
-        Children.Add(Text(LocalFormText.Firewall, 12, Muted));
+        foreach (var note in NetworkNotes.Lines()) Children.Add(Text(note, 12, Muted, null, new Thickness(0, 0, 0, 4)));
         Children.Add(Text(LocalFormText.WaitingUntil(expiry), 13, Muted, null, new Thickness(0, 8, 0, 0)));
         Children.Add(Button(LocalFormText.Cancel, cancel));
     }
