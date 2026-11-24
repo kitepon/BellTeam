@@ -16,9 +16,9 @@ Names are the Swift form's; Kotlin and .NET use the same names in their own case
 
 | Member | Meaning |
 | --- | --- |
-| `joinState` (observable) | `notJoined`, `waitingForParent(qrLink, expiresAt)`, `joined`, `failed(code)` |
-| `requestJoin()` | `notJoined` or `failed` → `waitingForParent`. The library's makeRequest with no hand-over; it signs in first (Apple or Google, on this device, the same account as the parent) if the child form has no kept sign-in |
-| `cancelJoin()` | `waitingForParent` → `notJoined` |
+| `joinState` (observable) | `notJoined(reason?)`, `signingIn(provider)`, `waitingForParent(qrLink, expiresAt)`, `joined`, `failed(code)` (spec: client-component.md 0.5 section 9, approval-box-apps #155, 695634b) |
+| `requestJoin(provider)` | `provider` is `apple` or `google`. `notJoined` or `failed` → `signingIn(provider)` while the library's sign-in (sheet or browser) runs, then `waitingForParent`. The library's makeRequest(provider) with no hand-over; the sign-in is on this device, the same account as the parent |
+| `cancelJoin()` | works in `signingIn` and in `waitingForParent`: cancels the running sign-in or closes the request, then `notJoined` |
 | `leave()` | `joined` → `notJoined`. It removes the child from the account on the server (the library's `keys/leave` deletes this device's keyhole, so the device disappears wherever the parent's apps list devices) and clears the child form's kept sign-in and key locally. The host's own BellTeam login is untouched |
 | after `joined` | the existing `start()`, `state` and `decisions` work as before, on signed requests |
 
@@ -26,7 +26,9 @@ A parent's refusal, an expiry and any library refusal end the request: `failed(c
 
 Releases (all on login-billing 0.22.4, each with a sha256; Nayuta tells Tronie the result): Swift `client-v0.5.0` (Red Shoes, the first published Swift form), Kotlin `client-kotlin-v0.5.0` and .NET `client-dotnet-v0.5.0` (Indivilia; BellTeam consumes Swift and .NET).
 
-Still open for Nayuta: what a child that the parent removed while it is `joined` reads (expected: `signedOut` at the next signed read, then `notJoined`); whether `requestJoin` takes the provider the person chose, and whether the browser step is observable (the first screen needs to tell "signing in" from "not joined"). Open for Mint: the Approval Box wording of the QR text, and a sentence for `other_account` (until then it reads as the generic 「つなげませんでした…」).
+A child removed on the server (the parent removed it in 接続): a signed call answers 401 `not_signed_in`, `joinState` becomes `notJoined(removed)` and `state` reads `signedOut`; the child form's kept sign-in and key are cleared, so `requestJoin(provider)` starts clean.
+
+Strings: the library owns no guidance texts (Owner 2026-11-24; login-billing contract 11.12 is a guideline). BellTeam owns every string on this page and writes it by the guideline: the QR text is the guideline's, word for word; the `other_account` sentence above is BellTeam's, in its own screen style, carrying the guideline's meaning only.
 
 ## The port
 
@@ -39,12 +41,13 @@ Where: the 決裁箱 window itself. When the client is not joined it is the firs
 | State | Shown (Japanese, plain, no ids or codes) | Action |
 | --- | --- | --- |
 | `notJoined` (first start, after 「やめる」, after an expiry, after `leave`) | title 「決裁箱につなぎます」; 「この端末を、あなたの決裁箱に子の端末として追加します。」; then the sign-in exactly as the first-screen approval view draws it (the same words and buttons: `LocalFormText.FirstSignIn`, `SignInText.Apple`, `SignInText.Google`; Core in Anis's block, Apple in Rapi's `LocalAccount`) | the Apple or Google button (`requestJoin`) |
-| `notJoined` while the browser sign-in runs (the host has called `requestJoin`) | the first screen's line (`SignInText.Waiting`) | 「やめる」 (`cancelJoin`) |
-| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; the Owner's QR text beside the QR, the same text the first screen uses (`LocalFormText.Qr` / `LocalAccount.qrGuidance`: 「親となる端末（…）のカメラでQRコードを読んでください。」), in the wording Mint's guideline gives for Approval Box (Mint states the final string; until then the first screen's string, which still says 課金操作) | 「やめる」 (`cancelJoin`) |
-| `failed(code)` (a parent's refusal or a library refusal) | 「つなげませんでした。もう一度つないでください。」 (the library's code never shown) | 「もう一度つなぐ」 |
+| `signingIn(provider)` | the first screen's line (`SignInText.Waiting`) | 「やめる」 (`cancelJoin`) |
+| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; beside the QR, the guideline's QR text word for word, the Owner's own and the one the first screen uses (`LocalFormText.Qr` / `LocalAccount.qrGuidance`): 「親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。」 It fits here too: the parent is his iPhone, the device that holds the Approval Box purchase. Never replaced by a text of our own | 「やめる」 (`cancelJoin`) |
+| `failed(code)` with `other_account` (this device and the parent are signed in to different accounts) | 「この端末と親の端末で、サインインしているアカウントが違います。親の端末と同じアカウント（AppleかGoogle）でこの端末にサインインして、もう一度QRコードを出してください。」 (no server, no ID) | 「もう一度つなぐ」 |
+| `failed(code)` (any other parent's refusal or library refusal) | 「つなげませんでした。もう一度つないでください。」 (the library's code never shown) | 「もう一度つなぐ」 |
 | `joined`, `state` `joining` | the last view dimmed or 「つないでいます…」 | none |
 | `joined`, `state` `live` | the normal 決裁箱; the block line 「決裁箱につながっています」 | 「つなぎを外す」 (two steps: 外す / やめる; `leave`) |
-| `joined`, a `/v1` 401 (the parent removed this device) | 「決裁箱で、この端末のつなぎが外されました。」 then the `notJoined` screen | 「もう一度つなぐ」 |
+| `notJoined(removed)` (the parent removed this device) | 「決裁箱で、この端末のつなぎが外されました。」 above the `notJoined` screen | the Apple or Google button |
 | `notEntitled` | 「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」 (no price, no purchase button) | 「確かめ直す」 |
 | `reconnecting` | the last view dimmed, one line 「つなぎ直しています」 | 「今すぐ試す」 |
 | `updateRequired` | 「この版では、決裁箱をまだ使えません。アプリを更新してください。」 | 「今すぐ試す」 |
@@ -54,13 +57,17 @@ The child never shows 「ほかの端末を追加する」, a purchase or a plan
 ```mermaid
 stateDiagram-v2
   [*] --> notJoined: first start, no credential on this device
-  notJoined --> waitingForParent: 決裁箱につなぐ (requestJoin)
-  failed --> waitingForParent: もう一度つなぐ
+  notJoined --> signingIn: Apple | Google (requestJoin(provider))
+  failed --> signingIn: Apple | Google
+  signingIn --> waitingForParent: signed in, request made
+  signingIn --> notJoined: やめる (cancelJoin) | sign-in cancelled
+  signingIn --> failed: the library refused
   waitingForParent --> notJoined: やめる (cancelJoin) | expiry
   waitingForParent --> failed: the parent refused | a library refusal
   waitingForParent --> joined: the parent allowed it
   joined --> joined: live / reconnecting / joining (state of the component)
-  joined --> notJoined: つなぎを外す (leave) | a /v1 401 (removed by the parent)
+  joined --> notJoined: つなぎを外す (leave)
+  joined --> notJoined: notJoined(removed): a signed call answers 401 not_signed_in
   joined --> notEntitled: 402
   notEntitled --> joined: 確かめ直す
   joined --> updateRequired: /v1 closed and this build has no child join
